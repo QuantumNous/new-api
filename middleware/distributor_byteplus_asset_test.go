@@ -486,6 +486,76 @@ func TestBytePlusAssetPinnedChannelOverridesRandomSelectionAndStoresRewrite(t *t
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 }
 
+func TestTokenSpaceRealPersonAssetRoutesThroughOwningDoubaoChannel(t *testing.T) {
+	testCases := []struct {
+		name            string
+		specificChannel string
+		generalizedRow  bool
+	}{
+		{name: "automatic"},
+		{name: "specific channel", specificChannel: "106"},
+		{name: "generalized row without binding", generalizedRow: true},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
+			defer restoreDB()
+			originalStrict := service.AssetModelCoverageStrictEnabled
+			service.AssetModelCoverageStrictEnabled = false
+			defer func() { service.AssetModelCoverageStrictEnabled = originalStrict }()
+
+			priority := int64(1)
+			weight := uint(1)
+			channel := middlewareBytePlusAssetChannel(106, constant.ChannelTypeDoubaoVideo, "default", common.ChannelStatusEnabled, priority, weight)
+			channel.Key = "tokenspace-key"
+			channel.OtherSettings = `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://api.tokenspace.example","group_id":"group-real-person"}}`
+			require.NoError(t, model.DB.Create(&channel).Error)
+			insertMiddlewareAbility(t, channel.Id, "default", "seedance-2.0", true, priority, weight)
+
+			profile := model.BytePlusRealPersonProfile{
+				PublicId:    "rph_tokenspace_real_person",
+				UserId:      7,
+				Name:        "verified person",
+				ChannelId:   channel.Id,
+				Status:      model.BytePlusRealPersonProfileStatusActive,
+				CreatedTime: time.Now().Unix(),
+				UpdatedTime: time.Now().Unix(),
+			}
+			require.NoError(t, model.DB.Create(&profile).Error)
+			publicID := "ast_1234567890abcdefABCDEF1234567890"
+			if testCase.generalizedRow {
+				insertMiddlewareGeneralizedAsset(t, 7, publicID, "Image", model.AssetSourceStatusAvailable, time.Now().Add(time.Hour).Unix())
+			}
+			require.NoError(t, model.DB.Create(&model.BytePlusAsset{
+				PublicId:            publicID,
+				UserId:              7,
+				RealPersonProfileId: &profile.Id,
+				ChannelId:           channel.Id,
+				UpstreamAssetId:     "tokenspace-upstream-person",
+				AssetType:           "Image",
+				Status:              model.BytePlusAssetStatusActive,
+			}).Error)
+			model.InitChannelCache()
+
+			router := newBytePlusAssetDistributorRouter(func(c *gin.Context) {
+				require.Equal(t, channel.Id, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+				rewriteMap, ok := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+				require.True(t, ok)
+				require.Equal(t, "asset://tokenspace-upstream-person", rewriteMap["asset://"+publicID])
+				c.Status(http.StatusOK)
+			})
+			body := fmt.Sprintf(`{
+				"model":"seedance-2.0",
+				"content":[{"type":"image_url","image_url":{"url":"asset://%s"},"role":"reference_image"}]
+			}`, publicID)
+
+			recorder := performBytePlusAssetDistributorRequest(router, testCase.specificChannel, body)
+
+			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+		})
+	}
+}
+
 func TestBytePlusAssetSpecificChannelMustMatchPinnedChannel(t *testing.T) {
 	restoreDB := useMiddlewareBytePlusAssetDBForTest(t)
 	defer restoreDB()

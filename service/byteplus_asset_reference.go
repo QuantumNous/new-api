@@ -17,8 +17,9 @@ import (
 var bytePlusAssetURIPattern = regexp.MustCompile(`^asset://(ast_[A-Za-z0-9]{32})$`)
 
 type BytePlusAssetReferenceResolution struct {
-	PinnedChannelID int
-	RewriteMap      map[string]string
+	PinnedChannelID        int
+	RewriteMap             map[string]string
+	HasRealPersonReference bool
 }
 
 type bytePlusAssetReference struct {
@@ -67,8 +68,9 @@ func ResolveBytePlusAssetReferences(c *gin.Context, userID int, req *dto.Seedanc
 		return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset channel unavailable"), types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	}
 	resolution := BytePlusAssetReferenceResolution{
-		PinnedChannelID: pinnedChannelID,
-		RewriteMap:      rewriteMap,
+		PinnedChannelID:        pinnedChannelID,
+		RewriteMap:             rewriteMap,
+		HasRealPersonReference: legacyResolution.HasRealPersonReference && legacyResolution.PinnedChannelID == pinnedChannelID,
 	}
 	if c != nil && resolution.HasReferences() {
 		common.SetContextKey(c, constant.ContextKeyBytePlusAssetRewriteMap, rewriteMap)

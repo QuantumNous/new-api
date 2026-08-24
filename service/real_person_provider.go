@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -127,6 +128,16 @@ func realPersonProviderForChannel(channel *model.Channel) (*realPersonProviderBi
 		},
 		StorageCredentials: &creds,
 	}, nil
+}
+
+// TokenSpaceRealPersonChannelIsUsable reports whether a Doubao video channel
+// is explicitly configured to own TokenSpace real-person profiles and assets.
+func TokenSpaceRealPersonChannelIsUsable(channel *model.Channel) bool {
+	if channel == nil || channel.Type != constant.ChannelTypeDoubaoVideo {
+		return false
+	}
+	_, err := realPersonProviderForChannel(channel)
+	return err == nil
 }
 
 func loadUsableRealPersonProviderBinding(channelID int, requestedGroup string) (*realPersonProviderBinding, error) {
