@@ -341,13 +341,36 @@ func firstBillingNumber(primary, fallback map[string]any, keys ...string) (*floa
 				continue
 			}
 			number, ok := billingNumber(value)
-			if !ok || math.IsNaN(number) || math.IsInf(number, 0) {
+			if !ok {
+				if isSkippableBillingNumber(value) {
+					continue
+				}
+				return nil, ErrBillingSnapshotInvalid
+			}
+			if math.IsNaN(number) || math.IsInf(number, 0) {
 				return nil, ErrBillingSnapshotInvalid
 			}
 			return &number, nil
 		}
 	}
 	return nil, nil
+}
+
+func isSkippableBillingNumber(value any) bool {
+	switch typed := value.(type) {
+	case nil:
+		return true
+	case string:
+		return strings.TrimSpace(typed) == ""
+	case map[string]any:
+		wrapped, ok := typed["val"]
+		if !ok {
+			return true
+		}
+		return isSkippableBillingNumber(wrapped)
+	default:
+		return false
+	}
 }
 
 func billingNumber(value any) (float64, bool) {

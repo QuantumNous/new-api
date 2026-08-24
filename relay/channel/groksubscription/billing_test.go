@@ -331,6 +331,50 @@ func TestProbeBillingParsesObservedNestedBillingPayloads(t *testing.T) {
 	}
 }
 
+func TestParseUpstreamBillingWindowSkipsEmptyAliases(t *testing.T) {
+	got, err := parseUpstreamBillingWindow([]byte(`{
+		"monthlyLimit": 7000,
+		"config": {
+			"monthlyLimit": null,
+			"monthly_limit": 15000,
+			"creditUsagePercent": "",
+			"credit_usage_percent": 12.5,
+			"usagePercent": {"value": 8},
+			"usage_percent": 7.5,
+			"includedUsed": {"val": null},
+			"included_used": 3000
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("parseUpstreamBillingWindow err = %v", err)
+	}
+	if got.MonthlyLimit == nil || *got.MonthlyLimit != 15000 {
+		t.Fatalf("monthly limit = %v, want later non-empty alias 15000", got.MonthlyLimit)
+	}
+	if got.CreditUsagePercent == nil || *got.CreditUsagePercent != 12.5 {
+		t.Fatalf("credit usage percent = %v, want later non-empty alias 12.5", got.CreditUsagePercent)
+	}
+	if got.UsagePercent == nil || *got.UsagePercent != 7.5 {
+		t.Fatalf("usage percent = %v, want later supported alias 7.5", got.UsagePercent)
+	}
+	if got.IncludedUsed == nil || *got.IncludedUsed != 3000 {
+		t.Fatalf("included used = %v, want later non-empty alias 3000", got.IncludedUsed)
+	}
+}
+
+func TestParseUpstreamBillingWindowFallsBackAfterEmptyConfigValue(t *testing.T) {
+	got, err := parseUpstreamBillingWindow([]byte(`{
+		"monthlyLimit": 7000,
+		"config": {"monthlyLimit": null}
+	}`))
+	if err != nil {
+		t.Fatalf("parseUpstreamBillingWindow err = %v", err)
+	}
+	if got.MonthlyLimit == nil || *got.MonthlyLimit != 7000 {
+		t.Fatalf("monthly limit = %v, want outer fallback 7000", got.MonthlyLimit)
+	}
+}
+
 func TestProbeBillingKeepsBillingSnapshotWhenOptionalSubscriptionLookupFails(t *testing.T) {
 	cred := Credential{AccessToken: "access-secret", TokenType: "Bearer"}
 	doer := doerFunc(func(req *http.Request) (*http.Response, error) {
