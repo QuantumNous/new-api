@@ -20,7 +20,7 @@ import { useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { User, Wallet, LogOut, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { isPlgUser, useAuthStore } from '@/stores/auth-store'
+import { useAuthStore } from '@/stores/auth-store'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { ROLE } from '@/lib/roles'
 import useDialogState from '@/hooks/use-dialog'
@@ -104,12 +104,10 @@ export function ProfileDropdown() {
             {t('Profile')}
           </DropdownMenuItem>
 
-          {isPlgUser(user?.group) && (
-            <DropdownMenuItem onClick={() => navigate({ to: '/wallet' })}>
-              <Wallet className='size-4' />
-              {t('Wallet')}
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem onClick={() => navigate({ to: '/wallet' })}>
+            <Wallet className='size-4' />
+            {t('Wallet')}
+          </DropdownMenuItem>
 
           {isSuperAdmin && (
             <DropdownMenuItem

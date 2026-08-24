@@ -58,10 +58,6 @@ export interface AuthUser {
   permissions?: UserPermissions
 }
 
-export function isPlgUser(group: string | undefined): boolean {
-  return group?.trim().toLowerCase() === 'plg'
-}
-
 type AuthUserUpdate =
   | AuthUser
   | null

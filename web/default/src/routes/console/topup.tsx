@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { isPlgUser, useAuthStore } from '@/stores/auth-store'
 import {
   PADDLE_ORDER_SEARCH_PARAM,
   PADDLE_TRANSACTION_SEARCH_PARAM,
@@ -29,10 +28,6 @@ const topupSearchSchema = z.record(z.string(), z.unknown()).catch({})
 export const Route = createFileRoute('/console/topup')({
   validateSearch: topupSearchSchema,
   beforeLoad: ({ search }) => {
-    const user = useAuthStore.getState().auth.user
-    if (user && !isPlgUser(user.group)) {
-      throw redirect({ to: '/dashboard' })
-    }
     const paddleTransactionId = search[PADDLE_TRANSACTION_SEARCH_PARAM]
     const hasPaddleTransaction =
       typeof paddleTransactionId === 'string' &&

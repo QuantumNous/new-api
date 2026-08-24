@@ -20,7 +20,7 @@ import { Link } from '@tanstack/react-router'
 import { X, User, Wallet, LogOut } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import { useTranslation } from 'react-i18next'
-import { isPlgUser, type AuthUser } from '@/stores/auth-store'
+import type { AuthUser } from '@/stores/auth-store'
 import useDialogState from '@/hooks/use-dialog'
 import { useUserDisplay } from '@/hooks/use-user-display'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -122,16 +122,14 @@ function MobileUserProfile({ user, onNavigate }: MobileUserProfileProps) {
           {t('Profile')}
         </Link>
 
-        {isPlgUser(user.group) && (
-          <Link
-            to='/wallet'
-            onClick={onNavigate}
-            className='text-primary/60 hover:text-primary/80 border-border flex items-center gap-2.5 border-b p-2.5 transition-colors'
-          >
-            <Wallet className='size-4' />
-            {t('Wallet')}
-          </Link>
-        )}
+        <Link
+          to='/wallet'
+          onClick={onNavigate}
+          className='text-primary/60 hover:text-primary/80 border-border flex items-center gap-2.5 border-b p-2.5 transition-colors'
+        >
+          <Wallet className='size-4' />
+          {t('Wallet')}
+        </Link>
 
         {/* Sign out - consistent style */}
         <Button

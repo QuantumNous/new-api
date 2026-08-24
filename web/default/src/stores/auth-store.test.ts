@@ -17,16 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { afterEach, describe, expect, test } from 'bun:test'
-import { isPlgUser, useAuthStore } from './auth-store'
-
-describe('PLG wallet access predicate', () => {
-  test('accepts only the plg group, ignoring case and surrounding spaces', () => {
-    expect(isPlgUser('plg')).toBe(true)
-    expect(isPlgUser(' PLG ')).toBe(true)
-    expect(isPlgUser('default')).toBe(false)
-    expect(isPlgUser(undefined)).toBe(false)
-  })
-})
+import { useAuthStore } from './auth-store'
 
 const originalWindow = globalThis.window
 
