@@ -71,6 +71,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
 		apiRouter.GET("/website/pricing", controller.GetWebsitePricing)
 		apiRouter.GET("/website/pricing/v2", controller.GetWebsitePricingV2)
+		apiRouter.GET("/website/model-usage", controller.GetWebsiteModelUsage)
 		dataToolRoute := apiRouter.Group("/data-tools")
 		{
 			// Catalog browsing is available to an authenticated dashboard
