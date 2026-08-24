@@ -174,7 +174,6 @@ export const STATIC_I18N_KEYS = [
   'Remaining days',
   '{{count}} days',
   'Monthly model quota',
-  'Media generation credits',
   '{{used}} / {{total}} used',
   'No usage limit',
   'Not included',
@@ -201,7 +200,6 @@ export const STATIC_I18N_KEYS = [
   'Replacement charges the full target price. No prorating or credit is applied.',
   'Refundable not-started value: {{value}}',
   'Monthly model quota: {{value}}',
-  'Media generation credits: {{value}}',
   '{{count}} credits',
 
   // Roles

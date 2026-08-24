@@ -161,6 +161,16 @@ func insertCompensationPlan(t *testing.T, id int, rank int, price float64, total
 	return plan
 }
 
+func TestStripeToBalanceCompensationGrantInputPreservesMediaCredits(t *testing.T) {
+	intent := model.SubscriptionChangeIntent{UserId: 9009}
+	contract := model.UserSubscriptionContract{Id: 7009}
+	target := model.SubscriptionPlan{Id: 8009, TotalAmount: 3000, MediaCreditsMonthly: 55}
+
+	input := stripeToBalanceCompensationGrantInput(intent, contract, target, "trade-9009", 1000, 2000)
+
+	require.Equal(t, int64(55), input.MediaCreditsTotal)
+}
+
 func replaceCompensationHooks(t *testing.T) {
 	t.Helper()
 	originalRelease := stripeReleaseSubscriptionSchedule

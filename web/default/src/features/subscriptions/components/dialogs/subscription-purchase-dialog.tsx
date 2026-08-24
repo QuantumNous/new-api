@@ -57,7 +57,7 @@ import {
   paySubscriptionWaffoPancake,
   paySubscriptionBalance,
 } from '../../api'
-import { formatDuration, formatMediaValue, formatResetPeriod } from '../../lib'
+import { formatDuration, formatResetPeriod } from '../../lib'
 import type { PlanRecord } from '../../types'
 
 interface PaymentMethod {
@@ -449,21 +449,6 @@ export function SubscriptionPurchaseDialog(props: Props) {
                 : t('Unlimited')}
             </span>
           </div>
-          {Number(plan.media_credits_monthly || 0) > 0 && (
-            <div className='flex items-start justify-between gap-3'>
-              <span className='text-muted-foreground text-sm'>
-                {t('Image & video models')}
-              </span>
-              <span className='text-right text-sm'>
-                {t('{{count}} media credits / month', {
-                  count: Number(plan.media_credits_monthly || 0),
-                })}
-                <span className='text-muted-foreground block text-xs'>
-                  {formatMediaValue(Number(plan.media_credits_monthly || 0), t)}
-                </span>
-              </span>
-            </div>
-          )}
           {plan.upgrade_group && (
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-sm'>

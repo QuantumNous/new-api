@@ -35,7 +35,6 @@ export type ProfileUsageWindowSummary = {
 export type ProfileSubscriptionSummary = ProfileUsageWindowSummary & {
   planTitle: string
   remainingDays: number | null
-  mediaCredits: ProfileUsageWindowSummary
 }
 
 function finiteNonNegative(value: unknown): number {
@@ -196,6 +195,5 @@ export function buildProfileSubscriptionSummary(
     remainingDays: normalizeRemainingDays(data?.remaining_days),
     resetAt: 0,
     usagePercent: monthlySummary.usagePercent,
-    mediaCredits: normalizeUsageWindow(data?.media_credits, 'media'),
   }
 }

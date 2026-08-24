@@ -112,10 +112,6 @@ export function OnlinePricingPlansSection(props: { locale: Locale }) {
                 <div className="tgmain">{planCopy.text}</div>
                 <div className="tgsub">{planCopy.window}</div>
                 <div className="tdiv" />
-                <span className="tglabel">{copy.pricing.imageVideoLabel}</span>
-                <div className="tgmain">{planCopy.media}</div>
-                <div className="tgsub">{planCopy.mediaSub}</div>
-                <div className="tdiv" />
                 <span className="tglabel">{copy.pricing.toolsLabel}</span>
                 <div className="tgmain">{copy.pricing.toolsMain}</div>
                 <div className="tgsub">{copy.pricing.toolsSub}</div>

@@ -183,6 +183,24 @@ func TestSubscriptionSelfQuoteSignsPixBRLQuote(t *testing.T) {
 	require.Equal(t, subscriptionPurchasePlanRevision(&plan), claims.PlanRevision)
 }
 
+func TestSubscriptionPurchasePlanRevisionIncludesLegacyMediaCreditsForCompatibility(t *testing.T) {
+	plan := model.SubscriptionPlan{
+		Id:               9202,
+		Enabled:          true,
+		PriceAmount:      10,
+		Currency:         "USD",
+		DurationUnit:     model.SubscriptionDurationMonth,
+		DurationValue:    1,
+		TotalAmount:      4500000,
+		QuotaResetPeriod: model.SubscriptionResetMonthly,
+	}
+
+	withoutLegacyMediaCredits := subscriptionPurchasePlanRevision(&plan)
+	plan.MediaCreditsMonthly = 5000
+
+	require.NotEqual(t, withoutLegacyMediaCredits, subscriptionPurchasePlanRevision(&plan))
+}
+
 func seedSubscriptionSelfRecallClaim(t *testing.T, userID int, priceID string, discount service.RecallDiscountConfig) (model.RecallCampaign, model.RecallRecipient, string) {
 	t.Helper()
 	discountJSON, err := common.Marshal(discount)

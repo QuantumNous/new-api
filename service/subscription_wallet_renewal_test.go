@@ -98,6 +98,11 @@ func TestRenewWalletSubscriptionContractChargesCurrentOneMonthPlanAndExtendsOnce
 	require.NotEmpty(t, order.PlanSnapshot)
 	require.Contains(t, order.PlanSnapshot, `"plan_id":7801`)
 	require.Contains(t, order.PlanSnapshot, `"price_amount":9`)
+	require.Contains(t, order.PlanSnapshot, `"media_credits_monthly":25`)
+	var entitlement model.UserSubscription
+	require.NoError(t, model.DB.First(&entitlement, "id = ?", stored.CurrentEntitlementId).Error)
+	require.Equal(t, int64(25), entitlement.MediaCreditsTotal)
+	require.Zero(t, entitlement.MediaCreditsUsed)
 
 	replay, err := RenewWalletSubscriptionContract(contract.Id)
 	require.NoError(t, err)

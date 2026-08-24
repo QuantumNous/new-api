@@ -548,6 +548,33 @@ func TestNewBillingSessionWalletErrorsIncludeTopUpHint(t *testing.T) {
 	})
 }
 
+func TestNewBillingSessionFallsBackToWalletWhenUnifiedSubscriptionQuotaIsInsufficient(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const (
+		userID         = 10119
+		subscriptionID = 10219
+	)
+	resetBillingStatusTables(t)
+	t.Cleanup(func() { resetBillingStatusTables(t) })
+	seedUser(t, userID, 100)
+	seedSubscription(t, subscriptionID, userID, 100, 90)
+
+	c := newTestGinContext()
+	relayInfo := newQuotaStatusRelayInfo(userID, 0, "")
+	relayInfo.IsPlayground = true
+	relayInfo.RequestId = "unified-quota-wallet-fallback"
+
+	session, apiErr := NewBillingSession(c, relayInfo, 20)
+
+	require.Nil(t, apiErr)
+	require.NotNil(t, session)
+	require.Equal(t, BillingSourceWallet, relayInfo.BillingSource)
+	require.Equal(t, 80, currentWalletQuota(userID))
+	var subscription model.UserSubscription
+	require.NoError(t, model.DB.Select("amount_used").First(&subscription, "id = ?", subscriptionID).Error)
+	require.EqualValues(t, 90, subscription.AmountUsed)
+}
+
 func TestPreConsumeQuotaWalletErrorsIncludeTopUpHint(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

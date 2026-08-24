@@ -778,6 +778,7 @@ func TestStripeUpgradePaidInvoiceUsesFrozenUpgradeOrderPlanSnapshotAfterPlanEdit
 	require.NotNil(t, reconciled.Entitlement)
 	require.Equal(t, int64(2500), reconciled.Entitlement.AmountTotal)
 	require.Equal(t, int64(55), reconciled.Entitlement.MediaCreditsTotal)
+	require.Zero(t, reconciled.Entitlement.MediaCreditsUsed)
 	require.NotNil(t, reconciled.Entitlement.Window5hAmount)
 	require.NotNil(t, reconciled.Entitlement.WindowWeekAmount)
 	require.Equal(t, int64(125), *reconciled.Entitlement.Window5hAmount)

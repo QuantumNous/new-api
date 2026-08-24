@@ -265,16 +265,9 @@ function buildRenewalLifecyclePrecondition(
 
 function getPlanEntitlements(plan: PlanRecord['plan'], t: Translate) {
   const monthly = Number(plan.total_amount || 0)
-  const media = Number(plan.media_credits_monthly || 0)
   return [
     t('Monthly model quota: {{value}}', {
       value: monthly > 0 ? formatQuota(monthly) : t('Unlimited'),
-    }),
-    t('Media generation credits: {{value}}', {
-      value:
-        media > 0
-          ? t('{{count}} credits', { count: media })
-          : t('Not included'),
     }),
   ]
 }

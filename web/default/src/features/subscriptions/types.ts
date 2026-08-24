@@ -43,7 +43,6 @@ export const subscriptionPlanSchema = z.object({
   total_amount: z.number(),
   window_5h_amount: z.number().optional().default(0),
   window_week_amount: z.number().optional().default(0),
-  media_credits_monthly: z.number().optional().default(0),
   upgrade_group: z.string().optional(),
   stripe_price_id: z.string().optional(),
   creem_product_id: z.string().optional(),
@@ -91,8 +90,6 @@ export const userSubscriptionSchema = z.object({
   access_end_time: z.number().optional(),
   amount_total: z.number(),
   amount_used: z.number(),
-  media_credits_total: z.number().optional(),
-  media_credits_used: z.number().optional(),
   next_reset_time: z.number().optional(),
 })
 
@@ -483,7 +480,6 @@ export interface SelfSubscriptionData {
   current_period?: SubscriptionCurrentPeriod
   quota?: SubscriptionQuota
   monthly_bucket?: SubscriptionUsageWindow
-  media_credits?: SubscriptionUsageWindow
   remaining_days?: number
   renewal_source?: SubscriptionRenewalSource
   renewal_status?: SubscriptionRenewalStatus

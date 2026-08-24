@@ -237,12 +237,40 @@ func TestAdminCreateSubscriptionPlanNormalizesLegacyShortWindowAmountsToZero(t *
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &rawResp))
 	require.NotContains(t, rawResp.Data, "window_5h_amount")
 	require.NotContains(t, rawResp.Data, "window_week_amount")
+	require.Equal(t, float64(75), rawResp.Data["media_credits_monthly"])
 
 	var stored model.SubscriptionPlan
 	require.NoError(t, model.DB.First(&stored, "id = ?", resp.Data.Id).Error)
 	require.Zero(t, stored.Window5hAmount)
 	require.Zero(t, stored.WindowWeekAmount)
 	require.Equal(t, int64(75), stored.MediaCreditsMonthly)
+}
+
+func TestAdminSubscriptionPlanPreservesLegacyMediaCreditsForCompatibility(t *testing.T) {
+	setupSubscriptionPlanControllerLifecycleTestDB(t)
+	confirmSubscriptionPlanPaymentComplianceForTest(t)
+	gin.SetMode(gin.TestMode)
+
+	req := AdminUpsertSubscriptionPlanRequest{Plan: model.SubscriptionPlan{
+		Title:               "Unified quota",
+		PriceAmount:         9.99,
+		Currency:            "USD",
+		DurationUnit:        model.SubscriptionDurationMonth,
+		DurationValue:       1,
+		Enabled:             false,
+		TotalAmount:         1000,
+		MediaCreditsMonthly: 999,
+	}}
+	recorder := performAdminCreateSubscriptionPlan(t, req)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var raw struct {
+		Data map[string]any `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &raw))
+	require.Equal(t, float64(999), raw.Data["media_credits_monthly"])
+	var stored model.SubscriptionPlan
+	require.NoError(t, model.DB.First(&stored, "title = ?", "Unified quota").Error)
+	require.Equal(t, int64(999), stored.MediaCreditsMonthly)
 }
 
 func TestAdminListSubscriptionPlansOmitsLegacyShortWindowAmounts(t *testing.T) {
@@ -279,6 +307,7 @@ func TestAdminListSubscriptionPlansOmitsLegacyShortWindowAmounts(t *testing.T) {
 	require.Len(t, resp.Data, 1)
 	require.NotContains(t, resp.Data[0].Plan, "window_5h_amount")
 	require.NotContains(t, resp.Data[0].Plan, "window_week_amount")
+	require.Equal(t, float64(0), resp.Data[0].Plan["media_credits_monthly"])
 }
 
 func TestAdminUpdateSubscriptionPlanNormalizesLegacyShortWindowAmountsToZero(t *testing.T) {

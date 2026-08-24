@@ -82,7 +82,6 @@ function plan(id: number, title: string, price: number): PlanRecord {
       allow_balance_pay: true,
       max_purchase_per_user: 0,
       total_amount: price * 1000,
-      media_credits_monthly: price,
       payment_modes: ['stripe_recurring', 'balance_one_period'],
     },
   }
@@ -402,7 +401,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('aria-label="Refresh subscription plans"')
   })
 
-  test('renders a read-only current card with correct badges and only monthly plus media usage meters', () => {
+  test('renders a read-only current card with correct badges and a linked monthly usage meter only', () => {
     const html = renderWalletCard(
       normalizeSelfSubscriptionData({
         contract: {
@@ -451,6 +450,13 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
           unlimited: false,
         },
         media_credits: { used: 3, total: 20, remaining: 17, reset_at: 1 },
+      } as SelfSubscriptionDataResponse & {
+        media_credits: {
+          used: number
+          total: number
+          remaining: number
+          reset_at: number
+        }
       })
     )
 
@@ -462,16 +468,20 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('Auto-renew enabled')
     expect(html).not.toContain('Renewal time')
     expect(html).not.toContain('future charge')
-    expect(html.match(/data-wallet-usage-meter=/g)?.length).toBe(2)
-    expect(html.match(/data-wallet-secondary-meter=/g)?.length).toBe(2)
+    expect(html).toContain('href="/usage-logs"')
+    expect(html.match(/data-wallet-usage-meter=/g)?.length).toBe(1)
+    expect(html.match(/data-wallet-secondary-meter=/g)?.length).toBe(1)
     expect(html).toContain('data-wallet-usage-meter="Monthly model quota"')
-    expect(html).toContain('data-wallet-usage-meter="Media generation credits"')
+    expect(html).not.toContain(
+      'data-wallet-usage-meter="Media generation credits"'
+    )
     expect(html).not.toContain('data-wallet-usage-meter="5-hour limit"')
     expect(html).not.toContain('data-wallet-usage-meter="7-day limit"')
     expect(html).not.toContain('5-hour limit')
     expect(html).not.toContain('7-day limit')
+    expect(html).not.toContain('Media generation credits')
     expect(html).toContain('$0.014 / $0.04 used')
-    expect(html).toContain('3 / 20 used')
+    expect(html).not.toContain('3 / 20 used')
     expect(html).not.toContain('Cancel auto-renewal')
     expect(html).not.toContain('Resume auto-renewal')
     expect(html).not.toContain('Manage')
@@ -1042,7 +1052,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     }
   })
 
-  test('renders zero media credits as not included instead of unlimited', () => {
+  test('does not render zero media credits as a separate current-plan meter', () => {
     const html = renderWalletCard(
       normalizeSelfSubscriptionData({
         contract: {
@@ -1068,14 +1078,23 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
           reset_at: 0,
           unlimited: false,
         },
+      } as SelfSubscriptionDataResponse & {
+        media_credits: {
+          used: number
+          total: number
+          remaining: number
+          reset_at: number
+          unlimited: boolean
+        }
       })
     )
 
-    expect(html).toContain('Not included')
-    expect(html).toContain('0 remaining')
+    expect(html).not.toContain('Media generation credits')
+    expect(html).not.toContain('Not included')
+    expect(html).not.toContain('0 remaining')
   })
 
-  test('defaults absent current media credits to not included while keeping rolling windows unlimited', () => {
+  test('defaults absent current media credits to a single monthly quota meter', () => {
     const html = renderWalletCard(
       normalizeSelfSubscriptionData({
         contract: {
@@ -1096,32 +1115,22 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
         },
       })
     )
-    const mediaMeterStart = html.indexOf(
+    expect(html.match(/data-wallet-usage-meter=/g)?.length).toBe(1)
+    expect(html).toContain('data-wallet-usage-meter="Monthly model quota"')
+    expect(html).not.toContain(
       'data-wallet-usage-meter="Media generation credits"'
     )
-    const mediaMeter = html.slice(mediaMeterStart, mediaMeterStart + 900)
-
-    expect(mediaMeter).toContain('Not included')
-    expect(mediaMeter).not.toContain('Unlimited')
-    expect(html).toContain('data-wallet-usage-meter="Monthly model quota"')
     expect(html).not.toContain('data-wallet-usage-meter="5-hour limit"')
     expect(html).not.toContain('data-wallet-usage-meter="7-day limit"')
     expect(html).toContain('No usage limit')
   })
 
-  test('shows not included for zero media credits on plan cards', () => {
-    const noMediaPlan = {
-      ...plans[0],
-      plan: {
-        ...plans[0].plan,
-        media_credits_monthly: 0,
-      },
-    }
+  test('does not show media credits on plan cards', () => {
     const html = renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>
         <SubscriptionPlansCard
           topupInfo={topupInfo}
-          initialPlans={[noMediaPlan]}
+          initialPlans={[plans[0]]}
           initialSelfData={normalizeSelfSubscriptionData(undefined)}
           initialLoading={false}
           userQuota={12345}
@@ -1129,15 +1138,14 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
       </I18nextProvider>
     )
 
-    expect(html).toContain('Media generation credits: Not included')
-    expect(html).not.toContain('Media generation credits: Unlimited')
+    expect(html).not.toContain('Media generation credits')
   })
 
-  test('labels plan card monthly quota and media credits without short-window quotas', () => {
+  test('labels plan card monthly quota without media or short-window quotas', () => {
     const html = renderWalletCard()
 
     expect(html).toContain('Monthly model quota: $0.02')
-    expect(html).toContain('Media generation credits: 10 credits')
+    expect(html).not.toContain('Media generation credits')
     expect(html).not.toContain('5-hour limit')
     expect(html).not.toContain('7-day limit')
     expect(html).not.toContain('5-hour: $0.002')
@@ -1145,13 +1153,12 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     expect(html).not.toContain('Image + video: 10 credits')
   })
 
-  test('keeps media generation credits visible when the plan field is absent', () => {
-    const { media_credits_monthly: _media, ...planWithoutMedia } = plans[0].plan
+  test('keeps media generation credits hidden when the plan field is absent', () => {
     const html = renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>
         <SubscriptionPlansCard
           topupInfo={topupInfo}
-          initialPlans={[{ ...plans[0], plan: planWithoutMedia }]}
+          initialPlans={[plans[0]]}
           initialSelfData={normalizeSelfSubscriptionData(undefined)}
           initialLoading={false}
           userQuota={12345}
@@ -1159,7 +1166,7 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
       </I18nextProvider>
     )
 
-    expect(html).toContain('Media generation credits: Not included')
+    expect(html).not.toContain('Media generation credits')
     expect(html).not.toContain('Image + video: Not included')
   })
 
