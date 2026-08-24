@@ -1853,6 +1853,8 @@
     "Failed to load Passkey status": "Không thể tải trạng thái Passkey",
     "Failed to load playground groups": "Không thể tải nhóm playground",
     "Failed to load playground models": "Không thể tải mô hình playground",
+    "Could not read saved Playground retries; keeping the local conversation.": "Không thể đọc các lần thử lại Playground đã lưu; cuộc trò chuyện cục bộ sẽ được giữ lại.",
+    "This Playground record could not be stored in the browser. Keep this page open while it retries.": "Không thể lưu bản ghi Playground này trong trình duyệt. Hãy giữ trang này mở trong khi hệ thống thử lại.",
     "No video generation model is available": "Không có mô hình tạo video khả dụng",
     "Failed to load profile": "Không thể tải hồ sơ",
     "Failed to load redemption codes": "Không thể tải mã đổi thưởng",

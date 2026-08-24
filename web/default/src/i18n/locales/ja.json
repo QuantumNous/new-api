@@ -1853,6 +1853,8 @@
     "Failed to load Passkey status": "Passkeyのステータスの読み込みに失敗しました",
     "Failed to load playground groups": "Playground グループの読み込みに失敗しました",
     "Failed to load playground models": "Playground モデルの読み込みに失敗しました",
+    "Could not read saved Playground retries; keeping the local conversation.": "保存された Playground の再試行データを読み込めませんでした。ローカルの会話を保持します。",
+    "This Playground record could not be stored in the browser. Keep this page open while it retries.": "この Playground レコードをブラウザに保存できませんでした。再試行中はこのページを開いたままにしてください。",
     "No video generation model is available": "利用可能な動画生成モデルがありません",
     "Failed to load profile": "プロファイルの読み込みに失敗しました",
     "Failed to load redemption codes": "引き換えコードの読み込みに失敗しました",

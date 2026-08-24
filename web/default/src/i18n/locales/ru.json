@@ -1853,6 +1853,8 @@
     "Failed to load Passkey status": "Не удалось загрузить статус Passkey",
     "Failed to load playground groups": "Не удалось загрузить группы playground",
     "Failed to load playground models": "Не удалось загрузить модели playground",
+    "Could not read saved Playground retries; keeping the local conversation.": "Не удалось прочитать сохранённые повторные попытки Playground; локальный диалог будет сохранён.",
+    "This Playground record could not be stored in the browser. Keep this page open while it retries.": "Не удалось сохранить эту запись Playground в браузере. Не закрывайте страницу, пока выполняются повторные попытки.",
     "No video generation model is available": "Нет доступной модели генерации видео",
     "Failed to load profile": "Не удалось загрузить профиль",
     "Failed to load redemption codes": "Не удалось загрузить коды активации",
