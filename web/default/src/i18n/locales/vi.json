@@ -6769,6 +6769,11 @@
     "Quick top-up": "Nạp tiền nhanh",
     "Save {{percent}}%": "Tiết kiệm {{percent}}%",
     "Create an image": "Tạo hình ảnh",
-    "Generate a video": "Tạo video"
+    "Generate a video": "Tạo video",
+    "View as user": "Xem với tư cách người dùng",
+    "Failed to enter user view": "Không thể chuyển sang chế độ xem người dùng",
+    "You will temporarily see the console as {{username}}. Actions and billing remain subject to the user account.": "Bạn sẽ tạm thời xem bảng điều khiển với tư cách {{username}}. Các thao tác và thanh toán vẫn thuộc tài khoản người dùng.",
+    "Currently viewing as {{username}} (administrator {{administrator}})": "Đang xem với tư cách {{username}} (quản trị viên {{administrator}})",
+    "Return to administrator": "Trở lại quản trị viên"
   }
 }

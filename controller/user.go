@@ -764,6 +764,13 @@ func GetSelf(c *gin.Context) {
 		"sidebar_modules":      userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":          permissions,                // 新增权限字段
 	}
+	// Admin impersonation is deliberately surfaced to the client so the UI can
+	// keep an unmistakable exit affordance visible while the session is scoped
+	// to the selected user.
+	if session := sessions.Default(c); session.Get("impersonating") == true {
+		responseData["impersonating"] = true
+		responseData["impersonator_username"] = session.Get("impersonator_username")
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -771,6 +778,110 @@ func GetSelf(c *gin.Context) {
 		"data":    responseData,
 	})
 	return
+}
+
+// ImpersonateUser lets an authenticated administrator inspect the console as a
+// regular, enabled user. It never grants access to another administrator and
+// preserves the original admin session so it can be restored explicitly.
+func ImpersonateUser(c *gin.Context) {
+	session := sessions.Default(c)
+	if session.Get("impersonating") == true {
+		c.JSON(http.StatusConflict, gin.H{"success": false, "message": common.TranslateMessage(c, i18n.MsgOperationFailed)})
+		return
+	}
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	user, err := model.GetUserById(id, false)
+	if err != nil || user.Status != common.UserStatusEnabled || user.Role >= common.RoleAdminUser {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": common.TranslateMessage(c, i18n.MsgForbidden)})
+		return
+	}
+	adminInfo := map[string]interface{}{
+		"admin_id":       c.GetInt("id"),
+		"admin_username": c.GetString("username"),
+	}
+	session.Set("impersonating", true)
+	// Preserve the exact authenticated session values. Not every field is copied
+	// into Gin's context by authHelper (notably status), so restoring from context
+	// could silently turn an enabled administrator into an invalid session.
+	session.Set("impersonator_id", session.Get("id"))
+	session.Set("impersonator_username", session.Get("username"))
+	session.Set("impersonator_role", session.Get("role"))
+	session.Set("impersonator_status", session.Get("status"))
+	session.Set("impersonator_group", session.Get("group"))
+	session.Set("id", user.Id)
+	session.Set("username", user.Username)
+	session.Set("role", user.Role)
+	session.Set("status", user.Status)
+	session.Set("group", user.Group)
+	if err := session.Save(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage, "administrator entered user view", adminInfo)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": common.TranslateMessage(c, i18n.MsgOperationSuccess),
+		"data": gin.H{
+			"id":                    user.Id,
+			"username":              user.Username,
+			"display_name":          user.DisplayName,
+			"role":                  user.Role,
+			"status":                user.Status,
+			"group":                 user.Group,
+			"is_enterprise":         user.IsEnterprise,
+			"impersonating":         true,
+			"impersonator_username": adminInfo["admin_username"],
+		},
+	})
+}
+
+// ExitImpersonation restores the administrator session saved by
+// ImpersonateUser. It is intentionally separate from Logout so an operator
+// cannot accidentally lose the original session while inspecting a user.
+func ExitImpersonation(c *gin.Context) {
+	session := sessions.Default(c)
+	if session.Get("impersonating") != true {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": common.TranslateMessage(c, i18n.MsgOperationFailed)})
+		return
+	}
+	impersonatedUserID, _ := session.Get("id").(int)
+	adminID := session.Get("impersonator_id")
+	adminUsername := session.Get("impersonator_username")
+	adminRole := session.Get("impersonator_role")
+	adminStatus := session.Get("impersonator_status")
+	adminGroup := session.Get("impersonator_group")
+	adminInfo := map[string]interface{}{
+		"admin_id":       adminID,
+		"admin_username": adminUsername,
+	}
+	session.Set("id", adminID)
+	session.Set("username", adminUsername)
+	session.Set("role", adminRole)
+	session.Set("status", adminStatus)
+	session.Set("group", adminGroup)
+	for _, key := range []string{"impersonating", "impersonator_id", "impersonator_username", "impersonator_role", "impersonator_status", "impersonator_group"} {
+		session.Delete(key)
+	}
+	if err := session.Save(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	model.RecordLogWithAdminInfo(impersonatedUserID, model.LogTypeManage, "administrator exited user view", adminInfo)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": common.TranslateMessage(c, i18n.MsgOperationSuccess),
+		"data": gin.H{
+			"id":       adminID,
+			"username": adminUsername,
+			"role":     adminRole,
+			"status":   adminStatus,
+			"group":    adminGroup,
+		},
+	})
 }
 
 func GetAnalyticsSelf(c *gin.Context) {

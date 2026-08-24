@@ -6769,6 +6769,11 @@
     "Quick top-up": "Recarga rápida",
     "Save {{percent}}%": "Ahorra {{percent}} %",
     "Create an image": "Crear una imagen",
-    "Generate a video": "Generar un vídeo"
+    "Generate a video": "Generar un vídeo",
+    "View as user": "Ver como usuario",
+    "Failed to enter user view": "No se pudo acceder a la vista de usuario",
+    "You will temporarily see the console as {{username}}. Actions and billing remain subject to the user account.": "Verás temporalmente la consola como {{username}}. Las acciones y la facturación seguirán asociadas a la cuenta del usuario.",
+    "Currently viewing as {{username}} (administrator {{administrator}})": "Vista actual: {{username}} (administrador {{administrator}})",
+    "Return to administrator": "Volver al administrador"
   }
 }

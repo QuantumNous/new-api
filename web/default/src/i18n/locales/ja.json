@@ -6769,6 +6769,11 @@
     "Quick top-up": "クイックチャージ",
     "Save {{percent}}%": "{{percent}}% お得",
     "Create an image": "画像を生成",
-    "Generate a video": "動画を生成"
+    "Generate a video": "動画を生成",
+    "View as user": "ユーザーとして表示",
+    "Failed to enter user view": "ユーザー表示に切り替えられませんでした",
+    "You will temporarily see the console as {{username}}. Actions and billing remain subject to the user account.": "一時的に {{username}} としてコンソールを表示します。操作と請求はそのユーザーアカウントに紐づきます。",
+    "Currently viewing as {{username}} (administrator {{administrator}})": "{{username}} として表示中（管理者：{{administrator}}）",
+    "Return to administrator": "管理者に戻る"
   }
 }

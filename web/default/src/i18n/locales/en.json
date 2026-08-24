@@ -6782,6 +6782,11 @@
     "Quick top-up": "Quick top-up",
     "Save {{percent}}%": "Save {{percent}}%",
     "Create an image": "Create an image",
-    "Generate a video": "Generate a video"
+    "Generate a video": "Generate a video",
+    "View as user": "View as user",
+    "Failed to enter user view": "Failed to enter user view",
+    "You will temporarily see the console as {{username}}. Actions and billing remain subject to the user account.": "You will temporarily see the console as {{username}}. Actions and billing remain subject to the user account.",
+    "Currently viewing as {{username}} (administrator {{administrator}})": "Currently viewing as {{username}} (administrator {{administrator}})",
+    "Return to administrator": "Return to administrator"
   }
 }

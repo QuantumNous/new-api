@@ -6769,6 +6769,11 @@
     "Quick top-up": "Быстрое пополнение",
     "Save {{percent}}%": "Экономия {{percent}}%",
     "Create an image": "Создать изображение",
-    "Generate a video": "Создать видео"
+    "Generate a video": "Создать видео",
+    "View as user": "Просмотреть от имени пользователя",
+    "Failed to enter user view": "Не удалось открыть пользовательский режим",
+    "You will temporarily see the console as {{username}}. Actions and billing remain subject to the user account.": "Вы временно увидите консоль от имени {{username}}. Действия и списания будут относиться к учётной записи пользователя.",
+    "Currently viewing as {{username}} (administrator {{administrator}})": "Просмотр от имени {{username}} (администратор {{administrator}})",
+    "Return to administrator": "Вернуться к администратору"
   }
 }

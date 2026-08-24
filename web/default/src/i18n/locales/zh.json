@@ -6782,6 +6782,11 @@
     "Quick top-up": "快速充值",
     "Save {{percent}}%": "省 {{percent}}%",
     "Create an image": "生成图片",
-    "Generate a video": "生成视频"
+    "Generate a video": "生成视频",
+    "View as user": "以用户视角查看",
+    "Failed to enter user view": "无法进入用户视角",
+    "You will temporarily see the console as {{username}}. Actions and billing remain subject to the user account.": "你将临时以 {{username}} 的身份查看控制台，期间的操作和账单均归属于该用户账户。",
+    "Currently viewing as {{username}} (administrator {{administrator}})": "当前为用户 {{username}} 的视角（管理员：{{administrator}}）",
+    "Return to administrator": "返回管理员"
   }
 }

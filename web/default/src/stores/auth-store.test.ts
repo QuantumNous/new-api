@@ -94,3 +94,32 @@ describe('auth reset recall redirect lifecycle', () => {
     )
   })
 })
+
+describe('auth identity storage', () => {
+  test('updates the request user ID atomically with the user object', () => {
+    const { localStorage } = installWindowStorage()
+
+    useAuthStore.getState().auth.setUser({
+      id: 42,
+      username: 'viewed-user',
+      role: 1,
+      impersonating: true,
+    })
+
+    expect(localStorage.getItem('uid')).toBe('42')
+    expect(JSON.parse(localStorage.getItem('user') ?? '{}').username).toBe(
+      'viewed-user'
+    )
+  })
+
+  test('clears both identity keys on reset', () => {
+    const { localStorage } = installWindowStorage()
+    localStorage.setItem('uid', '42')
+    localStorage.setItem('user', '{"id":42}')
+
+    useAuthStore.getState().auth.reset()
+
+    expect(localStorage.getItem('uid')).toBe(null)
+    expect(localStorage.getItem('user')).toBe(null)
+  })
+})
