@@ -74,6 +74,7 @@ const stopChatMock = mock(() => undefined)
 const stopMediaMock = mock(() => undefined)
 const startTurnMock = mock(() => undefined)
 const markActiveTurnStoppedMock = mock(() => undefined)
+const markCurrentConversationLocalOnlyMock = mock(() => undefined)
 const setConversationIdMock = mock(() => undefined)
 const updateConfigMock = mock(() => undefined)
 const updateMessagesMock = mock(() => undefined)
@@ -168,6 +169,7 @@ spyOn(playgroundHooksModule, 'usePlaygroundPersistence').mockImplementation(
     isRestoring: false,
     startTurn: startTurnMock,
     markActiveTurnStopped: markActiveTurnStoppedMock,
+    markCurrentConversationLocalOnly: markCurrentConversationLocalOnlyMock,
     clearCurrentConversation: () => Promise.resolve(true),
   })) as never
 )
@@ -239,6 +241,7 @@ beforeEach(() => {
   stopMediaMock.mockClear()
   startTurnMock.mockClear()
   markActiveTurnStoppedMock.mockClear()
+  markCurrentConversationLocalOnlyMock.mockClear()
   setConversationIdMock.mockClear()
   updateConfigMock.mockClear()
   updateMessagesMock.mockClear()
@@ -274,6 +277,7 @@ describe('Playground model landing handoff', () => {
     input.onSubmit('Draw a violet fox')
 
     expect(generateMediaMock).toHaveBeenCalledTimes(1)
+    expect(markCurrentConversationLocalOnlyMock).toHaveBeenCalledTimes(1)
     expect(generateMediaMock.mock.calls[0]?.[1]).toBe('gpt-image-2')
     expect(sendChatMock).not.toHaveBeenCalled()
   })

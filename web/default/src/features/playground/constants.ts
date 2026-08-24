@@ -84,6 +84,7 @@ export const STORAGE_KEYS = {
   MESSAGES: 'playground_messages',
   PARAMETER_ENABLED: 'playground_parameter_enabled',
   CONVERSATION: 'playground_conversation',
+  LOCAL_CONVERSATION_PRIORITY: 'playground_local_conversation_priority',
 } as const
 
 // Error messages

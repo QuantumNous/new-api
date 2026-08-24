@@ -229,6 +229,80 @@ describe('Playground persistence payloads', () => {
     })
   })
 
+  test('retries a transient current snapshot read before applying server state', async () => {
+    let attempts = 0
+    const waitedAfterAttempts: number[] = []
+
+    const result = await restorePlaygroundSession(
+      [],
+      async () => {},
+      async () => {
+        attempts += 1
+        if (attempts < 3) throw new Error('temporary outage')
+        return { conversation_id: 'conversation-a', messages: [userMessage] }
+      },
+      {
+        retryCurrentAfter: async (attempt) => {
+          waitedAfterAttempts.push(attempt)
+        },
+      }
+    )
+
+    expect(attempts).toBe(3)
+    expect(waitedAfterAttempts).toEqual([1, 2])
+    expect(result).toEqual({
+      pendingRecords: [],
+      shouldApplyCurrent: true,
+      current: { conversation_id: 'conversation-a', messages: [userMessage] },
+    })
+  })
+
+  test('keeps delivered records removed when all current snapshot retries fail', async () => {
+    const pending = buildPlaygroundRecordPayload(
+      activeTurn(),
+      [userMessage, completeAssistant],
+      false,
+      2500
+    )
+    let currentAttempts = 0
+
+    const result = await restorePlaygroundSession(
+      [pending],
+      async () => {},
+      async () => {
+        currentAttempts += 1
+        throw new Error('temporary outage')
+      },
+      { retryCurrentAfter: async () => {} }
+    )
+
+    expect(currentAttempts).toBe(3)
+    expect(result).toEqual({
+      pendingRecords: [],
+      shouldApplyCurrent: false,
+    })
+  })
+
+  test('keeps a local-only media conversation instead of fetching stale server state', async () => {
+    let fetchedCurrent = false
+
+    const result = await restorePlaygroundSession(
+      [],
+      async () => {},
+      async () => {
+        fetchedCurrent = true
+        return { conversation_id: 'server-conversation', messages: [] }
+      },
+      { preferLocal: true }
+    )
+
+    expect(fetchedCurrent).toBe(false)
+    expect(result).toEqual({
+      pendingRecords: [],
+      shouldApplyCurrent: false,
+    })
+  })
+
   test('removes only delivered records from a queue changed during network I/O', () => {
     const first = buildPlaygroundRecordPayload(
       activeTurn(),

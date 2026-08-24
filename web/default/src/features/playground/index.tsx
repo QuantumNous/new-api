@@ -124,14 +124,18 @@ export function Playground({
     updateConfig,
   } = usePlaygroundState(authUser?.id, initialModel)
 
-  const { isRestoring, startTurn, markActiveTurnStopped } =
-    usePlaygroundPersistence({
-      userId: authUser?.id,
-      messages,
-      conversationId,
-      setConversationId,
-      updateMessages,
-    })
+  const {
+    isRestoring,
+    startTurn,
+    markActiveTurnStopped,
+    markCurrentConversationLocalOnly,
+  } = usePlaygroundPersistence({
+    userId: authUser?.id,
+    messages,
+    conversationId,
+    setConversationId,
+    updateMessages,
+  })
 
   const {
     sendChat,
@@ -363,6 +367,7 @@ export function Playground({
       const model = configOverride?.model ?? config.model
       const group = config.group
       if (resolveMediaGenerationProfile(model)) {
+        markCurrentConversationLocalOnly()
         void generateMedia(prompt, model, group, getMediaSettings(model))
         return
       }
@@ -380,6 +385,7 @@ export function Playground({
       generateMedia,
       getFirstRunChatOverride,
       getMediaSettings,
+      markCurrentConversationLocalOnly,
       parameterEnabled,
       sendChat,
       startTurn,

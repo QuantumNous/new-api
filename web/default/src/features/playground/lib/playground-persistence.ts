@@ -159,10 +159,22 @@ export type PlaygroundRestoreResult =
       current: PlaygroundConversationSnapshot | null
     }
 
+interface PlaygroundRestoreOptions {
+  preferLocal?: boolean
+  retryCurrentAfter?: (attempt: number) => Promise<void>
+}
+
+function waitBeforeCurrentRetry(attempt: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, attempt * 250)
+  })
+}
+
 export async function restorePlaygroundSession(
   pendingRecords: PlaygroundRecordPayload[],
   save: (record: PlaygroundRecordPayload) => Promise<void>,
-  getCurrent: () => Promise<PlaygroundConversationSnapshot | null>
+  getCurrent: () => Promise<PlaygroundConversationSnapshot | null>,
+  options: PlaygroundRestoreOptions = {}
 ): Promise<PlaygroundRestoreResult> {
   const remaining = await drainPlaygroundOutbox(pendingRecords, save)
   if (remaining.length > 0) {
@@ -172,16 +184,28 @@ export async function restorePlaygroundSession(
     }
   }
 
-  try {
-    return {
-      pendingRecords: [],
-      shouldApplyCurrent: true,
-      current: await getCurrent(),
-    }
-  } catch {
+  if (options.preferLocal) {
     return {
       pendingRecords: [],
       shouldApplyCurrent: false,
     }
+  }
+
+  const retryCurrentAfter = options.retryCurrentAfter ?? waitBeforeCurrentRetry
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return {
+        pendingRecords: [],
+        shouldApplyCurrent: true,
+        current: await getCurrent(),
+      }
+    } catch {
+      if (attempt < 3) await retryCurrentAfter(attempt)
+    }
+  }
+
+  return {
+    pendingRecords: [],
+    shouldApplyCurrent: false,
   }
 }

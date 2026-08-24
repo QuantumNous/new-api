@@ -32,6 +32,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
+export interface LocalConversationPriority {
+  conversationId: string
+  markedAt: number
+}
+
 /**
  * Load playground config from localStorage
  */
@@ -188,6 +193,64 @@ export function saveConversationId(
   }
 }
 
+export function loadLocalConversationPriority(
+  userId: number
+): LocalConversationPriority | null {
+  if (!isValidUserId(userId)) return null
+  try {
+    const saved = localStorage.getItem(
+      scopedKey(STORAGE_KEYS.LOCAL_CONVERSATION_PRIORITY, userId)
+    )
+    if (!saved) return null
+    const parsed: unknown = JSON.parse(saved)
+    if (
+      !isRecord(parsed) ||
+      typeof parsed.conversationId !== 'string' ||
+      !parsed.conversationId.trim() ||
+      !Number.isInteger(parsed.markedAt) ||
+      Number(parsed.markedAt) <= 0
+    ) {
+      return null
+    }
+    return {
+      conversationId: parsed.conversationId,
+      markedAt: Number(parsed.markedAt),
+    }
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load local Playground priority:', error)
+    return null
+  }
+}
+
+export function saveLocalConversationPriority(
+  userId: number,
+  priority: LocalConversationPriority
+): void {
+  if (!isValidUserId(userId)) return
+  try {
+    localStorage.setItem(
+      scopedKey(STORAGE_KEYS.LOCAL_CONVERSATION_PRIORITY, userId),
+      JSON.stringify(priority)
+    )
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to save local Playground priority:', error)
+  }
+}
+
+export function clearLocalConversationPriority(userId: number): void {
+  if (!isValidUserId(userId)) return
+  try {
+    localStorage.removeItem(
+      scopedKey(STORAGE_KEYS.LOCAL_CONVERSATION_PRIORITY, userId)
+    )
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to clear local Playground priority:', error)
+  }
+}
+
 /**
  * Remove all versioned Playground state for one user
  */
@@ -199,6 +262,7 @@ export function clearUserPlaygroundData(userId: number): void {
       STORAGE_KEYS.PARAMETER_ENABLED,
       STORAGE_KEYS.MESSAGES,
       STORAGE_KEYS.CONVERSATION,
+      STORAGE_KEYS.LOCAL_CONVERSATION_PRIORITY,
     ]
     keys.forEach((key) => localStorage.removeItem(scopedKey(key, userId)))
   } catch (error) {

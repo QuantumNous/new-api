@@ -21,12 +21,15 @@ import { STORAGE_KEYS } from '../constants'
 import type { Message } from '../types'
 import {
   clearUserPlaygroundData,
+  clearLocalConversationPriority,
   loadConfig,
   loadConversationId,
+  loadLocalConversationPriority,
   loadMessages,
   loadParameterEnabled,
   saveConfig,
   saveConversationId,
+  saveLocalConversationPriority,
   saveMessages,
   saveParameterEnabled,
 } from './storage'
@@ -138,6 +141,22 @@ describe('Playground user-scoped storage', () => {
       'conversation-a'
     )
     expect(storage.values.has('playground_conversation')).toBe(false)
+  })
+
+  test('isolates the local-only media conversation marker by user', () => {
+    saveLocalConversationPriority(10, {
+      conversationId: 'conversation-a',
+      markedAt: 1234,
+    })
+
+    expect(loadLocalConversationPriority(10)).toEqual({
+      conversationId: 'conversation-a',
+      markedAt: 1234,
+    })
+    expect(loadLocalConversationPriority(20)).toBe(null)
+
+    clearLocalConversationPriority(10)
+    expect(loadLocalConversationPriority(10)).toBe(null)
   })
 
   test('safely handles corrupt user-scoped state', () => {

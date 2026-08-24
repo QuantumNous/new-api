@@ -26,9 +26,12 @@ import {
 import {
   buildPlaygroundRecordPayload,
   browserPlaygroundOutbox,
+  clearLocalConversationPriority,
   createActivePlaygroundTurn,
   drainPlaygroundOutbox,
+  loadLocalConversationPriority,
   restorePlaygroundSession,
+  saveLocalConversationPriority,
   type ActivePlaygroundTurn,
 } from '../lib'
 import type {
@@ -66,6 +69,8 @@ export function usePlaygroundPersistence({
 }: UsePlaygroundPersistenceOptions) {
   const activeTurnRef = useRef<UserActiveTurn | null>(null)
   const stoppedRef = useRef(false)
+  const messagesRef = useRef(messages)
+  const conversationIdRef = useRef(conversationId)
   const drainPromiseRef = useRef<Promise<PlaygroundRecordPayload[]> | null>(
     null
   )
@@ -73,37 +78,67 @@ export function usePlaygroundPersistence({
   const hasUser = isAuthenticatedUserId(userId)
   const isRestoring = hasUser && settledUserId !== userId
 
-  const drainStoredRecords = useCallback(async (targetUserId: number) => {
-    if (drainPromiseRef.current) return drainPromiseRef.current
+  useEffect(() => {
+    messagesRef.current = messages
+    conversationIdRef.current = conversationId
+  }, [conversationId, messages])
 
-    const drain = async () => {
-      while (true) {
-        const attemptedRecords =
-          await browserPlaygroundOutbox.list(targetUserId)
-        if (attemptedRecords.length === 0) return []
-
-        const remainingRecords = await drainPlaygroundOutbox(
-          attemptedRecords,
-          savePlaygroundRecord
+  const clearDeliveredLocalPriority = useCallback(
+    (targetUserId: number, deliveredRecords: PlaygroundRecordPayload[]) => {
+      const priority = loadLocalConversationPriority(targetUserId)
+      if (
+        priority &&
+        deliveredRecords.some(
+          (record) =>
+            record.conversation_id === priority.conversationId &&
+            record.client_completed_at >= priority.markedAt
         )
-        const deliveredCount = attemptedRecords.length - remainingRecords.length
-        await browserPlaygroundOutbox.remove(
-          targetUserId,
-          attemptedRecords
-            .slice(0, deliveredCount)
-            .map((record) => record.record_id)
-        )
-        if (remainingRecords.length > 0) return remainingRecords
+      ) {
+        clearLocalConversationPriority(targetUserId)
       }
-    }
+    },
+    []
+  )
 
-    drainPromiseRef.current = drain()
-    try {
-      return await drainPromiseRef.current
-    } finally {
-      drainPromiseRef.current = null
-    }
-  }, [])
+  const drainStoredRecords = useCallback(
+    async (targetUserId: number) => {
+      if (drainPromiseRef.current) return drainPromiseRef.current
+
+      const drain = async () => {
+        while (true) {
+          const attemptedRecords =
+            await browserPlaygroundOutbox.list(targetUserId)
+          if (attemptedRecords.length === 0) return []
+
+          const remainingRecords = await drainPlaygroundOutbox(
+            attemptedRecords,
+            savePlaygroundRecord
+          )
+          const deliveredCount =
+            attemptedRecords.length - remainingRecords.length
+          await browserPlaygroundOutbox.remove(
+            targetUserId,
+            attemptedRecords
+              .slice(0, deliveredCount)
+              .map((record) => record.record_id)
+          )
+          clearDeliveredLocalPriority(
+            targetUserId,
+            attemptedRecords.slice(0, deliveredCount)
+          )
+          if (remainingRecords.length > 0) return remainingRecords
+        }
+      }
+
+      drainPromiseRef.current = drain()
+      try {
+        return await drainPromiseRef.current
+      } finally {
+        drainPromiseRef.current = null
+      }
+    },
+    [clearDeliveredLocalPriority]
+  )
 
   useEffect(() => {
     activeTurnRef.current = null
@@ -121,10 +156,17 @@ export function usePlaygroundPersistence({
 
     const restore = async () => {
       const attemptedRecords = await browserPlaygroundOutbox.list(userId)
+      const priority = loadLocalConversationPriority(userId)
       const result = await restorePlaygroundSession(
         attemptedRecords,
         savePlaygroundRecord,
-        getCurrentPlaygroundRecord
+        getCurrentPlaygroundRecord,
+        {
+          preferLocal:
+            !!priority &&
+            priority.conversationId === conversationIdRef.current &&
+            messagesRef.current.length > 0,
+        }
       )
       const deliveredCount =
         attemptedRecords.length - result.pendingRecords.length
@@ -133,6 +175,10 @@ export function usePlaygroundPersistence({
         attemptedRecords
           .slice(0, deliveredCount)
           .map((record) => record.record_id)
+      )
+      clearDeliveredLocalPriority(
+        userId,
+        attemptedRecords.slice(0, deliveredCount)
       )
 
       if (cancelled || !result.shouldApplyCurrent) return
@@ -153,7 +199,13 @@ export function usePlaygroundPersistence({
     return () => {
       cancelled = true
     }
-  }, [hasUser, setConversationId, updateMessages, userId])
+  }, [
+    clearDeliveredLocalPriority,
+    hasUser,
+    setConversationId,
+    updateMessages,
+    userId,
+  ])
 
   useEffect(() => {
     const active = activeTurnRef.current
@@ -214,6 +266,14 @@ export function usePlaygroundPersistence({
     if (activeTurnRef.current) stoppedRef.current = true
   }, [])
 
+  const markCurrentConversationLocalOnly = useCallback(() => {
+    if (!hasUser || !conversationId) return
+    saveLocalConversationPriority(userId, {
+      conversationId,
+      markedAt: Date.now(),
+    })
+  }, [conversationId, hasUser, userId])
+
   const clearCurrentConversation = useCallback(async (): Promise<boolean> => {
     if (!hasUser || !conversationId) return false
 
@@ -238,6 +298,7 @@ export function usePlaygroundPersistence({
     isRestoring,
     startTurn,
     markActiveTurnStopped,
+    markCurrentConversationLocalOnly,
     clearCurrentConversation,
   }
 }
