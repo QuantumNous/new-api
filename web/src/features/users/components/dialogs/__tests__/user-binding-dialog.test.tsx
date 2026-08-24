@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, beforeAll, describe, expect, test } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest'
 
 import { api } from '@/lib/api'
 
@@ -32,6 +32,10 @@ type MockableApi = {
 const apiClient = api as unknown as MockableApi
 const originalGet = apiClient.get
 const originalDelete = apiClient.delete
+const originalGetAnimations = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  'getAnimations'
+)
 
 const user = {
   id: 7,
@@ -58,7 +62,22 @@ function findUnbindButton(provider: string): HTMLButtonElement {
 }
 
 beforeAll(() => {
-  HTMLElement.prototype.getAnimations = () => []
+  Object.defineProperty(HTMLElement.prototype, 'getAnimations', {
+    configurable: true,
+    value: () => [],
+  })
+})
+
+afterAll(() => {
+  if (originalGetAnimations) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      'getAnimations',
+      originalGetAnimations
+    )
+    return
+  }
+  Reflect.deleteProperty(HTMLElement.prototype, 'getAnimations')
 })
 
 afterEach(() => {
