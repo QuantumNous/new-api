@@ -180,6 +180,14 @@ const (
 	LogTypeRefund  = 6
 )
 
+// These internal audit messages must never be exposed through a user's
+// self-service log view. They remain available to administrators in the full
+// management log.
+const (
+	LogContentImpersonationEntered = "administrator entered user view"
+	LogContentImpersonationExited  = "administrator exited user view"
+)
+
 func FindRecentlyActiveRecallUserIDs(userIDs []int, since int64, batchSize int) (map[int]struct{}, error) {
 	return FindRecentlyActiveRecallUserIDsWithContext(context.Background(), userIDs, since, batchSize)
 }
@@ -621,6 +629,13 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	} else {
 		tx = tx.Where("logs.user_id = ? and logs.type = ?", userId, logType)
 	}
+	// Older impersonation records were historically written under the target
+	// user's ID. Hide those internal audit messages from self-service logs while
+	// keeping them available through the administrator-only full log endpoint.
+	tx = tx.Where("logs.content NOT IN ?", []string{
+		LogContentImpersonationEntered,
+		LogContentImpersonationExited,
+	})
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
 		return nil, 0, err

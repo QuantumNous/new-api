@@ -821,7 +821,15 @@ func ImpersonateUser(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage, "administrator entered user view", adminInfo)
+	// Keep impersonation audit events on the administrator's own log. Writing
+	// them against the target user exposes internal admin wording in that
+	// user's self-service usage log.
+	model.RecordLogWithAdminInfo(c.GetInt("id"), model.LogTypeManage, model.LogContentImpersonationEntered, map[string]interface{}{
+		"admin_id":        adminInfo["admin_id"],
+		"admin_username":  adminInfo["admin_username"],
+		"target_user_id":  user.Id,
+		"target_username": user.Username,
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": common.TranslateMessage(c, i18n.MsgOperationSuccess),
@@ -854,10 +862,6 @@ func ExitImpersonation(c *gin.Context) {
 	adminRole := session.Get("impersonator_role")
 	adminStatus := session.Get("impersonator_status")
 	adminGroup := session.Get("impersonator_group")
-	adminInfo := map[string]interface{}{
-		"admin_id":       adminID,
-		"admin_username": adminUsername,
-	}
 	session.Set("id", adminID)
 	session.Set("username", adminUsername)
 	session.Set("role", adminRole)
@@ -870,7 +874,17 @@ func ExitImpersonation(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	model.RecordLogWithAdminInfo(impersonatedUserID, model.LogTypeManage, "administrator exited user view", adminInfo)
+	// As with entry, keep the audit event out of the impersonated user's own
+	// log while retaining the target identity for administrator auditing.
+	if adminIDInt, ok := adminID.(int); ok {
+		model.RecordLogWithAdminInfo(adminIDInt, model.LogTypeManage, model.LogContentImpersonationExited, map[string]interface{}{
+			"admin_id":       adminID,
+			"admin_username": adminUsername,
+			"target_user_id": impersonatedUserID,
+		})
+	} else {
+		common.SysLog("failed to record impersonation exit audit: invalid administrator id in session")
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": common.TranslateMessage(c, i18n.MsgOperationSuccess),
