@@ -19,20 +19,39 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import { API_ENDPOINTS } from './constants'
 import type { MediaGenerationRequest } from './lib/media-generation'
+import type { PlaygroundConversationSnapshot } from './lib/playground-persistence'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
   GroupOption,
   VideoTask,
+  PlaygroundRecordPayload,
 } from './types'
+
+interface PlaygroundApiResponse<T = unknown> {
+  success: boolean
+  data?: T
+  message?: string
+}
+
+function assertPlaygroundApiSuccess(
+  response: PlaygroundApiResponse,
+  fallbackMessage: string
+): void {
+  if (!response.success) {
+    throw new Error(response.message || fallbackMessage)
+  }
+}
 
 /**
  * Send chat completion request (non-streaming)
  */
 export async function sendChatCompletion(
-  payload: ChatCompletionRequest
+  payload: ChatCompletionRequest,
+  signal?: AbortSignal
 ): Promise<ChatCompletionResponse> {
   const res = await api.post(API_ENDPOINTS.CHAT_COMPLETIONS, payload, {
+    signal,
     skipErrorHandler: true,
   } as Record<string, unknown>)
   return res.data
@@ -149,4 +168,48 @@ export async function getUserGroups(): Promise<GroupOption[]> {
     ratio: info.ratio,
     desc: info.desc,
   }))
+}
+
+export async function savePlaygroundRecord(
+  payload: PlaygroundRecordPayload
+): Promise<void> {
+  const res = await api.post(API_ENDPOINTS.PLAYGROUND_RECORDS, payload)
+  assertPlaygroundApiSuccess(res.data, 'Failed to save Playground record')
+}
+
+export async function getCurrentPlaygroundRecord(): Promise<PlaygroundConversationSnapshot | null> {
+  const res = await api.get(API_ENDPOINTS.PLAYGROUND_RECORDS_CURRENT)
+  const response =
+    res.data as PlaygroundApiResponse<PlaygroundConversationSnapshot | null>
+  assertPlaygroundApiSuccess(
+    response,
+    'Failed to restore the current Playground conversation'
+  )
+
+  if (response.data === null) return null
+  if (
+    !response.data ||
+    typeof response.data.conversation_id !== 'string' ||
+    !Array.isArray(response.data.messages)
+  ) {
+    throw new Error('Invalid current Playground conversation response')
+  }
+
+  return response.data
+}
+
+export async function clearCurrentPlaygroundRecord(
+  recordId: string,
+  conversationId: string,
+  clientCompletedAt: number
+): Promise<void> {
+  const res = await api.post(API_ENDPOINTS.PLAYGROUND_RECORDS_CLEAR, {
+    record_id: recordId,
+    conversation_id: conversationId,
+    client_completed_at: clientCompletedAt,
+  })
+  assertPlaygroundApiSuccess(
+    res.data,
+    'Failed to clear Playground conversation'
+  )
 }

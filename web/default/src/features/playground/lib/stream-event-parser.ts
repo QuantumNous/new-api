@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ChatCompletionChunk } from '../types'
+import type { ChatCompletionChunk, PlaygroundResponseMetadata } from '../types'
 
 type StreamErrorPayload = {
   error?: {
@@ -26,7 +26,12 @@ type StreamErrorPayload = {
 }
 
 export type ParsedStreamMessageEvent =
-  | { type: 'delta'; reasoning?: string; content?: string }
+  | {
+      type: 'delta'
+      reasoning?: string
+      content?: string
+      responseMetadata?: PlaygroundResponseMetadata
+    }
   | { type: 'error'; message: string; code?: string }
   | { type: 'parse_error' }
 
@@ -45,10 +50,20 @@ export function parseStreamMessageEvent(
     }
 
     const delta = parsed.choices?.[0]?.delta
+    const responseMetadata =
+      parsed.id || parsed.usage
+        ? {
+            relayRequestId: parsed.id || undefined,
+            promptTokens: parsed.usage?.prompt_tokens,
+            completionTokens: parsed.usage?.completion_tokens,
+            totalTokens: parsed.usage?.total_tokens,
+          }
+        : undefined
     return {
       type: 'delta',
       reasoning: delta?.reasoning_content,
       content: delta?.content,
+      responseMetadata,
     }
   } catch {
     return { type: 'parse_error' }

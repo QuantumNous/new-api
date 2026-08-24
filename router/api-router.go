@@ -134,6 +134,14 @@ func SetApiRouter(router *gin.Engine) {
 			tempMediaRoute.POST("/images", controller.UploadTempMediaImage)
 		}
 
+		playgroundRecordRoute := apiRouter.Group("/playground/records")
+		playgroundRecordRoute.Use(middleware.RouteTag("playground-records"), middleware.UserAuth())
+		{
+			playgroundRecordRoute.POST("", controller.SavePlaygroundRecord)
+			playgroundRecordRoute.GET("/current", controller.GetCurrentPlaygroundRecord)
+			playgroundRecordRoute.POST("/clear", controller.ClearPlaygroundRecord)
+		}
+
 		userRoute := apiRouter.Group("/user")
 		{
 			userRoute.POST("/register", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, middleware.TurnstileCheck(), controller.Register)

@@ -45,7 +45,12 @@ import {
   MESSAGE_STATUS,
   MODEL_GENERATOR_DRAFT_CLEANUP_KEY,
 } from './constants'
-import { usePlaygroundState, useChatHandler, useMediaGeneration } from './hooks'
+import {
+  useChatHandler,
+  useMediaGeneration,
+  usePlaygroundPersistence,
+  usePlaygroundState,
+} from './hooks'
 import {
   createUserMessage,
   createLoadingAssistantMessage,
@@ -109,13 +114,28 @@ export function Playground({
     config,
     parameterEnabled,
     messages,
+    conversationId,
     models,
     groups,
     updateMessages,
+    setConversationId,
     setModels,
     setGroups,
     updateConfig,
-  } = usePlaygroundState(initialModel)
+  } = usePlaygroundState(authUser?.id, initialModel)
+
+  const {
+    isRestoring,
+    startTurn,
+    markActiveTurnStopped,
+    markCurrentConversationLocalOnly,
+  } = usePlaygroundPersistence({
+    userId: authUser?.id,
+    messages,
+    conversationId,
+    setConversationId,
+    updateMessages,
+  })
 
   const {
     sendChat,
@@ -130,16 +150,25 @@ export function Playground({
   const { generateMedia, stopMediaGeneration, isGeneratingMedia } =
     useMediaGeneration({ onMessageUpdate: updateMessages })
   const isGenerating = isGeneratingChat || isGeneratingMedia
+  const generationDispatchRef = useRef(false)
   const [mediaSettingsByModel, setMediaSettingsByModel] = useState<
     Record<string, MediaGenerationSettings>
   >({})
 
+  useEffect(() => {
+    if (!isGenerating) generationDispatchRef.current = false
+  }, [isGenerating])
+
   const stopGeneration = useCallback(() => {
-    if (isGeneratingChat) stopChatGeneration()
+    if (isGeneratingChat) {
+      markActiveTurnStopped()
+      stopChatGeneration()
+    }
     if (isGeneratingMedia) stopMediaGeneration()
   }, [
     isGeneratingChat,
     isGeneratingMedia,
+    markActiveTurnStopped,
     stopChatGeneration,
     stopMediaGeneration,
   ])
@@ -335,6 +364,7 @@ export function Playground({
     (
       prompt: string,
       requestMessages: MessageType[],
+      assistantMessageKey: string,
       modelOverride?: string
     ) => {
       const configOverride = modelOverride
@@ -343,18 +373,29 @@ export function Playground({
       const model = configOverride?.model ?? config.model
       const group = config.group
       if (resolveMediaGenerationProfile(model)) {
+        markCurrentConversationLocalOnly()
         void generateMedia(prompt, model, group, getMediaSettings(model))
         return
       }
+      startTurn(
+        requestMessages,
+        { ...config, ...configOverride },
+        parameterEnabled,
+        firstRun,
+        assistantMessageKey
+      )
       sendChat(requestMessages, configOverride)
     },
     [
-      config.group,
-      config.model,
+      config,
+      firstRun,
       generateMedia,
       getFirstRunChatOverride,
       getMediaSettings,
+      markCurrentConversationLocalOnly,
+      parameterEnabled,
       sendChat,
+      startTurn,
     ]
   )
 
@@ -536,6 +577,9 @@ export function Playground({
 
   const prepareSend = useCallback(
     (targetModel: string) => {
+      if (generationDispatchRef.current || isGenerating || isRestoring) {
+        return false
+      }
       const isTargetModelValid = handoff.models.some(
         (model) => model.value === targetModel
       )
@@ -547,10 +591,11 @@ export function Playground({
         toast.error(i18next.t('Failed to load playground models'))
         return false
       }
+      generationDispatchRef.current = true
       if (firstRun) setSentThisSession(true)
       return true
     },
-    [firstRun, handoff.models, isFirstRunModelReady]
+    [firstRun, handoff.models, isFirstRunModelReady, isGenerating, isRestoring]
   )
 
   const clearModelGeneratorDraft = useCallback(() => {
@@ -600,7 +645,7 @@ export function Playground({
       const newMessages = [...messages, userMessage, assistantMessage]
       updateMessages(newMessages)
 
-      dispatchGeneration(text, newMessages, modelOverride)
+      dispatchGeneration(text, newMessages, assistantMessage.key, modelOverride)
     },
     [
       clearModelGeneratorDraft,
@@ -627,22 +672,22 @@ export function Playground({
     const messageIndex = messages.findIndex((m) => m.key === message.key)
     if (messageIndex === -1) return
 
+    const messagesUpToHere = messages.slice(0, messageIndex)
+    const prompt = [...messagesUpToHere]
+      .reverse()
+      .find((item) => item.from === MESSAGE_ROLES.USER)?.versions[0]?.content
+    if (!prompt) return
+
     const chatOverride = getFirstRunChatOverride()
     const targetModel = chatOverride?.model ?? config.model
     if (!prepareSend(targetModel)) return
 
     // Remove messages after this one and regenerate
-    const messagesUpToHere = messages.slice(0, messageIndex)
-
     const loadingMessage = createLoadingAssistantMessage()
     const newMessages = [...messagesUpToHere, loadingMessage]
 
-    const prompt = [...messagesUpToHere]
-      .reverse()
-      .find((item) => item.from === MESSAGE_ROLES.USER)?.versions[0]?.content
-    if (!prompt) return
     updateMessages(newMessages)
-    dispatchGeneration(prompt, newMessages)
+    dispatchGeneration(prompt, newMessages, loadingMessage.key)
   }
 
   const handleEditMessage = useCallback((message: MessageType) => {
@@ -673,15 +718,13 @@ export function Playground({
         return
       }
 
-      const toSubmit = [
-        ...updated.slice(0, index + 1),
-        createLoadingAssistantMessage(),
-      ]
+      const loadingMessage = createLoadingAssistantMessage()
+      const toSubmit = [...updated.slice(0, index + 1), loadingMessage]
       const chatOverride = getFirstRunChatOverride()
       const targetModel = chatOverride?.model ?? config.model
       if (!prepareSend(targetModel)) return
       updateMessages(toSubmit)
-      dispatchGeneration(newContent, toSubmit)
+      dispatchGeneration(newContent, toSubmit, loadingMessage.key)
     },
     [
       editingMessageKey,
@@ -713,7 +756,7 @@ export function Playground({
           ptFirstCallSecondsRemaining={
             isPtFirstCallExperiment ? ptFirstCallSecondsRemaining : undefined
           }
-          disabled={!isFirstRunModelReady}
+          disabled={!isFirstRunModelReady || isRestoring}
           onPickExample={handleSendMessage}
         />
       )}
@@ -725,7 +768,7 @@ export function Playground({
           onRegenerateMessage={handleRegenerateMessage}
           onEditMessage={handleEditMessage}
           onDeleteMessage={handleDeleteMessage}
-          isGenerating={isGenerating}
+          isGenerating={isGenerating || isRestoring}
           editingKey={editingMessageKey}
           onCancelEdit={handleEditOpenChange}
           onSaveEdit={(newContent) => applyEdit(newContent, false)}
@@ -742,9 +785,11 @@ export function Playground({
       <div className='mx-auto w-full max-w-4xl'>
         <PlaygroundInput
           key={handoff.prompt || 'playground-input'}
-          disabled={isGenerating}
+          disabled={isGenerating || isRestoring}
           initialText={handoff.prompt}
-          submitDisabled={!isCurrentModelValid || !isFirstRunModelReady}
+          submitDisabled={
+            !isCurrentModelValid || !isFirstRunModelReady || isRestoring
+          }
           showGroupSelector={canUseGroups}
           groups={groups}
           groupValue={config.group}

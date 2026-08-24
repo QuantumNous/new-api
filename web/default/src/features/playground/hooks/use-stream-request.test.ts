@@ -16,20 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export * from './message-utils'
-export * from './media-generation'
-export * from './media-response'
-export * from './model-parameter-profile'
-export * from './first-run-chat-override'
-export * from './first-run-model'
-export * from './first-run-persistence'
-export * from './first-run-topup'
-export * from './payload-builder'
-export * from './playground-handoff'
-export * from './playground-model-filter'
-export * from './playground-id'
-export * from './playground-persistence'
-export * from './playground-outbox'
-export * from './storage'
-export * from './message-styles'
-export * from './stream-event-parser'
+import { expect, test } from 'bun:test'
+import { closeOwnedStreamSource } from './use-stream-request'
+
+test('a stale stream can close itself without clearing the newer stream', () => {
+  let firstClosed = false
+  let secondClosed = false
+  const first = { close: () => (firstClosed = true) }
+  const second = { close: () => (secondClosed = true) }
+  const current = { current: second }
+
+  closeOwnedStreamSource(current, first)
+
+  expect(firstClosed).toBe(true)
+  expect(secondClosed).toBe(false)
+  expect(current.current).toBe(second)
+
+  closeOwnedStreamSource(current, second)
+
+  expect(secondClosed).toBe(true)
+  expect(current.current).toBeNull()
+})

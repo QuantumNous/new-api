@@ -21,19 +21,38 @@ import { SSE } from 'sse.js'
 import { getCommonHeaders } from '@/lib/api'
 import { API_ENDPOINTS, ERROR_MESSAGES } from '../constants'
 import { parseStreamMessageEvent } from '../lib/stream-event-parser'
-import type { ChatCompletionRequest } from '../types'
+import type {
+  ChatCompletionRequest,
+  PlaygroundResponseMetadata,
+} from '../types'
+
+interface ClosableStreamSource {
+  close: () => void
+}
+
+interface CurrentStreamSource<T extends ClosableStreamSource> {
+  current: T | null
+}
+
+export function closeOwnedStreamSource<T extends ClosableStreamSource>(
+  holder: CurrentStreamSource<T>,
+  source: T
+): void {
+  source.close()
+  if (holder.current === source) holder.current = null
+}
 
 /**
  * Hook for handling streaming chat completion requests
  */
 export function useStreamRequest() {
   const sseSourceRef = useRef<SSE | null>(null)
-  const isStreamCompleteRef = useRef(false)
 
   const sendStreamRequest = useCallback(
     (
       payload: ChatCompletionRequest,
       onUpdate: (type: 'reasoning' | 'content', chunk: string) => void,
+      onMetadata: (metadata: PlaygroundResponseMetadata) => void,
       onComplete: () => void,
       onError: (error: string, errorCode?: string) => void
     ) => {
@@ -44,15 +63,14 @@ export function useStreamRequest() {
       })
 
       sseSourceRef.current = source
-      isStreamCompleteRef.current = false
+      let isStreamComplete = false
 
       const closeSource = () => {
-        source.close()
-        sseSourceRef.current = null
+        closeOwnedStreamSource(sseSourceRef, source)
       }
 
       const handleError = (errorMessage: string, errorCode?: string) => {
-        if (!isStreamCompleteRef.current) {
+        if (!isStreamComplete) {
           onError(errorMessage, errorCode)
           closeSource()
         }
@@ -60,7 +78,7 @@ export function useStreamRequest() {
 
       source.addEventListener('message', (e: MessageEvent) => {
         if (e.data === '[DONE]') {
-          isStreamCompleteRef.current = true
+          isStreamComplete = true
           closeSource()
           onComplete()
           return
@@ -77,6 +95,10 @@ export function useStreamRequest() {
           console.error('Failed to parse SSE message:', e.data)
           handleError(ERROR_MESSAGES.PARSE_ERROR)
           return
+        }
+
+        if (parsed.responseMetadata) {
+          onMetadata(parsed.responseMetadata)
         }
 
         if (parsed.reasoning) {
@@ -131,8 +153,7 @@ export function useStreamRequest() {
       } catch (error: unknown) {
         // eslint-disable-next-line no-console
         console.error('Failed to start SSE stream:', error)
-        onError(ERROR_MESSAGES.STREAM_START_ERROR)
-        sseSourceRef.current = null
+        handleError(ERROR_MESSAGES.STREAM_START_ERROR)
       }
     },
     []
@@ -140,8 +161,7 @@ export function useStreamRequest() {
 
   const stopStream = useCallback(() => {
     if (sseSourceRef.current) {
-      sseSourceRef.current.close()
-      sseSourceRef.current = null
+      closeOwnedStreamSource(sseSourceRef, sseSourceRef.current)
     }
   }, [])
 

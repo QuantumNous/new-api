@@ -72,6 +72,10 @@ const generateMediaMock = mock(
 )
 const stopChatMock = mock(() => undefined)
 const stopMediaMock = mock(() => undefined)
+const startTurnMock = mock(() => undefined)
+const markActiveTurnStoppedMock = mock(() => undefined)
+const markCurrentConversationLocalOnlyMock = mock(() => undefined)
+const setConversationIdMock = mock(() => undefined)
 const updateConfigMock = mock(() => undefined)
 const updateMessagesMock = mock(() => undefined)
 const setModelsMock = mock(() => undefined)
@@ -140,6 +144,7 @@ spyOn(playgroundInputModule, 'PlaygroundInput').mockImplementation(((
 }) as never)
 
 spyOn(playgroundHooksModule, 'usePlaygroundState').mockImplementation(((
+  _userId?: number,
   initialModel?: string
 ) => {
   receivedInitialModel = initialModel
@@ -148,14 +153,26 @@ spyOn(playgroundHooksModule, 'usePlaygroundState').mockImplementation(((
     config,
     parameterEnabled: DEFAULT_PARAMETER_ENABLED,
     messages: playgroundMessages,
+    conversationId: 'conversation-test',
     models: [],
     groups: [],
     updateMessages: updateMessagesMock,
+    setConversationId: setConversationIdMock,
     setModels: setModelsMock,
     setGroups: setGroupsMock,
     updateConfig: updateConfigMock,
   }
 }) as never)
+
+spyOn(playgroundHooksModule, 'usePlaygroundPersistence').mockImplementation(
+  (() => ({
+    isRestoring: false,
+    startTurn: startTurnMock,
+    markActiveTurnStopped: markActiveTurnStoppedMock,
+    markCurrentConversationLocalOnly: markCurrentConversationLocalOnlyMock,
+    clearCurrentConversation: () => Promise.resolve(true),
+  })) as never
+)
 
 spyOn(playgroundHooksModule, 'useChatHandler').mockImplementation((({
   config,
@@ -222,6 +239,10 @@ beforeEach(() => {
   generateMediaMock.mockClear()
   stopChatMock.mockClear()
   stopMediaMock.mockClear()
+  startTurnMock.mockClear()
+  markActiveTurnStoppedMock.mockClear()
+  markCurrentConversationLocalOnlyMock.mockClear()
+  setConversationIdMock.mockClear()
   updateConfigMock.mockClear()
   updateMessagesMock.mockClear()
   setModelsMock.mockClear()
@@ -256,6 +277,7 @@ describe('Playground model landing handoff', () => {
     input.onSubmit('Draw a violet fox')
 
     expect(generateMediaMock).toHaveBeenCalledTimes(1)
+    expect(markCurrentConversationLocalOnlyMock).toHaveBeenCalledTimes(1)
     expect(generateMediaMock.mock.calls[0]?.[1]).toBe('gpt-image-2')
     expect(sendChatMock).not.toHaveBeenCalled()
   })
@@ -364,6 +386,41 @@ describe('Playground model landing handoff', () => {
 
     expect(capturedInputProps.modelLocked).toBe(false)
     expect(sendChatMock).not.toHaveBeenCalled()
+  })
+
+  test('rejects a second synchronous chat submission before React rerenders', () => {
+    modelsQueryData = ['gpt-4o']
+    isModelsQueryLoading = false
+    renderToStaticMarkup(<Playground />)
+    if (!capturedInputProps) throw new Error('PlaygroundInput was not rendered')
+
+    capturedInputProps.onSubmit('first prompt')
+    capturedInputProps.onSubmit('second prompt')
+
+    expect(sendChatMock).toHaveBeenCalledTimes(1)
+    expect(startTurnMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('keeps submit available when regenerate has no earlier user prompt', () => {
+    playgroundMessages = [
+      {
+        key: 'assistant-message',
+        from: 'assistant',
+        versions: [{ id: 'assistant-version', content: 'orphan response' }],
+      },
+    ]
+    modelsQueryData = ['gpt-4o']
+    isModelsQueryLoading = false
+    renderToStaticMarkup(<Playground />)
+    if (!capturedInputProps || !capturedChatProps) {
+      throw new Error('Playground controls were not rendered')
+    }
+
+    capturedChatProps.onRegenerateMessage(playgroundMessages[0])
+    capturedInputProps.onSubmit('new prompt')
+
+    expect(sendChatMock).toHaveBeenCalledTimes(1)
+    expect(startTurnMock).toHaveBeenCalledTimes(1)
   })
 
   test('stops only the active chat generation', () => {
