@@ -25,6 +25,7 @@ import type {
 } from '../types'
 import { getCurrentVersion } from './message-utils'
 import { buildChatCompletionPayload } from './payload-builder'
+import { createPlaygroundId } from './playground-id'
 
 export interface ActivePlaygroundTurn {
   recordId: string
@@ -53,7 +54,7 @@ export function createActivePlaygroundTurn(
   }
 
   return {
-    recordId: crypto.randomUUID(),
+    recordId: createPlaygroundId(),
     conversationId,
     assistantMessageKey,
     startedAt: now,

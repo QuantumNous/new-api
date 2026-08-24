@@ -28,6 +28,7 @@ import {
   browserPlaygroundOutbox,
   clearLocalConversationPriority,
   createActivePlaygroundTurn,
+  createPlaygroundId,
   drainPlaygroundOutbox,
   loadLocalConversationPriority,
   restorePlaygroundSession,
@@ -188,7 +189,7 @@ export function usePlaygroundPersistence({
         updateMessages(result.current.messages)
       } else {
         updateMessages([])
-        setConversationId(crypto.randomUUID())
+        setConversationId(createPlaygroundId())
       }
     }
 
@@ -283,7 +284,7 @@ export function usePlaygroundPersistence({
 
     try {
       await clearCurrentPlaygroundRecord(
-        crypto.randomUUID(),
+        createPlaygroundId(),
         conversationId,
         Date.now()
       )
@@ -294,7 +295,7 @@ export function usePlaygroundPersistence({
     activeTurnRef.current = null
     stoppedRef.current = false
     updateMessages([])
-    setConversationId(crypto.randomUUID())
+    setConversationId(createPlaygroundId())
     return true
   }, [conversationId, hasUser, setConversationId, updateMessages])
 

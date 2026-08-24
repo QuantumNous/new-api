@@ -26,6 +26,7 @@ import {
   loadMessages,
   saveMessages,
   applyPlaygroundHandoffModel,
+  createPlaygroundId,
   loadConversationId,
   saveConversationId,
 } from '../lib'
@@ -64,7 +65,7 @@ export function usePlaygroundState(userId?: number, initialModel?: string) {
   })
 
   const [conversationId, setConversationIdState] = useState<string>(() => {
-    return hasUser ? loadConversationId(userId) || crypto.randomUUID() : ''
+    return hasUser ? loadConversationId(userId) || createPlaygroundId() : ''
   })
 
   const [models, setModels] = useState<ModelOption[]>([])
@@ -93,7 +94,7 @@ export function usePlaygroundState(userId?: number, initialModel?: string) {
     setMessages(loadMessages(userId) || [])
 
     const savedConversationId = loadConversationId(userId)
-    const nextConversationId = savedConversationId || crypto.randomUUID()
+    const nextConversationId = savedConversationId || createPlaygroundId()
     setConversationIdState(nextConversationId)
     if (!savedConversationId) {
       saveConversationId(userId, nextConversationId)
