@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 )
 
@@ -73,6 +76,49 @@ func TestGetWebsiteModelUsageRequiresModel(t *testing.T) {
 	}
 }
 
+func TestGetWebsiteModelUsageRejectsInvalidModel(t *testing.T) {
+	t.Setenv(websiteMetricsKeyEnv, "correct-key")
+	for _, modelName := range []string{
+		"model with spaces",
+		"model\"with\"quotes",
+		"model?query",
+		string(make([]byte, 129)),
+	} {
+		gin.SetMode(gin.TestMode)
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		query := url.Values{"model": []string{modelName}}
+		c.Request = httptest.NewRequest(http.MethodGet, "/api/website/model-usage?"+query.Encode(), nil)
+		c.Request.Header.Set("X-Website-Metrics-Key", "correct-key")
+
+		GetWebsiteModelUsage(c)
+
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400 for invalid model %q, got %d", modelName, recorder.Code)
+		}
+	}
+}
+
+func TestWebsiteModelUsageLocalCacheDeletesExpiredEntries(t *testing.T) {
+	redisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() { common.RedisEnabled = redisEnabled })
+
+	key := "website-model-usage-expired-test"
+	websiteModelUsageLocalCache.Store(key, websiteModelUsageLocalCacheEntry{
+		payload:   websiteModelUsageResponse{Success: true},
+		expiresAt: time.Now().Add(-time.Second),
+	})
+	t.Cleanup(func() { websiteModelUsageLocalCache.Delete(key) })
+
+	if _, ok := loadCachedWebsiteModelUsage(key); ok {
+		t.Fatal("expected expired local cache entry to miss")
+	}
+	if _, ok := websiteModelUsageLocalCache.Load(key); ok {
+		t.Fatal("expected expired local cache entry to be deleted")
+	}
+}
+
 // The cache key carries the UTC date, so an entry cannot be served on a day it
 // was not computed for even if the TTL is somehow missed.
 func TestWebsiteModelUsageCacheKeyIsDayScoped(t *testing.T) {
@@ -103,5 +149,20 @@ func TestWebsiteModelUsageCacheTTLExpiresAtUtcMidnight(t *testing.T) {
 	nearMidnight := time.Date(2026, 8, 19, 23, 59, 30, 0, time.UTC)
 	if got := websiteModelUsageCacheTTL(nearMidnight); got != time.Minute {
 		t.Fatalf("expected the one-minute floor near midnight, got %v", got)
+	}
+}
+
+func TestWriteWebsiteModelUsageDisablesSharedCaching(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+
+	writeWebsiteModelUsage(c, websiteModelUsageResponse{Success: true}, time.Date(2026, 8, 19, 6, 0, 0, 0, time.UTC))
+
+	if got := recorder.Header().Get("Cache-Control"); !strings.HasPrefix(got, "private,") {
+		t.Fatalf("expected private cache control, got %q", got)
+	}
+	if got := recorder.Header().Get("Vary"); got != "X-Website-Metrics-Key" {
+		t.Fatalf("expected auth header in Vary, got %q", got)
 	}
 }

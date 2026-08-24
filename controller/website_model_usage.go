@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
+	"golang.org/x/sync/singleflight"
 )
 
 // WEBSITE_METRICS_KEY gates the public website's read-only usage feed. The
@@ -43,8 +44,19 @@ const websiteModelUsageCachePrefix = "website:model-usage:"
 // Redis is shared across nodes, so the cache is coherent in the multi-node
 // deployment. Without Redis every node keeps its own in-process copy: still one
 // query per node per day, which is the same bound, just multiplied by node
-// count.
-var websiteModelUsageLocalCache sync.Map // cacheKey -> websiteModelUsageResponse
+// count. The local entry carries its own expiry because sync.Map has no TTL
+// semantics and the cache key changes at every UTC midnight.
+type websiteModelUsageLocalCacheEntry struct {
+	payload   websiteModelUsageResponse
+	expiresAt time.Time
+}
+
+var websiteModelUsageLocalCache sync.Map // cacheKey -> websiteModelUsageLocalCacheEntry
+
+// singleflight coalesces a miss per process. Redis remains the cross-node
+// cache; this prevents a cold key from making every request on one node scan
+// quota_data concurrently while Redis is unavailable or the day just rolled.
+var websiteModelUsageLoadGroup singleflight.Group
 
 func websiteModelUsageCacheKey(modelName string, days int, now time.Time) string {
 	return fmt.Sprintf("%s%s:%d:%s", websiteModelUsageCachePrefix, modelName, days, now.UTC().Format("2006-01-02"))
@@ -72,9 +84,15 @@ func loadCachedWebsiteModelUsage(cacheKey string) (websiteModelUsageResponse, bo
 		}
 	}
 	if value, ok := websiteModelUsageLocalCache.Load(cacheKey); ok {
-		if cached, ok := value.(websiteModelUsageResponse); ok {
-			return cached, true
+		cached, ok := value.(websiteModelUsageLocalCacheEntry)
+		if !ok {
+			websiteModelUsageLocalCache.Delete(cacheKey)
+			return websiteModelUsageResponse{}, false
 		}
+		if time.Now().Before(cached.expiresAt) {
+			return cached.payload, true
+		}
+		websiteModelUsageLocalCache.Delete(cacheKey)
 	}
 	return websiteModelUsageResponse{}, false
 }
@@ -82,7 +100,10 @@ func loadCachedWebsiteModelUsage(cacheKey string) (websiteModelUsageResponse, bo
 func storeCachedWebsiteModelUsage(cacheKey string, payload websiteModelUsageResponse, ttl time.Duration) {
 	// Always keep the local copy: it serves the next request on this node even
 	// when Redis is down, and the day-scoped key keeps it from going stale.
-	websiteModelUsageLocalCache.Store(cacheKey, payload)
+	websiteModelUsageLocalCache.Store(cacheKey, websiteModelUsageLocalCacheEntry{
+		payload:   payload,
+		expiresAt: time.Now().Add(ttl),
+	})
 	if !common.RedisEnabled {
 		return
 	}
@@ -134,6 +155,10 @@ func GetWebsiteModelUsage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "model is required"})
 		return
 	}
+	if len(modelName) > 128 || !isValidWebsiteModelName(modelName) {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid model"})
+		return
+	}
 
 	days := common.String2Int(c.Query("days"))
 	if days <= 0 {
@@ -150,12 +175,19 @@ func GetWebsiteModelUsage(c *gin.Context) {
 		return
 	}
 
-	// quota_data rows are bucketed hourly; align the window to UTC day starts so
-	// the first and last buckets are whole days rather than partial ones.
-	endOfToday := now.UTC().Truncate(24 * time.Hour).Add(24 * time.Hour)
-	start := endOfToday.Add(-time.Duration(days) * 24 * time.Hour)
-
-	rows, err := model.GetModelDailyUsage(modelName, start.Unix(), endOfToday.Unix())
+	result, err, _ := websiteModelUsageLoadGroup.Do(cacheKey, func() (any, error) {
+		// A second caller can arrive after the first fast-path check but before
+		// it joins the flight. Check Redis/local cache again inside the group.
+		if cached, ok := loadCachedWebsiteModelUsage(cacheKey); ok {
+			return cached, nil
+		}
+		payload, err := buildWebsiteModelUsagePayload(modelName, days, now)
+		if err != nil {
+			return nil, err
+		}
+		storeCachedWebsiteModelUsage(cacheKey, payload, websiteModelUsageCacheTTL(now))
+		return payload, nil
+	})
 	if err != nil {
 		common.SysError("failed to load website model usage: " + err.Error())
 		c.JSON(http.StatusServiceUnavailable, gin.H{
@@ -163,6 +195,28 @@ func GetWebsiteModelUsage(c *gin.Context) {
 			"message": "usage temporarily unavailable",
 		})
 		return
+	}
+	payload, ok := result.(websiteModelUsageResponse)
+	if !ok {
+		common.SysError("failed to load website model usage: unexpected result type")
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "usage temporarily unavailable",
+		})
+		return
+	}
+	writeWebsiteModelUsage(c, payload, now)
+}
+
+func buildWebsiteModelUsagePayload(modelName string, days int, now time.Time) (websiteModelUsageResponse, error) {
+	// quota_data rows are bucketed hourly; align the window to UTC day starts so
+	// the first and last buckets are whole days rather than partial ones.
+	endOfToday := now.UTC().Truncate(24 * time.Hour).Add(24 * time.Hour)
+	start := endOfToday.Add(-time.Duration(days) * 24 * time.Hour)
+
+	rows, err := model.GetModelDailyUsage(modelName, start.Unix(), endOfToday.Unix())
+	if err != nil {
+		return websiteModelUsageResponse{}, err
 	}
 
 	points := make([]websiteModelUsagePoint, 0, len(rows))
@@ -173,15 +227,26 @@ func GetWebsiteModelUsage(c *gin.Context) {
 	}
 	sort.Slice(points, func(i, j int) bool { return points[i].Date < points[j].Date })
 
-	payload := websiteModelUsageResponse{
+	return websiteModelUsageResponse{
 		Success: true,
 		Model:   modelName,
 		Days:    days,
 		Total:   total,
 		Points:  points,
+	}, nil
+}
+
+func isValidWebsiteModelName(modelName string) bool {
+	for _, char := range modelName {
+		if (char >= 'a' && char <= 'z') ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
+			strings.ContainsRune("._:/@+*-", char) {
+			continue
+		}
+		return false
 	}
-	storeCachedWebsiteModelUsage(cacheKey, payload, websiteModelUsageCacheTTL(now))
-	writeWebsiteModelUsage(c, payload, now)
+	return modelName != ""
 }
 
 // Downstream caches (the website's fetch, any CDN in front) expire on the same
@@ -189,6 +254,9 @@ func GetWebsiteModelUsage(c *gin.Context) {
 // past the point where the series has moved on.
 func writeWebsiteModelUsage(c *gin.Context, payload websiteModelUsageResponse, now time.Time) {
 	maxAge := int(websiteModelUsageCacheTTL(now).Seconds())
-	c.Header("Cache-Control", fmt.Sprintf("public, max-age=%d, must-revalidate", maxAge))
+	// The response is keyed by a secret request header. Never let a shared CDN
+	// cache an authorised body and replay it for a later unauthorised request.
+	c.Header("Cache-Control", fmt.Sprintf("private, max-age=%d, must-revalidate", maxAge))
+	c.Header("Vary", "X-Website-Metrics-Key")
 	c.JSON(http.StatusOK, payload)
 }
