@@ -564,7 +564,9 @@ func clearAssetRewriteMap(c *gin.Context) {
 // they cannot fall back to a different upstream account.
 func selectBytePlusPinnedAssetChannel(c *gin.Context, modelRequest *ModelRequest, resolution service.BytePlusAssetReferenceResolution) (*model.Channel, string, *types.NewAPIError) {
 	channel, err := model.GetChannelById(resolution.PinnedChannelID, true)
-	if err != nil || channel == nil || channel.Status != common.ChannelStatusEnabled || channel.Type != constant.ChannelTypeBytePlus {
+	tokenSpaceRealPersonChannel := resolution.HasRealPersonReference && service.TokenSpaceRealPersonChannelIsUsable(channel)
+	if err != nil || channel == nil || channel.Status != common.ChannelStatusEnabled ||
+		(channel.Type != constant.ChannelTypeBytePlus && !tokenSpaceRealPersonChannel) {
 		return nil, "", bytePlusAssetDistributionError(types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	}
 
@@ -578,20 +580,21 @@ func selectBytePlusPinnedAssetChannel(c *gin.Context, modelRequest *ModelRequest
 	if usingGroup == "" {
 		usingGroup = "default"
 	}
+	supportsRequestEndpoint := service.ChannelSupportsRequestEndpoint(c, channel, modelRequest.Model) || tokenSpaceRealPersonChannel
 
 	selectedGroup := ""
 	if usingGroup == "auto" {
 		userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
 		for _, group := range service.GetUserAutoGroup(userGroup) {
 			if model.IsChannelEnabledForGroupModel(group, modelRequest.Model, channel.Id) &&
-				service.ChannelSupportsRequestEndpoint(c, channel, modelRequest.Model) {
+				supportsRequestEndpoint {
 				selectedGroup = group
 				common.SetContextKey(c, constant.ContextKeyAutoGroup, group)
 				break
 			}
 		}
 	} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, channel.Id) &&
-		service.ChannelSupportsRequestEndpoint(c, channel, modelRequest.Model) {
+		supportsRequestEndpoint {
 		selectedGroup = usingGroup
 	}
 	if selectedGroup == "" {

@@ -45,17 +45,18 @@ type assetReference struct {
 }
 
 type assetReferenceAsset struct {
-	ID              int64
-	PublicID        string
-	AssetType       string
-	Status          string
-	SourceStatus    string
-	StorageBackend  string
-	StorageBucket   string
-	ObjectKey       string
-	SourceExpiresAt int64
-	LegacyBytePlus  bool
-	Bindings        []assetReferenceBinding
+	ID               int64
+	PublicID         string
+	AssetType        string
+	Status           string
+	SourceStatus     string
+	StorageBackend   string
+	StorageBucket    string
+	ObjectKey        string
+	SourceExpiresAt  int64
+	LegacyBytePlus   bool
+	LegacyRealPerson bool
+	Bindings         []assetReferenceBinding
 }
 
 type assetReferenceBinding struct {
@@ -151,8 +152,12 @@ func (s AssetReferenceSet) readinessForChannelScope(channel *model.Channel, tech
 		if !ok || asset.AssetType != reference.ExpectedAssetType || !channelCanConsumeAssetType(channel, asset.AssetType) {
 			return AssetReadinessIneligible, false
 		}
-		if binding, ok := activeAssetReferenceBindingForRequest(asset.Bindings, channel, techMobiScopes); ok {
-			if asset.LegacyBytePlus && channel.Type != constant.ChannelTypeBytePlus {
+		binding, bound := activeAssetReferenceBindingForRequest(asset.Bindings, channel, techMobiScopes)
+		if !bound && legacyRealPersonAssetCanUseChannel(asset, channel) {
+			binding, bound = activeAssetReferenceBindingForChannel(asset.Bindings, channel.Id)
+		}
+		if bound {
+			if asset.LegacyBytePlus && channel.Type != constant.ChannelTypeBytePlus && !legacyRealPersonAssetCanUseChannel(asset, channel) {
 				return AssetReadinessIneligible, false
 			}
 			if strings.TrimSpace(binding.UpstreamAssetID) == "" {
@@ -190,6 +195,12 @@ func (s AssetReferenceSet) targetReadinessForChannel(channel *model.Channel, ori
 		asset, ok := s.assets[reference.PublicID]
 		if !ok || asset.AssetType != reference.ExpectedAssetType || !channelCanConsumeAssetType(channel, asset.AssetType) {
 			return AssetReadinessIneligible, false
+		}
+		if legacyRealPersonAssetCanUseChannel(asset, channel) {
+			if binding, ok := activeAssetReferenceBindingForChannel(asset.Bindings, channel.Id); !ok || strings.TrimSpace(binding.UpstreamAssetID) == "" {
+				return AssetReadinessRecoverable, true
+			}
+			continue
 		}
 		row, ok := s.readinessByPublicID[reference.PublicID]
 		if !ok || !assetModelReadinessMatchesTarget(row, *s.target) || row.AssetId != asset.ID || row.Status != model.AssetModelReadinessStatusActive {
@@ -255,7 +266,11 @@ func (s AssetReferenceSet) rewriteMapForChannel(channel *model.Channel, techMobi
 	rewriteMap := make(map[string]string)
 	for _, reference := range s.references {
 		asset := s.assets[reference.PublicID]
-		if binding, ok := activeAssetReferenceBindingForRequest(asset.Bindings, channel, techMobiScopes); ok {
+		binding, ok := activeAssetReferenceBindingForRequest(asset.Bindings, channel, techMobiScopes)
+		if !ok && legacyRealPersonAssetCanUseChannel(asset, channel) {
+			binding, ok = activeAssetReferenceBindingForChannel(asset.Bindings, channel.Id)
+		}
+		if ok {
 			upstreamURI := assetBindingRewriteURI(binding.UpstreamAssetID)
 			if upstreamURI != "" {
 				rewriteMap["asset://"+reference.PublicID] = upstreamURI
@@ -436,13 +451,7 @@ func ResolveAssetReferences(c *gin.Context, userID int, req *dto.SeedanceVideoRe
 	if err != nil {
 		return AssetReferenceSet{}, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
-	missing := make([]string, 0, len(publicIDs))
-	for _, publicID := range publicIDs {
-		if _, ok := generalized[publicID]; !ok {
-			missing = append(missing, publicID)
-		}
-	}
-	legacy, err := model.GetBytePlusAssetsByPublicIDsForUser(userID, missing)
+	legacy, err := model.GetBytePlusAssetsByPublicIDsForUser(userID, publicIDs)
 	if err != nil {
 		return AssetReferenceSet{}, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
@@ -475,12 +484,16 @@ func ResolveAssetReferences(c *gin.Context, userID int, req *dto.SeedanceVideoRe
 		assets[publicID] = asset
 	}
 	for _, legacyAsset := range legacy {
+		if _, hasGeneralized := generalized[legacyAsset.PublicId]; hasGeneralized && legacyAsset.RealPersonProfileId == nil {
+			continue
+		}
 		assets[legacyAsset.PublicId] = assetReferenceAsset{
-			PublicID:       legacyAsset.PublicId,
-			AssetType:      legacyAsset.AssetType,
-			Status:         legacyAsset.Status,
-			SourceStatus:   model.AssetSourceStatusUnavailable,
-			LegacyBytePlus: true,
+			PublicID:         legacyAsset.PublicId,
+			AssetType:        legacyAsset.AssetType,
+			Status:           legacyAsset.Status,
+			SourceStatus:     model.AssetSourceStatusUnavailable,
+			LegacyBytePlus:   true,
+			LegacyRealPerson: legacyAsset.RealPersonProfileId != nil,
 			Bindings: []assetReferenceBinding{{
 				ChannelID:       legacyAsset.ChannelId,
 				UpstreamAssetID: legacyAsset.UpstreamAssetId,
@@ -634,6 +647,13 @@ func ResolveLegacyBytePlusAssetBindingReferences(userID int, req *dto.SeedanceVi
 			return BytePlusAssetReferenceResolution{}, nil
 		}
 	}
+	hasRealPersonReference := false
+	for _, reference := range fallbackReferences {
+		if byPublicID[reference.PublicID].RealPersonProfileId != nil {
+			hasRealPersonReference = true
+			break
+		}
+	}
 	positiveChannels := map[int]struct{}{}
 	rewriteByChannel := map[int]map[string]string{}
 	hasBlankUpstream := false
@@ -666,7 +686,11 @@ func ResolveLegacyBytePlusAssetBindingReferences(userID int, req *dto.SeedanceVi
 	if hasBlankUpstream {
 		return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID}, assetError(errors.New("asset is not active"), types.ErrorCodeAssetNotReady, http.StatusConflict)
 	}
-	return BytePlusAssetReferenceResolution{PinnedChannelID: pinnedChannelID, RewriteMap: rewriteByChannel[pinnedChannelID]}, nil
+	return BytePlusAssetReferenceResolution{
+		PinnedChannelID:        pinnedChannelID,
+		RewriteMap:             rewriteByChannel[pinnedChannelID],
+		HasRealPersonReference: hasRealPersonReference,
+	}, nil
 }
 
 func validateLegacyBytePlusRealPersonReferences(userID int, references []assetReference, byPublicID map[string]model.BytePlusAsset) *types.NewAPIError {
@@ -780,6 +804,14 @@ func activeAssetReferenceBindingForChannel(bindings []assetReferenceBinding, cha
 		}
 	}
 	return assetReferenceBinding{}, false
+}
+
+func legacyRealPersonAssetCanUseChannel(asset assetReferenceAsset, channel *model.Channel) bool {
+	if !asset.LegacyRealPerson || channel == nil || !TokenSpaceRealPersonChannelIsUsable(channel) {
+		return false
+	}
+	_, ok := activeAssetReferenceBindingForChannel(asset.Bindings, channel.Id)
+	return ok
 }
 
 func isActiveAssetReferenceBinding(binding assetReferenceBinding) bool {

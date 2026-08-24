@@ -50,6 +50,23 @@ func TestRealPersonProviderForChannelSelectsExplicitTokenSpaceWithOneEnabledKey(
 	require.Nil(t, binding.StorageCredentials)
 }
 
+func TestTokenSpaceRealPersonChannelIsUsableRequiresDoubaoVideo(t *testing.T) {
+	settings := dto.AssetMaterializationSettings{
+		Provider:       assetMaterializationProviderTokenSpaceMaterial,
+		GatewayBaseURL: "https://api.tokenspace.example",
+		GroupID:        "group-virtual-not-for-real-person",
+	}
+	doubaoVideo := channelWithAssetMaterializationSettings(t, constant.ChannelTypeDoubaoVideo, settings)
+	doubaoVideo.Key = "tokenspace-key"
+	doubaoVideo.Status = common.ChannelStatusEnabled
+	otherType := channelWithAssetMaterializationSettings(t, constant.ChannelTypeOpenAI, settings)
+	otherType.Key = "tokenspace-key"
+	otherType.Status = common.ChannelStatusEnabled
+
+	require.True(t, TokenSpaceRealPersonChannelIsUsable(doubaoVideo))
+	require.False(t, TokenSpaceRealPersonChannelIsUsable(otherType))
+}
+
 func TestRealPersonProviderForChannelRejectsTokenSpaceWithMultipleEnabledKeys(t *testing.T) {
 	channel := channelWithAssetMaterializationSettings(t, constant.ChannelTypeDoubaoVideo, dto.AssetMaterializationSettings{
 		Provider:       assetMaterializationProviderTokenSpaceMaterial,
