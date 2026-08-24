@@ -91,6 +91,11 @@ export async function resetModelRatios() {
   return res.data
 }
 
+export async function createPricingSyncTask() {
+  const res = await api.post<SystemTaskResponse>('/api/ratio_sync/task')
+  return res.data
+}
+
 export async function getUpstreamChannels() {
   const res = await api.get<UpstreamChannelsResponse>(
     '/api/ratio_sync/channels'
