@@ -23,6 +23,7 @@ type VoiceReference struct {
 
 type VideoRequest struct {
 	Model           string           `json:"model"`
+	Group           string           `json:"group,omitempty"`
 	Action          string           `json:"action,omitempty"`
 	Prompt          string           `json:"prompt"`
 	Duration        *int             `json:"duration,omitempty"`

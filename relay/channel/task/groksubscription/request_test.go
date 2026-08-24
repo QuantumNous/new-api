@@ -379,3 +379,20 @@ func TestBuildUpstreamVideoRequestUsesActionSpecificLiteralPayloads(t *testing.T
 		})
 	}
 }
+
+func TestPlaygroundGroupIsAcceptedButNeverForwardedUpstream(t *testing.T) {
+	c, info := newVideoTestContext(`{"model":"grok-imagine-video-1.5","group":"lxy","prompt":"orbit"}`)
+	req, err := validateVideoRequest(c, info)
+	if err != nil {
+		t.Fatalf("validateVideoRequest: %v", err)
+	}
+
+	payload := buildUpstreamVideoRequest(req)
+	data, err := common.MarshalNoHTMLEscape(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	if got, want := string(data), `{"model":"grok-imagine-video-1.5","prompt":"orbit","duration":5}`; got != want {
+		t.Fatalf("payload JSON = %s\nwant         = %s", got, want)
+	}
+}

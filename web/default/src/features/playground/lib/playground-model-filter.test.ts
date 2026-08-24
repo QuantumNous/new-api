@@ -53,6 +53,8 @@ describe('isPlaygroundChatModelName', () => {
       'veo-3.1-generate-preview',
       'google/veo-3.1-fast-generate-preview',
       'bytedance/seedance-2.0-fast',
+      'grok-imagine-video',
+      'grok-imagine-video-1.5',
     ]) {
       expect(isSupportedPlaygroundModelName(model)).toBe(true)
       expect(isPlaygroundChatModelName(model)).toBe(false)
@@ -101,6 +103,8 @@ describe('isPlaygroundChatModelName', () => {
       'gemini-3.1-flash-image-preview',
       'nano-banana-pro-preview',
       'grok-imagine-image',
+      'grok-imagine-video',
+      'grok-imagine-video-1.5',
       'veo-3.1-generate-preview',
       'bytedance/seedance-2.0-fast',
     ]) {

@@ -24,6 +24,7 @@ export type MediaGenerationFamily =
   | 'gemini-image-pro'
   | 'gemini-image-flash'
   | 'grok-image'
+  | 'grok-video'
   | 'veo-3.1'
   | 'seedance-2.0'
   | 'seedance-2.5'
@@ -218,6 +219,42 @@ const grokImageProfile: MediaGenerationProfile = {
   ],
 }
 
+function createGrokVideoProfile(resolutions: string[]): MediaGenerationProfile {
+  return {
+    kind: 'video',
+    family: 'grok-video',
+    defaults: {
+      resolution: '720p',
+      duration: 5,
+      aspectRatio: '16:9',
+    },
+    fields: [
+      selectField('resolution', 'Resolution', resolutions),
+      {
+        key: 'duration',
+        labelKey: 'Duration',
+        control: 'number',
+        min: 1,
+        max: 15,
+        step: 1,
+        unitKey: 'seconds',
+      },
+      selectField('aspectRatio', 'Aspect ratio', [
+        '1:1',
+        '16:9',
+        '9:16',
+        '4:3',
+        '3:4',
+        '3:2',
+        '2:3',
+      ]),
+    ],
+  }
+}
+
+const grokVideoProfile = createGrokVideoProfile(['480p', '720p'])
+const grokVideo15Profile = createGrokVideoProfile(['480p', '720p', '1080p'])
+
 const veoProfile: MediaGenerationProfile = {
   kind: 'video',
   family: 'veo-3.1',
@@ -359,6 +396,12 @@ export function resolveMediaGenerationProfile(
   }
   if (normalized.includes('grok-imagine-image')) {
     return cloneProfile(grokImageProfile)
+  }
+  if (/(^|\/)grok-imagine-video-1\.5$/.test(normalized)) {
+    return cloneProfile(grokVideo15Profile)
+  }
+  if (/(^|\/)grok-imagine-video$/.test(normalized)) {
+    return cloneProfile(grokVideoProfile)
   }
   if (/(^|\/)gemini-3\.1-flash-image-preview(?:$|[-_/])/.test(normalized)) {
     return cloneProfile(geminiImageFlashProfile)
@@ -544,6 +587,17 @@ function buildVideoPayload(
         resolution: settings.resolution,
         aspectRatio: settings.aspectRatio,
       },
+    }
+  }
+
+  if (family === 'grok-video') {
+    return {
+      model,
+      group,
+      prompt,
+      resolution: settings.resolution,
+      aspect_ratio: settings.aspectRatio,
+      duration: settings.duration,
     }
   }
 

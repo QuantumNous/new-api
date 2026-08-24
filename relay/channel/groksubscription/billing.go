@@ -187,7 +187,12 @@ func probeSubscriptionTier(ctx context.Context, doer HTTPDoer, cred Credential) 
 	}
 
 	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(body))
+	dec.UseNumber()
+	if err := dec.Decode(&payload); err != nil {
+		return "", ErrBillingSnapshotInvalid
+	}
+	if err := ensureDecoderEOF(dec); err != nil {
 		return "", ErrBillingSnapshotInvalid
 	}
 	tier := firstBillingString(payload, "subscriptionTier", "subscription_tier")
