@@ -66,6 +66,7 @@ import { cn } from '@/lib/utils'
 import type { UsageLog } from '../../data/schema'
 import {
   parseLogOther,
+  getUsageTokenBreakdown,
   getParamOverrideActionLabel,
   parseAuditLine,
   decodeBillingExprB64,
@@ -407,50 +408,52 @@ function BillingBreakdown(props: {
 function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   const { t } = useTranslation()
   const { log, other } = props
+  const tokenUsage = getUsageTokenBreakdown(log, other)
 
-  const promptTokens = log.prompt_tokens || 0
-  const completionTokens = log.completion_tokens || 0
-  const cacheRead = other.cache_tokens || 0
-  const cacheWrite = other.cache_creation_tokens || 0
-  const cacheWrite5m = other.cache_creation_tokens_5m || 0
-  const cacheWrite1h = other.cache_creation_tokens_1h || 0
-  const hasTokens = promptTokens > 0 || completionTokens > 0
-
-  if (!hasTokens) return null
+  if (!tokenUsage.hasTokens) return null
 
   const rows: Array<{ label: string; value: string }> = []
 
-  rows.push({ label: t('Input Tokens'), value: promptTokens.toLocaleString() })
+  rows.push({
+    label: t(
+      tokenUsage.usesClaudeSemantics ? 'Uncached Input Tokens' : 'Input Tokens'
+    ),
+    value: tokenUsage.promptTokens.toLocaleString(),
+  })
   rows.push({
     label: t('Output Tokens'),
-    value: completionTokens.toLocaleString(),
+    value: tokenUsage.completionTokens.toLocaleString(),
   })
 
-  if (cacheRead > 0) {
+  if (tokenUsage.cacheReadTokens > 0) {
     rows.push({
       label: t('Cache Read'),
-      value: cacheRead.toLocaleString(),
+      value: tokenUsage.cacheReadTokens.toLocaleString(),
     })
   }
 
-  if (cacheWrite > 0 && cacheWrite5m === 0 && cacheWrite1h === 0) {
+  if (
+    tokenUsage.cacheWriteTokens > 0 &&
+    tokenUsage.cacheWrite5mTokens === 0 &&
+    tokenUsage.cacheWrite1hTokens === 0
+  ) {
     rows.push({
       label: t('Cache Write'),
-      value: cacheWrite.toLocaleString(),
+      value: tokenUsage.cacheWriteTokens.toLocaleString(),
     })
   }
 
-  if (cacheWrite5m > 0) {
+  if (tokenUsage.cacheWrite5mTokens > 0) {
     rows.push({
       label: t('Cache Write (5m)'),
-      value: cacheWrite5m.toLocaleString(),
+      value: tokenUsage.cacheWrite5mTokens.toLocaleString(),
     })
   }
 
-  if (cacheWrite1h > 0) {
+  if (tokenUsage.cacheWrite1hTokens > 0) {
     rows.push({
       label: t('Cache Write (1h)'),
-      value: cacheWrite1h.toLocaleString(),
+      value: tokenUsage.cacheWrite1hTokens.toLocaleString(),
     })
   }
 
