@@ -292,6 +292,9 @@ func migrateDB() error {
 	if err != nil {
 		return err
 	}
+	if err := backfillUserNormalizedEmails(DB); err != nil {
+		return err
+	}
 	go func() {
 		if err := BackfillRegistrationCountries(); err != nil {
 			common.SysError("registration country backfill failed: " + err.Error())
@@ -341,6 +344,7 @@ func orderedMigrationModels() []migrationModel {
 		{&Token{}, "Token"},
 		{&CliDeviceAuthorization{}, "CliDeviceAuthorization"},
 		{&User{}, "User"},
+		{&GoogleOAuthClaim{}, "GoogleOAuthClaim"},
 		{&RecallCampaign{}, "RecallCampaign"},
 		{&RecallRecipient{}, "RecallRecipient"},
 		{&RecallMessage{}, "RecallMessage"},
@@ -469,6 +473,9 @@ func migrateDBFast() error {
 			return fmt.Errorf("failed to migrate %s: %v", m.name, err)
 		}
 	}
+	if err := backfillUserNormalizedEmails(DB); err != nil {
+		return err
+	}
 	go func() {
 		if err := BackfillRegistrationCountries(); err != nil {
 			common.SysError("registration country backfill failed: " + err.Error())
@@ -515,6 +522,12 @@ func migrateDBFast() error {
 	}
 	common.SysLog("database migrated")
 	return nil
+}
+
+func backfillUserNormalizedEmails(db *gorm.DB) error {
+	return db.Unscoped().Model(&User{}).
+		Where("normalized_email IS NULL OR normalized_email <> LOWER(TRIM(email))").
+		UpdateColumn("normalized_email", gorm.Expr("LOWER(TRIM(email))")).Error
 }
 
 func sqliteModelNeedsColumnOnlyMigration(model interface{}) bool {

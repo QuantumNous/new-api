@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"html"
 	"net/http"
@@ -347,6 +348,8 @@ func HandleGoogleOneTap(c *gin.Context) {
 			respondGoogleOneTapFailure(c, http.StatusForbidden, i18n.T(c, i18n.MsgOAuthUserDeleted))
 		case *OAuthRegistrationDisabledError:
 			respondGoogleOneTapFailure(c, http.StatusForbidden, i18n.T(c, i18n.MsgUserRegisterDisabled))
+		case *OAuthEmailConflictError:
+			respondGoogleOneTapFailure(c, http.StatusForbidden, i18n.T(c, i18n.MsgOAuthAccountUsed))
 		case *OAuthRegistrationCountryBlockedError:
 			respondGoogleOneTapFailure(c, http.StatusForbidden, i18n.T(c, i18n.MsgRegistrationCountryBlocked))
 		default:
@@ -577,21 +580,24 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider) {
 	}
 
 	// Handle binding based on provider type
-	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
+	if _, ok := provider.(*oauth.GoogleProvider); ok {
+		err = bindGoogleOAuthUser(&user, oauthUser)
+	} else if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
 		// Custom provider: use user_oauth_bindings table
 		err = model.UpdateUserOAuthBinding(user.Id, genericProvider.GetProviderId(), oauthUser.ProviderUserID)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
 	} else {
 		// Built-in provider: update user record directly
 		provider.SetProviderUserID(&user, oauthUser.ProviderUserID)
 		err = user.Update(false)
-		if err != nil {
+	}
+	if err != nil {
+		var conflict *OAuthEmailConflictError
+		if errors.As(err, &conflict) {
+			common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
+		} else {
 			common.ApiError(c, err)
-			return
 		}
+		return
 	}
 
 	common.ApiSuccessI18n(c, i18n.MsgOAuthBindSuccess, gin.H{
@@ -678,6 +684,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		}
 		if matched {
 			updateUserAdsAttributionIfEmpty(matchedUser, adsAttribution)
+			selfHealOAuthEmailVerification(matchedUser, oauthUser)
 			return matchedUser, false, nil
 		}
 	}
@@ -756,7 +763,11 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 
 	var afterCreate func(*gorm.DB) error
-	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
+	if _, ok := provider.(*oauth.GoogleProvider); ok {
+		afterCreate = func(tx *gorm.DB) error {
+			return claimGoogleOAuthUserWithTx(tx, user, oauthUser.Email, oauthUser.ProviderUserID)
+		}
+	} else if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
 		afterCreate = func(tx *gorm.DB) error {
 			binding := &model.UserOAuthBinding{
 				UserId:         user.Id,
@@ -781,6 +792,15 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	}
 
 	if _, err := model.RegisterUserWithDomainRisk(user, inviterId, c.ClientIP(), emailDecision.Policy, afterCreate); err != nil {
+		var lost *googleOAuthClaimLostError
+		if errors.As(err, &lost) {
+			winner, resolveErr := resolveGoogleOAuthClaimWinner(lost, oauthUser.Email, oauthUser.ProviderUserID)
+			if resolveErr != nil {
+				return nil, false, resolveErr
+			}
+			updateUserAdsAttributionIfEmpty(winner, adsAttribution)
+			return winner, false, nil
+		}
 		return nil, false, err
 	}
 	user.FinalizeOAuthUserCreation(inviterId)
@@ -800,7 +820,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 }
 
 func normalizeOAuthEmail(email string) string {
-	return strings.ToLower(strings.TrimSpace(email))
+	return model.NormalizeUserEmail(email)
 }
 
 // findGoogleUserByEmail returns the only account matching a normalized email.
@@ -812,31 +832,133 @@ func findGoogleUserByEmail(email string, googleID string) (*model.User, bool, er
 		return nil, false, nil
 	}
 
-	users, err := model.FindUsersByNormalizedEmail(normalizedEmail)
+	var matchedUser *model.User
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		users, err := model.FindUsersByNormalizedEmailWithTx(tx, normalizedEmail)
+		if err != nil {
+			return err
+		}
+		if len(users) == 0 {
+			return nil
+		}
+		if len(users) != 1 {
+			return &OAuthEmailConflictError{}
+		}
+
+		user := &users[0]
+		if user.GoogleId != "" && user.GoogleId != googleID {
+			return &OAuthEmailConflictError{}
+		}
+		if err := claimGoogleOAuthUserWithTx(tx, user, email, googleID); err != nil {
+			var lost *googleOAuthClaimLostError
+			if errors.As(err, &lost) {
+				return &OAuthEmailConflictError{}
+			}
+			return err
+		}
+		matchedUser = user
+		return nil
+	})
 	if err != nil {
 		return nil, false, err
 	}
-	if len(users) == 0 {
+	if matchedUser == nil {
 		return nil, false, nil
 	}
-	if len(users) != 1 {
-		return nil, false, &OAuthEmailConflictError{}
+	return matchedUser, true, nil
+}
+
+type googleOAuthClaimLostError struct {
+	claim model.GoogleOAuthClaim
+}
+
+func (e *googleOAuthClaimLostError) Error() string {
+	return "google oauth identity was claimed by another user"
+}
+
+func claimGoogleOAuthUserWithTx(tx *gorm.DB, user *model.User, verifiedEmail string, googleID string) error {
+	claim, ownsClaim, err := model.ClaimGoogleOAuthIdentityWithTx(tx, user.Id, verifiedEmail, googleID)
+	if errors.Is(err, model.ErrGoogleOAuthClaimConflict) {
+		return &OAuthEmailConflictError{}
+	}
+	if err != nil {
+		return err
+	}
+	normalizedEmail := model.NormalizeUserEmail(verifiedEmail)
+	if claim.NormalizedEmail != normalizedEmail || claim.GoogleID != googleID {
+		return &OAuthEmailConflictError{}
+	}
+	if !ownsClaim {
+		return &googleOAuthClaimLostError{claim: claim}
 	}
 
-	user := &users[0]
-	if user.GoogleId != "" && user.GoogleId != googleID {
-		return nil, false, &OAuthEmailConflictError{}
+	bound, err := user.BindGoogleIDIfEmptyWithTx(tx, googleID)
+	if err != nil {
+		return err
 	}
-	if user.GoogleId == "" {
-		bound, err := user.BindGoogleIDIfEmpty(googleID)
+	if !bound && user.GoogleId != googleID {
+		return &OAuthEmailConflictError{}
+	}
+	return nil
+}
+
+func bindGoogleOAuthUser(user *model.User, oauthUser *oauth.OAuthUser) error {
+	if user == nil || user.Id == 0 || oauthUser == nil || !oauthUser.EmailVerified {
+		return &OAuthEmailConflictError{}
+	}
+
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		var current model.User
+		if err := tx.First(&current, user.Id).Error; err != nil {
+			return err
+		}
+		users, err := model.FindUsersByNormalizedEmailWithTx(tx, oauthUser.Email)
 		if err != nil {
-			return nil, false, err
+			return err
 		}
-		if !bound && user.GoogleId != googleID {
-			return nil, false, &OAuthEmailConflictError{}
+		for i := range users {
+			if users[i].Id != current.Id {
+				return &OAuthEmailConflictError{}
+			}
 		}
+		if err := claimGoogleOAuthUserWithTx(
+			tx,
+			&current,
+			oauthUser.Email,
+			oauthUser.ProviderUserID,
+		); err != nil {
+			var lost *googleOAuthClaimLostError
+			if errors.As(err, &lost) {
+				return &OAuthEmailConflictError{}
+			}
+			return err
+		}
+		*user = current
+		return nil
+	})
+}
+
+func resolveGoogleOAuthClaimWinner(lost *googleOAuthClaimLostError, email string, googleID string) (*model.User, error) {
+	if lost == nil ||
+		lost.claim.NormalizedEmail != model.NormalizeUserEmail(email) ||
+		lost.claim.GoogleID != googleID {
+		return nil, &OAuthEmailConflictError{}
 	}
-	return user, true, nil
+
+	var winner model.User
+	err := model.DB.Where(
+		"id = ? AND normalized_email = ? AND google_id = ?",
+		lost.claim.UserID,
+		lost.claim.NormalizedEmail,
+		lost.claim.GoogleID,
+	).First(&winner).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, &OAuthEmailConflictError{}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &winner, nil
 }
 
 func isGoogleOAuthProvider(provider oauth.Provider) bool {
