@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useMemo } from 'react'
 import { useLocation } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
+import { isPlgUser, useAuthStore } from '@/stores/auth-store'
 import { ROLE } from '@/lib/roles'
 import { resolveSidebarView } from '@/components/layout/lib/sidebar-view-registry'
 import type { NavGroup, ResolvedSidebarView } from '@/components/layout/types'
@@ -64,6 +64,7 @@ export function useSidebarView(): ResolvedSidebarView {
   const { t } = useTranslation()
   const pathname = useLocation({ select: (l) => l.pathname })
   const userRole = useAuthStore((s) => s.auth.user?.role)
+  const isPlg = useAuthStore((s) => isPlgUser(s.auth.user?.group))
   const rootSidebarData = useSidebarData()
   const configFilteredRoot = useSidebarConfig(rootSidebarData.navGroups)
 
@@ -73,10 +74,18 @@ export function useSidebarView(): ResolvedSidebarView {
       configFilteredRoot,
       userRole
     )
-    return toolsFilteredRoot.filter((group) =>
-      group.id === 'admin' ? isAdmin : true
-    )
-  }, [configFilteredRoot, userRole])
+    return toolsFilteredRoot
+      .filter((group) => (group.id === 'admin' ? isAdmin : true))
+      .map((group) =>
+        isPlg || group.id !== 'personal'
+          ? group
+          : {
+              ...group,
+              items: group.items.filter((item) => item.url !== '/wallet'),
+            }
+      )
+      .filter((group) => group.items.length > 0)
+  }, [configFilteredRoot, userRole, isPlg])
 
   const view = resolveSidebarView(pathname)
 
