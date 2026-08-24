@@ -352,8 +352,16 @@ export function AutoRatioSyncSection() {
       toast.info(t('No changes to save'))
       return
     }
-    for (const key of changedKeys) {
-      await updateOption.mutateAsync({ key, value: nextValues[key] })
+    // Options are persisted one key at a time (the option API has no batch
+    // endpoint). On the first failure, stop; useUpdateOption already reported
+    // the error and invalidated the system-options query, so the form re-syncs
+    // to whatever was actually persisted.
+    try {
+      for (const key of changedKeys) {
+        await updateOption.mutateAsync({ key, value: nextValues[key] })
+      }
+    } catch {
+      /* handled by useUpdateOption */
     }
   }
 
@@ -388,14 +396,20 @@ export function AutoRatioSyncSection() {
           <div className='grid gap-4 lg:grid-cols-3'>
             <div className='flex items-center justify-between gap-2 rounded-md border px-3 py-2'>
               <div className='flex flex-col'>
-                <Label>{t('Enable scheduled sync')}</Label>
+                <Label htmlFor='ratio-sync-enabled'>
+                  {t('Enable scheduled sync')}
+                </Label>
                 <span className='text-muted-foreground text-xs'>
                   {t(
                     'Periodically fetch upstream prices and apply safe changes automatically'
                   )}
                 </span>
               </div>
-              <Switch checked={enabled} onCheckedChange={setEnabled} />
+              <Switch
+                id='ratio-sync-enabled'
+                checked={enabled}
+                onCheckedChange={setEnabled}
+              />
             </div>
 
             <div className='flex flex-col gap-1'>
@@ -567,14 +581,20 @@ export function AutoRatioSyncSection() {
 
           <div className='flex items-center justify-between gap-2 rounded-md border px-3 py-2'>
             <div className='flex flex-col'>
-              <Label>{t('Add new models')}</Label>
+              <Label htmlFor='ratio-sync-add-new-models'>
+                {t('Add new models')}
+              </Label>
               <span className='text-muted-foreground text-xs'>
                 {t(
                   'Allow the sync to add models that do not exist locally yet'
                 )}
               </span>
             </div>
-            <Switch checked={addNewModels} onCheckedChange={setAddNewModels} />
+            <Switch
+              id='ratio-sync-add-new-models'
+              checked={addNewModels}
+              onCheckedChange={setAddNewModels}
+            />
           </div>
 
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>

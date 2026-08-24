@@ -2,6 +2,7 @@ package operation_setting
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -58,6 +59,10 @@ func GetRatioSyncSetting() *RatioSyncSetting {
 	return &ratioSyncSetting
 }
 
+// maxRatioSyncIntervalMinutes is the largest minute count whose conversion to
+// time.Duration does not overflow.
+const maxRatioSyncIntervalMinutes = int(math.MaxInt64 / int64(time.Minute))
+
 func (s *RatioSyncSetting) SyncInterval() time.Duration {
 	minutes := s.IntervalMinutes
 	if minutes <= 0 {
@@ -65,6 +70,9 @@ func (s *RatioSyncSetting) SyncInterval() time.Duration {
 	}
 	if minutes < MinRatioSyncIntervalMinutes {
 		minutes = MinRatioSyncIntervalMinutes
+	}
+	if minutes > maxRatioSyncIntervalMinutes {
+		minutes = maxRatioSyncIntervalMinutes
 	}
 	return time.Duration(minutes) * time.Minute
 }

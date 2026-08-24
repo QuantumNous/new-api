@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"math"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -166,6 +167,20 @@ func TestBuildPricingSyncPlanAppliesAndSkips(t *testing.T) {
 			name: "non-numeric upstream value ignored",
 			differences: differenceOf("gpt-x", "model_ratio", 2.0,
 				map[string]any{"primary(1)": "oops"}, nil),
+			localData: localData,
+			policy:    allFieldsPolicy,
+		},
+		{
+			name: "negative upstream value ignored",
+			differences: differenceOf("gpt-x", "model_ratio", 2.0,
+				map[string]any{"primary(1)": -1.0}, nil),
+			localData: localData,
+			policy:    allFieldsPolicy,
+		},
+		{
+			name: "non-finite upstream value ignored",
+			differences: differenceOf("gpt-x", "model_ratio", 2.0,
+				map[string]any{"primary(1)": math.Inf(1)}, nil),
 			localData: localData,
 			policy:    allFieldsPolicy,
 		},

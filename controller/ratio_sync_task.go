@@ -305,7 +305,7 @@ func buildPricingSyncPlan(
 					continue
 				}
 				parsed, ok := asFloat64(value)
-				if !ok {
+				if !ok || !isValidNonNegativeCost(parsed) {
 					continue
 				}
 				if !item.Confidence[upstreamName] {
