@@ -330,7 +330,8 @@ export function ModelAccessList({
           <Button
             type='button'
             variant='outline'
-            className='self-center'
+            size='lg'
+            className='min-w-32 self-center'
             onClick={() =>
               setPagination({
                 models,

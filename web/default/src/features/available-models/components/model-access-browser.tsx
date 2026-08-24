@@ -42,7 +42,6 @@ import {
   getCreateKeySearch,
   getModelAccessScopeModelCounts,
   getModelAccessScopeModels,
-  getModelAccessUnavailableScopeModels,
   getModelVendorFilterCounts,
   getModelVendorFilters,
   getVisibleVendorFilters,
@@ -89,13 +88,9 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
     () => getModelAccessScopeModels(access, activeScopeId),
     [access, activeScopeId]
   )
-  const unavailableScopeModels = useMemo(
-    () => getModelAccessUnavailableScopeModels(access, activeScopeId),
-    [access, activeScopeId]
-  )
   const vendorFilters = useMemo(
-    () => getModelVendorFilters([...scopeModels, ...unavailableScopeModels]),
-    [scopeModels, unavailableScopeModels]
+    () => getModelVendorFilters(scopeModels),
+    [scopeModels]
   )
   const [vendorState, setVendorState] = useState(() =>
     createModelVendorFilterState(vendorFilters, activeScopeId)
@@ -149,14 +144,6 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
         activeCategory
       ),
     [activeCategory, activeVendor, query, scopeModels]
-  )
-  const visibleUnavailableModels = useMemo(
-    () =>
-      filterModelsByCategory(
-        filterModelAccessModels(unavailableScopeModels, query, activeVendor),
-        activeCategory
-      ),
-    [activeCategory, activeVendor, query, unavailableScopeModels]
   )
   const selectedScope = access.groups.find(
     (scope) => scope.id === activeScopeId
@@ -376,35 +363,6 @@ export function ModelAccessBrowser({ access }: ModelAccessBrowserProps) {
         onClearFilters={clearFilters}
       />
 
-      {unavailableScopeModels.length > 0 && (
-        <section className='flex flex-col gap-2.5'>
-          <div className='flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between'>
-            <div className='min-w-0'>
-              <h3 className='text-sm font-semibold'>
-                {t('Unavailable models')}
-              </h3>
-              <p className='text-muted-foreground text-xs'>
-                {t(
-                  'These models cannot be called because upstreams no longer support them.'
-                )}
-              </p>
-            </div>
-            <Badge variant='destructive' className='shrink-0'>
-              {t('{{count}} unavailable models', {
-                count: unavailableScopeModels.length,
-              })}
-            </Badge>
-          </div>
-          <ModelCatalogGrid
-            defaultRatio={ratioContext.defaultRatio}
-            modelRatios={ratioContext.modelRatios}
-            models={visibleUnavailableModels}
-            priceIndex={priceIndex}
-            scopeIsEmpty={false}
-            onClearFilters={clearFilters}
-          />
-        </section>
-      )}
     </div>
   )
 
