@@ -426,7 +426,15 @@ export function sanitizeMessagesOnLoad(messages: Message[]): Message[] {
 
   if (targetIndex === -1) return sanitizedMessages
 
-  const finalized = finalizeMessage(sanitizedMessages[targetIndex])
+  const pendingMessage = sanitizedMessages[targetIndex]
+  if (
+    typeof pendingMessage.videoTaskId === 'string' &&
+    pendingMessage.videoTaskId.trim()
+  ) {
+    return sanitizedMessages
+  }
+
+  const finalized = finalizeMessage(pendingMessage)
   const hasContent = finalized.versions?.[0]?.content?.trim()
   const hasReasoning = finalized.reasoning?.content?.trim()
 

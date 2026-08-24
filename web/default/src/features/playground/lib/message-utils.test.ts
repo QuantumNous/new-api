@@ -81,6 +81,27 @@ describe('updateCurrentVersionMedia', () => {
 })
 
 describe('sanitizeMessagesOnLoad', () => {
+  test('keeps a submitted video task resumable after a page reload', () => {
+    const messages: Message[] = [
+      {
+        key: 'assistant-video',
+        from: 'assistant',
+        status: MESSAGE_STATUS.STREAMING,
+        versions: [{ id: 'version-1', content: 'Generating video... 30%' }],
+        videoTaskId: 'task_video_123',
+      },
+    ]
+
+    const sanitized = sanitizeMessagesOnLoad(messages)
+
+    expect(sanitized).toBe(messages)
+    expect(sanitized[0]).toMatchObject({
+      status: MESSAGE_STATUS.STREAMING,
+      videoTaskId: 'task_video_123',
+    })
+    expect(sanitized[0]?.versions[0]?.content).toBe('Generating video... 30%')
+  })
+
   test('migrates legacy message media to the current version', () => {
     const messages: Message[] = [
       {

@@ -67,7 +67,8 @@ const generateMediaMock = mock(
     _prompt: string,
     _model: string,
     _group: string,
-    _settings: Record<string, unknown>
+    _settings: Record<string, unknown>,
+    _assistantMessageKey: string
   ) => Promise.resolve()
 )
 const stopChatMock = mock(() => undefined)
@@ -279,6 +280,7 @@ describe('Playground model landing handoff', () => {
     expect(generateMediaMock).toHaveBeenCalledTimes(1)
     expect(markCurrentConversationLocalOnlyMock).toHaveBeenCalledTimes(1)
     expect(generateMediaMock.mock.calls[0]?.[1]).toBe('gpt-image-2')
+    expect(generateMediaMock.mock.calls[0]?.[4]).toEqual(expect.any(String))
     expect(sendChatMock).not.toHaveBeenCalled()
   })
 

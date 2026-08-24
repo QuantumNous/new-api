@@ -148,7 +148,7 @@ export function Playground({
     minimalParameters: firstRun,
   })
   const { generateMedia, stopMediaGeneration, isGeneratingMedia } =
-    useMediaGeneration({ onMessageUpdate: updateMessages })
+    useMediaGeneration({ messages, onMessageUpdate: updateMessages })
   const isGenerating = isGeneratingChat || isGeneratingMedia
   const generationDispatchRef = useRef(false)
   const [mediaSettingsByModel, setMediaSettingsByModel] = useState<
@@ -375,7 +375,13 @@ export function Playground({
       const group = config.group
       if (resolveMediaGenerationProfile(model)) {
         markCurrentConversationLocalOnly()
-        void generateMedia(prompt, model, group, getMediaSettings(model))
+        void generateMedia(
+          prompt,
+          model,
+          group,
+          getMediaSettings(model),
+          assistantMessageKey
+        )
         return
       }
       startTurn(

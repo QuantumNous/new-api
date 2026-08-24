@@ -16,11 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { fetchPlaygroundVideoTask, sendMediaGeneration } from '../api'
-import { MESSAGE_STATUS } from '../constants'
+import { MESSAGE_ROLES, MESSAGE_STATUS } from '../constants'
 import {
   buildMediaGenerationRequest,
   extractGeneratedImages,
@@ -28,12 +28,12 @@ import {
   updateAssistantMessageWithError,
   updateCurrentVersionContent,
   updateCurrentVersionMedia,
-  updateLastAssistantMessage,
   type MediaGenerationSettings,
 } from '../lib'
 import type { GeneratedMedia, Message } from '../types'
 
 interface UseMediaGenerationOptions {
+  messages: Message[]
   onMessageUpdate: (updater: (prev: Message[]) => Message[]) => void
 }
 
@@ -42,6 +42,15 @@ const VIDEO_POLL_LIMIT = 200
 
 type PollTimeoutScheduler = (callback: () => void, delay: number) => number
 type PollTimeoutCanceller = (timer: number) => void
+
+function clearVideoTaskId(message: Message): Message {
+  if (!Object.prototype.hasOwnProperty.call(message, 'videoTaskId')) {
+    return message
+  }
+  const updated = { ...message }
+  delete updated.videoTaskId
+  return updated
+}
 
 function responseMessageContent(response: unknown): string {
   if (!response || typeof response !== 'object') return ''
@@ -109,50 +118,168 @@ export function waitForVideoPoll(
   })
 }
 
+export function findResumableVideoMessage(
+  messages: Message[]
+): Message | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (
+      message?.from === MESSAGE_ROLES.ASSISTANT &&
+      (message.status === MESSAGE_STATUS.LOADING ||
+        message.status === MESSAGE_STATUS.STREAMING) &&
+      typeof message.videoTaskId === 'string' &&
+      message.videoTaskId.trim()
+    ) {
+      return message
+    }
+  }
+  return undefined
+}
+
 export function useMediaGeneration(props: UseMediaGenerationOptions) {
-  const { onMessageUpdate } = props
+  const { messages, onMessageUpdate } = props
   const abortControllerRef = useRef<AbortController | null>(null)
+  const activeMessageKeyRef = useRef<string | null>(null)
   const [isGeneratingMedia, setIsGeneratingMedia] = useState(false)
 
   const updateProgress = useCallback(
-    (content: string, progress?: number) => {
+    (
+      messageKey: string,
+      content: string,
+      progress?: number,
+      videoTaskId?: string
+    ) => {
       onMessageUpdate((messages) =>
-        updateLastAssistantMessage(messages, (message) => ({
-          ...updateCurrentVersionContent(
-            message,
-            progress === undefined ? content : `${content} ${progress}%`
-          ),
-          status: MESSAGE_STATUS.STREAMING,
-        }))
+        messages.map((message) =>
+          message.key === messageKey
+            ? {
+                ...updateCurrentVersionContent(
+                  message,
+                  progress === undefined ? content : `${content} ${progress}%`
+                ),
+                status: MESSAGE_STATUS.STREAMING,
+                ...(videoTaskId ? { videoTaskId } : {}),
+              }
+            : message
+        )
       )
     },
     [onMessageUpdate]
   )
 
   const completeMedia = useCallback(
-    (content: string, generatedMedia?: GeneratedMedia[]) => {
+    (
+      messageKey: string,
+      content: string,
+      generatedMedia?: GeneratedMedia[]
+    ) => {
       onMessageUpdate((messages) =>
-        updateLastAssistantMessage(messages, (message) => ({
-          ...updateCurrentVersionMedia(
-            updateCurrentVersionContent(message, content),
-            generatedMedia
-          ),
-          status: MESSAGE_STATUS.COMPLETE,
-          isContentComplete: true,
-        }))
+        messages.map((message) =>
+          message.key === messageKey
+            ? clearVideoTaskId({
+                ...updateCurrentVersionMedia(
+                  updateCurrentVersionContent(message, content),
+                  generatedMedia
+                ),
+                status: MESSAGE_STATUS.COMPLETE,
+                isContentComplete: true,
+              })
+            : message
+        )
       )
     },
     [onMessageUpdate]
   )
 
   const failMedia = useCallback(
-    (message: string) => {
-      toast.error(message)
+    (messageKey: string, error: string) => {
+      toast.error(error)
       onMessageUpdate((messages) =>
-        updateAssistantMessageWithError(messages, message)
+        messages.map((message) =>
+          message.key === messageKey
+            ? clearVideoTaskId(
+                updateAssistantMessageWithError([message], error)[0]
+              )
+            : message
+        )
       )
     },
     [onMessageUpdate]
+  )
+
+  const pollVideoTask = useCallback(
+    async (
+      taskId: string,
+      messageKey: string,
+      controller: AbortController,
+      initialTask?: ReturnType<typeof parseVideoTaskResponse>
+    ) => {
+      let task = initialTask
+
+      for (let attempt = 0; attempt < VIDEO_POLL_LIMIT; attempt += 1) {
+        if (!task) {
+          const taskResponse = await fetchPlaygroundVideoTask(
+            taskId,
+            controller.signal
+          )
+          task = parseVideoTaskResponse(taskResponse)
+          if (!task) {
+            await waitForVideoPoll(controller.signal)
+            if (controller.signal.aborted) return
+            continue
+          }
+        }
+
+        if (task.status === 'failed') {
+          throw new Error(task.error || i18next.t('Video generation failed'))
+        }
+        if (task.status === 'completed') {
+          const url =
+            task.url || `/v1/videos/${encodeURIComponent(taskId)}/content`
+          completeMedia(messageKey, i18next.t('Generated video'), [
+            { type: 'video', url },
+          ])
+          return
+        }
+
+        updateProgress(
+          messageKey,
+          i18next.t('Generating video...'),
+          task.progress,
+          taskId
+        )
+        await waitForVideoPoll(controller.signal)
+        if (controller.signal.aborted) return
+        task = undefined
+      }
+
+      throw new Error(i18next.t('Video generation timed out'))
+    },
+    [completeMedia, updateProgress]
+  )
+
+  const runVideoPolling = useCallback(
+    async (
+      taskId: string,
+      messageKey: string,
+      controller: AbortController,
+      initialTask?: ReturnType<typeof parseVideoTaskResponse>
+    ) => {
+      try {
+        await pollVideoTask(taskId, messageKey, controller, initialTask)
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          failMedia(messageKey, errorMessage(error))
+        }
+      } finally {
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null
+          activeMessageKeyRef.current = null
+          setIsGeneratingMedia(false)
+        }
+      }
+    },
+    [failMedia, pollVideoTask]
   )
 
   const generateMedia = useCallback(
@@ -160,7 +287,8 @@ export function useMediaGeneration(props: UseMediaGenerationOptions) {
       prompt: string,
       model: string,
       group: string,
-      settings: MediaGenerationSettings
+      settings: MediaGenerationSettings,
+      assistantMessageKey: string
     ) => {
       const request = buildMediaGenerationRequest(
         prompt,
@@ -169,12 +297,16 @@ export function useMediaGeneration(props: UseMediaGenerationOptions) {
         settings
       )
       if (!request) {
-        failMedia(i18next.t('This model is not supported in Playground'))
+        failMedia(
+          assistantMessageKey,
+          i18next.t('This model is not supported in Playground')
+        )
         return
       }
 
       const controller = new AbortController()
       abortControllerRef.current = controller
+      activeMessageKeyRef.current = assistantMessageKey
       setIsGeneratingMedia(true)
 
       try {
@@ -185,7 +317,7 @@ export function useMediaGeneration(props: UseMediaGenerationOptions) {
           if (request.endpoint === '/pg/chat/completions') {
             const content = responseMessageContent(response)
             if (!content) throw new Error(i18next.t('No image was generated'))
-            completeMedia(content, undefined)
+            completeMedia(assistantMessageKey, content, undefined)
             return
           }
 
@@ -197,7 +329,11 @@ export function useMediaGeneration(props: UseMediaGenerationOptions) {
           if (images.length === 0) {
             throw new Error(i18next.t('No image was generated'))
           }
-          completeMedia(i18next.t('Generated image'), images)
+          completeMedia(
+            assistantMessageKey,
+            i18next.t('Generated image'),
+            images
+          )
           return
         }
 
@@ -205,57 +341,77 @@ export function useMediaGeneration(props: UseMediaGenerationOptions) {
         if (!submitted) {
           throw new Error(i18next.t('Video task could not be created'))
         }
-        updateProgress(i18next.t('Generating video...'), submitted.progress)
-
-        for (let attempt = 0; attempt < VIDEO_POLL_LIMIT; attempt += 1) {
-          await waitForVideoPoll(controller.signal)
-          if (controller.signal.aborted) return
-
-          const taskResponse = await fetchPlaygroundVideoTask(
-            submitted.taskId,
-            controller.signal
-          )
-          const task = parseVideoTaskResponse(taskResponse)
-          if (!task) continue
-          if (task.status === 'failed') {
-            throw new Error(task.error || i18next.t('Video generation failed'))
-          }
-          if (task.status === 'completed') {
-            const url =
-              task.url ||
-              `/v1/videos/${encodeURIComponent(submitted.taskId)}/content`
-            completeMedia(i18next.t('Generated video'), [
-              { type: 'video', url },
-            ])
-            return
-          }
-          updateProgress(i18next.t('Generating video...'), task.progress)
-        }
-        throw new Error(i18next.t('Video generation timed out'))
+        await pollVideoTask(
+          submitted.taskId,
+          assistantMessageKey,
+          controller,
+          submitted
+        )
       } catch (error) {
-        if (!controller.signal.aborted) failMedia(errorMessage(error))
+        if (!controller.signal.aborted) {
+          failMedia(assistantMessageKey, errorMessage(error))
+        }
       } finally {
         if (abortControllerRef.current === controller) {
           abortControllerRef.current = null
+          activeMessageKeyRef.current = null
           setIsGeneratingMedia(false)
         }
       }
     },
-    [completeMedia, failMedia, updateProgress]
+    [completeMedia, failMedia, pollVideoTask]
   )
 
+  useEffect(() => {
+    if (abortControllerRef.current) return
+    const pendingMessage = findResumableVideoMessage(messages)
+    if (!pendingMessage?.videoTaskId) return
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+    activeMessageKeyRef.current = pendingMessage.key
+    queueMicrotask(() => {
+      if (
+        !controller.signal.aborted &&
+        abortControllerRef.current === controller
+      ) {
+        setIsGeneratingMedia(true)
+      }
+    })
+    void runVideoPolling(
+      pendingMessage.videoTaskId,
+      pendingMessage.key,
+      controller
+    )
+  }, [messages, runVideoPolling])
+
+  useEffect(() => {
+    return () => {
+      const controller = abortControllerRef.current
+      abortControllerRef.current = null
+      activeMessageKeyRef.current = null
+      controller?.abort()
+    }
+  }, [])
+
   const stopMediaGeneration = useCallback(() => {
+    const activeMessageKey = activeMessageKeyRef.current
     abortControllerRef.current?.abort()
     abortControllerRef.current = null
+    activeMessageKeyRef.current = null
     setIsGeneratingMedia(false)
     onMessageUpdate((messages) =>
-      updateLastAssistantMessage(messages, (message) => ({
-        ...updateCurrentVersionContent(
-          message,
-          i18next.t('Generation was interrupted')
-        ),
-        status: MESSAGE_STATUS.COMPLETE,
-      }))
+      messages.map((message) =>
+        message.key === activeMessageKey
+          ? clearVideoTaskId({
+              ...updateCurrentVersionContent(
+                message,
+                i18next.t('Generation was interrupted')
+              ),
+              status: MESSAGE_STATUS.COMPLETE,
+            })
+          : message
+      )
     )
   }, [onMessageUpdate])
 
