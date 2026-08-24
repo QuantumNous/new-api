@@ -40,6 +40,9 @@ export const API_ENDPOINTS = {
   // Async video generation (veo models): POST to submit, GET `${VIDEOS}/{id}` to
   // poll, GET `${VIDEOS}/{id}/content` for the raw MP4 blob.
   VIDEOS: '/v1/videos',
+  PLAYGROUND_RECORDS: '/api/playground/records',
+  PLAYGROUND_RECORDS_CURRENT: '/api/playground/records/current',
+  PLAYGROUND_RECORDS_CLEAR: '/api/playground/records/clear',
 } as const
 
 // Poll the video task status roughly every 6s while it generates (veo-fast is
