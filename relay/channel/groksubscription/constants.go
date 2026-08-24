@@ -33,8 +33,9 @@ const (
 const (
 	CLIProxyBase             = "https://cli-chat-proxy.grok.com"
 	CLIResponsesPath         = "/v1/responses"
-	BillingMonthlyPath       = "/billing"
-	BillingWeeklyCreditsPath = "/billing?format=credits"
+	BillingMonthlyPath       = "/v1/billing"
+	BillingWeeklyCreditsPath = "/v1/billing?format=credits"
+	SubscriptionTierPath     = "/v1/user?include=subscription"
 	XAIImagesGenerationsURL  = "https://api.x.ai/v1/images/generations"
 	XAIImagesEditsURL        = "https://api.x.ai/v1/images/edits"
 )
