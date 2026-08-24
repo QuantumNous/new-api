@@ -177,6 +177,39 @@ func TestDelayedTurnAfterClearCannotRestoreConversation(t *testing.T) {
 	require.Empty(t, delayed.MessagesSnapshot)
 }
 
+func TestOlderClearCannotReplaceNewerTargetTurn(t *testing.T) {
+	setupPlaygroundRecordTestDBWithUsers(t, 109)
+	require.NoError(t, SavePlaygroundRecord(samplePlaygroundTurn(109, "new-turn", "conversation-a", 3000)))
+	require.NoError(t, ClearPlaygroundConversation(109, "old-clear", "conversation-a", 2000))
+
+	current, err := GetCurrentPlaygroundRecord(109)
+	require.NoError(t, err)
+	require.NotNil(t, current)
+	require.Equal(t, "new-turn", current.RecordID)
+
+	var clear PlaygroundRecord
+	require.NoError(t, DB.Where("user_id = ? AND record_id = ?", 109, "old-clear").First(&clear).Error)
+	require.False(t, clear.IsLatest)
+	require.False(t, clear.IsCurrent)
+}
+
+func TestClearForOldConversationCannotRemoveDifferentCurrentConversation(t *testing.T) {
+	setupPlaygroundRecordTestDBWithUsers(t, 110)
+	require.NoError(t, SavePlaygroundRecord(samplePlaygroundTurn(110, "turn-a", "conversation-a", 1000)))
+	require.NoError(t, SavePlaygroundRecord(samplePlaygroundTurn(110, "turn-b", "conversation-b", 2000)))
+	require.NoError(t, ClearPlaygroundConversation(110, "clear-a", "conversation-a", 3000))
+
+	current, err := GetCurrentPlaygroundRecord(110)
+	require.NoError(t, err)
+	require.NotNil(t, current)
+	require.Equal(t, "turn-b", current.RecordID)
+
+	var clear PlaygroundRecord
+	require.NoError(t, DB.Where("user_id = ? AND record_id = ?", 110, "clear-a").First(&clear).Error)
+	require.True(t, clear.IsLatest)
+	require.False(t, clear.IsCurrent)
+}
+
 func TestPlaygroundRecordUserIsolation(t *testing.T) {
 	setupPlaygroundRecordTestDBWithUsers(t, 107, 108)
 	require.NoError(t, SavePlaygroundRecord(samplePlaygroundTurn(107, "shared", "conversation-a", 1000)))

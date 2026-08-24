@@ -156,10 +156,38 @@ func ClearPlaygroundConversation(userID int, recordID, conversationID string, cl
 			return err
 		}
 
-		if err := tx.Model(&PlaygroundRecord{}).
-			Where("user_id = ? AND is_current = ?", userID, true).
-			Update("is_current", false).Error; err != nil {
+		var latest PlaygroundRecord
+		err = tx.Where(
+			"user_id = ? AND conversation_id = ? AND is_latest = ?",
+			userID,
+			conversationID,
+			true,
+		).Order("client_completed_at DESC").Order("record_id DESC").First(&latest).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
+		}
+
+		newer := latest.ID == 0 || clientCompletedAt > latest.ClientCompletedAt ||
+			(clientCompletedAt == latest.ClientCompletedAt && recordID > latest.RecordID)
+		if !newer {
+			return tx.Create(&PlaygroundRecord{
+				UserID:            userID,
+				RecordID:          recordID,
+				RecordType:        PlaygroundRecordTypeClear,
+				ConversationID:    conversationID,
+				Status:            PlaygroundStatusCleared,
+				IsLatest:          false,
+				IsCurrent:         false,
+				ClientCompletedAt: clientCompletedAt,
+			}).Error
+		}
+
+		if latest.IsCurrent {
+			if err := tx.Model(&PlaygroundRecord{}).
+				Where("user_id = ? AND conversation_id = ? AND is_current = ?", userID, conversationID, true).
+				Update("is_current", false).Error; err != nil {
+				return err
+			}
 		}
 		if err := tx.Model(&PlaygroundRecord{}).
 			Where(
