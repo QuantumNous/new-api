@@ -348,6 +348,83 @@ func TestBuildRequestBodyDefaultsGenerateAudioWhenClientOmitsIt(t *testing.T) {
 	}
 }
 
+func TestModelAPISeedanceTrustedBoundAssetRewriteReachesWireBody(t *testing.T) {
+	const publicURI = "asset://ast_1234567890abcdefABCDEF1234567890"
+	const upstreamURI = "asset://asset-upstream_1234567890abcdef"
+	c, _ := newModelAPITestContext(`{"model":"seedance-2.0","content":[{"type":"text","text":"x"},{"type":"image_url","image_url":{"url":"` + publicURI + `"},"role":"reference_image"}]}`)
+	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{publicURI: upstreamURI})
+	adaptor := &TaskAdaptor{}
+	info := newModelAPIRelayInfo("", "")
+
+	if taskErr := adaptor.ValidateRequestAfterModelMapping(c, info); taskErr != nil {
+		t.Fatalf("ValidateRequestAfterModelMapping rejected trusted bound asset rewrite: %v", taskErr)
+	}
+	reader, err := adaptor.BuildRequestBody(c, info)
+	if err != nil {
+		t.Fatalf("BuildRequestBody rejected trusted bound asset rewrite: %v", err)
+	}
+	raw, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read BuildRequestBody: %v", err)
+	}
+	if !strings.Contains(string(raw), upstreamURI) {
+		t.Fatalf("wire body missing upstream asset URI: %s", raw)
+	}
+	if strings.Contains(string(raw), publicURI) {
+		t.Fatalf("wire body leaked platform public asset URI: %s", raw)
+	}
+}
+
+func TestModelAPISeedanceUntrustedUpstreamAssetURIIsRejected(t *testing.T) {
+	tests := []struct {
+		name       string
+		requestURI string
+		rewriteURI string
+	}{
+		{name: "direct client URI", requestURI: "asset://asset-upstream_1234567890abcdef"},
+		{name: "trusted map path", requestURI: "asset://ast_1234567890abcdefABCDEF1234567890", rewriteURI: "asset://asset-upstream/path"},
+		{name: "trusted map query", requestURI: "asset://ast_1234567890abcdefABCDEF1234567890", rewriteURI: "asset://asset-upstream?token=x"},
+		{name: "trusted map userinfo", requestURI: "asset://ast_1234567890abcdefABCDEF1234567890", rewriteURI: "asset://user@asset-upstream"},
+		{name: "trusted map fragment", requestURI: "asset://ast_1234567890abcdefABCDEF1234567890", rewriteURI: "asset://asset-upstream#fragment"},
+		{name: "trusted map leading whitespace", requestURI: "asset://ast_1234567890abcdefABCDEF1234567890", rewriteURI: " asset://asset-upstream"},
+		{name: "trusted map trailing whitespace", requestURI: "asset://ast_1234567890abcdefABCDEF1234567890", rewriteURI: "asset://asset-upstream "},
+		{name: "trusted map control character", requestURI: "asset://ast_1234567890abcdefABCDEF1234567890", rewriteURI: "asset://asset-upstream\n"},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			c, _ := newModelAPITestContext(`{"model":"seedance-2.0","content":[{"type":"image_url","image_url":{"url":"` + testCase.requestURI + `"},"role":"reference_image"}]}`)
+			if testCase.rewriteURI != "" {
+				common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{testCase.requestURI: testCase.rewriteURI})
+			}
+			if taskErr := (&TaskAdaptor{}).ValidateRequestAfterModelMapping(c, newModelAPIRelayInfo("", "")); taskErr == nil {
+				t.Fatal("expected untrusted or malformed upstream asset URI rejection")
+			}
+		})
+	}
+}
+
+func TestModelAPISeedanceRejectsDirectUpstreamAssetURIThatCollidesWithTrustedRewrite(t *testing.T) {
+	const publicURI = "asset://ast_1234567890abcdefABCDEF1234567890"
+	const upstreamURI = "asset://asset-upstream_1234567890abcdef"
+	c, _ := newModelAPITestContext(`{"model":"seedance-2.0","content":[{"type":"image_url","image_url":{"url":"` + publicURI + `"},"role":"reference_image"},{"type":"image_url","image_url":{"url":"` + upstreamURI + `"},"role":"reference_image"}]}`)
+	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{publicURI: upstreamURI})
+
+	if taskErr := (&TaskAdaptor{}).ValidateRequestAfterModelMapping(c, newModelAPIRelayInfo("", "")); taskErr == nil {
+		t.Fatal("expected direct upstream asset URI collision to be rejected")
+	}
+}
+
+func TestBuildRequestBodyRejectsDirectUpstreamAssetURIWithoutValidationProvenance(t *testing.T) {
+	const publicURI = "asset://ast_1234567890abcdefABCDEF1234567890"
+	const upstreamURI = "asset://asset-upstream_1234567890abcdef"
+	c, _ := newModelAPITestContext(`{"model":"seedance-2.0","content":[{"type":"image_url","image_url":{"url":"` + publicURI + `"},"role":"reference_image"},{"type":"image_url","image_url":{"url":"` + upstreamURI + `"},"role":"reference_image"}]}`)
+	common.SetContextKey(c, constant.ContextKeyAssetRewriteMap, map[string]string{publicURI: upstreamURI})
+
+	if _, err := (&TaskAdaptor{}).BuildRequestBody(c, newModelAPIRelayInfo("", "")); err == nil {
+		t.Fatal("expected BuildRequestBody to reject direct upstream asset URI without validation provenance")
+	}
+}
+
 func assertModelAPIWireItems(t *testing.T, input map[string]any, key string, want []map[string]string) {
 	t.Helper()
 	items, ok := input[key].([]any)
