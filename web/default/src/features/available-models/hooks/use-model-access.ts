@@ -18,26 +18,34 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth-store'
-import { getUserModelAccess } from '../api'
+import { getUserModelAccess, type UserModelAccessView } from '../api'
 
 export const modelAccessQueryKeys = {
   all: ['user-model-access'] as const,
-  detail: (userId?: number) =>
-    [...modelAccessQueryKeys.all, 'detail', userId ?? null] as const,
+  detail: (userId?: number, view: UserModelAccessView = 'full') => {
+    const key = [...modelAccessQueryKeys.all, 'detail', userId ?? null] as const
+    return view === 'available_models' ? ([...key, view] as const) : key
+  },
 }
 
-export function createModelAccessQueryOptions(userId?: number) {
+export function createModelAccessQueryOptions(
+  userId?: number,
+  view: UserModelAccessView = 'full'
+) {
   return {
-    queryKey: modelAccessQueryKeys.detail(userId),
-    queryFn: getUserModelAccess,
+    queryKey: modelAccessQueryKeys.detail(userId, view),
+    queryFn: () => getUserModelAccess(view),
     staleTime: 5 * 60 * 1000,
     enabled: userId !== undefined,
   }
 }
 
-export function useModelAccess(enabled = true) {
+export function useModelAccess(
+  enabled = true,
+  view: UserModelAccessView = 'full'
+) {
   const userId = useAuthStore((state) => state.auth.user?.id)
-  const options = createModelAccessQueryOptions(userId)
+  const options = createModelAccessQueryOptions(userId, view)
   return useQuery({
     ...options,
     enabled: enabled && options.enabled,

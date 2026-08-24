@@ -27,6 +27,7 @@ type RankingsResponse struct {
 	TopDroppers        []RankingMover     `json:"top_droppers"`
 	ModelsHistory      ModelHistorySeries `json:"models_history"`
 	VendorShareHistory VendorShareSeries  `json:"vendor_share_history"`
+	allModels          []RankedModel
 }
 
 type RankedModel struct {
@@ -218,7 +219,79 @@ func buildRankingsSnapshot(config rankingPeriodConfig, now time.Time) (*Rankings
 		TopDroppers:        droppers,
 		ModelsHistory:      modelHistory,
 		VendorShareHistory: vendorHistory,
+		allModels:          append([]RankedModel(nil), rankedModels...),
 	}, nil
+}
+
+// FilterRankingsResponse returns a display-only copy without mutating the
+// cached snapshot. The full ranked set keeps mover/dropper ranks accurate even
+// when a model falls outside the exposed leaderboard slice.
+func FilterRankingsResponse(result *RankingsResponse, keep func(string) bool) *RankingsResponse {
+	if result == nil || keep == nil {
+		return result
+	}
+
+	allModels := result.allModels
+	if len(allModels) == 0 {
+		allModels = result.Models
+	}
+	visibleModels := make([]RankedModel, 0, len(allModels))
+	visibleRanks := make(map[string]int, len(allModels))
+	for _, item := range allModels {
+		if !keep(item.ModelName) {
+			continue
+		}
+		item.Rank = len(visibleModels) + 1
+		visibleRanks[item.ModelName] = item.Rank
+		visibleModels = append(visibleModels, item)
+	}
+
+	filtered := *result
+	filtered.allModels = visibleModels
+	filtered.Models = limitRankedModels(visibleModels, rankingLeaderboardLimit)
+	filtered.TopMovers = filterRankingMovers(result.TopMovers, allModels, visibleRanks, keep)
+	filtered.TopDroppers = filterRankingMovers(result.TopDroppers, allModels, visibleRanks, keep)
+	filtered.ModelsHistory = result.ModelsHistory
+	filtered.ModelsHistory.Points = make([]ModelHistoryPoint, 0, len(result.ModelsHistory.Points))
+	for _, item := range result.ModelsHistory.Points {
+		if keep(item.Model) {
+			filtered.ModelsHistory.Points = append(filtered.ModelsHistory.Points, item)
+		}
+	}
+	filtered.ModelsHistory.Models = make([]ModelHistoryModel, 0, len(result.ModelsHistory.Models))
+	for _, item := range result.ModelsHistory.Models {
+		if keep(item.Name) {
+			filtered.ModelsHistory.Models = append(filtered.ModelsHistory.Models, item)
+		}
+	}
+
+	filtered.Vendors = append([]RankedVendor(nil), result.Vendors...)
+	for i := range filtered.Vendors {
+		if !keep(filtered.Vendors[i].TopModel) {
+			filtered.Vendors[i].TopModel = ""
+		}
+	}
+	return &filtered
+}
+
+func filterRankingMovers(items []RankingMover, allModels []RankedModel, visibleRanks map[string]int, keep func(string) bool) []RankingMover {
+	filtered := make([]RankingMover, 0, len(items))
+	for _, item := range items {
+		if !keep(item.ModelName) {
+			continue
+		}
+		if rank, ok := visibleRanks[item.ModelName]; ok {
+			item.CurrentRank = rank
+		} else {
+			for _, ranked := range allModels {
+				if ranked.Rank > 0 && ranked.Rank < item.CurrentRank && !keep(ranked.ModelName) {
+					item.CurrentRank--
+				}
+			}
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
 }
 
 func rankingTimeRange(config rankingPeriodConfig, now time.Time) (int64, int64) {
