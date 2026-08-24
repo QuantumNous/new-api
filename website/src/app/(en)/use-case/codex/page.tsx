@@ -2,9 +2,9 @@ import { CODEX_USE_CASE, CodingAgentUseCasePage } from "@/components/coding-agen
 import { buildMetadata } from "@/lib/seo";
 
 export const metadata = buildMetadata({
-  title: "Flatkey with Codex — at least 40% cheaper",
+  title: "flatkey with Codex — at least 40% cheaper",
   description:
-    "Use Codex CLI with Flatkey through one API key, macOS, Linux, and Windows install scripts, at least 40% cheaper usage, and unified billing.",
+    "Use Codex CLI with flatkey through one API key, macOS, Linux, and Windows install scripts, at least 40% cheaper usage, and unified billing.",
   pathname: "/use-case/codex",
 });
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -16,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -49,6 +51,8 @@ type requestPayload struct {
 	GenerateAudio         *dto.BoolValue `json:"generate_audio,omitempty"`
 	Draft                 *dto.BoolValue `json:"draft,omitempty"`
 	Tools                 []toolItem     `json:"tools,omitempty"`
+	SafetyIdentifier      string         `json:"safety_identifier,omitempty"`
+	Priority              *dto.IntValue  `json:"priority,omitempty"`
 	Resolution            string         `json:"resolution,omitempty"`
 	Ratio                 string         `json:"ratio,omitempty"`
 	Duration              *dto.IntValue  `json:"duration,omitempty"`
@@ -102,6 +106,46 @@ type TaskAdaptor struct {
 	ChannelType int
 	apiKey      string
 	baseURL     string
+
+	// Per-second billing state, captured during EstimateBilling so that
+	// SecondBillingRatios can report a pricing failure to the relay path.
+	secondBillingModel      string
+	secondBillingDims       map[string]string
+	secondBillingSeconds    float64
+	secondBillingModelPrice float64
+	secondBillingRules      []billing_setting.VideoPriceRule
+	// secondBillingErr records that the model IS configured for per-second
+	// billing but this request cannot be priced. It must be reported rather
+	// than left as absent capture: EstimateBilling returns nil for a configured
+	// model, so no legacy ratio applies either, and (nil, nil) would bill the
+	// bare ModelPrice with no seconds multiplier — a 30-second render charged
+	// as one unit. relay_task.go rejects the request on this error, before it
+	// is submitted upstream, so it costs nothing.
+	secondBillingErr error
+}
+
+// The relay's secondBillingAdaptor interface is unexported, so assert against a
+// local interface with the same method set. Without this, a typo'd method name
+// would compile and silently drop the request back onto the legacy path.
+var _ interface {
+	SecondBillingRatios() (map[string]float64, error)
+} = (*TaskAdaptor)(nil)
+
+// SecondBillingRatios implements the relay's secondBillingAdaptor interface.
+func (a *TaskAdaptor) SecondBillingRatios() (map[string]float64, error) {
+	if a.secondBillingErr != nil {
+		return nil, a.secondBillingErr
+	}
+	if a.secondBillingModel == "" {
+		return nil, nil
+	}
+	return taskcommon.ComputeSecondBilling(
+		a.secondBillingRules,
+		a.secondBillingModel,
+		a.secondBillingDims,
+		a.secondBillingSeconds,
+		a.secondBillingModelPrice,
+	)
 }
 
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
@@ -134,18 +178,16 @@ func (a *TaskAdaptor) BuildRequestHeader(_ *gin.Context, req *http.Request, _ *r
 	return nil
 }
 
-// EstimateBilling detects whether the request carries a video input (a
-// video_url content item) and, if so, returns the model's video-input discount
-// ratio. It reuses the seedance request parsed by BindSeedanceRequest (no
-// metadata, no extra body decode).
+// EstimateBilling returns the model's relative price ratio based on output
+// resolution and whether the request carries a video_url content item.
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {
+	// Clear the previous request's capture: a stale Err would reject this
+	// request even when it is perfectly priceable. See SecondBillingState.Reset.
+	a.resetSecondBilling()
 	// Reuse the request already parsed by BindSeedanceRequest (in
 	// ValidateRequestAndSetAction) instead of re-decoding the body.
 	seedReq, err := taskcommon.GetSeedanceRequest(c)
 	if err != nil {
-		return nil
-	}
-	if len(seedReq.Videos()) == 0 {
 		return nil
 	}
 	// The video-input discount is keyed on the upstream model name. When the
@@ -157,10 +199,77 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if modelName == "" {
 		modelName = info.OriginModelName
 	}
-	if ratio, ok := GetVideoInputRatio(modelName); ok {
+	hasVideo := len(seedReq.Videos()) > 0
+	// Ark defaults an omitted resolution to the 720p tier. Naming it here rather
+	// than leaving it empty is behaviour-preserving for GetVideoInputRatio —
+	// which buckets "" and "720p" into the same base-tier key — and lets the
+	// configured price table match a rule on the tier actually rendered.
+	resolution := seedReq.Resolution
+	if strings.TrimSpace(resolution) == "" {
+		resolution = "720p"
+	}
+
+	// One snapshot per request: a second fetch could straddle a config reload
+	// and judge the model "configured" against one table while pricing it
+	// against another. The snapshot is shallow, so each rule's Match map is
+	// shared with the live table and must stay read-only.
+	rules := billing_setting.GetVideoPriceRules()
+	// The configured table is keyed on info.OriginModelName — the client-facing
+	// name the administrator also prices with ModelPrice, which is the
+	// denominator in ComputeSecondBilling. The legacy videoPriceTable is keyed
+	// on the upstream name instead because it ships real upstream model names;
+	// the two keys are deliberately different and must not be "unified".
+	configured := billing_setting.IsVideoModelConfigured(rules, info.OriginModelName)
+
+	// Capture only when the length is actually knowable: a wrong duration would
+	// misprice the request silently. For an UNCONFIGURED model that leaves the
+	// request on the legacy path, which is the documented pre-existing
+	// behaviour. For a configured one there is no legacy path to fall back to —
+	// the early return below skips it — so the request must be refused instead.
+	seconds, secondsOK := taskcommon.SeedanceBillableSeconds(seedReq)
+	dims, dimsOK := resolveDimensions(resolution, hasVideo)
+	switch {
+	case !secondsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDurationError(
+			info.OriginModelName, taskcommon.SeedanceUnknowableLengthReason(seedReq))
+	case !dimsOK && configured:
+		a.secondBillingErr = taskcommon.UnpriceableDimensionError(
+			info.OriginModelName, "resolution", resolution)
+	case secondsOK && dimsOK:
+		a.secondBillingModel = info.OriginModelName
+		a.secondBillingDims = dims
+		a.secondBillingSeconds = seconds
+		a.secondBillingModelPrice = info.PriceData.ModelPrice
+		a.secondBillingRules = rules
+	}
+	// A model in the price table is priced by SecondBillingRatios; returning
+	// nil here keeps the legacy hardcoded estimate from also applying.
+	if configured {
+		return nil
+	}
+
+	ratio, ok := GetVideoInputRatio(modelName, resolution, hasVideo)
+	if ok && ratio != 1.0 {
 		return map[string]float64{"video_input": ratio}
 	}
 	return nil
+}
+
+// resolveDimensions reports the billable characteristics of a request. It knows
+// nothing about prices; the configured price table supplies those.
+func resolveDimensions(resolution string, hasVideo bool) (map[string]string, bool) {
+	label, ok := taskcommon.NormalizeResolution(resolution)
+	if !ok {
+		return nil, false
+	}
+	has := "false"
+	if hasVideo {
+		has = "true"
+	}
+	return map[string]string{
+		"resolution": label,
+		"has_video":  has,
+	}, true
 }
 
 // doubaoExtensions are optional fields beyond the official seedance schema that
@@ -177,6 +286,14 @@ type doubaoExtensions struct {
 // request plus Doubao-only extensions and translates it into the Ark upstream
 // body.
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	return a.buildRequestBody(c, info, true)
+}
+
+func (a *TaskAdaptor) BuildRequestBodyWithoutAssetRewrite(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
+	return a.buildRequestBody(c, info, false)
+}
+
+func (a *TaskAdaptor) buildRequestBody(c *gin.Context, info *relaycommon.RelayInfo, rewriteAssets bool) (io.Reader, error) {
 	// The official seedance fields and the Doubao-only extension keys are
 	// siblings in the same JSON body; decode both in a single pass.
 	var inbound struct {
@@ -187,6 +304,12 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		return nil, err
 	}
 	seedReq := inbound.SeedanceVideoRequest
+	if rewriteAssets {
+		rewriteMap, _ := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
+		if err := rewriteSeedanceAssetReferences(&seedReq, rewriteMap); err != nil {
+			return nil, err
+		}
+	}
 
 	body := buildDoubaoCreateRequest(&seedReq, inbound.doubaoExtensions)
 	if info.IsModelMapped {
@@ -194,7 +317,13 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	} else {
 		info.UpstreamModelName = body.Model
 	}
-	data, err := common.Marshal(body)
+	if body.Priority != nil && !supportsPriority(body.Model) {
+		return nil, fmt.Errorf("priority is only supported on Seedance 2.0 upstream models")
+	}
+	if info.ChannelOtherSettings.AllowSafetyIdentifier {
+		body.SafetyIdentifier = seedReq.SafetyIdentifier
+	}
+	data, err := common.MarshalNoHTMLEscape(body)
 	if err != nil {
 		return nil, err
 	}
@@ -220,6 +349,7 @@ func buildDoubaoCreateRequest(seedReq *dto.SeedanceVideoRequest, ext doubaoExten
 		GenerateAudio:         toBoolValue(seedReq.GenerateAudio),
 		ReturnLastFrame:       toBoolValue(seedReq.ReturnLastFrame),
 		CallbackURL:           seedReq.CallbackURL,
+		Priority:              toIntValue(seedReq.Priority),
 		ServiceTier:           ext.ServiceTier,
 		ExecutionExpiresAfter: ext.ExecutionExpiresAfter,
 		Draft:                 ext.Draft,
@@ -243,6 +373,37 @@ func toBoolValue(v *bool) *dto.BoolValue {
 	}
 	bv := dto.BoolValue(*v)
 	return &bv
+}
+
+func rewriteSeedanceAssetReferences(seedReq *dto.SeedanceVideoRequest, rewriteMap map[string]string) error {
+	if seedReq == nil {
+		return nil
+	}
+	for index := range seedReq.Content {
+		item := &seedReq.Content[index]
+		for _, media := range []*dto.SeedanceURLObject{
+			item.ImageURL,
+			item.VideoURL,
+			item.AudioURL,
+		} {
+			if media == nil {
+				continue
+			}
+			rawURL := strings.TrimSpace(media.URL)
+			if !service.IsStrictBytePlusAssetURI(rawURL) {
+				if strings.HasPrefix(strings.ToLower(rawURL), "asset://ast_") {
+					return fmt.Errorf("invalid asset reference")
+				}
+				continue
+			}
+			upstreamURL, ok := rewriteMap[rawURL]
+			if !ok || strings.TrimSpace(upstreamURL) == "" {
+				return fmt.Errorf("invalid asset reference")
+			}
+			media.URL = strings.TrimSpace(upstreamURL)
+		}
+	}
+	return nil
 }
 
 // DoRequest delegates to common helper.
@@ -376,4 +537,15 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	}
 
 	return common.Marshal(openAIVideo)
+}
+
+// resetSecondBilling clears the per-request capture. The adaptor instance can
+// outlive a request when injected for tests, so the fields must not carry over.
+func (a *TaskAdaptor) resetSecondBilling() {
+	a.secondBillingModel = ""
+	a.secondBillingDims = nil
+	a.secondBillingSeconds = 0
+	a.secondBillingModelPrice = 0
+	a.secondBillingRules = nil
+	a.secondBillingErr = nil
 }

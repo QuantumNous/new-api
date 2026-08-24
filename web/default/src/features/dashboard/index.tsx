@@ -170,6 +170,7 @@ export function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const params = route.useParams()
+  const { model: handoffModel } = route.useSearch()
   const userRole = useAuthStore((state) => state.auth.user?.role)
   const activeSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
@@ -245,7 +246,11 @@ export function Dashboard() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
+      {/* The overview leads with its own hero heading, so it drops the
+          generic page title instead of stacking two headings. */}
+      {activeSection !== 'overview' && (
+        <SectionPageLayout.Title>{t(meta.titleKey)}</SectionPageLayout.Title>
+      )}
       <SectionPageLayout.Content>
         <div className='space-y-3 sm:space-y-4'>
           {activeSection !== 'overview' && (
@@ -270,7 +275,9 @@ export function Dashboard() {
               )}
             </div>
           )}
-          {activeSection === 'overview' && <OverviewDashboard />}
+          {activeSection === 'overview' && (
+            <OverviewDashboard handoffModel={handoffModel} />
+          )}
           {activeSection === 'models' && (
             <>
               <FadeIn>

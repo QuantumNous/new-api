@@ -97,7 +97,7 @@ func MigrateConsoleSetting(c *gin.Context) {
 
 	// 删除旧键记录
 	oldKeys := []string{"ApiInfo", "Announcements", "FAQ", "UptimeKumaUrl", "UptimeKumaSlug"}
-	model.DB.Where("key IN ?", oldKeys).Delete(&model.Option{})
+	model.DB.Where("`key` IN ?", oldKeys).Delete(&model.Option{})
 
 	// 重新加载 OptionMap
 	model.InitOptionMap()

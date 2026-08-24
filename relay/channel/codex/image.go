@@ -2,6 +2,8 @@ package codex
 
 import (
 	"bufio"
+	"bytes"
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -24,15 +26,13 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+var uploadTempMediaImageForCodex = service.UploadTempMediaImage
+
 // codexImageStreamReadLimit 限制 SSE 响应总字节数，防止恶意上游耗尽内存。
 // 不对单行做上限（base64 图像行可能合法地超过 1MB），只约束整体读取量。
 // 注意：命中该上限会被显式探测并返回 "response exceeded size limit"，
 // 而不是静默截断后误报 "no image returned"（见 F8）。
 const codexImageStreamReadLimit = 256 << 20 // 256 MiB
-
-// defaultCodexImageOutputTokens 是 image_gen 用量缺失但确实产出了图像时的兜底
-// 计费 token 数（约等于 low quality 1024x1024 的输出 token），避免计费塌到 ~0。
-const defaultCodexImageOutputTokens = 272
 
 // resolveImageCarrierModel：per-channel 覆盖 > 全局设置 > 代码默认 gpt-5.4。
 func resolveImageCarrierModel(info *relaycommon.RelayInfo) string {
@@ -48,14 +48,18 @@ func resolveImageCarrierModel(info *relaycommon.RelayInfo) string {
 }
 
 // ValidateCodexImageRequest 在请求进入上游之前做客户端侧校验。
-// 目前仅校验 response_format：codex 图像路径只能返回 base64（无托管 URL），
-// 因此除空值（默认 b64_json）与显式 "b64_json" 外的任何值（尤其 "url"）都直接拒绝，
-// 避免静默回退到空 url 误导客户端（F7）。
+// 目前主要校验 response_format：codex 图像路径默认只能返回 base64（无托管 URL）。
+// 若客户端设置 temp_url=true，则无视 response_format 的显式约束（默认按临时链接返回），
+// 不再要求必须带 "url"，避免上游返回 400 卡死客户端。
 //
 // 设计 seam：adaptor.go 的 ConvertImageRequest 拥有 request，应在构建上游 body 前
 // 调用本函数。把校验放在 image.go 是为了让规则与 codex 图像的其余逻辑同处一文件、
 // 可独立测试；adaptor.go（由另一 agent 维护）只需 `if err := ValidateCodexImageRequest(request); err != nil { return nil, err }`。
 func ValidateCodexImageRequest(request dto.ImageRequest) error {
+	if request.TempUrl != nil && *request.TempUrl {
+		return nil
+	}
+
 	rf := strings.TrimSpace(request.ResponseFormat)
 	if rf != "" && rf != "b64_json" {
 		return fmt.Errorf("codex image: response_format %q not supported; codex image only supports b64_json", rf)
@@ -243,10 +247,60 @@ func detectCodexImageMime(filename string) string {
 	}
 }
 
+func inferCodexImageContentTypeAndExt(format string) (contentType string, ext string) {
+	switch strings.ToLower(strings.TrimPrefix(strings.TrimSpace(format), ".")) {
+	case "png", "":
+		return "image/png", ".png"
+	case "jpg", "jpeg":
+		return "image/jpeg", ".jpg"
+	case "webp":
+		return "image/webp", ".webp"
+	}
+
+	return "image/png", ".png"
+}
+
+func uploadCodexImageToTempURL(ctx context.Context, userID int, rawImage, outputFormat string) (*service.TempMediaUploadResult, error) {
+	rawImage = strings.TrimSpace(rawImage)
+	if rawImage == "" {
+		return nil, errors.New("codex image result is empty")
+	}
+
+	if strings.HasPrefix(rawImage, "data:") {
+		if commaIdx := strings.Index(rawImage, ","); commaIdx >= 0 {
+			rawImage = rawImage[commaIdx+1:]
+		}
+	}
+
+	bytesData, err := base64.StdEncoding.DecodeString(rawImage)
+	if err != nil {
+		return nil, fmt.Errorf("decode codex image result failed: %w", err)
+	}
+
+	contentType, ext := inferCodexImageContentTypeAndExt(outputFormat)
+	result, err := uploadTempMediaImageForCodex(ctx, service.TempMediaUploadRequest{
+		UserID:      userID,
+		Filename:    "gpt-image-" + ext,
+		ContentType: contentType,
+		Size:        int64(len(bytesData)),
+		Body:        bytes.NewReader(bytesData),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("upload temp media image failed: %w", err)
+	}
+
+	return result, nil
+}
+
 // RelayImageOverCodex 读取 codex Responses SSE 流，抽取 image_generation_call 的 base64 结果
 // 与 tool_usage.image_gen 用量，回写标准 OpenAI 图像响应，返回计费用量。
 func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
+
+	tempURL := false
+	if req, ok := info.Request.(*dto.ImageRequest); ok && req != nil {
+		tempURL = req.TempUrl != nil && *req.TempUrl
+	}
 
 	// 用 io.LimitReader 约束 SSE 总字节数（不是单行），防止恶意上游耗尽内存；
 	// 仍支持合法的大体积 base64 图像行。多读 1 字节作为哨兵：若 LimitReader 在 EOF
@@ -283,10 +337,24 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 						item := gjson.Get(payload, "item")
 						if item.Get("type").String() == "image_generation_call" {
 							if result := item.Get("result").String(); result != "" {
-								data = append(data, dto.ImageData{
-									B64Json:       result,
-									RevisedPrompt: item.Get("revised_prompt").String(),
-								})
+								entry := dto.ImageData{RevisedPrompt: item.Get("revised_prompt").String()}
+								if tempURL {
+									requestContext := context.Background()
+									if c != nil && c.Request != nil {
+										requestContext = c.Request.Context()
+									}
+									uploadResult, upErr := uploadCodexImageToTempURL(requestContext, info.UserId, result, item.Get("output_format").String())
+									if upErr != nil {
+										common.SysError(fmt.Sprintf("codex image: failed to upload temp media: %v", upErr))
+										return nil, types.NewOpenAIError(upErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+									}
+									entry.Url = uploadResult.SignedURL
+									entry.ExpiresAt = uploadResult.ExpiresAt
+									entry.ExpiresIn = uploadResult.ExpiresIn
+								} else {
+									entry.B64Json = result
+								}
+								data = append(data, entry)
 							}
 						}
 					case "response.completed":
@@ -334,57 +402,5 @@ func RelayImageOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	c.Writer.WriteHeader(http.StatusOK)
 	_, _ = c.Writer.Write(body)
 
-	// F2+F3+F11：逐 token 健壮化，取代旧的"hasUsage ? tokens : fallback"全或无逻辑。
-	// 旧逻辑的缺陷：image_gen:{} 存在但为空、或 output_tokens:0 时，u.Exists()==true
-	// 导致 hasUsage=true 但 token 全 0，计费塌到 ~0；且兜底只补 CompletionTokens，
-	// 把 PromptTokens 置 0，丢掉 edit 的输入图像 token 成本。
-	//
-	// 新策略：分别读取 input_tokens(p)/output_tokens(comp)/total_tokens(t)，无论 image_gen
-	// 是缺失、为空 {} 还是被置零，只要确实产出了图像（len(data)>0），就保证至少
-	// 计入 defaultCodexImageOutputTokens 的 completion；并保留 p，使 edit 的输入图像 token 计费不丢。
-	p := 0
-	comp := 0
-	t := 0
-	if hasUsage {
-		p = int(imgUsage.Get("input_tokens").Int())
-		comp = int(imgUsage.Get("output_tokens").Int())
-		t = int(imgUsage.Get("total_tokens").Int())
-	}
-	if comp <= 0 {
-		// output_tokens 缺失/为零/被截断：兜底到非零默认，确保真实图像计费 >= 默认值。
-		common.SysError("codex image: image produced but image_gen output_tokens missing/zero, applying fallback completion tokens")
-		comp = defaultCodexImageOutputTokens
-	}
-	if p < 0 {
-		p = 0
-	}
-	// 已知限制 / 后续增强（刻意不做，2026-06-10）：
-	// 上游 image_gen 其实返回了图像/文本 token 细分
-	// （input_tokens_details.image_tokens / text_tokens，edit 实测输入图约 256 image_token）。
-	// 这里只透出"合计" PromptTokens，没有设 usage.PromptTokensDetails.ImageTokens，
-	// 因此计费引擎对输入一律按文本输入价计，渠道配置的「图像输入价格」对本路径不生效。
-	// 不做的原因：
-	//   1) 输入仅占总成本约 5%，图像价($8)与文本价($5)的差异 ≈ 总账单的 0.15%，收益极小；
-	//   2) 暗坑：relay/helper/price.go 取 imageRatio 时丢弃了 GetImageRatio 的 ok 标志
-	//      （imageRatio, _ = GetImageRatio(...)），模型未配图像倍率时默认 0。一旦在此透出
-	//      ImageTokens，text_quota.go 会把这些 token 从合计中减去再 ×imageRatio(=0)，
-	//      导致输入图被算成"免费" → 少收费。
-	// 若将来要让「图像输入价格」精确生效，安全顺序：
-	//   a) 先给 gpt-image-2 配「图像输入价格」（如 $8/M，imageRatio≈1.6 对齐官方）；
-	//   b) 把 price.go 的 imageRatio 未配兜底由 0 改为 1（防免费），评估对其他渠道的影响；
-	//   c) 再在此读取 input_tokens_details.image_tokens / text_tokens，设
-	//      usage.PromptTokensDetails.ImageTokens / TextTokens；
-	//   d) e2e 校验 edits 账单（尤其确认输入图不再被算成 0）。
-	usage := &dto.Usage{
-		PromptTokens:     p,
-		CompletionTokens: comp,
-	}
-	// total 仅在上游给出且与 p+comp 自洽（不小于二者之和）时采用，否则用 p+comp 重算，
-	// 避免上游 total 把兜底后的 completion 抵消掉。
-	if t >= p+comp {
-		usage.TotalTokens = t
-	} else {
-		usage.TotalTokens = p + comp
-	}
-	return usage, nil
+	return buildCodexImageUsage(imgUsage, hasUsage), nil
 }

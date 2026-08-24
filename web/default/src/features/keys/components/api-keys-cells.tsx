@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { Check, Copy, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -27,13 +27,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { StatusBadge } from '@/components/status-badge'
+import { getApiKeyModelScopeSummary } from '../lib/api-key-model-scope'
 import { type ApiKey } from '../types'
+import { ApiKeyModelScopeSheet } from './api-key-model-scope-sheet'
 import { useApiKeys } from './api-keys-provider'
 
 export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
@@ -154,34 +157,72 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
 
 export function ModelLimitsCell({ apiKey }: { apiKey: ApiKey }) {
   const { t } = useTranslation()
+  const { modelAccessQuery } = useApiKeys()
+  const [scopeOpen, setScopeOpen] = useState(false)
+  const summary = useMemo(
+    () =>
+      modelAccessQuery.data
+        ? getApiKeyModelScopeSummary(modelAccessQuery.data, apiKey)
+        : null,
+    [apiKey, modelAccessQuery.data]
+  )
 
-  if (!apiKey.model_limits_enabled || !apiKey.model_limits) {
+  if (modelAccessQuery.isPending) {
+    return <Skeleton className='h-5 w-28' />
+  }
+
+  if (!summary) {
     return (
-      <StatusBadge label={t('Unlimited')} variant='neutral' copyable={false} />
+      <StatusBadge
+        label={t('Unable to load available models')}
+        variant='warning'
+        copyable={false}
+      />
     )
   }
 
-  const models = apiKey.model_limits.split(',').filter(Boolean)
+  let label: string
+  if (summary.labelKind === 'empty') {
+    label = t('0 callable')
+  } else if (summary.labelKind === 'limited') {
+    label = t('{{effective}} / {{total}} models', {
+      effective: summary.effectiveModels.length,
+      total: summary.totalModels.length,
+    })
+  } else if (summary.labelKind === 'all-account') {
+    label = t('All in account · {{count}}', {
+      count: summary.totalModels.length,
+    })
+  } else {
+    label = t('All in group · {{count}}', {
+      count: summary.totalModels.length,
+    })
+  }
 
   return (
-    <Tooltip>
-      <TooltipTrigger render={<span />}>
-        <StatusBadge
-          label={t('{{count}} model(s)', { count: models.length })}
-          variant='neutral'
-          copyable={false}
-        />
-      </TooltipTrigger>
-      <TooltipContent side='top' className='max-w-xs'>
-        <div className='max-h-[200px] space-y-0.5 overflow-y-auto text-xs'>
-          {models.map((m) => (
-            <div key={m} className='font-mono'>
-              {m}
-            </div>
-          ))}
-        </div>
-      </TooltipContent>
-    </Tooltip>
+    <>
+      <Button
+        type='button'
+        variant='ghost'
+        size='sm'
+        className='h-auto p-0'
+        aria-label={t('View callable models for {{name}}', {
+          name: apiKey.name,
+        })}
+        onClick={() => setScopeOpen(true)}
+      >
+        <StatusBadge label={label} variant='neutral' copyable={false} />
+      </Button>
+      <ApiKeyModelScopeSheet
+        apiKeyName={apiKey.name}
+        defaultRatio={summary.defaultRatio}
+        models={summary.effectiveModels}
+        modelRatios={summary.modelRatios}
+        totalCount={summary.totalModels.length}
+        open={scopeOpen}
+        onOpenChange={setScopeOpen}
+      />
+    </>
   )
 }
 

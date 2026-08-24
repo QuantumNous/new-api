@@ -1,12 +1,59 @@
 import { describe, expect, test } from "bun:test";
 import {
+  buildBasePageSchema,
   buildBlogArticleSchema,
   buildBlogCategorySchema,
   buildBlogIndexSchema,
   buildHomepageSchema,
+  buildModelSchema,
   stringifyJsonLd,
 } from "./schema";
 
+describe("sitewide structured data", () => {
+  test("builds a reusable WebPage schema with localized URL and breadcrumbs", () => {
+    const graph = buildBasePageSchema({
+      locale: "zh",
+      pathname: "/models",
+    });
+
+    expect(graph["@context"]).toBe("https://schema.org");
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "WebPage",
+        url: "https://flatkey.ai/zh/models",
+        inLanguage: "zh-CN",
+        isPartOf: expect.objectContaining({ "@type": "WebSite" }),
+        publisher: expect.objectContaining({ "@type": "Organization" }),
+      })
+    );
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: "https://flatkey.ai/zh" },
+          { "@type": "ListItem", position: 2, name: "Models", item: "https://flatkey.ai/zh/models" },
+        ],
+      })
+    );
+  });
+
+  test("keeps English breadcrumb home at the site root", () => {
+    const graph = buildBasePageSchema({
+      locale: "en",
+      pathname: "/pricing",
+    });
+
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: "https://flatkey.ai/" },
+          { "@type": "ListItem", position: 2, name: "Pricing", item: "https://flatkey.ai/pricing" },
+        ],
+      })
+    );
+  });
+});
 describe("homepage structured data", () => {
   test("builds product and navigation schema for rich homepage search results", () => {
     const graph = buildHomepageSchema({
@@ -127,6 +174,21 @@ describe("blog structured data", () => {
     expect(graph["@graph"]).toContainEqual(expect.objectContaining({ "@type": "WebSite", url: "https://flatkey.ai" }));
   });
 
+  test("uses the Brazilian Portuguese BCP47 tag in JSON-LD language fields", () => {
+    const graph = buildBlogIndexSchema({
+      locale: "pt",
+      title: "Blog da flatkey.ai",
+      description: "Guias de API e produto.",
+    });
+
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "Blog",
+        inLanguage: "pt-BR",
+      })
+    );
+  });
+
   test("builds CollectionPage schema for a blog category", () => {
     const graph = buildBlogCategorySchema({
       locale: "en",
@@ -147,5 +209,41 @@ describe("blog structured data", () => {
 
   test("stringifies JSON-LD without raw closing script text", () => {
     expect(stringifyJsonLd({ value: "</script><script>alert(1)</script>" })).not.toContain("</script>");
+  });
+});
+
+describe("model structured data", () => {
+  test("builds merchant listing fields required for model product pages", () => {
+    const graph = buildModelSchema({
+      locale: "en",
+      modelName: "gpt-4o-mini",
+      vendorName: "OpenAI",
+      description: "GPT-4o mini through flatkey.ai.",
+      inputPriceUsd: 0.15,
+      pagePath: "/models/gpt-4o-mini",
+      faq: [{ q: "How is it billed?", a: "Usage is billed by token." }],
+    });
+
+    expect(graph["@graph"]).toContainEqual(
+      expect.objectContaining({
+        "@type": "Product",
+        image: "https://flatkey.ai/flatkey-mark.svg",
+        offers: expect.objectContaining({
+          "@type": "Offer",
+          hasMerchantReturnPolicy: expect.objectContaining({
+            "@type": "MerchantReturnPolicy",
+            returnPolicyCategory: "https://schema.org/MerchantReturnNotPermitted",
+          }),
+          shippingDetails: expect.objectContaining({
+            "@type": "OfferShippingDetails",
+            shippingRate: expect.objectContaining({
+              "@type": "MonetaryAmount",
+              value: 0,
+              currency: "USD",
+            }),
+          }),
+        }),
+      })
+    );
   });
 });

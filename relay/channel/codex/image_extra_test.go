@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -22,20 +23,27 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// F7 接线测试：ConvertImageRequest（生产路径）必须真正拒绝 response_format=url，
-// 防止 ValidateCodexImageRequest 沦为死代码（max-review 复审曾发现未接线）。
+// F7 接线测试：ConvertImageRequest（生产路径）默认拒绝 response_format=url，
+// 防止 ValidateCodexImageRequest 沦为死代码（max-review 复审曾发现未接线）；
+// 当 temp_url=true 时不再要求 response_format=url，支持更稳妥的兼容返回。
 func TestConvertImageRequest_RejectsURLResponseFormat(t *testing.T) {
 	a := &Adaptor{}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations}
 
-	// url 在 ValidateCodexImageRequest 处即被拒绝（早于 resolveImageCarrierModel），
+	// url 在 ValidateCodexImageRequest 处即被拒绝（temp_url=false 分支），
 	// 证明校验确已接入生产路径，而非死代码。
 	if _, err := a.ConvertImageRequest(c, info, dto.ImageRequest{Model: "gpt-image-2", Prompt: "x", ResponseFormat: "url"}); err == nil {
 		t.Fatalf("ConvertImageRequest must reject response_format=url")
 	} else if !strings.Contains(err.Error(), "response_format") {
 		t.Fatalf("expected response_format rejection, got: %v", err)
+	}
+
+	// temp_url=true 时允许不带或带 response_format=url，两种都走临时链接模式。
+	info.Request = &dto.ImageRequest{TempUrl: common.GetPointer(true)}
+	if _, err := a.ConvertImageRequest(c, info, dto.ImageRequest{Model: "gpt-image-2", Prompt: "x", TempUrl: common.GetPointer(true), ResponseFormat: "url"}); err != nil {
+		t.Fatalf("response_format=url should pass when temp_url=true, got: %v", err)
 	}
 }
 
@@ -146,6 +154,26 @@ func TestRelayImageOverCodex_FullUsageHonored(t *testing.T) {
 	}
 }
 
+func TestRelayImageOverCodex_MapsImageTokenDetails(t *testing.T) {
+	sse := strings.Join([]string{
+		`data: {"type":"response.output_item.done","item":{"type":"image_generation_call","id":"ig_1","result":"QUJD"}}`,
+		`data: {"type":"response.completed","response":{"created_at":1700000000,"tool_usage":{"image_gen":{"input_tokens":141,"output_tokens":196,"total_tokens":337,"input_tokens_details":{"text_tokens":21,"image_tokens":120},"output_tokens_details":{"text_tokens":0,"image_tokens":196}}}}}`,
+		"data: [DONE]",
+		"",
+	}, "\n\n")
+	usage := runCodexImageSSE(t, sse)
+
+	if usage.PromptTokens != 141 || usage.CompletionTokens != 196 || usage.TotalTokens != 337 {
+		t.Fatalf("totals = %+v", usage)
+	}
+	if usage.PromptTokensDetails.TextTokens != 21 || usage.PromptTokensDetails.ImageTokens != 120 {
+		t.Fatalf("input details = %+v", usage.PromptTokensDetails)
+	}
+	if usage.CompletionTokenDetails.ImageTokens != 196 {
+		t.Fatalf("output image tokens = %+v", usage.CompletionTokenDetails)
+	}
+}
+
 // F8：上游 SSE 超过读取上限且未产出图像时，返回可区分的 "response exceeded size limit"，
 // 而不是误报 "no image returned"。
 func TestRelayImageOverCodex_OversizedStreamReturnsDistinctError(t *testing.T) {
@@ -174,7 +202,8 @@ func TestRelayImageOverCodex_OversizedStreamReturnsDistinctError(t *testing.T) {
 	}
 }
 
-// F7：response_format 非 b64_json（如 "url"）必须被拒绝；空与 b64_json 通过。
+// F7：response_format 非 b64_json（如 "url"）在 temp_url=false 下被拒绝；
+// 空与 b64_json 通过；temp_url=true 下不限制 response_format。
 func TestValidateCodexImageRequest_ResponseFormat(t *testing.T) {
 	if err := ValidateCodexImageRequest(dto.ImageRequest{ResponseFormat: "url"}); err == nil {
 		t.Fatalf("response_format=url must be rejected")
@@ -186,6 +215,12 @@ func TestValidateCodexImageRequest_ResponseFormat(t *testing.T) {
 	}
 	if err := ValidateCodexImageRequest(dto.ImageRequest{ResponseFormat: "b64_json"}); err != nil {
 		t.Fatalf("response_format=b64_json must pass: %v", err)
+	}
+	if err := ValidateCodexImageRequest(dto.ImageRequest{TempUrl: common.GetPointer(true), ResponseFormat: "url"}); err != nil {
+		t.Fatalf("response_format=url should pass when temp_url=true: %v", err)
+	}
+	if err := ValidateCodexImageRequest(dto.ImageRequest{TempUrl: common.GetPointer(true)}); err != nil {
+		t.Fatalf("empty response_format should pass when temp_url=true: %v", err)
 	}
 }
 

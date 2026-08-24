@@ -32,6 +32,8 @@ const (
 	LastMessageTypeText     = "text"
 	LastMessageTypeTools    = "tools"
 	LastMessageTypeThinking = "thinking"
+
+	ChannelCodexFingerprintSeedContextKey = "channel_codex_fingerprint_seed"
 )
 
 type ClaudeConvertInfo struct {
@@ -65,6 +67,7 @@ type ChannelMeta struct {
 	ChannelId            int
 	ChannelIsMultiKey    bool
 	ChannelMultiKeyIndex int
+	CodexFingerprintSeed string `json:"-"`
 	ChannelBaseUrl       string
 	ApiType              int
 	ApiVersion           string
@@ -202,6 +205,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 		ChannelId:            common.GetContextKeyInt(c, constant.ContextKeyChannelId),
 		ChannelIsMultiKey:    common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey),
 		ChannelMultiKeyIndex: common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex),
+		CodexFingerprintSeed: c.GetString(ChannelCodexFingerprintSeedContextKey),
 		ChannelBaseUrl:       common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl),
 		ApiType:              apiType,
 		ApiVersion:           c.GetString("api_version"),
@@ -355,6 +359,7 @@ func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
 
 func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
+	info.RelayMode = relayconstant.RelayModeChatCompletions
 	info.RelayFormat = types.RelayFormatClaude
 	info.ShouldIncludeUsage = false
 	info.ClaudeConvertInfo = &ClaudeConvertInfo{
@@ -547,6 +552,10 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoOpenAI(c, request)
 	case types.RelayFormatOpenAIAudio:
 		info = GenRelayInfoOpenAIAudio(c, request)
+	case types.RelayFormatElevenLabs:
+		// ElevenLabs native endpoints reuse the audio-style info (RelayMode is set from
+		// the path by Path2RelayMode -> RelayModeElevenLabs); the body is passed through.
+		info = GenRelayInfoOpenAIAudio(c, request)
 	case types.RelayFormatOpenAIImage:
 		info = GenRelayInfoImage(c, request)
 	case types.RelayFormatOpenAIRealtime:
@@ -667,6 +676,18 @@ func (info *RelayInfo) SetFirstResponseTime() {
 	}
 }
 
+// ResetStreamResponseStateForRetry restores the response-observation fields
+// after an upstream attempt produced no downstream-visible response. Callers
+// must only use it before retrying an uncommitted response.
+func (info *RelayInfo) ResetStreamResponseStateForRetry() {
+	if info == nil {
+		return
+	}
+	info.FirstResponseTime = info.StartTime.Add(-time.Second)
+	info.isFirstResponse = true
+	info.ReceivedResponseCount = 0
+}
+
 func (info *RelayInfo) HasSendResponse() bool {
 	return info.FirstResponseTime.After(info.StartTime)
 }
@@ -771,15 +792,17 @@ func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
 }
 
 type TaskInfo struct {
-	Code             int    `json:"code"`
-	TaskID           string `json:"task_id"`
-	Status           string `json:"status"`
-	Reason           string `json:"reason,omitempty"`
-	Url              string `json:"url,omitempty"`
-	RemoteUrl        string `json:"remote_url,omitempty"`
-	Progress         string `json:"progress,omitempty"`
-	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
-	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费
+	Code             int     `json:"code"`
+	TaskID           string  `json:"task_id"`
+	Status           string  `json:"status"`
+	Reason           string  `json:"reason,omitempty"`
+	Url              string  `json:"url,omitempty"`
+	RemoteUrl        string  `json:"remote_url,omitempty"`
+	Progress         string  `json:"progress,omitempty"`
+	Duration         float64 `json:"duration,omitempty"`
+	Resolution       string  `json:"resolution,omitempty"`
+	CompletionTokens int     `json:"completion_tokens,omitempty"` // 用于按倍率计费
+	TotalTokens      int     `json:"total_tokens,omitempty"`      // 用于按倍率计费
 }
 
 func FailTaskInfo(reason string) *TaskInfo {

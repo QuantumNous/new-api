@@ -52,11 +52,16 @@ const (
 	RelayModeGemini
 
 	RelayModeResponsesCompact
+
+	RelayModeElevenLabs // ElevenLabs native voice/SFX endpoints (passthrough)
 )
 
 func Path2RelayMode(path string) int {
+	if strings.HasPrefix(path, "/pg/") {
+		path = "/v1/" + strings.TrimPrefix(path, "/pg/")
+	}
 	relayMode := RelayModeUnknown
-	if strings.HasPrefix(path, "/v1/chat/completions") || strings.HasPrefix(path, "/pg/chat/completions") {
+	if strings.HasPrefix(path, "/v1/chat/completions") {
 		relayMode = RelayModeChatCompletions
 	} else if strings.HasPrefix(path, "/v1/completions") {
 		relayMode = RelayModeCompletions
@@ -76,6 +81,10 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeResponsesCompact
 	} else if strings.HasPrefix(path, "/v1/responses") {
 		relayMode = RelayModeResponses
+	} else if strings.HasPrefix(path, "/v1/text-to-speech/") ||
+		strings.HasPrefix(path, "/v1/sound-generation") ||
+		strings.HasPrefix(path, "/v1/voices") {
+		relayMode = RelayModeElevenLabs
 	} else if strings.HasPrefix(path, "/v1/audio/speech") {
 		relayMode = RelayModeAudioSpeech
 	} else if strings.HasPrefix(path, "/v1/audio/transcriptions") {

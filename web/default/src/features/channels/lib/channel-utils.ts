@@ -77,6 +77,7 @@ export function getChannelTypeIcon(type: number): string {
     25: 'Moonshot', // Moonshot
     31: 'Yi', // LingYiWanWu
     35: 'Minimax', // MiniMax
+    110: 'Minimax', // MiniMax H3
     45: 'Volcengine', // VolcEngine
 
     // Other AI providers
@@ -101,6 +102,10 @@ export function getChannelTypeIcon(type: number): string {
     55: 'OpenAI', // Sora
     54: 'Doubao', // DoubaoVideo
     58: 'Doubao', // KuaiziLizhen (proxies Seedance, reuse Doubao icon)
+    105: 'Doubao', // TechMobiVideo (Seedance-compatible video)
+    107: 'Doubao', // BytePlus (Ark Seedance-compatible video)
+    111: 'Doubao', // ModelAPISeedance (Seedance-compatible video)
+    109: 'Suno', // Sonilo video-to-music
     56: 'Replicate', // Replicate
 
     // Tools & Platforms
@@ -110,6 +115,8 @@ export function getChannelTypeIcon(type: number): string {
     47: 'Xinference', // Xinference
     53: 'OpenAI', // Submodel
     100: 'OpenAI', // BlockRun (multi-provider gateway, generic icon)
+    112: 'Github', // GitHub Copilot
+    113: 'XAI', // Grok Subscription (xAI brand; same LobeIcons export as channel 48)
 
     // AI Proxy services
     10: 'OpenAI', // AI Proxy

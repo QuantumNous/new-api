@@ -20,12 +20,12 @@ import { Link } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { useStatus } from '@/hooks/use-status'
-import { FlatkeyBrandLogo } from '@/components/brand/flatkey-brand-logo'
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { FlatkeyBrandLogo } from '@/components/brand/flatkey-brand-logo'
 
 type SystemBrandProps = {
   defaultName?: string
@@ -59,13 +59,15 @@ export function SystemBrand(props: SystemBrandProps) {
         to='/'
         aria-label={t('Go to home')}
         className={cn(
-          'text-foreground inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-sm font-medium transition-colors outline-none select-none',
+          'text-foreground inline-flex h-11 items-center rounded-md px-1 text-sm font-medium transition-colors outline-none select-none',
           'hover:bg-accent focus-visible:ring-ring/40 focus-visible:ring-2'
         )}
       >
-        <div className='flex h-9 items-center justify-center'>
-          <FlatkeyBrandLogo alt={t('Logo')} className='h-9 scale-[0.88]' />
-        </div>
+        <FlatkeyBrandLogo
+          alt={t('Logo')}
+          className='shrink-0'
+          wordmarkClassName='max-[420px]:hidden'
+        />
         <span className='sr-only'>{name}</span>
       </Link>
     )
@@ -80,7 +82,12 @@ export function SystemBrand(props: SystemBrandProps) {
           render={<div />}
         >
           <div className='flex h-10 items-center justify-center group-data-[collapsible=icon]:aspect-square group-data-[collapsible=icon]:size-8'>
-            <FlatkeyBrandLogo alt={t('Logo')} className='h-10 scale-[0.88] origin-left group-data-[collapsible=icon]:scale-75' />
+            <FlatkeyBrandLogo
+              alt={t('Logo')}
+              className='origin-left'
+              markClassName='group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8'
+              wordmarkClassName='group-data-[collapsible=icon]:hidden'
+            />
           </div>
           <div className='grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden'>
             <span className='truncate font-semibold'>{name}</span>

@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import z from 'zod'
 import { useCallback } from 'react'
+import z from 'zod'
 import { createFileRoute } from '@tanstack/react-router'
 import { ApiKeys } from '@/features/keys'
 import { API_KEY_STATUS_OPTIONS } from '@/features/keys/constants'
@@ -31,6 +31,9 @@ const apiKeySearchSchema = z.object({
     .catch([]),
   filter: z.string().optional().catch(''),
   token: z.string().optional().catch(''),
+  keyGroup: z.array(z.string()).optional().catch([]),
+  open: z.literal('create').optional().catch(undefined),
+  group: z.string().min(1).optional().catch(undefined),
 })
 
 export function validateApiKeySearch(search: Record<string, unknown>) {
@@ -39,10 +42,22 @@ export function validateApiKeySearch(search: Record<string, unknown>) {
   const isAutoCreate =
     create === '1' || create === 1 || create === true || create === 'true'
 
-  return {
+  const result = {
     ...parsed,
     ...(isAutoCreate ? { create: 1 as const } : {}),
   }
+  if (result.open !== 'create') {
+    delete result.group
+  }
+  return result
+}
+
+export function clearAutoCreateSearch(search: Record<string, unknown>) {
+  return { ...search, create: undefined }
+}
+
+export function clearCreateDialogSearch(search: Record<string, unknown>) {
+  return { ...search, open: undefined, group: undefined }
 }
 
 export const Route = createFileRoute('/_authenticated/keys/')({
@@ -51,15 +66,18 @@ export const Route = createFileRoute('/_authenticated/keys/')({
 })
 
 function ApiKeysRoute() {
-  const { create } = Route.useSearch()
+  const { create, open, group } = Route.useSearch()
   const navigate = Route.useNavigate()
   const handleAutoCreateConsumed = useCallback(() => {
     navigate({
       replace: true,
-      search: (prev) => ({
-        ...prev,
-        create: undefined,
-      }),
+      search: clearAutoCreateSearch,
+    })
+  }, [navigate])
+  const handleCreateDialogConsumed = useCallback(() => {
+    navigate({
+      replace: true,
+      search: clearCreateDialogSearch,
     })
   }, [navigate])
 
@@ -67,6 +85,9 @@ function ApiKeysRoute() {
     <ApiKeys
       autoCreateRequested={create === 1}
       onAutoCreateConsumed={handleAutoCreateConsumed}
+      createDialogRequested={open === 'create'}
+      requestedCreateGroup={group}
+      onCreateDialogConsumed={handleCreateDialogConsumed}
     />
   )
 }

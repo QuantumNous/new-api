@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -86,6 +87,202 @@ func TestResolveChannelTestUserIDUsesRequestUser(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, 2, userID)
+}
+
+func TestSelectChannelsForAutomaticTestPassiveRecoveryOnlyUsesAutoDisabled(t *testing.T) {
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled},
+		{Id: 2, Status: common.ChannelStatusAutoDisabled},
+		{Id: 3, Status: common.ChannelStatusManuallyDisabled},
+	}
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModePassiveRecovery)
+	require.Len(t, selected, 1)
+	require.Equal(t, 2, selected[0].Id)
+}
+
+func TestSelectChannelsForAutomaticTestScheduledSkipsManualDisabled(t *testing.T) {
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled},
+		{Id: 2, Status: common.ChannelStatusAutoDisabled},
+		{Id: 3, Status: common.ChannelStatusManuallyDisabled},
+	}
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll)
+	require.Len(t, selected, 2)
+	require.Equal(t, 1, selected[0].Id)
+	require.Equal(t, 2, selected[1].Id)
+}
+
+func TestTestChannelsDoesNotLoadBatchWhenRunAlreadyActive(t *testing.T) {
+	testAllChannelsLock.Lock()
+	previousRunning := testAllChannelsRunning
+	testAllChannelsRunning = true
+	testAllChannelsLock.Unlock()
+	t.Cleanup(func() {
+		testAllChannelsLock.Lock()
+		testAllChannelsRunning = previousRunning
+		testAllChannelsLock.Unlock()
+	})
+
+	loaderCalled := false
+	err := testChannels(func() (int, []*model.Channel, error) {
+		loaderCalled = true
+		return 1, nil, nil
+	}, false, true)
+
+	require.EqualError(t, err, "测试已在运行中")
+	require.False(t, loaderCalled, "the channel query must not run before acquiring the run state")
+}
+
+func TestTestChannelsReleasesRunStateWhenBatchLoadFails(t *testing.T) {
+	testAllChannelsLock.Lock()
+	previousRunning := testAllChannelsRunning
+	testAllChannelsRunning = false
+	testAllChannelsLock.Unlock()
+	t.Cleanup(func() {
+		testAllChannelsLock.Lock()
+		testAllChannelsRunning = previousRunning
+		testAllChannelsLock.Unlock()
+	})
+
+	err := testChannels(func() (int, []*model.Channel, error) {
+		return 0, nil, errors.New("load failed")
+	}, false, true)
+
+	require.EqualError(t, err, "load failed")
+	testAllChannelsLock.Lock()
+	running := testAllChannelsRunning
+	testAllChannelsLock.Unlock()
+	require.False(t, running)
+}
+
+func TestTestChannelsReleasesRunStateWhenBatchLoaderPanics(t *testing.T) {
+	testAllChannelsLock.Lock()
+	previousRunning := testAllChannelsRunning
+	testAllChannelsRunning = false
+	testAllChannelsLock.Unlock()
+	t.Cleanup(func() {
+		testAllChannelsLock.Lock()
+		testAllChannelsRunning = previousRunning
+		testAllChannelsLock.Unlock()
+	})
+
+	err := testChannels(func() (int, []*model.Channel, error) {
+		panic("load panic")
+	}, false, true)
+
+	require.EqualError(t, err, "加载渠道测试批次失败: load panic")
+	testAllChannelsLock.Lock()
+	running := testAllChannelsRunning
+	testAllChannelsLock.Unlock()
+	require.False(t, running)
+}
+
+func TestNormalizeChannelTestEndpointCodexAnthropicUsesResponsesBridge(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeCodex}
+
+	endpoint := normalizeChannelTestEndpoint(
+		channel,
+		"gpt-5.5",
+		string(constant.EndpointTypeAnthropic),
+	)
+
+	require.Equal(t, string(constant.EndpointTypeOpenAIResponse), endpoint)
+}
+
+func TestNormalizeChannelTestEndpointKeepsAnthropicForOtherChannels(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeOpenAI}
+
+	endpoint := normalizeChannelTestEndpoint(
+		channel,
+		"gpt-5.5",
+		string(constant.EndpointTypeAnthropic),
+	)
+
+	require.Equal(t, string(constant.EndpointTypeAnthropic), endpoint)
+}
+
+func TestNormalizeChannelTestEndpointCodexKeepsNonAnthropicProtocols(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeCodex}
+	endpointTypes := []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+		constant.EndpointTypeOpenAIResponseCompact,
+		constant.EndpointTypeGemini,
+		constant.EndpointTypeJinaRerank,
+		constant.EndpointTypeImageGeneration,
+		constant.EndpointTypeEmbeddings,
+		constant.EndpointTypeOpenAIVideo,
+	}
+
+	for _, endpointType := range endpointTypes {
+		t.Run(string(endpointType), func(t *testing.T) {
+			endpoint := normalizeChannelTestEndpoint(channel, "gpt-5.5", string(endpointType))
+			require.Equal(t, string(endpointType), endpoint)
+		})
+	}
+}
+
+func TestCodexChannelTestUsesProductionResponsesPathAndIdentity(t *testing.T) {
+	t.Setenv("CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE", "local")
+	setupChannelCodexFingerprintSeedTestDB(t)
+	withSelfUseModeEnabled(t)
+	originalRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() { common.RedisEnabled = originalRedisEnabled })
+	require.NoError(t, model.DB.AutoMigrate(&model.User{}))
+	require.NoError(t, model.DB.Create(&model.User{
+		Id:       7001,
+		Username: "codex-channel-test",
+		Role:     common.RoleRootUser,
+		Status:   common.UserStatusEnabled,
+		Group:    "default",
+		Quota:    100000,
+	}).Error)
+	service.InitHttpClient()
+
+	var upstreamPath string
+	var upstreamHeader http.Header
+	var upstreamBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var err error
+		upstreamPath = r.URL.Path
+		upstreamHeader = r.Header.Clone()
+		upstreamBody, err = io.ReadAll(r.Body)
+		require.NoError(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"resp_channel_test","object":"response","created_at":1787236800,"model":"gpt-5-codex","output":[{"type":"message","content":[{"type":"output_text","text":"pong"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	channel := &model.Channel{
+		Id:                   9001,
+		Name:                 "codex-channel-test",
+		Type:                 constant.ChannelTypeCodex,
+		Key:                  `{"access_token":"token","account_id":"account"}`,
+		Status:               common.ChannelStatusEnabled,
+		BaseURL:              common.GetPointer(server.URL),
+		Models:               "gpt-5-codex",
+		Group:                "default",
+		CodexFingerprintSeed: "018f89db-7792-7b5e-a360-7fd9279fd725",
+	}
+	channel.SetSetting(dto.ChannelSettings{CodexFingerprintMode: "full"})
+
+	result := testChannelWithOptions(
+		channel,
+		7001,
+		"gpt-5-codex",
+		string(constant.EndpointTypeOpenAIResponse),
+		false,
+		channelTestOptions{ExpectPong: true, SkipLog: true},
+	)
+
+	require.NoError(t, result.localErr)
+	require.Nil(t, result.newAPIError)
+	require.Equal(t, "/backend-api/codex/responses", upstreamPath)
+	require.Equal(t, "Bearer token", upstreamHeader.Get("Authorization"))
+	require.Equal(t, "account", upstreamHeader.Get("chatgpt-account-id"))
+	require.NotEmpty(t, upstreamHeader.Get("x-codex-installation-id"))
+	require.NotContains(t, string(upstreamBody), "channel-test")
 }
 
 func TestBuildScheduledChannelTestAlertMarksAutoDisabled(t *testing.T) {

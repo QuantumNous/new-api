@@ -46,7 +46,7 @@ resource "google_sql_database_instance" "main" {
 
     database_flags {
       name  = "max_connections"
-      value = "300"
+      value = tostring(var.max_connections)
     }
     database_flags {
       name  = "character_set_server"
@@ -71,6 +71,10 @@ resource "google_sql_database_instance" "main" {
     database_flags {
       name  = "default_time_zone"
       value = "+00:00"
+    }
+    database_flags {
+      name  = "log_bin_trust_function_creators"
+      value = "on"
     }
 
     insights_config {

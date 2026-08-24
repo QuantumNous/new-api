@@ -11,32 +11,40 @@ const (
 	ContextKeyRequestStartTime ContextKey = "request_start_time"
 
 	/* token related keys */
-	ContextKeyTokenUnlimited         ContextKey = "token_unlimited_quota"
-	ContextKeyTokenKey               ContextKey = "token_key"
-	ContextKeyTokenId                ContextKey = "token_id"
-	ContextKeyTokenGroup             ContextKey = "token_group"
-	ContextKeyTokenSpecificChannelId ContextKey = "specific_channel_id"
-	ContextKeyTokenModelLimitEnabled ContextKey = "token_model_limit_enabled"
-	ContextKeyTokenModelLimit        ContextKey = "token_model_limit"
-	ContextKeyTokenCrossGroupRetry   ContextKey = "token_cross_group_retry"
+	ContextKeyTokenUnlimited             ContextKey = "token_unlimited_quota"
+	ContextKeyTokenKey                   ContextKey = "token_key"
+	ContextKeyTokenId                    ContextKey = "token_id"
+	ContextKeyTokenGroup                 ContextKey = "token_group"
+	ContextKeyTokenSpecificChannelId     ContextKey = "specific_channel_id"
+	ContextKeyTokenModelLimitEnabled     ContextKey = "token_model_limit_enabled"
+	ContextKeyTokenModelLimit            ContextKey = "token_model_limit"
+	ContextKeyTokenModelBlacklistEnabled ContextKey = "token_model_blacklist_enabled"
+	ContextKeyTokenModelBlacklist        ContextKey = "token_model_blacklist"
+	ContextKeyTokenCrossGroupRetry       ContextKey = "token_cross_group_retry"
 
 	/* channel related keys */
-	ContextKeyChannelId                ContextKey = "channel_id"
-	ContextKeyChannelName              ContextKey = "channel_name"
-	ContextKeyChannelCreateTime        ContextKey = "channel_create_time"
-	ContextKeyChannelBaseUrl           ContextKey = "base_url"
-	ContextKeyChannelType              ContextKey = "channel_type"
-	ContextKeyChannelSetting           ContextKey = "channel_setting"
-	ContextKeyChannelOtherSetting      ContextKey = "channel_other_setting"
-	ContextKeyChannelParamOverride     ContextKey = "param_override"
-	ContextKeyChannelHeaderOverride    ContextKey = "header_override"
-	ContextKeyChannelOrganization      ContextKey = "channel_organization"
-	ContextKeyChannelAutoBan           ContextKey = "auto_ban"
-	ContextKeyChannelModelMapping      ContextKey = "model_mapping"
-	ContextKeyChannelStatusCodeMapping ContextKey = "status_code_mapping"
-	ContextKeyChannelIsMultiKey        ContextKey = "channel_is_multi_key"
-	ContextKeyChannelMultiKeyIndex     ContextKey = "channel_multi_key_index"
-	ContextKeyChannelKey               ContextKey = "channel_key"
+	ContextKeyChannelId                    ContextKey = "channel_id"
+	ContextKeyChannelName                  ContextKey = "channel_name"
+	ContextKeyChannelCreateTime            ContextKey = "channel_create_time"
+	ContextKeyChannelBaseUrl               ContextKey = "base_url"
+	ContextKeyChannelType                  ContextKey = "channel_type"
+	ContextKeyChannelSetting               ContextKey = "channel_setting"
+	ContextKeyChannelOtherSetting          ContextKey = "channel_other_setting"
+	ContextKeyChannelParamOverride         ContextKey = "param_override"
+	ContextKeyChannelHeaderOverride        ContextKey = "header_override"
+	ContextKeyChannelOrganization          ContextKey = "channel_organization"
+	ContextKeyChannelAutoBan               ContextKey = "auto_ban"
+	ContextKeyChannelModelMapping          ContextKey = "model_mapping"
+	ContextKeyChannelStatusCodeMapping     ContextKey = "status_code_mapping"
+	ContextKeyChannelIsMultiKey            ContextKey = "channel_is_multi_key"
+	ContextKeyChannelMultiKeyIndex         ContextKey = "channel_multi_key_index"
+	ContextKeyChannelKey                   ContextKey = "channel_key"
+	ContextKeyChannelConcurrencyLease      ContextKey = "channel_concurrency_lease"
+	ContextKeyAssetReferenceSet            ContextKey = "asset_reference_set"
+	ContextKeyAssetRewriteMap              ContextKey = "asset_rewrite_map"
+	ContextKeyBytePlusAssetRewriteMap      ContextKey = "byteplus_asset_rewrite_map"
+	ContextKeyBytePlusAssetPinnedChannelID ContextKey = "byteplus_asset_pinned_channel_id"
+	ContextKeyAssetMaterializeEnabled      ContextKey = "asset_materialize_enabled"
 
 	ContextKeyAutoGroup           ContextKey = "auto_group"
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"
@@ -72,4 +80,15 @@ const (
 	// from X-Payment-Receipt). Value type: map[string]interface{}. Surfaced into
 	// the consume-log "other" map by service.GenerateTextOtherInfo.
 	ContextKeyBlockRunSettlement ContextKey = "blockrun_settlement"
+	// ContextKeyBlockRunPaymentState stores request-scoped signed-payment state.
+	// Value type: *relay/common.BlockRunPaymentState.
+	ContextKeyBlockRunPaymentState ContextKey = "blockrun_payment_state"
+	// ContextKeyBlockRunOriginalError stores the upstream/channel error captured
+	// before BlockRun signed-payment errors are normalized for the client.
+	// Value type: *types.NewAPIError. It is used only for the database error log.
+	ContextKeyBlockRunOriginalError ContextKey = "blockrun_original_error"
+
+	// ContextKeyRequestSamplingEligible marks user-facing text LLM relay
+	// requests that may be considered for optional request-parameter sampling.
+	ContextKeyRequestSamplingEligible ContextKey = "request_sampling_eligible"
 )

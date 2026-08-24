@@ -55,6 +55,10 @@ export async function searchUsers(
     group = '',
     role = '',
     status = '',
+    language = '',
+    paid = false,
+    email_verified,
+    country = '',
     p = 1,
     page_size = 10,
   } = params
@@ -63,6 +67,12 @@ export async function searchUsers(
   queryParams.set('group', group)
   if (role) queryParams.set('role', role)
   if (status) queryParams.set('status', status)
+  if (language) queryParams.set('language', language)
+  if (paid) queryParams.set('paid', '1')
+  if (email_verified !== undefined) {
+    queryParams.set('email_verified', email_verified ? '1' : '0')
+  }
+  if (country) queryParams.set('country', country)
   queryParams.set('p', String(p))
   queryParams.set('page_size', String(page_size))
   const res = await api.get(`/api/user/search?${queryParams.toString()}`)
@@ -113,6 +123,16 @@ export async function manageUser(
   action: ManageUserAction
 ): Promise<ApiResponse<Partial<User>>> {
   const res = await api.post('/api/user/manage', { id, action })
+  return res.data
+}
+
+/**
+ * Batch-mark users' email as verified (admin bulk action).
+ */
+export async function batchVerifyEmails(
+  ids: number[]
+): Promise<ApiResponse<{ affected: number }>> {
+  const res = await api.post('/api/user/batch_verify_email', { ids })
   return res.data
 }
 

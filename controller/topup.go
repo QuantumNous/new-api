@@ -25,11 +25,24 @@ import (
 func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
 	enablePaddle := isPaddleTopUpEnabled()
+	amountOptions := operation_setting.GetPaymentSetting().AmountOptions
 
 	// 获取支付方式
 	payMethods := buildTopUpPayMethods(operation_setting.PayMethods, enablePaddle)
 	if !complianceConfirmed {
 		payMethods = []map[string]string{}
+	}
+	// PayMethods 携带 epay 档位（含代码默认的 支付宝/微信/自定义 占位）。epay 网关
+	// 未配置时这些方式点了也走不通，不下发；其余网关（Stripe/Creem/Paddle）各有
+	// 独立开关，Paddle 条目已由 buildTopUpPayMethods 按 enablePaddle 过滤。
+	if !isEpayTopUpEnabled() {
+		kept := make([]map[string]string, 0, len(payMethods))
+		for _, method := range payMethods {
+			if strings.TrimSpace(method["type"]) == model.PaymentMethodPaddle {
+				kept = append(kept, method)
+			}
+		}
+		payMethods = kept
 	}
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
@@ -147,22 +160,77 @@ func GetTopUpInfo(c *gin.Context) {
 			}
 			return ""
 		}(),
-		"amount_options": operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":       operation_setting.GetPaymentSetting().AmountDiscount,
-		// 仅下发当前用户组可享的赠送档位，避免「看得到拿不到」（实际是否发放仍以支付回调时后端判定为准）。
-		"bonus":       visibleTopUpBonusForUser(c, operation_setting.GetPaymentSetting().AmountBonus),
-		"bonus_limit": operation_setting.GetPaymentSetting().AmountBonusLimit,
-		"bonus_remaining": func() map[int]int {
-			remaining, err := model.GetTopUpBonusRemaining(c.GetInt("id"))
-			if err != nil {
-				logger.LogError(c.Request.Context(), "获取充值赠送剩余次数失败: "+err.Error())
-				return map[int]int{}
-			}
-			return remaining
-		}(),
-		"topup_link": common.TopUpLink,
+		"amount_options":         amountOptions,
+		"stripe_price_ids":       buildStripeTopUpPriceIDs(amountOptions),
+		"stripe_currency_prices": buildStripeTopUpCurrencyPrices(amountOptions),
+		// Pure subscription mode keeps wallet top-ups at face value. Legacy
+		// discount/bonus settings remain readable by old admin code but are not
+		// advertised or applied to new top-ups.
+		"discount":        map[int]float64{},
+		"bonus":           map[int]int64{},
+		"bonus_limit":     map[int]int{},
+		"bonus_remaining": map[int]int{},
+		"topup_link":      common.TopUpLink,
+		// ISO country of the caller IP; drives the wallet checkout-currency
+		// selector (only shown to regions with a local payment method benefit).
+		"client_region": opsIPCountry(c.ClientIP()),
 	}
 	common.ApiSuccess(c, data)
+}
+
+func buildStripeTopUpPriceIDs(amountOptions []int) map[int]string {
+	priceIDs := make(map[int]string, len(amountOptions))
+	for _, amount := range amountOptions {
+		priceID := strings.TrimSpace(setting.StripeTopUpPriceIDForAmount(int64(amount)))
+		if priceID != "" {
+			priceIDs[amount] = priceID
+		}
+	}
+	return priceIDs
+}
+
+func buildStripeTopUpCurrencyPrices(amountOptions []int) map[string]map[int]int64 {
+	currencyPrices := make(map[string]map[int]int64, len(stripeTopUpPriceContract))
+	if strings.TrimSpace(setting.StripeApiSecret) != "" {
+		for _, amount := range amountOptions {
+			priceID := strings.TrimSpace(setting.StripeTopUpPriceIDForAmount(int64(amount)))
+			if priceID == "" {
+				continue
+			}
+			stripePrices, err := cachedStripeTopUpCurrencyPrices(priceID)
+			if err != nil && len(stripePrices) == 0 {
+				continue
+			}
+			for currency, amountMinor := range stripePrices {
+				expectedAmountMinor, ok := expectedStripeTopUpAmountMinor(currency, int64(amount))
+				if !ok || amountMinor != expectedAmountMinor {
+					continue
+				}
+				if currencyPrices[currency] == nil {
+					currencyPrices[currency] = map[int]int64{}
+				}
+				currencyPrices[currency][amount] = amountMinor
+			}
+		}
+		return currencyPrices
+	}
+
+	for currency, contractPrices := range stripeTopUpPriceContract {
+		for _, amount := range amountOptions {
+			if strings.TrimSpace(setting.StripeTopUpPriceIDForAmount(int64(amount))) == "" {
+				continue
+			}
+			amountMinor, ok := contractPrices[int64(amount)]
+			if !ok || amountMinor <= 0 {
+				continue
+			}
+			if currencyPrices[currency] == nil {
+				currencyPrices[currency] = map[int]int64{}
+			}
+			currencyPrices[currency][amount] = amountMinor
+		}
+	}
+	return currencyPrices
 }
 
 func buildTopUpPayMethods(payMethods []map[string]string, enablePaddle bool) []map[string]string {
@@ -236,18 +304,7 @@ func normalizeTopUpBonusAmount(amount int64) int64 {
 }
 
 func configuredTopUpBonusAmount(requestAmount int64, group string) int64 {
-	if requestAmount <= 0 {
-		return 0
-	}
-	bonus, ok := operation_setting.GetPaymentSetting().AmountBonus[int(requestAmount)]
-	if !ok {
-		return 0
-	}
-	// opt-in 白名单：该档位未授权当前用户组则不发赠送（后端为发钱的唯一权威）。
-	if !topUpBonusGroupAllowed(int(requestAmount), group) {
-		return 0
-	}
-	return normalizeTopUpBonusAmount(bonus)
+	return 0
 }
 
 // TopUpBonusGroupAll 是用户组白名单中的保留关键字，表示「所有用户组都可享」。
@@ -321,23 +378,8 @@ func getPayMoney(amount int64, group string) float64 {
 		dAmount = dAmount.Div(dQuotaPerUnit)
 	}
 
-	topupGroupRatio := common.GetTopupGroupRatio(group)
-	if topupGroupRatio == 0 {
-		topupGroupRatio = 1
-	}
-
-	dTopupGroupRatio := decimal.NewFromFloat(topupGroupRatio)
 	dPrice := decimal.NewFromFloat(operation_setting.Price)
-	// apply optional preset discount by the original request amount (if configured), default 1.0
-	discount := 1.0
-	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(amount)]; ok {
-		if ds > 0 {
-			discount = ds
-		}
-	}
-	dDiscount := decimal.NewFromFloat(discount)
-
-	payMoney := dAmount.Mul(dPrice).Mul(dTopupGroupRatio).Mul(dDiscount)
+	payMoney := dAmount.Mul(dPrice)
 
 	return payMoney.InexactFloat64()
 }
@@ -417,6 +459,7 @@ func RequestEpay(c *gin.Context) {
 		BonusAmount:     bonusAmount,
 		BonusTier:       int(req.Amount),
 		Money:           payMoney,
+		PaymentCurrency: "USD",
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,
 		PaymentProvider: model.PaymentProviderEpay,
@@ -545,37 +588,20 @@ func EpayNotify(c *gin.Context) {
 		defer UnlockOrder(verifyInfo.ServiceTradeNo)
 		topUp := model.GetTopUpByTradeNo(verifyInfo.ServiceTradeNo)
 		if topUp == nil {
-			logger.LogWarn(c.Request.Context(), fmt.Sprintf("易支付 回调订单不存在 trade_no=%s callback_type=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP(), common.GetJsonString(verifyInfo)))
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("epay callback order not found trade_no=%s callback_type=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP(), common.GetJsonString(verifyInfo)))
 			return
 		}
 		if topUp.PaymentProvider != model.PaymentProviderEpay {
-			logger.LogWarn(c.Request.Context(), fmt.Sprintf("易支付 订单支付网关不匹配 trade_no=%s order_provider=%s callback_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, topUp.PaymentProvider, verifyInfo.Type, c.ClientIP()))
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("epay callback provider mismatch trade_no=%s order_provider=%s callback_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, topUp.PaymentProvider, verifyInfo.Type, c.ClientIP()))
 			return
 		}
-		if topUp.Status == common.TopUpStatusPending {
-			if topUp.PaymentMethod != verifyInfo.Type {
-				logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 实际支付方式与订单不同 trade_no=%s order_payment_method=%s actual_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, topUp.PaymentMethod, verifyInfo.Type, c.ClientIP()))
-				topUp.PaymentMethod = verifyInfo.Type
-			}
-			topUp.Status = common.TopUpStatusSuccess
-			err := topUp.Update()
-			if err != nil {
-				logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 更新充值订单失败 trade_no=%s user_id=%d client_ip=%s error=%q topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), err.Error(), common.GetJsonString(topUp)))
-				return
-			}
-			//user, _ := model.GetUserById(topUp.UserId, false)
-			//user.Quota += topUp.Amount * 500000
-			dAmount := decimal.NewFromInt(int64(topUp.Amount))
-			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-			quotaToAdd := int(dAmount.Mul(dQuotaPerUnit).IntPart())
-			err = model.IncreaseUserQuota(topUp.UserId, quotaToAdd, true)
-			if err != nil {
-				logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 更新用户额度失败 trade_no=%s user_id=%d client_ip=%s quota_to_add=%d error=%q topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), quotaToAdd, err.Error(), common.GetJsonString(topUp)))
-				return
-			}
-			logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 充值成功 trade_no=%s user_id=%d client_ip=%s quota_to_add=%d money=%.2f topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), quotaToAdd, topUp.Money, common.GetJsonString(topUp)))
-			model.RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%f", logger.LogQuota(quotaToAdd), topUp.Money), c.ClientIP(), topUp.PaymentMethod, "epay")
-			sendPaymentSuccessGA(c.Request.Context(), topUp)
+		credited, completedTopUp, err := model.CompleteEpayTopUp(verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP())
+		if err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("epay topup completion failed trade_no=%s callback_type=%s client_ip=%s error=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP(), err.Error()))
+			return
+		}
+		if credited {
+			logger.LogInfo(c.Request.Context(), fmt.Sprintf("epay topup completed trade_no=%s user_id=%d client_ip=%s money=%.2f topup=%q", completedTopUp.TradeNo, completedTopUp.UserId, c.ClientIP(), completedTopUp.Money, common.GetJsonString(completedTopUp)))
 		}
 	} else {
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 webhook 忽略事件 trade_no=%s callback_type=%s trade_status=%s client_ip=%s verify_info=%q", verifyInfo.ServiceTradeNo, verifyInfo.Type, verifyInfo.TradeStatus, c.ClientIP(), common.GetJsonString(verifyInfo)))

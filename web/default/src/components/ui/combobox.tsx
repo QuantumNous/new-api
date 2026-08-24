@@ -45,6 +45,7 @@ type LegacyComboboxProps = {
   searchPlaceholder?: string
   emptyText?: string
   allowCustomValue?: boolean
+  commitCustomValueOnEnter?: boolean
   openOnFocus?: boolean
   className?: string
   id?: string
@@ -70,6 +71,7 @@ function Combobox(
         emptyText={props.emptyText}
         className={props.className}
         allowCustomValue={props.allowCustomValue}
+        commitCustomValueOnEnter={props.commitCustomValueOnEnter}
         openOnFocus={props.openOnFocus}
       />
     )

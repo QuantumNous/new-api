@@ -64,6 +64,7 @@ func TestFindOrCreateGoogleUserRejectsAmbiguousEmail(t *testing.T) {
 		require.NoError(t, db.Create(&model.User{
 			Username: "duplicate-user-" + string(rune('a'+i)),
 			Email:    "duplicate@gmail.com",
+			AffCode:  "dup" + string(rune('a'+i)),
 			Role:     common.RoleCommonUser,
 			Status:   common.UserStatusEnabled,
 		}).Error)

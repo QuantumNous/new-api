@@ -15,14 +15,16 @@ import (
 
 // UserBase struct remains the same as it represents the cached data structure
 type UserBase struct {
-	Id           int    `json:"id"`
-	Group        string `json:"group"`
-	Email        string `json:"email"`
-	Quota        int    `json:"quota"`
-	Status       int    `json:"status"`
-	Username     string `json:"username"`
-	Setting      string `json:"setting"`
-	IsEnterprise bool   `json:"is_enterprise"`
+	Id              int    `json:"id"`
+	Group           string `json:"group"`
+	Email           string `json:"email"`
+	Quota           int    `json:"quota"`
+	Status          int    `json:"status"`
+	Username        string `json:"username"`
+	Setting         string `json:"setting"`
+	IsEnterprise    bool   `json:"is_enterprise"`
+	EmailVerifiedAt int64  `json:"email_verified_at"`
+	Role            int    `json:"role"`
 }
 
 func (user *UserBase) WriteContext(c *gin.Context) {
@@ -49,8 +51,9 @@ func (user *UserBase) GetSetting() dto.UserSetting {
 //
 // The cache prefix is bumped whenever cached UserBase fields change.
 // v2 added IsEnterprise to UserBase.
+// v3 added EmailVerifiedAt and Role to UserBase (email-verification enforcement).
 func getUserCacheKey(userId int) string {
-	return fmt.Sprintf("user:v2:%d", userId)
+	return fmt.Sprintf("user:v3:%d", userId)
 }
 
 // invalidateUserCache clears user cache
@@ -110,14 +113,16 @@ func GetUserCache(userId int) (userCache *UserBase, err error) {
 
 	// Create cache object from user data
 	userCache = &UserBase{
-		Id:           user.Id,
-		Group:        user.Group,
-		Quota:        user.Quota,
-		Status:       user.Status,
-		Username:     user.Username,
-		Setting:      user.Setting,
-		Email:        user.Email,
-		IsEnterprise: user.IsEnterprise,
+		Id:              user.Id,
+		Group:           user.Group,
+		Quota:           user.Quota,
+		Status:          user.Status,
+		Username:        user.Username,
+		Setting:         user.Setting,
+		Email:           user.Email,
+		IsEnterprise:    user.IsEnterprise,
+		EmailVerifiedAt: user.EmailVerifiedAt,
+		Role:            user.Role,
 	}
 
 	return userCache, nil

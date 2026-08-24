@@ -86,3 +86,32 @@ func TestPaymentReturnPathKeepsServerAddressDefault(t *testing.T) {
 
 	require.Equal(t, "https://router.flatkey.ai/console/topup", paymentReturnPath("/console/topup"))
 }
+
+func TestConsoleReturnPathBuildsRegistrationVerificationURL(t *testing.T) {
+	originalServerAddress := system_setting.ServerAddress
+	originalAppConsoleOrigin := system_setting.GetAppConsoleSettings().Origin
+	t.Cleanup(func() {
+		system_setting.ServerAddress = originalServerAddress
+		system_setting.GetAppConsoleSettings().Origin = originalAppConsoleOrigin
+	})
+
+	system_setting.ServerAddress = "https://router.flatkey.ai/"
+	system_setting.GetAppConsoleSettings().Origin = "https://console.flatkey.ai/"
+
+	require.Equal(t, "https://console.flatkey.ai/sign-up/verify", consoleReturnPath("/sign-up/verify"))
+	require.Equal(t, "https://console.flatkey.ai/sign-up/verify#token=token%2Fwith%3Fchars", registrationEmailVerificationURL("token/with?chars"))
+}
+
+func TestConsoleReturnPathFallsBackForRegistrationVerificationURL(t *testing.T) {
+	originalServerAddress := system_setting.ServerAddress
+	originalAppConsoleOrigin := system_setting.GetAppConsoleSettings().Origin
+	t.Cleanup(func() {
+		system_setting.ServerAddress = originalServerAddress
+		system_setting.GetAppConsoleSettings().Origin = originalAppConsoleOrigin
+	})
+
+	system_setting.ServerAddress = "https://router.flatkey.ai/"
+	system_setting.GetAppConsoleSettings().Origin = " "
+
+	require.Equal(t, "https://router.flatkey.ai/sign-up/verify", consoleReturnPath("/sign-up/verify"))
+}

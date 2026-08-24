@@ -29,5 +29,8 @@ declare module '@tanstack/react-table' {
     sortable?: boolean
     // Custom CSS classes to apply to the column cells
     className?: string
+    // Pin the column to the left/right edge (sticky) while the table scrolls
+    // horizontally. The data-table renderer applies the sticky styles.
+    pinned?: 'left' | 'right'
   }
 }

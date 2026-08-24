@@ -3,6 +3,7 @@ package controller
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/stretchr/testify/require"
@@ -125,6 +126,19 @@ func TestCollectPendingUpstreamModelChangesFromModels_WithIgnoredRegexPatterns(t
 
 	require.Equal(t, []string{"claude-3-5-sonnet"}, pendingAddModels)
 	require.Equal(t, []string{}, pendingRemoveModels)
+}
+
+func TestFetchChannelUpstreamModelIDsUsesCodexDiscoveryForSavedChannels(t *testing.T) {
+	channel := &model.Channel{
+		Id:   1,
+		Type: constant.ChannelTypeCodex,
+	}
+	channel.ChannelInfo.IsMultiKey = true
+
+	models, err := fetchChannelUpstreamModelIDs(channel)
+
+	require.ErrorContains(t, err, "does not support multi-key model discovery")
+	require.Nil(t, models)
 }
 
 func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *testing.T) {

@@ -1,6 +1,10 @@
 package common
 
-import "github.com/QuantumNous/new-api/constant"
+import (
+	"strings"
+
+	"github.com/QuantumNous/new-api/constant"
+)
 
 // GetEndpointTypesByChannelType 获取渠道最优先端点类型（所有的渠道都支持 OpenAI 端点）
 func GetEndpointTypesByChannelType(channelType int, modelName string) []constant.EndpointType {
@@ -28,12 +32,32 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
 	case constant.ChannelTypeXai:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
+	case constant.ChannelTypeGrokSubscription:
+		modelName = strings.ToLower(strings.TrimSpace(modelName))
+		switch modelName {
+		case "grok-imagine-video-1.5", "grok-imagine-video":
+			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
+		default:
+			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse}
+		}
 	case constant.ChannelTypeSora:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
 	case constant.ChannelTypeBlockRunVideo:
 		fallthrough
 	case constant.ChannelTypeBlockRunSeedance:
+		fallthrough
+	case constant.ChannelTypeTechMobiVideo:
+		fallthrough
+	case constant.ChannelTypeBytePlus:
+		fallthrough
+	case constant.ChannelTypeXaiGrokVideo:
+		fallthrough
+	case constant.ChannelTypeModelAPISeedance:
+		fallthrough
+	case constant.ChannelTypeMiniMaxH3:
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIVideo}
+	case constant.ChannelTypeSonilo:
+		endpointTypes = []constant.EndpointType{constant.EndpointTypeVideoToMusic}
 	default:
 		if IsOpenAIResponseOnlyModel(modelName) {
 			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIResponse}

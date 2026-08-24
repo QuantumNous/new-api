@@ -1,7 +1,10 @@
 package middleware
 
 import (
+	"bytes"
 	"fmt"
+	"mime/multipart"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -9,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -52,6 +56,70 @@ func TestResolvePlaygroundUsingGroupDoesNotTreatPlgTokenAsPlgUser(t *testing.T) 
 
 	require.NoError(t, err)
 	require.Equal(t, "default", group)
+}
+
+func TestGetModelRequestGenerationTasksSubmit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/generation/tasks", strings.NewReader(`{"model":"doubao/doubao-seedance-2-0-260128"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	modelRequest, shouldSelectChannel, err := getModelRequest(c)
+
+	require.NoError(t, err)
+	require.True(t, shouldSelectChannel)
+	require.Equal(t, "doubao/doubao-seedance-2-0-260128", modelRequest.Model)
+	relayMode, ok := c.Get("relay_mode")
+	require.True(t, ok)
+	require.Equal(t, relayconstant.RelayModeVideoSubmit, relayMode)
+}
+
+func TestGetModelRequestGenerationTasksFetch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/generation/tasks/task_abc", nil)
+
+	_, shouldSelectChannel, err := getModelRequest(c)
+
+	require.NoError(t, err)
+	require.False(t, shouldSelectChannel)
+	relayMode, ok := c.Get("relay_mode")
+	require.True(t, ok)
+	require.Equal(t, relayconstant.RelayModeVideoFetchByID, relayMode)
+}
+
+func TestGetModelRequestVideoToMusicMultipart(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	require.NoError(t, w.WriteField("model", "sonilo-video-to-music"))
+	require.NoError(t, w.WriteField("duration_seconds", "10"))
+	require.NoError(t, w.Close())
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/video-to-music", bytes.NewReader(body.Bytes()))
+	c.Request.Header.Set("Content-Type", w.FormDataContentType())
+
+	modelRequest, shouldSelectChannel, err := getModelRequest(c)
+	require.NoError(t, err)
+	require.True(t, shouldSelectChannel)
+	require.Equal(t, "sonilo-video-to-music", modelRequest.Model)
+	require.Equal(t, relayconstant.RelayModeVideoSubmit, c.GetInt("relay_mode"))
+}
+
+func TestGetModelRequestVideoToMusicFetch(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/video-to-music/task_abc", nil)
+
+	_, shouldSelectChannel, err := getModelRequest(c)
+	require.NoError(t, err)
+	require.False(t, shouldSelectChannel)
+	require.Equal(t, relayconstant.RelayModeVideoFetchByID, c.GetInt("relay_mode"))
 }
 
 func TestResolvePlaygroundUsingGroupDoesNotExpandAccessFromTokenGroup(t *testing.T) {
@@ -158,4 +226,55 @@ func TestResolvePlaygroundUsingGroupPrefersAuthoritativeUserGroup(t *testing.T) 
 
 	require.NoError(t, err)
 	require.Equal(t, "default", group)
+}
+
+func TestGetModelRequestParsesPlaygroundImageModelAndGroup(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/pg/images/generations",
+		strings.NewReader(`{"model":"gpt-image-2","group":"plg","prompt":"cat"}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	request, shouldSelectChannel, err := getModelRequest(c)
+
+	require.NoError(t, err)
+	require.True(t, shouldSelectChannel)
+	require.Equal(t, "gpt-image-2", request.Model)
+	require.Equal(t, "plg", request.Group)
+	require.Equal(t, relayconstant.RelayModeImagesGenerations, c.GetInt("relay_mode"))
+}
+
+func TestGetModelRequestParsesPlaygroundVideoSubmit(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		http.MethodPost,
+		"/pg/videos",
+		strings.NewReader(`{"model":"veo-3.1-generate-preview","group":"plg","prompt":"cat"}`),
+	)
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	request, shouldSelectChannel, err := getModelRequest(c)
+
+	require.NoError(t, err)
+	require.True(t, shouldSelectChannel)
+	require.Equal(t, "veo-3.1-generate-preview", request.Model)
+	require.Equal(t, "plg", request.Group)
+	require.Equal(t, relayconstant.RelayModeVideoSubmit, c.GetInt("relay_mode"))
+}
+
+func TestGetModelRequestRecognizesPlaygroundVideoFetch(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Params = gin.Params{{Key: "task_id", Value: "task_example"}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/pg/videos/task_example", nil)
+
+	_, shouldSelectChannel, err := getModelRequest(c)
+
+	require.NoError(t, err)
+	require.False(t, shouldSelectChannel)
+	require.Equal(t, relayconstant.RelayModeVideoFetchByID, c.GetInt("relay_mode"))
 }

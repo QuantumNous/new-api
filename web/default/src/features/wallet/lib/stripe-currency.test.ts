@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
-import { normalizeStripeCheckoutCurrency } from './stripe-currency'
+import {
+  currencySupportsPresetAmounts,
+  defaultCurrencyForLanguage,
+  normalizeStripeCheckoutCurrency,
+  parseStripeCurrencyPrices,
+  resolveEffectiveStripeCheckoutCurrency,
+  stripeTopUpDisplayAmount,
+} from './stripe-currency'
 
 describe('normalizeStripeCheckoutCurrency', () => {
   test('normalizes explicit checkout currency search params', () => {
@@ -26,5 +33,138 @@ describe('normalizeStripeCheckoutCurrency', () => {
     expect(normalizeStripeCheckoutCurrency('brl')).toBe('BRL')
     expect(normalizeStripeCheckoutCurrency('eur')).toBeUndefined()
     expect(normalizeStripeCheckoutCurrency(undefined)).toBeUndefined()
+  })
+})
+
+describe('defaultCurrencyForLanguage', () => {
+  test('maps the active interface language and defaults to USD', () => {
+    expect(defaultCurrencyForLanguage('pt')).toBe('BRL')
+    expect(defaultCurrencyForLanguage('pt-BR')).toBe('BRL')
+    expect(defaultCurrencyForLanguage('pt-PT')).toBe('USD')
+    expect(defaultCurrencyForLanguage('ja-JP')).toBe('JPY')
+    expect(defaultCurrencyForLanguage('zh-CN')).toBe('USD')
+    expect(defaultCurrencyForLanguage(undefined)).toBe('USD')
+  })
+})
+
+describe('parseStripeCurrencyPrices', () => {
+  test('parses positive minor-unit prices and formats major units', () => {
+    const prices = parseStripeCurrencyPrices({
+      USD: { 20: 2000 },
+      JPY: { 20: 3000 },
+      EUR: { 20: 1800 },
+    })
+
+    expect(prices).toEqual({ USD: { 20: 2000 }, JPY: { 20: 3000 } })
+    expect(stripeTopUpDisplayAmount(prices, 'USD', 20)).toBe(20)
+    expect(stripeTopUpDisplayAmount(prices, 'JPY', 20)).toBe(3000)
+  })
+
+  test('discards malformed and negative prices', () => {
+    expect(
+      parseStripeCurrencyPrices({
+        USD: {
+          20: 2000,
+          50: -5000,
+          invalid: 1200,
+        },
+        BRL: {
+          20: '4000',
+          50: null,
+        },
+        INR: 'not a price map',
+      })
+    ).toEqual({ USD: { 20: 2000 }, BRL: { 20: 4000 } })
+  })
+})
+
+describe('currencySupportsPresetAmounts', () => {
+  test('requires every visible preset to have a positive configured price', () => {
+    const prices = parseStripeCurrencyPrices({
+      USD: { 20: 2000, 50: 5000 },
+      BRL: { 20: 10000 },
+    })
+
+    expect(currencySupportsPresetAmounts(prices, 'USD', [20, 50])).toBe(true)
+    expect(currencySupportsPresetAmounts(prices, 'BRL', [20, 50])).toBe(false)
+  })
+})
+
+describe('resolveEffectiveStripeCheckoutCurrency', () => {
+  test('falls back the whole tier to USD when the requested local currency is partial', () => {
+    const prices = parseStripeCurrencyPrices({
+      USD: { 20: 2000, 50: 5000 },
+      BRL: { 20: 9990 },
+    })
+
+    expect(
+      resolveEffectiveStripeCheckoutCurrency({
+        requestedCurrency: 'BRL',
+        language: 'pt-BR',
+        prices,
+        presetAmounts: [20, 50],
+        currencyTouched: true,
+      })
+    ).toBe('USD')
+  })
+
+  test('uses USD instead of a partial local currency even when USD prices are absent', () => {
+    const prices = parseStripeCurrencyPrices({
+      BRL: { 20: 9990 },
+    })
+
+    expect(
+      resolveEffectiveStripeCheckoutCurrency({
+        requestedCurrency: 'BRL',
+        language: 'pt-BR',
+        prices,
+        presetAmounts: [20, 50],
+        currencyTouched: true,
+      })
+    ).toBe('USD')
+  })
+
+  test('keeps explicit and language currencies when they cover every visible preset', () => {
+    const prices = parseStripeCurrencyPrices({
+      USD: { 20: 2000, 50: 5000 },
+      BRL: { 20: 9990, 50: 24990 },
+      JPY: { 20: 3000, 50: 7500 },
+    })
+
+    expect(
+      resolveEffectiveStripeCheckoutCurrency({
+        requestedCurrency: 'BRL',
+        language: 'ja-JP',
+        prices,
+        presetAmounts: [20, 50],
+        currencyTouched: true,
+      })
+    ).toBe('BRL')
+    expect(
+      resolveEffectiveStripeCheckoutCurrency({
+        requestedCurrency: 'USD',
+        language: 'ja-JP',
+        prices,
+        presetAmounts: [20, 50],
+        currencyTouched: false,
+      })
+    ).toBe('JPY')
+  })
+
+  test('falls back to an available complete currency when USD is not configured', () => {
+    const prices = parseStripeCurrencyPrices({
+      BRL: { 20: 9990 },
+      JPY: { 20: 3000, 50: 7500 },
+    })
+
+    expect(
+      resolveEffectiveStripeCheckoutCurrency({
+        requestedCurrency: 'BRL',
+        language: 'pt-BR',
+        prices,
+        presetAmounts: [20, 50],
+        currencyTouched: true,
+      })
+    ).toBe('JPY')
   })
 })

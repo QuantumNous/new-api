@@ -3,6 +3,7 @@
 
 # Common messages
 common.invalid_params: "無效的參數"
+common.invalid_email: "請輸入有效的信箱位址"
 common.database_error: "資料庫出錯，請聯繫管理員"
 common.retry_later: "請稍後重試"
 common.generate_failed: "生成失敗"
@@ -49,6 +50,26 @@ token.expired: "該令牌已過期"
 token.exhausted: "該令牌額度不足"
 token.status_unavailable: "該令牌狀態不可用"
 token.db_error: "無效的令牌，資料庫查詢出錯，請聯繫管理員"
+token.batch_group_cache_sync_pending: "令牌分組已更新，但快取同步尚未完成，請使用相同請求重試。"
+token.client_ip_invalid: "無法解析客戶端 IP 位址"
+token.ip_not_allowed: "此令牌不允許您的 IP 存取"
+token.group_no_permission: "無權存取分組 {{.Group}}"
+token.group_deprecated: "分組 {{.Group}} 已停用"
+
+# CLI device authorization messages
+cli.device_id_missing: "缺少裝置 ID"
+cli.device_metadata_too_long: "CLI 裝置資訊過長"
+cli.device_code_invalid: "無效的裝置代碼"
+cli.authorization_code_missing: "缺少授權代碼"
+cli.authorization_not_found: "找不到授權請求"
+cli.authorization_token_create_failed: "建立 CLI 令牌失敗"
+
+# Temporary media messages
+temp_media.file_required: "缺少圖片檔案"
+temp_media.image_too_large: "圖片檔案過大"
+temp_media.unsupported_image: "不支援的圖片類型"
+temp_media.not_configured: "臨時媒體儲存未設定"
+temp_media.upload_failed: "上傳圖片失敗"
 
 # Redemption messages
 redemption.name_length: "兌換碼名稱長度必須在1-20之間"
@@ -61,13 +82,15 @@ redemption.expired: "該兌換碼已過期"
 redemption.failed: "兌換失敗，請稍後重試"
 redemption.not_provided: "未提供兌換碼"
 redemption.expire_time_invalid: "過期時間不能早於當前時間"
+redemption.codes_exhausted: "來晚了，code 已經發完了"
+redemption.already_claimed: "你已經領取過這個用途的 code"
 
 # User messages
 user.password_login_disabled: "管理員關閉了密碼登錄"
 user.register_disabled: "管理員關閉了新使用者註冊"
 user.password_register_disabled: "管理員關閉了通過密碼進行註冊，請使用第三方帳號驗證的形式進行註冊"
 user.username_or_password_empty: "使用者名或密碼為空"
-user.username_or_password_error: "使用者名或密碼錯誤，或使用者已被封禁"
+user.username_or_password_error: "使用者名或密碼錯誤，或因違規行為被封禁"
 user.email_or_password_empty: "信箱位址或密碼為空！"
 user.exists: "使用者名已存在，或已註銷"
 user.not_exists: "使用者不存在"
@@ -75,6 +98,7 @@ user.disabled: "該使用者已被禁用"
 user.session_save_failed: "無法保存對話，請重試"
 user.require_2fa: "請輸入雙重驗證碼"
 user.email_verification_required: "管理員開啟了信箱驗證，請輸入信箱位址和驗證碼"
+user.email_verification_required_for_api: "您的帳號信箱尚未驗證。請登出後重新登入（第三方帳號將自動完成驗證），或前往 {{.ConsoleOrigin}}/sign-in 登入。"
 user.verification_code_error: "驗證碼錯誤或已過期"
 user.input_invalid: "輸入不合法 {{.Error}}"
 user.no_permission_same_level: "無權獲取同級或更高等級使用者的資訊"
@@ -105,6 +129,10 @@ user.telegram_not_bound: "該 Telegram 帳號未綁定"
 user.linux_do_id_empty: "Linux DO id 為空！"
 user.quota_change_zero: "額度變更量不能為0"
 
+registration_email.domain_invalid: "信箱網域無效"
+registration_email.subdomain_rejected: "暫不允許使用子網域信箱註冊"
+registration_email.domain_unavailable: "該信箱網域目前無法註冊"
+
 # Quota messages
 quota.negative: "額度不能為負數！"
 quota.exceed_max: "額度值超出有效範圍"
@@ -119,6 +147,9 @@ quota.subscription_insufficient: "訂閱額度不足或未配置訂閱: {{.Detai
 quota.token_insufficient: "令牌額度不足, 令牌剩餘額度: {{.Remain}}, 需要額度: {{.Required}}"
 quota.user_insufficient_need: "用戶額度不足, 用戶額度: {{.Quota}}, 需要額度: {{.Required}}"
 
+# Log messages
+log.invalid_user_id: "無效的使用者ID"
+
 # Subscription messages
 subscription.not_enabled: "訂閱方案未啟用"
 subscription.title_empty: "訂閱方案標題不能為空"
@@ -131,6 +162,18 @@ subscription.reset_cycle_gt_zero: "自訂重置週期需大於0秒"
 subscription.purchase_max: "已達到該訂閱方案購買上限"
 subscription.invalid_id: "無效的訂閱ID"
 subscription.invalid_user_id: "無效的使用者ID"
+subscription.invalid_recurring_id: "無效的週期訂閱ID"
+subscription.tier_rank_reserved: "訂閱等級已被占用"
+subscription.tier_rank_required: "啟用的訂閱方案必須設定正整數等級"
+subscription.lifecycle_fields_immutable: "此訂閱方案已被引用。請停用或建立新版本，不要修改生命週期關鍵欄位。"
+subscription.purchase_pending_migration: "訂閱購買入口正在遷移中。請重新整理後使用新的訂閱流程。"
+subscription.payment_mode_required: "必須選擇付款模式"
+subscription.request_id_required: "請求 ID 必填"
+subscription.stripe_price_requires_mode: "Stripe Price ID 需要啟用 Stripe 週期付款模式"
+subscription.capability.single_lifecycle: "單一訂閱生命週期已啟用"
+subscription.capability.current_entitlement: "可檢視目前合約權益"
+subscription.capability.recurring_binding: "可檢視週期付款綁定"
+subscription.capability.change_intent: "可檢視訂閱變更意圖狀態"
 
 # Payment messages
 payment.not_configured: "當前管理員未設定支付資訊"
@@ -144,6 +187,7 @@ payment.webhook_not_configured: "Webhook 未設定"
 payment.price_id_not_configured: "該訂閱方案未設定 StripePriceId"
 payment.creem_not_configured: "該訂閱方案未設定 CreemProductId"
 payment.compliance_required: "支付、兌換碼、訂閱方案和邀請返利功能已停用。管理員需先確認合規聲明後方可啟用。"
+payment.recall_claim_unavailable: "此優惠無效、已過期或不適用於本次購買。"
 
 # Topup messages
 topup.not_provided: "未提供支付單號"
@@ -237,6 +281,10 @@ performance.disk_cache_cleared: "不活躍的磁碟快取已清理"
 performance.stats_reset: "統計資訊已重置"
 performance.gc_executed: "GC 已執行"
 
+# Model health messages
+model_health.invalid_hours: "查詢時長必須為 24、168 或 720 小時"
+model_health.model_required: "必須指定模型"
+
 # Ability messages
 ability.db_corrupted: "資料庫一致性被破壞"
 ability.repair_running: "已經有一個修復任務在運行中，請稍後再試"
@@ -279,6 +327,32 @@ distributor.no_available_channel: "分組 {{.Group}} 下模型 {{.Model}} 無可
 distributor.invalid_midjourney_request: "無效的midjourney請求，{{.Error}}"
 distributor.invalid_request_parse_model: "無效的請求，無法解析模型"
 
+# BytePlus asset library messages
+asset.invalid_request: "無效的素材請求"
+asset.not_found: "素材不存在"
+asset.not_ready: "素材仍在處理中，請稍後重試"
+asset.failed: "素材處理失敗"
+asset.channel_conflict: "同一次請求中的素材必須使用同一管道"
+asset.channel_unavailable: "素材綁定的管道目前不可用"
+asset.group_initializing: "素材組正在初始化，請稍後重試"
+asset.upstream_error: "素材服務請求失敗"
+asset.expired: "素材上傳已過期"
+asset.type_mismatch: "素材類型與上傳媒體不相符"
+asset.storage_error: "素材儲存錯誤，請稍後重試"
+real_person.invalid_request: "真人資料請求無效"
+real_person.not_found: "找不到真人資料"
+real_person.not_active: "真人資料尚未啟用"
+real_person.channel_unavailable: "真人驗證管道暫時無法使用"
+real_person.storage_error: "真人資料儲存錯誤，請稍後重試"
+verification.in_progress: "驗證已在進行中"
+verification.upstream_error: "驗證服務請求失敗"
+idempotency.conflict: "此冪等鍵已用於不同請求"
+idempotency.outcome_unknown: "上一次請求結果未知，請稍後重試"
+asset.profile_conflict: "同一請求中的素材必須屬於同一個真人資料"
+asset.file_too_large: "素材檔案過大"
+asset.media_unsupported: "不支援的素材上傳媒體類型"
+asset.upload_failed: "素材上傳失敗，請稍後重試"
+
 # Custom OAuth provider messages
 custom_oauth.not_found: "自訂 OAuth 供應者不存在"
 custom_oauth.slug_empty: "標識符不能為空"
@@ -289,8 +363,17 @@ custom_oauth.binding_not_found: "OAuth 綁定不存在"
 custom_oauth.provider_id_field_invalid: "無法從供應者響應中提取使用者 ID"
 
 # Email content messages
-email.verification_subject: "{{.SystemName}}信箱驗證郵件"
-email.verification_content: "<p>您好，您正在進行{{.SystemName}}信箱驗證。</p><p>您的驗證碼為: <strong>{{.Code}}</strong></p><p>驗證碼 {{.Minutes}} 分鐘內有效，如果不是本人操作，請忽略。</p>"
+email.verification_subject: "{{.SystemName}} 電子郵件驗證"
+email.verification_heading: "歡迎使用 {{.SystemName}}"
+email.verification_content: "確認您的電子郵件地址，完成帳戶建立並開始使用 {{.SystemName}}。"
+email.verification_action: "一鍵驗證電子郵件"
+email.verification_alternative: "或輸入以下驗證碼"
+email.verification_code_label: "驗證碼"
+email.verification_expiry: "此連結和驗證碼將在 {{.Minutes}} 分鐘後失效。"
+email.verification_ignore: "如果這不是您的操作，可以放心忽略此郵件。"
+email.verification_footer: "此郵件由 {{.SystemName}} 安全寄送"
+email.verification_link_invalid: "此驗證連結無效或已過期。"
+email.verification_unavailable: "電子郵件驗證暫時無法使用，請稍後再試。"
 email.password_reset_subject: "{{.SystemName}}密碼重設"
 email.password_reset_content: "<p>您好，您正在進行{{.SystemName}}密碼重設。</p><p>點擊 <a href='{{.Link}}'>此處</a> 進行密碼重設。</p><p>如果連結無法點擊，請嘗試點擊下面的連結或將其複製到瀏覽器中開啟：<br> {{.Link}} </p><p>重設連結 {{.Minutes}} 分鐘內有效，如果不是本人操作，請忽略。</p>"
 

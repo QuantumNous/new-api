@@ -53,6 +53,9 @@ export const useChannelsData = () => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [channelCount, setChannelCount] = useState(0);
   const [groupOptions, setGroupOptions] = useState([]);
+  // Live concurrency counters keyed by channel id, polled only while the
+  // current page contains channels with a concurrency limit.
+  const [concurrencyStatus, setConcurrencyStatus] = useState({});
 
   // UI states
   const [showEdit, setShowEdit] = useState(false);
@@ -140,6 +143,7 @@ export const useChannelsData = () => {
     BALANCE: 'balance',
     PRIORITY: 'priority',
     WEIGHT: 'weight',
+    MAX_CONCURRENCY: 'max_concurrency',
     OPERATE: 'operate',
   };
 
@@ -168,6 +172,54 @@ export const useChannelsData = () => {
     fetchGlobalPassThroughEnabled().then();
   }, []);
 
+  // Poll live concurrency counters for bounded channels on the current page.
+  // No bounded channel on the page → no polling, zero extra load.
+  useEffect(() => {
+    const collectBoundedIds = () => {
+      const ids = [];
+      for (const row of channels) {
+        if (row.children !== undefined) {
+          for (const child of row.children) {
+            if (child.max_concurrency > 0) ids.push(child.id);
+          }
+        } else if (row.max_concurrency > 0) {
+          ids.push(row.id);
+        }
+      }
+      return ids;
+    };
+
+    const boundedIds = collectBoundedIds();
+    if (boundedIds.length === 0) {
+      setConcurrencyStatus({});
+      return;
+    }
+
+    let cancelled = false;
+    const fetchStatus = async () => {
+      try {
+        const res = await API.get(
+          `/api/channel/concurrency?ids=${boundedIds.join(',')}`,
+        );
+        if (cancelled || !res?.data?.success) return;
+        const next = {};
+        for (const item of res.data.data || []) {
+          next[item.channel_id] = item;
+        }
+        setConcurrencyStatus(next);
+      } catch (e) {
+        // Polling is best-effort; keep the last snapshot on failure.
+      }
+    };
+
+    fetchStatus();
+    const timer = setInterval(fetchStatus, 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [channels]);
+
   // Column visibility management
   const getDefaultColumnVisibility = () => {
     return {
@@ -180,6 +232,7 @@ export const useChannelsData = () => {
       [COLUMN_KEYS.BALANCE]: true,
       [COLUMN_KEYS.PRIORITY]: true,
       [COLUMN_KEYS.WEIGHT]: true,
+      [COLUMN_KEYS.MAX_CONCURRENCY]: true,
       [COLUMN_KEYS.OPERATE]: true,
     };
   };
@@ -260,6 +313,7 @@ export const useChannelsData = () => {
             response_time: 0,
             priority: -1,
             weight: -1,
+            max_concurrency: '',
           };
           tagChannelDates.children = [];
           channelDates.push(tagChannelDates);
@@ -464,6 +518,15 @@ export const useChannelsData = () => {
         if (value === '') return;
         data.weight = parseInt(value);
         if (data.weight < 0) data.weight = 0;
+        res = await API.put('/api/channel/', data);
+        break;
+      case 'max_concurrency':
+        if (value === '') return;
+        data.max_concurrency = Number(value);
+        if (!Number.isInteger(data.max_concurrency) || data.max_concurrency < 0) {
+          showError(t('渠道并发上限必须是非负整数'));
+          return;
+        }
         res = await API.put('/api/channel/', data);
         break;
       case 'enable_all':
@@ -1148,6 +1211,7 @@ export const useChannelsData = () => {
     statusFilter,
     compactMode,
     globalPassThroughEnabled,
+    concurrencyStatus,
 
     // UI states
     showEdit,

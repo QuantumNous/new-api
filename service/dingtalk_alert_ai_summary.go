@@ -29,9 +29,10 @@ type dingTalkChannelAlertAIOptions struct {
 }
 
 type dingTalkChannelAlertAIRequest struct {
-	Model           string                          `json:"model"`
-	Input           []dingTalkChannelAlertAIMessage `json:"input"`
-	MaxOutputTokens int                             `json:"max_output_tokens"`
+	Model               string                          `json:"model"`
+	Messages            []dingTalkChannelAlertAIMessage `json:"messages"`
+	Stream              bool                            `json:"stream"`
+	MaxCompletionTokens int                             `json:"max_completion_tokens"`
 }
 
 type dingTalkChannelAlertAIMessage struct {
@@ -40,14 +41,11 @@ type dingTalkChannelAlertAIMessage struct {
 }
 
 type dingTalkChannelAlertAIHTTPResponse struct {
-	OutputText string `json:"output_text"`
-	Output     []struct {
-		Type    string `json:"type"`
-		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text"`
-		} `json:"content"`
-	} `json:"output"`
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
@@ -142,7 +140,7 @@ func buildDingTalkChannelAlertAIRequest(rawContent string, alerts []DingTalkChan
 	sanitizedContent := truncateDingTalkChannelAlertAIContent(sanitizeDingTalkAlertText(rawContent))
 	return dingTalkChannelAlertAIRequest{
 		Model: modelName,
-		Input: []dingTalkChannelAlertAIMessage{
+		Messages: []dingTalkChannelAlertAIMessage{
 			{
 				Role: "system",
 				Content: strings.Join([]string{
@@ -164,7 +162,8 @@ func buildDingTalkChannelAlertAIRequest(rawContent string, alerts []DingTalkChan
 				),
 			},
 		},
-		MaxOutputTokens: 600,
+		Stream:              false,
+		MaxCompletionTokens: 600,
 	}
 }
 
@@ -190,10 +189,11 @@ func resolveDingTalkChannelAlertAIOptions(options dingTalkChannelAlertAIOptions)
 
 func dingTalkChannelAlertAIEndpoint(baseURL string) string {
 	baseURL = strings.TrimRight(dingTalkChannelAlertAIBaseURL(baseURL), "/")
-	if strings.HasSuffix(baseURL, "/responses") {
+	if strings.HasSuffix(baseURL, "/chat/completions") {
 		return baseURL
 	}
-	return baseURL + "/responses"
+	baseURL = strings.TrimSuffix(baseURL, "/responses")
+	return baseURL + "/chat/completions"
 }
 
 func dingTalkChannelAlertAIBaseURL(baseURL string) string {
@@ -213,17 +213,10 @@ func dingTalkChannelAlertAIModel(modelName string) string {
 }
 
 func extractDingTalkChannelAlertAIOutputText(envelope dingTalkChannelAlertAIHTTPResponse) string {
-	if strings.TrimSpace(envelope.OutputText) != "" {
-		return envelope.OutputText
+	if len(envelope.Choices) == 0 {
+		return ""
 	}
-	for _, output := range envelope.Output {
-		for _, content := range output.Content {
-			if strings.TrimSpace(content.Text) != "" {
-				return content.Text
-			}
-		}
-	}
-	return ""
+	return envelope.Choices[0].Message.Content
 }
 
 func normalizeDingTalkChannelAlertAISummary(value string) string {

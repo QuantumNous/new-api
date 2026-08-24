@@ -64,7 +64,8 @@ export function UsersPrimaryButtons() {
     const group = search.group?.trim() ?? ''
     const role = search.role?.[0] ?? ''
     const status = search.status?.[0] ?? ''
-    const hasFilters = Boolean(keyword || group || role || status)
+    const country = search.country?.trim() ?? ''
+    const hasFilters = Boolean(keyword || group || role || status || country)
 
     try {
       setIsExportingContacts(true)
@@ -76,6 +77,7 @@ export function UsersPrimaryButtons() {
                 group,
                 role,
                 status,
+                country,
                 p: page,
                 page_size: pageSize,
               })
@@ -105,6 +107,7 @@ export function UsersPrimaryButtons() {
           id: t('ID'),
           username: t('Username'),
           displayName: t('Display Name'),
+          language: t('Interface Language'),
           email: t('Email'),
           status: t('Status'),
           quota: t('Quota'),

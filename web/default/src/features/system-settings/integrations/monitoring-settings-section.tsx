@@ -44,6 +44,14 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { CHANNEL_TYPE_OPTIONS } from '@/features/channels/constants'
@@ -59,23 +67,26 @@ import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 import {
+  codexGovernanceLinesToArray,
+  codexGovernanceLinesToJsonArray,
+  codexGovernanceStringArrayToLines,
+} from './codex-governance-settings-utils'
+import {
   areAllKnownChannelTypesSelected,
   getUnknownChannelTypeIds,
   normalizeChannelTypeIds,
   selectAllKnownChannelTypeIds,
   shouldShowChannelTypeSelectAllShortcut,
 } from './monitoring-channel-types'
-import {
-  codexGovernanceLinesToArray,
-  codexGovernanceLinesToJsonArray,
-  codexGovernanceStringArrayToLines,
-} from './codex-governance-settings-utils'
 
 const numericString = z.string().refine((value) => {
   const trimmed = value.trim()
   if (!trimmed) return true
   return !Number.isNaN(Number(trimmed)) && Number(trimmed) >= 0
 }, 'Enter a non-negative number or leave empty')
+
+const channelTestModes = ['scheduled_all', 'passive_recovery'] as const
+type ChannelTestMode = (typeof channelTestModes)[number]
 
 const isValidHttpUrl = (value: string) => {
   try {
@@ -101,6 +112,7 @@ const monitoringSchema = z
         .number()
         .int()
         .min(1, 'Interval must be at least 1 minute'),
+      channel_test_mode: z.enum(channelTestModes),
       auto_test_channel_allowed_types: z.array(z.number().int()),
       auto_test_channel_ignored_types: z.array(z.number().int()),
       dingtalk_alert_enabled: z.boolean(),
@@ -177,8 +189,7 @@ const monitoringSchema = z
       })
     }
 
-    const aiAnalysisBaseURL =
-      values.monitor_setting.ai_analysis_base_url.trim()
+    const aiAnalysisBaseURL = values.monitor_setting.ai_analysis_base_url.trim()
     if (aiAnalysisBaseURL !== '' && !isValidHttpUrl(aiAnalysisBaseURL)) {
       ctx.addIssue({
         code: 'custom',
@@ -202,6 +213,7 @@ type MonitoringSettingsSectionProps = {
     AutomaticRetryStatusCodes: string
     'monitor_setting.auto_test_channel_enabled': boolean
     'monitor_setting.auto_test_channel_minutes': number
+    'monitor_setting.channel_test_mode': ChannelTestMode
     'monitor_setting.auto_test_channel_allowed_types': number[]
     'monitor_setting.auto_test_channel_ignored_types': number[]
     'monitor_setting.dingtalk_alert_enabled': boolean
@@ -235,6 +247,7 @@ type NormalizedMonitoringValues = {
   AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
+  'monitor_setting.channel_test_mode': ChannelTestMode
   'monitor_setting.auto_test_channel_allowed_types': number[]
   'monitor_setting.auto_test_channel_ignored_types': number[]
   'monitor_setting.dingtalk_alert_enabled': boolean
@@ -251,6 +264,10 @@ type NormalizedMonitoringValues = {
   'codex_model_governance_setting.official_source_urls': string
   'codex_model_governance_setting.official_lifecycle_terms': string
   'codex_model_governance_setting.alert_cooldown_minutes': number
+}
+
+function normalizeChannelTestMode(value?: string): ChannelTestMode {
+  return value === 'passive_recovery' ? 'passive_recovery' : 'scheduled_all'
 }
 
 function serializeOptionValue(
@@ -461,6 +478,9 @@ const buildFormDefaults = (
       defaults['monitor_setting.auto_test_channel_enabled'],
     auto_test_channel_minutes:
       defaults['monitor_setting.auto_test_channel_minutes'],
+    channel_test_mode: normalizeChannelTestMode(
+      defaults['monitor_setting.channel_test_mode']
+    ),
     auto_test_channel_allowed_types: normalizeChannelTypeIds(
       defaults['monitor_setting.auto_test_channel_allowed_types']
     ),
@@ -475,8 +495,7 @@ const buildFormDefaults = (
       defaults['monitor_setting.dingtalk_alert_secret'] ?? '',
     dingtalk_alert_cooldown_minutes:
       defaults['monitor_setting.dingtalk_alert_cooldown_minutes'] ?? 60,
-    ai_analysis_api_key:
-      defaults['monitor_setting.ai_analysis_api_key'] ?? '',
+    ai_analysis_api_key: defaults['monitor_setting.ai_analysis_api_key'] ?? '',
     ai_analysis_base_url:
       defaults['monitor_setting.ai_analysis_base_url'] ?? '',
     ai_analysis_model: defaults['monitor_setting.ai_analysis_model'] ?? '',
@@ -486,20 +505,16 @@ const buildFormDefaults = (
     probe_enabled:
       defaults['codex_model_governance_setting.probe_enabled'] ?? false,
     probe_interval_minutes:
-      defaults['codex_model_governance_setting.probe_interval_minutes'] ??
-      1440,
+      defaults['codex_model_governance_setting.probe_interval_minutes'] ?? 1440,
     unsupported_message_patterns: codexGovernanceStringArrayToLines(
-      defaults[
-        'codex_model_governance_setting.unsupported_message_patterns'
-      ] ?? []
+      defaults['codex_model_governance_setting.unsupported_message_patterns'] ??
+        []
     ),
     official_source_urls: codexGovernanceStringArrayToLines(
       defaults['codex_model_governance_setting.official_source_urls'] ?? []
     ),
     official_lifecycle_terms: codexGovernanceStringArrayToLines(
-      defaults[
-        'codex_model_governance_setting.official_lifecycle_terms'
-      ] ?? []
+      defaults['codex_model_governance_setting.official_lifecycle_terms'] ?? []
     ),
     alert_cooldown_minutes:
       defaults['codex_model_governance_setting.alert_cooldown_minutes'] ?? 60,
@@ -526,6 +541,9 @@ const normalizeDefaults = (
     defaults['monitor_setting.auto_test_channel_enabled'],
   'monitor_setting.auto_test_channel_minutes':
     defaults['monitor_setting.auto_test_channel_minutes'],
+  'monitor_setting.channel_test_mode': normalizeChannelTestMode(
+    defaults['monitor_setting.channel_test_mode']
+  ),
   'monitor_setting.auto_test_channel_allowed_types': normalizeChannelTypeIds(
     defaults['monitor_setting.auto_test_channel_allowed_types']
   ),
@@ -573,9 +591,8 @@ const normalizeDefaults = (
   'codex_model_governance_setting.official_lifecycle_terms':
     normalizeLineEndings(
       codexGovernanceStringArrayToLines(
-        defaults[
-          'codex_model_governance_setting.official_lifecycle_terms'
-        ] ?? []
+        defaults['codex_model_governance_setting.official_lifecycle_terms'] ??
+          []
       )
     ),
   'codex_model_governance_setting.alert_cooldown_minutes':
@@ -602,6 +619,7 @@ const normalizeFormValues = (
     values.monitor_setting.auto_test_channel_enabled,
   'monitor_setting.auto_test_channel_minutes':
     values.monitor_setting.auto_test_channel_minutes,
+  'monitor_setting.channel_test_mode': values.monitor_setting.channel_test_mode,
   'monitor_setting.auto_test_channel_allowed_types': normalizeChannelTypeIds(
     values.monitor_setting.auto_test_channel_allowed_types
   ),
@@ -680,6 +698,7 @@ export function MonitoringSettingsSection({
 
   const autoDisableStatusCodes = form.watch('AutomaticDisableStatusCodes')
   const autoRetryStatusCodes = form.watch('AutomaticRetryStatusCodes')
+  const channelTestMode = form.watch('monitor_setting.channel_test_mode')
   const autoDisableParsed = useMemo(
     () => parseHttpStatusCodeRules(autoDisableStatusCodes),
     [autoDisableStatusCodes]
@@ -703,9 +722,7 @@ export function MonitoringSettingsSection({
       setCodexRuleTestResult(res.data)
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : t('Failed to test Codex rule')
+        error instanceof Error ? error.message : t('Failed to test Codex rule')
       )
     } finally {
       setIsCodexRuleTesting(false)
@@ -785,6 +802,52 @@ export function MonitoringSettingsSection({
 
             <FormField
               control={form.control}
+              name='monitor_setting.channel_test_mode'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Channel test mode')}</FormLabel>
+                  <Select
+                    items={[
+                      {
+                        value: 'scheduled_all',
+                        label: t('Scheduled full test'),
+                      },
+                      {
+                        value: 'passive_recovery',
+                        label: t('Passive recovery only'),
+                      },
+                    ]}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='scheduled_all'>
+                          {t('Scheduled full test')}
+                        </SelectItem>
+                        <SelectItem value='passive_recovery'>
+                          {t('Passive recovery only')}
+                        </SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    {t(
+                      'Scheduled full test probes non-manually-disabled channels; passive recovery only checks auto-disabled channels after real request failures.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name='monitor_setting.auto_test_channel_minutes'
               render={({ field }) => (
                 <FormItem>
@@ -798,7 +861,11 @@ export function MonitoringSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('How frequently the system tests all channels')}
+                    {channelTestMode === 'passive_recovery'
+                      ? t(
+                          'How frequently the system checks auto-disabled channels for recovery'
+                        )
+                      : t('How frequently the system tests all channels')}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -857,7 +924,6 @@ export function MonitoringSettingsSection({
                 </FormItem>
               )}
             />
-
           </div>
 
           <div className='grid gap-6 md:grid-cols-2'>

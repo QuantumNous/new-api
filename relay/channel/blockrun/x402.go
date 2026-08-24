@@ -42,8 +42,8 @@ const (
 	// validBefore (observed 600s) to cover generation time, so the 300s chat cap
 	// would reject every image 402. 15 minutes covers the observed window with
 	// margin. The extra exposure is bounded: an ERC-3009 authorization is
-	// single-use (nonce) and the amount is still capped at maxAmountAtomicUSDC,
-	// so a longer window cannot be replayed for repeated drains.
+	// single-use (nonce), so a longer window cannot be replayed for repeated
+	// drains.
 	maxImageAuthorizationWindowSeconds = 900
 
 	// USDC asset on Base mainnet (the only token/chain BlockRun uses today).
@@ -55,16 +55,6 @@ const (
 	expectedNetworkBaseSepoli = "eip155:84532"
 )
 
-// maxAmountAtomicUSDC caps the per-call charge to 5 USDC (6 decimals).
-// Any single Chat Completions call charging >$5 indicates a bug or an
-// attempt at fund extraction — refuse to sign. Raised from $1 after the
-// 2026-06-10 incident: legitimate large-context claude-sonnet-4-6 calls
-// were quoted $1.15–$1.18 by upstream and got rejected. Tune if you
-// legitimately run higher-cost models per call. Stored as a *big.Int
-// constructed once at package init so we never have to handle a parse
-// failure at request time.
-var maxAmountAtomicUSDC = big.NewInt(5_000_000)
-
 // SignX402Payment parses the 402 response's payment requirements, validates
 // the upstream-supplied parameters against this gateway's trust policy, signs
 // an EIP-712 / ERC-3009 TransferWithAuthorization with privateKeyHex, and
@@ -74,13 +64,12 @@ var maxAmountAtomicUSDC = big.NewInt(5_000_000)
 // Exported so the (separate) BlockRun video channel session can reuse the exact
 // same trust-boundary validation + signing path without duplicating it.
 func SignX402Payment(resp *http.Response, privateKeyHex, resourceURLFallback string) (string, error) {
-	return SignX402PaymentWithCaps(resp, privateKeyHex, resourceURLFallback, maxAmountAtomicUSDC, maxAuthorizationWindowSeconds)
+	return SignX402PaymentWithCaps(resp, privateKeyHex, resourceURLFallback, nil, maxAuthorizationWindowSeconds)
 }
 
 // SignX402PaymentWithLimits is SignX402Payment with a caller-supplied per-call
-// USDC cap (atomic units, 6 decimals). Video calls legitimately exceed the $5
-// chat cap, so the video channel passes a higher ceiling here while reusing the
-// exact same network/asset/window/payTo trust-boundary checks (default window).
+// USDC cap (atomic units, 6 decimals). Callers that need their own amount guard
+// can opt into one while reusing the same network/asset/window/payTo checks.
 func SignX402PaymentWithLimits(resp *http.Response, privateKeyHex, resourceURLFallback string, maxAmountAtomic *big.Int) (string, error) {
 	return SignX402PaymentWithCaps(resp, privateKeyHex, resourceURLFallback, maxAmountAtomic, maxAuthorizationWindowSeconds)
 }
@@ -112,7 +101,7 @@ func SignX402PaymentWithCaps(resp *http.Response, privateKeyHex, resourceURLFall
 	if resourceURL == "" {
 		resourceURL = resourceURLFallback
 	}
-	paymentB64, err := blockrunSDK.CreatePaymentPayload(
+	paymentB64, err := CreateBasePaymentPayloadCompat(
 		privKey, opt.PayTo, opt.Amount, opt.Network, resourceURL,
 		payReq.Resource.Description, opt.MaxTimeoutSeconds, opt.Extra, payReq.Extensions,
 	)
@@ -122,11 +111,11 @@ func SignX402PaymentWithCaps(resp *http.Response, privateKeyHex, resourceURLFall
 	return paymentB64, nil
 }
 
-// validatePaymentOption rejects any 402 advertisement outside our trust policy
-// using the default $5 chat cap. Centralised here so the rules are easy to audit
-// and bypass-impossible.
+// validatePaymentOption rejects any 402 advertisement outside our default trust
+// policy. The default chat/Responses path intentionally has no amount ceiling;
+// callers that require one use validatePaymentOptionWithCap.
 func validatePaymentOption(opt *blockrunSDK.PaymentOption) error {
-	return validatePaymentOptionWithCap(opt, maxAmountAtomicUSDC)
+	return validatePaymentOptionWithCap(opt, nil)
 }
 
 // validatePaymentOptionWithCap runs the same trust-boundary checks as
@@ -170,9 +159,8 @@ func looksLikeEthAddress(addr string) bool {
 	return true
 }
 
-// assertAmountWithinCap parses a decimal atomic-units string and rejects values
-// exceeding cap (already a *big.Int). Decimal-string + arbitrary-precision so
-// USDC's 6 decimals and any plausible future per-call cap work safely.
+// assertAmountWithinCap parses a positive decimal atomic-units string and, when
+// cap is non-nil, rejects values above it. A nil cap means no amount ceiling.
 func assertAmountWithinCap(amount string, cap *big.Int) error {
 	if amount == "" {
 		return fmt.Errorf("blockrun: 402 amount is empty")
@@ -181,7 +169,7 @@ func assertAmountWithinCap(amount string, cap *big.Int) error {
 	if !ok || amt.Sign() <= 0 {
 		return fmt.Errorf("blockrun: 402 amount %q is not a positive decimal integer", amount)
 	}
-	if amt.Cmp(cap) > 0 {
+	if cap != nil && amt.Cmp(cap) > 0 {
 		return fmt.Errorf("blockrun: 402 amount %s exceeds per-call cap %s atomic units — refusing to sign", amount, cap.String())
 	}
 	return nil

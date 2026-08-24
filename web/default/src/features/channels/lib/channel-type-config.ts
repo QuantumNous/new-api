@@ -158,6 +158,88 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Seedance video, pay-per-call USDC on Base via x402. Fund the wallet first.',
     },
   },
+  105: {
+    id: 105,
+    name: CHANNEL_TYPES[105],
+    icon: 'doubao',
+    defaultBaseUrl: 'https://api.chatgpttech.mobi',
+    supportedModels: ['doubao/doubao-seedance-2-0-260128'],
+    hints: {
+      baseUrl: 'Default: https://api.chatgpttech.mobi',
+      key: 'TechMobi API key',
+      models: 'doubao/doubao-seedance-2-0-260128',
+      other:
+        'Async Seedance-compatible video channel. Customers call NewAPI video endpoints; NewAPI submits to /v1/generation/tasks upstream.',
+    },
+  },
+  107: {
+    id: 107,
+    name: CHANNEL_TYPES[107],
+    icon: 'doubao',
+    defaultBaseUrl: 'https://ark.ap-southeast.bytepluses.com',
+    supportedModels: [
+      'seedance-2.0',
+      'seedance2.0-pro',
+      'seedance-2.0-fast',
+      'seedance-2.0-mini',
+    ],
+    hints: {
+      baseUrl: 'Default: https://ark.ap-southeast.bytepluses.com',
+      key: 'BytePlus API key',
+      models:
+        'seedance-2.0,seedance2.0-pro,seedance-2.0-fast,seedance-2.0-mini',
+      other:
+        'Ark Seedance video channel. Configure account endpoint IDs with model mapping; moderation bypass is enforced by the server.',
+    },
+  },
+  109: {
+    id: 109,
+    name: CHANNEL_TYPES[109],
+    icon: 'suno',
+    defaultBaseUrl: 'https://api.sonilo.com',
+    supportedModels: ['sonilo-video-to-music'],
+    hints: {
+      baseUrl: 'Default: https://api.sonilo.com',
+      key: 'Sonilo API key',
+      models: 'sonilo-video-to-music',
+      other:
+        'Async video-to-music channel. The gateway reserves by declared duration and serves completed audio through a Flatkey proxy.',
+    },
+  },
+  111: {
+    id: 111,
+    name: CHANNEL_TYPES[111],
+    icon: 'doubao',
+    defaultBaseUrl: 'https://api.modelapi.co',
+    supportedModels: ['doubao-seedance-2-5-260628'],
+    hints: {
+      baseUrl: 'Default: https://api.modelapi.co',
+      key: 'API key from the provider',
+      models: 'doubao-seedance-2-5-260628',
+    },
+  },
+  112: {
+    id: 112,
+    name: CHANNEL_TYPES[112],
+    icon: 'github',
+    defaultBaseUrl: 'https://api.githubcopilot.com',
+    hints: {
+      baseUrl: 'Default: https://api.githubcopilot.com',
+      other:
+        'Save the channel first, then authorize it with GitHub Device Flow.',
+    },
+  },
+  113: {
+    id: 113,
+    name: CHANNEL_TYPES[113],
+    icon: 'openai', // generic fallback icon; no dedicated lowercase icon name exists in this config set yet
+    defaultBaseUrl: '', // Grok uses OAuth + managed CLI proxy host; no user-configurable base URL (getDefaultBaseUrl falls back to '')
+    hints: {
+      baseUrl: 'Managed automatically; no base URL needed',
+      other:
+        'Save the channel first, then connect a Grok subscription account via OAuth.',
+    },
+  },
 }
 
 /**

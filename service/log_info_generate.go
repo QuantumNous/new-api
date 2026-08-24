@@ -43,6 +43,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	other["cache_ratio"] = cacheRatio
 	other["model_price"] = modelPrice
 	other["user_group_ratio"] = userGroupRatio
+	AppendGroupRatioSource(other, relayInfo.PriceData.GroupRatioInfo)
 	other["frt"] = float64(relayInfo.FirstResponseTime.UnixMilli() - relayInfo.StartTime.UnixMilli())
 	if relayInfo.ReasoningEffort != "" {
 		other["reasoning_effort"] = relayInfo.ReasoningEffort
@@ -262,8 +263,22 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 	if priceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	AppendGroupRatioSource(other, priceData.GroupRatioInfo)
 	appendRequestPath(nil, relayInfo, other)
 	return other
+}
+
+func AppendGroupRatioSource(other map[string]interface{}, groupRatioInfo types.GroupRatioInfo) {
+	if other == nil || !groupRatioInfo.HasGroupModelRatio {
+		return
+	}
+	other["group_model_ratio"] = groupRatioInfo.GroupModelRatio
+	if groupRatioInfo.GroupModelRatioGroup != "" {
+		other["group_model_ratio_group"] = groupRatioInfo.GroupModelRatioGroup
+	}
+	if groupRatioInfo.GroupModelRatioModel != "" {
+		other["group_model_ratio_model"] = groupRatioInfo.GroupModelRatioModel
+	}
 }
 
 // appendBlockRunSettlementInfo overlays upstream settlement signals captured by

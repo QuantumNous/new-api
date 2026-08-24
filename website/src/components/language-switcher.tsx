@@ -2,17 +2,20 @@
 
 import { Check, Languages } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { buildLanguagePreferenceCookie } from "@/lib/language-routing";
-import { LOCALE_LABELS, LOCALES, type Locale, localizePath, stripLocale } from "@/lib/locales";
+import { buildLanguagePreferenceCookieWrites } from "@/lib/language-routing";
+import { LOCALE_LABELS, LOCALES, type Locale, localeLanguageTag, localizePath, stripLocale } from "@/lib/locales";
 import { cn } from "@/lib/utils";
 
 type Props = {
   locale: Locale;
   pathname: string;
+  cookieDomain?: string;
 };
 
-function persistLanguagePreference(locale: Locale) {
-  document.cookie = buildLanguagePreferenceCookie(locale);
+function persistLanguagePreference(locale: Locale, cookieDomain?: string) {
+  for (const cookie of buildLanguagePreferenceCookieWrites(locale, cookieDomain)) {
+    document.cookie = cookie;
+  }
 }
 
 export function LanguageSwitcher(props: Props) {
@@ -52,7 +55,7 @@ export function LanguageSwitcher(props: Props) {
   }, [open]);
 
   const handleLanguageClick = (locale: Locale) => {
-    persistLanguagePreference(locale);
+    persistLanguagePreference(locale, props.cookieDomain);
     setOpen(false);
   };
 
@@ -63,7 +66,7 @@ export function LanguageSwitcher(props: Props) {
           <a
             key={lang.code}
             href={lang.href}
-            hrefLang={lang.code}
+            hrefLang={localeLanguageTag(lang.code)}
             aria-current={props.locale === lang.code ? "page" : undefined}
           >
             {lang.label}
@@ -99,7 +102,7 @@ export function LanguageSwitcher(props: Props) {
             role="menuitem"
             className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground"
             href={lang.href}
-            hrefLang={lang.code}
+            hrefLang={localeLanguageTag(lang.code)}
             aria-current={props.locale === lang.code ? "page" : undefined}
             onClick={() => handleLanguageClick(lang.code)}
           >

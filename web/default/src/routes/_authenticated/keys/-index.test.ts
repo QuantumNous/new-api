@@ -17,7 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
-import { validateApiKeySearch } from './index'
+import {
+  clearAutoCreateSearch,
+  clearCreateDialogSearch,
+  validateApiKeySearch,
+} from './index'
 
 describe('validateApiKeySearch', () => {
   test('preserves auto-create marker as create=1', () => {
@@ -30,5 +34,73 @@ describe('validateApiKeySearch', () => {
     expect(validateApiKeySearch({})).toEqual({})
     expect(validateApiKeySearch({ create: '0' })).toEqual({})
     expect(validateApiKeySearch({ create: false })).toEqual({})
+  })
+
+  test('preserves the non-destructive create dialog deep link', () => {
+    expect(validateApiKeySearch({ open: 'create', group: 'standard' })).toEqual(
+      { open: 'create', group: 'standard' }
+    )
+    expect(validateApiKeySearch({ open: 'create' })).toEqual({
+      open: 'create',
+    })
+    expect(
+      validateApiKeySearch({ open: 'invalid', group: 'standard' })
+    ).toEqual({})
+  })
+
+  test('keeps create=1 and open=create independent when both are present', () => {
+    expect(
+      validateApiKeySearch({
+        create: '1',
+        open: 'create',
+        group: 'standard',
+      })
+    ).toEqual({ create: 1, open: 'create', group: 'standard' })
+  })
+
+  test('keeps the list group filter independent from create-dialog group', () => {
+    expect(
+      validateApiKeySearch({
+        keyGroup: ['vip'],
+        group: 'create-only-group',
+      })
+    ).toEqual({ keyGroup: ['vip'] })
+    expect(
+      validateApiKeySearch({
+        open: 'create',
+        group: 'standard',
+        keyGroup: ['vip'],
+      })
+    ).toEqual({ open: 'create', group: 'standard', keyGroup: ['vip'] })
+  })
+})
+
+describe('API key search cleanup', () => {
+  const search = {
+    page: 2,
+    filter: 'team',
+    create: 1,
+    open: 'create',
+    group: 'standard',
+  }
+
+  test('dialog cleanup removes only open and group', () => {
+    expect(clearCreateDialogSearch(search)).toEqual({
+      page: 2,
+      filter: 'team',
+      create: 1,
+      open: undefined,
+      group: undefined,
+    })
+  })
+
+  test('auto-create cleanup removes only create', () => {
+    expect(clearAutoCreateSearch(search)).toEqual({
+      page: 2,
+      filter: 'team',
+      create: undefined,
+      open: 'create',
+      group: 'standard',
+    })
   })
 })

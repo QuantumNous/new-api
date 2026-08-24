@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 /**
  * Lightweight Google Ads / GA4 conversion tracking helper.
  *
@@ -28,9 +27,8 @@ For commercial licensing, please contact support@quantumnous.com
  *   VITE_GADS_CONVERSION_ID    e.g. "AW-10868031754" — gtag.js account id
  *   VITE_GADS_SIGNUP_SEND_TO   e.g. "AW-10867983435/GDIeCPiYtLgcEMuIob4o"
  *                              — full send_to for the signup conversion
- *   VITE_GADS_TOPUP_SEND_TO    e.g. "AW-10867983435/dRnJCMP0vb4cEMuIob4o"
- *                              — full send_to for the top-up (purchase) conversion
  */
+import { isRecallClaimAnalyticsBlocked } from './recall-claim'
 
 type GtagFn = (...args: unknown[]) => void
 
@@ -52,11 +50,6 @@ const CONVERSION_ID = import.meta.env.VITE_GADS_CONVERSION_ID as
 const SIGNUP_SEND_TO = import.meta.env.VITE_GADS_SIGNUP_SEND_TO as
   | string
   | undefined
-// Full send_to for the top-up (purchase) conversion. Same AW account as signup,
-// different label — kept as a complete value for the same reason as SIGNUP_SEND_TO.
-const TOPUP_SEND_TO = import.meta.env.VITE_GADS_TOPUP_SEND_TO as
-  | string
-  | undefined
 const GA_MEASUREMENT_ID =
   (import.meta.env.VITE_GA_MEASUREMENT_ID as string | undefined) ||
   'G-30RCEP2CVH'
@@ -68,13 +61,21 @@ export function isGtagEnabled(): boolean {
   return Boolean(CONVERSION_ID)
 }
 
+export function shouldInitializeGtagForURL(rawURL: string): boolean {
+  return !isRecallClaimAnalyticsBlocked(rawURL)
+}
+
 /**
  * Lazily inject gtag.js exactly once. Safe to call repeatedly.
  * Resolves immediately (and as a no-op) when tracking is disabled or when
  * running outside the browser.
  */
 export function ensureGtagLoaded(): Promise<void> {
-  if (!CONVERSION_ID || typeof window === 'undefined') {
+  if (
+    !CONVERSION_ID ||
+    typeof window === 'undefined' ||
+    !shouldInitializeGtagForURL(window.location?.href || '')
+  ) {
     return Promise.resolve()
   }
   if (loaderPromise) return loaderPromise
@@ -106,8 +107,10 @@ export function ensureGtagLoaded(): Promise<void> {
  * signup send_to are configured. Best-effort: failures never throw.
  */
 export function trackSignupConversion(): void {
-  if (!CONVERSION_ID || !SIGNUP_SEND_TO) return
+  if (!CONVERSION_ID || !SIGNUP_SEND_TO || isRecallClaimAnalyticsBlocked())
+    return
   void ensureGtagLoaded().then(() => {
+    if (isRecallClaimAnalyticsBlocked()) return
     try {
       window.gtag?.('event', 'conversion', {
         send_to: SIGNUP_SEND_TO,
@@ -120,39 +123,13 @@ export function trackSignupConversion(): void {
   })
 }
 
-/**
- * Fire the "top-up" (purchase) conversion. No-op unless the gtag account id and
- * the top-up send_to are configured. Pass the top-up value in USD so Google Ads
- * can optimize on revenue. Best-effort: failures never throw.
- */
-export function trackTopupConversion(valueUSD?: number): void {
-  if (!CONVERSION_ID || !TOPUP_SEND_TO) return
-  void ensureGtagLoaded().then(() => {
-    try {
-      window.gtag?.('event', 'conversion', {
-        send_to: TOPUP_SEND_TO,
-        ...(typeof valueUSD === 'number' && valueUSD > 0
-          ? { value: valueUSD, currency: 'USD' }
-          : {}),
-      })
-      // GA4-style custom event for dashboards keyed on it.
-      window.gtag?.('event', 'topup_success', {
-        ...(typeof valueUSD === 'number' && valueUSD > 0
-          ? { value: valueUSD, currency: 'USD' }
-          : {}),
-      })
-    } catch {
-      /* swallow — tracking must never break the payment UX */
-    }
-  })
-}
-
 export function trackAdsFunnelEvent(
   eventName: string,
   params: GtagEventParams = {}
 ): void {
-  if (!CONVERSION_ID) return
+  if (!CONVERSION_ID || isRecallClaimAnalyticsBlocked()) return
   void ensureGtagLoaded().then(() => {
+    if (isRecallClaimAnalyticsBlocked()) return
     try {
       window.gtag?.('event', eventName, {
         send_to: CONVERSION_ID,

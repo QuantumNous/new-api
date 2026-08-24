@@ -40,6 +40,23 @@ func TestStatus(c *gin.Context) {
 	return
 }
 
+func inviteRewardMode() string {
+	if common.InviteRewardSubscriptionMode {
+		return "subscription"
+	}
+	return "topup"
+}
+
+// inviteRewardBadgeUSD feeds the sidebar invite badge ("+$N") with the amount
+// the inviter receives. The invitee's first-month discount is shown separately
+// on the invitation page and must not be included in this badge.
+func inviteRewardBadgeUSD() float64 {
+	if common.QuotaPerUnit <= 0 {
+		return 0
+	}
+	return float64(common.QuotaForInviter) / common.QuotaPerUnit
+}
+
 func GetStatus(c *gin.Context) {
 
 	cs := console_setting.GetConsoleSetting()
@@ -73,12 +90,14 @@ func GetStatus(c *gin.Context) {
 		"turnstile_site_key":          common.TurnstileSiteKey,
 		"docs_link":                   operation_setting.GetGeneralSetting().DocsLink,
 		"quota_per_unit":              common.QuotaPerUnit,
+		"inviter_reward_usd":          invitationUSDFromQuota(common.QuotaForInviter),
 		// 兼容旧前端：保留 display_in_currency，同时提供新的 quota_display_type
 		"display_in_currency":           operation_setting.IsCurrencyDisplay(),
 		"quota_display_type":            operation_setting.GetQuotaDisplayType(),
 		"custom_currency_symbol":        operation_setting.GetGeneralSetting().CustomCurrencySymbol,
 		"custom_currency_exchange_rate": operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate,
 		"enable_batch_update":           common.BatchUpdateEnabled,
+		"token_batch_group_enabled":     common.GetEnvOrDefaultBool("TOKEN_BATCH_GROUP_ENABLED", false),
 		"enable_drawing":                common.DrawingEnabled,
 		"enable_task":                   common.TaskEnabled,
 		"enable_data_export":            common.DataExportEnabled,
@@ -129,6 +148,8 @@ func GetStatus(c *gin.Context) {
 		"privacy_policy_enabled":      legalSetting.PrivacyPolicy != "",
 		"auth_notice_enabled":         legalSetting.AuthNoticeEnabled,
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
+		"invite_reward_mode":          inviteRewardMode(),
+		"invite_reward_badge_usd":     inviteRewardBadgeUSD(),
 	}
 
 	// 根据启用状态注入可选内容
@@ -250,39 +271,20 @@ func GetHomePageContent(c *gin.Context) {
 }
 
 func SendEmailVerification(c *gin.Context) {
-	email := c.Query("email")
+	email := strings.TrimSpace(c.Query("email"))
 	if err := common.Validate.Var(email, "required,email"); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的参数",
-		})
+		common.ApiErrorI18n(c, i18n.MsgEmailInvalid)
 		return
 	}
 	parts := strings.Split(email, "@")
 	if len(parts) != 2 {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的邮箱地址",
-		})
+		common.ApiErrorI18n(c, i18n.MsgEmailInvalid)
 		return
 	}
 	localPart := parts[0]
-	domainPart := parts[1]
-	if common.EmailDomainRestrictionEnabled {
-		allowed := false
-		for _, domain := range common.EmailDomainWhitelist {
-			if domainPart == domain {
-				allowed = true
-				break
-			}
-		}
-		if !allowed {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "The administrator has enabled the email domain name whitelist, and your email address is not allowed due to special symbols or it's not in the whitelist.",
-			})
-			return
-		}
+	if _, err := evaluateRegistrationEmail(email); err != nil {
+		respondRegistrationEmailError(c, err)
+		return
 	}
 	if common.EmailAliasRestrictionEnabled {
 		containsSpecialSymbols := strings.Contains(localPart, "+") || strings.Contains(localPart, ".")
@@ -304,15 +306,43 @@ func SendEmailVerification(c *gin.Context) {
 	}
 	code := common.GenerateVerificationCode(6)
 	common.RegisterVerificationCodeWithKey(email, code, common.EmailVerificationPurpose)
+	linkToken, err := common.RegisterRegistrationEmailLink(email)
+	if err != nil {
+		common.DeleteKey(email, common.EmailVerificationPurpose)
+		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to create registration email link for %s: %s", email, err.Error()))
+		common.ApiErrorI18n(c, i18n.MsgEmailVerifyUnavailable)
+		return
+	}
 	tmplData := map[string]any{
 		"SystemName": common.SystemName,
-		"Code":       code,
 		"Minutes":    common.VerificationValidMinutes,
 	}
 	subject := i18n.T(c, i18n.MsgEmailVerifySubject, tmplData)
-	content := i18n.T(c, i18n.MsgEmailVerifyContent, tmplData)
-	err := common.SendEmail(subject, email, content)
+	content, err := common.RenderRegistrationVerificationEmail(common.RegistrationVerificationEmail{
+		Lang:            i18n.GetLangFromContext(c),
+		SystemName:      common.SystemName,
+		Heading:         i18n.T(c, i18n.MsgEmailVerifyHeading, tmplData),
+		Content:         i18n.T(c, i18n.MsgEmailVerifyContent, tmplData),
+		Action:          i18n.T(c, i18n.MsgEmailVerifyAction, tmplData),
+		Alternative:     i18n.T(c, i18n.MsgEmailVerifyAlternative, tmplData),
+		CodeLabel:       i18n.T(c, i18n.MsgEmailVerifyCodeLabel, tmplData),
+		Code:            code,
+		Expiry:          i18n.T(c, i18n.MsgEmailVerifyExpiry, tmplData),
+		IgnoreNotice:    i18n.T(c, i18n.MsgEmailVerifyIgnore, tmplData),
+		Footer:          i18n.T(c, i18n.MsgEmailVerifyFooter, tmplData),
+		VerificationURL: registrationEmailVerificationURL(linkToken),
+	})
 	if err != nil {
+		common.DeleteRegistrationEmailLink(linkToken)
+		common.DeleteKey(email, common.EmailVerificationPurpose)
+		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to render registration email for %s: %s", email, err.Error()))
+		common.ApiErrorI18n(c, i18n.MsgEmailVerifyUnavailable)
+		return
+	}
+	err = common.SendEmail(subject, email, content)
+	if err != nil {
+		common.DeleteRegistrationEmailLink(linkToken)
+		common.DeleteKey(email, common.EmailVerificationPurpose)
 		common.ApiError(c, err)
 		return
 	}
@@ -326,10 +356,7 @@ func SendEmailVerification(c *gin.Context) {
 func SendPasswordResetEmail(c *gin.Context) {
 	email := c.Query("email")
 	if err := common.Validate.Var(email, "required,email"); err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的参数",
-		})
+		common.ApiErrorI18n(c, i18n.MsgEmailInvalid)
 		return
 	}
 	if model.IsEmailAlreadyTaken(email) {
@@ -362,10 +389,7 @@ func ResetPassword(c *gin.Context) {
 	var req PasswordResetRequest
 	err := json.NewDecoder(c.Request.Body).Decode(&req)
 	if req.Email == "" || req.Token == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "无效的参数",
-		})
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 	if !common.VerifyCodeWithKey(req.Email, req.Token, common.PasswordResetPurpose) {

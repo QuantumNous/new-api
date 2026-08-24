@@ -54,10 +54,13 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	router.GET("/robots.txt", controller.GetRobotsTxt)
 	router.GET("/llms.txt", controller.GetLLMsTxt)
 	router.GET("/sitemap.xml", controller.GetSitemapXML)
+	router.GET("/console/subscription", func(c *gin.Context) {
+		c.Redirect(http.StatusTemporaryRedirect, "/wallet")
+	})
 	router.Use(static.Serve("/", themeFS))
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")
-		if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
+		if isBackendOrAssetPath(c.Request.URL.Path) {
 			controller.RelayNotFound(c)
 			return
 		}
@@ -71,6 +74,15 @@ func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 		}
 		c.Data(http.StatusOK, "text/html; charset=utf-8", indexPage)
 	})
+}
+
+func isBackendOrAssetPath(path string) bool {
+	for _, prefix := range []string{"/api", "/v1", "/v1beta", "/assets"} {
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 func publicWWWRedirectPolicy() gin.HandlerFunc {

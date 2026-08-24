@@ -22,18 +22,31 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// scrubWhitelabelStreamResponse 抹除白标渠道的上游痕迹：把 model 强制回填为客户端请求的
+// 模型名，并清空 system_fingerprint（如 fp_ollama），避免向客户泄漏底层引擎/供应商。
+func scrubWhitelabelStreamResponse(resp *dto.ChatCompletionsStreamResponse, info *relaycommon.RelayInfo) {
+	resp.Model = info.OriginModelName
+	resp.SystemFingerprint = nil
+}
+
 func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	if data == "" {
 		return nil
 	}
 
-	if !forceFormat && !thinkToContent {
+	whitelabel := info.ChannelSetting.WhitelabelUpstream
+
+	if !forceFormat && !thinkToContent && !whitelabel {
 		return helper.StringData(c, data)
 	}
 
 	var lastStreamResponse dto.ChatCompletionsStreamResponse
 	if err := common.UnmarshalJsonStr(data, &lastStreamResponse); err != nil {
 		return err
+	}
+
+	if whitelabel {
+		scrubWhitelabelStreamResponse(&lastStreamResponse, info)
 	}
 
 	if !thinkToContent {
@@ -126,6 +139,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		captureUpstreamResponseIdFromJSON(c, data)
 		if lastStreamData != "" {
 			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
@@ -218,6 +232,9 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	if simpleResponse.Id != "" {
+		c.Set(common.UpstreamResponseIdKey, simpleResponse.Id)
+	}
 
 	if oaiError := simpleResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
@@ -254,18 +271,32 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 
 	applyUsagePostProcessing(info, &simpleResponse.Usage, responseBody)
 
+	whitelabel := info.ChannelSetting.WhitelabelUpstream
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
-		if usageModified {
+		// 白标渠道：强制 model 回填为客户端请求名（forceFormat 走 simpleResponse marshal 路径时同样生效）
+		if whitelabel {
+			simpleResponse.Model = info.OriginModelName
+		}
+		// 需要改写 body 的两种情况：usage 被重算，或白标渠道走透传（非 forceFormat）需就地抹除上游痕迹。
+		if usageModified || (whitelabel && !forceFormat) {
 			var bodyMap map[string]interface{}
 			err = common.Unmarshal(responseBody, &bodyMap)
 			if err != nil {
 				return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			}
-			bodyMap["usage"] = simpleResponse.Usage
+			if usageModified {
+				bodyMap["usage"] = simpleResponse.Usage
+			}
+			if whitelabel {
+				// 保留其余上游字段，仅抹除会泄漏底层引擎/供应商的 model 与 system_fingerprint
+				bodyMap["model"] = info.OriginModelName
+				delete(bodyMap, "system_fingerprint")
+			}
 			responseBody, _ = common.Marshal(bodyMap)
 		}
 		if forceFormat {
+			// simpleResponse 结构体不含 system_fingerprint 字段，白标下 model 已回填，天然不泄漏
 			responseBody, err = common.Marshal(simpleResponse)
 			if err != nil {
 				return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
@@ -292,6 +323,18 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 
 	return &simpleResponse.Usage, nil
+}
+
+func captureUpstreamResponseIdFromJSON(c *gin.Context, data string) {
+	if c.GetString(common.UpstreamResponseIdKey) != "" || data == "" {
+		return
+	}
+	var response struct {
+		ID string `json:"id"`
+	}
+	if common.UnmarshalJsonStr(data, &response) == nil && response.ID != "" {
+		c.Set(common.UpstreamResponseIdKey, response.ID)
+	}
 }
 
 func streamTTSResponse(c *gin.Context, resp *http.Response) {

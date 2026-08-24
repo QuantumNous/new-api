@@ -17,7 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
-import { officialWebsiteUrl } from './origins'
+import { consoleWebsitePath, officialWebsiteUrl } from './origins'
+
+describe('consoleWebsitePath', () => {
+  test('keeps console links on shared official-site routes in every language', () => {
+    expect(consoleWebsitePath('en', '/')).toBe('/')
+    expect(consoleWebsitePath('zh', '/')).toBe('/')
+    expect(consoleWebsitePath('en', '/contact')).toBe('/contact')
+    expect(consoleWebsitePath('zh-CN', '/contact')).toBe('/contact')
+  })
+})
 
 describe('officialWebsiteUrl', () => {
   test('builds paths from OFFICIAL_WEBSITE_ORIGIN without duplicate slashes', () => {

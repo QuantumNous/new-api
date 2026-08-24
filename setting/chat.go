@@ -1,10 +1,6 @@
 package setting
 
-import (
-	"encoding/json"
-
-	"github.com/QuantumNous/new-api/common"
-)
+import "github.com/QuantumNous/new-api/common"
 
 var Chats = []map[string]string{
 	//{
@@ -40,12 +36,16 @@ var Chats = []map[string]string{
 }
 
 func UpdateChatsByJsonString(jsonString string) error {
-	Chats = make([]map[string]string, 0)
-	return json.Unmarshal([]byte(jsonString), &Chats)
+	next := make([]map[string]string, 0)
+	if err := common.UnmarshalJsonStr(jsonString, &next); err != nil {
+		return err
+	}
+	Chats = next
+	return nil
 }
 
 func Chats2JsonString() string {
-	jsonBytes, err := json.Marshal(Chats)
+	jsonBytes, err := common.Marshal(Chats)
 	if err != nil {
 		common.SysLog("error marshalling chats: " + err.Error())
 		return "[]"

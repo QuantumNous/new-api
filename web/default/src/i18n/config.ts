@@ -20,6 +20,7 @@ import i18n from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
 import { getPublicPathLanguage, isPublicWebsitePath } from '@/lib/public-locale'
+import { LANGUAGE_PREFERENCE_COOKIE } from './language-preference-cookie'
 import en from './locales/en.json'
 import es from './locales/es.json'
 import fr from './locales/fr.json'
@@ -39,6 +40,19 @@ export const resources = {
   ja,
   vi,
 } as const
+
+export { LANGUAGE_PREFERENCE_COOKIE }
+
+export const LANGUAGE_DETECTION_OPTIONS = {
+  // 'querystring' first so ?lng=ja / ?lng=pt from Google Ads landing URLs
+  // force the locale regardless of browser language. The shared fk_locale cookie
+  // comes next so flatkey.ai -> console.flatkey.ai preserves the website choice
+  // even when console localStorage still has an older language.
+  order: ['querystring', 'cookie', 'localStorage', 'navigator'],
+  lookupQuerystring: 'lng',
+  lookupCookie: LANGUAGE_PREFERENCE_COOKIE,
+  caches: ['localStorage'],
+}
 
 function getInitialLanguage() {
   if (typeof window === 'undefined') return undefined
@@ -61,13 +75,7 @@ i18n
     interpolation: {
       escapeValue: false, // not needed for react as it escapes by default
     },
-    detection: {
-      // 'querystring' first so ?lng=ja / ?lng=pt from Google Ads landing URLs
-      // force the locale regardless of browser language; result cached to localStorage.
-      order: ['querystring', 'localStorage', 'navigator'],
-      lookupQuerystring: 'lng',
-      caches: ['localStorage'],
-    },
+    detection: LANGUAGE_DETECTION_OPTIONS,
   })
 
 export default i18n

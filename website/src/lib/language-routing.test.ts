@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   LANGUAGE_PREFERENCE_COOKIE,
   buildLanguagePreferenceCookie,
+  buildLanguagePreferenceCookieWrites,
   getLanguageRedirectPath,
   isBotUserAgent,
   resolvePreferredLocale,
@@ -27,12 +28,37 @@ describe("language routing", () => {
     expect(resolvePreferredLocale(undefined, undefined)).toBe("en");
   });
 
-  test("redirects ordinary users on non-locale public pages", () => {
-    expect(getLanguageRedirectPath({ pathname: "/", method: "GET", acceptLanguage: "ja" })).toBe("/ja");
+  test("keeps the root page on the default locale", () => {
+    expect(getLanguageRedirectPath({ pathname: "/", method: "GET", acceptLanguage: "ja" })).toBeNull();
+    expect(getLanguageRedirectPath({ pathname: "/", method: "GET", cookieLocale: "fr", acceptLanguage: "ja" })).toBeNull();
+  });
+
+  test("redirects ordinary users on non-root, non-locale public pages", () => {
     expect(getLanguageRedirectPath({ pathname: "/pricing", method: "GET", acceptLanguage: "ja" })).toBe("/ja/pricing");
     expect(getLanguageRedirectPath({ pathname: "/pricing", method: "GET", acceptLanguage: "de-DE,de;q=0.9" })).toBe("/de/pricing");
     expect(getLanguageRedirectPath({ pathname: "/lp/personal-ai", method: "GET", acceptLanguage: "zh-CN,zh;q=0.9" })).toBe("/zh/lp/personal-ai");
     expect(getLanguageRedirectPath({ pathname: "/pricing", method: "GET", cookieLocale: "fr", acceptLanguage: "ja" })).toBe("/fr/pricing");
+  });
+
+  test("keeps header and footer clicks on English pages in English", () => {
+    expect(
+      getLanguageRedirectPath({
+        pathname: "/pricing",
+        method: "GET",
+        cookieLocale: "zh",
+        acceptLanguage: "zh-CN,zh;q=0.9",
+        refererPathname: "/",
+      })
+    ).toBeNull();
+    expect(
+      getLanguageRedirectPath({
+        pathname: "/models",
+        method: "GET",
+        cookieLocale: "zh",
+        acceptLanguage: "zh-CN,zh;q=0.9",
+        refererPathname: "/pricing",
+      })
+    ).toBeNull();
   });
 
   test("does not redirect English preferences or explicit locale paths", () => {
@@ -49,6 +75,48 @@ describe("language routing", () => {
     expect(getLanguageRedirectPath({ pathname: "/favicon.ico", method: "GET", acceptLanguage: "ja" })).toBeNull();
     expect(getLanguageRedirectPath({ pathname: "/sign-in", method: "GET", acceptLanguage: "ja" })).toBeNull();
     expect(getLanguageRedirectPath({ pathname: "/install.sh", method: "GET", acceptLanguage: "ja" })).toBeNull();
+  });
+
+  test("does not localize physical single-locale market routes", () => {
+    expect(getLanguageRedirectPath({ pathname: "/br", method: "GET", acceptLanguage: "pt-BR" })).toBeNull();
+    expect(getLanguageRedirectPath({ pathname: "/in", method: "GET", acceptLanguage: "hi-IN" })).toBeNull();
+    expect(getLanguageRedirectPath({ pathname: "/id-market", method: "GET", acceptLanguage: "id-ID" })).toBeNull();
+  });
+
+  test("keeps careers on the canonical English path unless zh is selected", () => {
+    expect(getLanguageRedirectPath({ pathname: "/careers", method: "GET", acceptLanguage: "id-ID" })).toBeNull();
+    expect(getLanguageRedirectPath({ pathname: "/careers", method: "GET", cookieLocale: "id", acceptLanguage: "zh-CN" })).toBeNull();
+    expect(getLanguageRedirectPath({ pathname: "/careers", method: "GET", acceptLanguage: "zh-CN,zh;q=0.9" })).toBe("/zh/careers");
+  });
+
+  test("does not localize English-only paid-search landing pages", () => {
+    for (const pathname of [
+      "/gpt-api-alternative",
+      "/chinese-ai",
+      "/chinese-ai-models-api",
+      "/openai-compatible",
+      "/gateway",
+      "/apify-alternative",
+      "/tools/web-scraping-api",
+      "/tools/google-search-api",
+      "/lp/tools-ads-review",
+      "/lp/tools-ads/claude/web-scraping-api",
+    ]) {
+      expect(getLanguageRedirectPath({ pathname, method: "GET", cookieLocale: "zh", acceptLanguage: "zh-CN" })).toBeNull();
+    }
+  });
+
+  test("localizes paid-search pages that have Portuguese variants", () => {
+    for (const pathname of ["/deepseek-api", "/kimi-api", "/qwen-api"]) {
+      expect(
+        getLanguageRedirectPath({
+          pathname,
+          method: "GET",
+          cookieLocale: "pt",
+          acceptLanguage: "en-US,en;q=0.9",
+        })
+      ).toBe(`/pt${pathname}`);
+    }
   });
 
   test("detects search and AI crawlers", () => {
@@ -78,5 +146,24 @@ describe("language routing", () => {
 
   test("builds a one-year language preference cookie", () => {
     expect(buildLanguagePreferenceCookie("ja")).toBe("fk_locale=ja; Path=/; Max-Age=31536000; SameSite=Lax");
+  });
+
+  test("builds a shared-domain language preference cookie when configured", () => {
+    expect(buildLanguagePreferenceCookie("ja", ".flatkey.ai")).toBe(
+      "fk_locale=ja; Path=/; Domain=.flatkey.ai; Max-Age=31536000; SameSite=Lax"
+    );
+  });
+
+  test("expires the host-scoped language cookie before setting a shared-domain cookie", () => {
+    expect(buildLanguagePreferenceCookieWrites("ja", ".flatkey.ai")).toEqual([
+      "fk_locale=; Path=/; Max-Age=0; SameSite=Lax",
+      "fk_locale=ja; Path=/; Domain=.flatkey.ai; Max-Age=31536000; SameSite=Lax",
+    ]);
+  });
+
+  test("writes only the normal language cookie when no shared domain is configured", () => {
+    expect(buildLanguagePreferenceCookieWrites("ja", " ")).toEqual([
+      "fk_locale=ja; Path=/; Max-Age=31536000; SameSite=Lax",
+    ]);
   });
 });

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -31,9 +33,19 @@ type AbilityWithChannel struct {
 	ChannelType int `json:"channel_type"`
 }
 
+var grokMediaAbilityModels = []string{
+	"grok-imagine-image-2.0",
+	"grok-imagine-video-1.5",
+	"grok-imagine-video",
+}
+
 type codexAbilityGovernanceState struct {
 	Disabled bool
 	Removed  bool
+}
+
+func GrokMediaAbilityModels() []string {
+	return append([]string(nil), grokMediaAbilityModels...)
 }
 
 func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
@@ -51,6 +63,38 @@ func GetGroupEnabledModels(group string) []string {
 	// Find distinct models
 	DB.Table("abilities").Where(commonGroupCol+" = ? and enabled = ?", group, true).Distinct("model").Pluck("model", &models)
 	return models
+}
+
+func GetAvailableModelsForGroups(groups []string) ([]string, error) {
+	normalizedGroups := make([]string, 0, len(groups))
+	seenGroups := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		group = strings.TrimSpace(group)
+		if group == "" {
+			continue
+		}
+		if _, exists := seenGroups[group]; exists {
+			continue
+		}
+		seenGroups[group] = struct{}{}
+		normalizedGroups = append(normalizedGroups, group)
+	}
+	if len(normalizedGroups) == 0 {
+		return []string{}, nil
+	}
+
+	var models []string
+	err := DB.Model(&Ability{}).
+		Joins("JOIN channels ON channels.id = abilities.channel_id").
+		Where("abilities.enabled = ? AND channels.status = ?", true, common.ChannelStatusEnabled).
+		Where("abilities."+commonGroupCol+" IN ?", normalizedGroups).
+		Distinct("abilities.model").
+		Order("abilities.model ASC").
+		Pluck("abilities.model", &models).Error
+	if err != nil {
+		return nil, err
+	}
+	return models, nil
 }
 
 func GetEnabledModels() []string {
@@ -71,7 +115,7 @@ func getPriority(group string, model string, retry int) (int, error) {
 	var priorities []int
 	err := DB.Model(&Ability{}).
 		Select("DISTINCT(priority)").
-		Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+		Where(abilityEnabledCondition(group, model)).
 		Order("priority DESC").              // 按优先级降序排序
 		Pluck("priority", &priorities).Error // Pluck用于将查询的结果直接扫描到一个切片中
 
@@ -87,6 +131,9 @@ func getPriority(group string, model string, retry int) (int, error) {
 
 	// 确定要使用的优先级
 	var priorityToUse int
+	if retry < 0 {
+		retry = 0
+	}
 	if retry >= len(priorities) {
 		// 如果重试次数大于优先级数，则使用最小的优先级
 		priorityToUse = priorities[len(priorities)-1]
@@ -96,19 +143,95 @@ func getPriority(group string, model string, retry int) (int, error) {
 	return priorityToUse, nil
 }
 
+func abilityEnabledCondition(group string, model string) map[string]interface{} {
+	return map[string]interface{}{
+		"group":   group,
+		"model":   model,
+		"enabled": true,
+	}
+}
+
 func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
-	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
-	channelQuery := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = (?)", group, model, true, maxPrioritySubQuery)
+	condition := abilityEnabledCondition(group, model)
+	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(condition)
+	channelQuery := DB.Where(condition).Where("priority = (?)", maxPrioritySubQuery)
 	if retry != 0 {
 		priority, err := getPriority(group, model, retry)
 		if err != nil {
 			return nil, err
 		} else {
-			channelQuery = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = ?", group, model, true, priority)
+			channelQuery = DB.Where(condition).Where("priority = ?", priority)
 		}
 	}
 
 	return channelQuery, nil
+}
+
+func GetChannelCandidates(group string, model string, retry int) ([]*Channel, error) {
+	return GetChannelCandidatesWithFilter(group, model, retry, nil)
+}
+
+func GetChannelCandidatesWithFilter(group string, model string, retry int, filter ChannelFilter) ([]*Channel, error) {
+	var abilities []Ability
+	err := DB.Where(abilityEnabledCondition(group, model)).
+		Order("priority DESC, weight DESC").
+		Find(&abilities).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(abilities) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(model)
+		if normalizedModel != model {
+			return GetChannelCandidatesWithFilter(group, normalizedModel, retry, filter)
+		}
+		return nil, nil
+	}
+
+	channelIds := make([]int, 0, len(abilities))
+	for _, ability := range abilities {
+		channelIds = append(channelIds, ability.ChannelId)
+	}
+
+	channelsByID := make(map[int]*Channel, len(channelIds))
+	var channels []*Channel
+	if err = DB.Where("id in ?", channelIds).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	for _, channel := range channels {
+		channelsByID[channel.Id] = channel
+	}
+
+	candidates := make([]abilityChannelCandidate, 0, len(abilities))
+	for _, ability := range abilities {
+		channel, ok := channelsByID[ability.ChannelId]
+		if !ok {
+			return nil, fmt.Errorf("鏁版嵁搴撲竴鑷存€ч敊璇紝娓犻亾# %d 涓嶅瓨鍦紝璇疯仈绯荤鐞嗗憳淇", ability.ChannelId)
+		}
+		if channel.Status != common.ChannelStatusEnabled {
+			continue
+		}
+		if filter == nil || filter(channel) {
+			candidate := *channel
+			weight := ability.Weight
+			candidate.Priority = ability.Priority
+			candidate.Weight = &weight
+			candidates = append(candidates, abilityChannelCandidate{ability: ability, channel: candidate})
+		}
+	}
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+
+	targetCandidates := filterAbilityCandidatesByRetryExact(candidates, retry)
+	if len(targetCandidates) == 0 {
+		return nil, nil
+	}
+
+	candidateChannels := make([]*Channel, 0, len(targetCandidates))
+	for i := range targetCandidates {
+		candidateChannels = append(candidateChannels, &targetCandidates[i].channel)
+	}
+	return candidateChannels, nil
 }
 
 func GetChannel(group string, model string, retry int) (*Channel, error) {
@@ -123,7 +246,7 @@ type abilityChannelCandidate struct {
 func GetChannelWithFilter(group string, model string, retry int, filter ChannelFilter) (*Channel, error) {
 	var abilities []Ability
 
-	channelQuery := DB.Where(&Ability{Group: group, Model: model, Enabled: true})
+	channelQuery := DB.Where(abilityEnabledCondition(group, model))
 	err := channelQuery.Order("priority DESC, weight DESC").Find(&abilities).Error
 	if err != nil {
 		return nil, err
@@ -172,6 +295,14 @@ func GetChannelWithFilter(group string, model string, retry int, filter ChannelF
 }
 
 func filterAbilityCandidatesByRetry(candidates []abilityChannelCandidate, retry int) []abilityChannelCandidate {
+	return filterAbilityCandidatesByRetryWithClamp(candidates, retry, true)
+}
+
+func filterAbilityCandidatesByRetryExact(candidates []abilityChannelCandidate, retry int) []abilityChannelCandidate {
+	return filterAbilityCandidatesByRetryWithClamp(candidates, retry, false)
+}
+
+func filterAbilityCandidatesByRetryWithClamp(candidates []abilityChannelCandidate, retry int, clamp bool) []abilityChannelCandidate {
 	uniquePriorities := make(map[int64]bool)
 	for _, candidate := range candidates {
 		uniquePriorities[getAbilityPriority(candidate.ability)] = true
@@ -184,7 +315,13 @@ func filterAbilityCandidatesByRetry(candidates []abilityChannelCandidate, retry 
 		return sortedUniquePriorities[i] > sortedUniquePriorities[j]
 	})
 	if retry >= len(sortedUniquePriorities) {
+		if !clamp {
+			return nil
+		}
 		retry = len(sortedUniquePriorities) - 1
+	}
+	if retry < 0 {
+		retry = 0
 	}
 	targetPriority := sortedUniquePriorities[retry]
 
@@ -209,23 +346,33 @@ func pickAbilityCandidateByWeight(candidates []abilityChannelCandidate) abilityC
 		return candidates[0]
 	}
 
-	sumWeight := 0
+	var sumWeight int64
 	for _, candidate := range candidates {
-		sumWeight += int(candidate.ability.Weight)
+		if uint64(candidate.ability.Weight) > uint64(maxInt64ForWeight) {
+			return candidates[len(candidates)-1]
+		}
+		weight := int64(candidate.ability.Weight)
+		if sumWeight > maxInt64ForWeight-weight {
+			return candidates[len(candidates)-1]
+		}
+		sumWeight += weight
 	}
 
-	smoothingFactor := 1
-	smoothingAdjustment := 0
+	var smoothingFactor int64 = 1
+	var smoothingAdjustment int64
 	if sumWeight == 0 {
-		sumWeight = len(candidates) * 100
+		sumWeight = int64(len(candidates)) * 100
 		smoothingAdjustment = 100
-	} else if sumWeight/len(candidates) < 10 {
+	} else if sumWeight/int64(len(candidates)) < 10 {
 		smoothingFactor = 100
 	}
+	if sumWeight > maxInt64ForWeight/smoothingFactor {
+		return candidates[len(candidates)-1]
+	}
 
-	randomWeight := rand.Intn(sumWeight * smoothingFactor)
+	randomWeight := rand.Int63n(sumWeight * smoothingFactor)
 	for _, candidate := range candidates {
-		randomWeight -= int(candidate.ability.Weight)*smoothingFactor + smoothingAdjustment
+		randomWeight -= int64(candidate.ability.Weight)*smoothingFactor + smoothingAdjustment
 		if randomWeight < 0 {
 			return candidate
 		}
@@ -258,6 +405,31 @@ func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 func (channel *Channel) buildAbilities(tx *gorm.DB) ([]Ability, error) {
 	models_ := strings.Split(channel.Models, ",")
 	groups_ := strings.Split(channel.Group, ",")
+	credentialMissing := false
+	// Copilot and Grok Subscription create an empty-key channel first and obtain
+	// the credential later via a post-save OAuth flow. While the key is still
+	// empty (pending authorization) the channel must not be routable, otherwise
+	// the dispatcher may select it and fail on the missing credential. Force its
+	// abilities disabled until the credential is written back; UpdateChannelKeyForType
+	// rebuilds abilities on write-back, at which point the key is non-empty and they re-enable.
+	if channel.Type == constant.ChannelTypeCopilot || channel.Type == constant.ChannelTypeGrokSubscription {
+		credential := strings.TrimSpace(channel.Key)
+		if credential == "" && channel.Id > 0 {
+			useDB := DB
+			if tx != nil {
+				useDB = tx
+			}
+			if useDB != nil {
+				var stored Channel
+				err := useDB.Select("key").Where("id = ? AND type = ?", channel.Id, channel.Type).First(&stored).Error
+				if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+					return nil, err
+				}
+				credential = strings.TrimSpace(stored.Key)
+			}
+		}
+		credentialMissing = credential == ""
+	}
 	governanceByModel, err := channel.codexAbilityGovernanceByModel(tx, models_)
 	if err != nil {
 		return nil, err
@@ -276,6 +448,9 @@ func (channel *Channel) buildAbilities(tx *gorm.DB) ([]Ability, error) {
 			}
 			abilitySet[key] = struct{}{}
 			enabled := channel.Status == common.ChannelStatusEnabled
+			if credentialMissing {
+				enabled = false
+			}
 			if governance.Disabled {
 				enabled = false
 			}
@@ -402,34 +577,110 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 	return nil
 }
 
-func UpdateAbilityStatus(channelId int, status bool) error {
-	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error; err != nil {
+func SyncGrokMediaAbilities(channelID int, eligible bool) error {
+	if channelID <= 0 {
+		return errors.New("grok media abilities: invalid channel id")
+	}
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var channel Channel
+		if err := tx.Where("id = ? AND type = ?", channelID, constant.ChannelTypeGrokSubscription).First(&channel).Error; err != nil {
 			return err
 		}
-		if status {
-			_, err := reapplyCodexModelGovernanceDisabledAbilitiesWithDB(tx, []int{channelId})
+		if err := tx.Where("channel_id = ? AND model IN ?", channelID, grokMediaAbilityModels).Delete(&Ability{}).Error; err != nil {
 			return err
+		}
+		if !eligible {
+			return nil
+		}
+
+		groups := channel.GetGroups()
+		if len(groups) == 0 {
+			groups = []string{""}
+		}
+		enabled := channel.Status == common.ChannelStatusEnabled
+		abilities := make([]Ability, 0, len(groups)*len(grokMediaAbilityModels))
+		seen := make(map[string]struct{}, len(groups)*len(grokMediaAbilityModels))
+		for _, group := range groups {
+			for _, modelName := range grokMediaAbilityModels {
+				key := group + "|" + modelName
+				if _, ok := seen[key]; ok {
+					continue
+				}
+				seen[key] = struct{}{}
+				abilities = append(abilities, Ability{
+					Group:     group,
+					Model:     modelName,
+					ChannelId: channel.Id,
+					Enabled:   enabled,
+					Priority:  channel.Priority,
+					Weight:    uint(channel.GetWeight()),
+					Tag:       channel.Tag,
+				})
+			}
+		}
+		for _, chunk := range lo.Chunk(abilities, 50) {
+			if err := tx.Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "group"}, {Name: "model"}, {Name: "channel_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{
+					"enabled",
+					"priority",
+					"weight",
+					"tag",
+				}),
+			}).Create(&chunk).Error; err != nil {
+				return err
+			}
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if common.MemoryCacheEnabled {
+		InitChannelCache()
+	}
+	if err := common.PublishConfigChanged(context.Background(), common.ConfigScopeChannels); err != nil {
+		common.SysError("pubsub: failed to publish channels change: " + err.Error())
+	}
+	return nil
+}
+
+func UpdateAbilityStatus(channelId int, status bool) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		return updateAbilityStatusWithDB(tx, channelId, status)
+	})
+}
+
+func updateAbilityStatusWithDB(tx *gorm.DB, channelId int, status bool) error {
+	if err := tx.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error; err != nil {
+		return err
+	}
+	if !status {
+		return nil
+	}
+	_, err := reapplyCodexModelGovernanceDisabledAbilitiesWithDB(tx, []int{channelId})
+	return err
 }
 
 func UpdateAbilityStatusByTag(tag string, status bool) error {
 	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", status).Error; err != nil {
-			return err
-		}
-		if !status {
-			return nil
-		}
-		var channelIDs []int
-		if err := tx.Model(&Channel{}).Where("tag = ?", tag).Pluck("id", &channelIDs).Error; err != nil {
-			return err
-		}
-		_, err := reapplyCodexModelGovernanceDisabledAbilitiesWithDB(tx, channelIDs)
-		return err
+		return updateAbilityStatusByTagWithDB(tx, tag, status)
 	})
+}
+
+func updateAbilityStatusByTagWithDB(tx *gorm.DB, tag string, status bool) error {
+	if err := tx.Model(&Ability{}).Where("tag = ?", tag).Select("enabled").Update("enabled", status).Error; err != nil {
+		return err
+	}
+	if !status {
+		return nil
+	}
+	var channelIDs []int
+	if err := tx.Model(&Channel{}).Where("tag = ?", tag).Pluck("id", &channelIDs).Error; err != nil {
+		return err
+	}
+	_, err := reapplyCodexModelGovernanceDisabledAbilitiesWithDB(tx, channelIDs)
+	return err
 }
 
 func UpdateAbilityByTag(tag string, newTag *string, priority *int64, weight *uint) error {

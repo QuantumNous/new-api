@@ -164,7 +164,7 @@ When onboarding a **new seedance-based video channel supplier** (any upstream se
 The public-facing official website — home/marketing, pricing, rankings, blog, legal pages, and SEO surfaces (`sitemap.xml` / `robots.txt` / `llms.txt`, canonical/hreflang) — is maintained **exclusively** in the standalone Next.js project under `website/`. Read `website/AGENTS.md` before touching it.
 
 - **Do NOT** add, restore, or maintain public website / marketing / landing / legal / pricing pages in the Go application or in `web/default`. `web/default` is the authenticated **console/dashboard SPA only**; the old in-SPA marketing pages are deprecated — extend the public site in `website/`, never in `web/default` or the Go app.
-- Production routing is **host-based** at the GCP LB: `flatkey.ai` + `www.flatkey.ai` → the Next website (Cloud Run `newapi-web`); `console.flatkey.ai` → Go console service `newapi-console` (`NODE_TYPE=master`); `router.flatkey.ai` → Go router service `newapi-router` (`NODE_TYPE=slave`). The legacy `newapi` service remains the default/fallback backend. Do not reintroduce public pages on the Go hosts.
+- Production routing is **host-based** at the GCP LB: `flatkey.ai` + `www.flatkey.ai` → the Next website (Cloud Run `newapi-web`); `console.flatkey.ai` → Go console service `newapi-console` (`NODE_TYPE=master`); `router.flatkey.ai` → Go router service `newapi-router` (`NODE_TYPE=slave`); unmatched hosts use `newapi-console` as the URL map default backend. The legacy monolithic `newapi` service is decommissioned (`enable_legacy_runtime=false`) and is not a deployment or rollback target. Do not reintroduce public pages on the Go hosts.
 - Cross-app wiring is **environment-driven** — never hardcode the peer origin: `APP_CONSOLE_ORIGIN` (website → Go console/API), `SITE_ORIGIN` / `NEXT_PUBLIC_SITE_ORIGIN` (website's own canonical origin), `OFFICIAL_WEBSITE_ORIGIN` (console → website).
 - CI/CD & infra: `website/` builds and deploys via `.github/workflows/gcp-deploy-website.yml` (separate Cloud Run service, container port 4000); the Go app uses `gcp-deploy.yml` (which `paths-ignore`s `website/**`). Production LB host-split, website service, and console/router runtime split live in `deploy/gcp/` — see `deploy/gcp/docs/INFRASTRUCTURE.md` and `deploy/gcp/docs/DEPLOYMENT.md`.
 
@@ -193,7 +193,7 @@ Required output:
 
 - `Router deploy`: `required`, `not required`, or `unclear`.
 - `Reason`: cite the changed surfaces that drive the decision, especially relay/model invocation paths, provider adapters, billing/quota logic used by relay, shared middleware, shared config, DB migrations, or runtime env changes.
-- `Other deploy targets`: mention whether `newapi-console`, `newapi-web`, legacy `newapi`, staging, Terraform, or Cloudflare are also involved.
+- `Other deploy targets`: mention whether `newapi-console`, `newapi-web`, staging, Terraform, or Cloudflare are also involved. Do not list the decommissioned legacy `newapi` service as a deployment target unless the task explicitly covers a separately approved restoration plan.
 - `Risk / validation`: note production risk and the minimum validation before release.
 
 Default guidance: mark router deploy `required` when changes can affect `/v1`, relay/model calls, provider routing, streaming, auth/rate-limit middleware used by API traffic, billing/quota settlement, shared Go runtime initialization, shared config/env parsing, DB schema used by router requests, or any code imported by those paths. Mark router deploy `not required` only when the diff is clearly limited to website-only code, console-only UI/admin behavior, docs, tests, or tooling with no runtime effect on router paths. Use `unclear` when the dependency path is uncertain and call out what must be checked.
@@ -207,6 +207,17 @@ The GCP staging environment is deployed by GitHub Actions from the remote `stagi
 - Staging domains are `https://staging-console.flatkey.ai`, `https://staging-router.flatkey.ai`, and `https://staging-website.flatkey.ai`.
 - This is separate from production: production deploys from `main` through the production workflows and approval gate. Do not use `staging` as evidence that production has been deployed.
 - Do not copy production-only runtime settings, callback URLs, payment credentials, OAuth secrets, or production domains into staging. Staging must keep its own domain/origin values.
+
+### Rule 14: Development Must Start From Latest `origin/main` And Land Through GitHub
+
+For every code change unless the user explicitly requests a different flow:
+
+- Fetch `origin/main` before implementation and create the work on a clean branch or worktree based on the latest `origin/main`. Do not base new work on a stale local `main`, a diverged local `main`, or an unrelated dirty feature branch.
+- Keep unrelated local or generated changes out of the branch, commit, and PR. If the active workspace is dirty, isolate the requested change in a clean worktree from `origin/main`.
+- After implementation, run the relevant automated tests and start the affected local preview/dev server. Verify the requested behavior through the local preview URL before considering the work complete; for `website/`, use `http://localhost:4000` unless that port is occupied, then use the next available port.
+- If local preview cannot be started or verified, report the blocker and do not claim completion.
+- Push the feature branch to the `SolveaCX/new-api` GitHub repository, create a PR against `main`, wait for or inspect available checks, and merge through GitHub only after validation passes.
+- Do not treat a local merge into `main` as complete unless the user explicitly asks for a local-only merge.
 
 ---
 
@@ -305,24 +316,25 @@ The GCP staging environment is deployed by GitHub Actions from the remote `stagi
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **new-api** (44712 symbols, 145081 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **new-api** (51952 symbols, 299073 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+> Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
 ## Always Do
 
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows. For regression review, compare against the default branch: `detect_changes({scope: "compare", base_ref: "main"})`.
 - **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+- When exploring unfamiliar code, use `query({search_query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `context({name: "symbolName"})`.
+- For security review, `explain({target: "fileOrSymbol"})` lists taint findings (source→sink flows; needs `analyze --pdg`).
 
 ## Never Do
 
-- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER edit a function, class, or method without first running `impact` on it.
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
-- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+- NEVER rename symbols with find-and-replace — use `rename` which understands the call graph.
+- NEVER commit changes without running `detect_changes()` to check affected scope.
 
 ## Resources
 

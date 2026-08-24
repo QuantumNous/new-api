@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -25,6 +26,12 @@ var whitelabelChannels = map[int]struct{}{
 	constant.ChannelTypeBlockRunSeedance: {},
 	constant.ChannelTypeJimengProxy:      {},
 	constant.ChannelTypeJimengZhizinan:   {},
+	constant.ChannelTypeTechMobiVideo:    {},
+	constant.ChannelTypeBytePlus:         {},
+	constant.ChannelTypeModelAPISeedance: {},
+	constant.ChannelTypeXaiGrokVideo:     {},
+	constant.ChannelTypeGrokSubscription: {},
+	constant.ChannelTypeSonilo:           {},
 }
 
 // ShouldWhitelabelPlatform reports whether tasks on the given platform must
@@ -58,7 +65,14 @@ var brandKeywords = []string{
 	"tos-cn-beijing",
 	"blockrun", "flatkey",
 	"jimeng", "jianying", "dreamina", "seedance",
+	"techmobi", "chatgpttech",
+	"byteplus",
+	"modelapi", "api.modelapi.co",
+	"xai", "grok", "x.ai", "vidgen.x.ai",
+	"sonilo", "api.sonilo.com",
 }
+
+var endpointIDPattern = regexp.MustCompile(`(?i)(^|[^a-z0-9])ep-[a-z0-9][a-z0-9-]*`)
 
 // ContainsBrandKeyword reports whether s contains any provider-identifying
 // brand keyword (case-insensitive). Exported so synchronous relay paths
@@ -74,7 +88,7 @@ func ContainsBrandKeyword(s string) bool {
 			return true
 		}
 	}
-	return false
+	return endpointIDPattern.MatchString(s)
 }
 
 // ScrubBrandedText returns the input unchanged when it contains none of the

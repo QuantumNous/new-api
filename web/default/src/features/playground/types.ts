@@ -21,9 +21,15 @@ export type MessageRole = 'user' | 'assistant' | 'system'
 
 export type MessageStatus = 'loading' | 'streaming' | 'complete' | 'error'
 
+export interface GeneratedMedia {
+  type: 'image' | 'video'
+  url: string
+}
+
 export interface MessageVersion {
   id: string
   content: string
+  generatedMedia?: GeneratedMedia[]
 }
 
 export interface Message {
@@ -40,6 +46,17 @@ export interface Message {
   isContentComplete?: boolean
   status?: MessageStatus
   errorCode?: string | null
+  // Video-generation messages (veo models). `isVideo` marks the assistant bubble
+  // as a video result so it renders a progress spinner while generating and an
+  // inline `<video>` when done (instead of markdown text). `videoProgress` is the
+  // 0-100 poll progress; `videoUrl` is the object URL of the completed MP4 blob
+  // (created via URL.createObjectURL, revoked on delete/unmount). `videoUrl` is a
+  // per-session blob URL and is intentionally NOT meaningful after a reload.
+  isVideo?: boolean
+  videoProgress?: number
+  videoUrl?: string
+  /** @deprecated Media is stored on MessageVersion; kept for old saved sessions. */
+  generatedMedia?: GeneratedMedia[]
 }
 
 // API payload types
@@ -105,6 +122,18 @@ export interface ChatCompletionResponse {
     completion_tokens: number
     total_tokens: number
   }
+}
+
+// Video generation (async /v1/videos) task types
+export type VideoTaskStatus = 'queued' | 'in_progress' | 'completed' | 'failed'
+
+export interface VideoTask {
+  id: string
+  object?: string
+  status: VideoTaskStatus
+  progress?: number
+  // Upstream may report a failure reason as a string or an object.
+  error?: string | { message?: string } | null
 }
 
 // Configuration types

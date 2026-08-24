@@ -198,7 +198,14 @@ func parseGoogleUserInfo(body []byte) (*OAuthUser, error) {
 		Username:       googleUsernameFromEmail(gu.Email),
 		DisplayName:    gu.Name,
 		Email:          gu.Email,
+		// Google's userinfo endpoint only returns email_verified=true after the
+		// address is confirmed; the check above already rejects unverified ones.
+		EmailVerified: true,
 	}, nil
+}
+
+func GoogleUsernameFromEmail(email string) string {
+	return googleUsernameFromEmail(email)
 }
 
 // googleUsernameFromEmail builds a "google_<local-part>" username from the

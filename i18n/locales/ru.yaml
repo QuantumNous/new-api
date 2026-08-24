@@ -2,7 +2,16 @@
 
 # Email content messages
 email.verification_subject: "Подтверждение электронной почты {{.SystemName}}"
-email.verification_content: "<p>Здравствуйте! Вы подтверждаете свою электронную почту для {{.SystemName}}.</p><p>Ваш код подтверждения: <strong>{{.Code}}</strong></p><p>Код действителен в течение {{.Minutes}} минут. Если это были не вы, проигнорируйте это письмо.</p>"
+email.verification_heading: "Добро пожаловать в {{.SystemName}}"
+email.verification_content: "Подтвердите адрес электронной почты, чтобы завершить создание аккаунта и начать пользоваться {{.SystemName}}."
+email.verification_action: "Подтвердить почту"
+email.verification_alternative: "Или введите этот код подтверждения"
+email.verification_code_label: "Код подтверждения"
+email.verification_expiry: "Ссылка и код действительны в течение {{.Minutes}} минут."
+email.verification_ignore: "Если вы не запрашивали это письмо, его можно безопасно проигнорировать."
+email.verification_footer: "Безопасно отправлено сервисом {{.SystemName}}"
+email.verification_link_invalid: "Ссылка для подтверждения недействительна или срок её действия истёк."
+email.verification_unavailable: "Подтверждение почты временно недоступно. Повторите попытку."
 email.password_reset_subject: "Сброс пароля {{.SystemName}}"
 email.password_reset_content: "<p>Здравствуйте! Вы сбрасываете пароль для своей учётной записи {{.SystemName}}.</p><p>Нажмите <a href='{{.Link}}'>здесь</a>, чтобы сбросить пароль.</p><p>Если ссылка не открывается, скопируйте её в браузер:<br> {{.Link}} </p><p>Ссылка для сброса действительна в течение {{.Minutes}} минут. Если это были не вы, проигнорируйте это письмо.</p>"
 
@@ -12,3 +21,24 @@ notify.subscription_quota_warning_title: "Квота вашей подписки
 notify.quota_warning_email: "{{.Warning}}. Ваш текущий остаток квоты: {{.Quota}}. Чтобы избежать прерывания обслуживания, пополните вовремя.<br/>Ссылка для пополнения: <a href='{{.Link}}'>{{.Link}}</a>"
 notify.quota_warning_bark: "{{.Warning}}. Остаток квоты: {{.Quota}}. Пополните вовремя."
 notify.quota_warning_gotify: "{{.Warning}}. Ваш текущий остаток квоты: {{.Quota}}. Пополните вовремя."
+
+# CLI device authorization messages
+cli.device_id_missing: "Требуется ID устройства"
+cli.device_metadata_too_long: "Метаданные CLI-устройства слишком длинные"
+cli.device_code_invalid: "Недействительный код устройства"
+cli.authorization_code_missing: "Требуется код авторизации"
+cli.authorization_not_found: "Запрос авторизации не найден"
+cli.authorization_token_create_failed: "Не удалось создать CLI-токен"
+
+# Subscription messages
+subscription.tier_rank_reserved: "Ранг плана подписки уже зарезервирован"
+subscription.tier_rank_required: "Включенные планы подписки должны иметь положительный ранг"
+subscription.lifecycle_fields_immutable: "Этот план подписки уже используется. Отключите его или создайте новую версию вместо изменения критичных полей жизненного цикла."
+subscription.purchase_pending_migration: "Запуск покупки подписки находится в миграции. Обновите страницу и используйте новый поток подписки."
+subscription.payment_mode_required: "Требуется режим оплаты"
+subscription.request_id_required: "Требуется ID запроса"
+subscription.stripe_price_requires_mode: "Stripe Price ID требует режим регулярной оплаты Stripe"
+subscription.capability.single_lifecycle: "Единый жизненный цикл подписки включен"
+subscription.capability.current_entitlement: "Текущее право по контракту доступно"
+subscription.capability.recurring_binding: "Регулярная привязка провайдера доступна"
+subscription.capability.change_intent: "Статус намерения изменения подписки доступен"

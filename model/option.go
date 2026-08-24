@@ -5,16 +5,19 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Option struct {
@@ -23,6 +26,72 @@ type Option struct {
 }
 
 const OptionKeyPlaygroundDefaultModel = "PlaygroundDefaultModel"
+
+// OptionKeyCompanyLogRoutingEnabled persists the default-off write-routing gate
+// for root-account Codex token logs.
+const OptionKeyCompanyLogRoutingEnabled = "CompanyLogRoutingEnabled"
+
+const recallCampaignEmailFromOptionKey = "recall_campaign_setting.email_from"
+const recallCampaignReplyToOptionKey = "recall_campaign_setting.reply_to"
+const recallCampaignUnsubscribeMailtoOptionKey = "recall_campaign_setting.unsubscribe_mailto"
+const recallActivitySMTPUpdateError = "activity SMTP settings must be updated together"
+
+var recallActivitySMTPOptionKeys = []string{
+	"recall_campaign_setting.smtp_server",
+	"recall_campaign_setting.smtp_port",
+	"recall_campaign_setting.smtp_account",
+	recallCampaignEmailFromOptionKey,
+	"recall_campaign_setting.smtp_token",
+	"recall_campaign_setting.smtp_ssl_enabled",
+	"recall_campaign_setting.smtp_force_auth_login",
+	recallCampaignReplyToOptionKey,
+	recallCampaignUnsubscribeMailtoOptionKey,
+}
+
+type RecallActivitySMTPOptionInput struct {
+	common.SMTPConfig
+	ReplyTo           string
+	UnsubscribeMailto string
+}
+
+var (
+	optionReloadHooksMu sync.RWMutex
+	optionReloadHooks   []func()
+)
+
+func IsRetiredOptionKey(key string) bool {
+	switch key {
+	case "InviteRewardUnlockDelaySeconds":
+		return true
+	default:
+		return false
+	}
+}
+
+func RegisterOptionReloadHook(hook func()) {
+	if hook == nil {
+		return
+	}
+	optionReloadHooksMu.Lock()
+	defer optionReloadHooksMu.Unlock()
+	optionReloadHooks = append(optionReloadHooks, hook)
+}
+
+func runOptionReloadHooks() {
+	optionReloadHooksMu.RLock()
+	hooks := append([]func(){}, optionReloadHooks...)
+	optionReloadHooksMu.RUnlock()
+	for _, hook := range hooks {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					common.SysError("option reload hook panic")
+				}
+			}()
+			hook()
+		}()
+	}
+}
 
 func AllOption() ([]*Option, error) {
 	var options []*Option
@@ -52,6 +121,7 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
+	common.OptionMap[OptionKeyCompanyLogRoutingEnabled] = strconv.FormatBool(companyLogRoutingEnabled.Load())
 	common.OptionMap["DisplayInCurrencyEnabled"] = strconv.FormatBool(common.DisplayInCurrencyEnabled)
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
 	common.OptionMap["DrawingEnabled"] = strconv.FormatBool(common.DrawingEnabled)
@@ -63,6 +133,7 @@ func InitOptionMap() {
 	common.OptionMap["EmailDomainWhitelist"] = strings.Join(common.EmailDomainWhitelist, ",")
 	common.OptionMap["SMTPServer"] = ""
 	common.OptionMap["SMTPFrom"] = ""
+	common.OptionMap["SMTPFromAliases"] = ""
 	common.OptionMap["SMTPPort"] = strconv.Itoa(common.SMTPPort)
 	common.OptionMap["SMTPAccount"] = ""
 	common.OptionMap["SMTPToken"] = ""
@@ -87,6 +158,7 @@ func InitOptionMap() {
 	common.OptionMap["MinTopUp"] = strconv.Itoa(operation_setting.MinTopUp)
 	common.OptionMap["StripeMinTopUp"] = strconv.Itoa(setting.StripeMinTopUp)
 	common.OptionMap["StripeApiSecret"] = setting.StripeApiSecret
+	common.OptionMap["StripePublishableKey"] = setting.StripePublishableKey
 	common.OptionMap["StripeWebhookSecret"] = setting.StripeWebhookSecret
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
 	common.OptionMap["StripePriceId20"] = setting.StripePriceId20
@@ -151,18 +223,23 @@ func InitOptionMap() {
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["QuotaForInviterMaxCount"] = strconv.Itoa(common.QuotaForInviterMaxCount)
+	common.OptionMap["InviteRewardSubscriptionModeEnabled"] = strconv.FormatBool(common.InviteRewardSubscriptionMode)
+	common.OptionMap["InviteFirstSubDiscountUSD"] = strconv.FormatFloat(common.InviteFirstSubDiscountUSD, 'f', -1, 64)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
 	common.OptionMap["PreConsumedQuota"] = strconv.Itoa(common.PreConsumedQuota)
 	common.OptionMap["ModelRequestRateLimitCount"] = strconv.Itoa(setting.ModelRequestRateLimitCount)
 	common.OptionMap["ModelRequestRateLimitDurationMinutes"] = strconv.Itoa(setting.ModelRequestRateLimitDurationMinutes)
 	common.OptionMap["ModelRequestRateLimitSuccessCount"] = strconv.Itoa(setting.ModelRequestRateLimitSuccessCount)
 	common.OptionMap["ModelRequestRateLimitGroup"] = setting.ModelRequestRateLimitGroup2JSONString()
+	common.OptionMap["SubscriptionModelWeights"] = setting.SubscriptionModelWeights2JSONString()
+	common.OptionMap["FreePlanOnSignupEnabled"] = strconv.FormatBool(setting.FreePlanOnSignupEnabled)
 	common.OptionMap["ModelRatio"] = ratio_setting.ModelRatio2JSONString()
 	common.OptionMap["ModelPrice"] = ratio_setting.ModelPrice2JSONString()
 	common.OptionMap["CacheRatio"] = ratio_setting.CacheRatio2JSONString()
 	common.OptionMap["CreateCacheRatio"] = ratio_setting.CreateCacheRatio2JSONString()
 	common.OptionMap["GroupRatio"] = ratio_setting.GroupRatio2JSONString()
 	common.OptionMap["GroupGroupRatio"] = ratio_setting.GroupGroupRatio2JSONString()
+	common.OptionMap["GroupModelRatio"] = ratio_setting.GroupModelRatio2JSONString()
 	common.OptionMap["UserUsableGroups"] = setting.UserUsableGroups2JSONString()
 	common.OptionMap["CompletionRatio"] = ratio_setting.CompletionRatio2JSONString()
 	common.OptionMap["ImageRatio"] = ratio_setting.ImageRatio2JSONString()
@@ -194,6 +271,12 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableStatusCodes"] = operation_setting.AutomaticDisableStatusCodesToString()
 	common.OptionMap["AutomaticRetryStatusCodes"] = operation_setting.AutomaticRetryStatusCodesToString()
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
+	common.OptionMap["CodexClientUserAgent"] = ""
+	common.OptionMap["CodexClientVersion"] = ""
+	common.OptionMap["CodexSyncedClientVersion"] = "0.144.0"
+	common.OptionMap["CodexSyncedClientVersionAt"] = ""
+	common.OptionMap["CodexAutoSyncClientVersion"] = strconv.FormatBool(true)
+	common.OptionMap["CodexEnforceClientIdentity"] = strconv.FormatBool(true)
 
 	// 自动添加所有注册的模型配置
 	modelConfigs := config.GlobalConfig.ExportAllConfigs()
@@ -207,14 +290,17 @@ func InitOptionMap() {
 
 func LoadOptionsFromDatabase() {
 	options, _ := AllOption()
+	optionValues := make(map[string]string, len(options))
 	for _, option := range options {
-		err := updateOptionMap(option.Key, option.Value)
-		if err != nil {
-			common.SysLog("failed to update option map: " + err.Error())
-		}
+		optionValues[option.Key] = option.Value
+	}
+	if err := applyOptionMapValues(optionValues); err != nil {
+		common.SysLog("failed to update option map: " + err.Error())
 	}
 	setting.ApplyPaddleEnvOverrides()
 	syncPaddleOptionMap()
+	InvalidatePricingCache()
+	runOptionReloadHooks()
 }
 
 func syncPaddleOptionMap() {
@@ -240,6 +326,16 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if IsRetiredOptionKey(key) {
+		return errors.New("option is retired")
+	}
+	if isRecallActivitySMTPOptionKey(key) {
+		return errors.New(recallActivitySMTPUpdateError)
+	}
+	if isRecallSenderOptionKey(key) {
+		return updateRecallSenderOption(key, value)
+	}
+
 	normalizedValue, err := validateAndNormalizeOptionValue(key, value)
 	if err != nil {
 		return err
@@ -250,9 +346,13 @@ func UpdateOption(key string, value string) error {
 	option := Option{
 		Key: key,
 	}
-	DB.FirstOrCreate(&option, Option{Key: key})
+	if err := DB.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+		return err
+	}
 	option.Value = value
-	DB.Save(&option)
+	if err := DB.Save(&option).Error; err != nil {
+		return err
+	}
 
 	// Update local OptionMap
 	if err := updateOptionMap(key, value); err != nil {
@@ -272,6 +372,216 @@ func UpdateOption(key string, value string) error {
 	return nil
 }
 
+func isRecallSenderOptionKey(key string) bool {
+	return key == "SMTPFrom" ||
+		key == "SMTPAccount" ||
+		key == "SMTPFromAliases"
+}
+
+func isRecallActivitySMTPOptionKey(key string) bool {
+	for _, optionKey := range recallActivitySMTPOptionKeys {
+		if key == optionKey {
+			return true
+		}
+	}
+	return false
+}
+
+func UpdateRecallActivitySMTPOptions(input RecallActivitySMTPOptionInput) error {
+	values := map[string]string{
+		"recall_campaign_setting.smtp_server":           strings.TrimSpace(input.Server),
+		"recall_campaign_setting.smtp_port":             strconv.Itoa(input.Port),
+		"recall_campaign_setting.smtp_account":          strings.TrimSpace(input.Account),
+		recallCampaignEmailFromOptionKey:                strings.TrimSpace(input.From),
+		"recall_campaign_setting.smtp_token":            input.Token,
+		"recall_campaign_setting.smtp_ssl_enabled":      strconv.FormatBool(input.SSLEnabled),
+		"recall_campaign_setting.smtp_force_auth_login": strconv.FormatBool(input.ForceAuthLogin),
+		recallCampaignReplyToOptionKey:                  strings.TrimSpace(input.ReplyTo),
+		recallCampaignUnsubscribeMailtoOptionKey:        strings.TrimSpace(input.UnsubscribeMailto),
+	}
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		for _, key := range recallActivitySMTPOptionKeys {
+			if key == "recall_campaign_setting.smtp_token" && input.Token == "" {
+				var tokenOption Option
+				err := tx.Where(commonKeyCol+" = ?", key).First(&tokenOption).Error
+				if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+					return err
+				}
+				if err == nil {
+					values[key] = tokenOption.Value
+					continue
+				}
+			}
+			option := Option{Key: key}
+			if err := tx.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+				return err
+			}
+			option.Value = values[key]
+			if err := tx.Save(&option).Error; err != nil {
+				return err
+			}
+		}
+		committedValues, err := loadRecallActivitySMTPOptionValuesForUpdate(tx)
+		if err != nil {
+			return err
+		}
+		committedConfig, err := recallActivitySMTPConfigFromOptionValues(committedValues)
+		if err != nil {
+			return err
+		}
+		if err := committedConfig.Validate(); err != nil {
+			return err
+		}
+		values = committedValues
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := applyOptionMapValues(values); err != nil {
+		return err
+	}
+	if pubErr := common.PublishConfigChanged(context.Background(), common.ConfigScopeOptions); pubErr != nil {
+		common.SysError("pubsub: failed to publish options change: " + pubErr.Error())
+	}
+	return nil
+}
+
+func loadRecallActivitySMTPOptionValuesForUpdate(tx *gorm.DB) (map[string]string, error) {
+	values := make(map[string]string, len(recallActivitySMTPOptionKeys))
+	for _, key := range recallActivitySMTPOptionKeys {
+		var option Option
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(commonKeyCol+" = ?", key).First(&option).Error; err != nil {
+			return nil, err
+		}
+		values[key] = option.Value
+	}
+	return values, nil
+}
+
+func recallActivitySMTPConfigFromOptionValues(values map[string]string) (common.SMTPConfig, error) {
+	port, err := strconv.Atoi(values["recall_campaign_setting.smtp_port"])
+	if err != nil {
+		return common.SMTPConfig{}, err
+	}
+	sslEnabled, err := strconv.ParseBool(values["recall_campaign_setting.smtp_ssl_enabled"])
+	if err != nil {
+		return common.SMTPConfig{}, err
+	}
+	forceAuthLogin, err := strconv.ParseBool(values["recall_campaign_setting.smtp_force_auth_login"])
+	if err != nil {
+		return common.SMTPConfig{}, err
+	}
+	return common.SMTPConfig{
+		Server:         values["recall_campaign_setting.smtp_server"],
+		Port:           port,
+		Account:        values["recall_campaign_setting.smtp_account"],
+		From:           values[recallCampaignEmailFromOptionKey],
+		Token:          values["recall_campaign_setting.smtp_token"],
+		SSLEnabled:     sslEnabled,
+		ForceAuthLogin: forceAuthLogin,
+	}, nil
+}
+
+type recallSenderOptionState struct {
+	SMTPFrom        string
+	SMTPAccount     string
+	SMTPFromAliases string
+}
+
+func updateRecallSenderOption(key string, value string) error {
+	applyValues := make(map[string]string)
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		current, err := loadRecallSenderOptionStateForUpdate(tx)
+		if err != nil {
+			return err
+		}
+
+		proposed := current
+		switch key {
+		case "SMTPFrom":
+			proposed.SMTPFrom = strings.TrimSpace(value)
+		case "SMTPAccount":
+			proposed.SMTPAccount = strings.TrimSpace(value)
+		case "SMTPFromAliases":
+			proposed.SMTPFromAliases = value
+		}
+
+		normalizedAliases, err := common.NormalizeSMTPFromAliases(proposed.SMTPFromAliases, proposed.SMTPFrom, proposed.SMTPAccount)
+		if err != nil {
+			return err
+		}
+		proposed.SMTPFromAliases = normalizedAliases
+
+		finalValues := map[string]string{
+			"SMTPFrom":        proposed.SMTPFrom,
+			"SMTPAccount":     proposed.SMTPAccount,
+			"SMTPFromAliases": proposed.SMTPFromAliases,
+		}
+		applyValues = finalValues
+		currentValues := map[string]string{
+			"SMTPFrom":        current.SMTPFrom,
+			"SMTPAccount":     current.SMTPAccount,
+			"SMTPFromAliases": current.SMTPFromAliases,
+		}
+		for optionKey, finalValue := range finalValues {
+			if finalValue == currentValues[optionKey] {
+				continue
+			}
+			option := Option{Key: optionKey, Value: finalValue}
+			if err := tx.Save(&option).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if len(applyValues) == 0 {
+		return nil
+	}
+	if err := applyOptionMapValues(applyValues); err != nil {
+		return err
+	}
+	if pubErr := common.PublishConfigChanged(context.Background(), common.ConfigScopeOptions); pubErr != nil {
+		common.SysError("pubsub: failed to publish options change: " + pubErr.Error())
+	}
+	return nil
+}
+
+func loadRecallSenderOptionStateForUpdate(tx *gorm.DB) (recallSenderOptionState, error) {
+	seedOptions := []Option{
+		{Key: "SMTPFrom", Value: strings.TrimSpace(common.SMTPFrom)},
+		{Key: "SMTPAccount", Value: strings.TrimSpace(common.SMTPAccount)},
+		{Key: "SMTPFromAliases", Value: ""},
+	}
+	if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&seedOptions).Error; err != nil {
+		return recallSenderOptionState{}, err
+	}
+
+	var options []Option
+	if err := tx.Where(commonKeyCol+" IN ?", []string{
+		"SMTPFrom",
+		"SMTPAccount",
+		"SMTPFromAliases",
+	}).Find(&options).Error; err != nil {
+		return recallSenderOptionState{}, err
+	}
+
+	values := make(map[string]string, len(options))
+	for _, option := range options {
+		values[option.Key] = option.Value
+	}
+	return recallSenderOptionState{
+		SMTPFrom:        strings.TrimSpace(values["SMTPFrom"]),
+		SMTPAccount:     strings.TrimSpace(values["SMTPAccount"]),
+		SMTPFromAliases: values["SMTPFromAliases"],
+	}, nil
+}
+
 // UpdateOptionsBulk persists multiple key/value pairs in a single database
 // transaction, then dispatches them through updateOptionMap in one pass. If
 // any DB write fails the whole transaction rolls back and no in-memory state
@@ -280,6 +590,14 @@ func UpdateOption(key string, value string) error {
 func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
+	}
+	for key := range values {
+		if isRecallActivitySMTPOptionKey(key) {
+			return errors.New(recallActivitySMTPUpdateError)
+		}
+		if isRecallSenderOptionKey(key) {
+			return errors.New("recall sender options must be updated individually")
+		}
 	}
 	normalizedValues := make(map[string]string, len(values))
 	var incomingAmountBonus map[int]int64
@@ -294,6 +612,9 @@ func UpdateOptionsBulk(values map[string]string) error {
 		}
 	}
 	for k, v := range values {
+		if IsRetiredOptionKey(k) {
+			return errors.New("option is retired")
+		}
 		if k == "payment_setting.amount_bonus" {
 			continue
 		}
@@ -327,10 +648,8 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if err != nil {
 		return err
 	}
-	for k, v := range normalizedValues {
-		if err := applyOptionMapValue(k, v); err != nil {
-			return err
-		}
+	if err := applyOptionMapValues(normalizedValues); err != nil {
+		return err
 	}
 	if hasPaddleOptionKey(normalizedValues) {
 		setting.ApplyPaddleEnvOverrides()
@@ -343,8 +662,45 @@ func UpdateOptionsBulk(values map[string]string) error {
 }
 
 func validateAndNormalizeOptionValue(key string, value string) (string, error) {
+	if IsRetiredOptionKey(key) {
+		return "", errors.New("option is retired")
+	}
 	if err := setting.ValidatePaddleOption(key, value); err != nil {
 		return "", err
+	}
+	if strings.HasPrefix(key, "registration_security.") {
+		configKey := strings.TrimPrefix(key, "registration_security.")
+		current := system_setting.GetRegistrationSecuritySettings()
+		cfg := current
+		if err := config.UpdateConfigFromMap(&cfg, map[string]string{configKey: value}); err != nil {
+			return "", err
+		}
+		if err := cfg.NormalizeAndValidate(); err != nil {
+			return "", err
+		}
+		if configKey == "trusted_email_domains" {
+			for _, domain := range cfg.TrustedEmailDomains {
+				if current.IsTrustedDomain(domain) {
+					continue
+				}
+				blocked, err := IsRegistrationDomainBlocked(domain)
+				if err != nil {
+					return "", err
+				}
+				if blocked {
+					return "", errors.New("release the active registration domain block before trusting this domain")
+				}
+			}
+		}
+		normalized, err := config.ConfigToMap(&cfg)
+		if err != nil {
+			return "", err
+		}
+		normalizedValue, ok := normalized[configKey]
+		if !ok {
+			return "", errors.New("unknown registration security option")
+		}
+		return normalizedValue, nil
 	}
 	if key == "payment_setting.amount_bonus" {
 		return normalizeAmountBonusOptionValue(value)
@@ -354,6 +710,11 @@ func validateAndNormalizeOptionValue(key string, value string) (string, error) {
 	}
 	if key == "payment_setting.amount_bonus_groups" {
 		return normalizeAmountBonusGroupsOptionValue(value)
+	}
+	if key == "GroupModelRatio" || key == "group_ratio_setting.group_model_ratio" {
+		if err := ratio_setting.CheckGroupModelRatio(value); err != nil {
+			return "", err
+		}
 	}
 	if key == "app_console.origin" {
 		return system_setting.NormalizeAppConsoleOrigin(value)
@@ -505,6 +866,12 @@ func updateOptionMap(key string, value string) (err error) {
 }
 
 func applyOptionMapValue(key string, value string) (err error) {
+	if IsRetiredOptionKey(key) {
+		common.OptionMapRWMutex.Lock()
+		delete(common.OptionMap, key)
+		common.OptionMapRWMutex.Unlock()
+		return nil
+	}
 	var inviterRewardMaxCount int
 	if key == "QuotaForInviterMaxCount" {
 		inviterRewardMaxCount, err = parseInviterRewardMaxCount(value)
@@ -515,10 +882,13 @@ func applyOptionMapValue(key string, value string) (err error) {
 
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
-	common.OptionMap[key] = value
-
 	// 检查是否是模型配置 - 使用更规范的方式处理
-	if handleConfigUpdate(key, value) {
+	handled, configErr := handleConfigUpdate(key, value)
+	if configErr != nil {
+		return configErr
+	}
+	if handled {
+		common.OptionMap[key] = value
 		return nil // 已由配置系统处理
 	}
 
@@ -559,14 +929,20 @@ func applyOptionMapValue(key string, value string) (err error) {
 			common.RegisterEnabled = boolValue
 		case "EmailDomainRestrictionEnabled":
 			common.EmailDomainRestrictionEnabled = boolValue
+		case "FreePlanOnSignupEnabled":
+			setting.FreePlanOnSignupEnabled = boolValue
 		case "EmailAliasRestrictionEnabled":
 			common.EmailAliasRestrictionEnabled = boolValue
 		case "AutomaticDisableChannelEnabled":
 			common.AutomaticDisableChannelEnabled = boolValue
+		case "InviteRewardSubscriptionModeEnabled":
+			common.InviteRewardSubscriptionMode = boolValue
 		case "AutomaticEnableChannelEnabled":
 			common.AutomaticEnableChannelEnabled = boolValue
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
+		case OptionKeyCompanyLogRoutingEnabled:
+			companyLogRoutingEnabled.Store(boolValue)
 		case "DisplayInCurrencyEnabled":
 			// 兼容旧字段：同步到新配置 general_setting.quota_display_type（运行时生效）
 			// true -> USD, false -> TOKENS
@@ -633,6 +1009,8 @@ func applyOptionMapValue(key string, value string) (err error) {
 		common.SMTPAccount = value
 	case "SMTPFrom":
 		common.SMTPFrom = value
+	case "SMTPFromAliases":
+		common.SMTPFromAliases = value
 	case "SMTPToken":
 		common.SMTPToken = value
 	case "ServerAddress":
@@ -661,6 +1039,8 @@ func applyOptionMapValue(key string, value string) (err error) {
 		operation_setting.MinTopUp, _ = strconv.Atoi(value)
 	case "StripeApiSecret":
 		setting.StripeApiSecret = value
+	case "StripePublishableKey":
+		setting.StripePublishableKey = value
 	case "StripeWebhookSecret":
 		setting.StripeWebhookSecret = value
 	case "StripePriceId":
@@ -796,6 +1176,10 @@ func applyOptionMapValue(key string, value string) (err error) {
 		common.QuotaForInvitee, _ = strconv.Atoi(value)
 	case "QuotaForInviterMaxCount":
 		common.QuotaForInviterMaxCount = inviterRewardMaxCount
+	case "InviteFirstSubDiscountUSD":
+		if parsed, err := strconv.ParseFloat(value, 64); err == nil && parsed >= 0 {
+			common.InviteFirstSubDiscountUSD = parsed
+		}
 	case "QuotaRemindThreshold":
 		common.QuotaRemindThreshold, _ = strconv.Atoi(value)
 	case "PreConsumedQuota":
@@ -808,6 +1192,8 @@ func applyOptionMapValue(key string, value string) (err error) {
 		setting.ModelRequestRateLimitSuccessCount, _ = strconv.Atoi(value)
 	case "ModelRequestRateLimitGroup":
 		err = setting.UpdateModelRequestRateLimitGroupByJSONString(value)
+	case "SubscriptionModelWeights":
+		err = setting.UpdateSubscriptionModelWeightsByJSONString(value)
 	case "RetryTimes":
 		common.RetryTimes, _ = strconv.Atoi(value)
 	case "DataExportInterval":
@@ -826,9 +1212,14 @@ func applyOptionMapValue(key string, value string) (err error) {
 			if err == nil && len(renames) > 0 {
 				err = syncRenamedGroupsToChannels(renames)
 			}
+			if err == nil && len(renames) > 0 {
+				err = syncRenamedGroupsToGroupModelRatio(renames)
+			}
 		}
 	case "GroupGroupRatio":
 		err = ratio_setting.UpdateGroupGroupRatioByJSONString(value)
+	case "GroupModelRatio":
+		err = ratio_setting.UpdateGroupModelRatioByJSONString(value)
 	case "UserUsableGroups":
 		err = setting.UpdateUserUsableGroupsByJSONString(value)
 	case "CompletionRatio":
@@ -869,47 +1260,117 @@ func applyOptionMapValue(key string, value string) (err error) {
 		err = operation_setting.UpdatePayMethodsByJsonString(value)
 	case "WaffoPayMethods":
 		// WaffoPayMethods is read directly from OptionMap via setting.GetWaffoPayMethods().
-		// The value is already stored in OptionMap at the top of this function (line: common.OptionMap[key] = value).
-		// No additional in-memory variable to update.
+		// No additional in-memory variable needs updating.
 	}
-	return err
+	if err != nil {
+		if key == "GroupRatio" {
+			common.OptionMap[key] = ratio_setting.GroupRatio2JSONString()
+		}
+		return err
+	}
+	common.OptionMap[key] = value
+	return nil
 }
 
 // handleConfigUpdate 处理分层配置更新，返回是否已处理
-func handleConfigUpdate(key, value string) bool {
+func applyOptionMapValues(values map[string]string) error {
+	registrationValues := make(map[string]string)
+	for key, value := range values {
+		if strings.HasPrefix(key, "registration_security.") {
+			registrationValues[strings.TrimPrefix(key, "registration_security.")] = value
+		}
+	}
+	for key, value := range values {
+		if IsRetiredOptionKey(key) {
+			common.OptionMapRWMutex.Lock()
+			delete(common.OptionMap, key)
+			common.OptionMapRWMutex.Unlock()
+			continue
+		}
+		if strings.HasPrefix(key, "registration_security.") {
+			continue
+		}
+		if err := applyOptionMapValue(key, value); err != nil {
+			return err
+		}
+	}
+	if len(registrationValues) > 0 {
+		if err := system_setting.UpdateRegistrationSecuritySettingsFromMap(registrationValues); err != nil {
+			return err
+		}
+		common.OptionMapRWMutex.Lock()
+		for key, value := range values {
+			if strings.HasPrefix(key, "registration_security.") {
+				common.OptionMap[key] = value
+			}
+		}
+		common.OptionMapRWMutex.Unlock()
+	}
+	return nil
+}
+
+func handleConfigUpdate(key, value string) (bool, error) {
 	parts := strings.SplitN(key, ".", 2)
 	if len(parts) != 2 {
-		return false // 不是分层配置
+		return false, nil // 不是分层配置
 	}
 
 	configName := parts[0]
 	configKey := parts[1]
 
+	if configName == "log_request_sampling" {
+		_ = operation_setting.UpdateLogRequestSamplingConfigFromMap(map[string]string{configKey: value})
+		return true, nil
+	}
+
+	if configName == "registration_security" {
+		return true, system_setting.UpdateRegistrationSecuritySettingsFromMap(map[string]string{configKey: value})
+	}
+
+	if configName == "registration_country" {
+		return true, operation_setting.UpdateRegistrationCountrySettingFromMap(map[string]string{configKey: value})
+	}
+
+	// The generic path below calls config.UpdateConfigFromMap, a raw setter that
+	// runs neither NormalizeAndValidate nor the module lock. The video price
+	// table needs both: unvalidated rules let FindVideoPriceRule decide prices by
+	// JSON array order, and an unfolded "4K" never matches the "4k" adapters emit.
+	if configName == "billing_setting_video" {
+		return true, billing_setting.UpdateVideoPriceSettingFromMap(map[string]string{configKey: value})
+	}
+
 	// 获取配置对象
 	cfg := config.GlobalConfig.Get(configName)
 	if cfg == nil {
-		return false // 未注册的配置
+		return false, nil // 未注册的配置
 	}
 
 	// 更新配置
 	configMap := map[string]string{
 		configKey: value,
 	}
-	config.UpdateConfigFromMap(cfg, configMap)
+	if err := config.UpdateConfigFromMap(cfg, configMap); err != nil {
+		return true, err
+	}
 
 	// 特定配置的后处理
 	if configName == "performance_setting" {
 		performance_setting.UpdateAndSync()
 	} else if configName == "tool_price_setting" {
 		operation_setting.RebuildToolPriceIndex()
+	} else if configName == "group_ratio_setting" {
+		InvalidatePricingCache()
+		ratio_setting.InvalidateExposedDataCache()
 	} else if configName == "billing_setting" {
 		InvalidatePricingCache()
 		ratio_setting.InvalidateExposedDataCache()
+	} else if configName == "pricing_visibility_setting" {
+		operation_setting.NotifyPricingVisibilityChanged()
 	} else if configName == "theme" {
 		system_setting.UpdateAndSyncTheme()
 	}
 
-	return true // 已处理
+	return true, nil // 已处理
 }
 
 func inferGroupRatioRenames(oldGroupRatio, newGroupRatio map[string]float64) map[string]string {
@@ -967,6 +1428,73 @@ func syncRenamedGroupsToChannels(renames map[string]string) error {
 	if changed {
 		publishChannelsChanged()
 	}
+	return nil
+}
+
+func syncRenamedGroupsToGroupModelRatio(renames map[string]string) error {
+	current := ratio_setting.GetGroupModelRatioCopy()
+	changed := false
+
+	for oldName, newName := range renames {
+		modelRatios, ok := current[oldName]
+		if !ok {
+			continue
+		}
+		target := current[newName]
+		if target == nil {
+			target = make(map[string]float64, len(modelRatios))
+		}
+		for modelName, ratio := range modelRatios {
+			target[modelName] = ratio
+		}
+		current[newName] = target
+		delete(current, oldName)
+		changed = true
+	}
+
+	if !changed {
+		return nil
+	}
+
+	valueBytes, err := common.Marshal(current)
+	if err != nil {
+		return err
+	}
+	value := string(valueBytes)
+
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		for _, key := range []string{"GroupModelRatio", "group_ratio_setting.group_model_ratio"} {
+			if key == "group_ratio_setting.group_model_ratio" {
+				var count int64
+				if err := tx.Model(&Option{}).Where("`key` = ?", key).Count(&count).Error; err != nil {
+					return err
+				}
+				if count == 0 {
+					continue
+				}
+			}
+			option := Option{Key: key}
+			if err := tx.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+				return err
+			}
+			option.Value = value
+			if err := tx.Save(&option).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if err := ratio_setting.UpdateGroupModelRatioByJSONString(value); err != nil {
+		return err
+	}
+	common.OptionMap["GroupModelRatio"] = value
+	if _, ok := common.OptionMap["group_ratio_setting.group_model_ratio"]; ok {
+		common.OptionMap["group_ratio_setting.group_model_ratio"] = value
+	}
+
 	return nil
 }
 

@@ -1,0 +1,588 @@
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { SectionPageLayout } from '@/components/layout'
+import {
+  exportRecallCampaign,
+  getRecallCampaign,
+  getRecallCampaignMetrics,
+  listRecallEvents,
+  listRecallRecipients,
+  recallCampaignKeys,
+} from '../api'
+import { getRecallDeliveryErrorCopyKey } from '../copy'
+import {
+  formatRecallCampaignType,
+  formatRecallCurrencyAmount,
+  getRecallEmailLocaleStatus,
+  getRecallPageCount,
+  getRecallRecipientRetry,
+  isRecallPromotionCampaign,
+} from '../helpers'
+import type {
+  RecallCampaignAction,
+  RecallCampaignStatus,
+  RecallExecutionMode,
+  RecallEmailLocalizationBlocker,
+  RecallEmailStage,
+  RecallLifecycleMetrics,
+  RecallRecipient,
+} from '../types'
+import { CampaignActionDialog } from './campaign-action-dialog'
+import { CampaignEditor } from './campaign-editor'
+import { CampaignExclusionDialog } from './campaign-exclusion-dialog'
+import { CampaignMetricCardSection } from './campaign-metric-drawer'
+import { CampaignPreviewDialog } from './campaign-preview-dialog'
+import {
+  formatRecallLifecycleEventType,
+  formatRecallLifecycleOutcomeCode,
+  formatRecallMessageState,
+} from './campaign-preview-dialog-content'
+
+const DETAIL_PAGE_SIZE = 100
+const activationLocales = ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi']
+type Translate = (key: string) => string
+
+function getRecallActivationBlockerReason(
+  stage: RecallEmailStage,
+  locale: string,
+  status: ReturnType<typeof getRecallEmailLocaleStatus>
+): RecallEmailLocalizationBlocker['reason'] {
+  if (status === 'stale') return 'stale'
+  return (stage.templates ?? {})[locale] ? 'invalid' : 'missing'
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function getRecallActivationReadiness(stages: RecallEmailStage[]): {
+  ready: boolean
+  blockers: RecallEmailLocalizationBlocker[]
+} {
+  const blockers: RecallEmailLocalizationBlocker[] = []
+  const allowedLocales = new Set(activationLocales)
+  for (const stage of stages) {
+    for (const locale of activationLocales) {
+      const status = getRecallEmailLocaleStatus(stage, locale)
+      if (status === 'ready' || status === 'manual') continue
+      blockers.push({
+        stage_no: stage.stage_no,
+        locale,
+        reason: getRecallActivationBlockerReason(stage, locale, status),
+      })
+    }
+    for (const locale of Object.keys(stage.templates ?? {})) {
+      if (allowedLocales.has(locale)) continue
+      blockers.push({
+        stage_no: stage.stage_no,
+        locale,
+        reason: 'invalid',
+      })
+    }
+  }
+  return { ready: blockers.length === 0, blockers }
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function formatRecallDeliveryErrorMessage(
+  code: string,
+  message: string,
+  t: Translate
+): string {
+  const copyKey = getRecallDeliveryErrorCopyKey(code)
+  if (copyKey) return t(copyKey)
+  if (!code && !message) return ''
+  return t('Unknown delivery error')
+}
+
+function formatTimestamp(value: number): string {
+  return value > 0 ? new Date(value * 1000).toLocaleString() : '-'
+}
+
+function actionsForStatus(
+  status: RecallCampaignStatus,
+  executionMode: RecallExecutionMode = 'manual'
+): RecallCampaignAction[] {
+  if (status === 'draft') return ['activate', 'cancel']
+  if (status === 'scheduled') return ['pause', 'cancel']
+  if (executionMode === 'continuous') {
+    if (status === 'running') return ['pause', 'cancel']
+    if (status === 'paused') return ['resume', 'cancel']
+  }
+  if (status === 'running') return ['pause', 'complete', 'cancel']
+  if (status === 'paused') return ['resume', 'complete', 'cancel']
+  return []
+}
+
+function LifecycleMetricCards(props: {
+  metrics: RecallLifecycleMetrics
+}): React.JSX.Element {
+  const { t } = useTranslation()
+  const cards = [
+    ['Lifecycle events', props.metrics.event_total],
+    ['Pending not due', props.metrics.pending_not_due_count],
+    ['Due now', props.metrics.due_backlog_count],
+    ['Leased events', props.metrics.leased_count],
+    ['Enrolled events', props.metrics.enrolled_count],
+    ['Skipped events', props.metrics.skipped_count],
+    ['Failed events', props.metrics.failed_count],
+    ['Queued messages', props.metrics.messages_queued_count],
+    ['SMTP accepted', props.metrics.messages_smtp_accepted_count],
+    ['Uncertain messages', props.metrics.messages_uncertain_count],
+    ['Failed messages', props.metrics.messages_failed_count],
+    ['Cancelled messages', props.metrics.messages_cancelled_count],
+    ['Lease recoveries', props.metrics.lease_recovery_count],
+    ['Retries', props.metrics.retried_event_count],
+    ['Processing latency', props.metrics.max_processing_latency_seconds],
+  ] as const
+  const breakdowns = [
+    ['Skip breakdown', props.metrics.skip_reason_counts],
+    ['Send blocked breakdown', props.metrics.send_blocked_reason_counts],
+    ['Safe error-code breakdown', props.metrics.error_code_counts],
+  ] as const
+
+  return (
+    <div className='space-y-3'>
+      <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+        {cards.map(([label, value]) => (
+          <div className='rounded-lg border p-3' key={label}>
+            <div className='text-muted-foreground text-xs'>{t(label)}</div>
+            <div className='text-xl font-semibold'>{value}</div>
+          </div>
+        ))}
+      </div>
+      {breakdowns.map(([label, counts]) =>
+        Object.keys(counts).length > 0 ? (
+          <div className='rounded-lg border p-3 text-sm' key={label}>
+            <div className='font-medium'>{t(label)}</div>
+            <dl className='mt-2 space-y-1'>
+              {Object.entries(counts).map(([code, count]) => (
+                <div className='flex justify-between gap-4' key={code}>
+                  <dt>{formatRecallLifecycleOutcomeCode(code, t)}</dt>
+                  <dd>{count}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : null
+      )}
+    </div>
+  )
+}
+
+interface CampaignDetailProps {
+  campaignId: number
+}
+
+export function CampaignDetail(props: CampaignDetailProps) {
+  const { t } = useTranslation()
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [exclusionsOpen, setExclusionsOpen] = useState(false)
+  const [recipientPage, setRecipientPage] = useState(1)
+  const [eventPage, setEventPage] = useState(1)
+  const [focusBlocker, setFocusBlocker] =
+    useState<RecallEmailLocalizationBlocker>()
+  const [dialog, setDialog] = useState<{
+    action: RecallCampaignAction | 'retry'
+    recipientId?: number
+    uncertain?: boolean
+  } | null>(null)
+  const detailQuery = useQuery({
+    queryKey: recallCampaignKeys.detail(props.campaignId),
+    queryFn: () => getRecallCampaign(props.campaignId),
+  })
+  const recipientsQuery = useQuery({
+    queryKey: recallCampaignKeys.recipients(props.campaignId, recipientPage),
+    queryFn: () =>
+      listRecallRecipients(props.campaignId, recipientPage, DETAIL_PAGE_SIZE),
+    placeholderData: (previous) => previous,
+  })
+  const eventsQuery = useQuery({
+    queryKey: recallCampaignKeys.events(props.campaignId, eventPage),
+    queryFn: () =>
+      listRecallEvents(props.campaignId, eventPage, DETAIL_PAGE_SIZE),
+    placeholderData: (previous) => previous,
+  })
+  const metricsQuery = useQuery({
+    queryKey: recallCampaignKeys.metrics(props.campaignId),
+    queryFn: () => getRecallCampaignMetrics(props.campaignId),
+  })
+  const detail = detailQuery.data?.data
+  const recipients = recipientsQuery.data?.data?.items ?? []
+  const events = eventsQuery.data?.data?.items ?? []
+  const metrics = metricsQuery.data?.data
+  const isPromotion = isRecallPromotionCampaign(
+    detail?.campaign_type ?? 'promotion'
+  )
+  const activationReadiness = getRecallActivationReadiness(
+    detail?.draft.email_sequence ?? []
+  )
+  const recipientPageCount = getRecallPageCount(
+    recipientsQuery.data?.data?.total ?? 0,
+    DETAIL_PAGE_SIZE
+  )
+  const eventPageCount = getRecallPageCount(
+    eventsQuery.data?.data?.total ?? 0,
+    DETAIL_PAGE_SIZE
+  )
+
+  const downloadExport = async () => {
+    const blob = await exportRecallCampaign(props.campaignId)
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `recall-campaign-${props.campaignId}.csv`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const retryRecipient = (recipient: RecallRecipient) => {
+    const retry = getRecallRecipientRetry(recipient)
+    if (!retry.allowed) return
+    setDialog({
+      action: 'retry',
+      recipientId: recipient.id,
+      uncertain: retry.acknowledgeUncertain,
+    })
+  }
+
+  if (detailQuery.isLoading) return <div className='p-4'>{t('Loading')}</div>
+  if (!detail)
+    return (
+      <div className='text-destructive p-4'>{t('Failed to load campaign')}</div>
+    )
+
+  return (
+    <SectionPageLayout>
+      <SectionPageLayout.Breadcrumb>
+        <Button variant='link' render={<Link to='/recall-campaigns' />}>
+          {t('Back to Activity Configuration')}
+        </Button>
+      </SectionPageLayout.Breadcrumb>
+      <SectionPageLayout.Title>{detail.name}</SectionPageLayout.Title>
+      <SectionPageLayout.Actions>
+        <Badge variant='outline'>
+          {t(formatRecallCampaignType(detail.campaign_type))}
+        </Badge>
+        <Badge variant='secondary'>{t(detail.status)}</Badge>
+        <Badge variant='outline'>{t(detail.execution_mode)}</Badge>
+        {detail.lifecycle_trigger ? (
+          <Badge variant='outline'>{t(detail.lifecycle_trigger)}</Badge>
+        ) : null}
+        <Button variant='outline' onClick={() => setPreviewOpen(true)}>
+          {t('Preview')}
+        </Button>
+        <Button variant='outline' onClick={() => setExclusionsOpen(true)}>
+          {t('Manage exclusions')}
+        </Button>
+        <Button variant='outline' onClick={downloadExport}>
+          {t('Export CSV')}
+        </Button>
+        {actionsForStatus(detail.status, detail.execution_mode).map(
+          (action) => (
+            <Button
+              key={action}
+              variant={action === 'cancel' ? 'destructive' : 'default'}
+              disabled={action === 'activate' && !activationReadiness.ready}
+              onClick={() => setDialog({ action })}
+            >
+              {t(action)}
+            </Button>
+          )
+        )}
+      </SectionPageLayout.Actions>
+      <SectionPageLayout.Content>
+        <div className='space-y-4'>
+          {detail.status === 'draft' && !activationReadiness.ready ? (
+            <div className='space-y-2 rounded-lg border p-3'>
+              <p className='text-sm'>
+                {t(
+                  'Translations must be complete and current before activation.'
+                )}
+              </p>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => setFocusBlocker(activationReadiness.blockers[0])}
+              >
+                {t('Generate or fix translations')}
+              </Button>
+            </div>
+          ) : null}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('Campaign metrics')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {metrics ? (
+                <>
+                  {metrics.lifecycle ? (
+                    <div className='mb-4'>
+                      <LifecycleMetricCards metrics={metrics.lifecycle} />
+                    </div>
+                  ) : null}
+                  <CampaignMetricCardSection
+                    campaignId={props.campaignId}
+                    metricCards={metrics.metric_cards}
+                  />
+                  {!isPromotion ? (
+                    <p className='text-muted-foreground mt-4 text-sm'>
+                      {t('Promotion conversion metrics are not applicable.')}
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p>{t('Loading')}</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('Recipients and messages')}</CardTitle>
+            </CardHeader>
+            <CardContent className='overflow-x-auto'>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('Recipient')}</TableHead>
+                    <TableHead>
+                      {isPromotion
+                        ? t('Stripe details')
+                        : t('Promotion details')}
+                    </TableHead>
+                    <TableHead>{t('Delivery and conversion')}</TableHead>
+                    <TableHead>{t('Messages and errors')}</TableHead>
+                    <TableHead>{t('Actions')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recipients.map((recipient) => (
+                    <TableRow key={recipient.id}>
+                      <TableCell>
+                        <div>#{recipient.id}</div>
+                        <div>
+                          {t('User ID')}: {recipient.user_id}
+                        </div>
+                        <Badge variant='outline'>{t(recipient.state)}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        {isPromotion ? (
+                          <>
+                            <div>
+                              {t('Customer ID')}:{' '}
+                              {recipient.stripe_customer_id || '-'}
+                            </div>
+                            <div>
+                              {t('Masked code')}:{' '}
+                              {recipient.promotion_code_masked || '-'}
+                            </div>
+                            <div>
+                              {t('Expires')}:{' '}
+                              {formatTimestamp(recipient.promotion_expires_at)}
+                            </div>
+                          </>
+                        ) : (
+                          <span className='text-muted-foreground'>
+                            {t('Not applicable')}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          {t('Observed click')}:{' '}
+                          {formatTimestamp(recipient.clicked_at)}
+                        </div>
+                        <div>
+                          {t('Conversion kind')}:{' '}
+                          {recipient.conversion_kind
+                            ? t(recipient.conversion_kind)
+                            : '-'}
+                        </div>
+                        <div>
+                          {formatRecallCurrencyAmount(
+                            recipient.conversion_currency,
+                            recipient.conversion_amount
+                          ) || '-'}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className='space-y-1'>
+                          {recipient.messages.map((message) => (
+                            <div
+                              className='rounded border p-2 text-xs'
+                              key={message.id}
+                            >
+                              <div>
+                                {t('Stage {{stage}}', {
+                                  stage: message.stage_no,
+                                })}{' '}
+                                · {formatRecallMessageState(message.state, t)} ·{' '}
+                                {t('TemplateVersion')}{' '}
+                                {message.template_version}
+                              </div>
+                              <div>
+                                {t('Attempts')}: {message.attempt_count}
+                              </div>
+                              {message.last_error_code ||
+                              message.last_error_message ? (
+                                <div className='text-destructive'>
+                                  {formatRecallDeliveryErrorMessage(
+                                    message.last_error_code,
+                                    message.last_error_message,
+                                    t
+                                  )}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                        {recipient.last_error_code ||
+                        recipient.last_error_message ? (
+                          <p className='text-destructive mt-2'>
+                            {formatRecallDeliveryErrorMessage(
+                              recipient.last_error_code,
+                              recipient.last_error_message,
+                              t
+                            )}
+                          </p>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        {getRecallRecipientRetry(recipient).allowed ? (
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            onClick={() => retryRecipient(recipient)}
+                          >
+                            {t('Retry')}
+                          </Button>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className='mt-3 flex items-center justify-end gap-2'>
+                <span className='text-muted-foreground text-sm'>
+                  {recipientPage} / {recipientPageCount}
+                </span>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  disabled={recipientPage <= 1}
+                  onClick={() => setRecipientPage((page) => page - 1)}
+                >
+                  {t('Previous')}
+                </Button>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  disabled={recipientPage >= recipientPageCount}
+                  onClick={() => setRecipientPage((page) => page + 1)}
+                >
+                  {t('Next')}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('Audit timeline')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ol className='space-y-3'>
+                {events.map((event) => (
+                  <li className='rounded-lg border p-3' key={event.id}>
+                    <div className='flex justify-between gap-3'>
+                      <strong>
+                        {formatRecallLifecycleEventType(event.event_type, t)}
+                      </strong>
+                      <span className='text-muted-foreground text-xs'>
+                        {formatTimestamp(event.created_at)}
+                      </span>
+                    </div>
+                    <div className='text-muted-foreground text-xs'>
+                      {event.source} · {event.source_event_id}
+                    </div>
+                    {event.event_data ? (
+                      <pre className='mt-2 overflow-auto text-xs whitespace-pre-wrap'>
+                        {event.event_data}
+                      </pre>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+              <div className='mt-3 flex items-center justify-end gap-2'>
+                <span className='text-muted-foreground text-sm'>
+                  {eventPage} / {eventPageCount}
+                </span>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  disabled={eventPage <= 1}
+                  onClick={() => setEventPage((page) => page - 1)}
+                >
+                  {t('Previous')}
+                </Button>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  disabled={eventPage >= eventPageCount}
+                  onClick={() => setEventPage((page) => page + 1)}
+                >
+                  {t('Next')}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <CampaignEditor
+            campaignId={detail.id}
+            configRevision={detail.config_revision}
+            focusBlocker={focusBlocker}
+            initialDraft={detail.draft}
+            status={detail.status}
+          />
+        </div>
+        <CampaignPreviewDialog
+          campaignId={props.campaignId}
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+        />
+        <CampaignExclusionDialog
+          campaignId={props.campaignId}
+          open={exclusionsOpen}
+          onOpenChange={setExclusionsOpen}
+        />
+        {dialog ? (
+          <CampaignActionDialog
+            campaignId={props.campaignId}
+            action={dialog.action}
+            executionMode={detail.execution_mode}
+            recipientId={dialog.recipientId}
+            uncertain={dialog.uncertain}
+            open
+            onLocalizationBlocked={setFocusBlocker}
+            onOpenChange={(open) => {
+              if (!open) setDialog(null)
+            }}
+          />
+        ) : null}
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
+  )
+}

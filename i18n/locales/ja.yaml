@@ -2,7 +2,16 @@
 
 # Email content messages
 email.verification_subject: "{{.SystemName}} メールアドレスの確認"
-email.verification_content: "<p>こんにちは。{{.SystemName}} のメールアドレスを確認しています。</p><p>確認コード: <strong>{{.Code}}</strong></p><p>このコードは {{.Minutes}} 分間有効です。心当たりがない場合は、このメールを無視してください。</p>"
+email.verification_heading: "{{.SystemName}} へようこそ"
+email.verification_content: "メールアドレスを確認してアカウント作成を完了し、{{.SystemName}} を使い始めましょう。"
+email.verification_action: "メールアドレスを確認"
+email.verification_alternative: "または、次の確認コードを入力してください"
+email.verification_code_label: "確認コード"
+email.verification_expiry: "このリンクとコードは {{.Minutes}} 分後に無効になります。"
+email.verification_ignore: "このメールに心当たりがない場合は、安全に無視できます。"
+email.verification_footer: "{{.SystemName}} から安全に送信されました"
+email.verification_link_invalid: "この確認リンクは無効か、有効期限が切れています。"
+email.verification_unavailable: "メールアドレスの確認は一時的に利用できません。もう一度お試しください。"
 email.password_reset_subject: "{{.SystemName}} パスワードの再設定"
 email.password_reset_content: "<p>こんにちは。{{.SystemName}} アカウントのパスワードを再設定しています。</p><p><a href='{{.Link}}'>こちら</a>をクリックしてパスワードを再設定してください。</p><p>リンクをクリックできない場合は、次のリンクをブラウザにコピーしてください:<br> {{.Link}} </p><p>再設定リンクは {{.Minutes}} 分間有効です。心当たりがない場合は、このメールを無視してください。</p>"
 
@@ -12,3 +21,24 @@ notify.subscription_quota_warning_title: "サブスクリプションの残高�
 notify.quota_warning_email: "{{.Warning}}。現在の残高は {{.Quota}} です。サービスの中断を避けるため、お早めにチャージしてください。<br/>チャージリンク：<a href='{{.Link}}'>{{.Link}}</a>"
 notify.quota_warning_bark: "{{.Warning}}。残高：{{.Quota}}。お早めにチャージしてください。"
 notify.quota_warning_gotify: "{{.Warning}}。現在の残高は {{.Quota}} です。お早めにチャージしてください。"
+
+# CLI device authorization messages
+cli.device_id_missing: "デバイス ID は必須です"
+cli.device_metadata_too_long: "CLI デバイスのメタデータが長すぎます"
+cli.device_code_invalid: "無効なデバイスコードです"
+cli.authorization_code_missing: "認証コードは必須です"
+cli.authorization_not_found: "認証リクエストが見つかりません"
+cli.authorization_token_create_failed: "CLI トークンの作成に失敗しました"
+
+# Subscription messages
+subscription.tier_rank_reserved: "サブスクリプションプランのランクはすでに予約されています"
+subscription.tier_rank_required: "有効なサブスクリプションプランには正のランクが必要です"
+subscription.lifecycle_fields_immutable: "このサブスクリプションプランはすでに参照されています。ライフサイクル重要フィールドを変更せず、無効化するか新しいバージョンを作成してください。"
+subscription.purchase_pending_migration: "サブスクリプション購入開始は移行中です。更新して新しいサブスクリプションフローを使用してください。"
+subscription.payment_mode_required: "支払いモードは必須です"
+subscription.request_id_required: "リクエスト ID は必須です"
+subscription.stripe_price_requires_mode: "Stripe Price ID には Stripe の定期支払いモードが必要です"
+subscription.capability.single_lifecycle: "単一サブスクリプションライフサイクルが有効です"
+subscription.capability.current_entitlement: "現在の契約エンタイトルメントを利用できます"
+subscription.capability.recurring_binding: "定期プロバイダー連携を利用できます"
+subscription.capability.change_intent: "サブスクリプション変更意図の状態を利用できます"

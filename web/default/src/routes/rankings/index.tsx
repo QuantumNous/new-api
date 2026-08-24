@@ -20,6 +20,8 @@ import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
+import { OFFICIAL_WEBSITE_ORIGIN, officialWebsiteUrl } from '@/lib/origins'
+import i18n from '@/i18n/config'
 import { Rankings } from '@/features/rankings'
 
 const rankingsSearchSchema = z.object({
@@ -32,6 +34,16 @@ const rankingsSearchSchema = z.object({
 export const Route = createFileRoute('/rankings/')({
   validateSearch: rankingsSearchSchema,
   beforeLoad: async ({ location }) => {
+    // With an official website configured, its /rankings is the single public
+    // surface — hand over unconditionally so old links keep working for
+    // anonymous visitors. The console module policy below only governs the
+    // local fallback page (self-host, no origin configured).
+    if (OFFICIAL_WEBSITE_ORIGIN) {
+      const lang = (i18n.language || 'en').split('-')[0]
+      const path = lang && lang !== 'en' ? `/${lang}/rankings` : '/rankings'
+      window.location.replace(officialWebsiteUrl(path))
+      await new Promise(() => {})
+    }
     const access = await getFreshModuleAccess('rankings')
     if (!access.enabled) {
       throw redirect({ to: '/' })

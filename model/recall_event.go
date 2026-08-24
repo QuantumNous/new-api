@@ -1,0 +1,644 @@
+package model
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+type RecallEvent struct {
+	Id            int64  `json:"id" gorm:"primaryKey;index:idx_recall_metric_fact_rep,priority:5;index:idx_recall_metric_fact_scan,priority:4;index:idx_recall_metric_message_state,priority:5"`
+	CampaignId    int64  `json:"campaign_id" gorm:"index;index:idx_recall_metric_fact_rep,priority:1;index:idx_recall_metric_fact_scan,priority:1;index:idx_recall_metric_message_state,priority:1"`
+	RecipientId   int64  `json:"recipient_id" gorm:"index;index:idx_recall_metric_fact_rep,priority:3;index:idx_recall_metric_fact_scan,priority:5"`
+	EventType     string `json:"event_type" gorm:"type:varchar(48);not null;index;index:idx_recall_metric_fact_rep,priority:2;index:idx_recall_metric_fact_scan,priority:2;index:idx_recall_metric_message_state,priority:2"`
+	Source        string `json:"source" gorm:"type:varchar(32);uniqueIndex:idx_recall_source_event,priority:1;index:idx_recall_metric_message_state,priority:3"`
+	MessageId     int64  `json:"message_id" gorm:"index:idx_recall_metric_message_state,priority:4"`
+	SourceEventId string `json:"source_event_id" gorm:"type:varchar(160);uniqueIndex:idx_recall_source_event,priority:2"`
+	EventData     string `json:"event_data" gorm:"type:text"`
+	CreatedAt     int64  `json:"created_at" gorm:"autoCreateTime;index;index:idx_recall_metric_fact_rep,priority:4;index:idx_recall_metric_fact_scan,priority:3"`
+}
+
+var errRecallRunNotOwned = errors.New("recall campaign run not owned")
+var errRecallConversionNotOwned = errors.New("recall conversion not owned")
+var errRecallAdminEventNotOwned = errors.New("recall admin audit event already exists")
+
+const recallRunBatchSize = 200
+
+type RecallCampaignRunExclusion struct {
+	RecipientIdentity string
+	UserId            int
+	ReasonCode        string
+}
+
+type RecallCampaignRunExclusionSource interface {
+	ForEachRecallCampaignRunExclusion(func(RecallCampaignRunExclusion) error) error
+}
+
+type RecallCampaignRunExclusions []RecallCampaignRunExclusion
+
+func (exclusions RecallCampaignRunExclusions) ForEachRecallCampaignRunExclusion(visit func(RecallCampaignRunExclusion) error) error {
+	for _, exclusion := range exclusions {
+		if err := visit(exclusion); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type RecallClaimClickOutcome string
+
+type RecallConversionRecord struct {
+	RecipientId    int64
+	CampaignId     int64
+	UserId         int
+	Kind           string
+	TradeNo        string
+	Currency       string
+	Amount         int64
+	DiscountAmount int64
+	Source         string
+	SourceEventId  string
+	EventData      string
+	ConvertedAt    int64
+}
+
+type RecallMetricCountRow struct {
+	Metric string
+	Count  int64
+}
+
+type RecallCurrencyMetricRow struct {
+	Currency       string
+	ConversionKind string
+	Count          int64
+	PaymentAmount  int64
+	DiscountAmount int64
+}
+
+func ListRecallEventsWithContext(ctx context.Context, campaignID int64, offset int, limit int) ([]RecallEvent, int64, error) {
+	events := make([]RecallEvent, 0)
+	var total int64
+	query := DB.WithContext(ctx).Model(&RecallEvent{}).Where("campaign_id = ?", campaignID)
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	offset, limit, bounded := boundRecallReadWindow(offset, limit)
+	if !bounded {
+		return events, total, nil
+	}
+	if err := query.Order("id DESC").Offset(offset).Limit(limit).Find(&events).Error; err != nil {
+		return nil, 0, err
+	}
+	return events, total, nil
+}
+
+func validateRecallAdminEvent(event *RecallEvent) error {
+	if event == nil || event.Source != "admin" || strings.TrimSpace(event.SourceEventId) == "" {
+		return fmt.Errorf("recall admin event requires an admin source and source event ID")
+	}
+	if len(event.SourceEventId) > 160 {
+		return fmt.Errorf("recall admin source event ID exceeds 160 characters")
+	}
+	if strings.TrimSpace(event.EventType) == "" {
+		return fmt.Errorf("recall admin event type is required")
+	}
+	return nil
+}
+
+func insertRequiredRecallAdminEvent(tx *gorm.DB, event *RecallEvent) error {
+	if err := validateRecallAdminEvent(event); err != nil {
+		return err
+	}
+	result := insertRecallRunEvent(tx, event)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return errRecallAdminEventNotOwned
+	}
+	return nil
+}
+
+func InsertRequiredRecallAdminEventTx(tx *gorm.DB, event *RecallEvent) error {
+	return insertRequiredRecallAdminEvent(tx, event)
+}
+
+const (
+	RecallClaimClickValid      RecallClaimClickOutcome = "valid"
+	RecallClaimClickConverted  RecallClaimClickOutcome = "converted"
+	RecallClaimClickSuppressed RecallClaimClickOutcome = "suppressed"
+	RecallClaimClickInactive   RecallClaimClickOutcome = "inactive"
+)
+
+// CommitRecallCampaignRun makes the campaign state change, idempotency event,
+// recipient snapshot, and initial message snapshot one database transaction.
+// expectedNextRunAt is nil for manual runs and is a fencing value for scheduled
+// runs.
+func CommitRecallCampaignRun(
+	ctx context.Context,
+	campaignID int64,
+	from []string,
+	to string,
+	expectedNextRunAt *int64,
+	expectedConfigRevision int64,
+	fields map[string]any,
+	recipients []RecallRecipient,
+	messages []RecallMessage,
+	runEvent RecallEvent,
+	runExclusions RecallCampaignRunExclusionSource,
+) (bool, int, error) {
+	if len(from) == 0 {
+		return false, 0, nil
+	}
+	if len(messages) != 0 && len(messages) != len(recipients) {
+		return false, 0, fmt.Errorf("cannot align %d recall messages with %d recipients", len(messages), len(recipients))
+	}
+	updates, err := recallCampaignTransitionUpdates(to, fields)
+	if err != nil {
+		return false, 0, err
+	}
+	for i := range recipients {
+		recipients[i].CampaignId = campaignID
+		if err := normalizeRecallRecipientIdentity(&recipients[i]); err != nil {
+			return false, 0, err
+		}
+	}
+	if err := validateRecallRecipientIdentitiesUnique(recipients); err != nil {
+		return false, 0, err
+	}
+	runEvent.CampaignId = campaignID
+	owned := false
+	inserted := int64(0)
+	err = DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		campaignQuery := tx.Model(&RecallCampaign{}).
+			Where("id = ? AND status IN ? AND config_revision = ?", campaignID, from, expectedConfigRevision)
+		if expectedNextRunAt != nil {
+			campaignQuery = campaignQuery.Where("next_run_at = ?", *expectedNextRunAt)
+		}
+		campaignResult := campaignQuery.Updates(updates)
+		if campaignResult.Error != nil {
+			return campaignResult.Error
+		}
+		if campaignResult.RowsAffected == 0 {
+			return nil
+		}
+		owned = true
+
+		eventResult := insertRecallRunEvent(tx, &runEvent)
+		if eventResult.Error != nil {
+			return eventResult.Error
+		}
+		if eventResult.RowsAffected == 0 {
+			return errRecallRunNotOwned
+		}
+		if err := upsertRecallCampaignRunExclusionsTx(tx, campaignID, runEvent.Id, runEvent.CreatedAt, runExclusions); err != nil {
+			return err
+		}
+		if len(recipients) > 0 {
+			result := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "campaign_id"}, {Name: "recipient_identity"}},
+				DoNothing: true,
+			}).CreateInBatches(&recipients, recallRunBatchSize)
+			if result.Error != nil {
+				return result.Error
+			}
+			inserted = result.RowsAffected
+		}
+		if len(messages) == 0 {
+			return nil
+		}
+
+		identities := make([]string, len(recipients))
+		for i := range recipients {
+			identities[i] = recipients[i].RecipientIdentity
+		}
+		storedRecipients := make([]RecallRecipient, 0, len(identities))
+		for start := 0; start < len(identities); start += recallRunBatchSize {
+			end := start + recallRunBatchSize
+			if end > len(identities) {
+				end = len(identities)
+			}
+			var batch []RecallRecipient
+			if err := tx.Select("id", "recipient_identity").
+				Where("campaign_id = ? AND recipient_identity IN ?", campaignID, identities[start:end]).
+				Find(&batch).Error; err != nil {
+				return err
+			}
+			storedRecipients = append(storedRecipients, batch...)
+		}
+		recipientIDsByIdentity := make(map[string]int64, len(storedRecipients))
+		for _, recipient := range storedRecipients {
+			recipientIDsByIdentity[recipient.RecipientIdentity] = recipient.Id
+		}
+		for i := range messages {
+			recipientID, ok := recipientIDsByIdentity[recipients[i].RecipientIdentity]
+			if !ok {
+				return fmt.Errorf("recall recipient for campaign %d identity %s was not persisted", campaignID, recipients[i].RecipientIdentity)
+			}
+			messages[i].RecipientId = recipientID
+		}
+		occurredAt := runEvent.CreatedAt
+		if occurredAt == 0 {
+			var err error
+			occurredAt, err = getDBTimestamp(tx)
+			if err != nil {
+				return err
+			}
+		}
+		return CreateRecallMessagesWithStateEventsTx(tx, campaignID, messages, occurredAt)
+	})
+	if errors.Is(err, errRecallRunNotOwned) {
+		return false, 0, nil
+	}
+	if err != nil {
+		return false, 0, err
+	}
+	return owned, int(inserted), nil
+}
+
+func upsertRecallCampaignRunExclusionsTx(tx *gorm.DB, campaignID int64, runEventID int64, seenAt int64, runExclusions RecallCampaignRunExclusionSource) error {
+	if tx == nil {
+		return fmt.Errorf("recall run exclusion ledger requires a transaction")
+	}
+	if campaignID <= 0 || runEventID <= 0 || runExclusions == nil {
+		return nil
+	}
+	if seenAt == 0 {
+		var err error
+		seenAt, err = getDBTimestamp(tx)
+		if err != nil {
+			return err
+		}
+	}
+	rows := make([]RecallCampaignExclusion, 0, recallRunBatchSize)
+	flush := func() error {
+		if len(rows) == 0 {
+			return nil
+		}
+		if err := tx.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "campaign_id"}, {Name: "recipient_identity"}},
+			DoNothing: true,
+		}).CreateInBatches(rows, recallRunBatchSize).Error; err != nil {
+			return err
+		}
+		for _, row := range rows {
+			if err := tx.Model(&RecallCampaignExclusion{}).
+				Where("campaign_id = ? AND recipient_identity = ?", campaignID, row.RecipientIdentity).
+				Updates(map[string]any{
+					"user_id":              gorm.Expr("CASE WHEN user_id = 0 THEN ? ELSE user_id END", row.UserId),
+					"first_run_event_id":   gorm.Expr("CASE WHEN first_run_event_id = 0 THEN ? ELSE first_run_event_id END", runEventID),
+					"last_run_event_id":    runEventID,
+					"last_run_reason_code": row.LastRunReasonCode,
+					"first_seen_at":        gorm.Expr("CASE WHEN first_seen_at = 0 THEN ? ELSE first_seen_at END", seenAt),
+					"last_seen_at":         seenAt,
+				}).Error; err != nil {
+				return err
+			}
+		}
+		rows = rows[:0]
+		return nil
+	}
+	if err := runExclusions.ForEachRecallCampaignRunExclusion(func(exclusion RecallCampaignRunExclusion) error {
+		identity := strings.TrimSpace(exclusion.RecipientIdentity)
+		reason := sanitizeRecallErrorCode(exclusion.ReasonCode)
+		if identity == "" || reason == "" {
+			return nil
+		}
+		rows = append(rows, RecallCampaignExclusion{
+			CampaignId:        campaignID,
+			RecipientIdentity: identity,
+			UserId:            exclusion.UserId,
+			LastRunReasonCode: reason,
+			FirstRunEventId:   runEventID,
+			LastRunEventId:    runEventID,
+			FirstSeenAt:       seenAt,
+			LastSeenAt:        seenAt,
+		})
+		if len(rows) >= recallRunBatchSize {
+			return flush()
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	return flush()
+}
+
+func RecordRecallClaimClickWithContext(ctx context.Context, recipientID int64, campaignID int64, clickedAt int64) (RecallClaimClickOutcome, error) {
+	outcome := RecallClaimClickInactive
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		recipient := RecallRecipient{}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND campaign_id = ?", recipientID, campaignID).
+			First(&recipient).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil
+			}
+			return err
+		}
+		outcome = recallClaimClickOutcome(recipient)
+		if outcome != RecallClaimClickValid || recipient.ClickedAt != 0 {
+			return nil
+		}
+
+		result := tx.Model(&RecallRecipient{}).
+			Where("id = ? AND campaign_id = ? AND clicked_at = 0 AND converted_at = 0 AND state IN ?", recipientID, campaignID, recallClaimActiveRecipientStates()).
+			Update("clicked_at", clickedAt)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("id = ? AND campaign_id = ?", recipientID, campaignID).
+				First(&recipient).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					outcome = RecallClaimClickInactive
+					return nil
+				}
+				return err
+			}
+			outcome = recallClaimClickOutcome(recipient)
+			return nil
+		}
+		event := RecallEvent{
+			CampaignId:    campaignID,
+			RecipientId:   recipientID,
+			EventType:     "observed_click",
+			Source:        "claim",
+			SourceEventId: fmt.Sprintf("recipient:%d", recipientID),
+			EventData:     `{}`,
+			CreatedAt:     clickedAt,
+		}
+		return insertRecallRunEvent(tx, &event).Error
+	})
+	return outcome, err
+}
+
+func RecordRecallEmailOpenWithContext(ctx context.Context, recipientID int64, openedAt int64) (bool, error) {
+	recipient := RecallRecipient{}
+	if err := DB.WithContext(ctx).
+		Select("id", "campaign_id").
+		Where("id = ?", recipientID).
+		First(&recipient).Error; err != nil {
+		return false, err
+	}
+
+	event := RecallEvent{
+		CampaignId:    recipient.CampaignId,
+		RecipientId:   recipient.Id,
+		EventType:     "email_open",
+		Source:        "email_open",
+		SourceEventId: fmt.Sprintf("recipient:%d", recipient.Id),
+		EventData:     `{}`,
+		CreatedAt:     openedAt,
+	}
+	result := insertRecallRunEvent(DB.WithContext(ctx), &event)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func RecordRecallConversionWithContext(ctx context.Context, record RecallConversionRecord) (bool, error) {
+	converted := false
+	err := DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var err error
+		converted, err = RecordRecallConversionTx(tx, record)
+		return err
+	})
+	if errors.Is(err, errRecallConversionNotOwned) {
+		return false, nil
+	}
+	return converted, err
+}
+
+func RecordRecallConversionTx(tx *gorm.DB, record RecallConversionRecord) (bool, error) {
+	if tx == nil {
+		tx = DB
+	}
+	recipient := RecallRecipient{}
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND campaign_id = ? AND user_id = ?", record.RecipientId, record.CampaignId, record.UserId).
+		First(&recipient).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	if recipient.ConvertedAt != 0 || recipient.State == RecallRecipientConverted || !isRecallClaimActiveRecipientState(recipient.State) {
+		return false, nil
+	}
+
+	event := RecallEvent{
+		CampaignId:    record.CampaignId,
+		RecipientId:   record.RecipientId,
+		EventType:     "conversion",
+		Source:        record.Source,
+		SourceEventId: record.SourceEventId,
+		EventData:     record.EventData,
+		CreatedAt:     record.ConvertedAt,
+	}
+	eventResult := insertRecallRunEvent(tx, &event)
+	if eventResult.Error != nil {
+		return false, eventResult.Error
+	}
+	if eventResult.RowsAffected == 0 {
+		return false, nil
+	}
+
+	result := tx.Model(&RecallRecipient{}).
+		Where("id = ? AND campaign_id = ? AND user_id = ? AND converted_at = 0 AND state IN ?", record.RecipientId, record.CampaignId, record.UserId, recallClaimActiveRecipientStates()).
+		Updates(map[string]any{
+			"state":               RecallRecipientConverted,
+			"converted_at":        record.ConvertedAt,
+			"conversion_kind":     record.Kind,
+			"conversion_trade_no": record.TradeNo,
+			"conversion_currency": record.Currency,
+			"conversion_amount":   record.Amount,
+			"discount_amount":     record.DiscountAmount,
+			"lease_owner":         "",
+			"lease_expires_at":    int64(0),
+		})
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return false, errRecallConversionNotOwned
+	}
+	return true, nil
+}
+
+func recallClaimClickOutcome(recipient RecallRecipient) RecallClaimClickOutcome {
+	if recipient.ConvertedAt != 0 || recipient.State == RecallRecipientConverted {
+		return RecallClaimClickConverted
+	}
+	if recipient.State == RecallRecipientSuppressed {
+		return RecallClaimClickSuppressed
+	}
+	for _, state := range recallClaimActiveRecipientStates() {
+		if recipient.State == state {
+			return RecallClaimClickValid
+		}
+	}
+	return RecallClaimClickInactive
+}
+
+func recallClaimActiveRecipientStates() []string {
+	return []string{
+		RecallRecipientQueued,
+		RecallRecipientCustomerReady,
+		RecallRecipientCodeReady,
+		RecallRecipientContacting,
+	}
+}
+
+func isRecallClaimActiveRecipientState(state string) bool {
+	for _, active := range recallClaimActiveRecipientStates() {
+		if state == active {
+			return true
+		}
+	}
+	return false
+}
+
+func QueryRecallCampaignMetricRows(ctx context.Context, campaignID int64) ([]RecallMetricCountRow, []RecallCurrencyMetricRow, error) {
+	recipients := make([]RecallRecipient, 0)
+	if err := DB.WithContext(ctx).Where("campaign_id = ?", campaignID).Find(&recipients).Error; err != nil {
+		return nil, nil, err
+	}
+	counts := map[string]int64{
+		"enrolled": int64(len(recipients)),
+	}
+	currencyByKey := make(map[string]*RecallCurrencyMetricRow)
+	recipientIDs := make([]int64, 0, len(recipients))
+	for _, recipient := range recipients {
+		recipientIDs = append(recipientIDs, recipient.Id)
+		if strings.TrimSpace(recipient.StripeCustomerId) != "" {
+			counts["customer_success"]++
+		} else if recipient.State == RecallRecipientFailed {
+			counts["customer_failure"]++
+		}
+		if recipient.StripePromotionCodeId != nil && strings.TrimSpace(*recipient.StripePromotionCodeId) != "" {
+			counts["code_success"]++
+		} else if recipient.State == RecallRecipientFailed && strings.TrimSpace(recipient.StripeCustomerId) != "" {
+			counts["code_failure"]++
+		}
+		switch recipient.ConversionKind {
+		case RecallConversionDirect:
+			counts["direct"]++
+		case RecallConversionAssisted:
+			counts["assisted"]++
+		case RecallConversionNoCoupon:
+			counts["no_coupon"]++
+		default:
+			continue
+		}
+		currency := strings.ToUpper(strings.TrimSpace(recipient.ConversionCurrency))
+		key := currency + "\x00" + recipient.ConversionKind
+		row := currencyByKey[key]
+		if row == nil {
+			row = &RecallCurrencyMetricRow{Currency: currency, ConversionKind: recipient.ConversionKind}
+			currencyByKey[key] = row
+		}
+		row.Count++
+		row.PaymentAmount += recipient.ConversionAmount
+		row.DiscountAmount += recipient.DiscountAmount
+	}
+
+	if len(recipientIDs) > 0 {
+		messages := make([]RecallMessage, 0)
+		if err := DB.WithContext(ctx).Where("recipient_id IN ?", recipientIDs).Find(&messages).Error; err != nil {
+			return nil, nil, err
+		}
+		counts["messages_scheduled"] = int64(len(messages))
+		for _, message := range messages {
+			switch message.State {
+			case RecallMessageAccepted:
+				counts["messages_accepted"]++
+			case RecallMessageFailed:
+				counts["messages_failed"]++
+			case RecallMessageCancelled:
+				counts["messages_cancelled"]++
+			}
+		}
+	}
+
+	var openedRecipientCount int64
+	if err := DB.WithContext(ctx).Model(&RecallEvent{}).
+		Where("campaign_id = ? AND event_type = ? AND recipient_id > 0", campaignID, "email_open").
+		Distinct("recipient_id").
+		Count(&openedRecipientCount).Error; err != nil {
+		return nil, nil, err
+	}
+	counts["opened_recipients"] = openedRecipientCount
+
+	events := make([]RecallEvent, 0)
+	if err := DB.WithContext(ctx).
+		Select("event_type", "event_data").
+		Where("campaign_id = ? AND (event_type <> ? OR event_type IS NULL)", campaignID, "email_open").
+		Find(&events).Error; err != nil {
+		return nil, nil, err
+	}
+	for _, event := range events {
+		switch event.EventType {
+		case "observed_click":
+			counts["observed_clicks"]++
+		case "campaign_run":
+			var data struct {
+				EligibleTotal int64            `json:"eligible_total"`
+				Exclusions    map[string]int64 `json:"exclusions"`
+			}
+			if err := common.Unmarshal([]byte(event.EventData), &data); err != nil {
+				return nil, nil, fmt.Errorf("decode recall campaign run metrics: %w", err)
+			}
+			counts["candidates"] += data.EligibleTotal
+			for _, excluded := range data.Exclusions {
+				counts["candidates"] += excluded
+				counts["excluded"] += excluded
+			}
+		}
+	}
+
+	metricNames := []string{
+		"candidates", "enrolled", "excluded", "customer_success", "customer_failure", "code_success", "code_failure",
+		"messages_scheduled", "messages_accepted", "messages_failed", "messages_cancelled", "observed_clicks", "opened_recipients", "direct", "assisted", "no_coupon",
+	}
+	countRows := make([]RecallMetricCountRow, 0, len(metricNames))
+	for _, metric := range metricNames {
+		countRows = append(countRows, RecallMetricCountRow{Metric: metric, Count: counts[metric]})
+	}
+	currencyRows := make([]RecallCurrencyMetricRow, 0, len(currencyByKey))
+	for _, row := range currencyByKey {
+		currencyRows = append(currencyRows, *row)
+	}
+	sort.Slice(currencyRows, func(i, j int) bool {
+		if currencyRows[i].Currency == currencyRows[j].Currency {
+			return currencyRows[i].ConversionKind < currencyRows[j].ConversionKind
+		}
+		return currencyRows[i].Currency < currencyRows[j].Currency
+	})
+	return countRows, currencyRows, nil
+}
+
+func TryInsertRecallReconciliationWindowWithContext(ctx context.Context, now time.Time) (bool, error) {
+	windowStart := now.UTC().Truncate(15 * time.Minute)
+	event := RecallEvent{
+		EventType:     "reconciliation_run",
+		Source:        "scheduler",
+		SourceEventId: fmt.Sprintf("recall-reconciliation:%d", windowStart.Unix()),
+		EventData:     `{}`,
+		CreatedAt:     now.Unix(),
+	}
+	result := insertRecallRunEvent(DB.WithContext(ctx), &event)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}

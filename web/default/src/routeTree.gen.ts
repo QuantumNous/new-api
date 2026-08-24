@@ -30,6 +30,7 @@ import { Route as ModelsGptApiRouteImport } from './routes/models/gpt-api'
 import { Route as ModelsClaudeApiRouteImport } from './routes/models/claude-api'
 import { Route as ConsoleTopupRouteImport } from './routes/console/topup'
 import { Route as ConsoleLogRouteImport } from './routes/console/log'
+import { Route as CliAuthorizeRouteImport } from './routes/cli/authorize'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
 import { Route as AuthenticatedQuickstartRouteImport } from './routes/_authenticated/quickstart'
 import { Route as AuthenticatedChat2linkRouteImport } from './routes/_authenticated/chat2link'
@@ -59,24 +60,35 @@ import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedSystemSettingsIndexRouteImport } from './routes/_authenticated/system-settings/index'
 import { Route as AuthenticatedSubscriptionsIndexRouteImport } from './routes/_authenticated/subscriptions/index'
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
+import { Route as AuthenticatedRedeemIndexRouteImport } from './routes/_authenticated/redeem/index'
+import { Route as AuthenticatedRecallCampaignsIndexRouteImport } from './routes/_authenticated/recall-campaigns/index'
+import { Route as AuthenticatedPromptGalleryIndexRouteImport } from './routes/_authenticated/prompt-gallery/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
+import { Route as AuthenticatedOpsReportIndexRouteImport } from './routes/_authenticated/ops-report/index'
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
+import { Route as AuthenticatedModelHealthIndexRouteImport } from './routes/_authenticated/model-health/index'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
+import { Route as AuthenticatedInviteIndexRouteImport } from './routes/_authenticated/invite/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
+import { Route as AuthenticatedComputeIndexRouteImport } from './routes/_authenticated/compute/index'
 import { Route as AuthenticatedCodexModelGovernanceIndexRouteImport } from './routes/_authenticated/codex-model-governance/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
+import { Route as AuthenticatedAvailableModelsIndexRouteImport } from './routes/_authenticated/available-models/index'
+import { Route as AuthenticatedApiMarketplaceIndexRouteImport } from './routes/_authenticated/api-marketplace/index'
 import { Route as LocaleRankingsIndexRouteImport } from './routes/$locale/rankings/index'
 import { Route as LocalePricingIndexRouteImport } from './routes/$locale/pricing/index'
 import { Route as LocaleBlogIndexRouteImport } from './routes/$locale/blog/index'
 import { Route as LocaleAboutIndexRouteImport } from './routes/$locale/about/index'
 import { Route as BlogCategorySlugRouteImport } from './routes/blog/category/$slug'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
+import { Route as AuthenticatedRecallCampaignsCampaignIdRouteImport } from './routes/_authenticated/recall-campaigns/$campaignId'
 import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authenticated/models/$section'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
 import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
+import { Route as authSignUpVerifyRouteImport } from './routes/(auth)/sign-up_.verify'
 import { Route as LocaleModelsGptApiRouteImport } from './routes/$locale/models/gpt-api'
 import { Route as LocaleModelsClaudeApiRouteImport } from './routes/$locale/models/claude-api'
 import { Route as LocaleBlogSlugRouteImport } from './routes/$locale/blog/$slug'
@@ -87,6 +99,7 @@ import { Route as AuthenticatedSystemSettingsModelsIndexRouteImport } from './ro
 import { Route as AuthenticatedSystemSettingsContentIndexRouteImport } from './routes/_authenticated/system-settings/content/index'
 import { Route as AuthenticatedSystemSettingsBillingIndexRouteImport } from './routes/_authenticated/system-settings/billing/index'
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
+import { Route as AuthenticatedComputeNodesIndexRouteImport } from './routes/_authenticated/compute/nodes/index'
 import { Route as LocalePricingModelIdIndexRouteImport } from './routes/$locale/pricing/$modelId/index'
 import { Route as AuthenticatedSystemSettingsSiteSectionRouteImport } from './routes/_authenticated/system-settings/site/$section'
 import { Route as AuthenticatedSystemSettingsSecuritySectionRouteImport } from './routes/_authenticated/system-settings/security/$section'
@@ -198,6 +211,11 @@ const ConsoleTopupRoute = ConsoleTopupRouteImport.update({
 const ConsoleLogRoute = ConsoleLogRouteImport.update({
   id: '/console/log',
   path: '/console/log',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CliAuthorizeRoute = CliAuthorizeRouteImport.update({
+  id: '/cli/authorize',
+  path: '/cli/authorize',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlogSlugRoute = BlogSlugRouteImport.update({
@@ -351,6 +369,24 @@ const AuthenticatedRedemptionCodesIndexRoute =
     path: '/redemption-codes/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedRedeemIndexRoute =
+  AuthenticatedRedeemIndexRouteImport.update({
+    id: '/redeem/',
+    path: '/redeem/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedRecallCampaignsIndexRoute =
+  AuthenticatedRecallCampaignsIndexRouteImport.update({
+    id: '/recall-campaigns/',
+    path: '/recall-campaigns/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPromptGalleryIndexRoute =
+  AuthenticatedPromptGalleryIndexRouteImport.update({
+    id: '/prompt-gallery/',
+    path: '/prompt-gallery/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedProfileIndexRoute =
   AuthenticatedProfileIndexRouteImport.update({
     id: '/profile/',
@@ -363,10 +399,22 @@ const AuthenticatedPlaygroundIndexRoute =
     path: '/playground/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedOpsReportIndexRoute =
+  AuthenticatedOpsReportIndexRouteImport.update({
+    id: '/ops-report/',
+    path: '/ops-report/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedModelsIndexRoute =
   AuthenticatedModelsIndexRouteImport.update({
     id: '/models/',
     path: '/models/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedModelHealthIndexRoute =
+  AuthenticatedModelHealthIndexRouteImport.update({
+    id: '/model-health/',
+    path: '/model-health/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedKeysIndexRoute = AuthenticatedKeysIndexRouteImport.update({
@@ -374,10 +422,22 @@ const AuthenticatedKeysIndexRoute = AuthenticatedKeysIndexRouteImport.update({
   path: '/keys/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedInviteIndexRoute =
+  AuthenticatedInviteIndexRouteImport.update({
+    id: '/invite/',
+    path: '/invite/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDashboardIndexRoute =
   AuthenticatedDashboardIndexRouteImport.update({
     id: '/dashboard/',
     path: '/dashboard/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedComputeIndexRoute =
+  AuthenticatedComputeIndexRouteImport.update({
+    id: '/compute/',
+    path: '/compute/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedCodexModelGovernanceIndexRoute =
@@ -390,6 +450,18 @@ const AuthenticatedChannelsIndexRoute =
   AuthenticatedChannelsIndexRouteImport.update({
     id: '/channels/',
     path: '/channels/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedAvailableModelsIndexRoute =
+  AuthenticatedAvailableModelsIndexRouteImport.update({
+    id: '/available-models/',
+    path: '/available-models/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedApiMarketplaceIndexRoute =
+  AuthenticatedApiMarketplaceIndexRouteImport.update({
+    id: '/api-marketplace/',
+    path: '/api-marketplace/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const LocaleRankingsIndexRoute = LocaleRankingsIndexRouteImport.update({
@@ -423,6 +495,12 @@ const AuthenticatedUsageLogsSectionRoute =
     path: '/usage-logs/$section',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedRecallCampaignsCampaignIdRoute =
+  AuthenticatedRecallCampaignsCampaignIdRouteImport.update({
+    id: '/recall-campaigns/$campaignId',
+    path: '/recall-campaigns/$campaignId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedModelsSectionRoute =
   AuthenticatedModelsSectionRouteImport.update({
     id: '/models/$section',
@@ -449,6 +527,11 @@ const AuthenticatedChatChatIdRoute = AuthenticatedChatChatIdRouteImport.update({
 const authUserResetRoute = authUserResetRouteImport.update({
   id: '/user/reset',
   path: '/user/reset',
+  getParentRoute: () => authRouteRoute,
+} as any)
+const authSignUpVerifyRoute = authSignUpVerifyRouteImport.update({
+  id: '/sign-up_/verify',
+  path: '/sign-up/verify',
   getParentRoute: () => authRouteRoute,
 } as any)
 const LocaleModelsGptApiRoute = LocaleModelsGptApiRouteImport.update({
@@ -507,6 +590,12 @@ const AuthenticatedSystemSettingsAuthIndexRoute =
     id: '/auth/',
     path: '/auth/',
     getParentRoute: () => AuthenticatedSystemSettingsRouteRoute,
+  } as any)
+const AuthenticatedComputeNodesIndexRoute =
+  AuthenticatedComputeNodesIndexRouteImport.update({
+    id: '/compute/nodes/',
+    path: '/compute/nodes/',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const LocalePricingModelIdIndexRoute =
   LocalePricingModelIdIndexRouteImport.update({
@@ -593,6 +682,7 @@ export interface FileRoutesByFullPath {
   '/chat2link': typeof AuthenticatedChat2linkRoute
   '/quickstart': typeof AuthenticatedQuickstartRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/cli/authorize': typeof CliAuthorizeRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/models/claude-api': typeof ModelsClaudeApiRoute
@@ -607,24 +697,35 @@ export interface FileRoutesByFullPath {
   '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
   '/$locale/models/claude-api': typeof LocaleModelsClaudeApiRoute
   '/$locale/models/gpt-api': typeof LocaleModelsGptApiRoute
+  '/sign-up/verify': typeof authSignUpVerifyRoute
   '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
+  '/recall-campaigns/$campaignId': typeof AuthenticatedRecallCampaignsCampaignIdRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/blog/category/$slug': typeof BlogCategorySlugRoute
   '/$locale/about/': typeof LocaleAboutIndexRoute
   '/$locale/blog/': typeof LocaleBlogIndexRoute
   '/$locale/pricing/': typeof LocalePricingIndexRoute
   '/$locale/rankings/': typeof LocaleRankingsIndexRoute
+  '/api-marketplace/': typeof AuthenticatedApiMarketplaceIndexRoute
+  '/available-models/': typeof AuthenticatedAvailableModelsIndexRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/codex-model-governance/': typeof AuthenticatedCodexModelGovernanceIndexRoute
+  '/compute/': typeof AuthenticatedComputeIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
+  '/invite/': typeof AuthenticatedInviteIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
+  '/model-health/': typeof AuthenticatedModelHealthIndexRoute
   '/models/': typeof AuthenticatedModelsIndexRoute
+  '/ops-report/': typeof AuthenticatedOpsReportIndexRoute
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
+  '/prompt-gallery/': typeof AuthenticatedPromptGalleryIndexRoute
+  '/recall-campaigns/': typeof AuthenticatedRecallCampaignsIndexRoute
+  '/redeem/': typeof AuthenticatedRedeemIndexRoute
   '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
   '/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
@@ -641,6 +742,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
   '/$locale/pricing/$modelId/': typeof LocalePricingModelIdIndexRoute
+  '/compute/nodes/': typeof AuthenticatedComputeNodesIndexRoute
   '/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -679,6 +781,7 @@ export interface FileRoutesByTo {
   '/chat2link': typeof AuthenticatedChat2linkRoute
   '/quickstart': typeof AuthenticatedQuickstartRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/cli/authorize': typeof CliAuthorizeRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/models/claude-api': typeof ModelsClaudeApiRoute
@@ -693,24 +796,35 @@ export interface FileRoutesByTo {
   '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
   '/$locale/models/claude-api': typeof LocaleModelsClaudeApiRoute
   '/$locale/models/gpt-api': typeof LocaleModelsGptApiRoute
+  '/sign-up/verify': typeof authSignUpVerifyRoute
   '/user/reset': typeof authUserResetRoute
   '/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
+  '/recall-campaigns/$campaignId': typeof AuthenticatedRecallCampaignsCampaignIdRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/blog/category/$slug': typeof BlogCategorySlugRoute
   '/$locale/about': typeof LocaleAboutIndexRoute
   '/$locale/blog': typeof LocaleBlogIndexRoute
   '/$locale/pricing': typeof LocalePricingIndexRoute
   '/$locale/rankings': typeof LocaleRankingsIndexRoute
+  '/api-marketplace': typeof AuthenticatedApiMarketplaceIndexRoute
+  '/available-models': typeof AuthenticatedAvailableModelsIndexRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/codex-model-governance': typeof AuthenticatedCodexModelGovernanceIndexRoute
+  '/compute': typeof AuthenticatedComputeIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
+  '/invite': typeof AuthenticatedInviteIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
+  '/model-health': typeof AuthenticatedModelHealthIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
+  '/ops-report': typeof AuthenticatedOpsReportIndexRoute
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
+  '/prompt-gallery': typeof AuthenticatedPromptGalleryIndexRoute
+  '/recall-campaigns': typeof AuthenticatedRecallCampaignsIndexRoute
+  '/redeem': typeof AuthenticatedRedeemIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
   '/subscriptions': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-settings': typeof AuthenticatedSystemSettingsIndexRoute
@@ -727,6 +841,7 @@ export interface FileRoutesByTo {
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
   '/$locale/pricing/$modelId': typeof LocalePricingModelIdIndexRoute
+  '/compute/nodes': typeof AuthenticatedComputeNodesIndexRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -769,6 +884,7 @@ export interface FileRoutesById {
   '/_authenticated/chat2link': typeof AuthenticatedChat2linkRoute
   '/_authenticated/quickstart': typeof AuthenticatedQuickstartRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/cli/authorize': typeof CliAuthorizeRoute
   '/console/log': typeof ConsoleLogRoute
   '/console/topup': typeof ConsoleTopupRoute
   '/models/claude-api': typeof ModelsClaudeApiRoute
@@ -783,24 +899,35 @@ export interface FileRoutesById {
   '/$locale/blog/$slug': typeof LocaleBlogSlugRoute
   '/$locale/models/claude-api': typeof LocaleModelsClaudeApiRoute
   '/$locale/models/gpt-api': typeof LocaleModelsGptApiRoute
+  '/(auth)/sign-up_/verify': typeof authSignUpVerifyRoute
   '/(auth)/user/reset': typeof authUserResetRoute
   '/_authenticated/chat/$chatId': typeof AuthenticatedChatChatIdRoute
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
+  '/_authenticated/recall-campaigns/$campaignId': typeof AuthenticatedRecallCampaignsCampaignIdRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/blog/category/$slug': typeof BlogCategorySlugRoute
   '/$locale/about/': typeof LocaleAboutIndexRoute
   '/$locale/blog/': typeof LocaleBlogIndexRoute
   '/$locale/pricing/': typeof LocalePricingIndexRoute
   '/$locale/rankings/': typeof LocaleRankingsIndexRoute
+  '/_authenticated/api-marketplace/': typeof AuthenticatedApiMarketplaceIndexRoute
+  '/_authenticated/available-models/': typeof AuthenticatedAvailableModelsIndexRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/codex-model-governance/': typeof AuthenticatedCodexModelGovernanceIndexRoute
+  '/_authenticated/compute/': typeof AuthenticatedComputeIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
+  '/_authenticated/invite/': typeof AuthenticatedInviteIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
+  '/_authenticated/model-health/': typeof AuthenticatedModelHealthIndexRoute
   '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
+  '/_authenticated/ops-report/': typeof AuthenticatedOpsReportIndexRoute
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
+  '/_authenticated/prompt-gallery/': typeof AuthenticatedPromptGalleryIndexRoute
+  '/_authenticated/recall-campaigns/': typeof AuthenticatedRecallCampaignsIndexRoute
+  '/_authenticated/redeem/': typeof AuthenticatedRedeemIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
   '/_authenticated/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/_authenticated/system-settings/': typeof AuthenticatedSystemSettingsIndexRoute
@@ -817,6 +944,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/_authenticated/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
   '/$locale/pricing/$modelId/': typeof LocalePricingModelIdIndexRoute
+  '/_authenticated/compute/nodes/': typeof AuthenticatedComputeNodesIndexRoute
   '/_authenticated/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/_authenticated/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/_authenticated/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -858,6 +986,7 @@ export interface FileRouteTypes {
     | '/chat2link'
     | '/quickstart'
     | '/blog/$slug'
+    | '/cli/authorize'
     | '/console/log'
     | '/console/topup'
     | '/models/claude-api'
@@ -872,24 +1001,35 @@ export interface FileRouteTypes {
     | '/$locale/blog/$slug'
     | '/$locale/models/claude-api'
     | '/$locale/models/gpt-api'
+    | '/sign-up/verify'
     | '/user/reset'
     | '/chat/$chatId'
     | '/dashboard/$section'
     | '/errors/$error'
     | '/models/$section'
+    | '/recall-campaigns/$campaignId'
     | '/usage-logs/$section'
     | '/blog/category/$slug'
     | '/$locale/about/'
     | '/$locale/blog/'
     | '/$locale/pricing/'
     | '/$locale/rankings/'
+    | '/api-marketplace/'
+    | '/available-models/'
     | '/channels/'
     | '/codex-model-governance/'
+    | '/compute/'
     | '/dashboard/'
+    | '/invite/'
     | '/keys/'
+    | '/model-health/'
     | '/models/'
+    | '/ops-report/'
     | '/playground/'
     | '/profile/'
+    | '/prompt-gallery/'
+    | '/recall-campaigns/'
+    | '/redeem/'
     | '/redemption-codes/'
     | '/subscriptions/'
     | '/system-settings/'
@@ -906,6 +1046,7 @@ export interface FileRouteTypes {
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
     | '/$locale/pricing/$modelId/'
+    | '/compute/nodes/'
     | '/system-settings/auth/'
     | '/system-settings/billing/'
     | '/system-settings/content/'
@@ -944,6 +1085,7 @@ export interface FileRouteTypes {
     | '/chat2link'
     | '/quickstart'
     | '/blog/$slug'
+    | '/cli/authorize'
     | '/console/log'
     | '/console/topup'
     | '/models/claude-api'
@@ -958,24 +1100,35 @@ export interface FileRouteTypes {
     | '/$locale/blog/$slug'
     | '/$locale/models/claude-api'
     | '/$locale/models/gpt-api'
+    | '/sign-up/verify'
     | '/user/reset'
     | '/chat/$chatId'
     | '/dashboard/$section'
     | '/errors/$error'
     | '/models/$section'
+    | '/recall-campaigns/$campaignId'
     | '/usage-logs/$section'
     | '/blog/category/$slug'
     | '/$locale/about'
     | '/$locale/blog'
     | '/$locale/pricing'
     | '/$locale/rankings'
+    | '/api-marketplace'
+    | '/available-models'
     | '/channels'
     | '/codex-model-governance'
+    | '/compute'
     | '/dashboard'
+    | '/invite'
     | '/keys'
+    | '/model-health'
     | '/models'
+    | '/ops-report'
     | '/playground'
     | '/profile'
+    | '/prompt-gallery'
+    | '/recall-campaigns'
+    | '/redeem'
     | '/redemption-codes'
     | '/subscriptions'
     | '/system-settings'
@@ -992,6 +1145,7 @@ export interface FileRouteTypes {
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
     | '/$locale/pricing/$modelId'
+    | '/compute/nodes'
     | '/system-settings/auth'
     | '/system-settings/billing'
     | '/system-settings/content'
@@ -1033,6 +1187,7 @@ export interface FileRouteTypes {
     | '/_authenticated/chat2link'
     | '/_authenticated/quickstart'
     | '/blog/$slug'
+    | '/cli/authorize'
     | '/console/log'
     | '/console/topup'
     | '/models/claude-api'
@@ -1047,24 +1202,35 @@ export interface FileRouteTypes {
     | '/$locale/blog/$slug'
     | '/$locale/models/claude-api'
     | '/$locale/models/gpt-api'
+    | '/(auth)/sign-up_/verify'
     | '/(auth)/user/reset'
     | '/_authenticated/chat/$chatId'
     | '/_authenticated/dashboard/$section'
     | '/_authenticated/errors/$error'
     | '/_authenticated/models/$section'
+    | '/_authenticated/recall-campaigns/$campaignId'
     | '/_authenticated/usage-logs/$section'
     | '/blog/category/$slug'
     | '/$locale/about/'
     | '/$locale/blog/'
     | '/$locale/pricing/'
     | '/$locale/rankings/'
+    | '/_authenticated/api-marketplace/'
+    | '/_authenticated/available-models/'
     | '/_authenticated/channels/'
     | '/_authenticated/codex-model-governance/'
+    | '/_authenticated/compute/'
     | '/_authenticated/dashboard/'
+    | '/_authenticated/invite/'
     | '/_authenticated/keys/'
+    | '/_authenticated/model-health/'
     | '/_authenticated/models/'
+    | '/_authenticated/ops-report/'
     | '/_authenticated/playground/'
     | '/_authenticated/profile/'
+    | '/_authenticated/prompt-gallery/'
+    | '/_authenticated/recall-campaigns/'
+    | '/_authenticated/redeem/'
     | '/_authenticated/redemption-codes/'
     | '/_authenticated/subscriptions/'
     | '/_authenticated/system-settings/'
@@ -1081,6 +1247,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/security/$section'
     | '/_authenticated/system-settings/site/$section'
     | '/$locale/pricing/$modelId/'
+    | '/_authenticated/compute/nodes/'
     | '/_authenticated/system-settings/auth/'
     | '/_authenticated/system-settings/billing/'
     | '/_authenticated/system-settings/content/'
@@ -1113,6 +1280,7 @@ export interface RootRouteChildren {
   errors500Route: typeof errors500Route
   errors503Route: typeof errors503Route
   BlogSlugRoute: typeof BlogSlugRoute
+  CliAuthorizeRoute: typeof CliAuthorizeRoute
   ConsoleLogRoute: typeof ConsoleLogRoute
   ConsoleTopupRoute: typeof ConsoleTopupRoute
   ModelsClaudeApiRoute: typeof ModelsClaudeApiRoute
@@ -1284,6 +1452,13 @@ declare module '@tanstack/react-router' {
       path: '/console/log'
       fullPath: '/console/log'
       preLoaderRoute: typeof ConsoleLogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cli/authorize': {
+      id: '/cli/authorize'
+      path: '/cli/authorize'
+      fullPath: '/cli/authorize'
+      preLoaderRoute: typeof CliAuthorizeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog/$slug': {
@@ -1489,6 +1664,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRedemptionCodesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/redeem/': {
+      id: '/_authenticated/redeem/'
+      path: '/redeem'
+      fullPath: '/redeem/'
+      preLoaderRoute: typeof AuthenticatedRedeemIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/recall-campaigns/': {
+      id: '/_authenticated/recall-campaigns/'
+      path: '/recall-campaigns'
+      fullPath: '/recall-campaigns/'
+      preLoaderRoute: typeof AuthenticatedRecallCampaignsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/prompt-gallery/': {
+      id: '/_authenticated/prompt-gallery/'
+      path: '/prompt-gallery'
+      fullPath: '/prompt-gallery/'
+      preLoaderRoute: typeof AuthenticatedPromptGalleryIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/profile/': {
       id: '/_authenticated/profile/'
       path: '/profile'
@@ -1503,11 +1699,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPlaygroundIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/ops-report/': {
+      id: '/_authenticated/ops-report/'
+      path: '/ops-report'
+      fullPath: '/ops-report/'
+      preLoaderRoute: typeof AuthenticatedOpsReportIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/models/': {
       id: '/_authenticated/models/'
       path: '/models'
       fullPath: '/models/'
       preLoaderRoute: typeof AuthenticatedModelsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/model-health/': {
+      id: '/_authenticated/model-health/'
+      path: '/model-health'
+      fullPath: '/model-health/'
+      preLoaderRoute: typeof AuthenticatedModelHealthIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/keys/': {
@@ -1517,11 +1727,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedKeysIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/invite/': {
+      id: '/_authenticated/invite/'
+      path: '/invite'
+      fullPath: '/invite/'
+      preLoaderRoute: typeof AuthenticatedInviteIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard/': {
       id: '/_authenticated/dashboard/'
       path: '/dashboard'
       fullPath: '/dashboard/'
       preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/compute/': {
+      id: '/_authenticated/compute/'
+      path: '/compute'
+      fullPath: '/compute/'
+      preLoaderRoute: typeof AuthenticatedComputeIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/codex-model-governance/': {
@@ -1536,6 +1760,20 @@ declare module '@tanstack/react-router' {
       path: '/channels'
       fullPath: '/channels/'
       preLoaderRoute: typeof AuthenticatedChannelsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/available-models/': {
+      id: '/_authenticated/available-models/'
+      path: '/available-models'
+      fullPath: '/available-models/'
+      preLoaderRoute: typeof AuthenticatedAvailableModelsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/api-marketplace/': {
+      id: '/_authenticated/api-marketplace/'
+      path: '/api-marketplace'
+      fullPath: '/api-marketplace/'
+      preLoaderRoute: typeof AuthenticatedApiMarketplaceIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/$locale/rankings/': {
@@ -1580,6 +1818,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUsageLogsSectionRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/recall-campaigns/$campaignId': {
+      id: '/_authenticated/recall-campaigns/$campaignId'
+      path: '/recall-campaigns/$campaignId'
+      fullPath: '/recall-campaigns/$campaignId'
+      preLoaderRoute: typeof AuthenticatedRecallCampaignsCampaignIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/models/$section': {
       id: '/_authenticated/models/$section'
       path: '/models/$section'
@@ -1613,6 +1858,13 @@ declare module '@tanstack/react-router' {
       path: '/user/reset'
       fullPath: '/user/reset'
       preLoaderRoute: typeof authUserResetRouteImport
+      parentRoute: typeof authRouteRoute
+    }
+    '/(auth)/sign-up_/verify': {
+      id: '/(auth)/sign-up_/verify'
+      path: '/sign-up/verify'
+      fullPath: '/sign-up/verify'
+      preLoaderRoute: typeof authSignUpVerifyRouteImport
       parentRoute: typeof authRouteRoute
     }
     '/$locale/models/gpt-api': {
@@ -1684,6 +1936,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/system-settings/auth/'
       preLoaderRoute: typeof AuthenticatedSystemSettingsAuthIndexRouteImport
       parentRoute: typeof AuthenticatedSystemSettingsRouteRoute
+    }
+    '/_authenticated/compute/nodes/': {
+      id: '/_authenticated/compute/nodes/'
+      path: '/compute/nodes'
+      fullPath: '/compute/nodes/'
+      preLoaderRoute: typeof AuthenticatedComputeNodesIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/$locale/pricing/$modelId/': {
       id: '/$locale/pricing/$modelId/'
@@ -1759,6 +2018,7 @@ interface authRouteRouteChildren {
   authResetRoute: typeof authResetRoute
   authSignInRoute: typeof authSignInRoute
   authSignUpRoute: typeof authSignUpRoute
+  authSignUpVerifyRoute: typeof authSignUpVerifyRoute
   authUserResetRoute: typeof authUserResetRoute
 }
 
@@ -1770,6 +2030,7 @@ const authRouteRouteChildren: authRouteRouteChildren = {
   authResetRoute: authResetRoute,
   authSignInRoute: authSignInRoute,
   authSignUpRoute: authSignUpRoute,
+  authSignUpVerifyRoute: authSignUpVerifyRoute,
   authUserResetRoute: authUserResetRoute,
 }
 
@@ -1842,19 +2103,30 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
+  AuthenticatedRecallCampaignsCampaignIdRoute: typeof AuthenticatedRecallCampaignsCampaignIdRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
+  AuthenticatedApiMarketplaceIndexRoute: typeof AuthenticatedApiMarketplaceIndexRoute
+  AuthenticatedAvailableModelsIndexRoute: typeof AuthenticatedAvailableModelsIndexRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedCodexModelGovernanceIndexRoute: typeof AuthenticatedCodexModelGovernanceIndexRoute
+  AuthenticatedComputeIndexRoute: typeof AuthenticatedComputeIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
+  AuthenticatedInviteIndexRoute: typeof AuthenticatedInviteIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
+  AuthenticatedModelHealthIndexRoute: typeof AuthenticatedModelHealthIndexRoute
   AuthenticatedModelsIndexRoute: typeof AuthenticatedModelsIndexRoute
+  AuthenticatedOpsReportIndexRoute: typeof AuthenticatedOpsReportIndexRoute
   AuthenticatedPlaygroundIndexRoute: typeof AuthenticatedPlaygroundIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
+  AuthenticatedPromptGalleryIndexRoute: typeof AuthenticatedPromptGalleryIndexRoute
+  AuthenticatedRecallCampaignsIndexRoute: typeof AuthenticatedRecallCampaignsIndexRoute
+  AuthenticatedRedeemIndexRoute: typeof AuthenticatedRedeemIndexRoute
   AuthenticatedRedemptionCodesIndexRoute: typeof AuthenticatedRedemptionCodesIndexRoute
   AuthenticatedSubscriptionsIndexRoute: typeof AuthenticatedSubscriptionsIndexRoute
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
+  AuthenticatedComputeNodesIndexRoute: typeof AuthenticatedComputeNodesIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1866,21 +2138,35 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
+  AuthenticatedRecallCampaignsCampaignIdRoute:
+    AuthenticatedRecallCampaignsCampaignIdRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
+  AuthenticatedApiMarketplaceIndexRoute: AuthenticatedApiMarketplaceIndexRoute,
+  AuthenticatedAvailableModelsIndexRoute:
+    AuthenticatedAvailableModelsIndexRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedCodexModelGovernanceIndexRoute:
     AuthenticatedCodexModelGovernanceIndexRoute,
+  AuthenticatedComputeIndexRoute: AuthenticatedComputeIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
+  AuthenticatedInviteIndexRoute: AuthenticatedInviteIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
+  AuthenticatedModelHealthIndexRoute: AuthenticatedModelHealthIndexRoute,
   AuthenticatedModelsIndexRoute: AuthenticatedModelsIndexRoute,
+  AuthenticatedOpsReportIndexRoute: AuthenticatedOpsReportIndexRoute,
   AuthenticatedPlaygroundIndexRoute: AuthenticatedPlaygroundIndexRoute,
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
+  AuthenticatedPromptGalleryIndexRoute: AuthenticatedPromptGalleryIndexRoute,
+  AuthenticatedRecallCampaignsIndexRoute:
+    AuthenticatedRecallCampaignsIndexRoute,
+  AuthenticatedRedeemIndexRoute: AuthenticatedRedeemIndexRoute,
   AuthenticatedRedemptionCodesIndexRoute:
     AuthenticatedRedemptionCodesIndexRoute,
   AuthenticatedSubscriptionsIndexRoute: AuthenticatedSubscriptionsIndexRoute,
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
+  AuthenticatedComputeNodesIndexRoute: AuthenticatedComputeNodesIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -1909,6 +2195,7 @@ const rootRouteChildren: RootRouteChildren = {
   errors500Route: errors500Route,
   errors503Route: errors503Route,
   BlogSlugRoute: BlogSlugRoute,
+  CliAuthorizeRoute: CliAuthorizeRoute,
   ConsoleLogRoute: ConsoleLogRoute,
   ConsoleTopupRoute: ConsoleTopupRoute,
   ModelsClaudeApiRoute: ModelsClaudeApiRoute,

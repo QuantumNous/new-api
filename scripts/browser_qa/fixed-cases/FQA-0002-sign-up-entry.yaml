@@ -1,0 +1,33 @@
+schema_version: 1
+id: FQA-0002
+kind: coverage_baseline
+name: Sign up entry route does not resolve to a missing page
+enabled: false
+severity: medium
+owner: browser-qa
+fixture: anonymous
+start:
+  origin: staging_website
+  path: /zh
+steps:
+  - click:
+      locator:
+        by: role
+        role: link
+        name: Sign up
+assertions:
+  - page_status_not: 404
+  - url_not_contains: /404
+evidence:
+  screenshot_on_failure: true
+  capture_console: true
+  capture_network: false
+cleanup: not_required
+source:
+  run_id: "000000002"
+  finding_fingerprint: "fqa-0002-sign-up-entry"
+  evidence_uri: "gs://flatkey-browser-qa-private/fixed-cases/fqa-0002"
+promotion:
+  state: candidate_draft
+  attempts_required: 3
+  attempts_passed: 0

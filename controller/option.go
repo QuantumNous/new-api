@@ -30,6 +30,39 @@ var completionRatioMetaOptionKeys = []string{
 	"AudioCompletionRatio",
 }
 
+func isPricingDisplayOptionKey(key string) bool {
+	switch key {
+	case "ModelPrice",
+		"ModelRatio",
+		"CompletionRatio",
+		"CacheRatio",
+		"CreateCacheRatio",
+		"ImageRatio",
+		"AudioRatio",
+		"AudioCompletionRatio",
+		"GroupRatio",
+		"GroupModelRatio",
+		"UserUsableGroups",
+		"group_ratio_setting.group_ratio",
+		"group_ratio_setting.group_model_ratio",
+		"billing_setting.billing_mode",
+		"billing_setting.billing_expr":
+		return true
+	default:
+		return false
+	}
+}
+
+func invalidatePricingDisplayCachesForOptions(keys ...string) {
+	for _, key := range keys {
+		if isPricingDisplayOptionKey(key) {
+			model.InvalidatePricingCache()
+			InvalidateWebsitePricingCache()
+			return
+		}
+	}
+}
+
 func isPaymentComplianceOptionKey(key string) bool {
 	return strings.HasPrefix(key, "payment_setting.compliance_")
 }
@@ -171,12 +204,17 @@ func GetOptions(c *gin.Context) {
 	optionValues := make(map[string]string)
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
+		if model.IsRetiredOptionKey(k) {
+			continue
+		}
 		value := common.Interface2String(v)
 		isSensitiveKey := strings.HasSuffix(k, "Token") ||
 			strings.HasSuffix(k, "Secret") ||
+			strings.HasSuffix(k, "Password") ||
 			strings.HasSuffix(k, "Key") ||
 			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key")
+			strings.HasSuffix(k, "api_key") ||
+			strings.HasSuffix(strings.ToLower(k), "_token")
 		if isSensitiveKey {
 			continue
 		}
@@ -213,8 +251,21 @@ type OptionsUpdateRequest struct {
 }
 
 func isBulkOptionUpdateKey(key string) bool {
+	if strings.HasPrefix(key, "registration_country.") {
+		return true
+	}
+	if strings.HasPrefix(key, "registration_security.") {
+		return true
+	}
 	switch key {
-	case "SidebarModulesAdmin", model.OptionKeyPlaygroundDefaultModel:
+	case "SidebarModulesAdmin",
+		"LogConsumeEnabled",
+		model.OptionKeyCompanyLogRoutingEnabled,
+		model.OptionKeyPlaygroundDefaultModel,
+		"CodexClientUserAgent",
+		"CodexClientVersion",
+		"CodexAutoSyncClientVersion",
+		"CodexEnforceClientIdentity":
 		return true
 	default:
 		return false
@@ -262,7 +313,7 @@ func prepareOptionUpdate(c *gin.Context, option *OptionUpdateRequest) bool {
 			common.ApiErrorI18n(c, i18n.MsgQuotaInviterRewardLimitInvalid)
 			return false
 		}
-	case "QuotaForInviter", "QuotaForInvitee":
+	case "QuotaForInviter", "QuotaForInvitee", "InviteFirstSubDiscountUSD":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {
 			common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
 			return false
@@ -363,6 +414,15 @@ func prepareOptionUpdate(c *gin.Context, option *OptionUpdateRequest) bool {
 			})
 			return false
 		}
+	case "GroupModelRatio", "group_ratio_setting.group_model_ratio":
+		err = ratio_setting.CheckGroupModelRatio(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return false
+		}
 	case "ImageRatio":
 		err = ratio_setting.UpdateImageRatioByJSONString(option.Value.(string))
 		if err != nil {
@@ -396,6 +456,15 @@ func prepareOptionUpdate(c *gin.Context, option *OptionUpdateRequest) bool {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "缓存创建倍率设置失败: " + err.Error(),
+			})
+			return false
+		}
+	case "SubscriptionModelWeights":
+		err = setting.CheckSubscriptionModelWeights(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
 			})
 			return false
 		}
@@ -484,6 +553,7 @@ func UpdateOption(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	invalidatePricingDisplayCachesForOptions(option.Key)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -524,6 +594,9 @@ func UpdateOptions(c *gin.Context) {
 	if err := model.UpdateOptionsBulk(values); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	for key := range values {
+		invalidatePricingDisplayCachesForOptions(key)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

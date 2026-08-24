@@ -26,6 +26,9 @@ import { ApiKeysTable } from './components/api-keys-table'
 type ApiKeysProps = {
   autoCreateRequested?: boolean
   onAutoCreateConsumed?: () => void
+  createDialogRequested?: boolean
+  requestedCreateGroup?: string
+  onCreateDialogConsumed?: () => void
 }
 
 export function ApiKeys(props: ApiKeysProps) {
@@ -34,6 +37,9 @@ export function ApiKeys(props: ApiKeysProps) {
     <ApiKeysProvider
       autoCreateRequested={props.autoCreateRequested}
       onAutoCreateConsumed={props.onAutoCreateConsumed}
+      createDialogRequested={props.createDialogRequested}
+      requestedCreateGroup={props.requestedCreateGroup}
+      onCreateDialogConsumed={props.onCreateDialogConsumed}
     >
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('API Keys')}</SectionPageLayout.Title>

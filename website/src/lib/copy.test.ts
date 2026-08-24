@@ -16,7 +16,9 @@ describe("homepage copy", () => {
       expect(home.howItWorks.steps).toHaveLength(3);
       expect(home.stats.items).toHaveLength(4);
 
-      if (locale !== "en") {
+      if (locale !== "en" && locale !== "id") {
+        // `id` is a staged locale: homepage + market landings are translated,
+        // other surfaces fall back to English until translated.
         expect(home.hero.badge).not.toBe(english.hero.badge);
         expect(home.features.items[0]?.title).not.toBe(english.features.items[0]?.title);
       }
@@ -56,6 +58,7 @@ describe("blog copy", () => {
       if (locale !== "en") {
         expect(blog.searchPlaceholder).not.toBe(english.searchPlaceholder);
         expect(blog.emptyTitle).not.toBe(english.emptyTitle);
+        expect(blog.relatedArticles).not.toBe(english.relatedArticles);
       }
     }
   });
@@ -72,5 +75,13 @@ describe("footer copy", () => {
     expect(getCopy("ja").footer.tagline).toBe("安全、信頼、低価格");
     expect(getCopy("vi").footer.tagline).toBe("An toàn, đáng tin cậy, giá tốt");
     expect(getCopy("de").footer.tagline).toBe("Sicher, zuverlässig und günstig");
+  });
+});
+
+describe("documentation copy", () => {
+  test("provides a documentation label for every supported locale", () => {
+    for (const locale of LOCALES) {
+      expect(getCopy(locale).nav.docs).toBeTruthy();
+    }
   });
 });

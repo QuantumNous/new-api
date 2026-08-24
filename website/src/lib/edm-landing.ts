@@ -1,4 +1,5 @@
 import { consoleUrl } from "@/lib/origins";
+import { withIdFallback } from "@/lib/locales";
 import type { Locale } from "@/lib/locales";
 import type { SeoInput } from "@/lib/seo";
 
@@ -67,7 +68,7 @@ const imageBuddyLink = {
   href: "https://github.com/flatkey-ai/awesome-images",
 };
 
-const imageBuddyShowcases: Record<Locale, EdmCampaignCopy["showcase"]> = {
+const imageBuddyShowcases: Record<Locale, EdmCampaignCopy["showcase"]> =withIdFallback({
   en: [
     {
       src: "/use-case/image-buddy/premium-product-hero.jpg",
@@ -145,9 +146,15 @@ const imageBuddyShowcases: Record<Locale, EdmCampaignCopy["showcase"]> = {
     { src: "/use-case/image-buddy/marketplace-main-image.jpg", title: "Marketplace-Hauptbild", body: "Erstelle saubere ecommerce Listing-Bilder für Amazon-ähnliche Marketplaces.", alt: "Generiertes Produktbild einer Edelstahlflasche auf weißem Hintergrund" },
     { src: "/use-case/image-buddy/ugc-ad-still.jpg", title: "UGC-Ad-Still", body: "Generiere social ads und lifestyle scenes aus wiederverwendbaren workflows.", alt: "Generiertes UGC-Bild einer Hand mit bernsteinfarbenem Serum in hellem Bad" },
   ],
-};
+});
 
 const CAMPAIGN_COPY: Record<Locale, CampaignRecord> = {
+  // `id` falls back to English via a lazy getter — must stay lazy because the
+  // western-locale getters below reference `localizedTemplates`, declared later
+  // in this module (eager spread would hit its temporal dead zone).
+  get id() {
+    return CAMPAIGN_COPY.en;
+  },
   en: {
     "personal-ai": {
       eyebrow: "Personal AI savings",
@@ -490,7 +497,7 @@ const CAMPAIGN_COPY: Record<Locale, CampaignRecord> = {
   },
 };
 
-function createWesternCopy(locale: Exclude<Locale, "en" | "zh">): CampaignRecord {
+function createWesternCopy(locale: Exclude<Locale, "en" | "zh" | "id">): CampaignRecord {
   const t = localizedTemplates[locale];
   const personalStartValue = locale === "ja" ? "無料APIキー" : "Free key";
   const personalAccessValue = locale === "ja" ? "1つのAPIキーで一括利用" : "1 key";

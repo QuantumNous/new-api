@@ -38,9 +38,12 @@ func UserUsableGroups2JSONString() string {
 func UpdateUserUsableGroupsByJSONString(jsonStr string) error {
 	userUsableGroupsMutex.Lock()
 	defer userUsableGroupsMutex.Unlock()
-
-	userUsableGroups = make(map[string]string)
-	return json.Unmarshal([]byte(jsonStr), &userUsableGroups)
+	next := make(map[string]string)
+	if err := common.UnmarshalJsonStr(jsonStr, &next); err != nil {
+		return err
+	}
+	userUsableGroups = next
+	return nil
 }
 
 func GetUsableGroupDescription(groupName string) string {

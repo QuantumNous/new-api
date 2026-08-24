@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flatkey Google 官方 Prometheus 监控方案</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f7f8;
+      --panel: #ffffff;
+      --text: #17202a;
+      --muted: #5b6673;
+      --line: #d8e0e6;
+      --blue: #1769aa;
+      --green: #147445;
+      --red: #b42318;
+      --amber: #8a5a00;
+      --ink: #0f1720;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.62;
+    }
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 34px 20px 56px;
+    }
+    header {
+      margin-bottom: 24px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 32px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    h2 {
+      margin: 30px 0 14px;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+    h3 {
+      margin: 20px 0 8px;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+    p { margin: 8px 0; }
+    a { color: var(--blue); }
+    code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: #edf2f6;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 0.92em;
+    }
+    pre {
+      overflow-x: auto;
+      padding: 14px;
+      border-radius: 8px;
+      background: var(--ink);
+      color: #f8fafc;
+      font-size: 13px;
+    }
+    section, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+    }
+    .lead {
+      max-width: 860px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 20px;
+    }
+    .panel strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 15px;
+    }
+    .panel span {
+      display: block;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #eaf0f4;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: 0; }
+    ul, ol { margin: 8px 0 0 20px; padding: 0; }
+    li { margin: 6px 0; }
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .step {
+      min-height: 98px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfcfd;
+    }
+    .step b {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--blue);
+    }
+    .ok { color: var(--green); font-weight: 650; }
+    .warn { color: var(--amber); font-weight: 650; }
+    .bad { color: var(--red); font-weight: 650; }
+    @media (max-width: 820px) {
+      h1 { font-size: 26px; }
+      .summary, .flow { grid-template-columns: 1fr; }
+      table { font-size: 14px; }
+      th, td { padding: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Flatkey Google 官方 Prometheus 监控方案</h1>
+      <p class="lead">
+        目标是用最低成本看清楚线上 <code>newapi-router</code> 多实例下按模型分类的请求成功率。
+        现在方案切换为 Google 官方的 Cloud Run Managed Service for Prometheus sidecar，
+        不再让 AWS Prometheus 从公网随机抓某一个 Cloud Run 实例，也不再用 Redis 合并 Prometheus 指标。
+      </p>
+    </header>
+
+    <div class="summary">
+      <div class="panel">
+        <strong>最终推荐</strong>
+        <span>Google 官方 Cloud Run Prometheus sidecar 抓每个实例本地 <code>/metrics</code>。</span>
+      </div>
+      <div class="panel">
+        <strong>Prometheus 放哪</strong>
+        <span>放在 Google Managed Service for Prometheus，不自己在 AWS 或 Google 起 Prometheus 服务器。</span>
+      </div>
+      <div class="panel">
+        <strong>Grafana 怎么看</strong>
+        <span>Grafana 接 Google Managed Prometheus / Cloud Monitoring 数据源，用 PromQL 查。</span>
+      </div>
+    </div>
+
+    <h2>整体架构</h2>
+    <section>
+      <div class="flow">
+        <div class="step"><b>1. 请求进来</b>用户请求打到 Cloud Run 的 <code>newapi-router</code>。</div>
+        <div class="step"><b>2. 本地记录</b>Go 进程只把 <code>model</code> 和 <code>status</code> 写到进程内 counter。</div>
+        <div class="step"><b>3. sidecar 抓取</b>同一个 Cloud Run 实例里的 <code>collector</code> 抓 <code>localhost:3000/metrics</code>。</div>
+        <div class="step"><b>4. Google 存储</b>Managed Prometheus 存每个实例的时间序列，并带上 Cloud Run 元数据标签。</div>
+        <div class="step"><b>5. Grafana 展示</b>Grafana 用 PromQL 聚合，也可以按 <code>instance</code> / <code>revision</code> 下钻。</div>
+      </div>
+
+      <h3>为什么这样能解决多实例问题</h3>
+      <p>
+        Cloud Run 公网域名后面有多台实例。外部 Prometheus 去抓 <code>https://router.flatkey.ai/metrics</code>
+        时，只会命中负载均衡挑中的某一个实例，所以多实例下不准。
+        Google sidecar 是每个实例旁边都有一个采集器，它只抓自己旁边的 app 容器，因此每台实例都会被采集到。
+      </p>
+    </section>
+
+    <h2>和 Redis + DB 方案的差异</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>对比项</th>
+          <th>Google 官方 sidecar</th>
+          <th>Redis + DB 聚合</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Prometheus 多实例准确性</td>
+          <td><span class="ok">准确</span>，每个实例各自被本地 sidecar 抓取。</td>
+          <td>需要每个实例先写 Redis，再由 <code>/metrics</code> 汇总，复杂度更高。</td>
+        </tr>
+        <tr>
+          <td>单实例定位</td>
+          <td><span class="ok">可以</span>，Google 会带 Cloud Run 的 <code>service</code>、<code>revision</code>、<code>instance</code> 等标签。</td>
+          <td><span class="warn">不适合</span>，它更像全局聚合，不天然保留每个实例的本地计数。</td>
+        </tr>
+        <tr>
+          <td>写入压力</td>
+          <td>业务请求只写本地内存，sidecar 定时 scrape；不增加 Redis 写入。</td>
+          <td>即使批量 flush，也会增加 Redis 写入和跨实例合并逻辑。</td>
+        </tr>
+        <tr>
+          <td>成本来源</td>
+          <td>sidecar 的 Cloud Run CPU/内存 + Managed Prometheus 样本/时间序列。</td>
+          <td>主要复用 Redis/DB，但 Redis 压力和实现复杂度更高。</td>
+        </tr>
+        <tr>
+          <td>保留 DB 历史趋势</td>
+          <td><span class="ok">保留</span>。DB 继续用于控制台和长期趋势，Prometheus 只做实时监控。</td>
+          <td><span class="ok">保留</span>。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>代码和配置变化</h2>
+    <section>
+      <ul>
+        <li><code>/metrics</code> 只输出当前 Cloud Run 实例进程内按 <code>model,status</code> 聚合的 Prometheus counter。</li>
+        <li>Prometheus 指标不再通过 Redis 跨实例合并，避免多实例合并和 Redis 写入压力。</li>
+        <li>来自 <code>127.0.0.1</code> 或 <code>::1</code> 的 sidecar 本地抓取不需要 token。</li>
+        <li>外部访问 <code>/metrics</code> 仍然要 <code>Authorization: Bearer &lt;token&gt;</code>，所以浏览器直接打开看到 401/503 是正常保护。</li>
+        <li>Cloud Run 主容器命名为 <code>app</code>，sidecar 命名为 <code>collector</code>。</li>
+        <li>RunMonitoring 配置通过 Secret Manager 挂载到 <code>/etc/rungmp/config.yaml</code>，抓取端口是 <code>3000</code>。</li>
+      </ul>
+
+      <h3>RunMonitoring 配置</h3>
+      <pre><code>apiVersion: monitoring.googleapis.com/v1beta
+kind: RunMonitoring
+metadata:
+  name: newapi-router
+spec:
+  endpoints:
+  - port: 3000
+    path: /metrics
+    interval: 30s
+  targetLabels:
+    metadata:
+    - instance
+    - service
+    - revision</code></pre>
+    </section>
+
+    <h2>指标维度和费用控制</h2>
+    <section>
+      <p>业务指标只放最低基数标签：</p>
+      <pre><code>model + status</code></pre>
+      <p>
+        不把 <code>api_key</code> 放进 Prometheus label。api key 数量会持续增长，放进去会让时间序列数量快速变大。
+        也不把 <code>channel_id</code> 放进 Prometheus label，因为当前只需要按模型看成功率。
+        耗时、渠道等更细的历史分析继续走 DB/控制台，不进入 Managed Prometheus。
+      </p>
+      <p>
+        费用主要跟时间序列数量和 scrape 频率有关。粗略理解：
+      </p>
+      <pre><code>活跃业务时间序列 ≈ 模型数 × 状态数 × 实例数</code></pre>
+      <p>
+        当前只保留 <code>newapi_model_requests_total</code> 一个业务 counter，<code>status</code> 只有
+        <code>success</code> / <code>error</code>。如果有 20 个活跃模型、10 个实例，大约就是
+        <code>20 × 2 × 10 = 400</code> 条业务时间序列，再加 Google/sidecar 自带的少量元数据指标。
+      </p>
+    </section>
+
+    <h2>Grafana 查询示例</h2>
+    <section>
+      <p>看每个模型请求成功率：</p>
+      <pre><code>100 *
+sum by (model) (
+  rate(newapi_model_requests_total{status="success"}[5m])
+)
+/
+sum by (model) (
+  rate(newapi_model_requests_total[5m])
+)</code></pre>
+
+      <p>看每个模型请求量：</p>
+      <pre><code>sum by (model) (
+  rate(newapi_model_requests_total[5m])
+)</code></pre>
+
+      <p>如果要看错误率：</p>
+      <pre><code>100 *
+sum by (model) (
+  rate(newapi_model_requests_total{status="error"}[5m])
+)
+/
+sum by (model) (
+  rate(newapi_model_requests_total[5m])
+)</code></pre>
+    </section>
+
+    <h2>上线步骤</h2>
+    <section>
+      <ol>
+        <li>合并本 PR，代码里会有新的 <code>/metrics</code> 行为和 Google sidecar Terraform 配置。</li>
+        <li>对生产 GCP Terraform 执行 plan/apply，创建 RunMonitoring secret，并给 <code>newapi-router</code> 加 <code>collector</code> sidecar。</li>
+        <li>执行一次生产 router deploy。原因是 Cloud Run revision 需要带上最新 app 镜像和 <code>/metrics</code> 逻辑。</li>
+        <li>在 Grafana 里添加或使用 Google Managed Prometheus / Cloud Monitoring 数据源。</li>
+        <li>导入上面的 PromQL 面板，先观察按模型成功率、请求量和 series 数。</li>
+      </ol>
+      <p class="warn">
+        注意：只 apply Terraform 不够，还需要部署 router；只部署 router 也不够，还需要 Terraform 创建 sidecar。
+      </p>
+    </section>
+
+    <h2>参考文档</h2>
+    <section>
+      <ul>
+        <li><a href="https://docs.cloud.google.com/stackdriver/docs/managed-prometheus/cloudrun-sidecar" target="_blank" rel="noreferrer">Google Cloud Run Managed Service for Prometheus sidecar</a></li>
+        <li><a href="https://docs.cloud.google.com/sdk/gcloud/reference/run/services/update" target="_blank" rel="noreferrer">gcloud run services update 参数说明</a></li>
+        <li><a href="https://cloud.google.com/stackdriver/pricing" target="_blank" rel="noreferrer">Google Cloud Observability pricing</a></li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

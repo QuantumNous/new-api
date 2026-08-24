@@ -31,6 +31,12 @@ variable "disk_size_gb" {
   default     = 100
 }
 
+variable "max_connections" {
+  type        = number
+  description = "MySQL max_connections database flag."
+  default     = 300
+}
+
 variable "database_name" {
   type        = string
   description = "Application database name"

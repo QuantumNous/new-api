@@ -17,7 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { create } from 'zustand'
-import { resetMixpanelIdentity } from '@/lib/analytics/mixpanel'
+import { resetAmplitudeIdentity } from '@/lib/analytics/amplitude'
+import { clearPendingPostLoginRedirect } from '@/features/auth/lib/storage'
 
 export type UserPermissions = {
   sidebar_settings?: boolean
@@ -57,11 +58,20 @@ export interface AuthUser {
   permissions?: UserPermissions
 }
 
+type AuthUserUpdate =
+  | AuthUser
+  | null
+  | ((currentUser: AuthUser | null) => AuthUser | null)
+
+type AuthResetOptions = {
+  preservePendingPostLoginRedirect?: boolean
+}
+
 interface AuthState {
   auth: {
     user: AuthUser | null
-    setUser: (user: AuthUser | null) => void
-    reset: () => void
+    setUser: (user: AuthUserUpdate) => void
+    reset: (options?: AuthResetOptions) => void
   }
 }
 
@@ -85,8 +95,13 @@ export const useAuthStore = create<AuthState>()((set) => {
   return {
     auth: {
       user: initUser,
-      setUser: (user) =>
+      setUser: (nextUser) =>
         set((state) => {
+          const user =
+            typeof nextUser === 'function'
+              ? nextUser(state.auth.user)
+              : nextUser
+
           // Persist user to localStorage
           if (typeof window !== 'undefined') {
             if (user) {
@@ -97,12 +112,15 @@ export const useAuthStore = create<AuthState>()((set) => {
           }
           return { ...state, auth: { ...state.auth, user } }
         }),
-      reset: () =>
+      reset: (options) =>
         set((state) => {
           if (typeof window !== 'undefined') {
             window.localStorage.removeItem('user')
           }
-          resetMixpanelIdentity()
+          if (!options?.preservePendingPostLoginRedirect) {
+            clearPendingPostLoginRedirect()
+          }
+          resetAmplitudeIdentity()
           return {
             ...state,
             auth: { ...state.auth, user: null },

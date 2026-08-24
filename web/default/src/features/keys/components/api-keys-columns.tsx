@@ -16,13 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
-import { getUserGroups } from '@/lib/api'
 import { formatQuota, formatTimestampToDate } from '@/lib/format'
-import { useCanUseGroups } from '@/hooks/use-enterprise'
 import { cn } from '@/lib/utils'
+import { useCanUseGroups } from '@/hooks/use-enterprise'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -34,12 +32,14 @@ import { DataTableColumnHeader } from '@/components/data-table'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { API_KEY_STATUSES } from '../constants'
+import { shouldShowApiKeyGroupColumn } from '../lib/api-key-model-scope'
 import { type ApiKey } from '../types'
 import {
   ApiKeyCell,
   ModelLimitsCell,
   IpRestrictionsCell,
 } from './api-keys-cells'
+import { useApiKeys } from './api-keys-provider'
 import { DataTableRowActions } from './data-table-row-actions'
 
 function getQuotaProgressColor(percentage: number): string {
@@ -48,31 +48,18 @@ function getQuotaProgressColor(percentage: number): string {
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
-function useGroupRatios(enabled: boolean): Record<string, number> {
-  const { data } = useQuery({
-    queryKey: ['user-self-groups'],
-    queryFn: getUserGroups,
-    staleTime: 5 * 60 * 1000,
-    enabled,
-    select: (res) => {
-      if (!res.success || !res.data) return {}
-      const ratios: Record<string, number> = {}
-      for (const [group, info] of Object.entries(res.data)) {
-        if (typeof info.ratio === 'number') {
-          ratios[group] = info.ratio
-        }
-      }
-      return ratios
-    },
-  })
-
-  return data ?? {}
-}
-
 export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
   const { t } = useTranslation()
   const canUseGroups = useCanUseGroups()
-  const groupRatios = useGroupRatios(canUseGroups)
+  const { modelAccessQuery } = useApiKeys()
+  const modelAccess = modelAccessQuery.data
+  const groupRatios: Record<string, number> = {}
+  for (const group of modelAccess?.groups ?? []) {
+    if (typeof group.ratio === 'number') {
+      groupRatios[group.id] = group.ratio
+    }
+  }
+  const showGroupColumn = shouldShowApiKeyGroupColumn(modelAccess, canUseGroups)
   return [
     {
       id: 'select',
@@ -196,7 +183,7 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
     },
     // Group column is hidden for PLG users — it only ever shows `plg` for them,
     // which leaks the group concept and is useless.
-    ...(canUseGroups
+    ...(showGroupColumn
       ? [
           {
             accessorKey: 'group',
@@ -246,11 +233,11 @@ export function useApiKeysColumns(): ColumnDef<ApiKey>[] {
       id: 'model_limits',
       accessorKey: 'model_limits',
       header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t('Models')} />
+        <DataTableColumnHeader column={column} title={t('Callable Models')} />
       ),
       cell: ({ row }) => <ModelLimitsCell apiKey={row.original} />,
       enableSorting: false,
-      meta: { label: t('Models'), mobileHidden: true },
+      meta: { label: t('Callable Models'), mobileHidden: true },
     },
     {
       id: 'allow_ips',

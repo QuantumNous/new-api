@@ -2,11 +2,12 @@ package controller
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -28,12 +29,57 @@ type GitHubUser struct {
 	Email string `json:"email"`
 }
 
+type GitHubEmail struct {
+	Email    string `json:"email"`
+	Primary  bool   `json:"primary"`
+	Verified bool   `json:"verified"`
+}
+
+func verifiedPrimaryControllerGitHubEmail(emails []GitHubEmail) string {
+	for _, email := range emails {
+		candidate := strings.TrimSpace(email.Email)
+		if candidate != "" && email.Primary && email.Verified {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func fetchGitHubVerifiedPrimaryEmail(client *http.Client, accessToken string) (string, error) {
+	req, err := http.NewRequest("GET", "https://api.github.com/user/emails", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	req.Header.Set("Accept", "application/vnd.github+json")
+	res, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(res.Body)
+		bodyStr := string(body)
+		if len(bodyStr) > 500 {
+			bodyStr = bodyStr[:500] + "..."
+		}
+		return "", fmt.Errorf("status=%d body=%s", res.StatusCode, bodyStr)
+	}
+
+	var emails []GitHubEmail
+	if err := common.DecodeJson(res.Body, &emails); err != nil {
+		return "", err
+	}
+	return verifiedPrimaryControllerGitHubEmail(emails), nil
+}
+
 func getGitHubUserInfoByCode(code string) (*GitHubUser, error) {
 	if code == "" {
 		return nil, errors.New("无效的参数")
 	}
 	values := map[string]string{"client_id": common.GitHubClientId, "client_secret": common.GitHubClientSecret, "code": code}
-	jsonData, err := json.Marshal(values)
+	jsonData, err := common.Marshal(values)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +99,7 @@ func getGitHubUserInfoByCode(code string) (*GitHubUser, error) {
 	}
 	defer res.Body.Close()
 	var oAuthResponse GitHubOAuthResponse
-	err = json.NewDecoder(res.Body).Decode(&oAuthResponse)
+	err = common.DecodeJson(res.Body, &oAuthResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -69,12 +115,20 @@ func getGitHubUserInfoByCode(code string) (*GitHubUser, error) {
 	}
 	defer res2.Body.Close()
 	var githubUser GitHubUser
-	err = json.NewDecoder(res2.Body).Decode(&githubUser)
+	err = common.DecodeJson(res2.Body, &githubUser)
 	if err != nil {
 		return nil, err
 	}
 	if githubUser.Login == "" {
 		return nil, errors.New("返回值非法，用户字段为空，请稍后重试！")
+	}
+	githubUser.Email = strings.TrimSpace(githubUser.Email)
+	if githubUser.Email == "" {
+		if email, err := fetchGitHubVerifiedPrimaryEmail(&client, oAuthResponse.AccessToken); err != nil {
+			common.SysError("GitHub verified primary email unavailable: " + err.Error())
+		} else {
+			githubUser.Email = email
+		}
 	}
 	return &githubUser, nil
 }
@@ -138,7 +192,7 @@ func GitHubOAuth(c *gin.Context) {
 			} else {
 				user.DisplayName = "GitHub User"
 			}
-			user.Email = githubUser.Email
+			user.Email = strings.TrimSpace(githubUser.Email)
 			user.Role = common.RoleCommonUser
 			user.Status = common.UserStatusEnabled
 			affCode := session.Get("aff")
@@ -147,10 +201,10 @@ func GitHubOAuth(c *gin.Context) {
 				inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
 			}
 
-			if err := user.Insert(inviterId); err != nil {
+			if err := registerLegacyOAuthUser(c, &user, inviterId); err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
-					"message": err.Error(),
+					"message": registrationEmailErrorMessage(c, err),
 				})
 				return
 			}

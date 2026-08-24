@@ -2,11 +2,8 @@ import { beforeAll, describe, expect, test } from 'bun:test'
 import i18n from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { initReactI18next } from 'react-i18next'
-import type { TopupInfo } from '../types'
-import {
-  RechargeFormCard,
-  WalletEnterpriseContactContent,
-} from './recharge-form-card'
+import type { RecallOfferView, TopupInfo } from '../types'
+import { RechargeFormCard } from './recharge-form-card'
 
 const topupInfoWithStripe: TopupInfo = {
   enable_online_topup: false,
@@ -15,9 +12,87 @@ const topupInfoWithStripe: TopupInfo = {
   min_topup: 1,
   stripe_min_topup: 1,
   amount_options: [],
+  stripe_currency_prices: {
+    USD: { 10: 1000, 20: 2000, 50: 5000, 200: 20000 },
+  },
   discount: {},
   bonus: {},
   enable_redemption: false,
+}
+
+const brlRecallOffer: RecallOfferView = {
+  campaign_id: 1,
+  recipient_id: 2,
+  issued_at: 1_700_000_000,
+  campaign_name: 'Come back',
+  promotion_code_masked: 'FKSE****34',
+  expires_at: 4_100_000_000,
+  discount: {
+    type: 'fixed',
+    percent_off: 0,
+    amount_off: 0,
+    currency: 'USD',
+    currency_options: { BRL: 200 },
+    minimum_amount: 0,
+    minimum_amount_currency: '',
+    coupon_redeem_by: 4_100_000_000,
+  },
+  products: {
+    topup_price_ids: ['price_topup_10'],
+    subscription_price_ids: [],
+    subscription_plan_ids: [],
+  },
+  redeemed: false,
+}
+
+const usdPercentRecallOffer: RecallOfferView = {
+  campaign_id: 3,
+  recipient_id: 4,
+  issued_at: 1_700_000_000,
+  campaign_name: 'Welcome back',
+  promotion_code_masked: 'FKSE****56',
+  expires_at: 4_100_000_000,
+  discount: {
+    type: 'percent',
+    percent_off: 20,
+    amount_off: 0,
+    currency: 'USD',
+    currency_options: {},
+    minimum_amount: 0,
+    minimum_amount_currency: '',
+    coupon_redeem_by: 4_100_000_000,
+  },
+  products: {
+    topup_price_ids: ['price_topup_10'],
+    subscription_price_ids: [],
+    subscription_plan_ids: [],
+  },
+  redeemed: false,
+}
+
+const jpyRecallOffer: RecallOfferView = {
+  campaign_id: 5,
+  recipient_id: 6,
+  issued_at: 1_700_000_000,
+  campaign_name: 'Japan welcome back',
+  promotion_code_masked: 'FKJP****78',
+  expires_at: 4_100_000_000,
+  discount: {
+    type: 'fixed',
+    percent_off: 0,
+    amount_off: 500,
+    currency: 'JPY',
+    currency_options: {},
+    minimum_amount: 1000,
+    minimum_amount_currency: 'JPY',
+    coupon_redeem_by: 4_100_000_000,
+  },
+  products: {
+    topup_price_ids: ['price_topup_10_jpy'],
+    subscription_price_ids: [],
+    subscription_plan_ids: [],
+  },
+  redeemed: false,
 }
 
 describe('RechargeFormCard', () => {
@@ -27,154 +102,239 @@ describe('RechargeFormCard', () => {
       fallbackLng: 'en',
       resources: {
         en: {
-          translation: {
-            'Top up for {{amount}}': 'Top up for {{amount}}',
-          },
+          translation: {},
         },
       },
-      interpolation: {
-        escapeValue: false,
-      },
+      interpolation: { escapeValue: false },
     })
   })
 
-  test('renders website-style USD Stripe top-up plans without the legacy add-funds flow', () => {
+  test('renders Stripe configured prices for the active checkout currency', () => {
+    const topupInfo: TopupInfo = {
+      ...topupInfoWithStripe,
+      stripe_currency_prices: {
+        USD: { 20: 2000 },
+        BRL: { 20: 9990 },
+        JPY: { 20: 3000 },
+      },
+    }
+
+    expect(
+      renderToStaticMarkup(
+        <RechargeFormCard
+          topupInfo={topupInfo}
+          presetAmounts={[{ value: 20 }]}
+          selectedPreset={20}
+          onSelectPreset={() => undefined}
+          onStripeTopUp={() => undefined}
+          checkoutCurrency='USD'
+        />
+      )
+    ).toContain('$20')
+
+    expect(
+      renderToStaticMarkup(
+        <RechargeFormCard
+          topupInfo={topupInfo}
+          presetAmounts={[{ value: 20 }]}
+          selectedPreset={20}
+          onSelectPreset={() => undefined}
+          onStripeTopUp={() => undefined}
+          checkoutCurrency='BRL'
+        />
+      )
+    ).toContain('R$99.9')
+
+    expect(
+      renderToStaticMarkup(
+        <RechargeFormCard
+          topupInfo={topupInfo}
+          presetAmounts={[{ value: 20 }]}
+          selectedPreset={20}
+          onSelectPreset={() => undefined}
+          onStripeTopUp={() => undefined}
+          checkoutCurrency='JPY'
+        />
+      )
+    ).toContain('¥3,000')
+  })
+
+  test('falls back to USD display when BRL is not configured', () => {
     const html = renderToStaticMarkup(
       <RechargeFormCard
         topupInfo={{
           ...topupInfoWithStripe,
-          amount_options: [10, 20, 200],
+          stripe_currency_prices: { USD: { 20: 2000 } },
         }}
+        presetAmounts={[{ value: 20 }]}
+        selectedPreset={20}
+        onSelectPreset={() => undefined}
+        onStripeTopUp={() => undefined}
+        checkoutCurrency='USD'
+      />
+    )
+
+    expect(html).toContain('$20')
+    expect(html).not.toContain('R$')
+  })
+
+  test('shows only checkout currency choices with configured prices', () => {
+    const html = renderToStaticMarkup(
+      <RechargeFormCard
+        topupInfo={{
+          ...topupInfoWithStripe,
+          stripe_currency_prices: {
+            USD: { 20: 2000 },
+            JPY: { 20: 3000 },
+          },
+        }}
+        presetAmounts={[{ value: 20 }]}
+        selectedPreset={20}
+        onSelectPreset={() => undefined}
+        onStripeTopUp={() => undefined}
+        checkoutCurrency='JPY'
+        showCurrencySelector
+      />
+    )
+
+    expect(html).toContain('$ USD')
+    expect(html).toContain('¥ JPY')
+    expect(html).not.toContain('R$ BRL')
+    expect(html).not.toContain('₹ INR')
+  })
+
+  test('ignores legacy bonus fields in top-up presets', () => {
+    const html = renderToStaticMarkup(
+      <RechargeFormCard
+        topupInfo={topupInfoWithStripe}
         presetAmounts={[
-          { value: 10 },
-          { value: 20, bonus: 5 },
+          { value: 10, bonus: 3 },
+          { value: 20, bonus: 8 },
           { value: 200, bonus: 100 },
         ]}
-        selectedPreset={null}
+        selectedPreset={10}
         onSelectPreset={() => undefined}
         onStripeTopUp={() => undefined}
         paymentLoadingAmount={null}
       />
     )
 
-    expect(html).toContain('Top-up Packages')
     expect(html).toContain('$10')
     expect(html).toContain('$20')
     expect(html).toContain('$200')
-    expect(html).toContain('Enterprise')
-    expect(html).toContain('Custom')
-    expect(html).toContain('Top up for $10')
-    expect(html).toContain('Top up for $20')
-    expect(html).toContain('Top up for $200')
-    expect(html).toContain('Contact Us')
-    expect(html).not.toContain('mailto:support@flatkey.ai')
-    expect(html).not.toContain('Top Up')
-    expect(html).toContain('Top up $10')
-    expect(html).toContain('Top up $20')
-    expect(html).toContain('Top up $200')
-    expect(html).toContain('Lowest entry to get started')
-    expect(html).toContain('Most Popular')
-    expect(html).toContain('Get $5 free')
-    expect(html).toContain('3X more usage than the official plan')
-    expect(html).toContain('Get $100 free')
-    expect(html).toContain('40X more usage than the official plan')
-    expect(html).toContain('Prepaid balance, no surprise bill')
-    expect(html).toContain('One API key for everything')
-    expect(html).toContain('Zero vendor lock-in')
-    expect(html).toContain('Usage analytics and cost controls')
-    expect(html).toContain('Enterprise-grade privacy')
-    expect(html).toContain('One invoice across providers')
-    expect(html).toContain('Highest prepaid value')
-    expect(html).toContain('Custom usage, routing, and invoicing')
-    expect(html).toContain('Custom monthly usage')
-    expect(html).toContain('Team procurement support')
-    expect(html).toContain('Custom routing discounts')
-    expect(html).toContain(
-      'No contract required. Add balance, create a key, copy the base_url, and test your first request.'
-    )
-    expect(html).toContain(
-      'Best first top-up for trying real API workloads with a clear discount.'
-    )
-    expect(html).toContain(
-      'Best value for production testing, team workflows, and sustained model traffic.'
-    )
-    expect(html).toContain(
-      'For higher monthly usage, invoicing, team procurement, or custom routing discounts.'
-    )
-    expect(html).not.toContain('40% OFF')
-    expect(html).not.toContain('50% OFF')
-    expect(html).not.toContain('40% off')
-    expect(html).not.toContain('50% off')
-    expect(html).not.toContain('Custom pricing')
-    expect(html).not.toContain('Enterprise teams')
-    expect(html).not.toContain(
-      'Contact sales for higher monthly usage and greater discounts.'
-    )
-    expect(html).not.toContain('100% OFF')
-    expect(html).not.toContain('+5 free bonus')
-    expect(html).not.toContain('+100 free bonus')
-    expect(html).not.toContain('$10 USD')
-    expect(html).not.toContain('$20 USD')
-    expect(html).not.toContain('$200 USD')
-    expect(html).not.toContain('Add Funds')
-    expect(html).not.toContain('Choose an amount and payment method')
-    expect(html).not.toContain('Need company invoice')
-    expect(html).not.toContain('Order History')
-    expect(html).not.toContain('Waffo Pix')
+    expect(html).not.toContain('bonus')
+    expect(html).not.toContain('free')
+    expect(html).not.toContain('discount')
+    expect(html).not.toContain('Enterprise')
   })
 
-  test('does not render redemption code entry on the wallet top-up card', () => {
+  test('renders only amounts supplied by backend presets', () => {
+    const html = renderToStaticMarkup(
+      <RechargeFormCard
+        topupInfo={topupInfoWithStripe}
+        presetAmounts={[{ value: 20 }, { value: 50 }]}
+        selectedPreset={20}
+        onSelectPreset={() => undefined}
+        onStripeTopUp={() => undefined}
+      />
+    )
+
+    expect(html).not.toContain('$10')
+    expect(html).toContain('$20')
+    expect(html).toContain('$50')
+  })
+
+  test('uses checkout currency for both discounted and original recall top-up amounts', () => {
     const html = renderToStaticMarkup(
       <RechargeFormCard
         topupInfo={{
           ...topupInfoWithStripe,
-          enable_redemption: true,
-          amount_options: [10, 20, 200],
-          topup_link: 'https://example.com/redeem',
+          stripe_price_ids: { 10: 'price_topup_10' },
+          stripe_currency_prices: { BRL: { 10: 1000 } },
         }}
-        presetAmounts={[{ value: 10 }, { value: 20 }, { value: 200 }]}
-        selectedPreset={null}
+        presetAmounts={[{ value: 10 }]}
+        selectedPreset={10}
         onSelectPreset={() => undefined}
         onStripeTopUp={() => undefined}
-        paymentLoadingAmount={null}
+        checkoutCurrency='BRL'
+        recallOffers={[brlRecallOffer]}
       />
     )
 
-    expect(html).not.toContain('Have a Code?')
-    expect(html).not.toContain('Enter your redemption code')
-    expect(html).not.toContain('Need a redemption code?')
-    expect(html).not.toContain('Redeem')
-    expect(html).not.toContain('https://example.com/redeem')
+    expect(html).toContain('R$8')
+    expect(html).toContain('R$10')
+    expect(html).toContain('2.00 BRL OFF')
+    expect(html).toContain('Save R$2')
+    expect(html).not.toContain('>$10</span>')
   })
 
-  test('renders only checkout packages configured by the backend presets', () => {
+  test('renders fixed JPY recall top-up savings as zero-decimal yen', () => {
     const html = renderToStaticMarkup(
       <RechargeFormCard
         topupInfo={{
           ...topupInfoWithStripe,
-          amount_options: [20, 50],
+          stripe_price_ids: { 10: 'price_topup_10_jpy' },
+          stripe_currency_prices: { JPY: { 10: 3000 } },
         }}
-        presetAmounts={[{ value: 20 }, { value: 50, bonus: 10 }]}
-        selectedPreset={null}
+        presetAmounts={[{ value: 10 }]}
+        selectedPreset={10}
         onSelectPreset={() => undefined}
         onStripeTopUp={() => undefined}
-        paymentLoadingAmount={null}
+        checkoutCurrency='JPY'
+        recallOffers={[jpyRecallOffer]}
       />
     )
 
-    expect(html).not.toContain('Top up for $10')
-    expect(html).toContain('Top up for $20')
-    expect(html).toContain('Top up for $50')
-    expect(html).not.toContain('Top up for $200')
-    expect(html).toContain('Get $10 free')
+    expect(html).toContain('¥2,500')
+    expect(html).toContain('¥3,000')
+    expect(html).toContain('Save ¥500')
+    expect(html).not.toContain('Save ¥5</')
   })
 
-  test('renders the website-style enterprise sales inquiry form content', () => {
-    const html = renderToStaticMarkup(<WalletEnterpriseContactContent />)
+  test('renders percent recall top-up savings on the selected amount', () => {
+    const html = renderToStaticMarkup(
+      <RechargeFormCard
+        topupInfo={{
+          ...topupInfoWithStripe,
+          stripe_price_ids: { 10: 'price_topup_10' },
+        }}
+        presetAmounts={[{ value: 10 }]}
+        selectedPreset={10}
+        onSelectPreset={() => undefined}
+        onStripeTopUp={() => undefined}
+        recallOffers={[usdPercentRecallOffer]}
+      />
+    )
 
-    expect(html).toContain('Enterprise sales inquiry form')
-    expect(html).toContain('https://tally.so/embed/')
-    expect(html).toContain('For higher monthly usage')
-    expect(html).not.toContain('mailto:support@flatkey.ai')
+    expect(html).toContain('20% OFF')
+    expect(html).toContain('$8')
+    expect(html).toContain('$10')
+    expect(html).toContain('line-through')
+    expect(html).toContain('Save $2')
+  })
+
+  test('calculates percent recall savings from the configured checkout price', () => {
+    const html = renderToStaticMarkup(
+      <RechargeFormCard
+        topupInfo={{
+          ...topupInfoWithStripe,
+          stripe_price_ids: { 20: 'price_topup_10' },
+          stripe_currency_prices: { BRL: { 20: 9990 } },
+        }}
+        presetAmounts={[{ value: 20 }]}
+        selectedPreset={20}
+        onSelectPreset={() => undefined}
+        onStripeTopUp={() => undefined}
+        checkoutCurrency='BRL'
+        recallOffers={[usdPercentRecallOffer]}
+      />
+    )
+
+    expect(html).toContain('20% OFF')
+    expect(html).toContain('R$79.92')
+    expect(html).toContain('R$99.9')
+    expect(html).toContain('Save R$19.98')
+    expect(html).not.toContain('R$16')
+    expect(html).not.toContain('R$20')
   })
 })

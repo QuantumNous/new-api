@@ -55,6 +55,8 @@ export interface CommonLogFilters extends CommonFilters {
   upstreamRequestId?: string
   // Admin only: when true, exclude the current admin's own logs (show only regular users)
   nonAdmin?: boolean
+  // Root only: when true, query company logs instead of regular logs
+  company?: boolean
 }
 
 /**
@@ -114,6 +116,7 @@ export interface LogOtherData {
   }
   request_path?: string
   request_conversion?: string[]
+  upstream_response_id?: string
   ws?: boolean
   audio?: boolean
   audio_input?: number
@@ -130,6 +133,9 @@ export interface LogOtherData {
   model_price?: number
   group_ratio?: number
   user_group_ratio?: number
+  group_model_ratio?: number
+  group_model_ratio_group?: string
+  group_model_ratio_model?: string
   cache_ratio?: number
   cache_creation_ratio?: number
   cache_creation_ratio_5m?: number
@@ -263,6 +269,7 @@ export interface GetLogsParams {
   page_size?: number
   type?: number
   username?: string
+  user_id?: number
   token_name?: string
   model_name?: string
   start_timestamp?: number
@@ -272,6 +279,7 @@ export interface GetLogsParams {
   request_id?: string
   upstream_request_id?: string
   non_admin?: boolean
+  company?: boolean
 }
 
 export interface GetLogsResponse {
@@ -288,6 +296,7 @@ export interface GetLogsResponse {
 export interface GetLogStatsParams {
   type?: number
   username?: string
+  user_id?: number
   token_name?: string
   model_name?: string
   start_timestamp?: number
@@ -297,6 +306,7 @@ export interface GetLogStatsParams {
   request_id?: string
   upstream_request_id?: string
   non_admin?: boolean
+  company?: boolean
 }
 
 export interface GetLogStatsResponse {
@@ -341,6 +351,7 @@ export interface GetTaskLogsParams {
 export interface FetchLogsConfig {
   logCategory: LogCategory
   isAdmin: boolean
+  isRoot: boolean
   page: number
   pageSize: number
   searchParams: Record<string, unknown>

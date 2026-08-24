@@ -16,44 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { getPublicPathLanguage, localizePublicPath } from '@/lib/public-locale'
 import { Skeleton } from '@/components/ui/skeleton'
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
-import {
-  MarketShareSection,
-  ModelsSection,
-  PulseSection,
-  RankingsHero,
-} from './components'
+import { ModelsSection, RankingsHero } from './components'
 import { useRankings } from './hooks/use-rankings'
-import type { RankingPeriod } from './types'
-
-const VALID_PERIODS: RankingPeriod[] = ['today', 'week', 'month', 'year', 'all']
 
 export function Rankings() {
   const { t } = useTranslation()
-  const search = useSearch({ strict: false })
-  const navigate = useNavigate()
-  const currentPublicLanguage = getPublicPathLanguage(window.location.pathname)
 
-  const period: RankingPeriod = VALID_PERIODS.includes(
-    search.period as RankingPeriod
-  )
-    ? (search.period as RankingPeriod)
-    : 'week'
-
-  const rankingsQuery = useRankings(period)
+  // The page always shows the last 30 days (rendered at weekly granularity).
+  const rankingsQuery = useRankings('month')
   const snapshot = rankingsQuery.data?.data
-
-  const handlePeriodChange = (next: RankingPeriod) => {
-    navigate({
-      to: localizePublicPath('/rankings', currentPublicLanguage),
-      search: (prev) => ({ ...prev, period: next }),
-    })
-  }
 
   return (
     <PublicLayout showMainContainer={false}>
@@ -74,7 +49,7 @@ export function Rankings() {
           }}
         />
         <PageTransition className='relative mx-auto w-full max-w-[1280px] space-y-8 px-3 pt-16 pb-10 sm:px-6 sm:pt-20 sm:pb-12 xl:px-8'>
-          <RankingsHero period={period} onPeriodChange={handlePeriodChange} />
+          <RankingsHero />
 
           {rankingsQuery.isLoading ? (
             <RankingsLoading />
@@ -87,24 +62,10 @@ export function Rankings() {
               }
             />
           ) : (
-            <>
-              <ModelsSection
-                history={snapshot.models_history}
-                rows={snapshot.models}
-                period={period}
-              />
-
-              <MarketShareSection
-                history={snapshot.vendor_share_history}
-                rows={snapshot.vendors}
-                period={period}
-              />
-
-              <PulseSection
-                movers={snapshot.top_movers}
-                droppers={snapshot.top_droppers}
-              />
-            </>
+            <ModelsSection
+              history={snapshot.models_history}
+              rows={snapshot.models}
+            />
           )}
         </PageTransition>
       </div>
@@ -116,8 +77,6 @@ function RankingsLoading() {
   return (
     <div className='space-y-6'>
       <Skeleton className='h-[420px] w-full rounded-xl' />
-      <Skeleton className='h-[360px] w-full rounded-xl' />
-      <Skeleton className='h-[180px] w-full rounded-xl' />
     </div>
   )
 }

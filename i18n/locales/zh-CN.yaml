@@ -3,6 +3,7 @@
 
 # Common messages
 common.invalid_params: "无效的参数"
+common.invalid_email: "请输入有效的邮箱地址"
 common.database_error: "数据库出错，请联系管理员"
 common.retry_later: "请稍后重试"
 common.generate_failed: "生成失败"
@@ -49,6 +50,26 @@ token.expired: "该令牌已过期"
 token.exhausted: "该令牌额度不足"
 token.status_unavailable: "该令牌状态不可用"
 token.db_error: "无效的令牌，数据库查询出错，请联系管理员"
+token.batch_group_cache_sync_pending: "令牌分组已更新，但缓存同步尚未完成，请使用相同请求重试。"
+token.client_ip_invalid: "无法解析客户端 IP 地址"
+token.ip_not_allowed: "此令牌不允许您的 IP 访问"
+token.group_no_permission: "无权访问分组 {{.Group}}"
+token.group_deprecated: "分组 {{.Group}} 已废弃"
+
+# CLI device authorization messages
+cli.device_id_missing: "缺少设备 ID"
+cli.device_metadata_too_long: "CLI 设备信息过长"
+cli.device_code_invalid: "无效的设备代码"
+cli.authorization_code_missing: "缺少授权代码"
+cli.authorization_not_found: "未找到授权请求"
+cli.authorization_token_create_failed: "创建 CLI 令牌失败"
+
+# Temporary media messages
+temp_media.file_required: "缺少图片文件"
+temp_media.image_too_large: "图片文件过大"
+temp_media.unsupported_image: "不支持的图片类型"
+temp_media.not_configured: "临时媒体存储未配置"
+temp_media.upload_failed: "上传图片失败"
 
 # Redemption messages
 redemption.name_length: "兑换码名称长度必须在1-20之间"
@@ -61,13 +82,15 @@ redemption.expired: "该兑换码已过期"
 redemption.failed: "兑换失败，请稍后重试"
 redemption.not_provided: "未提供兑换码"
 redemption.expire_time_invalid: "过期时间不能早于当前时间"
+redemption.codes_exhausted: "来晚了，code已经发完了"
+redemption.already_claimed: "你已经领取过这个用途的 code"
 
 # User messages
 user.password_login_disabled: "管理员关闭了密码登录"
 user.register_disabled: "管理员关闭了新用户注册"
 user.password_register_disabled: "管理员关闭了通过密码进行注册，请使用第三方账户验证的形式进行注册"
 user.username_or_password_empty: "用户名或密码为空"
-user.username_or_password_error: "用户名或密码错误，或用户已被封禁"
+user.username_or_password_error: "用户名或密码错误，或因违规行为被封禁"
 user.email_or_password_empty: "邮箱地址或密码为空！"
 user.exists: "用户名已存在，或已注销"
 user.not_exists: "用户不存在"
@@ -75,6 +98,7 @@ user.disabled: "该用户已被禁用"
 user.session_save_failed: "无法保存会话信息，请重试"
 user.require_2fa: "请输入两步验证码"
 user.email_verification_required: "管理员开启了邮箱验证，请输入邮箱地址和验证码"
+user.email_verification_required_for_api: "您的账号邮箱尚未验证。请退出登录后重新登录（第三方账号将自动完成验证），登录地址：{{.ConsoleOrigin}}/sign-in"
 user.verification_code_error: "验证码错误或已过期"
 user.input_invalid: "输入不合法 {{.Error}}"
 user.no_permission_same_level: "无权获取同级或更高等级用户的信息"
@@ -105,6 +129,11 @@ user.telegram_not_bound: "该 Telegram 账户未绑定"
 user.linux_do_id_empty: "Linux DO id 为空！"
 user.quota_change_zero: "额度变更量不能为0"
 
+registration_email.domain_invalid: "邮箱域名无效"
+registration_email.subdomain_rejected: "暂不允许使用二级域名邮箱注册"
+registration_email.domain_unavailable: "该邮箱域名当前无法注册"
+registration_country.blocked: "抱歉，当前 Flatkey 对您的国家暂不支持"
+
 # Quota messages
 quota.negative: "额度不能为负数！"
 quota.exceed_max: "额度值超出有效范围"
@@ -119,6 +148,9 @@ quota.subscription_insufficient: "订阅额度不足或未配置订阅: {{.Detai
 quota.token_insufficient: "令牌额度不足, 令牌剩余额度: {{.Remain}}, 需要额度: {{.Required}}"
 quota.user_insufficient_need: "用户额度不足, 用户额度: {{.Quota}}, 需要额度: {{.Required}}"
 
+# Log messages
+log.invalid_user_id: "无效的用户ID"
+
 # Subscription messages
 subscription.not_enabled: "套餐未启用"
 subscription.title_empty: "套餐标题不能为空"
@@ -131,6 +163,18 @@ subscription.reset_cycle_gt_zero: "自定义重置周期需大于0秒"
 subscription.purchase_max: "已达到该套餐购买上限"
 subscription.invalid_id: "无效的订阅ID"
 subscription.invalid_user_id: "无效的用户ID"
+subscription.invalid_recurring_id: "无效的周期订阅ID"
+subscription.tier_rank_reserved: "订阅等级已被占用"
+subscription.tier_rank_required: "启用的订阅计划必须设置正整数等级"
+subscription.lifecycle_fields_immutable: "该订阅计划已被引用。请禁用或创建新版本，不要修改生命周期关键字段。"
+subscription.purchase_pending_migration: "订阅购买入口正在迁移中。请刷新后使用新的订阅流程。"
+subscription.payment_mode_required: "必须选择支付模式"
+subscription.request_id_required: "请求 ID 必填"
+subscription.stripe_price_requires_mode: "Stripe Price ID 需要启用 Stripe 周期支付模式"
+subscription.capability.single_lifecycle: "单订阅生命周期已启用"
+subscription.capability.current_entitlement: "可查看当前合约权益"
+subscription.capability.recurring_binding: "可查看周期支付绑定"
+subscription.capability.change_intent: "可查看订阅变更意图状态"
 
 # Payment messages
 payment.not_configured: "当前管理员未配置支付信息"
@@ -144,6 +188,7 @@ payment.webhook_not_configured: "Webhook 未配置"
 payment.price_id_not_configured: "该套餐未配置 StripePriceId"
 payment.creem_not_configured: "该套餐未配置 CreemProductId"
 payment.compliance_required: "支付、兑换码、订阅计划和邀请返利功能已禁用。管理员需先确认合规声明后方可启用。"
+payment.recall_claim_unavailable: "此优惠无效、已过期或不适用于本次购买。"
 
 # Topup messages
 topup.not_provided: "未提供支付单号"
@@ -237,6 +282,10 @@ performance.disk_cache_cleared: "不活跃的磁盘缓存已清理"
 performance.stats_reset: "统计信息已重置"
 performance.gc_executed: "GC 已执行"
 
+# Model health messages
+model_health.invalid_hours: "查询时长必须为 24、168 或 720 小时"
+model_health.model_required: "必须指定模型"
+
 # Ability messages
 ability.db_corrupted: "数据库一致性被破坏"
 ability.repair_running: "已经有一个修复任务在运行中，请稍后再试"
@@ -279,6 +328,32 @@ distributor.no_available_channel: "分组 {{.Group}} 下模型 {{.Model}} 无可
 distributor.invalid_midjourney_request: "无效的midjourney请求，{{.Error}}"
 distributor.invalid_request_parse_model: "无效的请求，无法解析模型"
 
+# BytePlus asset library messages
+asset.invalid_request: "无效的素材请求"
+asset.not_found: "素材不存在"
+asset.not_ready: "素材仍在处理中，请稍后重试"
+asset.failed: "素材处理失败"
+asset.channel_conflict: "同一次请求中的素材必须使用同一渠道"
+asset.channel_unavailable: "素材绑定的渠道当前不可用"
+asset.group_initializing: "素材组正在初始化，请稍后重试"
+asset.upstream_error: "素材服务请求失败"
+asset.expired: "素材上传已过期"
+asset.type_mismatch: "素材类型与上传媒体不匹配"
+asset.storage_error: "素材存储错误，请稍后重试"
+real_person.invalid_request: "真人资料请求无效"
+real_person.not_found: "未找到真人资料"
+real_person.not_active: "真人资料尚未激活"
+real_person.channel_unavailable: "真人验证通道暂不可用"
+real_person.storage_error: "真人资料存储错误，请稍后重试"
+verification.in_progress: "验证已在进行中"
+verification.upstream_error: "验证服务请求失败"
+idempotency.conflict: "该幂等键已用于不同请求"
+idempotency.outcome_unknown: "上一次请求结果未知，请稍后重试"
+asset.profile_conflict: "同一请求中的素材必须属于同一个真人资料"
+asset.file_too_large: "素材文件过大"
+asset.media_unsupported: "不支持的素材上传媒体类型"
+asset.upload_failed: "素材上传失败，请稍后重试"
+
 # Custom OAuth provider messages
 custom_oauth.not_found: "自定义 OAuth 提供商不存在"
 custom_oauth.slug_empty: "标识符不能为空"
@@ -289,8 +364,17 @@ custom_oauth.binding_not_found: "OAuth 绑定不存在"
 custom_oauth.provider_id_field_invalid: "无法从提供商响应中提取用户 ID"
 
 # Email content messages
-email.verification_subject: "{{.SystemName}}邮箱验证邮件"
-email.verification_content: "<p>您好，你正在进行{{.SystemName}}邮箱验证。</p><p>您的验证码为: <strong>{{.Code}}</strong></p><p>验证码 {{.Minutes}} 分钟内有效，如果不是本人操作，请忽略。</p>"
+email.verification_subject: "{{.SystemName}} 邮箱验证"
+email.verification_heading: "欢迎使用 {{.SystemName}}"
+email.verification_content: "确认您的邮箱地址，完成账户创建并开始使用 {{.SystemName}}。"
+email.verification_action: "一键验证邮箱"
+email.verification_alternative: "或输入以下验证码"
+email.verification_code_label: "验证码"
+email.verification_expiry: "此链接和验证码将在 {{.Minutes}} 分钟后失效。"
+email.verification_ignore: "如果这不是您的操作，可以放心忽略此邮件。"
+email.verification_footer: "此邮件由 {{.SystemName}} 安全发送"
+email.verification_link_invalid: "此验证链接无效或已过期。"
+email.verification_unavailable: "邮箱验证暂时不可用，请稍后重试。"
 email.password_reset_subject: "{{.SystemName}}密码重置"
 email.password_reset_content: "<p>您好，你正在进行{{.SystemName}}密码重置。</p><p>点击 <a href='{{.Link}}'>此处</a> 进行密码重置。</p><p>如果链接无法点击，请尝试点击下面的链接或将其复制到浏览器中打开：<br> {{.Link}} </p><p>重置链接 {{.Minutes}} 分钟内有效，如果不是本人操作，请忽略。</p>"
 

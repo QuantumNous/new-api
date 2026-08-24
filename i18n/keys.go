@@ -6,6 +6,7 @@ package i18n
 // Common error messages
 const (
 	MsgInvalidParams     = "common.invalid_params"
+	MsgEmailInvalid      = "common.invalid_email"
 	MsgDatabaseError     = "common.database_error"
 	MsgRetryLater        = "common.retry_later"
 	MsgGenerateFailed    = "common.generate_failed"
@@ -56,6 +57,30 @@ const (
 	MsgTokenExhausted            = "token.exhausted"
 	MsgTokenStatusUnavailable    = "token.status_unavailable"
 	MsgTokenDbError              = "token.db_error"
+	MsgTokenBatchCachePending    = "token.batch_group_cache_sync_pending"
+	MsgTokenClientIPInvalid      = "token.client_ip_invalid"
+	MsgTokenIPNotAllowed         = "token.ip_not_allowed"
+	MsgTokenGroupNoPermission    = "token.group_no_permission"
+	MsgTokenGroupDeprecated      = "token.group_deprecated"
+)
+
+// CLI device authorization messages
+const (
+	MsgCliDeviceIdMissing              = "cli.device_id_missing"
+	MsgCliDeviceMetadataTooLong        = "cli.device_metadata_too_long"
+	MsgCliDeviceCodeInvalid            = "cli.device_code_invalid"
+	MsgCliAuthorizationCodeMissing     = "cli.authorization_code_missing"
+	MsgCliAuthorizationNotFound        = "cli.authorization_not_found"
+	MsgCliAuthorizationTokenCreateFail = "cli.authorization_token_create_failed"
+)
+
+// Temporary media messages
+const (
+	MsgTempMediaFileRequired     = "temp_media.file_required"
+	MsgTempMediaImageTooLarge    = "temp_media.image_too_large"
+	MsgTempMediaUnsupportedImage = "temp_media.unsupported_image"
+	MsgTempMediaNotConfigured    = "temp_media.not_configured"
+	MsgTempMediaUploadFailed     = "temp_media.upload_failed"
 )
 
 // Redemption related messages
@@ -70,6 +95,8 @@ const (
 	MsgRedemptionFailed            = "redemption.failed"
 	MsgRedemptionNotProvided       = "redemption.not_provided"
 	MsgRedemptionExpireTimeInvalid = "redemption.expire_time_invalid"
+	MsgRedemptionCodesExhausted    = "redemption.codes_exhausted"
+	MsgRedemptionAlreadyClaimed    = "redemption.already_claimed"
 )
 
 // User related messages
@@ -86,35 +113,47 @@ const (
 	MsgUserSessionSaveFailed         = "user.session_save_failed"
 	MsgUserRequire2FA                = "user.require_2fa"
 	MsgUserEmailVerificationRequired = "user.email_verification_required"
-	MsgUserVerificationCodeError     = "user.verification_code_error"
-	MsgUserInputInvalid              = "user.input_invalid"
-	MsgUserNoPermissionSameLevel     = "user.no_permission_same_level"
-	MsgUserNoPermissionHigherLevel   = "user.no_permission_higher_level"
-	MsgUserCannotCreateHigherLevel   = "user.cannot_create_higher_level"
-	MsgUserCannotDeleteRootUser      = "user.cannot_delete_root_user"
-	MsgUserCannotDisableRootUser     = "user.cannot_disable_root_user"
-	MsgUserCannotDemoteRootUser      = "user.cannot_demote_root_user"
-	MsgUserAlreadyAdmin              = "user.already_admin"
-	MsgUserAlreadyCommon             = "user.already_common"
-	MsgUserAdminCannotPromote        = "user.admin_cannot_promote"
-	MsgUserOriginalPasswordError     = "user.original_password_error"
-	MsgUserInviteQuotaInsufficient   = "user.invite_quota_insufficient"
-	MsgUserTransferQuotaMinimum      = "user.transfer_quota_minimum"
-	MsgUserTransferSuccess           = "user.transfer_success"
-	MsgUserTransferFailed            = "user.transfer_failed"
-	MsgUserTopUpProcessing           = "user.topup_processing"
-	MsgUserRegisterFailed            = "user.register_failed"
-	MsgUserDefaultTokenFailed        = "user.default_token_failed"
-	MsgUserAffCodeEmpty              = "user.aff_code_empty"
-	MsgUserEmailEmpty                = "user.email_empty"
-	MsgUserGitHubIdEmpty             = "user.github_id_empty"
-	MsgUserDiscordIdEmpty            = "user.discord_id_empty"
-	MsgUserOidcIdEmpty               = "user.oidc_id_empty"
-	MsgUserWeChatIdEmpty             = "user.wechat_id_empty"
-	MsgUserTelegramIdEmpty           = "user.telegram_id_empty"
-	MsgUserTelegramNotBound          = "user.telegram_not_bound"
-	MsgUserLinuxDOIdEmpty            = "user.linux_do_id_empty"
-	MsgUserQuotaChangeZero           = "user.quota_change_zero"
+	// MsgUserEmailVerificationRequiredForAPI is shown to already-logged-in users
+	// (token creation, API calls, playground) whose account email is unverified.
+	// It points them at the two recovery paths: re-login (OAuth accounts
+	// self-heal) or verifying the email in profile settings.
+	MsgUserEmailVerificationRequiredForAPI = "user.email_verification_required_for_api"
+	MsgUserVerificationCodeError           = "user.verification_code_error"
+	MsgUserInputInvalid                    = "user.input_invalid"
+	MsgUserNoPermissionSameLevel           = "user.no_permission_same_level"
+	MsgUserNoPermissionHigherLevel         = "user.no_permission_higher_level"
+	MsgUserCannotCreateHigherLevel         = "user.cannot_create_higher_level"
+	MsgUserCannotDeleteRootUser            = "user.cannot_delete_root_user"
+	MsgUserCannotDisableRootUser           = "user.cannot_disable_root_user"
+	MsgUserCannotDemoteRootUser            = "user.cannot_demote_root_user"
+	MsgUserAlreadyAdmin                    = "user.already_admin"
+	MsgUserAlreadyCommon                   = "user.already_common"
+	MsgUserAdminCannotPromote              = "user.admin_cannot_promote"
+	MsgUserOriginalPasswordError           = "user.original_password_error"
+	MsgUserInviteQuotaInsufficient         = "user.invite_quota_insufficient"
+	MsgUserTransferQuotaMinimum            = "user.transfer_quota_minimum"
+	MsgUserTransferSuccess                 = "user.transfer_success"
+	MsgUserTransferFailed                  = "user.transfer_failed"
+	MsgUserTopUpProcessing                 = "user.topup_processing"
+	MsgUserRegisterFailed                  = "user.register_failed"
+	MsgUserDefaultTokenFailed              = "user.default_token_failed"
+	MsgUserAffCodeEmpty                    = "user.aff_code_empty"
+	MsgUserEmailEmpty                      = "user.email_empty"
+	MsgUserGitHubIdEmpty                   = "user.github_id_empty"
+	MsgUserDiscordIdEmpty                  = "user.discord_id_empty"
+	MsgUserOidcIdEmpty                     = "user.oidc_id_empty"
+	MsgUserWeChatIdEmpty                   = "user.wechat_id_empty"
+	MsgUserTelegramIdEmpty                 = "user.telegram_id_empty"
+	MsgUserTelegramNotBound                = "user.telegram_not_bound"
+	MsgUserLinuxDOIdEmpty                  = "user.linux_do_id_empty"
+	MsgUserQuotaChangeZero                 = "user.quota_change_zero"
+)
+
+const (
+	MsgRegistrationEmailDomainInvalid     = "registration_email.domain_invalid"
+	MsgRegistrationEmailSubdomainRejected = "registration_email.subdomain_rejected"
+	MsgRegistrationEmailDomainUnavailable = "registration_email.domain_unavailable"
+	MsgRegistrationCountryBlocked         = "registration_country.blocked"
 )
 
 // Quota related messages
@@ -125,6 +164,11 @@ const (
 	MsgQuotaWarningInvalid            = "quota.warning_invalid"
 	MsgQuotaThresholdGtZero           = "quota.threshold_gt_zero"
 	MsgQuotaInviterRewardLimitInvalid = "quota.inviter_reward_limit_invalid"
+)
+
+// Log related messages
+const (
+	MsgLogInvalidUserId = "log.invalid_user_id"
 )
 
 // Subscription related messages
@@ -140,21 +184,23 @@ const (
 	MsgSubscriptionPurchaseMax      = "subscription.purchase_max"
 	MsgSubscriptionInvalidId        = "subscription.invalid_id"
 	MsgSubscriptionInvalidUserId    = "subscription.invalid_user_id"
+	MsgSubscriptionInvalidRecurring = "subscription.invalid_recurring_id"
 )
 
 // Payment related messages
 const (
-	MsgPaymentNotConfigured      = "payment.not_configured"
-	MsgPaymentMethodNotExists    = "payment.method_not_exists"
-	MsgPaymentCallbackError      = "payment.callback_error"
-	MsgPaymentCreateFailed       = "payment.create_failed"
-	MsgPaymentStartFailed        = "payment.start_failed"
-	MsgPaymentAmountTooLow       = "payment.amount_too_low"
-	MsgPaymentStripeNotConfig    = "payment.stripe_not_configured"
-	MsgPaymentWebhookNotConfig   = "payment.webhook_not_configured"
-	MsgPaymentPriceIdNotConfig   = "payment.price_id_not_configured"
-	MsgPaymentCreemNotConfig     = "payment.creem_not_configured"
-	MsgPaymentComplianceRequired = "payment.compliance_required"
+	MsgPaymentNotConfigured          = "payment.not_configured"
+	MsgPaymentMethodNotExists        = "payment.method_not_exists"
+	MsgPaymentCallbackError          = "payment.callback_error"
+	MsgPaymentCreateFailed           = "payment.create_failed"
+	MsgPaymentStartFailed            = "payment.start_failed"
+	MsgPaymentAmountTooLow           = "payment.amount_too_low"
+	MsgPaymentStripeNotConfig        = "payment.stripe_not_configured"
+	MsgPaymentWebhookNotConfig       = "payment.webhook_not_configured"
+	MsgPaymentPriceIdNotConfig       = "payment.price_id_not_configured"
+	MsgPaymentCreemNotConfig         = "payment.creem_not_configured"
+	MsgPaymentComplianceRequired     = "payment.compliance_required"
+	MsgPaymentRecallClaimUnavailable = "payment.recall_claim_unavailable"
 )
 
 // Topup related messages
@@ -273,6 +319,12 @@ const (
 	MsgPerfGcExecuted       = "performance.gc_executed"
 )
 
+// Model health related messages
+const (
+	MsgModelHealthInvalidHours  = "model_health.invalid_hours"
+	MsgModelHealthModelRequired = "model_health.model_required"
+)
+
 // Ability related messages
 const (
 	MsgAbilityDbCorrupted   = "ability.db_corrupted"
@@ -323,12 +375,49 @@ const (
 	MsgDistributorInvalidParseModel       = "distributor.invalid_request_parse_model"
 )
 
+// BytePlus asset library messages
+const (
+	MsgAssetInvalidRequest          = "asset.invalid_request"
+	MsgAssetNotFound                = "asset.not_found"
+	MsgAssetNotReady                = "asset.not_ready"
+	MsgAssetFailed                  = "asset.failed"
+	MsgAssetChannelConflict         = "asset.channel_conflict"
+	MsgAssetChannelUnavailable      = "asset.channel_unavailable"
+	MsgAssetGroupInitializing       = "asset.group_initializing"
+	MsgAssetUpstreamError           = "asset.upstream_error"
+	MsgAssetStorageError            = "asset.storage_error"
+	MsgRealPersonInvalidRequest     = "real_person.invalid_request"
+	MsgRealPersonNotFound           = "real_person.not_found"
+	MsgRealPersonNotActive          = "real_person.not_active"
+	MsgRealPersonChannelUnavailable = "real_person.channel_unavailable"
+	MsgRealPersonStorageError       = "real_person.storage_error"
+	MsgVerificationInProgress       = "verification.in_progress"
+	MsgVerificationUpstreamError    = "verification.upstream_error"
+	MsgIdempotencyConflict          = "idempotency.conflict"
+	MsgIdempotencyOutcomeUnknown    = "idempotency.outcome_unknown"
+	MsgAssetProfileConflict         = "asset.profile_conflict"
+	MsgAssetFileTooLarge            = "asset.file_too_large"
+	MsgAssetMediaUnsupported        = "asset.media_unsupported"
+	MsgAssetUploadFailed            = "asset.upload_failed"
+	MsgAssetExpired                 = "asset.expired"
+	MsgAssetTypeMismatch            = "asset.type_mismatch"
+)
+
 // Email content messages (subject + HTML body, rendered with template data)
 const (
-	MsgEmailVerifySubject = "email.verification_subject"
-	MsgEmailVerifyContent = "email.verification_content"
-	MsgEmailResetSubject  = "email.password_reset_subject"
-	MsgEmailResetContent  = "email.password_reset_content"
+	MsgEmailVerifySubject     = "email.verification_subject"
+	MsgEmailVerifyHeading     = "email.verification_heading"
+	MsgEmailVerifyContent     = "email.verification_content"
+	MsgEmailVerifyAction      = "email.verification_action"
+	MsgEmailVerifyAlternative = "email.verification_alternative"
+	MsgEmailVerifyCodeLabel   = "email.verification_code_label"
+	MsgEmailVerifyExpiry      = "email.verification_expiry"
+	MsgEmailVerifyIgnore      = "email.verification_ignore"
+	MsgEmailVerifyFooter      = "email.verification_footer"
+	MsgEmailVerifyLinkInvalid = "email.verification_link_invalid"
+	MsgEmailVerifyUnavailable = "email.verification_unavailable"
+	MsgEmailResetSubject      = "email.password_reset_subject"
+	MsgEmailResetContent      = "email.password_reset_content"
 )
 
 // User notification messages (quota warnings sent via email/webhook/bark/gotify).

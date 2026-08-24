@@ -77,7 +77,9 @@ describe("Claude Code use-case install scripts", () => {
       expect(getUseCaseConfig(CODEX_USE_CASE.pathname, locale).headlineLead.length).toBeGreaterThan(0);
       expect(getUseCaseConfig(CLAUDE_CODE_USE_CASE.pathname, locale).headlineLead.length).toBeGreaterThan(0);
       expect(imageBuddyConfig.endpointText).toBe("npx @flatkey-ai/image-buddy");
-      if (locale !== "en") {
+      if (locale !== "en" && locale !== "id") {
+        // `id` is a staged locale: homepage + market landings are translated,
+        // other surfaces fall back to English until translated.
         expect(imageBuddyConfig.headlineLead).not.toBe(IMAGE_BUDDY_USE_CASE.headlineLead);
         expect(imageBuddyConfig.intro).not.toBe(IMAGE_BUDDY_USE_CASE.intro);
       }

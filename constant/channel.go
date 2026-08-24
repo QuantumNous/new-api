@@ -64,8 +64,16 @@ const (
 	ChannelTypeBlockRunSeedance = 102
 	ChannelTypeJimengProxy      = 103 // Jimeng reverse proxy (iptag/jimeng-api): OpenAI-compatible image/video proxy, sessionid auth
 	ChannelTypeJimengZhizinan   = 104 // Jimeng reverse proxy (zhizinan1997/jimeng-free-api-all)
-	ChannelTypeDummy                  // this one is only for count, do not add any channel after this
-
+	ChannelTypeTechMobiVideo    = 105 // TechMobi Seedance-compatible async video API
+	ChannelTypeElevenLabs       = 106 // ElevenLabs voice/SFX — native endpoints passthrough (xi-api-key)
+	ChannelTypeBytePlus         = 107 // BytePlus Ark Seedance async video API
+	ChannelTypeXaiGrokVideo     = 108 // xAI Grok Imagine async video API (submit → poll); whitelabel
+	ChannelTypeSonilo           = 109 // Sonilo async video-to-music API; whitelabel
+	ChannelTypeMiniMaxH3        = 110 // MiniMax H3 async video API
+	ChannelTypeModelAPISeedance = 111 // ModelAPI Seedance 2.5 async video API; whitelabel
+	ChannelTypeCopilot          = 112 // GitHub Copilot Chat Completions API
+	ChannelTypeGrokSubscription = 113 // Grok Subscription: OAuth/PKCE 订阅账号，CLI 网关文本 + api.x.ai 媒体
+	ChannelTypeDummy            = 114 // this one is only for count, do not add any channel after this
 )
 
 var ChannelBaseURLs = []string{
@@ -134,11 +142,20 @@ var ChannelBaseURLs = []string{
 	"", "", "", "", "", "", "", "", "", "", // 70-79
 	"", "", "", "", "", "", "", "", "", "", // 80-89
 	"", "", "", "", "", "", "", "", "", "", // 90-99
-	"https://blockrun.ai/api", // 100 BlockRun
-	"https://api2.flatkey.ai", // 101 BlockRunVideo
-	"https://blockrun.ai/api", // 102 BlockRunSeedance
-	"",                        // 103 JimengProxy (self-hosted iptag/jimeng-api; set base URL per channel)
-	"",                        // 104 JimengZhizinan (self-hosted zhizinan1997/jimeng-free-api-all)
+	"https://blockrun.ai/api",      // 100 BlockRun
+	"https://api2.flatkey.ai",      // 101 BlockRunVideo
+	"https://blockrun.ai/api",      // 102 BlockRunSeedance
+	"",                             // 103 JimengProxy (self-hosted iptag/jimeng-api; set base URL per channel)
+	"",                             // 104 JimengZhizinan (self-hosted zhizinan1997/jimeng-free-api-all)
+	"https://api.chatgpttech.mobi", // 105 TechMobiVideo
+	"https://api.elevenlabs.io",    // 106 ElevenLabs
+	"https://ark.ap-southeast.bytepluses.com", // 107 BytePlus
+	"https://api.x.ai",                        // 108 XaiGrokVideo
+	"https://api.sonilo.com",                  // 109 Sonilo
+	"https://api.minimax.io",                  // 110 MiniMaxH3
+	"https://api.modelapi.co",                 // 111 ModelAPISeedance
+	"https://api.githubcopilot.com",           // 112 Copilot
+	"",                                        // 113 GrokSubscription (host fixed in adaptor; no custom base URL)
 }
 
 var ChannelTypeNames = map[int]string{
@@ -202,6 +219,15 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeBlockRunSeedance: "BlockRunSeedance",
 	ChannelTypeJimengProxy:      "JimengProxy",
 	ChannelTypeJimengZhizinan:   "JimengZhizinan",
+	ChannelTypeTechMobiVideo:    "TechMobiVideo",
+	ChannelTypeElevenLabs:       "ElevenLabs",
+	ChannelTypeBytePlus:         "BytePlus",
+	ChannelTypeXaiGrokVideo:     "XaiGrokVideo",
+	ChannelTypeSonilo:           "Sonilo",
+	ChannelTypeMiniMaxH3:        "MiniMaxH3",
+	ChannelTypeModelAPISeedance: "ModelAPISeedance",
+	ChannelTypeCopilot:          "Copilot",
+	ChannelTypeGrokSubscription: "GrokSubscription",
 }
 
 func GetChannelTypeName(channelType int) string {

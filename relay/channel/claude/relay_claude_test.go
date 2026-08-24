@@ -2,10 +2,16 @@ package claude
 
 import (
 	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,6 +56,37 @@ func TestFormatClaudeResponseInfo_MessageStart(t *testing.T) {
 	if claudeInfo.Model != "claude-3-5-sonnet" {
 		t.Errorf("Model = %s, want claude-3-5-sonnet", claudeInfo.Model)
 	}
+}
+
+func TestHandleStreamResponseDataCapturesUpstreamResponseId(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+	claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+
+	err := HandleStreamResponseData(c, info, claudeInfo, `{"type":"message_start","message":{"id":"msg_stream_123","model":"claude-opus-4-8","usage":{"input_tokens":1,"output_tokens":1}}}`)
+
+	require.Nil(t, err)
+	require.Equal(t, "msg_stream_123", c.GetString(common.UpstreamResponseIdKey))
+}
+
+func TestHandleClaudeResponseDataCapturesUpstreamResponseId(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+	claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+	resp := &http.Response{StatusCode: http.StatusOK, Header: make(http.Header)}
+
+	err := HandleClaudeResponseData(c, info, claudeInfo, resp, []byte(`{"id":"msg_non_stream_456","type":"message","role":"assistant","content":[],"usage":{"input_tokens":1,"output_tokens":1}}`))
+
+	require.Nil(t, err)
+	require.Equal(t, "msg_non_stream_456", c.GetString(common.UpstreamResponseIdKey))
 }
 
 func TestFormatClaudeResponseInfo_MessageDelta_FullUsage(t *testing.T) {

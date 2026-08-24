@@ -43,6 +43,8 @@ func GetExposedData() gin.H {
 	}
 	newData := gin.H{
 		"model_ratio":        GetModelRatioCopy(),
+		"group_ratio":        GetGroupRatioCopy(),
+		"group_model_ratio":  GetGroupModelRatioCopy(),
 		"completion_ratio":   GetCompletionRatioCopy(),
 		"cache_ratio":        GetCacheRatioCopy(),
 		"create_cache_ratio": GetCreateCacheRatioCopy(),
@@ -53,4 +55,10 @@ func GetExposedData() gin.H {
 		expiresAt: time.Now().Add(exposedDataTTL),
 	})
 	return cloneGinH(newData)
+}
+
+func GetPublicExposedData() gin.H {
+	data := GetExposedData()
+	delete(data, "group_model_ratio")
+	return data
 }

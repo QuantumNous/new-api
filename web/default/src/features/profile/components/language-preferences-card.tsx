@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   INTERFACE_LANGUAGE_OPTIONS,
   normalizeInterfaceLanguage,
 } from '@/i18n/languages'
+import { persistUserLanguageCookie } from '@/i18n/user-language-preference'
 import { Languages, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -43,6 +44,11 @@ type LanguagePreferencesCardProps = {
   onProfileUpdate: () => void
 }
 
+type LanguageDraft = {
+  savedLanguage: string
+  value: string
+}
+
 export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
   const { t, i18n } = useTranslation()
   const { auth } = useAuthStore()
@@ -53,11 +59,11 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
     return normalizeInterfaceLanguage(settings.language || i18n.language)
   }, [props.profile?.setting, i18n.language])
 
-  const [currentLanguage, setCurrentLanguage] = useState(savedLanguage)
-
-  useEffect(() => {
-    setCurrentLanguage(savedLanguage)
-  }, [savedLanguage])
+  const [languageDraft, setLanguageDraft] = useState<LanguageDraft | null>(null)
+  const currentLanguage =
+    languageDraft?.savedLanguage === savedLanguage
+      ? languageDraft.value
+      : savedLanguage
 
   const handleLanguageChange = async (language: string | null) => {
     if (!language) return
@@ -65,7 +71,7 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
     if (nextLanguage === currentLanguage) return
 
     const previousLanguage = currentLanguage
-    setCurrentLanguage(nextLanguage)
+    setLanguageDraft({ savedLanguage, value: nextLanguage })
     setSaving(true)
     await i18n.changeLanguage(nextLanguage)
 
@@ -89,10 +95,11 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
         })
       }
 
+      persistUserLanguageCookie(nextLanguage)
       props.onProfileUpdate()
       toast.success(t('Language preference saved'))
     } catch (_error) {
-      setCurrentLanguage(previousLanguage)
+      setLanguageDraft({ savedLanguage, value: previousLanguage })
       await i18n.changeLanguage(previousLanguage)
       toast.error(t('Failed to update settings'))
     } finally {

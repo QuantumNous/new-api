@@ -7,7 +7,7 @@ import {
   detectClaudeCodeInstallTab,
   type ClaudeCodeInstallTab,
 } from "@/lib/claude-code-use-case";
-import type { Locale } from "@/lib/locales";
+import { type Locale, withIdFallback } from "@/lib/locales";
 import { cn } from "@/lib/utils";
 
 const tabs: Array<{ id: ClaudeCodeInstallTab; label: string; hint: string }> = [
@@ -16,7 +16,7 @@ const tabs: Array<{ id: ClaudeCodeInstallTab; label: string; hint: string }> = [
   { id: "windows", label: "Windows", hint: "PowerShell" },
 ];
 
-const tabCopy: Record<Locale, { aria: string; oneLiner: string; copy: string; copied: string; srTitle: string }> = {
+const tabCopy: Record<Locale, { aria: string; oneLiner: string; copy: string; copied: string; srTitle: string }> =withIdFallback({
   en: { aria: "Install command by operating system", oneLiner: "one-liner", copy: "Copy", copied: "Copied", srTitle: "Flatkey one-line install commands" },
   zh: { aria: "按操作系统选择安装命令", oneLiner: "一行命令", copy: "复制", copied: "已复制", srTitle: "Flatkey 一行安装命令" },
   es: { aria: "Comando de instalación por sistema operativo", oneLiner: "one-liner", copy: "Copiar", copied: "Copiado", srTitle: "Comandos de instalación Flatkey" },
@@ -26,7 +26,7 @@ const tabCopy: Record<Locale, { aria: string; oneLiner: string; copy: string; co
   ja: { aria: "OS 別インストールコマンド", oneLiner: "one-liner", copy: "コピー", copied: "コピー済み", srTitle: "Flatkey インストールコマンド" },
   vi: { aria: "Lệnh cài đặt theo hệ điều hành", oneLiner: "one-liner", copy: "Sao chép", copied: "Đã sao chép", srTitle: "Lệnh cài đặt Flatkey" },
   de: { aria: "Installationsbefehl nach Betriebssystem", oneLiner: "one-liner", copy: "Kopieren", copied: "Kopiert", srTitle: "Flatkey Installationsbefehle" },
-};
+});
 
 type Props = {
   locale: Locale;

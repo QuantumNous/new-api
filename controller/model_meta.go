@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
@@ -84,8 +85,9 @@ func CreateModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	m.ModelName = strings.TrimSpace(m.ModelName)
 	if m.ModelName == "" {
-		common.ApiErrorMsg(c, "模型名称不能为空")
+		common.ApiErrorI18n(c, i18n.MsgModelNameEmpty)
 		return
 	}
 	// 名称冲突检查
@@ -126,6 +128,11 @@ func UpdateModelMeta(c *gin.Context) {
 			return
 		}
 	} else {
+		m.ModelName = strings.TrimSpace(m.ModelName)
+		if m.ModelName == "" {
+			common.ApiErrorI18n(c, i18n.MsgModelNameEmpty)
+			return
+		}
 		// 名称冲突检查
 		if dup, err := model.IsModelNameDuplicated(m.Id, m.ModelName); err != nil {
 			common.ApiError(c, err)

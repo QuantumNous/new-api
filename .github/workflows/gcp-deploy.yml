@@ -37,6 +37,12 @@ env:
   PROJECT_ID:  ${{ vars.GCP_PROJECT_ID }}
   REGION:      ${{ vars.GCP_REGION }}
   AR_REPO_URL: ${{ vars.GCP_AR_REPO_URL }}
+  ASSET_STORAGE_BUCKET: vocai-gemini-prod-flatkey-assets
+  VIDEO_RESULT_STORAGE_BUCKET: vocai-gemini-prod-video-results
+  VIDEO_RESULT_RETENTION_SECONDS: '86400'
+  VIDEO_RESULT_SIGNED_URL_TTL_SECONDS: '900'
+  VIDEO_RESULT_FETCH_TIMEOUT_SECONDS: '1800'
+  VIDEO_RESULT_MAX_BYTES: '524288000'
 
 jobs:
   build:
@@ -99,13 +105,14 @@ jobs:
           build-args: |
             VITE_GADS_CONVERSION_ID=${{ vars.VITE_GADS_CONVERSION_ID }}
             VITE_GADS_SIGNUP_SEND_TO=${{ vars.VITE_GADS_SIGNUP_SEND_TO }}
-            VITE_GADS_TOPUP_SEND_TO=${{ vars.VITE_GADS_TOPUP_SEND_TO }}
             VITE_TIKTOK_PIXEL_ID=${{ vars.VITE_TIKTOK_PIXEL_ID }}
             VITE_META_PIXEL_ID=${{ vars.VITE_META_PIXEL_ID }}
             VITE_X_PIXEL_ID=${{ vars.VITE_X_PIXEL_ID }}
             VITE_X_SIGNUP_EVENT_ID=${{ vars.VITE_X_SIGNUP_EVENT_ID }}
             VITE_X_TOPUP_EVENT_ID=${{ vars.VITE_X_TOPUP_EVENT_ID }}
+            VITE_AMPLITUDE_API_KEY=${{ vars.VITE_AMPLITUDE_API_KEY }}
             VITE_OFFICIAL_WEBSITE_ORIGIN=${{ secrets.OFFICIAL_WEBSITE_ORIGIN }}
+            VITE_COOKIE_SESSION_DOMAIN=${{ secrets.COOKIE_SESSION_DOMAIN }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/server:main-latest
@@ -131,6 +138,13 @@ jobs:
       RUN_SERVICE: newapi-console
       NODE_TYPE: master
       APP_ROLE: console
+      # The production rollout is complete; keep the console capability on for
+      # every subsequent revision. Router is not the owner of this UI feature.
+      TOKEN_BATCH_GROUP_ENABLED: "true"
+      TEMP_MEDIA_BUCKET: vocai-gemini-prod-flatkey-temp-media
+      BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL: https://router.flatkey.ai
+      BYTEPLUS_REAL_PERSON_CIPHER_SECRET: newapi-byteplus-real-person-cipher-key
+      GROK_CREDENTIAL_CIPHER_SECRET: newapi-grok-credential-cipher-key
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -168,8 +182,19 @@ jobs:
           APP_CONSOLE_ORIGIN: ${{ secrets.APP_CONSOLE_ORIGIN }}
           COOKIE_SESSION_DOMAIN: ${{ secrets.COOKIE_SESSION_DOMAIN }}
           SESSION_COOKIE_SECURE: ${{ secrets.SESSION_COOKIE_SECURE }}
+          VOC_DATA_MCP_URL: ${{ vars.VOC_DATA_MCP_URL }}
+          VOC_DATA_MCP_SERVICE_KEY: ${{ secrets.VOC_DATA_MCP_SERVICE_KEY }}
+          VOC_DATA_MCP_MODE: ${{ vars.VOC_DATA_MCP_MODE }}
+          VOC_DATA_MCP_AUTH_HEADER: ${{ vars.VOC_DATA_MCP_AUTH_HEADER }}
+          VOC_DATA_MCP_TIMEOUT_SECONDS: ${{ vars.VOC_DATA_MCP_TIMEOUT_SECONDS }}
+          VOC_DATA_MCP_CATALOG_TTL_SECONDS: ${{ vars.VOC_DATA_MCP_CATALOG_TTL_SECONDS }}
+          FLATKEY_DATA_TOOL_MARKUP_BPS: ${{ vars.FLATKEY_DATA_TOOL_MARKUP_BPS }}
+          FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD: ${{ vars.FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD }}
+          FLATKEY_DATA_TOOL_MIN_PLAN_RANK: ${{ vars.FLATKEY_DATA_TOOL_MIN_PLAN_RANK }}
+          CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE: ${{ vars.CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE }}
         run: |
           set -euo pipefail
+          : "${CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE:?CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE is required}"
           revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
           env_vars=()
           for name in \
@@ -180,7 +205,13 @@ jobs:
             PADDLE_LIVE_API_KEY PADDLE_LIVE_CLIENT_TOKEN PADDLE_LIVE_WEBHOOK_SECRET \
             GA_MEASURE_PROTOCOL_API_SECRET GA_MESSUREMENT_ID \
             OFFICIAL_WEBSITE_ORIGIN APP_CONSOLE_ORIGIN COOKIE_SESSION_DOMAIN SESSION_COOKIE_SECURE \
-            NODE_TYPE APP_ROLE; do
+            VOC_DATA_MCP_URL VOC_DATA_MCP_SERVICE_KEY VOC_DATA_MCP_MODE VOC_DATA_MCP_AUTH_HEADER \
+            VOC_DATA_MCP_TIMEOUT_SECONDS VOC_DATA_MCP_CATALOG_TTL_SECONDS \
+            FLATKEY_DATA_TOOL_MARKUP_BPS FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD FLATKEY_DATA_TOOL_MIN_PLAN_RANK \
+            CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE \
+            ASSET_STORAGE_BUCKET VIDEO_RESULT_STORAGE_BUCKET VIDEO_RESULT_RETENTION_SECONDS VIDEO_RESULT_SIGNED_URL_TTL_SECONDS \
+            VIDEO_RESULT_FETCH_TIMEOUT_SECONDS VIDEO_RESULT_MAX_BYTES NODE_TYPE APP_ROLE TOKEN_BATCH_GROUP_ENABLED \
+            TEMP_MEDIA_BUCKET BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL; do
             value="${!name:-}"
             if [[ -n "${value}" ]]; then
               env_vars+=("${name}=${value}")
@@ -192,14 +223,26 @@ jobs:
             env_args=(--update-env-vars="${env_vars[*]}")
             unset IFS
           fi
+          container_args=()
+          container_names="$(gcloud run services describe "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --format='value(template.containers[].name)')"
+          if printf '%s\n' "${container_names}" | tr ';[:space:]' '\n' | grep -qx "app"; then
+            container_args=(--container=app)
+            echo "Deploying image/env to named container: app"
+          else
+            echo "No app container name found; deploying as a single-container service."
+          fi
           gcloud run services update "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
-            --image="${{ needs.build.outputs.image_uri }}" \
             --revision-suffix="${revision_suffix}" \
             --no-traffic \
-            "${env_args[@]}" \
-            --quiet
+            --quiet \
+            "${container_args[@]}" \
+            --image="${{ needs.build.outputs.image_uri }}" \
+            --update-secrets="BYTEPLUS_REAL_PERSON_CIPHER_KEY=${BYTEPLUS_REAL_PERSON_CIPHER_SECRET}:latest,GROK_CREDENTIAL_CIPHER_KEY=${GROK_CREDENTIAL_CIPHER_SECRET}:latest" \
+            "${env_args[@]}"
           new_rev="$(gcloud run services describe "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" --region="${REGION}" \
             --format='value(status.latestCreatedRevisionName)')"
@@ -255,6 +298,21 @@ jobs:
           echo "- Revision: \`${{ steps.deploy.outputs.new_revision }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Image: \`${{ needs.build.outputs.image_uri }}\`" >> "$GITHUB_STEP_SUMMARY"
 
+  browser-qa-production:
+    needs: deploy-console
+    uses: ./.github/workflows/gcp-browser-qa.yml
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    with:
+      target_environment: production
+      mode: normal
+      fail_on_findings: false
+    secrets:
+      STAGING_BROWSER_QA_DINGTALK_WEBHOOK: ${{ secrets.STAGING_BROWSER_QA_DINGTALK_WEBHOOK }}
+      STAGING_BROWSER_QA_DINGTALK_SIGNING_SECRET: ${{ secrets.STAGING_BROWSER_QA_DINGTALK_SIGNING_SECRET }}
+
   deploy-router:
     name: deploy router
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.deploy_target == 'router' || inputs.deploy_target == 'both'))
@@ -265,6 +323,11 @@ jobs:
       RUN_SERVICE: newapi-router
       NODE_TYPE: slave
       APP_ROLE: router
+      # Keep in sync with deploy/gcp/envs/prod/terraform.tfvars.
+      MAX_INSTANCES: 30
+      TEMP_MEDIA_BUCKET: vocai-gemini-prod-flatkey-temp-media
+      BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL: https://router.flatkey.ai
+      BYTEPLUS_REAL_PERSON_CIPHER_SECRET: newapi-byteplus-real-person-cipher-key
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -302,8 +365,19 @@ jobs:
           APP_CONSOLE_ORIGIN: ${{ secrets.APP_CONSOLE_ORIGIN }}
           COOKIE_SESSION_DOMAIN: ${{ secrets.COOKIE_SESSION_DOMAIN }}
           SESSION_COOKIE_SECURE: ${{ secrets.SESSION_COOKIE_SECURE }}
+          VOC_DATA_MCP_URL: ${{ vars.VOC_DATA_MCP_URL }}
+          VOC_DATA_MCP_SERVICE_KEY: ${{ secrets.VOC_DATA_MCP_SERVICE_KEY }}
+          VOC_DATA_MCP_MODE: ${{ vars.VOC_DATA_MCP_MODE }}
+          VOC_DATA_MCP_AUTH_HEADER: ${{ vars.VOC_DATA_MCP_AUTH_HEADER }}
+          VOC_DATA_MCP_TIMEOUT_SECONDS: ${{ vars.VOC_DATA_MCP_TIMEOUT_SECONDS }}
+          VOC_DATA_MCP_CATALOG_TTL_SECONDS: ${{ vars.VOC_DATA_MCP_CATALOG_TTL_SECONDS }}
+          FLATKEY_DATA_TOOL_MARKUP_BPS: ${{ vars.FLATKEY_DATA_TOOL_MARKUP_BPS }}
+          FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD: ${{ vars.FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD }}
+          FLATKEY_DATA_TOOL_MIN_PLAN_RANK: ${{ vars.FLATKEY_DATA_TOOL_MIN_PLAN_RANK }}
+          CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE: ${{ vars.CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE }}
         run: |
           set -euo pipefail
+          : "${CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE:?CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE is required}"
           revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
           env_vars=()
           for name in \
@@ -314,7 +388,13 @@ jobs:
             PADDLE_LIVE_API_KEY PADDLE_LIVE_CLIENT_TOKEN PADDLE_LIVE_WEBHOOK_SECRET \
             GA_MEASURE_PROTOCOL_API_SECRET GA_MESSUREMENT_ID \
             OFFICIAL_WEBSITE_ORIGIN APP_CONSOLE_ORIGIN COOKIE_SESSION_DOMAIN SESSION_COOKIE_SECURE \
-            NODE_TYPE APP_ROLE; do
+            VOC_DATA_MCP_URL VOC_DATA_MCP_SERVICE_KEY VOC_DATA_MCP_MODE VOC_DATA_MCP_AUTH_HEADER \
+            VOC_DATA_MCP_TIMEOUT_SECONDS VOC_DATA_MCP_CATALOG_TTL_SECONDS \
+            FLATKEY_DATA_TOOL_MARKUP_BPS FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD FLATKEY_DATA_TOOL_MIN_PLAN_RANK \
+            CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE \
+            ASSET_STORAGE_BUCKET VIDEO_RESULT_STORAGE_BUCKET VIDEO_RESULT_RETENTION_SECONDS VIDEO_RESULT_SIGNED_URL_TTL_SECONDS \
+            VIDEO_RESULT_FETCH_TIMEOUT_SECONDS VIDEO_RESULT_MAX_BYTES NODE_TYPE APP_ROLE TEMP_MEDIA_BUCKET \
+            BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL; do
             value="${!name:-}"
             if [[ -n "${value}" ]]; then
               env_vars+=("${name}=${value}")
@@ -326,14 +406,27 @@ jobs:
             env_args=(--update-env-vars="${env_vars[*]}")
             unset IFS
           fi
+          container_args=()
+          container_names="$(gcloud run services describe "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" --region="${REGION}" \
+            --format='value(template.containers[].name)')"
+          if printf '%s\n' "${container_names}" | tr ';[:space:]' '\n' | grep -qx "app"; then
+            container_args=(--container=app)
+            echo "Deploying image/env to named container: app"
+          else
+            echo "No app container name found; deploying as a single-container service."
+          fi
           gcloud run services update "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
-            --image="${{ needs.build.outputs.image_uri }}" \
+            --max-instances="${MAX_INSTANCES}" \
             --revision-suffix="${revision_suffix}" \
             --no-traffic \
-            "${env_args[@]}" \
-            --quiet
+            --quiet \
+            "${container_args[@]}" \
+            --image="${{ needs.build.outputs.image_uri }}" \
+            --update-secrets="BYTEPLUS_REAL_PERSON_CIPHER_KEY=${BYTEPLUS_REAL_PERSON_CIPHER_SECRET}:latest" \
+            "${env_args[@]}"
           new_rev="$(gcloud run services describe "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" --region="${REGION}" \
             --format='value(status.latestCreatedRevisionName)')"

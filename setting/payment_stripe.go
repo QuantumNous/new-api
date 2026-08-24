@@ -8,6 +8,11 @@ import (
 )
 
 var StripeApiSecret = ""
+
+// StripePublishableKey is the client-side (pk_...) key. When set, the console can
+// render Stripe Checkout in embedded mode on our own domain instead of redirecting
+// to checkout.stripe.com; when empty, checkout falls back to the hosted redirect.
+var StripePublishableKey = ""
 var StripeWebhookSecret = ""
 var StripePriceId = ""
 var StripePriceId20 = ""
@@ -35,6 +40,30 @@ func StripeTopUpPriceIDForAmount(amount int64) string {
 	default:
 		return ""
 	}
+}
+
+func StripeTopUpAmountsByPriceID() map[string]int64 {
+	configured := map[int64]string{
+		10:  StripePriceId,
+		20:  StripePriceId20,
+		200: StripePriceId200,
+	}
+	if strings.TrimSpace(StripeTopUpPriceIds) != "" {
+		configured = parseStripeTopUpPriceIds(StripeTopUpPriceIds)
+	}
+
+	amounts := make(map[string]int64, len(configured))
+	for amount, rawPriceID := range configured {
+		priceID := strings.TrimSpace(rawPriceID)
+		if amount <= 0 || priceID == "" {
+			continue
+		}
+		if _, exists := amounts[priceID]; exists {
+			continue
+		}
+		amounts[priceID] = amount
+	}
+	return amounts
 }
 
 func parseStripeTopUpPriceIds(raw string) map[int64]string {

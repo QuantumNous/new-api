@@ -22,6 +22,7 @@ import {
   INTERFACE_LANGUAGE_OPTIONS,
   normalizeInterfaceLanguage,
 } from '@/i18n/languages'
+import { persistUserLanguageCookie } from '@/i18n/user-language-preference'
 import { Languages, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
@@ -70,6 +71,7 @@ export function LanguageSwitcher() {
 
   const handleChangeLanguage = useCallback(
     async (code: string) => {
+      persistUserLanguageCookie(code)
       await i18n.changeLanguage(code)
       if (user) {
         try {

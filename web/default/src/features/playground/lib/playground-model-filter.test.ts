@@ -17,7 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
-import { isPlaygroundChatModelName } from './playground-model-filter'
+import {
+  isPlaygroundChatModelName,
+  isSupportedPlaygroundModelName,
+} from './playground-model-filter'
 
 describe('isPlaygroundChatModelName', () => {
   test('keeps chat-compatible text models visible in Playground', () => {
@@ -33,12 +36,36 @@ describe('isPlaygroundChatModelName', () => {
     }
   })
 
+  test('keeps only implemented Gemini image families selectable', () => {
+    for (const model of [
+      'nano-banana-pro-preview',
+      'gemini-3-pro-image-preview',
+      'gemini-3.1-flash-image-preview',
+    ]) {
+      expect(isSupportedPlaygroundModelName(model)).toBe(true)
+      expect(isPlaygroundChatModelName(model)).toBe(false)
+    }
+  })
+
+  test('keeps implemented video families selectable but out of first-run chat', () => {
+    for (const model of [
+      'veo-3.1-fast-generate-preview',
+      'veo-3.1-generate-preview',
+      'google/veo-3.1-fast-generate-preview',
+      'bytedance/seedance-2.0-fast',
+    ]) {
+      expect(isSupportedPlaygroundModelName(model)).toBe(true)
+      expect(isPlaygroundChatModelName(model)).toBe(false)
+    }
+  })
+
   test('hides image, video, audio, embedding, and task models', () => {
     for (const model of [
       'gpt-image-1',
+      'gpt-image-2',
       'dall-e-3',
       'black-forest-labs/flux-1.1-pro',
-      'gemini-2.5-flash-image',
+      'imagen-3.0-generate',
       'qwen-image-edit-plus',
       'z-image',
       'sora-2',
@@ -46,6 +73,7 @@ describe('isPlaygroundChatModelName', () => {
       'doubao-seedance-2-0-260128',
       'kling-v1',
       'veo-3',
+      'veo-2.0',
       'mj_video',
       'tts-1',
       'whisper-1',
@@ -64,5 +92,19 @@ describe('isPlaygroundChatModelName', () => {
     expect(isPlaygroundChatModelName('   ')).toBe(false)
     expect(isPlaygroundChatModelName(null)).toBe(false)
     expect(isPlaygroundChatModelName({})).toBe(false)
+  })
+
+  test('allows the concrete image and video families implemented by Playground', () => {
+    for (const model of [
+      'gpt-image-2',
+      'gemini-3-pro-image-preview',
+      'gemini-3.1-flash-image-preview',
+      'nano-banana-pro-preview',
+      'grok-imagine-image',
+      'veo-3.1-generate-preview',
+      'bytedance/seedance-2.0-fast',
+    ]) {
+      expect(isSupportedPlaygroundModelName(model)).toBe(true)
+    }
   })
 })

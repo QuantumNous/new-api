@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: 'Public Sans', sans-serif;
+  --font-sans: 'Space Grotesk Variable', 'Public Sans', sans-serif;
   /* Editorial serif token — the body face used by the `serif` font axis
    * and by presets that opt in (currently Anthropic). Lora carries only
    * Latin glyphs, so the stack walks through CJK serifs (Noto / Source Han
@@ -100,20 +100,22 @@ For commercial licensing, please contact support@quantumnous.com
    * in theme-presets.css. Default mirrors `--font-sans` so behavior is
    * identical when no font preference is set. */
   --font-body: var(--font-sans);
-  --background: oklch(1 0 0);
+  /* Flatkey brand light theme: lavender page background, white chrome,
+   * violet primary (#7c3aed family, mark gradient #A855F7→#6D28D9). */
+  --background: oklch(0.972 0.011 293);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.13 0 0);
+  --primary: oklch(0.541 0.281 293.009);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.95 0 0);
-  --secondary-foreground: oklch(0.145 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.49 0 0);
-  --accent: oklch(0.95 0 0);
-  --accent-foreground: oklch(0.145 0 0);
+  --secondary: oklch(0.943 0.029 294.588);
+  --secondary-foreground: oklch(0.32 0.13 292);
+  --muted: oklch(0.958 0.014 293);
+  --muted-foreground: oklch(0.49 0.02 293);
+  --accent: oklch(0.943 0.029 294.588);
+  --accent-foreground: oklch(0.32 0.13 292);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
   --success: oklch(0.596 0.145 163.225);
@@ -124,24 +126,24 @@ For commercial licensing, please contact support@quantumnous.com
   --info-foreground: oklch(0.985 0 0);
   --neutral: oklch(0.708 0 0);
   --neutral-foreground: oklch(0.145 0 0);
-  --border: oklch(0.93 0 0);
-  --input: oklch(0.93 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
+  --border: oklch(0.913 0.017 293);
+  --input: oklch(0.913 0.017 293);
+  --ring: oklch(0.541 0.281 293.009);
+  --chart-1: oklch(0.541 0.281 293.009);
+  --chart-2: oklch(0.627 0.265 303.9);
+  --chart-3: oklch(0.702 0.183 293.541);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.975 0 0);
+  --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.13 0 0);
+  --sidebar-primary: oklch(0.541 0.281 293.009);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.92 0 0);
-  --sidebar-accent-foreground: oklch(0.145 0 0);
-  --sidebar-border: oklch(0.93 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --skeleton-base: oklch(0.97 0 0);
-  --skeleton-highlight: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.943 0.029 294.588);
+  --sidebar-accent-foreground: oklch(0.491 0.27 292.581);
+  --sidebar-border: oklch(0.93 0.012 293);
+  --sidebar-ring: oklch(0.541 0.281 293.009);
+  --skeleton-base: oklch(0.958 0.012 293);
+  --skeleton-highlight: oklch(0.98 0.008 293);
 }
 
 .dark {
@@ -158,7 +160,7 @@ For commercial licensing, please contact support@quantumnous.com
   --secondary-foreground: oklch(0.965 0 0);
   --muted: oklch(0.255 0 0);
   --muted-foreground: oklch(0.76 0 0);
-  --accent: oklch(0.325 0 0);
+  --accent: oklch(0.325 0.02 293);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
@@ -172,8 +174,8 @@ For commercial licensing, please contact support@quantumnous.com
   --neutral-foreground: oklch(0.145 0 0);
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.68 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
+  --ring: oklch(0.702 0.183 293.541);
+  --chart-1: oklch(0.702 0.183 293.541);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
@@ -182,10 +184,10 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-foreground: oklch(0.95 0 0);
   --sidebar-primary: oklch(0.965 0 0);
   --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-accent: oklch(0.31 0 0);
+  --sidebar-accent: oklch(0.31 0.03 293);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.68 0 0);
+  --sidebar-ring: oklch(0.702 0.183 293.541);
   --skeleton-base: oklch(0.285 0 0);
   --skeleton-highlight: oklch(0.39 0 0);
 }

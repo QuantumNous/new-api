@@ -20,7 +20,47 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/sjson"
 )
+
+func shouldPassThroughTextRequest(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.ChannelMeta == nil {
+		return false
+	}
+	if info.ChannelType == constant.ChannelTypeCopilot {
+		return false
+	}
+	// Codex/Grok 上游只有 /v1/responses 端点：chat 原文透传必然协议不匹配，
+	// 即使全局/渠道透传开关开启也必须走转换路径（与 claude_handler 侧对称）。
+	if info.RelayMode == relayconstant.RelayModeChatCompletions &&
+		(info.ApiType == constant.APITypeCodex || info.ApiType == constant.APITypeGrokSubscription) {
+		return false
+	}
+	return model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled
+}
+
+func allowsChatCompletionsViaResponses(info *relaycommon.RelayInfo) bool {
+	return info == nil || info.ChannelType != constant.ChannelTypeCopilot
+}
+
+func rejectCopilotNonChatFormat(info *relaycommon.RelayInfo, endpoint string) *types.NewAPIError {
+	if info == nil || info.ChannelType != constant.ChannelTypeCopilot {
+		return nil
+	}
+	return types.NewErrorWithStatusCode(
+		fmt.Errorf("copilot channel: %s endpoint not supported; use /v1/chat/completions", endpoint),
+		types.ErrorCodeInvalidRequest,
+		http.StatusBadRequest,
+		types.ErrOptionWithSkipRetry(),
+	)
+}
+
+func sanitizeTextRequestForChannel(jsonData []byte, info *relaycommon.RelayInfo) ([]byte, error) {
+	if info == nil || info.ChannelType != constant.ChannelTypeCopilot {
+		return jsonData, nil
+	}
+	return sjson.DeleteBytes(jsonData, "stream_options")
+}
 
 func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
@@ -70,10 +110,10 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	}
 	adaptor.Init(info)
 
-	passThroughGlobal := model_setting.GetGlobalSettings().PassThroughRequestEnabled
+	passThroughRequest := shouldPassThroughTextRequest(info)
 	if info.RelayMode == relayconstant.RelayModeChatCompletions &&
-		!passThroughGlobal &&
-		!info.ChannelSetting.PassThroughBodyEnabled &&
+		allowsChatCompletionsViaResponses(info) &&
+		!passThroughRequest &&
 		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
 		applySystemPromptIfNeeded(c, info, request)
 		usage, newApiErr := chatCompletionsViaResponses(c, info, adaptor, request)
@@ -93,8 +133,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 	}
 
 	var requestBody io.Reader
-
-	if passThroughGlobal || info.ChannelSetting.PassThroughBodyEnabled {
+	if passThroughRequest {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -171,6 +210,13 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 			if err != nil {
 				return newAPIErrorFromParamOverride(err)
 			}
+		}
+
+		// Copilot does not support stream_options. This must run after parameter
+		// overrides so an administrator override cannot reintroduce the field.
+		jsonData, err = sanitizeTextRequestForChannel(jsonData, info)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}
 
 		logger.LogDebug(c, "text request body: %s", jsonData)

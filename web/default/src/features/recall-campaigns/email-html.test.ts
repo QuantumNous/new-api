@@ -1,0 +1,230 @@
+import { describe, expect, test } from 'bun:test'
+import {
+  RECALL_EMAIL_ACTIONS,
+  RECALL_CONTENT_ONLY_EMAIL_ACTIONS,
+  RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
+  RECALL_EMAIL_STARTER_HTML,
+  convertRecallBodyTextToHtml,
+  getRecallEmailActions,
+  getRecallEmailStarterHtml,
+  insertRecallEmailAction,
+  normalizeRecallBodyInputToHtml,
+} from './email-html'
+
+describe('recall email HTML helpers', () => {
+  test('exports the required recall email actions', () => {
+    expect(RECALL_EMAIL_ACTIONS).toEqual([
+      '{{.RecipientName}}',
+      '{{.PromotionCodeMasked}}',
+      '{{.ProductSummary}}',
+      '{{.ExpiresAt}}',
+      '{{.ClaimURL}}',
+      '{{.UnsubscribeURL}}',
+    ])
+  })
+
+  test('exports the content-only action subset', () => {
+    expect(RECALL_CONTENT_ONLY_EMAIL_ACTIONS).toEqual([
+      '{{.RecipientName}}',
+      '{{.UnsubscribeURL}}',
+    ])
+  })
+
+  test('omits unsubscribe placeholders from service-policy content email actions', () => {
+    expect(getRecallEmailActions('content_only', 'service')).toEqual([
+      '{{.RecipientName}}',
+    ])
+    expect(getRecallEmailActions('content_only', 'engagement')).toEqual([
+      '{{.RecipientName}}',
+      '{{.UnsubscribeURL}}',
+    ])
+  })
+
+  test('provides editable starter HTML with required action links', () => {
+    expect(RECALL_EMAIL_STARTER_HTML).not.toContain('example.com')
+    expect(RECALL_EMAIL_STARTER_HTML).toContain('href="{{.ClaimURL}}"')
+    expect(RECALL_EMAIL_STARTER_HTML).toContain('href="{{.UnsubscribeURL}}"')
+    expect([...RECALL_EMAIL_STARTER_HTML.matchAll(/\shref="/g)]).toHaveLength(2)
+  })
+
+  test('provides editable Flatkey content-only announcement starter HTML', () => {
+    const html = RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML
+
+    expect(html).toContain('<table')
+    expect(html).toContain('#f5f6f8')
+    expect(html).toContain('max-width: 680px')
+    expect(html).toContain('padding: 52px')
+    expect(html).toContain('font-size: 46px')
+    expect(html).toContain('color: #172033')
+    expect(html).toContain('font-size: 28px')
+    expect(html).toContain('color: #5d687c')
+    expect(html).toContain('font-size: 21px')
+    expect(html).toContain('line-height: 1.7')
+    expect(html).toContain('background: #eef6ff')
+    expect(html).toContain('border: 1px solid #c7e2ff')
+    expect(html).toContain('background: #0f83ee')
+    expect(html).toContain('border-radius: 8px')
+    expect(html).toContain('text-align: right')
+    expect(html).toContain('Flatkey')
+    expect(html).toContain('{{.RecipientName}}')
+    expect(html).toContain('href="https://flatkey.com"')
+    expect(html).toContain('href="{{.UnsubscribeURL}}"')
+    expect(html).not.toContain('{{.ClaimURL}}')
+    expect(html).not.toContain('{{.PromotionCodeMasked}}')
+    expect(html).not.toContain('{{.ProductSummary}}')
+    expect(html).not.toContain('{{.ExpiresAt}}')
+    expect(html).not.toContain('CR')
+  })
+
+  test('provides service-policy content starter HTML without unsubscribe controls', () => {
+    const html = getRecallEmailStarterHtml('content_only', 'service')
+
+    expect(html).toContain('{{.RecipientName}}')
+    expect(html).not.toContain('{{.UnsubscribeURL}}')
+    expect(html).not.toContain('Unsubscribe')
+    expect(getRecallEmailStarterHtml('content_only', 'engagement')).toContain(
+      '{{.UnsubscribeURL}}'
+    )
+  })
+
+  test('converts legacy text paragraphs into escaped editable HTML', () => {
+    const html = convertRecallBodyTextToHtml(
+      'Hello\r\nSecond line\r\n\r\n<>&"\''
+    )
+
+    expect(html).toContain('<p>Hello</p>')
+    expect(html).toContain('<p>Second line</p>')
+    expect(html).toContain('&lt;&gt;&amp;&quot;&#39;')
+    expect(html).toContain('{{.ClaimURL}}')
+    expect(html).toContain('{{.UnsubscribeURL}}')
+  })
+
+  test('converts content-only text without inventing a claim action', () => {
+    const html = convertRecallBodyTextToHtml(
+      'Product update\nRead the details',
+      'content_only'
+    )
+
+    expect(html).toContain('<p>Product update</p>')
+    expect(html).toContain('<p>Read the details</p>')
+    expect(html).not.toContain('{{.ClaimURL}}')
+    expect(html).toContain('href="{{.UnsubscribeURL}}"')
+  })
+
+  test('converts service-policy content text without unsubscribe controls', () => {
+    const html = convertRecallBodyTextToHtml(
+      'Service update\nRead the details',
+      'content_only',
+      'service'
+    )
+
+    expect(html).toContain('<p>Service update</p>')
+    expect(html).toContain('<p>Read the details</p>')
+    expect(html).not.toContain('{{.ClaimURL}}')
+    expect(html).not.toContain('{{.UnsubscribeURL}}')
+    expect(html).not.toContain('Unsubscribe')
+  })
+
+  test('converts plain body input to escaped HTML with required action links', () => {
+    const html = normalizeRecallBodyInputToHtml('Hello\n2 < 3 & "quoted"')
+
+    expect(html).toContain('<p>Hello</p>')
+    expect(html).toContain('<p>2 &lt; 3 &amp; &quot;quoted&quot;</p>')
+    expect(html).toContain('href="{{.ClaimURL}}"')
+    expect(html).toContain('href="{{.UnsubscribeURL}}"')
+  })
+
+  test('normalizes content-only plain body input without a claim action', () => {
+    const html = normalizeRecallBodyInputToHtml(
+      'Product update\n2 < 3',
+      'content_only'
+    )
+
+    expect(html).toContain('<p>Product update</p>')
+    expect(html).toContain('<p>2 &lt; 3</p>')
+    expect(html).not.toContain('{{.ClaimURL}}')
+    expect(html).toContain('href="{{.UnsubscribeURL}}"')
+  })
+
+  test('normalizes service-policy content HTML by stripping unsubscribe tokens', () => {
+    const html = normalizeRecallBodyInputToHtml(
+      '<p>Hello</p><p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>',
+      'content_only',
+      'service'
+    )
+
+    expect(html).toContain('<p>Hello</p>')
+    expect(html).not.toContain('{{.UnsubscribeURL}}')
+    expect(html).not.toContain('Unsubscribe')
+  })
+
+  test('normalizes service-policy content HTML by stripping promotion and unsubscribe tokens', () => {
+    const html = normalizeRecallBodyInputToHtml(
+      [
+        '<p>Hello {{.RecipientName}}</p>',
+        '<p>{{.ProductSummary}}</p>',
+        '<p>Use {{.PromotionCodeMasked}} before {{.ExpiresAt}}</p>',
+        '<p><a href="{{.ClaimURL}}">Claim</a></p>',
+        '<p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>',
+      ].join(''),
+      'content_only',
+      'service'
+    )
+
+    expect(html).toContain('<p>Hello {{.RecipientName}}</p>')
+    for (const forbidden of [
+      '{{.ProductSummary}}',
+      '{{.PromotionCodeMasked}}',
+      '{{.ExpiresAt}}',
+      '{{.ClaimURL}}',
+      '{{.UnsubscribeURL}}',
+    ]) {
+      expect(html).not.toContain(forbidden)
+    }
+    expect(html).not.toContain('Claim')
+    expect(html).not.toContain('Unsubscribe')
+  })
+
+  test('normalizes service-policy content plain text by stripping forbidden actions', () => {
+    const html = normalizeRecallBodyInputToHtml(
+      [
+        'Hello {{.RecipientName}}',
+        'Product {{.ProductSummary}}',
+        'Use {{.PromotionCodeMasked}} before {{.ExpiresAt}}',
+        'Claim {{.ClaimURL}}',
+        'Unsubscribe {{.UnsubscribeURL}}',
+      ].join('\n'),
+      'content_only',
+      'service'
+    )
+
+    expect(html).toContain('Hello {{.RecipientName}}')
+    for (const forbidden of [
+      '{{.ProductSummary}}',
+      '{{.PromotionCodeMasked}}',
+      '{{.ExpiresAt}}',
+      '{{.ClaimURL}}',
+      '{{.UnsubscribeURL}}',
+    ]) {
+      expect(html).not.toContain(forbidden)
+    }
+  })
+
+  test('preserves real HTML body input for existing backend validation', () => {
+    const source =
+      '<p>Hello</p><p><a href="{{.ClaimURL}}">Claim</a></p><p><a href="{{.UnsubscribeURL}}">Unsubscribe</a></p>'
+
+    expect(normalizeRecallBodyInputToHtml(source)).toBe(source)
+  })
+
+  test('inserts recall actions at normalized selections', () => {
+    expect(insertRecallEmailAction('abc', 1, 2, '{{.ClaimURL}}')).toEqual({
+      value: 'a{{.ClaimURL}}c',
+      selection: 14,
+    })
+    expect(insertRecallEmailAction('abc', 5, -1, '{{.ClaimURL}}')).toEqual({
+      value: '{{.ClaimURL}}',
+      selection: 13,
+    })
+  })
+})

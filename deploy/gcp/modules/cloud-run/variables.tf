@@ -36,6 +36,36 @@ variable "memory" {
   default = "1Gi"
 }
 
+variable "prometheus_sidecar_enabled" {
+  type        = bool
+  description = "Attach the Google Managed Service for Prometheus Cloud Run sidecar."
+  default     = false
+}
+
+variable "prometheus_config_secret_id" {
+  type        = string
+  description = "Secret Manager secret ID containing the RunMonitoring config.yaml mounted at /etc/rungmp/config.yaml."
+  default     = ""
+}
+
+variable "prometheus_sidecar_image" {
+  type        = string
+  description = "Google Managed Service for Prometheus Cloud Run sidecar image."
+  default     = "us-docker.pkg.dev/cloud-ops-agents-artifacts/cloud-run-gmp-sidecar/cloud-run-gmp-sidecar:1.2.0"
+}
+
+variable "prometheus_sidecar_cpu" {
+  type        = string
+  description = "CPU limit for the Prometheus collector sidecar."
+  default     = "0.08"
+}
+
+variable "prometheus_sidecar_memory" {
+  type        = string
+  description = "Memory limit for the Prometheus collector sidecar."
+  default     = "256Mi"
+}
+
 variable "min_instances" {
   type    = number
   default = 2
@@ -119,6 +149,23 @@ variable "usage_recon_token_secret_id" {
   type        = string
   description = "Secret Manager secret ID for BLOCKRUN_USAGE_SUMMARY_TOKEN (usage reconciliation endpoints). Empty string disables the env injection."
   default     = ""
+}
+
+variable "asset_storage_bucket" {
+  type        = string
+  description = "Private GCS bucket used for Flatkey source asset storage. Empty string disables the env injection."
+  default     = ""
+}
+
+variable "video_result_storage_bucket" {
+  type        = string
+  description = "Private GCS bucket used for generated video result storage. Empty string disables the env injection."
+  default     = ""
+
+  validation {
+    condition     = var.video_result_storage_bucket == "" || can(regex("^[a-z0-9][a-z0-9._-]{1,61}[a-z0-9]$", var.video_result_storage_bucket))
+    error_message = "video_result_storage_bucket must be empty or a valid GCS bucket name."
+  }
 }
 
 variable "frontend_base_url" {

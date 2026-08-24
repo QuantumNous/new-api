@@ -29,6 +29,7 @@ type linuxdoUser struct {
 	Id         int    `json:"id"`
 	Username   string `json:"username"`
 	Name       string `json:"name"`
+	Email      string `json:"email"`
 	Active     bool   `json:"active"`
 	TrustLevel int    `json:"trust_level"`
 	Silenced   bool   `json:"silenced"`
@@ -159,6 +160,10 @@ func (p *LinuxDOProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*
 		ProviderUserID: strconv.Itoa(linuxdoUser.Id),
 		Username:       linuxdoUser.Username,
 		DisplayName:    linuxdoUser.Name,
+		Email:          strings.TrimSpace(linuxdoUser.Email),
+		// LinuxDO does not expose an email-verified signal, so the account must
+		// verify the address through the standard flow before using tokens.
+		EmailVerified: false,
 		Extra: map[string]any{
 			"trust_level": linuxdoUser.TrustLevel,
 			"active":      linuxdoUser.Active,

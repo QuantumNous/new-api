@@ -25,7 +25,7 @@
 | `operation_setting.go` | 自动禁用关键字列表、Demo/SelfUse 开关 |
 | `general_setting.go` | `GeneralSetting`：文档链接、额度展示类型（USD/CNY/TOKENS/CUSTOM）、自定义货币符号与汇率、Ping 间隔；`GetCurrencySymbol`/`IsCurrencyDisplay`/`IsCNYDisplay`/`GetUsdToCurrencyRate` 辅助函数 |
 | `checkin_setting.go` | 签到奖励额度范围配置 |
-| `monitor_setting.go` | 渠道监控告警阈值、DingTalk 告警（webhook URL/secret/冷却时间）、渠道类型过滤（`AutoTestChannelAllowedTypes`/`AutoTestChannelIgnoredTypes`）；`GetMonitorSetting()` 读取 `CHANNEL_TEST_FREQUENCY` 环境变量覆盖 |
+| `monitor_setting.go` | 渠道监控告警阈值、测试模式（`scheduled_all` / `passive_recovery`）、DingTalk 告警（webhook URL/secret/冷却时间）、渠道类型过滤（`AutoTestChannelAllowedTypes`/`AutoTestChannelIgnoredTypes`）；`GetMonitorSetting()` 读取 `CHANNEL_TEST_FREQUENCY` 环境变量覆盖 |
 | `monitor_setting_test.go` | DingTalk 字段默认值与 `UpdateConfigFromMap` 反序列化单元测试 |
 | `payment_setting.go` | 当前支付配置结构 |
 | `payment_setting_old.go` | 旧版支付配置兼容层（迁移过渡用） |
@@ -44,7 +44,8 @@
 - `general_setting.go` 还包含 `DocsLink` 字段，控制前端文档链接地址，默认值为 `"https://docs.newapi.pro"`。
 - `operation_setting.go` 中的 `AutomaticDisableKeywords` 是全局变量（非 GlobalConfig 体系），上游响应匹配这些关键字时渠道会被自动禁用。
 - `monitor_setting.go` 的 `GetMonitorSetting()` 会读取 `CHANNEL_TEST_FREQUENCY` 环境变量动态覆盖自动测试开关和间隔；DingTalk 告警字段通过 GlobalConfig 加载，默认冷却 60 分钟。
-- `MonitorSetting` 新增 `AutoTestChannelAllowedTypes`/`AutoTestChannelIgnoredTypes`（`[]int`）用于限制/排除自动测试的渠道类型，空切片表示不过滤。
+- `MonitorSetting.ChannelTestMode` 默认为 `scheduled_all`；`passive_recovery` 只定时复测自动禁用渠道，不主动探测并禁用启用中的渠道。非法/旧值回退 `scheduled_all`，`CHANNEL_TEST_FREQUENCY` 环境变量也强制保持旧的全量测试语义。
+- `MonitorSetting` 的 `AutoTestChannelAllowedTypes`/`AutoTestChannelIgnoredTypes`（`[]int`）用于限制/排除自动测试的渠道类型，空切片表示不过滤。
 - 新增支付方式时，在 `payment_setting.go` 中扩展配置结构，同时参考 `setting/` 根目录对应的 `payment_*.go` 适配文件（含 `payment_paddle.go`）。
 - 状态码范围配置（`status_code_ranges.go`）影响渠道健康判断逻辑，修改前运行 `status_code_ranges_test.go`。
 

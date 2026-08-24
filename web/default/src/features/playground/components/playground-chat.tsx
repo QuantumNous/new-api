@@ -50,8 +50,12 @@ import {
   SourcesTrigger,
 } from '@/components/ai-elements/sources'
 import { MESSAGE_ROLES } from '../constants'
+import { sanitizeGeneratedMediaUrl } from '../lib/media-response'
 import { getMessageContentStyles } from '../lib/message-styles'
-import { parseThinkTags } from '../lib/message-utils'
+import {
+  parseThinkTags,
+  splitGeneratedImageMarkdown,
+} from '../lib/message-utils'
 import type { Message as MessageType } from '../types'
 import { MessageActions } from './message-actions'
 import { MessageError } from './message-error'
@@ -172,15 +176,38 @@ export function PlaygroundChat({
                                 (message.status === 'loading' ||
                                   (message.status === 'streaming' &&
                                     !version.content))
+
+                              const generatedMedia = (
+                                version.generatedMedia ??
+                                (versionIndex === 0
+                                  ? message.generatedMedia
+                                  : undefined) ??
+                                []
+                              ).flatMap((media) => {
+                                const safeUrl = sanitizeGeneratedMediaUrl(
+                                  media.url
+                                )
+                                return safeUrl
+                                  ? [{ ...media, url: safeUrl }]
+                                  : []
+                              })
+
                               const showMessageContent =
                                 (message.from === MESSAGE_ROLES.USER ||
                                   !message.isReasoningStreaming) &&
-                                !!version.content
+                                (!!version.content || !!generatedMedia.length)
 
                               // Extract visible content (remove <think> tags for assistant messages)
                               const displayContent = isAssistant
                                 ? parseThinkTags(version.content).visibleContent
                                 : version.content
+                              const generatedImageContent = isAssistant
+                                ? splitGeneratedImageMarkdown(displayContent)
+                                : {
+                                    text: displayContent,
+                                    images: [],
+                                    hasPendingImage: false,
+                                  }
 
                               const actions = (
                                 <MessageActions
@@ -192,8 +219,64 @@ export function PlaygroundChat({
                                   isGenerating={isGenerating}
                                   alwaysVisible={isLastAssistantMessage}
                                   className='mt-1'
+                                  downloads={[
+                                    ...generatedImageContent.images.map(
+                                      (image) => ({
+                                        href: image.src,
+                                        fileName: image.downloadName,
+                                      })
+                                    ),
+                                    ...generatedMedia
+                                      .filter((media) => media.type === 'image')
+                                      .map((media, mediaIndex) => ({
+                                        href: media.url,
+                                        fileName: `generated-image-${mediaIndex + 1}.png`,
+                                      })),
+                                  ]}
                                 />
                               )
+
+                              // Video-generation messages render their own way:
+                              // an error alert on failure, an inline <video> once
+                              // the blob object URL is ready, or a progress
+                              // spinner while the async task is still running.
+                              if (message.isVideo) {
+                                if (message.status === 'error') {
+                                  return (
+                                    <>
+                                      <MessageError
+                                        message={message}
+                                        className='mb-2'
+                                      />
+                                      {actions}
+                                    </>
+                                  )
+                                }
+                                if (message.videoUrl) {
+                                  return (
+                                    <>
+                                      <video
+                                        src={message.videoUrl}
+                                        controls
+                                        className='max-w-full rounded-lg'
+                                      />
+                                      {actions}
+                                    </>
+                                  )
+                                }
+                                return (
+                                  <div className='flex items-center gap-2 py-2'>
+                                    <Loader />
+                                    <Shimmer className='text-sm' duration={1}>
+                                      {message.videoProgress
+                                        ? t('Generating video… {{progress}}%', {
+                                            progress: message.videoProgress,
+                                          })
+                                        : t('Generating video…')}
+                                    </Shimmer>
+                                  </div>
+                                )
+                              }
 
                               return (
                                 <>
@@ -258,7 +341,77 @@ export function PlaygroundChat({
                                             getMessageContentStyles()
                                           )}
                                         >
-                                          <Response>{displayContent}</Response>
+                                          <div className='space-y-3'>
+                                            {!!generatedMedia.length && (
+                                              <div className='grid gap-3 sm:grid-cols-2'>
+                                                {generatedMedia.map(
+                                                  (media, mediaIndex) => {
+                                                    if (
+                                                      media.type === 'video'
+                                                    ) {
+                                                      return (
+                                                        <video
+                                                          className='bg-muted max-h-[32rem] w-full rounded-xl object-contain'
+                                                          controls
+                                                          key={`${message.key}-video-${mediaIndex}`}
+                                                          preload='metadata'
+                                                          src={media.url}
+                                                        >
+                                                          {t(
+                                                            'Your browser does not support video playback.'
+                                                          )}
+                                                        </video>
+                                                      )
+                                                    }
+                                                    return (
+                                                      <img
+                                                        alt={t(
+                                                          'Generated image'
+                                                        )}
+                                                        className='bg-muted max-h-[32rem] w-full rounded-xl object-contain'
+                                                        key={`${message.key}-image-${mediaIndex}`}
+                                                        loading='lazy'
+                                                        src={media.url}
+                                                      />
+                                                    )
+                                                  }
+                                                )}
+                                              </div>
+                                            )}
+                                            {generatedImageContent.text && (
+                                              <Response>
+                                                {generatedImageContent.text}
+                                              </Response>
+                                            )}
+                                            {generatedImageContent.images.map(
+                                              (image, imageIndex) => (
+                                                <div
+                                                  key={`${message.key}-${version.id}-generated-image-${imageIndex}`}
+                                                >
+                                                  <img
+                                                    alt={
+                                                      image.alt ||
+                                                      t('Generated image')
+                                                    }
+                                                    className='h-auto max-w-full rounded-lg'
+                                                    decoding='async'
+                                                    src={image.src}
+                                                  />
+                                                </div>
+                                              )
+                                            )}
+                                            {generatedImageContent.hasPendingImage && (
+                                              <div className='flex items-center gap-2 py-2'>
+                                                <Loader />
+                                                <Shimmer
+                                                  className='text-sm'
+                                                  duration={1}
+                                                >
+                                                  {t('Responding...')}
+                                                </Shimmer>
+                                              </div>
+                                            )}
+                                          </div>
                                         </MessageContent>
                                         {actions}
                                       </>

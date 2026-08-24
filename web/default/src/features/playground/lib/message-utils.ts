@@ -23,6 +23,7 @@ import type {
   MessageVersion,
   ChatCompletionMessage,
   ContentPart,
+  GeneratedMedia,
 } from '../types'
 
 /**
@@ -52,7 +53,30 @@ export function updateCurrentVersionContent(
   const currentVersion = getCurrentVersion(message)
   return {
     ...message,
-    versions: [{ ...currentVersion, content }],
+    versions: [{ ...currentVersion, content }, ...message.versions.slice(1)],
+  }
+}
+
+/**
+ * Attach generated media to the current message version.
+ *
+ * Older sessions stored media on the message itself. Remove that legacy field
+ * when writing new results so version switching cannot show media from another
+ * result while still allowing old sessions to be read by the UI fallback.
+ */
+export function updateCurrentVersionMedia(
+  message: Message,
+  generatedMedia?: GeneratedMedia[]
+): Message {
+  const currentVersion = getCurrentVersion(message)
+  const messageWithoutLegacyMedia = { ...message }
+  delete messageWithoutLegacyMedia.generatedMedia
+
+  return {
+    ...messageWithoutLegacyMedia,
+    versions: message.versions.length
+      ? [{ ...currentVersion, generatedMedia }, ...message.versions.slice(1)]
+      : [{ ...currentVersion, generatedMedia }],
   }
 }
 
@@ -80,6 +104,22 @@ export function createLoadingAssistantMessage(): Message {
     isContentComplete: false,
     isReasoningStreaming: false,
     status: MESSAGE_STATUS.LOADING,
+  }
+}
+
+/**
+ * Create a loading assistant message for a video-generation task. Marked with
+ * `isVideo` so the chat renders a progress spinner while generating and an inline
+ * `<video>` once `videoUrl` is set (instead of the markdown text pipeline).
+ */
+export function createLoadingVideoMessage(): Message {
+  return {
+    key: nanoid(),
+    from: MESSAGE_ROLES.ASSISTANT,
+    versions: [createMessageVersion('')],
+    status: MESSAGE_STATUS.LOADING,
+    isVideo: true,
+    videoProgress: 0,
   }
 }
 
@@ -210,6 +250,44 @@ export function parseThinkTags(content: string): {
   }
 }
 
+export interface GeneratedImageMarkdown {
+  alt: string
+  src: string
+  downloadName: string
+}
+
+/**
+ * Separate base64 image markdown from the surrounding assistant text so the
+ * Playground can render generated images without passing multi-megabyte data
+ * URLs through the streaming Markdown parser.
+ */
+export function splitGeneratedImageMarkdown(content: string): {
+  text: string
+  images: GeneratedImageMarkdown[]
+  hasPendingImage: boolean
+} {
+  const images: GeneratedImageMarkdown[] = []
+  const imagePattern =
+    /!\[([^\]\r\n]*)\]\((data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=\r\n]+)\)/gi
+  const pendingImagePattern =
+    /!\[[^\]\r\n]*\]\(data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=\r\n]*$/i
+
+  let hasPendingImage = false
+  const text = content
+    .replace(imagePattern, (_match, alt: string, src: string, type: string) => {
+      const extension = type.toLowerCase().replace('jpeg', 'jpg')
+      const downloadName = `generated-image-${images.length + 1}.${extension}`
+      images.push({ alt, src, downloadName })
+      return ''
+    })
+    .replace(pendingImagePattern, () => {
+      hasPendingImage = true
+      return ''
+    })
+
+  return { text: text.trim(), images, hasPendingImage }
+}
+
 /**
  * Update the last assistant message with an error
  * @param messages - Current messages array
@@ -310,13 +388,32 @@ export function finalizeMessage(
 }
 
 /**
- * Sanitize messages loaded from storage
- * Converts stuck loading/streaming messages to stable state
+ * Sanitize messages loaded from storage.
+ * Migrates legacy message-level media and converts stuck loading/streaming
+ * messages to a stable state.
  */
 export function sanitizeMessagesOnLoad(messages: Message[]): Message[] {
+  let sanitizedMessages = messages
+
+  messages.forEach((message, index) => {
+    if (
+      !message ||
+      typeof message !== 'object' ||
+      !Object.prototype.hasOwnProperty.call(message, 'generatedMedia')
+    ) {
+      return
+    }
+
+    if (sanitizedMessages === messages) sanitizedMessages = [...messages]
+    sanitizedMessages[index] = updateCurrentVersionMedia(
+      message,
+      getCurrentVersion(message).generatedMedia ?? message.generatedMedia
+    )
+  })
+
   let targetIndex = -1
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i]
+  for (let i = sanitizedMessages.length - 1; i >= 0; i--) {
+    const m = sanitizedMessages[i]
     if (
       m?.from === MESSAGE_ROLES.ASSISTANT &&
       (m?.status === MESSAGE_STATUS.LOADING ||
@@ -327,9 +424,9 @@ export function sanitizeMessagesOnLoad(messages: Message[]): Message[] {
     }
   }
 
-  if (targetIndex === -1) return messages
+  if (targetIndex === -1) return sanitizedMessages
 
-  const finalized = finalizeMessage(messages[targetIndex])
+  const finalized = finalizeMessage(sanitizedMessages[targetIndex])
   const hasContent = finalized.versions?.[0]?.content?.trim()
   const hasReasoning = finalized.reasoning?.content?.trim()
 
@@ -349,7 +446,7 @@ export function sanitizeMessagesOnLoad(messages: Message[]): Message[] {
           isReasoningStreaming: false,
         }
 
-  const result = [...messages]
+  const result = [...sanitizedMessages]
   result[targetIndex] = sanitized
   return result
 }

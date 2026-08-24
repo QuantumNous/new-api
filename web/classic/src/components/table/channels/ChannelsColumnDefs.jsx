@@ -327,6 +327,7 @@ export const getChannelsColumns = ({
   setCurrentMultiKeyChannel,
   openUpstreamUpdateModal,
   detectChannelUpstreamUpdates,
+  concurrencyStatus = {},
 }) => {
   return [
     {
@@ -680,6 +681,74 @@ export const getChannelsColumns = ({
             />
           );
         }
+      },
+    },
+    {
+      key: COLUMN_KEYS.MAX_CONCURRENCY,
+      title: t('渠道并发上限'),
+      dataIndex: 'max_concurrency',
+      render: (text, record, index) => {
+        if (record.children !== undefined) {
+          return <span className='text-gray-400'>-</span>;
+        }
+
+        const status = concurrencyStatus[record.id];
+        let badge = null;
+        if (record.max_concurrency > 0 && status) {
+          const active = status.active || 0;
+          const waiting = status.waiting || 0;
+          const max = status.max_concurrency || record.max_concurrency;
+          let badgeColor = 'grey';
+          if (active >= max) {
+            badgeColor = 'red';
+          } else if (active > 0) {
+            badgeColor = 'amber';
+          }
+          badge = (
+            <>
+              <Tag color={badgeColor} shape='circle' size='small'>
+                {active}/{max}
+                {waiting > 0 ? ` +${waiting}` : ''}
+              </Tag>
+              {status.cooling_down && (
+                <Tag color='blue' shape='circle' size='small'>
+                  {t('冷却中')}
+                </Tag>
+              )}
+            </>
+          );
+        }
+
+        return (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              flexWrap: 'nowrap',
+            }}
+          >
+            {badge}
+            <InputNumber
+              style={{ width: 90 }}
+              name='max_concurrency'
+              onBlur={(e) => {
+                manageChannel(
+                  record.id,
+                  'max_concurrency',
+                  record,
+                  e.target.value,
+                );
+              }}
+              keepFocus={true}
+              innerButtons
+              defaultValue={record.max_concurrency || 0}
+              min={0}
+              precision={0}
+              size='small'
+            />
+          </div>
+        );
       },
     },
     {

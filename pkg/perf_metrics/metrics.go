@@ -2,19 +2,45 @@ package perfmetrics
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math"
+	"net"
+	"net/http"
 	"sort"
 	"sync"
 	"time"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
+	"github.com/QuantumNous/new-api/types"
 )
 
 var hotBuckets sync.Map
+var prometheusPendingBuckets sync.Map
+var prometheusChannelBuckets sync.Map
+var prometheusChannelModelBuckets sync.Map
+var prometheusModelPerformanceBuckets sync.Map
+var prometheusRecallTranslationBuckets sync.Map
+var prometheusRecallTranslationDurationBuckets sync.Map
+var prometheusModelAdmissionMu sync.Mutex
+var prometheusModelDroppedSamples prometheusModelDropCounters
+
+var prometheusChannelDurationBucketsSeconds = []float64{
+	0.25,
+	0.5,
+	1,
+	2,
+	3,
+	5,
+	10,
+	15,
+	30,
+	60,
+	120,
+	300,
+	600,
+}
 
 // seriesSchema is a stable client cache/schema marker. Do not change it when
 // hiding fields or making response-only privacy hardening changes.
@@ -24,9 +50,13 @@ func Init() {
 	go flushLoop()
 }
 
-func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens int64) {
+func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens int64, relayErr *types.NewAPIError) {
 	if info == nil {
 		return
+	}
+	finalSuccess := success && relayErr == nil
+	if finalSuccess && info.IsStream && info.StreamStatus != nil {
+		finalSuccess = info.StreamStatus.IsNormalEnd() && !info.StreamStatus.HasErrors()
 	}
 	now := time.Now()
 	hasTtft := info.IsStream && info.HasSendResponse()
@@ -42,16 +72,167 @@ func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens i
 	if generationMs <= 0 {
 		generationMs = latencyMs
 	}
+	recordPrometheusModelPerformance(info, finalSuccess, relayErr, now)
 	Record(Sample{
 		Model:        info.OriginModelName,
 		Group:        info.UsingGroup,
+		ChannelID:    info.ChannelId,
 		LatencyMs:    latencyMs,
 		TtftMs:       ttftMs,
 		HasTtft:      hasTtft,
-		Success:      success,
+		Success:      finalSuccess,
 		OutputTokens: outputTokens,
 		GenerationMs: generationMs,
 	})
+}
+
+func RecordChannelAttempt(
+	info *relaycommon.RelayInfo,
+	channelID int,
+	channelName string,
+	startedAt time.Time,
+	relayErr *types.NewAPIError,
+) {
+	if !perf_metrics_setting.GetSetting().Enabled || info == nil || channelID <= 0 {
+		return
+	}
+
+	now := time.Now()
+	durationSeconds := 0.0
+	if !startedAt.IsZero() && startedAt.Before(now) {
+		durationSeconds = now.Sub(startedAt).Seconds()
+	}
+
+	hasTtft := info.IsStream && info.HasSendResponse() && !info.FirstResponseTime.Before(startedAt)
+	ttftSeconds := 0.0
+	if hasTtft {
+		ttftSeconds = info.FirstResponseTime.Sub(startedAt).Seconds()
+		if ttftSeconds < 0 {
+			hasTtft = false
+			ttftSeconds = 0
+		}
+	}
+
+	status, errorCategory := classifyChannelAttempt(info, relayErr)
+	for {
+		actual, _ := prometheusChannelBuckets.LoadOrStore(channelID, newPrometheusChannelBucket())
+		if actual.(*prometheusChannelBucket).addAttempt(
+			channelName,
+			status,
+			errorCategory,
+			durationSeconds,
+			ttftSeconds,
+			hasTtft,
+		) {
+			break
+		}
+		prometheusChannelBuckets.CompareAndDelete(channelID, actual)
+	}
+
+	if info.OriginModelName == "" {
+		return
+	}
+	recordPrometheusChannelModelAttempt(channelID, info.OriginModelName, status)
+}
+
+func RecordChannelTokens(info *relaycommon.RelayInfo, inputTokens int64, outputTokens int64) {
+	if !perf_metrics_setting.GetSetting().Enabled || info == nil {
+		return
+	}
+	if info.ChannelId <= 0 || info.OriginModelName == "" || (inputTokens <= 0 && outputTokens <= 0) {
+		return
+	}
+	if status, _ := classifyChannelAttempt(info, nil); status != "success" {
+		return
+	}
+
+	key := prometheusChannelModelKey{channelID: info.ChannelId, model: info.OriginModelName}
+	for {
+		actual, _ := prometheusChannelModelBuckets.LoadOrStore(key, newPrometheusChannelModelBucket())
+		if actual.(*prometheusChannelModelBucket).addTokens(inputTokens, outputTokens) {
+			return
+		}
+		prometheusChannelModelBuckets.CompareAndDelete(key, actual)
+	}
+}
+
+func classifyChannelAttempt(info *relaycommon.RelayInfo, relayErr *types.NewAPIError) (string, string) {
+	if relayErr != nil || info == nil || !info.IsStream || info.StreamStatus == nil {
+		return classifyChannelError(relayErr)
+	}
+
+	streamStatus := info.StreamStatus
+	switch streamStatus.EndReason {
+	case relaycommon.StreamEndReasonClientGone:
+		return "client_cancel", "client_cancel"
+	case relaycommon.StreamEndReasonTimeout, relaycommon.StreamEndReasonFirstResponseTimeout:
+		return "error", "timeout"
+	}
+	if !streamStatus.IsNormalEnd() || streamStatus.HasErrors() {
+		return "error", "other"
+	}
+	return "success", "none"
+}
+
+func recordPrometheusChannelModelAttempt(channelID int, modelName string, status string) {
+	key := prometheusChannelModelKey{channelID: channelID, model: modelName}
+	for {
+		actual, _ := prometheusChannelModelBuckets.LoadOrStore(key, newPrometheusChannelModelBucket())
+		if actual.(*prometheusChannelModelBucket).addAttempt(status) {
+			return
+		}
+		prometheusChannelModelBuckets.CompareAndDelete(key, actual)
+	}
+}
+
+func classifyChannelError(relayErr *types.NewAPIError) (string, string) {
+	if relayErr == nil {
+		return "success", "none"
+	}
+	if errors.Is(relayErr, context.Canceled) {
+		return "client_cancel", "client_cancel"
+	}
+
+	errorCode := relayErr.GetErrorCode()
+	if errors.Is(relayErr, context.DeadlineExceeded) ||
+		errorCode == types.ErrorCodeChannelResponseTimeExceeded ||
+		relayErr.StatusCode == http.StatusRequestTimeout ||
+		relayErr.StatusCode == http.StatusGatewayTimeout {
+		return "error", "timeout"
+	}
+	var networkError net.Error
+	if errors.As(relayErr, &networkError) && networkError.Timeout() {
+		return "error", "timeout"
+	}
+
+	if relayErr.StatusCode == http.StatusTooManyRequests {
+		return "error", "rate_limit"
+	}
+	if relayErr.StatusCode == http.StatusUnauthorized ||
+		relayErr.StatusCode == http.StatusForbidden ||
+		errorCode == types.ErrorCodeChannelInvalidKey {
+		return "error", "auth"
+	}
+
+	switch errorCode {
+	case types.ErrorCodeReadResponseBodyFailed,
+		types.ErrorCodeBadResponse,
+		types.ErrorCodeBadResponseBody,
+		types.ErrorCodeEmptyResponse:
+		return "error", "bad_response"
+	case types.ErrorCodeDoRequestFailed,
+		types.ErrorCodeAwsInvokeError,
+		types.ErrorCodeChannelAwsClientError:
+		return "error", "network"
+	}
+
+	if relayErr.StatusCode >= http.StatusBadRequest && relayErr.StatusCode < http.StatusInternalServerError {
+		return "error", "upstream_4xx"
+	}
+	if relayErr.StatusCode >= http.StatusInternalServerError && relayErr.StatusCode <= 599 {
+		return "error", "upstream_5xx"
+	}
+	return "error", "other"
 }
 
 func Record(sample Sample) {
@@ -73,7 +254,7 @@ func Record(sample Sample) {
 	}
 	actual, _ := hotBuckets.LoadOrStore(key, &atomicBucket{})
 	actual.(*atomicBucket).add(sample)
-	recordRedis(key, sample)
+	recordPrometheusPending(sample)
 }
 
 func Query(params QueryParams) (QueryResult, error) {
@@ -86,12 +267,27 @@ func Query(params QueryParams) (QueryResult, error) {
 	endTs := time.Now().Unix()
 	startTs := endTs - int64(params.Hours)*3600
 
+	allowedGroups := allowedGroupSet(params.Groups)
+	groupAllowed := func(group string) bool {
+		if params.Group != "" {
+			return group == params.Group
+		}
+		if allowedGroups == nil {
+			return true
+		}
+		_, ok := allowedGroups[group]
+		return ok
+	}
+
 	merged := map[bucketKey]counters{}
 	rows, err := model.GetPerfMetrics(params.Model, params.Group, startTs, endTs)
 	if err != nil {
 		return QueryResult{}, err
 	}
 	for _, row := range rows {
+		if !groupAllowed(row.Group) {
+			continue
+		}
 		mergeCounters(merged, bucketKey{
 			model:    row.ModelName,
 			group:    row.Group,
@@ -112,12 +308,21 @@ func Query(params QueryParams) (QueryResult, error) {
 		if k.model != params.Model || k.bucketTs < startTs || k.bucketTs > endTs {
 			return true
 		}
-		if params.Group != "" && k.group != params.Group {
+		if !groupAllowed(k.group) {
 			return true
 		}
 		mergeCounters(merged, k, value.(*atomicBucket).snapshot())
 		return true
 	})
+
+	if params.MergeGroups {
+		collapsed := map[bucketKey]counters{}
+		for k, v := range merged {
+			k.group = "all"
+			mergeCounters(collapsed, k, v)
+		}
+		merged = collapsed
+	}
 
 	return buildQueryResult(params.Model, merged), nil
 }
@@ -144,6 +349,8 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 			requestCount:   row.RequestCount,
 			successCount:   row.SuccessCount,
 			totalLatencyMs: row.TotalLatencyMs,
+			ttftSumMs:      row.TtftSumMs,
+			ttftCount:      row.TtftCount,
 			outputTokens:   row.OutputTokens,
 			generationMs:   row.GenerationMs,
 		}
@@ -167,6 +374,8 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 		cur.requestCount += snap.requestCount
 		cur.successCount += snap.successCount
 		cur.totalLatencyMs += snap.totalLatencyMs
+		cur.ttftSumMs += snap.ttftSumMs
+		cur.ttftCount += snap.ttftCount
 		cur.outputTokens += snap.outputTokens
 		cur.generationMs += snap.generationMs
 		totals[k.model] = cur
@@ -184,9 +393,14 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 		if total.generationMs > 0 {
 			avgTps = float64(total.outputTokens) / (float64(total.generationMs) / 1000.0)
 		}
+		avgTtft := int64(0)
+		if total.ttftCount > 0 {
+			avgTtft = total.ttftSumMs / total.ttftCount
+		}
 		models = append(models, ModelSummary{
 			ModelName:    name,
 			AvgLatencyMs: avgLatency,
+			AvgTtftMs:    avgTtft,
 			SuccessRate:  math.Round(successRate*100) / 100,
 			AvgTps:       math.Round(avgTps*100) / 100,
 			RequestCount: total.requestCount,
@@ -324,52 +538,26 @@ func avgTps(value counters) float64 {
 	return float64(value.outputTokens) / (float64(value.generationMs) / 1000)
 }
 
-func recordRedis(key bucketKey, sample Sample) {
-	if !common.RedisEnabled || common.RDB == nil {
+func recordPrometheusPending(sample Sample) {
+	if sample.Model == "" {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	redisKey := redisBucketKey(key)
-	pipe := common.RDB.TxPipeline()
-	pipe.HIncrBy(ctx, redisKey, "req", 1)
-	if sample.Success {
-		pipe.HIncrBy(ctx, redisKey, "ok", 1)
+	key := prometheusSeriesKey{
+		model:  sample.Model,
+		status: prometheusStatus(sample.Success),
 	}
-	if sample.LatencyMs > 0 {
-		pipe.HIncrBy(ctx, redisKey, "lat", sample.LatencyMs)
+	for {
+		actual, _ := prometheusPendingBuckets.LoadOrStore(key, &prometheusLockedBucket{})
+		if actual.(*prometheusLockedBucket).add(sample) {
+			return
+		}
+		prometheusPendingBuckets.CompareAndDelete(key, actual)
 	}
-	if sample.HasTtft && sample.TtftMs >= 0 {
-		pipe.HIncrBy(ctx, redisKey, "ttft", sample.TtftMs)
-		pipe.HIncrBy(ctx, redisKey, "ttft_n", 1)
-	}
-	if sample.OutputTokens > 0 && sample.GenerationMs > 0 {
-		pipe.HIncrBy(ctx, redisKey, "out", sample.OutputTokens)
-		pipe.HIncrBy(ctx, redisKey, "gen_ms", sample.GenerationMs)
-	}
-	pipe.Expire(ctx, redisKey, time.Hour)
-	_, _ = pipe.Exec(ctx)
 }
 
-func mergeRedisActiveBuckets(merged map[bucketKey]counters, params QueryParams, startTs int64, endTs int64) {
-	if !common.RedisEnabled || common.RDB == nil || params.Model == "" || params.Group == "" {
-		return
+func prometheusStatus(success bool) string {
+	if success {
+		return "success"
 	}
-	active := bucketStart(time.Now().Unix())
-	if active < startTs || active > endTs {
-		return
-	}
-	key := bucketKey{model: params.Model, group: params.Group, bucketTs: active}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	values, err := common.RDB.HGetAll(ctx, redisBucketKey(key)).Result()
-	if err != nil || len(values) == 0 {
-		return
-	}
-	mergeCounters(merged, key, redisCounters(values))
-}
-
-func redisBucketKey(key bucketKey) string {
-	return fmt.Sprintf("perf:%s:%s:%d", key.model, key.group, key.bucketTs)
+	return "error"
 }

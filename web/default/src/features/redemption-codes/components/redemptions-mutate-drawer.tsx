@@ -186,12 +186,17 @@ export function RedemptionsMutateDrawer({
                 name='name'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Name')}</FormLabel>
+                    <FormLabel>{t('Purpose')}</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder={t('Enter a name')} />
+                      <Input
+                        {...field}
+                        placeholder={t('For example: YCPrompt')}
+                      />
                     </FormControl>
                     <FormDescription>
-                      {t('Name for this redemption code (1-20 characters)')}
+                      {t(
+                        'Group codes by where they will be distributed (1-20 characters).'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

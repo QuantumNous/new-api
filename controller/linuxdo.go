@@ -22,6 +22,7 @@ type LinuxdoUser struct {
 	Id         int    `json:"id"`
 	Username   string `json:"username"`
 	Name       string `json:"name"`
+	Email      string `json:"email"`
 	Active     bool   `json:"active"`
 	TrustLevel int    `json:"trust_level"`
 	Silenced   bool   `json:"silenced"`
@@ -226,6 +227,7 @@ func LinuxdoOAuth(c *gin.Context) {
 				user.DisplayName = linuxdoUser.Name
 				user.Role = common.RoleCommonUser
 				user.Status = common.UserStatusEnabled
+				user.Email = strings.TrimSpace(linuxdoUser.Email)
 
 				affCode := session.Get("aff")
 				inviterId := 0
@@ -233,10 +235,10 @@ func LinuxdoOAuth(c *gin.Context) {
 					inviterId, _ = model.GetUserIdByAffCode(affCode.(string))
 				}
 
-				if err := user.Insert(inviterId); err != nil {
+				if err := registerLegacyOAuthUser(c, &user, inviterId); err != nil {
 					c.JSON(http.StatusOK, gin.H{
 						"success": false,
-						"message": err.Error(),
+						"message": registrationEmailErrorMessage(c, err),
 					})
 					return
 				}

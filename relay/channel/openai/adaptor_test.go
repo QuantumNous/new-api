@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -20,6 +21,47 @@ import (
 )
 
 func boolPtr(v bool) *bool { return &v }
+
+func TestSetupRequestHeaderRealtimeBetaOnlyForPreviewModels(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name             string
+		model            string
+		websocket        bool
+		wantBetaHeader   bool
+		wantBetaProtocol bool
+	}{
+		{name: "GA HTTP omits beta header", model: "gpt-realtime-2.1"},
+		{name: "preview HTTP keeps beta header", model: "gpt-4o-realtime-preview", wantBetaHeader: true},
+		{name: "GA websocket omits beta protocol", model: "gpt-realtime-2.1", websocket: true},
+		{name: "preview websocket keeps beta protocol", model: "gpt-4o-mini-realtime-preview", websocket: true, wantBetaProtocol: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodGet, "/v1/realtime", nil)
+			if tt.websocket {
+				c.Request.Header.Set("Sec-WebSocket-Protocol", "realtime")
+			}
+			header := make(http.Header)
+			info := &relaycommon.RelayInfo{
+				RelayMode: relayconstant.RelayModeRealtime,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelType:       constant.ChannelTypeOpenAI,
+					UpstreamModelName: tt.model,
+					ApiKey:            "test-key",
+				},
+			}
+
+			require.NoError(t, (&Adaptor{}).SetupRequestHeader(c, &header, info))
+			require.Equal(t, tt.wantBetaHeader, header.Get("OpenAI-Beta") == "realtime=v1")
+			protocolHasBeta := strings.Contains(header.Get("Sec-WebSocket-Protocol"), "openai-beta.realtime-v1")
+			require.Equal(t, tt.wantBetaProtocol, protocolHasBeta)
+		})
+	}
+}
 
 // 当客户端显式传了 parallel_tool_calls 但未指定 tools 时，必须剔除该字段，
 // 否则上游会报 "'parallel_tool_calls' is only allowed when 'tools' are specified"。

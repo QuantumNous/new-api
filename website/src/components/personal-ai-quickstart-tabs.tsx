@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { ClaudeCodeInstallTabs } from "@/components/claude-code-install-tabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ROUTER_ORIGIN } from "@/lib/origins";
-import type { Locale } from "@/lib/locales";
+import { type Locale, withIdFallback } from "@/lib/locales";
 
 type Props = {
   locale: Locale;
@@ -25,7 +25,7 @@ type TutorialCopy = {
   copied: string;
 };
 
-const tutorialCopy: Record<Locale, TutorialCopy> = {
+const tutorialCopy: Record<Locale, TutorialCopy> =withIdFallback({
   en: {
     eyebrow: "Tutorial",
     title: "Quick Start — one command, 30 seconds to set up everything",
@@ -143,7 +143,7 @@ const tutorialCopy: Record<Locale, TutorialCopy> = {
     copy: "Kopieren",
     copied: "Kopiert",
   },
-};
+});
 
 const sdkTabs = [
   { id: "curl", label: "curl" },

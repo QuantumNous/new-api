@@ -23,6 +23,7 @@ import { BotProtectionSection } from './bot-protection-section'
 import { CustomOAuthSection } from './custom-oauth/custom-oauth-section'
 import { OAuthSection } from './oauth-section'
 import { PasskeySection } from './passkey-section'
+import { RegistrationRiskSection } from './registration-risk-section'
 
 const AUTH_SECTIONS = [
   {
@@ -38,6 +39,27 @@ const AUTH_SECTIONS = [
           EmailDomainRestrictionEnabled: settings.EmailDomainRestrictionEnabled,
           EmailAliasRestrictionEnabled: settings.EmailAliasRestrictionEnabled,
           EmailDomainWhitelist: settings.EmailDomainWhitelist,
+          'registration_security.reject_subdomain_email_domains':
+            settings['registration_security.reject_subdomain_email_domains'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'registration-risk',
+    titleKey: 'Registration Domain Risk Control',
+    build: (settings: AuthSettings) => (
+      <RegistrationRiskSection
+        defaultValues={{
+          domainRiskEnabled:
+            settings['registration_security.domain_risk_enabled'],
+          windowHours:
+            settings['registration_security.domain_risk_window_hours'],
+          threshold: settings['registration_security.domain_risk_threshold'],
+          trustedDomains:
+            settings['registration_security.trusted_email_domains'],
+          emailBlacklistPatterns:
+            settings['registration_security.email_blacklist_patterns'],
         }}
       />
     ),
@@ -51,6 +73,7 @@ const AUTH_SECTIONS = [
           GitHubOAuthEnabled: settings.GitHubOAuthEnabled,
           GitHubClientId: settings.GitHubClientId,
           GitHubClientSecret: settings.GitHubClientSecret,
+          'copilot.client_id': settings['copilot.client_id'],
           'discord.enabled': settings['discord.enabled'],
           'discord.client_id': settings['discord.client_id'],
           'discord.client_secret': settings['discord.client_secret'],

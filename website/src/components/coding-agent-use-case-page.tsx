@@ -16,7 +16,7 @@ import Image from "next/image";
 import { ClaudeCodeInstallTabs } from "@/components/claude-code-install-tabs";
 import { SiteShell } from "@/components/site-shell";
 import { CLAUDE_CODE_BASE_URL, CLAUDE_CODE_KEY_URL } from "@/lib/claude-code-use-case";
-import type { Locale } from "@/lib/locales";
+import { type Locale, withIdFallback } from "@/lib/locales";
 import { consoleUrl } from "@/lib/origins";
 
 type UseCaseConfig = {
@@ -159,7 +159,7 @@ export const IMAGE_BUDDY_USE_CASE: UseCaseConfig = {
   ],
 };
 
-const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
+const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> =withIdFallback({
   en: IMAGE_BUDDY_USE_CASE,
   zh: {
     ...IMAGE_BUDDY_USE_CASE,
@@ -345,9 +345,9 @@ const localizedImageBuddyUseCases: Record<Locale, UseCaseConfig> = {
       { question: "Warum steigert das Image Usage?", answer: "Flatkey senkt Kosten, Image Buddy reduziert Reibung durch Templates, Hints und eine lokale Demo Gallery." },
     ],
   },
-};
+});
 
-const localizedUseCases: Record<Locale, Partial<Record<UseCaseSlug, UseCaseConfig>>> = {
+const localizedUseCases: Record<Locale, Partial<Record<UseCaseSlug, UseCaseConfig>>> =withIdFallback({
   en: {
     "claude-code": CLAUDE_CODE_USE_CASE,
     codex: CODEX_USE_CASE,
@@ -737,9 +737,9 @@ const localizedUseCases: Record<Locale, Partial<Record<UseCaseSlug, UseCaseConfi
       ],
     },
   },
-};
+});
 
-const pageCopy: Record<Locale, PageCopy> = {
+const pageCopy: Record<Locale, PageCopy> =withIdFallback({
   en: {
     ctaGetKey: "Get a key",
     ctaInstall: "Copy install command",
@@ -1118,9 +1118,9 @@ const pageCopy: Record<Locale, PageCopy> = {
     finalTitle: (toolName) => `Bereit, ${toolName} über Flatkey auszuführen?`,
     finalBody: (toolName) => `Erstelle einen key unter console.flatkey.ai/keys, führe den one-liner aus und starte messbare ${toolName}-Nutzung.`,
   },
-};
+});
 
-const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
+const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> =withIdFallback({
   en: {
     usagePill: "ready for image workflows",
     oneKeyBalance: () => "One Flatkey key, one balance, visible image usage logs, and a prompt library built for commercial output.",
@@ -1319,7 +1319,7 @@ const imageBuddyPageCopy: Record<Locale, Partial<PageCopy>> = {
     finalTitle: () => "Bereit, Bilder mit Flatkey zu generieren?",
     finalBody: () => "Key erstellen, onboard ausführen und aus einem Prompt generieren.",
   },
-};
+});
 
 export function getUseCaseConfig(pathname: string, locale: Locale): UseCaseConfig {
   const slug: UseCaseSlug = pathname.endsWith("/image-buddy") ? "image-buddy" : pathname.endsWith("/codex") ? "codex" : "claude-code";
@@ -1335,7 +1335,7 @@ export const IMAGE_BUDDY_QUICKSTART_STEPS = [
   { label: "Step 3", title: "Generate", command: 'npx @flatkey-ai/image-buddy generate --prompt "premium product hero image for an AI image API CLI"' },
 ] as const;
 
-const imageBuddyInstallCopy: Record<Locale, { cliTitle: string }> = {
+const imageBuddyInstallCopy: Record<Locale, { cliTitle: string }> =withIdFallback({
   en: { cliTitle: "CLI quickstart" },
   zh: { cliTitle: "CLI 快速开始" },
   es: { cliTitle: "Inicio rápido de CLI" },
@@ -1345,9 +1345,9 @@ const imageBuddyInstallCopy: Record<Locale, { cliTitle: string }> = {
   ja: { cliTitle: "CLI クイックスタート" },
   vi: { cliTitle: "Bắt đầu nhanh với CLI" },
   de: { cliTitle: "CLI-Schnellstart" },
-};
+});
 
-const imageBuddyQuickstartStepCopy: Record<Locale, Array<{ label: string; title: string }>> = {
+const imageBuddyQuickstartStepCopy: Record<Locale, Array<{ label: string; title: string }>> =withIdFallback({
   en: [
     { label: "Step 1", title: "Install" },
     { label: "Step 2", title: "Initialize" },
@@ -1393,14 +1393,14 @@ const imageBuddyQuickstartStepCopy: Record<Locale, Array<{ label: string; title:
     { label: "Schritt 2", title: "Initialisieren" },
     { label: "Schritt 3", title: "Generieren" },
   ],
-};
+});
 
 const imageBuddyDemoCopy: Record<Locale, {
   eyebrow: string;
   title: string;
   subtitle: string;
   images: Array<{ src: string; title: string; prompt: string; alt: string; wide?: boolean }>;
-}> = {
+}> = withIdFallback({
   en: {
     eyebrow: "Generated with Image Buddy",
     title: "Real ecommerce image demos",
@@ -1523,7 +1523,7 @@ const imageBuddyDemoCopy: Record<Locale, {
       { src: "/use-case/image-buddy/ugc-ad-still.jpg", title: "UGC-Ad-Still", prompt: "organisches Skincare-Serum in hellem Bad", alt: "Generiertes UGC-Bild einer Hand mit bernsteinfarbenem Serum in hellem Bad" },
     ],
   },
-};
+});
 
 function ImageBuddyDemoGallery({ locale }: { locale: Locale }) {
   const demoCopy = imageBuddyDemoCopy[locale] ?? imageBuddyDemoCopy.en;

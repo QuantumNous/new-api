@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -58,6 +59,9 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	if oaiError := responsesResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
+	if responsesResp.ID != "" {
+		c.Set(common.UpstreamResponseIdKey, responsesResp.ID)
+	}
 
 	chatId := helper.GetResponseID(c)
 	chatResp, usage, err := service.ResponsesResponseToChatCompletionsResponse(&responsesResp, chatId)
@@ -96,6 +100,8 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	}
 
 	defer service.CloseResponseBodyGracefully(resp)
+	isCodexClaudeBridge := info.RelayFormat == types.RelayFormatClaude &&
+		info.ChannelMeta != nil && info.ApiType == constant.APITypeCodex
 
 	responseId := helper.GetResponseID(c)
 	createAt := time.Now().Unix()
@@ -308,6 +314,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			sr.Error(err)
 			return
 		}
+		if streamResp.Response != nil && streamResp.Response.ID != "" {
+			c.Set(common.UpstreamResponseIdKey, streamResp.Response.ID)
+		}
 
 		switch streamResp.Type {
 		case "response.created":
@@ -466,6 +475,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 					}
 					if streamResp.Response.Usage.InputTokensDetails != nil {
 						usage.PromptTokensDetails.CachedTokens = streamResp.Response.Usage.InputTokensDetails.CachedTokens
+						usage.PromptTokensDetails.CacheWriteTokens = streamResp.Response.Usage.InputTokensDetails.CacheWriteTokens
 						usage.PromptTokensDetails.ImageTokens = streamResp.Response.Usage.InputTokensDetails.ImageTokens
 						usage.PromptTokensDetails.AudioTokens = streamResp.Response.Usage.InputTokensDetails.AudioTokens
 					}
@@ -488,6 +498,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 					finishReason = "tool_calls"
 				}
 				stop := helper.GenerateStopResponse(responseId, createAt, model, finishReason)
+				if isCodexClaudeBridge {
+					stop.Usage = usage
+				}
 				if !sendChatChunk(stop) {
 					sr.Stop(streamErr)
 					return
@@ -533,6 +546,9 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			finishReason = "tool_calls"
 		}
 		stop := helper.GenerateStopResponse(responseId, createAt, model, finishReason)
+		if isCodexClaudeBridge {
+			stop.Usage = usage
+		}
 		if !sendChatChunk(stop) {
 			return nil, streamErr
 		}

@@ -5,8 +5,44 @@ export const LANGUAGE_PREFERENCE_COOKIE = "fk_locale";
 const BOT_USER_AGENT_PATTERN =
   /googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|linkedinbot|OAI-SearchBot|GPTBot|ChatGPT-User|ClaudeBot|Claude-User|Claude-SearchBot|claude-code|PerplexityBot|Perplexity-User/i;
 
-const IGNORED_PATH_PREFIXES = ["/_next", "/api", "/cdn-cgi", "/sign-in", "/sign-up", "/dashboard"];
-const IGNORED_EXACT_PATHS = ["/favicon.ico", "/robots.txt", "/sitemap.xml", "/llms.txt", "/install.sh", "/install.ps1"];
+const IGNORED_PATH_PREFIXES = [
+  "/_next",
+  "/api",
+  "/cdn-cgi",
+  "/sign-in",
+  "/sign-up",
+  "/login",
+  "/signup",
+  "/dashboard",
+  "/console",
+  "/onboarding",
+  // Local-only paid landing-page review concepts have no translated siblings.
+  "/lp/tools-ads/claude",
+];
+const IGNORED_EXACT_PATHS = [
+  "/favicon.ico",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/llms.txt",
+  "/install.sh",
+  "/install.ps1",
+  "/legal-sla",
+  // These market pages are physical single-locale routes with no localized siblings.
+  "/br",
+  "/in",
+  "/id-market",
+  // These paid-search pages have no localized siblings. Redirecting a returning
+  // localized visitor would send paid traffic to a missing route.
+  "/gpt-api-alternative",
+  "/chinese-ai",
+  "/chinese-ai-models-api",
+  "/openai-compatible",
+  "/gateway",
+  "/apify-alternative",
+  "/tools/web-scraping-api",
+  "/tools/google-search-api",
+  "/lp/tools-ads-review",
+];
 const PUBLIC_FILE_EXTENSION_PATTERN = /\.[a-z0-9]+$/i;
 
 type LanguageRedirectInput = {
@@ -14,7 +50,12 @@ type LanguageRedirectInput = {
   method: string;
   acceptLanguage?: string | null;
   cookieLocale?: string | null;
+  refererPathname?: string | null;
   userAgent?: string | null;
+};
+
+const PATH_LOCALE_ALLOWLIST: Partial<Record<string, Locale[]>> = {
+  "/careers": ["zh"],
 };
 
 export function isBotUserAgent(userAgent: string | null | undefined): boolean {
@@ -41,16 +82,33 @@ export function getLanguageRedirectPath(input: LanguageRedirectInput): string | 
 
   const pathname = normalizePathname(input.pathname);
   if (shouldIgnorePath(pathname)) return null;
+  if (pathname === "/") return null;
   if (hasLocalePrefix(pathname)) return null;
+  if (isDefaultLocaleNavigation(input.refererPathname)) return null;
 
   const locale = resolvePreferredLocale(input.cookieLocale, input.acceptLanguage);
   if (locale === DEFAULT_LOCALE) return null;
+  if (!isLocaleEnabledForPath(pathname, locale)) return null;
 
   return localizePath(pathname, locale);
 }
 
-export function buildLanguagePreferenceCookie(locale: Locale): string {
-  return `${LANGUAGE_PREFERENCE_COOKIE}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
+export function buildLanguagePreferenceCookie(locale: Locale, domain?: string | null): string {
+  const normalizedDomain = domain?.trim();
+  const domainAttribute = normalizedDomain ? `; Domain=${normalizedDomain}` : "";
+  return `${LANGUAGE_PREFERENCE_COOKIE}=${locale}; Path=/${domainAttribute}; Max-Age=31536000; SameSite=Lax`;
+}
+
+export function buildLanguagePreferenceCookieWrites(locale: Locale, domain?: string | null): string[] {
+  const normalizedDomain = domain?.trim();
+  if (!normalizedDomain) {
+    return [buildLanguagePreferenceCookie(locale)];
+  }
+
+  return [
+    `${LANGUAGE_PREFERENCE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`,
+    buildLanguagePreferenceCookie(locale, normalizedDomain),
+  ];
 }
 
 function parseAcceptLanguage(acceptLanguage: string | null | undefined): string[] {
@@ -81,6 +139,19 @@ function normalizePathname(pathname: string): string {
 function hasLocalePrefix(pathname: string): boolean {
   const firstSegment = pathname.split("/")[1];
   return isLocale(firstSegment);
+}
+
+function isDefaultLocaleNavigation(refererPathname: string | null | undefined): boolean {
+  if (!refererPathname) return false;
+
+  const pathname = normalizePathname(refererPathname);
+  if (shouldIgnorePath(pathname)) return false;
+  return !hasLocalePrefix(pathname);
+}
+
+function isLocaleEnabledForPath(pathname: string, locale: Locale): boolean {
+  const allowedLocales = PATH_LOCALE_ALLOWLIST[pathname];
+  return !allowedLocales || allowedLocales.includes(locale);
 }
 
 function shouldIgnorePath(pathname: string): boolean {

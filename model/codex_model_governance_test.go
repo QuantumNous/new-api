@@ -255,6 +255,27 @@ func TestCodexGovernanceEnableChannelByTagPreservesProbeDisabledChannels(t *test
 	require.True(t, unaffected.Enabled)
 }
 
+func TestEnableChannelByTagRefreshesLocalChannelCache(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+	withCodexGovernanceMemoryCache(t)
+	tag := "cache-refresh"
+	insertCodexGovernanceChannelWithStatusAndTag(t, 87, constant.ChannelTypeCodex, "gpt-5.3-codex", common.ChannelStatusManuallyDisabled, &tag)
+
+	InitChannelCache()
+	cached, err := CacheGetChannel(87)
+	require.NoError(t, err)
+	require.Equal(t, common.ChannelStatusManuallyDisabled, cached.Status)
+
+	require.NoError(t, EnableChannelByTag(tag))
+
+	cached, err = CacheGetChannel(87)
+	require.NoError(t, err)
+	require.Equal(t, common.ChannelStatusEnabled, cached.Status)
+	selected, err := GetRandomSatisfiedChannel("default", "gpt-5.3-codex", 0)
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+}
+
 func TestCodexGovernanceEnableChannelByTagDoesNotReapplyToNonCodexChannel(t *testing.T) {
 	setupCodexGovernanceTestDB(t)
 	tag := "mixed-batch"

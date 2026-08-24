@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { splitBillingExprAndRequestRules } from '@/features/pricing/lib/billing-expr'
 import { safeJsonParse } from '../utils/json-parser'
 import { formatPricingNumber } from './pricing-format'
+import { parseAllRules, rulesForModel } from './video-pricing-types'
 
 export type ModelPricingSnapshotInput = {
   modelPrice: string
@@ -31,6 +32,7 @@ export type ModelPricingSnapshotInput = {
   audioCompletionRatio: string
   billingMode: string
   billingExpr: string
+  videoRules: string
 }
 
 export type ModelPricingSnapshot = {
@@ -46,6 +48,8 @@ export type ModelPricingSnapshot = {
   billingMode?: string
   billingExpr?: string
   requestRuleExpr?: string
+  /** Serialized VideoPriceRule[] for this model only. */
+  videoRules?: string
   hasConflict: boolean
 }
 
@@ -76,15 +80,25 @@ const ratioToPrice = (ratio?: string, denominator?: string) => {
 export const getModeLabel = (mode?: string) => {
   if (mode === 'per-request') return 'Per-request'
   if (mode === 'tiered_expr') return 'Expression'
+  if (mode === 'video') return 'Video per-second'
   return 'Per-token'
 }
 
 export const getModeVariant = (
   mode?: string
-): 'warning' | 'info' | 'success' => {
+): 'warning' | 'info' | 'success' | 'purple' => {
   if (mode === 'per-request') return 'warning'
   if (mode === 'tiered_expr') return 'info'
+  if (mode === 'video') return 'purple'
   return 'success'
+}
+
+const getVideoSummary = (
+  row: ModelPricingSnapshot,
+  t: (key: string, options?: Record<string, unknown>) => string
+) => {
+  const count = parseAllRules(row.videoRules).length
+  return t('{{count}} per-second rules', { count })
 }
 
 const getExpressionSummary = (
@@ -100,10 +114,13 @@ const getExpressionSummary = (
 
 export const getPriceSummary = (
   row: ModelPricingSnapshot,
-  t: (key: string) => string
+  t: (key: string, options?: Record<string, unknown>) => string
 ) => {
   if (row.billingMode === 'tiered_expr') {
     return getExpressionSummary(row, t)
+  }
+  if (row.billingMode === 'video') {
+    return getVideoSummary(row, t)
   }
   if (row.billingMode === 'per-request') {
     return row.price ? `$${row.price} / ${t('request')}` : t('Unset price')
@@ -134,6 +151,15 @@ export const getPriceDetail = (
     return row.requestRuleExpr
       ? t('Includes request rules')
       : t('Expression based')
+  }
+  // ModelPrice is deliberately not reported: it exists for a video model but is
+  // the divisor the per-second chain cancels out, so it is not a price.
+  if (row.billingMode === 'video') {
+    const bases = new Set(parseAllRules(row.videoRules).map((r) => r.basis))
+    if (bases.size === 1) {
+      return t([...bases][0])
+    }
+    return t('Per-second video billing')
   }
   if (row.billingMode === 'per-request') {
     return t('Fixed request price')
@@ -167,6 +193,7 @@ export const buildModelSnapshots = ({
   audioCompletionRatio,
   billingMode,
   billingExpr,
+  videoRules,
 }: ModelPricingSnapshotInput): ModelPricingSnapshot[] => {
   const priceMap = safeJsonParse<Record<string, number>>(modelPrice, {
     fallback: {},
@@ -208,6 +235,12 @@ export const buildModelSnapshots = ({
     fallback: {},
     context: 'billing expression',
   })
+  // Video mode has no billing_mode entry -- the backend selects per-second
+  // billing by the model's presence in this table (IsVideoModelConfigured), and
+  // its website pricing endpoint rejects a billing_mode it does not recognize.
+  // So membership here is what the sheet reads back as "video".
+  const allVideoRules = parseAllRules(videoRules)
+  const videoModelNames = new Set(allVideoRules.map((rule) => rule.model))
 
   const modelNames = new Set([
     ...Object.keys(priceMap),
@@ -220,6 +253,7 @@ export const buildModelSnapshots = ({
     ...Object.keys(audioCompletionMap),
     ...Object.keys(billingModeMap),
     ...Object.keys(billingExprMap),
+    ...videoModelNames,
   ])
 
   return Array.from(modelNames).map((name) => {
@@ -242,6 +276,26 @@ export const buildModelSnapshots = ({
         billingMode: 'tiered_expr',
         billingExpr: pureExpr,
         requestRuleExpr,
+        price,
+        ratio,
+        cacheRatio: cache,
+        createCacheRatio: createCache,
+        completionRatio: completion,
+        imageRatio: image,
+        audioRatio: audio,
+        audioCompletionRatio: audioCompletion,
+        hasConflict: false,
+      }
+    }
+
+    // Checked before the per-request test below: a video model always carries a
+    // ModelPrice entry -- the divisor the per-second chain cancels out -- so the
+    // price test would otherwise claim it for per-request and hide its rules.
+    if (videoModelNames.has(name)) {
+      return {
+        name,
+        billingMode: 'video',
+        videoRules: JSON.stringify(rulesForModel(allVideoRules, name)),
         price,
         ratio,
         cacheRatio: cache,
@@ -292,5 +346,6 @@ export const getSnapshotSignature = (snapshot?: ModelPricingSnapshot) => {
     billingMode: snapshot.billingMode || 'per-token',
     billingExpr: snapshot.billingExpr || '',
     requestRuleExpr: snapshot.requestRuleExpr || '',
+    videoRules: snapshot.videoRules || '',
   })
 }

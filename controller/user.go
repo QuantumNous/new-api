@@ -23,9 +23,33 @@ import (
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 const maxAdsAttributionLength = 4096
+const consoleSessionHintCookieName = "flatkey_console_session_hint"
+const consoleSessionHintMaxAge = 60 * 60 * 24 * 30
+
+var allowedAdsAttributionKeys = map[string]struct{}{
+	"aff": {}, "fbclid": {}, "gad_campaignid": {}, "gad_source": {},
+	"gbraid": {}, "gclid": {}, "lng": {}, "msclkid": {}, "ttclid": {},
+	"wbraid": {}, "yclid": {}, "landing_path": {}, "captured_at": {},
+	"first_landing_path": {}, "first_captured_at": {}, "referrer": {},
+	"expires_at": {}, "experiment": {}, "experiment_id": {},
+	"source_type": {}, "source": {}, "medium": {}, "campaign": {},
+	"keyword": {}, "is_paid": {}, "rule_version": {},
+	"account": {}, "campaign_id": {}, "ad_group": {}, "ad_group_id": {},
+	"creative": {}, "creative_id": {}, "placement": {}, "network": {},
+	"device": {}, "market": {}, "country": {}, "match_type": {},
+	"target_id": {}, "location_id": {}, "loc_physical_ms": {}, "language": {},
+}
+
+func isAllowedAdsAttributionKey(key string) bool {
+	if _, ok := allowedAdsAttributionKeys[key]; ok {
+		return true
+	}
+	return strings.HasPrefix(key, "utm_") || strings.HasPrefix(key, "hsa_")
+}
 
 func sanitizeAdsAttribution(raw string) string {
 	raw = strings.TrimSpace(raw)
@@ -39,7 +63,7 @@ func sanitizeAdsAttribution(raw string) string {
 	cleaned := make(map[string]string, len(payload))
 	for key, value := range payload {
 		key = strings.TrimSpace(key)
-		if key == "" || len(key) > 64 {
+		if key == "" || len(key) > 64 || !isAllowedAdsAttributionKey(key) {
 			continue
 		}
 		stringValue, ok := value.(string)
@@ -68,6 +92,16 @@ func sanitizeAdsAttribution(raw string) string {
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+// registrationCountryDecision applies the same IP-country policy to password
+// and OAuth signups. Existing users are intentionally not affected here; the
+// policy controls creation only and avoids locking out legitimate travelers.
+func registrationCountryDecision(c *gin.Context) (country string, blocked bool, autoDisable bool) {
+	country = model.ResolveIPCountry(c.ClientIP())
+	return country,
+		operation_setting.IsCountryBlocked(country),
+		operation_setting.IsCountryAutoDisabled(country)
 }
 
 func Login(c *gin.Context) {
@@ -130,9 +164,27 @@ func Login(c *gin.Context) {
 	setupLogin(&user, c)
 }
 
-// setup session & cookies and then return user info
-func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
+// primaryAcceptLanguage extracts the first language tag from an
+// Accept-Language header ("zh-CN,zh;q=0.9,en;q=0.8" -> "zh-CN").
+func primaryAcceptLanguage(header string) string {
+	first := strings.TrimSpace(strings.SplitN(header, ",", 2)[0])
+	if i := strings.IndexByte(first, ';'); i >= 0 {
+		first = strings.TrimSpace(first[:i])
+	}
+	if len(first) > 32 {
+		first = first[:32]
+	}
+	return first
+}
+
+func setupLoginSession(user *model.User, c *gin.Context, isNewUser ...bool) (map[string]any, error) {
 	model.UpdateUserLastLoginAt(user.Id)
+	if ip := c.ClientIP(); ip != "" && ip != user.LastLoginIp {
+		model.UpdateUserLastLoginIp(user.Id, ip)
+	}
+	if lang := primaryAcceptLanguage(c.GetHeader("Accept-Language")); lang != "" && lang != user.BrowserLang {
+		model.UpdateUserBrowserLang(user.Id, lang)
+	}
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
 	session.Set("username", user.Username)
@@ -141,9 +193,9 @@ func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
 	session.Set("group", user.Group)
 	err := session.Save()
 	if err != nil {
-		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
-		return
+		return nil, err
 	}
+	setConsoleSessionHintCookie(c, true)
 	data := map[string]any{
 		"id":            user.Id,
 		"username":      user.Username,
@@ -158,6 +210,16 @@ func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
 	// normal logins (back-compat).
 	if len(isNewUser) > 0 && isNewUser[0] {
 		data["is_new_user"] = true
+	}
+	return data, nil
+}
+
+// setup session & cookies and then return user info
+func setupLogin(user *model.User, c *gin.Context, isNewUser ...bool) {
+	data, err := setupLoginSession(user, c, isNewUser...)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
+		return
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
@@ -177,10 +239,99 @@ func Logout(c *gin.Context) {
 		})
 		return
 	}
+	setConsoleSessionHintCookie(c, false)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
 	})
+}
+
+func setConsoleSessionHintCookie(c *gin.Context, enabled bool) {
+	maxAge := consoleSessionHintMaxAge
+	value := "1"
+	if !enabled {
+		maxAge = -1
+		value = ""
+	}
+	for _, domain := range sharedCookieHintDomainsForRequest(c) {
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     consoleSessionHintCookieName,
+			Value:    value,
+			Path:     "/",
+			Domain:   domain,
+			MaxAge:   maxAge,
+			HttpOnly: false,
+			Secure:   common.SessionCookieSecure,
+			SameSite: http.SameSiteLaxMode,
+		})
+	}
+}
+
+func sharedCookieHintDomainsForRequest(c *gin.Context) []string {
+	if configured := strings.TrimSpace(common.CookieSessionDomain); configured != "" {
+		return []string{"", configured}
+	}
+	host := strings.TrimSpace(c.Request.Host)
+	if host == "" {
+		return []string{""}
+	}
+	if i := strings.IndexByte(host, ':'); i >= 0 {
+		host = host[:i]
+	}
+	host = strings.ToLower(host)
+	if host == "flatkey.ai" || strings.HasSuffix(host, ".flatkey.ai") {
+		return []string{"", ".flatkey.ai"}
+	}
+	return []string{""}
+}
+
+// ensureDefaultUserToken idempotently creates the initial API key for a newly
+// registered user so that BOTH email and OAuth signups land with a working key
+// (issue #406 — the majority sign up via Google, and previously only email
+// registration created a default token, leaving OAuth users in an empty backend).
+//
+// Idempotent and multi-node safe: EnsureInitialUserToken takes a SELECT ... FOR
+// UPDATE lock on the user row and skips creation when the user already has any
+// token, so concurrent OAuth callbacks (or a retried register) create at most one
+// key. A no-op when the default-token feature is disabled.
+func ensureDefaultUserToken(user *model.User) error {
+	if !constant.GenerateDefaultToken || user == nil || user.Id == 0 {
+		return nil
+	}
+	// Unverified accounts must not receive any token — including the initial
+	// one — when email verification is enforced. They verify first and then get
+	// the default token on the next login/ensure path.
+	if operation_setting.RequireEmailVerificationForTokens() && user.Email != "" && user.EmailVerifiedAt == 0 {
+		return nil
+	}
+	key, err := common.GenerateKey()
+	if err != nil {
+		common.SysLog("failed to generate default token key: " + err.Error())
+		return err
+	}
+	token := model.Token{
+		UserId:             user.Id,
+		Name:               user.Username + "的初始令牌",
+		Key:                key,
+		CreatedTime:        common.GetTimestamp(),
+		AccessedTime:       common.GetTimestamp(),
+		ExpiredTime:        -1,     // 永不过期
+		RemainQuota:        500000, // 示例额度
+		UnlimitedQuota:     true,
+		ModelLimitsEnabled: false,
+	}
+	if user.Group == plgGroup {
+		token.Group = plgGroup
+		token.CrossGroupRetry = false
+	} else if setting.DefaultUseAutoGroup {
+		token.Group = "auto"
+		token.CrossGroupRetry = true
+	}
+	if _, _, err := model.EnsureInitialUserToken(user.Id, token, operation_setting.GetMaxUserTokens()); err != nil && !errors.Is(err, model.ErrUserTokenLimitReached) {
+		common.SysLog("failed to ensure default token for user " + strconv.Itoa(user.Id) + ": " + err.Error())
+		return err
+	}
+	return nil
 }
 
 func Register(c *gin.Context) {
@@ -192,25 +343,53 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserPasswordRegisterDisabled)
 		return
 	}
+	registrationCountry, blocked, _ := registrationCountryDecision(c)
+	if blocked {
+		common.ApiErrorI18n(c, i18n.MsgRegistrationCountryBlocked)
+		return
+	}
 	var user model.User
 	err := json.NewDecoder(c.Request.Body).Decode(&user)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
+	// Honeypot: bots auto-fill the hidden "website" field. Instead of blocking
+	// the request (which would teach the bot about the trap), let the
+	// registration complete normally but immediately disable the account — the
+	// bot sees a "successful" signup and then has to debug why it cannot log in.
+	honeypotTriggered := strings.TrimSpace(user.Website) != ""
+	if honeypotTriggered {
+		common.SysLog("registration honeypot triggered from " + c.ClientIP())
+	}
 	if err := common.Validate.Struct(&user); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
+	user.Email = strings.TrimSpace(user.Email)
+	emailDecision, err := evaluateRegistrationEmail(user.Email)
+	if err != nil {
+		respondRegistrationEmailError(c, err)
+		return
+	}
+	verifiedByGrant := false
+	verifiedByCode := false
 	if common.EmailVerificationEnabled {
-		if user.Email == "" || user.VerificationCode == "" {
+		if user.Email == "" {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
 			return
 		}
-		if !common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose) {
+		verifiedByGrant = registrationEmailGrantMatches(c, user.Email)
+		verifiedByCode = user.VerificationCode != "" && common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose)
+		if !verifiedByGrant && user.VerificationCode == "" {
+			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
+			return
+		}
+		if !verifiedByGrant && !verifiedByCode {
 			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 			return
 		}
+		user.EmailVerifiedAt = common.GetTimestamp()
 	}
 	exist, err := model.CheckUserExistOrDeleted(user.Username, user.Email)
 	if err != nil {
@@ -225,20 +404,52 @@ func Register(c *gin.Context) {
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
 	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
-		Username:       user.Username,
-		Password:       user.Password,
-		DisplayName:    user.Username,
-		InviterId:      inviterId,
-		Role:           common.RoleCommonUser, // 明确设置角色为普通用户
-		AdsAttribution: sanitizeAdsAttribution(user.AdsAttribution),
+		Username:            user.Username,
+		Password:            user.Password,
+		DisplayName:         user.Username,
+		InviterId:           inviterId,
+		Role:                common.RoleCommonUser, // 明确设置角色为普通用户
+		RegistrationCountry: registrationCountry,
+		AdsAttribution:      sanitizeAdsAttribution(user.AdsAttribution),
+		EmailVerifiedAt:     user.EmailVerifiedAt,
 	}
-	if common.EmailVerificationEnabled {
-		cleanUser.Email = user.Email
+	// Honeypot accounts: the registration completes (so the bot sees success),
+	// but the account is created already disabled and can never be used. The
+	// flag lets admins spot honeypot-created accounts in the users table.
+	if honeypotTriggered {
+		cleanUser.Status = common.UserStatusDisabled
+		cleanUser.IsHoneypot = true
 	}
-	if err := cleanUser.Insert(inviterId); err != nil {
-		common.ApiError(c, err)
+	if _, _, autoDisable := registrationCountryDecision(c); autoDisable {
+		cleanUser.Status = common.UserStatusDisabled
+	}
+	if language, ok := dto.NormalizeUserLanguagePreference(i18n.GetLangFromContext(c)); ok {
+		cleanUser.SetSetting(dto.UserSetting{Language: language})
+	}
+	cleanUser.Email = user.Email
+	cleanUser.EmailDomain = emailDecision.Domain
+	registrationEmailGrant := ""
+	registrationEmailReservationOwner := ""
+	grantReserved := false
+	if common.EmailVerificationEnabled && verifiedByGrant {
+		registrationEmailGrant = registrationEmailGrantFromSession(c)
+		registrationEmailReservationOwner, grantReserved = common.ReserveRegistrationEmailGrant(registrationEmailGrant, user.Email)
+		if !grantReserved && !verifiedByCode {
+			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+			return
+		}
+	}
+	if _, err := model.RegisterUserWithDomainRisk(&cleanUser, inviterId, c.ClientIP(), emailDecision.Policy, nil); err != nil {
+		if grantReserved {
+			common.RollbackRegistrationEmailGrantReservation(registrationEmailGrant, user.Email, registrationEmailReservationOwner)
+		}
+		respondRegistrationEmailError(c, err)
 		return
 	}
+	if grantReserved {
+		common.CommitRegistrationEmailGrantReservation(registrationEmailGrant, user.Email, registrationEmailReservationOwner)
+	}
+	cleanUser.FinalizeOAuthUserCreation(inviterId)
 
 	// 获取插入后的用户ID
 	var insertedUser model.User
@@ -246,41 +457,15 @@ func Register(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
 		return
 	}
-	// 生成默认令牌
-	if constant.GenerateDefaultToken {
-		key, err := common.GenerateKey()
-		if err != nil {
-			common.ApiErrorI18n(c, i18n.MsgUserDefaultTokenFailed)
-			common.SysLog("failed to generate token key: " + err.Error())
-			return
-		}
-		// 生成默认令牌
-		token := model.Token{
-			UserId:             insertedUser.Id, // 使用插入后的用户ID
-			Name:               cleanUser.Username + "的初始令牌",
-			Key:                key,
-			CreatedTime:        common.GetTimestamp(),
-			AccessedTime:       common.GetTimestamp(),
-			ExpiredTime:        -1,     // 永不过期
-			RemainQuota:        500000, // 示例额度
-			UnlimitedQuota:     true,
-			ModelLimitsEnabled: false,
-		}
-		if insertedUser.Group == plgGroup {
-			token.Group = plgGroup
-			token.CrossGroupRetry = false
-		} else if setting.DefaultUseAutoGroup {
-			token.Group = "auto"
-			token.CrossGroupRetry = true
-		}
-		if err := model.CreateUserToken(insertedUser.Id, &token, operation_setting.GetMaxUserTokens()); err != nil && !errors.Is(err, model.ErrUserTokenLimitReached) {
-			common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
-			return
-		}
+	// 生成默认令牌（幂等；与 OAuth 注册共用同一路径，见 ensureDefaultUserToken / issue #406）
+	if err := ensureDefaultUserToken(&insertedUser); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
+		return
 	}
 
 	gaClientID, gaSessionID := service.ResolveGAIdentifiers(c.Request, user.GAClientID, user.GASessionID)
 	sendSignUpSuccessGA(c.Request.Context(), insertedUser.Id, inviterId, "password", gaClientID, gaSessionID)
+	clearRegistrationEmailGrantSession(c)
 
 	// Auto-login the freshly registered user so they land directly in the console
 	// (e.g. the Playground onboarding) without having to sign in again. setupLogin
@@ -308,6 +493,15 @@ func GetAllUsers(c *gin.Context) {
 func SearchUsers(c *gin.Context) {
 	keyword := c.Query("keyword")
 	group := c.Query("group")
+	language := ""
+	if languageParam := c.Query("language"); languageParam != "" {
+		normalizedLanguage, ok := dto.NormalizeUserLanguagePreference(languageParam)
+		if !ok {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		language = normalizedLanguage
+	}
 	var role *int
 	if roleStr := c.Query("role"); roleStr != "" {
 		if parsed, err := strconv.Atoi(roleStr); err == nil {
@@ -320,8 +514,24 @@ func SearchUsers(c *gin.Context) {
 			status = &parsed
 		}
 	}
+	paid := false
+	if paidStr := c.Query("paid"); paidStr == "1" || paidStr == "true" {
+		paid = true
+	}
+	var emailVerified *bool
+	if evStr := c.Query("email_verified"); evStr == "1" || evStr == "true" {
+		v := true
+		emailVerified = &v
+	} else if evStr == "0" || evStr == "false" {
+		v := false
+		emailVerified = &v
+	}
+	country := strings.ToUpper(strings.TrimSpace(c.Query("country")))
+	if len(country) > 2 {
+		country = country[:2]
+	}
 	pageInfo := common.GetPageQuery(c)
-	users, total, err := model.SearchUsers(keyword, group, role, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	users, total, err := model.SearchUsers(keyword, group, role, status, language, paid, emailVerified, country, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -430,11 +640,29 @@ func GenerateAccessToken(c *gin.Context) {
 }
 
 type TransferAffQuotaRequest struct {
-	Quota int `json:"quota" binding:"required"`
+	AmountUSD *float64 `json:"amount_usd"`
+	Quota     *int     `json:"quota"`
+}
+
+func (request TransferAffQuotaRequest) quotaToTransfer() (int, error) {
+	if request.AmountUSD != nil && request.Quota != nil {
+		return 0, errors.New("provide either amount_usd or quota, not both")
+	}
+	if request.AmountUSD != nil {
+		return invitationQuotaFromUSD(*request.AmountUSD)
+	}
+	if request.Quota != nil {
+		return *request.Quota, nil
+	}
+	return 0, errors.New("amount_usd is required")
 }
 
 func TransferAffQuota(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
+		return
+	}
+	if common.InviteRewardSubscriptionMode {
+		common.ApiErrorMsg(c, "invite rewards are only available as subscription discounts")
 		return
 	}
 
@@ -449,7 +677,12 @@ func TransferAffQuota(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	err = user.TransferAffQuotaToQuota(tran.Quota)
+	quota, err := tran.quotaToTransfer()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	err = user.TransferAffQuotaToQuota(quota)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserTransferFailed, map[string]any{"Error": err.Error()})
 		return
@@ -725,6 +958,20 @@ func GetUserModels(c *gin.Context) {
 	return
 }
 
+// applyAdminEmailTrust marks an account's email as verified when an admin sets
+// or changes it. Admin editing is a trust signal (the admin manages the account
+// directly), so managed/enterprise accounts must not be blocked by the
+// email-verification gate afterwards. Clearing the email leaves verification
+// as-is (email-less accounts are exempt from the gate anyway).
+func applyAdminEmailTrust(originUser *model.User, updatedUser *model.User) {
+	if updatedUser == nil || originUser == nil {
+		return
+	}
+	if updatedUser.Email != "" && updatedUser.Email != originUser.Email {
+		updatedUser.EmailVerifiedAt = common.GetTimestamp()
+	}
+}
+
 func UpdateUser(c *gin.Context) {
 	var updatedUser model.User
 	err := common.DecodeJson(c.Request.Body, &updatedUser)
@@ -757,9 +1004,39 @@ func UpdateUser(c *gin.Context) {
 		updatedUser.Password = "" // rollback to what it should be
 	}
 	updatePassword := updatedUser.Password != ""
+	// An admin editing a user is a trust signal: if the admin sets/changes the
+	// account email, mark it verified so enterprise/managed accounts are never
+	// blocked by the email-verification gate on token creation or API usage.
+	applyAdminEmailTrust(originUser, &updatedUser)
+	emailChanged := updatedUser.Email != "" && updatedUser.Email != originUser.Email
 	if err := updatedUser.Edit(updatePassword); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+
+	// Edit() deliberately omits email and email_verified_at. Apply them here in
+	// the admin context only: a changed email is trusted (verified), and the
+	// explicit set_email_verified control flips verification on/off without
+	// touching the email. Missing control leaves the existing value untouched.
+	emailUpdates := map[string]interface{}{}
+	if emailChanged {
+		emailUpdates["email"] = updatedUser.Email
+		emailUpdates["email_verified_at"] = updatedUser.EmailVerifiedAt
+	} else if updatedUser.SetEmailVerified != nil {
+		if *updatedUser.SetEmailVerified {
+			emailUpdates["email_verified_at"] = common.GetTimestamp()
+		} else {
+			emailUpdates["email_verified_at"] = 0
+		}
+	}
+	if len(emailUpdates) > 0 {
+		if err := model.DB.Model(&originUser).Updates(emailUpdates).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if err := model.InvalidateUserCache(originUser.Id); err != nil {
+			common.SysError("failed to invalidate user cache after admin email update: " + err.Error())
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -855,9 +1132,17 @@ func UpdateSelf(c *gin.Context) {
 		currentSetting := user.GetSetting()
 
 		// 更新language字段
-		if langStr, ok := language.(string); ok {
-			currentSetting.Language = langStr
+		langStr, ok := language.(string)
+		if !ok {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
 		}
+		normalizedLanguage, ok := dto.NormalizeUserLanguagePreference(langStr)
+		if !ok {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		currentSetting.Language = normalizedLanguage
 
 		// 保存更新后的设置
 		user.SetSetting(currentSetting)
@@ -1014,6 +1299,12 @@ func CreateUser(c *gin.Context) {
 		DisplayName: user.DisplayName,
 		Role:        user.Role, // 保持管理员设置的角色
 	}
+	// Admin-created accounts are trusted: carry the email (if provided) and mark
+	// it verified so the account can use tokens/API right away.
+	cleanUser.Email = strings.TrimSpace(user.Email)
+	if cleanUser.Email != "" {
+		cleanUser.EmailVerifiedAt = common.GetTimestamp()
+	}
 	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)
 		return
@@ -1031,6 +1322,25 @@ type ManageRequest struct {
 	Action string `json:"action"`
 	Value  int    `json:"value"`
 	Mode   string `json:"mode"`
+}
+
+// BatchVerifyEmail marks a set of users' email as verified in one request.
+// Admin-only; read the ids from the JSON body. Used by the users table's bulk
+// action bar so admins can pass email verification for many accounts at once.
+func BatchVerifyEmail(c *gin.Context) {
+	var req struct {
+		Ids []int `json:"ids"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil || len(req.Ids) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	affected, err := model.BatchVerifyEmails(req.Ids)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"affected": affected})
 }
 
 // ManageUser Only admin user can do this
@@ -1133,11 +1443,12 @@ func ManageUser(c *gin.Context) {
 			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
 				fmt.Sprintf("管理员减少用户额度 %s", logger.LogQuota(req.Value)), adminInfo)
 		case "override":
-			oldQuota := user.Quota
-			if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("quota", req.Value).Error; err != nil {
+			overrideResult, err := applyAdminQuotaOverride(user.Id, int64(req.Value))
+			if err != nil {
 				common.ApiError(c, err)
 				return
 			}
+			oldQuota := int(overrideResult.PreviousBalance)
 			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
 				fmt.Sprintf("管理员覆盖用户额度从 %s 为 %s", logger.LogQuota(oldQuota), logger.LogQuota(req.Value)), adminInfo)
 		default:
@@ -1207,10 +1518,20 @@ func EmailBind(c *gin.Context) {
 		return
 	}
 	user.Email = email
+	user.EmailVerifiedAt = common.GetTimestamp()
 	// no need to check if this email already taken, because we have used verification code to check it
 	err = user.Update(false)
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	// The initial token was skipped at registration for unverified accounts;
+	// re-issue it now that the email is verified so onboarding completes. Fail
+	// loudly (rather than silently) so the client can surface a retry instead of
+	// leaving the user "verified but without a token".
+	if err := ensureDefaultUserToken(&user); err != nil {
+		common.SysLog("failed to ensure default token after email verification: " + err.Error())
+		common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
@@ -1242,6 +1563,19 @@ func (l *topUpTryLock) TryLock() bool {
 	default:
 		return false
 	}
+}
+
+func applyAdminQuotaOverride(userID int, target int64) (model.LifecycleQuotaMutationResult, error) {
+	var result model.LifecycleQuotaMutationResult
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		var applyErr error
+		result, applyErr = model.ApplyWalletQuotaOverrideTx(tx, userID, target, "admin_adjustment", "ManageUser:add_quota:override")
+		return applyErr
+	})
+	if err != nil {
+		return model.LifecycleQuotaMutationResult{}, err
+	}
+	return result, nil
 }
 
 func (l *topUpTryLock) Unlock() {
@@ -1409,13 +1743,12 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	// 构建设置
-	settings := dto.UserSetting{
-		NotifyType:                       req.QuotaWarningType,
-		QuotaWarningThreshold:            req.QuotaWarningThreshold,
-		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
-		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
-		RecordIpLog:                      req.RecordIpLog,
-	}
+	settings := existingSettings
+	settings.NotifyType = req.QuotaWarningType
+	settings.QuotaWarningThreshold = req.QuotaWarningThreshold
+	settings.UpstreamModelUpdateNotifyEnabled = upstreamModelUpdateNotifyEnabled
+	settings.AcceptUnsetRatioModel = req.AcceptUnsetModelRatioModel
+	settings.RecordIpLog = req.RecordIpLog
 
 	// 如果是webhook类型,添加webhook相关设置
 	if req.QuotaWarningType == dto.NotifyTypeWebhook {

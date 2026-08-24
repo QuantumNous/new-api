@@ -163,7 +163,104 @@ func classifyModelProbeError(err error, apiErr *types.NewAPIError) modelProbeOut
 	}
 }
 
-func modelAvailabilityProbeConfig(modelName string) (string, channelTestOptions) {
+// modelProbeModality describes how (or whether) a model can be exercised by the
+// synchronous availability probe. Non-chat modalities either need a different
+// relay endpoint or cannot be probed with a live call at all.
+type modelProbeModality int
+
+const (
+	modelProbeModalityChat modelProbeModality = iota
+	modelProbeModalityImage
+	modelProbeModalityEmbedding
+	modelProbeModalityRerank
+	// modelProbeModalityUntestable covers async-task / no-synchronous-probe
+	// channels (video/audio/tts/realtime/moderation and similar). A live
+	// ping→pong or single-shot relay call cannot meaningfully verify them.
+	modelProbeModalityUntestable
+)
+
+// untestableProbeChannelTypes are async-task / media channels that expose no
+// synchronous relay endpoint the probe can call. They are covered instead by
+// the channel-test monitor, so the availability probe must not mark them failed.
+var untestableProbeChannelTypes = map[int]bool{
+	constant.ChannelTypeMidjourney:       true,
+	constant.ChannelTypeMidjourneyPlus:   true,
+	constant.ChannelTypeSunoAPI:          true,
+	constant.ChannelTypeKling:            true,
+	constant.ChannelTypeJimeng:           true,
+	constant.ChannelTypeDoubaoVideo:      true,
+	constant.ChannelTypeVidu:             true,
+	constant.ChannelTypeSora:             true,
+	constant.ChannelTypeBlockRunVideo:    true,
+	constant.ChannelTypeBlockRunSeedance: true,
+	constant.ChannelTypeTechMobiVideo:    true,
+	constant.ChannelTypeBytePlus:         true,
+}
+
+var untestableProbeModelSubstrings = []string{
+	"tts", "whisper", "audio", "speech", "voice", "transcrib",
+	"realtime", "moderation", "video", "sora", "veo", "seedance",
+	"runway", "sound", "music", "happyhorse", "minimax-h3",
+}
+
+var imageProbeModelSubstrings = []string{
+	"seedream", "stable-diffusion", "sd3", "sdxl", "recraft", "ideogram",
+	"kolors", "nano-banana", "hunyuan-image", "qwen-image", "wanx",
+	"playground-v", "kontext",
+}
+
+var embeddingProbeModelSubstrings = []string{
+	"embedding", "embed", "bge-", "m3e", "gte-", "text2vec",
+}
+
+// classifyModelProbeModality decides which relay modality the availability probe
+// should use for a given (channel, model) pair. It is deliberately conservative:
+// anything that cannot be exercised with a synchronous call is reported as
+// untestable so the probe never mis-files a working media/task model as broken.
+func classifyModelProbeModality(channelType int, modelName string) modelProbeModality {
+	lower := strings.ToLower(strings.TrimSpace(modelName))
+
+	if untestableProbeChannelTypes[channelType] {
+		return modelProbeModalityUntestable
+	}
+	for _, s := range untestableProbeModelSubstrings {
+		if strings.Contains(lower, s) {
+			return modelProbeModalityUntestable
+		}
+	}
+
+	// Rerank by explicit model name wins over everything below.
+	if strings.Contains(lower, "rerank") {
+		return modelProbeModalityRerank
+	}
+	// Embedding by name is checked before the Jina channel default so that a
+	// Jina embeddings model is not mis-routed to the rerank endpoint.
+	for _, s := range embeddingProbeModelSubstrings {
+		if strings.Contains(lower, s) {
+			return modelProbeModalityEmbedding
+		}
+	}
+	if channelType == constant.ChannelTypeJina {
+		return modelProbeModalityRerank
+	}
+
+	if common.IsImageGenerationModel(modelName) {
+		return modelProbeModalityImage
+	}
+	for _, s := range imageProbeModelSubstrings {
+		if strings.Contains(lower, s) {
+			return modelProbeModalityImage
+		}
+	}
+
+	return modelProbeModalityChat
+}
+
+// modelAvailabilityProbeConfig returns the relay endpoint type and test options
+// for probing modelName on a channel of channelType. The bool return is false
+// when the (channel, model) pair is untestable (async-task/media) and must be
+// skipped rather than probed with a live call.
+func modelAvailabilityProbeConfig(modelName string, channelType int) (string, channelTestOptions, bool) {
 	options := channelTestOptions{
 		Prompt:     modelAvailabilityProbePrompt,
 		ExpectPong: true,
@@ -172,11 +269,21 @@ func modelAvailabilityProbeConfig(modelName string) (string, channelTestOptions)
 		MaxTokens:  8,
 		SkipLog:    true,
 	}
-	if common.IsImageGenerationModel(modelName) {
+	switch classifyModelProbeModality(channelType, modelName) {
+	case modelProbeModalityUntestable:
+		return "", options, false
+	case modelProbeModalityImage:
 		options.ExpectPong = false
-		return string(constant.EndpointTypeImageGeneration), options
+		return string(constant.EndpointTypeImageGeneration), options, true
+	case modelProbeModalityEmbedding:
+		options.ExpectPong = false
+		return string(constant.EndpointTypeEmbeddings), options, true
+	case modelProbeModalityRerank:
+		options.ExpectPong = false
+		return string(constant.EndpointTypeJinaRerank), options, true
+	default:
+		return "", options, true
 	}
-	return "", options
 }
 
 func saveModelAvailabilityProbeResult(modelName string, outcome modelProbeOutcome) error {
@@ -255,6 +362,7 @@ func probeOneModelAvailability(modelName string, testUserID int) {
 	}
 
 	outcomes := make([]modelProbeOutcome, 0, len(targets))
+	sawUntestable := false
 	for _, target := range targets {
 		channel, err := model.GetChannelById(target.ChannelID, true)
 		if err != nil {
@@ -266,7 +374,15 @@ func probeOneModelAvailability(modelName string, testUserID int) {
 			})
 			continue
 		}
-		endpointType, options := modelAvailabilityProbeConfig(modelName)
+		endpointType, options, testable := modelAvailabilityProbeConfig(modelName, channel.Type)
+		if !testable {
+			// Async-task / media channel: no synchronous probe is possible.
+			// Skip without recording a failure so a working model is not
+			// mis-filed as unknown_failure. Coverage is retained by the
+			// channel-test monitor.
+			sawUntestable = true
+			continue
+		}
 		result := testChannelWithOptions(channel, testUserID, modelName, endpointType, false, options)
 		if result.localErr == nil && result.newAPIError == nil {
 			_ = saveModelAvailabilityProbeResult(modelName, modelProbeOutcome{
@@ -279,15 +395,17 @@ func probeOneModelAvailability(modelName string, testUserID int) {
 		outcome.ChannelID = target.ChannelID
 		outcomes = append(outcomes, outcome)
 	}
-
-	final := summarizeModelProbeOutcomes(outcomes)
+	final := summarizeModelProbeOutcomes(outcomes, sawUntestable)
 	if err := saveModelAvailabilityProbeResult(modelName, final); err != nil {
 		common.SysError("failed to save model availability state: " + err.Error())
 	}
 	model.InvalidatePricingCache()
 }
 
-func summarizeModelProbeOutcomes(outcomes []modelProbeOutcome) modelProbeOutcome {
+func summarizeModelProbeOutcomes(outcomes []modelProbeOutcome, sawUntestable bool) modelProbeOutcome {
+	if sawUntestable {
+		return modelProbeOutcome{Class: modelProbeAvailable}
+	}
 	if len(outcomes) == 0 {
 		return modelProbeOutcome{Class: modelProbeUnknownFailure, ReasonType: "empty_probe_result"}
 	}

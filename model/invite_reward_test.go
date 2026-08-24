@@ -11,7 +11,9 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/glebarez/sqlite"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -32,6 +34,8 @@ func setupInviteRewardModelTest(t *testing.T) {
 	originalQuotaForInviter := common.QuotaForInviter
 	originalQuotaForInvitee := common.QuotaForInvitee
 	originalQuotaForInviterMaxCount := common.QuotaForInviterMaxCount
+	originalInviteRewardSubscriptionMode := common.InviteRewardSubscriptionMode
+	originalInviteFirstSubDiscountUSD := common.InviteFirstSubDiscountUSD
 
 	db, err := gorm.Open(sqlite.Open(t.TempDir()+"/invite_reward.db?_pragma=busy_timeout(5000)"), &gorm.Config{})
 	require.NoError(t, err)
@@ -45,7 +49,7 @@ func setupInviteRewardModelTest(t *testing.T) {
 	common.UsingMySQL = false
 	common.UsingPostgreSQL = false
 	common.RedisEnabled = false
-	require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &Log{}, &InviteRewardEvent{}))
+	require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &TopUp{}, &Log{}, &InviteRewardEvent{}, &SubscriptionDiscountAccount{}, &SubscriptionDiscountEntry{}, &RecallLifecycleEvent{}, &QuotaLifecycleState{}))
 
 	t.Cleanup(func() {
 		_ = sqlDB.Close()
@@ -59,6 +63,8 @@ func setupInviteRewardModelTest(t *testing.T) {
 		common.QuotaForInviter = originalQuotaForInviter
 		common.QuotaForInvitee = originalQuotaForInvitee
 		common.QuotaForInviterMaxCount = originalQuotaForInviterMaxCount
+		common.InviteRewardSubscriptionMode = originalInviteRewardSubscriptionMode
+		common.InviteFirstSubDiscountUSD = originalInviteFirstSubDiscountUSD
 		*operation_setting.GetPaymentSetting() = originalPaymentSetting
 	})
 
@@ -69,6 +75,8 @@ func setupInviteRewardModelTest(t *testing.T) {
 	common.QuotaForInviter = 100
 	common.QuotaForInvitee = 50
 	common.QuotaForInviterMaxCount = 5
+	common.InviteRewardSubscriptionMode = false
+	common.InviteFirstSubDiscountUSD = 0
 }
 
 func createInviteRewardUser(t *testing.T, username string, inviterId int) *User {
@@ -87,6 +95,33 @@ func createInviteRewardTriggerToken(t *testing.T, userId int, key string) *Token
 	return token
 }
 
+func createInviteRewardTopUp(t *testing.T, userId int, tradeNo string) *TopUp {
+	t.Helper()
+	topUp := &TopUp{
+		UserId:          userId,
+		Amount:          2,
+		Money:           2,
+		TradeNo:         tradeNo,
+		PaymentMethod:   PaymentMethodStripe,
+		PaymentProvider: PaymentProviderStripe,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      time.Now().Unix(),
+	}
+	require.NoError(t, topUp.Insert())
+	require.NotZero(t, topUp.Id)
+	return topUp
+}
+
+func createSuccessfulInviteRewardTopUp(t *testing.T, userId int, tradeNo string) *TopUp {
+	t.Helper()
+	topUp := createInviteRewardTopUp(t, userId, tradeNo)
+	require.NoError(t, DB.Model(&TopUp{}).
+		Where("id = ?", topUp.Id).
+		Update("status", common.TopUpStatusSuccess).Error)
+	topUp.Status = common.TopUpStatusSuccess
+	return topUp
+}
+
 func TestInvitedUserInsertSetsPendingWithoutGrantingReward(t *testing.T) {
 	setupInviteRewardModelTest(t)
 
@@ -100,14 +135,59 @@ func TestInvitedUserInsertSetsPendingWithoutGrantingReward(t *testing.T) {
 	require.Zero(t, refreshedInviter.AffQuota)
 	require.Zero(t, refreshedInviter.AffHistoryQuota)
 	require.Zero(t, refreshedInviter.AffCount)
+	var entries int64
+	require.NoError(t, DB.Model(&SubscriptionDiscountEntry{}).Where("user_id = ?", invitee.Id).Count(&entries).Error)
+	require.Zero(t, entries)
+}
+
+func TestInvitedUserInsertGrantsConfiguredPackageCreditInSameTransaction(t *testing.T) {
+	setupInviteRewardModelTest(t)
+	common.InviteRewardSubscriptionMode = true
+	common.InviteFirstSubDiscountUSD = 5.25
+
+	inviter := createInviteRewardUser(t, "credit_inviter", 0)
+	invitee := createInviteRewardUser(t, "credit_invitee", inviter.Id)
+
+	var refreshedInvitee User
+	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
+	require.Equal(t, inviter.Id, refreshedInvitee.InviterId)
+	require.Equal(t, InviteRewardStatusPending, refreshedInvitee.InviteRewardStatus)
+	require.Zero(t, refreshedInvitee.Quota)
+
+	account, err := GetSubscriptionDiscountAccount(invitee.Id)
+	require.NoError(t, err)
+	require.EqualValues(t, 525, account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+
+	var entry SubscriptionDiscountEntry
+	require.NoError(t, DB.First(&entry, "idempotency_key = ?", fmt.Sprintf("invitee:%d", invitee.Id)).Error)
+	require.Equal(t, invitee.Id, entry.UserID)
+	require.Equal(t, SubscriptionDiscountEntryTypeGrantInvitee, entry.EntryType)
+	require.EqualValues(t, 525, entry.AvailableDeltaUSDMinor)
+	require.Zero(t, entry.ReservedDeltaUSDMinor)
+	require.EqualValues(t, 525, entry.AvailableAfterUSDMinor)
+	require.Zero(t, entry.ReservedAfterUSDMinor)
+	require.Equal(t, "invitee_registration", entry.SourceType)
+	require.Equal(t, fmt.Sprintf("%d", invitee.Id), entry.SourceKey)
+	require.JSONEq(t, `{"invite_first_sub_discount_usd":"5.25"}`, entry.PricingSnapshot)
 }
 
 func TestNonInvitedUserInsertSetsInviteRewardNone(t *testing.T) {
 	setupInviteRewardModelTest(t)
+	common.InviteRewardSubscriptionMode = true
+	common.InviteFirstSubDiscountUSD = 5.25
 
 	user := createInviteRewardUser(t, "plain", 0)
 
 	require.Equal(t, InviteRewardStatusNone, user.InviteRewardStatus)
+
+	account, err := GetSubscriptionDiscountAccount(user.Id)
+	require.NoError(t, err)
+	require.Zero(t, account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+	var entries int64
+	require.NoError(t, DB.Model(&SubscriptionDiscountEntry{}).Where("user_id = ?", user.Id).Count(&entries).Error)
+	require.Zero(t, entries)
 }
 
 func TestUserInsertTrustsInviterIdParameterOverStructField(t *testing.T) {
@@ -122,8 +202,10 @@ func TestUserInsertTrustsInviterIdParameterOverStructField(t *testing.T) {
 	require.Equal(t, InviteRewardStatusNone, refreshed.InviteRewardStatus)
 }
 
-func TestOAuthUserInsertWithTxPersistsInviterAndPendingWithoutGrantingReward(t *testing.T) {
+func TestOAuthUserInsertWithTxPersistsInviterAndGrantsPackageCredit(t *testing.T) {
 	setupInviteRewardModelTest(t)
+	common.InviteRewardSubscriptionMode = true
+	common.InviteFirstSubDiscountUSD = 5.25
 
 	inviter := createInviteRewardUser(t, "oauth_inviter", 0)
 	invitee := &User{Username: "oauth_invitee", Role: common.RoleCommonUser}
@@ -142,6 +224,72 @@ func TestOAuthUserInsertWithTxPersistsInviterAndPendingWithoutGrantingReward(t *
 	require.Zero(t, refreshedInviter.AffQuota)
 	require.Zero(t, refreshedInviter.AffHistoryQuota)
 	require.Zero(t, refreshedInviter.AffCount)
+
+	account, err := GetSubscriptionDiscountAccount(invitee.Id)
+	require.NoError(t, err)
+	require.EqualValues(t, 525, account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+	var entry SubscriptionDiscountEntry
+	require.NoError(t, DB.First(&entry, "idempotency_key = ?", fmt.Sprintf("invitee:%d", invitee.Id)).Error)
+	require.Equal(t, SubscriptionDiscountEntryTypeGrantInvitee, entry.EntryType)
+	require.JSONEq(t, `{"invite_first_sub_discount_usd":"5.25"}`, entry.PricingSnapshot)
+}
+
+func TestInvitedUserInsertSkipsPackageCreditWhenConfiguredAmountIsZero(t *testing.T) {
+	setupInviteRewardModelTest(t)
+	common.InviteRewardSubscriptionMode = true
+	common.InviteFirstSubDiscountUSD = 0
+
+	inviter := createInviteRewardUser(t, "zero_credit_inviter", 0)
+	invitee := createInviteRewardUser(t, "zero_credit_invitee", inviter.Id)
+
+	require.Equal(t, InviteRewardStatusPending, invitee.InviteRewardStatus)
+	account, err := GetSubscriptionDiscountAccount(invitee.Id)
+	require.NoError(t, err)
+	require.Zero(t, account.AvailableUSDMinor)
+	require.Zero(t, account.ReservedUSDMinor)
+	var entries int64
+	require.NoError(t, DB.Model(&SubscriptionDiscountEntry{}).Where("user_id = ?", invitee.Id).Count(&entries).Error)
+	require.Zero(t, entries)
+}
+
+func TestInvitedUserInsertRollsBackWhenPackageCreditLedgerFails(t *testing.T) {
+	setupInviteRewardModelTest(t)
+	common.InviteRewardSubscriptionMode = true
+	common.InviteFirstSubDiscountUSD = 5.25
+
+	inviter := createInviteRewardUser(t, "rollback_credit_inviter", 0)
+
+	const callbackName = "test:fail_invitee_subscription_discount_entry"
+	rollbackErr := errors.New("forced subscription discount ledger failure")
+	require.NoError(t, DB.Callback().Create().Before("gorm:create").Register(callbackName, func(tx *gorm.DB) {
+		if _, ok := tx.Statement.Dest.(*SubscriptionDiscountEntry); ok {
+			tx.AddError(rollbackErr)
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Create().Remove(callbackName))
+	})
+
+	invitee := &User{Username: "rollback_credit_invitee", Password: "password123", Role: common.RoleCommonUser}
+	err := invitee.Insert(inviter.Id)
+	require.ErrorIs(t, err, rollbackErr)
+
+	var inviteeRows int64
+	require.NoError(t, DB.Model(&User{}).Where("username = ?", "rollback_credit_invitee").Count(&inviteeRows).Error)
+	require.Zero(t, inviteeRows)
+	var accountRows int64
+	require.NoError(t, DB.Model(&SubscriptionDiscountAccount{}).Where("user_id = ?", invitee.Id).Count(&accountRows).Error)
+	require.Zero(t, accountRows)
+	var entryRows int64
+	require.NoError(t, DB.Model(&SubscriptionDiscountEntry{}).Where("idempotency_key = ?", fmt.Sprintf("invitee:%d", invitee.Id)).Count(&entryRows).Error)
+	require.Zero(t, entryRows)
+
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Zero(t, refreshedInviter.AffCount)
+	require.Zero(t, refreshedInviter.AffQuota)
+	require.Zero(t, refreshedInviter.AffHistoryQuota)
 }
 
 func TestUserInsertWithTxTrustsInviterIdParameterOverStructField(t *testing.T) {
@@ -158,7 +306,7 @@ func TestUserInsertWithTxTrustsInviterIdParameterOverStructField(t *testing.T) {
 	require.Equal(t, InviteRewardStatusNone, refreshed.InviteRewardStatus)
 }
 
-func TestCreateUserTokenWithInviteRewardGrantsBothSidesOnce(t *testing.T) {
+func TestCreateUserTokenWithInviteRewardDoesNotGrantInviteReward(t *testing.T) {
 	setupInviteRewardModelTest(t)
 
 	inviter := createInviteRewardUser(t, "grant_inviter", 0)
@@ -172,28 +320,28 @@ func TestCreateUserTokenWithInviteRewardGrantsBothSidesOnce(t *testing.T) {
 	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
 	var refreshedInviter User
 	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
-	require.Equal(t, InviteRewardStatusGranted, refreshedInvitee.InviteRewardStatus)
-	require.NotZero(t, refreshedInvitee.InviteRewardGrantedAt)
-	require.Equal(t, 50, refreshedInvitee.Quota)
-	require.Equal(t, 100, refreshedInviter.AffQuota)
-	require.Equal(t, 100, refreshedInviter.AffHistoryQuota)
-	require.Equal(t, 1, refreshedInviter.AffCount)
+	require.Equal(t, InviteRewardStatusPending, refreshedInvitee.InviteRewardStatus)
+	require.Zero(t, refreshedInvitee.InviteRewardGrantedAt)
+	require.Zero(t, refreshedInvitee.Quota)
+	require.Zero(t, refreshedInviter.AffQuota)
+	require.Zero(t, refreshedInviter.AffHistoryQuota)
+	require.Zero(t, refreshedInviter.AffCount)
 
 	second := &Token{Name: "manual2", Key: "manual-key-2", ExpiredTime: -1, UnlimitedQuota: true}
 	require.NoError(t, CreateUserTokenWithInviteReward(invitee.Id, second, 10, InviteRewardTriggerManualTokenCreate))
 	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
 	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
-	require.Equal(t, 50, refreshedInvitee.Quota)
-	require.Equal(t, 100, refreshedInviter.AffQuota)
-	require.Equal(t, 100, refreshedInviter.AffHistoryQuota)
-	require.Equal(t, 1, refreshedInviter.AffCount)
+	require.Zero(t, refreshedInvitee.Quota)
+	require.Zero(t, refreshedInviter.AffQuota)
+	require.Zero(t, refreshedInviter.AffHistoryQuota)
+	require.Zero(t, refreshedInviter.AffCount)
 
 	var events int64
 	require.NoError(t, DB.Model(&InviteRewardEvent{}).Where("invitee_id = ?", invitee.Id).Count(&events).Error)
-	require.EqualValues(t, 1, events)
+	require.Zero(t, events)
 }
 
-func TestEnsureInitialUserTokenWithInviteRewardOnlyGrantsWhenCreated(t *testing.T) {
+func TestEnsureInitialUserTokenWithInviteRewardCreatesOnlyOnceWithoutGrantingReward(t *testing.T) {
 	setupInviteRewardModelTest(t)
 
 	inviter := createInviteRewardUser(t, "initial_inviter", 0)
@@ -217,10 +365,131 @@ func TestEnsureInitialUserTokenWithInviteRewardOnlyGrantsWhenCreated(t *testing.
 	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
 	var refreshedInviter User
 	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Equal(t, InviteRewardStatusPending, refreshedInvitee.InviteRewardStatus)
+	require.Zero(t, refreshedInvitee.Quota)
+	require.Zero(t, refreshedInviter.AffQuota)
+	require.Zero(t, refreshedInviter.AffCount)
+
+	var events int64
+	require.NoError(t, DB.Model(&InviteRewardEvent{}).Where("invitee_id = ?", invitee.Id).Count(&events).Error)
+	require.Zero(t, events)
+}
+
+func TestInviteRewardGrantedOnceAfterTopUpSuccess(t *testing.T) {
+	setupInviteRewardModelTest(t)
+	common.QuotaForInviter = int(5 * common.QuotaPerUnit)
+	common.QuotaForInvitee = int(5 * common.QuotaPerUnit)
+
+	inviter := createInviteRewardUser(t, "topup_inviter", 0)
+	invitee := createInviteRewardUser(t, "topup_invitee", inviter.Id)
+	createInviteRewardTopUp(t, invitee.Id, "invite-topup-success")
+
+	recharged, err := RechargeWithPaymentSnapshot("invite-topup-success", "cus_invite", "127.0.0.1", PaymentSnapshot{})
+	require.NoError(t, err)
+	require.True(t, recharged)
+	recharged, err = RechargeWithPaymentSnapshot("invite-topup-success", "cus_invite", "127.0.0.1", PaymentSnapshot{})
+	require.NoError(t, err)
+	require.False(t, recharged)
+
+	var refreshedInvitee User
+	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
 	require.Equal(t, InviteRewardStatusGranted, refreshedInvitee.InviteRewardStatus)
-	require.Equal(t, 50, refreshedInvitee.Quota)
-	require.Equal(t, 100, refreshedInviter.AffQuota)
+	require.NotZero(t, refreshedInvitee.InviteRewardGrantedAt)
+	require.Equal(t, int(7*common.QuotaPerUnit), refreshedInvitee.Quota)
+	require.Equal(t, int(5*common.QuotaPerUnit), refreshedInviter.Quota)
+	require.Zero(t, refreshedInviter.AffQuota)
+	require.Equal(t, int(5*common.QuotaPerUnit), refreshedInviter.AffHistoryQuota)
 	require.Equal(t, 1, refreshedInviter.AffCount)
+
+	var events int64
+	require.NoError(t, DB.Model(&InviteRewardEvent{}).Where("invitee_id = ?", invitee.Id).Count(&events).Error)
+	require.EqualValues(t, 1, events)
+}
+
+func TestInviteRewardRefreshesCreditedQuotaCachesBeforeReturning(t *testing.T) {
+	setupInviteRewardModelTest(t)
+
+	mr := miniredis.RunT(t)
+	common.RDB = redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	common.RedisEnabled = true
+	t.Cleanup(func() {
+		require.NoError(t, common.RDB.Close())
+	})
+
+	inviter := createInviteRewardUser(t, "cache_inviter", 0)
+	invitee := createInviteRewardUser(t, "cache_invitee", inviter.Id)
+	topUp := createSuccessfulInviteRewardTopUp(t, invitee.Id, "cache-invalidation-topup")
+	require.NoError(t, updateUserCache(*inviter))
+	require.NoError(t, updateUserCache(*invitee))
+	require.True(t, mr.Exists(getUserCacheKey(inviter.Id)))
+	require.True(t, mr.Exists(getUserCacheKey(invitee.Id)))
+
+	require.NoError(t, TryGrantInviteRewardAfterTopUpSucceeded(invitee.Id, topUp.Id))
+
+	inviterQuota, err := getUserQuotaCache(inviter.Id)
+	require.NoError(t, err)
+	require.Equal(t, common.QuotaForInviter, inviterQuota)
+	inviteeQuota, err := getUserQuotaCache(invitee.Id)
+	require.NoError(t, err)
+	require.Equal(t, common.QuotaForInvitee, inviteeQuota)
+}
+
+func TestZeroInviteRewardAmountsStillMarkGrantedAfterTopUpSuccess(t *testing.T) {
+	setupInviteRewardModelTest(t)
+	common.QuotaForInviter = 0
+	common.QuotaForInvitee = 0
+
+	inviter := createInviteRewardUser(t, "zero_amount_inviter", 0)
+	invitee := createInviteRewardUser(t, "zero_amount_invitee", inviter.Id)
+	createInviteRewardTopUp(t, invitee.Id, "invite-zero-amount")
+
+	recharged, err := RechargeWithPaymentSnapshot("invite-zero-amount", "cus_zero_amount", "127.0.0.1", PaymentSnapshot{})
+	require.NoError(t, err)
+	require.True(t, recharged)
+
+	var refreshedInvitee User
+	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Equal(t, int(2*common.QuotaPerUnit), refreshedInvitee.Quota)
+	require.Zero(t, refreshedInviter.AffQuota)
+	require.Zero(t, refreshedInviter.AffHistoryQuota)
+	require.Equal(t, 1, refreshedInviter.AffCount)
+
+	var event InviteRewardEvent
+	require.NoError(t, DB.First(&event, "invitee_id = ?", invitee.Id).Error)
+	require.Zero(t, event.InviterRewardQuota)
+	require.Zero(t, event.InviteeRewardQuota)
+}
+
+func TestInviteRewardTopUpSuccessUsesConfiguredRewardAmounts(t *testing.T) {
+	setupInviteRewardModelTest(t)
+	common.QuotaForInviter = 123
+	common.QuotaForInvitee = 456
+
+	inviter := createInviteRewardUser(t, "configured_config_inviter", 0)
+	invitee := createInviteRewardUser(t, "configured_config_invitee", inviter.Id)
+	createInviteRewardTopUp(t, invitee.Id, "invite-configured-config")
+
+	recharged, err := RechargeWithPaymentSnapshot("invite-configured-config", "cus_configured_config", "127.0.0.1", PaymentSnapshot{})
+	require.NoError(t, err)
+	require.True(t, recharged)
+
+	var refreshedInvitee User
+	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Equal(t, int(2*common.QuotaPerUnit)+456, refreshedInvitee.Quota)
+	require.Equal(t, 123, refreshedInviter.Quota)
+	require.Zero(t, refreshedInviter.AffQuota)
+	require.Equal(t, 123, refreshedInviter.AffHistoryQuota)
+
+	var event InviteRewardEvent
+	require.NoError(t, DB.First(&event, "invitee_id = ?", invitee.Id).Error)
+	require.Equal(t, 123, event.InviterRewardQuota)
+	require.Equal(t, 456, event.InviteeRewardQuota)
 }
 
 func TestRegistrationDefaultTokenPathDoesNotTriggerInviteReward(t *testing.T) {
@@ -247,21 +516,18 @@ func TestInviteRewardConcurrentAttemptsGrantOnce(t *testing.T) {
 
 	inviter := createInviteRewardUser(t, "concurrent_inviter", 0)
 	invitee := createInviteRewardUser(t, "concurrent_invitee", inviter.Id)
+	topUp := createSuccessfulInviteRewardTopUp(t, invitee.Id, "concurrent-topup")
 
 	const attempts = 8
-	triggerTokens := make([]*Token, attempts)
-	for i := 0; i < attempts; i++ {
-		triggerTokens[i] = createInviteRewardTriggerToken(t, invitee.Id, fmt.Sprintf("concurrent-key-%d", i))
-	}
 	var wg sync.WaitGroup
 	errs := make(chan error, attempts)
 	for i := 0; i < attempts; i++ {
 		wg.Add(1)
-		go func(i int) {
+		go func() {
 			defer wg.Done()
 			var err error
 			for retry := 0; retry < 20; retry++ {
-				err = TryGrantInviteRewardAfterTokenCreated(invitee.Id, triggerTokens[i].Id, InviteRewardTriggerManualTokenCreate)
+				err = TryGrantInviteRewardAfterTopUpSucceeded(invitee.Id, topUp.Id)
 				if err == nil || !strings.Contains(err.Error(), "database is locked") {
 					errs <- err
 					return
@@ -269,7 +535,7 @@ func TestInviteRewardConcurrentAttemptsGrantOnce(t *testing.T) {
 				time.Sleep(time.Duration(retry+1) * 10 * time.Millisecond)
 			}
 			errs <- err
-		}(i)
+		}()
 	}
 	wg.Wait()
 	close(errs)
@@ -281,8 +547,9 @@ func TestInviteRewardConcurrentAttemptsGrantOnce(t *testing.T) {
 	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
 	var refreshedInviter User
 	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
-	require.Equal(t, 50, refreshedInvitee.Quota)
-	require.Equal(t, 100, refreshedInviter.AffQuota)
+	require.Equal(t, common.QuotaForInvitee, refreshedInvitee.Quota)
+	require.Equal(t, common.QuotaForInviter, refreshedInviter.Quota)
+	require.Zero(t, refreshedInviter.AffQuota)
 	require.Equal(t, 1, refreshedInviter.AffCount)
 	var events int64
 	require.NoError(t, DB.Model(&InviteRewardEvent{}).Where("invitee_id = ?", invitee.Id).Count(&events).Error)
@@ -296,32 +563,33 @@ func TestInviteRewardSkipsInviterRewardWhenLimitReached(t *testing.T) {
 	inviter := createInviteRewardUser(t, "limited_inviter", 0)
 	for i := 0; i < 2; i++ {
 		invitee := createInviteRewardUser(t, fmt.Sprintf("limited_invitee_%d", i), inviter.Id)
-		token := createInviteRewardTriggerToken(t, invitee.Id, fmt.Sprintf("limited-key-%d", i))
-		require.NoError(t, TryGrantInviteRewardAfterTokenCreated(invitee.Id, token.Id, InviteRewardTriggerManualTokenCreate))
+		topUp := createSuccessfulInviteRewardTopUp(t, invitee.Id, fmt.Sprintf("limited-topup-%d", i))
+		require.NoError(t, TryGrantInviteRewardAfterTopUpSucceeded(invitee.Id, topUp.Id))
 	}
 
 	limitReachedInvitee := createInviteRewardUser(t, "limited_invitee_skipped_inviter", inviter.Id)
-	limitReachedToken := createInviteRewardTriggerToken(t, limitReachedInvitee.Id, "limited-key-skipped")
-	require.NoError(t, TryGrantInviteRewardAfterTokenCreated(limitReachedInvitee.Id, limitReachedToken.Id, InviteRewardTriggerManualTokenCreate))
+	limitReachedTopUp := createSuccessfulInviteRewardTopUp(t, limitReachedInvitee.Id, "limited-topup-skipped")
+	require.NoError(t, TryGrantInviteRewardAfterTopUpSucceeded(limitReachedInvitee.Id, limitReachedTopUp.Id))
 
 	var refreshedInviter User
 	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
 	require.Equal(t, 3, refreshedInviter.AffCount)
-	require.Equal(t, 200, refreshedInviter.AffQuota)
-	require.Equal(t, 200, refreshedInviter.AffHistoryQuota)
+	require.Equal(t, 2*common.QuotaForInviter, refreshedInviter.Quota)
+	require.Zero(t, refreshedInviter.AffQuota)
+	require.Equal(t, 2*common.QuotaForInviter, refreshedInviter.AffHistoryQuota)
 
 	var refreshedInvitee User
 	require.NoError(t, DB.First(&refreshedInvitee, limitReachedInvitee.Id).Error)
 	require.Equal(t, InviteRewardStatusGranted, refreshedInvitee.InviteRewardStatus)
 	require.Empty(t, refreshedInvitee.InviteRewardBlockReason)
-	require.Equal(t, 50, refreshedInvitee.Quota)
+	require.Equal(t, common.QuotaForInvitee, refreshedInvitee.Quota)
 
 	var event InviteRewardEvent
 	require.NoError(t, DB.First(&event, "invitee_id = ?", limitReachedInvitee.Id).Error)
 	require.Equal(t, InviteRewardEventStatusGranted, event.Status)
 	require.Equal(t, InviteRewardBlockReasonInviterLimitReached, event.Reason)
 	require.Zero(t, event.InviterRewardQuota)
-	require.Equal(t, 50, event.InviteeRewardQuota)
+	require.Equal(t, common.QuotaForInvitee, event.InviteeRewardQuota)
 
 	var inviteeRewardLogs int64
 	require.NoError(t, LOG_DB.Model(&Log{}).
@@ -350,8 +618,8 @@ func TestZeroInviteRewardAmountsStillMarkGranted(t *testing.T) {
 	inviter := createInviteRewardUser(t, "zero_inviter", 0)
 	invitee := createInviteRewardUser(t, "zero_invitee", inviter.Id)
 
-	token := &Token{Name: "manual", Key: "zero-key", ExpiredTime: -1, UnlimitedQuota: true}
-	require.NoError(t, CreateUserTokenWithInviteReward(invitee.Id, token, 10, InviteRewardTriggerManualTokenCreate))
+	topUp := createSuccessfulInviteRewardTopUp(t, invitee.Id, "zero-topup")
+	require.NoError(t, TryGrantInviteRewardAfterTopUpSucceeded(invitee.Id, topUp.Id))
 
 	var refreshedInvitee User
 	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
@@ -378,13 +646,13 @@ func TestInviteRewardDoesNotDependOnPaymentComplianceConfirmation(t *testing.T) 
 	inviter := createInviteRewardUser(t, "compliance_inviter", 0)
 	invitee := createInviteRewardUser(t, "compliance_invitee", inviter.Id)
 
-	token := &Token{Name: "manual", Key: "compliance-key", ExpiredTime: -1, UnlimitedQuota: true}
-	require.NoError(t, CreateUserTokenWithInviteReward(invitee.Id, token, 10, InviteRewardTriggerManualTokenCreate))
+	topUp := createSuccessfulInviteRewardTopUp(t, invitee.Id, "compliance-topup")
+	require.NoError(t, TryGrantInviteRewardAfterTopUpSucceeded(invitee.Id, topUp.Id))
 
 	var refreshedInvitee User
 	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
 	require.Equal(t, InviteRewardStatusGranted, refreshedInvitee.InviteRewardStatus)
-	require.Equal(t, 50, refreshedInvitee.Quota)
+	require.Equal(t, common.QuotaForInvitee, refreshedInvitee.Quota)
 	var events int64
 	require.NoError(t, DB.Model(&InviteRewardEvent{}).Where("invitee_id = ?", invitee.Id).Count(&events).Error)
 	require.EqualValues(t, 1, events)
@@ -405,17 +673,62 @@ func TestCreateUserTokenWithInviteRewardRollsBackOnInvalidTrigger(t *testing.T) 
 	require.Zero(t, tokenCount)
 }
 
-func TestInviteRewardRequiresTriggerTokenOwnedByInvitee(t *testing.T) {
+func TestCreateUserTokenWithInviteRewardRejectsTopUpTrigger(t *testing.T) {
 	setupInviteRewardModelTest(t)
 
-	inviter := createInviteRewardUser(t, "token_owner_inviter", 0)
-	invitee := createInviteRewardUser(t, "token_owner_invitee", inviter.Id)
-	otherUser := createInviteRewardUser(t, "token_owner_other", 0)
-	otherToken := createInviteRewardTriggerToken(t, otherUser.Id, "other-owned-key")
+	inviter := createInviteRewardUser(t, "topup_trigger_inviter", 0)
+	invitee := createInviteRewardUser(t, "topup_trigger_invitee", inviter.Id)
 
-	err := TryGrantInviteRewardAfterTokenCreated(invitee.Id, otherToken.Id, InviteRewardTriggerManualTokenCreate)
+	token := &Token{Name: "manual", Key: "topup-trigger-key", ExpiredTime: -1, UnlimitedQuota: true}
+	err := CreateUserTokenWithInviteReward(invitee.Id, token, 10, InviteRewardTriggerTopUpSuccess)
+	require.Error(t, err)
+
+	var tokenCount int64
+	require.NoError(t, DB.Model(&Token{}).Where("user_id = ?", invitee.Id).Count(&tokenCount).Error)
+	require.Zero(t, tokenCount)
+}
+
+func TestTokenCreatedTriggerCannotGrantInviteReward(t *testing.T) {
+	setupInviteRewardModelTest(t)
+
+	inviter := createInviteRewardUser(t, "token_trigger_inviter", 0)
+	invitee := createInviteRewardUser(t, "token_trigger_invitee", inviter.Id)
+	token := createInviteRewardTriggerToken(t, invitee.Id, "token-trigger-key")
+
+	err := TryGrantInviteRewardAfterTokenCreated(invitee.Id, token.Id, InviteRewardTriggerManualTokenCreate)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "top-up success")
+
+	var refreshedInvitee User
+	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
+	require.Equal(t, InviteRewardStatusPending, refreshedInvitee.InviteRewardStatus)
+	require.Zero(t, refreshedInvitee.Quota)
+
+	var refreshedInviter User
+	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
+	require.Zero(t, refreshedInviter.AffQuota)
+	require.Zero(t, refreshedInviter.AffHistoryQuota)
+	require.Zero(t, refreshedInviter.AffCount)
+
+	var events int64
+	require.NoError(t, DB.Model(&InviteRewardEvent{}).Where("invitee_id = ?", invitee.Id).Count(&events).Error)
+	require.Zero(t, events)
+}
+
+func TestInviteRewardRequiresSucceededTopUpOwnedByInvitee(t *testing.T) {
+	setupInviteRewardModelTest(t)
+
+	inviter := createInviteRewardUser(t, "topup_owner_inviter", 0)
+	invitee := createInviteRewardUser(t, "topup_owner_invitee", inviter.Id)
+	otherUser := createInviteRewardUser(t, "topup_owner_other", 0)
+	otherTopUp := createSuccessfulInviteRewardTopUp(t, otherUser.Id, "other-owned-topup")
+	pendingTopUp := createInviteRewardTopUp(t, invitee.Id, "pending-owned-topup")
+
+	err := TryGrantInviteRewardAfterTopUpSucceeded(invitee.Id, otherTopUp.Id)
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
-	err = TryGrantInviteRewardAfterTokenCreated(invitee.Id, 987654, InviteRewardTriggerManualTokenCreate)
+	err = TryGrantInviteRewardAfterTopUpSucceeded(invitee.Id, pendingTopUp.Id)
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	err = TryGrantInviteRewardAfterTopUpSucceeded(invitee.Id, 987654)
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 
 	var refreshedInvitee User
@@ -438,7 +751,7 @@ func TestInviteRewardBlocksMissingInviterWithoutDuplicateEvents(t *testing.T) {
 	setupInviteRewardModelTest(t)
 
 	invitee := createInviteRewardUser(t, "missing_inviter_invitee", 0)
-	triggerToken := createInviteRewardTriggerToken(t, invitee.Id, "missing-inviter-key")
+	topUp := createSuccessfulInviteRewardTopUp(t, invitee.Id, "missing-inviter-topup")
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", invitee.Id).Updates(map[string]any{
 		"inviter_id":                 987654,
 		"invite_reward_status":       InviteRewardStatusPending,
@@ -447,7 +760,7 @@ func TestInviteRewardBlocksMissingInviterWithoutDuplicateEvents(t *testing.T) {
 	}).Error)
 
 	for i := 0; i < 2; i++ {
-		err := TryGrantInviteRewardAfterTokenCreated(invitee.Id, triggerToken.Id, InviteRewardTriggerManualTokenCreate)
+		err := TryGrantInviteRewardAfterTopUpSucceeded(invitee.Id, topUp.Id)
 		require.NoError(t, err)
 	}
 
@@ -546,7 +859,7 @@ func runInviteRewardExternalDBSmoke(t *testing.T, dialect string, dsn string) {
 	common.UsingMySQL = dialect == "mysql"
 	common.UsingPostgreSQL = dialect == "postgres"
 	common.RedisEnabled = false
-	require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &Log{}, &InviteRewardEvent{}))
+	require.NoError(t, db.AutoMigrate(&User{}, &Token{}, &TopUp{}, &Log{}, &InviteRewardEvent{}, &RecallLifecycleEvent{}, &QuotaLifecycleState{}))
 
 	t.Cleanup(func() {
 		_ = db.Migrator().DropTable(&InviteRewardEvent{}, &Token{}, &Log{}, &User{})
@@ -574,23 +887,25 @@ func runInviteRewardExternalDBSmoke(t *testing.T, dialect string, dsn string) {
 
 	inviter := createInviteRewardUser(t, "external_inviter", 0)
 	invitee := createInviteRewardUser(t, "external_invitee", inviter.Id)
-	token := &Token{Name: "manual", Key: "external-key", ExpiredTime: -1, UnlimitedQuota: true}
-	require.NoError(t, CreateUserTokenWithInviteReward(invitee.Id, token, 10, InviteRewardTriggerManualTokenCreate))
+	topUp := createSuccessfulInviteRewardTopUp(t, invitee.Id, "external-topup")
+	require.NoError(t, TryGrantInviteRewardAfterTopUpSucceeded(invitee.Id, topUp.Id))
 
 	var refreshedInvitee User
 	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
 	var refreshedInviter User
 	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
 	require.Equal(t, InviteRewardStatusGranted, refreshedInvitee.InviteRewardStatus)
-	require.Equal(t, 50, refreshedInvitee.Quota)
-	require.Equal(t, 100, refreshedInviter.AffQuota)
+	require.Equal(t, common.QuotaForInvitee, refreshedInvitee.Quota)
+	require.Equal(t, common.QuotaForInviter, refreshedInviter.Quota)
+	require.Zero(t, refreshedInviter.AffQuota)
 	require.Equal(t, 1, refreshedInviter.AffCount)
 
-	require.NoError(t, TryGrantInviteRewardAfterTokenCreated(invitee.Id, token.Id, InviteRewardTriggerManualTokenCreate))
+	require.NoError(t, TryGrantInviteRewardAfterTopUpSucceeded(invitee.Id, topUp.Id))
 	require.NoError(t, DB.First(&refreshedInvitee, invitee.Id).Error)
 	require.NoError(t, DB.First(&refreshedInviter, inviter.Id).Error)
-	require.Equal(t, 50, refreshedInvitee.Quota)
-	require.Equal(t, 100, refreshedInviter.AffQuota)
+	require.Equal(t, common.QuotaForInvitee, refreshedInvitee.Quota)
+	require.Equal(t, common.QuotaForInviter, refreshedInviter.Quota)
+	require.Zero(t, refreshedInviter.AffQuota)
 	require.Equal(t, 1, refreshedInviter.AffCount)
 
 	var events int64

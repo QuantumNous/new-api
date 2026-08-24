@@ -53,6 +53,14 @@ func runSubscriptionQuotaResetOnce() {
 	ctx := context.Background()
 	totalReset := 0
 	totalExpired := 0
+	if _, err := RunWalletSubscriptionRenewalOnce(subscriptionResetBatchSize); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("subscription wallet renewal task failed: %v", err))
+		return
+	}
+	if _, err := RunSubscriptionTermSegmentAdvanceOnce(subscriptionResetBatchSize); err != nil {
+		logger.LogWarn(ctx, fmt.Sprintf("subscription term segment advance task failed: %v", err))
+		return
+	}
 	for {
 		n, err := model.ExpireDueSubscriptions(subscriptionResetBatchSize)
 		if err != nil {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -15,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -42,6 +44,12 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	if err := ValidateCodexImageRequest(request); err != nil {
 		return nil, err
 	}
+	setFingerprintIDs(c, nil)
+	ids, err := resolveFingerprintIDsForRequest(info, clientSessionID(c), time.Now())
+	if err != nil {
+		return nil, err
+	}
+	setFingerprintIDs(c, ids)
 
 	action := "generate"
 	var inputImages []string
@@ -82,7 +90,22 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		return nil, fmt.Errorf("codex chat→responses: %w", err)
 	}
 	applyCodexConstraints(compatResp, info)
-	return ensureInstructionsField(compatResp)
+	body, err := ensureInstructionsField(compatResp)
+	if err != nil {
+		return nil, err
+	}
+	setFingerprintIDs(c, nil)
+	ids, err := resolveFingerprintIDsForRequest(info, clientSessionID(c), time.Now())
+	if err != nil {
+		return nil, err
+	}
+	if ids != nil {
+		if !applyFingerprintBody(body, ids) {
+			return nil, errors.New("codex channel: sanitize fingerprint metadata")
+		}
+	}
+	setFingerprintIDs(c, ids)
+	return body, nil
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -113,8 +136,20 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		return nil, err
 	}
 
-	// compact 保留 sampling；非 compact 仍按 Codex 后端要求剥除。
+	// 按真实 Codex 后端约束过滤字段；compact 还会移除其端点不接受的 tool-limit 字段。
 	applyCodexConstraintsToMap(body, info, isCompact)
+	var ids *codexFingerprintIDs
+	setFingerprintIDs(c, nil)
+	ids, err = resolveFingerprintIDsForRequest(info, clientSessionID(c), time.Now())
+	if err != nil {
+		return nil, err
+	}
+	setFingerprintIDs(c, ids)
+	if !isCompact && ids != nil {
+		if !applyFingerprintBody(body, ids) {
+			return nil, errors.New("codex channel: sanitize fingerprint metadata")
+		}
+	}
 
 	if isCompact {
 		// compact 模式上游不接受 store/stream 字段
@@ -139,6 +174,81 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if codexPassThroughBodyEnabled(info) &&
+		(info.RelayMode == relayconstant.RelayModeResponses || info.RelayMode == relayconstant.RelayModeResponsesCompact) {
+		info.UpstreamRequestBodySize = 0
+		var ids *codexFingerprintIDs
+		setFingerprintIDs(c, nil)
+		ids, err := resolveFingerprintIDsForRequest(info, clientSessionID(c), time.Now())
+		if err != nil {
+			return nil, err
+		}
+		setFingerprintIDs(c, ids)
+		if info.RelayMode == relayconstant.RelayModeResponses && ids != nil {
+			if requestBody == nil {
+				return nil, errors.New("codex channel: pass-through request body is nil")
+			}
+			rawBody, err := io.ReadAll(requestBody)
+			if err != nil {
+				return nil, fmt.Errorf("read codex pass-through request body: %w", err)
+			}
+			fingerprint := &CodexFingerprint{
+				InstallationID: ids.installationID,
+				SessionID:      ids.sessionID,
+				ThreadID:       ids.threadID,
+				TurnID:         ids.turnID,
+				WindowID:       ids.windowID,
+				StartedAtMS:    ids.startedAtMS,
+			}
+			rewrittenBody, err := SanitizeCodexRequestBody(rawBody, fingerprint, ids.mode)
+			if err != nil {
+				return nil, err
+			}
+			body, size, closer, err := relaycommon.NewOutboundJSONBody(rewrittenBody)
+			if err != nil {
+				return nil, fmt.Errorf("store rewritten codex pass-through request body: %w", err)
+			}
+			defer closer.Close()
+			rewrittenBody = nil
+			info.UpstreamRequestBodySize = size
+			requestBody = body
+		} else if info.RelayMode == relayconstant.RelayModeResponsesCompact {
+			if requestBody == nil {
+				return nil, errors.New("codex channel: compact pass-through request body is nil")
+			}
+			rawBody, err := io.ReadAll(requestBody)
+			if err != nil {
+				return nil, fmt.Errorf("read codex compact pass-through request body: %w", err)
+			}
+			if ids == nil {
+				requestBody = bytes.NewReader(rawBody)
+				info.UpstreamRequestBodySize = int64(len(rawBody))
+			} else {
+				if ids.mode == fingerprintFull {
+					if err := validateCompactPassThroughFullBody(rawBody); err != nil {
+						return nil, err
+					}
+				}
+				rewrittenBody, changed, err := stripCompactOriginalMetadataRaw(rawBody)
+				if err != nil {
+					return nil, err
+				}
+				if changed {
+					body, size, closer, err := relaycommon.NewOutboundJSONBody(rewrittenBody)
+					if err != nil {
+						return nil, fmt.Errorf("store rewritten codex compact pass-through request body: %w", err)
+					}
+					defer closer.Close()
+					rewrittenBody = nil
+					info.UpstreamRequestBodySize = size
+					requestBody = body
+				} else {
+					requestBody = bytes.NewReader(rawBody)
+					info.UpstreamRequestBodySize = int64(len(rawBody))
+				}
+			}
+		}
+	}
 	resp, err := channel.DoApiRequest(a, c, info, requestBody)
 	if err != nil {
 		return resp, err
@@ -159,6 +269,16 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	return resp, err
 }
 
+func codexPassThroughBodyEnabled(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled {
+		return true
+	}
+	return info.ChannelMeta != nil && info.ChannelSetting.PassThroughBodyEnabled
+}
+
 // sanitizeCodexImageErrorResponse 读取并落日志上游错误体(仅服务端)，随后把响应体替换为
 // 通用脱敏 JSON 错误，保留原状态码。下游 service.RelayErrorHandler 解析到的将是这份
 // 脱敏内容，因此不会向客户端泄露任何上游品牌/模型信息。
@@ -169,8 +289,8 @@ func sanitizeCodexImageErrorResponse(c *gin.Context, resp *http.Response) {
 		_ = resp.Body.Close()
 	}
 	if len(upstreamBody) > 0 {
-		common.SysError(fmt.Sprintf("codex image: upstream returned HTTP %d, body: %s",
-			resp.StatusCode, common.LocalLogPreview(string(upstreamBody))))
+		common.SysError(fmt.Sprintf("codex image: upstream returned HTTP %d, body: <redacted>",
+			resp.StatusCode))
 	} else {
 		common.SysError(fmt.Sprintf("codex image: upstream returned HTTP %d with empty body", resp.StatusCode))
 	}
@@ -272,6 +392,11 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	if req.Get("originator") == "" {
 		req.Set("originator", "codex_cli_rs")
 	}
+	ids, err := fingerprintIDsForRequest(c, info)
+	if err != nil {
+		return err
+	}
+	applyFingerprintHeaders(*req, ids)
 
 	// chatgpt.com/backend-api/codex/responses is strict about Content-Type.
 	// Clients may omit it or include parameters like `application/json; charset=utf-8`,

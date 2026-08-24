@@ -1,10 +1,12 @@
 package helper
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -49,10 +51,51 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidAudioRequest(c, relayMode)
 	case types.RelayFormatOpenAIRealtime:
 		request = &dto.BaseRequest{}
+	case types.RelayFormatElevenLabs:
+		request, err = GetAndValidElevenLabsRequest(c)
 	default:
 		return nil, fmt.Errorf("unsupported relay format: %s", format)
 	}
 	return request, err
+}
+
+// GetAndValidElevenLabsRequest builds the passthrough request for ElevenLabs native
+// endpoints and pre-computes the billable units from the (verbatim-forwarded) body:
+// input characters for TTS, requested seconds for SFX, 0 for the voices list.
+func GetAndValidElevenLabsRequest(c *gin.Context) (*dto.ElevenLabsRequest, error) {
+	req := &dto.ElevenLabsRequest{}
+	path := c.Request.URL.Path
+	switch {
+	case strings.HasPrefix(path, "/v1/text-to-speech/"):
+		var body struct {
+			Text string `json:"text"`
+		}
+		_ = common.UnmarshalBodyReusable(c, &body)
+		req.BillTokens = len([]rune(body.Text))
+	case strings.HasPrefix(path, "/v1/sound-generation"):
+		var body struct {
+			DurationSeconds float64 `json:"duration_seconds"`
+		}
+		_ = common.UnmarshalBodyReusable(c, &body)
+		req.BillTokens = ceilSeconds(body.DurationSeconds, 5) // ElevenLabs auto-length -> default 5s estimate
+	default: // /v1/voices — listing, not billed
+		req.BillTokens = 0
+	}
+	return req, nil
+}
+
+func ceilSeconds(v float64, fallback int) int {
+	if v <= 0 {
+		return fallback
+	}
+	n := int(v)
+	if float64(n) < v {
+		n++
+	}
+	if n < 1 {
+		n = 1
+	}
+	return n
 }
 
 func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, error) {
@@ -156,8 +199,27 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			imageRequest.N = common.GetPointer(uint(common.String2Int(formData.Get("n"))))
 			imageRequest.Quality = formData.Get("quality")
 			imageRequest.Size = formData.Get("size")
+			imageRequest.ResponseFormat = formData.Get("response_format")
+			imageRequest.AspectRatio = formData.Get("aspect_ratio")
+			imageRequest.Resolution = formData.Get("resolution")
 			if imageValue := formData.Get("image"); imageValue != "" {
 				imageRequest.Image, _ = common.Marshal(imageValue)
+			}
+			if maskValue := formData.Get("mask"); maskValue != "" {
+				imageRequest.Mask, _ = common.Marshal(maskValue)
+			}
+			if userValue := formData.Get("user"); userValue != "" {
+				imageRequest.User, _ = common.Marshal(userValue)
+			}
+			imageRequest.Extra = make(map[string]json.RawMessage)
+			for _, key := range []string{"file_id", "storage_options"} {
+				if value := formData.Get(key); value != "" {
+					raw, err := common.Marshal(value)
+					if err != nil {
+						return nil, err
+					}
+					imageRequest.Extra[key] = raw
+				}
 			}
 
 			if imageRequest.Model == "gpt-image-1" {
@@ -173,6 +235,18 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			if hasWatermark {
 				watermark := formData.Get("watermark") == "true"
 				imageRequest.Watermark = &watermark
+			}
+
+			tempURLValue := formData.Get("temp_url")
+			if tempURLValue == "" {
+				tempURLValue = formData.Get("tempUrl")
+			}
+			if tempURLValue != "" {
+				tempUrl, err := strconv.ParseBool(tempURLValue)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse temp_url: %w", err)
+				}
+				imageRequest.TempUrl = &tempUrl
 			}
 			break
 		}

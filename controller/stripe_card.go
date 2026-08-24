@@ -15,11 +15,11 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/gin-gonic/gin"
-	"github.com/stripe/stripe-go/v81"
-	stripecustomer "github.com/stripe/stripe-go/v81/customer"
-	stripepaymentintent "github.com/stripe/stripe-go/v81/paymentintent"
-	stripepaymentmethod "github.com/stripe/stripe-go/v81/paymentmethod"
-	stripeprice "github.com/stripe/stripe-go/v81/price"
+	"github.com/stripe/stripe-go/v86"
+	stripecustomer "github.com/stripe/stripe-go/v86/customer"
+	stripepaymentintent "github.com/stripe/stripe-go/v86/paymentintent"
+	stripepaymentmethod "github.com/stripe/stripe-go/v86/paymentmethod"
+	stripeprice "github.com/stripe/stripe-go/v86/price"
 )
 
 // stripeCardBindReferencePrefix tags the client_reference_id so the webhook can
@@ -139,15 +139,17 @@ func fetchDefaultCard(customerId string) (brand string, last4 string) {
 	return "", ""
 }
 
-// fetchCardFingerprint returns the Stripe fingerprint of the customer's first card. The
-// fingerprint is stable for the same physical card across customers/accounts, so it is used
-// for anti-abuse dedup of the one-time bonus. Best-effort: ensures the key, swallows errors.
-func fetchCardFingerprint(customerId string) string {
+// fetchCardFingerprint returns the Stripe fingerprint of the customer's first card, or ""
+// with a nil error when the customer genuinely has no saved card. A non-nil error means the
+// lookup itself failed (key/network/API) and says nothing about whether a card exists —
+// callers deciding card_bound must not treat the two the same. The fingerprint is stable for
+// the same physical card across customers/accounts, so it is used for anti-abuse dedup.
+func fetchCardFingerprint(customerId string) (string, error) {
 	if customerId == "" {
-		return ""
+		return "", nil
 	}
 	if err := ensureStripeKey(); err != nil {
-		return ""
+		return "", err
 	}
 	listParams := &stripe.PaymentMethodListParams{
 		Customer: stripe.String(customerId),
@@ -158,10 +160,63 @@ func fetchCardFingerprint(customerId string) string {
 	for iter.Next() {
 		pm := iter.PaymentMethod()
 		if pm != nil && pm.Card != nil {
-			return strings.TrimSpace(pm.Card.Fingerprint)
+			return strings.TrimSpace(pm.Card.Fingerprint), nil
 		}
 	}
-	return ""
+	if err := iter.Err(); err != nil {
+		return "", err
+	}
+	return "", nil
+}
+
+// fetchCardCountry returns the ISO issuing country of the card used for a
+// payment (analytics: real payment geography for the ops report), or "" when
+// unavailable. It reads the charge behind paymentIntentId first — that country
+// is recorded on every successful charge regardless of whether the card was
+// saved — and only falls back to the customer's saved payment methods (which
+// are empty for non-save-card payments). A non-nil error means the lookup
+// itself failed.
+func fetchCardCountry(paymentIntentId string, customerId string) (string, error) {
+	if err := ensureStripeKey(); err != nil {
+		return "", err
+	}
+	if paymentIntentId != "" {
+		piParams := &stripe.PaymentIntentParams{}
+		piParams.AddExpand("latest_charge")
+		pi, err := stripepaymentintent.Get(paymentIntentId, piParams)
+		if err != nil {
+			// Lookup failure is not "no country": don't fall through to the saved
+			// payment methods, which may be a different card than this payment —
+			// the best-effort caller simply skips the update.
+			return "", err
+		}
+		if pi != nil && pi.LatestCharge != nil &&
+			pi.LatestCharge.PaymentMethodDetails != nil &&
+			pi.LatestCharge.PaymentMethodDetails.Card != nil {
+			if cc := strings.ToUpper(strings.TrimSpace(pi.LatestCharge.PaymentMethodDetails.Card.Country)); cc != "" {
+				return cc, nil
+			}
+		}
+	}
+	if customerId == "" {
+		return "", nil
+	}
+	listParams := &stripe.PaymentMethodListParams{
+		Customer: stripe.String(customerId),
+		Type:     stripe.String(string(stripe.PaymentMethodTypeCard)),
+	}
+	listParams.Limit = stripe.Int64(1)
+	iter := stripepaymentmethod.List(listParams)
+	for iter.Next() {
+		pm := iter.PaymentMethod()
+		if pm != nil && pm.Card != nil {
+			return strings.ToUpper(strings.TrimSpace(pm.Card.Country)), nil
+		}
+	}
+	if err := iter.Err(); err != nil {
+		return "", err
+	}
+	return "", nil
 }
 
 // RemoveStripeCard detaches the user's saved card(s) and clears the bound flag.

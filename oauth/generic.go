@@ -284,10 +284,33 @@ func (p *GenericOAuthProvider) GetUserInfo(ctx context.Context, token *OAuthToke
 		Username:       username,
 		DisplayName:    displayName,
 		Email:          email,
+		// Honor the standard OIDC email_verified claim when the generic provider
+		// exposes it; absent/false means the address must be verified through
+		// the standard flow before the account can use tokens.
+		EmailVerified: email != "" && parseEmailVerifiedClaim(bodyStr),
 		Extra: map[string]any{
 			"provider": p.config.Slug,
 		},
 	}, nil
+}
+
+// parseEmailVerifiedClaim reads the standard OIDC "email_verified" claim from
+// a JSON userinfo body, accepting both JSON booleans and string forms
+// ("true"/"false"/"1"/"0"). Absent or unparseable values fail closed.
+func parseEmailVerifiedClaim(bodyStr string) bool {
+	value := gjson.Get(bodyStr, "email_verified")
+	if !value.Exists() {
+		return false
+	}
+	if value.IsBool() {
+		return value.Bool()
+	}
+	switch strings.ToLower(strings.TrimSpace(value.String())) {
+	case "true", "1", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *GenericOAuthProvider) IsUserIDTaken(providerUserID string) bool {

@@ -9,6 +9,34 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func TestIsBackendOrAssetPath(t *testing.T) {
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{path: "/api", want: true},
+		{path: "/api/test", want: true},
+		{path: "/v1", want: true},
+		{path: "/v1/test", want: true},
+		{path: "/v1beta", want: true},
+		{path: "/v1beta/models/test", want: true},
+		{path: "/assets", want: true},
+		{path: "/assets/app.js", want: true},
+		{path: "/api-marketplace", want: false},
+		{path: "/api-marketplace/", want: false},
+		{path: "/v1-models", want: false},
+		{path: "/assets-library", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			if got := isBackendOrAssetPath(tt.path); got != tt.want {
+				t.Fatalf("isBackendOrAssetPath(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestShouldInjectGoogleTagManager(t *testing.T) {
 	tests := []struct {
 		name string
@@ -92,6 +120,26 @@ func TestPublicWWWRedirectPolicyIgnoresOtherHosts(t *testing.T) {
 	}
 	if got := rec.Header().Get("Location"); got != "" {
 		t.Fatalf("Location=%q, want empty", got)
+	}
+}
+
+func TestSetWebRouterRedirectsLegacyConsoleSubscriptionPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	SetWebRouter(engine, ThemeAssets{
+		DefaultIndexPage: []byte(`<!doctype html><html><head></head><body></body></html>`),
+		ClassicIndexPage: []byte(`<!doctype html><html><head></head><body></body></html>`),
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "https://flatkey.ai/console/subscription", nil)
+	rec := httptest.NewRecorder()
+	engine.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Location"); got != "/wallet" {
+		t.Fatalf("Location=%q, want /wallet", got)
 	}
 }
 

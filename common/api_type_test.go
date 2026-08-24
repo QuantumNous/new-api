@@ -20,3 +20,23 @@ func TestJimengReverseProxyChannelTypesUseOpenAIWireProtocol(t *testing.T) {
 		}
 	}
 }
+
+func TestCopilotChannelTypeUsesDedicatedAPIType(t *testing.T) {
+	apiType, ok := ChannelType2APIType(constant.ChannelTypeCopilot)
+	if !ok {
+		t.Fatal("Copilot channel type should be recognized")
+	}
+	if apiType != constant.APITypeCopilot {
+		t.Fatalf("Copilot API type = %d, want %d", apiType, constant.APITypeCopilot)
+	}
+}
+
+func TestGrokSubscriptionAPITypeMapping(t *testing.T) {
+	apiType, ok := ChannelType2APIType(constant.ChannelTypeGrokSubscription)
+	if !ok {
+		t.Fatalf("ChannelType2APIType(GrokSubscription) ok = false, want true")
+	}
+	if apiType != constant.APITypeGrokSubscription {
+		t.Fatalf("GrokSubscription API type = %d, want %d", apiType, constant.APITypeGrokSubscription)
+	}
+}

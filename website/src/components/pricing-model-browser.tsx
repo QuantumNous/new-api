@@ -34,14 +34,19 @@ import {
   formatGroupRequestPrice,
   formatGroupTokenPrice,
   formatModelPrice,
+  formatResolvedModelDisplayPrice,
+  formatUsdPrice,
   formatRatio,
   getAvailableGroups,
   isTokenBasedModel,
   parseTags,
+  resolveModelDisplayPrice,
+  WEBSITE_PUBLIC_PRICING_GROUP,
   type PricingModel,
 } from "@/lib/pricing";
+import { formatHealthSuccessRate, getJitteredSuccessRate } from "@/lib/health-display";
 import { localizePath, type Locale } from "@/lib/locales";
-import { getModelLandingConfigForModel } from "@/lib/model-landing";
+import { getModelLandingConfigForPricingModel } from "@/lib/model-landing";
 import { ROUTER_ORIGIN } from "@/lib/origins";
 import { cn } from "@/lib/utils";
 import {
@@ -58,7 +63,7 @@ type PricingModelBrowserProps = {
   locale: Locale;
   models: PricingModel[];
   groupRatio: Record<string, number>;
-  usableGroup: Record<string, { desc: string; ratio: number }>;
+  usableGroup: Record<string, string>;
   endpointMap: Record<string, unknown>;
   autoGroups: string[];
 };
@@ -161,6 +166,45 @@ const TOKEN_PRICE_TYPES = [
   ["audio_output", "Audio Out"],
 ] as const;
 
+function localizedDisplayUnit(unit: string, locale: Locale): string {
+  if (locale !== "zh") return unit;
+  if (unit === "/ second") return "/ 秒";
+  if (unit === "/ request") return "/ 次";
+  return "/ 1M tokens";
+}
+
+function localizedPricingKind(dimension: string, locale: Locale): string {
+  if (locale === "zh") {
+    if (dimension === "second") return "每秒";
+    if (dimension === "request") return "每次";
+    return "每 1M tokens";
+  }
+  if (dimension === "second") return "Per Second";
+  if (dimension === "request") return "Per Request";
+  return "Per 1M tokens";
+}
+
+// A per-model group ratio (group_model_ratio) overrides the group-wide ratio
+// for both the Ratio column and the derived group price.
+function resolveGroupPriceRatio(modelSpecificRatio: number | undefined, groupRatio: number | undefined): number {
+  if (typeof modelSpecificRatio === "number" && Number.isFinite(modelSpecificRatio)) return modelSpecificRatio;
+  if (typeof groupRatio === "number" && Number.isFinite(groupRatio)) return groupRatio;
+  return 1;
+}
+
+export const resolveGroupPriceRatioForTest = resolveGroupPriceRatio;
+
+function formatGroupDisplayPrice(
+  model: PricingModel,
+  dimension: Parameters<typeof resolveModelDisplayPrice>[1],
+  ratio: number,
+  locale: Locale
+): string {
+  const price = resolveModelDisplayPrice(model, dimension, "configured");
+  if (!price || !Number.isFinite(ratio)) return "-";
+  return `${price.from ? "from " : ""}${formatUsdPrice(price.value * ratio)} ${localizedDisplayUnit(price.unit, locale)}`;
+}
+
 const CAPABILITY_LABELS: Record<Capability, string> = {
   function_calling: "Function calling",
   streaming: "Streaming",
@@ -191,6 +235,8 @@ const MODALITY_LABELS: Record<Modality, string> = {
   video: "Video",
   file: "File",
 };
+
+const MODELS_PAGE_PERFORMANCE_GROUP = WEBSITE_PUBLIC_PRICING_GROUP;
 
 export function PricingModelBrowser(props: PricingModelBrowserProps) {
   const [selectedModelName, setSelectedModelName] = useState<string | null>(null);
@@ -251,6 +297,7 @@ export function PricingModelBrowser(props: PricingModelBrowserProps) {
 
       <ModelDetailsDrawer
         model={selectedModel}
+        locale={props.locale}
         groupRatio={props.groupRatio}
         usableGroup={props.usableGroup}
         endpointMap={props.endpointMap}
@@ -266,12 +313,14 @@ export function PricingModelBrowser(props: PricingModelBrowserProps) {
 
 function ModelPriceCard(props: { model: PricingModel; locale: Locale; performance?: PerformanceSummary; onSelect: () => void }) {
   const model = props.model;
+  const resolvedPrice = resolveModelDisplayPrice(model);
+  const displayPrice = resolvedPrice?.source === "display" ? resolvedPrice : null;
   const tokenBased = isTokenBasedModel(model);
   const endpoints = model.supported_endpoint_types ?? [];
   const tags = parseTags(model.tags);
   const initial = model.model_name.charAt(0).toUpperCase();
   const iconKey = model.icon || model.vendor_icon;
-  const landingConfig = getModelLandingConfigForModel(model.model_name);
+  const landingConfig = getModelLandingConfigForPricingModel(model);
   const landingHref = landingConfig ? localizePath(`/models/${landingConfig.slug}`, props.locale) : null;
 
   const handleCopy = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -301,7 +350,13 @@ function ModelPriceCard(props: { model: PricingModel; locale: Locale; performanc
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-[15px] leading-tight font-black text-slate-950 dark:text-white">{model.model_name}</h3>
             <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs">
-              {tokenBased ? (
+              {displayPrice ? (
+                <span className="whitespace-nowrap text-slate-500 dark:text-slate-400">
+                  <span className="font-mono font-semibold text-slate-950 dark:text-slate-100">
+                    {formatResolvedModelDisplayPrice({ ...displayPrice, unit: localizedDisplayUnit(displayPrice.unit, props.locale) })}
+                  </span>
+                </span>
+              ) : tokenBased ? (
                 <>
                   <span className="whitespace-nowrap text-slate-500 dark:text-slate-400">
                     Input <span className="font-mono font-semibold text-slate-950 dark:text-slate-100">{formatModelPrice(model, "input")}</span>/1M
@@ -315,7 +370,7 @@ function ModelPriceCard(props: { model: PricingModel; locale: Locale; performanc
                 </>
               ) : (
                 <span className="whitespace-nowrap text-slate-500 dark:text-slate-400">
-                  <span className="font-mono font-semibold text-slate-950 dark:text-slate-100">{formatModelPrice(model)}</span> / request
+                  <span className="font-mono font-semibold text-slate-950 dark:text-slate-100">{formatModelPrice(model)}</span> {localizedDisplayUnit("/ request", props.locale)}
                 </span>
               )}
             </div>
@@ -356,7 +411,9 @@ function ModelPriceCard(props: { model: PricingModel; locale: Locale; performanc
           {(model.enable_groups ?? [])[0] ? (
             <span className="text-xs font-semibold text-violet-700/80 dark:text-violet-200">{(model.enable_groups ?? [])[0]} Groups</span>
           ) : null}
-          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{tokenBased ? "Token-based" : "Per Request"}</span>
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            {displayPrice ? localizedPricingKind(displayPrice.dimension, props.locale) : tokenBased ? "Token-based" : "Per Request"}
+          </span>
           {model.billing_mode === "tiered_expr" ? (
             <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-200">Dynamic Pricing</span>
           ) : null}
@@ -381,8 +438,9 @@ function ModelPriceCard(props: { model: PricingModel; locale: Locale; performanc
 
 function ModelDetailsDrawer(props: {
   model: PricingModel | null;
+  locale: Locale;
   groupRatio: Record<string, number>;
-  usableGroup: Record<string, { desc: string; ratio: number }>;
+  usableGroup: Record<string, string>;
   endpointMap: Record<string, unknown>;
   autoGroups: string[];
   performance?: PerformanceSummary;
@@ -421,6 +479,7 @@ function ModelDetailsDrawer(props: {
             <ModelDetailsContent
               model={model}
               groupRatio={props.groupRatio}
+              locale={props.locale}
               usableGroup={props.usableGroup}
               endpointMap={props.endpointMap}
               autoGroups={props.autoGroups}
@@ -438,12 +497,13 @@ function ModelDetailsDrawer(props: {
 function ModelDetailsContent(props: {
   model: PricingModel;
   groupRatio: Record<string, number>;
-  usableGroup: Record<string, { desc: string; ratio: number }>;
+  usableGroup: Record<string, string>;
   endpointMap: Record<string, unknown>;
   autoGroups: string[];
   performance?: PerformanceSummary;
   activeTab: TabValue;
   onTabChange: (tab: TabValue) => void;
+  locale: Locale;
 }) {
   const metadata = useMemo(() => inferModelMetadata(props.model), [props.model]);
 
@@ -476,12 +536,13 @@ function ModelDetailsContent(props: {
             <OverviewSummaryGrid model={props.model} performance={props.performance} />
             <section className="bg-card/60 space-y-5 rounded-xl border p-4 shadow-sm">
               <SectionTitle>Pricing</SectionTitle>
-              <PriceSection model={props.model} groupRatio={props.groupRatio} />
+              <PriceSection model={props.model} groupRatio={props.groupRatio} locale={props.locale} />
               <GroupPricingSection
                 model={props.model}
                 groupRatio={props.groupRatio}
                 usableGroup={props.usableGroup}
                 autoGroups={props.autoGroups}
+                locale={props.locale}
               />
             </section>
             <QuickStats metadata={metadata} />
@@ -548,11 +609,14 @@ function ModelHeader(props: { model: PricingModel }) {
 
 function OverviewSummaryGrid(props: { model: PricingModel; performance?: PerformanceSummary }) {
   const successFallback = props.model.availability_status ? props.model.availability_status.replace(/_/g, " ") : "--";
+  const displaySuccessRate = props.performance
+    ? getJitteredSuccessRate(props.performance.success_rate, props.model.model_name) ?? props.performance.success_rate
+    : undefined;
   return (
     <div className="grid overflow-hidden rounded-lg border bg-muted/20 sm:grid-cols-3 sm:divide-x">
       <OverviewMetric icon={Timer} label="TPS" value={props.performance ? formatThroughput(props.performance.avg_tps) : "--"} />
       <OverviewMetric icon={Timer} label="Average latency" value={props.performance ? formatLatency(props.performance.avg_latency_ms) : "--"} />
-      <OverviewMetric icon={HeartPulse} label="Success rate" value={props.performance ? formatUptimePct(props.performance.success_rate) : successFallback} />
+      <OverviewMetric icon={HeartPulse} label="Success rate" value={displaySuccessRate != null ? formatUptimePct(displaySuccessRate) : successFallback} />
     </div>
   );
 }
@@ -570,10 +634,26 @@ function OverviewMetric(props: { icon: React.ComponentType<{ className?: string 
   );
 }
 
-function PriceSection(props: { model: PricingModel; groupRatio: Record<string, number> }) {
+function PriceSection(props: { model: PricingModel; groupRatio: Record<string, number>; locale: Locale }) {
   const model = props.model;
+  const resolvedPrice = resolveModelDisplayPrice(model, undefined, "configured", props.groupRatio);
+  const displayPrice = resolvedPrice?.source === "display" ? resolvedPrice : null;
   const tokenBased = isTokenBasedModel(model);
   const tokenUnitLabel = "1M";
+
+  if (displayPrice) {
+    return (
+      <section>
+        <SectionTitle>Base Price</SectionTitle>
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm text-muted-foreground">{localizedPricingKind(displayPrice.dimension, props.locale)}</span>
+          <span className="font-mono text-sm font-semibold tabular-nums text-foreground">
+            {formatResolvedModelDisplayPrice({ ...displayPrice, unit: localizedDisplayUnit(displayPrice.unit, props.locale) })}
+          </span>
+        </div>
+      </section>
+    );
+  }
 
   if (!tokenBased) {
     return (
@@ -633,12 +713,16 @@ function PriceSection(props: { model: PricingModel; groupRatio: Record<string, n
 function GroupPricingSection(props: {
   model: PricingModel;
   groupRatio: Record<string, number>;
-  usableGroup: Record<string, { desc: string; ratio: number }>;
+  usableGroup: Record<string, string>;
   autoGroups: string[];
+  locale: Locale;
 }) {
   const availableGroups = getAvailableGroups(props.model, props.groupRatio, props.usableGroup);
+  const effectiveGroupRatio = { ...props.groupRatio, ...(props.model.group_ratio ?? {}) };
+  const resolvedPrice = resolveModelDisplayPrice(props.model, undefined, "configured", props.groupRatio);
+  const displayPrice = resolvedPrice?.source === "display" ? resolvedPrice : null;
   const tokenBased = isTokenBasedModel(props.model);
-  const extraPriceTypes = TOKEN_PRICE_TYPES.slice(2).filter(([type]) => formatGroupTokenPrice(props.model, availableGroups[0] ?? "Default", props.groupRatio, type) !== "-");
+  const extraPriceTypes = TOKEN_PRICE_TYPES.slice(2).filter(([type]) => formatGroupTokenPrice(props.model, availableGroups[0] ?? "Default", effectiveGroupRatio, type) !== "-");
 
   return (
     <section>
@@ -657,7 +741,9 @@ function GroupPricingSection(props: {
               <tr data-slot="table-row" className="has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors hover:bg-transparent">
                 <TableHead>Group</TableHead>
                 <TableHead>Ratio</TableHead>
-                {tokenBased ? (
+                {displayPrice ? (
+                  <TableHead align="right">{localizedDisplayUnit(displayPrice.unit, props.locale)}</TableHead>
+                ) : tokenBased ? (
                   <>
                     <TableHead align="right">Input</TableHead>
                     <TableHead align="right">Output</TableHead>
@@ -674,7 +760,15 @@ function GroupPricingSection(props: {
             </thead>
             <tbody data-slot="table-body" className="[&_tr:last-child]:border-0">
               {availableGroups.map((group) => {
-                const ratio = props.groupRatio[group] || props.usableGroup[group]?.ratio || 1;
+                const modelSpecificRatio = props.model.group_model_ratio?.[group];
+                const hasModelSpecificRatio = typeof modelSpecificRatio === "number" && Number.isFinite(modelSpecificRatio);
+                const ratio = resolveGroupPriceRatio(modelSpecificRatio, effectiveGroupRatio[group] ?? props.groupRatio[group]);
+                // Every price branch must bill with the same ratio the Ratio
+                // column displays. getGroupRatio() prefers model.group_ratio
+                // over the fallback map, so the resolved ratio is injected
+                // into both to make the override stick either way.
+                const rowGroupRatio = { ...effectiveGroupRatio, [group]: ratio };
+                const rowModel = { ...props.model, group_ratio: { ...(props.model.group_ratio ?? {}), [group]: ratio } };
                 return (
                   <tr
                     key={group}
@@ -684,16 +778,27 @@ function GroupPricingSection(props: {
                     <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5">
                       <GroupBadge group={group} />
                     </td>
-                    <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 text-muted-foreground py-2.5 font-mono">
-                      {ratio}x
+                    <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-muted-foreground">{ratio}x</span>
+                        {hasModelSpecificRatio ? (
+                          <span className="rounded border border-border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                            Model-specific
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
-                    {tokenBased ? (
+                    {displayPrice ? (
+                      <td data-slot="table-cell" className="p-2 py-2.5 text-right font-mono">
+                        {formatGroupDisplayPrice(props.model, displayPrice.dimension, ratio, props.locale)}
+                      </td>
+                    ) : tokenBased ? (
                       <>
                         <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5 text-right font-mono">
-                          {formatGroupTokenPrice(props.model, group, props.groupRatio, "input")}
+                          {formatGroupTokenPrice(rowModel, group, rowGroupRatio, "input")}
                         </td>
                         <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5 text-right font-mono">
-                          {formatGroupTokenPrice(props.model, group, props.groupRatio, "output")}
+                          {formatGroupTokenPrice(rowModel, group, rowGroupRatio, "output")}
                         </td>
                         {extraPriceTypes.map(([type]) => (
                           <td
@@ -701,13 +806,13 @@ function GroupPricingSection(props: {
                             data-slot="table-cell"
                             className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5 text-right font-mono"
                           >
-                            {formatGroupTokenPrice(props.model, group, props.groupRatio, type)}
+                            {formatGroupTokenPrice(rowModel, group, rowGroupRatio, type)}
                           </td>
                         ))}
                       </>
                     ) : (
                       <td data-slot="table-cell" className="p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 py-2.5 text-right font-mono">
-                        {formatGroupRequestPrice(props.model, group, props.groupRatio)}
+                        {formatGroupRequestPrice(rowModel, group, rowGroupRatio)}
                       </td>
                     )}
                   </tr>
@@ -716,7 +821,7 @@ function GroupPricingSection(props: {
             </tbody>
           </table>
           </div>
-          {tokenBased ? <p className="text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0">Prices shown per 1M tokens</p> : null}
+          {displayPrice ? <p className="text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0">Prices shown {localizedDisplayUnit(displayPrice.unit, props.locale)}</p> : tokenBased ? <p className="text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0">Prices shown per 1M tokens</p> : null}
         </div>
       )}
     </section>
@@ -1025,7 +1130,7 @@ function ApiPanel(props: { model: PricingModel; endpointMap: Record<string, unkn
 }
 
 function HealthBadge(props: { summary: PerformanceSummary }) {
-  const successRate = props.summary.success_rate;
+  const successRate = getJitteredSuccessRate(props.summary.success_rate, props.summary.model_name) ?? props.summary.success_rate;
   const Icon = successRate >= 99.9 ? CheckCircle2 : successRate >= 99 ? Activity : AlertTriangle;
   return (
     <span
@@ -1458,7 +1563,7 @@ function resolveEndpointPath(configuredPath: unknown, fallback: string): string 
 }
 
 async function fetchPerformanceSummary(): Promise<Record<string, PerformanceSummary>> {
-  const response = await fetch("/api/perf-metrics/summary?hours=24", { headers: { accept: "application/json" } });
+  const response = await fetch(buildPerformanceSummaryPath(), { headers: { accept: "application/json" } });
   if (!response.ok) return {};
   const payload = (await response.json()) as { success?: boolean; data?: { models?: PerformanceSummary[] } };
   if (!payload.success) return {};
@@ -1466,11 +1571,19 @@ async function fetchPerformanceSummary(): Promise<Record<string, PerformanceSumm
 }
 
 async function fetchPerformanceMetrics(modelName: string): Promise<PerformanceMetricsData | null> {
-  const params = new URLSearchParams({ model: modelName, hours: "24" });
-  const response = await fetch(`/api/perf-metrics?${params.toString()}`, { headers: { accept: "application/json" } });
+  const response = await fetch(buildPerformanceMetricsPath(modelName), { headers: { accept: "application/json" } });
   if (!response.ok) return null;
   const payload = (await response.json()) as { success?: boolean; data?: PerformanceMetricsData };
   return payload.success && payload.data ? payload.data : null;
+}
+
+function buildPerformanceSummaryPath(): string {
+  return `/api/perf-metrics/summary?${new URLSearchParams({ hours: "24", group: MODELS_PAGE_PERFORMANCE_GROUP }).toString()}`;
+}
+
+function buildPerformanceMetricsPath(modelName: string): string {
+  const params = new URLSearchParams({ model: modelName, hours: "24", group: MODELS_PAGE_PERFORMANCE_GROUP });
+  return `/api/perf-metrics?${params.toString()}`;
 }
 
 function aggregatePerformance(groups: PerformanceGroup[]): PerformanceSummary | null {
@@ -1532,7 +1645,7 @@ function formatLatency(ms: number): string {
 
 function formatUptimePct(pct: number): string {
   if (!Number.isFinite(pct)) return "—";
-  return `${pct.toFixed(2)}%`;
+  return formatHealthSuccessRate(pct);
 }
 
 export function buildCodeSampleForTest(lang: ApiLang, model: PricingModel, endpointType: string, endpointPath: string): string {
@@ -1555,6 +1668,14 @@ export function buildCodeSampleForTest(lang: ApiLang, model: PricingModel, endpo
   if (lang === "typescript") return `import OpenAI from 'openai'\n\nconst client = new OpenAI({\n  baseURL: '${baseUrl}/v1',\n  apiKey: process.env.NEW_API_KEY,\n})\n\nconst completion = await client.chat.completions.create({\n  model: '${exampleModelName}',\n  messages: [{ role: 'user', content: '${userMessage}' }],\n})\n\nconsole.log(completion.choices[0].message.content)`;
   if (lang === "javascript") return `const response = await fetch('${url}', {\n  method: 'POST',\n  headers: {\n    Authorization: \`Bearer \${process.env.NEW_API_KEY}\`,\n    'Content-Type': 'application/json',\n  },\n  body: JSON.stringify(${JSON.stringify(body, null, 2)}),\n})\n\nconst data = await response.json()\nconsole.log(data)`;
   return buildCurl(url, body, "Authorization: Bearer $NEW_API_KEY");
+}
+
+export function buildPerformanceSummaryPathForTest(): string {
+  return buildPerformanceSummaryPath();
+}
+
+export function buildPerformanceMetricsPathForTest(modelName: string): string {
+  return buildPerformanceMetricsPath(modelName);
 }
 
 function getExampleModelName(modelName: string) {

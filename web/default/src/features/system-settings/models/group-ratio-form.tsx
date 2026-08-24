@@ -57,10 +57,12 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageActionsPortal } from '../components/settings-page-context'
 import { GroupRatioVisualEditor } from './group-ratio-visual-editor'
+import { GroupModelRatioEditor } from './group-model-ratio-editor'
 import { GroupSpecialUsableRulesEditor } from './group-special-usable-editor'
 
 type GroupFormValues = {
   GroupRatio: string
+  GroupModelRatio: string
   TopupGroupRatio: string
   UserUsableGroups: string
   GroupGroupRatio: string
@@ -150,6 +152,14 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               value={form.watch('GroupSpecialUsableGroup')}
               onChange={(value) =>
                 handleFieldChange('GroupSpecialUsableGroup', value)
+              }
+            />
+
+            <GroupModelRatioEditor
+              value={form.watch('GroupModelRatio')}
+              groupRatio={form.watch('GroupRatio')}
+              onChange={(value) =>
+                handleFieldChange('GroupModelRatio', value)
               }
             />
 
@@ -251,6 +261,26 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                     {t(
                       'to override billing when a user in one group uses a token of another group.'
                     )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='GroupModelRatio'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Model Specific Ratio')}</FormLabel>
+                  <FormControl>
+                    <Textarea rows={8} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Nested JSON map of group → model → ratio. This overrides inter-group and group ratios for matching models.'
+                    )}
+                    {` { "plg": { "gpt-5.5": 0.3 } }`}.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

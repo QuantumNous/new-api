@@ -44,7 +44,7 @@ variable "cpu" {
 
 variable "memory" {
   type    = string
-  default = "512Mi"
+  default = "1Gi"
 }
 
 variable "min_instances" {
@@ -93,4 +93,10 @@ variable "site_origin" {
   type        = string
   description = "Public origin of the marketing site itself. e.g. https://flatkey.ai"
   default     = "https://flatkey.ai"
+}
+
+variable "cookie_session_domain" {
+  type        = string
+  description = "Shared cookie domain for browser-visible website preferences. e.g. .flatkey.ai"
+  default     = ""
 }

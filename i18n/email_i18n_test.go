@@ -22,9 +22,26 @@ func TestEmailContentLocalized(t *testing.T) {
 
 	keys := []string{
 		MsgEmailVerifySubject,
+		MsgEmailVerifyHeading,
 		MsgEmailVerifyContent,
+		MsgEmailVerifyAction,
+		MsgEmailVerifyAlternative,
+		MsgEmailVerifyCodeLabel,
+		MsgEmailVerifyExpiry,
+		MsgEmailVerifyIgnore,
+		MsgEmailVerifyFooter,
+		MsgEmailVerifyLinkInvalid,
+		MsgEmailVerifyUnavailable,
 		MsgEmailResetSubject,
 		MsgEmailResetContent,
+	}
+	keysWithSystemName := map[string]bool{
+		MsgEmailVerifySubject: true,
+		MsgEmailVerifyHeading: true,
+		MsgEmailVerifyContent: true,
+		MsgEmailVerifyFooter:  true,
+		MsgEmailResetSubject:  true,
+		MsgEmailResetContent:  true,
 	}
 	langs := []string{LangEn, LangZhCN, LangZhTW, LangPt, LangEs, LangFr, LangRu, LangJa, LangVi}
 
@@ -42,8 +59,32 @@ func TestEmailContentLocalized(t *testing.T) {
 			if strings.Contains(out, "<no value>") {
 				t.Errorf("key %q lang %q has an unknown template field (<no value>): %s", key, lang, out)
 			}
-			if !strings.Contains(out, "flatkey") {
+			if keysWithSystemName[key] && !strings.Contains(out, "flatkey") {
 				t.Errorf("key %q lang %q did not render SystemName: %s", key, lang, out)
+			}
+		}
+	}
+
+	verificationCopyKeys := []string{
+		MsgEmailVerifyHeading,
+		MsgEmailVerifyContent,
+		MsgEmailVerifyAction,
+		MsgEmailVerifyAlternative,
+		MsgEmailVerifyCodeLabel,
+		MsgEmailVerifyExpiry,
+		MsgEmailVerifyIgnore,
+		MsgEmailVerifyFooter,
+		MsgEmailVerifyLinkInvalid,
+		MsgEmailVerifyUnavailable,
+	}
+	for _, key := range verificationCopyKeys {
+		en := Translate(LangEn, key, data)
+		for _, lang := range langs {
+			if lang == LangEn {
+				continue
+			}
+			if got := Translate(lang, key, data); got == en {
+				t.Errorf("verification copy key %q lang %q fell back to English: %q", key, lang, got)
 			}
 		}
 	}
@@ -69,9 +110,13 @@ func TestEmailContentLocalized(t *testing.T) {
 		}
 	}
 
-	// Content must carry the code / link / minutes through template data.
-	if got := Translate(LangEn, MsgEmailVerifyContent, data); !strings.Contains(got, "0b0442") || !strings.Contains(got, "10") {
-		t.Errorf("verification content missing code/minutes: %s", got)
+	// Localized copy fragments carry the intended template data; the shared
+	// renderer owns code and link placement.
+	if got := Translate(LangEn, MsgEmailVerifyHeading, data); !strings.Contains(got, "flatkey") {
+		t.Errorf("verification heading missing system name: %s", got)
+	}
+	if got := Translate(LangEn, MsgEmailVerifyExpiry, data); !strings.Contains(got, "10") {
+		t.Errorf("verification expiry missing minutes: %s", got)
 	}
 	if got := Translate(LangEn, MsgEmailResetContent, data); !strings.Contains(got, data["Link"].(string)) {
 		t.Errorf("reset content missing link: %s", got)

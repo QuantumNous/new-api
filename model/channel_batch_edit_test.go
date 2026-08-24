@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -34,7 +35,7 @@ func TestEditChannelsByIdsUpdatesModelsAndRebuildsAbilities(t *testing.T) {
 	require.NoError(t, DB.First(&before, "channel_id = ? AND model = ?", 101, "a-model").Error)
 
 	newModels := "b-model"
-	require.NoError(t, EditChannelsByIds([]int{101}, nil, &newModels, nil, nil, nil))
+	require.NoError(t, EditChannelsByIds([]int{101}, nil, &newModels, nil, nil, nil, nil))
 
 	// Old model ability removed.
 	var old Ability
@@ -72,7 +73,7 @@ func TestEditChannelsByIdsPriorityOnlySyncsAbilities(t *testing.T) {
 	require.NoError(t, ch.UpdateAbilities(nil))
 
 	newPriority := int64(7)
-	require.NoError(t, EditChannelsByIds([]int{102}, nil, nil, nil, &newPriority, nil))
+	require.NoError(t, EditChannelsByIds([]int{102}, nil, nil, nil, &newPriority, nil, nil))
 
 	var a Ability
 	require.NoError(t, DB.First(&a, "channel_id = ? AND model = ?", 102, "a-model").Error)
@@ -105,7 +106,7 @@ func TestEditChannelsByIdsModelMappingOnlyDoesNotTouchAbilities(t *testing.T) {
 	require.NoError(t, DB.Model(&Ability{}).Where("channel_id = ?", 103).Count(&beforeCount).Error)
 
 	mapping := `{"a-model":"x-model"}`
-	require.NoError(t, EditChannelsByIds([]int{103}, &mapping, nil, nil, nil, nil))
+	require.NoError(t, EditChannelsByIds([]int{103}, &mapping, nil, nil, nil, nil, nil))
 
 	var afterCount int64
 	require.NoError(t, DB.Model(&Ability{}).Where("channel_id = ?", 103).Count(&afterCount).Error)
@@ -121,8 +122,8 @@ func TestEditChannelsByIdsModelMappingOnlyDoesNotTouchAbilities(t *testing.T) {
 // issues no SQL.
 func TestEditChannelsByIdsEmptyIdsIsNoop(t *testing.T) {
 	setupCodexGovernanceTestDB(t)
-	require.NoError(t, EditChannelsByIds(nil, nil, nil, nil, nil, nil))
-	require.NoError(t, EditChannelsByIds([]int{}, nil, nil, nil, nil, nil))
+	require.NoError(t, EditChannelsByIds(nil, nil, nil, nil, nil, nil, nil))
+	require.NoError(t, EditChannelsByIds([]int{}, nil, nil, nil, nil, nil, nil))
 }
 
 // TestEditChannelsByIdsWeightOnlyUsesTargetedUpdate verifies that a weight-only
@@ -152,10 +153,86 @@ func TestEditChannelsByIdsWeightOnlyUsesTargetedUpdate(t *testing.T) {
 	require.Equal(t, uint(5), before.Weight)
 
 	zeroWeight := uint(0)
-	require.NoError(t, EditChannelsByIds([]int{104}, nil, nil, nil, nil, &zeroWeight))
+	require.NoError(t, EditChannelsByIds([]int{104}, nil, nil, nil, nil, &zeroWeight, nil))
 
 	var after Ability
 	require.NoError(t, DB.First(&after, "channel_id = ? AND model = ?", 104, "a-model").Error)
 	// weight=0 must be written (map-based Updates, not skipped as a struct zero-value)
 	require.Equal(t, uint(0), after.Weight)
+}
+
+func TestUpdateCodexFingerprintModeByIdsOffRemovesSettingKey(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+
+	setting := `{"force_format":true,"codex_fingerprint_mode":"session"}`
+	channel := &Channel{
+		Id:      105,
+		Type:    constant.ChannelTypeCodex,
+		Key:     "test-key",
+		Name:    "codex-channel",
+		Status:  common.ChannelStatusEnabled,
+		Models:  "gpt-5.4",
+		Group:   "default",
+		Setting: &setting,
+	}
+	require.NoError(t, DB.Create(channel).Error)
+
+	require.NoError(t, UpdateCodexFingerprintModeByIds([]int{channel.Id}, "off"))
+
+	var updated Channel
+	require.NoError(t, DB.First(&updated, channel.Id).Error)
+	require.NotNil(t, updated.Setting)
+	var decoded map[string]any
+	require.NoError(t, common.Unmarshal([]byte(*updated.Setting), &decoded))
+	require.Equal(t, true, decoded["force_format"])
+	require.NotContains(t, decoded, "codex_fingerprint_mode")
+}
+
+func TestUpdateCodexFingerprintModeByIdsEnablingMintsSeed(t *testing.T) {
+	setupCodexFingerprintSeedTestDB(t)
+	channel := insertCodexFingerprintSeedChannel(t, constant.ChannelTypeCodex, common.ChannelStatusEnabled, "")
+
+	require.NoError(t, UpdateCodexFingerprintModeByIds([]int{channel.Id}, "full"))
+
+	var updated Channel
+	require.NoError(t, DB.First(&updated, channel.Id).Error)
+	require.Equal(t, "full", updated.GetSetting().CodexFingerprintMode)
+	requireUUIDString(t, updated.CodexFingerprintSeed)
+}
+
+// TestEditChannelsByIdsMaxConcurrency verifies batch max_concurrency updates,
+// including writing 0 (clear the limit) which a struct-based Updates would skip.
+func TestEditChannelsByIdsMaxConcurrency(t *testing.T) {
+	setupCodexGovernanceTestDB(t)
+
+	for _, id := range []int{105, 106} {
+		require.NoError(t, DB.Create(&Channel{
+			Id:             id,
+			Type:           1,
+			Key:            "test-key",
+			Name:           "test-channel",
+			Status:         common.ChannelStatusEnabled,
+			Models:         "a-model",
+			Group:          "default",
+			MaxConcurrency: 7,
+		}).Error)
+	}
+
+	limit := 3
+	require.NoError(t, EditChannelsByIds([]int{105, 106}, nil, nil, nil, nil, nil, &limit))
+	for _, id := range []int{105, 106} {
+		var updated Channel
+		require.NoError(t, DB.First(&updated, id).Error)
+		require.Equal(t, 3, updated.MaxConcurrency)
+	}
+
+	clear := 0
+	require.NoError(t, EditChannelsByIds([]int{105}, nil, nil, nil, nil, nil, &clear))
+	var cleared Channel
+	require.NoError(t, DB.First(&cleared, 105).Error)
+	require.Equal(t, 0, cleared.MaxConcurrency)
+
+	var untouched Channel
+	require.NoError(t, DB.First(&untouched, 106).Error)
+	require.Equal(t, 3, untouched.MaxConcurrency)
 }

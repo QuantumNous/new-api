@@ -4,6 +4,8 @@ Date: 2026-06-24
 Repository: `SolveaCX/new-api`
 Environment: GCP project `vocai-gemini-prod`, region `us-west1`
 
+> **Historical rollout plan — completed.** Production now uses `newapi-console` and `newapi-router`; the legacy monolithic `newapi` runtime is decommissioned (`enable_legacy_runtime=false`) and `newapi-console` is the URL map default backend. The transitional legacy deployment and rollback steps below are retained only as historical context and must not be used as current operations guidance. See `deploy/gcp/docs/DEPLOYMENT.md` and `deploy/gcp/docs/OPERATIONS.md` for the active runbook.
+
 ## Objective
 
 Split the Go new-api runtime into separately deployed Cloud Run services for model traffic and console traffic while keeping the existing website service unchanged:

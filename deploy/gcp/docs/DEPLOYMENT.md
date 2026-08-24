@@ -13,6 +13,8 @@
 
 Go app workflow 构建同一份 Go 镜像；生产部署必须经过 `production` Environment 审批。push 到 `main` 后会在同一个 run 里挂出 `deploy console` 和 `deploy router` 两个审批 job；有权限的人 approve 哪个，哪个才会真正部署。不要把 website 变更放到 Go workflow，也不要在 `web/default` 里恢复公开网站页面。
 
+Legacy monolithic `newapi` 已下线（`enable_legacy_runtime=false`），不属于日常发布或回滚目标。生产 Go 服务只发布 `newapi-console` 和 `newapi-router`；URL map 未命中 host rule 时回退到 `newapi-console`。
+
 ## 日常发布
 
 ### 触发方式
@@ -54,6 +56,21 @@ workflow_dispatch deploy_target=console/router/both
 - `deploy-console` 和 `deploy-router` 是两个独立 job，GitHub Actions 图里会分别显示；push run 会同时挂出两个审批 job，手动 run 则按 `deploy_target` 挂出目标 job。
 - 如果代码改动同时影响 console/router，两边都要发布并验证；不要只看一个域名。
 - router 承载 LLM API/relay 真实流量，只有 review 明确要求时才 approve `deploy router`。
+
+### Recall identity migration maintenance window
+
+This release's `recall_recipients.recipient_identity` schema swap is not safe for normal mixed-version rolling deployment. You must deploy both Go targets, `newapi-console` and `newapi-router`, with the same image during one maintenance window.
+
+Runbook:
+
+1. In the admin console, set `recall_campaign_setting.enabled=false` before approving production deploys.
+2. Wait at least 60 seconds and confirm Recall is drained: no new campaigns are running and no active recipient/message lease remains.
+3. Approve/deploy `newapi-console` first. This master service performs startup migration, backfills `recipient_identity`, creates `idx_recall_campaign_identity`, and removes `idx_recall_campaign_user`.
+4. Verify the migration result before deploying router: no empty `recipient_identity` values remain, the new unique index exists, and the legacy unique index has been removed.
+5. Approve/deploy `newapi-router` with the same image.
+6. Confirm no old revision is serving Recall-capable traffic, then re-enable Recall in the admin console.
+
+Do not roll back to an old binary while Recall is enabled after this migration. If there is a fault, keep Recall disabled and roll forward with a fixed image; old binaries do not write `recipient_identity` and can conflict with the migrated schema.
 
 ### Website 发布流程
 
@@ -227,6 +244,38 @@ router_domains  = ["router.flatkey.ai"]
 - `flatkey.ai` / `www.flatkey.ai`：Proxied。官网入口。
 
 Cloudflare “origin IP partially exposed” warning 在当前混合模式下是预期现象，不是必须修复项。
+
+### Flatkey asset bucket rollout
+
+The Flatkey asset buckets are infrastructure only. Do not run `terraform apply`
+as part of a normal app deployment, and do not use Terraform to roll app images
+or live env backward.
+
+First rollout order:
+
+1. Review Terraform locally from `deploy/gcp/envs/prod`; do not use CI infra
+   plan as the only source of truth.
+2. After an approved infrastructure window, an operator with Owner ADC applies
+   the bucket/IAM changes. This task does not perform that apply.
+3. Deploy `newapi-console` and `newapi-router` through `gcp-deploy.yml`; the
+   workflow injects `ASSET_STORAGE_BUCKET=vocai-gemini-prod-flatkey-assets` into
+   each new production revision.
+4. For staging, enable/apply staging infrastructure only when desired, then use
+   `gcp-deploy-staging.yml`; it injects
+   `ASSET_STORAGE_BUCKET=vocai-gemini-prod-flatkey-assets-staging`.
+
+Rollback:
+
+- Bad application behavior: roll back the affected Cloud Run service revision.
+- Bad env value: deploy a corrected revision with the workflow or use
+  `gcloud run services update --update-env-vars=ASSET_STORAGE_BUCKET=...`, then
+  move traffic to the new revision.
+- Bad bucket/IAM provisioning: fix Terraform and apply in the infrastructure
+  lane. Do not make the bucket public and do not grant project-wide Storage
+  Admin or broader bucket admin roles to repair runtime access.
+
+Signed URLs are short-lived runtime artifacts. They must not be logged, stored in
+task payloads, copied into GitHub summaries, or written to Terraform state.
 
 ## 密钥与凭据管理
 

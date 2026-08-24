@@ -22,9 +22,12 @@ import { type TFunction } from 'i18next'
 /**
  * Base navigation item type
  */
+export type NavBadgeVariant = 'default' | 'promotion'
+
 type BaseNavItem = {
   title: string
   badge?: string
+  badgeVariant?: NavBadgeVariant
   icon?: React.ElementType
   activeUrls?: (LinkProps['to'] | (string & {}))[]
   configUrls?: (LinkProps['to'] | (string & {}))[]

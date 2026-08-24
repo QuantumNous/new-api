@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
@@ -38,6 +39,9 @@ type oidcUser struct {
 	Name              string `json:"name"`
 	PreferredUsername string `json:"preferred_username"`
 	Picture           string `json:"picture"`
+	// EmailVerified follows the OIDC standard email_verified claim; use the
+	// lenient BoolValue so both JSON boolean and "true"/"false" strings parse.
+	EmailVerified dto.BoolValue `json:"email_verified"`
 }
 
 func (p *OIDCProvider) GetName() string {
@@ -156,6 +160,9 @@ func (p *OIDCProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAu
 		Username:       oidcUser.PreferredUsername,
 		DisplayName:    oidcUser.Name,
 		Email:          oidcUser.Email,
+		// Honor the OIDC email_verified claim; absent/false means the address
+		// must still be verified through the standard flow.
+		EmailVerified: oidcUser.Email != "" && bool(oidcUser.EmailVerified),
 	}, nil
 }
 

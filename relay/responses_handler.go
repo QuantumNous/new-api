@@ -20,12 +20,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// responsesCompactAPITypeAllowed 报告某 api type 是否允许走 /v1/responses/compact。
+// 单点白名单，便于测试与维护。
+func responsesCompactAPITypeAllowed(apiType int) bool {
+	switch apiType {
+	case appconstant.APITypeOpenAI, appconstant.APITypeCodex, appconstant.APITypeGrokSubscription:
+		return true
+	default:
+		return false
+	}
+}
+
 func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
-		switch info.ApiType {
-		case appconstant.APITypeOpenAI, appconstant.APITypeCodex:
-		default:
+		if !responsesCompactAPITypeAllowed(info.ApiType) {
 			return types.NewErrorWithStatusCode(
 				fmt.Errorf("unsupported endpoint %q for api type %d", "/v1/responses/compact", info.ApiType),
 				types.ErrorCodeInvalidRequest,
@@ -35,20 +44,10 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		}
 	}
 
-	var responsesReq *dto.OpenAIResponsesRequest
-	switch req := info.Request.(type) {
-	case *dto.OpenAIResponsesRequest:
-		responsesReq = req
-	case *dto.OpenAIResponsesCompactionRequest:
-		responsesReq = &dto.OpenAIResponsesRequest{
-			Model:              req.Model,
-			Input:              req.Input,
-			Instructions:       req.Instructions,
-			PreviousResponseID: req.PreviousResponseID,
-		}
-	default:
+	responsesReq, err := normalizeOpenAIResponsesRequest(info.Request)
+	if err != nil {
 		return types.NewErrorWithStatusCode(
-			fmt.Errorf("invalid request type, expected dto.OpenAIResponsesRequest or dto.OpenAIResponsesCompactionRequest, got %T", info.Request),
+			err,
 			types.ErrorCodeInvalidRequest,
 			http.StatusBadRequest,
 			types.ErrOptionWithSkipRetry(),
@@ -135,6 +134,13 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
+		if info.ChannelType == appconstant.ChannelTypeCodex && c.Writer.Written() {
+			if usageDto, ok := usage.(*dto.Usage); ok && usageDto != nil && usageDto.TotalTokens > 0 {
+				if settleErr := service.PostTextConsumeQuotaOnError(c, info, usageDto, []string{"Codex 流式响应部分输出后失败，按已返回 usage 结算"}); settleErr != nil {
+					logger.LogError(c, "failed to settle delivered Codex response usage: "+settleErr.Error())
+				}
+			}
+		}
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError
@@ -164,6 +170,18 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		service.PostTextConsumeQuota(c, info, usageDto, nil)
 	}
 	return nil
+}
+
+func normalizeOpenAIResponsesRequest(request any) (*dto.OpenAIResponsesRequest, error) {
+	switch req := request.(type) {
+	case *dto.OpenAIResponsesRequest:
+		return req, nil
+	case *dto.OpenAIResponsesCompactionRequest:
+		normalized := dto.OpenAIResponsesRequest(*req)
+		return &normalized, nil
+	default:
+		return nil, fmt.Errorf("invalid request type, expected dto.OpenAIResponsesRequest or dto.OpenAIResponsesCompactionRequest, got %T", request)
+	}
 }
 
 func shouldPassThroughResponsesRequest(info *relaycommon.RelayInfo) bool {

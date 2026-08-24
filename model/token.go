@@ -13,25 +13,40 @@ import (
 )
 
 var ErrUserTokenLimitReached = errors.New("user token limit reached")
+var ErrTokenBatchInvalid = errors.New("token batch contains missing or unauthorized token")
+var ErrTokenBatchCacheInvalidation = errors.New("token cache invalidation failed")
+var ErrTokenPermissionUpdatePending = errors.New("token permission update pending")
+
+const (
+	maxBatchTokenModelRuleItems   = 512
+	maxBatchTokenModelRulesLength = 32 * 1024
+)
 
 type Token struct {
-	Id                 int            `json:"id"`
-	UserId             int            `json:"user_id" gorm:"index"`
-	Key                string         `json:"key" gorm:"type:varchar(128);uniqueIndex"`
-	Status             int            `json:"status" gorm:"default:1"`
-	Name               string         `json:"name" gorm:"index" `
-	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
-	AccessedTime       int64          `json:"accessed_time" gorm:"bigint"`
-	ExpiredTime        int64          `json:"expired_time" gorm:"bigint;default:-1"` // -1 means never expired
-	RemainQuota        int            `json:"remain_quota" gorm:"default:0"`
-	UnlimitedQuota     bool           `json:"unlimited_quota"`
-	ModelLimitsEnabled bool           `json:"model_limits_enabled"`
-	ModelLimits        string         `json:"model_limits" gorm:"type:text"`
-	AllowIps           *string        `json:"allow_ips" gorm:"default:''"`
-	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
-	Group              string         `json:"group" gorm:"default:''"`
-	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
-	DeletedAt          gorm.DeletedAt `gorm:"index"`
+	Id                    int            `json:"id"`
+	UserId                int            `json:"user_id" gorm:"index"`
+	Key                   string         `json:"key" gorm:"type:varchar(128);uniqueIndex"`
+	Status                int            `json:"status" gorm:"default:1"`
+	Name                  string         `json:"name" gorm:"index" `
+	CreatedTime           int64          `json:"created_time" gorm:"bigint"`
+	AccessedTime          int64          `json:"accessed_time" gorm:"bigint"`
+	ExpiredTime           int64          `json:"expired_time" gorm:"bigint;default:-1"` // -1 means never expired
+	RemainQuota           int            `json:"remain_quota" gorm:"default:0"`
+	UnlimitedQuota        bool           `json:"unlimited_quota"`
+	ModelLimitsEnabled    bool           `json:"model_limits_enabled"`
+	ModelLimits           string         `json:"model_limits" gorm:"type:text"`
+	ModelBlacklistEnabled bool           `json:"model_blacklist_enabled"`
+	ModelBlacklist        string         `json:"model_blacklist" gorm:"type:text"`
+	AllowIps              *string        `json:"allow_ips" gorm:"default:''"`
+	UsedQuota             int            `json:"used_quota" gorm:"default:0"` // used quota
+	Group                 string         `json:"group" gorm:"default:''"`
+	CrossGroupRetry       bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
+	Source                string         `json:"source" gorm:"index;default:''"`
+	DeviceIdHash          string         `json:"device_id_hash" gorm:"index;default:''"`
+	ClientName            string         `json:"client_name" gorm:"default:''"`
+	ClientVersion         string         `json:"client_version" gorm:"default:''"`
+	LastUsedClientAt      int64          `json:"last_used_client_at" gorm:"bigint;default:0"`
+	DeletedAt             gorm.DeletedAt `gorm:"index"`
 }
 
 func (token *Token) Clean() {
@@ -81,10 +96,13 @@ func (token *Token) GetIpLimits() []string {
 	return ipLimits
 }
 
-func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
+func GetAllUserTokens(userId int, startIdx int, num int, group string) ([]*Token, error) {
 	var tokens []*Token
-	var err error
-	err = DB.Where("user_id = ?", userId).Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
+	query := DB.Where("user_id = ?", userId)
+	if group != "" {
+		query = query.Where(&Token{Group: group})
+	}
+	err := query.Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
 	return tokens, err
 }
 
@@ -127,7 +145,7 @@ func sanitizeLikePattern(input string) (string, error) {
 
 const searchHardLimit = 100
 
-func SearchUserTokens(userId int, keyword string, token string, offset int, limit int) (tokens []*Token, total int64, err error) {
+func SearchUserTokens(userId int, keyword string, token string, group string, status int, offset int, limit int) (tokens []*Token, total int64, err error) {
 	// model 层强制截断
 	if limit <= 0 || limit > searchHardLimit {
 		limit = searchHardLimit
@@ -155,6 +173,9 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 	}
 
 	baseQuery := DB.Model(&Token{}).Where("user_id = ?", userId)
+	if group != "" {
+		baseQuery = baseQuery.Where(&Token{Group: group})
+	}
 
 	// 非空才加 LIKE 条件，空则跳过（不过滤该字段）
 	if keyword != "" {
@@ -170,6 +191,10 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 			return nil, 0, err
 		}
 		baseQuery = baseQuery.Where(commonKeyCol+" LIKE ? ESCAPE '!'", tokenPattern)
+	}
+	if status != 0 {
+		condition, args := effectiveTokenStatusCondition(status, common.GetTimestamp())
+		baseQuery = baseQuery.Where(condition, args...)
 	}
 
 	// 先查匹配总数（用于分页，受 maxTokens 上限保护，避免全表 COUNT）
@@ -194,13 +219,13 @@ func ValidateUserToken(key string) (token *Token, err error) {
 	}
 	token, err = GetTokenByKey(key, false)
 	if err == nil {
-		if token.Status == common.TokenStatusExhausted {
+		if token.Status == common.TokenStatusExhausted && !token.UnlimitedQuota {
 			return token, ErrTokenExhausted
 		}
 		if token.Status == common.TokenStatusExpired {
 			return token, ErrTokenExpired
 		}
-		if token.Status != common.TokenStatusEnabled {
+		if token.Status != common.TokenStatusEnabled && !(token.Status == common.TokenStatusExhausted && token.UnlimitedQuota) {
 			return token, ErrTokenUnavailable
 		}
 		if token.ExpiredTime != -1 && token.ExpiredTime < common.GetTimestamp() {
@@ -247,11 +272,19 @@ func GetTokenById(id int) (*Token, error) {
 		return nil, errors.New("id 为空！")
 	}
 	token := Token{Id: id}
+	fillFence := ""
+	if common.RedisEnabled {
+		var fenceErr error
+		fillFence, fenceErr = captureTokenCacheFillFence()
+		if fenceErr != nil {
+			common.SysLog("failed to capture token cache fill fence: " + fenceErr.Error())
+		}
+	}
 	var err error = nil
 	err = DB.First(&token, "id = ?", id).Error
-	if shouldUpdateRedis(true, err) {
+	if shouldUpdateRedis(true, err) && fillFence != "" {
 		gopool.Go(func() {
-			if err := cacheSetToken(token); err != nil {
+			if err := cacheSetToken(token, fillFence); err != nil {
 				common.SysLog("failed to update user status cache: " + err.Error())
 			}
 		})
@@ -259,12 +292,26 @@ func GetTokenById(id int) (*Token, error) {
 	return &token, err
 }
 
+func InvalidateTokenCacheById(id int) error {
+	if id <= 0 || !common.RedisEnabled {
+		return nil
+	}
+	var token Token
+	if err := DB.Unscoped().Select(commonKeyCol).Where("id = ?", id).First(&token).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return cacheDeleteToken(token.Key)
+}
+
 func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
+	fillFence := ""
 	defer func() {
 		// Update Redis cache asynchronously on successful DB read
-		if shouldUpdateRedis(fromDB, err) && token != nil {
+		if shouldUpdateRedis(fromDB, err) && token != nil && fillFence != "" {
 			gopool.Go(func() {
-				if err := cacheSetToken(*token); err != nil {
+				if err := cacheSetToken(*token, fillFence); err != nil {
 					common.SysLog("failed to update user status cache: " + err.Error())
 				}
 			})
@@ -276,7 +323,17 @@ func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
 		if err == nil {
 			return token, nil
 		}
+		if errors.Is(err, ErrTokenPermissionUpdatePending) {
+			return nil, err
+		}
 		// Don't return error - fall through to DB
+	}
+	if common.RedisEnabled {
+		fillFence, err = captureTokenCacheFillFence()
+		if err != nil {
+			common.SysLog("failed to capture token cache fill fence: " + err.Error())
+			fillFence = ""
+		}
 	}
 	fromDB = true
 	err = DB.Where(commonKeyCol+" = ?", key).First(&token).Error
@@ -310,21 +367,16 @@ func CreateUserTokenWithInviteReward(userId int, token *Token, maxTokens int, tr
 		return errors.New("token 为空！")
 	}
 
-	var rewardResult inviteRewardGrantResult
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		if err := createUserTokenInTx(tx, userId, token, maxTokens); err != nil {
 			return err
 		}
-		var err error
-		rewardResult, err = tryGrantInviteRewardInTx(tx, userId, token.Id, triggerType)
-		return err
+		return validateTokenCreateInviteRewardTrigger(triggerType)
 	})
-	if err != nil {
-		return err
-	}
-	runInviteRewardPostCommitHooks(rewardResult)
-	return nil
+	return err
 }
+
+const TokenSourceCLI = "cli"
 
 func createUserTokenInTx(tx *gorm.DB, userId int, token *Token, maxTokens int) error {
 	var user User
@@ -373,15 +425,13 @@ func EnsureInitialUserTokenWithInviteReward(userId int, token Token, maxTokens i
 	}
 
 	var created bool
-	var rewardResult inviteRewardGrantResult
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var err error
 		created, err = ensureInitialUserTokenInTx(tx, userId, &token, maxTokens)
 		if err != nil || !created {
 			return err
 		}
-		rewardResult, err = tryGrantInviteRewardInTx(tx, userId, token.Id, triggerType)
-		return err
+		return validateTokenCreateInviteRewardTrigger(triggerType)
 	})
 	if err != nil {
 		return nil, false, err
@@ -389,7 +439,6 @@ func EnsureInitialUserTokenWithInviteReward(userId int, token Token, maxTokens i
 	if !created {
 		return nil, false, nil
 	}
-	runInviteRewardPostCommitHooks(rewardResult)
 	return &token, true, nil
 }
 
@@ -422,34 +471,63 @@ func ensureInitialUserTokenInTx(tx *gorm.DB, userId int, token *Token, maxTokens
 
 // Update Make sure your token's fields is completed, because this will update non-zero values
 func (token *Token) Update() (err error) {
+	fillFence := ""
+	if common.RedisEnabled {
+		fillFence, err = captureTokenCacheFillFence()
+		if err != nil {
+			common.SysLog("failed to capture token cache fill fence: " + err.Error())
+			fillFence = ""
+		}
+	}
+	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
+		"model_limits_enabled", "model_limits", "model_blacklist_enabled", "model_blacklist",
+		"allow_ips", "group", "cross_group_retry").Updates(token).Error
+	if shouldUpdateRedis(true, err) && fillFence != "" {
+		if _, cacheErr := cachePatchTokenAfterUpdate(*token, fillFence); cacheErr != nil {
+			common.SysLog("failed to update token cache: " + cacheErr.Error())
+		}
+	}
+	return err
+}
+
+// UpdateNonModelFields atomically updates form fields unrelated to model access.
+// When forcePLGGroup is true, it also enforces the PLG group invariant without
+// replaying the allowlist from a potentially stale client snapshot.
+func (token *Token) UpdateNonModelFields(forcePLGGroup bool) (err error) {
 	defer func() {
 		if shouldUpdateRedis(true, err) {
 			gopool.Go(func() {
-				err := cacheSetToken(*token)
-				if err != nil {
-					common.SysLog("failed to update token cache: " + err.Error())
+				if err := cacheDeleteToken(token.Key); err != nil {
+					common.SysLog("failed to invalidate token cache: " + err.Error())
 				}
 			})
 		}
 	}()
-	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
-		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry").Updates(token).Error
+	columns := []string{"name", "expired_time", "remain_quota", "unlimited_quota", "allow_ips"}
+	if forcePLGGroup {
+		columns = append(columns, "group", "cross_group_retry")
+	}
+	err = DB.Model(token).Select(columns).Updates(token).Error
 	return err
 }
 
 func (token *Token) SelectUpdate() (err error) {
-	defer func() {
-		if shouldUpdateRedis(true, err) {
-			gopool.Go(func() {
-				err := cacheSetToken(*token)
-				if err != nil {
-					common.SysLog("failed to update token cache: " + err.Error())
-				}
-			})
+	fillFence := ""
+	if common.RedisEnabled {
+		fillFence, err = captureTokenCacheFillFence()
+		if err != nil {
+			common.SysLog("failed to capture token cache fill fence: " + err.Error())
+			fillFence = ""
 		}
-	}()
+	}
 	// This can update zero values
-	return DB.Model(token).Select("accessed_time", "status").Updates(token).Error
+	err = DB.Model(token).Select("accessed_time", "status").Updates(token).Error
+	if shouldUpdateRedis(true, err) && fillFence != "" {
+		if _, cacheErr := cachePatchTokenAfterSelectUpdate(*token, fillFence); cacheErr != nil {
+			common.SysLog("failed to update token cache: " + cacheErr.Error())
+		}
+	}
+	return err
 }
 
 func (token *Token) Delete() (err error) {
@@ -485,6 +563,22 @@ func (token *Token) GetModelLimitsMap() map[string]bool {
 		limitsMap[limit] = true
 	}
 	return limitsMap
+}
+
+func (token *Token) GetModelBlacklist() []string {
+	if token.ModelBlacklist == "" {
+		return []string{}
+	}
+	return strings.Split(token.ModelBlacklist, ",")
+}
+
+func (token *Token) GetModelBlacklistMap() map[string]bool {
+	blacklist := token.GetModelBlacklist()
+	blacklistMap := make(map[string]bool, len(blacklist))
+	for _, blockedModel := range blacklist {
+		blacklistMap[blockedModel] = true
+	}
+	return blacklistMap
 }
 
 func DisableModelLimits(tokenId int) error {
@@ -577,6 +671,318 @@ func CountUserTokens(userId int) (int64, error) {
 	return total, err
 }
 
+func CountUserTokensByGroup(userId int, group string) (int64, error) {
+	if group == "" {
+		return CountUserTokens(userId)
+	}
+	var total int64
+	err := DB.Model(&Token{}).
+		Where("user_id = ?", userId).
+		Where(&Token{Group: group}).
+		Count(&total).Error
+	return total, err
+}
+
+type BatchUpdateTokensParams struct {
+	Ids                   []int
+	UserId                int
+	Group                 *string
+	RemainQuota           *int
+	ModelLimitsEnabled    *bool
+	ModelLimits           *string
+	ModelBlacklistEnabled *bool
+	ModelBlacklist        *string
+}
+
+func normalizeBatchTokenModelRules(raw string) (string, error) {
+	parts := strings.Split(raw, ",")
+	normalized := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	serializedLength := 0
+	for _, part := range parts {
+		modelName := strings.TrimSpace(part)
+		if modelName == "" {
+			continue
+		}
+		if _, exists := seen[modelName]; exists {
+			continue
+		}
+		if len(normalized) >= maxBatchTokenModelRuleItems {
+			return "", ErrTokenBatchInvalid
+		}
+		if len(normalized) > 0 {
+			serializedLength++
+		}
+		serializedLength += len(modelName)
+		if serializedLength > maxBatchTokenModelRulesLength {
+			return "", ErrTokenBatchInvalid
+		}
+		seen[modelName] = struct{}{}
+		normalized = append(normalized, modelName)
+	}
+	return strings.Join(normalized, ","), nil
+}
+
+func BatchUpdateTokens(params BatchUpdateTokensParams) (int, error) {
+	if len(params.Ids) == 0 || len(params.Ids) > 100 || params.UserId <= 0 {
+		return 0, ErrTokenBatchInvalid
+	}
+	modelLimitsProvided := params.ModelLimitsEnabled != nil || params.ModelLimits != nil
+	modelBlacklistProvided := params.ModelBlacklistEnabled != nil || params.ModelBlacklist != nil
+	if params.Group == nil && params.RemainQuota == nil && !modelLimitsProvided && !modelBlacklistProvided {
+		return 0, ErrTokenBatchInvalid
+	}
+	if (params.ModelLimitsEnabled == nil) != (params.ModelLimits == nil) {
+		return 0, ErrTokenBatchInvalid
+	}
+	if (params.ModelBlacklistEnabled == nil) != (params.ModelBlacklist == nil) {
+		return 0, ErrTokenBatchInvalid
+	}
+	if params.Group != nil && *params.Group == "" {
+		return 0, ErrTokenBatchInvalid
+	}
+	seen := make(map[int]struct{}, len(params.Ids))
+	for _, id := range params.Ids {
+		if id <= 0 {
+			return 0, ErrTokenBatchInvalid
+		}
+		if _, exists := seen[id]; exists {
+			return 0, ErrTokenBatchInvalid
+		}
+		seen[id] = struct{}{}
+	}
+	if params.RemainQuota != nil {
+		maxQuotaValue := int(1000000000 * common.QuotaPerUnit)
+		if *params.RemainQuota < 0 || *params.RemainQuota > maxQuotaValue {
+			return 0, ErrTokenBatchInvalid
+		}
+	}
+	if params.ModelLimitsEnabled != nil {
+		if !*params.ModelLimitsEnabled {
+			*params.ModelLimits = ""
+		} else {
+			normalized, err := normalizeBatchTokenModelRules(*params.ModelLimits)
+			if err != nil {
+				return 0, err
+			}
+			*params.ModelLimits = normalized
+		}
+	}
+	if params.ModelBlacklistEnabled != nil {
+		if !*params.ModelBlacklistEnabled {
+			*params.ModelBlacklist = ""
+		} else {
+			normalized, err := normalizeBatchTokenModelRules(*params.ModelBlacklist)
+			if err != nil {
+				return 0, err
+			}
+			*params.ModelBlacklist = normalized
+		}
+	}
+
+	var tokenKeys []string
+	permissionUpdateGuard := ""
+	requiresPermissionCacheInvalidation := params.RemainQuota != nil || params.ModelLimitsEnabled != nil || params.ModelBlacklistEnabled != nil
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var tokens []Token
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id", "key").
+			Where("user_id = ? AND id IN ?", params.UserId, params.Ids).
+			Find(&tokens).Error; err != nil {
+			return err
+		}
+		if len(tokens) != len(params.Ids) {
+			return ErrTokenBatchInvalid
+		}
+
+		tokenKeys = make([]string, 0, len(tokens))
+		for _, token := range tokens {
+			tokenKeys = append(tokenKeys, token.Key)
+		}
+		if common.RedisEnabled && requiresPermissionCacheInvalidation {
+			guard, err := beginTokenPermissionUpdate(tokenKeys)
+			if err != nil {
+				common.SysLog(fmt.Sprintf("failed to prepare %d token caches before batch token update", len(tokenKeys)))
+				return ErrTokenBatchCacheInvalidation
+			}
+			permissionUpdateGuard = guard
+		}
+		updates := make(map[string]interface{}, 4)
+		if params.Group != nil {
+			updates["group"] = *params.Group
+			if *params.Group == plgUserGroup {
+				updates["cross_group_retry"] = false
+			}
+		}
+		if params.ModelLimitsEnabled != nil {
+			updates["model_limits_enabled"] = *params.ModelLimitsEnabled
+			updates["model_limits"] = *params.ModelLimits
+		}
+		if params.ModelBlacklistEnabled != nil {
+			updates["model_blacklist_enabled"] = *params.ModelBlacklistEnabled
+			updates["model_blacklist"] = *params.ModelBlacklist
+		}
+		if len(updates) > 0 {
+			result := tx.Model(&Token{}).
+				Where("user_id = ? AND id IN ?", params.UserId, params.Ids).
+				Updates(updates)
+			if result.Error != nil {
+				return result.Error
+			}
+		}
+		if params.RemainQuota != nil {
+			result := tx.Model(&Token{}).
+				Where("user_id = ? AND id IN ? AND unlimited_quota = ?", params.UserId, params.Ids, false).
+				Update("remain_quota", *params.RemainQuota)
+			if result.Error != nil {
+				return result.Error
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if permissionUpdateGuard != "" {
+			if cleanupErr := finishTokenPermissionUpdate(tokenKeys, permissionUpdateGuard); cleanupErr != nil {
+				common.SysLog(fmt.Sprintf("failed to release %d pending token permission updates after batch rollback", len(tokenKeys)))
+			}
+		}
+		return 0, err
+	}
+
+	if common.RedisEnabled {
+		var err error
+		if requiresPermissionCacheInvalidation {
+			err = finishTokenPermissionUpdate(tokenKeys, permissionUpdateGuard)
+		} else {
+			err = cachePatchTokenGroups(tokenKeys, *params.Group)
+		}
+		if err != nil {
+			common.SysLog(fmt.Sprintf("failed to invalidate %d token caches after batch token update", len(tokenKeys)))
+			return len(params.Ids), ErrTokenBatchCacheInvalidation
+		}
+	}
+	return len(params.Ids), nil
+}
+
+func BatchUpdateTokenGroup(ids []int, userId int, group string) (int, error) {
+	return BatchUpdateTokens(BatchUpdateTokensParams{
+		Ids:    ids,
+		UserId: userId,
+		Group:  &group,
+	})
+}
+
+// UserTokenStats contains account-wide API token counts grouped by status.
+type UserTokenStats struct {
+	Total     int64 `json:"total"`
+	Enabled   int64 `json:"enabled"`
+	Disabled  int64 `json:"disabled"`
+	Expired   int64 `json:"expired"`
+	Exhausted int64 `json:"exhausted"`
+}
+
+// GetEffectiveTokenStatus returns the status enforced by ValidateUserToken without
+// persisting lifecycle transitions. Explicitly disabled tokens stay disabled;
+// expiration takes precedence over quota exhaustion for otherwise usable tokens.
+func GetEffectiveTokenStatus(token *Token, now int64) int {
+	if token == nil {
+		return common.TokenStatusDisabled
+	}
+	if token.Status == common.TokenStatusExhausted && !token.UnlimitedQuota {
+		return common.TokenStatusExhausted
+	}
+	if token.Status == common.TokenStatusExpired {
+		return common.TokenStatusExpired
+	}
+	if token.Status != common.TokenStatusEnabled &&
+		!(token.Status == common.TokenStatusExhausted && token.UnlimitedQuota) {
+		return common.TokenStatusDisabled
+	}
+	if token.ExpiredTime != -1 && token.ExpiredTime < now {
+		return common.TokenStatusExpired
+	}
+	if !token.UnlimitedQuota && token.RemainQuota <= 0 {
+		return common.TokenStatusExhausted
+	}
+	return common.TokenStatusEnabled
+}
+
+func effectiveTokenStatusCondition(status int, now int64) (string, []any) {
+	switch status {
+	case common.TokenStatusEnabled:
+		return `((status = ? OR (status = ? AND unlimited_quota = ?))
+			AND (expired_time = -1 OR expired_time >= ?)
+			AND (unlimited_quota = ? OR remain_quota > 0))`, []any{
+				common.TokenStatusEnabled,
+				common.TokenStatusExhausted,
+				true,
+				now,
+				true,
+			}
+	case common.TokenStatusDisabled:
+		return `(status NOT IN (?, ?, ?))`, []any{
+			common.TokenStatusEnabled,
+			common.TokenStatusExpired,
+			common.TokenStatusExhausted,
+		}
+	case common.TokenStatusExpired:
+		return `(status = ?
+			OR ((status = ? OR (status = ? AND unlimited_quota = ?))
+				AND expired_time != -1 AND expired_time < ?))`, []any{
+				common.TokenStatusExpired,
+				common.TokenStatusEnabled,
+				common.TokenStatusExhausted,
+				true,
+				now,
+			}
+	case common.TokenStatusExhausted:
+		return `((status = ? AND unlimited_quota = ?)
+			OR (status = ?
+				AND (expired_time = -1 OR expired_time >= ?)
+				AND unlimited_quota = ? AND remain_quota <= 0))`, []any{
+				common.TokenStatusExhausted,
+				false,
+				common.TokenStatusEnabled,
+				now,
+				false,
+			}
+	default:
+		return "1 = 0", nil
+	}
+}
+
+// GetUserTokenStats returns account-wide effective status counts for one user.
+func GetUserTokenStats(userId int) (UserTokenStats, error) {
+	now := common.GetTimestamp()
+	enabledCondition, enabledArgs := effectiveTokenStatusCondition(common.TokenStatusEnabled, now)
+	expiredCondition, expiredArgs := effectiveTokenStatusCondition(common.TokenStatusExpired, now)
+	exhaustedCondition, exhaustedArgs := effectiveTokenStatusCondition(common.TokenStatusExhausted, now)
+	queryArgs := make([]any, 0, len(enabledArgs)+len(expiredArgs)+len(exhaustedArgs))
+	queryArgs = append(queryArgs, enabledArgs...)
+	queryArgs = append(queryArgs, expiredArgs...)
+	queryArgs = append(queryArgs, exhaustedArgs...)
+
+	var stats UserTokenStats
+	err := DB.Model(&Token{}).
+		Select(fmt.Sprintf(`
+			COUNT(*) AS total,
+			COALESCE(SUM(CASE WHEN %s THEN 1 ELSE 0 END), 0) AS enabled,
+			COALESCE(SUM(CASE WHEN %s THEN 1 ELSE 0 END), 0) AS expired,
+			COALESCE(SUM(CASE WHEN %s THEN 1 ELSE 0 END), 0) AS exhausted`,
+			enabledCondition,
+			expiredCondition,
+			exhaustedCondition,
+		), queryArgs...).
+		Where("user_id = ?", userId).
+		Scan(&stats).Error
+	if err != nil {
+		return UserTokenStats{}, err
+	}
+
+	stats.Disabled = stats.Total - stats.Enabled - stats.Expired - stats.Exhausted
+	return stats, nil
+}
+
 // BatchDeleteTokens 删除指定用户的一组令牌，返回成功删除数量
 func BatchDeleteTokens(ids []int, userId int) (int, error) {
 	if len(ids) == 0 {
@@ -602,8 +1008,12 @@ func BatchDeleteTokens(ids []int, userId int) (int, error) {
 
 	if common.RedisEnabled {
 		gopool.Go(func() {
-			for _, t := range tokens {
-				_ = cacheDeleteToken(t.Key)
+			keys := make([]string, 0, len(tokens))
+			for _, token := range tokens {
+				keys = append(keys, token.Key)
+			}
+			if err := cacheDeleteTokens(keys); err != nil {
+				common.SysLog("failed to invalidate deleted token caches: " + err.Error())
 			}
 		})
 	}
@@ -636,14 +1046,12 @@ func InvalidateUserTokensCache(userId int) error {
 		Find(&tokens).Error; err != nil {
 		return err
 	}
-	var firstErr error
+	keys := make([]string, 0, len(tokens))
 	for _, t := range tokens {
 		if t.Key == "" {
 			continue
 		}
-		if err := cacheDeleteToken(t.Key); err != nil && firstErr == nil {
-			firstErr = err
-		}
+		keys = append(keys, t.Key)
 	}
-	return firstErr
+	return cacheDeleteTokens(keys)
 }

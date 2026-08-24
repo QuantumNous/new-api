@@ -52,6 +52,8 @@ const (
 	ErrorCodeDoRequestFailed            ErrorCode = "do_request_failed"
 	ErrorCodeGetChannelFailed           ErrorCode = "get_channel_failed"
 	ErrorCodeGenRelayInfoFailed         ErrorCode = "gen_relay_info_failed"
+	ErrorCodeBlockRunPaymentRejected    ErrorCode = "blockrun_payment_rejected"
+	ErrorCodeBlockRunSettlementUnknown  ErrorCode = "blockrun_settlement_unknown"
 
 	// channel error
 	ErrorCodeChannelNoAvailableKey        ErrorCode = "channel:no_available_key"
@@ -69,6 +71,33 @@ const (
 
 	// request error
 	ErrorCodeBadRequestBody ErrorCode = "bad_request_body"
+
+	// asset request error
+	ErrorCodeInvalidAssetRequest     ErrorCode = "invalid_asset_request"
+	ErrorCodeAssetNotFound           ErrorCode = "asset_not_found"
+	ErrorCodeAssetNotReady           ErrorCode = "asset_not_ready"
+	ErrorCodeAssetFailed             ErrorCode = "asset_failed"
+	ErrorCodeAssetChannelConflict    ErrorCode = "asset_channel_conflict"
+	ErrorCodeAssetChannelUnavailable ErrorCode = "asset_channel_unavailable"
+	ErrorCodeAssetGroupInitializing  ErrorCode = "asset_group_initializing"
+	ErrorCodeAssetUpstreamError      ErrorCode = "asset_upstream_error"
+	ErrorCodeAssetStorageError       ErrorCode = "asset_storage_error"
+	ErrorCodeAssetExpired            ErrorCode = "asset_expired"
+	ErrorCodeAssetTypeMismatch       ErrorCode = "asset_type_mismatch"
+
+	ErrorCodeInvalidRealPersonRequest     ErrorCode = "invalid_real_person_request"
+	ErrorCodeRealPersonNotFound           ErrorCode = "real_person_not_found"
+	ErrorCodeRealPersonNotActive          ErrorCode = "real_person_not_active"
+	ErrorCodeVerificationInProgress       ErrorCode = "verification_in_progress"
+	ErrorCodeIdempotencyConflict          ErrorCode = "idempotency_conflict"
+	ErrorCodeIdempotencyOutcomeUnknown    ErrorCode = "idempotency_outcome_unknown"
+	ErrorCodeAssetProfileConflict         ErrorCode = "asset_profile_conflict"
+	ErrorCodeAssetFileTooLarge            ErrorCode = "asset_file_too_large"
+	ErrorCodeAssetMediaUnsupported        ErrorCode = "asset_media_unsupported"
+	ErrorCodeAssetUploadFailed            ErrorCode = "asset_upload_failed"
+	ErrorCodeVerificationUpstreamError    ErrorCode = "verification_upstream_error"
+	ErrorCodeRealPersonChannelUnavailable ErrorCode = "real_person_channel_unavailable"
+	ErrorCodeRealPersonStorageError       ErrorCode = "real_person_storage_error"
 
 	// response error
 	ErrorCodeReadResponseBodyFailed ErrorCode = "read_response_body_failed"

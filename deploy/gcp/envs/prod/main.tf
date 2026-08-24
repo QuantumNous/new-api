@@ -9,10 +9,12 @@ locals {
     "iamcredentials.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "compute.googleapis.com",
+    "certificatemanager.googleapis.com",
     "run.googleapis.com",
     "sqladmin.googleapis.com",
     "redis.googleapis.com",
     "artifactregistry.googleapis.com",
+    "storage.googleapis.com",
     "secretmanager.googleapis.com",
     "monitoring.googleapis.com",
     "logging.googleapis.com",
@@ -20,6 +22,44 @@ locals {
     "servicenetworking.googleapis.com",
     "vpcaccess.googleapis.com",
   ]
+}
+
+// Adopt the production Certificate Manager resources created during the
+// 2026-08-12 zero-downtime certificate recovery. These import blocks are
+// idempotent after the resources enter Terraform state.
+import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate.managed[0]
+  id = "projects/vocai-gemini-prod/locations/global/certificates/flatkey-prod-cert"
+}
+
+import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate_map.managed[0]
+  id = "projects/vocai-gemini-prod/locations/global/certificateMaps/flatkey-prod-map"
+}
+
+import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate_map_entry.managed["flatkey.ai"]
+  id = "projects/vocai-gemini-prod/locations/global/certificateMaps/flatkey-prod-map/certificateMapEntries/flatkey-ai"
+}
+
+import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate_map_entry.managed["www.flatkey.ai"]
+  id = "projects/vocai-gemini-prod/locations/global/certificateMaps/flatkey-prod-map/certificateMapEntries/www-flatkey-ai"
+}
+
+import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate_map_entry.managed["one.flatkey.ai"]
+  id = "projects/vocai-gemini-prod/locations/global/certificateMaps/flatkey-prod-map/certificateMapEntries/one-flatkey-ai"
+}
+
+import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate_map_entry.managed["router.flatkey.ai"]
+  id = "projects/vocai-gemini-prod/locations/global/certificateMaps/flatkey-prod-map/certificateMapEntries/router-flatkey-ai"
+}
+
+import {
+  to = module.cloud_lb[0].google_certificate_manager_certificate_map_entry.managed["console.flatkey.ai"]
+  id = "projects/vocai-gemini-prod/locations/global/certificateMaps/flatkey-prod-map/certificateMapEntries/console-flatkey-ai"
 }
 
 module "apis" {
@@ -67,7 +107,8 @@ module "cloud_sql" {
 
   # 2c/4GB -> 4c/16GB (2026-06-12): logs analytics queries thrash the buffer
   # pool; changing tier restarts the ZONAL instance (~2-5 min downtime).
-  tier = "db-custom-4-16384"
+  tier         = "db-custom-4-16384"
+  disk_size_gb = var.cloud_sql_disk_size_gb
 
   depends_on = [module.apis]
 }
@@ -105,6 +146,10 @@ resource "google_secret_manager_secret_version" "sql_dsn" {
     module.cloud_sql.connection_name,
     module.cloud_sql.database_name,
   )
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
 }
 
 resource "google_secret_manager_secret" "redis_url" {
@@ -140,6 +185,40 @@ resource "google_secret_manager_secret" "blockrun_usage_summary_token" {
   depends_on = [module.apis]
 }
 
+// Custom RunMonitoring config for Google Managed Service for Prometheus.
+// Cloud Run sidecar's built-in default scrapes port 8080, but new-api serves
+// metrics on port 3000, so the router mounts this as /etc/rungmp/config.yaml.
+resource "google_secret_manager_secret" "prometheus_run_monitoring_config" {
+  project   = var.project_id
+  secret_id = "newapi-router-run-monitoring-config"
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [module.apis]
+}
+
+resource "google_secret_manager_secret_version" "prometheus_run_monitoring_config" {
+  secret      = google_secret_manager_secret.prometheus_run_monitoring_config.id
+  secret_data = <<-EOT
+    apiVersion: monitoring.googleapis.com/v1beta
+    kind: RunMonitoring
+    metadata:
+      name: newapi-router
+    spec:
+      endpoints:
+      - port: 3000
+        path: /metrics
+        interval: 30s
+      targetLabels:
+        metadata:
+        - instance
+        - service
+        - revision
+  EOT
+}
+
 module "service_accounts" {
   source     = "../../modules/service-accounts"
   project_id = var.project_id
@@ -150,6 +229,7 @@ module "service_accounts" {
       google_secret_manager_secret.sql_dsn.secret_id,
       google_secret_manager_secret.redis_url.secret_id,
       google_secret_manager_secret.blockrun_usage_summary_token.secret_id,
+      google_secret_manager_secret.prometheus_run_monitoring_config.secret_id,
     ],
   )
 
@@ -190,8 +270,10 @@ module "cloud_run" {
   // so a plain `terraform apply` before then never injects a versionless secret.
   usage_recon_token_secret_id = var.enable_usage_recon_token ? google_secret_manager_secret.blockrun_usage_summary_token.secret_id : ""
 
-  frontend_base_url = var.frontend_base_url
-  custom_domains    = var.custom_domains
+  frontend_base_url           = var.frontend_base_url
+  custom_domains              = var.custom_domains
+  asset_storage_bucket        = google_storage_bucket.flatkey_assets.name
+  video_result_storage_bucket = google_storage_bucket.video_results.name
 
   // Scaling override（2026-05-25）：
   //   - 当前 ~2% 5xx 基线，监控显示高峰仅 2 个实例运行（远低于 maxScale=10）
@@ -206,6 +288,7 @@ module "cloud_run" {
     module.apis,
     google_secret_manager_secret_version.sql_dsn,
     google_secret_manager_secret_version.redis_url,
+    google_storage_bucket_iam_member.runtime_video_results_object_user,
   ]
 }
 
@@ -233,18 +316,26 @@ module "cloud_run_router" {
 
   usage_recon_token_secret_id = var.enable_usage_recon_token ? google_secret_manager_secret.blockrun_usage_summary_token.secret_id : ""
 
-  frontend_base_url = var.frontend_base_url
-  custom_domains    = []
-  min_instances     = var.router_min_instances
-  max_instances     = var.router_max_instances
-  concurrency       = var.router_concurrency
-  memory            = var.router_memory
-  node_type         = "slave"
+  frontend_base_url           = var.frontend_base_url
+  custom_domains              = []
+  asset_storage_bucket        = google_storage_bucket.flatkey_assets.name
+  video_result_storage_bucket = google_storage_bucket.video_results.name
+  min_instances               = var.router_min_instances
+  max_instances               = var.router_max_instances
+  concurrency                 = var.router_concurrency
+  memory                      = var.router_memory
+  node_type                   = "slave"
+
+  prometheus_sidecar_enabled  = true
+  prometheus_config_secret_id = google_secret_manager_secret.prometheus_run_monitoring_config.secret_id
 
   depends_on = [
     module.apis,
+    module.service_accounts,
     google_secret_manager_secret_version.sql_dsn,
     google_secret_manager_secret_version.redis_url,
+    google_secret_manager_secret_version.prometheus_run_monitoring_config,
+    google_storage_bucket_iam_member.runtime_video_results_object_user,
   ]
 }
 
@@ -272,17 +363,20 @@ module "cloud_run_console" {
 
   usage_recon_token_secret_id = var.enable_usage_recon_token ? google_secret_manager_secret.blockrun_usage_summary_token.secret_id : ""
 
-  frontend_base_url = ""
-  custom_domains    = []
-  min_instances     = var.console_min_instances
-  max_instances     = var.console_max_instances
-  concurrency       = var.console_concurrency
-  node_type         = "master"
+  frontend_base_url           = ""
+  custom_domains              = []
+  asset_storage_bucket        = google_storage_bucket.flatkey_assets.name
+  video_result_storage_bucket = google_storage_bucket.video_results.name
+  min_instances               = var.console_min_instances
+  max_instances               = var.console_max_instances
+  concurrency                 = var.console_concurrency
+  node_type                   = "master"
 
   depends_on = [
     module.apis,
     google_secret_manager_secret_version.sql_dsn,
     google_secret_manager_secret_version.redis_url,
+    google_storage_bucket_iam_member.runtime_video_results_object_user,
   ]
 }
 
@@ -321,14 +415,15 @@ resource "google_project_iam_member" "web_runtime_metric_writer" {
 module "cloud_run_web" {
   count = var.enable_website ? 1 : 0
 
-  source             = "../../modules/cloud-run-web"
-  project_id         = var.project_id
-  region             = var.region
-  service_name       = var.website_service_name
-  runtime_sa_email   = google_service_account.web_runtime[0].email
-  app_console_origin = var.website_app_console_origin
-  router_origin      = var.website_router_origin
-  site_origin        = var.website_site_origin
+  source                = "../../modules/cloud-run-web"
+  project_id            = var.project_id
+  region                = var.region
+  service_name          = var.website_service_name
+  runtime_sa_email      = google_service_account.web_runtime[0].email
+  app_console_origin    = var.website_app_console_origin
+  router_origin         = var.website_router_origin
+  site_origin           = var.website_site_origin
+  cookie_session_domain = var.website_cookie_session_domain
 
   depends_on = [module.apis]
 }
@@ -336,12 +431,15 @@ module "cloud_run_web" {
 module "cloud_lb" {
   count = var.enable_load_balancer ? 1 : 0
 
-  source                 = "../../modules/cloud-lb"
-  project_id             = var.project_id
-  region                 = var.region
-  cloud_run_service_name = var.enable_legacy_runtime ? module.cloud_run.service_name : ""
-  default_backend        = var.lb_default_backend
-  domains                = var.lb_domains
+  source                               = "../../modules/cloud-lb"
+  project_id                           = var.project_id
+  region                               = var.region
+  cloud_run_service_name               = var.enable_legacy_runtime ? module.cloud_run.service_name : ""
+  default_backend                      = var.lb_default_backend
+  domains                              = var.lb_domains
+  certificate_map_name                 = var.certificate_map_name
+  certificate_manager_certificate_name = var.certificate_manager_certificate_name
+  certificate_dns_authorization_names  = var.certificate_dns_authorization_names
 
   // Host-based split: when the website is enabled, route var.website_domains to
   // the Next.js backend; all other hosts stay on the Go backend. Empty otherwise.
@@ -386,14 +484,19 @@ locals {
 }
 
 module "monitoring" {
-  source               = "../../modules/monitoring"
-  project_id           = var.project_id
-  region               = var.region
-  uptime_host          = local.uptime_host
-  alert_email          = var.alert_email
-  alert_emails         = var.alert_emails
-  router_service_name  = var.router_service_name
-  router_max_instances = var.router_max_instances
+  source                   = "../../modules/monitoring"
+  project_id               = var.project_id
+  region                   = var.region
+  uptime_host              = local.uptime_host
+  certificate_hosts        = toset(var.lb_domains)
+  alert_email              = var.alert_email
+  alert_emails             = var.alert_emails
+  router_service_name      = var.router_service_name
+  router_max_instances     = var.router_max_instances
+  console_service_name     = var.console_service_name
+  console_max_instances    = var.console_max_instances
+  cloudsql_instance_name   = module.cloud_sql.instance_name
+  cloudsql_max_connections = module.cloud_sql.max_connections
   redis_instance_id = format(
     "projects/%s/locations/%s/instances/newapi-redis",
     var.project_id,

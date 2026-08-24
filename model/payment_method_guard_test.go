@@ -7,8 +7,11 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/alicebob/miniredis/v2"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func insertUserForPaymentGuardTest(t *testing.T, id int, quota int) {
@@ -89,6 +92,39 @@ func getUserQuotaForPaymentGuardTest(t *testing.T, userID int) int {
 	return user.Quota
 }
 
+func setupPaymentGuardRedis(t *testing.T) *miniredis.Miniredis {
+	t.Helper()
+	mr := miniredis.RunT(t)
+	previousRDB := common.RDB
+	previousRedisEnabled := common.RedisEnabled
+	previousSyncFrequency := common.SyncFrequency
+	common.RDB = redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	common.RedisEnabled = true
+	common.SyncFrequency = 60
+	t.Cleanup(func() {
+		require.NoError(t, common.RDB.Close())
+		common.RDB = previousRDB
+		common.RedisEnabled = previousRedisEnabled
+		common.SyncFrequency = previousSyncFrequency
+	})
+	return mr
+}
+
+func cachePaymentGuardUser(t *testing.T, userID int) {
+	t.Helper()
+	var user User
+	require.NoError(t, DB.Where("id = ?", userID).First(&user).Error)
+	require.NoError(t, updateUserCache(user))
+}
+
+func markPaymentGuardTopUpAnalytics(t *testing.T, tradeNo string) {
+	t.Helper()
+	require.NoError(t, DB.Model(&TopUp{}).Where("trade_no = ?", tradeNo).Updates(map[string]any{
+		"ga_client_id":  "client." + tradeNo,
+		"ga_session_id": "session." + tradeNo,
+	}).Error)
+}
+
 func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	truncateTables(t)
 
@@ -102,6 +138,303 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	require.NotNil(t, topUp)
 	assert.Equal(t, common.TopUpStatusPending, topUp.Status)
 	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 101))
+}
+
+func TestManualCompleteTopUpRefreshesQuotaCacheAfterCommit(t *testing.T) {
+	truncateTables(t)
+	setupPaymentGuardRedis(t)
+
+	insertUserForPaymentGuardTest(t, 1801, 0)
+	insertTopUpForPaymentGuardTest(t, "manual-cache-guard", 1801, PaymentProviderStripe)
+	cachePaymentGuardUser(t, 1801)
+
+	require.NoError(t, ManualCompleteTopUp("manual-cache-guard", "127.0.0.1"))
+
+	cachedQuota, err := getUserQuotaCache(1801)
+	require.NoError(t, err)
+	require.Equal(t, int(2*common.QuotaPerUnit), cachedQuota)
+}
+
+func TestCreemRechargeRefreshesQuotaCacheAfterCommit(t *testing.T) {
+	truncateTables(t)
+	setupPaymentGuardRedis(t)
+
+	insertUserForPaymentGuardTest(t, 1802, 0)
+	insertTopUpForPaymentGuardTest(t, "creem-cache-guard", 1802, PaymentProviderCreem)
+	cachePaymentGuardUser(t, 1802)
+
+	require.NoError(t, RechargeCreem("creem-cache-guard", "", "", "127.0.0.1"))
+
+	cachedQuota, err := getUserQuotaCache(1802)
+	require.NoError(t, err)
+	require.Equal(t, 2, cachedQuota)
+}
+
+func TestProviderRechargeRefreshesQuotaCacheAfterCommit(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		userID   int
+		tradeNo  string
+		provider string
+		recharge func(string) (bool, error)
+	}{
+		{
+			name:     "waffo",
+			userID:   1803,
+			tradeNo:  "waffo-cache-guard",
+			provider: PaymentProviderWaffo,
+			recharge: func(tradeNo string) (bool, error) {
+				return RechargeWaffo(tradeNo, "127.0.0.1")
+			},
+		},
+		{
+			name:     "waffo_pancake",
+			userID:   1804,
+			tradeNo:  "waffo-pancake-cache-guard",
+			provider: PaymentProviderWaffoPancake,
+			recharge: func(tradeNo string) (bool, error) {
+				return RechargeWaffoPancake(tradeNo)
+			},
+		},
+		{
+			name:     "paddle",
+			userID:   1805,
+			tradeNo:  "paddle-cache-guard",
+			provider: PaymentProviderPaddle,
+			recharge: func(tradeNo string) (bool, error) {
+				return RechargePaddle(tradeNo, 1805, "gateway-cache-guard", "127.0.0.1")
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncateTables(t)
+			setupPaymentGuardRedis(t)
+
+			insertUserForPaymentGuardTest(t, tc.userID, 0)
+			insertTopUpForPaymentGuardTest(t, tc.tradeNo, tc.userID, tc.provider)
+			cachePaymentGuardUser(t, tc.userID)
+
+			recharged, err := tc.recharge(tc.tradeNo)
+			require.NoError(t, err)
+			require.True(t, recharged)
+
+			cachedQuota, err := getUserQuotaCache(tc.userID)
+			require.NoError(t, err)
+			require.Equal(t, int(2*common.QuotaPerUnit), cachedQuota)
+		})
+	}
+}
+
+func TestCompleteEpayTopUpCreditsWalletLifecycleCacheAndCycleOnce(t *testing.T) {
+	truncateTables(t)
+	setupPaymentGuardRedis(t)
+	require.NoError(t, DB.AutoMigrate(&PaymentAnalyticsOutbox{}, &PaymentAnalyticsEventReceipt{}))
+
+	insertUserForPaymentGuardTest(t, 1810, 0)
+	insertTopUpForPaymentGuardTest(t, "epay-cache-cycle", 1810, PaymentProviderEpay)
+	markPaymentGuardTopUpAnalytics(t, "epay-cache-cycle")
+	cachePaymentGuardUser(t, 1810)
+
+	credited, topUp, err := CompleteEpayTopUp("epay-cache-cycle", "alipay", "127.0.0.1")
+	require.NoError(t, err)
+	require.True(t, credited)
+	require.NotNil(t, topUp)
+	require.Equal(t, common.TopUpStatusSuccess, topUp.Status)
+	require.Equal(t, "alipay", topUp.PaymentMethod)
+	require.Positive(t, topUp.CompleteTime)
+	reloaded := GetTopUpByTradeNo("epay-cache-cycle")
+	require.NotNil(t, reloaded)
+	require.Equal(t, "alipay", reloaded.PaymentMethod)
+
+	expectedQuota := int(2 * common.QuotaPerUnit)
+	require.Equal(t, expectedQuota, getUserQuotaForPaymentGuardTest(t, 1810))
+	cachedQuota, err := getUserQuotaCache(1810)
+	require.NoError(t, err)
+	require.Equal(t, expectedQuota, cachedQuota)
+
+	state := lifecycleStateForTest(t, 1810, QuotaLifecycleScopeWallet, "1810")
+	require.Equal(t, "topup:epay-cache-cycle", state.Cycle)
+	require.EqualValues(t, expectedQuota, state.Balance)
+	var logCount int64
+	require.NoError(t, DB.Model(&Log{}).Where("user_id = ? AND type = ?", 1810, LogTypeTopup).Count(&logCount).Error)
+	require.EqualValues(t, 1, logCount)
+	var outboxCount int64
+	require.NoError(t, DB.Model(&PaymentAnalyticsOutbox{}).Where("event_id = ?", "flatkey:ga4:purchase:topup:epay-cache-cycle").Count(&outboxCount).Error)
+	require.EqualValues(t, 1, outboxCount)
+}
+
+func TestCompleteEpayTopUpReplayDoesNotRepeatOneTimeCreditEffects(t *testing.T) {
+	truncateTables(t)
+	setupPaymentGuardRedis(t)
+	require.NoError(t, DB.AutoMigrate(&PaymentAnalyticsOutbox{}, &PaymentAnalyticsEventReceipt{}))
+
+	insertUserForPaymentGuardTest(t, 1811, 0)
+	insertTopUpForPaymentGuardTest(t, "epay-replay-once", 1811, PaymentProviderEpay)
+	markPaymentGuardTopUpAnalytics(t, "epay-replay-once")
+	cachePaymentGuardUser(t, 1811)
+
+	firstCredited, _, err := CompleteEpayTopUp("epay-replay-once", "alipay", "127.0.0.1")
+	require.NoError(t, err)
+	require.True(t, firstCredited)
+	secondCredited, _, err := CompleteEpayTopUp("epay-replay-once", "alipay", "127.0.0.1")
+	require.NoError(t, err)
+	require.False(t, secondCredited)
+
+	expectedQuota := int(2 * common.QuotaPerUnit)
+	require.Equal(t, expectedQuota, getUserQuotaForPaymentGuardTest(t, 1811))
+	cachedQuota, err := getUserQuotaCache(1811)
+	require.NoError(t, err)
+	require.Equal(t, expectedQuota, cachedQuota)
+
+	var stateCount int64
+	require.NoError(t, DB.Model(&QuotaLifecycleState{}).Where("user_id = ? AND scope_type = ? AND scope_id = ?", 1811, QuotaLifecycleScopeWallet, "1811").Count(&stateCount).Error)
+	require.EqualValues(t, 1, stateCount)
+	var logCount int64
+	require.NoError(t, DB.Model(&Log{}).Where("user_id = ? AND type = ?", 1811, LogTypeTopup).Count(&logCount).Error)
+	require.EqualValues(t, 1, logCount)
+	var outboxCount int64
+	require.NoError(t, DB.Model(&PaymentAnalyticsOutbox{}).Where("event_id = ?", "flatkey:ga4:purchase:topup:epay-replay-once").Count(&outboxCount).Error)
+	require.EqualValues(t, 1, outboxCount)
+}
+
+func TestCompleteEpayTopUpRejectsTerminalTopUpStatuses(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status string
+	}{
+		{name: "failed", status: common.TopUpStatusFailed},
+		{name: "expired", status: common.TopUpStatusExpired},
+		{name: "cancelled", status: "cancelled"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncateTables(t)
+
+			userID := 1820 + len(tc.name)
+			tradeNo := "epay-terminal-" + tc.name
+			insertUserForPaymentGuardTest(t, userID, 0)
+			insertTopUpForPaymentGuardTest(t, tradeNo, userID, PaymentProviderEpay)
+			require.NoError(t, DB.Model(&TopUp{}).Where("trade_no = ?", tradeNo).Update("status", tc.status).Error)
+
+			credited, topUp, err := CompleteEpayTopUp(tradeNo, "alipay", "127.0.0.1")
+			require.ErrorIs(t, err, ErrTopUpStatusInvalid)
+			require.False(t, credited)
+			require.Nil(t, topUp)
+
+			stored := GetTopUpByTradeNo(tradeNo)
+			require.NotNil(t, stored)
+			require.Equal(t, tc.status, stored.Status)
+			require.Zero(t, stored.CompleteTime)
+			require.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, userID))
+			requireTopUpLifecycleEventCount(t, tradeNo, RecallLifecycleTriggerPaymentSucceeded, 0)
+			requireTopUpLifecycleStateCount(t, userID, 0)
+			var logCount int64
+			require.NoError(t, DB.Model(&Log{}).Where("user_id = ? AND type = ?", userID, LogTypeTopup).Count(&logCount).Error)
+			require.EqualValues(t, 0, logCount)
+		})
+	}
+}
+func TestCompleteEpayTopUpRollsBackOnProviderMismatch(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 1812, 0)
+	insertTopUpForPaymentGuardTest(t, "epay-provider-mismatch", 1812, PaymentProviderStripe)
+
+	credited, topUp, err := CompleteEpayTopUp("epay-provider-mismatch", "alipay", "127.0.0.1")
+	require.ErrorIs(t, err, ErrPaymentMethodMismatch)
+	require.False(t, credited)
+	require.Nil(t, topUp)
+
+	stored := GetTopUpByTradeNo("epay-provider-mismatch")
+	require.NotNil(t, stored)
+	require.Equal(t, common.TopUpStatusPending, stored.Status)
+	require.Equal(t, PaymentProviderStripe, stored.PaymentProvider)
+	require.Zero(t, stored.CompleteTime)
+	require.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 1812))
+	var stateCount int64
+	require.NoError(t, DB.Model(&QuotaLifecycleState{}).Where("user_id = ?", 1812).Count(&stateCount).Error)
+	require.EqualValues(t, 0, stateCount)
+}
+
+func TestCompleteEpayTopUpRollsBackOrderWhenLifecycleCreditFails(t *testing.T) {
+	truncateTables(t)
+	setupPaymentGuardRedis(t)
+	require.NoError(t, DB.AutoMigrate(&PaymentAnalyticsOutbox{}, &PaymentAnalyticsEventReceipt{}))
+
+	initialQuota := int(testMaxInt64 - int64(common.QuotaPerUnit) + 1)
+	insertUserForPaymentGuardTest(t, 1814, initialQuota)
+	insertTopUpForPaymentGuardTest(t, "epay-overflow-rollback", 1814, PaymentProviderEpay)
+	cachePaymentGuardUser(t, 1814)
+
+	credited, topUp, err := CompleteEpayTopUp("epay-overflow-rollback", "alipay", "127.0.0.1")
+	require.ErrorIs(t, err, ErrLifecycleQuotaBalanceOverflow)
+	require.False(t, credited)
+	require.Nil(t, topUp)
+
+	stored := GetTopUpByTradeNo("epay-overflow-rollback")
+	require.NotNil(t, stored)
+	require.Equal(t, common.TopUpStatusPending, stored.Status)
+	require.Equal(t, PaymentProviderEpay, stored.PaymentProvider)
+	require.Equal(t, PaymentProviderEpay, stored.PaymentMethod)
+	require.Zero(t, stored.CompleteTime)
+	require.Equal(t, initialQuota, getUserQuotaForPaymentGuardTest(t, 1814))
+	cachedQuota, cacheErr := getUserQuotaCache(1814)
+	require.NoError(t, cacheErr)
+	require.Equal(t, initialQuota, cachedQuota)
+
+	var stateCount int64
+	require.NoError(t, DB.Model(&QuotaLifecycleState{}).Where("user_id = ?", 1814).Count(&stateCount).Error)
+	require.EqualValues(t, 0, stateCount)
+	var logCount int64
+	require.NoError(t, DB.Model(&Log{}).Where("user_id = ? AND type = ?", 1814, LogTypeTopup).Count(&logCount).Error)
+	require.EqualValues(t, 0, logCount)
+	var outboxCount int64
+	require.NoError(t, DB.Model(&PaymentAnalyticsOutbox{}).Where("event_id = ?", "flatkey:ga4:purchase:topup:epay-overflow-rollback").Count(&outboxCount).Error)
+	require.EqualValues(t, 0, outboxCount)
+}
+
+func TestCompleteEpayTopUpConcurrentReplayCreditsOnce(t *testing.T) {
+	truncateTables(t)
+	setupPaymentGuardRedis(t)
+
+	insertUserForPaymentGuardTest(t, 1813, 0)
+	insertTopUpForPaymentGuardTest(t, "epay-concurrent-once", 1813, PaymentProviderEpay)
+	cachePaymentGuardUser(t, 1813)
+
+	start := make(chan struct{})
+	results := make(chan struct {
+		credited bool
+		err      error
+	}, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			credited, _, err := CompleteEpayTopUp("epay-concurrent-once", "alipay", "127.0.0.1")
+			results <- struct {
+				credited bool
+				err      error
+			}{credited: credited, err: err}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	var creditedCount int
+	for result := range results {
+		require.NoError(t, result.err)
+		if result.credited {
+			creditedCount++
+		}
+	}
+	require.Equal(t, 1, creditedCount)
+	expectedQuota := int(2 * common.QuotaPerUnit)
+	require.Equal(t, expectedQuota, getUserQuotaForPaymentGuardTest(t, 1813))
+	state := lifecycleStateForTest(t, 1813, QuotaLifecycleScopeWallet, "1813")
+	require.Equal(t, "topup:epay-concurrent-once", state.Cycle)
+	require.EqualValues(t, expectedQuota, state.Balance)
 }
 
 func TestRechargeWaffoReportsOnlyActualPendingTransition(t *testing.T) {
@@ -136,6 +469,40 @@ func TestRechargeWaffoPancakeReportsOnlyActualPendingTransition(t *testing.T) {
 	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 103))
 }
 
+func TestManualCompleteTopUpRejectsTerminalTopUpStatuses(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status string
+	}{
+		{name: "failed", status: common.TopUpStatusFailed},
+		{name: "expired", status: common.TopUpStatusExpired},
+		{name: "cancelled", status: "cancelled"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncateTables(t)
+
+			userID := 1830 + len(tc.name)
+			tradeNo := "manual-terminal-" + tc.name
+			insertUserForPaymentGuardTest(t, userID, 0)
+			insertTopUpForPaymentGuardTest(t, tradeNo, userID, PaymentProviderStripe)
+			require.NoError(t, DB.Model(&TopUp{}).Where("trade_no = ?", tradeNo).Update("status", tc.status).Error)
+
+			err := ManualCompleteTopUp(tradeNo, "127.0.0.1")
+			require.Error(t, err)
+
+			stored := GetTopUpByTradeNo(tradeNo)
+			require.NotNil(t, stored)
+			require.Equal(t, tc.status, stored.Status)
+			require.Zero(t, stored.CompleteTime)
+			require.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, userID))
+			requireTopUpLifecycleEventCount(t, tradeNo, RecallLifecycleTriggerPaymentSucceeded, 0)
+			requireTopUpLifecycleStateCount(t, userID, 0)
+			var logCount int64
+			require.NoError(t, DB.Model(&Log{}).Where("user_id = ? AND type = ?", userID, LogTypeTopup).Count(&logCount).Error)
+			require.EqualValues(t, 0, logCount)
+		})
+	}
+}
 func TestRechargePaddle_DuplicateWebhookAddsQuotaOnce(t *testing.T) {
 	truncateTables(t)
 
@@ -203,6 +570,44 @@ func TestRechargeStripePersistsPaymentSnapshotWithoutChangingCreditedAmount(t *t
 	assert.Equal(t, common.TopUpStatusSuccess, topUp.Status)
 	assert.Equal(t, 5000.0, topUp.Money)
 	assert.Equal(t, "JPY", topUp.PaymentCurrency)
+}
+
+func TestRechargeStripeCorrectedSuccessPersistsPaymentSnapshot(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 125, 0)
+	insertTopUpForPaymentGuardTest(t, "stripe-corrected-snapshot", 125, PaymentProviderStripe)
+	require.NoError(t, UpdatePendingTopUpStatus("stripe-corrected-snapshot", PaymentProviderStripe, common.TopUpStatusFailed))
+
+	recharged, err := RechargeWithPaymentSnapshot("stripe-corrected-snapshot", "cus_corrected", "127.0.0.1", PaymentSnapshot{
+		Money:    1299,
+		Currency: "jpy",
+	})
+	require.NoError(t, err)
+	require.True(t, recharged)
+
+	recharged, err = RechargeWithPaymentSnapshot("stripe-corrected-snapshot", "cus_corrected", "127.0.0.1", PaymentSnapshot{
+		Money:    9999,
+		Currency: "brl",
+	})
+	require.NoError(t, err)
+	require.False(t, recharged)
+
+	stored := GetTopUpByTradeNo("stripe-corrected-snapshot")
+	require.NotNil(t, stored)
+	require.Equal(t, common.TopUpStatusSuccess, stored.Status)
+	require.Equal(t, 1299.0, stored.Money)
+	require.Equal(t, "JPY", stored.PaymentCurrency)
+	require.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 125))
+
+	var user User
+	require.NoError(t, DB.Select("stripe_customer").Where("id = ?", 125).First(&user).Error)
+	require.Equal(t, "cus_corrected", user.StripeCustomer)
+	event := requireTopUpLifecycleEvent(t, 125, RecallLifecycleTriggerPaymentSucceeded, "stripe-corrected-snapshot")
+	var payload map[string]any
+	require.NoError(t, common.Unmarshal([]byte(event.EventData), &payload))
+	require.Equal(t, 1299.0, payload["money"])
+	require.Equal(t, "JPY", payload["currency"])
 }
 
 func TestRechargeStripePersistsZeroPaymentSnapshot(t *testing.T) {
@@ -278,6 +683,85 @@ func TestRechargeStripeCreditsBasePlusBonusOnCallback(t *testing.T) {
 	assert.Equal(t, int((20+5)*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 119))
 }
 
+func TestRechargeStripeCASLoserSkipsBonusAdsLifecycleWalletAndLogs(t *testing.T) {
+	truncateTables(t)
+	require.NoError(t, DB.AutoMigrate(&PaymentAnalyticsOutbox{}, &PaymentAnalyticsEventReceipt{}))
+	paymentSetting := operation_setting.GetPaymentSetting()
+	originalLimit := paymentSetting.AmountBonusLimit
+	t.Cleanup(func() { paymentSetting.AmountBonusLimit = originalLimit })
+	paymentSetting.AmountBonusLimit = map[int]int{20: 1}
+
+	insertUserForPaymentGuardTest(t, 126, 0)
+	topUp := &TopUp{
+		UserId:          126,
+		Amount:          20,
+		BonusAmount:     5,
+		BonusTier:       20,
+		Money:           20,
+		TradeNo:         "stripe-cas-loser-bonus",
+		PaymentMethod:   PaymentMethodStripe,
+		PaymentProvider: PaymentProviderStripe,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
+		GAClientID:      "client.casloser",
+		GASessionID:     "session.casloser",
+	}
+	require.NoError(t, topUp.Insert())
+
+	callbackName := "test:force_stripe_recharge_cas_loss"
+	fired := false
+	var callbackErr error
+	require.NoError(t, DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if fired || tx.Statement == nil || tx.Statement.Table != "top_ups" {
+			return
+		}
+		if _, ok := tx.Statement.Dest.(map[string]any); !ok {
+			return
+		}
+		fired = true
+		callbackErr = tx.Exec("UPDATE top_ups SET status = ?, complete_time = ? WHERE id = ?", common.TopUpStatusSuccess, common.GetTimestamp(), topUp.Id).Error
+	}))
+	defer func() {
+		require.NoError(t, DB.Callback().Update().Remove(callbackName))
+	}()
+
+	recharged, err := Recharge("stripe-cas-loser-bonus", "cus_cas_loser", "127.0.0.1")
+	require.NoError(t, callbackErr)
+	require.NoError(t, err)
+	require.True(t, fired)
+	require.False(t, recharged)
+
+	require.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 126))
+	requireTopUpLifecycleEventCount(t, "stripe-cas-loser-bonus", RecallLifecycleTriggerPaymentSucceeded, 0)
+	var bonusClaims int64
+	require.NoError(t, DB.Model(&TopUpBonusClaim{}).Where("trade_no = ?", "stripe-cas-loser-bonus").Count(&bonusClaims).Error)
+	require.EqualValues(t, 0, bonusClaims)
+	var outboxCount int64
+	require.NoError(t, DB.Model(&PaymentAnalyticsOutbox{}).Where("event_id = ?", "flatkey:ga4:purchase:topup:stripe-cas-loser-bonus").Count(&outboxCount).Error)
+	require.EqualValues(t, 0, outboxCount)
+	var logCount int64
+	require.NoError(t, DB.Model(&Log{}).Where("user_id = ? AND type = ?", 126, LogTypeTopup).Count(&logCount).Error)
+	require.EqualValues(t, 0, logCount)
+
+	winner := &TopUp{
+		UserId:          126,
+		Amount:          20,
+		BonusAmount:     5,
+		BonusTier:       20,
+		Money:           20,
+		TradeNo:         "stripe-cas-winner-bonus",
+		PaymentMethod:   PaymentMethodStripe,
+		PaymentProvider: PaymentProviderStripe,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
+	}
+	require.NoError(t, winner.Insert())
+	recharged, err = Recharge("stripe-cas-winner-bonus", "cus_cas_winner", "127.0.0.1")
+	require.NoError(t, err)
+	require.True(t, recharged)
+	require.Equal(t, int((20+5)*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, 126))
+}
+
 func TestTopUpPersistsSaveCardFlag(t *testing.T) {
 	truncateTables(t)
 
@@ -306,7 +790,7 @@ func getUserCardBoundForTest(t *testing.T, userID int) bool {
 	return user.StripeCardBound
 }
 
-func TestRechargeStripeBindsCardAtomicallyForSaveCardTopUp(t *testing.T) {
+func TestRechargeStripeDoesNotBindCardForSaveCardTopUp(t *testing.T) {
 	truncateTables(t)
 
 	insertUserForPaymentGuardTest(t, 120, 0)
@@ -323,18 +807,20 @@ func TestRechargeStripeBindsCardAtomicallyForSaveCardTopUp(t *testing.T) {
 	}
 	require.NoError(t, topUp.Insert())
 
-	// First fulfillment: credits the stored amount and marks the card bound, in one transaction.
+	// First fulfillment: credits the stored amount and persists the customer, but must NOT
+	// set stripe_card_bound — a save-card Checkout can complete via a local payment method
+	// with no card saved. Binding happens later, after the Stripe API confirms a saved card.
 	recharged, err := Recharge("save-card-bind-guard", "cus_bind", "127.0.0.1")
 	require.NoError(t, err)
 	assert.True(t, recharged)
-	assert.True(t, getUserCardBoundForTest(t, 120), "save-card top-up must set stripe_card_bound")
+	assert.False(t, getUserCardBoundForTest(t, 120), "Recharge alone must not set stripe_card_bound")
 	assert.Equal(t, int(20*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 120))
 
-	// Webhook redelivery: order already Success → no re-credit, binding unchanged (idempotent).
+	// Webhook redelivery: order already Success → no re-credit, still unbound (idempotent).
 	recharged, err = Recharge("save-card-bind-guard", "cus_bind", "127.0.0.1")
 	require.NoError(t, err)
 	assert.False(t, recharged)
-	assert.True(t, getUserCardBoundForTest(t, 120))
+	assert.False(t, getUserCardBoundForTest(t, 120))
 	assert.Equal(t, int(20*int64(common.QuotaPerUnit)), getUserQuotaForPaymentGuardTest(t, 120))
 
 	var user User

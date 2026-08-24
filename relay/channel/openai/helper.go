@@ -130,6 +130,12 @@ func handleLastResponse(lastStreamData string, responseId *string, createAt *int
 	*systemFingerprint = lastStreamResponse.GetSystemFingerprint()
 	*model = lastStreamResponse.Model
 
+	// 白标渠道：抹除上游痕迹。这两个局部值会被带入 HandleFinalResponse 生成的最终 usage chunk。
+	if info.ChannelSetting.WhitelabelUpstream {
+		*model = info.OriginModelName
+		*systemFingerprint = ""
+	}
+
 	if service.ValidUsage(lastStreamResponse.Usage) {
 		*containStreamUsage = true
 		*usage = lastStreamResponse.Usage
@@ -151,7 +157,10 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 	case types.RelayFormatOpenAI:
 		if info.ShouldIncludeUsage && !containStreamUsage {
 			response := helper.GenerateFinalUsageResponse(responseId, createAt, model, *usage)
-			response.SetSystemFingerprint(systemFingerprint)
+			// 白标渠道保持 system_fingerprint 为空（GenerateFinalUsageResponse 默认 nil），不回填上游指纹
+			if !info.ChannelSetting.WhitelabelUpstream {
+				response.SetSystemFingerprint(systemFingerprint)
+			}
 			helper.ObjectData(c, response)
 		}
 		helper.Done(c)

@@ -19,6 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 /**
  * Utilities for managing authentication-related browser storage
  */
+import {
+  clearRecallClaimPostLoginStorage,
+  containsRecallClaimInURL,
+  isSafeInternalPath,
+  readRecallClaimPostLoginRecord,
+  RECALL_CLAIM_OAUTH_NONCE_STORAGE_KEY,
+  RECALL_CLAIM_POST_LOGIN_STORAGE_KEY,
+  type RecallClaimPostLoginRecord,
+} from '@/lib/analytics/recall-claim'
+
+export { isSafeInternalPath } from '@/lib/analytics/recall-claim'
 
 // ============================================================================
 // LocalStorage Keys
@@ -33,21 +44,188 @@ const STORAGE_KEYS = {
   // Post-login destination to honor after an OAuth round-trip. Lives in sessionStorage
   // (tab-scoped) because OAuth providers redirect to a fixed redirect_uri (/oauth/<p>)
   // that can't carry our ?redirect=... param, so the URL alone would lose the intent.
-  POST_LOGIN_REDIRECT: 'auth_post_login_redirect',
+  POST_LOGIN_REDIRECT: RECALL_CLAIM_POST_LOGIN_STORAGE_KEY,
+  OAUTH_REDIRECT_NONCE: RECALL_CLAIM_OAUTH_NONCE_STORAGE_KEY,
 } as const
+
+type PendingPostLoginRedirectRecord = RecallClaimPostLoginRecord
+
+export type ProtectedRecallRedirect = {
+  nonce: string
+  sanitizedTarget: string
+}
+
+export type PendingPostLoginRedirectSnapshot = {
+  nonce: string
+  target: string
+}
 
 // Only allow same-origin, absolute internal paths — never an external URL. Rejects
 // protocol-relative ("//host"), backslash forms (browsers normalize "\" -> "/", so
 // "/\evil.com" becomes "//evil.com" -> external), and any control/whitespace chars that
 // can be stripped to forge an external target. Used to gate post-login redirects against
 // open-redirect.
-export function isSafeInternalPath(
-  path: string | null | undefined
-): path is string {
-  if (!path || !path.startsWith('/') || path.startsWith('//')) return false
-  if (path.includes('\\')) return false
-  // eslint-disable-next-line no-control-regex
-  return !/[\u0000-\u001f\u007f\s]/.test(path)
+export type AuthContinuationSearch = {
+  redirect: string
+  recall_redirect?: string
+}
+
+export function buildAuthContinuationSearch(
+  visibleRedirect?: string | null,
+  recallRedirectNonce?: string | null
+): AuthContinuationSearch | undefined {
+  if (!isSafeInternalPath(visibleRedirect)) return undefined
+  if (!recallRedirectNonce) return { redirect: visibleRedirect }
+  if (recallRedirectNonce.length > 128) return undefined
+  return {
+    redirect: visibleRedirect,
+    recall_redirect: recallRedirectNonce,
+  }
+}
+
+export type ScrubbedRecallClaimAuthURL = {
+  postLoginRedirect: string | null
+  sanitizedURL: string
+}
+
+export function sanitizeRecallClaimRedirect(path: string, depth = 0): string {
+  if (depth > 2) return '/'
+
+  const url = new URL(path, 'https://console.invalid')
+  url.searchParams.delete('recall_claim')
+  if (url.pathname.endsWith('/recall/claim')) {
+    url.searchParams.delete('claim')
+  }
+
+  for (const nestedRedirect of url.searchParams.getAll('redirect')) {
+    if (!containsRecallClaimInURL(nestedRedirect)) continue
+    url.searchParams.set(
+      'redirect',
+      sanitizeRecallClaimRedirect(nestedRedirect, depth + 1)
+    )
+    break
+  }
+
+  return `${url.pathname}${url.search}${url.hash}`
+}
+
+export function scrubRecallClaimFromAuthURL(
+  rawURL: string,
+  recallRedirectNonce?: string
+): ScrubbedRecallClaimAuthURL | null {
+  if (!containsRecallClaimInURL(rawURL)) return null
+
+  try {
+    const url = new URL(rawURL, 'https://console.invalid')
+    const directClaim = url.searchParams.get('recall_claim')
+    const nestedRedirect = url.searchParams
+      .getAll('redirect')
+      .find((redirect) => containsRecallClaimInURL(redirect))
+
+    let postLoginRedirect: string | null = null
+    let sanitizedRedirect: string | null = null
+    if (isSafeInternalPath(nestedRedirect)) {
+      postLoginRedirect = nestedRedirect
+      sanitizedRedirect = sanitizeRecallClaimRedirect(nestedRedirect)
+    } else if (directClaim !== null) {
+      const walletURL = new URL('/console/topup', 'https://console.invalid')
+      walletURL.searchParams.set('recall_claim', directClaim)
+      postLoginRedirect = `${walletURL.pathname}${walletURL.search}`
+      sanitizedRedirect = walletURL.pathname
+    }
+
+    const sanitizedSearch = new URLSearchParams()
+    if (sanitizedRedirect && recallRedirectNonce) {
+      sanitizedSearch.set('redirect', sanitizedRedirect)
+      sanitizedSearch.set('recall_redirect', recallRedirectNonce)
+    }
+    for (const [key, value] of url.searchParams) {
+      if (key === 'recall_claim' || key === 'redirect') continue
+      sanitizedSearch.append(key, value)
+    }
+    url.search = sanitizedSearch.toString()
+
+    return {
+      postLoginRedirect,
+      sanitizedURL: url.toString(),
+    }
+  } catch {
+    return null
+  }
+}
+
+export function protectRecallClaimOnAuthRoute(rawURL: string): string | null {
+  if (typeof window === 'undefined') return null
+
+  const nonce = createPostLoginRedirectNonce()
+  if (!nonce) return null
+
+  const result = scrubRecallClaimFromAuthURL(rawURL, nonce)
+  if (!result) return null
+
+  if (result.postLoginRedirect) {
+    const sanitizedTarget = sanitizeRecallClaimRedirect(
+      result.postLoginRedirect
+    )
+    savePendingPostLoginRedirectRecord({
+      nonce,
+      rawTarget: result.postLoginRedirect,
+      sanitizedTarget,
+      createdAt: Date.now(),
+    })
+  } else {
+    clearPendingPostLoginRedirect()
+  }
+  const sanitizedURL = new URL(result.sanitizedURL)
+  const sanitizedHref = `${sanitizedURL.pathname}${sanitizedURL.search}${sanitizedURL.hash}`
+  window.history.replaceState(window.history.state, '', sanitizedHref)
+  return sanitizedHref
+}
+
+export function protectRecallClaimRedirectForAuth(
+  redirectPath: string
+): ProtectedRecallRedirect | null {
+  if (
+    !isSafeInternalPath(redirectPath) ||
+    !containsRecallClaimInURL(redirectPath)
+  ) {
+    return null
+  }
+
+  const sanitizedTarget = sanitizeRecallClaimRedirect(redirectPath)
+  const nonce = createPostLoginRedirectNonce()
+  if (!nonce) return null
+
+  savePendingPostLoginRedirectRecord({
+    nonce,
+    rawTarget: redirectPath,
+    sanitizedTarget,
+    createdAt: Date.now(),
+  })
+  return { nonce, sanitizedTarget }
+}
+
+export function resolvePendingPostLoginRedirect(
+  visibleRedirect: string | null | undefined,
+  recallRedirectNonce?: string | null
+): string | undefined {
+  if (!isSafeInternalPath(visibleRedirect)) {
+    if (recallRedirectNonce) clearPendingPostLoginRedirect()
+    return undefined
+  }
+  if (!recallRedirectNonce) {
+    clearPendingPostLoginRedirect()
+    return visibleRedirect
+  }
+
+  const record = readPendingPostLoginRedirectRecord(recallRedirectNonce)
+  if (!record) return visibleRedirect
+
+  if (visibleRedirect !== record.sanitizedTarget) {
+    clearPendingPostLoginRedirect()
+    return visibleRedirect
+  }
+  return record.rawTarget
 }
 
 // ============================================================================
@@ -59,37 +237,145 @@ export function isSafeInternalPath(
  * current `?redirect=` value; a missing/invalid value clears any stale entry so a previous
  * intent can't leak into an unrelated OAuth login in the same tab.
  */
-export function savePendingPostLoginRedirect(
+function savePendingPostLoginRedirect(
   path: string | null | undefined
+): string | null {
+  if (!isSafeInternalPath(path)) {
+    clearPendingPostLoginRedirect()
+    return null
+  }
+
+  const nonce = createPostLoginRedirectNonce()
+  if (!nonce) return null
+  savePendingPostLoginRedirectRecord({
+    nonce,
+    rawTarget: path,
+    sanitizedTarget: path,
+    createdAt: Date.now(),
+  })
+  return nonce
+}
+
+export function preparePendingPostLoginRedirectForOAuth(
+  visibleRedirect: string | null | undefined,
+  recallRedirectNonce?: string | null
+): PendingPostLoginRedirectSnapshot | null {
+  let record: PendingPostLoginRedirectRecord | null
+  if (recallRedirectNonce) {
+    const target = resolvePendingPostLoginRedirect(
+      visibleRedirect,
+      recallRedirectNonce
+    )
+    record = readPendingPostLoginRedirectRecord(recallRedirectNonce)
+    if (!record || target !== record.rawTarget) return null
+  } else {
+    const nonce = savePendingPostLoginRedirect(visibleRedirect)
+    if (!nonce) return null
+    record = readPendingPostLoginRedirectRecord(nonce)
+  }
+
+  if (!record || typeof window === 'undefined') return null
+  try {
+    window.sessionStorage.setItem(
+      STORAGE_KEYS.OAUTH_REDIRECT_NONCE,
+      record.nonce
+    )
+    return { nonce: record.nonce, target: record.rawTarget }
+  } catch (error) {
+    clearPendingPostLoginRedirect()
+    // eslint-disable-next-line no-console
+    console.error('Failed to bind OAuth post-login redirect:', error)
+    return null
+  }
+}
+
+export function peekPendingOAuthPostLoginRedirect(): PendingPostLoginRedirectSnapshot | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const nonce = window.sessionStorage.getItem(
+      STORAGE_KEYS.OAUTH_REDIRECT_NONCE
+    )
+    if (!nonce) {
+      clearPendingPostLoginRedirect()
+      return null
+    }
+    const record = readPendingPostLoginRedirectRecord(nonce)
+    return record ? { nonce: record.nonce, target: record.rawTarget } : null
+  } catch (error) {
+    clearPendingPostLoginRedirect()
+    // eslint-disable-next-line no-console
+    console.error('Failed to read OAuth post-login redirect:', error)
+    return null
+  }
+}
+
+export function consumePendingPostLoginRedirect(
+  expectedNonce?: string | null
+): boolean {
+  if (typeof window === 'undefined') return false
+  const record = readPendingPostLoginRedirectRecord(expectedNonce || undefined)
+  const matched = Boolean(record)
+  clearPendingPostLoginRedirect()
+  return matched
+}
+
+export function clearPendingPostLoginRedirect(): void {
+  if (typeof window === 'undefined') return
+  try {
+    clearRecallClaimPostLoginStorage(window.sessionStorage)
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to clear post-login redirect:', error)
+  }
+}
+
+function createPostLoginRedirectNonce(): string | null {
+  try {
+    if (typeof globalThis.crypto.randomUUID === 'function') {
+      return globalThis.crypto.randomUUID()
+    }
+    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16))
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(
+      ''
+    )
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to create post-login redirect nonce:', error)
+    return null
+  }
+}
+
+function savePendingPostLoginRedirectRecord(
+  record: PendingPostLoginRedirectRecord
 ): void {
   if (typeof window === 'undefined') return
   try {
-    if (isSafeInternalPath(path)) {
-      window.sessionStorage.setItem(STORAGE_KEYS.POST_LOGIN_REDIRECT, path)
-    } else {
-      window.sessionStorage.removeItem(STORAGE_KEYS.POST_LOGIN_REDIRECT)
-    }
+    window.sessionStorage.setItem(
+      STORAGE_KEYS.POST_LOGIN_REDIRECT,
+      JSON.stringify(record)
+    )
+    window.sessionStorage.removeItem(STORAGE_KEYS.OAUTH_REDIRECT_NONCE)
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to persist post-login redirect:', error)
   }
 }
 
-/**
- * Read the persisted post-login destination (a safe internal path, or null). Does NOT clear
- * it: the entry's lifecycle is owned by savePendingPostLoginRedirect, which sets-or-clears it
- * at the start of every OAuth attempt. Reading without deleting keeps the value stable across
- * React StrictMode's double-invoked effects, so the callback redirects consistently instead of
- * the second invocation seeing an already-cleared entry and falling back to the dashboard.
- */
-export function readPendingPostLoginRedirect(): string | null {
+function readPendingPostLoginRedirectRecord(
+  expectedNonce?: string
+): PendingPostLoginRedirectRecord | null {
   if (typeof window === 'undefined') return null
   try {
-    const value = window.sessionStorage.getItem(
-      STORAGE_KEYS.POST_LOGIN_REDIRECT
-    )
-    return isSafeInternalPath(value) ? value : null
+    const record = readRecallClaimPostLoginRecord(window.sessionStorage)
+    if (!record) return null
+    if (expectedNonce && record.nonce !== expectedNonce) {
+      clearPendingPostLoginRedirect()
+      return null
+    }
+
+    return record
   } catch (error) {
+    clearPendingPostLoginRedirect()
     // eslint-disable-next-line no-console
     console.error('Failed to read post-login redirect:', error)
     return null

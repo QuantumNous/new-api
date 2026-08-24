@@ -255,9 +255,27 @@ type OpenAIVideoResponse struct {
 type InputTokenDetails struct {
 	CachedTokens         int `json:"cached_tokens"`
 	CachedCreationTokens int `json:"cached_creation_tokens,omitempty"`
-	TextTokens           int `json:"text_tokens"`
-	AudioTokens          int `json:"audio_tokens"`
-	ImageTokens          int `json:"image_tokens"`
+	// CacheWriteTokens is OpenAI's native cache-write count. Chat Completions
+	// reports it under prompt_tokens_details and Responses under
+	// input_tokens_details.
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
+	TextTokens       int `json:"text_tokens"`
+	AudioTokens      int `json:"audio_tokens"`
+	ImageTokens      int `json:"image_tokens"`
+}
+
+// CacheCreationTokensTotal returns one normalized cache-write count. Legacy
+// conversions use CachedCreationTokens while OpenAI uses CacheWriteTokens; the
+// larger value wins to avoid counting the same prefix twice.
+func (d InputTokenDetails) CacheCreationTokensTotal() int {
+	total := d.CachedCreationTokens
+	if d.CacheWriteTokens > total {
+		total = d.CacheWriteTokens
+	}
+	if total < 0 {
+		return 0
+	}
+	return total
 }
 
 type OutputTokenDetails struct {

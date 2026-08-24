@@ -44,6 +44,8 @@ export const apiKeySchema = z.object({
     .default(false),
   model_limits_enabled: z.boolean(),
   model_limits: z.string().nullish().default(''),
+  model_blacklist_enabled: z.boolean(),
+  model_blacklist: z.string().nullish().default(''),
   allow_ips: z.string().nullish().default(''),
 })
 
@@ -62,6 +64,15 @@ export interface ApiResponse<T = unknown> {
 export interface GetApiKeysParams {
   p?: number
   size?: number
+  group?: string
+}
+
+export interface ApiKeyStats {
+  total: number
+  enabled: number
+  disabled: number
+  expired: number
+  exhausted: number
 }
 
 export interface GetApiKeysResponse {
@@ -72,12 +83,15 @@ export interface GetApiKeysResponse {
     total: number
     page: number
     page_size: number
+    stats?: ApiKeyStats
   }
 }
 
 export interface SearchApiKeysParams {
   keyword?: string
   token?: string
+  status?: number
+  group?: string
   p?: number
   size?: number
 }
@@ -89,9 +103,12 @@ export interface ApiKeyFormData {
   unlimited_quota: boolean
   model_limits_enabled: boolean
   model_limits: string
+  model_blacklist_enabled: boolean
+  model_blacklist: string
   allow_ips: string
   group: string
   cross_group_retry: boolean
+  preserve_model_access?: boolean
 }
 
 export interface EnsureInitialApiKeyResponse {

@@ -18,12 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import { API_ENDPOINTS } from './constants'
-import { isPlaygroundChatModelName } from './lib/playground-model-filter'
+import type { MediaGenerationRequest } from './lib/media-generation'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
-  ModelOption,
   GroupOption,
+  VideoTask,
 } from './types'
 
 /**
@@ -38,10 +38,83 @@ export async function sendChatCompletion(
   return res.data
 }
 
+export async function sendMediaGeneration(
+  request: MediaGenerationRequest,
+  signal?: AbortSignal
+): Promise<unknown> {
+  const res = await api.post(request.endpoint, request.payload, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+export async function fetchPlaygroundVideoTask(
+  taskId: string,
+  signal?: AbortSignal
+): Promise<unknown> {
+  const res = await api.get(`/pg/videos/${encodeURIComponent(taskId)}`, {
+    signal,
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
 /**
- * Get user available models
+ * Submit an async video-generation task (veo models).
+ * POST /v1/videos { model, prompt } -> { id, status, progress, ... }
  */
-export async function getUserModels(group?: string): Promise<ModelOption[]> {
+export async function submitVideo(
+  model: string,
+  prompt: string
+): Promise<VideoTask> {
+  const res = await api.post(API_ENDPOINTS.VIDEOS, { model, prompt }, {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Poll a video task's status.
+ * GET /v1/videos/{id} -> { status, progress, ... }
+ * `disableDuplicate` opts out of the GET dedupe cache so each poll is a fresh
+ * request rather than a possibly-stale in-flight promise.
+ */
+export async function fetchVideoStatus(id: string): Promise<VideoTask> {
+  const res = await api.get(
+    `${API_ENDPOINTS.VIDEOS}/${encodeURIComponent(id)}`,
+    {
+      disableDuplicate: true,
+      skipErrorHandler: true,
+    }
+  )
+  return res.data
+}
+
+/**
+ * Fetch the finished video as a binary blob.
+ * GET /v1/videos/{id}/content -> raw MP4 (video/mp4). Returned as a Blob so the
+ * caller can URL.createObjectURL(...) it into a <video> element (the endpoint
+ * needs the auth header, so the bare URL can't be used as a <video src>).
+ */
+export async function fetchVideoContent(id: string): Promise<Blob> {
+  const res = await api.get(
+    `${API_ENDPOINTS.VIDEOS}/${encodeURIComponent(id)}/content`,
+    {
+      responseType: 'blob',
+      disableDuplicate: true,
+      skipErrorHandler: true,
+    }
+  )
+  return res.data as Blob
+}
+
+/**
+ * Get all models available to the user. Playground-specific display filtering
+ * happens at the call site so handoff models can be validated against the raw
+ * backend response before being added to the picker.
+ */
+export async function getUserModels(group?: string): Promise<string[]> {
   const res = await api.get(API_ENDPOINTS.USER_MODELS, {
     params: group ? { group } : undefined,
   })
@@ -51,12 +124,11 @@ export async function getUserModels(group?: string): Promise<ModelOption[]> {
     return []
   }
 
-  return data.data.filter(isPlaygroundChatModelName).map((model: string) => ({
-    label: model,
-    value: model,
-  }))
+  return data.data
+    .filter((model: unknown): model is string => typeof model === 'string')
+    .map((model: string) => model.trim())
+    .filter(Boolean)
 }
-
 /**
  * Get user groups
  */

@@ -16,14 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useEffect } from 'react'
 import { Link, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
-import { useEffect } from 'react'
-import { useStatus } from '@/hooks/use-status'
 import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { ensurePixelsLoaded } from '@/lib/analytics/pixels'
+import { useStatus } from '@/hooks/use-status'
 import { AuthLayout } from '../auth-layout'
+import { GoogleOneTap } from '../components/google-one-tap'
 import { TermsFooter } from '../components/terms-footer'
+import { resolvePendingPostLoginRedirect } from '../lib/storage'
 import { SignUpForm } from './components/sign-up-form'
 
 export function SignUp() {
@@ -31,7 +33,20 @@ export function SignUp() {
   const { status } = useStatus()
   // Keep redirect available for alternate sign-up providers and the sign-in cross-link.
   // Password registration ignores it after success because new users go to Playground first-run.
-  const { redirect } = useSearch({ from: '/(auth)/sign-up' })
+  const { redirect: visibleRedirect, recall_redirect: recallRedirect } =
+    useSearch({ from: '/(auth)/sign-up' })
+  const redirect = resolvePendingPostLoginRedirect(
+    visibleRedirect,
+    recallRedirect
+  )
+  const googleOAuthEnabled = Boolean(
+    (status?.google_oauth ?? status?.data?.google_oauth) &&
+    (status?.oauth_register_enabled ??
+      status?.data?.oauth_register_enabled ??
+      true)
+  )
+  const googleClientId =
+    status?.google_client_id ?? status?.data?.google_client_id
 
   useEffect(() => {
     ensurePixelsLoaded()
@@ -43,6 +58,12 @@ export function SignUp() {
 
   return (
     <AuthLayout>
+      <GoogleOneTap
+        clientId={googleClientId}
+        context='signup'
+        enabled={googleOAuthEnabled}
+        returnTo={redirect}
+      />
       <div className='w-full space-y-8'>
         <div className='space-y-2'>
           <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
@@ -55,7 +76,14 @@ export function SignUp() {
             {t('Already have an account?')}{' '}
             <Link
               to='/sign-in'
-              search={redirect ? { redirect } : undefined}
+              search={
+                visibleRedirect
+                  ? {
+                      redirect: visibleRedirect,
+                      recall_redirect: recallRedirect,
+                    }
+                  : undefined
+              }
               className='hover:text-primary font-medium underline underline-offset-4'
             >
               {t('Sign in')}

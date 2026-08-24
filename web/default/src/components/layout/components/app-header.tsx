@@ -17,12 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useNotifications } from '@/hooks/use-notifications'
-import { useTopNavLinks } from '@/hooks/use-top-nav-links'
-import { ConfigDrawer } from '@/components/config-drawer'
+import { useConsoleTopNavLinks } from '@/hooks/use-top-nav-links'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import { type TopNavLink } from '../types'
 import { Header } from './header'
@@ -31,7 +29,7 @@ import { TopNav } from './top-nav'
 
 /**
  * General application Header component
- * Integrates navigation bar, search, configuration and profile functions
+ * Integrates navigation bar, notifications and profile functions
  *
  * @example
  * // Basic usage
@@ -40,10 +38,6 @@ import { TopNav } from './top-nav'
  * @example
  * // Custom navigation links
  * <AppHeader navLinks={customLinks} />
- *
- * @example
- * // Hide navigation bar and search box
- * <AppHeader showTopNav={false} showSearch={false} />
  *
  * @example
  * // Fully customize left and right content
@@ -67,11 +61,6 @@ type AppHeaderProps = {
    */
   leftContent?: React.ReactNode
   /**
-   * Whether to show search box
-   * @default true
-   */
-  showSearch?: boolean
-  /**
    * Custom right content, overrides default right content if provided
    */
   rightContent?: React.ReactNode
@@ -80,11 +69,6 @@ type AppHeaderProps = {
    * @default true
    */
   showNotifications?: boolean
-  /**
-   * Whether to show config drawer
-   * @default true
-   */
-  showConfigDrawer?: boolean
   /**
    * Whether to show profile dropdown
    * @default true
@@ -96,15 +80,14 @@ export function AppHeader({
   navLinks = defaultTopNavLinks,
   showTopNav = true,
   leftContent,
-  showSearch = true,
   rightContent,
   showNotifications = true,
-  showConfigDrawer = true,
   showProfileDropdown = true,
 }: AppHeaderProps) {
-  // Prioritize dynamically generated links from backend
-  const dynamicLinks = useTopNavLinks()
-  const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
+  // The console header always shows exactly the Docs entry; explicit
+  // navLinks from a caller still win for bespoke headers.
+  const consoleLinks = useConsoleTopNavLinks()
+  const links = navLinks !== defaultTopNavLinks ? navLinks : consoleLinks
 
   // Notifications hook
   const notifications = useNotifications()
@@ -125,7 +108,6 @@ export function AppHeader({
                 <TopNav links={links} />
               </div>
             )}
-            {showSearch && <Search />}
             {showNotifications && (
               <NotificationPopover
                 open={notifications.popoverOpen}
@@ -139,7 +121,6 @@ export function AppHeader({
               />
             )}
             <LanguageSwitcher />
-            {showConfigDrawer && <ConfigDrawer />}
             {showProfileDropdown && <ProfileDropdown />}
           </div>
         )}

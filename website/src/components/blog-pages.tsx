@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, Gift, Search, X } from "lucide-react";
 import { SiteShell } from "@/components/site-shell";
 import { formatBlogCopy, type BlogCopy } from "@/lib/blog-copy";
 import {
@@ -34,6 +34,8 @@ type BlogSearchState = {
 type Props = {
   locale: Locale;
 };
+
+export const BLOG_DISCORD_INVITE_URL = "https://discord.gg/Xnm8Cc7JRD";
 
 function JsonLdScript(props: { data: JsonLdGraph }) {
   return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: stringifyJsonLd(props.data) }} />;
@@ -250,7 +252,42 @@ function BlogPagination(props: { locale: Locale; pageNo: number; totalPages: num
   );
 }
 
-function BlogCTA(props: { locale: Locale }) {
+export function BlogLimitedOffer(props: { locale: Locale }) {
+  const copy = getCopy(props.locale).blog;
+
+  return (
+    <aside className="relative overflow-hidden rounded-2xl border border-violet-500/25 bg-linear-to-r from-violet-500/10 via-card to-indigo-500/10 px-5 py-6 shadow-sm sm:px-7">
+      <div className="pointer-events-none absolute -top-16 -right-12 size-44 rounded-full bg-violet-500/10 blur-3xl" />
+      <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-4">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">
+            <Gift className="size-5" aria-hidden="true" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold tracking-[0.16em] text-violet-700 uppercase dark:text-violet-300">
+              {copy.offerLabel}
+            </p>
+            <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+              {copy.offerTitle}
+            </h2>
+            <p className="mt-1.5 text-sm leading-5 text-muted-foreground">{copy.offerDescription}</p>
+          </div>
+        </div>
+        <a
+          className="flatkey-primary-cta inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold transition-opacity hover:opacity-85"
+          href={BLOG_DISCORD_INVITE_URL}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {copy.offerButton}
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </a>
+      </div>
+    </aside>
+  );
+}
+
+export function BlogCTA(props: { locale: Locale }) {
   const copy = getCopy(props.locale).blog;
 
   return (
@@ -259,7 +296,7 @@ function BlogCTA(props: { locale: Locale }) {
       <p className="text-background/75 mx-auto mt-3 max-w-2xl text-sm leading-6">
         {copy.ctaDescription}
       </p>
-      <Link className={cn(buttonClass(), "mt-7 bg-background text-foreground hover:bg-background/90")} href={consoleUrl("/sign-up")}>
+      <Link className={cn(buttonClass(), "blog-cta-button mt-7")} href={consoleUrl("/sign-up")}>
         {copy.ctaButton}
       </Link>
     </section>
@@ -296,6 +333,9 @@ export async function BlogIndexPage(props: Props & { search?: BlogSearchState })
           copy={copy}
           query={query}
         />
+        <section className="container mx-auto max-w-6xl px-4 pt-10">
+          <BlogLimitedOffer locale={props.locale} />
+        </section>
         <section className="container mx-auto max-w-6xl px-4 py-14">
           <BlogCategories locale={props.locale} />
         </section>
@@ -364,6 +404,9 @@ export async function BlogArticlePage(props: Props & { slug: string }) {
             />
           </div>
         ) : null}
+        <section className="container mx-auto max-w-4xl px-4 pt-8">
+          <BlogLimitedOffer locale={props.locale} />
+        </section>
         <section className="container mx-auto max-w-5xl px-4 py-8">
           <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_240px]">
             <div className="blog-content min-w-0" dangerouslySetInnerHTML={{ __html: html }} />
@@ -432,6 +475,9 @@ export async function BlogCategoryPage(props: Props & { slug: string; search?: B
       <JsonLdScript data={buildBlogCategorySchema({ locale: props.locale, slug: props.slug, name: category.name, description })} />
       <main>
         <BlogHero locale={props.locale} title={currentCategory.name} description={description} copy={copy} query={query} categorySlug={props.slug} />
+        <section className="container mx-auto max-w-6xl px-4 pt-10">
+          <BlogLimitedOffer locale={props.locale} />
+        </section>
         <section className="container mx-auto max-w-6xl px-4 py-12">
           <Link className={buttonClass("ghost")} href={localizePath("/blog", props.locale)}>
             <ArrowLeft className="size-4" />

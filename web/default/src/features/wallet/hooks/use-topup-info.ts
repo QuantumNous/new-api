@@ -24,6 +24,7 @@ import {
   getLockedTopupAmountOptions,
   mergePresetAmounts,
   getMinTopupAmount,
+  parseStripeCurrencyPrices,
   shouldRequireConfiguredTopupPackages,
 } from '../lib'
 import type {
@@ -154,13 +155,13 @@ function parseCreemProducts(data: unknown): CreemProduct[] {
     .filter((item) => item.name && item.productId)
 }
 
-function parseAmountOptions(data: unknown): number[] {
+export function parseAmountOptions(data: unknown): number[] {
   return parseJsonArray(data)
     .map((item) => Number(item))
     .filter((item) => Number.isFinite(item) && item > 0)
 }
 
-function parseNumberMap(data: unknown): Record<number, number> {
+export function parseNumberMap(data: unknown): Record<number, number> {
   if (!data) {
     return {}
   }
@@ -225,6 +226,9 @@ export function useTopupInfo() {
           response.data.waffo_pancake_min_topup
         ),
         amount_options: parseAmountOptions(response.data.amount_options),
+        stripe_currency_prices: parseStripeCurrencyPrices(
+          response.data.stripe_currency_prices
+        ),
         discount: parseNumberMap(response.data.discount),
         bonus: parseNumberMap(response.data.bonus),
         bonus_remaining: parseNumberMap(response.data.bonus_remaining),

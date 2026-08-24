@@ -32,6 +32,7 @@ import (
 // adding them would be dead config implying coverage that does not exist.
 var whitelabelSyncChannels = map[int]struct{}{
 	constant.ChannelTypeBlockRun: {},
+	constant.ChannelTypeCopilot:  {},
 }
 
 // internalSymbolPattern matches upstream error text that exposes internal
@@ -86,11 +87,21 @@ func ScrubWhitelabelError(ctx context.Context, newApiErr *types.NewAPIError, cha
 	if surface == "" {
 		return
 	}
-	if !taskcommon.ContainsBrandKeyword(surface) && !looksLikeInternalLeak(surface) {
+	if !taskcommon.ContainsBrandKeyword(surface) && !looksLikeInternalLeak(surface) && !isCopilotBrandLeak(channelType, surface) {
 		return
 	}
 	logger.LogError(ctx, fmt.Sprintf("whitelabel error scrub (channel_type=%d): %s", channelType, common.LocalLogPreview(surface)))
 	newApiErr.OverrideMessage(whitelabelGenericErrorMessage)
+}
+
+func isCopilotBrandLeak(channelType int, surface string) bool {
+	if channelType != constant.ChannelTypeCopilot {
+		return false
+	}
+	lower := strings.ToLower(surface)
+	return strings.Contains(lower, "github copilot") ||
+		strings.Contains(lower, "githubcopilot") ||
+		strings.Contains(lower, "api.githubcopilot.com")
 }
 
 func MidjourneyErrorWrapper(code int, desc string) *dto.MidjourneyResponse {

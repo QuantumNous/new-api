@@ -1,0 +1,1109 @@
+package controller
+
+import (
+	"math"
+	"net/http"
+	"net/netip"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+
+	"github.com/gin-gonic/gin"
+	"github.com/phuslu/iploc"
+)
+
+// Ops daily report: PLG registration / activation / payment funnel for the
+// admin console (管理员 → 运营日报).
+//
+// Metric definitions (mirrors the offline analysis that shaped them):
+//   - real browse:  playground chats excluding the auto-fired onboarding
+//     request (signup flow fires one call within seconds of registration);
+//     approximated as playground_count >= 2 OR first chat >= 60s after signup.
+//   - manual key:   token created >= 120s after registration (earlier ones are
+//     auto-provisioned by signup integrations: main-key/auto/default).
+//   - key used:     any API-key request (token_id > 0), auto keys included.
+//   - paid:         top_ups status = success (one-time plan purchases are
+//     mirrored in by SyncSubscriptionOrderTopUpHistory), plus the unmirrored
+//     subscription_orders (Stripe-recurring create/upgrade) with status =
+//     success, excluding balance-paid orders whose money was already counted
+//     at top-up time.
+//   - op cost:      quota burned via auto-provisioned keys (created < 120s
+//     after signup) — signup-credit spend, dominated by farm registrations.
+//
+// The report is a full recompute over ~thousands of plg users and their log
+// aggregates; results are cached per node for opsReportCacheTTL. The cache is
+// node-local by design (Rule 11): the data is read-only statistics, so brief
+// cross-node divergence is harmless.
+
+const (
+	opsReportCacheTTL   = 10 * time.Minute
+	opsAutoBrowseWindow = 60  // seconds after signup treated as auto-fired playground call
+	opsAutoTokenWindow  = 120 // seconds after signup treated as auto-provisioned token
+	// registered-users detail rows shown in the ops report (newest first)
+	opsReportMaxRegisteredUsers = 200
+	opsReportMaxDays            = 180
+	opsReportDefaultDays        = 30
+)
+
+type opsFunnelRow struct {
+	Key           string  `json:"key"`
+	Registrations int     `json:"registrations"`
+	// Activated mirrors the activate_success GA event: the user performed a
+	// real activation action (created a manual/CLI key, used an API key, or
+	// used the playground), bucketed by registration day like the rest of the
+	// funnel.
+	Activated   int     `json:"activated"`
+	RealBrowse  int     `json:"real_browse"`
+	ManualKeys  int     `json:"manual_keys"`
+	KeyUsers    int     `json:"key_users"`
+	PayIntent   int     `json:"pay_intent"`
+	Paid        int     `json:"paid"`
+	PaidUSD     float64 `json:"paid_usd"`
+	// CostUSD is the quota burned through the cohort's auto-provisioned keys
+	// (created < opsAutoTokenWindow after signup), i.e. signup-credit spend by
+	// users who never manually created a key — dominated by farm registrations.
+	CostUSD float64 `json:"cost_usd"`
+}
+
+// opsDailyRow is a funnel row for the daily table, prefixed with the day's
+// paid-ads totals (flatkey-* campaigns only; the shared ads account's other
+// business lines are excluded at sync time) so spend/clicks line up with the
+// registrations they produced. Ads dates are the ads account timezone
+// (America/New_York), joined to the Pacific funnel days by date string —
+// a 3-hour edge skew day-level stats can tolerate.
+type opsDailyRow struct {
+	opsFunnelRow
+	AdsCostUSD float64 `json:"ads_cost_usd"`
+	AdsClicks  int     `json:"ads_clicks"`
+}
+
+type opsNameCount struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+type opsCampaignRow struct {
+	opsFunnelRow
+	Keywords     []string       `json:"keywords"`
+	Languages    []string       `json:"languages"`
+	LandingPages []opsNameCount `json:"landing_pages"`
+	MatchTypes   []opsNameCount `json:"match_types"`
+	Trend        []int          `json:"trend"`
+}
+
+type opsKeywordRow struct {
+	opsFunnelRow
+	Campaigns []string `json:"campaigns"`
+}
+
+type opsDauRow struct {
+	Date        string  `json:"date"`
+	ActiveUsers int     `json:"active_users"`
+	Requests    int     `json:"requests"`
+	QuotaUSD    float64 `json:"quota_usd"`
+}
+
+type opsPayerRow struct {
+	UserId       int      `json:"user_id"`
+	Username     string   `json:"username"`
+	DisplayName  string   `json:"display_name"`
+	Email        string   `json:"email"`
+	PaidUSD      float64  `json:"paid_usd"`
+	Orders       int      `json:"orders"`
+	RefundedUSD  float64  `json:"refunded_usd"`
+	RefundedCnt  int      `json:"refunded_cnt"`
+	FirstPaidAt  int64    `json:"first_paid_at"`
+	LastPaidAt   int64    `json:"last_paid_at"`
+	RegisteredAt int64    `json:"registered_at"`
+	Campaign     string   `json:"campaign"`
+	Keyword      string   `json:"keyword"`
+	Lng          string   `json:"lng"`
+	BrowserLang  string   `json:"browser_lang"`
+	Landing      string   `json:"landing"`
+	SignupMethod string   `json:"signup_method"`
+	Currencies   []string `json:"currencies"`
+	LastIP       string   `json:"last_ip"`
+	IPCountry    string   `json:"ip_country"`
+	PayCountry   string   `json:"pay_country"`
+	BalanceUSD   float64  `json:"balance_usd"`
+	ConsumedUSD  float64  `json:"consumed_usd"`
+	Requests     int      `json:"requests"`
+	LastActiveAt int64    `json:"last_active_at"`
+	TopModels    []string `json:"top_models"`
+}
+
+type opsPaymentRow struct {
+	Key       string  `json:"key"`
+	Intent    int     `json:"intent"`
+	Unpaid    int     `json:"unpaid"`
+	First     int     `json:"first"`
+	FirstUSD  float64 `json:"first_usd"`
+	Repeat    int     `json:"repeat"`
+	RepeatUSD float64 `json:"repeat_usd"`
+}
+
+type opsReportData struct {
+	GeneratedAt     int64  `json:"generated_at"`
+	Days            int    `json:"days"`
+	DauScope        string `json:"dau_scope"`
+	IncludeDisabled bool   `json:"include_disabled"`
+	Daily           []opsDailyRow    `json:"daily"`
+	WeeklyFunnel   []opsFunnelRow   `json:"weekly_funnel"`
+	CampaignFunnel []opsCampaignRow `json:"campaign_funnel"`
+	KeywordFunnel  []opsKeywordRow  `json:"keyword_funnel"`
+	PaymentWeekly  []opsPaymentRow  `json:"payment_weekly"`
+	Dau            []opsDauRow      `json:"dau"`
+	TotalPaidUsers int              `json:"total_paid_users"`
+	TotalPaidUSD   float64          `json:"total_paid_usd"`
+	TopPayers      []opsPayerRow    `json:"top_payers"`
+	// Most recent registrations in the report window, newest first (capped).
+	RegisteredUsers []opsRegisteredUserRow `json:"registered_users"`
+}
+
+type opsRegisteredUserRow struct {
+	UserId       int     `json:"user_id"`
+	Username     string  `json:"username"`
+	DisplayName  string  `json:"display_name"`
+	Email        string  `json:"email"`
+	SignupMethod string  `json:"signup_method"`
+	RegisteredAt int64   `json:"registered_at"`
+	Campaign     string  `json:"campaign"`
+	Keyword      string  `json:"keyword"`
+	Lng          string  `json:"lng"`
+	BrowserLang  string  `json:"browser_lang"`
+	Landing      string  `json:"landing"`
+	LastIP       string  `json:"last_ip"`
+	IPCountry    string  `json:"ip_country"`
+	PayCountry   string  `json:"pay_country"`
+	BalanceUSD   float64 `json:"balance_usd"`
+	ConsumedUSD  float64 `json:"consumed_usd"`
+	Requests     int     `json:"requests"`
+	PaidUSD      float64 `json:"paid_usd"`
+	LastActiveAt int64   `json:"last_active_at"`
+}
+
+var (
+	opsReportCache *opsReportData
+	// opsReportAggsAt is the build time of the cohort aggregates the cached
+	// report was computed from. The report must never outlive those aggregates,
+	// so its freshness is measured from this timestamp rather than the report's
+	// own build time (opsReportAggsAt <= report build time by construction).
+	opsReportAggsAt time.Time
+	opsReportMutex  sync.Mutex
+
+	// Day-independent cohort aggregates (users + log/token stats + paid
+	// orders), cached separately from the windowed report so a days switch
+	// does not re-run the expensive logs-table scan. buildOpsReport's
+	// day-windowed slices (DAU, ads) are NOT part of this cache.
+	// Two caches: one per include_disabled denominator, so switching the report
+	// filter does not cross-contaminate the funnel numbers.
+	opsAggsCacheEnabled map[int]*opsUserAgg
+	opsAggsCacheAll     map[int]*opsUserAgg
+	opsAggsCacheAt      time.Time
+	opsAggsMutex        sync.Mutex
+)
+
+// GetOpsReport handles GET /api/ops_report?days=N&dau_scope=plg|all (admin only).
+func GetOpsReport(c *gin.Context) {
+	days, _ := strconv.Atoi(c.Query("days"))
+	if days <= 0 {
+		days = opsReportDefaultDays
+	}
+	if days > opsReportMaxDays {
+		days = opsReportMaxDays
+	}
+	dauScope := c.Query("dau_scope")
+	if dauScope != "all" {
+		dauScope = "plg"
+	}
+	includeDisabled := c.Query("include_disabled") == "1" || c.Query("include_disabled") == "true"
+
+	opsReportMutex.Lock()
+	defer opsReportMutex.Unlock()
+	if opsReportCache != nil && opsReportCache.Days == days &&
+		opsReportCache.DauScope == dauScope &&
+		opsReportCache.IncludeDisabled == includeDisabled &&
+		time.Since(opsReportAggsAt) < opsReportCacheTTL {
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": opsReportCache})
+		return
+	}
+
+	report, aggsAt, err := buildOpsReport(days, dauScope, includeDisabled)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	opsReportCache = report
+	opsReportAggsAt = aggsAt
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": report})
+}
+
+type opsUserAgg struct {
+	user           *model.OpsPlgUser
+	logStats       *model.OpsUserLogStats
+	tokenStats     *model.OpsUserTokenStats
+	campaign       string
+	keyword        string
+	lng            string
+	landing        string
+	referrer       string
+	matchType      string
+	paidOrders     []*model.OpsTopUp
+	refundedOrders []*model.OpsTopUp
+	hasIntent      bool
+}
+
+// opsIPCountry resolves an IP to an ISO country code via the embedded iploc
+// database; private/unparseable addresses map to "?".
+func opsIPCountry(ip string) string {
+	if ip == "" {
+		return "?"
+	}
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return "?"
+	}
+	country := iploc.IPCountry(addr)
+	if country == "" || country == "ZZ" {
+		return "?"
+	}
+	return country
+}
+
+// opsUserCountry resolves the best real-location signal for a user. Priority:
+// Stripe card issuing country (most reliable for payers) > geo of the website
+// login IP (a personal device) > "?". The /v1 request IP is deliberately NOT
+// used: paid users call the API from production servers, so its geo reflects
+// the datacenter, not the person.
+func opsUserCountry(u *model.OpsPlgUser) string {
+	if u.PayCountry != "" {
+		return u.PayCountry
+	}
+	if u.LastLoginIp != "" {
+		return opsIPCountry(u.LastLoginIp)
+	}
+	return "?"
+}
+
+// buildOpsAggs assembles the day-independent per-user cohort aggregates that
+// every funnel rollup reads: user metadata, log/token stats, and paid/refunded
+// orders. It is deliberately kept separate from the day-windowed slices (DAU,
+// ads) so it can be cached once regardless of the selected day range.
+func buildOpsAggs(includeDisabled bool) (map[int]*opsUserAgg, error) {
+	users, err := model.GetOpsPlgUsers(includeDisabled)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int, 0, len(users))
+	aggs := make(map[int]*opsUserAgg, len(users))
+	for _, u := range users {
+		ids = append(ids, u.Id)
+		agg := &opsUserAgg{user: u}
+		parseOpsAttribution(agg)
+		aggs[u.Id] = agg
+	}
+
+	logStats, err := model.GetOpsUserLogStats(ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range logStats {
+		if a, ok := aggs[s.UserId]; ok {
+			a.logStats = s
+		}
+	}
+
+	tokenStats, err := model.GetOpsUserTokenStats(opsAutoTokenWindow)
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range tokenStats {
+		if a, ok := aggs[s.UserId]; ok {
+			a.tokenStats = s
+		}
+	}
+
+	topUps, err := model.GetOpsTopUps()
+	if err != nil {
+		return nil, err
+	}
+	// Fold the unmirrored subscription orders into the same stream: Stripe-
+	// recurring plan purchases and upgrades (pure-plan launch 2026-07-22) live
+	// only in subscription_orders — unlike one-time checkout purchases, which
+	// SyncSubscriptionOrderTopUpHistory mirrors into top_ups — so every
+	// paid/intent aggregate below was blind to them. The converted rows reuse
+	// the OpsTopUp shape so the daily funnel, weekly payment rollup and
+	// top-payers table count them without further changes.
+	subOrders, err := model.GetOpsSubscriptionOrders()
+	if err != nil {
+		return nil, err
+	}
+	topUps = append(topUps, opsSubscriptionOrdersAsTopUps(subOrders)...)
+	// Re-establish global create_time order: first/last-paid timestamps in
+	// opsTopPayers rely on paidOrders arriving sorted ascending.
+	sort.Slice(topUps, func(i, j int) bool { return topUps[i].CreateTime < topUps[j].CreateTime })
+	for _, t := range topUps {
+		a, ok := aggs[t.UserId]
+		if !ok {
+			continue
+		}
+		// stripe_auto rows are system-generated threshold auto-charges — their failed
+		// rows are just cooldown markers (see model/stripe_card.go) — so only
+		// user-initiated orders signal payment intent. Auto-charge successes still
+		// count as revenue below.
+		if t.PaymentProvider != model.PaymentProviderStripeAuto {
+			a.hasIntent = true
+		}
+		if t.Status == common.TopUpStatusSuccess {
+			a.paidOrders = append(a.paidOrders, t)
+		}
+		if t.Status == common.TopUpStatusRefunded {
+			a.refundedOrders = append(a.refundedOrders, t)
+		}
+	}
+	return aggs, nil
+}
+
+// getOpsAggs returns the cached day-independent cohort aggregates, recomputing
+// them at most once per opsReportCacheTTL per node. This is the expensive part
+// of the report: GetOpsUserLogStats scans the whole logs history for the plg
+// cohort no matter which day range is selected, so caching it here keeps a
+// 7/30/60/90 switch from re-running that scan each time.
+func getOpsAggs(includeDisabled bool) (map[int]*opsUserAgg, time.Time, error) {
+	opsAggsMutex.Lock()
+	defer opsAggsMutex.Unlock()
+	cache := opsAggsCacheEnabled
+	if includeDisabled {
+		cache = opsAggsCacheAll
+	}
+	if cache != nil && time.Since(opsAggsCacheAt) < opsReportCacheTTL {
+		return cache, opsAggsCacheAt, nil
+	}
+	aggs, err := buildOpsAggs(includeDisabled)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	if includeDisabled {
+		opsAggsCacheAll = aggs
+	} else {
+		opsAggsCacheEnabled = aggs
+	}
+	opsAggsCacheAt = time.Now()
+	return aggs, opsAggsCacheAt, nil
+}
+
+func buildOpsReport(days int, dauScope string, includeDisabled bool) (*opsReportData, time.Time, error) {
+	aggs, aggsAt, err := getOpsAggs(includeDisabled)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	// The DAU slice is keyed by user id; map iteration order is irrelevant for
+	// the IN clauses it feeds.
+	ids := make([]int, 0, len(aggs))
+	for id := range aggs {
+		ids = append(ids, id)
+	}
+
+	now := time.Now().Unix()
+	// Real Pacific-midnight boundaries for the window (DST-aware), so daily
+	// buckets never shift by an hour across a DST transition.
+	dayStarts := opsPacificDayStarts(days)
+	startTs := dayStarts[0]
+
+	report := &opsReportData{GeneratedAt: now, Days: days, DauScope: dauScope, IncludeDisabled: includeDisabled}
+	if dauScope == "all" {
+		allDaily, err := model.GetOpsAllKeyDailyUsage(dayStarts)
+		if err != nil {
+			return nil, time.Time{}, err
+		}
+		report.Dau = opsRollupDauDays(allDaily, dayStarts)
+	} else {
+		keyDaily, err := model.GetOpsKeyDailyUsage(ids, dayStarts)
+		if err != nil {
+			return nil, time.Time{}, err
+		}
+		report.Dau = opsRollupDau(keyDaily, dayStarts)
+	}
+	dailyRows := opsRollupFunnel(aggs, func(a *opsUserAgg) string {
+		if a.user.CreatedAt < startTs {
+			return ""
+		}
+		return opsDay(a.user.CreatedAt)
+	}, true)
+	// Refresh ads spend from the Google Ads API when stale (no-op without
+	// creds; failures log and the report renders with the last synced rows).
+	opsSyncAdsSpend()
+	adsDaily, err := model.GetOpsAdsSpendDaily(opsDay(startTs))
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	report.Daily = opsAttachAdsSpend(dailyRows, adsDaily)
+	report.WeeklyFunnel = opsRollupFunnel(aggs, func(a *opsUserAgg) string {
+		return opsWeek(a.user.CreatedAt)
+	}, true)
+	campaignRows := opsRollupFunnel(aggs, func(a *opsUserAgg) string {
+		return a.campaign
+	}, false)
+	report.CampaignFunnel = opsEnrichCampaigns(campaignRows, aggs, startTs, days)
+	report.KeywordFunnel = opsRollupKeywords(aggs, 50)
+	report.PaymentWeekly = opsRollupPayment(aggs)
+	report.TopPayers, report.TotalPaidUsers, report.TotalPaidUSD = opsTopPayers(aggs)
+	report.RegisteredUsers = opsRegisteredUsers(aggs)
+	return report, aggsAt, nil
+}
+
+// opsAttachAdsSpend joins per-day ads totals onto the daily funnel rows by
+// date string (both are Pacific days). A day with spend but zero registrations
+// gets a zero funnel row so spend never silently disappears from the table;
+// tomorrow's ads dates (the ads account day can run ahead of a UTC server day)
+// are dropped along with any date outside the funnel window.
+func opsAttachAdsSpend(rows []opsFunnelRow, ads []*model.AdsSpendDaily) []opsDailyRow {
+	byDate := make(map[string]*model.AdsSpendDaily, len(ads))
+	for _, a := range ads {
+		byDate[a.Date] = a
+	}
+	daily := make([]opsDailyRow, 0, len(rows))
+	seen := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		dr := opsDailyRow{opsFunnelRow: row}
+		if a, ok := byDate[row.Key]; ok {
+			dr.AdsCostUSD = a.CostUSD
+			dr.AdsClicks = a.Clicks
+		}
+		seen[row.Key] = true
+		daily = append(daily, dr)
+	}
+	today := opsDay(time.Now().Unix())
+	for date, a := range byDate {
+		if seen[date] || date > today || (a.CostUSD == 0 && a.Clicks == 0) {
+			continue
+		}
+		daily = append(daily, opsDailyRow{
+			opsFunnelRow: opsFunnelRow{Key: date},
+			AdsCostUSD:   a.CostUSD,
+			AdsClicks:    a.Clicks,
+		})
+	}
+	sort.Slice(daily, func(i, j int) bool { return daily[i].Key > daily[j].Key })
+	return daily
+}
+
+// opsRegisteredUsers lists the newest registrations in the report window with
+// the identity/context columns ops uses to explain conversion anomalies
+// (signup method, attribution, browser language, last IP + country).
+func opsRegisteredUsers(aggs map[int]*opsUserAgg) []opsRegisteredUserRow {
+	rows := make([]opsRegisteredUserRow, 0, len(aggs))
+	for _, a := range aggs {
+		lastActive := a.user.LastLoginAt
+		if a.logStats != nil && a.logStats.LastRequestAt > lastActive {
+			lastActive = a.logStats.LastRequestAt
+		}
+		rows = append(rows, opsRegisteredUserRow{
+			UserId:       a.user.Id,
+			Username:     a.user.Username,
+			DisplayName:  a.user.DisplayName,
+			Email:        a.user.Email,
+			SignupMethod: a.user.OauthKind,
+			RegisteredAt: a.user.CreatedAt,
+			Campaign:     a.campaign,
+			Keyword:      a.keyword,
+			Lng:          a.lng,
+			BrowserLang:  a.user.BrowserLang,
+			Landing:      a.landing,
+			BalanceUSD:   float64(a.user.Quota) / common.QuotaPerUnit,
+			ConsumedUSD:  float64(a.user.UsedQuota) / common.QuotaPerUnit,
+			Requests:     a.user.RequestCount,
+			PaidUSD:      a.paidUSD(),
+			LastActiveAt: lastActive,
+			// Real user location: website login IP (personal device) + Stripe
+			// card country. NOT the /v1 request IP (production server) nor the
+			// topup-log IP (Stripe webhook server).
+			LastIP:     a.user.LastLoginIp,
+			IPCountry:  opsUserCountry(a.user),
+			PayCountry: a.user.PayCountry,
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].RegisteredAt > rows[j].RegisteredAt })
+	if len(rows) > opsReportMaxRegisteredUsers {
+		rows = rows[:opsReportMaxRegisteredUsers]
+	}
+	return rows
+}
+
+func parseOpsAttribution(a *opsUserAgg) {
+	a.campaign = "(organic)"
+	if a.user.AdsAttribution == "" {
+		return
+	}
+	var attr map[string]interface{}
+	if err := common.UnmarshalJsonStr(a.user.AdsAttribution, &attr); err != nil {
+		return
+	}
+	str := func(k string) string {
+		if v, ok := attr[k].(string); ok {
+			return v
+		}
+		return ""
+	}
+	if v := str("utm_campaign"); v != "" {
+		a.campaign = v
+	} else if v := str("utm_source"); v != "" {
+		a.campaign = v
+	}
+	a.keyword = str("hsa_kw")
+	if a.keyword == "" {
+		a.keyword = str("utm_term")
+	}
+	a.lng = str("lng")
+	a.landing = str("first_landing_path")
+	if a.landing == "" {
+		a.landing = str("landing_path")
+	}
+	if strings.HasPrefix(a.landing, "/oauth/") || a.landing == "/sign-in" || a.landing == "/sign-up" {
+		a.landing = ""
+	}
+	a.referrer = str("referrer")
+	a.matchType = str("hsa_mt")
+}
+
+func (a *opsUserAgg) realBrowse() bool {
+	s := a.logStats
+	if s == nil || s.PlaygroundCount == 0 {
+		return false
+	}
+	return s.PlaygroundCount >= 2 ||
+		s.FirstPlaygroundAt >= a.user.CreatedAt+opsAutoBrowseWindow
+}
+
+func (a *opsUserAgg) usedKey() bool {
+	return a.logStats != nil && a.logStats.ApiKeyCount > 0
+}
+
+func (a *opsUserAgg) manualKey() bool {
+	return a.tokenStats != nil && a.tokenStats.ManualTokenCount > 0
+}
+
+// cliKey reports whether the user created a token through the CLI
+// device-authorization flow. CLI token creation fires activate_success too
+// (see cli_device_authorization.go), so it counts toward activation.
+func (a *opsUserAgg) cliKey() bool {
+	return a.tokenStats != nil && a.tokenStats.CliTokenCount > 0
+}
+
+// activated mirrors the activate_success GA event: the user took a real
+// activation action — created a manual or CLI key, made an API-key request, or
+// had a real playground browse. Auto-provisioned signup tokens and the
+// auto-fired onboarding request are deliberately excluded (they are not real
+// user actions).
+func (a *opsUserAgg) activated() bool {
+	return a.realBrowse() || a.manualKey() || a.usedKey() || a.cliKey()
+}
+
+// opsSubscriptionOrdersAsTopUps folds plg subscription orders into the
+// OpsTopUp shape so downstream aggregates treat plan purchases exactly like
+// top-ups. Balance-paid orders are excluded upstream (double counting).
+// Local-currency orders (Pix BRL / UPI INR plan pricing) record the original
+// amount in money — same trap as top_ups — so BonusTier carries the plan's
+// USD list price minus any invitee discount, mirroring how non-USD top-ups
+// are valued at their USD package tier by opsTopUpUSD.
+func opsSubscriptionOrdersAsTopUps(orders []*model.OpsSubscriptionOrder) []*model.OpsTopUp {
+	converted := make([]*model.OpsTopUp, 0, len(orders))
+	for _, o := range orders {
+		usd := o.PlanUSD - o.DiscountUSD
+		if usd < 0 {
+			usd = 0
+		}
+		converted = append(converted, &model.OpsTopUp{
+			UserId:          o.UserId,
+			Money:           o.Money,
+			Status:          o.Status,
+			CreateTime:      o.CreateTime,
+			PaymentCurrency: o.PaymentCurrency,
+			BonusTier:       int(math.Round(usd)),
+			PaymentProvider: o.PaymentProvider,
+		})
+	}
+	return converted
+}
+
+// opsTopUpUSD converts a top-up's recorded amount to USD. Stripe webhooks write
+// the settled original-currency amount back to top_ups.money (INR 899, JPY 1500…),
+// so non-USD rows are valued at the USD package chosen at order time (bonus_tier).
+// Rows with no derivable USD value report ok=false and are skipped by callers.
+func opsTopUpUSD(t *model.OpsTopUp) (float64, bool) {
+	ccy := strings.ToUpper(strings.TrimSpace(t.PaymentCurrency))
+	if ccy == "" || ccy == "USD" {
+		return t.Money, true
+	}
+	if t.BonusTier > 0 {
+		return float64(t.BonusTier), true
+	}
+	return 0, false
+}
+
+func (a *opsUserAgg) paidUSD() float64 {
+	total := 0.0
+	for _, t := range a.paidOrders {
+		usd, ok := opsTopUpUSD(t)
+		if !ok {
+			continue
+		}
+		total += usd
+	}
+	return total
+}
+
+// opsLoc is the report timezone: all day/week bucketing and date labels use
+// US Pacific Time so the report matches the ads accounts and US business day.
+var opsLoc = func() *time.Location {
+	loc, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}()
+
+// opsTzOffset returns the current Pacific UTC offset in seconds (PDT -25200 /
+// PST -28800). It is applied as a fixed shift for all day bucketing — Go and
+// SQL alike, since cross-DB SQL cannot do real timezone math — so buckets stay
+// aligned everywhere; rows within an hour of midnight around a DST switch may
+// land on the neighboring date, which is acceptable for ops trend stats.
+func opsTzOffset() int64 {
+	_, off := time.Now().In(opsLoc).Zone()
+	return int64(off)
+}
+
+// opsPacificDayStarts returns n+1 ascending UTC epoch boundaries: the real
+// report-timezone (Pacific) midnights for the n days ending today, plus the
+// start of tomorrow as the closing boundary. Built via the tz database so a
+// window spanning a DST change gets correct 23h/25h days instead of a fixed
+// 24h offset that mis-buckets the hour around midnight.
+func opsPacificDayStarts(n int) []int64 {
+	now := time.Now().In(opsLoc)
+	y, m, d := now.Date()
+	todayStart := time.Date(y, m, d, 0, 0, 0, 0, opsLoc)
+	starts := make([]int64, 0, n+1)
+	for i := n - 1; i >= 0; i-- {
+		starts = append(starts, todayStart.AddDate(0, 0, -i).Unix())
+	}
+	starts = append(starts, todayStart.AddDate(0, 0, 1).Unix())
+	return starts
+}
+
+// Format the instant in real Pacific wall-clock time (opsLoc) rather than
+// shifting by the current fixed offset — the latter mis-dates instants that
+// fall in the other DST regime (e.g. an October PDT date within a window
+// generated in PST).
+func opsDay(ts int64) string {
+	return time.Unix(ts, 0).In(opsLoc).Format("2006-01-02")
+}
+
+func opsWeek(ts int64) string {
+	t := time.Unix(ts, 0).In(opsLoc)
+	monday := t.AddDate(0, 0, -(int(t.Weekday())+6)%7)
+	return monday.Format("2006-01-02")
+}
+
+func opsRollupFunnel(aggs map[int]*opsUserAgg, keyFn func(*opsUserAgg) string, sortDesc bool) []opsFunnelRow {
+	groups := map[string]*opsFunnelRow{}
+	for _, a := range aggs {
+		key := keyFn(a)
+		if key == "" {
+			continue
+		}
+		row, ok := groups[key]
+		if !ok {
+			row = &opsFunnelRow{Key: key}
+			groups[key] = row
+		}
+		row.Registrations++
+		if a.activated() {
+			row.Activated++
+		}
+		if a.realBrowse() {
+			row.RealBrowse++
+		}
+		if a.manualKey() {
+			row.ManualKeys++
+		}
+		if a.usedKey() {
+			row.KeyUsers++
+		}
+		if a.hasIntent {
+			row.PayIntent++
+		}
+		if len(a.paidOrders) > 0 {
+			row.Paid++
+			row.PaidUSD += a.paidUSD()
+		}
+		if a.tokenStats != nil {
+			row.CostUSD += float64(a.tokenStats.AutoKeyUsedQuota) / common.QuotaPerUnit
+		}
+	}
+	rows := make([]opsFunnelRow, 0, len(groups))
+	for _, row := range groups {
+		rows = append(rows, *row)
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if sortDesc {
+			return rows[i].Key > rows[j].Key
+		}
+		return rows[i].Key < rows[j].Key
+	})
+	return rows
+}
+
+func opsSortedCounts(m map[string]int, n int) []opsNameCount {
+	list := make([]opsNameCount, 0, len(m))
+	for k, v := range m {
+		list = append(list, opsNameCount{Name: k, Count: v})
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Count != list[j].Count {
+			return list[i].Count > list[j].Count
+		}
+		return list[i].Name < list[j].Name
+	})
+	if len(list) > n {
+		list = list[:n]
+	}
+	return list
+}
+
+func opsTopNames(m map[string]int, n int) []string {
+	counts := opsSortedCounts(m, n)
+	out := make([]string, len(counts))
+	for i, item := range counts {
+		out[i] = item.Name
+	}
+	return out
+}
+
+func opsEnrichCampaigns(rows []opsFunnelRow, aggs map[int]*opsUserAgg, startTs int64, days int) []opsCampaignRow {
+	type extras struct {
+		keywords, languages, landings, matchTypes map[string]int
+		trend                                     []int
+	}
+	byCampaign := map[string]*extras{}
+	for _, a := range aggs {
+		e, ok := byCampaign[a.campaign]
+		if !ok {
+			e = &extras{
+				keywords: map[string]int{}, languages: map[string]int{},
+				landings: map[string]int{}, matchTypes: map[string]int{},
+				trend: make([]int, days),
+			}
+			byCampaign[a.campaign] = e
+		}
+		if a.keyword != "" {
+			e.keywords[a.keyword]++
+		}
+		if a.lng != "" {
+			e.languages[a.lng]++
+		}
+		if a.landing != "" {
+			e.landings[a.landing]++
+		}
+		if a.matchType != "" {
+			e.matchTypes[a.matchType]++
+		}
+		if idx := (a.user.CreatedAt - startTs) / 86400; idx >= 0 && idx < int64(days) {
+			e.trend[idx]++
+		}
+	}
+	result := make([]opsCampaignRow, 0, len(rows))
+	for _, row := range rows {
+		cr := opsCampaignRow{opsFunnelRow: row}
+		if e, ok := byCampaign[row.Key]; ok {
+			cr.Keywords = opsTopNames(e.keywords, 5)
+			cr.Languages = opsTopNames(e.languages, 3)
+			cr.LandingPages = opsSortedCounts(e.landings, 3)
+			cr.MatchTypes = opsSortedCounts(e.matchTypes, 3)
+			cr.Trend = e.trend
+		}
+		result = append(result, cr)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Registrations > result[j].Registrations
+	})
+	return result
+}
+
+// opsRollupKeywords builds a per-search-term funnel (keyword = hsa_kw or
+// utm_term) across all campaigns, sorted by registrations.
+func opsRollupKeywords(aggs map[int]*opsUserAgg, limit int) []opsKeywordRow {
+	type kwAcc struct {
+		row       opsFunnelRow
+		campaigns map[string]int
+	}
+	groups := map[string]*kwAcc{}
+	for _, a := range aggs {
+		if a.keyword == "" {
+			continue
+		}
+		acc, ok := groups[a.keyword]
+		if !ok {
+			acc = &kwAcc{row: opsFunnelRow{Key: a.keyword}, campaigns: map[string]int{}}
+			groups[a.keyword] = acc
+		}
+		acc.campaigns[a.campaign]++
+		acc.row.Registrations++
+		if a.activated() {
+			acc.row.Activated++
+		}
+		if a.realBrowse() {
+			acc.row.RealBrowse++
+		}
+		if a.manualKey() {
+			acc.row.ManualKeys++
+		}
+		if a.usedKey() {
+			acc.row.KeyUsers++
+		}
+		if a.hasIntent {
+			acc.row.PayIntent++
+		}
+		if len(a.paidOrders) > 0 {
+			acc.row.Paid++
+			acc.row.PaidUSD += a.paidUSD()
+		}
+	}
+	rows := make([]opsKeywordRow, 0, len(groups))
+	for _, acc := range groups {
+		rows = append(rows, opsKeywordRow{
+			opsFunnelRow: acc.row,
+			Campaigns:    opsTopNames(acc.campaigns, 3),
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].Registrations != rows[j].Registrations {
+			return rows[i].Registrations > rows[j].Registrations
+		}
+		return rows[i].Key < rows[j].Key
+	})
+	if len(rows) > limit {
+		rows = rows[:limit]
+	}
+	return rows
+}
+
+func opsRollupPayment(aggs map[int]*opsUserAgg) []opsPaymentRow {
+	groups := map[string]*opsPaymentRow{}
+	for _, a := range aggs {
+		if !a.hasIntent {
+			continue
+		}
+		key := opsWeek(a.user.CreatedAt)
+		row, ok := groups[key]
+		if !ok {
+			row = &opsPaymentRow{Key: key}
+			groups[key] = row
+		}
+		row.Intent++
+		if len(a.paidOrders) == 0 {
+			row.Unpaid++
+			continue
+		}
+		row.First++
+		if usd, ok := opsTopUpUSD(a.paidOrders[0]); ok {
+			row.FirstUSD += usd
+		}
+		if len(a.paidOrders) > 1 {
+			row.Repeat++
+			for _, t := range a.paidOrders[1:] {
+				if usd, ok := opsTopUpUSD(t); ok {
+					row.RepeatUSD += usd
+				}
+			}
+		}
+	}
+	rows := make([]opsPaymentRow, 0, len(groups))
+	for _, row := range groups {
+		rows = append(rows, *row)
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Key > rows[j].Key })
+	return rows
+}
+
+// dayStarts holds n+1 ascending Pacific-midnight boundaries; row i covers
+// [dayStarts[i], dayStarts[i+1]). Rows are emitted newest-first.
+func opsRollupDau(keyDaily []*model.OpsKeyDaily, dayStarts []int64) []opsDauRow {
+	type acc struct {
+		users    map[int]bool
+		requests int
+		quota    int64
+	}
+	byDay := map[int64]*acc{}
+	for _, r := range keyDaily {
+		a, ok := byDay[r.DayTs]
+		if !ok {
+			a = &acc{users: map[int]bool{}}
+			byDay[r.DayTs] = a
+		}
+		a.users[r.UserId] = true
+		a.requests += r.ReqCount
+		a.quota += r.Quota
+	}
+	n := len(dayStarts) - 1
+	rows := make([]opsDauRow, 0, n)
+	for i := n - 1; i >= 0; i-- {
+		ts := dayStarts[i]
+		row := opsDauRow{Date: opsDay(ts)}
+		if a, ok := byDay[ts]; ok {
+			row.ActiveUsers = len(a.users)
+			row.Requests = a.requests
+			row.QuotaUSD = float64(a.quota) / common.QuotaPerUnit
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+func opsRollupDauDays(daysData []*model.OpsDauDay, dayStarts []int64) []opsDauRow {
+	byDay := map[int64]*model.OpsDauDay{}
+	for _, d := range daysData {
+		byDay[d.DayTs] = d
+	}
+	n := len(dayStarts) - 1
+	rows := make([]opsDauRow, 0, n)
+	for i := n - 1; i >= 0; i-- {
+		ts := dayStarts[i]
+		row := opsDauRow{Date: opsDay(ts)}
+		if d, ok := byDay[ts]; ok {
+			row.ActiveUsers = d.ActiveUsers
+			row.Requests = d.ReqCount
+			row.QuotaUSD = float64(d.Quota) / common.QuotaPerUnit
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+func opsTopPayers(aggs map[int]*opsUserAgg) ([]opsPayerRow, int, float64) {
+	var payers []opsPayerRow
+	total := 0.0
+	for _, a := range aggs {
+		if len(a.paidOrders) == 0 && len(a.refundedOrders) == 0 {
+			continue
+		}
+		paid := a.paidUSD()
+		total += paid
+		refunded := 0.0
+		for _, t := range a.refundedOrders {
+			if usd, ok := opsTopUpUSD(t); ok {
+				refunded += usd
+			}
+		}
+		currencySet := map[string]bool{}
+		var currencies []string
+		for _, t := range append(append([]*model.OpsTopUp(nil), a.paidOrders...), a.refundedOrders...) {
+			ccy := strings.ToUpper(t.PaymentCurrency)
+			if ccy == "" {
+				ccy = "USD"
+			}
+			if !currencySet[ccy] {
+				currencySet[ccy] = true
+				currencies = append(currencies, ccy)
+			}
+		}
+		lastActive := a.user.LastLoginAt
+		if a.logStats != nil && a.logStats.LastRequestAt > lastActive {
+			lastActive = a.logStats.LastRequestAt
+		}
+		// Refunded-only payers (e.g. fraud cleanup) keep their charge times.
+		// Orders arrive sorted by create_time asc (GetOpsTopUps), so first/last
+		// are the slice ends.
+		firstPaidAt, lastPaidAt := int64(0), int64(0)
+		if len(a.paidOrders) > 0 {
+			firstPaidAt = a.paidOrders[0].CreateTime
+			lastPaidAt = a.paidOrders[len(a.paidOrders)-1].CreateTime
+		} else if len(a.refundedOrders) > 0 {
+			firstPaidAt = a.refundedOrders[0].CreateTime
+			lastPaidAt = a.refundedOrders[len(a.refundedOrders)-1].CreateTime
+		}
+		payers = append(payers, opsPayerRow{
+			UserId:       a.user.Id,
+			Username:     a.user.Username,
+			DisplayName:  a.user.DisplayName,
+			Email:        a.user.Email,
+			PaidUSD:      paid,
+			Orders:       len(a.paidOrders),
+			RefundedUSD:  refunded,
+			RefundedCnt:  len(a.refundedOrders),
+			FirstPaidAt:  firstPaidAt,
+			LastPaidAt:   lastPaidAt,
+			RegisteredAt: a.user.CreatedAt,
+			Campaign:     a.campaign,
+			Keyword:      a.keyword,
+			Lng:          a.lng,
+			BrowserLang:  a.user.BrowserLang,
+			Landing:      a.landing,
+			SignupMethod: a.user.OauthKind,
+			Currencies:   currencies,
+			BalanceUSD:   float64(a.user.Quota) / common.QuotaPerUnit,
+			ConsumedUSD:  float64(a.user.UsedQuota) / common.QuotaPerUnit,
+			Requests:     a.user.RequestCount,
+			LastActiveAt: lastActive,
+			// Real user location: website login IP + Stripe card country. NOT the
+			// /v1 request IP (production server) nor the topup-log IP (Stripe
+			// webhook server) — both misrepresented paid users as US.
+			LastIP:     a.user.LastLoginIp,
+			IPCountry:  opsUserCountry(a.user),
+			PayCountry: a.user.PayCountry,
+		})
+	}
+	count := len(payers)
+	sort.Slice(payers, func(i, j int) bool {
+		if payers[i].LastPaidAt != payers[j].LastPaidAt {
+			return payers[i].LastPaidAt > payers[j].LastPaidAt
+		}
+		return payers[i].PaidUSD > payers[j].PaidUSD
+	})
+	ids := make([]int, len(payers))
+	for i := range payers {
+		ids[i] = payers[i].UserId
+	}
+	// Enrich in batches: payer list is unbounded now, keep each IN (...) small.
+	var usage []*model.OpsUserModelUsage
+	usageErr := error(nil)
+	for start := 0; start < len(ids); start += 500 {
+		end := start + 500
+		if end > len(ids) {
+			end = len(ids)
+		}
+		batch, err := model.GetOpsUsersModelUsage(ids[start:end])
+		if err != nil {
+			usageErr = err
+			break
+		}
+		usage = append(usage, batch...)
+	}
+	if usageErr == nil {
+		type mc struct {
+			name  string
+			count int
+		}
+		byUser := map[int][]mc{}
+		for _, r := range usage {
+			byUser[r.UserId] = append(byUser[r.UserId], mc{r.ModelName, r.Count})
+		}
+		for i := range payers {
+			models := byUser[payers[i].UserId]
+			sort.Slice(models, func(x, y int) bool { return models[x].count > models[y].count })
+			if len(models) > 3 {
+				models = models[:3]
+			}
+			names := make([]string, len(models))
+			for j, m := range models {
+				names[j] = m.name
+			}
+			payers[i].TopModels = names
+		}
+	}
+	return payers, count, total
+}

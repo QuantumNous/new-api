@@ -195,13 +195,28 @@ function BillingBreakdown(props: {
     }
   }
 
+  const modelGR = other.group_model_ratio
+  const isModelGR = modelGR != null && Number.isFinite(modelGR)
   const userGR = other.user_group_ratio
   const isUserGR = userGR != null && Number.isFinite(userGR) && userGR !== -1
-  const effectiveGR = isUserGR ? userGR : other.group_ratio
+  let effectiveGR = other.group_ratio
+  let ratioLabel = t('Group Ratio')
+  if (isUserGR) {
+    effectiveGR = userGR
+    ratioLabel = t('User Exclusive Ratio')
+  }
+  if (isModelGR) {
+    effectiveGR = modelGR
+    ratioLabel = t('Model Specific Ratio')
+  }
   if (effectiveGR != null && Number.isFinite(effectiveGR)) {
+    const modelSuffix =
+      isModelGR && other.group_model_ratio_model
+        ? ` · ${other.group_model_ratio_model}`
+        : ''
     rows.push({
-      label: isUserGR ? t('User Exclusive Ratio') : t('Group Ratio'),
-      value: `${formatRatio(effectiveGR)}x`,
+      label: ratioLabel,
+      value: `${formatRatio(effectiveGR)}x${modelSuffix}`,
     })
   }
 
@@ -522,6 +537,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
               <DetailRow
                 label={t('Upstream Request ID')}
                 value={props.log.upstream_request_id}
+                mono
+              />
+            )}
+            {other?.upstream_response_id && (
+              <DetailRow
+                label={t('Upstream Response ID')}
+                value={String(other.upstream_response_id)}
                 mono
               />
             )}

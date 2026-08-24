@@ -106,21 +106,16 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	textOutTokens := usage.OutputTokenDetails.TextTokens
 	audioInputTokens := usage.InputTokenDetails.AudioTokens
 	audioOutTokens := usage.OutputTokenDetails.AudioTokens
-	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	modelRatio, _, _ := ratio_setting.GetModelRatio(modelName)
 
 	autoGroup, exists := common.GetContextKey(ctx, constant.ContextKeyAutoGroup)
 	if exists {
-		groupRatio = ratio_setting.GetGroupRatio(autoGroup.(string))
-		logger.LogDebug(ctx, "final group ratio: %f", groupRatio)
 		relayInfo.UsingGroup = autoGroup.(string)
 	}
 
-	actualGroupRatio := groupRatio
-	userGroupRatio, ok := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.UsingGroup)
-	if ok {
-		actualGroupRatio = userGroupRatio
-	}
+	groupRatioInfo := ratio_setting.GetEffectiveGroupRatio(relayInfo.UserGroup, relayInfo.UsingGroup, modelName)
+	relayInfo.PriceData.GroupRatioInfo = groupRatioInfo
+	logger.LogDebug(ctx, "final group ratio: %f", groupRatioInfo.GroupRatio)
 
 	quotaInfo := QuotaInfo{
 		InputDetails: TokenDetails{
@@ -134,7 +129,7 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		ModelName:  modelName,
 		UsePrice:   relayInfo.UsePrice,
 		ModelRatio: modelRatio,
-		GroupRatio: actualGroupRatio,
+		GroupRatio: groupRatioInfo.GroupRatio,
 	}
 
 	quota := calculateAudioQuota(quotaInfo)
@@ -242,6 +237,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	}
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
+		ChannelType:      relayInfo.ChannelType,
 		PromptTokens:     usage.InputTokens,
 		CompletionTokens: usage.OutputTokens,
 		ModelName:        logModel,
@@ -363,6 +359,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	}
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
+		ChannelType:      relayInfo.ChannelType,
 		PromptTokens:     usage.PromptTokens,
 		CompletionTokens: usage.CompletionTokens,
 		ModelName:        logModel,
@@ -375,9 +372,8 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		Group:            relayInfo.UsingGroup,
 		Other:            other,
 	})
-	gopool.Go(func() {
-		perfmetrics.RecordRelaySample(relayInfo, true, int64(usage.CompletionTokens))
-	})
+	perfmetrics.RecordChannelTokens(relayInfo, int64(usage.PromptTokens), int64(usage.CompletionTokens))
+	perfmetrics.RecordRelaySample(relayInfo, true, int64(usage.CompletionTokens), nil)
 }
 
 // ErrInsufficientTokenQuota marks a genuine token-quota-exhausted condition
@@ -405,9 +401,6 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 	if relayInfo.IsPlayground {
 		return nil
 	}
-	//if relayInfo.TokenUnlimited {
-	//	return nil
-	//}
 	token, err := model.GetTokenByKey(relayInfo.TokenKey, false)
 	if err != nil {
 		return err
@@ -423,18 +416,26 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 }
 
 func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int, sendEmail bool) (err error) {
+	_, err = postConsumeQuotaWithStatus(relayInfo, quota, preConsumedQuota, sendEmail)
+	return err
+}
+
+// postConsumeQuotaWithStatus reports whether the funding-side mutation was
+// committed before a later token-quota update failed.
+func postConsumeQuotaWithStatus(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int, sendEmail bool) (fundingApplied bool, err error) {
 
 	// 1) Consume from wallet quota OR subscription item
 	if relayInfo != nil && relayInfo.BillingSource == BillingSourceSubscription {
 		if relayInfo.SubscriptionId == 0 {
-			return errors.New("subscription id is missing")
+			return false, errors.New("subscription id is missing")
 		}
 		delta := int64(quota)
 		if delta != 0 {
 			if err := model.PostConsumeUserSubscriptionDelta(relayInfo.SubscriptionId, delta); err != nil {
-				return err
+				return false, err
 			}
 			relayInfo.SubscriptionPostDelta += delta
+			fundingApplied = true
 		}
 	} else {
 		// Wallet
@@ -444,8 +445,9 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 			err = model.IncreaseUserQuota(relayInfo.UserId, -quota, false)
 		}
 		if err != nil {
-			return err
+			return false, err
 		}
+		fundingApplied = quota != 0
 	}
 
 	if !relayInfo.IsPlayground {
@@ -455,17 +457,19 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 			err = model.IncreaseTokenQuota(relayInfo.TokenId, relayInfo.TokenKey, -quota)
 		}
 		if err != nil {
-			return err
+			return fundingApplied, err
 		}
 	}
 
-	if sendEmail {
-		if (quota + preConsumedQuota) != 0 {
-			checkAndSendQuotaNotify(relayInfo, quota, preConsumedQuota)
+	if sendEmail && (quota+preConsumedQuota) != 0 {
+		if relayInfo != nil && relayInfo.BillingSource == BillingSourceSubscription {
+			checkAndSendSubscriptionQuotaNotify(relayInfo)
+		} else {
+			checkAndSendWalletQuotaNonEmailNotify(relayInfo, quota, preConsumedQuota)
 		}
 	}
 
-	return nil
+	return fundingApplied, nil
 }
 
 // notifyLang resolves the language for a background notification (no gin
@@ -491,40 +495,46 @@ func renderQuotaNotifyContent(lang, notifyType, warning, quota, link string) str
 	}
 }
 
-func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int) {
+func checkAndSendWalletQuotaNonEmailNotify(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int) {
 	gopool.Go(func() {
-		userSetting := relayInfo.UserSetting
-		threshold := common.QuotaRemindThreshold
-		if userSetting.QuotaWarningThreshold != 0 {
-			threshold = int(userSetting.QuotaWarningThreshold)
+		notify, ok := walletQuotaNonEmailNotifyPayload(relayInfo, quota, preConsumedQuota)
+		if !ok {
+			return
 		}
-
-		//noMoreQuota := userCache.Quota-(quota+preConsumedQuota) <= 0
-		quotaTooLow := false
-		consumeQuota := quota + preConsumedQuota
-		if relayInfo.UserQuota-consumeQuota < threshold {
-			quotaTooLow = true
-		}
-		if quotaTooLow {
-			lang := notifyLang(userSetting.Language)
-			title := i18n.Translate(lang, i18n.MsgNotifyQuotaTitle)
-			topUpLink := PaymentReturnURL("/console/topup")
-
-			notifyType := userSetting.NotifyType
-			if notifyType == "" {
-				notifyType = dto.NotifyTypeEmail
-			}
-
-			// Content is fully rendered here (localized + values substituted), so
-			// NotifyUser is passed nil values.
-			content := renderQuotaNotifyContent(lang, notifyType, title, logger.FormatQuota(relayInfo.UserQuota), topUpLink)
-
-			err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, title, content, nil))
-			if err != nil {
-				common.SysError(fmt.Sprintf("failed to send quota notify to user %d: %s", relayInfo.UserId, err.Error()))
-			}
+		if err := dispatchNotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, notify); err != nil {
+			common.SysError(fmt.Sprintf("failed to send wallet quota non-email notify to user %d: %s", relayInfo.UserId, err.Error()))
 		}
 	})
+}
+
+func walletQuotaNonEmailNotifyPayload(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int) (dto.Notify, bool) {
+	if relayInfo == nil {
+		return dto.Notify{}, false
+	}
+	if relayInfo.BillingSource == BillingSourceSubscription {
+		return dto.Notify{}, false
+	}
+	userSetting := relayInfo.UserSetting
+	switch userSetting.NotifyType {
+	case dto.NotifyTypeWebhook, dto.NotifyTypeBark, dto.NotifyTypeGotify:
+	default:
+		return dto.Notify{}, false
+	}
+	threshold := common.QuotaRemindThreshold
+	if userSetting.QuotaWarningThreshold != 0 {
+		threshold = int(userSetting.QuotaWarningThreshold)
+	}
+	consumeQuota := quota + preConsumedQuota
+	remaining := relayInfo.UserQuota - consumeQuota
+	if remaining >= threshold {
+		return dto.Notify{}, false
+	}
+
+	lang := notifyLang(userSetting.Language)
+	title := i18n.Translate(lang, i18n.MsgNotifyQuotaTitle)
+	topUpLink := PaymentReturnURL("/console/topup")
+	content := renderQuotaNotifyContent(lang, userSetting.NotifyType, title, logger.FormatQuota(remaining), topUpLink)
+	return dto.NewNotify(dto.NotifyTypeQuotaExceed, title, content, nil), true
 }
 
 func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
@@ -559,7 +569,7 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 
 		content := renderQuotaNotifyContent(lang, notifyType, title, logger.FormatQuota(int(remaining)), topUpLink)
 
-		if err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, title, content, nil)); err != nil {
+		if err := dispatchNotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, title, content, nil)); err != nil {
 			common.SysError(fmt.Sprintf("failed to send subscription quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 		}
 	})

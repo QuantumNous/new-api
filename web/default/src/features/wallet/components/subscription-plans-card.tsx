@@ -16,239 +16,775 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Crown, RefreshCw, Sparkles, Check } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Check, Crown, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { formatQuota } from '@/lib/format'
+import { getGAMeasurementIdentifiers } from '@/lib/analytics/gtag'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import {
-  StatusBadge,
-  dotColorMap,
-  textColorMap,
-} from '@/components/status-badge'
-import {
   getPublicPlans,
   getSelfSubscriptionFull,
-  updateBillingPreference,
+  cancelSubscriptionRenewal,
+  purchaseSubscriptionPlanFlexible,
+  quoteSubscriptionPlanFlexible,
+  resumeSubscriptionRenewal,
 } from '@/features/subscriptions/api'
-import { SubscriptionPurchaseDialog } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
-import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
-import type {
-  PlanRecord,
-  UserSubscriptionRecord,
+import { useRecallClaimContext } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
+import {
+  type FlexiblePaymentChoice,
+  type FlexiblePurchaseResponse,
+  type PlanRecord,
+  type SubscriptionPaymentAvailability,
+  type SubscriptionPaymentQuote,
+  type SubscriptionRenewalLifecyclePrecondition,
 } from '@/features/subscriptions/types'
-import { PAYMENT_TYPES } from '../constants'
-import type { PaymentMethod, TopupInfo } from '../types'
+import type {
+  StripeCheckoutOpenResult,
+  StripeCheckoutPresentation,
+} from '../hooks/use-payment'
+import {
+  type LifecyclePlanRecord,
+  type WalletSelfSubscriptionData,
+  applyRenewalLifecycleResultToSelfData,
+  getFlexiblePlanAction,
+  buildFlexibleQuoteRequest,
+  buildFlexiblePurchaseRequest,
+  getMatchingPaymentQuote,
+  mergeFlexibleQuoteProjection,
+  normalizeSelfSubscriptionData,
+} from '../lib/subscription-plan-lifecycle'
+import {
+  resolveSubscriptionPlanDisplayPrice,
+  resolveSubscriptionPlanGridCurrency,
+} from '../lib/subscription-plan-prices'
+import type { TopupInfo } from '../types'
+import { CurrentPlanCard } from './current-plan-card'
+import { PlanPurchaseDialog } from './plan-purchase-dialog'
 
 interface SubscriptionPlansCardProps {
   topupInfo: TopupInfo | null
   onAvailabilityChange?: (available: boolean) => void
   userQuota?: number
   onPurchaseSuccess?: () => void | Promise<void>
+  onOpenStripeCheckout?: (
+    data: FlexiblePurchaseResponse,
+    presentation?: StripeCheckoutPresentation
+  ) => StripeCheckoutOpenResult
+  initialPlans?: LifecyclePlanRecord[]
+  initialSelfData?: WalletSelfSubscriptionData
+  initialLoading?: boolean
+  initialPlanPreviewQuotes?: Record<number, SubscriptionPaymentQuote>
 }
 
-function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
-  return payMethods.filter(
-    (m) =>
-      m?.type &&
-      m.type !== PAYMENT_TYPES.STRIPE &&
-      m.type !== PAYMENT_TYPES.CREEM &&
-      m.type !== PAYMENT_TYPES.PADDLE
+const EXTERNAL_RETURN_POLL_KEY = 'new-api:subscription-change-return-pending'
+const RENEWAL_FAILURE_TOAST_SHOWN = 'renewal failure toast shown'
+const RENEWAL_MUTATION_ALREADY_IN_FLIGHT = 'renewal mutation already in flight'
+
+const PLAN_DISPLAY_ORDER: Record<string, number> = {
+  go: 0,
+  pro: 1,
+  max: 2,
+}
+
+function createStableSubscriptionRequestId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+    (Number(c) ^ ((Math.random() * 16) >> (Number(c) / 4))).toString(16)
   )
 }
 
-function getBillingPreferenceLabel(
-  preference: string,
-  t: (key: string) => string
-): string {
-  switch (preference) {
-    case 'subscription_first':
-      return t('Subscription First')
-    case 'wallet_first':
-      return t('Wallet First')
-    case 'subscription_only':
-      return t('Subscription Only')
-    case 'wallet_only':
-      return t('Wallet Only')
-    default:
-      return preference
+function rememberExternalSubscriptionReturn() {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.setItem(EXTERNAL_RETURN_POLL_KEY, '1')
+}
+
+function getPlanDisplayOrder(title: string): number {
+  return PLAN_DISPLAY_ORDER[title.trim().toLowerCase()] ?? 99
+}
+
+function formatPlanPrice(amount: number, currency = 'USD'): string {
+  const normalizedCurrency = currency.trim().toUpperCase() || 'USD'
+  let locale = 'en-US'
+  if (normalizedCurrency === 'BRL') locale = 'pt-BR'
+  if (normalizedCurrency === 'INR') locale = 'en-IN'
+  try {
+    const currencyFractionDigits = Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: normalizedCurrency,
+    }).resolvedOptions().maximumFractionDigits
+    const fixedTwoDecimals =
+      normalizedCurrency === 'BRL' || normalizedCurrency === 'INR'
+    let minimumFractionDigits = currencyFractionDigits
+    if (fixedTwoDecimals) minimumFractionDigits = 2
+    if (!fixedTwoDecimals && Number.isInteger(amount)) {
+      minimumFractionDigits = 0
+    }
+    return Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: normalizedCurrency,
+      minimumFractionDigits,
+      maximumFractionDigits: fixedTwoDecimals ? 2 : currencyFractionDigits,
+    }).format(amount)
+  } catch {
+    const formattedAmount = Intl.NumberFormat('en-US', {
+      minimumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+      maximumFractionDigits: 2,
+    }).format(amount)
+    return `${normalizedCurrency} ${formattedAmount}`
   }
 }
 
-export function SubscriptionPlansCard({
-  topupInfo,
-  onAvailabilityChange,
-  userQuota,
-  onPurchaseSuccess,
-}: SubscriptionPlansCardProps) {
-  const { t } = useTranslation()
+type PlanCardDiscountPreview = {
+  currency: string
+  discountAmount: number
+  discountKind: 'invitation' | 'recall'
+  originalTotal: number
+  total: number
+}
 
-  const [plans, setPlans] = useState<PlanRecord[]>([])
-  const [activeSubscriptions, setActiveSubscriptions] = useState<
-    UserSubscriptionRecord[]
-  >([])
-  const [allSubscriptions, setAllSubscriptions] = useState<
-    UserSubscriptionRecord[]
-  >([])
-  const [billingPreference, setBillingPreference] =
-    useState('subscription_first')
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
+function getPlanCardDiscountPreview(
+  quote: SubscriptionPaymentQuote | undefined
+): PlanCardDiscountPreview | null {
+  if (
+    quote?.discount_kind !== 'invitation' &&
+    quote?.discount_kind !== 'recall'
+  ) {
+    return null
+  }
+  const originalTotal = Number(quote.original_total)
+  const total = Number(quote.total)
+  const discountAmount = Number(quote.discount_amount ?? originalTotal - total)
+  if (
+    !Number.isFinite(originalTotal) ||
+    !Number.isFinite(total) ||
+    !Number.isFinite(discountAmount) ||
+    originalTotal <= total ||
+    total < 0 ||
+    discountAmount <= 0
+  ) {
+    return null
+  }
+  const currency =
+    typeof quote.currency === 'string' && quote.currency.trim()
+      ? quote.currency.trim().toUpperCase()
+      : 'USD'
+  return {
+    currency,
+    discountAmount,
+    discountKind: quote.discount_kind,
+    originalTotal,
+    total,
+  }
+}
 
-  const [purchaseOpen, setPurchaseOpen] = useState(false)
-  const [selectedPlan, setSelectedPlan] = useState<PlanRecord | null>(null)
+type Translate = (key: string, options?: Record<string, unknown>) => string
+type SelfSubscriptionRefreshResult = 'applied' | 'superseded' | 'failed'
 
-  const enableStripe = !!topupInfo?.enable_stripe_topup
-  const enableCreem = !!topupInfo?.enable_creem_topup
-  const enableWaffoPancake = !!topupInfo?.enable_waffo_pancake_topup
-  const enableOnlineTopUp = !!topupInfo?.enable_online_topup
-  const epayMethods = useMemo(
-    () => getEpayMethods(topupInfo?.pay_methods),
-    [topupInfo?.pay_methods]
+function getPlanAudience(title: string, t: Translate): string {
+  switch (title.trim().toLowerCase()) {
+    case 'go':
+      return t('For individuals and light everyday use')
+    case 'pro':
+      return t('For daily development and frequent requests')
+    case 'max':
+      return t('For teams and high-intensity workloads')
+    default:
+      return ''
+  }
+}
+
+function getActionLabel(
+  action: ReturnType<typeof getFlexiblePlanAction>,
+  t: Translate
+): string {
+  if (action === 'buy') return t('Buy now')
+  if (action === 'repurchase') return t('Repurchase now')
+  return t('Switch now')
+}
+
+function getPaymentAvailability(
+  selfData: WalletSelfSubscriptionData,
+  topupInfo: TopupInfo | null
+): SubscriptionPaymentAvailability {
+  const availability: SubscriptionPaymentAvailability = {
+    ...(selfData.payment_availability ?? {}),
+  }
+  if (!topupInfo?.enable_stripe_topup) {
+    availability.stripe_recurring = {
+      available: false,
+      disabled_reason: 'Stripe is not enabled.',
+    }
+  }
+  return availability
+}
+
+function isPaymentChoiceAvailable(
+  availability: SubscriptionPaymentAvailability,
+  choice: FlexiblePaymentChoice
+): boolean {
+  return availability[choice]?.available !== false
+}
+
+function buildRenewalLifecyclePrecondition(
+  selfData: WalletSelfSubscriptionData,
+  expectedStatus: SubscriptionRenewalLifecyclePrecondition['expected_renewal_status']
+): SubscriptionRenewalLifecyclePrecondition | undefined {
+  const contract = selfData.contract
+  const source = selfData.renewal_source
+  const status = selfData.renewal_status
+  if (
+    !contract ||
+    !Number.isSafeInteger(contract.id) ||
+    !Number.isSafeInteger(contract.change_version) ||
+    !Number.isSafeInteger(contract.current_period_end) ||
+    contract.id <= 0 ||
+    contract.change_version < 0 ||
+    contract.current_period_end <= 0 ||
+    (source !== 'provider_recurring' && source !== 'wallet_auto') ||
+    status !== expectedStatus
+  ) {
+    return undefined
+  }
+  return {
+    expected_contract_id: contract.id,
+    expected_change_version: contract.change_version,
+    expected_current_period_end: contract.current_period_end,
+    expected_renewal_source: source,
+    expected_renewal_status: expectedStatus,
+  }
+}
+
+function getPlanEntitlements(plan: PlanRecord['plan'], t: Translate) {
+  const monthly = Number(plan.total_amount || 0)
+  const media = Number(plan.media_credits_monthly || 0)
+  return [
+    t('Monthly model quota: {{value}}', {
+      value: monthly > 0 ? formatQuota(monthly) : t('Unlimited'),
+    }),
+    t('Media generation credits: {{value}}', {
+      value:
+        media > 0
+          ? t('{{count}} credits', { count: media })
+          : t('Not included'),
+    }),
+  ]
+}
+
+export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
+  const { t, i18n } = useTranslation()
+  const {
+    topupInfo,
+    onAvailabilityChange,
+    onPurchaseSuccess,
+    onOpenStripeCheckout,
+  } = props
+  const [plans, setPlans] = useState<LifecyclePlanRecord[]>(
+    () => props.initialPlans ?? []
   )
+  const [selfData, setSelfData] = useState<WalletSelfSubscriptionData>(
+    () => props.initialSelfData ?? normalizeSelfSubscriptionData(undefined)
+  )
+  const [loading, setLoading] = useState(props.initialLoading ?? true)
+  const [purchaseTarget, setPurchaseTarget] = useState<{
+    plan: PlanRecord
+    requestId: string
+  } | null>(null)
+  const [purchasing, setPurchasing] = useState(false)
+  const [purchaseProjection, setPurchaseProjection] =
+    useState<FlexiblePurchaseResponse | null>(null)
+  const [quoteError, setQuoteError] = useState(false)
+  const quoteRequestSequenceRef = useRef(0)
+  const latestQuoteRequestRef = useRef<{
+    sequence: number
+    paymentChoice: FlexiblePaymentChoice
+    months: number
+    requestId: string
+  } | null>(null)
+  const [quoteLoading, setQuoteLoading] = useState(false)
+  const [planPreviewQuotes, setPlanPreviewQuotes] = useState<
+    Record<number, SubscriptionPaymentQuote>
+  >(() => props.initialPlanPreviewQuotes ?? {})
+  const [renewalMutationPending, setRenewalMutationPending] = useState(false)
+  const renewalMutationInFlightRef = useRef(false)
+  // A later failed /self refresh must not erase the last successful canonical
+  // subscription snapshot; only the initial no-data failure can show empty state.
+  const selfSubscriptionRequestSequenceRef = useRef(0)
+  const selfSubscriptionAppliedSequenceRef = useRef(0)
+  const recallClaim = useRecallClaimContext()
 
   const fetchPlans = useCallback(async () => {
     try {
       const res = await getPublicPlans()
-      if (res.success) {
-        setPlans(res.data || [])
-      }
+      setPlans(res.success ? ((res.data || []) as LifecyclePlanRecord[]) : [])
     } catch {
       setPlans([])
     }
   }, [])
 
-  const fetchSelfSubscription = useCallback(async () => {
-    try {
-      const res = await getSelfSubscriptionFull()
-      if (res.success && res.data) {
-        setBillingPreference(
-          res.data.billing_preference || 'subscription_first'
-        )
-        setActiveSubscriptions(res.data.subscriptions || [])
-        setAllSubscriptions(res.data.all_subscriptions || [])
+  const fetchSelfSubscription = useCallback(
+    async (
+      options: { preserveOnFailure?: boolean } = {}
+    ): Promise<SelfSubscriptionRefreshResult> => {
+      const requestSequence = ++selfSubscriptionRequestSequenceRef.current
+      try {
+        const res = await getSelfSubscriptionFull()
+        if (requestSequence < selfSubscriptionAppliedSequenceRef.current) {
+          return 'superseded'
+        }
+        if (
+          requestSequence !== selfSubscriptionRequestSequenceRef.current &&
+          selfSubscriptionAppliedSequenceRef.current > 0
+        ) {
+          return 'superseded'
+        }
+        if (res.success) {
+          selfSubscriptionAppliedSequenceRef.current = requestSequence
+          setSelfData(normalizeSelfSubscriptionData(res.data))
+          return 'applied'
+        }
+        if (
+          !options.preserveOnFailure &&
+          selfSubscriptionAppliedSequenceRef.current === 0
+        ) {
+          setSelfData(normalizeSelfSubscriptionData(undefined))
+        }
+        return 'failed'
+      } catch {
+        if (requestSequence < selfSubscriptionAppliedSequenceRef.current) {
+          return 'superseded'
+        }
+        if (requestSequence !== selfSubscriptionRequestSequenceRef.current) {
+          return 'superseded'
+        }
+        if (
+          !options.preserveOnFailure &&
+          selfSubscriptionAppliedSequenceRef.current === 0
+        ) {
+          setSelfData(normalizeSelfSubscriptionData(undefined))
+        }
+        return 'failed'
       }
-    } catch {
-      // ignore
-    }
-  }, [])
+    },
+    []
+  )
 
   useEffect(() => {
+    if (props.initialLoading === false) return
     const init = async () => {
       setLoading(true)
       await Promise.all([fetchPlans(), fetchSelfSubscription()])
       setLoading(false)
     }
-    init()
-  }, [fetchPlans, fetchSelfSubscription])
+    void init()
+  }, [fetchPlans, fetchSelfSubscription, props.initialLoading])
 
-  const handleRefresh = async () => {
-    setRefreshing(true)
-    try {
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (!window.sessionStorage.getItem(EXTERNAL_RETURN_POLL_KEY)) return
+    let cancelled = false
+    let attempts = 0
+    const poll = async () => {
+      if (cancelled || attempts >= 5) return
+      attempts += 1
       await fetchSelfSubscription()
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
-  const handlePreferenceChange = async (pref: string) => {
-    const previous = billingPreference
-    setBillingPreference(pref)
-    try {
-      const res = await updateBillingPreference(pref)
-      if (res.success) {
-        toast.success(t('Updated successfully'))
-        const normalized = res.data?.billing_preference || pref
-        setBillingPreference(normalized)
-      } else {
-        toast.error(res.message || t('Update failed'))
-        setBillingPreference(previous)
+      if (attempts >= 5) {
+        window.sessionStorage.removeItem(EXTERNAL_RETURN_POLL_KEY)
+        return
       }
-    } catch {
-      toast.error(t('Request failed'))
-      setBillingPreference(previous)
+      window.setTimeout(poll, 2000)
     }
-  }
-
-  const hasActive = activeSubscriptions.length > 0
-  const hasAny = allSubscriptions.length > 0
-  const isAvailable = loading || plans.length > 0 || hasAny
-  const disablePref = !hasActive
-  const isSubPref =
-    billingPreference === 'subscription_first' ||
-    billingPreference === 'subscription_only'
-  const displayPref =
-    disablePref && isSubPref ? 'wallet_first' : billingPreference
-
-  const planPurchaseCountMap = useMemo(() => {
-    const map = new Map<number, number>()
-    for (const sub of allSubscriptions) {
-      const planId = sub?.subscription?.plan_id
-      if (!planId) continue
-      map.set(planId, (map.get(planId) || 0) + 1)
+    void poll()
+    return () => {
+      cancelled = true
     }
-    return map
-  }, [allSubscriptions])
+  }, [fetchSelfSubscription])
+
+  const orderedPlans = useMemo(
+    () =>
+      [...plans].sort((a, b) => {
+        const orderDiff =
+          getPlanDisplayOrder(a?.plan?.title || '') -
+          getPlanDisplayOrder(b?.plan?.title || '')
+        if (orderDiff !== 0) return orderDiff
+        return (
+          Number(a?.plan?.price_amount || 0) -
+          Number(b?.plan?.price_amount || 0)
+        )
+      }),
+    [plans]
+  )
+  const planGridCurrency = useMemo(
+    () =>
+      resolveSubscriptionPlanGridCurrency(
+        orderedPlans.map((item) => item.plan),
+        i18n.resolvedLanguage || i18n.language
+      ),
+    [i18n.language, i18n.resolvedLanguage, orderedPlans]
+  )
+
+  const contract = selfData.contract ?? null
+  const currentPlanId =
+    contract?.current_plan_id || selfData.current_entitlement?.plan_id || 0
+  const currentPlan = orderedPlans.find(
+    (item) => item.plan.id === currentPlanId
+  )?.plan
+  const hasActivePlan = contract?.status === 'active' && !!currentPlan
+  const isAvailable = loading || plans.length > 0 || hasActivePlan
+  const paymentAvailability = useMemo(
+    () => getPaymentAvailability(selfData, topupInfo),
+    [selfData, topupInfo]
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    const clearPlanPreviewQuotes = () => {
+      void Promise.resolve().then(() => {
+        if (!cancelled) {
+          setPlanPreviewQuotes({})
+        }
+      })
+    }
+    if (
+      loading ||
+      orderedPlans.length === 0 ||
+      !isPaymentChoiceAvailable(paymentAvailability, 'stripe_recurring')
+    ) {
+      clearPlanPreviewQuotes()
+      return () => {
+        cancelled = true
+      }
+    }
+    clearPlanPreviewQuotes()
+    const loadPlanPreviewQuotes = async () => {
+      const entries = await Promise.all(
+        orderedPlans.map(async (item) => {
+          const requestBody = buildFlexibleQuoteRequest({
+            planId: item.plan.id,
+            paymentChoice: 'stripe_recurring',
+            months: 1,
+            requestId: createStableSubscriptionRequestId(),
+            recallClaim: recallClaim.claim,
+          })
+          try {
+            const res = await quoteSubscriptionPlanFlexible(requestBody)
+            const quote = res.success
+              ? getMatchingPaymentQuote(
+                  'stripe_recurring',
+                  res.data?.payment_quotes,
+                  1
+                )
+              : undefined
+            return quote ? ([item.plan.id, quote] as const) : null
+          } catch {
+            return null
+          }
+        })
+      )
+      if (cancelled) return
+      setPlanPreviewQuotes(
+        Object.fromEntries(
+          entries.filter(
+            (entry): entry is readonly [number, SubscriptionPaymentQuote] =>
+              entry !== null
+          )
+        )
+      )
+    }
+    void loadPlanPreviewQuotes()
+    return () => {
+      cancelled = true
+    }
+  }, [loading, orderedPlans, paymentAvailability, recallClaim.claim])
 
   useEffect(() => {
     onAvailabilityChange?.(isAvailable)
   }, [isAvailable, onAvailabilityChange])
 
-  const planTitleMap = useMemo(() => {
-    const map = new Map<number, string>()
-    for (const p of plans) {
-      if (p?.plan?.id) {
-        map.set(p.plan.id, p.plan.title || '')
-      }
+  const refreshAfterRenewal = async () => {
+    const selfRefreshResult = await fetchSelfSubscription({
+      preserveOnFailure: true,
+    })
+    if (selfRefreshResult === 'failed') {
+      toast.error(t('Subscription updated, but failed to refresh status'))
     }
-    return map
-  }, [plans])
-
-  const getRemainingDays = (sub: UserSubscriptionRecord) => {
-    const endTime = sub?.subscription?.end_time || 0
-    if (!endTime) return 0
-    const now = Date.now() / 1000
-    return Math.max(0, Math.ceil((endTime - now) / 86400))
+    try {
+      await onPurchaseSuccess?.()
+    } catch {
+      // onPurchaseSuccess is best-effort and must not affect renewal reconciliation.
+    }
   }
 
-  const getUsagePercent = (sub: UserSubscriptionRecord) => {
-    const total = Number(sub?.subscription?.amount_total || 0)
-    const used = Number(sub?.subscription?.amount_used || 0)
-    if (total <= 0) return 0
-    return Math.round((used / total) * 100)
+  const refreshAfterRenewalFailure = async (
+    options: { staleFeedbackOnRefresh?: boolean } = {}
+  ) => {
+    const selfRefreshResult = await fetchSelfSubscription({
+      preserveOnFailure: true,
+    })
+    if (selfRefreshResult === 'failed') {
+      toast.error(t('Failed to refresh subscription status'))
+    } else if (options.staleFeedbackOnRefresh) {
+      toast.error(
+        t('Subscription status changed. Refresh complete; please retry.')
+      )
+    }
+  }
+
+  const handleCancelRenewal = async () => {
+    if (renewalMutationInFlightRef.current) {
+      throw new Error(RENEWAL_MUTATION_ALREADY_IN_FLIGHT)
+    }
+    renewalMutationInFlightRef.current = true
+    setRenewalMutationPending(true)
+    const renewalContractId = selfData.contract?.id ?? null
+    let failureRefreshAttempted = false
+    try {
+      const precondition = buildRenewalLifecyclePrecondition(
+        selfData,
+        'enabled'
+      )
+      if (!precondition) {
+        await refreshAfterRenewalFailure({ staleFeedbackOnRefresh: true })
+        failureRefreshAttempted = true
+        throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
+      }
+      const res = await cancelSubscriptionRenewal(precondition)
+      if (!res.success) {
+        toast.error(res.message || t('Payment request failed'))
+        throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
+      }
+      const optimisticSequence = ++selfSubscriptionRequestSequenceRef.current
+      setSelfData((current) => {
+        const next = applyRenewalLifecycleResultToSelfData(
+          current,
+          res.data,
+          renewalContractId
+        )
+        if (next !== current) {
+          selfSubscriptionAppliedSequenceRef.current = optimisticSequence
+        }
+        return next
+      })
+      toast.success(t('Subscription renewal canceled'))
+      await refreshAfterRenewal()
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        error.message !== RENEWAL_FAILURE_TOAST_SHOWN
+      ) {
+        toast.error(t('Payment request failed'))
+      }
+      if (!failureRefreshAttempted) {
+        await refreshAfterRenewalFailure()
+      }
+      throw error
+    } finally {
+      renewalMutationInFlightRef.current = false
+      setRenewalMutationPending(false)
+    }
+  }
+
+  const handleResumeRenewal = async () => {
+    if (renewalMutationInFlightRef.current) {
+      throw new Error(RENEWAL_MUTATION_ALREADY_IN_FLIGHT)
+    }
+    renewalMutationInFlightRef.current = true
+    setRenewalMutationPending(true)
+    const renewalContractId = selfData.contract?.id ?? null
+    let failureRefreshAttempted = false
+    try {
+      const precondition = buildRenewalLifecyclePrecondition(
+        selfData,
+        'cancelled_by_user'
+      )
+      if (!precondition) {
+        await refreshAfterRenewalFailure({ staleFeedbackOnRefresh: true })
+        failureRefreshAttempted = true
+        throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
+      }
+      const res = await resumeSubscriptionRenewal(precondition)
+      if (!res.success) {
+        toast.error(res.message || t('Payment request failed'))
+        throw new Error(RENEWAL_FAILURE_TOAST_SHOWN)
+      }
+      const optimisticSequence = ++selfSubscriptionRequestSequenceRef.current
+      setSelfData((current) => {
+        const next = applyRenewalLifecycleResultToSelfData(
+          current,
+          res.data,
+          renewalContractId
+        )
+        if (next !== current) {
+          selfSubscriptionAppliedSequenceRef.current = optimisticSequence
+        }
+        return next
+      })
+      toast.success(t('Subscription renewal resumed'))
+      await refreshAfterRenewal()
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        error.message !== RENEWAL_FAILURE_TOAST_SHOWN
+      ) {
+        toast.error(t('Payment request failed'))
+      }
+      if (!failureRefreshAttempted) {
+        await refreshAfterRenewalFailure()
+      }
+      throw error
+    } finally {
+      renewalMutationInFlightRef.current = false
+      setRenewalMutationPending(false)
+    }
+  }
+
+  const handleConfirmPurchase = async (
+    paymentChoice: FlexiblePaymentChoice,
+    months: number
+  ) => {
+    if (!purchaseTarget) return
+    if (!isPaymentChoiceAvailable(paymentAvailability, paymentChoice)) {
+      toast.error(t('Payment choice is unavailable'))
+      return
+    }
+    const selectedQuote = getMatchingPaymentQuote(
+      paymentChoice,
+      purchaseProjection?.payment_quotes,
+      months
+    )
+    if (!selectedQuote) {
+      toast.error(t('Payment quote is unavailable.'))
+      return
+    }
+    setPurchasing(true)
+    try {
+      const res = await purchaseSubscriptionPlanFlexible({
+        ...buildFlexiblePurchaseRequest({
+          planId: purchaseTarget.plan.plan.id,
+          paymentChoice,
+          months,
+          requestId: purchaseTarget.requestId,
+          quoteId: selectedQuote.quote_id,
+          orderId: selectedQuote?.order_id,
+          recallClaim: recallClaim.claim,
+        }),
+        ...getGAMeasurementIdentifiers(),
+      })
+      if (!res.success || !res.data) {
+        toast.error(res.message || t('Payment request failed'))
+        return
+      }
+      setPurchaseProjection(res.data)
+      if (
+        res.data.status === 'checkout_required' ||
+        res.data.status === 'payment_action_required'
+      ) {
+        rememberExternalSubscriptionReturn()
+        setPurchaseTarget(null)
+        setPurchaseProjection(null)
+        const opened = onOpenStripeCheckout?.(res.data, {
+          title: t('Confirm Payment'),
+          description: t('Payment is processed securely by Stripe.'),
+        })
+        if (opened) {
+          return
+        }
+        toast.error(t('Payment request failed'))
+        return
+      }
+      toast.success(t('Updated successfully'))
+      setPurchaseTarget(null)
+      setPurchaseProjection(null)
+      await fetchSelfSubscription()
+      await onPurchaseSuccess?.()
+    } catch {
+      toast.error(t('Payment request failed'))
+    } finally {
+      setPurchasing(false)
+    }
+  }
+
+  const requestQuoteForTarget = useCallback(
+    async (
+      target: {
+        plan: PlanRecord
+        requestId: string
+      },
+      paymentChoice: FlexiblePaymentChoice,
+      months: number
+    ) => {
+      const requestBody = buildFlexibleQuoteRequest({
+        planId: target.plan.plan.id,
+        paymentChoice,
+        months,
+        requestId: target.requestId,
+        recallClaim: recallClaim.claim,
+      })
+      const sequence = quoteRequestSequenceRef.current + 1
+      quoteRequestSequenceRef.current = sequence
+      const latestRequest = {
+        sequence,
+        paymentChoice: requestBody.payment_choice,
+        months: requestBody.months,
+        requestId: requestBody.request_id,
+      }
+      latestQuoteRequestRef.current = latestRequest
+      setPurchaseProjection(null)
+      setQuoteError(false)
+      setQuoteLoading(true)
+      try {
+        const res = await quoteSubscriptionPlanFlexible(requestBody)
+        if (latestQuoteRequestRef.current !== latestRequest) return
+        if (res.success && res.data) {
+          setPurchaseProjection((current) =>
+            mergeFlexibleQuoteProjection(
+              current,
+              res.data ?? {},
+              latestRequest,
+              latestQuoteRequestRef.current
+            )
+          )
+        } else {
+          setPurchaseProjection(null)
+          setQuoteError(true)
+        }
+      } catch {
+        if (latestQuoteRequestRef.current !== latestRequest) return
+        setPurchaseProjection(null)
+        setQuoteError(true)
+      } finally {
+        if (latestQuoteRequestRef.current === latestRequest) {
+          setQuoteLoading(false)
+        }
+      }
+    },
+    [recallClaim.claim]
+  )
+
+  const handleQuoteRequest = async (
+    paymentChoice: FlexiblePaymentChoice,
+    months: number
+  ) => {
+    if (!purchaseTarget) return
+    await requestQuoteForTarget(purchaseTarget, paymentChoice, months)
   }
 
   if (loading) {
     return (
       <Card className='gap-0 overflow-hidden py-0'>
-        <CardHeader className='border-b p-3 !pb-3 sm:p-5 sm:!pb-5'>
-          <Skeleton className='h-6 w-32' />
-        </CardHeader>
         <CardContent className='space-y-4 p-3 sm:p-5'>
-          <Skeleton className='h-20 w-full' />
+          <Skeleton className='h-10 w-48' />
           <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className='h-48 w-full' />
+              <Skeleton key={i} className='h-56 w-full' />
             ))}
           </div>
         </CardContent>
@@ -256,366 +792,173 @@ export function SubscriptionPlansCard({
     )
   }
 
-  if (plans.length === 0 && !hasAny) {
-    return null
-  }
+  if (plans.length === 0 && !hasActivePlan) return null
 
   return (
     <>
       <TitledCard
         title={t('Subscription Plans')}
-        description={t('Subscribe to a plan for model access')}
+        description={t(
+          'One key, 100+ frontier models: GPT, Claude, Gemini, DeepSeek, GLM for text, plus Seedance 2.5 and more for image & video generation.'
+        )}
         icon={<Crown className='h-4 w-4' />}
+        iconClassName='bg-[#f0ebfa] text-[#4c1d95] dark:bg-[#5b21b6]/25 dark:text-[#c4b5fd]'
         contentClassName='space-y-4 sm:space-y-5'
       >
-        {/* My subscriptions & billing preference */}
-        <div className='rounded-xl border p-3 sm:p-4'>
-          <div className='flex flex-wrap items-center justify-between gap-2.5 sm:gap-3'>
-            <div className='flex min-w-0 flex-wrap items-center gap-2'>
-              <span className='text-sm font-medium'>
-                {t('My Subscriptions')}
-              </span>
-              <span className='flex items-center gap-1.5 text-xs font-medium'>
-                <span
-                  className={cn(
-                    'size-1.5 shrink-0 rounded-full',
-                    hasActive ? dotColorMap.success : dotColorMap.neutral
-                  )}
-                  aria-hidden='true'
-                />
-                {hasActive ? (
-                  <span className={cn(textColorMap.success)}>
-                    {activeSubscriptions.length} {t('active')}
-                  </span>
-                ) : (
-                  <span className='text-muted-foreground'>
-                    {t('No Active')}
-                  </span>
-                )}
-                {allSubscriptions.length > activeSubscriptions.length && (
-                  <>
-                    <span className='text-muted-foreground/30'>·</span>
-                    <span className='text-muted-foreground'>
-                      {allSubscriptions.length - activeSubscriptions.length}{' '}
-                      {t('expired')}
-                    </span>
-                  </>
-                )}
-              </span>
-            </div>
-            <div className='flex w-full items-center gap-2 sm:w-auto'>
-              <Select
-                items={[
-                  {
-                    value: 'subscription_first',
-                    label: (
-                      <>
-                        {getBillingPreferenceLabel('subscription_first', t)}
-                        {disablePref ? ` (${t('No Active')})` : ''}
-                      </>
-                    ),
-                  },
-                  {
-                    value: 'wallet_first',
-                    label: getBillingPreferenceLabel('wallet_first', t),
-                  },
-                  {
-                    value: 'subscription_only',
-                    label: (
-                      <>
-                        {getBillingPreferenceLabel('subscription_only', t)}
-                        {disablePref ? ` (${t('No Active')})` : ''}
-                      </>
-                    ),
-                  },
-                  {
-                    value: 'wallet_only',
-                    label: getBillingPreferenceLabel('wallet_only', t),
-                  },
-                ]}
-                value={displayPref}
-                onValueChange={(v) => v !== null && handlePreferenceChange(v)}
-              >
-                <SelectTrigger className='h-8 flex-1 text-xs sm:w-[140px] sm:flex-none'>
-                  <SelectValue>
-                    {getBillingPreferenceLabel(displayPref, t)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    <SelectItem
-                      value='subscription_first'
-                      disabled={disablePref}
-                    >
-                      {getBillingPreferenceLabel('subscription_first', t)}
-                      {disablePref ? ` (${t('No Active')})` : ''}
-                    </SelectItem>
-                    <SelectItem value='wallet_first'>
-                      {getBillingPreferenceLabel('wallet_first', t)}
-                    </SelectItem>
-                    <SelectItem
-                      value='subscription_only'
-                      disabled={disablePref}
-                    >
-                      {getBillingPreferenceLabel('subscription_only', t)}
-                      {disablePref ? ` (${t('No Active')})` : ''}
-                    </SelectItem>
-                    <SelectItem value='wallet_only'>
-                      {getBillingPreferenceLabel('wallet_only', t)}
-                    </SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Button
-                variant='ghost'
-                size='icon'
-                className='h-8 w-8'
-                onClick={handleRefresh}
-                disabled={refreshing}
-              >
-                <RefreshCw
-                  className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`}
-                />
-              </Button>
-            </div>
-          </div>
+        {hasActivePlan && currentPlan ? (
+          <CurrentPlanCard
+            plan={currentPlan}
+            selfData={selfData}
+            renewalMutationPending={renewalMutationPending}
+            onCancelRenewal={handleCancelRenewal}
+            onResumeRenewal={handleResumeRenewal}
+          />
+        ) : null}
 
-          {disablePref && isSubPref && (
-            <p className='text-muted-foreground mt-2 text-xs'>
-              {t(
-                'Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.',
-                {
-                  pref:
-                    billingPreference === 'subscription_only'
-                      ? t('Subscription Only')
-                      : t('Subscription First'),
-                }
-              )}
-            </p>
-          )}
-
-          {hasAny && (
-            <>
-              <Separator className='my-3' />
-              <div className='max-h-64 space-y-3 overflow-y-auto pr-1'>
-                {allSubscriptions.map((sub) => {
-                  const subscription = sub.subscription
-                  const totalAmount = Number(subscription?.amount_total || 0)
-                  const usedAmount = Number(subscription?.amount_used || 0)
-                  const remainAmount =
-                    totalAmount > 0 ? Math.max(0, totalAmount - usedAmount) : 0
-                  const planTitle =
-                    planTitleMap.get(subscription?.plan_id) || ''
-                  const remainDays = getRemainingDays(sub)
-                  const usagePercent = getUsagePercent(sub)
-                  const now = Date.now() / 1000
-                  const isExpired = (subscription?.end_time || 0) < now
-                  const isCancelled = subscription?.status === 'cancelled'
-                  const isActive =
-                    subscription?.status === 'active' && !isExpired
-
-                  return (
-                    <div
-                      key={subscription?.id}
-                      className='bg-background rounded-md border p-3 text-xs'
-                    >
-                      <div className='flex items-center justify-between'>
-                        <div className='flex items-center gap-2'>
-                          <span className='font-medium'>
-                            {planTitle
-                              ? `${planTitle} · ${t('Subscription')} #${subscription?.id}`
-                              : `${t('Subscription')} #${subscription?.id}`}
-                          </span>
-                          {isActive ? (
-                            <StatusBadge
-                              label={t('Active')}
-                              variant='success'
-                              copyable={false}
-                            />
-                          ) : isCancelled ? (
-                            <StatusBadge
-                              label={t('Cancelled')}
-                              variant='neutral'
-                              copyable={false}
-                            />
-                          ) : (
-                            <StatusBadge
-                              label={t('Expired')}
-                              variant='neutral'
-                              copyable={false}
-                            />
-                          )}
-                        </div>
-                        {isActive && (
-                          <span className='text-muted-foreground'>
-                            {t('{{count}} days remaining', {
-                              count: remainDays,
-                            })}
-                          </span>
-                        )}
-                      </div>
-                      <div className='text-muted-foreground mt-1.5'>
-                        {isActive
-                          ? t('Until')
-                          : isCancelled
-                            ? t('Cancelled at')
-                            : t('Expired at')}{' '}
-                        {new Date(
-                          (subscription?.end_time || 0) * 1000
-                        ).toLocaleString()}
-                      </div>
-                      {isActive && (subscription?.next_reset_time ?? 0) > 0 && (
-                        <div className='text-muted-foreground mt-1'>
-                          {t('Next reset')}:{' '}
-                          {new Date(
-                            subscription!.next_reset_time! * 1000
-                          ).toLocaleString()}
-                        </div>
-                      )}
-                      <div className='text-muted-foreground mt-1'>
-                        {t('Total Quota')}:{' '}
-                        {totalAmount > 0 ? (
-                          <Tooltip>
-                            <TooltipTrigger
-                              render={<span className='cursor-help' />}
-                            >
-                              {formatQuota(usedAmount)}/
-                              {formatQuota(totalAmount)} · {t('Remaining')}{' '}
-                              {formatQuota(remainAmount)}
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
-                              {t('Remaining')} {remainAmount}
-                            </TooltipContent>
-                          </Tooltip>
-                        ) : (
-                          t('Unlimited')
-                        )}
-                        {totalAmount > 0 && (
-                          <span className='ml-2'>
-                            {t('Used')} {usagePercent}%
-                          </span>
-                        )}
-                      </div>
-                      {totalAmount > 0 && isActive && (
-                        <Progress value={usagePercent} className='mt-2 h-1.5' />
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </>
-          )}
-
-          {!hasAny && (
-            <p className='text-muted-foreground mt-2 text-xs'>
-              {t('Subscribe to a plan for model access')}
-            </p>
-          )}
-        </div>
-
-        {/* Available plans grid */}
         {plans.length > 0 ? (
-          <div className='grid grid-cols-1 gap-3 2xl:grid-cols-2 2xl:gap-4'>
-            {plans.map((p, index) => {
-              const plan = p?.plan
-              if (!plan) return null
-              const totalAmount = Number(plan.total_amount || 0)
-              const price = Number(plan.price_amount || 0).toFixed(2)
-              const isPopular = index === 0 && plans.length > 1
-              const limit = Number(plan.max_purchase_per_user || 0)
-              const count = planPurchaseCountMap.get(plan.id) || 0
-              const reached = limit > 0 && count >= limit
-
-              const benefits = [
-                `${t('Validity Period')}: ${formatDuration(plan, t)}`,
-                formatResetPeriod(plan, t) !== t('No Reset')
-                  ? `${t('Quota Reset')}: ${formatResetPeriod(plan, t)}`
-                  : null,
-                totalAmount > 0
-                  ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
-                  : `${t('Total Quota')}: ${t('Unlimited')}`,
-                limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
-                plan.upgrade_group
-                  ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
-                  : null,
-              ].filter(Boolean) as string[]
+          <div className='grid grid-cols-1 gap-3 md:grid-cols-3 xl:gap-4'>
+            {orderedPlans.map((item) => {
+              const plan = item.plan
+              const discountPreview = getPlanCardDiscountPreview(
+                planPreviewQuotes[plan.id]
+              )
+              const configuredDisplayPrice =
+                resolveSubscriptionPlanDisplayPrice(plan, planGridCurrency)
+              const currency =
+                discountPreview?.currency || configuredDisplayPrice.currency
+              const originalPrice = formatPlanPrice(
+                discountPreview?.originalTotal ??
+                  configuredDisplayPrice.amount,
+                currency
+              )
+              const displayPrice = discountPreview
+                ? formatPlanPrice(discountPreview.total, currency)
+                : originalPrice
+              const isMostPopular =
+                plan.title.trim().toLowerCase() === 'pro' &&
+                orderedPlans.length > 1
+              const audience =
+                getPlanAudience(plan.title, t) || plan.subtitle || ''
+              const action = getFlexiblePlanAction({
+                planId: plan.id,
+                currentPlanId,
+                relation: item.relation,
+              })
+              // A live Stripe recurring subscription renews itself — showing
+              // "Repurchase now" on the buyer's own plan reads like the plan is
+              // inactive. Label it as the current subscription instead.
+              // One-time purchases (Alipay/Pix/balance) keep the repurchase CTA.
+              const isCurrentRecurring =
+                action === 'repurchase' &&
+                selfData.contract?.payment_mode === 'stripe_recurring'
+              const entitlements = getPlanEntitlements(plan, t)
 
               return (
                 <Card
                   key={plan.id}
                   className={cn(
-                    'transition-shadow hover:shadow-md',
-                    isPopular && 'border-primary/70 shadow-sm'
+                    'ring-border rounded-lg shadow-none transition-shadow',
+                    isMostPopular
+                      ? 'shadow-[0_0_0_6px_rgba(139,92,246,0.1)] ring-2 ring-[#8b5cf6]/60 dark:shadow-[0_0_0_6px_rgba(139,92,246,0.18)]'
+                      : 'hover:ring-foreground/20'
                   )}
                 >
-                  <CardContent className='flex h-full flex-col p-3.5 sm:p-4'>
-                    <div className='mb-2 flex items-start justify-between gap-3'>
+                  <CardContent className='flex h-full flex-col p-5'>
+                    <div className='flex items-start justify-between gap-3'>
                       <div className='min-w-0'>
-                        <h4 className='truncate font-semibold'>
+                        <h4 className='text-xl font-semibold'>
                           {plan.title || t('Subscription Plans')}
                         </h4>
-                        {plan.subtitle && (
-                          <p className='text-muted-foreground truncate text-xs'>
-                            {plan.subtitle}
+                        {audience ? (
+                          <p className='text-muted-foreground mt-0.5 text-xs'>
+                            {audience}
                           </p>
-                        )}
+                        ) : null}
                       </div>
-                      {isPopular && (
-                        <StatusBadge
-                          variant='info'
-                          copyable={false}
-                          className='shrink-0'
-                        >
-                          <Sparkles className='h-3 w-3' />
-                          {t('Recommended')}
-                        </StatusBadge>
-                      )}
+                      <div className='flex shrink-0 flex-col items-end gap-1'>
+                        {discountPreview ? (
+                          <span
+                            data-discount-kind={discountPreview.discountKind}
+                            className='inline-flex rounded-full bg-[#dcfce7] px-2 py-1 text-[11px] font-semibold text-[#166534] uppercase dark:bg-[#14532d]/40 dark:text-[#86efac]'
+                          >
+                            {t('OFF')}
+                          </span>
+                        ) : null}
+                        {isMostPopular ? (
+                          <span className='inline-flex items-center gap-1 rounded-full bg-[#f0ebfa] px-2 py-1 text-[11px] font-semibold text-[#4c1d95] dark:bg-[#5b21b6]/25 dark:text-[#c4b5fd]'>
+                            <Sparkles className='h-3 w-3' />
+                            {t('Most Popular')}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
 
-                    <div className='py-2'>
-                      <span className='text-primary text-2xl font-bold'>
-                        ${price}
+                    <div className='mt-6 flex flex-wrap items-end gap-2'>
+                      <span className='text-5xl font-semibold tracking-tight tabular-nums'>
+                        {displayPrice}
+                      </span>
+                      {discountPreview ? (
+                        <span className='text-muted-foreground mb-2 text-sm tabular-nums line-through'>
+                          {originalPrice}
+                        </span>
+                      ) : null}
+                      <span className='text-muted-foreground mb-1 text-sm'>
+                        {t('per month')}
                       </span>
                     </div>
+                    {discountPreview ? (
+                      <div className='mt-1 text-xs font-medium text-[#166534] dark:text-[#86efac]'>
+                        {t('Save {{amount}}', {
+                          amount: formatPlanPrice(
+                            discountPreview.discountAmount,
+                            discountPreview.currency
+                          ),
+                        })}
+                      </div>
+                    ) : null}
 
-                    <div className='flex-1 space-y-1.5 pb-3'>
-                      {benefits.map((label) => (
+                    <div className='mt-5 grow space-y-2 border-t pt-4'>
+                      {entitlements.map((label) => (
                         <div
                           key={label}
                           className='text-muted-foreground flex items-center gap-2 text-xs'
                         >
-                          <Check className='text-primary h-3 w-3 shrink-0' />
+                          <Check className='h-3.5 w-3.5 shrink-0 text-[#5b21b6] dark:text-[#a78bfa]' />
                           <span>{label}</span>
                         </div>
                       ))}
                     </div>
 
-                    <Separator className='mb-3' />
-
-                    {reached ? (
-                      <Tooltip>
-                        <TooltipTrigger render={<div />}>
-                          <Button variant='outline' className='w-full' disabled>
-                            {t('Limit Reached')}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {t('Purchase limit reached')} ({count}/{limit})
-                        </TooltipContent>
-                      </Tooltip>
-                    ) : (
-                      <Button
-                        variant='outline'
-                        className='w-full'
-                        onClick={() => {
-                          setSelectedPlan(p)
-                          setPurchaseOpen(true)
-                        }}
-                      >
-                        {t('Subscribe Now')}
-                      </Button>
-                    )}
+                    <Separator className='my-4' />
+                    <Button
+                      className={cn(
+                        'min-h-11 w-full',
+                        isMostPopular &&
+                          'bg-[#070707] text-white hover:bg-[#4c1d95] dark:bg-white dark:text-black dark:hover:bg-[#ddd6fe]'
+                      )}
+                      variant={action === 'switch' ? 'outline' : 'default'}
+                      disabled={isCurrentRecurring}
+                      onClick={() => {
+                        const target = {
+                          plan: item,
+                          requestId: createStableSubscriptionRequestId(),
+                        }
+                        setPurchaseProjection(null)
+                        latestQuoteRequestRef.current = null
+                        setQuoteError(false)
+                        setQuoteLoading(false)
+                        setPurchaseTarget(target)
+                        void requestQuoteForTarget(
+                          target,
+                          'stripe_recurring',
+                          1
+                        )
+                      }}
+                    >
+                      {isCurrentRecurring
+                        ? t('Current subscription')
+                        : getActionLabel(action, t)}
+                    </Button>
                   </CardContent>
                 </Card>
               )
@@ -628,32 +971,29 @@ export function SubscriptionPlansCard({
         )}
       </TitledCard>
 
-      <SubscriptionPurchaseDialog
-        open={purchaseOpen}
+      <PlanPurchaseDialog
+        key={purchaseTarget?.requestId || 'closed'}
+        open={!!purchaseTarget}
         onOpenChange={(open) => {
-          setPurchaseOpen(open)
-          if (!open) {
-            fetchSelfSubscription()
+          if (!open && !purchasing) {
+            setPurchaseTarget(null)
+            setPurchaseProjection(null)
+            latestQuoteRequestRef.current = null
+            setQuoteError(false)
+            setQuoteLoading(false)
           }
         }}
-        plan={selectedPlan}
-        enableStripe={enableStripe}
-        enableCreem={enableCreem}
-        enableWaffoPancake={enableWaffoPancake}
-        enableOnlineTopUp={enableOnlineTopUp}
-        epayMethods={epayMethods}
-        userQuota={userQuota}
-        onPurchaseSuccess={onPurchaseSuccess}
-        purchaseLimit={
-          selectedPlan?.plan?.max_purchase_per_user
-            ? Number(selectedPlan.plan.max_purchase_per_user)
-            : undefined
-        }
-        purchaseCount={
-          selectedPlan?.plan?.id
-            ? planPurchaseCountMap.get(selectedPlan.plan.id)
-            : undefined
-        }
+        plan={purchaseTarget?.plan || null}
+        currentPlanId={currentPlanId}
+        paymentAvailability={paymentAvailability}
+        isLoading={purchasing}
+        isQuoteLoading={quoteLoading}
+        projectedStart={purchaseProjection?.start_time}
+        projectedEnd={purchaseProjection?.end_time}
+        projectedRemainingDays={purchaseProjection?.remaining_days}
+        paymentQuotes={quoteError ? {} : purchaseProjection?.payment_quotes}
+        onConfirm={handleConfirmPurchase}
+        onQuoteRequest={handleQuoteRequest}
       />
     </>
   )

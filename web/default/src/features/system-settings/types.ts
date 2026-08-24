@@ -105,9 +105,16 @@ export type AuthSettings = {
   EmailDomainRestrictionEnabled: boolean
   EmailAliasRestrictionEnabled: boolean
   EmailDomainWhitelist: string
+  'registration_security.reject_subdomain_email_domains': boolean
+  'registration_security.domain_risk_enabled': boolean
+  'registration_security.domain_risk_window_hours': number
+  'registration_security.domain_risk_threshold': number
+  'registration_security.trusted_email_domains': string[]
+  'registration_security.email_blacklist_patterns': string[]
   GitHubOAuthEnabled: boolean
   GitHubClientId: string
   GitHubClientSecret: string
+  'copilot.client_id': string
   'discord.enabled': boolean
   'discord.client_id': string
   'discord.client_secret': string
@@ -198,6 +205,7 @@ export type ModelSettings = {
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string
+  GroupModelRatio: string
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
@@ -219,6 +227,8 @@ export type BillingSettings = {
   QuotaForInviter: number
   QuotaForInviterMaxCount: number
   QuotaForInvitee: number
+  InviteFirstSubDiscountUSD: number
+  InviteRewardSubscriptionModeEnabled: boolean
   TopUpLink: string
   'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean
@@ -238,11 +248,14 @@ export type BillingSettings = {
   AudioRatio: string
   AudioCompletionRatio: string
   ExposeRatioEnabled: boolean
+  'pricing_visibility_setting.hidden_models': string
   'billing_setting.billing_mode': string
   'billing_setting.billing_expr': string
+  'billing_setting_video.video_price_rules': string
   'tool_price_setting.prices': string
   TopupGroupRatio: string
   GroupRatio: string
+  GroupModelRatio: string
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
@@ -266,6 +279,7 @@ export type BillingSettings = {
   'payment_setting.compliance_confirmed_by': number
   'payment_setting.compliance_confirmed_ip': string
   StripeApiSecret: string
+  StripePublishableKey: string
   StripeWebhookSecret: string
   StripePriceId: string
   StripePriceId20: string
@@ -317,6 +331,9 @@ export type OperationsSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
+  'registration_country.enabled': boolean
+  'registration_country.blocked_countries': string[]
+  'registration_country.auto_disable_countries': string[]
   ChannelDisableThreshold: string
   QuotaRemindThreshold: string
   AutomaticDisableChannelEnabled: boolean
@@ -326,6 +343,7 @@ export type OperationsSettings = {
   AutomaticRetryStatusCodes: string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
+  'monitor_setting.channel_test_mode': 'scheduled_all' | 'passive_recovery'
   'monitor_setting.auto_test_channel_allowed_types': number[]
   'monitor_setting.auto_test_channel_ignored_types': number[]
   'monitor_setting.dingtalk_alert_enabled': boolean
@@ -342,10 +360,17 @@ export type OperationsSettings = {
   'codex_model_governance_setting.official_source_urls': string[]
   'codex_model_governance_setting.official_lifecycle_terms': string[]
   'codex_model_governance_setting.alert_cooldown_minutes': number
+  CodexClientUserAgent: string
+  CodexClientVersion: string
+  CodexSyncedClientVersion: string
+  CodexSyncedClientVersionAt: string
+  CodexAutoSyncClientVersion: boolean
+  CodexEnforceClientIdentity: boolean
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string
   SMTPFrom: string
+  SMTPFromAliases: string
   SMTPToken: string
   SMTPSSLEnabled: boolean
   SMTPForceAuthLogin: boolean
@@ -353,6 +378,7 @@ export type OperationsSettings = {
   WorkerValidKey: string
   WorkerAllowHttpImageRequestEnabled: boolean
   LogConsumeEnabled: boolean
+  CompanyLogRoutingEnabled: boolean
   'performance_setting.disk_cache_enabled': boolean
   'performance_setting.disk_cache_threshold_mb': number
   'performance_setting.disk_cache_max_size_mb': number
@@ -365,6 +391,14 @@ export type OperationsSettings = {
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'hour' | 'minute' | '5min'
   'perf_metrics_setting.retention_days': number
+  'channel_concurrency_setting.wait_enabled': boolean
+  'channel_concurrency_setting.wait_timeout_ms': number
+  'channel_concurrency_setting.max_waiting_per_channel': number
+  'channel_concurrency_setting.cooldown_enabled': boolean
+  'channel_concurrency_setting.cooldown_seconds': number
+  'channel_concurrency_setting.cooldown_on_status_429': boolean
+  'channel_concurrency_setting.cooldown_on_message_match': boolean
+  'channel_concurrency_setting.load_cache_enabled': boolean
 }
 
 export type SecuritySettings = {

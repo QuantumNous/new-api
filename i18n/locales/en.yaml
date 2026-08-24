@@ -2,6 +2,7 @@
 
 # Common messages
 common.invalid_params: "Invalid parameters"
+common.invalid_email: "Please enter a valid email address"
 common.database_error: "Database error, please contact the administrator"
 common.retry_later: "Please try again later"
 common.generate_failed: "Generation failed"
@@ -48,6 +49,26 @@ token.expired: "This token has expired"
 token.exhausted: "This token has insufficient quota"
 token.status_unavailable: "This token status is unavailable"
 token.db_error: "Invalid token, database query error, please contact administrator"
+token.batch_group_cache_sync_pending: "Token groups were updated, but cache synchronization is pending. Retry the same request."
+token.client_ip_invalid: "Unable to parse client IP address"
+token.ip_not_allowed: "Your IP is not allowed by this token"
+token.group_no_permission: "No permission to access group {{.Group}}"
+token.group_deprecated: "Group {{.Group}} is deprecated"
+
+# CLI device authorization messages
+cli.device_id_missing: "Device ID is required"
+cli.device_metadata_too_long: "CLI device metadata is too long"
+cli.device_code_invalid: "Invalid device code"
+cli.authorization_code_missing: "Authorization code is required"
+cli.authorization_not_found: "Authorization request not found"
+cli.authorization_token_create_failed: "Failed to create CLI token"
+
+# Temporary media messages
+temp_media.file_required: "Image file is required"
+temp_media.image_too_large: "Image file is too large"
+temp_media.unsupported_image: "Unsupported image type"
+temp_media.not_configured: "Temporary media storage is not configured"
+temp_media.upload_failed: "Failed to upload image"
 
 # Redemption messages
 redemption.name_length: "Redemption code name length must be between 1-20"
@@ -60,13 +81,15 @@ redemption.expired: "This redemption code has expired"
 redemption.failed: "Redemption failed, please try again later"
 redemption.not_provided: "Redemption code not provided"
 redemption.expire_time_invalid: "Expiration time cannot be earlier than current time"
+redemption.codes_exhausted: "Too late — all codes have already been claimed"
+redemption.already_claimed: "You have already claimed a code for this offer"
 
 # User messages
 user.password_login_disabled: "Password login has been disabled by administrator"
 user.register_disabled: "New user registration has been disabled by administrator"
 user.password_register_disabled: "Password registration has been disabled by administrator, please use third-party account verification"
 user.username_or_password_empty: "Username or password is empty"
-user.username_or_password_error: "Username or password is incorrect, or user has been banned"
+user.username_or_password_error: "Username or password is incorrect, or the account has been banned for policy violations"
 user.email_or_password_empty: "Email or password is empty!"
 user.exists: "Username already exists or has been deleted"
 user.not_exists: "User does not exist"
@@ -74,6 +97,7 @@ user.disabled: "This user has been disabled"
 user.session_save_failed: "Failed to save session, please try again"
 user.require_2fa: "Please enter two-factor authentication code"
 user.email_verification_required: "Email verification is enabled, please enter email address and verification code"
+user.email_verification_required_for_api: "Your account email has not been verified. Please log out and log back in (third-party accounts verify automatically), or sign in at {{.ConsoleOrigin}}/sign-in."
 user.verification_code_error: "Verification code is incorrect or has expired"
 user.input_invalid: "Invalid input {{.Error}}"
 user.no_permission_same_level: "No permission to access users of same or higher level"
@@ -104,6 +128,11 @@ user.telegram_not_bound: "This Telegram account is not bound"
 user.linux_do_id_empty: "Linux DO ID is empty!"
 user.quota_change_zero: "Quota change amount cannot be zero"
 
+registration_email.domain_invalid: "The email domain is invalid"
+registration_email.subdomain_rejected: "Registration with a subdomain email address is not allowed"
+registration_email.domain_unavailable: "Registration with this email domain is currently unavailable"
+registration_country.blocked: "Sorry, Flatkey is currently not available in your country"
+
 # Quota messages
 quota.negative: "Quota cannot be negative!"
 quota.exceed_max: "Quota value exceeds valid range"
@@ -118,6 +147,9 @@ quota.subscription_insufficient: "Insufficient subscription quota or no subscrip
 quota.token_insufficient: "Token quota is not enough, token remaining quota: {{.Remain}}, required quota: {{.Required}}"
 quota.user_insufficient_need: "User quota is not enough, user quota: {{.Quota}}, required quota: {{.Required}}"
 
+# Log messages
+log.invalid_user_id: "Invalid user ID"
+
 # Subscription messages
 subscription.not_enabled: "Subscription plan is not enabled"
 subscription.title_empty: "Subscription plan title cannot be empty"
@@ -130,6 +162,18 @@ subscription.reset_cycle_gt_zero: "Custom reset cycle must be greater than 0 sec
 subscription.purchase_max: "Purchase limit for this plan has been reached"
 subscription.invalid_id: "Invalid subscription ID"
 subscription.invalid_user_id: "Invalid user ID"
+subscription.invalid_recurring_id: "Invalid recurring subscription ID"
+subscription.tier_rank_reserved: "Subscription tier rank is already reserved"
+subscription.tier_rank_required: "Enabled subscription plans must set a positive tier rank"
+subscription.lifecycle_fields_immutable: "This subscription plan is already referenced. Disable it or create a new version instead of changing lifecycle-critical fields."
+subscription.purchase_pending_migration: "Subscription purchase initiation is pending migration. Please refresh and use the new subscription flow."
+subscription.payment_mode_required: "Payment mode is required"
+subscription.request_id_required: "Request ID is required"
+subscription.stripe_price_requires_mode: "Stripe Price ID requires Stripe recurring payment mode"
+subscription.capability.single_lifecycle: "Single subscription lifecycle is enabled"
+subscription.capability.current_entitlement: "Current contract entitlement is available"
+subscription.capability.recurring_binding: "Recurring provider binding is available"
+subscription.capability.change_intent: "Subscription change intent status is available"
 
 # Payment messages
 payment.not_configured: "Payment information has not been configured by administrator"
@@ -143,6 +187,7 @@ payment.webhook_not_configured: "Webhook is not configured"
 payment.price_id_not_configured: "StripePriceId is not configured for this plan"
 payment.creem_not_configured: "CreemProductId is not configured for this plan"
 payment.compliance_required: "Payment, redemption, subscription, and invitation reward features are disabled. The administrator must confirm compliance terms before enabling them."
+payment.recall_claim_unavailable: "This discount is invalid or no longer available for this purchase."
 
 # Topup messages
 topup.not_provided: "Payment order number not provided"
@@ -236,6 +281,10 @@ performance.disk_cache_cleared: "Inactive disk cache has been cleared"
 performance.stats_reset: "Statistics have been reset"
 performance.gc_executed: "GC has been executed"
 
+# Model health messages
+model_health.invalid_hours: "Hours must be one of 24, 168, or 720"
+model_health.model_required: "Model is required"
+
 # Ability messages
 ability.db_corrupted: "Database consistency has been compromised"
 ability.repair_running: "A repair task is already running, please try again later"
@@ -278,6 +327,32 @@ distributor.no_available_channel: "No available channel for model {{.Model}} und
 distributor.invalid_midjourney_request: "Invalid Midjourney request: {{.Error}}"
 distributor.invalid_request_parse_model: "Invalid request, unable to parse model"
 
+# BytePlus asset library messages
+asset.invalid_request: "Invalid asset request"
+asset.not_found: "Asset not found"
+asset.not_ready: "Asset is still processing, please try again later"
+asset.failed: "Asset processing failed"
+asset.channel_conflict: "Assets in the same request must use the same channel"
+asset.channel_unavailable: "The asset channel is currently unavailable"
+asset.group_initializing: "Asset group is initializing, please try again later"
+asset.upstream_error: "Asset provider request failed"
+asset.expired: "Asset upload expired"
+asset.type_mismatch: "Asset type does not match the uploaded media"
+asset.storage_error: "Asset storage error, please try again later"
+real_person.invalid_request: "Invalid real-person request"
+real_person.not_found: "Real person not found"
+real_person.not_active: "Real person is not active"
+real_person.channel_unavailable: "The real-person verification channel is currently unavailable"
+real_person.storage_error: "Real-person storage error, please try again later"
+verification.in_progress: "Verification is already in progress"
+verification.upstream_error: "Verification provider request failed"
+idempotency.conflict: "This idempotency key was already used with a different request"
+idempotency.outcome_unknown: "The previous request outcome is unknown, please retry later"
+asset.profile_conflict: "Assets in the same request must belong to the same real-person profile"
+asset.file_too_large: "Asset file is too large"
+asset.media_unsupported: "Unsupported asset upload media type"
+asset.upload_failed: "Asset upload failed, please try again later"
+
 # Custom OAuth provider messages
 custom_oauth.not_found: "Custom OAuth provider not found"
 custom_oauth.slug_empty: "Slug cannot be empty"
@@ -289,7 +364,16 @@ custom_oauth.provider_id_field_invalid: "Could not extract user ID from provider
 
 # Email content messages
 email.verification_subject: "{{.SystemName}} Email Verification"
-email.verification_content: "<p>Hello, you are verifying your email for {{.SystemName}}.</p><p>Your verification code is: <strong>{{.Code}}</strong></p><p>The code is valid for {{.Minutes}} minutes. If this was not you, please ignore this email.</p>"
+email.verification_heading: "Welcome to {{.SystemName}}"
+email.verification_content: "Confirm your email address to finish creating your account and start using {{.SystemName}}."
+email.verification_action: "Verify email"
+email.verification_alternative: "Or enter this verification code"
+email.verification_code_label: "Verification code"
+email.verification_expiry: "This link and code expire in {{.Minutes}} minutes."
+email.verification_ignore: "If you did not request this email, you can safely ignore it."
+email.verification_footer: "Sent securely by {{.SystemName}}"
+email.verification_link_invalid: "This verification link is invalid or has expired."
+email.verification_unavailable: "Email verification is temporarily unavailable. Please try again."
 email.password_reset_subject: "{{.SystemName}} Password Reset"
 email.password_reset_content: "<p>Hello, you are resetting the password for your {{.SystemName}} account.</p><p>Click <a href='{{.Link}}'>here</a> to reset your password.</p><p>If the link is not clickable, copy the following link into your browser:<br> {{.Link}} </p><p>The reset link is valid for {{.Minutes}} minutes. If this was not you, please ignore this email.</p>"
 

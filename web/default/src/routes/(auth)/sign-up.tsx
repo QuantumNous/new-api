@@ -19,17 +19,28 @@ For commercial licensing, please contact support@quantumnous.com
 import { z } from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
-import { isSafeInternalPath } from '@/features/auth/lib/storage'
+import {
+  consumePendingPostLoginRedirect,
+  isSafeInternalPath,
+  protectRecallClaimOnAuthRoute,
+  resolvePendingPostLoginRedirect,
+} from '@/features/auth/lib/storage'
 import { SignUp } from '@/features/auth/sign-up'
 
 const searchSchema = z.object({
   redirect: z.string().optional(),
+  recall_redirect: z.string().min(1).max(128).optional(),
 })
 
 export const Route = createFileRoute('/(auth)/sign-up')({
   component: SignUp,
   validateSearch: searchSchema,
-  beforeLoad: async ({ search }) => {
+  beforeLoad: async ({ location, search }) => {
+    const sanitizedHref = protectRecallClaimOnAuthRoute(location.href)
+    if (sanitizedHref) {
+      throw redirect({ href: sanitizedHref, replace: true })
+    }
+
     const { auth } = useAuthStore.getState()
 
     // Already logged in (e.g. clicking "Get API Key" while authenticated): skip the
@@ -38,9 +49,14 @@ export const Route = createFileRoute('/(auth)/sign-up')({
     if (auth.user) {
       // redirect comes from the URL; validate it as an internal path to avoid an
       // open-redirect, falling back to the dashboard.
+      const postLoginRedirect = resolvePendingPostLoginRedirect(
+        search?.redirect,
+        search?.recall_redirect
+      )
+      consumePendingPostLoginRedirect(search?.recall_redirect)
       throw redirect({
-        to: isSafeInternalPath(search?.redirect)
-          ? search.redirect
+        to: isSafeInternalPath(postLoginRedirect)
+          ? postLoginRedirect
           : '/dashboard',
       })
     }

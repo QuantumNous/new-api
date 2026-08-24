@@ -1,11 +1,12 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
-	"time"
+	"strings"
 
 	"github.com/Calcium-Ion/go-epay/epay"
 	"github.com/QuantumNous/new-api/common"
@@ -18,6 +19,10 @@ import (
 type SubscriptionEpayPayRequest struct {
 	PlanId        int    `json:"plan_id"`
 	PaymentMethod string `json:"payment_method"`
+	RequestId     string `json:"request_id"`
+	RecallClaim   string `json:"recall_claim,omitempty"`
+	GAClientID    string `json:"ga_client_id,omitempty"`
+	GASessionID   string `json:"ga_session_id,omitempty"`
 }
 
 func SubscriptionRequestEpay(c *gin.Context) {
@@ -27,98 +32,222 @@ func SubscriptionRequestEpay(c *gin.Context) {
 
 	var req SubscriptionEpayPayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
-		common.ApiErrorMsg(c, "参数错误")
+		common.ApiErrorMsg(c, "invalid parameters")
+		return
+	}
+	req.PaymentMethod = strings.TrimSpace(req.PaymentMethod)
+	if !isEpayPaymentMethod(req.PaymentMethod) {
+		common.ApiErrorMsg(c, "payment method does not exist")
 		return
 	}
 
-	plan, err := model.GetSubscriptionPlanById(req.PlanId)
-	if err != nil {
+	userID := c.GetInt("id")
+	requestID := strings.TrimSpace(req.RequestId)
+	if !isStableSubscriptionRequestID(requestID) {
+		common.ApiErrorMsg(c, "request_id is required")
+		return
+	}
+	cmd := service.PurchaseSubscriptionCommand{
+		UserID:        userID,
+		PlanID:        req.PlanId,
+		PaymentChoice: service.SubscriptionPaymentChoiceEpay,
+		PaymentMethod: req.PaymentMethod,
+		Months:        1,
+		RequestID:     requestID,
+		RecallClaim:   strings.TrimSpace(req.RecallClaim),
+		GAClientID:    service.NormalizeGAIdentifier(req.GAClientID),
+		GASessionID:   service.NormalizeGAIdentifier(req.GASessionID),
+	}
+	var result *service.PurchaseSubscriptionResult
+	if replay, found, err := service.ReplaySubscriptionPurchase(cmd); err != nil {
 		common.ApiError(c, err)
 		return
-	}
-	if !plan.Enabled {
-		common.ApiErrorMsg(c, "套餐未启用")
-		return
-	}
-	if plan.PriceAmount < 0.01 {
-		common.ApiErrorMsg(c, "套餐金额过低")
-		return
-	}
-	if !isEpayPaymentMethod(req.PaymentMethod) {
-		common.ApiErrorMsg(c, "支付方式不存在")
-		return
+	} else if found {
+		if replay == nil || replay.Order == nil {
+			common.ApiErrorMsg(c, "failed to replay subscription order")
+			return
+		}
+		if replay.Order.Status == common.TopUpStatusSuccess {
+			c.JSON(http.StatusOK, subscriptionEpayPurchaseResponse(replay, paymentReturnPath("/console/topup?pay=success"), nil))
+			return
+		}
+		if replay.Order.Status != common.TopUpStatusPending ||
+			service.SubscriptionPurchaseOrderExpiresAt(replay.Order.CreateTime) <= common.GetTimestamp() {
+			common.ApiErrorMsg(c, "subscription order is not payable")
+			return
+		}
+		result = replay
 	}
 
-	userId := c.GetInt("id")
-	if plan.MaxPurchasePerUser > 0 {
-		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
+	var plan *model.SubscriptionPlan
+	plan, err := model.GetSubscriptionPlanById(req.PlanId)
+	if result == nil {
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			common.ApiErrorMsg(c, "已达到该套餐购买上限")
+		if !plan.Enabled {
+			common.ApiErrorMsg(c, "subscription plan is disabled")
 			return
 		}
+		if plan.PriceAmount < 0.01 {
+			common.ApiErrorMsg(c, "subscription plan amount is too low")
+			return
+		}
+		if plan.MaxPurchasePerUser > 0 {
+			count, err := model.CountUserSubscriptionsByPlan(userID, plan.Id)
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			if count >= int64(plan.MaxPurchasePerUser) {
+				common.ApiErrorMsg(c, "subscription plan purchase limit reached")
+				return
+			}
+		}
+		quoteResult, err := service.QuoteSubscriptionPurchase(cmd)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if quoteResult == nil || !quoteResult.Available {
+			common.ApiErrorMsg(c, "subscription purchase quote unavailable")
+			return
+		}
+		quote := subscriptionPurchaseQuoteFromQuoteResult(quoteResult)
+		cmd.VerifiedQuote = &quote
+		result, err = service.PurchaseSubscription(cmd)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	if result == nil || result.Order == nil {
+		common.ApiErrorMsg(c, "failed to create subscription order")
+		return
+	}
+	order := result.Order
+	if order.PaymentAmountMinor == 0 {
+		completed, err := service.CompleteOneTimeEpaySubscriptionPurchase(c.Request.Context(), order.TradeNo, "zero_final_amount=true", order.PaymentMethod)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, subscriptionEpayPurchaseResponse(completed, paymentReturnPath("/console/topup?pay=success"), nil))
+		return
 	}
 
 	callBackAddress := service.GetCallbackAddress()
 	returnUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/return")
 	if err != nil {
-		common.ApiErrorMsg(c, "回调地址配置错误")
+		respondSubscriptionEpayFailure(c, order.TradeNo, "callback address configuration error")
 		return
 	}
 	notifyUrl, err := url.Parse(callBackAddress + "/api/subscription/epay/notify")
 	if err != nil {
-		common.ApiErrorMsg(c, "回调地址配置错误")
+		respondSubscriptionEpayFailure(c, order.TradeNo, "callback address configuration error")
 		return
 	}
-
-	tradeNo := fmt.Sprintf("%s%d", common.GetRandomString(6), time.Now().Unix())
-	tradeNo = fmt.Sprintf("SUBUSR%dNO%s", userId, tradeNo)
-
 	client := GetEpayClient()
 	if client == nil {
-		common.ApiErrorMsg(c, "当前管理员未配置支付信息")
+		respondSubscriptionEpayFailure(c, order.TradeNo, "payment information is not configured")
 		return
 	}
 
-	order := &model.SubscriptionOrder{
-		UserId:          userId,
-		PlanId:          plan.Id,
-		Money:           plan.PriceAmount,
-		TradeNo:         tradeNo,
-		PaymentMethod:   req.PaymentMethod,
-		PaymentProvider: model.PaymentProviderEpay,
-		CreateTime:      time.Now().Unix(),
-		Status:          common.TopUpStatusPending,
-	}
-	if err := order.Insert(); err != nil {
-		common.ApiErrorMsg(c, "创建订单失败")
-		return
-	}
 	uri, params, err := client.Purchase(&epay.PurchaseArgs{
 		Type:           req.PaymentMethod,
-		ServiceTradeNo: tradeNo,
-		Name:           fmt.Sprintf("SUB:%s", plan.Title),
-		Money:          strconv.FormatFloat(plan.PriceAmount, 'f', 2, 64),
+		ServiceTradeNo: order.TradeNo,
+		Name:           subscriptionEpayOrderName(order, plan),
+		Money:          strconv.FormatFloat(order.Money, 'f', 2, 64),
 		Device:         epay.PC,
 		NotifyUrl:      notifyUrl,
 		ReturnUrl:      returnUrl,
 	})
 	if err != nil {
-		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentProviderEpay)
-		common.ApiErrorMsg(c, "拉起支付失败")
+		respondSubscriptionEpayFailure(c, order.TradeNo, "failed to initiate payment")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "success", "data": params, "url": uri})
+	c.JSON(http.StatusOK, subscriptionEpayPurchaseResponse(result, uri, params))
+}
+
+func subscriptionEpayOrderName(order *model.SubscriptionOrder, plan *model.SubscriptionPlan) string {
+	title := ""
+	if plan != nil {
+		title = strings.TrimSpace(plan.Title)
+	}
+	if title == "" {
+		snapshot := oneTimePlanSnapshotFromOrder(order)
+		title = strings.TrimSpace(snapshot.Title)
+	}
+	if title == "" {
+		title = "Subscription"
+	}
+	return fmt.Sprintf("SUB:%s", title)
+}
+
+func subscriptionEpayPurchaseResponse(result *service.PurchaseSubscriptionResult, url string, params map[string]string) gin.H {
+	if params == nil {
+		params = map[string]string{}
+	}
+	response := gin.H{
+		"success": true,
+		"message": "success",
+		"data":    params,
+		"url":     url,
+	}
+	if result == nil {
+		return response
+	}
+	response["status"] = result.Status
+	if result.Order != nil {
+		response["trade_no"] = result.Order.TradeNo
+		response["payment_amount_minor"] = result.Order.PaymentAmountMinor
+	}
+	if result.Intent != nil {
+		response["change_intent_id"] = result.Intent.Id
+	}
+	return response
+}
+
+func respondSubscriptionEpayFailure(c *gin.Context, tradeNo string, message string) {
+	if err := service.TerminatePendingEpayPurchase(c.Request.Context(), tradeNo, model.SubscriptionChangeIntentStatusFailed); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiErrorMsg(c, message)
+}
+
+func subscriptionPurchaseQuoteFromQuoteResult(result *service.SubscriptionPurchaseQuoteResult) service.SubscriptionPurchaseQuote {
+	if result == nil {
+		return service.SubscriptionPurchaseQuote{}
+	}
+	return service.SubscriptionPurchaseQuote{
+		Currency:                      result.Currency,
+		UnitPrice:                     result.UnitPrice,
+		UnitAmountMinor:               result.UnitAmountMinor,
+		OriginalTotal:                 result.OriginalTotal,
+		OriginalTotalAmountMinor:      result.OriginalTotalAmountMinor,
+		DiscountKind:                  result.DiscountKind,
+		DiscountAmount:                result.DiscountAmount,
+		DiscountAmountMinor:           result.DiscountAmountMinor,
+		Total:                         result.Total,
+		PaymentAmountMinor:            result.PaymentAmountMinor,
+		InvitationAvailableUSDMinor:   result.InvitationAvailableUSDMinor,
+		InvitationDiscountUSDMinor:    result.InvitationDiscountUSDMinor,
+		InvitationDiscountAmountMinor: result.InvitationDiscountAmountMinor,
+		InvitationRemainingUSDMinor:   result.InvitationRemainingUSDMinor,
+		OtherDiscountKind:             result.OtherDiscountKind,
+		OtherDiscountAmountMinor:      result.OtherDiscountAmountMinor,
+		RecallCampaignID:              result.RecallCampaignID,
+		RecallRecipientID:             result.RecallRecipientID,
+		RecallPromotionCodeID:         result.RecallPromotionCodeID,
+	}
 }
 
 func SubscriptionEpayNotify(c *gin.Context) {
 	var params map[string]string
 
 	if c.Request.Method == "POST" {
-		// POST 请求：从 POST body 解析参数
 		if err := c.Request.ParseForm(); err != nil {
 			_, _ = c.Writer.Write([]byte("fail"))
 			return
@@ -128,7 +257,6 @@ func SubscriptionEpayNotify(c *gin.Context) {
 			return r
 		}, map[string]string{})
 	} else {
-		// GET 请求：从 URL Query 解析参数
 		params = lo.Reduce(lo.Keys(c.Request.URL.Query()), func(r map[string]string, t string, i int) map[string]string {
 			r[t] = c.Request.URL.Query().Get(t)
 			return r
@@ -159,7 +287,7 @@ func SubscriptionEpayNotify(c *gin.Context) {
 	LockOrder(verifyInfo.ServiceTradeNo)
 	defer UnlockOrder(verifyInfo.ServiceTradeNo)
 
-	if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), model.PaymentProviderEpay, verifyInfo.Type); err != nil {
+	if err := completeEpaySubscriptionOrder(c.Request.Context(), verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), verifyInfo.Type); err != nil {
 		_, _ = c.Writer.Write([]byte("fail"))
 		return
 	}
@@ -173,7 +301,6 @@ func SubscriptionEpayReturn(c *gin.Context) {
 	var params map[string]string
 
 	if c.Request.Method == "POST" {
-		// POST 请求：从 POST body 解析参数
 		if err := c.Request.ParseForm(); err != nil {
 			c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=fail"))
 			return
@@ -183,7 +310,6 @@ func SubscriptionEpayReturn(c *gin.Context) {
 			return r
 		}, map[string]string{})
 	} else {
-		// GET 请求：从 URL Query 解析参数
 		params = lo.Reduce(lo.Keys(c.Request.URL.Query()), func(r map[string]string, t string, i int) map[string]string {
 			r[t] = c.Request.URL.Query().Get(t)
 			return r
@@ -208,7 +334,7 @@ func SubscriptionEpayReturn(c *gin.Context) {
 	if verifyInfo.TradeStatus == epay.StatusTradeSuccess {
 		LockOrder(verifyInfo.ServiceTradeNo)
 		defer UnlockOrder(verifyInfo.ServiceTradeNo)
-		if err := model.CompleteSubscriptionOrder(verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), model.PaymentProviderEpay, verifyInfo.Type); err != nil {
+		if err := completeEpaySubscriptionOrder(c.Request.Context(), verifyInfo.ServiceTradeNo, common.GetJsonString(verifyInfo), verifyInfo.Type); err != nil {
 			c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=fail"))
 			return
 		}
@@ -216,4 +342,19 @@ func SubscriptionEpayReturn(c *gin.Context) {
 		return
 	}
 	c.Redirect(http.StatusFound, paymentReturnPath("/console/topup?pay=pending"))
+}
+
+func completeEpaySubscriptionOrder(ctx context.Context, tradeNo string, providerPayload string, actualPaymentMethod string) error {
+	var order model.SubscriptionOrder
+	if err := model.DB.Select("change_intent_id", "purchase_months", "subscription_discount_reservation_key").
+		Where("trade_no = ? AND payment_provider = ?", tradeNo, model.PaymentProviderEpay).
+		First(&order).Error; err != nil {
+		return err
+	}
+	legacyOrder := order.ChangeIntentId <= 0 && order.PurchaseMonths == 0 && strings.TrimSpace(order.SubscriptionDiscountReservationKey) == ""
+	if legacyOrder {
+		return model.CompleteSubscriptionOrder(tradeNo, providerPayload, model.PaymentProviderEpay, actualPaymentMethod)
+	}
+	_, err := service.CompleteOneTimeEpaySubscriptionPurchase(ctx, tradeNo, providerPayload, actualPaymentMethod)
+	return err
 }

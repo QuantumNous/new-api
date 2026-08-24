@@ -178,9 +178,14 @@ resource "random_id" "cert_suffix" {
     domains  = join(",", var.domains)
     rotation = tostring(var.cert_rotation)
   }
+
+  lifecycle {
+    ignore_changes = [keepers]
+  }
 }
 
 resource "google_compute_managed_ssl_certificate" "main" {
+  count   = var.certificate_map_name == "" ? 1 : 0
   project = var.project_id
   name    = "${var.name_prefix}-cert-${random_id.cert_suffix.hex}"
 
@@ -191,6 +196,38 @@ resource "google_compute_managed_ssl_certificate" "main" {
   lifecycle {
     create_before_destroy = true
   }
+}
+
+resource "google_certificate_manager_certificate" "managed" {
+  count    = var.certificate_map_name != "" ? 1 : 0
+  project  = var.project_id
+  location = "global"
+  name     = var.certificate_manager_certificate_name
+
+  managed {
+    domains = var.domains
+    dns_authorizations = [
+      for name in var.certificate_dns_authorization_names :
+      "projects/${var.project_id}/locations/global/dnsAuthorizations/${name}"
+    ]
+  }
+}
+
+resource "google_certificate_manager_certificate_map" "managed" {
+  count   = var.certificate_map_name != "" ? 1 : 0
+  project = var.project_id
+  name    = var.certificate_map_name
+}
+
+resource "google_certificate_manager_certificate_map_entry" "managed" {
+  for_each = var.certificate_map_name != "" ? toset(var.domains) : toset([])
+  project  = var.project_id
+  name     = replace(each.value, ".", "-")
+  map      = google_certificate_manager_certificate_map.managed[0].name
+  hostname = each.value
+  certificates = [
+    google_certificate_manager_certificate.managed[0].id,
+  ]
 }
 
 // URL map — default_service is the Go backend (any host / direct IP / Cloudflare
@@ -314,7 +351,8 @@ resource "google_compute_target_https_proxy" "https" {
   project          = var.project_id
   name             = "${var.name_prefix}-https-proxy"
   url_map          = google_compute_url_map.https.id
-  ssl_certificates = [google_compute_managed_ssl_certificate.main.id]
+  ssl_certificates = var.certificate_map_name == "" ? [google_compute_managed_ssl_certificate.main[0].id] : null
+  certificate_map  = var.certificate_map_name != "" ? google_certificate_manager_certificate_map.managed[0].id : null
 
   // Advertise HTTP/3 (QUIC over UDP/443). Clients that don't negotiate QUIC fall
   // back to HTTP/2 over TCP automatically, so this is a zero-risk, in-place update
@@ -323,6 +361,15 @@ resource "google_compute_target_https_proxy" "https" {
   // handshake on the ~185ms-RTT path to the LB; QUIC collapses it to 1-RTT (0-RTT
   // on resumption) and tolerates jitter on the China Telecom 163 egress better.
   quic_override = "ENABLE"
+
+  lifecycle {
+    // Compute returns the Certificate Manager map as a v1 URL while the
+    // provider normalizes configuration to a project resource name. It also
+    // keeps legacy sslCertificates visible after a certificate map is bound.
+    // Both are API representation artifacts; certificate cutovers are handled
+    // explicitly with gcloud and then verified before state reconciliation.
+    ignore_changes = [certificate_map, ssl_certificates]
+  }
 }
 
 resource "google_compute_global_forwarding_rule" "https" {

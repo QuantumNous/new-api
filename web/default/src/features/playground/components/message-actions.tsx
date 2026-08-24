@@ -16,14 +16,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Copy, Check, RefreshCw, Edit, Trash2 } from 'lucide-react'
+import { Check, Copy, Download, Edit, RefreshCw, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { TooltipProvider } from '@/components/ui/tooltip'
-import { MESSAGE_ACTION_LABELS } from '../constants'
+import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
+  MESSAGE_ACTION_BUTTON_STYLES,
+  MESSAGE_ACTION_LABELS,
+} from '../constants'
 import { useMessageActionGuard } from '../hooks/use-message-action-guard'
 import type { Message } from '../types'
 import { MessageActionButton } from './message-action-button'
+
+interface MessageDownloadAction {
+  href: string
+  fileName: string
+}
 
 interface MessageActionsProps {
   message: Message
@@ -34,6 +49,7 @@ interface MessageActionsProps {
   isGenerating?: boolean
   alwaysVisible?: boolean
   className?: string
+  downloads?: MessageDownloadAction[]
 }
 
 export function MessageActions({
@@ -45,7 +61,9 @@ export function MessageActions({
   isGenerating = false,
   alwaysVisible = false,
   className = '',
+  downloads = [],
 }: MessageActionsProps) {
+  const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard()
   const { guardAction } = useMessageActionGuard(isGenerating)
 
@@ -58,7 +76,7 @@ export function MessageActions({
 
   const handleCopy = () => {
     if (!content) {
-      toast.warning(MESSAGE_ACTION_LABELS.NO_CONTENT)
+      toast.warning(t(MESSAGE_ACTION_LABELS.NO_CONTENT))
       return
     }
     copyToClipboard(content)
@@ -78,14 +96,41 @@ export function MessageActions({
       <div
         className={`flex items-center gap-0.5 transition-opacity ${visibilityClass} ${className}`}
       >
+        {/* Generated image downloads */}
+        {downloads.map((download) => (
+          <Tooltip key={download.fileName}>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant='ghost'
+                  size='icon'
+                  className={MESSAGE_ACTION_BUTTON_STYLES.BASE}
+                  render={
+                    <a
+                      aria-label={t('Download')}
+                      download={download.fileName}
+                      href={download.href}
+                    />
+                  }
+                />
+              }
+            >
+              <Download className={MESSAGE_ACTION_BUTTON_STYLES.ICON} />
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{t('Download')}</p>
+            </TooltipContent>
+          </Tooltip>
+        ))}
+
         {/* Copy */}
         {hasContent && (
           <MessageActionButton
             icon={isCopied ? Check : Copy}
             label={
               isCopied
-                ? MESSAGE_ACTION_LABELS.COPIED
-                : MESSAGE_ACTION_LABELS.COPY
+                ? t(MESSAGE_ACTION_LABELS.COPIED)
+                : t(MESSAGE_ACTION_LABELS.COPY)
             }
             onClick={handleCopy}
             className={isCopied ? 'text-green-600' : ''}
@@ -96,7 +141,7 @@ export function MessageActions({
         {isAssistant && !isLoading && onRegenerate && (
           <MessageActionButton
             icon={RefreshCw}
-            label={MESSAGE_ACTION_LABELS.REGENERATE}
+            label={t(MESSAGE_ACTION_LABELS.REGENERATE)}
             onClick={handleRegenerate}
             disabled={isGenerating}
           />
@@ -106,7 +151,7 @@ export function MessageActions({
         {hasContent && onEdit && (
           <MessageActionButton
             icon={Edit}
-            label={MESSAGE_ACTION_LABELS.EDIT}
+            label={t(MESSAGE_ACTION_LABELS.EDIT)}
             onClick={handleEdit}
             disabled={isGenerating}
           />
@@ -116,7 +161,7 @@ export function MessageActions({
         {onDelete && (
           <MessageActionButton
             icon={Trash2}
-            label={MESSAGE_ACTION_LABELS.DELETE}
+            label={t(MESSAGE_ACTION_LABELS.DELETE)}
             onClick={handleDelete}
             disabled={isGenerating}
             variant='destructive'

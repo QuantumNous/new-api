@@ -179,6 +179,17 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
     setPage(1) // Reset to first page when searching
   }, [])
 
+  /**
+   * Return to the newest page and fetch its latest records.
+   */
+  const refreshLatest = useCallback(async () => {
+    if (page !== 1) {
+      setPage(1)
+      return
+    }
+    await fetchBillingHistory()
+  }, [fetchBillingHistory, page])
+
   // Fetch data when dependencies change
   useEffect(() => {
     fetchBillingHistory()
@@ -199,6 +210,7 @@ export function useBillingHistory(options: UseBillingHistoryOptions = {}) {
     handleSearch,
     handleCompleteOrder,
     handleRequestInvoice,
+    refreshLatest,
     refresh: fetchBillingHistory,
   }
 }

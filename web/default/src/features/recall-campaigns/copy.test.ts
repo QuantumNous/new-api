@@ -1,0 +1,522 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { describe, expect, test } from 'bun:test'
+import en from '../../i18n/locales/en.json'
+import es from '../../i18n/locales/es.json'
+import fr from '../../i18n/locales/fr.json'
+import ja from '../../i18n/locales/ja.json'
+import pt from '../../i18n/locales/pt.json'
+import ru from '../../i18n/locales/ru.json'
+import vi from '../../i18n/locales/vi.json'
+import zh from '../../i18n/locales/zh.json'
+import { audienceTemplateDescriptionKeys } from './copy'
+import * as recallCopy from './copy'
+
+const localeTranslations: Record<string, Record<string, string>> = {
+  en: en.translation,
+  es: es.translation,
+  fr: fr.translation,
+  ja: ja.translation,
+  pt: pt.translation,
+  ru: ru.translation,
+  vi: vi.translation,
+  zh: zh.translation,
+}
+
+const translatedAudienceTemplateDescriptionKeys = [
+  audienceTemplateDescriptionKeys.first_purchase,
+  audienceTemplateDescriptionKeys.lapsed_payer,
+  audienceTemplateDescriptionKeys.expired_subscription,
+  audienceTemplateDescriptionKeys.registered_only,
+  audienceTemplateDescriptionKeys.registration_time_range,
+  audienceTemplateDescriptionKeys.specified_users,
+] as const
+
+const activityConfigurationKeys = [
+  'Activity Configuration',
+  'Create activity configuration',
+  'No activity configurations',
+  'Back to Activity Configuration',
+] as const
+
+const campaignTypeSelectorKeys = [
+  'Campaign type',
+  'Promotion',
+  'Content only',
+] as const
+
+const exactAudienceControlKeys = [
+  'Registered only',
+  'Registration time range',
+  'Specified users',
+  'Registration start',
+  'Registration end',
+  'Registration start is required',
+  'Registration end is required',
+  'Registration end must be on or after start',
+  'At least one user or email is required',
+  'User IDs are invalid',
+  'Emails are invalid',
+  'Up to 500 users or emails are supported',
+] as const
+
+const dynamicAudienceTemplateValueKeys = [
+  'registered_only',
+  'registration_time_range',
+  'specified_users',
+] as const
+
+const specifiedUsersSelectorKeys = [
+  'Specified users',
+  'Manual emails',
+  'Search users by name, username, or email',
+  'No selected users.',
+  'Loading matching users...',
+  'Failed to load matching users.',
+  'No matching users',
+  'Invalid email entries',
+  'Unavailable',
+  'one@example.com, two@example.com',
+] as const
+
+const recallEmailPlaceholderHelpKeys = [
+  'Available placeholders',
+  'Click a placeholder to insert it into the body.',
+  "Recipient's display name, or username when no display name is set.",
+  'Masked promotion code, for example SAVE****25.',
+  'Selected top-up amounts and subscription plan names and prices; internal product IDs are never shown.',
+  'Promotion expiration time, displayed in UTC.',
+  'Personal link that opens the top-up page and claims the offer.',
+  'Personal link that stops future recall emails for this recipient.',
+  'HTML link example:',
+  'Preview uses sample recipient and offer data.',
+] as const
+
+const activityEmailLocalizationAndQuotaKeys = [
+  'Promotion expiry mode',
+  'Relative duration',
+  'Fixed date',
+  'Promotion expires at',
+  'Select promotion expiry',
+  'Validity days',
+  'Validity hours',
+  'Effective expiry: {{date}} (local time)',
+  'English content',
+  'Translation review',
+  'English context',
+  'Generate 7 translations',
+  'Generating translations',
+  '{{ready}} / {{total}} ready',
+  'Regenerating will replace {{count}} manually edited translations.',
+  'Replace and regenerate',
+  'Translation generation failed',
+  'Translations must be complete and current before activation.',
+  'Generate or fix translations',
+  'recall.translation_status.ready',
+  'recall.translation_status.stale',
+  'recall.translation_status.manual',
+  'recall.translation_status.missing',
+  'recall.translation_status.invalid',
+  'Activity email hourly limit',
+  'All Activity Configuration campaigns share this hourly limit. Other system emails are unaffected.',
+  'Attempts count when SMTP sending starts and are not refunded.',
+  '{{used}} / {{limit}} sent this hour',
+  'Hourly limit reached. Queued activity emails will resume at {{time}}.',
+  'Quota resets at {{time}}.',
+  'Hourly limit must be between 1 and 100000.',
+  'Failed to load email quota.',
+  'Save hourly limit',
+] as const
+
+const recallActivitySMTPCopyKeys = [
+  'Activity SMTP settings',
+  'All Activity Configuration campaigns use this dedicated SMTP account.',
+  'SMTP server',
+  'SMTP port',
+  'SMTP account',
+  'Sender email',
+  'SMTP token',
+  'Leave blank to keep the existing SMTP token.',
+  'Enter the SMTP token before saving.',
+  'SSL enabled',
+  'Force AUTH LOGIN',
+  'Save SMTP settings',
+  'Saving',
+  'Activity SMTP settings saved.',
+  'Failed to load Activity SMTP settings.',
+  'Failed to update Activity SMTP settings.',
+  'Loading SMTP settings',
+  'Configured',
+  'Not configured',
+  'SMTP server is required.',
+  'SMTP port is required.',
+  'SMTP port must be an integer.',
+  'SMTP port must be between 1 and 65535.',
+  'SMTP account is required.',
+  'Sender must be a plain email address.',
+  'SMTP token is required for first save.',
+  'Activity SMTP is not configured. Configure it before sending.',
+  'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.',
+  'Delivery status is uncertain. Check the mailbox provider before retrying.',
+  'Unknown delivery error',
+] as const
+
+const lifecycleVisibleCopyKeys = [
+  'Continuous',
+  'continuous',
+  'Lifecycle Trigger',
+  'user_registered',
+  'registration_unused',
+  'quota_low',
+  'quota_exhausted_unpaid',
+  'payment_failed',
+  'payment_pending',
+  'payment_succeeded',
+  'pending',
+  'leased',
+  'enrolled',
+  'skipped',
+  'processed',
+  'suppressed',
+  'failed',
+  'invalid_email',
+  'no_account_email',
+  'lease_recovered',
+  'malformed_event_data',
+  'missing_user',
+  'invalid_email_sequence',
+  'missing_stage_one',
+  'lifecycle_recipient_inconsistent',
+  'lifecycle_message_inconsistent',
+  'lifecycle_enrollment_failed',
+  'lifecycle_enrollment_retry',
+  'lifecycle_retry',
+  'lifecycle_skipped',
+  'persistent_exclusion',
+  'quota_recovered',
+  'quota_cycle_changed',
+  'engagement_opted_out',
+  'registration_used',
+  'order_state_changed',
+  'smtp_uncertain',
+  'activity_smtp_not_configured',
+  'activity_smtp_send_failed',
+  'scheduled',
+  'sending',
+  'accepted',
+  'retry_wait',
+  'uncertain',
+  'cancelled',
+  'Unknown message state',
+  'Unknown lifecycle event',
+  'Unknown lifecycle outcome',
+  'Delivery Policy',
+  'Service',
+  'Engagement',
+  'Operational service mail ignores marketing opt-out and does not include unsubscribe controls.',
+  'Engagement mail keeps marketing opt-out and unsubscribe controls.',
+  'Processing start',
+  'From now',
+  'Custom date and time',
+  'Trigger variables',
+  'Delivery policy does not match lifecycle trigger',
+  'Lifecycle trigger is required',
+  'Lifecycle trigger config must be empty',
+  'Continuous activities must be content only',
+  'Continuous audience fields must be empty',
+  'Continuous schedule fields must be empty',
+  'Continuous promotion fields must be empty',
+  'Continuous product fields must be empty',
+  'Continuous activities allow exactly one email stage',
+  'Lifecycle event boundary',
+  'Collection start',
+  'Earliest available',
+  'Estimated events',
+  'Due now',
+  'Send-time rechecks can reduce the final recipient count.',
+  'Masked event sample',
+  'Event type',
+  'Scope',
+  'Business key',
+  'Disposition',
+  'Occurred at',
+  'Available at',
+  'Last error',
+  'Lifecycle events',
+  'Pending not due',
+  'Leased events',
+  'Enrolled events',
+  'Skipped events',
+  'Failed events',
+  'Queued messages',
+  'SMTP accepted',
+  'Uncertain messages',
+  'Failed messages',
+  'Cancelled messages',
+  'Lease recoveries',
+  'Retries',
+  'Processing latency',
+  'Skip breakdown',
+  'Send blocked breakdown',
+  'Safe error-code breakdown',
+  'Pausing freezes new lifecycle enrollment and SMTP delivery while events continue to accumulate.',
+  'Resuming processes lifecycle backlog from the immutable processing start.',
+  'Cancelling releases the lifecycle trigger slot, cancels unsent messages, and preserves history.',
+] as const
+
+const recallHelpKeys = [
+  'Subject must be 200 characters or fewer',
+  'Leave empty to use the campaign name.',
+  'Body text must be 2000 characters or fewer',
+  'Stripe does not convert fixed Coupon amounts automatically. Configure each checkout currency explicitly.',
+  'Audience templates define the base audience. The rules shown below narrow it further, and built-in eligibility filters also apply. Preview the audience before activation.',
+  "Email content is translated automatically when saved, sent in each user's language, and falls back to English when unavailable.",
+  'Recall user groups',
+  'Select user groups',
+  'No matching user groups',
+  'Loading configured user groups...',
+  'Failed to load configured user groups.',
+  'No configured user groups are available.',
+  'Choose Allow or Block, then select the user groups to include or exclude. With no group filter, eligible users from every group are included.',
+  ...activityConfigurationKeys,
+  ...campaignTypeSelectorKeys,
+  ...exactAudienceControlKeys,
+  ...dynamicAudienceTemplateValueKeys,
+  ...specifiedUsersSelectorKeys,
+  ...recallEmailPlaceholderHelpKeys,
+  ...activityEmailLocalizationAndQuotaKeys,
+  ...recallActivitySMTPCopyKeys,
+  ...lifecycleVisibleCopyKeys,
+  ...translatedAudienceTemplateDescriptionKeys,
+] as const
+
+const legacyActivityConfigurationKeys = [
+  'Recall Campaigns',
+  'Create recall campaign',
+  'No recall campaigns',
+  'Back to Recall Campaigns',
+] as const
+
+const activitySMTPNaturalTranslationExpectations = {
+  es: {
+    'Activity SMTP settings': 'Configuración SMTP de actividades',
+    'All Activity Configuration campaigns use this dedicated SMTP account.':
+      'Todas las campañas de Configuración de actividad usan esta cuenta SMTP dedicada.',
+    'SMTP server is required.': 'El servidor SMTP es obligatorio.',
+    'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.':
+      'Falló la entrega SMTP de la actividad. Revisa el host, el puerto, las credenciales, el modo TLS y la autorización del remitente, y vuelve a intentarlo.',
+    'Save SMTP settings': 'Guardar configuración SMTP',
+  },
+  fr: {
+    'Activity SMTP settings': 'Paramètres SMTP des activités',
+    'All Activity Configuration campaigns use this dedicated SMTP account.':
+      'Toutes les campagnes de configuration d’activité utilisent ce compte SMTP dédié.',
+    'SMTP server is required.': 'Le serveur SMTP est obligatoire.',
+    'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.':
+      'L’envoi SMTP de l’activité a échoué. Vérifiez l’hôte, le port, les identifiants, le mode TLS et l’autorisation de l’expéditeur, puis réessayez.',
+    'Save SMTP settings': 'Enregistrer les paramètres SMTP',
+  },
+  pt: {
+    'Activity SMTP settings': 'Configurações SMTP de atividades',
+    'All Activity Configuration campaigns use this dedicated SMTP account.':
+      'Todas as campanhas de Configuração de atividade usam esta conta SMTP dedicada.',
+    'SMTP server is required.': 'O servidor SMTP é obrigatório.',
+    'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.':
+      'A entrega SMTP da atividade falhou. Verifique host, porta, credenciais, modo TLS e autorização do remetente, depois tente novamente.',
+    'Save SMTP settings': 'Salvar configurações de SMTP',
+  },
+  vi: {
+    'Activity SMTP settings': 'Cài đặt SMTP cho hoạt động',
+    'All Activity Configuration campaigns use this dedicated SMTP account.':
+      'Tất cả chiến dịch Cấu hình hoạt động dùng tài khoản SMTP chuyên dụng này.',
+    'SMTP server is required.': 'Bắt buộc nhập máy chủ SMTP.',
+    'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.':
+      'Gửi SMTP cho hoạt động thất bại. Hãy kiểm tra máy chủ, cổng, thông tin xác thực, chế độ TLS và ủy quyền người gửi, rồi thử lại.',
+    'Save SMTP settings': 'Lưu cài đặt SMTP',
+  },
+} as const
+
+describe('recall translation task error copy', () => {
+  test('maps stable backend translation task error codes to frontend copy', () => {
+    expect(
+      recallCopy.getRecallTranslationTaskErrorCopyKey('translation_failed')
+    ).toBe('Translation generation failed')
+    expect(
+      recallCopy.getRecallTranslationTaskErrorCopyKey('translation_superseded')
+    ).toBe('Translation request was replaced by a newer request.')
+  })
+
+  test('falls back without exposing unknown backend codes or keys', () => {
+    expect(
+      recallCopy.getRecallTranslationTaskErrorCopyKey('provider stack trace')
+    ).toBe('Translation generation failed')
+    expect(
+      recallCopy.getRecallTranslationTaskErrorCopyKey(
+        'recall.translation.provider_failed'
+      )
+    ).toBe('Translation generation failed')
+  })
+})
+
+describe('recall delivery error copy', () => {
+  test('maps stable backend delivery error codes to safe frontend copy', () => {
+    expect(
+      recallCopy.getRecallDeliveryErrorCopyKey('activity_smtp_not_configured')
+    ).toBe('Activity SMTP is not configured. Configure it before sending.')
+    expect(
+      recallCopy.getRecallDeliveryErrorCopyKey('activity_smtp_send_failed')
+    ).toBe(
+      'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
+    )
+    expect(recallCopy.getRecallDeliveryErrorCopyKey('smtp_uncertain')).toBe(
+      'Delivery status is uncertain. Check the mailbox provider before retrying.'
+    )
+  })
+
+  test('does not expose unknown backend delivery error codes as copy', () => {
+    expect(
+      recallCopy.getRecallDeliveryErrorCopyKey('raw backend transport detail')
+    ).toBeUndefined()
+    expect(recallCopy.getRecallDeliveryErrorCopyKey(null)).toBeUndefined()
+  })
+})
+describe('recall campaign copy', () => {
+  test('maps each audience template to its explanation', () => {
+    expect(audienceTemplateDescriptionKeys).toEqual({
+      first_purchase:
+        'Targets registered users who have never paid, for campaigns that encourage a first purchase.',
+      lapsed_payer:
+        'Targets previous payers who have not paid or used the API recently.',
+      expired_subscription:
+        'Targets previous subscribers whose subscription is no longer active and expired long enough ago.',
+      registered_only:
+        'Targets users who registered within a selected registration date range.',
+      registration_time_range:
+        'Targets users registered within the selected time range, regardless of API usage, payment, or subscription status.',
+      specified_users:
+        'Targets explicitly selected users by user ID or email address.',
+    })
+  })
+
+  test('exposes source copy for exact audience controls', () => {
+    expect(
+      (
+        recallCopy as typeof recallCopy & {
+          recallCampaignEditorCopyKeys?: readonly string[]
+        }
+      ).recallCampaignEditorCopyKeys
+    ).toEqual(expect.arrayContaining([...exactAudienceControlKeys]))
+    expect(recallCopy.recallCampaignEditorCopyKeys).not.toContain(
+      'Registration end must be after start'
+    )
+  })
+
+  test('registers source copy for dedicated Activity SMTP settings without legacy sender aliases', () => {
+    expect(recallCopy.recallActivitySMTPCopyKeys).toEqual(
+      expect.arrayContaining([...recallActivitySMTPCopyKeys])
+    )
+    expect(recallCopy.recallActivityEmailCopyKeys).not.toEqual(
+      expect.arrayContaining([
+        ['Activity', 'sender', 'address'].join(' '),
+        ['Save', 'sender', 'address'].join(' '),
+        ['Failed to load', 'sender addresses.'].join(' '),
+      ])
+    )
+  })
+
+  test('keeps Activity SMTP locale values as natural UTF-8 translations', () => {
+    for (const [locale, expectations] of Object.entries(
+      activitySMTPNaturalTranslationExpectations
+    )) {
+      const translations = localeTranslations[locale]
+      for (const [key, expected] of Object.entries(expectations)) {
+        expect(translations[key], `${locale} ${key}`).toBe(expected)
+      }
+    }
+  })
+
+  for (const [locale, translations] of Object.entries(localeTranslations)) {
+    test(`${locale} contains translated recall configuration help`, () => {
+      for (const key of recallHelpKeys) {
+        expect(
+          Object.prototype.hasOwnProperty.call(translations, key),
+          `${locale} is missing ${key}`
+        ).toBe(true)
+        expect(
+          translations[key],
+          `${locale} has an empty value for ${key}`
+        ).toBeTruthy()
+
+        if (locale !== 'en') {
+          expect(
+            translations[key],
+            `${locale} should translate ${key}`
+          ).not.toBe(key)
+          expect(
+            translations[key],
+            `${locale} should not use placeholder punctuation for ${key}`
+          ).not.toContain('?')
+        }
+      }
+    })
+
+    test(`${locale} contains localized Continuous lifecycle copy`, () => {
+      for (const key of lifecycleVisibleCopyKeys) {
+        expect(
+          Object.prototype.hasOwnProperty.call(translations, key),
+          `${locale} is missing lifecycle key ${key}`
+        ).toBe(true)
+        expect(
+          translations[key],
+          `${locale} has an empty lifecycle value for ${key}`
+        ).toBeTruthy()
+
+        if (locale === 'en') {
+          continue
+        }
+
+        expect(
+          translations[key],
+          `${locale} should localize lifecycle key ${key}`
+        ).not.toBe(en.translation[key])
+      }
+    })
+
+    test(`${locale} uses Activity Configuration instead of legacy Recall Campaign copy`, () => {
+      for (const key of activityConfigurationKeys) {
+        expect(translations[key], `${locale} is missing ${key}`).toBeTruthy()
+      }
+
+      for (const key of legacyActivityConfigurationKeys) {
+        expect(
+          Object.prototype.hasOwnProperty.call(translations, key),
+          `${locale} should not keep legacy visible key ${key}`
+        ).toBe(false)
+      }
+    })
+
+    test(`${locale} separates manual execution mode from manual translation status`, () => {
+      expect(translations.manual).toBeTruthy()
+      expect(translations['recall.translation_status.manual']).toBeTruthy()
+      expect(translations.manual).not.toBe(
+        translations['recall.translation_status.manual']
+      )
+    })
+  }
+})

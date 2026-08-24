@@ -67,6 +67,13 @@ import {
   type ModelRow,
 } from './model-pricing-snapshots'
 import { buildModelRatioColumns } from './model-ratio-table-columns'
+import {
+  mergeModelRules,
+  parseAllRules,
+  rulesForModel,
+} from './video-pricing-types'
+
+const VIDEO_RULES_KEY = 'billing_setting_video.video_price_rules'
 
 type ModelRatioVisualEditorProps = {
   savedModelPrice: string
@@ -79,6 +86,7 @@ type ModelRatioVisualEditorProps = {
   savedAudioCompletionRatio: string
   savedBillingMode: string
   savedBillingExpr: string
+  savedVideoRules: string
   modelPrice: string
   modelRatio: string
   cacheRatio: string
@@ -89,6 +97,7 @@ type ModelRatioVisualEditorProps = {
   audioCompletionRatio: string
   billingMode: string
   billingExpr: string
+  videoRules: string
   onChange: (field: string, value: string) => void
   onSave: () => void | Promise<void>
   isSaving: boolean
@@ -115,6 +124,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     savedAudioCompletionRatio,
     savedBillingMode,
     savedBillingExpr,
+    savedVideoRules,
     modelPrice,
     modelRatio,
     cacheRatio,
@@ -125,6 +135,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     audioCompletionRatio,
     billingMode,
     billingExpr,
+    videoRules,
     onChange,
     onSave,
     isSaving,
@@ -196,6 +207,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       audioCompletionRatio: savedAudioCompletionRatio,
       billingMode: savedBillingMode,
       billingExpr: savedBillingExpr,
+      videoRules: savedVideoRules,
     })
     const draftRows = buildModelSnapshots({
       modelPrice,
@@ -208,6 +220,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       audioCompletionRatio,
       billingMode,
       billingExpr,
+      videoRules,
     })
 
     const savedByName = new Map(savedRows.map((row) => [row.name, row]))
@@ -243,6 +256,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     savedAudioCompletionRatio,
     savedBillingMode,
     savedBillingExpr,
+    savedVideoRules,
     modelPrice,
     modelRatio,
     cacheRatio,
@@ -253,6 +267,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
     audioCompletionRatio,
     billingMode,
     billingExpr,
+    videoRules,
   ])
 
   const modeCounts = useMemo(
@@ -261,7 +276,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
         (acc, model) => {
           const mode =
             model.billingMode === 'per-request' ||
-            model.billingMode === 'tiered_expr'
+            model.billingMode === 'tiered_expr' ||
+            model.billingMode === 'video'
               ? model.billingMode
               : 'per-token'
           acc[mode] += 1
@@ -271,7 +287,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
           'per-token': 0,
           'per-request': 0,
           tiered_expr: 0,
-        } as Record<'per-token' | 'per-request' | 'tiered_expr', number>
+          video: 0,
+        } as Record<
+          'per-token' | 'per-request' | 'tiered_expr' | 'video',
+          number
+        >
       ),
     [models]
   )
@@ -279,6 +299,18 @@ const ModelRatioVisualEditorComponent = forwardRef<
   const handleEdit = useCallback(
     (model: ModelRow) => {
       const editableModel = model.draft ?? model.saved ?? model
+      // A video model also carries a ModelPrice entry -- the divisor the
+      // per-second chain cancels out -- so the price check below would claim it
+      // for per-request. The snapshot's mode has to win.
+      const resolveMode = () => {
+        if (editableModel.billingMode === 'video') return 'video' as const
+        if (editableModel.billingMode === 'tiered_expr') {
+          return 'tiered_expr' as const
+        }
+        return editableModel.price && editableModel.price !== ''
+          ? ('per-request' as const)
+          : ('per-token' as const)
+      }
       setEditData({
         name: editableModel.name,
         price: editableModel.price,
@@ -289,19 +321,19 @@ const ModelRatioVisualEditorComponent = forwardRef<
         imageRatio: editableModel.imageRatio,
         audioRatio: editableModel.audioRatio,
         audioCompletionRatio: editableModel.audioCompletionRatio,
-        billingMode:
-          editableModel.billingMode === 'tiered_expr'
-            ? 'tiered_expr'
-            : editableModel.price && editableModel.price !== ''
-              ? 'per-request'
-              : 'per-token',
+        billingMode: resolveMode(),
         billingExpr: editableModel.billingExpr,
         requestRuleExpr: editableModel.requestRuleExpr,
+        // Narrowed to this model: the sheet must never see, and so can never
+        // drop, another model's rules.
+        videoRules: JSON.stringify(
+          rulesForModel(parseAllRules(videoRules), editableModel.name)
+        ),
       })
       setEditorOpen(true)
       if (isMobile) setSheetOpen(true)
     },
-    [isMobile]
+    [isMobile, videoRules]
   )
 
   const handleAdd = useCallback(() => {
@@ -398,6 +430,13 @@ const ModelRatioVisualEditorComponent = forwardRef<
         'billing_setting.billing_expr',
         JSON.stringify(billingExprMap, null, 2)
       )
+      // Presence in this table is what selects per-second billing, so a deleted
+      // model has to leave it or it keeps being billed per second with no row in
+      // the sheet to show for it. mergeModelRules drops only this model.
+      onChange(
+        VIDEO_RULES_KEY,
+        JSON.stringify(mergeModelRules(parseAllRules(videoRules), name, []))
+      )
     },
     [
       modelPrice,
@@ -410,6 +449,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       audioCompletionRatio,
       billingMode,
       billingExpr,
+      videoRules,
       onChange,
     ]
   )
@@ -508,7 +548,20 @@ const ModelRatioVisualEditorComponent = forwardRef<
         if (Number.isFinite(parsed)) target[name] = parsed
       }
 
+      // The rule list is one flat array across every model, so it is threaded
+      // through the loop rather than rebuilt per target: a batch copy applies
+      // the same rules to several models and each merge has to see the previous
+      // one's result. mergeModelRules replaces only the named model and stamps
+      // its name onto every rule.
+      const editedRules = parseAllRules(data.videoRules)
+      let nextVideoRules = parseAllRules(videoRules)
+
       targetNames.forEach((name) => {
+        // Captured before the delete below: an existing base is deliberate for
+        // two models (0.14 and 0.08) and rescaling it to 1 would break
+        // continuity with historical video_billing_units in the logs.
+        const existingModelPrice = priceMap[name]
+
         delete priceMap[name]
         delete ratioMap[name]
         delete cacheMap[name]
@@ -541,8 +594,24 @@ const ModelRatioVisualEditorComponent = forwardRef<
           setIfPresent(imageMap, name, data.imageRatio)
           setIfPresent(audioMap, name, data.audioRatio)
           setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+          nextVideoRules = mergeModelRules(nextVideoRules, name, [])
+        } else if (data.billingMode === 'video') {
+          // billing_setting.billing_mode is deliberately NOT set to 'video'.
+          // The backend selects per-second billing by the model's presence in
+          // the rule table (IsVideoModelConfigured), and its website pricing
+          // endpoint rejects any billing_mode it does not recognize -- writing
+          // 'video' there would fail that endpoint for the whole catalogue.
+          //
+          // ModelPrice is the divisor in price_per_second * seconds /
+          // ModelPrice and the surrounding chain multiplies it back in, so its
+          // value cancels and cannot change what a customer pays. Its presence
+          // is what switches the model off token settlement, and a non-positive
+          // value makes the backend reject every request -- so it must exist.
+          priceMap[name] = existingModelPrice ?? 1
+          nextVideoRules = mergeModelRules(nextVideoRules, name, editedRules)
         } else if (data.price && data.price !== '') {
           setIfPresent(priceMap, name, data.price)
+          nextVideoRules = mergeModelRules(nextVideoRules, name, [])
         } else {
           setIfPresent(ratioMap, name, data.ratio)
           setIfPresent(cacheMap, name, data.cacheRatio)
@@ -551,6 +620,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
           setIfPresent(imageMap, name, data.imageRatio)
           setIfPresent(audioMap, name, data.audioRatio)
           setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+          nextVideoRules = mergeModelRules(nextVideoRules, name, [])
         }
       })
 
@@ -573,6 +643,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         'billing_setting.billing_expr',
         JSON.stringify(billingExprMap, null, 2)
       )
+      onChange(VIDEO_RULES_KEY, JSON.stringify(nextVideoRules))
     },
     [
       modelPrice,
@@ -585,6 +656,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       audioCompletionRatio,
       billingMode,
       billingExpr,
+      videoRules,
       onChange,
     ]
   )
@@ -655,6 +727,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
                     label: 'Expression',
                     value: 'tiered_expr',
                     count: modeCounts.tiered_expr,
+                  },
+                  {
+                    label: 'Video per-second',
+                    value: 'video',
+                    count: modeCounts.video,
                   },
                 ],
               },
@@ -811,6 +888,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.audioCompletionRatio === nextProps.audioCompletionRatio &&
       prevProps.billingMode === nextProps.billingMode &&
       prevProps.billingExpr === nextProps.billingExpr &&
+      prevProps.videoRules === nextProps.videoRules &&
       prevProps.onChange === nextProps.onChange &&
       prevProps.onSave === nextProps.onSave &&
       prevProps.isSaving === nextProps.isSaving

@@ -1,0 +1,1327 @@
+import { createFormControl } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { describe, expect, test } from 'bun:test'
+import { createRecallCampaignFormDraft } from './components/campaign-editor'
+import {
+  convertRecallBodyTextToHtml,
+  createDefaultRecallMinimumSpendConfig,
+  formatRecallCurrencyAmount,
+  formatRecallMinorAmount,
+  formatRecallCampaignType,
+  getRecallEffectivePromotionExpiry,
+  getRecallEmailLocaleStatus,
+  getRecallPageCount,
+  getRecallRecipientRetry,
+  recallWallClockInputToUnixSeconds,
+  recallUnixSecondsToWallClockInput,
+  isRecallPromotionCampaign,
+  insertRecallEmailAction,
+  hydrateRecallMinimumSpendConfig,
+  normalizeRecallGroupsForMode,
+  normalizeRecallCouponSource,
+  normalizeRecallDiscountType,
+  parseRecallMajorAmount,
+  prepareRecallCampaignSubmitDraft,
+  RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
+  recallPromotionDurationToSeconds,
+  recallPromotionSecondsToDuration,
+  removeRecallEmailStage,
+  setRecallCampaignGroups,
+  setRecallCampaignGroupMode,
+} from './helpers'
+import { recallCampaignDraftSchema } from './schemas'
+import {
+  type RecallCampaignDraft,
+  type RecallEmailStage,
+  type RecallMinimumSpendConfig,
+  type RecallRecipient,
+  isRecallTranslationTaskActive,
+  isRecallTranslationTaskTerminal,
+} from './types'
+
+function makeDraft(): RecallCampaignDraft {
+  return {
+    coupon_source: 'existing',
+    existing_coupon_id: 'coupon_old',
+    discount_config: {
+      type: 'fixed',
+      percent_off: 0,
+      amount_off: 500,
+      currency: 'usd',
+      currency_options: { inr: 45_000, brl: 2_500, jpy: 750 },
+      minimum_amount: 100,
+      minimum_amount_currency: 'usd',
+    },
+  } as RecallCampaignDraft
+}
+
+function makeValidDraft(): RecallCampaignDraft {
+  return {
+    campaign_type: 'promotion',
+    name: 'Win back inactive customers',
+    audience_template: 'first_purchase',
+    audience_config: {
+      registration_age_days: 14,
+      min_request_count: 1,
+      max_quota: 10,
+      min_paid_amount: 0,
+      last_api_call_age_days: 0,
+      last_payment_age_days: 0,
+      subscription_expired_days: 0,
+      min_subscription_amount: 0,
+      min_subscription_count: 0,
+      payment_providers: [],
+      groups: ['paid'],
+      group_mode: '',
+      require_verified_email: true,
+    },
+    execution_mode: 'manual',
+    schedule: {
+      scheduled_at: 0,
+      timezone: '',
+      frequency: '',
+      weekday: 0,
+      hour: 0,
+      minute: 0,
+    },
+    coupon_source: 'automatic',
+    existing_coupon_id: '',
+    discount_config: {
+      type: 'percent',
+      percent_off: 20,
+      amount_off: 0,
+      currency: '',
+      currency_options: {},
+      minimum_amount: 0,
+      minimum_amount_currency: '',
+    },
+    product_scope: {
+      topup_price_ids: ['price_topup_20'],
+      subscription_price_ids: [],
+    },
+    promotion_expiry_mode: 'relative',
+    promotion_expires_at: 0,
+    promotion_valid_seconds: 604_800,
+    defer_localization: true,
+    enrollment_limit: 1_000,
+    worker_concurrency: 5,
+    email_sequence: [
+      {
+        stage_no: 1,
+        delay_seconds: 0,
+        template_version: 1,
+        templates: {
+          en: { subject: 'We miss you', body_text: 'Come back soon.' },
+        },
+      },
+    ],
+  }
+}
+
+function makeContinuousDraft(): RecallCampaignDraft {
+  const draft = makeValidDraft() as RecallCampaignDraft & {
+    lifecycle_trigger: 'quota_low'
+    lifecycle_trigger_config: Record<string, never>
+    processing_start_at: number
+  }
+  return {
+    ...draft,
+    campaign_type: 'content_only',
+    audience_template: '',
+    audience_config: {
+      registration_age_days: 0,
+      min_request_count: 0,
+      max_quota: 0,
+      min_paid_amount: 0,
+      last_api_call_age_days: 0,
+      last_payment_age_days: 0,
+      subscription_expired_days: 0,
+      min_subscription_amount: 0,
+      min_subscription_count: 0,
+      payment_providers: [],
+      groups: [],
+      group_mode: '',
+      require_verified_email: false,
+      registration_start_at: 0,
+      registration_end_at: 0,
+      specified_user_ids: [],
+      specified_emails: [],
+    },
+    execution_mode: 'continuous',
+    delivery_policy: 'service',
+    lifecycle_trigger: 'quota_low',
+    lifecycle_trigger_config: {},
+    processing_start_at: 0,
+    schedule: {
+      scheduled_at: 0,
+      timezone: '',
+      frequency: '',
+      weekday: 0,
+      hour: 0,
+      minute: 0,
+    },
+    coupon_source: '',
+    existing_coupon_id: '',
+    discount_config: {
+      type: 'percent',
+      percent_off: 0,
+      amount_off: 0,
+      currency: '',
+      currency_options: {},
+      minimum_amount: 0,
+      minimum_amount_currency: '',
+    },
+    product_scope: {
+      topup_price_ids: [],
+      subscription_price_ids: [],
+    },
+    promotion_expiry_mode: '',
+    promotion_expires_at: 0,
+    promotion_valid_seconds: 0,
+  } as RecallCampaignDraft
+}
+
+function makeStage(stageNo: number, delaySeconds: number): RecallEmailStage {
+  return {
+    stage_no: stageNo,
+    delay_seconds: delaySeconds,
+    template_version: 1,
+    templates: { en: { subject: `Stage ${stageNo}`, body_text: 'Body' } },
+  }
+}
+
+function makeRecipient(
+  state: RecallRecipient['state'],
+  messageStates: RecallRecipient['messages'][number]['state'][],
+  leaseExpiresAt: number[] = []
+): RecallRecipient {
+  return {
+    state,
+    messages: messageStates.map((messageState, index) => ({
+      id: index + 1,
+      state: messageState,
+      lease_expires_at: leaseExpiresAt[index] ?? 0,
+    })),
+  } as RecallRecipient
+}
+
+describe('recall campaign editor normalization', () => {
+  test('submits editor-created continuous drafts with backend-compatible empty lifecycle-only fields', () => {
+    const normalized = prepareRecallCampaignSubmitDraft(makeContinuousDraft())
+
+    expect(normalized).toMatchObject({
+      campaign_type: 'content_only',
+      audience_template: '',
+      audience_config: {
+        registration_age_days: 0,
+        min_request_count: 0,
+        max_quota: 0,
+        min_paid_amount: 0,
+        last_api_call_age_days: 0,
+        last_payment_age_days: 0,
+        subscription_expired_days: 0,
+        min_subscription_amount: 0,
+        min_subscription_count: 0,
+        payment_providers: [],
+        groups: [],
+        group_mode: '',
+        require_verified_email: false,
+        registration_start_at: 0,
+        registration_end_at: 0,
+        specified_user_ids: [],
+        specified_emails: [],
+      },
+      schedule: {
+        scheduled_at: 0,
+        timezone: '',
+        frequency: '',
+        weekday: 0,
+        hour: 0,
+        minute: 0,
+      },
+      coupon_source: '',
+      existing_coupon_id: '',
+      discount_config: {
+        type: 'percent',
+        percent_off: 0,
+        amount_off: 0,
+        currency: '',
+        currency_options: {},
+        minimum_amount: 0,
+        minimum_amount_currency: '',
+      },
+      product_scope: {
+        topup_price_ids: [],
+        subscription_price_ids: [],
+      },
+      promotion_expiry_mode: '',
+      promotion_expires_at: 0,
+      promotion_valid_seconds: 0,
+    })
+    expect(recallCampaignDraftSchema.safeParse(normalized).success).toBe(true)
+  })
+
+  test('strips forbidden service-policy actions from continuous legacy text bodies at submit', () => {
+    const draft = makeContinuousDraft()
+    draft.email_sequence[0].templates.en = {
+      subject: 'Quota update',
+      body_text: [
+        'Quota notice',
+        'Claim {{.ClaimURL}}',
+        'Unsubscribe {{.UnsubscribeURL}}',
+      ].join('\n'),
+      body_html: '',
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+    const bodyHtml = normalized.email_sequence[0].templates.en.body_html
+
+    expect(bodyHtml).toContain('Quota notice')
+    expect(bodyHtml).not.toContain('{{.ClaimURL}}')
+    expect(bodyHtml).not.toContain('{{.UnsubscribeURL}}')
+  })
+
+  test('hydrates missing continuous delivery policy from the lifecycle trigger', () => {
+    const draft = makeContinuousDraft()
+    draft.lifecycle_trigger = 'payment_succeeded'
+    draft.delivery_policy = undefined
+    draft.email_sequence[0].templates.en.body_html = ''
+
+    const hydrated = createRecallCampaignFormDraft(draft)
+
+    expect(hydrated.delivery_policy).toBe('service')
+    expect(hydrated.email_sequence[0].templates.en.body_html).not.toContain(
+      '{{.UnsubscribeURL}}'
+    )
+  })
+
+  test('preserves explicit continuous delivery policy when hydrating templates', () => {
+    const draft = makeContinuousDraft()
+    draft.lifecycle_trigger = 'payment_succeeded'
+    draft.delivery_policy = 'engagement'
+    draft.email_sequence[0].templates.en.body_html = ''
+
+    const hydrated = createRecallCampaignFormDraft(draft)
+
+    expect(hydrated.delivery_policy).toBe('engagement')
+    expect(hydrated.email_sequence[0].templates.en.body_html).toContain(
+      '{{.UnsubscribeURL}}'
+    )
+  })
+
+  test('rejects continuous submit drafts without an English first-stage template', () => {
+    const emptySequence = makeContinuousDraft()
+    emptySequence.email_sequence = []
+    expect(() => prepareRecallCampaignSubmitDraft(emptySequence)).toThrow(
+      'English template is required'
+    )
+
+    const missingEnglish = makeContinuousDraft()
+    missingEnglish.email_sequence[0].templates = {
+      fr: { subject: 'Sujet', body_html: '<p>Bonjour</p>' },
+    }
+    expect(() => prepareRecallCampaignSubmitDraft(missingEnglish)).toThrow(
+      'English template is required'
+    )
+  })
+
+  test('rejects explicitly supplied non-empty continuous audience and promotion fields before canonicalization', () => {
+    const invalid = makeContinuousDraft()
+    invalid.audience_template = 'first_purchase'
+    invalid.coupon_source = 'automatic'
+    invalid.promotion_expiry_mode = 'relative'
+
+    expect(() => prepareRecallCampaignSubmitDraft(invalid)).toThrow(
+      'Continuous'
+    )
+  })
+
+  test('canonicalizes manual schedule at the submit boundary without a mode switch', () => {
+    const draft = makeValidDraft()
+    draft.execution_mode = 'manual'
+    draft.schedule = {
+      scheduled_at: 2_000_100_000,
+      timezone: 'America/New_York',
+      frequency: 'weekly',
+      weekday: 5,
+      hour: 18,
+      minute: 45,
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.schedule).toEqual({
+      scheduled_at: 0,
+      timezone: '',
+      frequency: 'daily',
+      weekday: 1,
+      hour: 0,
+      minute: 0,
+    })
+  })
+
+  test('normalizes every localized template to editable HTML', () => {
+    const draft = makeValidDraft()
+    draft.email_sequence[0].templates = {
+      en: { subject: 'English subject', body_text: 'English body' },
+      fr: {
+        subject: 'Localized subject',
+        body_text: 'Localized text',
+        body_html: '<p>Localized HTML</p>',
+      },
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.email_sequence[0].templates.en).toMatchObject({
+      subject: 'English subject',
+      body_text: '',
+    })
+    expect(normalized.email_sequence[0].templates.en.body_html).toContain(
+      '<p>English body</p>'
+    )
+    expect(normalized.email_sequence[0].templates.fr).toEqual({
+      subject: 'Localized subject',
+      body_text: '',
+      body_html: '<p>Localized HTML</p>',
+    })
+  })
+
+  test('clones localized templates while normalizing their values', () => {
+    const draft = makeValidDraft()
+    draft.email_sequence[0].templates = {
+      en: { subject: 'English subject', body_text: 'English body' },
+      fr: {
+        subject: 'Localized subject',
+        body_text: 'Localized text',
+        body_html: '<p>Localized HTML</p>',
+      },
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.email_sequence[0].templates.fr).toEqual({
+      subject: 'Localized subject',
+      body_text: '',
+      body_html: '<p>Localized HTML</p>',
+    })
+    expect(normalized.email_sequence[0].templates.fr).not.toBe(
+      draft.email_sequence[0].templates.fr
+    )
+
+    normalized.email_sequence[0].templates.fr.body_html = '<p>Changed</p>'
+    expect(draft.email_sequence[0].templates.fr.body_html).toBe(
+      '<p>Localized HTML</p>'
+    )
+  })
+
+  test('removes manual locale markers for discarded empty templates', () => {
+    const draft = makeValidDraft()
+    draft.email_sequence[0].templates = {
+      en: { subject: 'English subject', body_text: 'English body' },
+      zh: { subject: '', body_text: '', body_html: '' },
+      fr: {
+        subject: 'Localized subject',
+        body_html: '<p>Localized HTML</p>',
+      },
+    }
+    draft.email_sequence[0].manual_locales = ['zh', 'fr']
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(Object.keys(normalized.email_sequence[0].templates)).toEqual([
+      'en',
+      'fr',
+    ])
+    expect(normalized.email_sequence[0].manual_locales).toEqual(['fr'])
+  })
+
+  test('preserves English HTML drafts and clears submitted body text', () => {
+    const draft = makeValidDraft()
+    draft.email_sequence[0].templates.en = {
+      subject: 'English subject',
+      body_text: 'stale text',
+      body_html: '<p>Editable HTML</p>',
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.email_sequence[0].templates.en).toEqual({
+      subject: 'English subject',
+      body_text: '',
+      body_html: '<p>Editable HTML</p>',
+    })
+  })
+
+  test('converts plain English body input from the HTML editor before submit', () => {
+    const draft = makeValidDraft()
+    draft.email_sequence[0].templates.en = {
+      subject: 'English subject',
+      body_text: '',
+      body_html: 'Plain line\n2 < 3',
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.email_sequence[0].templates.en).toMatchObject({
+      subject: 'English subject',
+      body_text: '',
+    })
+    expect(normalized.email_sequence[0].templates.en.body_html).toContain(
+      '<p>Plain line</p>'
+    )
+    expect(normalized.email_sequence[0].templates.en.body_html).toContain(
+      '<p>2 &lt; 3</p>'
+    )
+    expect(normalized.email_sequence[0].templates.en.body_html).toContain(
+      'href="{{.ClaimURL}}"'
+    )
+  })
+
+  test('uses the content-only starter when content-only HTML is blank at submit', () => {
+    const draft = makeValidDraft()
+    draft.campaign_type = 'content_only'
+    draft.email_sequence[0].templates.en = {
+      subject: '',
+      body_text: '',
+      body_html: '',
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.email_sequence[0].templates.en).toEqual({
+      subject: 'Win back inactive customers',
+      body_text: '',
+      body_html: RECALL_CONTENT_ONLY_EMAIL_STARTER_HTML,
+    })
+    expect(normalized.email_sequence[0].templates.en.body_html).not.toContain(
+      '{{.ClaimURL}}'
+    )
+  })
+
+  test('converts content-only plain text at submit without a claim action', () => {
+    const draft = makeValidDraft()
+    draft.campaign_type = 'content_only'
+    draft.email_sequence[0].templates.en = {
+      subject: 'Product update',
+      body_text: '',
+      body_html: 'Product update\nRead the details',
+    }
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+    const html = normalized.email_sequence[0].templates.en.body_html
+
+    expect(html).toContain('<p>Product update</p>')
+    expect(html).toContain('<p>Read the details</p>')
+    expect(html).not.toContain('{{.ClaimURL}}')
+    expect(html).toContain('href="{{.UnsubscribeURL}}"')
+  })
+
+  test('validates exactly one email body and preserves hidden localized HTML', () => {
+    const validHtml = makeValidDraft()
+    validHtml.audience_config.groups = []
+    validHtml.email_sequence[0].templates = {
+      en: { subject: 'English subject', body_html: '<p>English body</p>' },
+      fr: { subject: 'Localized subject', body_html: '<p>Localized HTML</p>' },
+    }
+    const htmlResult = recallCampaignDraftSchema.safeParse(validHtml)
+    expect(htmlResult.success).toBe(true)
+    if (htmlResult.success) {
+      expect(htmlResult.data.email_sequence[0].templates.fr.body_html).toBe(
+        '<p>Localized HTML</p>'
+      )
+    }
+
+    const validText = makeValidDraft()
+    validText.audience_config.groups = []
+    validText.email_sequence[0].templates.en = {
+      subject: 'English subject',
+      body_text: 'English body',
+    }
+    expect(recallCampaignDraftSchema.safeParse(validText).success).toBe(true)
+
+    const neither = makeValidDraft()
+    neither.audience_config.groups = []
+    neither.email_sequence[0].templates.en = {
+      subject: 'English subject',
+      body_text: ' ',
+      body_html: '',
+    }
+    const neitherResult = recallCampaignDraftSchema.safeParse(neither)
+    expect(neitherResult.success).toBe(false)
+    if (!neitherResult.success) {
+      expect(neitherResult.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['email_sequence', 0, 'templates', 'en', 'body_html'],
+        })
+      )
+    }
+
+    const both = makeValidDraft()
+    both.audience_config.groups = []
+    both.email_sequence[0].templates.en = {
+      subject: 'English subject',
+      body_text: 'English body',
+      body_html: '<p>English body</p>',
+    }
+    const bothResult = recallCampaignDraftSchema.safeParse(both)
+    expect(bothResult.success).toBe(false)
+    if (!bothResult.success) {
+      expect(bothResult.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['email_sequence', 0, 'templates', 'en', 'body_html'],
+        })
+      )
+    }
+  })
+
+  test('rejects HTML bodies over 100 KiB by UTF-8 byte length', () => {
+    const valid = makeValidDraft()
+    valid.audience_config.groups = []
+    valid.email_sequence[0].templates.en = {
+      subject: 'English subject',
+      body_html: '界'.repeat(Math.floor(102_400 / 3)),
+    }
+    expect(recallCampaignDraftSchema.safeParse(valid).success).toBe(true)
+
+    const tooLarge = makeValidDraft()
+    tooLarge.audience_config.groups = []
+    tooLarge.email_sequence[0].templates.en = {
+      subject: 'English subject',
+      body_html: `${'界'.repeat(Math.floor(102_400 / 3))}界`,
+    }
+    const result = recallCampaignDraftSchema.safeParse(tooLarge)
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues).toContainEqual(
+        expect.objectContaining({
+          path: ['email_sequence', 0, 'templates', 'en', 'body_html'],
+          message: 'Body HTML must be 100 KiB or smaller',
+        })
+      )
+    }
+  })
+
+  test('converts legacy recall body text to HTML with required actions', () => {
+    expect(convertRecallBodyTextToHtml('Hello\nSecond line')).toContain(
+      '<p>Hello</p>'
+    )
+    expect(convertRecallBodyTextToHtml('Hello')).toContain('{{.ClaimURL}}')
+    expect(convertRecallBodyTextToHtml('Hello')).toContain(
+      '{{.UnsubscribeURL}}'
+    )
+  })
+
+  test('inserts recall email actions at the active selection', () => {
+    expect(insertRecallEmailAction('abc', 1, 2, '{{.ClaimURL}}')).toEqual({
+      value: 'a{{.ClaimURL}}c',
+      selection: 14,
+    })
+  })
+
+  test('canonicalizes no-filter groups at the editor submission boundary without dropping translations', () => {
+    const draft = makeDraft()
+    draft.audience_config = {
+      registration_age_days: 30,
+      min_request_count: 1,
+      max_quota: 0,
+      min_paid_amount: 0,
+      last_api_call_age_days: 30,
+      last_payment_age_days: 30,
+      subscription_expired_days: 30,
+      min_subscription_amount: 0,
+      min_subscription_count: 1,
+      payment_providers: [],
+      groups: ['stale-group'],
+      group_mode: '',
+      require_verified_email: true,
+    }
+    draft.email_sequence = [
+      {
+        stage_no: 1,
+        delay_seconds: 0,
+        template_version: 1,
+        templates: {
+          en: { subject: 'English subject', body_text: 'English body' },
+          fr: { subject: 'Sujet français', body_text: 'Corps français' },
+        },
+      },
+    ]
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized).not.toBe(draft)
+    expect(draft.audience_config.groups).toEqual(['stale-group'])
+    expect(normalized.audience_config.groups).toEqual([])
+    expect(normalized.email_sequence[0].templates.en).toMatchObject({
+      subject: 'English subject',
+      body_text: '',
+    })
+    expect(normalized.email_sequence[0].templates.en.body_html).toContain(
+      '<p>English body</p>'
+    )
+    expect(normalized.email_sequence[0].templates.fr).toMatchObject({
+      subject: 'Sujet français',
+      body_text: '',
+    })
+    expect(normalized.email_sequence[0].templates.fr.body_html).toContain(
+      '<p>Corps français</p>'
+    )
+  })
+
+  test.each(['null', 'undefined'] as const)(
+    'treats legacy %s stage templates as empty at submit',
+    (shape) => {
+      const draft = makeValidDraft()
+      draft.email_sequence[0].templates = (shape === 'null'
+        ? null
+        : undefined) as unknown as RecallEmailStage['templates']
+      draft.email_sequence[0].manual_locales = ['es']
+
+      const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+      expect(normalized.email_sequence[0].templates).toEqual({})
+      expect(normalized.email_sequence[0].manual_locales).toEqual([])
+    }
+  )
+
+  test.each(['null', 'undefined'] as const)(
+    'hydrates default English editor template for legacy %s stage templates',
+    (shape) => {
+      const draft = makeValidDraft()
+      draft.email_sequence[0].templates = (shape === 'null'
+        ? null
+        : undefined) as unknown as RecallEmailStage['templates']
+
+      const hydrated = createRecallCampaignFormDraft(draft)
+
+      expect(hydrated.email_sequence[0].templates).toEqual({
+        en: {
+          subject: '',
+          body_text: '',
+          body_html: expect.stringContaining('{{.ClaimURL}}'),
+        },
+      })
+    }
+  )
+
+  test('clears groups when no group filter is selected', () => {
+    expect(normalizeRecallGroupsForMode(['paid', 'trial'], '')).toEqual([])
+  })
+
+  test.each(['allow', 'block'] as const)(
+    'preserves normalized groups in %s mode',
+    (mode) => {
+      const groups = ['paid', 'trial']
+
+      expect(normalizeRecallGroupsForMode(groups, mode)).toEqual(groups)
+    }
+  )
+
+  test.each([
+    ['', []],
+    ['allow', ['paid']],
+  ] as const)(
+    'revalidates the audience after switching group mode to %s',
+    async (mode, expectedGroups) => {
+      const form = createFormControl<RecallCampaignDraft>({
+        resolver: zodResolver(recallCampaignDraftSchema),
+        defaultValues: makeValidDraft(),
+      })
+      const subscription = form.subscribe({
+        formState: { values: true },
+        callback: () => undefined,
+      })
+      form.register('audience_config.group_mode')
+      form.register('audience_config.groups')
+      await form.trigger('audience_config')
+      expect(
+        form.getFieldState('audience_config.group_mode').error?.message
+      ).toBe('Group mode is required')
+
+      await setRecallCampaignGroupMode(form, mode)
+
+      expect(form.getValues('audience_config.groups')).toEqual(expectedGroups)
+      expect(
+        form.getFieldState('audience_config.group_mode').error
+      ).toBeUndefined()
+      subscription()
+    }
+  )
+
+  test('revalidates the audience after entering groups for an active filter', async () => {
+    const draft = makeValidDraft()
+    draft.audience_config.groups = []
+    const form = createFormControl<RecallCampaignDraft>({
+      resolver: zodResolver(recallCampaignDraftSchema),
+      defaultValues: draft,
+    })
+    const subscription = form.subscribe({
+      formState: { values: true },
+      callback: () => undefined,
+    })
+    form.register('audience_config.group_mode')
+    form.register('audience_config.groups')
+
+    await setRecallCampaignGroupMode(form, 'allow')
+    expect(
+      form.getFieldState('audience_config.group_mode').error?.message
+    ).toBe('Groups are required')
+
+    await setRecallCampaignGroups(form, ['paid'])
+
+    expect(form.getValues('audience_config.groups')).toEqual(['paid'])
+    expect(
+      form.getFieldState('audience_config.group_mode').error
+    ).toBeUndefined()
+    subscription()
+  })
+
+  test('clears the hidden existing coupon ID when switching to automatic', () => {
+    const normalized = normalizeRecallCouponSource(makeDraft(), 'automatic')
+
+    expect(normalized.coupon_source).toBe('automatic')
+    expect(normalized.existing_coupon_id).toBe('')
+  })
+
+  test('clears fixed-only fields when switching to percent', () => {
+    const normalized = normalizeRecallDiscountType(makeDraft(), 'percent')
+
+    expect(normalized.discount_config).toMatchObject({
+      type: 'percent',
+      percent_off: 20,
+      amount_off: 0,
+      currency: '',
+      currency_options: {},
+      minimum_amount: 100,
+      minimum_amount_currency: 'USD',
+    })
+  })
+
+  test('canonicalizes supported legacy USD minimum amounts and clears zero currency', () => {
+    const positiveDraft = makeValidDraft()
+    positiveDraft.discount_config.minimum_amount = 100
+    positiveDraft.discount_config.minimum_amount_currency = 'usd'
+    const positive = prepareRecallCampaignSubmitDraft(positiveDraft)
+    expect(positive.discount_config.minimum_amount_currency).toBe('USD')
+
+    const zero = makeValidDraft()
+    zero.discount_config.minimum_amount_currency = 'EUR'
+    expect(
+      prepareRecallCampaignSubmitDraft(zero).discount_config
+        .minimum_amount_currency
+    ).toBe('')
+  })
+
+  test('creates disabled canonical minimum spend defaults for new drafts', () => {
+    expect(createDefaultRecallMinimumSpendConfig()).toEqual({
+      enabled: false,
+      amounts: {},
+    })
+  })
+
+  test('hydrates canonical minimum spend by cloning the stored values', () => {
+    const canonical: RecallMinimumSpendConfig = {
+      enabled: true,
+      amounts: { usd: 1_000, inr: 90_000, brl: 5_000, jpy: 1_500 },
+    }
+    const hydrated = hydrateRecallMinimumSpendConfig({
+      minimum_spend: canonical,
+      minimum_amount: 999,
+      minimum_amount_currency: 'USD',
+    })
+
+    expect(hydrated).toEqual(canonical)
+    expect(hydrated).not.toBe(canonical)
+    expect(hydrated.amounts).not.toBe(canonical.amounts)
+  })
+
+  test('hydrates legacy supported minimum amount without guessing other currencies', () => {
+    expect(
+      hydrateRecallMinimumSpendConfig({
+        minimum_amount: 90_000,
+        minimum_amount_currency: 'INR',
+      })
+    ).toEqual({ enabled: true, amounts: { inr: 90_000 } })
+  })
+
+  test('hydrates unsupported legacy minimum amount as enabled but incomplete', () => {
+    expect(
+      hydrateRecallMinimumSpendConfig({
+        minimum_amount: 1_000,
+        minimum_amount_currency: 'EUR',
+      })
+    ).toEqual({ enabled: true, amounts: {} })
+  })
+
+  test('dual-writes canonical minimum spend at submit without filling missing currencies', () => {
+    const draft = makeValidDraft()
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 1_000, brl: 5_000 },
+    }
+    draft.discount_config.minimum_amount = 999
+    draft.discount_config.minimum_amount_currency = 'EUR'
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.discount_config.minimum_spend).toEqual({
+      enabled: true,
+      amounts: { usd: 1_000, brl: 5_000 },
+    })
+    expect(normalized.discount_config.minimum_amount).toBe(1_000)
+    expect(normalized.discount_config.minimum_amount_currency).toBe('USD')
+  })
+
+  test('clears canonical and legacy minimum spend when disabled at submit', () => {
+    const draft = makeValidDraft()
+    draft.discount_config.minimum_spend = {
+      enabled: false,
+      amounts: { usd: 1_000 },
+    }
+    draft.discount_config.minimum_amount = 1_000
+    draft.discount_config.minimum_amount_currency = 'USD'
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.discount_config.minimum_spend).toEqual({
+      enabled: false,
+      amounts: {},
+    })
+    expect(normalized.discount_config.minimum_amount).toBe(0)
+    expect(normalized.discount_config.minimum_amount_currency).toBe('')
+  })
+
+  test('strips legacy coupon redeem-by before submit normalization returns a draft', () => {
+    const draft = makeValidDraft()
+    ;(draft.discount_config as { coupon_redeem_by?: number }).coupon_redeem_by =
+      2_000_003_600
+
+    const normalized = prepareRecallCampaignSubmitDraft(draft)
+
+    expect(normalized.discount_config).not.toHaveProperty('coupon_redeem_by')
+    expect(normalized.discount_config).toMatchObject({
+      type: draft.discount_config.type,
+      percent_off: draft.discount_config.percent_off,
+      amount_off: draft.discount_config.amount_off,
+      currency: draft.discount_config.currency,
+      currency_options: draft.discount_config.currency_options,
+      minimum_amount: draft.discount_config.minimum_amount,
+      minimum_amount_currency: draft.discount_config.minimum_amount_currency,
+    })
+  })
+
+  test('strips legacy coupon redeem-by before editor form defaults are created', () => {
+    const draft = makeValidDraft()
+    ;(draft.discount_config as { coupon_redeem_by?: number }).coupon_redeem_by =
+      2_000_003_600
+
+    const normalized = createRecallCampaignFormDraft(draft)
+
+    expect(normalized.discount_config).not.toHaveProperty('coupon_redeem_by')
+  })
+
+  test('preserves canonical minimum spend when switching automatic discount shapes', () => {
+    const draft = makeValidDraft()
+    draft.discount_config.minimum_spend = {
+      enabled: true,
+      amounts: { usd: 1_000, inr: 90_000, brl: 5_000, jpy: 1_500 },
+    }
+    draft.discount_config.minimum_amount = 1_000
+    draft.discount_config.minimum_amount_currency = 'USD'
+
+    const fixed = normalizeRecallDiscountType(draft, 'fixed')
+
+    expect(fixed.discount_config).toMatchObject({
+      type: 'fixed',
+      minimum_spend: {
+        enabled: true,
+        amounts: { usd: 1_000, inr: 90_000, brl: 5_000, jpy: 1_500 },
+      },
+      minimum_amount: 1_000,
+      minimum_amount_currency: 'USD',
+    })
+
+    const percent = normalizeRecallDiscountType(fixed, 'percent')
+    expect(percent.discount_config.minimum_spend).toEqual(
+      draft.discount_config.minimum_spend
+    )
+    expect(percent.discount_config.minimum_amount).toBe(1_000)
+    expect(percent.discount_config.minimum_amount_currency).toBe('USD')
+  })
+
+  test.each([
+    ['automatic percent', 'automatic', 'percent'],
+    ['automatic fixed', 'automatic', 'fixed'],
+    ['existing fixed', 'existing', 'fixed'],
+  ] as const)(
+    'clears stale legacy minimum spend when canonical %s lacks USD',
+    (_label, couponSource, discountType) => {
+      const draft = makeValidDraft()
+      draft.coupon_source = couponSource
+      draft.existing_coupon_id =
+        couponSource === 'existing' ? 'coupon_existing' : ''
+      draft.discount_config = {
+        ...draft.discount_config,
+        type: discountType === 'percent' ? 'fixed' : 'percent',
+        percent_off: discountType === 'percent' ? 0 : 20,
+        amount_off: discountType === 'percent' ? 500 : 0,
+        currency: discountType === 'percent' ? 'USD' : '',
+        currency_options:
+          discountType === 'percent'
+            ? { inr: 45_000, brl: 2_500, jpy: 750 }
+            : {},
+        minimum_amount: 777,
+        minimum_amount_currency: 'USD',
+        minimum_spend: {
+          enabled: true,
+          amounts: { inr: 90_000 },
+        },
+      }
+
+      const normalized = normalizeRecallDiscountType(draft, discountType)
+
+      expect(normalized.discount_config).toMatchObject({
+        minimum_spend: { enabled: true, amounts: { inr: 90_000 } },
+        minimum_amount: 0,
+        minimum_amount_currency: '',
+      })
+    }
+  )
+
+  test.each([
+    ['INR', 90_000],
+    ['BRL', 5_000],
+    ['JPY', 1_500],
+  ] as const)(
+    'preserves legacy %s minimum spend when switching to automatic percent',
+    (currency, amount) => {
+      const draft = makeValidDraft()
+      draft.coupon_source = 'automatic'
+      draft.discount_config = {
+        ...draft.discount_config,
+        type: 'fixed',
+        percent_off: 0,
+        amount_off: 500,
+        currency: 'USD',
+        currency_options: { inr: 45_000, brl: 2_500, jpy: 750 },
+        minimum_amount: amount,
+        minimum_amount_currency: currency,
+      }
+
+      const normalized = normalizeRecallDiscountType(draft, 'percent')
+
+      expect(normalized.discount_config).toMatchObject({
+        type: 'percent',
+        minimum_amount: amount,
+        minimum_amount_currency: currency,
+      })
+    }
+  )
+
+  test.each([
+    ['INR', 90_000],
+    ['BRL', 5_000],
+    ['JPY', 1_500],
+  ] as const)(
+    'preserves legacy %s minimum spend when switching to automatic fixed',
+    (currency, amount) => {
+      const draft = makeValidDraft()
+      draft.coupon_source = 'automatic'
+      draft.discount_config.minimum_amount = amount
+      draft.discount_config.minimum_amount_currency = currency
+
+      const normalized = normalizeRecallDiscountType(draft, 'fixed')
+
+      expect(normalized.discount_config).toMatchObject({
+        type: 'fixed',
+        minimum_amount: amount,
+        minimum_amount_currency: currency,
+      })
+    }
+  )
+
+  test.each([
+    ['INR', 90_000],
+    ['BRL', 5_000],
+    ['JPY', 1_500],
+  ] as const)(
+    'preserves legacy %s minimum spend when switching an existing coupon to fixed',
+    (currency, amount) => {
+      const draft = makeDraft()
+      draft.coupon_source = 'existing'
+      draft.discount_config = {
+        ...draft.discount_config,
+        type: 'percent',
+        percent_off: 20,
+        amount_off: 0,
+        currency: '',
+        currency_options: {},
+        minimum_amount: amount,
+        minimum_amount_currency: currency,
+      }
+
+      const normalized = normalizeRecallDiscountType(draft, 'fixed')
+
+      expect(normalized.discount_config).toMatchObject({
+        type: 'fixed',
+        minimum_amount: amount,
+        minimum_amount_currency: currency,
+      })
+    }
+  )
+
+  test('converts relative validity between days, hours, and seconds', () => {
+    expect(recallPromotionDurationToSeconds({ days: 2, hours: 3 })).toBe(
+      183_600
+    )
+    expect(recallPromotionSecondsToDuration(183_600)).toEqual({
+      days: 2,
+      hours: 3,
+    })
+  })
+
+  test('normalizes invalid intermediate duration values without producing NaN', () => {
+    expect(
+      recallPromotionDurationToSeconds({ days: Number.NaN, hours: 3 })
+    ).toBe(10_800)
+    expect(
+      recallPromotionDurationToSeconds({ days: 2, hours: Number.NaN })
+    ).toBe(172_800)
+    expect(recallPromotionSecondsToDuration(Number.NaN)).toEqual({
+      days: 0,
+      hours: 0,
+    })
+  })
+
+  test('uses only relative promotion policy for effective expiry when legacy coupon redeem-by is earlier', () => {
+    const draft = makeValidDraft()
+    draft.promotion_valid_seconds = 7_200
+    ;(draft.discount_config as { coupon_redeem_by?: number }).coupon_redeem_by =
+      10_000
+
+    expect(getRecallEffectivePromotionExpiry(draft, 5_000)).toBe(12_200)
+  })
+
+  test('uses only fixed promotion policy for effective expiry when legacy coupon redeem-by is earlier', () => {
+    const draft = makeValidDraft()
+    draft.promotion_expiry_mode = 'fixed'
+    draft.promotion_valid_seconds = 0
+    draft.promotion_expires_at = 20_000
+    ;(draft.discount_config as { coupon_redeem_by?: number }).coupon_redeem_by =
+      10_000
+
+    expect(getRecallEffectivePromotionExpiry(draft, 5_000)).toBe(20_000)
+  })
+
+  test('derives ready, stale, manual, and missing locale states', () => {
+    const stage = makeStage(1, 0)
+    stage.source_revision = 2
+    stage.translated_source_revision = 2
+    stage.templates.es = { subject: 'Vuelve', body_html: '<p>Hola</p>' }
+    stage.templates.fr = { subject: 'Revenez', body_html: '<p>Bonjour</p>' }
+    stage.manual_locales = ['fr']
+
+    expect(getRecallEmailLocaleStatus(stage, 'es')).toBe('ready')
+    expect(getRecallEmailLocaleStatus(stage, 'fr')).toBe('manual')
+    expect(getRecallEmailLocaleStatus(stage, 'pt')).toBe('missing')
+
+    stage.source_revision = 3
+    expect(getRecallEmailLocaleStatus(stage, 'es')).toBe('stale')
+    expect(getRecallEmailLocaleStatus(stage, 'fr')).toBe('stale')
+  })
+
+  test.each(['null', 'undefined'] as const)(
+    'treats legacy %s templates as a missing locale state',
+    (shape) => {
+      const stage = makeStage(1, 0)
+      stage.templates = (shape === 'null'
+        ? null
+        : undefined) as unknown as RecallEmailStage['templates']
+
+      expect(getRecallEmailLocaleStatus(stage, 'en')).toBe('missing')
+    }
+  )
+
+  test('establishes the four automatic fixed discount defaults while preserving legacy minimum spend', () => {
+    const draft = makeDraft()
+    draft.coupon_source = 'automatic'
+    draft.discount_config = {
+      ...draft.discount_config,
+      type: 'percent',
+      percent_off: 15,
+      amount_off: 0,
+      currency: '',
+      currency_options: {},
+      minimum_amount: 100,
+      minimum_amount_currency: 'USD',
+    }
+
+    const normalized = normalizeRecallDiscountType(draft, 'fixed')
+
+    expect(normalized.discount_config).toMatchObject({
+      type: 'fixed',
+      percent_off: 0,
+      amount_off: 500,
+      currency: 'USD',
+      currency_options: { inr: 45_000, brl: 2_500, jpy: 750 },
+      minimum_amount: 100,
+      minimum_amount_currency: 'USD',
+    })
+  })
+
+  test('converts human-readable fixed amounts to Stripe minor units', () => {
+    expect(parseRecallMajorAmount('USD', '5.00')).toBe(500)
+    expect(parseRecallMajorAmount('INR', '450.00')).toBe(45_000)
+    expect(parseRecallMajorAmount('BRL', '25.00')).toBe(2_500)
+    expect(parseRecallMajorAmount('JPY', '750')).toBe(750)
+    expect(parseRecallMajorAmount('USD', '5.0')).toBe(500)
+    expect(parseRecallMajorAmount('USD', '5')).toBe(500)
+    expect(parseRecallMajorAmount('JPY', '0750')).toBe(750)
+    expect(parseRecallMajorAmount('USD', '5.001')).toBeNull()
+    expect(parseRecallMajorAmount('INR', '450.001')).toBeNull()
+    expect(parseRecallMajorAmount('BRL', '25.001')).toBeNull()
+    expect(parseRecallMajorAmount('JPY', '750.5')).toBeNull()
+    expect(parseRecallMajorAmount('BRL', '0')).toBeNull()
+  })
+
+  test('formats Stripe minor units as human-readable fixed amounts', () => {
+    expect(formatRecallMinorAmount('USD', 500)).toBe('5.00')
+    expect(formatRecallMinorAmount('INR', 45_000)).toBe('450.00')
+    expect(formatRecallMinorAmount('BRL', 2_500)).toBe('25.00')
+    expect(formatRecallMinorAmount('JPY', 750)).toBe('750')
+  })
+
+  test('formats metric minor-unit amounts for display using ISO currency precision', () => {
+    expect(formatRecallCurrencyAmount('USD', 9_600)).toBe('$96.00')
+    expect(formatRecallCurrencyAmount('USD', 0)).toBe('$0.00')
+    expect(formatRecallCurrencyAmount('USD', -1)).toBe('-$0.01')
+    expect(formatRecallCurrencyAmount('JPY', 9_600)).toBe('¥9,600')
+  })
+
+  test('returns an empty display amount for unsupported metric currencies', () => {
+    expect(formatRecallCurrencyAmount('UNKNOWN', 9_600)).toBe('')
+  })
+
+  test('keeps raw form minor-unit formatting separate from display currency formatting', () => {
+    expect(formatRecallMinorAmount('USD', 9_600)).toBe('96.00')
+  })
+
+  test('renumbers stages after removing a middle stage', () => {
+    const stages = [
+      makeStage(1, 0),
+      makeStage(2, 86_400),
+      makeStage(3, 172_800),
+    ]
+
+    expect(removeRecallEmailStage(stages, 1)).toEqual([
+      makeStage(1, 0),
+      { ...makeStage(3, 172_800), stage_no: 2 },
+    ])
+  })
+})
+
+describe('recall email translation task guards', () => {
+  test('identifies active translation task states', () => {
+    expect(isRecallTranslationTaskActive('queued')).toBe(true)
+    expect(isRecallTranslationTaskActive('running')).toBe(true)
+    expect(isRecallTranslationTaskActive('succeeded')).toBe(false)
+    expect(isRecallTranslationTaskActive('failed')).toBe(false)
+    expect(isRecallTranslationTaskActive('superseded')).toBe(false)
+  })
+
+  test('identifies terminal translation task states', () => {
+    expect(isRecallTranslationTaskTerminal('queued')).toBe(false)
+    expect(isRecallTranslationTaskTerminal('running')).toBe(false)
+    expect(isRecallTranslationTaskTerminal('succeeded')).toBe(true)
+    expect(isRecallTranslationTaskTerminal('failed')).toBe(true)
+    expect(isRecallTranslationTaskTerminal('superseded')).toBe(true)
+  })
+})
+
+describe('recall timezone datetime helpers', () => {
+  test('converts New York winter wall clock time without using the browser timezone', () => {
+    const timestamp = recallWallClockInputToUnixSeconds(
+      '2030-01-02T09:00',
+      'America/New_York'
+    )
+
+    expect(timestamp).toBe(Date.UTC(2030, 0, 2, 14, 0) / 1_000)
+    expect(
+      recallUnixSecondsToWallClockInput(timestamp, 'America/New_York')
+    ).toBe('2030-01-02T09:00')
+  })
+
+  test('returns an empty value for invalid timezone wall clock input', () => {
+    expect(
+      recallWallClockInputToUnixSeconds('2030-03-10T02:30', 'America/New_York')
+    ).toBe(0)
+    expect(recallWallClockInputToUnixSeconds('2030-01-02T09:00', '')).toBe(0)
+    expect(recallUnixSecondsToWallClockInput(0, 'America/New_York')).toBe('')
+    expect(recallUnixSecondsToWallClockInput(1_893_600_000, '')).toBe('')
+  })
+})
+
+describe('recall campaign detail guards', () => {
+  test('formats campaign type labels and promotion applicability', () => {
+    expect(formatRecallCampaignType('promotion')).toBe('Promotion')
+    expect(formatRecallCampaignType('content_only')).toBe('Content only')
+    expect(isRecallPromotionCampaign('promotion')).toBe(true)
+    expect(isRecallPromotionCampaign('content_only')).toBe(false)
+  })
+
+  test('exposes a second detail page beyond the first 100 rows', () => {
+    expect(getRecallPageCount(101, 100)).toBe(2)
+  })
+
+  test('matches backend retry eligibility and uncertain acknowledgment', () => {
+    expect(getRecallRecipientRetry(makeRecipient('failed', []))).toEqual({
+      allowed: true,
+      acknowledgeUncertain: false,
+    })
+    expect(
+      getRecallRecipientRetry(makeRecipient('contacting', ['failed']))
+    ).toEqual({ allowed: true, acknowledgeUncertain: false })
+    expect(
+      getRecallRecipientRetry(makeRecipient('contacting', ['uncertain']))
+    ).toEqual({ allowed: true, acknowledgeUncertain: true })
+    expect(
+      getRecallRecipientRetry(
+        makeRecipient('contacting', ['uncertain', 'failed'])
+      )
+    ).toEqual({ allowed: true, acknowledgeUncertain: true })
+    expect(
+      getRecallRecipientRetry(makeRecipient('contacting', ['accepted']))
+    ).toEqual({ allowed: false, acknowledgeUncertain: false })
+    expect(
+      getRecallRecipientRetry(
+        makeRecipient('contacting', ['sending'], [998]),
+        999
+      )
+    ).toEqual({ allowed: true, acknowledgeUncertain: true })
+    expect(
+      getRecallRecipientRetry(
+        makeRecipient('contacting', ['sending', 'failed'], [998, 0]),
+        999
+      )
+    ).toEqual({ allowed: true, acknowledgeUncertain: true })
+    expect(
+      getRecallRecipientRetry(
+        makeRecipient('contacting', ['sending'], [999]),
+        999
+      )
+    ).toEqual({ allowed: false, acknowledgeUncertain: false })
+    expect(
+      getRecallRecipientRetry(
+        makeRecipient('contacting', ['sending'], [1_000]),
+        999
+      )
+    ).toEqual({ allowed: false, acknowledgeUncertain: false })
+    expect(
+      getRecallRecipientRetry(
+        makeRecipient('contacting', ['sending'], [0]),
+        999
+      )
+    ).toEqual({ allowed: false, acknowledgeUncertain: false })
+  })
+})

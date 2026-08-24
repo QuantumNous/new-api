@@ -1,0 +1,573 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { api } from '@/lib/api'
+import type {
+  ApiResponse,
+  RecallActivitySMTPInput,
+  RecallActivitySMTPStatus,
+  RecallCampaignAction,
+  RecallCampaignDetail,
+  RecallCampaignDraft,
+  RecallCampaignMetrics,
+  RecallCampaignPreview,
+  RecallCampaignSearch,
+  RecallCampaignSummary,
+  RecallEmailPreviewRequest,
+  RecallEmailPreviewResponse,
+  RecallEmailGenerationRequest,
+  RecallEmailQuotaStatus,
+  RecallEvent,
+  RecallExclusionPreview,
+  RecallMetricFilters,
+  RecallMetricKey,
+  RecallMetricResult,
+  RecallPage,
+  RecallAudienceUserOption,
+  RecallRecipient,
+  RecallSubscriptionProductRecord,
+  RecallStripePreview,
+  RecallTopUpProductConfiguration,
+  RecallTranslationTask,
+} from './types'
+
+export const recallCampaignKeys = {
+  all: ['recall-campaigns'] as const,
+  emailQuota: ['recall-campaigns', 'email-quota'] as const,
+  smtp: ['recall-campaigns', 'smtp'] as const,
+  list: (search: RecallCampaignSearch) =>
+    ['recall-campaigns', 'list', search] as const,
+  detail: (id: number) => ['recall-campaigns', 'detail', id] as const,
+  recipients: (id: number, page: number) =>
+    ['recall-campaigns', id, 'recipients', page] as const,
+  events: (id: number, page: number) =>
+    ['recall-campaigns', id, 'events', page] as const,
+  metrics: (id: number) => ['recall-campaigns', id, 'metrics'] as const,
+  topUpProductConfiguration: [
+    'recall-campaigns',
+    'product-options',
+    'top-up',
+  ] as const,
+  subscriptionProductConfiguration: [
+    'recall-campaigns',
+    'product-options',
+    'subscription',
+  ] as const,
+  userGroups: ['recall-campaigns', 'audience-options', 'user-groups'] as const,
+  audienceUsers: (params: { keyword?: string; ids?: number[] }) =>
+    ['recall-campaigns', 'audience-options', 'users', params] as const,
+  translationTask: (id: number, taskId: number) =>
+    ['recall-campaigns', id, 'email-translations', 'tasks', taskId] as const,
+  latestTranslationTask: (id: number) =>
+    ['recall-campaigns', id, 'email-translations', 'tasks', 'latest'] as const,
+}
+
+export class RecallApiError<T = unknown> extends Error {
+  data?: T
+
+  constructor(message: string, data?: T) {
+    super(message)
+    this.name = 'RecallApiError'
+    this.data = data
+  }
+}
+
+function requireRecallSuccess<T>(response: ApiResponse<T>): ApiResponse<T> {
+  if (response?.success !== true) {
+    throw new RecallApiError(
+      response?.message || 'Recall campaign request failed',
+      response?.data
+    )
+  }
+  return response
+}
+
+function isRecallApiResponseEnvelope(value: unknown): value is ApiResponse {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { success?: unknown }).success === 'boolean'
+  )
+}
+
+async function requireRecallCSVBlob(
+  blob: Blob,
+  context: string
+): Promise<Blob> {
+  const isJSON = blob.type.toLowerCase().includes('json')
+  if (isJSON || blob.type === '') {
+    if (!isJSON) {
+      const prefix = (await blob.slice(0, 1024).text()).trimStart()
+      if (!['{', '['].includes(prefix[0] ?? '')) return blob
+    }
+    let payload: unknown
+    try {
+      payload = JSON.parse(await blob.text()) as unknown
+    } catch {
+      if (!isJSON) return blob
+      throw new Error(`${context} returned invalid JSON`)
+    }
+    if (isRecallApiResponseEnvelope(payload)) requireRecallSuccess(payload)
+    throw new Error(`${context} returned JSON instead of CSV`)
+  }
+  return blob
+}
+
+function buildRecallMetricUserParams(
+  metric: RecallMetricKey,
+  filters: RecallMetricFilters = {}
+): RecallMetricFilters & { metric: RecallMetricKey } {
+  return { ...filters, metric }
+}
+
+type RecallCampaignDraftWire = Omit<
+  RecallCampaignDraft,
+  | 'audience_config'
+  | 'audience_template'
+  | 'discount_config'
+  | 'lifecycle_trigger_config'
+> & {
+  audience_template: RecallCampaignDraft['audience_template']
+  audience_config:
+    | RecallCampaignDraft['audience_config']
+    | Record<string, never>
+  discount_config:
+    | RecallCampaignDraft['discount_config']
+    | Record<string, never>
+  lifecycle_trigger_config: string
+}
+
+type RecallCampaignDetailWire = Omit<RecallCampaignDetail, 'draft'> & {
+  draft: Omit<RecallCampaignDraft, 'lifecycle_trigger_config'> & {
+    lifecycle_trigger_config?: unknown
+  }
+}
+
+function encodeRecallCampaignDraft(
+  draft: RecallCampaignDraft
+): RecallCampaignDraftWire {
+  if (draft.execution_mode === 'continuous') {
+    return {
+      ...draft,
+      campaign_type: 'content_only',
+      audience_template: '',
+      audience_config: {},
+      discount_config: {},
+      schedule: {
+        scheduled_at: 0,
+        timezone: '',
+        frequency: '',
+        weekday: 0,
+        hour: 0,
+        minute: 0,
+      },
+      coupon_source: '',
+      existing_coupon_id: '',
+      product_scope: { topup_price_ids: [], subscription_price_ids: [] },
+      promotion_expiry_mode: '',
+      promotion_expires_at: 0,
+      promotion_valid_seconds: 0,
+      lifecycle_trigger_config: '{}',
+    }
+  }
+
+  return {
+    ...draft,
+    audience_template: draft.audience_template,
+    audience_config: draft.audience_config,
+    discount_config: draft.discount_config,
+    lifecycle_trigger_config: JSON.stringify(
+      draft.lifecycle_trigger_config ?? {}
+    ),
+  }
+}
+
+function decodeLifecycleTriggerConfig(value: unknown): Record<string, never> {
+  if (value === undefined || value === '') return {}
+  if (typeof value !== 'string') {
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      return value as Record<string, never>
+    }
+    throw new RecallApiError(
+      'Invalid recall campaign lifecycle_trigger_config: expected JSON object'
+    )
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value) as unknown
+  } catch {
+    throw new RecallApiError(
+      'Invalid recall campaign lifecycle_trigger_config JSON'
+    )
+  }
+
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new RecallApiError(
+      'Invalid recall campaign lifecycle_trigger_config: expected JSON object'
+    )
+  }
+
+  return parsed as Record<string, never>
+}
+
+function decodeRecallCampaignDetail(
+  detail: RecallCampaignDetailWire
+): RecallCampaignDetail {
+  return {
+    ...detail,
+    draft: {
+      ...detail.draft,
+      lifecycle_trigger_config: decodeLifecycleTriggerConfig(
+        detail.draft.lifecycle_trigger_config
+      ),
+    },
+  }
+}
+
+export async function listRecallCampaigns(
+  search: RecallCampaignSearch
+): Promise<ApiResponse<RecallPage<RecallCampaignSummary>>> {
+  const response = await api.get('/api/recall-campaigns/', { params: search })
+  return requireRecallSuccess(response.data)
+}
+
+export async function createRecallCampaign(
+  draft: RecallCampaignDraft
+): Promise<ApiResponse<RecallCampaignSummary>> {
+  const response = await api.post(
+    '/api/recall-campaigns/',
+    encodeRecallCampaignDraft(draft)
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallCampaign(
+  id: number
+): Promise<ApiResponse<RecallCampaignDetail>> {
+  const response = await api.get(`/api/recall-campaigns/${id}`)
+  const envelope = requireRecallSuccess(
+    response.data as ApiResponse<RecallCampaignDetailWire>
+  )
+  return {
+    ...envelope,
+    data: envelope.data ? decodeRecallCampaignDetail(envelope.data) : undefined,
+  }
+}
+
+export async function updateRecallCampaign(
+  id: number,
+  draft: RecallCampaignDraft
+): Promise<ApiResponse<RecallCampaignSummary>> {
+  const response = await api.put(
+    `/api/recall-campaigns/${id}`,
+    encodeRecallCampaignDraft(draft)
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function previewRecallCampaign(
+  id: number,
+  sampleSize = 20
+): Promise<ApiResponse<RecallCampaignPreview>> {
+  const response = await api.post(`/api/recall-campaigns/${id}/preview`, null, {
+    params: { sample_size: sampleSize },
+  })
+  return requireRecallSuccess(response.data)
+}
+
+export async function previewRecallEmail(
+  request: RecallEmailPreviewRequest
+): Promise<ApiResponse<RecallEmailPreviewResponse>> {
+  const response = await api.post(
+    '/api/recall-campaigns/email-preview',
+    request
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function generateRecallEmailTranslations(
+  id: number,
+  request: RecallEmailGenerationRequest
+): Promise<ApiResponse<RecallTranslationTask>> {
+  const response = await api.post(
+    `/api/recall-campaigns/${id}/email-translations/generate`,
+    request
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallEmailTranslationTask(
+  id: number,
+  taskId: number
+): Promise<ApiResponse<RecallTranslationTask>> {
+  const response = await api.get(
+    `/api/recall-campaigns/${id}/email-translations/tasks/${taskId}`
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function getLatestRecallEmailTranslationTask(
+  id: number
+): Promise<ApiResponse<RecallTranslationTask | null>> {
+  const response = await api.get(
+    `/api/recall-campaigns/${id}/email-translations/tasks/latest`
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallEmailQuotaStatus(): Promise<
+  ApiResponse<RecallEmailQuotaStatus>
+> {
+  const response = await api.get('/api/recall-campaigns/email-quota')
+  return requireRecallSuccess(response.data)
+}
+
+export async function updateRecallEmailQuotaLimit(
+  limit: number
+): Promise<ApiResponse<RecallEmailQuotaStatus>> {
+  const response = await api.put('/api/recall-campaigns/email-quota', { limit })
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallActivitySMTPStatus(): Promise<
+  ApiResponse<RecallActivitySMTPStatus>
+> {
+  const response = await api.get('/api/recall-campaigns/smtp')
+  return requireRecallSuccess(response.data)
+}
+
+export async function updateRecallActivitySMTP(
+  input: RecallActivitySMTPInput
+): Promise<ApiResponse<RecallActivitySMTPStatus>> {
+  const response = await api.put('/api/recall-campaigns/smtp', input, {
+    skipBusinessError: true,
+    skipErrorHandler: true,
+  })
+  return requireRecallSuccess(response.data)
+}
+
+export async function validateRecallStripeConfig(
+  draft: RecallCampaignDraft
+): Promise<ApiResponse<RecallStripePreview>> {
+  const response = await api.post(
+    '/api/recall-campaigns/stripe/validate',
+    encodeRecallCampaignDraft(draft)
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallTopUpProductConfiguration(): Promise<
+  ApiResponse<RecallTopUpProductConfiguration>
+> {
+  const response = await api.get('/api/user/topup/info')
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallSubscriptionProductConfiguration(): Promise<
+  ApiResponse<RecallSubscriptionProductRecord[]>
+> {
+  const response = await api.get('/api/subscription/admin/plans')
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallUserGroups(): Promise<ApiResponse<string[]>> {
+  const response = await api.get('/api/group/', { params: { type: 'user' } })
+  return requireRecallSuccess(response.data)
+}
+
+export async function listRecallAudienceUsers(params: {
+  keyword?: string
+  ids?: number[]
+}): Promise<ApiResponse<RecallAudienceUserOption[]>> {
+  const keyword = params.keyword?.trim()
+  const requestParams: Record<string, string | number> = {}
+
+  if (keyword) {
+    requestParams.keyword = keyword
+    requestParams.page_size = 50
+  } else if (params.ids?.length) {
+    requestParams.ids = params.ids.join(',')
+  }
+
+  const response = await api.get('/api/recall-campaigns/audience-users', {
+    params: requestParams,
+  })
+  return requireRecallSuccess(response.data)
+}
+
+export async function runRecallCampaignAction(
+  id: number,
+  action: RecallCampaignAction
+): Promise<ApiResponse> {
+  const response = await api.post(
+    `/api/recall-campaigns/${id}/${action}`,
+    undefined,
+    {
+      skipBusinessError: true,
+      skipErrorHandler: true,
+    }
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function listRecallRecipients(
+  id: number,
+  page: number,
+  pageSize = 20,
+  state = ''
+): Promise<ApiResponse<RecallPage<RecallRecipient>>> {
+  const response = await api.get(`/api/recall-campaigns/${id}/recipients`, {
+    params: { p: page, ps: pageSize, state },
+  })
+  return requireRecallSuccess(response.data)
+}
+
+export async function listRecallEvents(
+  id: number,
+  page: number,
+  pageSize = 20
+): Promise<ApiResponse<RecallPage<RecallEvent>>> {
+  const response = await api.get(`/api/recall-campaigns/${id}/events`, {
+    params: { p: page, ps: pageSize },
+  })
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallCampaignMetrics(
+  id: number
+): Promise<ApiResponse<RecallCampaignMetrics>> {
+  const response = await api.get(`/api/recall-campaigns/${id}/metrics`)
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallCampaignMetricUsers(
+  id: number,
+  metric: RecallMetricKey,
+  filters: RecallMetricFilters = {}
+): Promise<ApiResponse<RecallMetricResult>> {
+  const response = await api.get(`/api/recall-campaigns/${id}/metric-users`, {
+    params: buildRecallMetricUserParams(metric, filters),
+  })
+  return requireRecallSuccess(response.data)
+}
+
+export async function exportRecallCampaignMetricUsers(
+  id: number,
+  metric: RecallMetricKey,
+  filters: RecallMetricFilters = {}
+): Promise<Blob> {
+  const response = await api.get(
+    `/api/recall-campaigns/${id}/metric-users/export`,
+    {
+      params: buildRecallMetricUserParams(metric, filters),
+      responseType: 'blob',
+      disableDuplicate: true,
+    }
+  )
+  return requireRecallCSVBlob(
+    response.data as Blob,
+    'Recall campaign metric export'
+  )
+}
+
+export async function previewRecallCampaignExclusions(
+  id: number,
+  file: File
+): Promise<ApiResponse<RecallExclusionPreview>> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await api.post(
+    `/api/recall-campaigns/${id}/exclusions/preview`,
+    formData
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function getRecallCampaignExclusionBatch(
+  id: number,
+  batchId: number
+): Promise<ApiResponse<RecallExclusionPreview>> {
+  const response = await api.get(
+    `/api/recall-campaigns/${id}/exclusions/batches/${batchId}`
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function confirmRecallCampaignExclusionBatch(
+  id: number,
+  batchId: number
+): Promise<ApiResponse<RecallExclusionPreview>> {
+  const response = await api.post(
+    `/api/recall-campaigns/${id}/exclusions/batches/${batchId}/confirm`
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function retryRecallRecipient(
+  campaignId: number,
+  recipientId: number,
+  acknowledgeUncertain: boolean
+): Promise<ApiResponse> {
+  const response = await api.post(
+    `/api/recall-campaigns/${campaignId}/recipients/${recipientId}/retry`,
+    { acknowledge_uncertain: acknowledgeUncertain }
+  )
+  return requireRecallSuccess(response.data)
+}
+
+export async function exportRecallCampaign(id: number): Promise<Blob> {
+  const response = await api.get(`/api/recall-campaigns/${id}/export`, {
+    responseType: 'blob',
+    disableDuplicate: true,
+  })
+  return requireRecallCSVBlob(response.data as Blob, 'Recall campaign export')
+}
+
+export function useRecallCampaignMutations(id?: number) {
+  const queryClient = useQueryClient()
+  const invalidate = async () => {
+    await queryClient.invalidateQueries({ queryKey: recallCampaignKeys.all })
+  }
+
+  const create = useMutation({
+    mutationFn: createRecallCampaign,
+    onSuccess: invalidate,
+  })
+  const update = useMutation({
+    mutationFn: (value: { id?: number; draft: RecallCampaignDraft }) => {
+      const campaignID = value.id ?? id
+      if (!campaignID) throw new Error('Recall campaign ID is required')
+      return updateRecallCampaign(campaignID, value.draft)
+    },
+    onSuccess: invalidate,
+  })
+  const action = useMutation({
+    mutationFn: (value: RecallCampaignAction) => {
+      if (!id) throw new Error('Recall campaign ID is required')
+      return runRecallCampaignAction(id, value)
+    },
+    onSuccess: invalidate,
+  })
+  const retry = useMutation({
+    mutationFn: (value: {
+      recipientId: number
+      acknowledgeUncertain: boolean
+    }) => {
+      if (!id) throw new Error('Recall campaign ID is required')
+      return retryRecallRecipient(
+        id,
+        value.recipientId,
+        value.acknowledgeUncertain
+      )
+    },
+    onSuccess: invalidate,
+  })
+  const generate = useMutation({
+    mutationFn: (value: {
+      id: number
+      request: RecallEmailGenerationRequest
+    }) => generateRecallEmailTranslations(value.id, value.request),
+    onSuccess: invalidate,
+  })
+
+  return { create, update, action, retry, generate }
+}

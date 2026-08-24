@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { SystemBehaviorSection } from '../general/system-behavior-section'
+import { CodexIdentitySettingsSection } from '../integrations/codex-identity-settings-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
 import { MonitoringSettingsSection } from '../integrations/monitoring-settings-section'
 import { WorkerSettingsSection } from '../integrations/worker-settings-section'
@@ -25,6 +26,16 @@ import { PerformanceSection } from '../maintenance/performance-section'
 import { UpdateCheckerSection } from '../maintenance/update-checker-section'
 import type { OperationsSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { ChannelConcurrencySection } from './channel-concurrency-section'
+import { RegistrationCountrySection } from './registration-country-section'
+
+function displaySMTPFromAliases(value: string): string {
+  return value
+    .split(',')
+    .map((alias) => alias.trim())
+    .filter(Boolean)
+    .join('\n')
+}
 
 const OPERATIONS_SECTIONS = [
   {
@@ -37,6 +48,21 @@ const OPERATIONS_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'registration-country',
+    titleKey: 'Country Registration',
+    build: (settings: OperationsSettings) => (
+      <RegistrationCountrySection
+        defaultValues={{
+          'registration_country.enabled': settings['registration_country.enabled'],
+          'registration_country.blocked_countries':
+            settings['registration_country.blocked_countries'],
+          'registration_country.auto_disable_countries':
+            settings['registration_country.auto_disable_countries'],
         }}
       />
     ),
@@ -59,6 +85,8 @@ const OPERATIONS_SECTIONS = [
             settings['monitor_setting.auto_test_channel_enabled'],
           'monitor_setting.auto_test_channel_minutes':
             settings['monitor_setting.auto_test_channel_minutes'],
+          'monitor_setting.channel_test_mode':
+            settings['monitor_setting.channel_test_mode'],
           'monitor_setting.auto_test_channel_allowed_types':
             settings['monitor_setting.auto_test_channel_allowed_types'],
           'monitor_setting.auto_test_channel_ignored_types':
@@ -90,11 +118,25 @@ const OPERATIONS_SECTIONS = [
           'codex_model_governance_setting.official_source_urls':
             settings['codex_model_governance_setting.official_source_urls'],
           'codex_model_governance_setting.official_lifecycle_terms':
-            settings[
-              'codex_model_governance_setting.official_lifecycle_terms'
-            ],
+            settings['codex_model_governance_setting.official_lifecycle_terms'],
           'codex_model_governance_setting.alert_cooldown_minutes':
             settings['codex_model_governance_setting.alert_cooldown_minutes'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'codex-identity',
+    titleKey: 'Codex Identity',
+    build: (settings: OperationsSettings) => (
+      <CodexIdentitySettingsSection
+        defaultValues={{
+          CodexClientUserAgent: settings.CodexClientUserAgent,
+          CodexClientVersion: settings.CodexClientVersion,
+          CodexSyncedClientVersion: settings.CodexSyncedClientVersion,
+          CodexSyncedClientVersionAt: settings.CodexSyncedClientVersionAt,
+          CodexAutoSyncClientVersion: settings.CodexAutoSyncClientVersion,
+          CodexEnforceClientIdentity: settings.CodexEnforceClientIdentity,
         }}
       />
     ),
@@ -109,6 +151,7 @@ const OPERATIONS_SECTIONS = [
           SMTPPort: settings.SMTPPort,
           SMTPAccount: settings.SMTPAccount,
           SMTPFrom: settings.SMTPFrom,
+          SMTPFromAliases: displaySMTPFromAliases(settings.SMTPFromAliases),
           SMTPToken: settings.SMTPToken,
           SMTPSSLEnabled: settings.SMTPSSLEnabled,
           SMTPForceAuthLogin: settings.SMTPForceAuthLogin,
@@ -136,6 +179,9 @@ const OPERATIONS_SECTIONS = [
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
         defaultEnabled={Boolean(settings.LogConsumeEnabled)}
+        defaultCompanyLogRoutingEnabled={Boolean(
+          settings.CompanyLogRoutingEnabled
+        )}
       />
     ),
   },
@@ -169,6 +215,35 @@ const OPERATIONS_SECTIONS = [
             settings['perf_metrics_setting.bucket_time'] ?? 'hour',
           'perf_metrics_setting.retention_days':
             settings['perf_metrics_setting.retention_days'] ?? 0,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'channel-concurrency',
+    titleKey: 'Channel Concurrency Limits',
+    build: (settings: OperationsSettings) => (
+      <ChannelConcurrencySection
+        defaultValues={{
+          'channel_concurrency_setting.wait_enabled':
+            settings['channel_concurrency_setting.wait_enabled'] ?? true,
+          'channel_concurrency_setting.wait_timeout_ms':
+            settings['channel_concurrency_setting.wait_timeout_ms'] ?? 5000,
+          'channel_concurrency_setting.max_waiting_per_channel':
+            settings['channel_concurrency_setting.max_waiting_per_channel'] ??
+            0,
+          'channel_concurrency_setting.cooldown_enabled':
+            settings['channel_concurrency_setting.cooldown_enabled'] ?? true,
+          'channel_concurrency_setting.cooldown_seconds':
+            settings['channel_concurrency_setting.cooldown_seconds'] ?? 30,
+          'channel_concurrency_setting.cooldown_on_status_429':
+            settings['channel_concurrency_setting.cooldown_on_status_429'] ??
+            true,
+          'channel_concurrency_setting.cooldown_on_message_match':
+            settings['channel_concurrency_setting.cooldown_on_message_match'] ??
+            false,
+          'channel_concurrency_setting.load_cache_enabled':
+            settings['channel_concurrency_setting.load_cache_enabled'] ?? true,
         }}
       />
     ),

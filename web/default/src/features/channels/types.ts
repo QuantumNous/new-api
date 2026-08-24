@@ -43,6 +43,7 @@ export const channelSchema = z.object({
   status: z.number(), // 1: enabled, 0: manual disabled, 2: auto disabled
   name: z.string(),
   weight: z.number().nullish(),
+  max_concurrency: z.number().default(0),
   created_time: z.number(),
   test_time: z.number(),
   response_time: z.number(), // in milliseconds
@@ -71,6 +72,16 @@ export const channelSchema = z.object({
     multi_key_mode: 'random',
   }),
   settings: z.string().default('{}'), // other_settings JSON
+  // Grok Subscription (type 113) non-secret auth-state projection, filled by GetChannel detail only.
+  // Never carries token/verifier/last_error/lease — see model.GrokAuthStateView.
+  grok_auth_state: z
+    .object({
+      auth_status: z.string(),
+      billing_plan: z.string().nullish(),
+      tier_raw: z.string().nullish(),
+      last_refresh_at: z.number().nullish(),
+    })
+    .nullish(),
 })
 
 export type Channel = z.infer<typeof channelSchema>
@@ -84,9 +95,11 @@ export interface ChannelSettings {
   thinking_to_content?: boolean
   proxy?: string
   pass_through_body_enabled?: boolean
+  return_source_url?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
   image_carrier_model?: string
+  codex_fingerprint_mode?: 'off' | 'device' | 'session' | 'full'
 }
 
 export interface ChannelOtherSettings {
@@ -290,6 +303,8 @@ export interface BatchEditChannelsParams {
   groups?: string // 逗号分隔
   priority?: number
   weight?: number
+  max_concurrency?: number
+  codex_fingerprint_mode?: 'off' | 'device' | 'session' | 'full'
 }
 
 export interface TagOperationParams {
@@ -317,6 +332,7 @@ export interface ChannelFormData {
   model_mapping?: string
   priority?: number
   weight?: number
+  max_concurrency?: number
   test_model?: string
   auto_ban?: number
   status: number
@@ -328,6 +344,9 @@ export interface ChannelFormData {
   header_override?: string
   settings?: string
   other?: string
+  asset_materialization_provider?: string
+  asset_materialization_gateway_base_url?: string
+  asset_materialization_group_id?: string
   // Multi-key specific
   multi_key_mode?: 'single' | 'batch' | 'multi_to_single'
   multi_key_type?: 'random' | 'polling'

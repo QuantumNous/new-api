@@ -50,7 +50,14 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import { ModelGroupSelector } from '@/components/model-group-selector'
+import type {
+  MediaGenerationProfile,
+  MediaGenerationSettings,
+  MediaParameterKey,
+  MediaParameterValue,
+} from '../lib'
 import type { ModelOption, GroupOption } from '../types'
+import { PlaygroundParameters } from './playground-parameters'
 
 interface PlaygroundInputProps {
   onSubmit: (text: string) => void
@@ -62,10 +69,18 @@ interface PlaygroundInputProps {
   modelValue: string
   onModelChange: (value: string) => void
   isModelLoading?: boolean
+  modelLocked?: boolean
   groups: GroupOption[]
   groupValue: string
   onGroupChange: (value: string) => void
   showGroupSelector?: boolean
+  initialText?: string
+  mediaProfile?: MediaGenerationProfile
+  mediaSettings?: MediaGenerationSettings
+  onMediaParameterChange?: (
+    key: MediaParameterKey,
+    value: MediaParameterValue
+  ) => void
 }
 
 const suggestions = [
@@ -87,15 +102,20 @@ export function PlaygroundInput({
   modelValue,
   onModelChange,
   isModelLoading = false,
+  modelLocked = false,
   groups,
   groupValue,
   onGroupChange,
   showGroupSelector = true,
+  initialText,
+  mediaProfile,
+  mediaSettings,
+  onMediaParameterChange,
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
-  const [text, setText] = useState('')
+  const [text, setText] = useState(() => initialText?.trim() ?? '')
 
-  const isModelSelectDisabled = disabled || isModelLoading
+  const isModelSelectDisabled = disabled || isModelLoading || modelLocked
   const isGroupSelectDisabled = disabled || groups.length === 0
   const isSubmitDisabled = disabled || submitDisabled || !modelValue
 
@@ -185,6 +205,16 @@ export function PlaygroundInput({
               <span className='hidden sm:inline'>{t('Search')}</span>
               <span className='sr-only sm:hidden'>{t('Search')}</span>
             </PromptInputButton>
+
+            {mediaProfile && mediaSettings && onMediaParameterChange && (
+              <PlaygroundParameters
+                disabled={disabled}
+                model={modelValue}
+                onChange={onMediaParameterChange}
+                profile={mediaProfile}
+                settings={mediaSettings}
+              />
+            )}
           </PromptInputTools>
 
           <div className='flex items-center gap-1.5 md:gap-2'>
@@ -235,11 +265,11 @@ export function PlaygroundInput({
               text === 'More' ? 'hidden sm:flex' : ''
             }`}
             key={text}
-            onClick={() => handleSuggestionClick(text)}
-            suggestion={text}
+            onClick={() => handleSuggestionClick(t(text))}
+            suggestion={t(text)}
           >
             {Icon && <Icon size={16} style={{ color }} />}
-            {text}
+            {t(text)}
           </Suggestion>
         ))}
       </Suggestions>

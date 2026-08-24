@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
@@ -34,7 +35,15 @@ func SetUpLogger(server *gin.Engine) {
 			param.Latency,
 			param.ClientIP,
 			param.Method,
-			param.Path,
+			templateSensitiveRequestPath(param.Path),
 		)
 	}))
+}
+
+func templateSensitiveRequestPath(path string) string {
+	const prefix = "/v1/real-person-verifications/callback/"
+	if strings.HasPrefix(path, prefix) && len(path) > len(prefix) {
+		return prefix + ":callback_token"
+	}
+	return path
 }

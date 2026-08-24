@@ -18,14 +18,99 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
 import {
+  applyPtFirstCallTopupExperiment,
   captureAdsAttribution,
+  clearPtFirstCallExperimentTimer,
   getAttributionPayload,
+  getPtFirstCallExperimentElapsedMs,
+  getStoredAdsAttribution,
+  isAcquisitionLandingPath,
+  isPtFirstCallTopupExperiment,
+  isPtGooglePaidAttribution,
+  isWithinPtFirstCallTarget,
   mergeAttributionValues,
   normalizeAttribution,
   parseAttributionPayload,
+  startPtFirstCallTopupExperiment,
 } from './attribution'
 
 describe('attribution normalization', () => {
+  test('enrolls PT landing traffic with a Google click id in the first-call experiment', () => {
+    const attribution = applyPtFirstCallTopupExperiment({
+      gclid: 'pt-google-click',
+      first_landing_path: '/pt/models/gpt-api',
+    })
+
+    expect(isPtGooglePaidAttribution(attribution)).toBe(true)
+    expect(isPtFirstCallTopupExperiment(attribution)).toBe(true)
+    expect(attribution.gclid).toBe('pt-google-click')
+  })
+
+  test('enrolls legacy PT signup links with a privacy-safe Google click id', () => {
+    const attribution = applyPtFirstCallTopupExperiment({
+      wbraid: 'pt-web-to-app-click',
+      lng: 'pt-BR',
+      landing_path: '/sign-up',
+    })
+
+    expect(isPtFirstCallTopupExperiment(attribution)).toBe(true)
+    expect(attribution.wbraid).toBe('pt-web-to-app-click')
+  })
+
+  test('does not enroll unpaid PT traffic', () => {
+    const attribution = applyPtFirstCallTopupExperiment({
+      lng: 'pt',
+      first_landing_path: '/pt',
+      utm_source: 'newsletter',
+      utm_medium: 'email',
+    })
+
+    expect(isPtFirstCallTopupExperiment(attribution)).toBe(false)
+  })
+
+  test('does not enroll paid Google traffic from another market', () => {
+    const attribution = applyPtFirstCallTopupExperiment({
+      gbraid: 'en-google-click',
+      lng: 'en',
+      first_landing_path: '/pricing',
+    })
+
+    expect(isPtFirstCallTopupExperiment(attribution)).toBe(false)
+  })
+
+  test('measures the PT first-call target at an inclusive 60 seconds', () => {
+    expect(isWithinPtFirstCallTarget(0)).toBe(true)
+    expect(isWithinPtFirstCallTarget(60_000)).toBe(true)
+    expect(isWithinPtFirstCallTarget(60_001)).toBe(false)
+  })
+
+  test('persists PT first-call timing across the post-signup redirect', () => {
+    const storage = new Map<string, string>()
+    const originalWindow = globalThis.window
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        sessionStorage: {
+          getItem: (key: string) => storage.get(key) ?? null,
+          setItem: (key: string, value: string) => storage.set(key, value),
+          removeItem: (key: string) => storage.delete(key),
+        },
+      },
+    })
+
+    try {
+      startPtFirstCallTopupExperiment(1_000)
+      expect(getPtFirstCallExperimentElapsedMs(31_000)).toBe(30_000)
+      clearPtFirstCallExperimentTimer()
+      expect(getPtFirstCallExperimentElapsedMs(31_000)).toBeNull()
+    } finally {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: originalWindow,
+      })
+    }
+  })
+
   test('classifies click ids as paid ads with highest priority', () => {
     const normalized = normalizeAttribution({
       gclid: 'google-click-id',
@@ -126,6 +211,33 @@ describe('attribution normalization', () => {
     expect(merged.source_type).toBe('utm')
   })
 
+  test('keeps the first paid click and landing for the 90-day attribution window', () => {
+    const merged = mergeAttributionValues(
+      {
+        gclid: 'first-click',
+        landing_path: '/pt',
+        captured_at: '2026-07-21T00:00:00.000Z',
+      },
+      {
+        gclid: 'second-click',
+        landing_path: '/pricing',
+        captured_at: '2026-07-21T01:00:00.000Z',
+      }
+    )
+
+    expect(merged.gclid).toBe('first-click')
+    expect(merged.landing_path).toBe('/pt')
+    expect(merged.first_landing_path).toBe('/pt')
+    expect(merged.first_captured_at).toBe('2026-07-21T00:00:00.000Z')
+  })
+
+  test('never treats authentication callbacks as acquisition landers', () => {
+    expect(isAcquisitionLandingPath('/oauth/google')).toBe(false)
+    expect(isAcquisitionLandingPath('/sign-in')).toBe(false)
+    expect(isAcquisitionLandingPath('/sign-up')).toBe(false)
+    expect(isAcquisitionLandingPath('/pt')).toBe(true)
+  })
+
   test('keeps direct first landing page across route changes', () => {
     const merged = mergeAttributionValues(
       {
@@ -162,6 +274,36 @@ describe('attribution normalization', () => {
     expect(parsed.medium).toBe('cpc')
     expect(parsed.campaign).toBe('signup')
     expect(parsed.keyword).toBe('flatkey api')
+  })
+
+  test('drops localStorage attribution after the 90-day expiry', () => {
+    const originalWindow = globalThis.window
+    let removed = false
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: () =>
+            JSON.stringify({
+              gclid: 'expired-click',
+              expires_at: '2000-01-01T00:00:00.000Z',
+            }),
+          removeItem: () => {
+            removed = true
+          },
+        },
+      },
+    })
+
+    try {
+      expect(getStoredAdsAttribution()).toEqual({})
+      expect(removed).toBe(true)
+    } finally {
+      Object.defineProperty(globalThis, 'window', {
+        configurable: true,
+        value: originalWindow,
+      })
+    }
   })
 
   test('stores external referrer keyword without raw query or hash', () => {

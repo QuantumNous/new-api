@@ -1,0 +1,314 @@
+package service
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/QuantumNous/new-api/model"
+)
+
+const (
+	RecallPurchaseKindTopUp        = "topup"
+	RecallPurchaseKindSubscription = "subscription"
+	RecallPromotionExpiryRelative  = "relative"
+	RecallPromotionExpiryFixed     = "fixed"
+)
+
+type RecallCheckoutDiscount struct {
+	PromotionCodeID     string `json:"promotion_code_id"`
+	CampaignID          int64  `json:"campaign_id"`
+	RecipientID         int64  `json:"recipient_id"`
+	DiscountAmountMinor int64  `json:"discount_amount_minor"`
+}
+
+type RecallPurchaseDiscount struct {
+	PromotionCodeID     string
+	CampaignID          int64
+	RecipientID         int64
+	DiscountAmountMinor int64
+}
+
+type RecallOfferView struct {
+	RecallClaimView
+	IssuedAt int64 `json:"issued_at"`
+}
+
+type RecallResolvedOffer struct {
+	View            RecallOfferView `json:"view"`
+	PromotionCodeID string          `json:"-"`
+	DiscountMinor   int64           `json:"discount_minor"`
+}
+
+type RecallCampaignDraft struct {
+	CampaignType           string               `json:"campaign_type"`
+	Name                   string               `json:"name"`
+	DeliveryPolicy         string               `json:"delivery_policy"`
+	LifecycleTrigger       string               `json:"lifecycle_trigger"`
+	LifecycleTriggerConfig string               `json:"lifecycle_trigger_config"`
+	ProcessingStartAt      int64                `json:"processing_start_at"`
+	AudienceTemplate       string               `json:"audience_template"`
+	Audience               RecallAudienceConfig `json:"audience_config"`
+	ExecutionMode          string               `json:"execution_mode"`
+	Schedule               RecallScheduleConfig `json:"schedule"`
+	CouponSource           string               `json:"coupon_source"`
+	ExistingCouponID       string               `json:"existing_coupon_id"`
+	Discount               RecallDiscountConfig `json:"discount_config"`
+	Products               RecallProductScope   `json:"product_scope"`
+	PromotionExpiryMode    string               `json:"promotion_expiry_mode"`
+	PromotionExpiresAt     int64                `json:"promotion_expires_at"`
+	PromotionValidSeconds  int64                `json:"promotion_valid_seconds"`
+	EnrollmentLimit        int                  `json:"enrollment_limit"`
+	WorkerConcurrency      int                  `json:"worker_concurrency"`
+	Emails                 []RecallEmailStage   `json:"email_sequence"`
+	DeferLocalization      bool                 `json:"defer_localization,omitempty"`
+	legacyCouponRedeemBy   int64
+}
+
+type RecallAudienceConfig struct {
+	RegistrationAgeDays     int      `json:"registration_age_days"`
+	RegistrationStartAt     int64    `json:"registration_start_at"`
+	RegistrationEndAt       int64    `json:"registration_end_at"`
+	MinRequestCount         int      `json:"min_request_count"`
+	MaxQuota                int      `json:"max_quota"`
+	MinPaidAmount           float64  `json:"min_paid_amount"`
+	LastAPICallAgeDays      int      `json:"last_api_call_age_days"`
+	LastPaymentAgeDays      int      `json:"last_payment_age_days"`
+	SubscriptionExpiredDays int      `json:"subscription_expired_days"`
+	MinSubscriptionAmount   float64  `json:"min_subscription_amount"`
+	MinSubscriptionCount    int      `json:"min_subscription_count"`
+	PaymentProviders        []string `json:"payment_providers"`
+	Groups                  []string `json:"groups"`
+	GroupMode               string   `json:"group_mode"`
+	RequireVerifiedEmail    bool     `json:"require_verified_email"`
+	SpecifiedUserIDs        []int    `json:"specified_user_ids"`
+	SpecifiedEmails         []string `json:"specified_emails"`
+}
+
+type RecallScheduleConfig struct {
+	ScheduledAt int64  `json:"scheduled_at"`
+	Timezone    string `json:"timezone"`
+	Frequency   string `json:"frequency"`
+	Weekday     int    `json:"weekday"`
+	Hour        int    `json:"hour"`
+	Minute      int    `json:"minute"`
+}
+
+type RecallDiscountConfig struct {
+	Type                  string                    `json:"type"`
+	PercentOff            float64                   `json:"percent_off"`
+	AmountOff             int64                     `json:"amount_off"`
+	Currency              string                    `json:"currency"`
+	CurrencyOptions       map[string]int64          `json:"currency_options"`
+	MinimumSpend          *RecallMinimumSpendConfig `json:"minimum_spend,omitempty"`
+	MinimumAmount         int64                     `json:"minimum_amount"`
+	MinimumAmountCurrency string                    `json:"minimum_amount_currency"`
+}
+
+type RecallMinimumSpendConfig struct {
+	Enabled bool             `json:"enabled"`
+	Amounts map[string]int64 `json:"amounts"`
+}
+
+type RecallProductScope struct {
+	TopUpPriceIDs                []string `json:"topup_price_ids"`
+	SubscriptionPriceIDs         []string `json:"subscription_price_ids"`
+	SubscriptionPlanIDs          []int    `json:"subscription_plan_ids,omitempty"`
+	TopUpDisplaySnapshots        []string `json:"topup_display_snapshots,omitempty"`
+	SubscriptionDisplaySnapshots []string `json:"subscription_display_snapshots,omitempty"`
+}
+
+type RecallEmailStage struct {
+	StageNo                  int                            `json:"stage_no"`
+	DelaySeconds             int64                          `json:"delay_seconds"`
+	TemplateVersion          int                            `json:"template_version"`
+	SourceRevision           int                            `json:"source_revision,omitempty"`
+	TranslatedSourceRevision int                            `json:"translated_source_revision,omitempty"`
+	ManualLocales            []string                       `json:"manual_locales,omitempty"`
+	Templates                map[string]RecallEmailTemplate `json:"templates"`
+}
+
+type RecallEmailTemplate struct {
+	Subject  string `json:"subject"`
+	BodyText string `json:"body_text,omitempty"`
+	BodyHTML string `json:"body_html,omitempty"`
+}
+
+type RecallEmailPreviewRequest struct {
+	CampaignType     string              `json:"campaign_type"`
+	DeliveryPolicy   string              `json:"delivery_policy,omitempty"`
+	LifecycleTrigger string              `json:"lifecycle_trigger,omitempty"`
+	Template         RecallEmailTemplate `json:"template"`
+}
+
+type RecallEmailPreviewResponse struct {
+	Subject  string `json:"subject"`
+	BodyHTML string `json:"body_html"`
+}
+
+type RecallEmailGenerationRequest struct {
+	ConfigRevision int64              `json:"config_revision"`
+	Name           string             `json:"name"`
+	Emails         []RecallEmailStage `json:"email_sequence"`
+}
+
+type RecallEmailGenerationResponse struct {
+	ConfigRevision int64              `json:"config_revision"`
+	Emails         []RecallEmailStage `json:"email_sequence"`
+	TaskID         int64              `json:"task_id,omitempty"`
+	TaskStatus     string             `json:"task_status,omitempty"`
+}
+
+type RecallTranslationTaskResponse struct {
+	ID                      int64  `json:"id"`
+	CampaignID              int64  `json:"campaign_id"`
+	RequestedConfigRevision int64  `json:"requested_config_revision"`
+	ResultConfigRevision    int64  `json:"result_config_revision,omitempty"`
+	Status                  string `json:"status"`
+	AttemptCount            int    `json:"attempt_count"`
+	ErrorCode               string `json:"error_code,omitempty"`
+	ErrorCopyKey            string `json:"error_copy_key,omitempty"`
+	CreatedAt               int64  `json:"created_at"`
+	StartedAt               int64  `json:"started_at,omitempty"`
+	FinishedAt              int64  `json:"finished_at,omitempty"`
+}
+
+type RecallEmailLocalizationBlocker struct {
+	StageNo int    `json:"stage_no"`
+	Locale  string `json:"locale"`
+	Reason  string `json:"reason"`
+}
+
+type RecallActivationBlockedError struct {
+	Blockers []RecallEmailLocalizationBlocker
+}
+
+func (e *RecallActivationBlockedError) Error() string {
+	if e == nil || len(e.Blockers) == 0 {
+		return "recall campaign activation is blocked by email localization"
+	}
+	blocker := e.Blockers[0]
+	return fmt.Sprintf("recall email stage %d language %s translation is %s", blocker.StageNo, blocker.Locale, blocker.Reason)
+}
+
+func PreviewRecallEmail(request RecallEmailPreviewRequest) (RecallEmailPreviewResponse, error) {
+	campaignType, err := normalizeRecallCampaignType(request.CampaignType)
+	if err != nil {
+		return RecallEmailPreviewResponse{}, err
+	}
+	lifecycleTrigger := strings.TrimSpace(request.LifecycleTrigger)
+	deliveryPolicy := strings.TrimSpace(request.DeliveryPolicy)
+	if lifecycleTrigger != "" {
+		triggerPolicy, err := model.RecallLifecycleTriggerDeliveryPolicy(lifecycleTrigger)
+		if err != nil {
+			return RecallEmailPreviewResponse{}, err
+		}
+		if deliveryPolicy == "" {
+			deliveryPolicy = triggerPolicy
+		}
+		if deliveryPolicy != triggerPolicy {
+			return RecallEmailPreviewResponse{}, fmt.Errorf("lifecycle trigger %q requires delivery policy %q", lifecycleTrigger, triggerPolicy)
+		}
+	}
+	deliveryPolicy = recallEmailHTMLDeliveryPolicy(deliveryPolicy)
+	stages, err := normalizeRecallEmailStagesForLifecycleTrigger(campaignType, deliveryPolicy, lifecycleTrigger, []RecallEmailStage{{
+		StageNo:      1,
+		DelaySeconds: 0,
+		Templates: map[string]RecallEmailTemplate{
+			"en": request.Template,
+		},
+	}})
+	if err != nil {
+		return RecallEmailPreviewResponse{}, err
+	}
+	subject, bodyHTML, err := RenderRecallEmail(RecallEmailRenderInput{
+		CampaignType:        campaignType,
+		DeliveryPolicy:      deliveryPolicy,
+		LifecycleTrigger:    lifecycleTrigger,
+		LifecycleVariables:  recallEmailPreviewLifecycleVariables(lifecycleTrigger),
+		Language:            "en",
+		Template:            stages[0].Templates["en"],
+		RecipientName:       "Ada",
+		PromotionCodeMasked: "SAVE****25",
+		ExpiresAt:           1_900_000_000,
+		ProductSummary:      "Top-ups: 50 USD, 10 USD; Subscriptions: Pro monthly (20 USD)",
+		ClaimURL:            "https://flatkey.ai/recall/claim?preview=1",
+		UnsubscribeURL:      "https://flatkey.ai/recall/unsubscribe?preview=1",
+	})
+	if err != nil {
+		return RecallEmailPreviewResponse{}, err
+	}
+	return RecallEmailPreviewResponse{Subject: subject, BodyHTML: bodyHTML}, nil
+}
+
+func recallEmailPreviewLifecycleVariables(lifecycleTrigger string) map[string]string {
+	variables := recallLifecycleEmailEmptyVariables(lifecycleTrigger)
+	if len(variables) == 0 {
+		return nil
+	}
+	for key := range variables {
+		variables[key] = ""
+	}
+	variables["site_name"] = "Flatkey"
+	variables["user_display_name"] = "Ada"
+	variables["console_url"] = "https://flatkey.ai/console"
+	variables["registration_time"] = "2030-03-17 17:46 UTC"
+	variables["quota_scope"] = "wallet:preview"
+	variables["balance_snapshot"] = "0"
+	variables["effective_threshold"] = "100"
+	variables["top_up_url"] = "https://flatkey.ai/console/topup"
+	variables["purchase_kind"] = model.PurchaseLifecycleKindTopUp
+	variables["trade_no"] = "preview-trade-no"
+	variables["amount"] = "100"
+	variables["currency"] = "USD"
+	variables["payment_url"] = "https://flatkey.ai/console/topup?trade_no=preview-trade-no"
+	variables["completed_at"] = "2030-03-17 17:46 UTC"
+	return variables
+}
+
+func normalizeRecallCampaignType(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", model.RecallCampaignTypePromotion:
+		return model.RecallCampaignTypePromotion, nil
+	case model.RecallCampaignTypeContentOnly:
+		return model.RecallCampaignTypeContentOnly, nil
+	default:
+		return "", fmt.Errorf("unsupported recall campaign type %q", value)
+	}
+}
+
+func normalizedRecallCampaignTypeForOutput(value string) (string, error) {
+	return normalizeRecallCampaignType(value)
+}
+
+type RecallClaimView struct {
+	CampaignID          int64                `json:"campaign_id"`
+	RecipientID         int64                `json:"recipient_id"`
+	CampaignName        string               `json:"campaign_name"`
+	PromotionCodeMasked string               `json:"promotion_code_masked"`
+	ExpiresAt           int64                `json:"expires_at"`
+	Discount            RecallDiscountConfig `json:"discount"`
+	Products            RecallProductScope   `json:"products"`
+	Redeemed            bool                 `json:"redeemed"`
+}
+
+type RecallAudiencePreview struct {
+	EligibleTotal int64                     `json:"eligible_total"`
+	Sample        []RecallAudienceCandidate `json:"sample"`
+	Exclusions    map[string]int64          `json:"exclusions"`
+}
+
+type RecallAudienceCandidate struct {
+	UserID       int    `json:"user_id"`
+	EmailMasked  string `json:"email_masked"`
+	Language     string `json:"language"`
+	SnapshotJSON string `json:"-"`
+}
+
+type RecallStripePreview struct {
+	CouponSource         string               `json:"coupon_source"`
+	CouponID             string               `json:"coupon_id"`
+	Discount             RecallDiscountConfig `json:"discount"`
+	TopUpPriceIDs        []string             `json:"topup_price_ids"`
+	SubscriptionPriceIDs []string             `json:"subscription_price_ids"`
+	ProductIDs           []string             `json:"product_ids"`
+}

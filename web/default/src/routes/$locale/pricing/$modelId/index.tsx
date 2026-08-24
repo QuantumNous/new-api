@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
+import { OFFICIAL_WEBSITE_ORIGIN, officialWebsiteUrl } from '@/lib/origins'
 import { localizePublicPath } from '@/lib/public-locale'
 import { beforeLoadPublicLocaleRoute } from '@/lib/public-locale-route'
 import { ModelDetails } from '@/features/pricing/components/model-details'
@@ -28,6 +29,19 @@ export const Route = createFileRoute('/$locale/pricing/$modelId/')({
   validateSearch: publicPricingSearchSchema,
   beforeLoad: async (args) => {
     beforeLoadPublicLocaleRoute(args)
+
+    // With an official website configured, /models/<model> there is the single
+    // public model surface (Rule 9) — hand over unconditionally so old links
+    // keep working for anonymous visitors. The console module policy below
+    // only governs the local fallback page (self-host, no origin configured).
+    if (OFFICIAL_WEBSITE_ORIGIN) {
+      const locale = args.params.locale
+      const modelPath = `/models/${encodeURIComponent(args.params.modelId)}`
+      const path =
+        locale && locale !== 'en' ? `/${locale}${modelPath}` : modelPath
+      window.location.replace(officialWebsiteUrl(path))
+      await new Promise(() => {})
+    }
 
     const access = await getFreshModuleAccess('pricing')
     if (!access.enabled) {

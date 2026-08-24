@@ -3,7 +3,9 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -16,12 +18,17 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/groksubscription"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
 
+	blockrunSDK "github.com/BlockRunAI/blockrun-llm-go"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 	"gorm.io/gorm"
 )
+
+const blockRunSolanaBaseURL = blockrunSDK.DefaultSolanaAPIURL
 
 type OpenAIModel struct {
 	ID         string         `json:"id"`
@@ -393,6 +400,19 @@ func GetChannel(c *gin.Context) {
 	}
 	if channel != nil {
 		clearChannelInfo(channel)
+		// 113(Grok Subscription) 渠道：附带非秘密认证状态投影，供管理 UI 显示 pending/active/needs_reauth 徽章。
+		// 白名单投影（model.NewGrokAuthStateView），绝不含 token/verifier/last_error/lease。
+		if channel.Type == constant.ChannelTypeGrokSubscription {
+			if st, err := model.GetGrokChannelState(channel.Id); err == nil {
+				channel.GrokAuthState = model.NewGrokAuthStateView(st)
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				// 真实 DB 错误（连接断/死锁）须与 record-not-found 区分：记一行脱敏日志
+				// （只含 channelID + err，绝不打整个 state 以免带出 LastError），
+				// 但不阻断 detail 返回——保持原有正确行为，前端仍据缺省显示 pending。
+				common.SysError(fmt.Sprintf("grok auth state load failed for channel %d: %v", channel.Id, err))
+			}
+			// record-not-found（渠道刚建未授权）属正常高频路径：静默不填充，前端缺省显示 pending。
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -456,14 +476,31 @@ func validateTwoFactorAuth(twoFA *model.TwoFA, code string) bool {
 
 // validateChannel 通用的渠道校验函数
 func validateChannel(channel *model.Channel, isAdd bool) error {
+	if channel == nil {
+		return fmt.Errorf("channel cannot be empty")
+	}
+	if channel.MaxConcurrency < 0 {
+		return fmt.Errorf("channel max concurrency cannot be negative")
+	}
+	if channel.ChannelInfo.IsMultiKey &&
+		(channel.Type == constant.ChannelTypeCopilot || channel.Type == constant.ChannelTypeGrokSubscription) {
+		return fmt.Errorf("%s channel does not support multi-key mode", constant.GetChannelTypeName(channel.Type))
+	}
+
 	// 校验 channel settings
 	if err := channel.ValidateSettings(); err != nil {
 		return fmt.Errorf("渠道额外设置[channel setting] 格式错误：%s", err.Error())
 	}
+	if err := validateBlockRunPaymentSettings(channel); err != nil {
+		return err
+	}
 
-	// 如果是添加操作，检查 channel 和 key 是否为空
+	// 如果是添加操作，检查 channel 是否为空。Copilot credentials are
+	// acquired only through its Device Flow after the channel has been saved.
 	if isAdd {
-		if channel == nil || channel.Key == "" {
+		if channel == nil || (channel.Key == "" &&
+			channel.Type != constant.ChannelTypeCopilot &&
+			channel.Type != constant.ChannelTypeGrokSubscription) {
 			return fmt.Errorf("channel cannot be empty")
 		}
 
@@ -511,7 +548,61 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 	}
 
+	// Grok Subscription 版本化 OAuth 凭证校验（仅当提供 Key 时；空 Key 走 OAuth 待授权）。
+	if channel.Type == constant.ChannelTypeGrokSubscription {
+		trimmedKey := strings.TrimSpace(channel.Key)
+		if trimmedKey != "" {
+			if _, err := groksubscription.ParseCredential(trimmedKey); err != nil {
+				return fmt.Errorf("Grok subscription key invalid: %w", err)
+			}
+		}
+	}
+
 	return nil
+}
+
+func validateBlockRunPaymentSettings(channel *model.Channel) error {
+	if channel.Type != constant.ChannelTypeBlockRun {
+		return nil
+	}
+
+	settings := dto.ChannelOtherSettings{}
+	if channel.OtherSettings != "" {
+		if err := common.UnmarshalJsonStr(channel.OtherSettings, &settings); err != nil {
+			return fmt.Errorf("BlockRun settings must be valid JSON: %w", err)
+		}
+	}
+
+	switch settings.GetBlockRunPaymentChain() {
+	case dto.BlockRunPaymentChainBase:
+		return nil
+	case dto.BlockRunPaymentChainSolana:
+		if channel.BaseURL == nil || (*channel.BaseURL != blockRunSolanaBaseURL && *channel.BaseURL != blockRunSolanaBaseURL+"/") {
+			return fmt.Errorf("Solana BlockRun base_url must be %s", blockRunSolanaBaseURL)
+		}
+		if _, err := blockrunSDK.GetSolanaPublicKey(strings.TrimSpace(channel.Key)); err != nil {
+			return fmt.Errorf("Solana BlockRun key is invalid: %w", err)
+		}
+		if !isPositiveDecimalInteger(settings.BlockRunMaxPaymentAtomic) {
+			return fmt.Errorf("Solana BlockRun blockrun_max_payment_atomic must be a positive decimal integer")
+		}
+		return nil
+	default:
+		return fmt.Errorf("unsupported BlockRun payment chain %q", settings.BlockRunPaymentChain)
+	}
+}
+
+func isPositiveDecimalInteger(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, ch := range value {
+		if ch < '0' || ch > '9' {
+			return false
+		}
+	}
+	parsed, ok := new(big.Int).SetString(value, 10)
+	return ok && parsed.Sign() > 0
 }
 
 func RefreshCodexChannelCredential(c *gin.Context) {
@@ -551,6 +642,22 @@ type AddChannelRequest struct {
 	MultiKeyMode              constant.MultiKeyMode `json:"multi_key_mode"`
 	BatchAddSetKeyPrefix2Name bool                  `json:"batch_add_set_key_prefix_2_name"`
 	Channel                   *model.Channel        `json:"channel"`
+}
+
+func defaultNewCodexFingerprintMode(channel *model.Channel) {
+	if channel == nil || channel.Type != constant.ChannelTypeCodex {
+		return
+	}
+	setting := channel.GetSetting()
+	mode := strings.ToLower(strings.TrimSpace(setting.CodexFingerprintMode))
+	switch mode {
+	case "off", "device", "session", "full":
+		setting.CodexFingerprintMode = mode
+		channel.SetSetting(setting)
+		return
+	}
+	setting.CodexFingerprintMode = "full"
+	channel.SetSetting(setting)
 }
 
 func getVertexArrayKeys(keys string) ([]string, error) {
@@ -601,6 +708,11 @@ func AddChannel(c *gin.Context) {
 		})
 		return
 	}
+	if addChannelRequest.Channel.Type == constant.ChannelTypeCopilot && addChannelRequest.Mode != "" && addChannelRequest.Mode != "single" {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "Copilot channels support one credential only"})
+		return
+	}
+	defaultNewCodexFingerprintMode(addChannelRequest.Channel)
 
 	addChannelRequest.Channel.CreatedTime = common.GetTimestamp()
 	keys := make([]string, 0)
@@ -658,7 +770,12 @@ func AddChannel(c *gin.Context) {
 
 	channels := make([]model.Channel, 0, len(keys))
 	for _, key := range keys {
-		if key == "" {
+		// Copilot and Grok Subscription create an empty-key channel first and
+		// acquire the credential later via their post-save OAuth flow, so an
+		// empty key must be preserved rather than skipped for those types.
+		if key == "" &&
+			addChannelRequest.Channel.Type != constant.ChannelTypeCopilot &&
+			addChannelRequest.Channel.Type != constant.ChannelTypeGrokSubscription {
 			continue
 		}
 		localChannel := addChannelRequest.Channel
@@ -832,12 +949,14 @@ type ChannelBatch struct {
 }
 
 type ChannelBatchEdit struct {
-	Ids          []int   `json:"ids"`
-	Models       *string `json:"models"`
-	ModelMapping *string `json:"model_mapping"`
-	Groups       *string `json:"groups"`
-	Priority     *int64  `json:"priority"`
-	Weight       *uint   `json:"weight"`
+	Ids                  []int   `json:"ids"`
+	Models               *string `json:"models"`
+	ModelMapping         *string `json:"model_mapping"`
+	Groups               *string `json:"groups"`
+	Priority             *int64  `json:"priority"`
+	Weight               *uint   `json:"weight"`
+	MaxConcurrency       *int    `json:"max_concurrency"`
+	CodexFingerprintMode *string `json:"codex_fingerprint_mode"`
 }
 
 func DeleteChannelBatch(c *gin.Context) {
@@ -872,23 +991,50 @@ type PatchChannel struct {
 
 func UpdateChannel(c *gin.Context) {
 	channel := PatchChannel{}
-	err := c.ShouldBindJSON(&channel)
+	err := c.ShouldBindBodyWith(&channel, binding.JSON)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	var presence struct {
+		MaxConcurrency *int `json:"max_concurrency"`
+	}
+	if err = c.ShouldBindBodyWith(&presence, binding.JSON); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
-	// 使用统一的校验函数
-	if err := validateChannel(&channel.Channel, false); err != nil {
+	// Preserve existing ChannelInfo to ensure multi-key channels keep correct state even if the client does not send ChannelInfo in the request.
+	originChannel, err := model.GetChannelById(channel.Id, true)
+	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
 		return
 	}
-	// Preserve existing ChannelInfo to ensure multi-key channels keep correct state even if the client does not send ChannelInfo in the request.
-	originChannel, err := model.GetChannelById(channel.Id, true)
-	if err != nil {
+
+	validationChannel := channel.Channel
+	if validationChannel.Type == 0 {
+		validationChannel.Type = originChannel.Type
+	}
+	if validationChannel.Key == "" {
+		validationChannel.Key = originChannel.Key
+	}
+	if validationChannel.BaseURL == nil {
+		validationChannel.BaseURL = originChannel.BaseURL
+	}
+	if validationChannel.OtherSettings == "" {
+		validationChannel.OtherSettings = originChannel.OtherSettings
+	}
+	if err := validateChannel(&validationChannel, false); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	if err := validateBlockRunPaymentChainTransition(originChannel, &validationChannel); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": err.Error(),
@@ -902,6 +1048,17 @@ func UpdateChannel(c *gin.Context) {
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
 		channel.ChannelInfo.MultiKeyMode = constant.MultiKeyMode(*channel.MultiKeyMode)
+	}
+	if validationChannel.Type == constant.ChannelTypeCopilot {
+		finalValidationChannel := validationChannel
+		finalValidationChannel.ChannelInfo = channel.ChannelInfo
+		if err := validateChannel(&finalValidationChannel, false); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	}
 
 	// 处理多key模式下的密钥追加/覆盖逻辑
@@ -984,7 +1141,11 @@ func UpdateChannel(c *gin.Context) {
 			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
 		}
 	}
-	err = channel.Update()
+	if presence.MaxConcurrency != nil {
+		err = channel.UpdateWithMaxConcurrency()
+	} else {
+		err = channel.Update()
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -999,6 +1160,43 @@ func UpdateChannel(c *gin.Context) {
 		"data":    channel,
 	})
 	return
+}
+
+func validateBlockRunPaymentChainTransition(originChannel, updatedChannel *model.Channel) error {
+	if originChannel == nil || updatedChannel == nil {
+		return nil
+	}
+	originIsBlockRun := originChannel.Type == constant.ChannelTypeBlockRun
+	updatedIsBlockRun := updatedChannel.Type == constant.ChannelTypeBlockRun
+	if !originIsBlockRun && !updatedIsBlockRun {
+		return nil
+	}
+	if originIsBlockRun != updatedIsBlockRun {
+		return fmt.Errorf("existing channel cannot change type into or out of BlockRun")
+	}
+
+	getChain := func(channel *model.Channel) (dto.BlockRunPaymentChain, error) {
+		settings := dto.ChannelOtherSettings{}
+		if channel.OtherSettings != "" {
+			if err := common.UnmarshalJsonStr(channel.OtherSettings, &settings); err != nil {
+				return "", fmt.Errorf("BlockRun settings must be valid JSON: %w", err)
+			}
+		}
+		return settings.GetBlockRunPaymentChain(), nil
+	}
+
+	originChain, err := getChain(originChannel)
+	if err != nil {
+		return err
+	}
+	updatedChain, err := getChain(updatedChannel)
+	if err != nil {
+		return err
+	}
+	if originChain != updatedChain {
+		return fmt.Errorf("existing BlockRun channel payment chain cannot change from %s to %s", originChain, updatedChain)
+	}
+	return nil
 }
 
 func FetchModels(c *gin.Context) {
@@ -1023,6 +1221,27 @@ func FetchModels(c *gin.Context) {
 
 	// remove line breaks and extra spaces.
 	key := strings.TrimSpace(req.Key)
+	if req.Type == constant.ChannelTypeCodex {
+		channel := &model.Channel{
+			Type:    req.Type,
+			Key:     key,
+			BaseURL: &baseURL,
+		}
+		models, err := service.FetchCodexChannelModels(channel)
+		if err != nil {
+			common.SysError(fmt.Sprintf("fetch Codex models failed: %v", err))
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": i18n.T(c, i18n.MsgModelGetFailed),
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data":    models,
+		})
+		return
+	}
 	key = strings.Split(key, "\n")[0]
 
 	if req.Type == constant.ChannelTypeOllama {
@@ -1145,7 +1364,7 @@ func BatchSetChannelTag(c *gin.Context) {
 	return
 }
 
-// EditChannelBatch 对勾选的渠道做覆盖式批量编辑（models / model_mapping / groups / priority / weight）。
+// EditChannelBatch 对勾选的渠道做覆盖式批量编辑（models / model_mapping / groups / priority / weight / Codex 指纹收敛）。
 func EditChannelBatch(c *gin.Context) {
 	batchEdit := ChannelBatchEdit{}
 	err := c.ShouldBindJSON(&batchEdit)
@@ -1167,10 +1386,28 @@ func EditChannelBatch(c *gin.Context) {
 		}
 		batchEdit.ModelMapping = common.GetPointer[string](trimmed)
 	}
-	err = model.EditChannelsByIds(batchEdit.Ids, batchEdit.ModelMapping, batchEdit.Models, batchEdit.Groups, batchEdit.Priority, batchEdit.Weight)
+	if batchEdit.CodexFingerprintMode != nil {
+		mode := strings.ToLower(strings.TrimSpace(*batchEdit.CodexFingerprintMode))
+		if mode != "off" && mode != "device" && mode != "session" && mode != "full" {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, "common.invalid_params")})
+			return
+		}
+		batchEdit.CodexFingerprintMode = common.GetPointer[string](mode)
+	}
+	if batchEdit.MaxConcurrency != nil && *batchEdit.MaxConcurrency < 0 {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, "common.invalid_params")})
+		return
+	}
+	err = model.EditChannelsByIds(batchEdit.Ids, batchEdit.ModelMapping, batchEdit.Models, batchEdit.Groups, batchEdit.Priority, batchEdit.Weight, batchEdit.MaxConcurrency)
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if batchEdit.CodexFingerprintMode != nil {
+		if err := model.UpdateCodexFingerprintModeByIds(batchEdit.Ids, *batchEdit.CodexFingerprintMode); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	model.InitChannelCache()
 	c.JSON(http.StatusOK, gin.H{
@@ -1258,6 +1495,7 @@ func CopyChannel(c *gin.Context) {
 	clone.Name = origin.Name + suffix
 	clone.TestTime = 0
 	clone.ResponseTime = 0
+	clone.CodexFingerprintSeed = ""
 	if resetBalance {
 		clone.Balance = 0
 		clone.UsedQuota = 0

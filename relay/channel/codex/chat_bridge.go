@@ -2,9 +2,11 @@ package codex
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -103,12 +105,13 @@ func ensureInstructionsField(req *apicompat.ResponsesRequest) (map[string]any, e
 // dto 独有字段（Conversation/ContextManagement/Truncation/MaxToolCalls/Prompt/...），
 // 同时还会因 dto.Instructions 是 json.RawMessage 而上游 apicompat 是 string 而炸掉。
 //
-// preserveSampling=true 时（compact 路径）保留 Temperature/TopP/MaxOutputTokens，
-// 但仍会移除 user/metadata/stream_options 等 Codex 后端禁字段。
+// isCompact=true 时额外移除 compact 端点实测不接受的 sampling/tool-limit 字段。
+// prompt_cache_options 在 responses 与 compact 两条 Codex 路径都会被真实上游拒绝，
+// 因此仅在 Codex adaptor 层过滤；DTO 仍保留该字段供其他 provider 使用。
 //
 // 注：本函数不修改 store/stream。store 由调用方决定（compact 删除整个键），
 // stream 在非 compact 路径必须保留客户端原意图。
-func applyCodexConstraintsToMap(body map[string]any, info *relaycommon.RelayInfo, preserveSampling bool) {
+func applyCodexConstraintsToMap(body map[string]any, info *relaycommon.RelayInfo, isCompact bool) {
 	if body == nil {
 		return
 	}
@@ -117,19 +120,21 @@ func applyCodexConstraintsToMap(body map[string]any, info *relaycommon.RelayInfo
 	bannedAlways := []string{
 		"frequency_penalty", "presence_penalty",
 		"user", "metadata", "stream_options",
-		"prompt_cache_retention", "safety_identifier",
+		"prompt_cache_options", "prompt_cache_retention", "safety_identifier",
 	}
 	for _, k := range bannedAlways {
 		delete(body, k)
 	}
-	if !preserveSampling {
-		// chat bridge / 非 compact /v1/responses 都不接受 sampling 字段。
-		for _, k := range []string{
-			"max_output_tokens", "max_completion_tokens",
-			"temperature", "top_p",
-		} {
-			delete(body, k)
-		}
+	unsupported := []string{
+		"max_output_tokens", "max_completion_tokens",
+		"temperature", "top_p",
+	}
+	if isCompact {
+		unsupported = append(unsupported, "max_tool_calls", "top_logprobs")
+		delete(body, "client_metadata")
+	}
+	for _, k := range unsupported {
+		delete(body, k)
 	}
 
 	// 2) instructions 注入（与 applyCodexConstraints 行为对齐）。
@@ -159,8 +164,58 @@ func writeSSE(c *gin.Context, sse string) {
 	if c == nil || c.Writer == nil {
 		return
 	}
+	helper.SetEventStreamHeaders(c)
 	_, _ = c.Writer.WriteString(sse)
 	_ = helper.FlushWriter(c)
+}
+
+func codexResponseFailedError(evt *apicompat.ResponsesStreamEvent, skipRetry bool) *types.NewAPIError {
+	message := "codex upstream response failed"
+	if evt != nil {
+		if evt.Response != nil && evt.Response.Error != nil {
+			switch {
+			case strings.TrimSpace(evt.Response.Error.Message) != "":
+				message = evt.Response.Error.Message
+			case strings.TrimSpace(evt.Response.Error.Code) != "":
+				message = evt.Response.Error.Code
+			}
+		} else if strings.TrimSpace(evt.Code) != "" {
+			message = evt.Code
+		}
+	}
+	if skipRetry {
+		return types.NewOpenAIError(errors.New(message), types.ErrorCodeBadResponse, http.StatusInternalServerError, types.ErrOptionWithSkipRetry())
+	}
+	return types.NewOpenAIError(errors.New(message), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+}
+
+func codexStreamProtocolError(err error, skipRetry bool) *types.NewAPIError {
+	message := "codex upstream stream ended before a terminal event"
+	if err != nil {
+		message = fmt.Sprintf("codex upstream stream error: %v", err)
+	}
+	if skipRetry {
+		return types.NewOpenAIError(errors.New(message), types.ErrorCodeBadResponse, http.StatusBadGateway, types.ErrOptionWithSkipRetry())
+	}
+	return types.NewOpenAIError(errors.New(message), types.ErrorCodeBadResponse, http.StatusBadGateway)
+}
+
+func writeOpenAIStreamError(c *gin.Context, apiErr *types.NewAPIError) {
+	if c == nil || c.Writer == nil || apiErr == nil {
+		return
+	}
+	openAIError := apiErr.ToOpenAIError()
+	openAIError.Type = "upstream_error"
+	openAIError.Param = ""
+	openAIError.Code = strconv.Itoa(apiErr.StatusCode)
+	if requestID := c.GetString(common.RequestIdKey); requestID != "" {
+		openAIError.Message = common.MessageWithRequestId(openAIError.Message, requestID)
+	}
+	payload, err := common.Marshal(gin.H{"error": openAIError})
+	if err != nil {
+		return
+	}
+	writeSSE(c, fmt.Sprintf("data: %s\n\n", payload))
 }
 
 // RelayChatOverCodex 接收 Codex 上游返回的 Responses SSE 流，并按客户端的
@@ -210,72 +265,127 @@ func RelayChatOverCodex(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	var lastTerminal *apicompat.ResponsesResponse
 
 	streamToClient := info != nil && info.UserWantsStream
-	if streamToClient {
-		helper.SetEventStreamHeaders(c)
-	}
 
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
-	// 按 SSE 规范累积一个事件内的多行 data:，事件之间以空行分隔
 	var dataLines []string
-	flushEvent := func() {
+	var pendingPrelude []string
+	var terminalSeen bool
+	var terminalErr *types.NewAPIError
+
+	flushPendingPrelude := func() {
+		for _, sse := range pendingPrelude {
+			writeSSE(c, sse)
+		}
+		pendingPrelude = nil
+	}
+
+	// flushEvent returns true when a terminal event has been consumed.
+	flushEvent := func() bool {
 		if len(dataLines) == 0 {
-			return
+			return false
 		}
 		payload := strings.Join(dataLines, "\n")
 		dataLines = dataLines[:0]
 		evt := &apicompat.ResponsesStreamEvent{}
-		if err := common.Unmarshal([]byte(payload), evt); err == nil {
-			acc.ProcessEvent(evt)
-			// Fix 5 (Finding B): response.failed / response.incomplete 同样会携带 usage
-			// （例如 length 截断时上游通过 response.incomplete 返回 usage），
-			// 必须一起捕获，否则结算阶段会漏算 tokens。
-			isTerminal := evt.Type == "response.completed" ||
-				evt.Type == "response.done" ||
-				evt.Type == "response.failed" ||
-				evt.Type == "response.incomplete"
-			if isTerminal && evt.Response != nil {
-				if evt.Response.Usage != nil {
-					lastUsage = evt.Response.Usage
-				}
-				lastTerminal = evt.Response
+		if err := common.Unmarshal([]byte(payload), evt); err != nil {
+			return false
+		}
+
+		acc.ProcessEvent(evt)
+		isTerminal := evt.Type == "response.completed" ||
+			evt.Type == "response.done" ||
+			evt.Type == "response.failed" ||
+			evt.Type == "response.incomplete"
+		if isTerminal && evt.Response != nil {
+			if evt.Response.Usage != nil {
+				lastUsage = evt.Response.Usage
 			}
-			if streamToClient {
-				for _, chunk := range apicompat.ResponsesEventToChatChunks(evt, state) {
-					if sse, err := apicompat.ChatChunkToSSE(chunk); err == nil {
-						writeSSE(c, sse)
-					}
+			lastTerminal = evt.Response
+		}
+
+		isFailed := evt.Type == "response.failed" ||
+			(evt.Response != nil && evt.Response.Status == "failed")
+		if isFailed {
+			terminalSeen = true
+			written := c != nil && c.Writer != nil && c.Writer.Written()
+			terminalErr = codexResponseFailedError(evt, written)
+			pendingPrelude = nil
+			if streamToClient && written {
+				writeOpenAIStreamError(c, terminalErr)
+			}
+			return true
+		}
+
+		if streamToClient {
+			chunks := apicompat.ResponsesEventToChatChunks(evt, state)
+			serialized := make([]string, 0, len(chunks))
+			for _, chunk := range chunks {
+				if sse, err := apicompat.ChatChunkToSSE(chunk); err == nil {
+					serialized = append(serialized, sse)
+				}
+			}
+			if evt.Type == "response.created" {
+				pendingPrelude = append(pendingPrelude, serialized...)
+			} else if len(serialized) > 0 {
+				flushPendingPrelude()
+				for _, sse := range serialized {
+					writeSSE(c, sse)
 				}
 			}
 		}
+
+		if isTerminal {
+			terminalSeen = true
+			return true
+		}
+		return false
 	}
 
+	stop := false
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line == "" {
-			flushEvent()
+			if flushEvent() {
+				stop = true
+				break
+			}
 			continue
 		}
 		if strings.HasPrefix(line, "data:") {
 			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
 		}
-		// event: 行忽略——事件类型同样存在于 data JSON 里
 	}
-	flushEvent()
+	if !stop {
+		_ = flushEvent()
+	}
 
-	// 扫描错误（包括单行超过 1MB 缓冲、上游中断等）需要落日志，避免静默丢数据
-	if err := scanner.Err(); err != nil {
-		common.SysError(fmt.Sprintf("codex chat bridge: SSE scan error: %v", err))
+	if terminalErr != nil {
+		return buildUsage(lastUsage), terminalErr
+	}
+	if scanErr := scanner.Err(); scanErr != nil {
+		common.SysError(fmt.Sprintf("codex chat bridge: SSE scan error: %v", scanErr))
+		written := c != nil && c.Writer != nil && c.Writer.Written()
+		apiErr := codexStreamProtocolError(scanErr, written)
+		pendingPrelude = nil
+		if streamToClient && written {
+			writeOpenAIStreamError(c, apiErr)
+		}
+		return buildUsage(lastUsage), apiErr
+	}
+	if !terminalSeen {
+		written := c != nil && c.Writer != nil && c.Writer.Written()
+		apiErr := codexStreamProtocolError(nil, written)
+		pendingPrelude = nil
+		if streamToClient && written {
+			writeOpenAIStreamError(c, apiErr)
+		}
+		return buildUsage(lastUsage), apiErr
 	}
 
 	if streamToClient {
-		for _, chunk := range apicompat.FinalizeResponsesChatStream(state) {
-			if sse, err := apicompat.ChatChunkToSSE(chunk); err == nil {
-				writeSSE(c, sse)
-			}
-		}
-		// 终止行也是 "data: [DONE]\n\n"
+		flushPendingPrelude()
 		writeSSE(c, "data: [DONE]\n\n")
 	} else {
 		full := &apicompat.ResponsesResponse{}
@@ -322,11 +432,13 @@ func buildUsage(u *apicompat.ResponsesUsage) any {
 	}
 	if u.InputTokensDetails != nil {
 		out.PromptTokensDetails = dto.InputTokenDetails{
-			CachedTokens: u.InputTokensDetails.CachedTokens,
+			CachedTokens:     u.InputTokensDetails.CachedTokens,
+			CacheWriteTokens: u.InputTokensDetails.CacheWriteTokens,
 		}
 		// 同步指针字段，方便下游 reasoning/responses 链路读取
 		out.InputTokensDetails = &dto.InputTokenDetails{
-			CachedTokens: u.InputTokensDetails.CachedTokens,
+			CachedTokens:     u.InputTokensDetails.CachedTokens,
+			CacheWriteTokens: u.InputTokensDetails.CacheWriteTokens,
 		}
 		if u.InputTokensDetails.CachedTokens > 0 {
 			out.PromptCacheHitTokens = u.InputTokensDetails.CachedTokens

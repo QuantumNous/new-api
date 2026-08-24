@@ -51,18 +51,20 @@ func TestConsumeCodexResetCreditSendsExpectedRequest(t *testing.T) {
 		t.Fatalf("path = %s", gotPath)
 	}
 
-	// Assert the full Codex Desktop header contract, verbatim.
+	// Assert the reset request contract, including the canonical Codex identity.
 	wantHeaders := map[string]string{
-		"Authorization":      "Bearer tok-abc",
-		"chatgpt-account-id": "acct-123",
-		"content-type":       "application/json",
-		"originator":         "Codex Desktop",
-		"oai-language":       "zh-CN",
-		"accept":             "application/json",
-		"sec-fetch-site":     "none",
-		"sec-fetch-mode":     "no-cors",
-		"sec-fetch-dest":     "empty",
-		"priority":           "u=4, i",
+		"Authorization":         "Bearer tok-abc",
+		"chatgpt-account-id":    "acct-123",
+		"content-type":          "application/json",
+		"User-Agent":            "codex-cli/0.144.0",
+		"originator":            "codex_cli_rs",
+		"OpenAI-Client-Version": "0.144.0",
+		"oai-language":          "zh-CN",
+		"accept":                "application/json",
+		"sec-fetch-site":        "none",
+		"sec-fetch-mode":        "no-cors",
+		"sec-fetch-dest":        "empty",
+		"priority":              "u=4, i",
 	}
 	for name, want := range wantHeaders {
 		if got := gotHeaders.Get(name); got != want {

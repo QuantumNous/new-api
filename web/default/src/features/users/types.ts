@@ -51,17 +51,24 @@ export const userSchema = z.object({
   inviter_id: z.number().optional(),
   ads_attribution: z.string().optional(),
   linux_do_id: z.string().optional(),
+  setting: z.string().optional(),
   status: userStatusSchema,
   role: userRoleSchema,
   created_at: z.number().optional(),
   updated_at: z.number().optional(),
   last_login_at: z.number().optional(),
+  registration_ip: z.string().optional(),
+  last_login_ip: z.string().optional(),
+  ip_country: z.string().optional(),
+  email_verified_at: z.number().optional(),
+  paid_amount: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
   stripe_customer: z.string().optional(),
   stripe_card_bound: z.boolean().optional(),
   new_user_bonus_given: z.boolean().optional(),
   is_enterprise: z.boolean().optional(),
+  is_honeypot: z.boolean().optional(),
 })
 export type User = z.infer<typeof userSchema>
 
@@ -99,6 +106,10 @@ export interface SearchUsersParams {
   group?: string
   role?: string
   status?: string
+  language?: string
+  paid?: boolean
+  email_verified?: boolean
+  country?: string
   p?: number
   page_size?: number
 }
@@ -111,6 +122,7 @@ export interface UserFormData {
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
   remark?: string // Only used when updating user
+  set_email_verified?: boolean // Only used when updating user (admin manually verifies)
 }
 
 export type ManageUserAction =

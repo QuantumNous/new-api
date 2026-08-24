@@ -219,8 +219,7 @@ func RequestPaddlePay(c *gin.Context) {
 	transaction, err := createPaddleTransaction(c, tradeNo, user, req.Amount, payMoney)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Paddle 创建交易失败 user_id=%d trade_no=%s sandbox=%t amount=%d money=%.2f error=%q", id, tradeNo, setting.EffectivePaddleSandbox(), req.Amount, payMoney, err.Error()))
-		topUp.Status = common.TopUpStatusFailed
-		_ = topUp.Update()
+		_ = model.UpdatePendingTopUpStatus(tradeNo, model.PaymentProviderPaddle, common.TopUpStatusFailed)
 		errorMessage := "拉起支付失败"
 		if setting.EffectivePaddleSandbox() || c.GetInt("role") >= common.RoleAdminUser {
 			errorMessage = fmt.Sprintf("Paddle 创建交易失败：%s", err.Error())
@@ -230,8 +229,7 @@ func RequestPaddlePay(c *gin.Context) {
 	}
 	if strings.TrimSpace(transaction.Data.ID) == "" {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Paddle 创建交易无 transaction_id user_id=%d trade_no=%s", id, tradeNo))
-		topUp.Status = common.TopUpStatusFailed
-		_ = topUp.Update()
+		_ = model.UpdatePendingTopUpStatus(tradeNo, model.PaymentProviderPaddle, common.TopUpStatusFailed)
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
@@ -352,16 +350,12 @@ func PaddleWebhook(c *gin.Context) {
 		return
 	}
 
-	recharged, err := model.RechargePaddle(customData.TradeNo, customData.UserID, transactionID, c.ClientIP())
+	_, err = model.RechargePaddle(customData.TradeNo, customData.UserID, transactionID, c.ClientIP())
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Paddle 充值处理失败 trade_no=%s transaction_id=%s client_ip=%s error=%q", customData.TradeNo, transactionID, c.ClientIP(), err.Error()))
 		c.String(http.StatusInternalServerError, "retry")
 		return
 	}
-	if recharged {
-		sendPaymentSuccessGA(c.Request.Context(), model.GetTopUpByTradeNo(customData.TradeNo))
-	}
-
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Paddle 充值成功 trade_no=%s transaction_id=%s client_ip=%s", customData.TradeNo, transactionID, c.ClientIP()))
 	c.String(http.StatusOK, "OK")
 }
@@ -445,20 +439,8 @@ func getPaddlePayMoney(amount int64, group string) float64 {
 		dAmount = dAmount.Div(decimal.NewFromFloat(common.QuotaPerUnit))
 	}
 
-	topupGroupRatio := common.GetTopupGroupRatio(group)
-	if topupGroupRatio == 0 {
-		topupGroupRatio = 1
-	}
-
-	discount := 1.0
-	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(amount)]; ok && ds > 0 {
-		discount = ds
-	}
-
 	return dAmount.
 		Mul(decimal.NewFromFloat(setting.PaddleUnitPrice)).
-		Mul(decimal.NewFromFloat(topupGroupRatio)).
-		Mul(decimal.NewFromFloat(discount)).
 		InexactFloat64()
 }
 

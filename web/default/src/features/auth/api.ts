@@ -26,6 +26,8 @@ import type {
   TwoFAPayload,
   RegisterPayload,
   ApiResponse,
+  CliDeviceAuthorization,
+  RegistrationEmailVerificationResponse,
 } from './types'
 
 // ============================================================================
@@ -58,6 +60,34 @@ export async function login2fa(payload: TwoFAPayload) {
 // User logout
 export async function logout(): Promise<ApiResponse> {
   const res = await api.get('/api/user/logout')
+  return res.data
+}
+
+export async function getCliDeviceAuthorization(
+  userCode: string
+): Promise<ApiResponse & { data?: CliDeviceAuthorization }> {
+  const res = await api.get(
+    `/api/cli/device_authorizations/${encodeURIComponent(userCode)}`,
+    { skipErrorHandler: true }
+  )
+  return res.data
+}
+
+export async function approveCliDeviceAuthorization(
+  userCode: string
+): Promise<ApiResponse & { data?: CliDeviceAuthorization }> {
+  const res = await api.post(
+    `/api/cli/device_authorizations/${encodeURIComponent(userCode)}/approve`
+  )
+  return res.data
+}
+
+export async function denyCliDeviceAuthorization(
+  userCode: string
+): Promise<ApiResponse & { data?: CliDeviceAuthorization }> {
+  const res = await api.post(
+    `/api/cli/device_authorizations/${encodeURIComponent(userCode)}/deny`
+  )
   return res.data
 }
 
@@ -135,6 +165,17 @@ export async function sendEmailVerification(
   const res = await api.get('/api/verification', {
     params: { email, turnstile },
   })
+  return res.data
+}
+
+export async function getRegistrationEmailVerificationStatus(
+  email: string
+): Promise<RegistrationEmailVerificationResponse> {
+  const res = await api.post<RegistrationEmailVerificationResponse>(
+    '/api/registration/email-verification/status',
+    { email },
+    { skipBusinessError: true }
+  )
   return res.data
 }
 

@@ -20,6 +20,11 @@ type OAuthUser struct {
 	DisplayName string
 	// Email is the email from the OAuth provider
 	Email string
+	// EmailVerified reports whether the provider has proven ownership of Email.
+	// Providers that only pass through an address without verifying it (e.g.
+	// generic/OIDC passthrough, LinuxDO) must leave this false so the account
+	// still has to verify its email through the standard flow before using tokens.
+	EmailVerified bool
 	// Extra contains any additional provider-specific data
 	Extra map[string]any
 }

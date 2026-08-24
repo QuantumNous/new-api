@@ -37,11 +37,13 @@ const getModelDefaults = (settings: BillingSettings) => ({
   ExposeRatioEnabled: settings.ExposeRatioEnabled,
   BillingMode: settings['billing_setting.billing_mode'],
   BillingExpr: settings['billing_setting.billing_expr'],
+  VideoRules: settings['billing_setting_video.video_price_rules'],
 })
 
 const getGroupDefaults = (settings: BillingSettings) => ({
   TopupGroupRatio: settings.TopupGroupRatio,
   GroupRatio: settings.GroupRatio,
+  GroupModelRatio: settings.GroupModelRatio,
   UserUsableGroups: settings.UserUsableGroups,
   GroupGroupRatio: settings.GroupGroupRatio,
   AutoGroups: settings.AutoGroups,
@@ -62,6 +64,7 @@ const BILLING_SECTIONS = [
           QuotaForInviter: settings.QuotaForInviter,
           QuotaForInviterMaxCount: settings.QuotaForInviterMaxCount,
           QuotaForInvitee: settings.QuotaForInvitee,
+          InviteFirstSubDiscountUSD: settings.InviteFirstSubDiscountUSD,
           TopUpLink: settings.TopUpLink,
           general_setting: {
             docs_link: settings['general_setting.docs_link'],
@@ -74,6 +77,9 @@ const BILLING_SECTIONS = [
         complianceConfirmed={
           (settings['payment_setting.compliance_confirmed'] ?? false) &&
           settings['payment_setting.compliance_terms_version'] === 'v1'
+        }
+        inviteRewardSubscriptionMode={
+          settings.InviteRewardSubscriptionModeEnabled ?? false
         }
       />
     ),
@@ -110,7 +116,15 @@ const BILLING_SECTIONS = [
         modelDefaults={getModelDefaults(settings)}
         groupDefaults={getGroupDefaults(settings)}
         toolPricesDefault={settings['tool_price_setting.prices']}
-        visibleTabs={['models', 'tool-prices', 'upstream-sync']}
+        hiddenModelsDefault={
+          settings['pricing_visibility_setting.hidden_models'] ?? ''
+        }
+        visibleTabs={[
+          'models',
+          'tool-prices',
+          'upstream-sync',
+          'hidden-models',
+        ]}
       />
     ),
   },
@@ -147,6 +161,7 @@ const BILLING_SECTIONS = [
           AmountDiscount: settings['payment_setting.amount_discount'],
           StripeApiSecret: settings.StripeApiSecret,
           StripeWebhookSecret: settings.StripeWebhookSecret,
+          StripePublishableKey: settings.StripePublishableKey,
           StripePriceId: settings.StripePriceId,
           StripePriceId20: settings.StripePriceId20 ?? '',
           StripePriceId200: settings.StripePriceId200 ?? '',

@@ -20,16 +20,33 @@ import { Link, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { useStatus } from '@/hooks/use-status'
 import { AuthLayout } from '../auth-layout'
+import { GoogleOneTap } from '../components/google-one-tap'
 import { TermsFooter } from '../components/terms-footer'
+import { resolvePendingPostLoginRedirect } from '../lib/storage'
 import { UserAuthForm } from './components/user-auth-form'
 
 export function SignIn() {
   const { t } = useTranslation()
-  const { redirect } = useSearch({ from: '/(auth)/sign-in' })
+  const { redirect: visibleRedirect, recall_redirect: recallRedirect } =
+    useSearch({ from: '/(auth)/sign-in' })
+  const redirect = resolvePendingPostLoginRedirect(
+    visibleRedirect,
+    recallRedirect
+  )
   const { status } = useStatus()
+  const googleOAuthEnabled = Boolean(
+    status?.google_oauth ?? status?.data?.google_oauth
+  )
+  const googleClientId =
+    status?.google_client_id ?? status?.data?.google_client_id
 
   return (
     <AuthLayout>
+      <GoogleOneTap
+        clientId={googleClientId}
+        enabled={googleOAuthEnabled}
+        returnTo={redirect}
+      />
       <div className='w-full space-y-8'>
         <div className='space-y-2'>
           <h2 className='bg-gradient-to-r from-slate-950 via-violet-950 to-violet-700 bg-clip-text text-center text-3xl font-semibold tracking-normal text-transparent sm:text-left dark:from-white dark:via-violet-100 dark:to-fuchsia-200'>
@@ -41,7 +58,14 @@ export function SignIn() {
                 {t("Don't have an account?")}{' '}
                 <Link
                   to='/sign-up'
-                  search={redirect ? { redirect } : undefined}
+                  search={
+                    visibleRedirect
+                      ? {
+                          redirect: visibleRedirect,
+                          recall_redirect: recallRedirect,
+                        }
+                      : undefined
+                  }
                   className='font-medium text-violet-700 underline underline-offset-4 hover:text-fuchsia-700 dark:text-violet-200 dark:hover:text-fuchsia-200'
                 >
                   {t('Sign up')}
@@ -51,7 +75,11 @@ export function SignIn() {
             )}
         </div>
 
-        <UserAuthForm redirectTo={redirect} />
+        <UserAuthForm
+          redirectTo={redirect}
+          visibleRedirectTo={visibleRedirect}
+          recallRedirectNonce={recallRedirect}
+        />
 
         <TermsFooter status={status} className='text-center' />
       </div>

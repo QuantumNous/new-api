@@ -20,6 +20,14 @@ func SetVideoRouter(router *gin.Engine) {
 	videoProxyRouter.Use(middleware.DownloadRateLimit())
 	{
 		videoProxyRouter.GET("/videos/:task_id/content", controller.VideoProxy)
+		videoProxyRouter.GET("/video-to-music/:task_id/content", controller.VideoProxy)
+	}
+
+	tempMediaRouter := router.Group("/v1/temp-media")
+	tempMediaRouter.Use(middleware.RouteTag("relay"))
+	tempMediaRouter.Use(middleware.TokenAuth(), middleware.UploadRateLimit())
+	{
+		tempMediaRouter.POST("/images", controller.UploadTempMediaImage)
 	}
 
 	videoV1Router := router.Group("/v1")
@@ -28,6 +36,10 @@ func SetVideoRouter(router *gin.Engine) {
 	{
 		videoV1Router.POST("/video/generations", controller.RelayTask)
 		videoV1Router.GET("/video/generations/:task_id", controller.RelayTaskFetch)
+		videoV1Router.POST("/generation/tasks", controller.RelayTask)
+		videoV1Router.GET("/generation/tasks/:task_id", controller.RelayTaskFetch)
+		videoV1Router.POST("/video-to-music", controller.RelayTask)
+		videoV1Router.GET("/video-to-music/:task_id", controller.RelayTaskFetch)
 		videoV1Router.POST("/videos/:video_id/remix", controller.RelayTask)
 	}
 	// openai compatible API video routes

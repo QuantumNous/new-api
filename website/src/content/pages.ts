@@ -1,4 +1,5 @@
 import type { Locale } from "@/lib/locales";
+import { withIdFallback } from "@/lib/locales";
 import { getDefaultLegalDocument, type LegalDocumentKind } from "./legal/default-documents";
 
 type PageContent = {
@@ -34,11 +35,13 @@ const generic: Record<string, Omit<PageContent, "eyebrow">> = {
   about: {
     title: "About flatkey.ai",
     description:
-      "flatkey.ai helps teams operate AI APIs with routing, billing, analytics, and access controls in one gateway.",
+      "flatkey.ai is built by an AI-native team headquartered in San Jose, Silicon Valley — recognized by OpenAI for passing 10 billion tokens, serving 4M+ users across our products.",
     sections: [
-      { title: "Built for operators", body: "The product focuses on reliability, cost clarity, and day-to-day AI API operations." },
+      { title: "Based in Silicon Valley", body: "Our team works onsite at Q Bay Center, 160 E Tasman Drive, San Jose, California — in the heart of Silicon Valley, minutes from the teams building the models we route." },
+      { title: "Recognized by OpenAI", body: "OpenAI has formally recognized our team for passing 10 billion tokens processed — the kind of production volume that keeps our routing, billing, and reliability battle-tested every day." },
+      { title: "Built for operators", body: "The product focuses on reliability, cost clarity, and day-to-day AI API operations. Products across our group (flatkey, VOC AI, Solvea) serve more than 4 million users." },
       { title: "Provider neutral", body: "Teams can connect multiple upstream providers while keeping one client-facing API." },
-      { title: "Production first", body: "The public website is now separated from the application shell so search engines receive real HTML." },
+      { title: "An AI-native team", body: "Every person here works with a fleet of AI agents. We are hiring builders and growth engineers — see our careers page." },
     ],
   },
   terms: {
@@ -64,11 +67,11 @@ const generic: Record<string, Omit<PageContent, "eyebrow">> = {
 };
 
 
-const localizedPageCopy: Record<Locale, Record<keyof typeof generic, { title: string; description: string }>> = {
+const localizedPageCopy: Record<Locale, Record<keyof typeof generic, { title: string; description: string }>> =withIdFallback({
   en: {
     pricing: { title: "Transparent AI model pricing", description: "Compare model access, routing, and billing options for production AI workloads on flatkey.ai." },
     rankings: { title: "AI model rankings and market signals", description: "Explore model availability, usage trends, and operational signals for teams choosing production AI models." },
-    about: { title: "About flatkey.ai", description: "flatkey.ai helps teams operate AI APIs with routing, billing, analytics, and access controls in one gateway." },
+    about: { title: "About flatkey.ai", description: "flatkey.ai is built by an AI-native team headquartered in San Jose, Silicon Valley — recognized by OpenAI for passing 10 billion tokens, serving 4M+ users across our products." },
     terms: { title: "Terms of Service", description: "Read the terms that govern accounts, prepaid balance, model access, usage, billing, refunds, and dispute handling for flatkey.ai." },
     privacy: { title: "Privacy Policy", description: "Learn how flatkey.ai collects, uses, shares, retains, and protects account, payment, API usage, support, and security information." },
     sla: { title: "Service Level Agreement", description: "Review flatkey.ai availability scope, incident handling, maintenance, exclusions, support process, and remedies." },
@@ -77,7 +80,7 @@ const localizedPageCopy: Record<Locale, Record<keyof typeof generic, { title: st
   zh: {
     pricing: { title: "透明的 AI 模型定价", description: "比较 flatkey.ai 上生产级 AI 工作负载的模型接入、路由和账单方案。" },
     rankings: { title: "AI 模型排行与市场信号", description: "探索模型可用性、使用趋势和运营信号，帮助团队选择生产环境 AI 模型。" },
-    about: { title: "关于 flatkey.ai", description: "flatkey.ai 通过一个网关帮助团队运营 AI API，集中管理路由、计费、分析和访问控制。" },
+    about: { title: "关于 flatkey.ai", description: "flatkey.ai 由一支总部位于硅谷 San Jose 的 AI-native 团队打造——获 OpenAI 官方授奖表彰 100 亿 tokens 里程碑，旗下产品服务超 400 万用户。" },
     terms: { title: "服务条款", description: "阅读适用于 flatkey.ai 账号、预付余额、模型接入、用量、账单、退款和争议处理的条款。" },
     privacy: { title: "隐私政策", description: "了解 flatkey.ai 如何收集、使用、共享、保留和保护账号、支付、API 用量、支持与安全信息。" },
     sla: { title: "服务等级协议", description: "查看 flatkey.ai 的可用性范围、事件处理、维护、排除项、支持流程和补救方式。" },
@@ -146,7 +149,7 @@ const localizedPageCopy: Record<Locale, Record<keyof typeof generic, { title: st
     sla: { title: "Service-Level-Agreement", description: "Prüfe Verfügbarkeitsumfang, Vorfallbehandlung, Wartung, Ausnahmen, Supportprozess und Abhilfemaßnahmen von flatkey.ai." },
     "refund-policy": { title: "Rückerstattungsrichtlinie", description: "Prüfe, wie flatkey.ai Rückerstattungsanspruch, ungenutztes Guthaben, verbrauchte API-Nutzung, Doppelbuchungen, Streitfälle, Steuern und Supportanfragen behandelt." },
   },
-};
+});
 
 const legalDocumentByPage: Partial<Record<keyof typeof generic, LegalDocumentKind>> = {
   terms: "terms",
@@ -163,7 +166,7 @@ function getMarkdownTitle(markdown: string): string | undefined {
     .trim();
 }
 
-const eyebrowByLocale: Record<Locale, string> = {
+const eyebrowByLocale: Record<Locale, string> =withIdFallback({
   en: "Official website",
   zh: "官方网站",
   es: "Sitio oficial",
@@ -173,7 +176,7 @@ const eyebrowByLocale: Record<Locale, string> = {
   ja: "公式サイト",
   vi: "Trang chính thức",
   de: "Offizielle Website",
-};
+});
 
 export type PublicPageKey = keyof typeof generic;
 

@@ -43,7 +43,7 @@ export function MessageError({ message, className = '' }: MessageErrorProps) {
   }
 
   const errorContent =
-    message.versions[0]?.content || 'An unknown error occurred'
+    message.versions[0]?.content || t('An unknown error occurred')
 
   if (message.errorCode === 'model_price_error') {
     return (

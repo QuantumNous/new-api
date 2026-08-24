@@ -23,23 +23,14 @@ import { useTranslation } from 'react-i18next'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { formatTokens } from '../lib/format'
-import type { ModelHistorySeries, ModelRanking, RankingPeriod } from '../types'
+import type { ModelHistorySeries, ModelRanking } from '../types'
 import { ModelLeaderboard } from './model-leaderboard'
-
-const PERIOD_DESCRIPTIONS: Record<RankingPeriod, string> = {
-  today: 'Hourly token usage by model across the last 24 hours',
-  week: 'Weekly token usage by model across the past few weeks',
-  month: 'Daily token usage by model across the past month',
-  year: 'Weekly token usage by model across the past year',
-  all: 'Token usage by model since launch',
-}
 
 const TOOLTIP_MAX_ROWS = 10
 
 type ModelsSectionProps = {
   history: ModelHistorySeries
   rows: ModelRanking[]
-  period: RankingPeriod
 }
 
 /**
@@ -172,7 +163,7 @@ export function ModelsSection(props: ModelsSectionProps) {
             {t('Top Models')}
           </h2>
           <p className='text-muted-foreground mt-1 text-sm'>
-            {t(PERIOD_DESCRIPTIONS[props.period])}
+            {t('Daily token usage by model across the past month')}
           </p>
         </div>
         <div className='shrink-0 text-right'>
@@ -189,7 +180,7 @@ export function ModelsSection(props: ModelsSectionProps) {
         <div className='h-60 sm:h-72'>
           {themeReady && spec ? (
             <VChart
-              key={`models-history-${resolvedTheme}-${props.period}`}
+              key={`models-history-${resolvedTheme}`}
               spec={{
                 ...spec,
                 theme: resolvedTheme === 'dark' ? 'dark' : 'light',

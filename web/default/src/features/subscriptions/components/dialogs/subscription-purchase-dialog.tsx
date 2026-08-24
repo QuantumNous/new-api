@@ -16,11 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useEffect } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import { isAxiosError } from 'axios'
 import { Crown, CalendarClock, Package } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
+import { getGAMeasurementIdentifiers } from '@/lib/analytics/gtag'
 import { formatQuota } from '@/lib/format'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -37,13 +46,18 @@ import { Separator } from '@/components/ui/separator'
 import { Dialog } from '@/components/dialog'
 import { GroupBadge } from '@/components/group-badge'
 import {
+  isRecallPriceEligible,
+  validateRecallClaim,
+} from '@/features/wallet/lib/recall-claim'
+import type { RecallClaimView, RecallOfferView } from '@/features/wallet/types'
+import {
   paySubscriptionStripe,
   paySubscriptionCreem,
   paySubscriptionEpay,
   paySubscriptionWaffoPancake,
   paySubscriptionBalance,
 } from '../../api'
-import { formatDuration, formatResetPeriod } from '../../lib'
+import { formatDuration, formatMediaValue, formatResetPeriod } from '../../lib'
 import type { PlanRecord } from '../../types'
 
 interface PaymentMethod {
@@ -66,24 +80,113 @@ interface Props {
   onPurchaseSuccess?: () => void | Promise<void>
 }
 
+interface RecallClaimContextValue {
+  offers: RecallOfferView[]
+  loading: boolean
+  claim?: string
+  view?: RecallClaimView
+}
+
+const RecallClaimContext = createContext<RecallClaimContextValue>({
+  offers: [],
+  loading: false,
+})
+
+interface RecallClaimProviderProps {
+  children: ReactNode
+  offers?: RecallOfferView[]
+  loading?: boolean
+  claim?: string
+  view?: RecallClaimView
+}
+
+export function RecallClaimProvider(props: RecallClaimProviderProps) {
+  const offers =
+    props.offers ??
+    (props.view ? [{ ...props.view, issued_at: 0 } as RecallOfferView] : [])
+
+  return (
+    <RecallClaimContext.Provider
+      value={{
+        offers,
+        loading: props.loading === true,
+        claim: props.claim,
+        view: props.view,
+      }}
+    >
+      {props.children}
+    </RecallClaimContext.Provider>
+  )
+}
+
+export function useRecallClaimContext(): RecallClaimContextValue {
+  return useContext(RecallClaimContext)
+}
+
+function createStableSubscriptionRequestId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+    (Number(c) ^ ((Math.random() * 16) >> (Number(c) / 4))).toString(16)
+  )
+}
+
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
   const { currency } = useSystemConfig()
   const [paying, setPaying] = useState(false)
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('')
+  const purchaseRequestIdsRef = useRef<Record<string, string>>({})
+  const recallClaim = useRecallClaimContext()
+  const epayMethods = props.epayMethods || []
+  const selectedEpayMethodValue = props.open
+    ? epayMethods.some((method) => method.type === selectedEpayMethod)
+      ? selectedEpayMethod
+      : epayMethods[0]?.type || ''
+    : ''
 
   useEffect(() => {
     if (props.open && props.epayMethods && props.epayMethods.length > 0) {
-      setSelectedEpayMethod(props.epayMethods[0].type)
+      const firstMethod = props.epayMethods[0].type
+      queueMicrotask(() => setSelectedEpayMethod(firstMethod))
     } else if (!props.open) {
-      setSelectedEpayMethod('')
+      purchaseRequestIdsRef.current = {}
+      queueMicrotask(() => setSelectedEpayMethod(''))
     }
   }, [props.open, props.epayMethods])
+
+  const getStablePurchaseRequestId = (scope: string) => {
+    if (!scope) return createStableSubscriptionRequestId()
+    const existingRequestId = purchaseRequestIdsRef.current[scope]
+    if (existingRequestId) return existingRequestId
+    const nextRequestId = createStableSubscriptionRequestId()
+    purchaseRequestIdsRef.current = {
+      ...purchaseRequestIdsRef.current,
+      [scope]: nextRequestId,
+    }
+    return nextRequestId
+  }
+
+  const rotateStablePurchaseRequestId = (scope: string) => {
+    if (!scope) return
+    purchaseRequestIdsRef.current = {
+      ...purchaseRequestIdsRef.current,
+      [scope]: createStableSubscriptionRequestId(),
+    }
+  }
 
   const plan = props.plan?.plan
   if (!plan) return null
 
   const hasStripe = props.enableStripe && !!plan.stripe_price_id
+  const recallPlanEligible = recallClaim.offers.some((offer) =>
+    isRecallPriceEligible(
+      offer,
+      plan.stripe_price_id || plan.id,
+      'subscription'
+    )
+  )
   const hasCreem = props.enableCreem && !!plan.creem_product_id
   const hasWaffoPancake =
     props.enableWaffoPancake && !!plan.waffo_pancake_product_id
@@ -91,9 +194,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
   const hasAnyPayment = hasStripe || hasCreem || hasWaffoPancake || hasEpay
   const selectedEpayMethodLabel =
-    (props.epayMethods || []).find((m) => m.type === selectedEpayMethod)
-      ?.name ||
-    selectedEpayMethod ||
+    epayMethods.find((m) => m.type === selectedEpayMethodValue)?.name ||
+    selectedEpayMethodValue ||
     t('Select payment method')
   const totalAmount = Number(plan.total_amount || 0)
   const price = Number(plan.price_amount || 0).toFixed(2)
@@ -114,8 +216,28 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
   const handlePayStripe = async () => {
     setPaying(true)
+    const requestScope = `stripe:${plan.id}`
     try {
-      const res = await paySubscriptionStripe({ plan_id: plan.id })
+      let validatedRecallClaim: string | undefined
+      if (recallPlanEligible && recallClaim.claim && plan.stripe_price_id) {
+        const validation = await validateRecallClaim({
+          claim: recallClaim.claim,
+          price_id: plan.stripe_price_id,
+          purchase_kind: 'subscription',
+        })
+        if (!validation.success || !validation.data) {
+          toast.error(validation.message || t('Recall offer is unavailable'))
+          return
+        }
+        validatedRecallClaim = recallClaim.claim
+      }
+
+      const res = await paySubscriptionStripe({
+        plan_id: plan.id,
+        request_id: getStablePurchaseRequestId(requestScope),
+        ...(validatedRecallClaim ? { recall_claim: validatedRecallClaim } : {}),
+        ...getGAMeasurementIdentifiers(),
+      })
       if (res.message === 'success' && res.data?.pay_link) {
         window.open(res.data.pay_link, '_blank')
         toast.success(t('Payment page opened'))
@@ -126,8 +248,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
             ? res.message
             : t('Payment request failed')
         )
+        rotateStablePurchaseRequestId(requestScope)
       }
-    } catch {
+    } catch (error) {
+      if (isAxiosError(error) && error.response) {
+        rotateStablePurchaseRequestId(requestScope)
+      }
       toast.error(t('Payment request failed'))
     } finally {
       setPaying(false)
@@ -137,7 +263,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const handlePayCreem = async () => {
     setPaying(true)
     try {
-      const res = await paySubscriptionCreem({ plan_id: plan.id })
+      const res = await paySubscriptionCreem({
+        plan_id: plan.id,
+        ...getGAMeasurementIdentifiers(),
+      })
       if (res.message === 'success' && res.data?.checkout_url) {
         window.open(res.data.checkout_url, '_blank')
         toast.success(t('Payment page opened'))
@@ -161,7 +290,10 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const handlePayWaffoPancake = async () => {
     setPaying(true)
     try {
-      const res = await paySubscriptionWaffoPancake({ plan_id: plan.id })
+      const res = await paySubscriptionWaffoPancake({
+        plan_id: plan.id,
+        ...getGAMeasurementIdentifiers(),
+      })
       if (res.message === 'success' && res.data?.checkout_url) {
         toast.success(t('Redirecting to payment page...'))
         window.location.href = res.data.checkout_url
@@ -184,15 +316,18 @@ export function SubscriptionPurchaseDialog(props: Props) {
     /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
 
   const handlePayEpay = async () => {
-    if (!selectedEpayMethod) {
+    if (!selectedEpayMethodValue) {
       toast.error(t('Please select a payment method'))
       return
     }
     setPaying(true)
+    const requestScope = `epay:${plan.id}:${selectedEpayMethodValue}`
     try {
       const res = await paySubscriptionEpay({
         plan_id: plan.id,
-        payment_method: selectedEpayMethod,
+        payment_method: selectedEpayMethodValue,
+        request_id: getStablePurchaseRequestId(requestScope),
+        ...getGAMeasurementIdentifiers(),
       })
       if (res.message === 'success' && res.url) {
         const form = document.createElement('form')
@@ -219,8 +354,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
             ? res.message
             : t('Payment request failed')
         )
+        rotateStablePurchaseRequestId(requestScope)
       }
-    } catch {
+    } catch (error) {
+      if (isAxiosError(error) && error.response) {
+        rotateStablePurchaseRequestId(requestScope)
+      }
       toast.error(t('Payment request failed'))
     } finally {
       setPaying(false)
@@ -295,15 +434,36 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <span className='text-sm'>{formatResetPeriod(plan, t)}</span>
             </div>
           )}
+          {/* Plan quota is an estimated max usage value, not a wallet top-up —
+              mirror the plan card's two-category framing. */}
           <div className='flex items-center justify-between'>
             <span className='text-muted-foreground text-sm'>
-              {t('Received amount')}
+              {t('Text models')}
             </span>
             <span className='flex items-center gap-1 text-sm'>
               <Package className='h-3.5 w-3.5' />
-              {totalAmount > 0 ? formatQuota(totalAmount) : t('Unlimited')}
+              {totalAmount > 0
+                ? t('Up to {{value}} in model usage', {
+                    value: formatQuota(totalAmount),
+                  })
+                : t('Unlimited')}
             </span>
           </div>
+          {Number(plan.media_credits_monthly || 0) > 0 && (
+            <div className='flex items-start justify-between gap-3'>
+              <span className='text-muted-foreground text-sm'>
+                {t('Image & video models')}
+              </span>
+              <span className='text-right text-sm'>
+                {t('{{count}} media credits / month', {
+                  count: Number(plan.media_credits_monthly || 0),
+                })}
+                <span className='text-muted-foreground block text-xs'>
+                  {formatMediaValue(Number(plan.media_credits_monthly || 0), t)}
+                </span>
+              </span>
+            </div>
+          )}
           {plan.upgrade_group && (
             <div className='flex items-center justify-between'>
               <span className='text-muted-foreground text-sm'>
@@ -328,56 +488,56 @@ export function SubscriptionPurchaseDialog(props: Props) {
           </Alert>
         )}
 
-        <div className='flex flex-col gap-2 rounded-md border p-3'>
-          <div className='flex items-center justify-between gap-2 text-xs'>
-            <span className='text-muted-foreground'>{t('Required')}</span>
-            <span>{formatQuota(balanceCost)}</span>
-          </div>
-          <div className='flex items-center justify-between gap-2 text-xs'>
-            <span className='text-muted-foreground'>{t('Available')}</span>
-            <span>{formatQuota(userQuota)}</span>
-          </div>
-          {!allowBalancePay ? (
-            <Alert variant='destructive'>
-              <AlertDescription>
-                {t('This plan does not allow balance redemption')}
-              </AlertDescription>
-            </Alert>
-          ) : (
-            insufficientBalance && (
-              <Alert variant='destructive'>
-                <AlertDescription>{t('Insufficient balance')}</AlertDescription>
-              </Alert>
-            )
-          )}
-          <Button
-            variant='outline'
-            onClick={handlePayBalance}
-            disabled={
-              paying || limitReached || !allowBalancePay || insufficientBalance
-            }
-          >
-            {t('Pay with Balance')}
-          </Button>
-        </div>
+        {recallClaim.offers.length > 0 && (
+          <Alert>
+            <AlertDescription>
+              {recallPlanEligible
+                ? t(
+                    'Your recall offer applies to this plan only when you pay with Stripe. Other payment methods will not use the discount.'
+                  )
+                : t(
+                    'This plan is not eligible for your recall offer. Choose an eligible Stripe plan to use the discount.'
+                  )}
+            </AlertDescription>
+          </Alert>
+        )}
 
-        {hasAnyPayment && (
+        {/* Card payment is the primary path; balance redemption only surfaces
+            as a secondary option when the wallet can actually cover the plan. */}
+        {hasStripe && (
+          <Button
+            className='w-full'
+            size='lg'
+            onClick={handlePayStripe}
+            disabled={paying || limitReached}
+          >
+            {t('Pay with card (Stripe)')}
+          </Button>
+        )}
+
+        {allowBalancePay && !insufficientBalance && (
+          <div className='flex flex-col gap-2 rounded-md border p-3'>
+            <div className='flex items-center justify-between gap-2 text-xs'>
+              <span className='text-muted-foreground'>{t('Available')}</span>
+              <span>{formatQuota(userQuota)}</span>
+            </div>
+            <Button
+              variant='outline'
+              onClick={handlePayBalance}
+              disabled={paying || limitReached}
+            >
+              {t('Pay with Balance')}
+            </Button>
+          </div>
+        )}
+
+        {hasAnyPayment && (hasCreem || hasWaffoPancake || hasEpay) && (
           <div className='space-y-3'>
             <p className='text-muted-foreground text-xs'>
               {t('Select payment method')}
             </p>
-            {(hasStripe || hasCreem || hasWaffoPancake) && (
+            {(hasCreem || hasWaffoPancake) && (
               <div className='grid grid-cols-2 gap-2 sm:flex'>
-                {hasStripe && (
-                  <Button
-                    variant='outline'
-                    className='flex-1'
-                    onClick={handlePayStripe}
-                    disabled={paying || limitReached}
-                  >
-                    Stripe
-                  </Button>
-                )}
                 {hasCreem && (
                   <Button
                     variant='outline'
@@ -404,12 +564,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
                 <Select
                   items={[
-                    ...(props.epayMethods || []).map((m) => ({
+                    ...epayMethods.map((m) => ({
                       value: m.type,
                       label: m.name || m.type,
                     })),
                   ]}
-                  value={selectedEpayMethod}
+                  value={selectedEpayMethodValue}
                   onValueChange={(v) => v !== null && setSelectedEpayMethod(v)}
                   disabled={limitReached}
                 >
@@ -418,7 +578,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   </SelectTrigger>
                   <SelectContent alignItemWithTrigger={false}>
                     <SelectGroup>
-                      {(props.epayMethods || []).map((m) => (
+                      {epayMethods.map((m) => (
                         <SelectItem key={m.type} value={m.type}>
                           {m.name || m.type}
                         </SelectItem>
@@ -428,7 +588,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                 </Select>
                 <Button
                   onClick={handlePayEpay}
-                  disabled={paying || !selectedEpayMethod || limitReached}
+                  disabled={paying || !selectedEpayMethodValue || limitReached}
                 >
                   {t('Pay')}
                 </Button>

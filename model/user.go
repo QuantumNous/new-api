@@ -1,19 +1,23 @@
 package model
 
 import (
+	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/phuslu/iploc"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const UserNameMaxLength = 20
@@ -31,6 +35,8 @@ type User struct {
 	Role                    int            `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status                  int            `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	Email                   string         `json:"email" gorm:"index" validate:"max=50"`
+	EmailVerifiedAt         int64          `json:"email_verified_at" gorm:"default:0;column:email_verified_at;index"`
+	EmailDomain             string         `json:"-" gorm:"type:varchar(253);column:email_domain;index"`
 	GitHubId                string         `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId               string         `json:"discord_id" gorm:"column:discord_id;index"`
 	OidcId                  string         `json:"oidc_id" gorm:"column:oidc_id;index"`
@@ -61,22 +67,60 @@ type User struct {
 	StripeCustomer          string         `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 	StripeCardBound         bool           `json:"stripe_card_bound" gorm:"default:false;column:stripe_card_bound"`
 	NewUserBonusGiven       bool           `json:"new_user_bonus_given" gorm:"default:false;column:new_user_bonus_given"`
+	RegistrationIP          string         `json:"registration_ip,omitempty" gorm:"type:varchar(64);column:registration_ip;index"`
+	RegistrationCountry     string         `json:"registration_country,omitempty" gorm:"type:varchar(2);column:registration_country;index"`
 	IsEnterprise            bool           `json:"is_enterprise" gorm:"default:false;column:is_enterprise"` // enterprise users retain the group concept; PLG (non-enterprise) users are forced to the plg group with groups hidden
-	StripeCardFingerprint   string         `json:"stripe_card_fingerprint,omitempty" gorm:"type:varchar(64);column:stripe_card_fingerprint;index"`
-	CreatedAt               int64          `json:"created_at" gorm:"autoCreateTime;column:created_at"`
-	LastLoginAt             int64          `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	// PaidAmount is the lifetime total of successful top-ups (USD) for this
+	// user. It is not persisted on the user row — FillPaidAmounts aggregates it
+	// from the top_ups table when listing users (admin console only).
+	PaidAmount float64 `json:"paid_amount,omitempty" gorm:"-"`
+	// IPCountry is the ISO country code resolved from the user's registration
+	// (or last-login) IP. Not persisted — FillIPCountries resolves it at list
+	// time via the embedded iploc database (admin console only).
+	IPCountry string `json:"ip_country,omitempty" gorm:"-"`
+	// SetEmailVerified is a control field for the admin UpdateUser endpoint.
+	// When non-nil it overrides EmailVerifiedAt (true → now, false → 0); when
+	// nil the existing value is left untouched. Never persisted.
+	SetEmailVerified *bool `json:"set_email_verified,omitempty" gorm:"-"`
+	// Website is a honeypot field (JSON key disguised as a common form field).
+	// The hidden registration input is invisible to humans but bots auto-fill
+	// it; a non-empty value marks the request as a bot and Register silently
+	// drops it. Never persisted.
+	Website string `json:"website,omitempty" gorm:"-"`
+	// IsHoneypot marks accounts created by a honeypot (hidden field) submission.
+	// Such accounts are created already disabled; the flag lets admins
+	// distinguish them from manually-disabled accounts in the users table.
+	IsHoneypot            bool   `json:"is_honeypot" gorm:"default:false;column:is_honeypot"`
+	StripeCardFingerprint string `json:"stripe_card_fingerprint,omitempty" gorm:"type:varchar(64);column:stripe_card_fingerprint;index"`
+	CreatedAt             int64  `json:"created_at" gorm:"autoCreateTime;column:created_at"`
+	LastLoginAt           int64  `json:"last_login_at" gorm:"default:0;column:last_login_at"`
+	// Primary Accept-Language tag observed at the most recent login
+	// (e.g. "zh-CN"). Analytics-only: surfaced in the ops report to explain
+	// currency/locale mismatches; never used for authorization.
+	BrowserLang string `json:"browser_lang" gorm:"type:varchar(32);default:'';column:browser_lang"`
+	// Client IP observed at the most recent website login (console.flatkey.ai,
+	// behind Cloudflare → real personal-device IP). Analytics-only: this is the
+	// user's own machine, unlike the /v1 request IP which is usually their
+	// production server. Surfaced in the ops report as the real user location.
+	LastLoginIp string `json:"last_login_ip" gorm:"type:varchar(64);default:'';column:last_login_ip"`
+	// ISO country of the card used on the most recent successful Stripe payment
+	// (card issuing country). Analytics-only: the most reliable geography signal
+	// for paid users. Persisted at webhook fulfillment.
+	PayCountry string `json:"pay_country" gorm:"type:varchar(8);default:'';column:pay_country"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
-		Id:           user.Id,
-		Group:        user.Group,
-		Quota:        user.Quota,
-		Status:       user.Status,
-		Username:     user.Username,
-		Setting:      user.Setting,
-		Email:        user.Email,
-		IsEnterprise: user.IsEnterprise,
+		Id:              user.Id,
+		Group:           user.Group,
+		Quota:           user.Quota,
+		Status:          user.Status,
+		Username:        user.Username,
+		Setting:         user.Setting,
+		Email:           user.Email,
+		IsEnterprise:    user.IsEnterprise,
+		EmailVerifiedAt: user.EmailVerifiedAt,
+		Role:            user.Role,
 	}
 	return cache
 }
@@ -95,7 +139,7 @@ func (user *User) SetAccessToken(token string) {
 func (user *User) GetSetting() dto.UserSetting {
 	setting := dto.UserSetting{}
 	if user.Setting != "" {
-		err := json.Unmarshal([]byte(user.Setting), &setting)
+		err := common.Unmarshal([]byte(user.Setting), &setting)
 		if err != nil {
 			common.SysLog("failed to unmarshal setting: " + err.Error())
 		}
@@ -104,7 +148,7 @@ func (user *User) GetSetting() dto.UserSetting {
 }
 
 func (user *User) SetSetting(setting dto.UserSetting) {
-	settingBytes, err := json.Marshal(setting)
+	settingBytes, err := common.Marshal(setting)
 	if err != nil {
 		common.SysLog("failed to marshal setting: " + err.Error())
 		return
@@ -165,7 +209,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	// 普通用户不包含admin区域
 
 	// 转换为JSON字符串
-	configBytes, err := json.Marshal(defaultConfig)
+	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
 		common.SysLog("生成默认边栏配置失败: " + err.Error())
 		return ""
@@ -205,7 +249,6 @@ func GetMaxUserId() int {
 }
 
 func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err error) {
-	// Start transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -235,6 +278,11 @@ func GetAllUsers(pageInfo *common.PageInfo) (users []*User, total int64, err err
 		return nil, 0, err
 	}
 
+	if err := FillPaidAmounts(users); err != nil {
+		common.SysError("failed to fill paid amounts for user list: " + err.Error())
+	}
+	FillIPCountries(users)
+
 	return users, total, nil
 }
 
@@ -260,7 +308,76 @@ func GetRecallCandidates(minCalls int, maxQuota int, limit int) ([]*User, error)
 	return users, err
 }
 
-func SearchUsers(keyword string, group string, role *int, status *int, startIdx int, num int) ([]*User, int64, error) {
+type RecallAudienceUserLookup struct {
+	Keyword  string
+	PageSize int
+	IDs      []int
+}
+
+func ListRecallAudienceUserOptionsWithContext(ctx context.Context, lookup RecallAudienceUserLookup) ([]*User, error) {
+	keyword := strings.TrimSpace(lookup.Keyword)
+	ids, err := normalizeRecallAudienceUserIDs(lookup.IDs)
+	if err != nil {
+		return nil, err
+	}
+	if keyword == "" && len(ids) == 0 {
+		return []*User{}, nil
+	}
+	if keyword != "" && len(ids) > 0 {
+		return nil, errors.New("recall audience user lookup requires exactly one mode")
+	}
+
+	query := DB.WithContext(ctx).Model(&User{}).Select("id", "username", "display_name", "email", "status")
+	if len(ids) > 0 {
+		var users []*User
+		err = query.Where("id IN ?", ids).Order("id ASC").Find(&users).Error
+		return users, err
+	}
+
+	pageSize := lookup.PageSize
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+	pattern := recallAudienceUserLikePattern(keyword)
+	var users []*User
+	err = query.
+		Where("(username LIKE ? ESCAPE '!' OR display_name LIKE ? ESCAPE '!' OR email LIKE ? ESCAPE '!')", pattern, pattern, pattern).
+		Order("id ASC").
+		Limit(pageSize).
+		Find(&users).Error
+	return users, err
+}
+
+func normalizeRecallAudienceUserIDs(ids []int) ([]int, error) {
+	if len(ids) > 500 {
+		return nil, errors.New("recall audience user lookup supports at most 500 ids")
+	}
+	seen := make(map[int]struct{}, len(ids))
+	deduped := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			return nil, errors.New("recall audience user lookup ids must be positive")
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		deduped = append(deduped, id)
+	}
+	return deduped, nil
+}
+
+func recallAudienceUserLikePattern(keyword string) string {
+	escaped := strings.ReplaceAll(keyword, "!", "!!")
+	escaped = strings.ReplaceAll(escaped, "%", "!%")
+	escaped = strings.ReplaceAll(escaped, "_", "!_")
+	return "%" + escaped + "%"
+}
+
+func SearchUsers(keyword string, group string, role *int, status *int, language string, paid bool, emailVerified *bool, country string, startIdx int, num int) ([]*User, int64, error) {
 	var users []*User
 	var total int64
 	var err error
@@ -305,27 +422,164 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 			query = query.Where("deleted_at IS NULL").Where("status = ?", *status)
 		}
 	}
+	if paid {
+		query = query.Where("id IN (SELECT user_id FROM top_ups WHERE status = ?)", common.TopUpStatusSuccess)
+	}
+	if emailVerified != nil {
+		if *emailVerified {
+			query = query.Where("email_verified_at > 0")
+		} else {
+			query = query.Where("email_verified_at = 0")
+		}
+	}
+	query = applyUserLanguageFilter(query, language)
+	country = strings.ToUpper(strings.TrimSpace(country))
+	if country != "" {
+		query = query.Where("registration_country = ?", country)
+	}
+	return searchUsersWithQuery(query, startIdx, num, users, total, tx)
 
-	// 获取总数
-	err = query.Count(&total).Error
-	if err != nil {
+}
+
+// searchUsersWithQuery keeps the ordinary SQL pagination path separate from
+// country filtering, which is resolved from the embedded IP database in Go.
+func searchUsersWithQuery(query *gorm.DB, startIdx, num int, users []*User, total int64, tx *gorm.DB) ([]*User, int64, error) {
+	if err := query.Count(&total).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
-
-	// 获取分页数据
-	err = query.Omit("password").Order("id desc").Limit(num).Offset(startIdx).Find(&users).Error
-	if err != nil {
+	if err := query.Omit("password").Order("id desc").Limit(num).Offset(startIdx).Find(&users).Error; err != nil {
 		tx.Rollback()
 		return nil, 0, err
 	}
-
-	// 提交事务
-	if err = tx.Commit().Error; err != nil {
+	if err := tx.Commit().Error; err != nil {
 		return nil, 0, err
 	}
-
+	if err := FillPaidAmounts(users); err != nil {
+		common.SysError("failed to fill paid amounts for user search: " + err.Error())
+	}
+	FillIPCountries(users)
 	return users, total, nil
+}
+
+// FillPaidAmounts hydrates each user's PaidAmount with the lifetime total of
+// successful top-ups (USD). It runs one grouped query for the whole page rather
+// than N per-user queries. Read-only; safe under multi-node.
+func FillPaidAmounts(users []*User) error {
+	if len(users) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(users))
+	for _, u := range users {
+		ids = append(ids, u.Id)
+	}
+	type paidRow struct {
+		UserId int     `gorm:"column:user_id"`
+		Total  float64 `gorm:"column:total"`
+	}
+	var rows []paidRow
+	if err := DB.Model(&TopUp{}).
+		Select("user_id, COALESCE(SUM(money), 0) AS total").
+		Where("user_id IN ? AND status = ?", ids, common.TopUpStatusSuccess).
+		Group("user_id").
+		Scan(&rows).Error; err != nil {
+		return err
+	}
+	totals := make(map[int]float64, len(rows))
+	for _, r := range rows {
+		totals[r.UserId] = r.Total
+	}
+	for _, u := range users {
+		u.PaidAmount = totals[u.Id]
+	}
+	return nil
+}
+
+// FillIPCountries resolves each user's IP to an ISO country code using the
+// embedded iploc database (offline, no network). Prefers the registration IP
+// and falls back to the last-login IP. Private/unknown addresses leave the
+// field empty. Read-only; safe under multi-node.
+func FillIPCountries(users []*User) {
+	for _, u := range users {
+		ip := u.RegistrationIP
+		if ip == "" {
+			ip = u.LastLoginIp
+		}
+		u.IPCountry = resolveIPCountry(ip)
+	}
+}
+
+func resolveIPCountry(ip string) string {
+	if ip == "" {
+		return ""
+	}
+	addr, err := netip.ParseAddr(ip)
+	if err != nil {
+		return ""
+	}
+	country := iploc.IPCountry(addr)
+	if country == "" || country == "ZZ" {
+		return ""
+	}
+	return country
+}
+
+// ResolveIPCountry resolves an IP to an ISO country code using the embedded
+// database. It returns an empty string for private, malformed, or unknown IPs.
+func ResolveIPCountry(ip string) string {
+	return resolveIPCountry(ip)
+}
+
+// BackfillRegistrationCountries populates the indexed registration country
+// for legacy users without changing their stored IP or login history.
+func BackfillRegistrationCountries() error {
+	lastID := 0
+	for {
+		var batch []*User
+		if err := DB.Where("id > ? AND (registration_country = '' OR registration_country IS NULL) AND (registration_ip <> '' OR last_login_ip <> '')", lastID).Order("id").Limit(500).Find(&batch).Error; err != nil {
+			return err
+		}
+		if len(batch) == 0 {
+			return nil
+		}
+		lastID = batch[len(batch)-1].Id
+		updates := make(map[int]string, len(batch))
+		for _, user := range batch {
+			ip := user.RegistrationIP
+			if ip == "" {
+				ip = user.LastLoginIp
+			}
+			country := ResolveIPCountry(ip)
+			if country == "" {
+				continue
+			}
+			updates[user.Id] = country
+		}
+		if err := DB.Transaction(func(tx *gorm.DB) error {
+			for id, country := range updates {
+				if err := tx.Model(&User{}).Where("id = ?", id).Update("registration_country", country).Error; err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+}
+
+func applyUserLanguageFilter(query *gorm.DB, language string) *gorm.DB {
+	if strings.TrimSpace(language) == "" {
+		return query
+	}
+	switch query.Dialector.Name() {
+	case common.DatabaseTypeMySQL:
+		return query.Where("CASE WHEN JSON_VALID(setting) THEN JSON_UNQUOTE(JSON_EXTRACT(setting, '$.language')) ELSE NULL END = ?", language)
+	case common.DatabaseTypePostgreSQL:
+		return query.Where("CASE WHEN setting IS NULL OR setting = '' THEN NULL ELSE setting::jsonb ->> 'language' END = ?", language)
+	default:
+		return query.Where("CASE WHEN json_valid(setting) THEN json_extract(setting, '$.language') ELSE NULL END = ?", language)
+	}
 }
 
 func GetUserById(id int, selectAll bool) (*User, error) {
@@ -340,6 +594,44 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 		err = DB.Omit("password").First(&user, "id = ?", id).Error
 	}
 	return &user, err
+}
+
+func GetUserByIdWithContext(ctx context.Context, id int) (*User, error) {
+	if id <= 0 {
+		return nil, errors.New("id is empty")
+	}
+	user := &User{}
+	if err := DB.WithContext(ctx).Omit("password").First(user, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func SetUserStripeCustomerIfEmptyOrMatches(userID int, expected string, replacement string) (bool, error) {
+	return SetUserStripeCustomerIfEmptyOrMatchesWithContext(context.Background(), userID, expected, replacement)
+}
+
+func SetUserStripeCustomerIfEmptyOrMatchesWithContext(ctx context.Context, userID int, expected string, replacement string) (bool, error) {
+	if userID <= 0 {
+		return false, errors.New("user ID must be positive")
+	}
+	replacement = strings.TrimSpace(replacement)
+	if replacement == "" {
+		return false, errors.New("Stripe Customer ID must not be empty")
+	}
+	result := DB.WithContext(ctx).Model(&User{}).
+		Where("id = ? AND (stripe_customer IS NULL OR stripe_customer = '' OR stripe_customer = ?)", userID, expected).
+		Update("stripe_customer", replacement)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected != 1 {
+		return false, nil
+	}
+	if err := invalidateUserCache(userID); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 func GetUserIdByAffCode(affCode string) (int, error) {
@@ -416,6 +708,39 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 }
 
 func (user *User) Insert(inviterId int) error {
+	return user.InsertWithRegistrationIP(inviterId, "")
+}
+
+func (user *User) InsertWithRegistrationIP(inviterId int, registrationIP string) error {
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		return user.insertWithTx(tx, inviterId, registrationIP)
+	}); err != nil {
+		ReleaseRegistrationIPNewUserBonusRedisClaim(user)
+		return err
+	}
+
+	// 用户创建成功后，根据角色初始化边栏配置
+	// 需要重新获取用户以确保有正确的ID和Role
+	var createdUser User
+	if err := DB.Where("username = ?", user.Username).First(&createdUser).Error; err == nil {
+		// 生成基于角色的默认边栏配置
+		defaultSidebarConfig := generateDefaultSidebarConfigForRole(createdUser.Role)
+		if defaultSidebarConfig != "" {
+			currentSetting := createdUser.GetSetting()
+			currentSetting.SidebarModules = defaultSidebarConfig
+			createdUser.SetSetting(currentSetting)
+			createdUser.Update(false)
+			common.SysLog(fmt.Sprintf("为新用户 %s (角色: %d) 初始化边栏配置", createdUser.Username, createdUser.Role))
+		}
+	}
+
+	if user.NewUserBonusGiven && user.Quota > 0 {
+		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(user.Quota)))
+	}
+	return nil
+}
+
+func (user *User) insertWithTx(tx *gorm.DB, inviterId int, registrationIP string) error {
 	var err error
 	if user.Password != "" {
 		user.Password, err = common.Password2Hash(user.Password)
@@ -423,7 +748,13 @@ func (user *User) Insert(inviterId int) error {
 			return err
 		}
 	}
-	user.Quota = common.QuotaForNewUser
+	user.RegistrationIP = normalizeRegistrationIP(registrationIP)
+	if user.RegistrationIP == "" {
+		prepareMissingRegistrationIPNewUserBonus(user)
+	} else {
+		user.Quota = 0
+		user.NewUserBonusGiven = false
+	}
 	// New common users default into the PLG group (groups hidden, forced plg).
 	// Admin/root users keep group controls, so an empty admin group becomes default.
 	if user.Group == "" {
@@ -450,71 +781,71 @@ func (user *User) Insert(inviterId int) error {
 		user.SetSetting(defaultSetting)
 	}
 
-	result := DB.Create(user)
+	result := tx.Create(user)
 	if result.Error != nil {
 		return result.Error
 	}
 
-	// 用户创建成功后，根据角色初始化边栏配置
-	// 需要重新获取用户以确保有正确的ID和Role
-	var createdUser User
-	if err := DB.Where("username = ?", user.Username).First(&createdUser).Error; err == nil {
-		// 生成基于角色的默认边栏配置
-		defaultSidebarConfig := generateDefaultSidebarConfigForRole(createdUser.Role)
-		if defaultSidebarConfig != "" {
-			currentSetting := createdUser.GetSetting()
-			currentSetting.SidebarModules = defaultSidebarConfig
-			createdUser.SetSetting(currentSetting)
-			createdUser.Update(false)
-			common.SysLog(fmt.Sprintf("为新用户 %s (角色: %d) 初始化边栏配置", createdUser.Username, createdUser.Role))
-		}
+	if err := grantInviteeRegistrationSubscriptionDiscountInTx(tx, user); err != nil {
+		return err
 	}
 
-	if common.QuotaForNewUser > 0 {
-		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
+	if err := claimRegistrationIPNewUserBonusInTx(tx, user); err != nil {
+		return err
 	}
-	return nil
+	return EnqueueAdsSignupInTx(tx, user)
+}
+
+func grantInviteeRegistrationSubscriptionDiscountInTx(tx *gorm.DB, user *User) error {
+	if !common.InviteRewardSubscriptionMode || user == nil || user.Id <= 0 || user.InviterId <= 0 {
+		return nil
+	}
+	configuredDiscount := common.InviteFirstSubDiscountUSD
+	amountMinor, err := subscriptionDiscountUSDToMinor(configuredDiscount)
+	if err != nil {
+		return err
+	}
+	if amountMinor == 0 {
+		return nil
+	}
+	var inviter User
+	if err := tx.Select("id").Where("id = ?", user.InviterId).First(&inviter).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	snapshot, err := common.Marshal(map[string]string{
+		"invite_first_sub_discount_usd": strconv.FormatFloat(configuredDiscount, 'f', -1, 64),
+	})
+	if err != nil {
+		return err
+	}
+	_, err = GrantSubscriptionDiscountTx(tx, SubscriptionDiscountGrantInput{
+		UserID:          user.Id,
+		USDMinor:        amountMinor,
+		EntryType:       SubscriptionDiscountEntryTypeGrantInvitee,
+		SourceType:      "invitee_registration",
+		SourceKey:       strconv.Itoa(user.Id),
+		IdempotencyKey:  fmt.Sprintf("invitee:%d", user.Id),
+		PricingSnapshot: string(snapshot),
+	})
+	return err
+}
+
+func RepairInviteeRegistrationSubscriptionDiscountTx(tx *gorm.DB, user *User) error {
+	return grantInviteeRegistrationSubscriptionDiscountInTx(tx, user)
 }
 
 // InsertWithTx inserts a new user within an existing transaction.
 // This is used for OAuth registration where user creation and binding need to be atomic.
 // Post-creation tasks (sidebar config, logs, inviter rewards) are handled after the transaction commits.
 func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
-	var err error
-	if user.Password != "" {
-		user.Password, err = common.Password2Hash(user.Password)
-		if err != nil {
-			return err
-		}
-	}
-	user.Quota = common.QuotaForNewUser
-	user.AffCode = common.GetRandomString(4)
-	user.InviterId = inviterId
-	user.setInviteRewardInitialStatus()
-	if user.Group == "" {
-		if user.Role >= common.RoleAdminUser {
-			user.Group = defaultUserGroup
-		} else {
-			user.Group = plgUserGroup
-		}
-	}
-	// Deprecated compatibility field: group is the source of truth (see Insert).
-	if user.Role >= common.RoleAdminUser {
-		user.IsEnterprise = true
-	}
+	return user.InsertWithTxAndRegistrationIP(tx, inviterId, "")
+}
 
-	// 初始化用户设置
-	if user.Setting == "" {
-		defaultSetting := dto.UserSetting{}
-		user.SetSetting(defaultSetting)
-	}
-
-	result := tx.Create(user)
-	if result.Error != nil {
-		return result.Error
-	}
-
-	return nil
+func (user *User) InsertWithTxAndRegistrationIP(tx *gorm.DB, inviterId int, registrationIP string) error {
+	return user.insertWithTx(tx, inviterId, registrationIP)
 }
 
 // FinalizeOAuthUserCreation performs post-transaction tasks for OAuth user creation.
@@ -533,8 +864,15 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 		}
 	}
 
-	if common.QuotaForNewUser > 0 {
-		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
+	if user.NewUserBonusGiven && user.Quota > 0 {
+		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(user.Quota)))
+	}
+
+	// 纯套餐模式：注册成功（风控通过）后自动发放 Free 套餐。发放失败不阻断注册。
+	if setting.FreePlanOnSignupEnabled && user.Role <= common.RoleCommonUser {
+		if err := GrantFreePlanToUser(user.Id); err != nil {
+			common.SysError(fmt.Sprintf("failed to grant free plan to user %d: %s", user.Id, err.Error()))
+		}
 	}
 }
 
@@ -555,6 +893,22 @@ func (user *User) Update(updatePassword bool) error {
 		}
 	}
 	newUser := *user
+	if newUser.Setting != "" {
+		err = DB.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(user, user.Id).Error; err != nil {
+				return err
+			}
+			newUser.Setting, err = preserveRecallMarketingOptOut(user.Setting, newUser.Setting)
+			if err != nil {
+				return err
+			}
+			return tx.Model(user).Updates(newUser).Error
+		})
+		if err != nil {
+			return err
+		}
+		return invalidateUserCache(user.Id)
+	}
 	DB.First(&user, user.Id)
 	if err = DB.Model(user).Updates(newUser).Error; err != nil {
 		return err
@@ -562,6 +916,23 @@ func (user *User) Update(updatePassword bool) error {
 
 	// Update cache
 	return updateUserCache(*user)
+}
+
+func preserveRecallMarketingOptOut(currentSetting string, pendingSetting string) (string, error) {
+	current := dto.UserSetting{}
+	if currentSetting == "" || common.Unmarshal([]byte(currentSetting), &current) != nil || !current.RecallMarketingOptOut {
+		return pendingSetting, nil
+	}
+	pending := dto.UserSetting{}
+	if err := common.Unmarshal([]byte(pendingSetting), &pending); err != nil {
+		return "", err
+	}
+	pending.RecallMarketingOptOut = true
+	settingJSON, err := common.Marshal(pending)
+	if err != nil {
+		return "", err
+	}
+	return string(settingJSON), nil
 }
 
 func (user *User) Edit(updatePassword bool) error {
@@ -614,7 +985,14 @@ func (user *User) ClearBinding(bindingType string) error {
 		return errors.New("invalid binding type")
 	}
 
-	if err := DB.Model(&User{}).Where("id = ?", user.Id).Update(column, "").Error; err != nil {
+	update := DB.Model(&User{}).Where("id = ?", user.Id)
+	var err error
+	if bindingType == "email" {
+		err = update.Updates(map[string]any{"email": "", "email_verified_at": 0}).Error
+	} else {
+		err = update.Update(column, "").Error
+	}
+	if err != nil {
 		return err
 	}
 
@@ -1001,8 +1379,15 @@ func GetUserSetting(id int, fromDB bool) (settingMap dto.UserSetting, err error)
 }
 
 func IncreaseUserQuota(id int, quota int, db bool) (err error) {
+	_ = db
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
+	}
+	if quota == 0 {
+		return nil
+	}
+	if err := mutateUserWalletQuota(id, int64(quota), 0, "admin_grant", "IncreaseUserQuota"); err != nil {
+		return err
 	}
 	gopool.Go(func() {
 		err := cacheIncrUserQuota(id, int64(quota))
@@ -1010,24 +1395,23 @@ func IncreaseUserQuota(id int, quota int, db bool) (err error) {
 			common.SysLog("failed to increase user quota: " + err.Error())
 		}
 	})
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, quota)
-		return nil
-	}
-	return increaseUserQuota(id, quota)
+	return nil
 }
 
 func increaseUserQuota(id int, quota int) (err error) {
-	err = DB.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota + ?", quota)).Error
-	if err != nil {
-		return err
-	}
-	return err
+	return mutateUserWalletQuota(id, int64(quota), 0, "admin_grant", "increaseUserQuota")
 }
 
 func DecreaseUserQuota(id int, quota int, db bool) (err error) {
+	_ = db
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
+	}
+	if quota == 0 {
+		return nil
+	}
+	if err := mutateUserWalletQuota(id, -int64(quota), 0, "wallet_debit", "DecreaseUserQuota"); err != nil {
+		return err
 	}
 	gopool.Go(func() {
 		err := cacheDecrUserQuota(id, int64(quota))
@@ -1035,19 +1419,92 @@ func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 			common.SysLog("failed to decrease user quota: " + err.Error())
 		}
 	})
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, -quota)
-		return nil
-	}
-	return decreaseUserQuota(id, quota)
+	return nil
 }
 
 func decreaseUserQuota(id int, quota int) (err error) {
-	err = DB.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota - ?", quota)).Error
+	return mutateUserWalletQuota(id, -int64(quota), 0, "wallet_debit", "decreaseUserQuota")
+}
+
+// PreConsumeUserQuota atomically debits quota from a user IFF they have at
+// least that much, using a single conditional UPDATE. Returns ok=false (no
+// error) when the balance is insufficient.
+//
+// Multi-node safety (Rule 11): correctness lives entirely in the DB. The
+// `quota >= ?` guard is evaluated inside the same UPDATE that performs the
+// decrement, so two nodes racing to charge the same wallet can never overdraw —
+// at most one conditional write succeeds when funds are tight. No process-local
+// balance state is consulted. The Redis quota cache is best-effort synced after
+// a committed debit (same pattern as DecreaseUserQuota).
+func PreConsumeUserQuota(id int, quota int) (ok bool, err error) {
+	if quota < 0 {
+		return false, errors.New("quota 不能为负数！")
+	}
+	if quota == 0 {
+		return true, nil
+	}
+	var result LifecycleQuotaMutationResult
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var applyErr error
+		result, applyErr = ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+			UserID:         id,
+			ScopeType:      QuotaLifecycleScopeWallet,
+			ScopeID:        int64(id),
+			Delta:          -int64(quota),
+			RequireAtLeast: int64(quota),
+			Cause:          "wallet_pre_consume",
+			SourceRef:      "PreConsumeUserQuota",
+		})
+		return applyErr
+	})
 	if err != nil {
+		return false, err
+	}
+	if !result.Applied {
+		return false, nil
+	}
+	gopool.Go(func() {
+		if err := cacheDecrUserQuota(id, int64(quota)); err != nil {
+			common.SysLog("failed to sync user quota cache after pre-consume: " + err.Error())
+		}
+	})
+	return true, nil
+}
+
+// RefundUserQuota credits quota back to a user (e.g. when provisioning fails
+// after a pre-charge, or on early stop settlement). Thin wrapper over the
+// DB-backed increase path so the refund is durable and cache-synced.
+func RefundUserQuota(id int, quota int) error {
+	if quota <= 0 {
+		return nil
+	}
+	if err := mutateUserWalletQuota(id, int64(quota), 0, "refund", "RefundUserQuota"); err != nil {
 		return err
 	}
-	return err
+	gopool.Go(func() {
+		if err := cacheIncrUserQuota(id, int64(quota)); err != nil {
+			common.SysLog("failed to sync user quota cache after refund: " + err.Error())
+		}
+	})
+	return nil
+}
+
+func mutateUserWalletQuota(id int, delta int64, requireAtLeast int64, cause string, sourceRef string) error {
+	if id <= 0 {
+		return errors.New("invalid user id")
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		_, err := ApplyLifecycleQuotaMutation(tx, LifecycleQuotaMutation{
+			UserID:         id,
+			ScopeType:      QuotaLifecycleScopeWallet,
+			ScopeID:        int64(id),
+			Delta:          delta,
+			RequireAtLeast: requireAtLeast,
+			Cause:          cause,
+			SourceRef:      sourceRef,
+		})
+		return err
+	})
 }
 
 func DeltaUpdateUserQuota(id int, delta int) (err error) {
@@ -1077,6 +1534,53 @@ func UpdateUserLastLoginAt(id int) {
 	}
 }
 
+// UpdateUserBrowserLang persists the primary Accept-Language tag observed at
+// login. Best-effort analytics write (ops report), safe under multi-node:
+// last writer wins on a single column.
+func UpdateUserBrowserLang(id int, lang string) {
+	if err := DB.Model(&User{}).Where("id = ?", id).Update("browser_lang", lang).Error; err != nil {
+		common.SysLog("failed to update user browser_lang: " + err.Error())
+	}
+}
+
+// UpdateUserLastLoginIp persists the client IP seen at login. Best-effort
+// analytics write (ops report real-location column), safe under multi-node:
+// last writer wins on a single column.
+func UpdateUserLastLoginIp(id int, ip string) {
+	if err := DB.Model(&User{}).Where("id = ?", id).Update("last_login_ip", ip).Error; err != nil {
+		common.SysLog("failed to update user last_login_ip: " + err.Error())
+	}
+}
+
+// UpdateUserPayCountry persists the card issuing country from a successful
+// Stripe payment. Best-effort analytics write, safe under multi-node.
+func UpdateUserPayCountry(id int, country string) {
+	if err := DB.Model(&User{}).Where("id = ?", id).Update("pay_country", country).Error; err != nil {
+		common.SysLog("failed to update user pay_country: " + err.Error())
+	}
+}
+
+// BatchVerifyEmails marks the given users' email as verified in one UPDATE.
+// Returns the number of affected rows. Invalidates each user's cache so the
+// change is visible immediately. Safe under multi-node (DB row update).
+func BatchVerifyEmails(ids []int) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	result := DB.Model(&User{}).
+		Where("id IN ?", ids).
+		Update("email_verified_at", common.GetTimestamp())
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	for _, id := range ids {
+		if err := InvalidateUserCache(id); err != nil {
+			common.SysError("failed to invalidate batch-verified user cache: " + err.Error())
+		}
+	}
+	return result.RowsAffected, nil
+}
+
 func UpdateUserUsedQuotaAndRequestCount(id int, quota int) {
 	if common.BatchUpdateEnabled {
 		addNewRecord(BatchUpdateTypeUsedQuota, id, quota)
@@ -1104,20 +1608,19 @@ func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
 	//}
 }
 
-func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, requestCount int) {
-	if quota == 0 && usedQuota == 0 && requestCount == 0 {
+func updateUserUsedQuotaAndRequestCountBatch(id int, usedQuota int, requestCount int) {
+	if usedQuota == 0 && requestCount == 0 {
 		return
 	}
 
 	err := DB.Model(&User{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
-			"quota":         gorm.Expr("quota + ?", quota),
 			"used_quota":    gorm.Expr("used_quota + ?", usedQuota),
 			"request_count": gorm.Expr("request_count + ?", requestCount),
 		},
 	).Error
 	if err != nil {
-		common.SysLog("failed to batch update user quota, used quota and request count: " + err.Error())
+		common.SysLog("failed to batch update user used quota and request count: " + err.Error())
 	}
 }
 

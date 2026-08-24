@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -35,6 +36,52 @@ type gitHubUser struct {
 	Login string `json:"login"` // GitHub username (can be changed by user)
 	Name  string `json:"name"`
 	Email string `json:"email"`
+}
+
+type gitHubEmail struct {
+	Email    string `json:"email"`
+	Primary  bool   `json:"primary"`
+	Verified bool   `json:"verified"`
+}
+
+func verifiedPrimaryGitHubEmail(emails []gitHubEmail) string {
+	for _, email := range emails {
+		candidate := strings.TrimSpace(email.Email)
+		if candidate != "" && email.Primary && email.Verified {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func fetchGitHubVerifiedPrimaryEmail(ctx context.Context, client *http.Client, accessToken string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.github.com/user/emails", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	res, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(res.Body)
+		bodyStr := string(body)
+		if len(bodyStr) > 500 {
+			bodyStr = bodyStr[:500] + "..."
+		}
+		return "", fmt.Errorf("status=%d body=%s", res.StatusCode, bodyStr)
+	}
+
+	var emails []gitHubEmail
+	if err := common.DecodeJson(res.Body, &emails); err != nil {
+		return "", err
+	}
+	return verifiedPrimaryGitHubEmail(emails), nil
 }
 
 func (p *GitHubProvider) GetName() string {
@@ -145,6 +192,14 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 		logger.LogError(ctx, "[OAuth-GitHub] GetUserInfo failed: empty id or login field")
 		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": "GitHub"})
 	}
+	githubUser.Email = strings.TrimSpace(githubUser.Email)
+	if githubUser.Email == "" {
+		if email, err := fetchGitHubVerifiedPrimaryEmail(ctx, &client, token.AccessToken); err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo verified primary email unavailable: %s", err.Error()))
+		} else {
+			githubUser.Email = email
+		}
+	}
 
 	logger.LogDebug(ctx, "[OAuth-GitHub] GetUserInfo success: id=%d, login=%s, name=%s, email=%s",
 		githubUser.Id, githubUser.Login, githubUser.Name, githubUser.Email)
@@ -154,6 +209,11 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 		Username:       githubUser.Login,
 		DisplayName:    githubUser.Name,
 		Email:          githubUser.Email,
+		// GitHub only surfaces account emails after verification (the public
+		// email is one of the account's verified emails; when absent we fetch
+		// the verified primary via /user/emails). A non-empty GitHub email is
+		// therefore provider-verified by construction.
+		EmailVerified: githubUser.Email != "",
 		Extra: map[string]any{
 			"legacy_id": githubUser.Login, // Store login for migration from old accounts
 		},

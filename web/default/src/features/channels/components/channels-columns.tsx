@@ -290,6 +290,77 @@ function WeightCell({ channel }: { channel: Channel }) {
 }
 
 /**
+ * Max concurrency cell component with inline editing
+ */
+function MaxConcurrencyCell({
+  channel,
+  status,
+}: {
+  channel: Channel
+  status?: {
+    active: number
+    waiting: number
+    max_concurrency: number
+    cooling_down: boolean
+  }
+}) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const isTagRow = isTagAggregateRow(channel)
+  const maxConcurrency = channel.max_concurrency
+
+  if (isTagRow) {
+    return <span className='text-muted-foreground text-xs'>-</span>
+  }
+
+  let badge = null
+  if ((maxConcurrency ?? 0) > 0 && status) {
+    const active = status.active || 0
+    const waiting = status.waiting || 0
+    const max = status.max_concurrency || maxConcurrency || 0
+    const badgeClass =
+      active >= max
+        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+        : active > 0
+          ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+          : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+    badge = (
+      <>
+        <span
+          className={`inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-xs font-medium ${badgeClass}`}
+        >
+          {active}/{max}
+          {waiting > 0 ? ` +${waiting}` : ''}
+        </span>
+        {status.cooling_down && (
+          <span className='inline-flex shrink-0 items-center rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'>
+            {t('Cooling')}
+          </span>
+        )}
+      </>
+    )
+  }
+
+  return (
+    <div className='flex items-center gap-1'>
+      {badge}
+      <NumericSpinnerInput
+        value={maxConcurrency ?? 0}
+        onChange={(value) => {
+          handleUpdateChannelField(
+            channel.id,
+            'max_concurrency',
+            value,
+            queryClient
+          )
+        }}
+        min={0}
+      />
+    </div>
+  )
+}
+
+/**
  * Balance cell component with click to update
  */
 function BalanceCell({ channel }: { channel: Channel }) {
@@ -976,6 +1047,26 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
       header: t('Weight'),
       cell: ({ row }) => <WeightCell channel={row.original} />,
       size: 90,
+      enableSorting: false,
+    },
+
+    // Max concurrency column
+    {
+      accessorKey: 'max_concurrency',
+      meta: { label: t('Max Concurrency'), mobileHidden: true },
+      header: t('Max Concurrency'),
+      cell: ({ row, table }) => {
+        const tableMeta = table.options.meta as
+          | { concurrencyStatusById?: Map<number, { active: number; waiting: number; max_concurrency: number; cooling_down: boolean }> }
+          | undefined
+        return (
+          <MaxConcurrencyCell
+            channel={row.original}
+            status={tableMeta?.concurrencyStatusById?.get(row.original.id)}
+          />
+        )
+      },
+      size: 120,
       enableSorting: false,
     },
 

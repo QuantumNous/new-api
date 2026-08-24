@@ -46,6 +46,8 @@ export interface SystemConfig {
   serverAddress?: string
   enableStripeCardBind?: boolean
   stripeNewUserBonusAmount?: number
+  inviteRewardMode?: 'topup' | 'subscription'
+  inviteRewardBadgeUsd?: number
   currency: CurrencyConfig
 }
 

@@ -37,6 +37,7 @@ interface ComboboxInputProps {
   className?: string
   id?: string
   allowCustomValue?: boolean
+  commitCustomValueOnEnter?: boolean
   openOnFocus?: boolean
 }
 
@@ -49,6 +50,7 @@ export function ComboboxInput({
   className,
   id,
   allowCustomValue = false,
+  commitCustomValueOnEnter = false,
   openOnFocus = true,
 }: ComboboxInputProps) {
   const { t } = useTranslation()
@@ -172,7 +174,7 @@ export function ComboboxInput({
         onChange={(e) => {
           const nextValue = e.target.value
           setSearchValue(nextValue)
-          if (allowCustomValue) {
+          if (allowCustomValue && !commitCustomValueOnEnter) {
             onValueChange(nextValue)
           }
           if (!open) setOpen(true)

@@ -31,7 +31,7 @@ func setupUsageDB(t *testing.T) {
 		t.Fatalf("sql db: %v", err)
 	}
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&model.Log{}, &model.Channel{}, &model.Token{}, &model.Ability{}); err != nil {
+	if err := db.AutoMigrate(&model.Log{}, &model.Channel{}, &model.Token{}, &model.Ability{}, &model.User{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	model.DB = db
@@ -48,6 +48,11 @@ func usageEngine() *gin.Engine {
 	r.GET("/usage/validation", GetUsageValidation)
 	r.GET("/usage/transactions", GetUsageTransactions)
 	r.GET("/usage/models", GetUsageModels)
+	r.GET("/usage/channels", GetUsageChannels)
+	r.GET("/usage/channel-summary", GetChannelUsageSummary)
+	r.GET("/usage/channel-validation", GetChannelUsageValidation)
+	r.GET("/usage/channel-transactions", GetChannelUsageTransactions)
+	r.GET("/usage/channel-models", GetChannelUsageModels)
 	return r
 }
 
@@ -224,8 +229,8 @@ func TestUsageTransactions(t *testing.T) {
 
 	t1 := seedUsageLog(t, &model.Log{ChannelId: 34, TokenId: 7, TokenName: "key-a", ModelName: "claude-haiku-4-5",
 		PromptTokens: 1200, CompletionTokens: 320, Quota: 1550, UseTime: 1, RequestId: "req_abc", CreatedAt: 1100,
-		UpstreamRequestId: "chatcmpl_blockrun_1",
-		Other:             `{"cache_tokens":5,"cache_creation_tokens":3,"upstream_model_name":"anthropic/claude-haiku-4.5"}`})
+		UpstreamRequestId: "request_header_1",
+		Other:             `{"cache_tokens":5,"cache_creation_tokens":3,"upstream_model_name":"anthropic/claude-haiku-4.5","upstream_response_id":"chatcmpl_blockrun_1"}`})
 	seedUsageLog(t, &model.Log{ChannelId: 35, TokenId: 8, TokenName: "key-b", ModelName: "gpt-4o",
 		PromptTokens: 100, CompletionTokens: 50, Quota: 75, UseTime: 2, RequestId: "req_def", CreatedAt: 1200,
 		Other: `{"stream_status":{"status":"error"}}`})
@@ -251,8 +256,11 @@ func TestUsageTransactions(t *testing.T) {
 	if tx0["source_id"] != strconv.Itoa(t1.Id) {
 		t.Fatalf("source_id=%v, want raw log id %d", tx0["source_id"], t1.Id)
 	}
-	if tx0["upstream_request_id"] != "chatcmpl_blockrun_1" {
-		t.Fatalf("upstream_request_id=%v, want BlockRun call id", tx0["upstream_request_id"])
+	if tx0["upstream_request_id"] != "request_header_1" {
+		t.Fatalf("upstream_request_id=%v, want upstream response-header request id", tx0["upstream_request_id"])
+	}
+	if tx0["upstream_response_id"] != "chatcmpl_blockrun_1" {
+		t.Fatalf("upstream_response_id=%v, want BlockRun response body id", tx0["upstream_response_id"])
 	}
 	if _, ok := tx0["id"]; ok {
 		t.Fatalf("id must not be present; use source_id: %v", tx0)
@@ -285,6 +293,204 @@ func TestUsageTransactions(t *testing.T) {
 	}
 	if strings.Contains(body, "total_cost") || strings.Contains(body, "chain") {
 		t.Fatalf("must not contain total_cost or chain: %s", body)
+	}
+}
+
+func TestChannelScopedUsageKeepsBlockRunEndpointUnchanged(t *testing.T) {
+	setupUsageDB(t)
+	seedUsageChannel(t, 34, 100, "blockRun-llm")
+	seedUsageChannel(t, 35, 100, "blockRun-hidden")
+	seedUsageChannel(t, 99, 1, "flatkey-openai")
+
+	seedUsageLog(t, &model.Log{ChannelId: 34, TokenId: 7, TokenName: "key-a", ModelName: "claude-haiku-4-5",
+		PromptTokens: 100, CompletionTokens: 20, Quota: 50, CreatedAt: 1100})
+	seedUsageLog(t, &model.Log{ChannelId: 99, TokenId: 8, TokenName: "key-b", ModelName: "gpt-4o",
+		PromptTokens: 200, CompletionTokens: 40, Quota: 100, CreatedAt: 1200})
+	seedUsageLog(t, &model.Log{ChannelId: 35, TokenId: 9, TokenName: "key-c", ModelName: "hidden",
+		PromptTokens: 300, CompletionTokens: 60, Quota: 150, CreatedAt: 1300})
+
+	code, m, body := doUsageGET(t, usageEngine(), "/usage/channels")
+	if code != http.StatusOK {
+		t.Fatalf("channels status=%d body=%s", code, body)
+	}
+	channels := m["channels"].([]interface{})
+	if len(channels) != 3 {
+		t.Fatalf("channels len=%d body=%s", len(channels), body)
+	}
+	if !strings.Contains(body, `"channel_id":"34"`) || !strings.Contains(body, `"channel_id":"35"`) || !strings.Contains(body, `"channel_id":"99"`) {
+		t.Fatalf("channels missing expected ids: %s", body)
+	}
+
+	code, m, body = doUsageGET(t, usageEngine(),
+		"/usage/channel-transactions?period=day&start=1970-01-01T00:16:40Z&end=1970-01-01T00:33:20Z&channel_ids=99&limit=10")
+	if code != http.StatusOK {
+		t.Fatalf("channel transactions status=%d body=%s", code, body)
+	}
+	txns := m["transactions"].([]interface{})
+	if len(txns) != 1 {
+		t.Fatalf("channel txns len=%d body=%s", len(txns), body)
+	}
+	txn := txns[0].(map[string]interface{})
+	if txn["channel_id"] != "99" || txn["channel_name"] != "flatkey-openai" || txn["model"] != "gpt-4o" {
+		t.Fatalf("unexpected channel transaction: %v", txn)
+	}
+
+	code, m, body = doUsageGET(t, usageEngine(),
+		"/usage/channel-transactions?start=1970-01-01T00:16:40Z&end=1970-01-01T00:33:20Z&channel_ids=35&limit=10")
+	if code != http.StatusOK {
+		t.Fatalf("channel 35 transactions status=%d body=%s", code, body)
+	}
+	txns = m["transactions"].([]interface{})
+	if len(txns) != 1 || txns[0].(map[string]interface{})["channel_id"] != "35" {
+		t.Fatalf("channel 35 txns unexpected: %s", body)
+	}
+
+	code, m, body = doUsageGET(t, usageEngine(),
+		"/usage/transactions?period=day&start=1970-01-01T00:16:40Z&end=1970-01-01T00:33:20Z&page=1&page_size=10")
+	if code != http.StatusOK {
+		t.Fatalf("blockrun transactions status=%d body=%s", code, body)
+	}
+	txns = m["transactions"].([]interface{})
+	if len(txns) != 2 {
+		t.Fatalf("existing blockrun endpoint should still return both BlockRun rows, got %d body=%s", len(txns), body)
+	}
+	for _, raw := range txns {
+		if raw.(map[string]interface{})["channel_id"] == "99" {
+			t.Fatalf("non-BlockRun channel leaked into existing endpoint: %s", body)
+		}
+	}
+}
+
+func TestChannelScopedUsageModels(t *testing.T) {
+	setupUsageDB(t)
+	seedUsageChannel(t, 34, 100, "blockRun-llm")
+	seedUsageChannel(t, 99, 1, "flatkey-openai")
+	seedUsageAbility(t, &model.Ability{Group: "default", Model: "gpt-4o", ChannelId: 99, Enabled: true})
+	seedUsageAbility(t, &model.Ability{Group: "default", Model: "claude-haiku-4-5", ChannelId: 34, Enabled: true})
+
+	origRatio := ratio_setting.GetModelRatioCopy()
+	ratio_setting.UpdateModelRatioByJSONString(`{"gpt-4o":2}`)
+	t.Cleanup(func() {
+		raw, _ := json.Marshal(origRatio)
+		ratio_setting.UpdateModelRatioByJSONString(string(raw))
+	})
+
+	code, m, body := doUsageGET(t, usageEngine(), "/usage/channel-models?channel_ids=99")
+	if code != http.StatusOK {
+		t.Fatalf("channel models status=%d body=%s", code, body)
+	}
+	models := m["models"].([]interface{})
+	if len(models) != 1 {
+		t.Fatalf("models len=%d body=%s", len(models), body)
+	}
+	item := models[0].(map[string]interface{})
+	if item["model"] != "gpt-4o" || item["channel_id"] != "99" || item["channel_name"] != "flatkey-openai" {
+		t.Fatalf("unexpected model item: %v", item)
+	}
+	if strings.Contains(body, "claude-haiku-4-5") {
+		t.Fatalf("unrequested channel model leaked: %s", body)
+	}
+}
+
+func TestChannelTypeNameScopedUsageFeeds(t *testing.T) {
+	setupUsageDB(t)
+	seedUsageChannel(t, 34, 100, "blockRun-llm")
+	seedUsageChannel(t, 99, 1, "flatkey-openai")
+	seedUsageLog(t, &model.Log{ChannelId: 34, TokenId: 7, TokenName: "blockrun-key", ModelName: "claude-haiku-4-5",
+		PromptTokens: 100, CompletionTokens: 20, Quota: 50, CreatedAt: 1100})
+	seedUsageLog(t, &model.Log{ChannelId: 99, TokenId: 8, TokenName: "flatkey-key", ModelName: "gpt-4o",
+		PromptTokens: 200, CompletionTokens: 40, Quota: 100, CreatedAt: 1200})
+	seedUsageAbility(t, &model.Ability{Group: "default", Model: "gpt-4o", ChannelId: 99, Enabled: true})
+	seedUsageAbility(t, &model.Ability{Group: "default", Model: "claude-haiku-4-5", ChannelId: 34, Enabled: true})
+
+	code, m, body := doUsageGET(t, usageEngine(),
+		"/usage/channel-summary?channel_type_name=OpenAI&start=1970-01-01T00:16:40Z&end=1970-01-01T00:33:20Z")
+	if code != http.StatusOK {
+		t.Fatalf("summary status=%d body=%s", code, body)
+	}
+	totals := m["totals"].(map[string]interface{})
+	if totals["requests"].(float64) != 1 || totals["actual_cost"] != "0.0002000000" {
+		t.Fatalf("summary totals=%v body=%s", totals, body)
+	}
+	if strings.Contains(body, "blockrun-key") || strings.Contains(body, "claude-haiku") {
+		t.Fatalf("blockrun data leaked into OpenAI summary: %s", body)
+	}
+
+	code, m, body = doUsageGET(t, usageEngine(),
+		"/usage/channel-validation?name=OpenAI&start=1970-01-01T00:16:40Z&end=1970-01-01T00:33:20Z")
+	if code != http.StatusOK {
+		t.Fatalf("validation status=%d body=%s", code, body)
+	}
+	byChannel := m["by_channel"].([]interface{})
+	if len(byChannel) != 1 || byChannel[0].(map[string]interface{})["channel_id"] != "99" {
+		t.Fatalf("validation channels=%v body=%s", byChannel, body)
+	}
+
+	code, m, body = doUsageGET(t, usageEngine(),
+		"/usage/channel-transactions?channel_type_name=OpenAI&start=1970-01-01T00:16:40Z&end=1970-01-01T00:33:20Z&limit=10")
+	if code != http.StatusOK {
+		t.Fatalf("transactions status=%d body=%s", code, body)
+	}
+	txns := m["transactions"].([]interface{})
+	if len(txns) != 1 || txns[0].(map[string]interface{})["channel_id"] != "99" {
+		t.Fatalf("transactions=%v body=%s", txns, body)
+	}
+
+	code, m, body = doUsageGET(t, usageEngine(), "/usage/channel-models?channel_type_name=OpenAI")
+	if code != http.StatusOK {
+		t.Fatalf("models status=%d body=%s", code, body)
+	}
+	models := m["models"].([]interface{})
+	if len(models) != 1 || models[0].(map[string]interface{})["model"] != "gpt-4o" {
+		t.Fatalf("models=%v body=%s", models, body)
+	}
+	if strings.Contains(body, "claude-haiku-4-5") {
+		t.Fatalf("blockrun model leaked into OpenAI models: %s", body)
+	}
+}
+
+func TestChannelScopedUsageRejectsUnknownRequestedChannel(t *testing.T) {
+	setupUsageDB(t)
+	seedUsageChannel(t, 99, 1, "flatkey-openai")
+
+	code, _, body := doUsageGET(t, usageEngine(),
+		"/usage/channel-transactions?start=1970-01-01T00:16:40Z&end=1970-01-01T00:33:20Z&channel_ids=123&limit=10")
+	if code != http.StatusBadRequest {
+		t.Fatalf("transactions status=%d body=%s, want 400 for unknown requested channel", code, body)
+	}
+}
+
+func TestChannelScopedUsageRejectsHugePageOffset(t *testing.T) {
+	setupUsageDB(t)
+	seedUsageChannel(t, 99, 1, "flatkey-openai")
+
+	code, _, body := doUsageGET(t, usageEngine(),
+		"/usage/channel-transactions?start=1970-01-01T00:16:40Z&end=1970-01-01T00:33:20Z&channel_ids=99&page=10001&page_size=500")
+	if code != http.StatusBadRequest {
+		t.Fatalf("huge page status=%d body=%s, want 400", code, body)
+	}
+}
+
+func TestChannelScopedUsageModelsExcludeDisabledChannels(t *testing.T) {
+	setupUsageDB(t)
+	if err := model.DB.Create(&model.Channel{
+		Id:     99,
+		Type:   1,
+		Name:   "flatkey-disabled",
+		Key:    "k-disabled",
+		Status: common.ChannelStatusManuallyDisabled,
+	}).Error; err != nil {
+		t.Fatalf("seed disabled channel: %v", err)
+	}
+	seedUsageAbility(t, &model.Ability{Group: "default", Model: "gpt-4o", ChannelId: 99, Enabled: true})
+
+	code, m, body := doUsageGET(t, usageEngine(), "/usage/channel-models?channel_ids=99")
+	if code != http.StatusOK {
+		t.Fatalf("channel models status=%d body=%s", code, body)
+	}
+	models := m["models"].([]interface{})
+	if len(models) != 0 {
+		t.Fatalf("disabled channel models leaked: %s", body)
 	}
 }
 

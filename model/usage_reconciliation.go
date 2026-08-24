@@ -1,8 +1,10 @@
 package model
 
 import (
+	"sort"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 
 	"gorm.io/gorm"
@@ -28,23 +30,35 @@ type blockRunModelChannelRow struct {
 // and other wide diagnostic columns to keep transfer light on large windows.
 const usageReconLogColumns = "id, channel_id, token_id, token_name, model_name, prompt_tokens, completion_tokens, quota, use_time, is_stream, request_id, upstream_request_id, created_at, other"
 
+const customerUsageReconLogColumns = "id, user_id, channel_id, token_id, token_name, model_name, prompt_tokens, completion_tokens, quota, use_time, request_id, upstream_request_id, created_at, other"
+
+// ChannelTypesByNamePrefix returns every channel type number whose display name
+// in constant.ChannelTypeNames starts with the requested prefix
+// (case-insensitive).
+func ChannelTypesByNamePrefix(prefix string) []int {
+	prefix = strings.ToLower(strings.TrimSpace(prefix))
+	types := make([]int, 0, 4)
+	if prefix == "" {
+		return types
+	}
+	for typ, name := range constant.ChannelTypeNames {
+		if strings.HasPrefix(strings.ToLower(name), prefix) {
+			types = append(types, typ)
+		}
+	}
+	sort.Ints(types)
+	return types
+}
+
 // BlockRunChannelTypes returns every channel type number whose display name in
 // constant.ChannelTypeNames starts with "blockrun" (case-insensitive): currently
 // 100/101/102, plus any future BlockRun* type — zero maintenance.
 func BlockRunChannelTypes() []int {
-	types := make([]int, 0, 4)
-	for typ, name := range constant.ChannelTypeNames {
-		if strings.HasPrefix(strings.ToLower(name), "blockrun") {
-			types = append(types, typ)
-		}
-	}
-	return types
+	return ChannelTypesByNamePrefix("blockrun")
 }
 
-// GetBlockRunChannels returns id -> {name,type} for all BlockRun-family channels.
-func GetBlockRunChannels() (map[int]BlockRunChannel, error) {
+func getUsageChannelsByTypes(types []int) (map[int]BlockRunChannel, error) {
 	out := make(map[int]BlockRunChannel)
-	types := BlockRunChannelTypes()
 	if len(types) == 0 {
 		return out, nil
 	}
@@ -61,12 +75,53 @@ func GetBlockRunChannels() (map[int]BlockRunChannel, error) {
 	return out, nil
 }
 
-// GetBlockRunEnabledModelChannels returns model -> BlockRun channels for every
-// enabled ability backed by a BlockRun-family channel. Duplicate abilities from
-// multiple groups are collapsed so each channel appears once per model.
-func GetBlockRunEnabledModelChannels() (map[string][]BlockRunChannel, error) {
+// GetBlockRunChannels returns id -> {name,type} for all BlockRun-family channels.
+func GetBlockRunChannels() (map[int]BlockRunChannel, error) {
+	return getUsageChannelsByTypes(BlockRunChannelTypes())
+}
+
+// GetUsageChannelsByTypeNamePrefix returns id -> {name,type} for channels whose
+// channel type display name starts with the requested prefix.
+func GetUsageChannelsByTypeNamePrefix(prefix string) (map[int]BlockRunChannel, error) {
+	return getUsageChannelsByTypes(ChannelTypesByNamePrefix(prefix))
+}
+
+// GetUsageChannels returns every channel projection exposed to the static-token
+// usage feed consumer.
+func GetUsageChannels() ([]BlockRunChannel, error) {
+	var chs []BlockRunChannel
+	if err := DB.Model(&Channel{}).
+		Select("id", "name", "type").
+		Order("id asc").
+		Find(&chs).Error; err != nil {
+		return nil, err
+	}
+	return chs, nil
+}
+
+// GetUsageChannelsByIDs returns id -> channel projection for requested
+// channel-scoped FlatKey feeds. Unlike GetBlockRunChannels, this is not tied to
+// channel type.
+func GetUsageChannelsByIDs(channelIDs []int) (map[int]BlockRunChannel, error) {
+	out := make(map[int]BlockRunChannel)
+	if len(channelIDs) == 0 {
+		return out, nil
+	}
+	var chs []BlockRunChannel
+	if err := DB.Model(&Channel{}).
+		Select("id", "name", "type").
+		Where("id IN ?", channelIDs).
+		Find(&chs).Error; err != nil {
+		return nil, err
+	}
+	for _, ch := range chs {
+		out[ch.Id] = ch
+	}
+	return out, nil
+}
+
+func getEnabledModelChannelsByTypes(types []int) (map[string][]BlockRunChannel, error) {
 	out := make(map[string][]BlockRunChannel)
-	types := BlockRunChannelTypes()
 	if len(types) == 0 {
 		return out, nil
 	}
@@ -76,6 +131,58 @@ func GetBlockRunEnabledModelChannels() (map[string][]BlockRunChannel, error) {
 		Select("abilities.model, channels.id, channels.name, channels.type").
 		Joins("JOIN channels ON abilities.channel_id = channels.id").
 		Where("abilities.enabled = ? AND channels.type IN ?", true, types).
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]map[int]struct{})
+	for _, row := range rows {
+		if row.Model == "" {
+			continue
+		}
+		if _, ok := seen[row.Model]; !ok {
+			seen[row.Model] = make(map[int]struct{})
+		}
+		if _, ok := seen[row.Model][row.Id]; ok {
+			continue
+		}
+		seen[row.Model][row.Id] = struct{}{}
+		out[row.Model] = append(out[row.Model], BlockRunChannel{
+			Id:   row.Id,
+			Name: row.Name,
+			Type: row.Type,
+		})
+	}
+	return out, nil
+}
+
+// GetBlockRunEnabledModelChannels returns model -> BlockRun channels for every
+// enabled ability backed by a BlockRun-family channel. Duplicate abilities from
+// multiple groups are collapsed so each channel appears once per model.
+func GetBlockRunEnabledModelChannels() (map[string][]BlockRunChannel, error) {
+	return getEnabledModelChannelsByTypes(BlockRunChannelTypes())
+}
+
+// GetEnabledModelChannelsByTypeNamePrefix returns model -> channels for enabled
+// abilities backed by channels whose type display name starts with the requested
+// prefix.
+func GetEnabledModelChannelsByTypeNamePrefix(prefix string) (map[string][]BlockRunChannel, error) {
+	return getEnabledModelChannelsByTypes(ChannelTypesByNamePrefix(prefix))
+}
+
+// GetEnabledModelChannelsByIDs returns model -> channels for requested
+// channel-scoped usage feeds.
+func GetEnabledModelChannelsByIDs(channelIDs []int) (map[string][]BlockRunChannel, error) {
+	out := make(map[string][]BlockRunChannel)
+	if len(channelIDs) == 0 {
+		return out, nil
+	}
+
+	var rows []blockRunModelChannelRow
+	if err := DB.Table("abilities").
+		Select("abilities.model, channels.id, channels.name, channels.type").
+		Joins("JOIN channels ON abilities.channel_id = channels.id").
+		Where("abilities.enabled = ? AND channels.status = ? AND channels.id IN ?", true, common.ChannelStatusEnabled, channelIDs).
 		Scan(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -182,6 +289,32 @@ func QueryBlockRunUsageLogsAfterCursor(channelIDs []int, startUnix, endUnix int6
 		Where("created_at >= ?", cursorCreatedAt).
 		Where("(created_at > ? OR (created_at = ? AND id > ?))", cursorCreatedAt, cursorCreatedAt, cursorID).
 		Select(usageReconLogColumns).
+		Order("created_at asc, id asc").
+		Limit(limit).
+		Find(&logs).Error
+	return logs, err
+}
+
+func customerUsageQuery(customerID int, startUnix, endUnix int64) *gorm.DB {
+	tx := LOG_DB.Model(&Log{}).
+		Where("user_id = ? AND created_at >= ? AND created_at < ? AND type = ?", customerID, startUnix, endUnix, LogTypeConsume)
+	if LOG_DB.Dialector.Name() == "mysql" {
+		tx = tx.Clauses(hints.ForceIndex("idx_logs_user_created_type"))
+	}
+	return tx
+}
+
+// QueryCustomerUsageLogsAfterCursor returns only successful consumption facts for
+// one Customer. Refund and manual adjustment accounting is outside this feed.
+func QueryCustomerUsageLogsAfterCursor(customerID int, startUnix, endUnix int64, limit int, cursorCreatedAt int64, cursorID int) ([]*Log, error) {
+	if customerID <= 0 {
+		return nil, nil
+	}
+	var logs []*Log
+	err := customerUsageQuery(customerID, startUnix, endUnix).
+		Where("created_at >= ?", cursorCreatedAt).
+		Where("(created_at > ? OR (created_at = ? AND id > ?))", cursorCreatedAt, cursorCreatedAt, cursorID).
+		Select(customerUsageReconLogColumns).
 		Order("created_at asc, id asc").
 		Limit(limit).
 		Find(&logs).Error

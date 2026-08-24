@@ -17,27 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
-import type { RankingPeriod } from '../types'
-
-const PERIODS: { id: RankingPeriod; labelKey: string }[] = [
-  { id: 'today', labelKey: 'Today' },
-  { id: 'week', labelKey: 'Week' },
-  { id: 'month', labelKey: 'Month' },
-  { id: 'year', labelKey: 'Year' },
-  { id: 'all', labelKey: 'All-time' },
-]
-
-type RankingsHeroProps = {
-  period: RankingPeriod
-  onPeriodChange: (period: RankingPeriod) => void
-}
 
 /**
  * Hero strip for the rankings page. Intentionally minimal — title +
- * subtitle + period tabs only.
+ * subtitle. The page always shows the last 30 days at weekly granularity,
+ * so there is no period switcher.
  */
-export function RankingsHero(props: RankingsHeroProps) {
+export function RankingsHero() {
   const { t } = useTranslation()
 
   return (
@@ -51,41 +37,6 @@ export function RankingsHero(props: RankingsHeroProps) {
             'Discover the most-used models and rising vendors on the platform, updated from live usage data.'
           )}
         </p>
-      </div>
-
-      {/* Underline tabs for period — clean and unobtrusive. */}
-      <div
-        role='tablist'
-        aria-label={t('Period')}
-        className='border-border/60 flex items-center border-b'
-      >
-        {PERIODS.map((p) => {
-          const isActive = props.period === p.id
-          return (
-            <button
-              key={p.id}
-              role='tab'
-              type='button'
-              aria-selected={isActive}
-              onClick={() => props.onPeriodChange(p.id)}
-              className={cn(
-                'focus-visible:ring-ring/40 relative -mb-px rounded-sm px-3 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none',
-                isActive
-                  ? 'text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {t(p.labelKey)}
-              <span
-                aria-hidden
-                className={cn(
-                  'bg-foreground absolute inset-x-3 -bottom-px h-[2px] rounded-full transition-opacity',
-                  isActive ? 'opacity-100' : 'opacity-0'
-                )}
-              />
-            </button>
-          )
-        })}
       </div>
     </section>
   )

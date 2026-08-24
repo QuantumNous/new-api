@@ -14,18 +14,20 @@ import (
 //
 // Reference: POST /api/v3/contents/generations/tasks (Volcengine Ark).
 type SeedanceVideoRequest struct {
-	Model           string                `json:"model"`
-	Content         []SeedanceContentItem `json:"content"`
-	Resolution      string                `json:"resolution,omitempty"`
-	Ratio           string                `json:"ratio,omitempty"`
-	Duration        *int                  `json:"duration,omitempty"`
-	Frames          *int                  `json:"frames,omitempty"`
-	Seed            *int                  `json:"seed,omitempty"`
-	Watermark       *bool                 `json:"watermark,omitempty"`
-	CameraFixed     *bool                 `json:"camera_fixed,omitempty"`
-	GenerateAudio   *bool                 `json:"generate_audio,omitempty"`
-	ReturnLastFrame *bool                 `json:"return_last_frame,omitempty"`
-	CallbackURL     string                `json:"callback_url,omitempty"`
+	Model            string                `json:"model"`
+	Content          []SeedanceContentItem `json:"content"`
+	Resolution       string                `json:"resolution,omitempty"`
+	Ratio            string                `json:"ratio,omitempty"`
+	Duration         *int                  `json:"duration,omitempty"`
+	Frames           *int                  `json:"frames,omitempty"`
+	Seed             *int                  `json:"seed,omitempty"`
+	Watermark        *bool                 `json:"watermark,omitempty"`
+	CameraFixed      *bool                 `json:"camera_fixed,omitempty"`
+	GenerateAudio    *bool                 `json:"generate_audio,omitempty"`
+	ReturnLastFrame  *bool                 `json:"return_last_frame,omitempty"`
+	CallbackURL      string                `json:"callback_url,omitempty"`
+	SafetyIdentifier string                `json:"safety_identifier,omitempty"`
+	Priority         *int                  `json:"priority,omitempty"`
 }
 
 // Seedance content[] item types.
@@ -123,10 +125,10 @@ func (r *SeedanceVideoRequest) HasFirstLastFrame() bool {
 }
 
 // Validate enforces the minimal seedance contract: a text prompt OR at least
-// one image/video reference must be present.
+// one media reference must be present.
 func (r *SeedanceVideoRequest) Validate() error {
-	if strings.TrimSpace(r.PromptText()) == "" && len(r.Images()) == 0 && len(r.Videos()) == 0 {
-		return errors.New("seedance request requires a text prompt or at least one image/video")
+	if strings.TrimSpace(r.PromptText()) == "" && len(r.Images()) == 0 && len(r.Videos()) == 0 && len(r.Audios()) == 0 {
+		return errors.New("seedance request requires a text prompt or at least one image/video/audio")
 	}
 	return nil
 }

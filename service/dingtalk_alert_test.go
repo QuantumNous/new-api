@@ -689,6 +689,58 @@ func TestDingTalkChannelAlertAISummaryTimeoutAllowsOneMinute(t *testing.T) {
 	require.Equal(t, time.Minute, dingTalkChannelAlertAISummaryTimeout)
 }
 
+func TestDingTalkChannelAlertAIEndpointUsesChatCompletions(t *testing.T) {
+	tests := []struct {
+		name     string
+		baseURL  string
+		expected string
+	}{
+		{
+			name:     "base API URL",
+			baseURL:  "https://router.flatkey.ai/v1",
+			expected: "https://router.flatkey.ai/v1/chat/completions",
+		},
+		{
+			name:     "base API URL with trailing slash",
+			baseURL:  "https://router.flatkey.ai/v1/",
+			expected: "https://router.flatkey.ai/v1/chat/completions",
+		},
+		{
+			name:     "legacy Responses endpoint",
+			baseURL:  "https://router.flatkey.ai/v1/responses",
+			expected: "https://router.flatkey.ai/v1/chat/completions",
+		},
+		{
+			name:     "legacy Responses endpoint with trailing slash",
+			baseURL:  "https://router.flatkey.ai/v1/responses/",
+			expected: "https://router.flatkey.ai/v1/chat/completions",
+		},
+		{
+			name:     "complete Chat Completions endpoint",
+			baseURL:  "https://router.flatkey.ai/v1/chat/completions",
+			expected: "https://router.flatkey.ai/v1/chat/completions",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, dingTalkChannelAlertAIEndpoint(test.baseURL))
+		})
+	}
+}
+
+func TestExtractDingTalkChannelAlertAIOutputTextUsesFirstChoiceOnly(t *testing.T) {
+	var envelope dingTalkChannelAlertAIHTTPResponse
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"choices": [
+			{"message": {"content": ""}},
+			{"message": {"content": "later choice must not be used"}}
+		]
+	}`), &envelope))
+
+	require.Empty(t, extractDingTalkChannelAlertAIOutputText(envelope))
+}
+
 func TestDingTalkAlertPendingReservationTTLCoversAISummaryAndSendWindow(t *testing.T) {
 	require.GreaterOrEqual(t, dingTalkAlertPendingReservationTTL, dingTalkChannelAlertAISummaryTimeout+2*dingTalkRequestTimeout)
 }
@@ -908,7 +960,7 @@ func TestNotifyDingTalkFailuresLeavesContentUnchangedWithoutAIKey(t *testing.T) 
 	var aiRequests int32
 	contents := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v1/responses" {
+		if r.URL.Path == "/v1/chat/completions" {
 			atomic.AddInt32(&aiRequests, 1)
 			http.Error(w, "ai should not be called", http.StatusInternalServerError)
 			return
@@ -942,19 +994,87 @@ func TestNotifyDingTalkFailuresLeavesContentUnchangedWithoutAIKey(t *testing.T) 
 	require.Equal(t, rawContent, <-contents)
 }
 
+func TestGenerateDingTalkChannelAlertAISummaryUsesNonStreamingChatCompletions(t *testing.T) {
+	setting := setupDingTalkChannelAlertTestState(t)
+
+	type capturedRequest struct {
+		Path          string
+		Authorization string
+		Body          []byte
+	}
+	requests := make(chan capturedRequest, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		requests <- capturedRequest{
+			Path:          r.URL.Path,
+			Authorization: r.Header.Get("Authorization"),
+			Body:          body,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"choices": []map[string]any{
+				{
+					"message": map[string]string{
+						"role":    "assistant",
+						"content": "- 非流式 Chat Completions 总结成功。",
+					},
+				},
+			},
+		}))
+	}))
+	defer server.Close()
+
+	httpClient = server.Client()
+	setting.AIAnalysisAPIKey = "sk-monitor"
+	setting.AIAnalysisBaseURL = server.URL + "/v1"
+	setting.AIAnalysisModel = "gpt-5.4-mini"
+
+	alerts := []DingTalkChannelAlert{
+		{
+			ChannelID:       300,
+			ChannelName:     "codex-prod",
+			ChannelTypeName: "Codex",
+			Error:           types.NewErrorWithStatusCode(errors.New("401"), types.ErrorCodeBadResponse, http.StatusUnauthorized),
+			Now:             time.Date(2026, 7, 2, 10, 0, 0, 0, time.UTC),
+		},
+	}
+
+	summary, err := generateDingTalkChannelAlertAISummary(BuildDingTalkChannelAlertBatchContent(alerts), alerts)
+	request := <-requests
+
+	require.Equal(t, "/v1/chat/completions", request.Path)
+	require.Equal(t, "Bearer sk-monitor", request.Authorization)
+
+	var payload struct {
+		Model               string                          `json:"model"`
+		Messages            []dingTalkChannelAlertAIMessage `json:"messages"`
+		Stream              *bool                           `json:"stream"`
+		MaxCompletionTokens int                             `json:"max_completion_tokens"`
+	}
+	require.NoError(t, json.Unmarshal(request.Body, &payload))
+	require.Equal(t, "gpt-5.4-mini", payload.Model)
+	require.NotNil(t, payload.Stream)
+	require.False(t, *payload.Stream)
+	require.Equal(t, 600, payload.MaxCompletionTokens)
+	require.Len(t, payload.Messages, 2)
+	require.Equal(t, "system", payload.Messages[0].Role)
+	require.Equal(t, "user", payload.Messages[1].Role)
+	require.Contains(t, payload.Messages[1].Content, "Channel ID: 300")
+	require.NoError(t, err)
+	require.Equal(t, "- 非流式 Chat Completions 总结成功。", summary)
+}
+
 func TestNotifyDingTalkFailuresPrependsAISummaryWhenConfigured(t *testing.T) {
 	setting := setupDingTalkChannelAlertTestState(t)
 
 	var aiRequests int32
 	contents := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v1/responses" {
+		if r.URL.Path == "/v1/chat/completions" {
 			atomic.AddInt32(&aiRequests, 1)
 			require.Equal(t, "Bearer sk-monitor", r.Header.Get("Authorization"))
-			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{
-				"output_text": "- 本批次 2 个渠道测试失败，集中在 Codex 和 Gemini。\n- 其中 1 个为 401 鉴权错误，建议优先检查密钥状态。",
-			}))
+			writeDingTalkChannelAlertAIChatResponse(t, w, "- 本批次 2 个渠道测试失败，集中在 Codex 和 Gemini。\n- 其中 1 个为 401 鉴权错误，建议优先检查密钥状态。")
 			return
 		}
 		contents <- readDingTalkTextContent(t, r.Body)
@@ -1005,7 +1125,7 @@ func TestNotifyDingTalkFailuresFallsBackWhenAISummaryFails(t *testing.T) {
 	var aiRequests int32
 	contents := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v1/responses" {
+		if r.URL.Path == "/v1/chat/completions" {
 			atomic.AddInt32(&aiRequests, 1)
 			http.Error(w, "ai unavailable", http.StatusBadGateway)
 			return
@@ -1046,15 +1166,12 @@ func TestNotifyDingTalkFailuresSendsSanitizedAlertContentToAI(t *testing.T) {
 	aiBodies := make(chan string, 1)
 	contents := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v1/responses" {
+		if r.URL.Path == "/v1/chat/completions" {
 			atomic.AddInt32(&aiRequests, 1)
 			body, err := io.ReadAll(r.Body)
 			require.NoError(t, err)
 			aiBodies <- string(body)
-			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{
-				"output_text": "- 已收到脱敏后的渠道测试失败信息。",
-			}))
+			writeDingTalkChannelAlertAIChatResponse(t, w, "- 已收到脱敏后的渠道测试失败信息。")
 			return
 		}
 		contents <- readDingTalkTextContent(t, r.Body)
@@ -1101,11 +1218,8 @@ func TestNotifyDingTalkFailuresSanitizesAISummaryBeforeDingTalk(t *testing.T) {
 
 	contents := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v1/responses" {
-			w.Header().Set("Content-Type", "application/json")
-			require.NoError(t, json.NewEncoder(w).Encode(map[string]string{
-				"output_text": "- access_token leaked-secret sk-ai-secret should be redacted before DingTalk.",
-			}))
+		if r.URL.Path == "/v1/chat/completions" {
+			writeDingTalkChannelAlertAIChatResponse(t, w, "- access_token leaked-secret sk-ai-secret should be redacted before DingTalk.")
 			return
 		}
 		contents <- readDingTalkTextContent(t, r.Body)
@@ -1476,4 +1590,20 @@ func readDingTalkTextContent(t *testing.T, body io.Reader) string {
 	}
 	require.NoError(t, json.NewDecoder(body).Decode(&payload))
 	return payload.Text.Content
+}
+
+func writeDingTalkChannelAlertAIChatResponse(t *testing.T, w http.ResponseWriter, content string) {
+	t.Helper()
+
+	w.Header().Set("Content-Type", "application/json")
+	require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+		"choices": []map[string]any{
+			{
+				"message": map[string]string{
+					"role":    "assistant",
+					"content": content,
+				},
+			},
+		},
+	}))
 }

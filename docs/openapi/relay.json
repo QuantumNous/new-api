@@ -37,6 +37,9 @@
       "name": "视频生成/即梦格式"
     },
     {
+      "name": "素材库"
+    },
+    {
       "name": "Claude格式(Messages)"
     },
     {
@@ -174,6 +177,937 @@
               }
             },
             "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/real-persons": {
+      "post": {
+        "summary": "Create certified real-person profile",
+        "deprecated": false,
+        "description": "Create a Flatkey real-person profile and start BytePlus verification.",
+        "operationId": "createBytePlusRealPerson",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Required idempotency key for safe retry.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BytePlusRealPersonCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Profile created and verification session prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusRealPerson"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "409": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "503": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "summary": "List certified real-person profiles",
+        "deprecated": false,
+        "description": "List Flatkey real-person profiles for the current API key owner.",
+        "operationId": "listBytePlusRealPersons",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusRealPersonList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/real-persons/{person_id}": {
+      "get": {
+        "summary": "Get certified real-person profile",
+        "deprecated": false,
+        "description": "Get a Flatkey real-person profile without returning one-time verification links.",
+        "operationId": "getBytePlusRealPerson",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^rph_[A-Za-z0-9]+$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusRealPerson"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "404": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/real-persons/{person_id}/verification-sessions": {
+      "post": {
+        "summary": "Start another real-person verification session",
+        "deprecated": false,
+        "description": "Create a new one-time BytePlus verification session for an existing profile.",
+        "operationId": "reverifyBytePlusRealPerson",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^rph_[A-Za-z0-9]+$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Required idempotency key for safe retry.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verification session prepared.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusRealPerson"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "404": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "409": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "503": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/real-persons/{person_id}/assets": {
+      "post": {
+        "summary": "Create real-person profile asset",
+        "deprecated": false,
+        "description": "Create an asset bound to one certified real-person profile from an HTTPS URL or multipart local file.",
+        "operationId": "createBytePlusRealPersonAsset",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^rph_[A-Za-z0-9]+$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "description": "Required idempotency key for safe retry.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BytePlusRealPersonAssetCreateRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "asset_type"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "asset_type": {
+                    "type": "string",
+                    "enum": [
+                      "Image",
+                      "Video",
+                      "Audio"
+                    ]
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Asset creation accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusAsset"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "404": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "409": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "413": {
+            "description": "The uploaded asset exceeds the supported size limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset file is too large",
+                    "type": "asset_file_too_large",
+                    "param": "",
+                    "code": "asset_file_too_large"
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The uploaded asset media type is not supported.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset media type is not supported",
+                    "type": "asset_media_unsupported",
+                    "param": "",
+                    "code": "asset_media_unsupported"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "502": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "503": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "get": {
+        "summary": "List real-person profile assets",
+        "deprecated": false,
+        "description": "List visible assets for one real-person profile. Deleted assets are hidden.",
+        "operationId": "listBytePlusRealPersonAssets",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "person_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^rph_[A-Za-z0-9]+$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Asset list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BytePlusRealPersonAssetList"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "404": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/real-person-verifications/callback/{callback_token}": {
+      "get": {
+        "summary": "Receive real-person verification wake signal by GET",
+        "deprecated": false,
+        "description": "Anonymous BytePlus wake signal. Flatkey ignores result authority in this callback and checks verification status server-side.",
+        "operationId": "notifyBytePlusRealPersonVerificationByGet",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "callback_token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Wake signal accepted."
+          }
+        },
+        "security": []
+      },
+      "post": {
+        "summary": "Receive real-person verification wake signal by POST",
+        "deprecated": false,
+        "description": "Anonymous BytePlus wake signal. Flatkey ignores result authority in this callback and checks verification status server-side.",
+        "operationId": "notifyBytePlusRealPersonVerificationByPost",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "callback_token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Wake signal accepted."
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/assets": {
+      "post": {
+        "summary": "创建素材",
+        "deprecated": false,
+        "description": "创建一个可在 seedance-2.0 视频请求中通过 `asset://{id}` 引用的 Flatkey 素材。响应只包含 Flatkey 素材字段。客户端上传素材不需要选择 model；兼容输入中的 model 字段会被接受但不参与素材 readiness 选择。公开状态按当前 API key scope 与当前路由配置投影，任务创建时会重新验证 Active 素材。",
+        "operationId": "createAsset",
+        "tags": [
+          "素材库"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BytePlusAssetCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "素材创建请求已提交",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "description": "认证失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "403": {
+            "description": "Token 无权访问 seedance-2.0",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "This token has no access to model seedance-2.0",
+                    "type": "access_denied",
+                    "param": "",
+                    "code": "access_denied"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "500": {
+            "description": "素材存储错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset storage error, please try again later",
+                    "type": "asset_storage_error",
+                    "param": "",
+                    "code": "asset_storage_error"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "502": {
+            "description": "素材服务请求失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "503": {
+            "description": "素材库暂时不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/assets/upload": {
+      "post": {
+        "summary": "上传素材文件",
+        "deprecated": false,
+        "description": "通过 multipart/form-data 上传本地图片、视频或音频到 Flatkey 素材库。客户端不需要传 model；兼容输入中的 model 字段会被接受但不参与素材 readiness 选择。公开状态按当前 API key scope 与当前路由配置投影。",
+        "operationId": "uploadAsset",
+        "tags": [
+          "素材库"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/BytePlusAssetUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "素材上传请求已提交",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "上传请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "description": "认证失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "413": {
+            "description": "上传文件超过大小限制",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "500": {
+            "description": "素材存储错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/assets/{asset_id}": {
+      "get": {
+        "summary": "查询素材",
+        "deprecated": false,
+        "description": "按 Flatkey 素材 ID 查询状态。只有素材创建者可以查询该素材。",
+        "operationId": "getAsset",
+        "tags": [
+          "素材库"
+        ],
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Flatkey 素材 ID，形如 `ast_...`",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^ast_[A-Za-z0-9]{32}$",
+              "example": "ast_1234567890abcdef1234567890abcdef"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "素材状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Asset"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "401": {
+            "description": "认证失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "403": {
+            "description": "Token 无权访问 seedance-2.0",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "This token has no access to model seedance-2.0",
+                    "type": "access_denied",
+                    "param": "",
+                    "code": "access_denied"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "404": {
+            "description": "素材不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "409": {
+            "description": "素材尚未就绪",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset is still processing, please try again later",
+                    "type": "asset_not_ready",
+                    "param": "",
+                    "code": "asset_not_ready"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "素材处理失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset processing failed",
+                    "type": "asset_failed",
+                    "param": "",
+                    "code": "asset_failed"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "502": {
+            "description": "素材服务请求失败",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "503": {
+            "description": "素材库暂时不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "The asset channel is currently unavailable",
+                    "type": "asset_channel_unavailable",
+                    "param": "",
+                    "code": "asset_channel_unavailable"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "500": {
+            "description": "素材存储错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "message": "Asset storage error, please try again later",
+                    "type": "asset_storage_error",
+                    "param": "",
+                    "code": "asset_storage_error"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete real-person asset",
+        "deprecated": false,
+        "description": "Tombstone a Flatkey real-person asset. The first and repeated calls return an empty 204 for owned assets.",
+        "operationId": "deleteBytePlusAsset",
+        "tags": [
+          "Real-person assets"
+        ],
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "description": "Flatkey asset ID.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^ast_[A-Za-z0-9]{32}$",
+              "example": "ast_1234567890abcdef1234567890abcdef"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Asset deleted or already tombstoned."
+          },
+          "400": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "403": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "404": {
+            "$ref": "#/components/responses/BytePlusAssetError"
+          },
+          "500": {
+            "$ref": "#/components/responses/BytePlusAssetError"
           }
         },
         "security": [
@@ -327,95 +1261,66 @@
     },
     "/v1/images/generations": {
       "post": {
-        "summary": "生成图像(qwen-image)",
+        "summary": "生成图像（OpenAI 兼容，含 Grok Subscription）",
         "deprecated": false,
-        "description": " 百炼qwen-image系列图片生成",
+        "description": "OpenAI 兼容图片生成接口。Grok Subscription 使用模型 grok-imagine-image-2.0；prompt 必填，n 为 1-10，response_format 为 url 或 b64_json，resolution 为 1k 或 2k，quality 为 low 或 medium，aspect_ratio 使用实现支持的比例集合。",
         "operationId": "createImage",
         "tags": [
           "图片生成/Qwen千问"
         ],
+        "x-flatkey-grok-subscription": {
+          "model": "grok-imagine-image-2.0",
+          "response": "OpenAI 图片响应；不会返回上游地址或凭据。"
+        },
         "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "model": {
-                    "type": "string"
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/QwenImageGenerationRequest"
                   },
-                  "input": {
-                    "type": "object",
-                    "properties": {
-                      "messages": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "role": {
-                              "type": "string"
-                            },
-                            "content": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "text": {
-                                    "type": "string"
-                                  }
-                                }
-                              }
+                  {
+                    "$ref": "#/components/schemas/GrokImageGenerationRequest"
+                  }
+                ]
+              },
+              "examples": {
+                "qwen": {
+                  "summary": "Qwen 图片生成",
+                  "value": {
+                    "model": "qwen-image-plus",
+                    "input": {
+                      "messages": [
+                        {
+                          "role": "user",
+                          "content": [
+                            {
+                              "text": "一副典雅庄重的中式厅堂图像"
                             }
-                          }
+                          ]
                         }
-                      }
+                      ]
                     },
-                    "required": [
-                      "messages"
-                    ]
-                  },
-                  "parameters": {
-                    "type": "object",
-                    "properties": {
-                      "negative_prompt": {
-                        "type": "string"
-                      },
-                      "prompt_extend": {
-                        "type": "boolean"
-                      },
-                      "watermark": {
-                        "type": "boolean"
-                      },
-                      "size": {
-                        "type": "string"
-                      }
+                    "parameters": {
+                      "prompt_extend": true,
+                      "watermark": false,
+                      "size": "1328*1328"
                     }
                   }
                 },
-                "required": [
-                  "model",
-                  "input"
-                ]
-              },
-              "example": {
-                "model": "qwen-image-plus",
-                "input": {
-                  "messages": [
-                    {
-                      "role": "user",
-                      "content": [
-                        {
-                          "text": "一副典雅庄重的对联悬挂于厅堂之中，房间是个安静古典的中式布置，桌子上放着一些青花瓷，对联上左书“义本生知人机同道善思新”，右书“通云赋智乾坤启数高志远”， 横批“智启通义”，字体飘逸，在中间挂着一幅中国风的画作，内容是岳阳楼。"
-                        }
-                      ]
-                    }
-                  ]
-                },
-                "parameters": {
-                  "negative_prompt": "",
-                  "prompt_extend": true,
-                  "watermark": false,
-                  "size": "1328*1328"
+                "grok_subscription": {
+                  "summary": "Grok Subscription 图片生成",
+                  "value": {
+                    "model": "grok-imagine-image-2.0",
+                    "prompt": "A lighthouse above a stormy sea",
+                    "n": 1,
+                    "response_format": "url",
+                    "aspect_ratio": "16:9",
+                    "resolution": "2k",
+                    "quality": "medium"
+                  }
                 }
               }
             }
@@ -443,83 +1348,101 @@
     },
     "/v1/images/edits": {
       "post": {
-        "summary": "编辑图像(qwen-image-edit)",
+        "summary": "编辑图像（OpenAI 兼容，含 Grok Subscription）",
         "deprecated": false,
-        "description": " 百炼qwen-image系列图片生成",
+        "description": "OpenAI 兼容图片编辑接口。Grok Subscription 使用模型 grok-imagine-image-2.0；prompt 必填，接受 1-3 个 JSON 或 multipart 图片引用。mask、user、file_id、storage_options 和不支持的文件类型会被拒绝。",
         "operationId": "createImage",
         "tags": [
           "图片生成/Qwen千问"
         ],
+        "x-flatkey-grok-subscription": {
+          "model": "grok-imagine-image-2.0",
+          "image_references": "1-3",
+          "response": "OpenAI 图片响应；不会返回上游地址或凭据。"
+        },
         "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "model": {
-                    "type": "string"
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/QwenImageEditRequest"
                   },
-                  "input": {
-                    "type": "object",
-                    "properties": {
-                      "messages": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "role": {
-                              "type": "string"
+                  {
+                    "$ref": "#/components/schemas/GrokImageEditJSONRequest"
+                  }
+                ]
+              },
+              "examples": {
+                "qwen": {
+                  "summary": "Qwen 图片编辑",
+                  "value": {
+                    "model": "qwen-image-edit-plus",
+                    "input": {
+                      "messages": [
+                        {
+                          "role": "user",
+                          "content": [
+                            {
+                              "image": "https://example.com/source.png"
                             },
-                            "content": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "image": {
-                                    "type": "string"
-                                  },
-                                  "text": {
-                                    "type": "string"
-                                  }
-                                }
-                              }
+                            {
+                              "text": "把背景替换为森林"
                             }
-                          }
+                          ]
                         }
-                      }
+                      ]
                     },
-                    "required": [
-                      "messages"
-                    ]
-                  },
-                  "parameters": {
-                    "type": "object",
-                    "properties": {
-                      "n": {
-                        "type": "integer"
-                      },
-                      "negative_prompt": {
-                        "type": "string"
-                      },
-                      "prompt_extend": {
-                        "type": "boolean"
-                      },
-                      "watermark": {
-                        "type": "boolean"
-                      },
-                      "size": {
-                        "type": "string"
-                      }
+                    "parameters": {
+                      "n": 2,
+                      "prompt_extend": true,
+                      "watermark": false
                     }
                   }
                 },
-                "required": [
-                  "model",
-                  "input"
-                ]
+                "grok_subscription": {
+                  "summary": "Grok Subscription JSON 图片编辑",
+                  "value": {
+                    "model": "grok-imagine-image-2.0",
+                    "prompt": "Turn the sky purple",
+                    "images": [
+                      "https://example.com/source-a.png",
+                      {
+                        "image_url": {
+                          "url": "https://example.com/source-b.jpg"
+                        }
+                      }
+                    ],
+                    "n": 1,
+                    "response_format": "url",
+                    "aspect_ratio": "16:9",
+                    "resolution": "1k",
+                    "quality": "low"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/GrokImageEditMultipartRequest"
               },
-              "example": "{\n    \"model\": \"qwen-image-edit-plus\",\n    \"input\": {\n        \"messages\": [\n            {\n                \"role\": \"user\",\n                \"content\": [\n                    {\n                        \"image\": \"https://help-static-aliyun-doc.aliyuncs.com/file-manage-files/zh-CN/20250925/fpakfo/image36.webp\"\n                    },\n                    {\n                        \"text\": \"生成一张符合深度图的图像，遵循以下描述：一辆红色的破旧的自行车停在一条泥泞的小路上，背景是茂密的原始森林\"\n                    }\n                ]\n            }\n        ]\n    },\n    \"parameters\": {\n        \"n\": 2,\n        \"negative_prompt\": \" \",\n        \"prompt_extend\": true,\n        \"watermark\": false\n    }"
+              "encoding": {
+                "image": {
+                  "style": "form"
+                }
+              },
+              "example": {
+                "model": "grok-imagine-image-2.0",
+                "prompt": "Add warm evening light",
+                "image": [
+                  "<JPEG or PNG file; repeat image for up to three files>"
+                ],
+                "n": 1,
+                "response_format": "url",
+                "resolution": "1k",
+                "quality": "medium"
+              }
             }
           }
         },
@@ -547,11 +1470,20 @@
       "post": {
         "summary": "创建视频 ",
         "deprecated": false,
-        "description": "OpenAI 兼容的视频生成接口。\n\n参考文档: https://platform.openai.com/docs/api-reference/videos/create\n",
+        "description": "OpenAI 兼容的视频生成接口。Grok Subscription 使用模型 grok-imagine-video-1.5 或 grok-imagine-video；提交返回公开 task_*，完成后 metadata.url 仅指向 Flatkey /v1/videos/{task_id}/content 代理。内部请求标识、临时媒体地址和供应商凭据不会返回。\n",
         "operationId": "createVideo",
         "tags": [
           "视频生成/Sora兼容格式"
         ],
+        "x-flatkey-grok-subscription": {
+          "submit_path": "/v1/videos",
+          "alias_path": "/v1/video/generations",
+          "actions": {
+            "grok-imagine-video-1.5": ["generate"],
+            "grok-imagine-video": ["generate", "edit", "extend"]
+          },
+          "ambiguous_media_writes": "不会自动重放"
+        },
         "parameters": [],
         "requestBody": {
           "content": {
@@ -830,6 +1762,200 @@
             "BearerAuth": []
           }
         ]
+      }
+    },
+    "/v1/video-to-music": {
+      "post": {
+        "summary": "从视频生成配乐",
+        "deprecated": false,
+        "description": "提交异步 video-to-music 任务。`duration_seconds` 仅供 Flatkey 预扣计费，不会转发给上游；每个 variant 最低按 10 秒计费。必须且只能提供 `video` 或 `video_url` 之一。",
+        "operationId": "createVideoToMusic",
+        "tags": [
+          "OpenAI音频(Audio)"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "model",
+                  "duration_seconds"
+                ],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "enum": [
+                      "sonilo-video-to-music"
+                    ]
+                  },
+                  "video": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "video_url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "duration_seconds": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 3600
+                  },
+                  "prompt": {
+                    "type": "string"
+                  },
+                  "segments": {
+                    "type": "string",
+                    "description": "JSON-encoded segment instructions"
+                  },
+                  "output_format": {
+                    "type": "string",
+                    "enum": [
+                      "mp3",
+                      "m4a",
+                      "wav"
+                    ],
+                    "default": "mp3"
+                  },
+                  "preserve_speech": {
+                    "type": "boolean"
+                  },
+                  "ducking": {
+                    "type": "boolean"
+                  },
+                  "variants_num": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "default": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "任务已创建",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoToMusicResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/video-to-music/{task_id}": {
+      "get": {
+        "summary": "查询视频配乐任务",
+        "deprecated": false,
+        "operationId": "getVideoToMusic",
+        "tags": [
+          "OpenAI音频(Audio)"
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "任务状态与 Flatkey 音频代理地址",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoToMusicResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/video-to-music/{task_id}/content": {
+      "get": {
+        "summary": "获取生成的配乐文件",
+        "deprecated": false,
+        "description": "通过不可猜测的 Flatkey task ID 代理音频文件；多 variant 使用 `variant` 参数选择。",
+        "operationId": "getVideoToMusicContent",
+        "tags": [
+          "OpenAI音频(Audio)"
+        ],
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "variant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "音频文件",
+            "content": {
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/mp4": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/kling/v1/videos/text2video": {
@@ -1875,7 +3001,7 @@
       "get": {
         "summary": "实时 WebSocket 连接",
         "deprecated": false,
-        "description": "建立 WebSocket 连接用于实时对话。\n\n**注意**: 这是一个 WebSocket 端点，需要使用 WebSocket 协议连接。\n\n连接 URL 示例: `wss://api.example.com/v1/realtime?model=gpt-4o-realtime`\n",
+        "description": "建立 WebSocket 连接用于实时对话。\n\n**注意**: 这是一个 WebSocket 端点，需要使用 WebSocket 协议连接。\n\n连接 URL 示例: `wss://router.flatkey.ai/v1/realtime?model=gpt-4o-realtime`\n",
         "operationId": "createRealtimeSession",
         "tags": [
           "Realtime"
@@ -2309,6 +3435,393 @@
   },
   "components": {
     "schemas": {
+      "BytePlusRealPersonCreateRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "example": "Ava Chen"
+          }
+        }
+      },
+      "BytePlusRealPerson": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "name",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^rph_[A-Za-z0-9]+$",
+            "example": "rph_1234567890abcdef"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "real_person"
+            ],
+            "example": "real_person"
+          },
+          "name": {
+            "type": "string",
+            "example": "Ava Chen"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending_verification",
+              "verifying",
+              "active",
+              "failed",
+              "expired"
+            ],
+            "example": "pending_verification"
+          },
+          "verification_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "One-time verification URL returned only by create and reverify safe replay responses.",
+            "example": "https://verify.example.com/session"
+          },
+          "verification_expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1785293800
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1785292000
+          }
+        }
+      },
+      "BytePlusRealPersonList": {
+        "type": "object",
+        "required": [
+          "object",
+          "data",
+          "has_more"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ],
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BytePlusRealPerson"
+            }
+          },
+          "has_more": {
+            "type": "boolean",
+            "example": false
+          },
+          "next_after": {
+            "type": "string",
+            "example": "rph_1234567890abcdef"
+          }
+        }
+      },
+      "BytePlusRealPersonAssetCreateRequest": {
+        "type": "object",
+        "required": [
+          "url",
+          "asset_type"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "description": "Public HTTPS media URL.",
+            "example": "https://example.com/portrait.mp4"
+          },
+          "asset_type": {
+            "type": "string",
+            "enum": [
+              "Image",
+              "Video",
+              "Audio"
+            ],
+            "example": "Video"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "example": "front-facing intro"
+          }
+        }
+      },
+      "BytePlusRealPersonAssetList": {
+        "type": "object",
+        "required": [
+          "object",
+          "data",
+          "has_more"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ],
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BytePlusAsset"
+            }
+          },
+          "has_more": {
+            "type": "boolean",
+            "example": false
+          },
+          "next_after": {
+            "type": "string",
+            "example": "ast_1234567890abcdef1234567890abcdef"
+          }
+        }
+      },
+      "BytePlusAssetCreateRequest": {
+        "type": "object",
+        "description": "通过公开 HTTPS URL 创建素材。可选 model 字段仅用于兼容旧客户端，会被接受但不会用于素材 readiness 选择。",
+        "required": [
+          "url",
+          "asset_type"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "description": "公网 HTTPS 素材 URL",
+            "example": "https://example.com/portrait.mp4"
+          },
+          "asset_type": {
+            "type": "string",
+            "description": "素材类型",
+            "enum": [
+              "Image",
+              "Video",
+              "Audio"
+            ],
+            "example": "Video"
+          },
+          "moderation": {
+            "$ref": "#/components/schemas/BytePlusAssetModeration"
+          },
+          "model": {
+            "type": "string",
+            "description": "兼容字段。Flatkey 接受但忽略该字段，不用它选择素材 readiness。"
+          }
+        }
+      },
+      "BytePlusAssetUploadRequest": {
+        "type": "object",
+        "description": "上传本地素材文件。可选 model 字段仅用于兼容旧客户端，会被接受但不会用于素材 readiness 选择。",
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "本地图片、视频或音频文件"
+          },
+          "asset_type": {
+            "type": "string",
+            "description": "素材类型；省略时 Flatkey 根据文件 Content-Type 推断。",
+            "enum": [
+              "Image",
+              "Video",
+              "Audio"
+            ],
+            "example": "Image"
+          },
+          "model": {
+            "type": "string",
+            "description": "兼容字段。Flatkey 接受但忽略该字段，不用它选择素材 readiness。"
+          }
+        }
+      },
+      "BytePlusAssetModeration": {
+        "type": "object",
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "description": "素材审核策略。省略 moderation 时默认使用 Default。",
+            "enum": [
+              "Default",
+              "Skip"
+            ],
+            "example": "Default"
+          }
+        }
+      },
+      "Asset": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "asset_type",
+          "status",
+          "available_models",
+          "asset_url",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^ast_[A-Za-z0-9]{32}$",
+            "description": "Flatkey 素材 ID，可在 seedance-2.0 请求中写作 `asset://{id}`",
+            "example": "ast_1234567890abcdef1234567890abcdef"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "asset"
+            ],
+            "description": "对象类型",
+            "example": "asset"
+          },
+          "asset_type": {
+            "type": "string",
+            "enum": [
+              "Image",
+              "Video",
+              "Audio"
+            ],
+            "example": "Image"
+          },
+          "status": {
+            "type": "string",
+            "description": "当前 API key scope 下的公开素材状态。Creating 表示源上传/完成未结束；Processing 表示至少一个必需模型覆盖缺失、初始化或重试中；Active 表示当前路由配置下全部必需模型都有 current verified route，任务创建会重新验证；Failed 表示 source failed，或至少一个 required model exhausted every eligible coverage route；Expired 表示源对象不可恢复或已过期。",
+            "enum": [
+              "Creating",
+              "Processing",
+              "Active",
+              "Failed",
+              "Expired"
+            ],
+            "example": "Processing"
+          },
+          "available_models": {
+            "type": "array",
+            "description": "Models in the current authenticated scope with verified active asset readiness.",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "seedance-2.0-fast"
+            ]
+          },
+          "asset_url": {
+            "type": "string",
+            "pattern": "^asset://ast_[A-Za-z0-9]{32}$",
+            "description": "素材引用 URI，可直接用于支持素材库的任务请求。",
+            "example": "asset://ast_1234567890abcdef1234567890abcdef"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "创建时间戳",
+            "example": 1785292000
+          },
+          "source_expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "源对象过期时间戳；没有临时源对象时可省略。",
+            "example": 1785295600
+          }
+        }
+      },
+      "BytePlusAsset": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "asset_type",
+          "status",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^ast_[A-Za-z0-9]{32}$",
+            "description": "Flatkey 素材 ID，可在 seedance-2.0 请求中写作 `asset://{id}`",
+            "example": "ast_1234567890abcdef1234567890abcdef"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "asset"
+            ],
+            "description": "对象类型",
+            "example": "asset"
+          },
+          "asset_type": {
+            "type": "string",
+            "enum": [
+              "Image",
+              "Video",
+              "Audio"
+            ],
+            "example": "Video"
+          },
+          "status": {
+            "type": "string",
+            "description": "当前 API key scope 下的公开素材状态。Creating 表示源上传/完成未结束；Processing 表示至少一个必需模型覆盖缺失、初始化或重试中；Active 表示当前路由配置下全部必需模型都有 current verified route，任务创建会重新验证；Failed 表示 source failed，或至少一个 required model exhausted every eligible coverage route；Expired 表示源对象不可恢复或已过期。",
+            "enum": [
+              "Creating",
+              "Processing",
+              "Active",
+              "Failed",
+              "Expired",
+              "Deleting"
+            ],
+            "example": "Processing"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 128,
+            "example": "front-facing intro"
+          },
+          "asset_uri": {
+            "type": "string",
+            "pattern": "^asset://ast_[A-Za-z0-9]{32}$",
+            "example": "asset://ast_1234567890abcdef1234567890abcdef"
+          },
+          "failure_code": {
+            "type": "string",
+            "example": "upstream_error"
+          },
+          "moderation": {
+            "$ref": "#/components/schemas/BytePlusAssetModeration"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "创建时间戳",
+            "example": 1785292000
+          }
+        }
+      },
       "ErrorResponse": {
         "type": "object",
         "properties": {
@@ -3642,6 +5155,353 @@
           }
         }
       },
+      "QwenImageGenerationRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "input"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object",
+            "required": [
+              "messages"
+            ],
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "text": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "negative_prompt": {
+                "type": "string"
+              },
+              "prompt_extend": {
+                "type": "boolean"
+              },
+              "watermark": {
+                "type": "boolean"
+              },
+              "size": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "QwenImageEditRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "input"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object",
+            "required": [
+              "messages"
+            ],
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "image": {
+                            "type": "string"
+                          },
+                          "text": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "n": {
+                "type": "integer"
+              },
+              "negative_prompt": {
+                "type": "string"
+              },
+              "prompt_extend": {
+                "type": "boolean"
+              },
+              "watermark": {
+                "type": "boolean"
+              },
+              "size": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "GrokImageGenerationRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "prompt"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "enum": [
+              "grok-imagine-image-2.0"
+            ]
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "url",
+              "b64_json"
+            ]
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4",
+              "3:2",
+              "2:3",
+              "2:1",
+              "1:2",
+              "19.5:9",
+              "9:19.5",
+              "20:9",
+              "9:20",
+              "auto"
+            ]
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "1k",
+              "2k"
+            ]
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium"
+            ]
+          }
+        }
+      },
+      "GrokImageReference": {
+        "description": "HTTPS URL、JPEG/PNG data URI，或包含 url、b64_json、image_url.url 之一的对象。",
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "anyOf": [
+              {
+                "required": [
+                  "url"
+                ]
+              },
+              {
+                "required": [
+                  "b64_json"
+                ]
+              },
+              {
+                "required": [
+                  "image_url"
+                ]
+              }
+            ],
+            "properties": {
+              "url": {
+                "type": "string",
+                "format": "uri"
+              },
+              "b64_json": {
+                "type": "string"
+              },
+              "image_url": {
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "GrokImageEditJSONRequest": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/GrokImageGenerationRequest"
+          },
+          {
+            "type": "object",
+            "description": "编辑接受 1-3 个图片引用；单图编辑不得设置 aspect_ratio。mask、user、file_id、storage_options 不受支持。",
+            "anyOf": [
+              {
+                "required": [
+                  "image"
+                ]
+              },
+              {
+                "required": [
+                  "images"
+                ]
+              }
+            ],
+            "properties": {
+              "image": {
+                "$ref": "#/components/schemas/GrokImageReference"
+              },
+              "images": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 3,
+                "items": {
+                  "$ref": "#/components/schemas/GrokImageReference"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "GrokImageEditMultipartRequest": {
+        "type": "object",
+        "required": [
+          "model",
+          "prompt",
+          "image"
+        ],
+        "description": "image 可重复 1-3 次（image、image[] 或 image[0..2]），每项为 HTTPS URL 或 JPEG/PNG 文件。mask、user、file_id、storage_options 不受支持。",
+        "properties": {
+          "model": {
+            "type": "string",
+            "enum": [
+              "grok-imagine-image-2.0"
+            ]
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "image": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "items": {
+              "description": "JPEG/PNG 文件或 HTTPS URL",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "format": "binary",
+                  "description": "JPEG/PNG 上传文件"
+                },
+                {
+                  "type": "string",
+                  "format": "uri",
+                  "pattern": "^https://",
+                  "description": "HTTPS 图片 URL"
+                }
+              ]
+            }
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 1
+          },
+          "response_format": {
+            "type": "string",
+            "enum": [
+              "url",
+              "b64_json"
+            ]
+          },
+          "aspect_ratio": {
+            "type": "string",
+            "description": "仅多图编辑可用；取值集合与 GrokImageGenerationRequest 相同。"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "1k",
+              "2k"
+            ]
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium"
+            ]
+          }
+        }
+      },
       "ImageGenerationRequest": {
         "type": "object",
         "required": [
@@ -4167,7 +6027,7 @@
       },
       "VideoRequest": {
         "type": "object",
-        "description": "视频生成请求",
+        "description": "视频生成请求。Grok Subscription 使用 model、prompt 和可选 action（generate/edit/extend）；公开提交入口为 /v1/videos，/v1/video/generations 为兼容别名。",
         "properties": {
           "model": {
             "type": "string",
@@ -4230,6 +6090,19 @@
             "additionalProperties": true,
             "properties": {}
           }
+        },
+        "x-flatkey-grok-subscription": {
+          "models": {
+            "grok-imagine-video-1.5": {
+              "actions": ["generate"],
+              "duration_seconds": "1-15"
+            },
+            "grok-imagine-video": {
+              "actions": ["generate", "edit", "extend"],
+              "duration_seconds": "generate 1-15; extend 2-10"
+            }
+          },
+          "completed_url": "/v1/videos/{task_id}/content"
         }
       },
       "VideoResponse": {
@@ -4245,6 +6118,75 @@
             "type": "string",
             "description": "任务状态",
             "example": "queued"
+          }
+        }
+      },
+      "VideoToMusicResponse": {
+        "type": "object",
+        "description": "异步视频配乐任务响应",
+        "required": [
+          "id",
+          "task_id",
+          "status",
+          "model"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "task_abc123"
+          },
+          "task_id": {
+            "type": "string",
+            "example": "task_abc123"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "processing",
+              "succeeded",
+              "failed"
+            ]
+          },
+          "model": {
+            "type": "string",
+            "example": "sonilo-video-to-music"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "duration_seconds": {
+            "type": "number"
+          },
+          "audio": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "description": "Flatkey audio proxy URL"
+                },
+                "content_type": {
+                  "type": "string"
+                },
+                "file_size_bytes": {
+                  "type": "integer",
+                  "format": "int64"
+                },
+                "stream_index": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            }
           }
         }
       },
@@ -4333,7 +6275,7 @@
       },
       "OpenAIVideo": {
         "type": "object",
-        "description": "OpenAI 兼容的视频对象",
+        "description": "OpenAI 兼容的视频对象。Grok Subscription 完成时 metadata.url 仅为 Flatkey /v1/videos/{task_id}/content 代理地址。",
         "properties": {
           "id": {
             "type": "string",
@@ -4400,7 +6342,7 @@
           },
           "metadata": {
             "type": "object",
-            "description": "额外元数据",
+            "description": "额外元数据；对于 Grok Subscription，url 为公开 Flatkey 内容代理地址。",
             "additionalProperties": true,
             "properties": {}
           }
@@ -4596,7 +6538,18 @@
         }
       }
     },
-    "responses": {},
+    "responses": {
+      "BytePlusAssetError": {
+        "description": "OpenAI-compatible error envelope",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
     "securitySchemes": {
       "BearerAuth": {
         "type": "http",
@@ -7285,7 +9238,11 @@
       }
     }
   },
-  "servers": [],
+  "servers": [
+    {
+      "url": "https://router.flatkey.ai"
+    }
+  ],
   "security": [
     {
       "BearerAuth": []

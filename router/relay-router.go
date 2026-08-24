@@ -1,6 +1,9 @@
 package router
 
 import (
+	"strings"
+
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
@@ -16,6 +19,13 @@ func SetRelayRouter(router *gin.Engine) {
 	router.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	router.Use(middleware.StatsMiddleware())
 	// https://platform.openai.com/docs/api-reference/introduction
+	availableModelsRouter := router.Group("/v1/available_models")
+	availableModelsRouter.Use(middleware.RouteTag("relay"))
+	availableModelsRouter.Use(middleware.TokenAuthReadOnlyForModelList())
+	{
+		availableModelsRouter.GET("", controller.AvailableModels)
+	}
+
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.RouteTag("relay"))
 	modelsRouter.Use(middleware.TokenAuth())
@@ -39,6 +49,14 @@ func SetRelayRouter(router *gin.Engine) {
 				controller.RetrieveModel(c, constant.ChannelTypeOpenAI)
 			}
 		})
+	}
+
+	flatkeyUtilityRouter := router.Group("/v1")
+	flatkeyUtilityRouter.Use(middleware.RouteTag("relay"))
+	flatkeyUtilityRouter.Use(middleware.TokenAuthReadOnly())
+	{
+		flatkeyUtilityRouter.GET("/status", controller.GetFlatkeyStatus)
+		flatkeyUtilityRouter.GET("/credits", controller.GetFlatkeyCredits)
 	}
 
 	geminiRouter := router.Group("/v1beta/models")
@@ -65,6 +83,9 @@ func SetRelayRouter(router *gin.Engine) {
 	playgroundRouter.Use(middleware.UserAuth(), middleware.Distribute())
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
+		playgroundRouter.POST("/images/generations", controller.PlaygroundImage)
+		playgroundRouter.POST("/videos", controller.PlaygroundVideoSubmit)
+		playgroundRouter.GET("/videos/:task_id", controller.PlaygroundVideoFetch)
 	}
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))
@@ -86,23 +107,23 @@ func SetRelayRouter(router *gin.Engine) {
 
 		// claude related routes
 		httpRouter.POST("/messages", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatClaude)
+			relayWithRequestSamplingEligible(c, types.RelayFormatClaude)
 		})
 
 		// chat related routes
 		httpRouter.POST("/completions", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAI)
+			relayWithRequestSamplingEligible(c, types.RelayFormatOpenAI)
 		})
 		httpRouter.POST("/chat/completions", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAI)
+			relayWithRequestSamplingEligible(c, types.RelayFormatOpenAI)
 		})
 
 		// response related routes
 		httpRouter.POST("/responses", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIResponses)
+			relayWithRequestSamplingEligible(c, types.RelayFormatOpenAIResponses)
 		})
 		httpRouter.POST("/responses/compact", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIResponsesCompaction)
+			relayWithRequestSamplingEligible(c, types.RelayFormatOpenAIResponsesCompaction)
 		})
 
 		// image related routes
@@ -132,6 +153,17 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAIAudio)
 		})
 
+		// ElevenLabs native voice/SFX endpoints (passthrough; xi-api-key injected
+		// by the elevenlabs adaptor, billed per char (TTS) / per second (SFX)).
+		httpRouter.POST("/text-to-speech/:voice_id", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatElevenLabs)
+		})
+		httpRouter.GET("/voices", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatElevenLabs)
+		})
+		httpRouter.POST("/sound-generation", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatElevenLabs)
+		})
 		// rerank related routes
 		httpRouter.POST("/rerank", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatRerank)
@@ -142,7 +174,7 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatGemini)
 		})
 		httpRouter.POST("/models/*path", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatGemini)
+			relayGeminiWithRequestSamplingEligible(c)
 		})
 
 		// other relay routes
@@ -195,9 +227,33 @@ func SetRelayRouter(router *gin.Engine) {
 	{
 		// Gemini API 路径格式: /v1beta/models/{model_name}:{action}
 		relayGeminiRouter.POST("/models/*path", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatGemini)
+			relayGeminiWithRequestSamplingEligible(c)
 		})
 	}
+}
+
+func relayWithRequestSamplingEligible(c *gin.Context, relayFormat types.RelayFormat) {
+	common.SetContextKey(c, constant.ContextKeyRequestSamplingEligible, true)
+	controller.Relay(c, relayFormat)
+}
+
+func relayGeminiWithRequestSamplingEligible(c *gin.Context) {
+	if isGeminiTextGenerationPath(c.Request.URL.Path) {
+		common.SetContextKey(c, constant.ContextKeyRequestSamplingEligible, true)
+	}
+	controller.Relay(c, types.RelayFormatGemini)
+}
+
+func isGeminiTextGenerationPath(path string) bool {
+	if !strings.HasPrefix(path, "/v1beta/models/") && !strings.HasPrefix(path, "/v1/models/") {
+		return false
+	}
+	actionIndex := strings.LastIndex(path, ":")
+	if actionIndex < 0 || actionIndex == len(path)-1 {
+		return false
+	}
+	action := path[actionIndex+1:]
+	return action == "generateContent" || action == "streamGenerateContent"
 }
 
 func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {

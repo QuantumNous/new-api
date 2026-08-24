@@ -55,8 +55,26 @@ type channelTestOptions struct {
 	Context      context.Context
 }
 
+func safelyConvertClaudeChannelTestRequest(convert func() (any, error)) (converted any, err error) {
+	defer func() {
+		if recover() != nil {
+			converted = nil
+			err = errors.New("channel does not support the Anthropic endpoint")
+		}
+	}()
+	return convert()
+}
+
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
+	// Codex upstream only accepts the Responses protocol. An Anthropic channel
+	// test therefore targets the same upstream protocol used by the real
+	// Claude -> Chat -> Responses bridge instead of sending /v1/messages directly
+	// to the Codex adaptor.
+	if channel != nil && channel.Type == constant.ChannelTypeCodex &&
+		normalized == string(constant.EndpointTypeAnthropic) {
+		return string(constant.EndpointTypeOpenAIResponse)
+	}
 	if normalized != "" {
 		return normalized
 	}
@@ -329,80 +347,92 @@ func testChannelWithOptions(channel *model.Channel, testUserID int, testModel st
 	adaptor.Init(info)
 
 	var convertedRequest any
-	// 根据 RelayMode 选择正确的转换函数
-	switch info.RelayMode {
-	case relayconstant.RelayModeEmbeddings:
-		// Embedding 请求 - request 已经是正确的类型
-		if embeddingReq, ok := request.(*dto.EmbeddingRequest); ok {
-			convertedRequest, err = adaptor.ConvertEmbeddingRequest(c, info, *embeddingReq)
-		} else {
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid embedding request type"),
-				newAPIError: types.NewError(errors.New("invalid embedding request type"), types.ErrorCodeConvertRequestFailed),
-			}
-		}
-	case relayconstant.RelayModeImagesGenerations:
-		// 图像生成请求 - request 已经是正确的类型
-		if imageReq, ok := request.(*dto.ImageRequest); ok {
-			convertedRequest, err = adaptor.ConvertImageRequest(c, info, *imageReq)
-		} else {
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid image request type"),
-				newAPIError: types.NewError(errors.New("invalid image request type"), types.ErrorCodeConvertRequestFailed),
-			}
-		}
-	case relayconstant.RelayModeRerank:
-		// Rerank 请求 - request 已经是正确的类型
-		if rerankReq, ok := request.(*dto.RerankRequest); ok {
-			convertedRequest, err = adaptor.ConvertRerankRequest(c, info.RelayMode, *rerankReq)
-		} else {
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid rerank request type"),
-				newAPIError: types.NewError(errors.New("invalid rerank request type"), types.ErrorCodeConvertRequestFailed),
-			}
-		}
-	case relayconstant.RelayModeResponses:
-		// Response 请求 - request 已经是正确的类型
-		if responseReq, ok := request.(*dto.OpenAIResponsesRequest); ok {
-			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, *responseReq)
-		} else {
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid response request type"),
-				newAPIError: types.NewError(errors.New("invalid response request type"), types.ErrorCodeConvertRequestFailed),
-			}
-		}
-	case relayconstant.RelayModeResponsesCompact:
-		// Response compaction request - convert to OpenAIResponsesRequest before adapting
-		switch req := request.(type) {
-		case *dto.OpenAIResponsesCompactionRequest:
-			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
-				Model:              req.Model,
-				Input:              req.Input,
-				Instructions:       req.Instructions,
-				PreviousResponseID: req.PreviousResponseID,
+	// Native Anthropic requests share relay modes with other endpoints, so select
+	// their converter by relay format before the relay-mode switch.
+	if info.RelayFormat == types.RelayFormatClaude {
+		if claudeReq, ok := request.(*dto.ClaudeRequest); ok {
+			convertedRequest, err = safelyConvertClaudeChannelTestRequest(func() (any, error) {
+				return adaptor.ConvertClaudeRequest(c, info, claudeReq)
 			})
-		case *dto.OpenAIResponsesRequest:
-			convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, *req)
-		default:
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid response compaction request type"),
-				newAPIError: types.NewError(errors.New("invalid response compaction request type"), types.ErrorCodeConvertRequestFailed),
-			}
-		}
-	default:
-		// Chat/Completion 等其他请求类型
-		if generalReq, ok := request.(*dto.GeneralOpenAIRequest); ok {
-			convertedRequest, err = adaptor.ConvertOpenAIRequest(c, info, generalReq)
 		} else {
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid general request type"),
-				newAPIError: types.NewError(errors.New("invalid general request type"), types.ErrorCodeConvertRequestFailed),
+			err = errors.New("invalid claude request type")
+		}
+	} else {
+		// 根据 RelayMode 选择正确的转换函数
+		switch info.RelayMode {
+		case relayconstant.RelayModeEmbeddings:
+			// Embedding 请求 - request 已经是正确的类型
+			if embeddingReq, ok := request.(*dto.EmbeddingRequest); ok {
+				convertedRequest, err = adaptor.ConvertEmbeddingRequest(c, info, *embeddingReq)
+			} else {
+				return testResult{
+					context:     c,
+					localErr:    errors.New("invalid embedding request type"),
+					newAPIError: types.NewError(errors.New("invalid embedding request type"), types.ErrorCodeConvertRequestFailed),
+				}
+			}
+		case relayconstant.RelayModeImagesGenerations:
+			// 图像生成请求 - request 已经是正确的类型
+			if imageReq, ok := request.(*dto.ImageRequest); ok {
+				convertedRequest, err = adaptor.ConvertImageRequest(c, info, *imageReq)
+			} else {
+				return testResult{
+					context:     c,
+					localErr:    errors.New("invalid image request type"),
+					newAPIError: types.NewError(errors.New("invalid image request type"), types.ErrorCodeConvertRequestFailed),
+				}
+			}
+		case relayconstant.RelayModeRerank:
+			// Rerank 请求 - request 已经是正确的类型
+			if rerankReq, ok := request.(*dto.RerankRequest); ok {
+				convertedRequest, err = adaptor.ConvertRerankRequest(c, info.RelayMode, *rerankReq)
+			} else {
+				return testResult{
+					context:     c,
+					localErr:    errors.New("invalid rerank request type"),
+					newAPIError: types.NewError(errors.New("invalid rerank request type"), types.ErrorCodeConvertRequestFailed),
+				}
+			}
+		case relayconstant.RelayModeResponses:
+			// Response 请求 - request 已经是正确的类型
+			if responseReq, ok := request.(*dto.OpenAIResponsesRequest); ok {
+				convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, *responseReq)
+			} else {
+				return testResult{
+					context:     c,
+					localErr:    errors.New("invalid response request type"),
+					newAPIError: types.NewError(errors.New("invalid response request type"), types.ErrorCodeConvertRequestFailed),
+				}
+			}
+		case relayconstant.RelayModeResponsesCompact:
+			// Response compaction request - convert to OpenAIResponsesRequest before adapting
+			switch req := request.(type) {
+			case *dto.OpenAIResponsesCompactionRequest:
+				convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{
+					Model:              req.Model,
+					Input:              req.Input,
+					Instructions:       req.Instructions,
+					PreviousResponseID: req.PreviousResponseID,
+				})
+			case *dto.OpenAIResponsesRequest:
+				convertedRequest, err = adaptor.ConvertOpenAIResponsesRequest(c, info, *req)
+			default:
+				return testResult{
+					context:     c,
+					localErr:    errors.New("invalid response compaction request type"),
+					newAPIError: types.NewError(errors.New("invalid response compaction request type"), types.ErrorCodeConvertRequestFailed),
+				}
+			}
+		default:
+			// Chat/Completion 等其他请求类型
+			if generalReq, ok := request.(*dto.GeneralOpenAIRequest); ok {
+				convertedRequest, err = adaptor.ConvertOpenAIRequest(c, info, generalReq)
+			} else {
+				return testResult{
+					context:     c,
+					localErr:    errors.New("invalid general request type"),
+					newAPIError: types.NewError(errors.New("invalid general request type"), types.ErrorCodeConvertRequestFailed),
+				}
 			}
 		}
 	}
@@ -541,6 +571,7 @@ func testChannelWithOptions(channel *model.Channel, testUserID int, testModel st
 		}
 		model.RecordConsumeLog(c, testUserID, model.RecordConsumeLogParams{
 			ChannelId:        channel.Id,
+			ChannelType:      channel.Type,
 			PromptTokens:     usage.PromptTokens,
 			CompletionTokens: usage.CompletionTokens,
 			ModelName:        info.OriginModelName,
@@ -755,7 +786,24 @@ func validatePongTestResponseBody(respBody []byte) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("model availability probe expected pong, got %q", common.LocalLogPreview(strings.Join(candidates, " ")))
+	// Tolerant fallback: chat and reasoning models rarely reply exactly "pong" —
+	// they explain the "ping" instruction, or (thinking models) return empty content
+	// with the reasoning held in a separate field. detectErrorFromTestResponseBody
+	// already ran (validateTestResponseBody at the call site) and rejected genuine
+	// upstream errors, so any body reaching here is a successful 200 from the model.
+	// Treat a substantive answer as available.
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate) != "" {
+			return nil
+		}
+	}
+	// All extracted content was empty but the upstream still returned a completion
+	// object (JSON body or an SSE stream) — e.g. a reasoning model that spent its
+	// token budget on hidden reasoning. The model is reachable, so pass.
+	if b[0] == '{' || bytes.Contains(b, []byte("data:")) {
+		return nil
+	}
+	return fmt.Errorf("model availability probe returned no usable completion, got %q", common.LocalLogPreview(strings.Join(candidates, " ")))
 }
 
 func shouldUseStreamForAutomaticChannelTest(channel *model.Channel) bool {
@@ -898,7 +946,14 @@ func buildTestRequestWithOptions(model string, endpointType string, channel *mod
 				Model: model,
 				Input: json.RawMessage(testResponsesInput),
 			}
-		case constant.EndpointTypeAnthropic, constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
+		case constant.EndpointTypeAnthropic:
+			return &dto.ClaudeRequest{
+				Model:     model,
+				Messages:  []dto.ClaudeMessage{{Role: "user", Content: prompt}},
+				MaxTokens: lo.ToPtr(uint(maxTokens)),
+				Stream:    lo.ToPtr(isStream),
+			}
+		case constant.EndpointTypeGemini, constant.EndpointTypeOpenAI:
 			// 返回 GeneralOpenAIRequest
 			requestMaxTokens := maxTokens
 			if constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
@@ -1064,40 +1119,53 @@ func TestChannel(c *gin.Context) {
 var testAllChannelsLock sync.Mutex
 var testAllChannelsRunning bool = false
 
-func testAllChannels(notify bool) error {
-	testUserID, err := resolveChannelTestUserID(nil)
+type channelTestBatchLoader func() (int, []*model.Channel, error)
+
+func acquireChannelTestRun() error {
+	testAllChannelsLock.Lock()
+	defer testAllChannelsLock.Unlock()
+	if testAllChannelsRunning {
+		return errors.New("测试已在运行中")
+	}
+	testAllChannelsRunning = true
+	return nil
+}
+
+func releaseChannelTestRun() {
+	testAllChannelsLock.Lock()
+	testAllChannelsRunning = false
+	testAllChannelsLock.Unlock()
+}
+
+func testChannels(loadBatch channelTestBatchLoader, notify bool, allowDisable bool) (err error) {
+	if err = acquireChannelTestRun(); err != nil {
+		return err
+	}
+	handedOff := false
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("加载渠道测试批次失败: %v", recovered)
+		}
+		if !handedOff {
+			releaseChannelTestRun()
+		}
+	}()
+
+	testUserID, channels, err := loadBatch()
 	if err != nil {
 		return err
 	}
 
-	testAllChannelsLock.Lock()
-	if testAllChannelsRunning {
-		testAllChannelsLock.Unlock()
-		return errors.New("测试已在运行中")
-	}
-	testAllChannelsRunning = true
-	testAllChannelsLock.Unlock()
-	channels, getChannelErr := model.GetAllChannels(0, 0, true, false)
-	if getChannelErr != nil {
-		return getChannelErr
-	}
 	var disableThreshold = int64(common.ChannelDisableThreshold * 1000)
 	if disableThreshold == 0 {
 		disableThreshold = 10000000 // a impossible value
 	}
 	gopool.Go(func() {
 		// 使用 defer 确保无论如何都会重置运行状态，防止死锁
-		defer func() {
-			testAllChannelsLock.Lock()
-			testAllChannelsRunning = false
-			testAllChannelsLock.Unlock()
-		}()
+		defer releaseChannelTestRun()
 
 		dingTalkAlerts := make([]service.DingTalkChannelAlert, 0)
 		for _, channel := range channels {
-			if channel.Status == common.ChannelStatusManuallyDisabled {
-				continue
-			}
 			if shouldSkipScheduledChannelTestByType(notify, channel.Type, operation_setting.GetMonitorSetting()) {
 				continue
 			}
@@ -1125,7 +1193,7 @@ func testAllChannels(notify bool) error {
 
 			autoDisabled := false
 			// disable channel
-			if isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
+			if allowDisable && isChannelEnabled && shouldBanChannel && channel.GetAutoBan() {
 				autoDisabled = true
 				processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 			}
@@ -1140,7 +1208,7 @@ func testAllChannels(notify bool) error {
 			}
 
 			// enable channel
-			if !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
+			if result.localErr == nil && !isChannelEnabled && service.ShouldEnableChannel(newAPIError, channel.Status) {
 				service.EnableChannel(channel.Id, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.Name)
 			}
 
@@ -1158,7 +1226,50 @@ func testAllChannels(notify bool) error {
 			service.NotifyRootUser(dto.NotifyTypeChannelTest, "通道测试完成", "所有通道测试已完成")
 		}
 	})
+	handedOff = true
 	return nil
+}
+
+func selectChannelsForAutomaticTest(channels []*model.Channel, mode string) []*model.Channel {
+	selected := make([]*model.Channel, 0, len(channels))
+	for _, channel := range channels {
+		if channel.Status == common.ChannelStatusManuallyDisabled {
+			continue
+		}
+		if mode == operation_setting.ChannelTestModePassiveRecovery && channel.Status != common.ChannelStatusAutoDisabled {
+			continue
+		}
+		selected = append(selected, channel)
+	}
+	return selected
+}
+
+func testAllChannels(notify bool) error {
+	return testChannels(func() (int, []*model.Channel, error) {
+		testUserID, err := resolveChannelTestUserID(nil)
+		if err != nil {
+			return 0, nil, err
+		}
+		channels, err := model.GetAllChannels(0, 0, true, false)
+		if err != nil {
+			return 0, nil, err
+		}
+		return testUserID, selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll), nil
+	}, notify, true)
+}
+
+func testAutoDisabledChannels(notify bool) error {
+	return testChannels(func() (int, []*model.Channel, error) {
+		testUserID, err := resolveChannelTestUserID(nil)
+		if err != nil {
+			return 0, nil, err
+		}
+		channels, err := model.GetAllChannels(0, 0, true, false)
+		if err != nil {
+			return 0, nil, err
+		}
+		return testUserID, selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModePassiveRecovery), nil
+	}, notify, false)
 }
 
 func TestAllChannels(c *gin.Context) {
@@ -1190,8 +1301,13 @@ func AutomaticallyTestChannels() {
 				frequency := operation_setting.GetMonitorSetting().AutoTestChannelMinutes
 				time.Sleep(time.Duration(int(math.Round(frequency))) * time.Minute)
 				common.SysLog(fmt.Sprintf("automatically test channels with interval %f minutes", frequency))
-				common.SysLog("automatically testing all channels")
-				_ = testAllChannels(false)
+				if operation_setting.GetMonitorSetting().ChannelTestMode == operation_setting.ChannelTestModePassiveRecovery {
+					common.SysLog("automatically testing auto-disabled channels")
+					_ = testAutoDisabledChannels(false)
+				} else {
+					common.SysLog("automatically testing all channels")
+					_ = testAllChannels(false)
+				}
 				common.SysLog("automatically channel test finished")
 				if !operation_setting.GetMonitorSetting().AutoTestChannelEnabled {
 					break

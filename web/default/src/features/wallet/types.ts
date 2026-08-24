@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 // ============================================================================
 // Wallet Type Definitions
 // ============================================================================
+import type { StripeCurrencyPrices } from './lib/stripe-currency'
 
 /**
  * Generic API response
@@ -37,9 +38,27 @@ export type AmountResponse = ApiResponse<string>
 export type PaymentResponse = ApiResponse<Record<string, unknown>> & {
   url?: string
 }
-export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
-export type AffiliateCodeResponse = ApiResponse<string>
-export type AffiliateTransferResponse = ApiResponse
+/** Bonus summary shown in the embedded checkout banner (USD display mode only) */
+export interface StripeTopupSummary {
+  /** USD the buyer pays (top-up tier) */
+  pay_amount: number
+  /** USD bonus credited on top */
+  bonus_amount: number
+  /** Total USD credited to the wallet (pay + bonus) */
+  credit_amount: number
+  /** Whether the amounts are meaningful to display (false in token display mode) */
+  show_amounts: boolean
+}
+export type StripePaymentResponse = ApiResponse<{
+  /** Hosted checkout redirect link (hosted ui_mode) */
+  pay_link?: string
+  /** Embedded Checkout session client secret (embedded ui_mode) */
+  client_secret?: string
+  /** Stripe publishable key used to mount embedded Checkout */
+  publishable_key?: string
+  /** Bonus banner data for the embedded checkout dialog */
+  topup_summary?: StripeTopupSummary
+}>
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string
@@ -70,6 +89,43 @@ export type PaddlePaymentResponse = ApiResponse<
 export type PaddleTopUpStatusResponse = ApiResponse<PaddleTopUpStatus>
 export type InvoiceProfileResponse = ApiResponse<InvoiceProfile | null>
 export type RequestInvoiceResponse = ApiResponse<PaymentInvoice | null>
+
+export type RecallPurchaseKind = 'topup' | 'subscription'
+
+export interface RecallDiscountConfig {
+  type: string
+  percent_off: number
+  amount_off: number
+  currency: string
+  currency_options?: Record<string, number>
+  minimum_amount: number
+  minimum_amount_currency: string
+  coupon_redeem_by: number
+}
+
+export interface RecallProductScope {
+  topup_price_ids: string[]
+  subscription_price_ids: string[]
+  subscription_plan_ids?: number[]
+}
+
+export interface RecallClaimView {
+  campaign_id: number
+  recipient_id: number
+  campaign_name: string
+  promotion_code_masked: string
+  expires_at: number
+  discount: RecallDiscountConfig
+  products: RecallProductScope
+  redeemed: boolean
+}
+
+export interface RecallOfferView extends RecallClaimView {
+  issued_at: number
+}
+
+export type RecallClaimResponse = ApiResponse<RecallClaimView>
+export type RecallOffersResponse = ApiResponse<RecallOfferView[]>
 
 export interface PaddleTopUpStatus {
   order_id: string
@@ -191,6 +247,10 @@ export interface TopupInfo {
   stripe_min_topup: number
   /** Preset amount options */
   amount_options: number[]
+  /** Stripe Price IDs keyed by top-up amount */
+  stripe_price_ids?: Record<number, string>
+  /** Stripe minor-unit prices keyed by checkout currency and top-up amount */
+  stripe_currency_prices?: StripeCurrencyPrices
   /** Discount rates by amount */
   discount: Record<number, number>
   /** Bonus amounts by selected recharge amount */
@@ -199,6 +259,8 @@ export interface TopupInfo {
   bonus_remaining?: Record<number, number>
   /** Optional topup link for purchasing codes */
   topup_link?: string
+  /** ISO country of the caller IP ("?" when unknown); gates the checkout-currency selector */
+  client_region?: string
   /** Whether Creem topup is enabled */
   enable_creem_topup?: boolean
   /** Available Creem products */
@@ -249,14 +311,18 @@ export interface PaymentRequest {
   amount: number
   /** Payment method identifier */
   payment_method: string
+  /** One-time recall campaign claim, accepted only by Stripe endpoints */
+  recall_claim?: string
   /** Optional explicit Stripe checkout package currency override */
-  stripe_currency?: 'USD' | 'JPY' | 'BRL'
+  stripe_currency?: 'USD' | 'JPY' | 'BRL' | 'INR'
   /** Save the card during payment (setup_future_usage) for later off-session auto-charge */
   save_card?: boolean
   /** Optional redirect URL after successful hosted checkout */
   success_url?: string
   /** Optional redirect URL after cancelled hosted checkout */
   cancel_url?: string
+  /** Checkout presentation: 'embedded' renders inside the console when the server supports it */
+  ui_mode?: 'embedded'
   /** Whether Stripe should create a company invoice */
   invoice_requested?: boolean
   /** Company invoice profile snapshot */
@@ -270,8 +336,12 @@ export interface PaymentRequest {
 export interface PaymentOptions {
   invoiceRequested?: boolean
   invoiceProfile?: InvoiceProfile
+  /** Prefer embedded Stripe Checkout (falls back to hosted redirect when unavailable) */
+  preferEmbeddedCheckout?: boolean
   /** Optional explicit Stripe checkout package currency override */
-  stripeCurrency?: 'USD' | 'JPY' | 'BRL'
+  stripeCurrency?: 'USD' | 'JPY' | 'BRL' | 'INR'
+  /** One-time recall campaign claim, forwarded only to Stripe */
+  recallClaim?: string
 }
 
 /**
@@ -318,14 +388,6 @@ export interface PaddlePaymentRequest {
 export interface AmountRequest {
   /** Topup amount to calculate */
   amount: number
-}
-
-/**
- * Affiliate quota transfer request
- */
-export interface AffiliateTransferRequest {
-  /** Quota amount to transfer */
-  quota: number
 }
 
 /**
@@ -398,6 +460,40 @@ export interface BillingHistoryResponse {
   items: TopupRecord[]
   total: number
 }
+
+export type RefundableTermStatus = 'not_started' | 'refunded'
+
+/** A prepaid plan term that has not started and can return value to the wallet. */
+export interface RefundableSubscriptionTerm {
+  term_segment_id: number
+  order_id: number
+  plan_id: number
+  plan_title: string
+  start_time: number
+  end_time: number
+  remaining_days: number
+  refund_money: number
+  refund_quota: number
+  status: RefundableTermStatus
+}
+
+export interface RefundableSubscriptionTermsData {
+  items: RefundableSubscriptionTerm[]
+  total_refund_money: number
+  total_refund_quota: number
+}
+
+export interface RefundedSubscriptionTerm {
+  term_segment_id: number
+  refunded_money: number
+  refunded_quota: number
+  status: 'refunded'
+}
+
+export type RefundableSubscriptionTermsResponse =
+  ApiResponse<RefundableSubscriptionTermsData>
+export type RefundSubscriptionTermResponse =
+  ApiResponse<RefundedSubscriptionTerm>
 
 /**
  * Complete order request (admin only)

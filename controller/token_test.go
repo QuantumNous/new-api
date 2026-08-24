@@ -2,14 +2,17 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -17,8 +20,11 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/go-redis/redis/v8"
+	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -35,10 +41,15 @@ type tokenPageResponse struct {
 }
 
 type tokenResponseItem struct {
-	ID     int    `json:"id"`
-	Name   string `json:"name"`
-	Key    string `json:"key"`
-	Status int    `json:"status"`
+	ID                    int    `json:"id"`
+	Name                  string `json:"name"`
+	Key                   string `json:"key"`
+	Status                int    `json:"status"`
+	Group                 string `json:"group"`
+	ModelLimitsEnabled    bool   `json:"model_limits_enabled"`
+	ModelLimits           string `json:"model_limits"`
+	ModelBlacklistEnabled bool   `json:"model_blacklist_enabled"`
+	ModelBlacklist        string `json:"model_blacklist"`
 }
 
 type tokenKeyResponse struct {
@@ -57,23 +68,79 @@ type sqliteColumnInfo struct {
 }
 
 type legacyToken struct {
-	Id                 int    `gorm:"primaryKey"`
-	UserId             int    `gorm:"index"`
-	Key                string `gorm:"column:key;type:char(48);uniqueIndex"`
-	Status             int    `gorm:"default:1"`
-	Name               string `gorm:"index"`
-	CreatedTime        int64  `gorm:"bigint"`
-	AccessedTime       int64  `gorm:"bigint"`
-	ExpiredTime        int64  `gorm:"bigint;default:-1"`
-	RemainQuota        int    `gorm:"default:0"`
-	UnlimitedQuota     bool
-	ModelLimitsEnabled bool
-	ModelLimits        string  `gorm:"type:text"`
-	AllowIps           *string `gorm:"default:''"`
-	UsedQuota          int     `gorm:"default:0"`
-	Group              string  `gorm:"column:group;default:''"`
-	CrossGroupRetry    bool
-	DeletedAt          gorm.DeletedAt `gorm:"index"`
+	Id                    int    `gorm:"primaryKey"`
+	UserId                int    `gorm:"index"`
+	Key                   string `gorm:"column:key;type:char(48);uniqueIndex"`
+	Status                int    `gorm:"default:1"`
+	Name                  string `gorm:"index"`
+	CreatedTime           int64  `gorm:"bigint"`
+	AccessedTime          int64  `gorm:"bigint"`
+	ExpiredTime           int64  `gorm:"bigint;default:-1"`
+	RemainQuota           int    `gorm:"default:0"`
+	UnlimitedQuota        bool
+	ModelLimitsEnabled    bool
+	ModelLimits           string `gorm:"type:text"`
+	ModelBlacklistEnabled bool
+	ModelBlacklist        string  `gorm:"type:text"`
+	AllowIps              *string `gorm:"default:''"`
+	UsedQuota             int     `gorm:"default:0"`
+	Group                 string  `gorm:"column:group;default:''"`
+	CrossGroupRetry       bool
+	DeletedAt             gorm.DeletedAt `gorm:"index"`
+}
+
+func TestTokenActivationEventNameUsesTrustedSourceNotDisplayName(t *testing.T) {
+	require.Equal(t, "api_key_created", tokenActivationEventName(&model.Token{Name: "Flatkey CLI"}))
+	require.Equal(t, "cli_key_created", tokenActivationEventName(&model.Token{
+		Name:   "renamed cli key",
+		Source: model.TokenSourceCLI,
+	}))
+}
+
+func TestBuildTokenForInsertDropsUntrustedCliMetadata(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	seedTokenUser(t, db, 12)
+	ctx, _ := newAuthenticatedContext(t, http.MethodPost, "/api/token/", nil, 12)
+
+	token, err := buildTokenForInsert(ctx, model.Token{
+		Name:             "Flatkey CLI",
+		Source:           model.TokenSourceCLI,
+		DeviceIdHash:     "forged-device",
+		ClientName:       "forged-client",
+		ClientVersion:    "9.9.9",
+		LastUsedClientAt: 123,
+	}, "generated-key")
+
+	require.NoError(t, err)
+	require.Empty(t, token.Source)
+	require.Empty(t, token.DeviceIdHash)
+	require.Empty(t, token.ClientName)
+	require.Empty(t, token.ClientVersion)
+	require.Zero(t, token.LastUsedClientAt)
+	require.Equal(t, "api_key_created", tokenActivationEventName(&token))
+}
+
+func TestBuildTokenForInsertPreservesTrustedCliMetadata(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	seedTokenUser(t, db, 13)
+	ctx, _ := newAuthenticatedContext(t, http.MethodPost, "/api/token/", nil, 13)
+
+	token, err := buildCLITokenForInsert(ctx, model.Token{
+		Name:             "Flatkey CLI",
+		Source:           model.TokenSourceCLI,
+		DeviceIdHash:     "trusted-device",
+		ClientName:       "flatkey-cli",
+		ClientVersion:    "1.2.3",
+		LastUsedClientAt: 456,
+	}, "generated-key")
+
+	require.NoError(t, err)
+	require.Equal(t, model.TokenSourceCLI, token.Source)
+	require.Equal(t, "trusted-device", token.DeviceIdHash)
+	require.Equal(t, "flatkey-cli", token.ClientName)
+	require.Equal(t, "1.2.3", token.ClientVersion)
+	require.Equal(t, int64(456), token.LastUsedClientAt)
+	require.Equal(t, "cli_key_created", tokenActivationEventName(&token))
 }
 
 func (legacyToken) TableName() string {
@@ -121,6 +188,67 @@ func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
 	db := openTokenControllerTestDB(t)
 	migrateTokenControllerTestDB(t, db)
 	return db
+}
+
+func setupTokenControllerRedisTest(t *testing.T) *miniredis.Miniredis {
+	t.Helper()
+
+	previousRedisEnabled := common.RedisEnabled
+	previousRDB := common.RDB
+	mr := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	common.RedisEnabled = true
+	common.RDB = client
+	t.Cleanup(func() {
+		require.NoError(t, client.Close())
+		common.RedisEnabled = previousRedisEnabled
+		common.RDB = previousRDB
+	})
+	return mr
+}
+
+type failingTokenCacheInvalidationHook struct {
+	mu                   sync.Mutex
+	failInvalidation     bool
+	failOnAttempt        int
+	invalidationAttempts int
+	err                  error
+}
+
+func (hook *failingTokenCacheInvalidationHook) BeforeProcess(ctx context.Context, cmd redis.Cmder) (context.Context, error) {
+	if strings.EqualFold(cmd.Name(), "evalsha") || strings.EqualFold(cmd.Name(), "eval") {
+		hook.mu.Lock()
+		defer hook.mu.Unlock()
+		hook.invalidationAttempts++
+		if hook.failInvalidation && (hook.failOnAttempt == 0 || hook.invalidationAttempts == hook.failOnAttempt) {
+			return ctx, hook.err
+		}
+	}
+	return ctx, nil
+}
+
+func (hook *failingTokenCacheInvalidationHook) AfterProcess(context.Context, redis.Cmder) error {
+	return nil
+}
+
+func (hook *failingTokenCacheInvalidationHook) BeforeProcessPipeline(ctx context.Context, _ []redis.Cmder) (context.Context, error) {
+	return ctx, nil
+}
+
+func (hook *failingTokenCacheInvalidationHook) AfterProcessPipeline(context.Context, []redis.Cmder) error {
+	return nil
+}
+
+func (hook *failingTokenCacheInvalidationHook) setFailInvalidation(fail bool) {
+	hook.mu.Lock()
+	defer hook.mu.Unlock()
+	hook.failInvalidation = fail
+}
+
+func (hook *failingTokenCacheInvalidationHook) attempts() int {
+	hook.mu.Lock()
+	defer hook.mu.Unlock()
+	return hook.invalidationAttempts
 }
 
 func setupInitialTokenControllerTestDB(t *testing.T) *gorm.DB {
@@ -526,6 +654,185 @@ func TestSearchTokensMasksKeyInResponse(t *testing.T) {
 	}
 }
 
+func TestTokenListEndpointsFilterByGroup(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	defaultToken := seedToken(t, db, 1, "default-token", "default1234token")
+	vipToken := seedToken(t, db, 1, "vip-token", "vip1234token")
+	vipToken.Group = "vip"
+	require.NoError(t, db.Save(vipToken).Error)
+
+	testCases := []struct {
+		name    string
+		path    string
+		handler func(*gin.Context)
+	}{
+		{name: "list", path: "/api/token/?group=vip&p=1&size=10", handler: GetAllTokens},
+		{name: "search", path: "/api/token/search?group=vip&p=1&size=10", handler: SearchTokens},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx, recorder := newAuthenticatedContext(t, http.MethodGet, testCase.path, nil, 1)
+			testCase.handler(ctx)
+
+			response := decodeAPIResponse(t, recorder)
+			require.True(t, response.Success, response.Message)
+			var page struct {
+				Items []tokenResponseItem  `json:"items"`
+				Total int                  `json:"total"`
+				Stats model.UserTokenStats `json:"stats"`
+			}
+			require.NoError(t, common.Unmarshal(response.Data, &page))
+			require.Len(t, page.Items, 1)
+			require.Equal(t, vipToken.Id, page.Items[0].ID)
+			require.Equal(t, "vip", page.Items[0].Group)
+			require.Equal(t, 1, page.Total)
+			require.EqualValues(t, 2, page.Stats.Total)
+			require.NotContains(t, recorder.Body.String(), defaultToken.Key)
+		})
+	}
+}
+
+func TestTokenListEndpointsIncludeUserStatusStats(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	enabled := seedToken(t, db, 1, "stats-enabled", "stat-enabled-key")
+	disabled := seedToken(t, db, 1, "stats-disabled", "stat-disabled-key")
+	expired := seedToken(t, db, 1, "stats-expired", "stat-expired-key")
+	exhausted := seedToken(t, db, 1, "stats-exhausted", "stat-exhausted-key")
+	seedToken(t, db, 2, "other-user", "stat-other-user-key")
+
+	statusByTokenID := map[int]int{
+		enabled.Id:   common.TokenStatusEnabled,
+		disabled.Id:  common.TokenStatusDisabled,
+		expired.Id:   common.TokenStatusExpired,
+		exhausted.Id: common.TokenStatusExhausted,
+	}
+	for tokenID, status := range statusByTokenID {
+		if err := db.Model(&model.Token{}).Where("id = ?", tokenID).Update("status", status).Error; err != nil {
+			t.Fatalf("failed to update token status: %v", err)
+		}
+	}
+	if err := db.Model(&model.Token{}).Where("id = ?", exhausted.Id).Updates(map[string]any{
+		"remain_quota":    0,
+		"unlimited_quota": false,
+	}).Error; err != nil {
+		t.Fatalf("failed to exhaust token quota: %v", err)
+	}
+
+	expectedStats := model.UserTokenStats{
+		Total:     4,
+		Enabled:   1,
+		Disabled:  1,
+		Expired:   1,
+		Exhausted: 1,
+	}
+
+	assertStats := func(t *testing.T, recorder *httptest.ResponseRecorder, expectedPageTotal int) {
+		t.Helper()
+		response := decodeAPIResponse(t, recorder)
+		if !response.Success {
+			t.Fatalf("expected success response, got message: %s", response.Message)
+		}
+		var page struct {
+			Total int                  `json:"total"`
+			Stats model.UserTokenStats `json:"stats"`
+		}
+		if err := common.Unmarshal(response.Data, &page); err != nil {
+			t.Fatalf("failed to decode token page response: %v", err)
+		}
+		require.Equal(t, expectedPageTotal, page.Total)
+		require.Equal(t, expectedStats, page.Stats)
+	}
+
+	t.Run("list", func(t *testing.T) {
+		ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/?p=1&size=10", nil, 1)
+		GetAllTokens(ctx)
+		assertStats(t, recorder, 4)
+	})
+
+	t.Run("search keeps account-wide stats", func(t *testing.T) {
+		ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/search?keyword=stats-enabled&p=1&size=10", nil, 1)
+		SearchTokens(ctx)
+		assertStats(t, recorder, 1)
+	})
+}
+
+func TestTokenReadEndpointsReturnEffectiveExhaustedStatus(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	token := seedToken(t, db, 1, "quota-exhausted", "quota-exhausted-key")
+	require.NoError(t, db.Model(&model.Token{}).Where("id = ?", token.Id).Updates(map[string]any{
+		"status":          common.TokenStatusEnabled,
+		"remain_quota":    -1,
+		"unlimited_quota": false,
+	}).Error)
+
+	assertPageStatus := func(t *testing.T, recorder *httptest.ResponseRecorder) {
+		t.Helper()
+		response := decodeAPIResponse(t, recorder)
+		require.True(t, response.Success, response.Message)
+		var page tokenPageResponse
+		require.NoError(t, common.Unmarshal(response.Data, &page))
+		require.Len(t, page.Items, 1)
+		require.Equal(t, common.TokenStatusExhausted, page.Items[0].Status)
+	}
+
+	t.Run("list", func(t *testing.T) {
+		ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/?p=1&size=10", nil, 1)
+		GetAllTokens(ctx)
+		assertPageStatus(t, recorder)
+	})
+
+	t.Run("search", func(t *testing.T) {
+		ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/search?keyword=quota-exhausted&p=1&size=10", nil, 1)
+		SearchTokens(ctx)
+		assertPageStatus(t, recorder)
+	})
+
+	t.Run("detail", func(t *testing.T) {
+		ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/"+strconv.Itoa(token.Id), nil, 1)
+		ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+		GetToken(ctx)
+
+		response := decodeAPIResponse(t, recorder)
+		require.True(t, response.Success, response.Message)
+		var detail tokenResponseItem
+		require.NoError(t, common.Unmarshal(response.Data, &detail))
+		require.Equal(t, common.TokenStatusExhausted, detail.Status)
+	})
+}
+
+func TestSearchTokensFiltersEffectiveStatusBeforePagination(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	expired := seedToken(t, db, 1, "expired-outside-first-page", "expired-outside-first-page-key")
+	require.NoError(t, db.Model(&model.Token{}).Where("id = ?", expired.Id).Updates(map[string]any{
+		"status":       common.TokenStatusEnabled,
+		"expired_time": common.GetTimestamp() - 1,
+	}).Error)
+	otherUserExpired := seedToken(t, db, 2, "other-user-expired", "other-user-expired-key")
+	require.NoError(t, db.Model(&model.Token{}).Where("id = ?", otherUserExpired.Id).Update(
+		"expired_time",
+		common.GetTimestamp()-1,
+	).Error)
+	for index := 0; index < 20; index++ {
+		seedToken(t, db, 1, fmt.Sprintf("enabled-%02d", index), fmt.Sprintf("enabled-key-%02d", index))
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/search?status=3&p=1&size=10", nil, 1)
+	SearchTokens(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var page struct {
+		Items []tokenResponseItem `json:"items"`
+		Total int                 `json:"total"`
+	}
+	require.NoError(t, common.Unmarshal(response.Data, &page))
+	require.Equal(t, 1, page.Total)
+	require.Len(t, page.Items, 1)
+	require.Equal(t, expired.Id, page.Items[0].ID)
+	require.Equal(t, common.TokenStatusExpired, page.Items[0].Status)
+}
+
 func TestGetTokenMasksKeyInResponse(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 	token := seedToken(t, db, 1, "detail-token", "qrst1234uvwx5678")
@@ -590,6 +897,80 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 	if strings.Contains(recorder.Body.String(), token.Key) {
 		t.Fatalf("update response leaked raw token key: %s", recorder.Body.String())
 	}
+}
+
+func TestUpdateTokenCanPreserveModelAccessFields(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 1)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+	token := seedToken(t, db, 1, "editable-token", "preserve1234model5678")
+	token.Group = "auto"
+	token.ModelLimitsEnabled = true
+	token.ModelLimits = "gpt-4o,claude-3-5-sonnet"
+	token.CrossGroupRetry = true
+	require.NoError(t, db.Save(token).Error)
+
+	body := map[string]any{
+		"id":                    token.Id,
+		"name":                  "renamed-token",
+		"expired_time":          -1,
+		"remain_quota":          200,
+		"unlimited_quota":       false,
+		"allow_ips":             "192.0.2.1",
+		"model_limits_enabled":  false,
+		"model_limits":          "",
+		"group":                 "default",
+		"cross_group_retry":     false,
+		"preserve_model_access": true,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, 1)
+	UpdateToken(ctx)
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+
+	var stored model.Token
+	require.NoError(t, db.First(&stored, token.Id).Error)
+	require.Equal(t, "renamed-token", stored.Name)
+	require.Equal(t, 200, stored.RemainQuota)
+	require.Equal(t, "auto", stored.Group)
+	require.True(t, stored.ModelLimitsEnabled)
+	require.Equal(t, "gpt-4o,claude-3-5-sonnet", stored.ModelLimits)
+	require.True(t, stored.CrossGroupRetry)
+}
+
+func TestUpdateTokenPreservationStillEnforcesPLGGroup(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	seedTokenUser(t, db, 1)
+	token := seedToken(t, db, 1, "legacy-token", "preserve1234plg567890")
+	token.Group = "legacy-enterprise"
+	token.ModelLimitsEnabled = true
+	token.ModelLimits = "gpt-4o"
+	token.CrossGroupRetry = true
+	require.NoError(t, db.Save(token).Error)
+
+	body := map[string]any{
+		"id":                    token.Id,
+		"name":                  "renamed-token",
+		"expired_time":          -1,
+		"remain_quota":          200,
+		"unlimited_quota":       false,
+		"allow_ips":             "192.0.2.1",
+		"preserve_model_access": true,
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, 1)
+	UpdateToken(ctx)
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+
+	var stored model.Token
+	require.NoError(t, db.First(&stored, token.Id).Error)
+	require.Equal(t, plgGroup, stored.Group)
+	require.False(t, stored.CrossGroupRetry)
+	require.True(t, stored.ModelLimitsEnabled)
+	require.Equal(t, "gpt-4o", stored.ModelLimits)
 }
 
 func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
@@ -674,7 +1055,7 @@ func TestEnsureInitialTokenCreatesAndRevealsOnlyWhenUserHasNoTokens(t *testing.T
 	}
 }
 
-func TestEnsureInitialTokenCreatedTriggersInviteReward(t *testing.T) {
+func TestEnsureInitialTokenCreatedDoesNotTriggerInviteReward(t *testing.T) {
 	db := setupInviteRewardTokenControllerTestDB(t)
 	inviter, invitee := seedInvitedTokenUser(t, db, 101, 102)
 
@@ -711,14 +1092,21 @@ func TestEnsureInitialTokenCreatedTriggersInviteReward(t *testing.T) {
 	if err := db.First(&refreshedInviter, inviter.Id).Error; err != nil {
 		t.Fatalf("failed to load inviter: %v", err)
 	}
-	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusGranted {
-		t.Fatalf("expected invite reward granted, got %q", refreshedInvitee.InviteRewardStatus)
+	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusPending {
+		t.Fatalf("expected invite reward pending, got %q", refreshedInvitee.InviteRewardStatus)
 	}
-	if refreshedInvitee.Quota != 50 {
-		t.Fatalf("expected invitee quota 50, got %d", refreshedInvitee.Quota)
+	if refreshedInvitee.Quota != 0 {
+		t.Fatalf("expected invitee quota 0, got %d", refreshedInvitee.Quota)
 	}
-	if refreshedInviter.AffQuota != 100 || refreshedInviter.AffHistoryQuota != 100 || refreshedInviter.AffCount != 1 {
-		t.Fatalf("expected inviter reward counters to be 100/100/1, got %d/%d/%d", refreshedInviter.AffQuota, refreshedInviter.AffHistoryQuota, refreshedInviter.AffCount)
+	if refreshedInviter.AffQuota != 0 || refreshedInviter.AffHistoryQuota != 0 || refreshedInviter.AffCount != 0 {
+		t.Fatalf("expected inviter reward counters to be 0/0/0, got %d/%d/%d", refreshedInviter.AffQuota, refreshedInviter.AffHistoryQuota, refreshedInviter.AffCount)
+	}
+	var events int64
+	if err := db.Model(&model.InviteRewardEvent{}).Where("invitee_id = ?", invitee.Id).Count(&events).Error; err != nil {
+		t.Fatalf("failed to count invite reward events: %v", err)
+	}
+	if events != 0 {
+		t.Fatalf("expected no invite reward events, got %d", events)
 	}
 }
 
@@ -776,7 +1164,32 @@ func TestAddTokenAllowsNonPlgUserToChooseGroupWithoutEnterpriseFlag(t *testing.T
 	}
 }
 
-func TestAddTokenTriggersInviteReward(t *testing.T) {
+func TestAddTokenForcesPLGGroupForPLGUser(t *testing.T) {
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 17)
+
+	body := map[string]any{
+		"name":                 "restricted-key",
+		"expired_time":         -1,
+		"remain_quota":         0,
+		"unlimited_quota":      true,
+		"model_limits_enabled": false,
+		"model_limits":         "",
+		"group":                "premium",
+		"cross_group_retry":    true,
+	}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, user.Id)
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var stored model.Token
+	require.NoError(t, db.First(&stored, "user_id = ? AND name = ?", user.Id, "restricted-key").Error)
+	require.Equal(t, plgGroup, stored.Group)
+	require.False(t, stored.CrossGroupRetry)
+}
+
+func TestAddTokenDoesNotTriggerInviteReward(t *testing.T) {
 	db := setupInviteRewardTokenControllerTestDB(t)
 	inviter, invitee := seedInvitedTokenUser(t, db, 201, 202)
 
@@ -806,14 +1219,21 @@ func TestAddTokenTriggersInviteReward(t *testing.T) {
 	if err := db.First(&refreshedInviter, inviter.Id).Error; err != nil {
 		t.Fatalf("failed to load inviter: %v", err)
 	}
-	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusGranted {
-		t.Fatalf("expected invite reward granted, got %q", refreshedInvitee.InviteRewardStatus)
+	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusPending {
+		t.Fatalf("expected invite reward pending, got %q", refreshedInvitee.InviteRewardStatus)
 	}
-	if refreshedInvitee.Quota != 50 {
-		t.Fatalf("expected invitee quota 50, got %d", refreshedInvitee.Quota)
+	if refreshedInvitee.Quota != 0 {
+		t.Fatalf("expected invitee quota 0, got %d", refreshedInvitee.Quota)
 	}
-	if refreshedInviter.AffQuota != 100 || refreshedInviter.AffHistoryQuota != 100 || refreshedInviter.AffCount != 1 {
-		t.Fatalf("expected inviter reward counters to be 100/100/1, got %d/%d/%d", refreshedInviter.AffQuota, refreshedInviter.AffHistoryQuota, refreshedInviter.AffCount)
+	if refreshedInviter.AffQuota != 0 || refreshedInviter.AffHistoryQuota != 0 || refreshedInviter.AffCount != 0 {
+		t.Fatalf("expected inviter reward counters to be 0/0/0, got %d/%d/%d", refreshedInviter.AffQuota, refreshedInviter.AffHistoryQuota, refreshedInviter.AffCount)
+	}
+	var events int64
+	if err := db.Model(&model.InviteRewardEvent{}).Where("invitee_id = ?", invitee.Id).Count(&events).Error; err != nil {
+		t.Fatalf("failed to count invite reward events: %v", err)
+	}
+	if events != 0 {
+		t.Fatalf("expected no invite reward events, got %d", events)
 	}
 }
 
@@ -1012,7 +1432,7 @@ func TestEnsureInitialTokenExistingDoesNotTriggerInviteReward(t *testing.T) {
 	}
 }
 
-func TestAddTokenWithPaymentComplianceUnconfirmedStillGrantsReward(t *testing.T) {
+func TestAddTokenWithPaymentComplianceUnconfirmedStillDoesNotGrantReward(t *testing.T) {
 	db := setupInviteRewardTokenControllerTestDB(t)
 	operation_setting.GetPaymentSetting().ComplianceConfirmed = false
 	inviter, invitee := seedInvitedTokenUser(t, db, 401, 402)
@@ -1050,11 +1470,11 @@ func TestAddTokenWithPaymentComplianceUnconfirmedStillGrantsReward(t *testing.T)
 	if err := db.First(&refreshedInviter, inviter.Id).Error; err != nil {
 		t.Fatalf("failed to load inviter: %v", err)
 	}
-	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusGranted {
-		t.Fatalf("expected invite reward granted, got %q", refreshedInvitee.InviteRewardStatus)
+	if refreshedInvitee.InviteRewardStatus != model.InviteRewardStatusPending {
+		t.Fatalf("expected invite reward pending, got %q", refreshedInvitee.InviteRewardStatus)
 	}
-	if refreshedInvitee.Quota != 50 || refreshedInviter.AffQuota != 100 || refreshedInviter.AffCount != 1 {
-		t.Fatalf("expected reward grant, got invitee quota %d, inviter quota %d count %d", refreshedInvitee.Quota, refreshedInviter.AffQuota, refreshedInviter.AffCount)
+	if refreshedInvitee.Quota != 0 || refreshedInviter.AffQuota != 0 || refreshedInviter.AffCount != 0 {
+		t.Fatalf("expected no reward grant, got invitee quota %d, inviter quota %d count %d", refreshedInvitee.Quota, refreshedInviter.AffQuota, refreshedInviter.AffCount)
 	}
 }
 
@@ -1099,5 +1519,658 @@ func TestEnsureInitialTokenRespectsMaxUserTokensZero(t *testing.T) {
 	}
 	if total != 0 {
 		t.Fatalf("expected no token to be created when max user tokens is zero, got %d", total)
+	}
+}
+
+func TestUpdateTokenGroupBatchUpdatesOnlyGroup(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 31)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+
+	first := seedToken(t, db, user.Id, "first", "batch-group-first")
+	first.RemainQuota = 321
+	first.ModelLimitsEnabled = true
+	first.ModelLimits = "gpt-4o"
+	first.CrossGroupRetry = true
+	require.NoError(t, db.Save(first).Error)
+	second := seedToken(t, db, user.Id, "second", "batch-group-second")
+	second.Status = common.TokenStatusDisabled
+	second.CrossGroupRetry = true
+	require.NoError(t, db.Save(second).Error)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch/group", map[string]any{
+		"ids":   []int{first.Id, second.Id},
+		"group": "  vip  ",
+	}, user.Id)
+	UpdateTokenGroupBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var updated int
+	require.NoError(t, common.Unmarshal(response.Data, &updated))
+	require.Equal(t, 2, updated)
+
+	var storedFirst, storedSecond model.Token
+	require.NoError(t, db.First(&storedFirst, first.Id).Error)
+	require.NoError(t, db.First(&storedSecond, second.Id).Error)
+	require.Equal(t, "vip", storedFirst.Group)
+	require.Equal(t, "vip", storedSecond.Group)
+	require.Equal(t, 321, storedFirst.RemainQuota)
+	require.True(t, storedFirst.ModelLimitsEnabled)
+	require.Equal(t, "gpt-4o", storedFirst.ModelLimits)
+	require.True(t, storedFirst.CrossGroupRetry)
+	require.Equal(t, common.TokenStatusDisabled, storedSecond.Status)
+	require.True(t, storedSecond.CrossGroupRetry)
+}
+
+func TestUpdateTokenBatchQuotaOnlyUpdatesFiniteTokens(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 35)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+
+	finite := seedToken(t, db, user.Id, "finite", "batch-quota-finite")
+	finite.UnlimitedQuota = false
+	finite.RemainQuota = 321
+	finite.CrossGroupRetry = true
+	require.NoError(t, db.Save(finite).Error)
+	unlimited := seedToken(t, db, user.Id, "unlimited", "batch-quota-unlimited")
+	unlimited.RemainQuota = 654
+	require.NoError(t, db.Save(unlimited).Error)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+		"ids":          []int{finite.Id, unlimited.Id},
+		"remain_quota": 0,
+	}, user.Id)
+	UpdateTokenBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var updated int
+	require.NoError(t, common.Unmarshal(response.Data, &updated))
+	require.Equal(t, 2, updated)
+
+	var storedFinite, storedUnlimited model.Token
+	require.NoError(t, db.First(&storedFinite, finite.Id).Error)
+	require.NoError(t, db.First(&storedUnlimited, unlimited.Id).Error)
+	require.Equal(t, 0, storedFinite.RemainQuota)
+	require.False(t, storedFinite.UnlimitedQuota)
+	require.Equal(t, "default", storedFinite.Group)
+	require.True(t, storedFinite.CrossGroupRetry)
+	require.Equal(t, 654, storedUnlimited.RemainQuota)
+	require.True(t, storedUnlimited.UnlimitedQuota)
+	require.Equal(t, "default", storedUnlimited.Group)
+}
+
+func TestUpdateTokenBatchCombinesGroupAndQuota(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 36)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+	token := seedToken(t, db, user.Id, "combined", "batch-combined")
+	token.UnlimitedQuota = false
+	token.RemainQuota = 111
+	token.CrossGroupRetry = true
+	require.NoError(t, db.Save(token).Error)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+		"ids":          []int{token.Id},
+		"group":        " vip ",
+		"remain_quota": 222,
+	}, user.Id)
+	UpdateTokenBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var stored model.Token
+	require.NoError(t, db.First(&stored, token.Id).Error)
+	require.Equal(t, "vip", stored.Group)
+	require.Equal(t, 222, stored.RemainQuota)
+	require.False(t, stored.UnlimitedQuota)
+	require.True(t, stored.CrossGroupRetry)
+}
+
+func TestUpdateTokenBatchUpdatesModelLimits(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 38)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+	first := seedToken(t, db, user.Id, "first", "batch-model-first")
+	second := seedToken(t, db, user.Id, "second", "batch-model-second")
+	first.RemainQuota = 321
+	require.NoError(t, db.Save(first).Error)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+		"ids":                  []int{first.Id, second.Id},
+		"model_limits_enabled": true,
+		"model_limits":         " gpt-4o, ,gpt-4.1,gpt-4o ",
+	}, user.Id)
+	UpdateTokenBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var updated int
+	require.NoError(t, common.Unmarshal(response.Data, &updated))
+	require.Equal(t, 2, updated)
+
+	var stored []model.Token
+	require.NoError(t, db.Order("id").Find(&stored, []int{first.Id, second.Id}).Error)
+	require.Len(t, stored, 2)
+	for _, token := range stored {
+		require.True(t, token.ModelLimitsEnabled)
+		require.Equal(t, "gpt-4o,gpt-4.1", token.ModelLimits)
+		require.Equal(t, "default", token.Group)
+	}
+	require.Equal(t, 321, stored[0].RemainQuota)
+
+	disableCtx, disableRecorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+		"ids":                  []int{first.Id, second.Id},
+		"model_limits_enabled": false,
+		"model_limits":         "must-be-cleared",
+	}, user.Id)
+	UpdateTokenBatch(disableCtx)
+
+	disableResponse := decodeAPIResponse(t, disableRecorder)
+	require.True(t, disableResponse.Success, disableResponse.Message)
+	require.NoError(t, db.Order("id").Find(&stored, []int{first.Id, second.Id}).Error)
+	for _, token := range stored {
+		require.False(t, token.ModelLimitsEnabled)
+		require.Empty(t, token.ModelLimits)
+	}
+}
+
+func TestUpdateTokenBatchUpdatesModelBlacklist(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 48)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+	first := seedToken(t, db, user.Id, "first", "batch-blacklist-first")
+	second := seedToken(t, db, user.Id, "second", "batch-blacklist-second")
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+		"ids":                     []int{first.Id, second.Id},
+		"model_blacklist_enabled": true,
+		"model_blacklist":         " gpt-4o, ,gpt-4.1,gpt-4o ",
+	}, user.Id)
+	UpdateTokenBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var stored []model.Token
+	require.NoError(t, db.Order("id").Find(&stored, []int{first.Id, second.Id}).Error)
+	require.Len(t, stored, 2)
+	for _, token := range stored {
+		require.True(t, token.ModelBlacklistEnabled)
+		require.Equal(t, "gpt-4o,gpt-4.1", token.ModelBlacklist)
+	}
+
+	disableCtx, disableRecorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+		"ids":                     []int{first.Id, second.Id},
+		"model_blacklist_enabled": false,
+		"model_blacklist":         "must-be-cleared",
+	}, user.Id)
+	UpdateTokenBatch(disableCtx)
+
+	disableResponse := decodeAPIResponse(t, disableRecorder)
+	require.True(t, disableResponse.Success, disableResponse.Message)
+	require.NoError(t, db.Order("id").Find(&stored, []int{first.Id, second.Id}).Error)
+	for _, token := range stored {
+		require.False(t, token.ModelBlacklistEnabled)
+		require.Empty(t, token.ModelBlacklist)
+	}
+}
+
+func TestUpdateTokenBatchModelLimitsDeletesCachedTokens(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	db := setupInitialTokenControllerTestDB(t)
+	mr := setupTokenControllerRedisTest(t)
+	user := seedTokenUser(t, db, 39)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+	token := seedToken(t, db, user.Id, "cached", "batch-model-cached")
+	cacheKey := "token:" + common.GenerateHMAC(token.Key)
+	mr.HSet(cacheKey, "__complete", "1", "ModelLimitsEnabled", "false", "ModelLimits", "")
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+		"ids":                  []int{token.Id},
+		"model_limits_enabled": true,
+		"model_limits":         "gpt-4o",
+	}, user.Id)
+	UpdateTokenBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	require.False(t, mr.Exists(cacheKey))
+}
+
+func TestUpdateTokenGroupBatchRejectsQuotaFields(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 37)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+	token := seedToken(t, db, user.Id, "legacy", "batch-group-legacy-contract")
+	token.UnlimitedQuota = false
+	token.RemainQuota = 111
+	require.NoError(t, db.Save(token).Error)
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch/group", map[string]any{
+		"ids":          []int{token.Id},
+		"group":        "vip",
+		"remain_quota": 222,
+	}, user.Id)
+	UpdateTokenGroupBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.False(t, response.Success)
+	var stored model.Token
+	require.NoError(t, db.First(&stored, token.Id).Error)
+	require.Equal(t, "default", stored.Group)
+	require.Equal(t, 111, stored.RemainQuota)
+}
+
+func TestUpdateTokenGroupBatchIsDisabledByDefault(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "false")
+	require.NoError(t, backendI18n.Init())
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch/group", map[string]any{
+		"ids":   []int{1},
+		"group": "premium",
+	}, 1)
+
+	UpdateTokenGroupBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.False(t, response.Success)
+	require.Equal(t, backendI18n.Translate(backendI18n.LangEn, backendI18n.MsgFeatureDisabled), response.Message)
+}
+
+func TestUpdateTokenGroupBatchAllowsIdempotentGroups(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	for _, existingTargetCount := range []int{1, 2} {
+		t.Run(fmt.Sprintf("existing_%d", existingTargetCount), func(t *testing.T) {
+			db := setupInitialTokenControllerTestDB(t)
+			user := seedTokenUser(t, db, 40+existingTargetCount)
+			user.Group = "Enterprise"
+			require.NoError(t, db.Save(user).Error)
+
+			first := seedToken(t, db, user.Id, "first", fmt.Sprintf("idempotent-first-%d", existingTargetCount))
+			second := seedToken(t, db, user.Id, "second", fmt.Sprintf("idempotent-second-%d", existingTargetCount))
+			first.Group = "vip"
+			first.CrossGroupRetry = true
+			first.RemainQuota = 123
+			if existingTargetCount == 2 {
+				second.Group = "vip"
+			}
+			require.NoError(t, db.Save(first).Error)
+			require.NoError(t, db.Save(second).Error)
+
+			ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch/group", map[string]any{
+				"ids":   []int{first.Id, second.Id},
+				"group": "vip",
+			}, user.Id)
+			UpdateTokenGroupBatch(ctx)
+
+			response := decodeAPIResponse(t, recorder)
+			require.True(t, response.Success, response.Message)
+			var updated int
+			require.NoError(t, common.Unmarshal(response.Data, &updated))
+			require.Equal(t, 2, updated)
+
+			var storedFirst, storedSecond model.Token
+			require.NoError(t, db.First(&storedFirst, first.Id).Error)
+			require.NoError(t, db.First(&storedSecond, second.Id).Error)
+			require.Equal(t, "vip", storedFirst.Group)
+			require.Equal(t, "vip", storedSecond.Group)
+			require.True(t, storedFirst.CrossGroupRetry)
+			require.Equal(t, 123, storedFirst.RemainQuota)
+		})
+	}
+}
+
+func TestUpdateTokenGroupBatchRepairsUnsafeTokenCaches(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	db := setupInitialTokenControllerTestDB(t)
+	mr := setupTokenControllerRedisTest(t)
+	user := seedTokenUser(t, db, 50)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+	first := seedToken(t, db, user.Id, "first", "cache-success-first")
+	second := seedToken(t, db, user.Id, "second", "cache-success-second")
+	first.UnlimitedQuota = false
+	second.UnlimitedQuota = false
+	require.NoError(t, db.Save(first).Error)
+	require.NoError(t, db.Save(second).Error)
+	cacheKeys := []string{
+		"token:" + common.GenerateHMAC(first.Key),
+		"token:" + common.GenerateHMAC(second.Key),
+	}
+	for _, cacheKey := range cacheKeys {
+		mr.Set(cacheKey, "stale")
+	}
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+		"ids":          []int{first.Id, second.Id},
+		"group":        "vip",
+		"remain_quota": 987,
+	}, user.Id)
+	UpdateTokenBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	for _, cacheKey := range cacheKeys {
+		require.False(t, mr.Exists(cacheKey))
+	}
+	var stored []model.Token
+	require.NoError(t, db.Find(&stored, []int{first.Id, second.Id}).Error)
+	for _, token := range stored {
+		require.Equal(t, 987, token.RemainQuota)
+	}
+}
+
+func TestUpdateTokenGroupBatchCacheFailureReturnsStableErrorAndRetrySucceeds(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	require.NoError(t, backendI18n.Init())
+	db := setupInitialTokenControllerTestDB(t)
+	mr := setupTokenControllerRedisTest(t)
+	var systemLog bytes.Buffer
+	common.LogWriterMu.Lock()
+	previousLogWriter := gin.DefaultWriter
+	gin.DefaultWriter = &systemLog
+	common.LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		common.LogWriterMu.Lock()
+		gin.DefaultWriter = previousLogWriter
+		common.LogWriterMu.Unlock()
+	})
+	user := seedTokenUser(t, db, 51)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+	first := seedToken(t, db, user.Id, "first", "cache-retry-first")
+	second := seedToken(t, db, user.Id, "second", "cache-retry-second")
+	first.UnlimitedQuota = false
+	second.UnlimitedQuota = false
+	first.CrossGroupRetry = true
+	first.RemainQuota = 456
+	require.NoError(t, db.Save(first).Error)
+	require.NoError(t, db.Save(second).Error)
+	cacheKeys := []string{
+		"token:" + common.GenerateHMAC(first.Key),
+		"token:" + common.GenerateHMAC(second.Key),
+	}
+	for _, cacheKey := range cacheKeys {
+		mr.Set(cacheKey, "stale")
+	}
+
+	requestBody := map[string]any{
+		"ids":          []int{first.Id, second.Id},
+		"group":        "vip",
+		"remain_quota": 789,
+	}
+	internalFailure := "redis://user:secret@10.0.0.5:6379 unavailable"
+	invalidationHook := &failingTokenCacheInvalidationHook{
+		failInvalidation: true,
+		failOnAttempt:    3,
+		err:              errors.New(internalFailure),
+	}
+	common.RDB.AddHook(invalidationHook)
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", requestBody, user.Id)
+	UpdateTokenBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.False(t, response.Success)
+	require.Equal(t, backendI18n.Translate(backendI18n.LangEn, backendI18n.MsgTokenBatchCachePending), response.Message)
+	require.NotContains(t, recorder.Body.String(), "10.0.0.5")
+	require.NotContains(t, recorder.Body.String(), "user:secret")
+	require.Contains(t, systemLog.String(), "failed to invalidate 2 token caches after batch token update")
+	require.NotContains(t, systemLog.String(), "10.0.0.5")
+	require.NotContains(t, systemLog.String(), "user:secret")
+	require.Equal(t, 3, invalidationHook.attempts())
+	for _, cacheKey := range cacheKeys {
+		require.False(t, mr.Exists(cacheKey))
+	}
+	_, err := model.GetTokenByKey(first.Key, false)
+	require.ErrorIs(t, err, model.ErrTokenPermissionUpdatePending)
+
+	var committedFirst, committedSecond model.Token
+	require.NoError(t, db.First(&committedFirst, first.Id).Error)
+	require.NoError(t, db.First(&committedSecond, second.Id).Error)
+	require.Equal(t, "vip", committedFirst.Group)
+	require.Equal(t, "vip", committedSecond.Group)
+	require.True(t, committedFirst.CrossGroupRetry)
+	require.Equal(t, 789, committedFirst.RemainQuota)
+	require.Equal(t, 789, committedSecond.RemainQuota)
+
+	retryCtx, retryRecorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", requestBody, user.Id)
+	UpdateTokenBatch(retryCtx)
+	retryResponse := decodeAPIResponse(t, retryRecorder)
+	require.True(t, retryResponse.Success, retryResponse.Message)
+	for _, cacheKey := range cacheKeys {
+		require.False(t, mr.Exists(cacheKey))
+	}
+	require.NoError(t, db.First(&committedFirst, first.Id).Error)
+	require.Equal(t, 789, committedFirst.RemainQuota)
+}
+
+func TestUpdateTokenBatchCachePreparationFailureDoesNotCommit(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	db := setupInitialTokenControllerTestDB(t)
+	setupTokenControllerRedisTest(t)
+	user := seedTokenUser(t, db, 52)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+	token := seedToken(t, db, user.Id, "prepare-failure", "cache-prepare-failure")
+	token.ModelLimitsEnabled = false
+	token.ModelLimits = ""
+	require.NoError(t, db.Save(token).Error)
+
+	common.RDB.AddHook(&failingTokenCacheInvalidationHook{
+		failInvalidation: true,
+		failOnAttempt:    1,
+		err:              errors.New("prepare unavailable"),
+	})
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+		"ids":                  []int{token.Id},
+		"model_limits_enabled": true,
+		"model_limits":         "gpt-4o",
+	}, user.Id)
+	UpdateTokenBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.False(t, response.Success)
+	var stored model.Token
+	require.NoError(t, db.First(&stored, token.Id).Error)
+	require.False(t, stored.ModelLimitsEnabled)
+	require.Empty(t, stored.ModelLimits)
+}
+
+func TestUpdateTokenGroupBatchRollsBackForMissingOrForeignToken(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	testCases := []struct {
+		name      string
+		invalidID func(t *testing.T, db *gorm.DB) int
+	}{
+		{
+			name: "missing",
+			invalidID: func(t *testing.T, db *gorm.DB) int {
+				return 999999
+			},
+		},
+		{
+			name: "foreign",
+			invalidID: func(t *testing.T, db *gorm.DB) int {
+				return seedToken(t, db, 999, "foreign", "batch-group-foreign").Id
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			db := setupInitialTokenControllerTestDB(t)
+			user := seedTokenUser(t, db, 32)
+			user.Group = "Enterprise"
+			require.NoError(t, db.Save(user).Error)
+			owned := seedToken(t, db, user.Id, "owned", "batch-group-owned-"+testCase.name)
+
+			owned.UnlimitedQuota = false
+			owned.RemainQuota = 123
+			require.NoError(t, db.Save(owned).Error)
+
+			ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+				"ids":          []int{owned.Id, testCase.invalidID(t, db)},
+				"group":        "vip",
+				"remain_quota": 999,
+			}, user.Id)
+			UpdateTokenBatch(ctx)
+
+			response := decodeAPIResponse(t, recorder)
+			require.False(t, response.Success)
+			var stored model.Token
+			require.NoError(t, db.First(&stored, owned.Id).Error)
+			require.Equal(t, "default", stored.Group)
+			require.Equal(t, 123, stored.RemainQuota)
+		})
+	}
+}
+
+func TestUpdateTokenGroupBatchRejectsGroupOutsideUserWhitelist(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	db := setupInitialTokenControllerTestDB(t)
+	user := seedTokenUser(t, db, 34)
+	user.Group = "Enterprise"
+	require.NoError(t, db.Save(user).Error)
+	token := seedToken(t, db, user.Id, "owned", "batch-group-disallowed")
+
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch/group", map[string]any{
+		"ids":   []int{token.Id},
+		"group": "not-usable-by-user",
+	}, user.Id)
+	UpdateTokenGroupBatch(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.False(t, response.Success)
+	var stored model.Token
+	require.NoError(t, db.First(&stored, token.Id).Error)
+	require.Equal(t, "default", stored.Group)
+}
+
+func TestUpdateTokenBatchRejectsInvalidPayloads(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	testCases := []struct {
+		name string
+		body map[string]any
+	}{
+		{name: "empty group", body: map[string]any{"ids": []int{1}, "group": ""}},
+		{name: "whitespace group", body: map[string]any{"ids": []int{1}, "group": "   "}},
+		{name: "too many", body: map[string]any{"ids": make([]int, 101), "group": "premium"}},
+		{name: "duplicate ids", body: map[string]any{"ids": []int{1, 1}, "group": "premium"}},
+		{name: "non-positive id", body: map[string]any{"ids": []int{0}, "group": "premium"}},
+		{name: "no fields", body: map[string]any{"ids": []int{1}}},
+		{name: "negative quota", body: map[string]any{"ids": []int{1}, "remain_quota": -1}},
+		{name: "quota above max", body: map[string]any{"ids": []int{1}, "remain_quota": int(1000000000*common.QuotaPerUnit) + 1}},
+		{name: "unlimited quota unsupported", body: map[string]any{"ids": []int{1}, "unlimited_quota": true}},
+		{name: "unlimited quota null unsupported", body: map[string]any{"ids": []int{1}, "remain_quota": 1, "unlimited_quota": nil}},
+		{name: "model enabled without limits", body: map[string]any{"ids": []int{1}, "model_limits_enabled": true}},
+		{name: "model limits without enabled", body: map[string]any{"ids": []int{1}, "model_limits": "gpt-4o"}},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", testCase.body, 1)
+			UpdateTokenBatch(ctx)
+			response := decodeAPIResponse(t, recorder)
+			require.False(t, response.Success)
+		})
+	}
+}
+
+func TestUpdateTokenGroupBatchForcesPLGForRestrictedUser(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	for index, userGroup := range []string{plgGroup, ""} {
+		name := userGroup
+		if name == "" {
+			name = "empty"
+		}
+		t.Run(name, func(t *testing.T) {
+			db := setupInitialTokenControllerTestDB(t)
+			mr := setupTokenControllerRedisTest(t)
+			user := seedTokenUser(t, db, 33+index)
+			require.NoError(t, db.Model(user).Update("group", userGroup).Error)
+			first := seedToken(t, db, user.Id, "first", "batch-group-first-"+name)
+			second := seedToken(t, db, user.Id, "second", "batch-group-second-"+name)
+			first.Group = "legacy"
+			second.Group = "legacy"
+			first.CrossGroupRetry = true
+			second.CrossGroupRetry = true
+			require.NoError(t, db.Save(first).Error)
+			require.NoError(t, db.Save(second).Error)
+			cacheKeys := []string{
+				"token:" + common.GenerateHMAC(first.Key),
+				"token:" + common.GenerateHMAC(second.Key),
+			}
+			for _, cacheKey := range cacheKeys {
+				mr.HSet(cacheKey, "__complete", "1", "Group", "legacy", "CrossGroupRetry", "true")
+			}
+
+			ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch/group", map[string]any{
+				"ids":   []int{first.Id, second.Id},
+				"group": "premium",
+			}, user.Id)
+			UpdateTokenGroupBatch(ctx)
+
+			response := decodeAPIResponse(t, recorder)
+			require.True(t, response.Success, response.Message)
+			var stored []model.Token
+			require.NoError(t, db.Order("id").Find(&stored, []int{first.Id, second.Id}).Error)
+			require.Len(t, stored, 2)
+			for _, token := range stored {
+				require.Equal(t, plgGroup, token.Group)
+				require.False(t, token.CrossGroupRetry)
+			}
+			for _, cacheKey := range cacheKeys {
+				require.Equal(t, plgGroup, mr.HGet(cacheKey, "Group"))
+				require.Equal(t, "false", mr.HGet(cacheKey, "CrossGroupRetry"))
+			}
+		})
+	}
+}
+
+func TestUpdateTokenBatchQuotaOnlyForcesPLGForRestrictedUser(t *testing.T) {
+	t.Setenv("TOKEN_BATCH_GROUP_ENABLED", "true")
+	for index, userGroup := range []string{plgGroup, ""} {
+		name := userGroup
+		if name == "" {
+			name = "empty"
+		}
+		t.Run(name, func(t *testing.T) {
+			db := setupInitialTokenControllerTestDB(t)
+			user := seedTokenUser(t, db, 60+index)
+			require.NoError(t, db.Model(user).Update("group", userGroup).Error)
+			token := seedToken(t, db, user.Id, "finite", "batch-quota-plg-"+name)
+			token.UnlimitedQuota = false
+			token.RemainQuota = 123
+			token.Group = "legacy"
+			token.CrossGroupRetry = true
+			require.NoError(t, db.Save(token).Error)
+
+			ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/batch", map[string]any{
+				"ids":          []int{token.Id},
+				"remain_quota": 456,
+			}, user.Id)
+			UpdateTokenBatch(ctx)
+
+			response := decodeAPIResponse(t, recorder)
+			require.True(t, response.Success, response.Message)
+			var stored model.Token
+			require.NoError(t, db.First(&stored, token.Id).Error)
+			require.Equal(t, 456, stored.RemainQuota)
+			require.Equal(t, plgGroup, stored.Group)
+			require.False(t, stored.CrossGroupRetry)
+		})
 	}
 }

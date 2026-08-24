@@ -1,7 +1,9 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,8 +11,10 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,8 +25,43 @@ func buildMaskedTokenResponse(token *model.Token) *model.Token {
 	}
 	maskedToken := *token
 	maskedToken.Key = token.GetMaskedKey()
+	maskedToken.Status = model.GetEffectiveTokenStatus(token, common.GetTimestamp())
 	return &maskedToken
 }
+
+// tokenCreationBlockedByEmailVerification reports whether the current user must
+// verify their email before creating tokens. Enforced only when the system has
+// email verification enabled AND the token_setting.require_email_verification
+// toggle is on. Users without an email address (root, internal accounts) and
+// admin/root roles are exempt. Fail-open: if the user cannot be loaded the
+// request is allowed through rather than locked out.
+func tokenCreationBlockedByEmailVerification(c *gin.Context) bool {
+	if !operation_setting.RequireEmailVerificationForTokens() {
+		return false
+	}
+	id := c.GetInt("id")
+	if id == 0 {
+		return false
+	}
+	if c.GetInt("role") >= common.RoleAdminUser {
+		return false
+	}
+	user, err := model.GetUserCache(id)
+	if err != nil || user == nil {
+		common.SysLog(fmt.Sprintf("token email-verification check: failed to load user %d: %v", id, err))
+		return false
+	}
+	if user.Email == "" || user.EmailVerifiedAt != 0 {
+		return false
+	}
+	return true
+}
+
+// errTokenEmailVerificationRequired is returned by buildTokenForInsert when the
+// current user must verify their email first. Callers translate it to the i18n
+// message; keeping it a sentinel lets every token-creation path (console form,
+// initial-token ensure, CLI device authorization) share one choke point.
+var errTokenEmailVerificationRequired = errors.New("email verification required before creating tokens")
 
 func buildMaskedTokenResponses(tokens []*model.Token) []*model.Token {
 	maskedTokens := make([]*model.Token, 0, len(tokens))
@@ -32,35 +71,68 @@ func buildMaskedTokenResponses(tokens []*model.Token) []*model.Token {
 	return maskedTokens
 }
 
+type tokenPageWithStats struct {
+	*common.PageInfo
+	Stats model.UserTokenStats `json:"stats"`
+}
+
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
+	group := c.Query("group")
 	pageInfo := common.GetPageQuery(c)
-	tokens, err := model.GetAllUserTokens(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	tokens, err := model.GetAllUserTokens(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	total, _ := model.CountUserTokens(userId)
+	stats, err := model.GetUserTokenStats(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	total := stats.Total
+	if group != "" {
+		total, err = model.CountUserTokensByGroup(userId, group)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
-	common.ApiSuccess(c, pageInfo)
+	common.ApiSuccess(c, tokenPageWithStats{PageInfo: pageInfo, Stats: stats})
 }
 
 func SearchTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	keyword := c.Query("keyword")
 	token := c.Query("token")
+	group := c.Query("group")
+	status := 0
+	if rawStatus := c.Query("status"); rawStatus != "" {
+		parsedStatus, err := strconv.Atoi(rawStatus)
+		if err != nil {
+			status = -1
+		} else {
+			status = parsedStatus
+		}
+	}
 
 	pageInfo := common.GetPageQuery(c)
 
-	tokens, total, err := model.SearchUserTokens(userId, keyword, token, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	tokens, total, err := model.SearchUserTokens(userId, keyword, token, group, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	stats, err := model.GetUserTokenStats(userId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
-	common.ApiSuccess(c, pageInfo)
+	common.ApiSuccess(c, tokenPageWithStats{PageInfo: pageInfo, Stats: stats})
 }
 
 func GetToken(c *gin.Context) {
@@ -152,15 +224,17 @@ func GetTokenUsage(c *gin.Context) {
 		"code":    true,
 		"message": "ok",
 		"data": gin.H{
-			"object":               "token_usage",
-			"name":                 token.Name,
-			"total_granted":        token.RemainQuota + token.UsedQuota,
-			"total_used":           token.UsedQuota,
-			"total_available":      token.RemainQuota,
-			"unlimited_quota":      token.UnlimitedQuota,
-			"model_limits":         token.GetModelLimitsMap(),
-			"model_limits_enabled": token.ModelLimitsEnabled,
-			"expires_at":           expiredAt,
+			"object":                  "token_usage",
+			"name":                    token.Name,
+			"total_granted":           token.RemainQuota + token.UsedQuota,
+			"total_used":              token.UsedQuota,
+			"total_available":         token.RemainQuota,
+			"unlimited_quota":         token.UnlimitedQuota,
+			"model_limits":            token.GetModelLimitsMap(),
+			"model_limits_enabled":    token.ModelLimitsEnabled,
+			"model_blacklist":         token.GetModelBlacklistMap(),
+			"model_blacklist_enabled": token.ModelBlacklistEnabled,
+			"expires_at":              expiredAt,
 		},
 	})
 }
@@ -186,6 +260,12 @@ func validateTokenCreatePayload(c *gin.Context, token *model.Token) bool {
 }
 
 func buildTokenForInsert(c *gin.Context, token model.Token, key string) (model.Token, error) {
+	// Single choke point for all token-creation paths (console form,
+	// initial-token ensure, CLI device authorization): unverified users must
+	// verify their email first.
+	if tokenCreationBlockedByEmailVerification(c) {
+		return model.Token{}, errTokenEmailVerificationRequired
+	}
 	// PLG users cannot pick a group — force every token onto plg.
 	canUseGroups, err := userCanUseGroups(c.GetInt("id"))
 	if err != nil {
@@ -195,21 +275,47 @@ func buildTokenForInsert(c *gin.Context, token model.Token, key string) (model.T
 		token.Group = plgGroup
 		token.CrossGroupRetry = false
 	}
-	return model.Token{
-		UserId:             c.GetInt("id"),
-		Name:               token.Name,
-		Key:                key,
-		CreatedTime:        common.GetTimestamp(),
-		AccessedTime:       common.GetTimestamp(),
-		ExpiredTime:        token.ExpiredTime,
-		RemainQuota:        token.RemainQuota,
-		UnlimitedQuota:     token.UnlimitedQuota,
-		ModelLimitsEnabled: token.ModelLimitsEnabled,
-		ModelLimits:        token.ModelLimits,
-		AllowIps:           token.AllowIps,
-		Group:              token.Group,
-		CrossGroupRetry:    token.CrossGroupRetry,
-	}, nil
+	cleanToken := model.Token{
+		UserId:                c.GetInt("id"),
+		Name:                  token.Name,
+		Key:                   key,
+		CreatedTime:           common.GetTimestamp(),
+		AccessedTime:          common.GetTimestamp(),
+		ExpiredTime:           token.ExpiredTime,
+		RemainQuota:           token.RemainQuota,
+		UnlimitedQuota:        token.UnlimitedQuota,
+		ModelLimitsEnabled:    token.ModelLimitsEnabled,
+		ModelLimits:           token.ModelLimits,
+		ModelBlacklistEnabled: token.ModelBlacklistEnabled,
+		ModelBlacklist:        token.ModelBlacklist,
+		AllowIps:              token.AllowIps,
+		Group:                 token.Group,
+		CrossGroupRetry:       token.CrossGroupRetry,
+	}
+	return cleanToken, nil
+}
+
+func buildCLITokenForInsert(c *gin.Context, token model.Token, key string) (model.Token, error) {
+	cleanToken, err := buildTokenForInsert(c, token, key)
+	if err != nil {
+		return model.Token{}, err
+	}
+	// CLI metadata is trusted only because this helper is called by the
+	// dedicated server-side device authorization flow. Public token creation
+	// deliberately drops these client-controlled model fields.
+	cleanToken.Source = token.Source
+	cleanToken.DeviceIdHash = token.DeviceIdHash
+	cleanToken.ClientName = token.ClientName
+	cleanToken.ClientVersion = token.ClientVersion
+	cleanToken.LastUsedClientAt = token.LastUsedClientAt
+	return cleanToken, nil
+}
+
+func tokenActivationEventName(token *model.Token) string {
+	if token != nil && token.Source == model.TokenSourceCLI {
+		return "cli_key_created"
+	}
+	return "api_key_created"
 }
 
 func applyInitialTokenDefaults(c *gin.Context, token *model.Token) error {
@@ -251,6 +357,10 @@ func AddToken(c *gin.Context) {
 	}
 	cleanToken, err := buildTokenForInsert(c, token, key)
 	if err != nil {
+		if errors.Is(err, errTokenEmailVerificationRequired) {
+			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequiredForAPI, map[string]any{"ConsoleOrigin": system_setting.ResolveConsoleOrigin()})
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}
@@ -263,6 +373,7 @@ func AddToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	sendActivationEvent(c, tokenActivationEventName(&cleanToken), map[string]any{"key_type": "manual"})
 	// Return the freshly minted key once (OpenRouter-style reveal). It is masked on every
 	// subsequent list/get, so this is the only chance for the client to surface it in full.
 	// `key` is the raw key; the frontend prepends the `sk-` prefix.
@@ -295,6 +406,10 @@ func EnsureInitialToken(c *gin.Context) {
 
 	cleanToken, err := buildTokenForInsert(c, token, key)
 	if err != nil {
+		if errors.Is(err, errTokenEmailVerificationRequired) {
+			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequiredForAPI, map[string]any{"ConsoleOrigin": system_setting.ResolveConsoleOrigin()})
+			return
+		}
 		common.ApiError(c, err)
 		return
 	}
@@ -311,6 +426,9 @@ func EnsureInitialToken(c *gin.Context) {
 		}
 		common.ApiError(c, err)
 		return
+	}
+	if created && createdToken != nil {
+		sendActivationEvent(c, tokenActivationEventName(createdToken), map[string]any{"key_type": "initial"})
 	}
 	data := gin.H{
 		"created": created,
@@ -336,15 +454,21 @@ func DeleteToken(c *gin.Context) {
 	})
 }
 
+type tokenUpdateRequest struct {
+	model.Token
+	PreserveModelAccess bool `json:"preserve_model_access"`
+}
+
 func UpdateToken(c *gin.Context) {
 	userId := c.GetInt("id")
 	statusOnly := c.Query("status_only")
-	token := model.Token{}
-	err := c.ShouldBindJSON(&token)
+	request := tokenUpdateRequest{}
+	err := c.ShouldBindJSON(&request)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	token := request.Token
 	if len(token.Name) > 50 {
 		common.ApiErrorI18n(c, i18n.MsgTokenNameTooLong)
 		return
@@ -375,6 +499,7 @@ func UpdateToken(c *gin.Context) {
 			return
 		}
 	}
+	forcePLGGroup := false
 	if statusOnly != "" {
 		cleanToken.Status = token.Status
 	} else {
@@ -383,23 +508,36 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.ExpiredTime = token.ExpiredTime
 		cleanToken.RemainQuota = token.RemainQuota
 		cleanToken.UnlimitedQuota = token.UnlimitedQuota
-		cleanToken.ModelLimitsEnabled = token.ModelLimitsEnabled
-		cleanToken.ModelLimits = token.ModelLimits
 		cleanToken.AllowIps = token.AllowIps
-		cleanToken.Group = token.Group
-		cleanToken.CrossGroupRetry = token.CrossGroupRetry
-		// PLG users cannot pick a group — force every token onto plg.
 		canUseGroups, err := userCanUseGroups(userId)
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
+		if !request.PreserveModelAccess {
+			cleanToken.ModelLimitsEnabled = token.ModelLimitsEnabled
+			cleanToken.ModelLimits = token.ModelLimits
+			cleanToken.ModelBlacklistEnabled = token.ModelBlacklistEnabled
+			cleanToken.ModelBlacklist = token.ModelBlacklist
+			cleanToken.Group = token.Group
+			cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		}
+		// PLG users cannot retain or pick a non-PLG group, including when the
+		// client requests preservation of the other model-access fields.
 		if !canUseGroups {
+			forcePLGGroup = true
 			cleanToken.Group = plgGroup
 			cleanToken.CrossGroupRetry = false
 		}
 	}
-	err = cleanToken.Update()
+	if statusOnly == "" && request.PreserveModelAccess {
+		err = cleanToken.UpdateNonModelFields(forcePLGGroup)
+		if err == nil {
+			cleanToken, err = model.GetTokenByIds(token.Id, userId)
+		}
+	} else {
+		err = cleanToken.Update()
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -413,6 +551,129 @@ func UpdateToken(c *gin.Context) {
 
 type TokenBatch struct {
 	Ids []int `json:"ids"`
+}
+
+type tokenBatchUpdateRequest struct {
+	Ids                       []int           `json:"ids"`
+	Group                     *string         `json:"group"`
+	RemainQuota               *int            `json:"remain_quota"`
+	ModelLimitsEnabled        *bool           `json:"model_limits_enabled"`
+	ModelLimits               *string         `json:"model_limits"`
+	ModelBlacklistEnabled     *bool           `json:"model_blacklist_enabled"`
+	ModelBlacklist            *string         `json:"model_blacklist"`
+	UnsupportedUnlimitedQuota json.RawMessage `json:"unlimited_quota"`
+}
+
+func UpdateTokenGroupBatch(c *gin.Context) {
+	updateTokenBatch(c, true)
+}
+
+func UpdateTokenBatch(c *gin.Context) {
+	updateTokenBatch(c, false)
+}
+
+func updateTokenBatch(c *gin.Context, groupOnly bool) {
+	if !common.GetEnvOrDefaultBool("TOKEN_BATCH_GROUP_ENABLED", false) {
+		common.ApiErrorI18n(c, i18n.MsgFeatureDisabled)
+		return
+	}
+
+	request := tokenBatchUpdateRequest{}
+	if err := c.ShouldBindJSON(&request); err != nil || len(request.Ids) == 0 || len(request.Ids) > 100 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	modelLimitsProvided := request.ModelLimitsEnabled != nil || request.ModelLimits != nil
+	modelBlacklistProvided := request.ModelBlacklistEnabled != nil || request.ModelBlacklist != nil
+	if len(request.UnsupportedUnlimitedQuota) != 0 ||
+		(request.Group == nil && request.RemainQuota == nil && !modelLimitsProvided && !modelBlacklistProvided) ||
+		(request.ModelLimitsEnabled == nil) != (request.ModelLimits == nil) ||
+		(request.ModelBlacklistEnabled == nil) != (request.ModelBlacklist == nil) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if groupOnly && (request.Group == nil || request.RemainQuota != nil || modelLimitsProvided || modelBlacklistProvided) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if request.Group != nil {
+		trimmedGroup := strings.TrimSpace(*request.Group)
+		if trimmedGroup == "" {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		request.Group = &trimmedGroup
+	}
+	if request.RemainQuota != nil {
+		if *request.RemainQuota < 0 {
+			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
+			return
+		}
+		maxQuotaValue := int(1000000000 * common.QuotaPerUnit)
+		if *request.RemainQuota > maxQuotaValue {
+			common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue})
+			return
+		}
+	}
+	if request.ModelLimitsEnabled != nil && !*request.ModelLimitsEnabled {
+		emptyLimits := ""
+		request.ModelLimits = &emptyLimits
+	}
+	if request.ModelBlacklistEnabled != nil && !*request.ModelBlacklistEnabled {
+		emptyBlacklist := ""
+		request.ModelBlacklist = &emptyBlacklist
+	}
+
+	seen := make(map[int]struct{}, len(request.Ids))
+	for _, id := range request.Ids {
+		if id <= 0 {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		if _, exists := seen[id]; exists {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		seen[id] = struct{}{}
+	}
+
+	userId := c.GetInt("id")
+	userGroup, err := model.GetUserGroup(userId, true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if userGroup == "" || userGroup == plgGroup {
+		forcedGroup := plgGroup
+		request.Group = &forcedGroup
+	} else if request.Group != nil && !service.GroupInUserUsableGroups(userGroup, *request.Group) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	count, err := model.BatchUpdateTokens(model.BatchUpdateTokensParams{
+		Ids:                   request.Ids,
+		UserId:                userId,
+		Group:                 request.Group,
+		RemainQuota:           request.RemainQuota,
+		ModelLimitsEnabled:    request.ModelLimitsEnabled,
+		ModelLimits:           request.ModelLimits,
+		ModelBlacklistEnabled: request.ModelBlacklistEnabled,
+		ModelBlacklist:        request.ModelBlacklist,
+	})
+	if errors.Is(err, model.ErrTokenBatchInvalid) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if errors.Is(err, model.ErrTokenBatchCacheInvalidation) {
+		common.ApiErrorI18n(c, i18n.MsgTokenBatchCachePending)
+		return
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, count)
 }
 
 func DeleteTokenBatch(c *gin.Context) {

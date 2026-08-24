@@ -16,17 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-const NON_CHAT_MODEL_PATTERNS = [
-  /(^|[-_/])(?:dall[ -]?e|gpt-image|imagen|flux|stable-diffusion|sdxl|midjourney|jimeng|qwen-image|z-image)(?:$|[-_/])/,
-  /(^|[-_/])(?:image|video|seedance|sora|kling|veo|wan|hailuo|runway|pika|luma)(?:$|[-_/])/,
-  /(^|[-_/])(?:tts|whisper|transcribe|speech|audio-preview|audio)(?:$|[-_/])/,
-  /(^|[-_/])(?:embedding|embeddings|rerank|reranker|moderation|suno|music|lyrics)(?:$|[-_/])/,
-  /^mj_/,
-]
+import { resolvePlaygroundModelKind } from './media-generation'
 
 export function isPlaygroundChatModelName(model: unknown): model is string {
+  return (
+    typeof model === 'string' && resolvePlaygroundModelKind(model) === 'chat'
+  )
+}
+
+export function isSupportedPlaygroundModelName(
+  model: unknown
+): model is string {
   if (typeof model !== 'string') return false
-  const normalized = model.trim().toLowerCase()
-  if (!normalized) return false
-  return !NON_CHAT_MODEL_PATTERNS.some((pattern) => pattern.test(normalized))
+  const kind = resolvePlaygroundModelKind(model)
+  return kind !== 'unsupported'
 }

@@ -39,19 +39,20 @@ const localeTranslations = {
 
 const walletRechargeKeys = [
   'Top-up Packages',
-  'Choose a prepaid USD package and checkout with Stripe',
+  'Models are priced at 60–90% of the official list. Top up $200 and get $100 free — both discounts stack, as low as 50% of the official price.',
   'Top up {{price}}',
   'Lowest entry to get started',
+  'Pay $10, get $13 in credit',
   'Prepaid balance, no surprise bill',
   'No contract required. Add balance, create a key, copy the base_url, and test your first request.',
-  '3X more usage than the official plan',
-  'Best first top-up for trying real API workloads with a clear discount.',
+  'Pay $20, get $28 in credit',
+  'Best for trying real API workloads.',
   'Most Popular',
-  'Permanently 20-40% cheaper',
+  'Bonus credit on every top-up',
   'Usage analytics and cost controls',
   'Enterprise-grade privacy',
   'One invoice across providers',
-  '40X more usage than the official plan',
+  'Pay $200, get $300 in credit',
   'Best value for production testing, team workflows, and sustained model traffic.',
   'Highest prepaid value',
   'Custom',
@@ -66,6 +67,24 @@ const walletRechargeKeys = [
   'Top up for {{amount}}',
   'No top-up packages available. Please contact administrator.',
   'Stripe top-up is not enabled. Please contact administrator.',
+] as const
+
+const walletRefundKeys = [
+  'Manage not-started terms',
+  'Refundable plan terms',
+  'Started plan terms are not refundable. Eligible refunds return to your Flatkey available balance, not the original payment method.',
+  'Total refundable balance',
+  'Refund to Flatkey balance',
+  'Refund amount',
+  'Return to Flatkey available balance',
+  'Refund term',
+  'Confirm refund to Flatkey balance',
+  'This not-started plan term will return {{amount}} to your Flatkey available balance.',
+  'This is not a refund to the original payment method.',
+  'Plan term refunded to your Flatkey available balance.',
+  'Failed to load refundable plan terms',
+  'Failed to refund plan term',
+  'Retrying...',
 ] as const
 
 describe('wallet recharge i18n', () => {
@@ -83,7 +102,7 @@ describe('wallet recharge i18n', () => {
   test('translates new wallet recharge keys outside English', () => {
     const newWalletKeys = [
       'Top-up Packages',
-      'Choose a prepaid USD package and checkout with Stripe',
+      'Models are priced at 60–90% of the official list. Top up $200 and get $100 free — both discounts stack, as low as 50% of the official price.',
       'Custom usage, routing, and invoicing',
       'For higher monthly usage, invoicing, team procurement, or custom routing discounts.',
     ] as const
@@ -94,10 +113,53 @@ describe('wallet recharge i18n', () => {
       }
 
       for (const key of newWalletKeys) {
+        expect(translations[key], `${locale} should translate ${key}`).not.toBe(
+          key
+        )
+      }
+    }
+  })
+
+  test('keeps new wallet plan translations free of replacement question marks', () => {
+    const walletPlanKeys = [
+      'Plans & wallet',
+      'Auto-renew on',
+      'Loading local currency quote...',
+    ] as const
+
+    for (const [locale, translations] of Object.entries(localeTranslations)) {
+      for (const key of walletPlanKeys) {
+        expect(
+          Object.prototype.hasOwnProperty.call(translations, key),
+          `${locale} is missing ${key}`
+        ).toBe(true)
+        if (locale !== 'en') {
+          expect(
+            translations[key],
+            `${locale} should translate ${key}`
+          ).not.toBe(key)
+        }
         expect(
           translations[key],
-          `${locale} should translate ${key}`
-        ).not.toBe(key)
+          `${locale} contains mojibake for ${key}`
+        ).not.toContain('?')
+      }
+    }
+  })
+
+  test('defines translated refundable-term copy in every interface locale', () => {
+    for (const [locale, translations] of Object.entries(localeTranslations)) {
+      for (const key of walletRefundKeys) {
+        expect(
+          Object.prototype.hasOwnProperty.call(translations, key),
+          `${locale} is missing ${key}`
+        ).toBe(true)
+        if (locale !== 'en') {
+          expect(
+            translations[key],
+            `${locale} should translate ${key}`
+          ).not.toBe(key)
+        }
       }
     }
   })

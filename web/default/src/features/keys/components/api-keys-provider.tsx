@@ -19,9 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import useDialogState from '@/hooks/use-dialog'
-import { trackYahooApiKeyCreatedConversion } from '@/lib/analytics/yahoo'
 import { useAuthStore } from '@/stores/auth-store'
+import { trackYahooApiKeyCreatedConversion } from '@/lib/analytics/yahoo'
+import useDialogState from '@/hooks/use-dialog'
+import { useModelAccess } from '@/features/available-models'
 import { ensureInitialApiKey, fetchTokenKey, fetchTokenKeysBatch } from '../api'
 import { ERROR_MESSAGES } from '../constants'
 import {
@@ -29,6 +30,10 @@ import {
   ensureInitialApiKeyCreateOnce,
   resetInitialApiKeyCreateOnce,
 } from '../lib'
+import {
+  getCreateDialogDeepLinkAction,
+  getCreateDialogRequestTransition,
+} from '../lib/api-key-create-dialog'
 import { type ApiKey, type ApiKeysDialogType } from '../types'
 import { ApiKeyRevealDialog } from './api-key-reveal-dialog'
 
@@ -47,12 +52,19 @@ type ApiKeysContextType = {
   loadingKeys: Record<number, boolean>
   copiedKeyId: number | null
   markKeyCopied: (id: number) => void
+  initialCreateGroup?: string | null
+  createRequestKey: string | null
+  createRequestedGroup?: string
+  modelAccessQuery: ReturnType<typeof useModelAccess>
 }
 
 type ApiKeysProviderProps = {
   children: React.ReactNode
   autoCreateRequested?: boolean
   onAutoCreateConsumed?: () => void
+  createDialogRequested?: boolean
+  requestedCreateGroup?: string
+  onCreateDialogConsumed?: () => void
 }
 
 const ApiKeysContext = React.createContext<ApiKeysContextType | null>(null)
@@ -61,8 +73,17 @@ export function ApiKeysProvider(props: ApiKeysProviderProps) {
   const { t } = useTranslation()
   const autoCreateRequested = props.autoCreateRequested
   const onAutoCreateConsumed = props.onAutoCreateConsumed
+  const createDialogRequested = props.createDialogRequested === true
+  const createRequestKey = getCreateDialogRequestTransition(
+    null,
+    createDialogRequested,
+    props.requestedCreateGroup
+  ).requestKey
   const authUserId = useAuthStore((state) => state.auth.user?.id)
-  const [open, setOpen] = useDialogState<ApiKeysDialogType>(null)
+  const [open, setDialogOpen] = useDialogState<ApiKeysDialogType>(null)
+  const [initialCreateGroup, setInitialCreateGroup] = useState<
+    string | null | undefined
+  >(undefined)
   const [currentRow, setCurrentRow] = useState<ApiKey | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [resolvedKey, setResolvedKey] = useState('')
@@ -72,6 +93,12 @@ export function ApiKeysProvider(props: ApiKeysProviderProps) {
   const [loadingKeys, setLoadingKeys] = useState<Record<number, boolean>>({})
   const pendingRequests = useRef<Record<number, Promise<string | null>>>({})
   const [autoCreateRetryNonce, setAutoCreateRetryNonce] = useState(0)
+  const modelAccessQuery = useModelAccess()
+  const deepLinkActiveRef = useRef(false)
+  const didOpenCreateDeepLinkRef = useRef(false)
+  const didResolveCreateDeepLinkRef = useRef(false)
+  const createDeepLinkRequestKeyRef = useRef<string | null>(null)
+  const onCreateDialogConsumedRef = useRef(props.onCreateDialogConsumed)
 
   const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null)
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -96,8 +123,66 @@ export function ApiKeysProvider(props: ApiKeysProviderProps) {
 
   useEffect(() => {
     onAutoCreateConsumedRef.current = onAutoCreateConsumed
+    onCreateDialogConsumedRef.current = props.onCreateDialogConsumed
     tRef.current = t
-  }, [onAutoCreateConsumed, t])
+  }, [onAutoCreateConsumed, props.onCreateDialogConsumed, t])
+
+  const setOpen = useCallback(
+    (nextOpen: ApiKeysDialogType | null) => {
+      setDialogOpen(nextOpen)
+      if (nextOpen === null) {
+        setInitialCreateGroup(undefined)
+        if (deepLinkActiveRef.current) {
+          deepLinkActiveRef.current = false
+          onCreateDialogConsumedRef.current?.()
+        }
+      }
+    },
+    [setDialogOpen]
+  )
+
+  useEffect(() => {
+    const requestTransition = getCreateDialogRequestTransition(
+      createDeepLinkRequestKeyRef.current,
+      createDialogRequested,
+      props.requestedCreateGroup
+    )
+    if (requestTransition.shouldReset) {
+      didOpenCreateDeepLinkRef.current = false
+      didResolveCreateDeepLinkRef.current = false
+      createDeepLinkRequestKeyRef.current = requestTransition.requestKey
+      setInitialCreateGroup(undefined)
+    }
+    if (!createDialogRequested) {
+      return
+    }
+    const action = getCreateDialogDeepLinkAction(
+      createDialogRequested,
+      modelAccessQuery.data,
+      modelAccessQuery.isError,
+      props.requestedCreateGroup
+    )
+
+    if (
+      !didResolveCreateDeepLinkRef.current &&
+      action.resolvedGroup !== undefined
+    ) {
+      didResolveCreateDeepLinkRef.current = true
+      setInitialCreateGroup(action.resolvedGroup)
+    }
+
+    if (didOpenCreateDeepLinkRef.current || !action.shouldOpen) return
+
+    didOpenCreateDeepLinkRef.current = true
+    deepLinkActiveRef.current = true
+    setDialogOpen('create')
+  }, [
+    createDialogRequested,
+    modelAccessQuery.data,
+    modelAccessQuery.isError,
+    props.requestedCreateGroup,
+    setDialogOpen,
+  ])
 
   const retryAutoCreate = useCallback(() => {
     resetInitialApiKeyCreateOnce()
@@ -263,6 +348,12 @@ export function ApiKeysProvider(props: ApiKeysProviderProps) {
         loadingKeys,
         copiedKeyId,
         markKeyCopied,
+        initialCreateGroup,
+        createRequestKey,
+        createRequestedGroup: createDialogRequested
+          ? props.requestedCreateGroup
+          : undefined,
+        modelAccessQuery,
       }}
     >
       {props.children}

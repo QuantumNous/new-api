@@ -86,6 +86,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   Tooltip,
   TooltipContent,
@@ -101,6 +102,7 @@ import {
 } from '@/components/drawer-layout'
 import { JsonEditor } from '@/components/json-editor'
 import { MultiSelect } from '@/components/multi-select'
+import { StatusBadge } from '@/components/status-badge'
 import {
   SecureVerificationDialog,
   useSecureVerification,
@@ -113,6 +115,8 @@ import {
   getGroups,
   getPrefillGroups,
   refreshCodexCredential,
+  refreshGrokState,
+  importGrokRefreshToken,
 } from '../../api'
 import {
   ADD_MODE_OPTIONS,
@@ -121,11 +125,19 @@ import {
   ERROR_MESSAGES,
   FIELD_DESCRIPTIONS,
   FIELD_PLACEHOLDERS,
+  CREATE_MODEL_FETCHABLE_TYPES,
   MODEL_FETCHABLE_TYPES,
 } from '../../constants'
 import { useChannelMutateForm } from '../../hooks/use-channel-mutate-form'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  buildNewChannelFormDefaults,
+  BLOCKRUN_BASE_API_URL,
+  BLOCKRUN_SOLANA_API_URL,
+  inspectSolanaPrivateKey,
+  resolveBlockRunCreateBaseURL,
+  resolveBlockRunPaymentChainChange,
+  resolveCodexFingerprintModeForChannelType,
   channelFormSchema,
   channelsQueryKeys,
   transformChannelToFormDefaults,
@@ -141,7 +153,14 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
   hasAdvancedSettingsErrors,
+  hasAdvancedSettingsValues,
 } from '../../lib'
+import {
+  resolveGrokAuthorizationView,
+  resolveGrokCreateTypeSwitch,
+  resolveGrokCredentialTextareaValue,
+  resolveGrokOAuthAuthorizedKeyDecision,
+} from '../../lib/grok-oauth'
 import {
   collectInvalidStatusCodeEntries,
   collectNewDisallowedStatusCodeRedirects,
@@ -149,7 +168,9 @@ import {
 import type { Channel } from '../../types'
 import { useChannels } from '../channels-provider'
 import { CodexOAuthDialog } from '../dialogs/codex-oauth-dialog'
+import { CopilotDeviceFlowDialog } from '../dialogs/copilot-device-flow-dialog'
 import { FetchModelsDialog } from '../dialogs/fetch-models-dialog'
+import { GrokOAuthDialog } from '../dialogs/grok-oauth-dialog'
 import {
   MissingModelsConfirmationDialog,
   type MissingModelsAction,
@@ -201,28 +222,6 @@ const UPSTREAM_DETECTED_MODEL_PREVIEW_LIMIT = 8
 function readAdvancedSettingsPreference(): boolean {
   if (typeof window === 'undefined') return false
   return window.localStorage.getItem(ADVANCED_SETTINGS_EXPANDED_KEY) === 'true'
-}
-
-function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
-  return Boolean(
-    values.param_override?.trim() ||
-    values.header_override?.trim() ||
-    values.status_code_mapping?.trim() ||
-    values.tag?.trim() ||
-    values.remark?.trim() ||
-    values.priority ||
-    values.weight ||
-    values.proxy?.trim() ||
-    values.system_prompt?.trim() ||
-    values.force_format ||
-    values.thinking_to_content ||
-    values.pass_through_body_enabled ||
-    values.system_prompt_override ||
-    values.claude_beta_query ||
-    values.upstream_model_update_check_enabled ||
-    values.upstream_model_update_auto_sync_enabled ||
-    values.upstream_model_update_ignored_models?.trim()
-  )
 }
 
 function parseSettingsRecord(
@@ -282,8 +281,15 @@ export function ChannelMutateDrawer({
   const [channelKey, setChannelKey] = useState<string | null>(null)
   const [isChannelKeyLoading, setIsChannelKeyLoading] = useState(false)
   const [codexOAuthDialogOpen, setCodexOAuthDialogOpen] = useState(false)
+  const [copilotDeviceFlowOpen, setCopilotDeviceFlowOpen] = useState(false)
   const [isCodexCredentialRefreshing, setIsCodexCredentialRefreshing] =
     useState(false)
+  const [grokOAuthDialogOpen, setGrokOAuthDialogOpen] = useState(false)
+  const [isGrokCredentialRefreshing, setIsGrokCredentialRefreshing] =
+    useState(false)
+  const [grokImportOpen, setGrokImportOpen] = useState(false)
+  const [grokRefreshTokenInput, setGrokRefreshTokenInput] = useState('')
+  const [isGrokImporting, setIsGrokImporting] = useState(false)
   const initialModelsRef = useRef<string[]>([])
   const initialModelMappingRef = useRef<string>('')
   const initialStatusCodeMappingRef = useRef<string>('')
@@ -377,6 +383,8 @@ export function ChannelMutateDrawer({
     'upstream_model_update_check_enabled'
   )
   const currentSettings = form.watch('settings')
+  const blockRunPaymentChain = form.watch('blockrun_payment_chain')
+  const currentKey = form.watch('key')
   const {
     unlocked: doubaoApiEditUnlocked,
     handleClick: handleApiConfigSecretClick,
@@ -395,10 +403,25 @@ export function ChannelMutateDrawer({
     }
   }, [open, resetDoubaoApiUnlock])
 
+  // Clear the Grok refresh-token plaintext when the user switches the channel
+  // type away from 113: the type-113 block unmounts but its input value would
+  // otherwise linger in state (design §14: refresh-token plaintext must not
+  // persist once its input is gone). Setter is a stable ref.
+  useEffect(() => {
+    if (currentType !== 113) {
+      setGrokRefreshTokenInput('')
+    }
+  }, [currentType])
+
   // Helper computed values
   const isBatchMode =
     multiKeyMode === 'batch' || multiKeyMode === 'multi_to_single'
   const isChannelDetailLoading = isEditing && isChannelLoading
+  const isBlockRunSolana =
+    currentType === 100 && blockRunPaymentChain === 'solana'
+  const solanaPrivateKeyInspection = isBlockRunSolana
+    ? inspectSolanaPrivateKey(currentKey)
+    : null
 
   // Get all models list
   const allModelsList = useMemo(
@@ -593,7 +616,7 @@ export function ChannelMutateDrawer({
       initialStatusCodeMappingRef.current =
         channelData.data.status_code_mapping || ''
     } else if (!isEditing) {
-      form.reset(CHANNEL_FORM_DEFAULT_VALUES)
+      form.reset(buildNewChannelFormDefaults())
       setAdvancedSettingsOpen(false)
       initialModelsRef.current = []
       initialModelMappingRef.current = ''
@@ -605,12 +628,47 @@ export function ChannelMutateDrawer({
   useEffect(() => {
     if (isEditing) return // Don't auto-set defaults when editing
 
+    if (currentType === 112 && multiKeyMode !== 'single') {
+      form.setValue('multi_key_mode', 'single')
+    }
+
+    const currentCodexFingerprintMode = form.getValues('codex_fingerprint_mode')
+    const nextCodexFingerprintMode = resolveCodexFingerprintModeForChannelType(
+      currentType,
+      currentCodexFingerprintMode
+    )
+    if (nextCodexFingerprintMode !== currentCodexFingerprintMode) {
+      form.setValue('codex_fingerprint_mode', nextCodexFingerprintMode)
+    }
+
     // Type 45 (VolcEngine) - set default base_url
     if (currentType === 45) {
       const currentBaseUrlValue = form.getValues('base_url')
       if (!currentBaseUrlValue || currentBaseUrlValue === '') {
         form.setValue('base_url', 'https://ark.cn-beijing.volces.com')
       }
+    }
+
+    if (currentType === 100) {
+      const currentBaseUrlValue = form.getValues('base_url')
+      const nextBaseUrl = resolveBlockRunCreateBaseURL({
+        channelType: currentType,
+        isEditing,
+        paymentChain: blockRunPaymentChain,
+        currentBaseUrl: currentBaseUrlValue || '',
+      })
+      if (currentBaseUrlValue !== nextBaseUrl) {
+        form.setValue('base_url', nextBaseUrl)
+      }
+    }
+
+    if (currentType === 112) {
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue) {
+        form.setValue('base_url', 'https://api.githubcopilot.com')
+      }
+    } else if (form.getValues('base_url') === 'https://api.githubcopilot.com') {
+      form.setValue('base_url', '')
     }
 
     // Type 18 (Xunfei) - set default other (version)
@@ -620,7 +678,7 @@ export function ChannelMutateDrawer({
         form.setValue('other', 'v2.1')
       }
     }
-  }, [currentType, isEditing, form])
+  }, [blockRunPaymentChain, currentType, isEditing, form, multiKeyMode])
 
   // Validate base_url - warn if it ends with /v1
   useEffect(() => {
@@ -724,6 +782,57 @@ export function ChannelMutateDrawer({
     }
   }, [channelId, queryClient, t])
 
+  const handleRefreshGrokCredential = useCallback(async () => {
+    if (!channelId) return
+    setIsGrokCredentialRefreshing(true)
+    try {
+      const res = await refreshGrokState(channelId)
+      if (!res.success) {
+        if (res.data?.status === 'needs_reauth') {
+          throw new Error(
+            res.message ||
+              t('Authorization expired, please re-authorize this channel')
+          )
+        }
+        throw new Error(res.message || t('Failed to refresh credential'))
+      }
+      toast.success(t('Credential refreshed'))
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKeys.detail(channelId),
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('Refresh failed'))
+    } finally {
+      setIsGrokCredentialRefreshing(false)
+    }
+  }, [channelId, queryClient, t])
+
+  const handleImportGrokRefreshToken = useCallback(async () => {
+    if (!channelId) return
+    const token = grokRefreshTokenInput.trim()
+    if (!token) {
+      toast.error(t('Please enter a refresh token'))
+      return
+    }
+    setIsGrokImporting(true)
+    try {
+      const res = await importGrokRefreshToken(channelId, token)
+      if (!res.success) {
+        throw new Error(res.message || t('Failed to import refresh token'))
+      }
+      toast.success(t('Refresh token imported'))
+      setGrokRefreshTokenInput('')
+      setGrokImportOpen(false)
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKeys.detail(channelId),
+      })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('Import failed'))
+    } finally {
+      setIsGrokImporting(false)
+    }
+  }, [channelId, grokRefreshTokenInput, queryClient, t])
+
   // Unified function to update models
   const updateModels = useCallback(
     (newModels: string[], merge: boolean = false) => {
@@ -739,8 +848,11 @@ export function ChannelMutateDrawer({
   // Handle fetching models from upstream
   const handleFetchModels = useCallback(async () => {
     const type = form.getValues('type')
+    const fetchableTypes = isEditing
+      ? MODEL_FETCHABLE_TYPES
+      : CREATE_MODEL_FETCHABLE_TYPES
 
-    if (!MODEL_FETCHABLE_TYPES.has(type)) {
+    if (!fetchableTypes.has(type)) {
       toast.error(t('This channel type does not support fetching models'))
       return
     }
@@ -916,8 +1028,15 @@ export function ChannelMutateDrawer({
   // Submit handler
   const onSubmit = useCallback(
     async (data: ChannelFormValues) => {
-      // Validate key is required when creating
-      if (!isEditing && !data.key?.trim()) {
+      // Validate key is required when creating.
+      // 112 (Copilot) and 113 (Grok Subscription) acquire their credential
+      // through a post-save OAuth flow, so an empty key is expected there.
+      if (
+        !isEditing &&
+        data.type !== 112 &&
+        data.type !== 113 &&
+        !data.key?.trim()
+      ) {
         form.setError('key', {
           type: 'manual',
           message: ERROR_MESSAGES.REQUIRED_KEY,
@@ -1033,12 +1152,69 @@ export function ChannelMutateDrawer({
     (v: boolean) => {
       onOpenChange(v)
       if (!v) {
-        form.reset(CHANNEL_FORM_DEFAULT_VALUES)
+        form.reset(buildNewChannelFormDefaults())
         setAdvancedSettingsOpen(false)
+        // Clear Grok sensitive/transient state on close: the refresh-token
+        // plaintext must never linger in memory (design §14: clear sensitive
+        // state after the dialog closes). Setters are stable refs, so the
+        // callback deps below stay unchanged.
+        setGrokRefreshTokenInput('')
+        setGrokImportOpen(false)
+        setGrokOAuthDialogOpen(false)
       }
     },
     [onOpenChange, form]
   )
+
+  // Grok Subscription (type 113) auth-state badge. Extracted per repo convention
+  // (see codex-usage-dialog.tsx statusBadge) instead of an inline JSX IIFE.
+  const grokAuthBadge = (() => {
+    const grokAuthStatus = channelData?.data?.grok_auth_state?.auth_status
+    const grokAuthorizationView = resolveGrokAuthorizationView({
+      isEditing,
+      formKey: currentKey,
+      serverStatus: grokAuthStatus,
+    })
+    if (grokAuthorizationView === 'authorized-unsaved') {
+      return (
+        <StatusBadge
+          variant='success'
+          size='sm'
+          copyable={false}
+          label={t('Authorized — not saved')}
+        />
+      )
+    }
+    if (grokAuthorizationView === 'active') {
+      return (
+        <StatusBadge
+          variant='success'
+          size='sm'
+          copyable={false}
+          label={t('Authorized')}
+        />
+      )
+    }
+    if (grokAuthorizationView === 'needs-reauth') {
+      return (
+        <StatusBadge
+          variant='danger'
+          size='sm'
+          copyable={false}
+          label={t('Needs re-authorization')}
+        />
+      )
+    }
+    return (
+      <StatusBadge
+        variant='warning'
+        size='sm'
+        pulse
+        copyable={false}
+        label={t('Pending authorization')}
+      />
+    )
+  })()
 
   return (
     <>
@@ -1113,6 +1289,31 @@ export function ChannelMutateDrawer({
                                     Number.isInteger(nextType) &&
                                     nextType > 0
                                   ) {
+                                    const currentFormKey = form.getValues('key')
+                                    const grokTypeSwitch =
+                                      resolveGrokCreateTypeSwitch({
+                                        isEditing,
+                                        currentType: form.getValues('type'),
+                                        nextType,
+                                        formKey: currentFormKey,
+                                      })
+                                    if (grokTypeSwitch.closeTransientState) {
+                                      if (
+                                        grokTypeSwitch.key !== currentFormKey
+                                      ) {
+                                        form.setValue(
+                                          'key',
+                                          grokTypeSwitch.key,
+                                          {
+                                            shouldDirty: true,
+                                            shouldValidate: true,
+                                          }
+                                        )
+                                      }
+                                      setGrokRefreshTokenInput('')
+                                      setGrokImportOpen(false)
+                                      setGrokOAuthDialogOpen(false)
+                                    }
                                     field.onChange(nextType)
                                   }
                                 }}
@@ -1771,8 +1972,131 @@ export function ChannelMutateDrawer({
                       />
                     )}
 
+                    {currentType === 100 && (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name='blockrun_payment_chain'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Payment chain')}</FormLabel>
+                              <FormControl>
+                                <ToggleGroup
+                                  value={[field.value]}
+                                  variant='outline'
+                                  disabled={isEditing}
+                                  aria-label={t('Payment chain')}
+                                  onValueChange={(values) => {
+                                    const nextChain = values[0]
+                                    if (
+                                      nextChain !== 'base' &&
+                                      nextChain !== 'solana'
+                                    ) {
+                                      return
+                                    }
+                                    const change =
+                                      resolveBlockRunPaymentChainChange({
+                                        channelType: currentType,
+                                        isEditing,
+                                        currentChain: field.value,
+                                        currentBaseUrl:
+                                          form.getValues('base_url') || '',
+                                        requestedChain: nextChain,
+                                      })
+                                    field.onChange(change.paymentChain)
+                                    form.setValue('base_url', change.baseUrl, {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    })
+                                  }}
+                                >
+                                  <ToggleGroupItem value='base'>
+                                    {t('Base')}
+                                  </ToggleGroupItem>
+                                  <ToggleGroupItem value='solana'>
+                                    {t('Solana')}
+                                  </ToggleGroupItem>
+                                </ToggleGroup>
+                              </FormControl>
+                              <FormDescription>
+                                {isEditing
+                                  ? t(
+                                      'The payment chain cannot be changed after the channel is created.'
+                                    )
+                                  : isBlockRunSolana
+                                    ? t('Pay with USDC on Solana.')
+                                    : t('Pay with USDC on Base.')}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name='base_url'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('BlockRun API URL *')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  readOnly={isBlockRunSolana}
+                                  placeholder={
+                                    isBlockRunSolana
+                                      ? BLOCKRUN_SOLANA_API_URL
+                                      : BLOCKRUN_BASE_API_URL
+                                  }
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {isBlockRunSolana
+                                  ? t(
+                                      'The Solana payment endpoint is fixed to the official BlockRun URL.'
+                                    )
+                                  : t(
+                                      'The Base payment endpoint defaults to the official BlockRun URL.'
+                                    )}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {isBlockRunSolana && (
+                          <FormField
+                            control={form.control}
+                            name='blockrun_max_payment_atomic'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>
+                                  {t(
+                                    'Maximum payment per request (atomic units) *'
+                                  )}
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    inputMode='numeric'
+                                    pattern='[0-9]*'
+                                    placeholder='1000000'
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {t(
+                                    'Enter a positive decimal integer in USDC atomic units (1 USDC = 1000000).'
+                                  )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+                      </>
+                    )}
+
                     {/* General base_url for other types */}
-                    {![3, 8, 22, 36, 45].includes(currentType) && (
+                    {![3, 8, 22, 36, 45, 100, 112].includes(currentType) && (
                       <FormField
                         control={form.control}
                         name='base_url'
@@ -1797,7 +2121,7 @@ export function ChannelMutateDrawer({
                     )}
 
                     <ChannelAuthSection>
-                      {!isEditing && (
+                      {!isEditing && currentType !== 112 && (
                         <FormField
                           control={form.control}
                           name='multi_key_mode'
@@ -1845,6 +2169,14 @@ export function ChannelMutateDrawer({
                         control={form.control}
                         name='key'
                         render={({ field }) => {
+                          const keyFieldValue =
+                            resolveGrokCredentialTextareaValue({
+                              channelType: currentType,
+                              isEditing,
+                              formKey: field.value,
+                            })
+                          const isGrokCreateKeyMasked =
+                            currentType === 113 && !isEditing
                           const keyPlaceholder = (() => {
                             if (isEditing) {
                               return t('Leave empty to keep existing key')
@@ -1865,6 +2197,11 @@ export function ChannelMutateDrawer({
                                     'Enter key, format: AccessKey|SecretAccessKey|Region'
                                   )
                             }
+                            if (isBlockRunSolana) {
+                              return t(
+                                'Enter a base58-encoded 32-byte seed or 64-byte keypair'
+                              )
+                            }
                             if (isBatchMode) {
                               return t(
                                 'Enter one key per line for batch creation'
@@ -1874,41 +2211,75 @@ export function ChannelMutateDrawer({
                           })()
                           return (
                             <FormItem>
-                              <FormLabel>{t('API Key *')}</FormLabel>
+                              <FormLabel>
+                                {isBlockRunSolana
+                                  ? t('Solana private key *')
+                                  : t('API Key *')}
+                              </FormLabel>
                               <FormControl>
                                 <Textarea
                                   placeholder={keyPlaceholder}
                                   rows={isBatchMode ? 8 : 4}
                                   {...field}
+                                  value={keyFieldValue}
+                                  readOnly={isGrokCreateKeyMasked}
                                 />
                               </FormControl>
                               <FormDescription>
                                 <div className='flex flex-col gap-2'>
-                                  <span>
-                                    {isEditing ? (
-                                      <>
+                                  {isBlockRunSolana ? (
+                                    <div className='flex flex-col gap-1'>
+                                      <span>
                                         {t(
-                                          'Enter new key to update, or leave empty to keep current key'
+                                          'Use a funded Solana wallet private key in base58 format. It is stored as the channel secret and never sent upstream.'
                                         )}
-                                        {isMultiKeyChannel && (
-                                          <span className='text-warning mt-1 block'>
-                                            {t(
-                                              'Multi-key channel: Keys will be'
-                                            )}{' '}
-                                            {keyMode === 'replace'
-                                              ? t('replaced')
-                                              : t('appended')}
-                                          </span>
-                                        )}
-                                      </>
-                                    ) : isBatchMode ? (
-                                      t(
-                                        'Enter one API key per line for batch creation'
-                                      )
-                                    ) : (
-                                      t(FIELD_DESCRIPTIONS.KEY)
-                                    )}
-                                  </span>
+                                      </span>
+                                      {solanaPrivateKeyInspection?.kind ===
+                                        'keypair' && (
+                                        <span>
+                                          {t('Payer wallet: {{payer}}', {
+                                            payer:
+                                              solanaPrivateKeyInspection.payer,
+                                          })}
+                                        </span>
+                                      )}
+                                      {solanaPrivateKeyInspection?.kind ===
+                                        'seed' && (
+                                        <span>
+                                          {t(
+                                            'The payer wallet for a 32-byte seed is verified when you save the channel.'
+                                          )}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span>
+                                      {isEditing ? (
+                                        <>
+                                          {t(
+                                            'Enter new key to update, or leave empty to keep current key'
+                                          )}
+                                          {isMultiKeyChannel &&
+                                            currentType !== 112 && (
+                                              <span className='text-warning mt-1 block'>
+                                                {t(
+                                                  'Multi-key channel: Keys will be'
+                                                )}{' '}
+                                                {keyMode === 'replace'
+                                                  ? t('replaced')
+                                                  : t('appended')}
+                                              </span>
+                                            )}
+                                        </>
+                                      ) : isBatchMode ? (
+                                        t(
+                                          'Enter one API key per line for batch creation'
+                                        )
+                                      ) : (
+                                        t(FIELD_DESCRIPTIONS.KEY)
+                                      )}
+                                    </span>
+                                  )}
                                   {isBatchMode && (
                                     <Button
                                       type='button'
@@ -2038,6 +2409,210 @@ export function ChannelMutateDrawer({
                         </div>
                       )}
 
+                      {currentType === 113 && (
+                        <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                            <div className='flex flex-col gap-0.5'>
+                              <div className='flex flex-wrap items-center gap-2'>
+                                <div className='text-sm font-semibold'>
+                                  {t('Grok Authorization')}
+                                </div>
+                                {grokAuthBadge}
+                              </div>
+                              <div className='text-muted-foreground text-xs'>
+                                {isEditing
+                                  ? t(
+                                      'Authorize this saved channel with Grok OAuth, or import an existing refresh token.'
+                                    )
+                                  : t(
+                                      'Authorize with Grok OAuth, then save the channel once.'
+                                    )}
+                              </div>
+                            </div>
+                            <div className='flex flex-wrap items-center gap-2'>
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                onClick={() => setGrokOAuthDialogOpen(true)}
+                              >
+                                <Link2 className='mr-2 h-4 w-4' />
+                                {t('Authorize')}
+                              </Button>
+                              {isEditing && channelId && (
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={handleRefreshGrokCredential}
+                                  disabled={isGrokCredentialRefreshing}
+                                >
+                                  {isGrokCredentialRefreshing ? (
+                                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                  ) : (
+                                    <RefreshCw className='mr-2 h-4 w-4' />
+                                  )}
+                                  {isGrokCredentialRefreshing
+                                    ? t('Refreshing...')
+                                    : t('Refresh credential')}
+                                </Button>
+                              )}
+                              {isEditing && channelId && (
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={() => setGrokImportOpen(true)}
+                                >
+                                  <Link2 className='mr-2 h-4 w-4' />
+                                  {t('Import refresh token')}
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          {grokImportOpen && isEditing && channelId && (
+                            <div className='flex flex-col gap-2'>
+                              <div className='text-sm font-medium'>
+                                {t('Refresh token')}
+                              </div>
+                              <Input
+                                type='password'
+                                value={grokRefreshTokenInput}
+                                onChange={(e) =>
+                                  setGrokRefreshTokenInput(e.target.value)
+                                }
+                                placeholder={t(
+                                  'Paste an existing Grok refresh token'
+                                )}
+                                autoComplete='off'
+                                spellCheck={false}
+                              />
+                              <div className='flex flex-wrap items-center gap-2'>
+                                <Button
+                                  type='button'
+                                  size='sm'
+                                  onClick={handleImportGrokRefreshToken}
+                                  disabled={isGrokImporting}
+                                >
+                                  {isGrokImporting && (
+                                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                                  )}
+                                  {t('Import')}
+                                </Button>
+                                <Button
+                                  type='button'
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={() => {
+                                    setGrokRefreshTokenInput('')
+                                    setGrokImportOpen(false)
+                                  }}
+                                >
+                                  {t('Cancel')}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                          <Alert>
+                            <AlertDescription>
+                              {t(
+                                'Grok subscription channels hold one shared OAuth credential per channel; do not paste keys manually'
+                              )}
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+                      )}
+
+                      {currentType === 112 && (
+                        <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
+                          <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+                            <div className='flex flex-col gap-0.5'>
+                              <div className='text-sm font-semibold'>
+                                {t('GitHub Copilot Authorization')}
+                              </div>
+                              <div className='text-muted-foreground text-xs'>
+                                {isEditing
+                                  ? t(
+                                      'Authorize this saved channel with GitHub Device Flow.'
+                                    )
+                                  : t(
+                                      'Save the channel first, then authorize it with GitHub Device Flow.'
+                                    )}
+                              </div>
+                            </div>
+                            {isEditing && channelId && (
+                              <Button
+                                type='button'
+                                variant='outline'
+                                size='sm'
+                                onClick={() => setCopilotDeviceFlowOpen(true)}
+                              >
+                                <Link2 className='mr-2 h-4 w-4' />
+                                {t('Authorize with GitHub')}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {currentType === 57 && (
+                        <FormField
+                          control={form.control}
+                          name='codex_fingerprint_mode'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>
+                                {t('Codex Fingerprint Convergence')}
+                              </FormLabel>
+                              <Select
+                                items={[
+                                  {
+                                    label: t('Off (passthrough)'),
+                                    value: 'off',
+                                  },
+                                  { label: t('Device only'), value: 'device' },
+                                  {
+                                    label: t('Device + Session'),
+                                    value: 'session',
+                                  },
+                                  {
+                                    label: t('Full convergence'),
+                                    value: 'full',
+                                  },
+                                ]}
+                                value={field.value || 'off'}
+                                onValueChange={field.onChange}
+                              >
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value='off'>
+                                    {t('Off (passthrough)')}
+                                  </SelectItem>
+                                  <SelectItem value='device'>
+                                    {t('Device only')}
+                                  </SelectItem>
+                                  <SelectItem value='session'>
+                                    {t('Device + Session')}
+                                  </SelectItem>
+                                  <SelectItem value='full'>
+                                    {t('Full convergence')}
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormDescription>
+                                {t(
+                                  'Default is off. Enable convergence only after measuring your accounts; some accounts reported reduced quota after enabling it.'
+                                )}
+                              </FormDescription>
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
                       <CodexOAuthDialog
                         open={codexOAuthDialogOpen}
                         onOpenChange={setCodexOAuthDialogOpen}
@@ -2046,107 +2621,155 @@ export function ChannelMutateDrawer({
                         }}
                       />
 
-                      {isEditing && isMultiKeyChannel && (
-                        <FormField
-                          control={form.control}
-                          name='key_mode'
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t('Key Update Mode')}</FormLabel>
-                              <Select
-                                items={[
-                                  {
-                                    value: 'append',
-                                    label: t('Append to existing keys'),
-                                  },
-                                  {
-                                    value: 'replace',
-                                    label: t('Replace all existing keys'),
-                                  },
-                                ]}
-                                onValueChange={field.onChange}
-                                value={field.value}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent alignItemWithTrigger={false}>
-                                  <SelectGroup>
-                                    <SelectItem value='append'>
-                                      {t('Append to existing keys')}
-                                    </SelectItem>
-                                    <SelectItem value='replace'>
-                                      {t('Replace all existing keys')}
-                                    </SelectItem>
-                                  </SelectGroup>
-                                </SelectContent>
-                              </Select>
-                              <FormDescription>
-                                {field.value === 'replace'
-                                  ? t(
-                                      'Replace mode: Will completely replace all existing keys'
-                                    )
-                                  : t(
-                                      'Append mode: New keys will be added to the end of the existing key list'
-                                    )}
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
+                      {channelId && (
+                        <CopilotDeviceFlowDialog
+                          channelId={channelId}
+                          open={copilotDeviceFlowOpen}
+                          onOpenChange={setCopilotDeviceFlowOpen}
+                          onAuthorized={() => {
+                            void queryClient.invalidateQueries({
+                              queryKey: channelsQueryKeys.detail(channelId),
+                            })
+                          }}
                         />
                       )}
 
-                      {!isEditing && multiKeyMode === 'multi_to_single' && (
-                        <FormField
-                          control={form.control}
-                          name='multi_key_type'
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t('Multi-Key Strategy')}</FormLabel>
-                              <Select
-                                items={[
-                                  { value: 'random', label: t('Random') },
-                                  { value: 'polling', label: t('Polling') },
-                                ]}
-                                onValueChange={field.onChange}
-                                value={field.value}
-                              >
-                                <FormControl>
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent alignItemWithTrigger={false}>
-                                  <SelectGroup>
-                                    <SelectItem value='random'>
-                                      {t('Random')}
-                                    </SelectItem>
-                                    <SelectItem value='polling'>
-                                      {t('Polling')}
-                                    </SelectItem>
-                                  </SelectGroup>
-                                </SelectContent>
-                              </Select>
-                              <FormDescription>
-                                {multiKeyType === 'polling' ? (
-                                  <span className='text-warning'>
-                                    {t(
-                                      'Polling mode requires Redis and memory cache, otherwise performance will be significantly degraded'
-                                    )}
-                                  </span>
-                                ) : (
-                                  t(
-                                    'Randomly select a key from the pool for each request'
-                                  )
-                                )}
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
+                      {currentType === 113 && (
+                        <GrokOAuthDialog
+                          channelId={channelId ?? undefined}
+                          open={grokOAuthDialogOpen}
+                          onOpenChange={setGrokOAuthDialogOpen}
+                          onAuthorized={(key) => {
+                            const decision =
+                              resolveGrokOAuthAuthorizedKeyDecision({
+                                channelId,
+                                currentType: form.getValues('type'),
+                                key,
+                              })
+                            if (decision.action === 'store') {
+                              form.setValue('key', decision.key, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              })
+                              return
+                            }
+                            if (decision.action === 'ignore') {
+                              return
+                            }
+                            void queryClient.invalidateQueries({
+                              queryKey: channelsQueryKeys.detail(
+                                decision.channelId
+                              ),
+                            })
+                          }}
                         />
                       )}
+
+                      {isEditing &&
+                        isMultiKeyChannel &&
+                        currentType !== 112 && (
+                          <FormField
+                            control={form.control}
+                            name='key_mode'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Key Update Mode')}</FormLabel>
+                                <Select
+                                  items={[
+                                    {
+                                      value: 'append',
+                                      label: t('Append to existing keys'),
+                                    },
+                                    {
+                                      value: 'replace',
+                                      label: t('Replace all existing keys'),
+                                    },
+                                  ]}
+                                  onValueChange={field.onChange}
+                                  value={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent alignItemWithTrigger={false}>
+                                    <SelectGroup>
+                                      <SelectItem value='append'>
+                                        {t('Append to existing keys')}
+                                      </SelectItem>
+                                      <SelectItem value='replace'>
+                                        {t('Replace all existing keys')}
+                                      </SelectItem>
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                                <FormDescription>
+                                  {field.value === 'replace'
+                                    ? t(
+                                        'Replace mode: Will completely replace all existing keys'
+                                      )
+                                    : t(
+                                        'Append mode: New keys will be added to the end of the existing key list'
+                                      )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
+
+                      {!isEditing &&
+                        currentType !== 112 &&
+                        multiKeyMode === 'multi_to_single' && (
+                          <FormField
+                            control={form.control}
+                            name='multi_key_type'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Multi-Key Strategy')}</FormLabel>
+                                <Select
+                                  items={[
+                                    { value: 'random', label: t('Random') },
+                                    { value: 'polling', label: t('Polling') },
+                                  ]}
+                                  onValueChange={field.onChange}
+                                  value={field.value}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent alignItemWithTrigger={false}>
+                                    <SelectGroup>
+                                      <SelectItem value='random'>
+                                        {t('Random')}
+                                      </SelectItem>
+                                      <SelectItem value='polling'>
+                                        {t('Polling')}
+                                      </SelectItem>
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                                <FormDescription>
+                                  {multiKeyType === 'polling' ? (
+                                    <span className='text-warning'>
+                                      {t(
+                                        'Polling mode requires Redis and memory cache, otherwise performance will be significantly degraded'
+                                      )}
+                                    </span>
+                                  ) : (
+                                    t(
+                                      'Randomly select a key from the pool for each request'
+                                    )
+                                  )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )}
                     </ChannelAuthSection>
                   </ChannelApiAccessSection>
 
@@ -2263,7 +2886,10 @@ export function ChannelMutateDrawer({
                               />
                               {t('Fill All Models')}
                             </Button>
-                            {MODEL_FETCHABLE_TYPES.has(currentType) && (
+                            {(isEditing
+                              ? MODEL_FETCHABLE_TYPES
+                              : CREATE_MODEL_FETCHABLE_TYPES
+                            ).has(currentType) && (
                               <Button
                                 type='button'
                                 variant='outline'
@@ -2555,6 +3181,39 @@ export function ChannelMutateDrawer({
                               </FormItem>
                             )}
                           />
+
+                          <FormField
+                            control={form.control}
+                            name='max_concurrency'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Max Concurrency')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type='number'
+                                    placeholder='0'
+                                    min={0}
+                                    step={1}
+                                    {...field}
+                                    onChange={(e) =>
+                                      field.onChange(
+                                        Math.max(
+                                          0,
+                                          Math.floor(
+                                            Number(e.target.value) || 0
+                                          )
+                                        )
+                                      )
+                                    }
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {t(FIELD_DESCRIPTIONS.MAX_CONCURRENCY)}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         </div>
 
                         <FormField
@@ -2642,6 +3301,113 @@ export function ChannelMutateDrawer({
                                 </FormControl>
                                 <FormDescription>
                                   {t(FIELD_DESCRIPTIONS.REMARK)}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                      </div>
+
+                      <div className='flex flex-col gap-4 border-t pt-4'>
+                        <SubHeading
+                          title={t('Asset Materialization')}
+                          icon={<Settings className='h-3.5 w-3.5' />}
+                        />
+                        <div className='grid gap-4 sm:grid-cols-3'>
+                          <FormField
+                            control={form.control}
+                            name='asset_materialization_provider'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Provider')}</FormLabel>
+                                <Select
+                                  items={[
+                                    {
+                                      value: '',
+                                      label: t('None'),
+                                    },
+                                    {
+                                      value: 'seedance_proxy',
+                                      label: t('Seedance proxy'),
+                                    },
+                                    {
+                                      value: 'tokenspace_material',
+                                      label: t('TokenSpace material'),
+                                    },
+                                  ]}
+                                  onValueChange={field.onChange}
+                                  value={field.value || ''}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue
+                                        placeholder={t('Select provider')}
+                                      />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent alignItemWithTrigger={false}>
+                                    <SelectGroup>
+                                      <SelectItem value=''>
+                                        {t('None')}
+                                      </SelectItem>
+                                      <SelectItem value='seedance_proxy'>
+                                        {t('Seedance proxy')}
+                                      </SelectItem>
+                                      <SelectItem value='tokenspace_material'>
+                                        {t('TokenSpace material')}
+                                      </SelectItem>
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                                <FormDescription>
+                                  {t(
+                                    'Admin-only asset materialization provider for server-side bindings.'
+                                  )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name='asset_materialization_gateway_base_url'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Gateway Base URL')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder='https://asset-gateway.example.invalid/v1/'
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {t(
+                                    'HTTPS gateway URL for the asset materialization service.'
+                                  )}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+
+                          <FormField
+                            control={form.control}
+                            name='asset_materialization_group_id'
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>{t('Group ID')}</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    placeholder='grp_shared_aigc'
+                                    {...field}
+                                  />
+                                </FormControl>
+                                <FormDescription>
+                                  {t(
+                                    'Asset group identifier used for binding and lookup.'
+                                  )}
                                 </FormDescription>
                                 <FormMessage />
                               </FormItem>
@@ -2893,7 +3659,9 @@ export function ChannelMutateDrawer({
                         title={t('Channel Extra Settings')}
                         icon={<Settings className='h-4 w-4' />}
                       />
-                      {(currentType === 1 || currentType === 14) && (
+                      {(currentType === 1 ||
+                        currentType === 14 ||
+                        currentType === 57) && (
                         <div className='border-border/60 flex flex-col gap-3 border-y py-4'>
                           <SubHeading
                             title={t('Field passthrough controls')}
@@ -3189,29 +3957,60 @@ export function ChannelMutateDrawer({
                             </FormItem>
                           )}
                         />
+
+                        {currentType === 105 && (
+                          <FormField
+                            control={form.control}
+                            name='return_source_url'
+                            render={({ field }) => (
+                              <FormItem className='flex items-center justify-between px-4 py-3'>
+                                <div className='space-y-0.5'>
+                                  <FormLabel>
+                                    {t('Return Source URL')}
+                                  </FormLabel>
+                                  <FormDescription>
+                                    {t(
+                                      'Return the upstream video URL directly without archiving; exposes upstream host and its expiry (TechMobi only)'
+                                    )}
+                                  </FormDescription>
+                                </div>
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                              </FormItem>
+                            )}
+                          />
+                        )}
                       </div>
 
-                      <FormField
-                        control={form.control}
-                        name='proxy'
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{t('Proxy Address')}</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder={t('socks5://user:pass@host:port')}
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              {t(
-                                'Network proxy for this channel (supports socks5 protocol)'
-                              )}
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                      {currentType !== 111 && (
+                        <FormField
+                          control={form.control}
+                          name='proxy'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Proxy Address')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  placeholder={t(
+                                    'socks5://user:pass@host:port'
+                                  )}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t(
+                                  'Network proxy for this channel (supports socks5 protocol)'
+                                )}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
 
                       <FormField
                         control={form.control}

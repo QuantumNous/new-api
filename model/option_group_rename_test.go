@@ -25,6 +25,7 @@ func setupOptionGroupRenameTestDB(t *testing.T) {
 	originalUsingPostgreSQL := common.UsingPostgreSQL
 	originalCommonGroupCol := commonGroupCol
 	originalGroupRatio := ratio_setting.GroupRatio2JSONString()
+	originalGroupModelRatio := ratio_setting.GroupModelRatio2JSONString()
 
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -44,6 +45,7 @@ func setupOptionGroupRenameTestDB(t *testing.T) {
 		common.UsingPostgreSQL = originalUsingPostgreSQL
 		commonGroupCol = originalCommonGroupCol
 		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalGroupRatio))
+		require.NoError(t, ratio_setting.UpdateGroupModelRatioByJSONString(originalGroupModelRatio))
 	})
 }
 
@@ -80,6 +82,91 @@ func TestUpdateGroupRatioRenameSyncsChannelGroupsAndAbilities(t *testing.T) {
 	var untouchedAbilityCount int64
 	require.NoError(t, DB.Model(&Ability{}).Where(commonGroupCol+" = ?", "oldish").Count(&untouchedAbilityCount).Error)
 	require.Equal(t, int64(1), untouchedAbilityCount)
+}
+
+func TestUpdateGroupRatioRenameSyncsGroupModelRatio(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"old-group":1,"keep":1}`))
+	require.NoError(t, UpdateOption("GroupModelRatio", `{"old-group":{"gpt-5.5":0.3},"keep":{"gpt-4o":0.8}}`))
+
+	require.NoError(t, updateOptionMap("GroupRatio", `{"new-group":1,"keep":1}`))
+
+	_, oldExists, _ := ratio_setting.GetGroupModelRatio("old-group", "gpt-5.5")
+	require.False(t, oldExists)
+
+	ratio, ok, matchedModel := ratio_setting.GetGroupModelRatio("new-group", "gpt-5.5")
+	require.True(t, ok)
+	require.Equal(t, 0.3, ratio)
+	require.Equal(t, "gpt-5.5", matchedModel)
+
+	var option Option
+	require.NoError(t, DB.Where("key = ?", "GroupModelRatio").First(&option).Error)
+	require.JSONEq(t, `{"new-group":{"gpt-5.5":0.3},"keep":{"gpt-4o":0.8}}`, option.Value)
+	require.JSONEq(t, option.Value, common.OptionMap["GroupModelRatio"])
+}
+
+func TestUpdateOptionPersistsGroupModelRatio(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+
+	require.NoError(t, UpdateOption("GroupModelRatio", `{"plg":{"gpt-5.5":0.3}}`))
+
+	var option Option
+	require.NoError(t, DB.Where("key = ?", "GroupModelRatio").First(&option).Error)
+	require.Equal(t, `{"plg":{"gpt-5.5":0.3}}`, option.Value)
+	require.Equal(t, `{"plg":{"gpt-5.5":0.3}}`, common.OptionMap["GroupModelRatio"])
+
+	ratio, ok, matchedModel := ratio_setting.GetGroupModelRatio("plg", "gpt-5.5")
+	require.True(t, ok)
+	require.Equal(t, 0.3, ratio)
+	require.Equal(t, "gpt-5.5", matchedModel)
+}
+
+func TestUpdateOptionPersistsNestedGroupModelRatioConfig(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+
+	ratio_setting.InvalidateExposedDataCache()
+	require.NoError(t, UpdateOption("group_ratio_setting.group_model_ratio", `{"plg":{"gpt-5.5":0.3}}`))
+
+	var option Option
+	require.NoError(t, DB.Where("key = ?", "group_ratio_setting.group_model_ratio").First(&option).Error)
+	require.Equal(t, `{"plg":{"gpt-5.5":0.3}}`, option.Value)
+	require.Equal(t, `{"plg":{"gpt-5.5":0.3}}`, common.OptionMap["group_ratio_setting.group_model_ratio"])
+
+	ratio, ok, matchedModel := ratio_setting.GetGroupModelRatio("plg", "gpt-5.5")
+	require.True(t, ok)
+	require.Equal(t, 0.3, ratio)
+	require.Equal(t, "gpt-5.5", matchedModel)
+
+	exposed := ratio_setting.GetExposedData()
+	groupModelRatio, ok := exposed["group_model_ratio"].(map[string]map[string]float64)
+	require.True(t, ok)
+	require.Equal(t, 0.3, groupModelRatio["plg"]["gpt-5.5"])
+}
+
+func TestUpdateOptionRejectsInvalidGroupModelRatioBeforePersisting(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+
+	err := UpdateOption("GroupModelRatio", `{"plg":{"gpt-5.5":-0.1}}`)
+	require.Error(t, err)
+
+	var persistedCount int64
+	require.NoError(t, DB.Model(&Option{}).Where("key = ?", "GroupModelRatio").Count(&persistedCount).Error)
+	require.Zero(t, persistedCount)
+	require.Equal(t, `{}`, ratio_setting.GroupModelRatio2JSONString())
+}
+
+func TestLoadOptionsFromDatabaseInvalidatesPricingCache(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+
+	pricingMap = []Pricing{{ModelName: "cached"}}
+	vendorsList = []PricingVendor{{ID: 1, Name: "cached"}}
+	lastGetPricingTime = time.Now()
+
+	LoadOptionsFromDatabase()
+
+	require.Nil(t, pricingMap)
+	require.Nil(t, vendorsList)
+	require.True(t, lastGetPricingTime.IsZero())
 }
 
 func TestUpdateOptionValidatesAmountBonusConfigBeforePersisting(t *testing.T) {

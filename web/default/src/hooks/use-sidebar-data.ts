@@ -16,25 +16,34 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { type TFunction } from 'i18next'
 import {
   Activity,
   Box,
+  CalendarRange,
+  Cpu,
   CreditCard,
   FileText,
   FlaskConical,
+  HeartPulse,
+  Images,
   Key,
   LayoutDashboard,
   ListTodo,
-  MessageSquare,
+  MailCheck,
   Radio,
+  Rocket,
   Settings,
   ShieldAlert,
   Ticket,
   User,
+  UserPlus,
   Users,
   Wallet,
+  Wrench,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 import { type SidebarData } from '@/components/layout/types'
 
 /**
@@ -43,30 +52,15 @@ import { type SidebarData } from '@/components/layout/types'
  * These are shown when the URL does not match any nested sidebar view
  * registered in `layout/lib/sidebar-view-registry.ts`.
  */
-export function useSidebarData(): SidebarData {
-  const { t } = useTranslation()
-
+export function buildSidebarData(
+  t: TFunction,
+  options?: { inviteBadge?: string }
+): SidebarData {
   return {
     navGroups: [
       {
         id: 'chat',
-        title: t('Chat'),
-        items: [
-          {
-            title: t('Playground'),
-            url: '/playground',
-            icon: FlaskConical,
-          },
-          {
-            title: t('Chat'),
-            icon: MessageSquare,
-            type: 'chat-presets',
-          },
-        ],
-      },
-      {
-        id: 'general',
-        title: t('General'),
+        title: t('Get Started'),
         items: [
           {
             title: t('Overview'),
@@ -74,14 +68,20 @@ export function useSidebarData(): SidebarData {
             icon: Activity,
           },
           {
-            title: t('Dashboard'),
-            url: '/dashboard/models',
-            icon: LayoutDashboard,
+            title: t('Playground'),
+            url: '/playground',
+            icon: FlaskConical,
           },
+        ],
+      },
+      {
+        id: 'general',
+        title: t('Models'),
+        items: [
           {
-            title: t('API Keys'),
-            url: '/keys',
-            icon: Key,
+            title: t('Available Models'),
+            url: '/available-models',
+            icon: Box,
           },
           {
             title: t('Usage Logs'),
@@ -95,6 +95,38 @@ export function useSidebarData(): SidebarData {
             configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
             icon: ListTodo,
           },
+          {
+            title: t('Analytics'),
+            url: '/dashboard/models',
+            icon: LayoutDashboard,
+          },
+        ],
+      },
+      {
+        id: 'tools',
+        title: t('Tools'),
+        items: [
+          {
+            title: t('Get Started'),
+            url: '/quickstart',
+            icon: Rocket,
+          },
+          {
+            title: t('Tool Marketplace'),
+            url: '/api-marketplace',
+            icon: Wrench,
+          },
+        ],
+      },
+      {
+        id: 'credentials',
+        title: t('Credentials'),
+        items: [
+          {
+            title: t('API Keys'),
+            url: '/keys',
+            icon: Key,
+          },
         ],
       },
       {
@@ -105,6 +137,13 @@ export function useSidebarData(): SidebarData {
             title: t('Wallet'),
             url: '/wallet',
             icon: Wallet,
+          },
+          {
+            title: t('Invite'),
+            url: '/invite',
+            icon: UserPlus,
+            badge: options?.inviteBadge ?? t('Earn More Credits!'),
+            badgeVariant: 'promotion',
           },
           {
             title: t('Profile'),
@@ -123,9 +162,19 @@ export function useSidebarData(): SidebarData {
             icon: Radio,
           },
           {
+            title: t('Compute Nodes'),
+            url: '/compute/nodes',
+            icon: Cpu,
+          },
+          {
             title: t('Models'),
             url: '/models/metadata',
             icon: Box,
+          },
+          {
+            title: t('Model Health'),
+            url: '/model-health',
+            icon: HeartPulse,
           },
           {
             title: t('Codex model governance'),
@@ -138,14 +187,29 @@ export function useSidebarData(): SidebarData {
             icon: Users,
           },
           {
+            title: t('Ops Daily Report'),
+            url: '/ops-report',
+            icon: CalendarRange,
+          },
+          {
             title: t('Redemption Codes'),
             url: '/redemption-codes',
             icon: Ticket,
           },
           {
+            title: t('Prompt Gallery'),
+            url: '/prompt-gallery',
+            icon: Images,
+          },
+          {
             title: t('Subscription Management'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('Activity Configuration'),
+            url: '/recall-campaigns',
+            icon: MailCheck,
           },
           {
             title: t('System Settings'),
@@ -157,4 +221,17 @@ export function useSidebarData(): SidebarData {
       },
     ],
   }
+}
+
+export function useSidebarData(): SidebarData {
+  const { t } = useTranslation()
+  const badgeUsd = useSystemConfigStore(
+    (state) => state.config.inviteRewardBadgeUsd
+  )
+  // Direct money stimulus beats prose: show "+$50" when the reward amount is
+  // known, fall back to the generic promo text otherwise.
+  const inviteBadge =
+    badgeUsd && badgeUsd > 0 ? `+$${Math.round(badgeUsd)}` : undefined
+
+  return buildSidebarData(t, { inviteBadge })
 }

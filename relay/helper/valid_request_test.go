@@ -1,11 +1,14 @@
 package helper
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
@@ -19,6 +22,93 @@ func newClaudeCtx(body string) *gin.Context {
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(body))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	return ctx
+}
+
+func newOpenAIImageJSONCtx(t *testing.T, path, body string) *gin.Context {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	return ctx
+}
+
+func newOpenAIImageMultipartCtx(t *testing.T, path string, fields map[string]string, files map[string][]byte) *gin.Context {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for key, value := range fields {
+		require.NoError(t, writer.WriteField(key, value))
+	}
+	for field, data := range files {
+		part, err := writer.CreateFormFile(field, field+".png")
+		require.NoError(t, err)
+		_, err = part.Write(data)
+		require.NoError(t, err)
+	}
+	require.NoError(t, writer.Close())
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, path, &body)
+	ctx.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	return ctx
+}
+
+func TestGetAndValidOpenAIImageRequest_JSONBindsGrokScalarsAndRejectedFieldPresence(t *testing.T) {
+	body := `{"model":"grok-imagine-image-2.0","prompt":"paint","n":2,"response_format":"b64_json","resolution":"2k","quality":"medium","aspect_ratio":"16:9","image":"https://example.com/a.png","mask":"data:image/png;base64,AAAA","user":"u","file_id":"file-1","storage_options":{"store":true}}`
+	req, err := GetAndValidOpenAIImageRequest(newOpenAIImageJSONCtx(t, "/v1/images/edits", body), relayconstant.RelayModeImagesEdits)
+	require.NoError(t, err)
+	require.Equal(t, "grok-imagine-image-2.0", req.Model)
+	require.Equal(t, "paint", req.Prompt)
+	require.NotNil(t, req.N)
+	require.Equal(t, uint(2), *req.N)
+	require.Equal(t, "b64_json", req.ResponseFormat)
+	require.Equal(t, "2k", req.Resolution)
+	require.Equal(t, "medium", req.Quality)
+	require.Equal(t, "16:9", req.AspectRatio)
+	require.JSONEq(t, `"https://example.com/a.png"`, string(req.Image))
+	require.NotEmpty(t, req.Mask)
+	require.NotEmpty(t, req.User)
+	require.Contains(t, req.Extra, "file_id")
+	require.Contains(t, req.Extra, "storage_options")
+}
+
+func TestGetAndValidOpenAIImageRequest_MultipartBindsGrokScalarsAndFiles(t *testing.T) {
+	req, err := GetAndValidOpenAIImageRequest(newOpenAIImageMultipartCtx(t, "/v1/images/edits", map[string]string{
+		"model":           "grok-imagine-image-2.0",
+		"prompt":          "edit",
+		"n":               "3",
+		"response_format": "url",
+		"resolution":      "1k",
+		"quality":         "low",
+		"aspect_ratio":    "auto",
+		"mask":            "present",
+		"user":            "u",
+		"file_id":         "file-1",
+		"storage_options": `{"store":true}`,
+	}, map[string][]byte{
+		"image":    []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'},
+		"image[]":  []byte{0xff, 0xd8, 0xff, 0xdb},
+		"image[2]": []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'},
+	}), relayconstant.RelayModeImagesEdits)
+	require.NoError(t, err)
+	require.Equal(t, "grok-imagine-image-2.0", req.Model)
+	require.Equal(t, "edit", req.Prompt)
+	require.NotNil(t, req.N)
+	require.Equal(t, uint(3), *req.N)
+	require.Equal(t, "url", req.ResponseFormat)
+	require.Equal(t, "1k", req.Resolution)
+	require.Equal(t, "low", req.Quality)
+	require.Equal(t, "auto", req.AspectRatio)
+	require.NotEmpty(t, req.Mask)
+	require.NotEmpty(t, req.User)
+	require.Contains(t, req.Extra, "file_id")
+	require.Contains(t, req.Extra, "storage_options")
+	require.Len(t, req.Extra, 2)
+	require.NotNil(t, req)
 }
 
 func TestGetAndValidateClaudeRequest_ThinkingTypeRequired(t *testing.T) {

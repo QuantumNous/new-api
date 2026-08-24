@@ -97,3 +97,32 @@ func TestMonitorSettingLoadsChannelTypeFiltersFromConfigMap(t *testing.T) {
 	require.Equal(t, []int{57, 24}, setting.AutoTestChannelAllowedTypes)
 	require.Equal(t, []int{2, 5}, setting.AutoTestChannelIgnoredTypes)
 }
+
+func TestMonitorSettingLoadsPassiveRecoveryModeFromConfigMap(t *testing.T) {
+	setting := &MonitorSetting{}
+	require.NoError(t, config.UpdateConfigFromMap(setting, map[string]string{
+		"channel_test_mode": ChannelTestModePassiveRecovery,
+	}))
+	require.Equal(t, ChannelTestModePassiveRecovery, setting.ChannelTestMode)
+}
+
+func TestGetMonitorSettingNormalizesUnknownChannelTestMode(t *testing.T) {
+	original := monitorSetting
+	monitorSetting.ChannelTestMode = "unknown"
+	t.Cleanup(func() { monitorSetting = original })
+	t.Setenv("CHANNEL_TEST_FREQUENCY", "")
+
+	require.Equal(t, ChannelTestModeScheduledAll, GetMonitorSetting().ChannelTestMode)
+}
+
+func TestChannelTestFrequencyEnvForcesScheduledAllMode(t *testing.T) {
+	original := monitorSetting
+	monitorSetting.ChannelTestMode = ChannelTestModePassiveRecovery
+	t.Cleanup(func() { monitorSetting = original })
+	t.Setenv("CHANNEL_TEST_FREQUENCY", "5")
+
+	setting := GetMonitorSetting()
+	require.True(t, setting.AutoTestChannelEnabled)
+	require.Equal(t, 5.0, setting.AutoTestChannelMinutes)
+	require.Equal(t, ChannelTestModeScheduledAll, setting.ChannelTestMode)
+}

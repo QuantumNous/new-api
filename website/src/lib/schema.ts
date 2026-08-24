@@ -1,10 +1,11 @@
 import type { BlogPost } from "./blog";
 import type { Locale } from "./locales";
-import { localizePath } from "./locales";
+import { isLocale, localeLanguageTag, localizePath } from "./locales";
 import { SITE_NAME, SITE_ORIGIN } from "./seo";
 
 type JsonLdValue = string | number | boolean | null | JsonLdObject | JsonLdValue[];
 type JsonLdObject = { [key: string]: JsonLdValue | undefined };
+const PRODUCT_IMAGE_URL = `${SITE_ORIGIN}/flatkey-mark.svg`;
 
 export type JsonLdGraph = {
   "@context": "https://schema.org";
@@ -35,10 +36,33 @@ type HomepageSchemaInput = {
   description: string;
 };
 
+type BasePageSchemaInput = {
+  locale: Locale;
+  pathname: string;
+};
+
 export function stringifyJsonLd(value: JsonLdObject | JsonLdGraph): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
 
+export function buildBasePageSchema(input: BasePageSchemaInput): JsonLdGraph {
+  const pagePath = localizePath(input.pathname, input.locale);
+  const pageUrl = absoluteUrl(pagePath);
+  const breadcrumbs = buildBreadcrumbItems(pagePath);
+
+  return graph([
+    websiteSchema(),
+    {
+      "@type": "WebPage",
+      name: pageNameFromPath(input.pathname),
+      url: pageUrl,
+      inLanguage: localeLanguageTag(input.locale),
+      isPartOf: websiteSchema(),
+      publisher: organizationSchema(),
+    },
+    breadcrumbSchema(breadcrumbs),
+  ]);
+}
 export function buildHomepageSchema(input: HomepageSchemaInput): JsonLdGraph {
   return graph([
     websiteSchema(),
@@ -78,7 +102,7 @@ export function buildBlogIndexSchema(input: BlogIndexSchemaInput): JsonLdGraph {
       name: input.title,
       description: input.description,
       url: blogUrl,
-      inLanguage: input.locale,
+      inLanguage: localeLanguageTag(input.locale),
       publisher: organizationSchema(),
     },
   ]);
@@ -95,7 +119,7 @@ export function buildBlogCategorySchema(input: BlogCategorySchemaInput): JsonLdG
       name: input.name,
       description: input.description,
       url: categoryUrl,
-      inLanguage: input.locale,
+      inLanguage: localeLanguageTag(input.locale),
       isPartOf: { "@type": "Blog", name: SITE_NAME, url: blogUrl },
       publisher: organizationSchema(),
     },
@@ -126,13 +150,168 @@ export function buildBlogArticleSchema(input: BlogArticleSchemaInput): JsonLdGra
       author: post.author ? { "@type": "Person", name: post.author } : organizationSchema(),
       publisher: organizationSchema(),
       articleSection: post.categoryName,
-      inLanguage: input.locale,
+      inLanguage: localeLanguageTag(input.locale),
     },
     breadcrumbSchema([
       { name: "Blog", item: blogUrl },
       ...(post.categoryName && categoryUrl ? [{ name: post.categoryName, item: categoryUrl }] : []),
       { name: post.title, item: articleUrl },
     ]),
+  ]);
+}
+
+type ModelSchemaInput = {
+  locale: Locale;
+  modelName: string;
+  vendorName: string;
+  description: string;
+  // Effective price per 1M input tokens on flatkey, in USD.
+  inputPriceUsd: number;
+  // Localized page path, e.g. "/zh/models/gpt-4o-mini".
+  pagePath: string;
+  faq: Array<{ q: string; a: string }>;
+};
+
+export function buildModelSchema(input: ModelSchemaInput): JsonLdGraph {
+  const modelsUrl = absoluteUrl(localizePath("/models", input.locale));
+  const pageUrl = absoluteUrl(input.pagePath);
+  // Only emit an Offer with a real, finite, non-negative price — a NaN/Infinity
+  // or missing price would serialize to null / an invalid price and hand search
+  // engines a broken price signal.
+  const validPrice = Number.isFinite(input.inputPriceUsd) && input.inputPriceUsd >= 0;
+  return graph([
+    websiteSchema(),
+    {
+      "@type": "Product",
+      name: `${input.modelName} API`,
+      description: input.description,
+      category: "AI model API",
+      brand: { "@type": "Brand", name: input.vendorName },
+      url: pageUrl,
+      image: PRODUCT_IMAGE_URL,
+      ...(validPrice
+        ? {
+            offers: {
+              "@type": "Offer",
+              priceCurrency: "USD",
+              price: input.inputPriceUsd,
+              description: `Effective ${SITE_NAME} price for ${input.modelName}`,
+              availability: "https://schema.org/InStock",
+              url: pageUrl,
+              seller: organizationSchema(),
+              hasMerchantReturnPolicy: digitalServiceReturnPolicy(),
+              shippingDetails: digitalServiceShippingDetails(),
+            },
+          }
+        : {}),
+    },
+    {
+      "@type": "FAQPage",
+      mainEntity: input.faq.map((item) => ({
+        "@type": "Question",
+        name: item.q,
+        acceptedAnswer: { "@type": "Answer", text: item.a },
+      })),
+    },
+    breadcrumbSchema([
+      { name: "Models", item: modelsUrl },
+      { name: input.modelName, item: pageUrl },
+    ]),
+  ]);
+}
+
+type RankingsSchemaInput = {
+  locale: Locale;
+  title: string;
+  // Ranked models, already ordered; `path` is the localized model-page path.
+  items: Array<{ name: string; path: string; position: number }>;
+};
+
+export function buildRankingsSchema(input: RankingsSchemaInput): JsonLdGraph {
+  const rankingsUrl = absoluteUrl(localizePath("/rankings", input.locale));
+  return graph([
+    websiteSchema(),
+    {
+      "@type": "ItemList",
+      name: input.title,
+      url: rankingsUrl,
+      numberOfItems: input.items.length,
+      itemListElement: input.items.map((item) => ({
+        "@type": "ListItem",
+        position: item.position,
+        name: item.name,
+        url: absoluteUrl(item.path),
+      })),
+    },
+    breadcrumbSchema([{ name: input.title, item: rankingsUrl }]),
+  ]);
+}
+
+type ModelsDirectorySchemaInput = {
+  locale: Locale;
+  title: string;
+  description: string;
+  /** Models in display order; `offer` prices are USD per the model's own unit. */
+  items: Array<{
+    name: string;
+    path: string;
+    position: number;
+    vendor?: string;
+    priceUsd?: number;
+    priceUnit?: string;
+  }>;
+  totalCount: number;
+};
+
+/**
+ * Directory schema for /models: a CollectionPage carrying an ItemList of the
+ * catalogue. Each entry is a Product with an Offer so the listed price is
+ * eligible for rich results, and `numberOfItems` reports the full catalogue
+ * rather than the truncated render window.
+ */
+export function buildModelsDirectorySchema(input: ModelsDirectorySchemaInput): JsonLdGraph {
+  const directoryPath = localizePath("/models", input.locale);
+  const directoryUrl = absoluteUrl(directoryPath);
+
+  return graph([
+    websiteSchema(),
+    {
+      "@type": "CollectionPage",
+      name: input.title,
+      description: input.description,
+      url: directoryUrl,
+      inLanguage: input.locale,
+      isPartOf: websiteSchema(),
+      publisher: organizationSchema(),
+      mainEntity: {
+        "@type": "ItemList",
+        name: input.title,
+        numberOfItems: input.totalCount,
+        itemListElement: input.items.map((item) => ({
+          "@type": "ListItem",
+          position: item.position,
+          item: {
+            "@type": "Product",
+            name: item.name,
+            url: absoluteUrl(item.path),
+            ...(item.vendor ? { brand: { "@type": "Brand", name: item.vendor } } : {}),
+            ...(item.priceUsd != null && item.priceUsd > 0
+              ? {
+                  offers: {
+                    "@type": "Offer",
+                    price: item.priceUsd,
+                    priceCurrency: "USD",
+                    availability: "https://schema.org/InStock",
+                    url: directoryUrl,
+                    ...(item.priceUnit ? { description: item.priceUnit } : {}),
+                  },
+                }
+              : {}),
+          },
+        })),
+      },
+    },
+    breadcrumbSchema([{ name: input.title, item: directoryUrl }]),
   ]);
 }
 
@@ -160,6 +339,44 @@ function organizationSchema(): JsonLdObject {
   };
 }
 
+function digitalServiceReturnPolicy(): JsonLdObject {
+  return {
+    "@type": "MerchantReturnPolicy",
+    applicableCountry: "US",
+    returnPolicyCategory: "https://schema.org/MerchantReturnNotPermitted",
+  };
+}
+
+function digitalServiceShippingDetails(): JsonLdObject {
+  return {
+    "@type": "OfferShippingDetails",
+    shippingRate: {
+      "@type": "MonetaryAmount",
+      value: 0,
+      currency: "USD",
+    },
+    shippingDestination: {
+      "@type": "DefinedRegion",
+      addressCountry: "US",
+    },
+    deliveryTime: {
+      "@type": "ShippingDeliveryTime",
+      handlingTime: {
+        "@type": "QuantitativeValue",
+        minValue: 0,
+        maxValue: 0,
+        unitCode: "DAY",
+      },
+      transitTime: {
+        "@type": "QuantitativeValue",
+        minValue: 0,
+        maxValue: 0,
+        unitCode: "DAY",
+      },
+    },
+  };
+}
+
 function breadcrumbSchema(items: Array<{ name: string; item: string }>): JsonLdObject {
   return {
     "@type": "BreadcrumbList",
@@ -179,6 +396,36 @@ function navigationItem(position: number, name: string, path: string): JsonLdObj
     name,
     url: absoluteUrl(path),
   };
+}
+
+function buildBreadcrumbItems(localizedPath: string): Array<{ name: string; item: string }> {
+  const segments = localizedPath.split("/").filter(Boolean);
+  const localeSegment = isLocale(segments[0]) ? segments[0] : undefined;
+  const contentSegments = localeSegment ? segments.slice(1) : segments;
+  const homePath = localeSegment ? `/${localeSegment}` : "/";
+  const pathSegments: string[] = [];
+  const items = [{ name: "Home", item: absoluteUrl(homePath) }];
+
+  for (const segment of contentSegments) {
+    pathSegments.push(segment);
+    items.push({
+      name: breadcrumbName(segment),
+      item: absoluteUrl(`${homePath === "/" ? "" : homePath}/${pathSegments.join("/")}`),
+    });
+  }
+
+  return items;
+}
+
+function breadcrumbName(segment: string): string {
+  return decodeURIComponent(segment)
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function pageNameFromPath(pathname: string): string {
+  const lastSegment = pathname.split("/").filter(Boolean).at(-1);
+  return lastSegment ? `${breadcrumbName(lastSegment)} | ${SITE_NAME}` : SITE_NAME;
 }
 
 function absoluteUrl(path: string): string {

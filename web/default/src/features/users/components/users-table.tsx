@@ -34,6 +34,7 @@ import { useMediaQuery } from '@/hooks'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { INTERFACE_LANGUAGE_OPTIONS } from '@/i18n/languages'
 import { Combobox } from '@/components/ui/combobox'
 import {
   DISABLED_ROW_DESKTOP,
@@ -84,7 +85,11 @@ export function UsersTable() {
     columnFilters: [
       { columnId: 'status', searchKey: 'status', type: 'array' },
       { columnId: 'role', searchKey: 'role', type: 'array' },
+      { columnId: 'language', searchKey: 'language', type: 'array' },
       { columnId: 'group', searchKey: 'group', type: 'string' },
+      { columnId: 'country', searchKey: 'country', type: 'string' },
+      { columnId: 'paid', searchKey: 'paid', type: 'array' },
+      { columnId: 'email_verified', searchKey: 'email_verified', type: 'array' },
     ],
   })
   const statusFilter =
@@ -95,9 +100,42 @@ export function UsersTable() {
     (columnFilters.find((filter) => filter.id === 'role')?.value as
       | string[]
       | undefined) ?? []
+  const languageFilter =
+    (columnFilters.find((filter) => filter.id === 'language')?.value as
+      | string[]
+      | undefined) ?? []
   const groupFilter =
     (columnFilters.find((filter) => filter.id === 'group')?.value as string) ??
     ''
+  const countryFilter =
+    (columnFilters.find((filter) => filter.id === 'country')?.value as string) ??
+    ''
+  const statusFilterValue = statusFilter[0] ?? ''
+  const roleFilterValue = roleFilter[0] ?? ''
+  const languageFilterValue = languageFilter[0] ?? ''
+  const paidFilter =
+    (columnFilters.find((filter) => filter.id === 'paid')?.value as
+      | string[]
+      | undefined) ?? []
+  const paidFilterValue = paidFilter[0] ?? ''
+  const emailVerifiedFilter =
+    (columnFilters.find((filter) => filter.id === 'email_verified')?.value as
+      | string[]
+      | undefined) ?? []
+  const emailVerifiedFilterValue = emailVerifiedFilter[0] ?? ''
+  const setCountryFilter = (value: string | null) => {
+    const normalized = value?.trim().toUpperCase() ?? ''
+    onColumnFiltersChange((previous) => {
+      const next = previous.filter((filter) => filter.id !== 'country')
+      return normalized ? [...next, { id: 'country', value: normalized }] : next
+    })
+  }
+  let emailVerifiedParam: boolean | undefined
+  if (emailVerifiedFilterValue === '1') {
+    emailVerifiedParam = true
+  } else if (emailVerifiedFilterValue === '0') {
+    emailVerifiedParam = false
+  }
 
   const { data: groupsData } = useQuery({
     queryKey: ['assignable-user-groups'],
@@ -108,6 +146,14 @@ export function UsersTable() {
     () => buildUserGroupFilterOptions(groupsData?.data || [], groupFilter),
     [groupsData?.data, groupFilter]
   )
+  const languageOptions = useMemo(
+    () =>
+      INTERFACE_LANGUAGE_OPTIONS.map((language) => ({
+        label: language.label,
+        value: language.code,
+      })),
+    []
+  )
 
   // Fetch data with React Query
   const { data, isLoading, isFetching } = useQuery({
@@ -116,15 +162,25 @@ export function UsersTable() {
       pagination.pageIndex + 1,
       pagination.pageSize,
       globalFilter,
-      statusFilter,
-      roleFilter,
+      statusFilterValue,
+      roleFilterValue,
+      languageFilterValue,
       groupFilter,
+      countryFilter,
+      paidFilterValue,
+      emailVerifiedFilterValue,
       refreshTrigger,
     ],
     queryFn: async () => {
       const hasFilter = globalFilter?.trim()
       const hasColumnFilter =
-        statusFilter.length > 0 || roleFilter.length > 0 || Boolean(groupFilter)
+        Boolean(statusFilterValue) ||
+        Boolean(roleFilterValue) ||
+        Boolean(languageFilterValue) ||
+        Boolean(groupFilter) ||
+        Boolean(countryFilter) ||
+        Boolean(paidFilterValue) ||
+        Boolean(emailVerifiedFilterValue)
       const params = {
         p: pagination.pageIndex + 1,
         page_size: pagination.pageSize,
@@ -135,9 +191,13 @@ export function UsersTable() {
           ? await searchUsers({
               ...params,
               keyword: globalFilter,
-              status: statusFilter[0] ?? '',
-              role: roleFilter[0] ?? '',
+              status: statusFilterValue,
+              role: roleFilterValue,
+              language: languageFilterValue,
               group: groupFilter,
+              country: countryFilter,
+              paid: paidFilterValue === '1',
+              email_verified: emailVerifiedParam,
             })
           : await getUsers(params)
 
@@ -219,18 +279,31 @@ export function UsersTable() {
       toolbarProps={{
         searchPlaceholder: t('Filter by ID, username, name or email...'),
         additionalSearch: (
-          <Combobox
-            options={groupOptions}
-            value={groupFilter}
-            onValueChange={(value) =>
-              table.getColumn('group')?.setFilterValue(value || undefined)
-            }
-            placeholder={t('Group')}
-            searchPlaceholder={t('Group')}
-            emptyText={t('No group found.')}
-            allowCustomValue
-            className='w-full sm:w-[150px] lg:w-[180px]'
-          />
+          <div className='flex flex-wrap gap-2'>
+            <Combobox
+              options={groupOptions}
+              value={groupFilter}
+              onValueChange={(value) =>
+                table.getColumn('group')?.setFilterValue(value || undefined)
+              }
+              placeholder={t('Group')}
+              searchPlaceholder={t('Group')}
+              emptyText={t('No group found.')}
+              allowCustomValue
+              className='w-full sm:w-[150px] lg:w-[180px]'
+            />
+            <Combobox
+              options={[]}
+              value={countryFilter}
+              onValueChange={setCountryFilter}
+              placeholder={t('Country')}
+              searchPlaceholder={t('Country code, e.g. MA')}
+              emptyText={t('Enter an ISO country code')}
+              allowCustomValue
+              commitCustomValueOnEnter
+              className='w-full sm:w-[150px] lg:w-[180px]'
+            />
+          </div>
         ),
         filters: [
           {
@@ -243,6 +316,27 @@ export function UsersTable() {
             columnId: 'role',
             title: t('Role'),
             options: getUserRoleOptions(t),
+            singleSelect: true,
+          },
+          {
+            columnId: 'language',
+            title: t('Interface Language'),
+            options: languageOptions,
+            singleSelect: true,
+          },
+          {
+            columnId: 'paid',
+            title: t('Payment'),
+            options: [{ label: t('Paid'), value: '1' }],
+            singleSelect: true,
+          },
+          {
+            columnId: 'email_verified',
+            title: t('Email Verified'),
+            options: [
+              { label: t('Verified'), value: '1' },
+              { label: t('Unverified'), value: '0' },
+            ],
             singleSelect: true,
           },
         ],

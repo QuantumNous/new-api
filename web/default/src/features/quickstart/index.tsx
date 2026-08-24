@@ -16,166 +16,142 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Check, Copy } from 'lucide-react'
+import { CheckCircle2, KeyRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
-import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { useSystemConfig } from '@/hooks/use-system-config'
-import { SectionPageLayout } from '@/components/layout'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { CopyButton } from '@/components/copy-button'
+import { Main } from '@/components/layout'
+import { dataToolQueryKeys, getDataTools } from '@/features/data-tools/api'
+import { getApiKeys } from '@/features/keys/api'
 
-// The public OpenAI-compatible API origin. Sourced from the server's configured
-// ServerAddress (e.g. https://router.flatkey.ai in production) rather than the console
-// origin — the API host differs from the console host, so window.location.origin would be
-// wrong. Falls back to the canonical gateway when ServerAddress is unset.
 const DEFAULT_API_ORIGIN = 'https://router.flatkey.ai'
 
-function buildBaseUrl(serverAddress?: string): string {
-  const origin = (serverAddress || DEFAULT_API_ORIGIN).replace(/\/+$/, '')
-  return `${origin}/v1`
-}
-
-function CodeBlock({ code }: { code: string }) {
-  const { t } = useTranslation()
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = async () => {
-    const ok = await copyToClipboard(code)
-    if (ok) {
-      setCopied(true)
-      toast.success(t('Copied to clipboard'))
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
-  return (
-    <div className='group relative'>
-      <pre className='bg-muted/50 overflow-x-auto rounded-md border p-3 pr-12 font-mono text-xs leading-relaxed'>
-        <code>{code}</code>
-      </pre>
-      <Button
-        type='button'
-        variant='ghost'
-        size='icon-sm'
-        className='absolute top-2 right-2'
-        onClick={handleCopy}
-      >
-        {copied ? (
-          <Check className='size-4 text-green-600' />
-        ) : (
-          <Copy className='size-4' />
-        )}
-        <span className='sr-only'>{t('Copy')}</span>
-      </Button>
-    </div>
+function buildDataToolsUrl(serverAddress?: string): string {
+  const browserOrigin =
+    typeof window !== 'undefined' &&
+    /^(localhost|127\.0\.0\.1|192\.168\.)/.test(window.location.hostname)
+      ? window.location.origin
+      : ''
+  const origin = (browserOrigin || serverAddress || DEFAULT_API_ORIGIN).replace(
+    /\/+$/,
+    ''
   )
+  return `${origin}/api/data-tools`
 }
 
 export function Quickstart() {
   const { t } = useTranslation()
   const { serverAddress } = useSystemConfig()
-  const baseUrl = buildBaseUrl(serverAddress)
+  const dataToolsUrl = buildDataToolsUrl(serverAddress)
+  const catalogQuery = useQuery({
+    queryKey: dataToolQueryKeys.list({ page: 1, page_size: 1 }),
+    queryFn: () => getDataTools({ page: 1, page_size: 1 }),
+  })
+  const apiKeysQuery = useQuery({
+    queryKey: ['api-keys', 'get-started'],
+    queryFn: () => getApiKeys({ p: 1, size: 1 }),
+  })
+  const apiKeyCount = apiKeysQuery.data?.data?.total ?? 0
+  const toolCount = catalogQuery.data?.total.toLocaleString() ?? '—'
+  const setupPrompt = t(
+    'Use Flatkey data tools from {{url}} with my existing API key, then',
+    { url: dataToolsUrl }
+  )
+  const promptExamples = [
+    t(
+      'Find the TikTok videos trending for #skincare this week, and tell me which three have the strongest engagement.'
+    ),
+    t(
+      'Pull an Instagram creator profile and their recent posts, then report follower growth and top themes.'
+    ),
+    t(
+      'Fetch the latest Amazon reviews for ASIN B08N5WRWNW, then summarize sentiment and repeated complaints.'
+    ),
+  ]
 
-  const curlExample = `curl ${baseUrl}/chat/completions \\
-  -H "Authorization: Bearer $FLATKEY_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "model": "claude-opus-4-8",
-    "messages": [{ "role": "user", "content": "Hello!" }]
-  }'`
-
-  const pythonExample = `from openai import OpenAI
-
-client = OpenAI(
-    base_url="${baseUrl}",
-    api_key="<FLATKEY_API_KEY>",
-)
-
-resp = client.chat.completions.create(
-    model="claude-opus-4-8",
-    messages=[{"role": "user", "content": "Hello!"}],
-)
-print(resp.choices[0].message.content)`
-
-  const tsExample = `import OpenAI from 'openai'
-
-const client = new OpenAI({
-  baseURL: '${baseUrl}',
-  apiKey: process.env.FLATKEY_API_KEY,
-})
-
-const resp = await client.chat.completions.create({
-  model: 'claude-opus-4-8',
-  messages: [{ role: 'user', content: 'Hello!' }],
-})
-console.log(resp.choices[0].message.content)`
+  let keyStatus
+  if (apiKeysQuery.isPending) {
+    keyStatus = t('Checking your API key...')
+  } else if (apiKeyCount > 0) {
+    keyStatus = t('Your key is ready')
+  } else {
+    keyStatus = (
+      <Link
+        to='/keys'
+        className='hover:text-foreground underline underline-offset-4'
+      >
+        {t('Create an API key to get started')}
+      </Link>
+    )
+  }
 
   return (
-    <SectionPageLayout>
-      <SectionPageLayout.Title>{t('Quickstart')}</SectionPageLayout.Title>
-      <SectionPageLayout.Content>
-        <div className='mx-auto flex max-w-3xl flex-col gap-6'>
-          <p className='text-muted-foreground text-sm'>
-            {t('Make your first API call in under a minute.')}
-          </p>
+    <Main className='overflow-auto'>
+      <div className='mx-auto flex min-h-full w-full max-w-6xl items-center px-5 py-12 sm:px-8 lg:py-16'>
+        <section className='grid w-full gap-9 font-sans'>
+          <div>
+            <div className='text-muted-foreground flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-sm'>
+              {apiKeyCount > 0 ? (
+                <CheckCircle2 className='size-5 text-emerald-500' />
+              ) : (
+                <KeyRound className='text-primary size-5' />
+              )}
+              {keyStatus}
+            </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className='text-base'>{t('Base URL')}</CardTitle>
-            </CardHeader>
-            <CardContent className='flex flex-col gap-3'>
-              <p className='text-muted-foreground text-sm'>
-                {t(
-                  'The API is OpenAI-compatible, so any OpenAI SDK works by just changing the base URL and API key.'
-                )}
-              </p>
-              <CodeBlock code={baseUrl} />
-            </CardContent>
-          </Card>
+            <h1 className='mt-6 max-w-4xl text-4xl leading-[1.04] font-semibold tracking-[-0.035em] sm:text-5xl lg:text-6xl'>
+              {t('Put {{count}} APIs to work in one prompt.', {
+                count: toolCount,
+              })}
+            </h1>
+            <p className='text-muted-foreground mt-5 max-w-3xl text-base leading-7 sm:text-lg'>
+              {t(
+                'Copy one into Claude, ChatGPT, or your coding agent. It connects Flatkey with the key you already have, then runs your first call.'
+              )}
+            </p>
+          </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className='text-base'>
-                {t('Make your first call')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue='curl'>
-                <TabsList>
-                  <TabsTrigger value='curl'>{t('cURL')}</TabsTrigger>
-                  <TabsTrigger value='python'>{t('Python')}</TabsTrigger>
-                  <TabsTrigger value='typescript'>
-                    {t('TypeScript')}
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value='curl' className='pt-3'>
-                  <CodeBlock code={curlExample} />
-                </TabsContent>
-                <TabsContent value='python' className='pt-3'>
-                  <CodeBlock code={pythonExample} />
-                </TabsContent>
-                <TabsContent value='typescript' className='pt-3'>
-                  <CodeBlock code={tsExample} />
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
+          <div className='animate-in fade-in slide-in-from-bottom-3 relative overflow-hidden rounded-[28px] border border-violet-300/10 bg-[#170b2b] text-[#f4effc] shadow-[0_28px_70px_-34px_rgba(40,18,68,0.75)] duration-500'>
+            <div
+              aria-hidden='true'
+              className='pointer-events-none absolute -top-32 left-1/2 h-64 w-3/4 -translate-x-1/2 rounded-full bg-violet-400/10 blur-3xl'
+            />
+            <div className='relative px-6 pt-7 pb-5 font-mono text-base text-[#9e93ad] sm:px-9 sm:text-lg'>
+              <span className='mr-3 text-[#756987]'>&gt;</span>
+              /flatkey-tools
+            </div>
+            <div className='relative mx-3 mb-3 overflow-hidden rounded-2xl border border-white/[0.04] bg-[#241636] sm:mx-4 sm:mb-4'>
+              {promptExamples.map((prompt) => (
+                <div
+                  key={prompt}
+                  className='group flex min-h-20 items-center gap-3 border-b border-white/10 px-5 py-5 transition-colors duration-200 last:border-b-0 hover:bg-[#2d1d41] sm:px-8'
+                >
+                  <p className='min-w-0 flex-1 truncate font-mono text-base leading-7 text-[#eee9f4] sm:text-lg'>
+                    {prompt}
+                  </p>
+                  <CopyButton
+                    value={`${setupPrompt}\n\n${prompt}`}
+                    tooltip={t('Copy prompt')}
+                    successTooltip={t('Copied!')}
+                    aria-label={t('Copy prompt')}
+                    className='group/copy size-10 rounded-xl text-[#a69daf] opacity-75 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/10 hover:text-white hover:opacity-100 active:translate-y-0 active:scale-95'
+                    iconClassName='animate-in zoom-in-75 size-[19px] duration-200 group-hover/copy:scale-110'
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
 
-          <p className='text-muted-foreground text-sm'>
-            {t('Need a key?')}{' '}
-            <Link
-              to='/keys'
-              className='text-foreground font-medium underline underline-offset-3'
-            >
-              {t('Create an API key')}
-            </Link>
-          </p>
-        </div>
-      </SectionPageLayout.Content>
-    </SectionPageLayout>
+          <Link
+            to='/api-marketplace'
+            className='text-muted-foreground hover:border-foreground/30 hover:bg-muted hover:text-foreground w-fit rounded-full border px-4 py-2 text-sm transition-colors'
+          >
+            {t('Or browse all endpoints')}
+          </Link>
+        </section>
+      </div>
+    </Main>
   )
 }

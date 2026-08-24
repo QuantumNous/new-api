@@ -40,6 +40,12 @@ import {
 import { CHANNEL_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import type { CopyChannelParams, BatchEditChannelsParams } from '../types'
 
+const CHANNEL_FIELD_LABELS: Record<string, string> = {
+  priority: 'Priority',
+  weight: 'Weight',
+  max_concurrency: 'Max Concurrency',
+}
+
 // ============================================================================
 // Query Keys
 // ============================================================================
@@ -51,6 +57,8 @@ export const channelsQueryKeys = {
     [...channelsQueryKeys.lists(), params] as const,
   details: () => [...channelsQueryKeys.all, 'detail'] as const,
   detail: (id: number) => [...channelsQueryKeys.details(), id] as const,
+  concurrency: (ids: number[]) =>
+    [...channelsQueryKeys.all, 'concurrency', ids] as const,
 }
 
 // ============================================================================
@@ -156,10 +164,11 @@ export async function handleUpdateChannelField(
     if (response.success) {
       // Show success toast with field name
       const fieldLabel =
+        CHANNEL_FIELD_LABELS[fieldName] ??
         fieldName.charAt(0).toUpperCase() + fieldName.slice(1).toLowerCase()
       toast.success(
         i18next.t('{{field}} updated to {{value}}', {
-          field: fieldLabel,
+          field: i18next.t(fieldLabel),
           value,
         })
       )
@@ -481,6 +490,8 @@ export async function handleBatchEdit(
     groups?: string
     priority?: number
     weight?: number
+    max_concurrency?: number
+    codex_fingerprint_mode?: 'off' | 'device' | 'session' | 'full'
   },
   queryClient?: QueryClient,
   onSuccess?: () => void
@@ -497,6 +508,11 @@ export async function handleBatchEdit(
   if (payload.groups) data.groups = payload.groups
   if (payload.priority !== undefined) data.priority = payload.priority
   if (payload.weight !== undefined) data.weight = payload.weight
+  if (payload.max_concurrency !== undefined)
+    data.max_concurrency = payload.max_concurrency
+  if (payload.codex_fingerprint_mode !== undefined) {
+    data.codex_fingerprint_mode = payload.codex_fingerprint_mode
+  }
 
   if (Object.keys(data).length === 1) {
     toast.warning(i18next.t('No changes made'))

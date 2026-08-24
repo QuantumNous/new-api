@@ -42,6 +42,9 @@ export interface RegisterPayload {
   ga_client_id?: string
   ga_session_id?: string
   turnstile?: string
+  // Honeypot: hidden from humans, bots auto-fill it. Server silently drops
+  // registrations that carry a value.
+  website?: string
 }
 
 export interface PasswordResetPayload {
@@ -84,6 +87,21 @@ export interface ApiResponse {
   data?: unknown
 }
 
+export interface CliDeviceAuthorization {
+  status: 'pending' | 'approved' | 'denied' | 'expired'
+  client_name?: string
+  client_version?: string
+  expires_at?: number
+  approved_at?: number
+}
+
+export interface RegistrationEmailVerificationResponse extends ApiResponse {
+  data?: {
+    verified?: boolean
+    expires_in?: number
+  }
+}
+
 // ============================================================================
 // System Status
 // ============================================================================
@@ -122,6 +140,7 @@ export interface SystemStatus {
     display_in_currency?: boolean
     display_token_stat_enabled?: boolean
     quota_per_unit?: number
+    inviter_reward_usd?: number
     quota_display_type?: string
     usd_exchange_rate?: number
     custom_currency_symbol?: string
@@ -134,6 +153,7 @@ export interface SystemStatus {
     register_enabled?: boolean
     password_login_enabled?: boolean
     password_register_enabled?: boolean
+    token_batch_group_enabled?: boolean
     custom_oauth_providers?: CustomOAuthProviderInfo[]
     [key: string]: unknown
   }
@@ -168,6 +188,7 @@ export interface SystemStatus {
   display_in_currency?: boolean
   display_token_stat_enabled?: boolean
   quota_per_unit?: number
+  inviter_reward_usd?: number
   quota_display_type?: string
   usd_exchange_rate?: number
   custom_currency_symbol?: string
@@ -180,6 +201,7 @@ export interface SystemStatus {
   register_enabled?: boolean
   password_login_enabled?: boolean
   password_register_enabled?: boolean
+  token_batch_group_enabled?: boolean
   custom_oauth_providers?: CustomOAuthProviderInfo[]
   [key: string]: unknown
 }
@@ -212,4 +234,6 @@ export interface CustomOAuthProviderInfo {
 
 export interface AuthFormProps extends React.HTMLAttributes<HTMLFormElement> {
   redirectTo?: string
+  visibleRedirectTo?: string
+  recallRedirectNonce?: string
 }

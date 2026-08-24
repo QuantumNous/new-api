@@ -3,10 +3,12 @@ package controller
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,13 +16,19 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	taskblockrunseedance "github.com/QuantumNous/new-api/relay/channel/task/blockrunseedance"
 	taskjimengzhizinan "github.com/QuantumNous/new-api/relay/channel/task/jimengzhizinan"
+	tasksonilo "github.com/QuantumNous/new-api/relay/channel/task/sonilo"
+	tasktechmobi "github.com/QuantumNous/new-api/relay/channel/task/techmobi"
+	taskxaigrok "github.com/QuantumNous/new-api/relay/channel/task/xaigrok"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 )
+
+var signArchivedVideoResultDownload = service.SignVideoResultDownload
 
 // videoProxyError returns a standardized OpenAI-style error response.
 func videoProxyError(c *gin.Context, status int, errType, message string) {
@@ -75,9 +83,22 @@ func VideoProxy(c *gin.Context) {
 		videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to retrieve channel information")
 		return
 	}
+	if channel.Type == constant.ChannelTypeGrokSubscription {
+		proxyGrokSubscriptionVideoContent(c, task, channel)
+		return
+	}
 	baseURL := channel.GetBaseURL()
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
+	}
+
+	if tryRedirectArchivedVideoResult(c, task, channel) {
+		return
+	}
+	if channel.Type == constant.ChannelTypeModelAPISeedance {
+		perfmetrics.RecordVideoResultRedirect("modelapi", "unavailable")
+		videoProxyError(c, http.StatusBadGateway, "server_error", "video result is unavailable")
+		return
 	}
 
 	var videoURL string
@@ -131,6 +152,23 @@ func VideoProxy(c *gin.Context) {
 		videoURL = taskblockrunseedance.ExtractUpstreamVideoURL(task.Data)
 	case constant.ChannelTypeJimengZhizinan:
 		videoURL = taskjimengzhizinan.ExtractUpstreamVideoURL(task.Data)
+	case constant.ChannelTypeTechMobiVideo:
+		videoURL = tasktechmobi.ExtractUpstreamVideoURL(task.Data)
+	case constant.ChannelTypeBytePlus:
+		videoURL = extractBytePlusVideoURL(task)
+	case constant.ChannelTypeXaiGrokVideo:
+		videoURL = taskxaigrok.ExtractUpstreamVideoURL(task.Data)
+	case constant.ChannelTypeSonilo:
+		variant := 0
+		if raw := c.Query("variant"); raw != "" {
+			parsed, parseErr := strconv.Atoi(raw)
+			if parseErr != nil || parsed < 0 {
+				videoProxyError(c, http.StatusBadRequest, "invalid_request_error", "variant must be a non-negative integer")
+				return
+			}
+			variant = parsed
+		}
+		videoURL = tasksonilo.ExtractUpstreamAudioURL(task.Data, variant)
 	default:
 		// Video URL is stored in PrivateData.ResultURL (fallback to FailReason for old data)
 		videoURL = task.GetResultURL()
@@ -181,9 +219,7 @@ func VideoProxy(c *gin.Context) {
 	}
 
 	for key, values := range resp.Header {
-		// Never forward upstream cookies to the public/anonymous client.
-		switch http.CanonicalHeaderKey(key) {
-		case "Set-Cookie", "Set-Cookie2":
+		if !shouldProxyVideoHeader(key) {
 			continue
 		}
 		for _, value := range values {
@@ -195,6 +231,59 @@ func VideoProxy(c *gin.Context) {
 	c.Writer.WriteHeader(resp.StatusCode)
 	if _, err = io.Copy(c.Writer, resp.Body); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to stream video content: %s", err.Error()))
+	}
+}
+
+func tryRedirectArchivedTechMobiVideo(c *gin.Context, task *model.Task, channel *model.Channel) bool {
+	return tryRedirectArchivedVideoResult(c, task, channel)
+}
+
+func tryRedirectArchivedVideoResult(c *gin.Context, task *model.Task, channel *model.Channel) bool {
+	if c == nil || task == nil || channel == nil || task.PrivateData.VideoResult == nil {
+		return false
+	}
+	channelLabel := service.VideoResultChannelLabel(channel.Type)
+	if channelLabel == "" {
+		return false
+	}
+
+	signedURL, err := signArchivedVideoResultDownload(c.Request.Context(), c.Param("task_id"), task.PrivateData.VideoResult)
+	if err == nil {
+		perfmetrics.RecordVideoResultRedirect(channelLabel, "success")
+		c.Writer.Header().Set("Location", signedURL)
+		c.Writer.Header().Set("Cache-Control", "no-store")
+		c.Writer.Header().Set("Pragma", "no-cache")
+		c.Writer.WriteHeader(http.StatusFound)
+		c.Writer.WriteHeaderNow()
+		return true
+	}
+
+	switch {
+	case errors.Is(err, service.ErrVideoResultExpired):
+		perfmetrics.RecordVideoResultRedirect(channelLabel, "expired")
+		videoProxyError(c, http.StatusGone, "invalid_request_error", "video result has expired")
+	case errors.Is(err, service.ErrVideoResultUnavailable):
+		perfmetrics.RecordVideoResultRedirect(channelLabel, "unavailable")
+		videoProxyError(c, http.StatusBadGateway, "server_error", "video result is unavailable")
+	default:
+		perfmetrics.RecordVideoResultRedirect(channelLabel, "signing-or-other")
+		videoProxyError(c, http.StatusServiceUnavailable, "server_error", "video result is temporarily unavailable")
+	}
+	return true
+}
+
+func shouldProxyVideoHeader(key string) bool {
+	switch http.CanonicalHeaderKey(key) {
+	case "Accept-Ranges",
+		"Content-Disposition",
+		"Content-Length",
+		"Content-Range",
+		"Content-Type",
+		"Etag",
+		"Last-Modified":
+		return true
+	default:
+		return false
 	}
 }
 

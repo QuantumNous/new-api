@@ -31,6 +31,10 @@ type Adaptor interface {
 	ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error)
 }
 
+type RequestFinalizer interface {
+	FinalizeRequest(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error
+}
+
 type TaskAdaptor interface {
 	Init(info *relaycommon.RelayInfo)
 
@@ -80,4 +84,10 @@ type TaskAdaptor interface {
 
 type OpenAIVideoConverter interface {
 	ConvertToOpenAIVideo(originTask *model.Task) ([]byte, error)
+}
+
+// VideoToMusicConverter emits the provider-neutral Flatkey response contract
+// for asynchronous video-to-music tasks.
+type VideoToMusicConverter interface {
+	ConvertToVideoToMusic(originTask *model.Task) ([]byte, error)
 }

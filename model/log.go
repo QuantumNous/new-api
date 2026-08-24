@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
@@ -17,6 +20,10 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 	"gorm.io/gorm"
 )
+
+// companyLogRoutingEnabled gates only new log writes. Historical company-log
+// queries stay available when the option is disabled.
+var companyLogRoutingEnabled atomic.Bool
 
 func applyExplicitLogTextFilter(tx *gorm.DB, column string, value string) (*gorm.DB, error) {
 	if value == "" {
@@ -38,6 +45,18 @@ func normalizeLogTextFilterValue(value string) string {
 		return strings.TrimSpace(unquoted)
 	}
 	return value
+}
+
+func addUpstreamResponseIdToLogOther(c *gin.Context, other map[string]interface{}) map[string]interface{} {
+	upstreamResponseId := c.GetString(common.UpstreamResponseIdKey)
+	if upstreamResponseId == "" {
+		return other
+	}
+	if other == nil {
+		other = make(map[string]interface{})
+	}
+	other["upstream_response_id"] = upstreamResponseId
+	return other
 }
 
 // fuzzyUsernameUserIDLimit 限制模糊匹配时从 user 表物化到内存的 user_id 数量。
@@ -109,30 +128,28 @@ func applyLogUsernameFilter(tx *gorm.DB, usernameColumn string, userIDColumn str
 	if strings.Contains(value, "%") {
 		return applyFuzzyUsernameFilter(tx, usernameColumn, userIDColumn, value)
 	}
-	// 纯数字：按 user_id 精确匹配，用于 /users「使用日志」行内跳转以及按 ID
-	// 精确定位单个用户（用户名唯一，但管理员也可能直接输 ID）。
-	if userID, err := strconv.Atoi(value); err == nil {
-		return tx.Where("("+usernameColumn+" = ? OR "+userIDColumn+" = ?)", value, userID), nil
-	}
-	// 纯文本关键词：精确匹配 logs.username 快照，并经 user 表把用户名解析成
-	// user_id，补齐用户改名前写入的历史日志。精确查询走索引、无前导通配扫描，
-	// 不会像 "%kw%" 那样在大日志表上全表扫描（#222）。需要模糊时由用户在输入
-	// 框显式输入 % 触发，走上面的 strings.Contains(value, "%") 分支。
+	// 精确用户名（包括纯数字用户名）：先经 user 表把当前用户名解析成 user_id，
+	// 再只按 user_id 查询。按用户 ID 查询使用独立的 user_id API 参数，不在这里
+	// 猜测同一个字符串究竟表示用户名还是 ID。
+	// 这样既能补齐用户改名前写入的历史日志，也能让日志查询使用
+	// (user_id, created_at, type) 组合索引，避免 username OR user_id 的索引合并。
+	// 无法解析到当前用户时，才回退到 logs.username 快照精确匹配。需要模糊时由
+	// 用户在输入框显式输入 %，走上面的 strings.Contains(value, "%") 分支。
 	userIDs, err := getUserIDsByUsernameFilter(value, false)
 	if err != nil {
 		return nil, err
 	}
 	if len(userIDs) > 0 {
-		return tx.Where("("+usernameColumn+" = ? OR "+userIDColumn+" IN ?)", value, userIDs), nil
+		return tx.Where(userIDColumn+" IN ?", userIDs), nil
 	}
 	return tx.Where(usernameColumn+" = ?", value), nil
 }
 
 type Log struct {
 	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:2;index:idx_user_id_id,priority:2;index:idx_logs_channel_type_created_id,priority:4"`
-	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
-	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:1;index:idx_created_at_type;index:idx_type_created_at_quota,priority:2;index:idx_logs_channel_type_created_id,priority:3"`
-	Type              int    `json:"type" gorm:"index:idx_created_at_type;index:idx_type_created_at_quota,priority:1;index:idx_logs_channel_type_created_id,priority:2"`
+	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1;index:idx_logs_user_created_type,priority:1"`
+	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:1;index:idx_created_at_type;index:idx_type_created_at_quota,priority:2;index:idx_logs_channel_type_created_id,priority:3;index:idx_logs_user_created_type,priority:2"`
+	Type              int    `json:"type" gorm:"index:idx_created_at_type;index:idx_type_created_at_quota,priority:1;index:idx_logs_channel_type_created_id,priority:2;index:idx_logs_user_created_type,priority:3"`
 	Content           string `json:"content"`
 	Username          string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
 	TokenName         string `json:"token_name" gorm:"index;default:''"`
@@ -162,6 +179,37 @@ const (
 	LogTypeError   = 5
 	LogTypeRefund  = 6
 )
+
+func FindRecentlyActiveRecallUserIDs(userIDs []int, since int64, batchSize int) (map[int]struct{}, error) {
+	return FindRecentlyActiveRecallUserIDsWithContext(context.Background(), userIDs, since, batchSize)
+}
+
+func FindRecentlyActiveRecallUserIDsWithContext(ctx context.Context, userIDs []int, since int64, batchSize int) (map[int]struct{}, error) {
+	active := make(map[int]struct{})
+	if len(userIDs) == 0 {
+		return active, nil
+	}
+	if batchSize <= 0 {
+		return nil, fmt.Errorf("recall log batch size must be positive")
+	}
+	for start := 0; start < len(userIDs); start += batchSize {
+		end := start + batchSize
+		if end > len(userIDs) {
+			end = len(userIDs)
+		}
+		var batchActive []int
+		if err := LOG_DB.WithContext(ctx).Model(&Log{}).
+			Where("type = ? AND created_at >= ? AND user_id IN ?", LogTypeConsume, since, userIDs[start:end]).
+			Distinct().
+			Pluck("user_id", &batchActive).Error; err != nil {
+			return nil, err
+		}
+		for _, userID := range batchActive {
+			active[userID] = struct{}{}
+		}
+	}
+	return active, nil
+}
 
 func formatUserLogs(logs []*Log, startIdx int) {
 	for i := range logs {
@@ -255,13 +303,22 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 	}
 }
 
-func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
+func requestLogDB(userId int, tokenId int, channelType int) *gorm.DB {
+	// Route each entry by the channel that actually handled that attempt. A
+	// fallback request may therefore leave entries in different log tables.
+	if companyLogRoutingEnabled.Load() && userId == 1 && tokenId > 0 && channelType == constant.ChannelTypeCodex {
+		return LOG_DB.Table((CompanyLogSchema{}).TableName())
+	}
+	return LOG_DB
+}
+
+func RecordErrorLog(c *gin.Context, userId int, channelId int, channelType int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, common.LocalLogPreview(content)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
-	otherStr := common.MapToJsonStr(other)
+	otherStr := common.MapToJsonStr(addUpstreamResponseIdToLogOther(c, other))
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {
@@ -295,7 +352,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
-	err := LOG_DB.Create(log).Error
+	err := requestLogDB(userId, tokenId, channelType).Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
@@ -303,6 +360,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 
 type RecordConsumeLogParams struct {
 	ChannelId        int                    `json:"channel_id"`
+	ChannelType      int                    `json:"channel_type"`
 	PromptTokens     int                    `json:"prompt_tokens"`
 	CompletionTokens int                    `json:"completion_tokens"`
 	ModelName        string                 `json:"model_name"`
@@ -316,15 +374,26 @@ type RecordConsumeLogParams struct {
 	Other            map[string]interface{} `json:"other"`
 }
 
+// TemporaryChannelSpendHook, when set, is invoked for every consume log with the
+// channel id, model name and quota (units). The service layer uses it to accumulate
+// per-model spend on temporary channels and alert the supply chain. It is a package
+// variable set by the service layer at init to avoid an import cycle (model must not
+// import service). Keep the callback cheap; it runs on the settlement path.
+var TemporaryChannelSpendHook func(channelId int, modelName string, quota int)
+var adsActivationSeen sync.Map
+
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
 	if !common.LogConsumeEnabled {
 		return
+	}
+	if TemporaryChannelSpendHook != nil {
+		TemporaryChannelSpendHook(params.ChannelId, params.ModelName, params.Quota)
 	}
 	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
-	otherStr := common.MapToJsonStr(params.Other)
+	otherStr := common.MapToJsonStr(addUpstreamResponseIdToLogOther(c, params.Other))
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {
@@ -358,9 +427,19 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
 	}
-	err := LOG_DB.Create(log).Error
+	err := requestLogDB(userId, params.TokenId, params.ChannelType).Create(log).Error
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
+	} else {
+		maybeRecordLogRequestSample(c, userId, params, log)
+		if _, loaded := adsActivationSeen.LoadOrStore(userId, struct{}{}); !loaded {
+			occurredAt := time.Unix(log.CreatedAt, 0)
+			gopool.Go(func() {
+				if err := EnqueueAdsActivation(userId, occurredAt); err != nil {
+					adsActivationSeen.Delete(userId)
+				}
+			})
+		}
 	}
 	if common.DataExportEnabled {
 		gopool.Go(func() {
@@ -419,19 +498,28 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 }
 
-func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, excludeUserId int) (logs []*Log, total int64, err error) {
-	var tx *gorm.DB
-	if logType == LogTypeUnknown {
-		tx = LOG_DB
-	} else {
-		tx = LOG_DB.Where("logs.type = ?", logType)
+func logQueryDB(company bool) *gorm.DB {
+	if company {
+		return LOG_DB.Table((CompanyLogSchema{}).TableName() + " AS logs")
+	}
+	return LOG_DB.Table("logs")
+}
+
+func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, searchUserId int, tokenName string, startIdx int, num int, channel int, group string, requestId string, upstreamRequestId string, excludeUserId int, company bool) (logs []*Log, total int64, err error) {
+	tx := logQueryDB(company)
+	if logType != LogTypeUnknown {
+		tx = tx.Where("logs.type = ?", logType)
 	}
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
 		return nil, 0, err
 	}
-	if tx, err = applyLogUsernameFilter(tx, "logs.username", "logs.user_id", username); err != nil {
-		return nil, 0, err
+	if searchUserId != 0 {
+		tx = tx.Where("logs.user_id = ?", searchUserId)
+	} else {
+		if tx, err = applyLogUsernameFilter(tx, "logs.username", "logs.user_id", username); err != nil {
+			return nil, 0, err
+		}
 	}
 	if excludeUserId != 0 {
 		tx = tx.Where("logs.user_id != ?", excludeUserId)
@@ -457,7 +545,11 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 	if group != "" {
 		tx = tx.Where("logs."+logGroupCol+" = ?", group)
 	}
-	err = tx.Model(&Log{}).Count(&total).Error
+	if company {
+		total, err = countLogsUpTo(LOG_DB, tx, logSearchCountLimit)
+	} else {
+		err = tx.Count(&total).Error
+	}
 	if err != nil {
 		return nil, 0, err
 	}
@@ -511,12 +603,23 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
-	var tx *gorm.DB
+func limitedLogCountQuery(db *gorm.DB, filteredQuery *gorm.DB, limit int) *gorm.DB {
+	limitedLogs := filteredQuery.Session(&gorm.Session{}).Select("logs.id").Limit(limit)
+	return db.Session(&gorm.Session{NewDB: true}).Table("(?) AS limited_logs", limitedLogs)
+}
+
+func countLogsUpTo(db *gorm.DB, filteredQuery *gorm.DB, limit int) (int64, error) {
+	var total int64
+	err := limitedLogCountQuery(db, filteredQuery, limit).Count(&total).Error
+	return total, err
+}
+
+func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string, company bool) (logs []*Log, total int64, err error) {
+	tx := logQueryDB(company)
 	if logType == LogTypeUnknown {
-		tx = LOG_DB.Where("logs.user_id = ?", userId)
+		tx = tx.Where("logs.user_id = ?", userId)
 	} else {
-		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
+		tx = tx.Where("logs.user_id = ? and logs.type = ?", userId, logType)
 	}
 
 	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
@@ -540,7 +643,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	if group != "" {
 		tx = tx.Where("logs."+logGroupCol+" = ?", group)
 	}
-	err = tx.Model(&Log{}).Limit(logSearchCountLimit).Count(&total).Error
+	total, err = countLogsUpTo(LOG_DB, tx, logSearchCountLimit)
 	if err != nil {
 		common.SysError("failed to count user logs: " + err.Error())
 		return nil, 0, errors.New("查询日志失败")
@@ -568,6 +671,7 @@ type CodexChannelUsageStat struct {
 }
 
 func GetCodexChannelUsageStats(
+	ctx context.Context,
 	channelIds []int,
 	startTimestamp int64,
 	endTimestamp int64,
@@ -578,7 +682,7 @@ func GetCodexChannelUsageStats(
 	}
 
 	var stats []CodexChannelUsageStat
-	tx := LOG_DB.Table("logs").Select(
+	tx := LOG_DB.WithContext(ctx).Table("logs").Select(
 		"channel_id, COALESCE(SUM(prompt_tokens), 0) + COALESCE(SUM(completion_tokens), 0) AS token_used, COALESCE(SUM(quota), 0) AS quota",
 	).Where("type = ?", LogTypeConsume).Where("channel_id IN ?", channelIds)
 	if startTimestamp > 0 {
@@ -601,18 +705,21 @@ func GetCodexChannelUsageStats(
 // SumUsedQuota 聚合用量统计。
 //
 // selfUserId 用于「查自己」场景的身份约束：非 0 时强制 user_id = selfUserId 精确
-// 过滤，且忽略 username 模糊搜索（username 自 fuzzy 化后会把 alice2/malice 等带进
-// alice 的统计，绝不能用于身份约束）。管理员搜索路径传 0，按 username 模糊匹配。
-func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string, excludeUserId int, selfUserId int) (stat Stat, err error) {
-	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
+// 过滤，并忽略管理员搜索条件。管理员可通过 searchUserId 精确按 ID 查询；未提供
+// searchUserId 时，username 按用户名语义处理（仅显式包含 % 时才模糊匹配）。
+func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, searchUserId int, tokenName string, channel int, group string, excludeUserId int, selfUserId int, company bool) (stat Stat, err error) {
+	tx := logQueryDB(company).Select("sum(quota) quota")
 
 	// 为rpm和tpm创建单独的查询
-	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
+	rpmTpmQuery := logQueryDB(company).Select("count(*) rpm, sum(prompt_tokens) + sum(completion_tokens) tpm")
 
 	if selfUserId != 0 {
 		// 身份约束：只统计本人日志，精确按 user_id，不掺入 username 模糊匹配。
 		tx = tx.Where("user_id = ?", selfUserId)
 		rpmTpmQuery = rpmTpmQuery.Where("user_id = ?", selfUserId)
+	} else if searchUserId != 0 {
+		tx = tx.Where("user_id = ?", searchUserId)
+		rpmTpmQuery = rpmTpmQuery.Where("user_id = ?", searchUserId)
 	} else {
 		if tx, err = applyLogUsernameFilter(tx, "username", "user_id", username); err != nil {
 			return stat, err
@@ -698,14 +805,21 @@ func DeleteOldLog(ctx context.Context, targetTimestamp int64, limit int) (int64,
 			return total, ctx.Err()
 		}
 
-		result := LOG_DB.Where("created_at < ?", targetTimestamp).Limit(limit).Delete(&Log{})
-		if nil != result.Error {
+		var ids []int
+		if err := LOG_DB.Model(&Log{}).Where("created_at < ?", targetTimestamp).Order("id").Limit(limit).Pluck("id", &ids).Error; err != nil {
+			return total, err
+		}
+		if len(ids) == 0 {
+			break
+		}
+		result := LOG_DB.Where("id IN ?", ids).Delete(&Log{})
+		if result.Error != nil {
 			return total, result.Error
 		}
 
 		total += result.RowsAffected
 
-		if result.RowsAffected < int64(limit) {
+		if len(ids) < limit {
 			break
 		}
 	}

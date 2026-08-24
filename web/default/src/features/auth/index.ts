@@ -27,6 +27,7 @@ export {
   register,
   sendPasswordResetEmail,
   sendEmailVerification,
+  getRegistrationEmailVerificationStatus,
   bindEmail,
   getOAuthState,
   githubOAuthStart,
@@ -47,6 +48,7 @@ export type {
   EmailVerificationPayload,
   BindEmailPayload,
   ApiResponse,
+  RegistrationEmailVerificationResponse,
   SystemStatus,
   OAuthProvider,
   AuthFormProps,
@@ -91,6 +93,8 @@ export {
   getAffiliateCode,
   saveAffiliateCode,
 } from './lib/storage'
+
+export { isRegistrationEmailVerified } from './lib/registration-email-verification'
 
 export {
   isValidOTP,

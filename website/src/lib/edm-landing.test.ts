@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import robots from "@/app/robots";
+import robots, { buildRobots } from "@/app/robots";
 import { LOCALES } from "@/lib/locales";
 import {
   EDM_CAMPAIGN_IDS,
@@ -107,6 +107,13 @@ describe("EDM landing campaigns", () => {
 });
 
 describe("robots", () => {
+  test("blocks every crawler from every staging page", () => {
+    const route = buildRobots("https://staging-website.flatkey.ai");
+
+    expect(route.rules).toEqual([{ userAgent: "*", disallow: "/" }]);
+    expect(route.sitemap).toBeUndefined();
+  });
+
   test("disallows EDM landing pages", () => {
     const route = robots();
     expect(route.rules[0].disallow).toContain("/lp/");

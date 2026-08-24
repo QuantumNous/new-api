@@ -1,0 +1,800 @@
+import * as React from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test'
+import { createInstance } from 'i18next'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { I18nextProvider, initReactI18next } from 'react-i18next'
+import { recallCampaignKeys } from '../api'
+import type {
+  RecallCampaignDetail,
+  RecallCampaignMetrics,
+  RecallCampaignType,
+  RecallEmailStage,
+  RecallEvent,
+  RecallMetricCard,
+  RecallMetricKey,
+  RecallRecipient,
+} from '../types'
+
+mock.module('@tanstack/react-router', () => ({
+  Link: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a {...props} />
+  ),
+  Outlet: () => null,
+  useLocation: (options?: {
+    select?: (location: { href: string; pathname: string }) => unknown
+  }) => {
+    const location = {
+      href: '/recall-campaigns/42',
+      pathname: '/recall-campaigns/42',
+    }
+    return options?.select ? options.select(location) : location
+  },
+  useNavigate: () => () => Promise.resolve(),
+  useBlocker: () => ({
+    proceed: () => undefined,
+    reset: () => undefined,
+    status: 'idle',
+  }),
+  useRouterState: (options?: {
+    select?: (state: { location: { pathname: string } }) => unknown
+  }) => {
+    const state = { location: { pathname: '/recall-campaigns/42' } }
+    return options?.select ? options.select(state) : state
+  },
+}))
+
+mock.module('./campaign-preview-dialog', () => ({
+  CampaignPreviewDialog: () => null,
+  RECALL_CAMPAIGN_PREVIEW_DIALOG_DESCRIPTION:
+    'Review eligibility, exclusions, and delivery validation before activation.',
+}))
+
+mock.module('./campaign-action-dialog', () => ({
+  CampaignActionDialog: () => null,
+}))
+
+const {
+  CampaignDetail,
+  formatRecallDeliveryErrorMessage,
+  getRecallActivationReadiness,
+} = await import('./campaign-detail')
+
+const locales = ['en', 'zh', 'es', 'fr', 'pt', 'ru', 'ja', 'vi'] as const
+const testI18n = createInstance()
+
+beforeAll(async () => {
+  await testI18n.use(initReactI18next).init({
+    lng: 'en',
+    fallbackLng: 'en',
+    resources: {
+      en: {
+        translation: {
+          no_account_email: 'No account email address',
+          engagement_opted_out: 'Engagement opt-out',
+          invalid_email: 'Invalid lifecycle email',
+          quota_recovered: 'Quota recovered before send',
+          'SMTP accepted': 'SMTP accepted',
+          sending: 'Sending via SMTP',
+          'Unknown delivery error': 'Unknown delivery error',
+          'Unknown message state': 'Unknown message state',
+          'Unknown lifecycle event': 'Unknown lifecycle event',
+          'Unknown lifecycle outcome': 'Unknown lifecycle outcome',
+        },
+      },
+    },
+    interpolation: { escapeValue: false },
+  })
+})
+
+afterAll(() => {
+  mock.restore()
+})
+
+function makeStage(): RecallEmailStage {
+  return {
+    stage_no: 1,
+    delay_seconds: 0,
+    template_version: 1,
+    source_revision: 3,
+    translated_source_revision: 3,
+    manual_locales: [],
+    templates: Object.fromEntries(
+      locales.map((locale) => [
+        locale,
+        { subject: `${locale} subject`, body_html: `<p>${locale}</p>` },
+      ])
+    ),
+  }
+}
+
+function makeMetrics(): RecallCampaignMetrics {
+  return {
+    candidate_count: 999,
+    enrolled_count: 999,
+    excluded_count: 999,
+    customer_success_count: 7,
+    customer_failure_count: 1,
+    code_success_count: 6,
+    code_failure_count: 1,
+    messages_scheduled_count: 9,
+    messages_accepted_count: 999,
+    messages_failed_count: 999,
+    messages_cancelled_count: 1,
+    opened_recipient_count: 999,
+    observed_click_count: 999,
+    direct_count: 999,
+    assisted_count: 999,
+    no_coupon_count: 999,
+    currency_metrics: [],
+    metric_cards: {
+      candidates: makeMetricCard('candidates', 10, 'identity'),
+      enrolled: makeMetricCard('enrolled', 8, 'identity'),
+      excluded: makeMetricCard('excluded', 2, 'identity'),
+      opened_recipients: makeMetricCard('opened_recipients', 5, 'identity'),
+      observed_clicks: makeMetricCard('observed_clicks', 3, 'identity'),
+      messages_accepted: makeMetricCard('messages_accepted', 4, 'message'),
+      messages_failed: makeMetricCard('messages_failed', 2, 'message'),
+      direct_conversions: makeMetricCard('direct_conversions', 1, 'conversion'),
+      assisted_conversions: makeMetricCard(
+        'assisted_conversions',
+        2,
+        'conversion'
+      ),
+      no_coupon_conversions: makeMetricCard(
+        'no_coupon_conversions',
+        1,
+        'conversion'
+      ),
+      attributed_spend: {
+        ...makeMetricCard('attributed_spend', 2, 'conversion'),
+        amounts: [{ currency: 'USD', amount_minor: 9_600, user_count: 2 }],
+      },
+    },
+  }
+}
+
+function makeContinuousMetrics(): RecallCampaignMetrics {
+  return {
+    ...makeMetrics(),
+    lifecycle: {
+      collection_start_at: 1_899_900_000,
+      processing_start_at: 1_900_000_000,
+      event_total: 19,
+      pending_not_due_count: 11,
+      due_backlog_count: 7,
+      leased_count: 3,
+      enrolled_count: 5,
+      skipped_count: 2,
+      failed_count: 1,
+      messages_queued_count: 4,
+      messages_smtp_accepted_count: 6,
+      messages_uncertain_count: 1,
+      messages_failed_count: 2,
+      messages_cancelled_count: 1,
+      skip_reason_counts: {
+        invalid_email: 2,
+        unknown_future_reason: 1,
+      },
+      send_blocked_reason_counts: {
+        no_account_email: 1,
+        engagement_opted_out: 1,
+      },
+      error_code_counts: {
+        quota_recovered: 2,
+      },
+      retried_event_count: 3,
+      lease_recovery_count: 2,
+      last_processed_at: 1_900_000_500,
+      max_processing_latency_seconds: 90,
+    },
+  } as RecallCampaignMetrics
+}
+
+function makeMetricCard(
+  key: RecallMetricKey,
+  total: number,
+  rowGrain: string
+): RecallMetricCard {
+  return {
+    key,
+    total,
+    amounts: [],
+    row_grain: rowGrain,
+    snapshot: `${key}-snapshot`,
+    legacy_unidentified_count: 0,
+    drilldown_complete: true,
+    supported_filters: { search: true },
+  }
+}
+
+function makeDetail(campaignType: RecallCampaignType): RecallCampaignDetail {
+  return {
+    id: 42,
+    campaign_type: campaignType,
+    name: 'Rendered campaign',
+    status: 'running',
+    audience_template: 'registered_only',
+    execution_mode: 'manual',
+    scheduled_at: 0,
+    next_run_at: 0,
+    coupon_source: 'automatic',
+    stripe_coupon_id: '',
+    promotion_expiry_mode: 'relative',
+    promotion_expires_at: 0,
+    promotion_valid_seconds: 604800,
+    enrollment_limit: 100,
+    worker_concurrency: 2,
+    config_revision: 1,
+    created_by: 1,
+    created_at: 0,
+    updated_at: 0,
+    activated_at: 0,
+    completed_at: 0,
+    recipient_total: 0,
+    draft: {
+      campaign_type: campaignType,
+      name: 'Rendered campaign',
+      audience_template: 'registered_only',
+      audience_config: {
+        registration_age_days: 30,
+        min_request_count: 0,
+        max_quota: 0,
+        min_paid_amount: 0,
+        last_api_call_age_days: 0,
+        last_payment_age_days: 0,
+        subscription_expired_days: 0,
+        min_subscription_amount: 0,
+        min_subscription_count: 0,
+        payment_providers: [],
+        groups: [],
+        group_mode: '',
+        require_verified_email: false,
+        registration_start_at: 0,
+        registration_end_at: 0,
+        specified_user_ids: [],
+        specified_emails: [],
+      },
+      execution_mode: 'manual',
+      schedule: {
+        scheduled_at: 0,
+        timezone: 'UTC',
+        frequency: 'daily',
+        weekday: 1,
+        hour: 9,
+        minute: 0,
+      },
+      coupon_source: 'automatic',
+      existing_coupon_id: '',
+      discount_config: {
+        type: 'percent',
+        percent_off: 20,
+        amount_off: 0,
+        currency: '',
+        currency_options: {},
+        minimum_amount: 0,
+        minimum_amount_currency: '',
+      },
+      product_scope: {
+        topup_price_ids: [],
+        subscription_price_ids: [],
+      },
+      promotion_expiry_mode: 'relative',
+      promotion_expires_at: 0,
+      promotion_valid_seconds: 604800,
+      enrollment_limit: 100,
+      worker_concurrency: 2,
+      email_sequence: [makeStage()],
+      defer_localization: false,
+    },
+  }
+}
+
+function makeContinuousDetail(): RecallCampaignDetail {
+  const detail = makeDetail('content_only') as RecallCampaignDetail & {
+    delivery_policy: string
+    lifecycle_trigger: string
+    processing_start_at: number
+    draft: RecallCampaignDetail['draft'] & {
+      delivery_policy: string
+      lifecycle_trigger: string
+      lifecycle_trigger_config: Record<string, never>
+      processing_start_at: number
+    }
+  }
+  detail.status = 'running'
+  detail.execution_mode = 'continuous'
+  detail.audience_template = 'first_purchase'
+  detail.delivery_policy = 'service'
+  detail.lifecycle_trigger = 'quota_low'
+  detail.processing_start_at = 1_900_000_000
+  detail.draft.execution_mode = 'continuous'
+  detail.draft.delivery_policy = 'service'
+  detail.draft.lifecycle_trigger = 'quota_low'
+  detail.draft.lifecycle_trigger_config = {}
+  detail.draft.processing_start_at = 1_900_000_000
+  detail.draft.promotion_valid_seconds = 0
+  return detail
+}
+
+function renderCampaignDetail(
+  campaignType: RecallCampaignType,
+  metrics: RecallCampaignMetrics = makeMetrics(),
+  recipients: RecallRecipient[] = []
+): string {
+  const campaignId = 42
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        enabled: false,
+        retry: false,
+      },
+    },
+  })
+  queryClient.setQueryData(recallCampaignKeys.detail(campaignId), {
+    success: true,
+    data: makeDetail(campaignType),
+  })
+  queryClient.setQueryData(recallCampaignKeys.metrics(campaignId), {
+    success: true,
+    data: metrics,
+  })
+  queryClient.setQueryData(recallCampaignKeys.recipients(campaignId, 1), {
+    success: true,
+    data: {
+      items: recipients,
+      total: recipients.length,
+      page: 1,
+      page_size: 100,
+    },
+  })
+  queryClient.setQueryData(recallCampaignKeys.events(campaignId, 1), {
+    success: true,
+    data: { items: [], total: 0, page: 1, page_size: 100 },
+  })
+
+  return renderToStaticMarkup(
+    <QueryClientProvider client={queryClient}>
+      <I18nextProvider i18n={testI18n}>
+        <CampaignDetail campaignId={campaignId} />
+      </I18nextProvider>
+    </QueryClientProvider>
+  )
+}
+
+function renderContinuousCampaignDetail(
+  metrics: RecallCampaignMetrics = makeContinuousMetrics(),
+  events: RecallEvent[] = []
+): string {
+  const campaignId = 42
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        enabled: false,
+        retry: false,
+      },
+    },
+  })
+  queryClient.setQueryData(recallCampaignKeys.detail(campaignId), {
+    success: true,
+    data: makeContinuousDetail(),
+  })
+  queryClient.setQueryData(recallCampaignKeys.metrics(campaignId), {
+    success: true,
+    data: metrics,
+  })
+  queryClient.setQueryData(recallCampaignKeys.recipients(campaignId, 1), {
+    success: true,
+    data: { items: [], total: 0, page: 1, page_size: 100 },
+  })
+  queryClient.setQueryData(recallCampaignKeys.events(campaignId, 1), {
+    success: true,
+    data: { items: events, total: events.length, page: 1, page_size: 100 },
+  })
+
+  return renderToStaticMarkup(
+    <QueryClientProvider client={queryClient}>
+      <I18nextProvider i18n={testI18n}>
+        <CampaignDetail campaignId={campaignId} />
+      </I18nextProvider>
+    </QueryClientProvider>
+  )
+}
+
+function campaignMetricsMarkup(html: string): string {
+  const start = html.indexOf('Campaign metrics')
+  const end = html.indexOf('Recipients and messages')
+  expect(start).toBeGreaterThan(-1)
+  expect(end).toBeGreaterThan(start)
+  return html.slice(start, end)
+}
+
+function campaignRecipientsMarkup(html: string): string {
+  const start = html.indexOf('Recipients and messages')
+  const end = html.indexOf('Audit timeline')
+  expect(start).toBeGreaterThan(-1)
+  expect(end).toBeGreaterThan(start)
+  return html.slice(start, end)
+}
+
+describe('Recall campaign activation readiness', () => {
+  test('allows activation only for exact current eight-locale templates', () => {
+    expect(getRecallActivationReadiness([makeStage()])).toEqual({
+      ready: true,
+      blockers: [],
+    })
+
+    const stale = makeStage()
+    stale.source_revision = 4
+    const staleReadiness = getRecallActivationReadiness([stale])
+    expect(staleReadiness.ready).toBeFalse()
+    expect(staleReadiness.blockers[0]).toEqual({
+      stage_no: 1,
+      locale: 'zh',
+      reason: 'stale',
+    })
+
+    const missing = makeStage()
+    delete missing.templates.fr
+    const missingReadiness = getRecallActivationReadiness([missing])
+    expect(missingReadiness.ready).toBeFalse()
+    expect(missingReadiness.blockers).toContainEqual({
+      stage_no: 1,
+      locale: 'fr',
+      reason: 'missing',
+    })
+
+    const invalid = makeStage()
+    invalid.templates.de = {
+      subject: 'Unexpected locale',
+      body_html: '<p>Unexpected</p>',
+    }
+    const invalidReadiness = getRecallActivationReadiness([invalid])
+    expect(invalidReadiness.ready).toBeFalse()
+    expect(invalidReadiness.blockers).toContainEqual({
+      stage_no: 1,
+      locale: 'de',
+      reason: 'invalid',
+    })
+  })
+
+  test.each(['null', 'undefined'] as const)(
+    'reports legacy %s templates as missing without crashing',
+    (shape) => {
+      const legacy = makeStage()
+      legacy.templates = (shape === 'null'
+        ? null
+        : undefined) as unknown as RecallEmailStage['templates']
+
+      const readiness = getRecallActivationReadiness([legacy])
+
+      expect(readiness.ready).toBeFalse()
+      expect(readiness.blockers).toContainEqual({
+        stage_no: 1,
+        locale: 'en',
+        reason: 'missing',
+      })
+      expect(readiness.blockers).toContainEqual({
+        stage_no: 1,
+        locale: 'fr',
+        reason: 'missing',
+      })
+    }
+  )
+})
+
+describe('Recall campaign delivery errors', () => {
+  test('translates stable Activity SMTP error codes without exposing known raw messages', () => {
+    const t = (key: string) =>
+      key ===
+      'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
+        ? 'Translated Activity SMTP failure'
+        : key ===
+            'Activity SMTP is not configured. Configure it before sending.'
+          ? 'Translated Activity SMTP not configured'
+          : key ===
+              'Delivery status is uncertain. Check the mailbox provider before retrying.'
+            ? 'Translated uncertain SMTP delivery'
+            : `translated:${key}`
+
+    expect(
+      formatRecallDeliveryErrorMessage(
+        'activity_smtp_send_failed',
+        'raw smtp transport detail',
+        t
+      )
+    ).toBe('Translated Activity SMTP failure')
+
+    expect(
+      formatRecallDeliveryErrorMessage(
+        'activity_smtp_not_configured',
+        'raw config detail',
+        t
+      )
+    ).toBe('Translated Activity SMTP not configured')
+
+    expect(
+      formatRecallDeliveryErrorMessage(
+        'smtp_uncertain',
+        'raw timeout detail',
+        t
+      )
+    ).toBe('Translated uncertain SMTP delivery')
+  })
+
+  test('uses safe generic copy for unknown delivery errors', () => {
+    const t = (key: string) =>
+      key ===
+      'Activity SMTP delivery failed. Check the host, port, credentials, TLS mode, and sender authorization, then retry.'
+        ? 'Translated Activity SMTP failure'
+        : key === 'Unknown delivery error'
+          ? 'Translated unknown delivery error'
+          : `translated:${key}`
+
+    expect(
+      formatRecallDeliveryErrorMessage(
+        'unknown_backend_code',
+        'Raw backend detail',
+        t
+      )
+    ).toBe('Translated unknown delivery error')
+
+    expect(
+      formatRecallDeliveryErrorMessage('unknown_backend_code', '', t)
+    ).toBe('Translated unknown delivery error')
+    expect(formatRecallDeliveryErrorMessage('', 'Raw backend detail', t)).toBe(
+      'Translated unknown delivery error'
+    )
+    expect(formatRecallDeliveryErrorMessage('', '', t)).toBe('')
+  })
+})
+
+describe('CampaignDetail metric rendering', () => {
+  test('renders continuous lifecycle identity and operational metric cards', () => {
+    const html = renderContinuousCampaignDetail()
+    const metricsHtml = campaignMetricsMarkup(html)
+
+    expect(html).toContain('continuous')
+    expect(html).toContain('quota_low')
+    expect(metricsHtml).toContain('Pending not due')
+    expect(metricsHtml).toContain('>11</div>')
+    expect(metricsHtml).toContain('Due now')
+    expect(metricsHtml).toContain('>7</div>')
+    expect(metricsHtml).toContain('Lifecycle events')
+    expect(metricsHtml).toContain('>19</div>')
+    expect(metricsHtml).toContain('Enrolled events')
+    expect(metricsHtml).toContain('Queued messages')
+    expect(metricsHtml).toContain('SMTP accepted')
+    expect(metricsHtml).toContain('Uncertain messages')
+    expect(metricsHtml).toContain('Send blocked breakdown')
+    expect(metricsHtml).toContain('No account email address')
+    expect(metricsHtml).toContain('Engagement opt-out')
+    expect(metricsHtml).not.toContain('no_account_email')
+    expect(metricsHtml).not.toContain('engagement_opted_out')
+    expect(metricsHtml).toContain('Skip breakdown')
+    expect(metricsHtml).toContain('Invalid lifecycle email')
+    expect(metricsHtml).toContain('Unknown lifecycle outcome')
+    expect(metricsHtml).not.toContain('unknown_future_reason')
+    expect(metricsHtml).toContain('Processing latency')
+    expect(metricsHtml).toContain('Quota recovered before send')
+    expect(metricsHtml).not.toContain('quota_recovered')
+    expect(metricsHtml).not.toContain('Accepted messages')
+  })
+
+  test('hides unknown lifecycle event identifiers in the audit timeline', () => {
+    const html = renderContinuousCampaignDetail(makeContinuousMetrics(), [
+      {
+        id: 1,
+        campaign_id: 42,
+        recipient_id: 0,
+        event_type: 'unknown_future_event',
+        source: 'activity',
+        source_event_id: 'evt_123',
+        event_data: '',
+        created_at: 1_900_000_000,
+      },
+    ])
+
+    expect(html).toContain('Unknown lifecycle event')
+    expect(html).not.toContain('unknown_future_event')
+  })
+
+  test('offers pause and cancel while running continuous activities, without complete', () => {
+    const html = renderContinuousCampaignDetail()
+
+    expect(html).toContain('pause')
+    expect(html).toContain('cancel')
+    expect(html).not.toContain('complete')
+  })
+
+  test('renders opened users beside observed clicks from authoritative metric cards', () => {
+    const metricsHtml = campaignMetricsMarkup(
+      renderCampaignDetail('content_only')
+    )
+
+    expect(metricsHtml).toContain('Users who opened')
+    expect(metricsHtml).toContain('>5</div>')
+    expect(metricsHtml).toContain('Observed clicks')
+    expect(metricsHtml).toContain('>3</div>')
+    expect(metricsHtml).toContain('Direct conversions')
+    expect(metricsHtml).not.toContain('>999</span>')
+  })
+
+  test('renders promotion conversion metric cards with backend totals', () => {
+    const metricsHtml = campaignMetricsMarkup(renderCampaignDetail('promotion'))
+
+    expect(metricsHtml).toContain('Users who opened')
+    expect(metricsHtml).toContain('>5</div>')
+    expect(metricsHtml).toContain('Observed clicks')
+    expect(metricsHtml).toContain('>3</div>')
+    expect(metricsHtml).toContain('Direct conversions')
+    expect(metricsHtml).toContain('Assisted conversions')
+    expect(metricsHtml).toContain('No-coupon conversions')
+    expect(metricsHtml).not.toContain('>999</span>')
+  })
+
+  test('ignores legacy currency metrics when authoritative money cards exist', () => {
+    const metrics = makeMetrics()
+    metrics.currency_metrics = [
+      {
+        currency: 'usd',
+        direct_count: 1,
+        assisted_count: 0,
+        no_coupon_count: 0,
+        payment_amount: 9_600,
+        discount_amount: 2_400,
+      },
+    ]
+
+    const metricsHtml = campaignMetricsMarkup(
+      renderCampaignDetail('promotion', metrics)
+    )
+
+    expect(metricsHtml).toContain('Attributed spend')
+    expect(metricsHtml).toContain('$96.00 / 2')
+    expect(metricsHtml).not.toContain('Payment amount')
+    expect(metricsHtml).not.toContain('9600')
+  })
+
+  test('does not reconstruct cards from legacy fields when metric cards are absent', () => {
+    const metrics = makeMetrics()
+    delete metrics.metric_cards
+    const metricsHtml = campaignMetricsMarkup(
+      renderCampaignDetail('content_only', metrics)
+    )
+
+    expect(metricsHtml).toContain(
+      'Campaign metric cards are not available yet.'
+    )
+    expect(metricsHtml).not.toContain('>999</span>')
+  })
+})
+
+describe('CampaignDetail recipient rendering', () => {
+  test('formats conversion amounts in currency major units', () => {
+    const recipient: RecallRecipient = {
+      id: 1,
+      campaign_id: 42,
+      user_id: 7824,
+      language_snapshot: 'en',
+      state: 'converted',
+      stripe_customer_id: '',
+      promotion_code_masked: '',
+      promotion_expires_at: 0,
+      first_sent_at: 0,
+      last_sent_at: 0,
+      clicked_at: 0,
+      converted_at: 0,
+      conversion_kind: 'direct',
+      conversion_trade_no: 'activity-14-7824',
+      conversion_currency: 'USD',
+      conversion_amount: 1_600,
+      discount_amount: 0,
+      last_error_code: '',
+      last_error_message: '',
+      created_at: 0,
+      updated_at: 0,
+      messages: [],
+    }
+
+    const recipientHtml = campaignRecipientsMarkup(
+      renderCampaignDetail('promotion', makeMetrics(), [recipient])
+    )
+
+    expect(recipientHtml).toContain('$16.00')
+    expect(recipientHtml).not.toContain('USD 1600')
+  })
+
+  test('renders email message states with SMTP context and safe fallback', () => {
+    const recipient: RecallRecipient = {
+      id: 2,
+      campaign_id: 42,
+      user_id: 7825,
+      language_snapshot: 'en',
+      state: 'queued',
+      stripe_customer_id: '',
+      promotion_code_masked: '',
+      promotion_expires_at: 0,
+      first_sent_at: 0,
+      last_sent_at: 0,
+      clicked_at: 0,
+      converted_at: 0,
+      conversion_kind: '',
+      conversion_trade_no: '',
+      conversion_currency: '',
+      conversion_amount: 0,
+      discount_amount: 0,
+      last_error_code: '',
+      last_error_message: '',
+      created_at: 0,
+      updated_at: 0,
+      messages: [
+        {
+          id: 101,
+          recipient_id: 2,
+          stage_no: 1,
+          template_version: 3,
+          scheduled_at: 0,
+          state: 'accepted',
+          attempt_count: 1,
+          next_attempt_at: 0,
+          lease_expires_at: 0,
+          provider_message_id: '',
+          accepted_at: 1_900_000_000,
+          failed_at: 0,
+          last_error_code: '',
+          last_error_message: '',
+          created_at: 0,
+          updated_at: 0,
+        },
+        {
+          id: 102,
+          recipient_id: 2,
+          stage_no: 2,
+          template_version: 3,
+          scheduled_at: 0,
+          state: 'sending',
+          attempt_count: 1,
+          next_attempt_at: 0,
+          lease_expires_at: 0,
+          provider_message_id: '',
+          accepted_at: 0,
+          failed_at: 0,
+          last_error_code: '',
+          last_error_message: '',
+          created_at: 0,
+          updated_at: 0,
+        },
+        {
+          id: 103,
+          recipient_id: 2,
+          stage_no: 3,
+          template_version: 3,
+          scheduled_at: 0,
+          state: 'unknown_future_state',
+          attempt_count: 1,
+          next_attempt_at: 0,
+          lease_expires_at: 0,
+          provider_message_id: '',
+          accepted_at: 0,
+          failed_at: 0,
+          last_error_code: '',
+          last_error_message: '',
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+    }
+
+    const recipientHtml = campaignRecipientsMarkup(
+      renderCampaignDetail('content_only', makeMetrics(), [recipient])
+    )
+
+    expect(recipientHtml).toContain('SMTP accepted')
+    expect(recipientHtml).toContain('Sending via SMTP')
+    expect(recipientHtml).toContain('Unknown message state')
+    expect(recipientHtml).not.toContain('Stage 1 · accepted')
+    expect(recipientHtml).not.toContain('Stage 2 · sending')
+    expect(recipientHtml).not.toContain('unknown_future_state')
+  })
+})

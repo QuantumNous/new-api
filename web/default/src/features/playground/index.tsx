@@ -23,32 +23,88 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { useOnboardingStore } from '@/stores/onboarding-store'
+import {
+  clearPtFirstCallExperimentTimer,
+  getPtFirstCallExperimentElapsedMs,
+  getStoredAdsAttribution,
+  isPtFirstCallTopupExperiment,
+  isWithinPtFirstCallTarget,
+  PT_FIRST_CALL_TARGET_MS,
+  PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+  startPtFirstCallTopupExperiment,
+} from '@/lib/analytics/attribution'
+import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { useCanUseGroups } from '@/hooks/use-enterprise'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getUserModels, getUserGroups } from './api'
 import { PlaygroundChat } from './components/playground-chat'
 import { FirstRunWelcome, GetKeyCard } from './components/playground-first-run'
 import { PlaygroundInput } from './components/playground-input'
-import { MESSAGE_ROLES, MESSAGE_STATUS } from './constants'
-import { usePlaygroundState, useChatHandler } from './hooks'
+import {
+  MESSAGE_ROLES,
+  MESSAGE_STATUS,
+  MODEL_GENERATOR_DRAFT_CLEANUP_KEY,
+} from './constants'
+import { usePlaygroundState, useChatHandler, useMediaGeneration } from './hooks'
 import {
   createUserMessage,
   createLoadingAssistantMessage,
   getFirstRunChatOverride as resolveFirstRunChatOverride,
+  isPlaygroundChatModelName,
+  isSupportedPlaygroundModelName,
   pickFirstRunModel,
+  normalizeMediaGenerationSettings,
+  resolveMediaGenerationProfile,
   shouldOpenFirstRunTopupPrompt,
+  clearFirstRunDone,
+  isFirstRunActive,
+  markFirstRunDone,
+  markFirstRunStarted,
+  resolvePlaygroundHandoff,
+  resolvePlaygroundHandoffModel,
+  type MediaGenerationSettings,
+  type MediaParameterKey,
+  type MediaParameterValue,
 } from './lib'
 import type { Message as MessageType } from './types'
 
 // PLG users are always pinned to the single `plg` group.
 const PLG_GROUP = 'plg'
 
-export function Playground({ firstRun = false }: { firstRun?: boolean }) {
+export function Playground({
+  firstRun: firstRunFromUrl = false,
+  initialModel,
+  initialPrompt,
+}: {
+  firstRun?: boolean
+  initialModel?: string
+  initialPrompt?: string
+}) {
   const navigate = useNavigate()
   const canUseGroups = useCanUseGroups()
   const { playgroundDefaultModel, enableStripeCardBind } = useSystemConfig()
   const authUser = useAuthStore((state) => state.auth.user)
   const openOnboarding = useOnboardingStore((state) => state.openOnboarding)
+
+  // The onboarding is triggered one-shot via `?first=1`, but it must persist
+  // across tab switches / reloads for a brand-new user until they finish their
+  // first successful call. We remember that per user (keyed on the authed id so
+  // a shared browser never leaks state between accounts): a fresh `?first=1`
+  // (re-)starts it, completion marks it done. The effective `firstRun` below
+  // therefore stays true on later returns until the user has completed once, so
+  // every downstream `firstRun` usage is unchanged.
+  const userId = authUser?.id
+  const firstRun = firstRunFromUrl || isFirstRunActive(userId)
+
+  // Persist first-run entry. Explicit `?first=1` re-enables onboarding even if
+  // the user completed it before (clears the done flag), then records that the
+  // user has started so a plain tab return keeps showing it.
+  useEffect(() => {
+    if (!firstRunFromUrl) return
+    if (userId === undefined) return
+    clearFirstRunDone(userId)
+    markFirstRunStarted(userId)
+  }, [firstRunFromUrl, userId])
   const {
     config,
     parameterEnabled,
@@ -59,14 +115,34 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     setModels,
     setGroups,
     updateConfig,
-  } = usePlaygroundState()
+  } = usePlaygroundState(initialModel)
 
-  const { sendChat, stopGeneration, isGenerating } = useChatHandler({
+  const {
+    sendChat,
+    stopGeneration: stopChatGeneration,
+    isGenerating: isGeneratingChat,
+  } = useChatHandler({
     config,
     parameterEnabled,
     onMessageUpdate: updateMessages,
     minimalParameters: firstRun,
   })
+  const { generateMedia, stopMediaGeneration, isGeneratingMedia } =
+    useMediaGeneration({ onMessageUpdate: updateMessages })
+  const isGenerating = isGeneratingChat || isGeneratingMedia
+  const [mediaSettingsByModel, setMediaSettingsByModel] = useState<
+    Record<string, MediaGenerationSettings>
+  >({})
+
+  const stopGeneration = useCallback(() => {
+    if (isGeneratingChat) stopChatGeneration()
+    if (isGeneratingMedia) stopMediaGeneration()
+  }, [
+    isGeneratingChat,
+    isGeneratingMedia,
+    stopChatGeneration,
+    stopMediaGeneration,
+  ])
 
   // Edit dialog state
   const [editingMessageKey, setEditingMessageKey] = useState<string | null>(
@@ -86,7 +162,20 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
   const clearedFirstRunMessagesRef = useRef(false)
   const getKeyCardShownRef = useRef(false)
   const topupPromptShownRef = useRef(false)
+  const appliedInitialModelRef = useRef<string | undefined>(undefined)
+  const [retainedHandoffModel, setRetainedHandoffModel] = useState(() =>
+    resolvePlaygroundHandoffModel(initialModel)
+  )
   const [userPickedModel, setUserPickedModel] = useState(false)
+  const isPtFirstCallExperiment = useMemo(
+    () => isPtFirstCallTopupExperiment(getStoredAdsAttribution()),
+    []
+  )
+  const [ptFirstCallSecondsRemaining, setPtFirstCallSecondsRemaining] =
+    useState(PT_FIRST_CALL_TARGET_MS / 1000)
+  const ptFirstCallSuccessTrackedRef = useRef(false)
+  const ptFirstCallTimeoutTrackedRef = useRef(false)
+  const ptFirstCallElapsedMsRef = useRef<number | null>(null)
 
   // Initialize first-run mode once on mount. The clean slate matters because a
   // just-registered user may be in a browser that still holds a previous
@@ -99,12 +188,9 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     if (messages.length > 0) updateMessages([])
   }, [firstRun, messages.length, updateMessages])
 
-  // Whether the empty-state welcome/example chips should show: first-run mode
-  // with no conversation yet.
-  const showWelcome = firstRun && messages.length === 0
-
-  // Load models
-  const { data: modelsData, isLoading: isLoadingModels } = useQuery({
+  // Load the complete backend-authorized model set. Picker filtering remains
+  // separate so a filtered handoff model can still be validated before use.
+  const { data: availableModelsData, isLoading: isLoadingModels } = useQuery({
     queryKey: ['playground-models', config.group],
     queryFn: async () => {
       try {
@@ -119,6 +205,21 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
       }
     },
   })
+
+  const playgroundModelsData = useMemo(
+    () =>
+      (availableModelsData ?? [])
+        .filter(isSupportedPlaygroundModelName)
+        .map((model) => ({ label: model, value: model })),
+    [availableModelsData]
+  )
+  const chatModelsData = useMemo(
+    () =>
+      playgroundModelsData.filter((model) =>
+        isPlaygroundChatModelName(model.value)
+      ),
+    [playgroundModelsData]
+  )
 
   // Load groups only when the current user can choose token groups.
   const { data: groupsData } = useQuery({
@@ -138,28 +239,123 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     enabled: canUseGroups,
   })
 
+  const handoff = useMemo(
+    () =>
+      resolvePlaygroundHandoff({
+        models: playgroundModelsData,
+        availableModels: availableModelsData ?? [],
+        model: resolvePlaygroundHandoffModel(
+          initialModel,
+          retainedHandoffModel
+        ),
+        prompt: initialPrompt,
+      }),
+    [
+      availableModelsData,
+      playgroundModelsData,
+      initialModel,
+      initialPrompt,
+      retainedHandoffModel,
+    ]
+  )
+  const isHandoffModelLocked = !!handoff.requestedModel
+
   const firstRunModel = useMemo(() => {
-    if (!firstRun || !modelsData?.length) return undefined
-    return pickFirstRunModel(modelsData, playgroundDefaultModel)
-  }, [firstRun, modelsData, playgroundDefaultModel])
+    if (!firstRun || !chatModelsData.length) return undefined
+    return pickFirstRunModel(chatModelsData, playgroundDefaultModel)
+  }, [firstRun, chatModelsData, playgroundDefaultModel])
 
   const isCurrentModelValid =
     !!config.model &&
-    !!modelsData?.some((model) => model.value === config.model)
+    handoff.models.some((model) => model.value === config.model)
   const isFirstRunModelApplied =
     !!firstRunModel &&
     isCurrentModelValid &&
     (userPickedModel || config.model === firstRunModel)
-  const isFirstRunModelReady = !firstRun || isFirstRunModelApplied
-  const getFirstRunChatOverride = useCallback(
-    () =>
-      resolveFirstRunChatOverride({
-        firstRun,
-        firstRunModel,
-        currentModel: config.model,
-        userPickedModel,
-      }),
-    [firstRun, firstRunModel, config.model, userPickedModel]
+  const isFirstRunModelReady = isHandoffModelLocked
+    ? isCurrentModelValid
+    : !firstRun || isFirstRunModelApplied
+  const getFirstRunChatOverride = useCallback(() => {
+    if (isHandoffModelLocked) return undefined
+    return resolveFirstRunChatOverride({
+      firstRun,
+      firstRunModel,
+      currentModel: config.model,
+      userPickedModel,
+    })
+  }, [
+    firstRun,
+    firstRunModel,
+    config.model,
+    isHandoffModelLocked,
+    userPickedModel,
+  ])
+
+  const mediaProfile = useMemo(
+    () => resolveMediaGenerationProfile(config.model),
+    [config.model]
+  )
+  const mediaSettings = useMemo(() => {
+    if (!mediaProfile) return undefined
+    return normalizeMediaGenerationSettings(
+      mediaProfile,
+      mediaSettingsByModel[config.model] ?? {}
+    )
+  }, [config.model, mediaProfile, mediaSettingsByModel])
+
+  const getMediaSettings = useCallback(
+    (model: string): MediaGenerationSettings => {
+      const profile = resolveMediaGenerationProfile(model)
+      if (!profile) return {}
+      return normalizeMediaGenerationSettings(
+        profile,
+        mediaSettingsByModel[model] ?? {}
+      )
+    },
+    [mediaSettingsByModel]
+  )
+
+  const handleMediaParameterChange = useCallback(
+    (key: MediaParameterKey, value: MediaParameterValue) => {
+      const model = config.model
+      const profile = resolveMediaGenerationProfile(model)
+      if (!profile) return
+      setMediaSettingsByModel((current) => ({
+        ...current,
+        [model]: normalizeMediaGenerationSettings(profile, {
+          ...(current[model] ?? {}),
+          [key]: value,
+        }),
+      }))
+    },
+    [config.model]
+  )
+
+  const dispatchGeneration = useCallback(
+    (
+      prompt: string,
+      requestMessages: MessageType[],
+      modelOverride?: string
+    ) => {
+      const configOverride = modelOverride
+        ? { model: modelOverride }
+        : getFirstRunChatOverride()
+      const model = configOverride?.model ?? config.model
+      const group = config.group
+      if (resolveMediaGenerationProfile(model)) {
+        void generateMedia(prompt, model, group, getMediaSettings(model))
+        return
+      }
+      sendChat(requestMessages, configOverride)
+    },
+    [
+      config.group,
+      config.model,
+      generateMedia,
+      getFirstRunChatOverride,
+      getMediaSettings,
+      sendChat,
+    ]
   )
 
   // PLG users are pinned to the `plg` group so model fetching uses it.
@@ -171,9 +367,18 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
 
   // Update models when data changes
   useEffect(() => {
-    if (!modelsData) return
+    if (handoff.model && appliedInitialModelRef.current !== handoff.model) {
+      appliedInitialModelRef.current = handoff.model
+      setUserPickedModel(true)
+      updateConfig('model', handoff.model)
+      return
+    }
 
-    setModels(modelsData)
+    if (availableModelsData === undefined) return
+
+    setModels(handoff.models)
+
+    if (isHandoffModelLocked) return
 
     if (firstRun && !userPickedModel && !!firstRunModel) {
       if (config.model === firstRunModel) return
@@ -182,15 +387,20 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     }
 
     // Set default model if current model is not available
-    const isCurrentModelValid = modelsData.some((m) => m.value === config.model)
+    const isCurrentModelValid = handoff.models.some(
+      (model) => model.value === config.model
+    )
     if (!isCurrentModelValid) {
-      updateConfig('model', modelsData[0]?.value ?? '')
+      updateConfig('model', handoff.models[0]?.value ?? '')
     }
   }, [
-    modelsData,
+    availableModelsData,
     config.model,
     firstRun,
     firstRunModel,
+    handoff.model,
+    handoff.models,
+    isHandoffModelLocked,
     userPickedModel,
     setModels,
     updateConfig,
@@ -225,6 +435,33 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
   )
 
   useEffect(() => {
+    if (!firstRun || !isPtFirstCallExperiment || hasCompletedAssistant) return
+
+    if (getPtFirstCallExperimentElapsedMs() === null) {
+      startPtFirstCallTopupExperiment()
+    }
+    trackAdsFunnelEvent('flatkey_pt_first_call_experiment_view', {
+      experiment_id: PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+    })
+
+    const updateTimer = () => {
+      const elapsedMs = getPtFirstCallExperimentElapsedMs() ?? 0
+      const remainingMs = Math.max(0, PT_FIRST_CALL_TARGET_MS - elapsedMs)
+      setPtFirstCallSecondsRemaining(Math.ceil(remainingMs / 1000))
+      if (remainingMs > 0 || ptFirstCallTimeoutTrackedRef.current) return
+
+      ptFirstCallTimeoutTrackedRef.current = true
+      trackAdsFunnelEvent('flatkey_pt_first_call_60s_timeout', {
+        experiment_id: PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+      })
+    }
+
+    updateTimer()
+    const timer = window.setInterval(updateTimer, 1000)
+    return () => window.clearInterval(timer)
+  }, [firstRun, isPtFirstCallExperiment, hasCompletedAssistant])
+
+  useEffect(() => {
     if (!firstRun) return
     if (getKeyCardShownRef.current) return
     // Require a real send this session so a restored conversation can't trigger
@@ -232,6 +469,23 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     if (!sentThisSession) return
     if (!hasCompletedAssistant) return
     getKeyCardShownRef.current = true
+    if (isPtFirstCallExperiment && !ptFirstCallSuccessTrackedRef.current) {
+      ptFirstCallSuccessTrackedRef.current = true
+      const elapsedMs = getPtFirstCallExperimentElapsedMs()
+      ptFirstCallElapsedMsRef.current = elapsedMs
+      trackAdsFunnelEvent('flatkey_pt_first_api_call_success', {
+        experiment_id: PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+        elapsed_seconds:
+          elapsedMs === null ? undefined : Math.round(elapsedMs / 1000),
+        within_60_seconds:
+          elapsedMs === null ? false : isWithinPtFirstCallTarget(elapsedMs),
+      })
+      clearPtFirstCallExperimentTimer()
+    }
+    // First successful call: mark onboarding done in persistent storage so a
+    // later tab return / reload no longer reshows the welcome banner for this
+    // user (the effective firstRun then resolves to false).
+    markFirstRunDone(userId)
     const showCardTimer = window.setTimeout(() => {
       setShowGetKeyCard(true)
       // First call succeeded — drop `?first=1` from the URL so a reload/back-nav
@@ -240,7 +494,14 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
       navigate({ to: '/playground', replace: true })
     }, 0)
     return () => window.clearTimeout(showCardTimer)
-  }, [firstRun, sentThisSession, hasCompletedAssistant, navigate])
+  }, [
+    firstRun,
+    sentThisSession,
+    hasCompletedAssistant,
+    navigate,
+    userId,
+    isPtFirstCallExperiment,
+  ])
 
   useEffect(() => {
     const shouldOpen = shouldOpenFirstRunTopupPrompt({
@@ -254,6 +515,14 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     if (!shouldOpen) return
 
     topupPromptShownRef.current = true
+    if (isPtFirstCallExperiment) {
+      const elapsedMs = ptFirstCallElapsedMsRef.current
+      trackAdsFunnelEvent('flatkey_pt_topup_offer_open', {
+        experiment_id: PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+        first_call_elapsed_seconds:
+          elapsedMs === null ? undefined : Math.round(elapsedMs / 1000),
+      })
+    }
     openOnboarding()
   }, [
     firstRun,
@@ -262,28 +531,90 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     enableStripeCardBind,
     authUser?.stripe_card_bound,
     openOnboarding,
+    isPtFirstCallExperiment,
   ])
 
-  const prepareFirstRunSend = useCallback(() => {
-    if (firstRun && !isFirstRunModelApplied) {
-      toast.error(i18next.t('Failed to load playground models'))
-      return false
-    }
-    if (firstRun) setSentThisSession(true)
-    return true
-  }, [firstRun, isFirstRunModelApplied])
+  const prepareSend = useCallback(
+    (targetModel: string) => {
+      const isTargetModelValid = handoff.models.some(
+        (model) => model.value === targetModel
+      )
+      if (!isTargetModelValid) {
+        toast.error(i18next.t('Failed to load playground models'))
+        return false
+      }
+      if (!isFirstRunModelReady) {
+        toast.error(i18next.t('Failed to load playground models'))
+        return false
+      }
+      if (firstRun) setSentThisSession(true)
+      return true
+    },
+    [firstRun, handoff.models, isFirstRunModelReady]
+  )
 
-  const handleSendMessage = (text: string) => {
-    if (!prepareFirstRunSend()) return
-    const userMessage = createUserMessage(text)
-    const assistantMessage = createLoadingAssistantMessage()
+  const clearModelGeneratorDraft = useCallback(() => {
+    const storageKey = window.localStorage.getItem(
+      MODEL_GENERATOR_DRAFT_CLEANUP_KEY
+    )
+    if (!storageKey) return
+    window.localStorage.removeItem(storageKey)
+    window.localStorage.removeItem(MODEL_GENERATOR_DRAFT_CLEANUP_KEY)
+  }, [])
 
-    const newMessages = [...messages, userMessage, assistantMessage]
-    updateMessages(newMessages)
+  const clearPlaygroundHandoffSearch = useCallback(() => {
+    if (!initialModel?.trim() && !initialPrompt?.trim()) return
+    setRetainedHandoffModel(handoff.model)
+    navigate({
+      to: '/playground',
+      search: firstRunFromUrl ? { first: 1 as const } : {},
+      replace: true,
+    })
+  }, [
+    firstRunFromUrl,
+    handoff.model,
+    initialModel,
+    initialPrompt,
+    navigate,
+    setRetainedHandoffModel,
+  ])
 
-    // Send chat request
-    sendChat(newMessages, getFirstRunChatOverride())
-  }
+  const handleSendMessage = useCallback(
+    (text: string, model?: string) => {
+      const modelOverride = isHandoffModelLocked ? undefined : model
+      const targetModel = modelOverride || config.model
+      if (!prepareSend(targetModel)) return
+      clearModelGeneratorDraft()
+      clearPlaygroundHandoffSearch()
+      const userMessage = createUserMessage(text)
+
+      // An example prompt (or the picker) can force a specific model. Persist the
+      // selection so the picker reflects it, and mark it as an explicit user choice
+      // so the first-run cheap default never overrides it.
+      if (modelOverride) {
+        setUserPickedModel(true)
+        updateConfig('model', modelOverride)
+      }
+
+      const assistantMessage = createLoadingAssistantMessage()
+      const newMessages = [...messages, userMessage, assistantMessage]
+      updateMessages(newMessages)
+
+      dispatchGeneration(text, newMessages, modelOverride)
+    },
+    [
+      clearModelGeneratorDraft,
+      clearPlaygroundHandoffSearch,
+      config.model,
+      dispatchGeneration,
+      isHandoffModelLocked,
+      messages,
+      prepareSend,
+      setUserPickedModel,
+      updateConfig,
+      updateMessages,
+    ]
+  )
 
   const handleCopyMessage = (message: MessageType) => {
     // Copy is handled in MessageActions component
@@ -296,13 +627,22 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
     const messageIndex = messages.findIndex((m) => m.key === message.key)
     if (messageIndex === -1) return
 
+    const chatOverride = getFirstRunChatOverride()
+    const targetModel = chatOverride?.model ?? config.model
+    if (!prepareSend(targetModel)) return
+
     // Remove messages after this one and regenerate
     const messagesUpToHere = messages.slice(0, messageIndex)
+
     const loadingMessage = createLoadingAssistantMessage()
     const newMessages = [...messagesUpToHere, loadingMessage]
 
+    const prompt = [...messagesUpToHere]
+      .reverse()
+      .find((item) => item.from === MESSAGE_ROLES.USER)?.versions[0]?.content
+    if (!prompt) return
     updateMessages(newMessages)
-    sendChat(newMessages, getFirstRunChatOverride())
+    dispatchGeneration(prompt, newMessages)
   }
 
   const handleEditMessage = useCallback((message: MessageType) => {
@@ -337,30 +677,42 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
         ...updated.slice(0, index + 1),
         createLoadingAssistantMessage(),
       ]
-      if (!prepareFirstRunSend()) return
+      const chatOverride = getFirstRunChatOverride()
+      const targetModel = chatOverride?.model ?? config.model
+      if (!prepareSend(targetModel)) return
       updateMessages(toSubmit)
-      sendChat(toSubmit, getFirstRunChatOverride())
+      dispatchGeneration(newContent, toSubmit)
     },
     [
       editingMessageKey,
-      messages,
-      prepareFirstRunSend,
-      updateMessages,
-      sendChat,
+      config.model,
       getFirstRunChatOverride,
+      messages,
+      prepareSend,
+      updateMessages,
+      dispatchGeneration,
     ]
   )
 
   const handleDeleteMessage = (message: MessageType) => {
+    if (message.videoUrl?.startsWith('blob:')) {
+      URL.revokeObjectURL(message.videoUrl)
+    }
     const newMessages = messages.filter((m) => m.key !== message.key)
     updateMessages(newMessages)
   }
 
   return (
     <div className='relative flex size-full flex-col overflow-hidden'>
-      {/* First-run welcome banner + example prompts (empty state only) */}
-      {showWelcome && (
+      {/* Welcome banner + example prompts — shown on an empty Playground for
+          every user (new users get the first-run banner, returning users get a
+          neutral "try one of these" header with the same one-click prompts). */}
+      {messages.length === 0 && (
         <FirstRunWelcome
+          firstRun={firstRun}
+          ptFirstCallSecondsRemaining={
+            isPtFirstCallExperiment ? ptFirstCallSecondsRemaining : undefined
+          }
           disabled={!isFirstRunModelReady}
           onPickExample={handleSendMessage}
         />
@@ -389,15 +741,21 @@ export function Playground({ firstRun = false }: { firstRun?: boolean }) {
       {/* Input area: center content and constrain to the same container width */}
       <div className='mx-auto w-full max-w-4xl'>
         <PlaygroundInput
+          key={handoff.prompt || 'playground-input'}
           disabled={isGenerating}
-          submitDisabled={!isFirstRunModelReady}
+          initialText={handoff.prompt}
+          submitDisabled={!isCurrentModelValid || !isFirstRunModelReady}
           showGroupSelector={canUseGroups}
           groups={groups}
           groupValue={config.group}
           isGenerating={isGenerating}
           isModelLoading={isLoadingModels}
+          modelLocked={isHandoffModelLocked}
           modelValue={config.model}
           models={models}
+          mediaProfile={mediaProfile}
+          mediaSettings={mediaSettings}
+          onMediaParameterChange={handleMediaParameterChange}
           onGroupChange={(value) => updateConfig('group', value)}
           onModelChange={(value) => {
             // Mark that the user explicitly chose a model so the first-run cheap

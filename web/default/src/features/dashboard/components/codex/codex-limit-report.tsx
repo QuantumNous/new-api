@@ -43,6 +43,7 @@ import { StatusBadge } from '@/components/status-badge'
 import { getCodexLimitReport } from '@/features/dashboard/api'
 import { TIME_RANGE_PRESETS } from '@/features/dashboard/constants'
 import { CHANNEL_STATUS_CONFIG } from '@/features/channels/constants'
+import { getVisibleCodexLimitWindows } from '@/features/channels/lib/codex-usage-windows'
 import type {
   CodexAdditionalLimit,
   CodexLimitReport,
@@ -114,6 +115,42 @@ function WindowMeter(props: { label: string; window?: CodexLimitWindow }) {
           {formatDurationSeconds(props.window?.reset_after_seconds)}
         </span>
       </div>
+    </div>
+  )
+}
+
+function VisibleWindowMeters(props: {
+  fiveHourWindow?: CodexLimitWindow
+  weeklyWindow?: CodexLimitWindow
+  emptyFallback?: boolean
+}) {
+  const { t } = useTranslation()
+  const windows = getVisibleCodexLimitWindows(
+    props.fiveHourWindow,
+    props.weeklyWindow
+  )
+
+  if (windows.length === 0) {
+    return props.emptyFallback ? (
+      <span className='text-muted-foreground text-xs'>-</span>
+    ) : null
+  }
+
+  return (
+    <div
+      className={`grid gap-2 ${windows.length > 1 ? 'md:grid-cols-2' : ''}`}
+    >
+      {windows.map((window) => (
+        <WindowMeter
+          key={window.kind}
+          label={
+            window.kind === 'fiveHour'
+              ? t('5-Hour Window')
+              : t('Weekly Window')
+          }
+          window={window.window}
+        />
+      ))}
     </div>
   )
 }
@@ -205,13 +242,11 @@ function AdditionalLimits(props: { items?: CodexAdditionalLimit[] }) {
               />
             )}
           </div>
-          <div className='grid gap-2 md:grid-cols-2'>
-            <WindowMeter
-              label={t('5-Hour Window')}
-              window={item.five_hour_window}
-            />
-            <WindowMeter label={t('Weekly Window')} window={item.weekly_window} />
-          </div>
+          <VisibleWindowMeters
+            fiveHourWindow={item.five_hour_window}
+            weeklyWindow={item.weekly_window}
+            emptyFallback
+          />
         </div>
       ))}
     </div>
@@ -299,16 +334,10 @@ function ChannelPanel(props: { row: CodexLimitReportRow }) {
         />
       </div>
 
-      <div className='grid gap-3 md:grid-cols-2'>
-        <WindowMeter
-          label={t('5-Hour Window')}
-          window={props.row.base_five_hour_window}
-        />
-        <WindowMeter
-          label={t('Weekly Window')}
-          window={props.row.base_weekly_window}
-        />
-      </div>
+      <VisibleWindowMeters
+        fiveHourWindow={props.row.base_five_hour_window}
+        weeklyWindow={props.row.base_weekly_window}
+      />
 
       <div className='space-y-2'>
         <div className='text-sm font-medium'>

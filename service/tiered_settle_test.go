@@ -86,6 +86,27 @@ func TestTryTieredSettleUsesFrozenRequestInput(t *testing.T) {
 	}
 }
 
+func TestBuildTieredTokenParamsNormalizesOpenAICacheWriteTokens(t *testing.T) {
+	usage := &dto.Usage{
+		PromptTokens: 100,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens:         40,
+			CachedCreationTokens: 50,
+			CacheWriteTokens:     80,
+		},
+	}
+
+	withCC := BuildTieredTokenParams(usage, false, map[string]bool{"cr": true, "cc": true})
+	if withCC.P != 0 || withCC.CR != 40 || withCC.CC != 80 {
+		t.Fatalf("with cc params = %#v, want P=0 CR=40 CC=80", withCC)
+	}
+
+	withoutCC := BuildTieredTokenParams(usage, false, map[string]bool{"cr": true})
+	if withoutCC.P != 60 || withoutCC.CC != 80 {
+		t.Fatalf("without cc params = %#v, want P=60 CC=80", withoutCC)
+	}
+}
+
 func TestTryTieredSettleFallsBackToFrozenPreConsumeOnExprError(t *testing.T) {
 	relayInfo := &relaycommon.RelayInfo{
 		FinalPreConsumedQuota: 321,

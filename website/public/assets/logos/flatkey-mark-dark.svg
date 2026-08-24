@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs><linearGradient id="fkg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#A855F7"></stop><stop offset="1" stop-color="#7C3AED"></stop></linearGradient></defs>
+  <path d="M32 5.5 C39 8.5 46 10.3 52.5 11.2 C55 11.6 56.5 13.4 56.5 15.9 V29.5 C56.5 44 46 53.5 32 58.5 C18 53.5 7.5 44 7.5 29.5 V15.9 C7.5 13.4 9 11.6 11.5 11.2 C18 10.3 25 8.5 32 5.5 Z" fill="url(#fkg)"></path>
+  <circle cx="32" cy="22.5" r="6.8" fill="#14102B"></circle>
+  <circle cx="32" cy="22.5" r="2.7" fill="#6D28D9"></circle>
+  <rect x="29.6" y="26" width="4.8" height="20" rx="2.4" fill="#14102B"></rect>
+  <rect x="33.2" y="36.5" width="7.6" height="3.6" rx="1.8" fill="#14102B"></rect>
+  <rect x="33.2" y="42" width="5.8" height="3.6" rx="1.8" fill="#14102B"></rect>
+</svg>

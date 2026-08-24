@@ -74,29 +74,6 @@ export type CodexUsageResponse = {
   data?: Record<string, unknown>
 }
 
-export type CodexInviteStatusResponse = {
-  success: boolean
-  message?: string
-  upstream_status?: number
-  data?: {
-    referral_key?: string
-    invite_eligibility?: Record<string, unknown>
-    eligibility_rules?: Record<string, unknown> | string[] | unknown[]
-    status_errors?: Record<string, unknown>
-  }
-}
-
-export type CodexInviteSendResponse = {
-  success: boolean
-  message?: string
-  upstream_status?: number
-  data?: {
-    invites?: Array<Record<string, unknown>>
-    failed_emails?: string[]
-    message?: string
-  } & Record<string, unknown>
-}
-
 export type CodexCredentialRefreshResponse = {
   success: boolean
   message?: string
@@ -111,18 +88,40 @@ export type CodexCredentialRefreshResponse = {
   }
 }
 
-export type CodexInviteSendOptions = {
-  confirmedRecipientConsent?: boolean
+export type CopilotDeviceStartResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    verification_uri?: string
+    user_code?: string
+    expires_in?: number
+    interval?: number
+  }
 }
 
-export function buildCodexInviteRequestBody(
-  emails: string[],
-  options: CodexInviteSendOptions = {}
-): { emails: string[]; confirmed_recipient_consent: boolean } {
-  return {
-    emails,
-    confirmed_recipient_consent: options.confirmedRecipientConsent === true,
+export type CopilotDevicePollResponse = {
+  success: boolean
+  message?: string
+  data?: {
+    status?: 'pending' | 'authorized' | 'expired' | 'denied'
+    message?: string
   }
+}
+
+// 与 xAI public client / sub2api 流程登记的 loopback URI 保持 byte-match。
+// 后端同样会固定为该值，避免旧前端缓存继续发送 localhost 回调。
+export const GROK_OAUTH_REDIRECT_URI = 'http://127.0.0.1:56121/callback'
+
+export type GrokPKCEStartResponse = {
+  success: boolean
+  message?: string
+  data?: { authorize_url?: string; flow_id?: string; state?: string }
+}
+
+export type GrokAuthStatusResponse = {
+  success: boolean
+  message?: string
+  data?: { status?: string; quota_snapshot?: string; key?: string }
 }
 
 // ============================================================================
@@ -146,6 +145,26 @@ export async function searchChannels(
   params: SearchChannelsParams
 ): Promise<SearchChannelsResponse> {
   const res = await api.get('/api/channel/search', { params })
+  return res.data
+}
+
+export interface ChannelConcurrencyStatus {
+  channel_id: number
+  max_concurrency: number
+  active: number
+  waiting: number
+  cooling_down: boolean
+}
+
+/**
+ * Get live concurrency counters for bounded channels (table polling)
+ */
+export async function getChannelConcurrencyStatus(
+  ids: number[]
+): Promise<{ success: boolean; data: ChannelConcurrencyStatus[] }> {
+  const res = await api.get('/api/channel/concurrency', {
+    params: { ids: ids.join(',') },
+  })
   return res.data
 }
 
@@ -354,6 +373,28 @@ export async function completeCodexOAuth(
   return res.data
 }
 
+export async function startCopilotDeviceFlow(
+  channelId: number
+): Promise<CopilotDeviceStartResponse> {
+  const res = await api.post(
+    `/api/channel/${channelId}/copilot/device/start`,
+    {},
+    channelActionConfig()
+  )
+  return res.data
+}
+
+export async function pollCopilotDeviceFlow(
+  channelId: number
+): Promise<CopilotDevicePollResponse> {
+  const res = await api.post(
+    `/api/channel/${channelId}/copilot/device/poll`,
+    {},
+    channelActionConfig()
+  )
+  return res.data
+}
+
 export async function refreshCodexCredential(
   channelId: number
 ): Promise<CodexCredentialRefreshResponse> {
@@ -386,25 +427,54 @@ export async function consumeCodexReset(
   return res.data
 }
 
-export async function getCodexInviteStatus(
-  channelId: number
-): Promise<CodexInviteStatusResponse> {
-  const res = await api.get(
-    `/api/channel/${channelId}/codex/invite/status`,
-    channelActionConfig({ disableDuplicate: true })
+// ============================================================================
+// Grok Subscription Channel Operations
+// ============================================================================
+
+export async function startGrokPKCE(
+  channelId: number,
+  redirectUri: string
+): Promise<GrokPKCEStartResponse> {
+  const res = await api.post(
+    '/api/channel/grok/pkce/start',
+    { channel_id: channelId, redirect_uri: redirectUri },
+    channelActionConfig()
   )
   return res.data
 }
 
-export async function sendCodexInvite(
-  channelId: number,
-  emails: string[],
-  options: CodexInviteSendOptions = {}
-): Promise<CodexInviteSendResponse> {
+export async function completeGrokPKCE(
+  flowId: string,
+  code: string,
+  state: string
+): Promise<GrokAuthStatusResponse> {
   const res = await api.post(
-    `/api/channel/${channelId}/codex/invite`,
-    buildCodexInviteRequestBody(emails, options),
-    channelActionConfig({ disableDuplicate: true })
+    '/api/channel/grok/pkce/complete',
+    { flow_id: flowId, code, state },
+    channelActionConfig()
+  )
+  return res.data
+}
+
+export async function importGrokRefreshToken(
+  channelId: number,
+  refreshToken: string
+): Promise<GrokAuthStatusResponse> {
+  const res = await api.post(
+    '/api/channel/grok/import',
+    { channel_id: channelId, refresh_token: refreshToken },
+    channelActionConfig()
+  )
+  return res.data
+}
+
+export async function refreshGrokState(
+  channelId: number
+): Promise<GrokAuthStatusResponse> {
+  const res = await api.post(
+    '/api/channel/grok/refresh',
+    { channel_id: channelId },
+    channelActionConfig()
   )
   return res.data
 }

@@ -1,26 +1,28 @@
-import { HomePage } from "@/components/home-page";
-import { getCopy } from "@/lib/copy";
-import { buildHomepageSchema, stringifyJsonLd } from "@/lib/schema";
-import { buildMetadata } from "@/lib/seo";
-
-const copy = getCopy("en");
-const homepageSchema = buildHomepageSchema({
-  locale: "en",
-  title: copy.home.title,
-  description: copy.home.description,
-});
+import { cookies } from "next/headers";
+import { OnlineHomePage } from "@/components/online-home-page";
+import { AmplitudeHomePageTracker } from "@/components/amplitude-home-page-tracker";
+import { hasConsoleSessionHintFromRequestCookieStore } from "@/lib/console-session-hint";
+import { buildMetadata, HOMEPAGE_SOCIAL_IMAGE } from "@/lib/seo";
 
 export const metadata = buildMetadata({
-  title: copy.home.title,
-  description: copy.home.description,
+  title: "flatkey - One key. More models. More tools. Lower costs.",
+  description:
+    "flatkey routes your requests to official GPT, Claude, Gemini, DeepSeek, Qwen and GLM APIs, with 100+ frontier models and 1,000+ AI tools behind one key.",
   pathname: "/",
+  image: HOMEPAGE_SOCIAL_IMAGE,
 });
 
-export default function Page() {
+export default async function Page() {
+  const requestCookies = await cookies();
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: stringifyJsonLd(homepageSchema) }} />
-      <HomePage locale="en" />
+      <AmplitudeHomePageTracker />
+      <OnlineHomePage
+        hasConsoleSessionHint={hasConsoleSessionHintFromRequestCookieStore(
+          requestCookies,
+        )}
+        locale="en"
+      />
     </>
   );
 }

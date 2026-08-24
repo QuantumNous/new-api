@@ -88,3 +88,41 @@ func TestUpdateOptionNormalizesInviterRewardLimitBeforePersisting(t *testing.T) 
 	require.Zero(t, common.QuotaForInviterMaxCount)
 	require.Equal(t, "0", common.OptionMap["QuotaForInviterMaxCount"])
 }
+
+func TestUpdateOptionRejectsRetiredInviteRewardUnlockDelay(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+	originalDelay := common.InviteRewardUnlockDelaySeconds
+	common.InviteRewardUnlockDelaySeconds = 604800
+	t.Cleanup(func() {
+		common.InviteRewardUnlockDelaySeconds = originalDelay
+	})
+
+	err := UpdateOption("InviteRewardUnlockDelaySeconds", "1")
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "retired")
+	var persistedCount int64
+	require.NoError(t, DB.Model(&Option{}).Where("key = ?", "InviteRewardUnlockDelaySeconds").Count(&persistedCount).Error)
+	require.Zero(t, persistedCount)
+	require.EqualValues(t, 604800, common.InviteRewardUnlockDelaySeconds)
+	require.NotContains(t, common.OptionMap, "InviteRewardUnlockDelaySeconds")
+}
+
+func TestLoadOptionsFromDatabaseIgnoresRetiredInviteRewardUnlockDelay(t *testing.T) {
+	setupOptionGroupRenameTestDB(t)
+	originalDelay := common.InviteRewardUnlockDelaySeconds
+	common.InviteRewardUnlockDelaySeconds = 604800
+	t.Cleanup(func() {
+		common.InviteRewardUnlockDelaySeconds = originalDelay
+	})
+	require.NoError(t, DB.Create(&Option{Key: "InviteRewardUnlockDelaySeconds", Value: "1"}).Error)
+	common.OptionMap["InviteRewardUnlockDelaySeconds"] = "604800"
+
+	LoadOptionsFromDatabase()
+
+	require.EqualValues(t, 604800, common.InviteRewardUnlockDelaySeconds)
+	require.NotContains(t, common.OptionMap, "InviteRewardUnlockDelaySeconds")
+	var option Option
+	require.NoError(t, DB.Where("key = ?", "InviteRewardUnlockDelaySeconds").First(&option).Error)
+	require.Equal(t, "1", option.Value)
+}

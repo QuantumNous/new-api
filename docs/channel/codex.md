@@ -128,8 +128,9 @@ Codex CLI 私有的对话压缩端点，用于把多轮历史摘要成更短的 
 
 - 上游路径：`/backend-api/codex/responses/compact`
 - 强制 **非流式**（上游不接受 `stream: true`）
-- 保留客户端的 `temperature` / `top_p` / `max_output_tokens`（与 `/v1/chat/completions` 路径不同 —— compact 摘要质量需要这些采样参数）
-- 但仍剥掉 `user` / `metadata` / `stream_options` / `frequency_penalty` / `presence_penalty` 等 Codex 后端禁字段
+- 过滤真实上游已确认不接受的 `temperature` / `top_p` / `max_output_tokens` / `max_tool_calls` / `top_logprobs`
+- 保留真实上游接受的 `parallel_tool_calls: false`
+- 同时剥掉 `user` / `metadata` / `stream_options` / `frequency_penalty` / `presence_penalty` 等 Codex 后端禁字段
 - 保证 JSON body 含 `instructions` 键
 
 ---
@@ -141,15 +142,19 @@ Codex CLI 私有的对话压缩端点，用于把多轮历史摘要成更短的 
 | `instructions` | 透传（含 null / 数组 / 对象 等非 string 形态）| 同左 | 由 `messages[0]` 的 system content 抽取 |
 | `conversation` | ✅ 透传 | ✅ 透传 | 不适用 |
 | `truncation` | ✅ 透传 | ✅ 透传 | 不适用 |
-| `max_tool_calls` | ✅ 透传 | ✅ 透传 | 不适用 |
+| `max_tool_calls` | ✅ 透传 | ❌ 剥（Codex Compact 禁） | 不适用 |
 | `previous_response_id` | ✅ 透传 | ✅ 透传 | 不适用 |
-| `top_logprobs` | ✅ 透传 | ✅ 透传 | 不适用 |
-| `reasoning.{effort,summary}` | ✅ 透传 | ✅ 透传 | 由 `reasoning_effort` 转换 |
+| `top_logprobs` | ✅ 透传 | ❌ 剥（Codex Compact 禁） | 不适用 |
+| `reasoning.{effort,summary,mode,context}` | ✅ 透传 | ✅ 透传 | 由 `reasoning_effort` 转换；`mode/context` 不适用 |
 | `tools[]` / `tool_choice` | ✅ 透传 | ✅ 透传 | 转换为 Responses 格式 |
-| `temperature` / `top_p` / `max_output_tokens` | ❌ 剥（Codex 禁）| ✅ 保留 | ❌ 剥 |
+| `temperature` / `top_p` / `max_output_tokens` | ❌ 剥（Codex 禁）| ❌ 剥（Codex Compact 禁） | ❌ 剥 |
+| `prompt_cache_options` | ❌ 剥（真实上游返回 Unsupported parameter） | ❌ 剥（同左） | 不适用 |
 | `user` / `metadata` / `stream_options` / `frequency_penalty` / `presence_penalty` / `prompt_cache_retention` / `safety_identifier` | ❌ 剥 | ❌ 剥 | ❌ 剥 |
 | `store` | 强制 `false` | 由路径决定（删除该键）| 强制 `false` |
 | `stream` | 保留客户端值（但 false 时上游 400，见 § 4.1）| 强制非流 | 强制上游流式；客户端意图通过聚合实现 |
+
+`reasoning.context` 当前有效值为 `auto` / `current_turn` / `all_turns`；
+`reasoning.mode` 当前有效值为 `standard` / `pro`，且 `pro` 是否可用取决于具体模型。
 
 ---
 

@@ -143,7 +143,7 @@ func OidcAuth(c *gin.Context) {
 		}
 	} else {
 		if common.RegisterEnabled {
-			user.Email = oidcUser.Email
+			user.Email = strings.TrimSpace(oidcUser.Email)
 			if oidcUser.PreferredUsername != "" {
 				user.Username = oidcUser.PreferredUsername
 			} else {
@@ -154,11 +154,11 @@ func OidcAuth(c *gin.Context) {
 			} else {
 				user.DisplayName = "OIDC User"
 			}
-			err := user.Insert(0)
+			err := registerLegacyOAuthUser(c, &user, 0)
 			if err != nil {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
-					"message": err.Error(),
+					"message": registrationEmailErrorMessage(c, err),
 				})
 				return
 			}

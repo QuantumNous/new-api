@@ -1,10 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { GET as dashboardRedirect } from "./dashboard/route";
+import { GET as localizedLoginRedirect } from "./[locale]/login/route";
 import { GET as localizedSignInRedirect } from "./[locale]/sign-in/route";
 import { GET as localizedSignUpRedirect } from "./[locale]/sign-up/route";
+import { GET as localizedSignupRedirect } from "./[locale]/signup/route";
 import { GET as localizedSetupRedirect } from "./[locale]/setup/route";
+import { GET as loginRedirect } from "./login/route";
 import { GET as signInRedirect } from "./sign-in/route";
 import { GET as signUpRedirect } from "./sign-up/route";
+import { GET as signupRedirect } from "./signup/route";
 import { GET as setupRedirect } from "./setup/route";
 
 describe("console redirects", () => {
@@ -19,11 +23,32 @@ describe("console redirects", () => {
     const response = signInRedirect(new Request("https://flatkey.ai/sign-in?redirect=%2Fdashboard"));
 
     expect(response.status).toBe(301);
-    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-in?redirect=%2Fdashboard");
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/api/oauth/google/start?redirect=%2Fdashboard&source=website");
+  });
+
+  test("preserves legacy login search params", () => {
+    const response = loginRedirect(new Request("https://flatkey.ai/login?redirect=%2Fdashboard"));
+
+    expect(response.status).toBe(301);
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/api/oauth/google/start?redirect=%2Fdashboard&source=website");
+  });
+
+  test("removes stale provider param for sign-in redirects", () => {
+    const response = signInRedirect(new Request("https://flatkey.ai/sign-in?redirect=%2Fdashboard&provider=github"));
+
+    expect(response.status).toBe(301);
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/api/oauth/google/start?redirect=%2Fdashboard&source=website");
   });
 
   test("preserves sign-up search params", () => {
     const response = signUpRedirect(new Request("https://flatkey.ai/sign-up?invite=abc123"));
+
+    expect(response.status).toBe(301);
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-up?invite=abc123");
+  });
+
+  test("preserves legacy signup search params", () => {
+    const response = signupRedirect(new Request("https://flatkey.ai/signup?invite=abc123"));
 
     expect(response.status).toBe(301);
     expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-up?invite=abc123");
@@ -35,12 +60,30 @@ describe("console redirects", () => {
     });
 
     expect(response.status).toBe(301);
-    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-in?redirect=%2Fdashboard");
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/api/oauth/google/start?redirect=%2Fdashboard&source=website");
+  });
+
+  test("preserves localized legacy login search params", async () => {
+    const response = await localizedLoginRedirect(new Request("https://flatkey.ai/zh/login?redirect=%2Fdashboard"), {
+      params: Promise.resolve({ locale: "zh" }),
+    });
+
+    expect(response.status).toBe(301);
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/api/oauth/google/start?redirect=%2Fdashboard&source=website");
   });
 
   test("preserves localized sign-up search params", async () => {
     const response = await localizedSignUpRedirect(new Request("https://flatkey.ai/fr/sign-up?invite=abc123"), {
       params: Promise.resolve({ locale: "fr" }),
+    });
+
+    expect(response.status).toBe(301);
+    expect(response.headers.get("location")).toBe("https://console.flatkey.ai/sign-up?invite=abc123");
+  });
+
+  test("preserves localized legacy signup search params", async () => {
+    const response = await localizedSignupRedirect(new Request("https://flatkey.ai/ja/signup?invite=abc123"), {
+      params: Promise.resolve({ locale: "ja" }),
     });
 
     expect(response.status).toBe(301);

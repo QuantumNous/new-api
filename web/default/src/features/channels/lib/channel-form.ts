@@ -24,6 +24,167 @@ import {
 } from '../constants'
 import type { Channel } from '../types'
 
+export const BLOCKRUN_BASE_API_URL = 'https://blockrun.ai/api'
+export const BLOCKRUN_SOLANA_API_URL = 'https://sol.blockrun.ai/api'
+
+export type BlockRunPaymentChain = 'base' | 'solana'
+
+const CODEX_FINGERPRINT_MODES = ['off', 'device', 'session', 'full'] as const
+export type CodexFingerprintMode = (typeof CODEX_FINGERPRINT_MODES)[number]
+
+export function resolveCodexFingerprintModeForChannelType(
+  channelType: number,
+  currentMode: CodexFingerprintMode | undefined
+): CodexFingerprintMode {
+  if (channelType !== 57) return 'off'
+  if (!currentMode || currentMode === 'off') return 'full'
+  return currentMode
+}
+
+const ASSET_MATERIALIZATION_PROVIDERS = [
+  'seedance_proxy',
+  'tokenspace_material',
+] as const
+type AssetMaterializationProvider =
+  (typeof ASSET_MATERIALIZATION_PROVIDERS)[number]
+
+const BASE58_ALPHABET =
+  '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+const BASE58_INDEX = new Map(
+  Array.from(BASE58_ALPHABET, (character, index) => [character, index])
+)
+
+export type BlockRunPaymentChainChange = {
+  paymentChain: BlockRunPaymentChain
+  baseUrl: string
+}
+
+export function resolveBlockRunCreateBaseURL(params: {
+  channelType: number
+  isEditing: boolean
+  paymentChain: BlockRunPaymentChain
+  currentBaseUrl: string
+}): string {
+  if (params.channelType !== 100 || params.isEditing) {
+    return params.currentBaseUrl
+  }
+  if (params.paymentChain === 'solana') {
+    return BLOCKRUN_SOLANA_API_URL
+  }
+  return params.currentBaseUrl || BLOCKRUN_BASE_API_URL
+}
+
+export type SolanaPrivateKeyInspection =
+  | { kind: 'empty'; valid: true; payer: null }
+  | { kind: 'seed'; valid: true; payer: null }
+  | { kind: 'keypair'; valid: true; payer: string }
+  | { kind: 'invalid'; valid: false; payer: null }
+
+function decodeBase58(value: string): Uint8Array | null {
+  if (!value) return null
+
+  const bytes = [0]
+  for (const character of value) {
+    const digit = BASE58_INDEX.get(character)
+    if (digit === undefined) return null
+
+    let carry = digit
+    for (let index = 0; index < bytes.length; index += 1) {
+      carry += bytes[index] * 58
+      bytes[index] = carry & 0xff
+      carry >>= 8
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff)
+      carry >>= 8
+    }
+  }
+
+  for (
+    let index = 0;
+    value[index] === BASE58_ALPHABET[0] && index < value.length - 1;
+    index += 1
+  ) {
+    bytes.push(0)
+  }
+
+  return Uint8Array.from(bytes.reverse())
+}
+
+function encodeBase58(value: Uint8Array): string {
+  if (value.length === 0) return ''
+
+  const digits = [0]
+  for (const byte of value) {
+    let carry = byte
+    for (let index = 0; index < digits.length; index += 1) {
+      carry += digits[index] << 8
+      digits[index] = carry % 58
+      carry = Math.floor(carry / 58)
+    }
+    while (carry > 0) {
+      digits.push(carry % 58)
+      carry = Math.floor(carry / 58)
+    }
+  }
+
+  let encoded = ''
+  for (
+    let index = 0;
+    value[index] === 0 && index < value.length - 1;
+    index += 1
+  ) {
+    encoded += BASE58_ALPHABET[0]
+  }
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    encoded += BASE58_ALPHABET[digits[index]]
+  }
+  return encoded
+}
+
+export function inspectSolanaPrivateKey(
+  privateKey: string | undefined
+): SolanaPrivateKeyInspection {
+  const value = privateKey?.trim() || ''
+  if (!value) return { kind: 'empty', valid: true, payer: null }
+
+  const decoded = decodeBase58(value)
+  if (decoded?.length === 32) {
+    return { kind: 'seed', valid: true, payer: null }
+  }
+  if (decoded?.length === 64) {
+    return {
+      kind: 'keypair',
+      valid: true,
+      payer: encodeBase58(decoded.slice(32)),
+    }
+  }
+  return { kind: 'invalid', valid: false, payer: null }
+}
+
+export function resolveBlockRunPaymentChainChange(params: {
+  channelType: number
+  isEditing: boolean
+  currentChain: BlockRunPaymentChain
+  currentBaseUrl: string
+  requestedChain: BlockRunPaymentChain
+}): BlockRunPaymentChainChange {
+  if (params.channelType !== 100 || params.isEditing) {
+    return {
+      paymentChain: params.currentChain,
+      baseUrl: params.currentBaseUrl,
+    }
+  }
+
+  return {
+    paymentChain: params.requestedChain,
+    baseUrl:
+      params.requestedChain === 'solana'
+        ? BLOCKRUN_SOLANA_API_URL
+        : BLOCKRUN_BASE_API_URL,
+  }
+}
+
 // ============================================================================
 // Form Validation Schema
 // ============================================================================
@@ -95,6 +256,50 @@ function isCodexCredential(value: string | undefined): boolean {
   }
 }
 
+function normalizeCodexFingerprintMode(value: unknown): CodexFingerprintMode {
+  return CODEX_FINGERPRINT_MODES.includes(value as CodexFingerprintMode)
+    ? (value as CodexFingerprintMode)
+    : 'off'
+}
+
+function normalizeAssetMaterializationProvider(
+  value: unknown
+): AssetMaterializationProvider | string {
+  return ASSET_MATERIALIZATION_PROVIDERS.includes(
+    value as AssetMaterializationProvider
+  )
+    ? (value as AssetMaterializationProvider)
+    : typeof value === 'string'
+      ? value.trim()
+      : ''
+}
+
+function isSecureAssetMaterializationGatewayUrl(
+  value: string | undefined
+): boolean {
+  const rawValue = value?.trim()
+  if (!rawValue) return false
+
+  try {
+    const parsed = new URL(rawValue)
+    if (
+      parsed.protocol !== 'https:' ||
+      !parsed.hostname ||
+      parsed.username ||
+      parsed.password ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      return false
+    }
+    return !parsed.pathname
+      .split('/')
+      .some((segment) => segment === '.' || segment === '..')
+  } catch {
+    return false
+  }
+}
+
 function isVertexJsonKey(value: string | undefined): boolean {
   try {
     const parsed = parseOptionalJson(value)
@@ -138,6 +343,11 @@ export const channelFormSchema = z
       ),
     priority: z.number().optional(),
     weight: z.number().optional(),
+    max_concurrency: z
+      .number()
+      .int('Max concurrency must be a whole number')
+      .min(0, 'Max concurrency must be 0 or greater')
+      .optional(),
     test_model: z.string().optional(),
     auto_ban: z.number().optional(),
     status: z.number(),
@@ -180,16 +390,23 @@ export const channelFormSchema = z
     thinking_to_content: z.boolean().optional(),
     proxy: z.string().optional(),
     pass_through_body_enabled: z.boolean().optional(),
+    return_source_url: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
     image_carrier_model: z.string().optional(),
+    codex_fingerprint_mode: z.enum(CODEX_FINGERPRINT_MODES).optional(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
     aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
     azure_responses_version: z.string().optional(), // Azure specific
+    asset_materialization_provider: z.string().optional(),
+    asset_materialization_gateway_base_url: z.string().optional(),
+    asset_materialization_group_id: z.string().optional(),
+    blockrun_payment_chain: z.enum(['base', 'solana']),
+    blockrun_max_payment_atomic: z.string().optional(),
     // Field passthrough controls (stored in settings JSON)
-    allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
+    allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic/Codex
     disable_store: z.boolean().optional(), // OpenAI only
     allow_safety_identifier: z.boolean().optional(), // OpenAI only
     allow_include_obfuscation: z.boolean().optional(), // OpenAI: include usage obfuscation
@@ -218,6 +435,33 @@ export const channelFormSchema = z
       )
     }
 
+    if (data.type === 100 && data.blockrun_payment_chain === 'solana') {
+      if (normalizeBaseUrl(data.base_url) !== BLOCKRUN_SOLANA_API_URL) {
+        addRequiredIssue(
+          ctx,
+          'base_url',
+          'Solana BlockRun requires the official API URL'
+        )
+      }
+
+      const cap = data.blockrun_max_payment_atomic?.trim() || ''
+      if (!/^\d+$/.test(cap) || /^0+$/.test(cap)) {
+        addRequiredIssue(
+          ctx,
+          'blockrun_max_payment_atomic',
+          'Maximum payment must be a positive decimal integer'
+        )
+      }
+
+      if (!inspectSolanaPrivateKey(data.key).valid) {
+        addRequiredIssue(
+          ctx,
+          'key',
+          'Solana private key must decode to exactly 32 or 64 bytes'
+        )
+      }
+    }
+
     if (data.type === 57) {
       if (data.multi_key_mode && data.multi_key_mode !== 'single') {
         addRequiredIssue(
@@ -233,6 +477,77 @@ export const channelFormSchema = z
           'Codex credential must be a JSON object with access_token and account_id'
         )
       }
+    }
+
+    const assetMaterializationProvider =
+      data.asset_materialization_provider?.trim() || ''
+    const assetMaterializationGatewayBaseURL =
+      data.asset_materialization_gateway_base_url?.trim() || ''
+    const assetMaterializationGroupID =
+      data.asset_materialization_group_id?.trim() || ''
+
+    if (
+      ASSET_MATERIALIZATION_PROVIDERS.includes(
+        assetMaterializationProvider as AssetMaterializationProvider
+      )
+    ) {
+      if (
+        !isSecureAssetMaterializationGatewayUrl(
+          assetMaterializationGatewayBaseURL
+        )
+      ) {
+        addRequiredIssue(
+          ctx,
+          'asset_materialization_gateway_base_url',
+          'Gateway base URL must be a valid HTTPS URL'
+        )
+      }
+      if (!assetMaterializationGroupID) {
+        addRequiredIssue(
+          ctx,
+          'asset_materialization_group_id',
+          'Asset materialization group is required'
+        )
+      }
+    } else if (
+      !assetMaterializationProvider &&
+      (assetMaterializationGatewayBaseURL || assetMaterializationGroupID)
+    ) {
+      addRequiredIssue(
+        ctx,
+        'asset_materialization_provider',
+        'Asset materialization provider is required'
+      )
+      if (
+        !isSecureAssetMaterializationGatewayUrl(
+          assetMaterializationGatewayBaseURL
+        )
+      ) {
+        addRequiredIssue(
+          ctx,
+          'asset_materialization_gateway_base_url',
+          'Gateway base URL must be a valid HTTPS URL'
+        )
+      }
+      if (!assetMaterializationGroupID) {
+        addRequiredIssue(
+          ctx,
+          'asset_materialization_group_id',
+          'Asset materialization group is required'
+        )
+      }
+    }
+
+    if (
+      data.type === 112 &&
+      data.multi_key_mode &&
+      data.multi_key_mode !== 'single'
+    ) {
+      addRequiredIssue(
+        ctx,
+        'multi_key_mode',
+        'GitHub Copilot channels support one credential only'
+      )
     }
 
     if (
@@ -279,6 +594,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   model_mapping: '',
   priority: 0,
   weight: 0,
+  max_concurrency: 0,
   test_model: '',
   auto_ban: 1,
   status: CHANNEL_STATUS.ENABLED,
@@ -299,14 +615,21 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   thinking_to_content: false,
   proxy: '',
   pass_through_body_enabled: false,
+  return_source_url: false,
   system_prompt: '',
   system_prompt_override: false,
   image_carrier_model: '',
+  codex_fingerprint_mode: 'off',
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
   aws_key_type: 'ak_sk',
   azure_responses_version: '',
+  asset_materialization_provider: '',
+  asset_materialization_gateway_base_url: '',
+  asset_materialization_group_id: '',
+  blockrun_payment_chain: 'base',
+  blockrun_max_payment_atomic: '',
   // Field passthrough controls
   allow_service_tier: false,
   disable_store: false,
@@ -320,6 +643,16 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_ignored_models: '',
 }
 
+export function buildNewChannelFormDefaults(
+  channelType = CHANNEL_FORM_DEFAULT_VALUES.type
+): ChannelFormValues {
+  return {
+    ...CHANNEL_FORM_DEFAULT_VALUES,
+    type: channelType,
+    codex_fingerprint_mode: channelType === 57 ? 'full' : 'off',
+  }
+}
+
 // ============================================================================
 // Transform Functions
 // ============================================================================
@@ -331,14 +664,26 @@ export function transformChannelToFormDefaults(
   channel: Channel
 ): ChannelFormValues {
   // Parse channel extra settings from setting field
-  let extraSettings = {
+  let extraSettings: {
+    force_format: boolean
+    thinking_to_content: boolean
+    proxy: string
+    pass_through_body_enabled: boolean
+    return_source_url: boolean
+    system_prompt: string
+    system_prompt_override: boolean
+    image_carrier_model: string
+    codex_fingerprint_mode: CodexFingerprintMode
+  } = {
     force_format: false,
     thinking_to_content: false,
     proxy: '',
     pass_through_body_enabled: false,
+    return_source_url: false,
     system_prompt: '',
     system_prompt_override: false,
     image_carrier_model: '',
+    codex_fingerprint_mode: 'off' as const,
   }
 
   if (channel.setting) {
@@ -349,9 +694,13 @@ export function transformChannelToFormDefaults(
         thinking_to_content: parsed.thinking_to_content || false,
         proxy: parsed.proxy || '',
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
+        return_source_url: parsed.return_source_url || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
         image_carrier_model: parsed.image_carrier_model || '',
+        codex_fingerprint_mode: normalizeCodexFingerprintMode(
+          parsed.codex_fingerprint_mode
+        ),
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -362,8 +711,13 @@ export function transformChannelToFormDefaults(
   // Parse type-specific settings from settings field
   let vertexKeyType: 'json' | 'api_key' = 'json'
   let azureResponsesVersion = ''
+  let assetMaterializationProvider: AssetMaterializationProvider | string = ''
+  let assetMaterializationGatewayBaseURL = ''
+  let assetMaterializationGroupID = ''
   let isEnterpriseAccount = false
   let awsKeyType: 'ak_sk' | 'api_key' = 'ak_sk'
+  let blockRunPaymentChain: BlockRunPaymentChain = 'base'
+  let blockRunMaxPaymentAtomic = ''
   let allowServiceTier = false
   let disableStore = false
   let allowSafetyIdentifier = false
@@ -380,8 +734,27 @@ export function transformChannelToFormDefaults(
       const parsed = JSON.parse(channel.settings)
       vertexKeyType = parsed.vertex_key_type || 'json'
       azureResponsesVersion = parsed.azure_responses_version || ''
+      if (isJsonObjectValue(parsed.asset_materialization)) {
+        assetMaterializationProvider = normalizeAssetMaterializationProvider(
+          parsed.asset_materialization.provider
+        )
+        assetMaterializationGatewayBaseURL =
+          typeof parsed.asset_materialization.gateway_base_url === 'string'
+            ? parsed.asset_materialization.gateway_base_url
+            : ''
+        assetMaterializationGroupID =
+          typeof parsed.asset_materialization.group_id === 'string'
+            ? parsed.asset_materialization.group_id
+            : ''
+      }
       isEnterpriseAccount = parsed.openrouter_enterprise === true
       awsKeyType = parsed.aws_key_type || 'ak_sk'
+      blockRunPaymentChain =
+        parsed.blockrun_payment_chain === 'solana' ? 'solana' : 'base'
+      blockRunMaxPaymentAtomic =
+        typeof parsed.blockrun_max_payment_atomic === 'string'
+          ? parsed.blockrun_max_payment_atomic
+          : ''
       allowServiceTier = parsed.allow_service_tier === true
       disableStore = parsed.disable_store === true
       allowSafetyIdentifier = parsed.allow_safety_identifier === true
@@ -415,6 +788,7 @@ export function transformChannelToFormDefaults(
     model_mapping: channel.model_mapping || '',
     priority: channel.priority || 0,
     weight: channel.weight || 0,
+    max_concurrency: channel.max_concurrency || 0,
     test_model: channel.test_model || '',
     auto_ban: channel.auto_ban ?? 1,
     status: channel.status,
@@ -436,7 +810,12 @@ export function transformChannelToFormDefaults(
     is_enterprise_account: isEnterpriseAccount,
     vertex_key_type: vertexKeyType,
     azure_responses_version: azureResponsesVersion,
+    asset_materialization_provider: assetMaterializationProvider,
+    asset_materialization_gateway_base_url: assetMaterializationGatewayBaseURL,
+    asset_materialization_group_id: assetMaterializationGroupID,
     aws_key_type: awsKeyType,
+    blockrun_payment_chain: blockRunPaymentChain,
+    blockrun_max_payment_atomic: blockRunMaxPaymentAtomic,
     allow_service_tier: allowServiceTier,
     disable_store: disableStore,
     allow_include_obfuscation: allowIncludeObfuscation,
@@ -454,16 +833,53 @@ export function transformChannelToFormDefaults(
  * Build the setting JSON string from form extra settings
  */
 function buildSettingJSON(formData: ChannelFormValues): string {
-  const settingObj = {
+  const settingObj: Record<string, unknown> = {
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
-    proxy: formData.proxy || '',
+    proxy: formData.type === 111 ? '' : formData.proxy || '',
     pass_through_body_enabled: formData.pass_through_body_enabled || false,
+    // Only TechMobi video channels (type 105) honor this switch server-side
+    return_source_url:
+      formData.type === 105 ? formData.return_source_url || false : false,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
     image_carrier_model: formData.image_carrier_model || '',
   }
+  const codexFingerprintMode = normalizeCodexFingerprintMode(
+    formData.codex_fingerprint_mode
+  )
+  if (codexFingerprintMode !== 'off') {
+    settingObj.codex_fingerprint_mode = codexFingerprintMode
+  }
   return JSON.stringify(settingObj)
+}
+
+export function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
+  return Boolean(
+    values.param_override?.trim() ||
+    values.header_override?.trim() ||
+    values.status_code_mapping?.trim() ||
+    values.tag?.trim() ||
+    values.remark?.trim() ||
+    values.priority ||
+    values.weight ||
+    values.max_concurrency ||
+    (values.type !== 111 && values.proxy?.trim()) ||
+    values.system_prompt?.trim() ||
+    values.force_format ||
+    values.thinking_to_content ||
+    values.pass_through_body_enabled ||
+    values.asset_materialization_provider?.trim() ||
+    values.asset_materialization_gateway_base_url?.trim() ||
+    values.asset_materialization_group_id?.trim() ||
+    normalizeCodexFingerprintMode(values.codex_fingerprint_mode) !== 'off' ||
+    (values.type === 105 && values.return_source_url) ||
+    values.system_prompt_override ||
+    values.claude_beta_query ||
+    values.upstream_model_update_check_enabled ||
+    values.upstream_model_update_auto_sync_enabled ||
+    values.upstream_model_update_ignored_models?.trim()
+  )
 }
 
 /**
@@ -510,10 +926,45 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     delete settingsObj.aws_key_type
   }
 
+  const assetMaterializationProvider =
+    formData.asset_materialization_provider?.trim() || ''
+  const assetMaterializationGatewayBaseURL =
+    formData.asset_materialization_gateway_base_url?.trim() || ''
+  const assetMaterializationGroupID =
+    formData.asset_materialization_group_id?.trim() || ''
+
+  if (assetMaterializationProvider) {
+    settingsObj.asset_materialization = {
+      provider: assetMaterializationProvider,
+      gateway_base_url: assetMaterializationGatewayBaseURL,
+      group_id: assetMaterializationGroupID,
+    }
+  } else if ('asset_materialization' in settingsObj) {
+    delete settingsObj.asset_materialization
+  }
+
+  if (formData.type === 100) {
+    const paymentChain = formData.blockrun_payment_chain || 'base'
+    settingsObj.blockrun_payment_chain = paymentChain
+    if (paymentChain === 'solana') {
+      settingsObj.blockrun_max_payment_atomic =
+        formData.blockrun_max_payment_atomic?.trim() || ''
+    } else if ('blockrun_max_payment_atomic' in settingsObj) {
+      delete settingsObj.blockrun_max_payment_atomic
+    }
+  } else {
+    if ('blockrun_payment_chain' in settingsObj) {
+      delete settingsObj.blockrun_payment_chain
+    }
+    if ('blockrun_max_payment_atomic' in settingsObj) {
+      delete settingsObj.blockrun_max_payment_atomic
+    }
+  }
+
   // Field passthrough controls:
-  // - OpenAI (type 1) and Anthropic (type 14): allow_service_tier
+  // - OpenAI (type 1), Anthropic (type 14), and Codex (type 57): allow_service_tier
   // - OpenAI only: disable_store, allow_safety_identifier
-  if (formData.type === 1 || formData.type === 14) {
+  if (formData.type === 1 || formData.type === 14 || formData.type === 57) {
     settingsObj.allow_service_tier = formData.allow_service_tier === true
   } else if ('allow_service_tier' in settingsObj) {
     delete settingsObj.allow_service_tier
@@ -603,6 +1054,7 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     model_mapping: formData.model_mapping || null,
     priority: formData.priority || null,
     weight: formData.weight || null,
+    max_concurrency: formData.max_concurrency ?? 0,
     test_model: formData.test_model || null,
     auto_ban: formData.auto_ban ?? 1,
     status: formData.status,
@@ -651,6 +1103,7 @@ export function transformFormDataToUpdatePayload(
     model_mapping: formData.model_mapping || null,
     priority: formData.priority ?? 0,
     weight: formData.weight ?? 0,
+    max_concurrency: formData.max_concurrency ?? 0,
     test_model: formData.test_model || null,
     auto_ban: formData.auto_ban ?? 1,
     status: formData.status,

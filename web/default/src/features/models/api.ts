@@ -35,6 +35,7 @@ import type {
   SyncOverwritePayload,
   DeploymentSettingsResponse,
   ListDeploymentsResponse,
+  WebsiteFeaturedModelsResponse,
 } from './types'
 
 // ============================================================================
@@ -107,6 +108,26 @@ export async function deleteModel(
   id: number
 ): Promise<{ success: boolean; message?: string }> {
   const res = await api.delete(`/api/models/${id}`)
+  return res.data
+}
+
+/**
+ * Get the ordered models highlighted on the public website.
+ */
+export async function getWebsiteFeaturedModels(): Promise<WebsiteFeaturedModelsResponse> {
+  const res = await api.get('/api/models/website-featured')
+  return res.data
+}
+
+/**
+ * Replace the complete public website featured model order.
+ */
+export async function updateWebsiteFeaturedModels(
+  modelNames: string[]
+): Promise<{ success: boolean; message?: string; data?: { model_names: string[] } }> {
+  const res = await api.put('/api/models/website-featured', {
+    model_names: modelNames,
+  })
   return res.data
 }
 

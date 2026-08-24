@@ -27,17 +27,30 @@ import {
 import i18next from 'i18next'
 import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
-import { api, getSelf } from '@/lib/api'
-import { getAdsAttributionPayload } from '@/lib/analytics/attribution'
-import { trackAdsFunnelEvent, trackSignupConversion } from '@/lib/analytics/gtag'
+import {
+  identifyAmplitudeUser,
+  trackAmplitudeEvent,
+} from '@/lib/analytics/amplitude'
+import {
+  getAdsAttributionPayload,
+  isPtFirstCallTopupExperiment,
+  parseAttributionPayload,
+  PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
+  startPtFirstCallTopupExperiment,
+} from '@/lib/analytics/attribution'
+import {
+  trackAdsFunnelEvent,
+  trackSignupConversion,
+} from '@/lib/analytics/gtag'
 import { trackPixelsSignup } from '@/lib/analytics/pixels'
-import { identifyMixpanelUser, trackMixpanelEvent } from '@/lib/analytics/mixpanel'
 import { trackYahooSignupConversion } from '@/lib/analytics/yahoo'
+import { api, getSelf } from '@/lib/api'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
 import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
 import {
+  consumePendingPostLoginRedirect,
   isSafeInternalPath,
-  readPendingPostLoginRedirect,
+  peekPendingOAuthPostLoginRedirect,
 } from '@/features/auth/lib/storage'
 
 type OAuthRequestConfig = AxiosRequestConfig & {
@@ -58,6 +71,9 @@ function OAuthCallback() {
     if (typeof window === 'undefined') return 'login'
     return window.opener ? 'bind' : 'login'
   })
+  const [pendingPostLoginRedirect] = useState(() =>
+    peekPendingOAuthPostLoginRedirect()
+  )
 
   useEffect(() => {
     ;(async () => {
@@ -95,6 +111,7 @@ function OAuthCallback() {
       }
 
       if (!search?.code) {
+        consumePendingPostLoginRedirect(pendingPostLoginRedirect?.nonce)
         toast.error(i18next.t('Missing code'))
         safeNavigate('/sign-in')
         return
@@ -173,7 +190,10 @@ function OAuthCallback() {
         return ''
       }
 
-      const trackOAuthResult = (result: 'success' | 'error', message?: string) => {
+      const trackOAuthResult = (
+        result: 'success' | 'error',
+        message?: string
+      ) => {
         const signupProvider = consumeSignupOAuthStart()
         trackAdsFunnelEvent(`flatkey_oauth_${result}`, {
           provider,
@@ -188,7 +208,7 @@ function OAuthCallback() {
             method: 'oauth',
             provider,
           })
-          trackMixpanelEvent('sign_up_completed', {
+          trackAmplitudeEvent('sign_up_completed', {
             sign_up_method: 'oauth',
             provider,
             platform: 'web',
@@ -205,7 +225,7 @@ function OAuthCallback() {
           }
           if (selfResponse?.success && selfResponse.data) {
             useAuthStore.getState().auth.setUser(selfResponse.data)
-            identifyMixpanelUser(selfResponse.data)
+            identifyAmplitudeUser(selfResponse.data)
             try {
               if (
                 typeof window !== 'undefined' &&
@@ -229,9 +249,10 @@ function OAuthCallback() {
         // value persisted at OAuth start is the reliable source for OAuth logins. Validate
         // every candidate (search.redirect is user-controllable) through isSafeInternalPath
         // so we never navigate to an external origin after authenticating (open-redirect).
-        const stored = readPendingPostLoginRedirect()
-        const requested = target || search?.redirect || stored
+        const stored = pendingPostLoginRedirect?.target
+        const requested = target || stored || search?.redirect
         const to = isSafeInternalPath(requested) ? requested : '/dashboard'
+        consumePendingPostLoginRedirect(pendingPostLoginRedirect?.nonce)
         safeNavigate(to)
         toast.success(i18next.t('Signed in successfully!'))
       }
@@ -249,12 +270,16 @@ function OAuthCallback() {
           return
         }
         trackOAuthResult('error', message)
+        consumePendingPostLoginRedirect(pendingPostLoginRedirect?.nonce)
         toast.error(message)
         safeNavigate('/sign-in')
       }
 
       try {
         const adsAttribution = getAdsAttributionPayload()
+        const isPtFirstCallExperiment = isPtFirstCallTopupExperiment(
+          parseAttributionPayload(adsAttribution)
+        )
         const config: OAuthRequestConfig = {
           params: {
             code: search.code,
@@ -300,12 +325,23 @@ function OAuthCallback() {
               void _error
             }
             trackOAuthResult('success')
-            // Brand-new standard OAuth registrations follow the same activation-first
-            // contract as password sign-up: land in Playground first-run once, before
-            // any card-bind/top-up prompt can compete for attention.
+            // Apply the same activation-first PT paid-search experiment to
+            // brand-new OAuth users while preserving an explicit safe redirect.
             if (isNewUser) {
               trackYahooSignupConversion()
-              redirectAfterLogin('/playground?first=1')
+              const requestedTarget =
+                pendingPostLoginRedirect?.target || search?.redirect
+              const hasExplicitTarget = isSafeInternalPath(requestedTarget)
+              if (isPtFirstCallExperiment && !hasExplicitTarget) {
+                startPtFirstCallTopupExperiment()
+                trackAdsFunnelEvent(
+                  'flatkey_pt_first_call_experiment_enrolled',
+                  { experiment_id: PT_FIRST_CALL_TOPUP_EXPERIMENT_ID }
+                )
+              }
+              redirectAfterLogin(
+                hasExplicitTarget ? requestedTarget : '/playground?first=1'
+              )
               return
             }
             redirectAfterLogin()
@@ -318,6 +354,7 @@ function OAuthCallback() {
           }
           const failureMessage = res?.data?.message || i18next.t('OAuth failed')
           trackOAuthResult('error', failureMessage)
+          consumePendingPostLoginRedirect(pendingPostLoginRedirect?.nonce)
           toast.error(failureMessage)
           safeNavigate('/sign-in')
           return
@@ -356,7 +393,14 @@ function OAuthCallback() {
         return
       }
     })()
-  }, [mode, navigate, provider, search])
+  }, [
+    mode,
+    navigate,
+    pendingPostLoginRedirect?.nonce,
+    pendingPostLoginRedirect?.target,
+    provider,
+    search,
+  ])
 
   return <OAuthCallbackScreen provider={provider} mode={mode} />
 }

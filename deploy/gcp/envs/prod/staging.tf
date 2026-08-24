@@ -105,6 +105,10 @@ resource "google_secret_manager_secret_version" "staging_sql_dsn" {
     module.cloud_sql.connection_name,
     local.staging_db_name,
   )
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
 }
 
 resource "google_secret_manager_secret" "staging_session_secret" {
@@ -323,13 +327,26 @@ resource "google_cloud_run_v2_service" "staging" {
         name  = "APP_CONSOLE_ORIGIN"
         value = var.staging_console_origin
       }
+      // Live staging env is owned by CI because env is lifecycle-ignored below; keep deploy workflows mirrored.
       env {
         name  = "COOKIE_SESSION_DOMAIN"
-        value = ".flatkey.ai"
+        value = local.staging_console_host == "flatkey.ai" || endswith(local.staging_console_host, ".flatkey.ai") ? ".flatkey.ai" : ""
       }
       env {
         name  = "SESSION_COOKIE_SECURE"
         value = "true"
+      }
+      env {
+        name  = "COPILOT_DEVICE_MEMORY_FALLBACK_ENABLED"
+        value = "true" // staging 固定单实例；生产默认 false，必须使用 Redis
+      }
+      env {
+        name  = "ASSET_STORAGE_BUCKET"
+        value = google_storage_bucket.flatkey_assets_staging[0].name
+      }
+      env {
+        name  = "VIDEO_RESULT_STORAGE_BUCKET"
+        value = google_storage_bucket.video_results_staging[0].name
       }
 
       env {
@@ -372,6 +389,8 @@ resource "google_cloud_run_v2_service" "staging" {
     ignore_changes = [
       template[0].containers[0].env,
       template[0].containers[0].image,
+      template[0].containers[0].liveness_probe,
+      template[0].containers[0].startup_probe,
       template[0].revision,
       client,
       client_version,
@@ -384,6 +403,7 @@ resource "google_cloud_run_v2_service" "staging" {
     google_secret_manager_secret_version.staging_sql_dsn,
     google_secret_manager_secret_iam_member.staging_runtime_secret_access,
     google_project_iam_member.staging_runtime_cloudsql,
+    google_storage_bucket_iam_member.staging_runtime_video_results_object_user,
   ]
 }
 
@@ -471,6 +491,11 @@ resource "google_cloud_run_v2_service" "staging_web" {
         name  = "SITE_ORIGIN"
         value = var.staging_website_origin
       }
+      // Live staging env is owned by CI because env is lifecycle-ignored below; keep deploy workflows mirrored.
+      env {
+        name  = "COOKIE_SESSION_DOMAIN"
+        value = local.staging_website_host == "flatkey.ai" || endswith(local.staging_website_host, ".flatkey.ai") ? ".flatkey.ai" : ""
+      }
     }
   }
 
@@ -483,6 +508,8 @@ resource "google_cloud_run_v2_service" "staging_web" {
     ignore_changes = [
       template[0].containers[0].env,
       template[0].containers[0].image,
+      template[0].containers[0].liveness_probe,
+      template[0].containers[0].startup_probe,
       template[0].revision,
       client,
       client_version,

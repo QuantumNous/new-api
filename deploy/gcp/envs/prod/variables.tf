@@ -20,7 +20,7 @@ variable "service_name" {
 
 variable "enable_legacy_runtime" {
   type        = bool
-  description = "Keep the legacy monolithic newapi Cloud Run service/resources alive. Flip to false only when ready to destroy legacy newapi."
+  description = "Recovery-only toggle for the decommissioned monolithic newapi runtime. Production keeps this false; enabling it requires a separately approved restoration plan."
   default     = true
 }
 
@@ -65,6 +65,24 @@ variable "enable_load_balancer" {
 variable "lb_domains" {
   type        = list(string)
   description = "Domains for the managed SSL cert on the LB. DNS in Cloudflare must point to the LB IP first."
+  default     = []
+}
+
+variable "certificate_map_name" {
+  type        = string
+  description = "Existing Certificate Manager map used by the production HTTPS proxy."
+  default     = ""
+}
+
+variable "certificate_manager_certificate_name" {
+  type        = string
+  description = "Existing Certificate Manager certificate used by certificate_map_name."
+  default     = ""
+}
+
+variable "certificate_dns_authorization_names" {
+  type        = list(string)
+  description = "Certificate Manager DNS authorization names used by the production certificate."
   default     = []
 }
 
@@ -127,6 +145,12 @@ variable "console_domains_require_managed_cert" {
   type        = bool
   description = "Require console_domains to be covered by the GCP managed cert. Set false only for Cloudflare-proxied console domains after origin routing has been verified."
   default     = true
+}
+
+variable "cloud_sql_disk_size_gb" {
+  type        = number
+  description = "Cloud SQL disk size; never lower than the live auto-resized disk."
+  default     = 100
 }
 
 variable "router_min_instances" {
@@ -207,4 +231,10 @@ variable "website_site_origin" {
   type        = string
   description = "Public origin of the marketing site itself."
   default     = "https://flatkey.ai"
+}
+
+variable "website_cookie_session_domain" {
+  type        = string
+  description = "Shared cookie domain for website-set browser cookies."
+  default     = ".flatkey.ai"
 }

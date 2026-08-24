@@ -1,6 +1,7 @@
 package blockrun
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
@@ -108,6 +110,43 @@ func TestStreamImageResponseUrlFallback(t *testing.T) {
 	// base64("PNGBYTES") = "UE5HQllURVM="
 	if !strings.Contains(w.Body.String(), "UE5HQllURVM=") {
 		t.Fatalf("url must be downloaded and base64'd: %s", w.Body.String())
+	}
+}
+
+func TestStreamImageResponseTempURLConvertsToSignedURL(t *testing.T) {
+	oldUpload := uploadTempMediaImageForBlockRun
+	defer func() { uploadTempMediaImageForBlockRun = oldUpload }()
+	uploadTempMediaImageForBlockRun = func(_ context.Context, _ service.TempMediaUploadRequest) (*service.TempMediaUploadResult, error) {
+		return &service.TempMediaUploadResult{
+			SignedURL: "https://tmp.example/object",
+			ExpiresAt: 1700003600,
+			ExpiresIn: 3600,
+		}, nil
+	}
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+	info := imageJSONInfoWithTempURL(true)
+	resp := fakeResp(200, `{"created":9,"data":[{"b64_json":"aGk="}]}`, nil)
+
+	_, apiErr := streamImageResponse(c, resp, info)
+	if apiErr != nil {
+		t.Fatal(apiErr)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "image_generation.completed") {
+		t.Fatalf("missing completed event: %s", body)
+	}
+	if !strings.Contains(body, "https://tmp.example/object") {
+		t.Fatalf("signed url not returned for temp_url=true stream: %s", body)
+	}
+	if strings.Contains(body, "\"b64_json\"") {
+		t.Fatalf("temp_url stream should not leak inline b64_json: %s", body)
+	}
+	if !strings.Contains(body, `"expiresAt":1700003600`) {
+		t.Fatalf("temp_url stream should include expiresAt: %s", body)
 	}
 }
 

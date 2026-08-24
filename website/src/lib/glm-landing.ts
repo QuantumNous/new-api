@@ -1,4 +1,5 @@
 import type { SeoInput } from "@/lib/seo";
+import { withIdFallback } from "@/lib/locales";
 import type { Locale } from "./locales";
 import { buildConsoleUrl, APP_CONSOLE_ORIGIN } from "./origins";
 
@@ -159,7 +160,7 @@ const english: GlmLandingPageCopy = {
   ],
 };
 
-const translations: Record<Locale, GlmLandingPageCopy> = {
+const translations: Record<Locale, GlmLandingPageCopy> =withIdFallback({
   en: english,
   zh: {
     ...english,
@@ -825,7 +826,7 @@ const translations: Record<Locale, GlmLandingPageCopy> = {
       },
     ],
   },
-};
+});
 
 export function getGlmLandingPageCopy(locale: Locale): GlmLandingPageCopy {
   return translations[locale] ?? translations.en;

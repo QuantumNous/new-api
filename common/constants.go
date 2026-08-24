@@ -125,6 +125,7 @@ var SMTPSSLEnabled = false
 var SMTPForceAuthLogin = false
 var SMTPAccount = ""
 var SMTPFrom = ""
+var SMTPFromAliases = ""
 var SMTPToken = ""
 
 var GitHubClientId = ""
@@ -147,6 +148,20 @@ var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
 var QuotaForInviterMaxCount = 5
+
+// Invite reward v2 (subscription mode): when enabled, the inviter reward is
+// created from the invitee's first successful subscription payment as
+// permanent package-discount credit; the legacy fixed reward on first top-up
+// stops granting. InviteRewardUnlockDelaySeconds is retained only for stored
+// option compatibility with older deployments.
+var InviteRewardSubscriptionMode = false
+var InviteRewardUnlockDelaySeconds int64 = 7 * 24 * 3600
+
+// Flat USD discount on an invited user's first subscription payment. Single
+// source of truth shared by the checkout coupon and the sidebar badge. The
+// inviter's reward amount is QuotaForInviter, granted on the invitee's first
+// subscription payment when subscription mode is on.
+var InviteFirstSubDiscountUSD = 5.0
 var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
@@ -183,8 +198,9 @@ var GeminiSafetySetting string
 var CohereSafetySetting string
 
 const (
-	RequestIdKey         = "X-Oneapi-Request-Id"
-	UpstreamRequestIdKey = "X-Upstream-Request-Id"
+	RequestIdKey          = "X-Oneapi-Request-Id"
+	UpstreamRequestIdKey  = "X-Upstream-Request-Id"
+	UpstreamResponseIdKey = "X-Upstream-Response-Id"
 )
 
 const (
@@ -230,6 +246,11 @@ var (
 	SearchRateLimitEnable         = true
 	SearchRateLimitNum            = 10
 	SearchRateLimitDuration int64 = 60
+
+	// Per-user subscription payment rate limit for quote/purchase/change-plan.
+	SubscriptionPaymentRateLimitEnable         = true
+	SubscriptionPaymentRateLimitNum            = 120
+	SubscriptionPaymentRateLimitDuration int64 = 20 * 60
 )
 
 var RateLimitKeyExpirationDuration = 20 * time.Minute
@@ -264,4 +285,7 @@ const (
 	TopUpStatusSuccess = "success"
 	TopUpStatusFailed  = "failed"
 	TopUpStatusExpired = "expired"
+	// Set by ops when a charge is refunded on the gateway (e.g. fraudulent
+	// card-testing payments); keeps revenue reporting consistent with Stripe.
+	TopUpStatusRefunded = "refunded"
 )

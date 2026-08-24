@@ -80,12 +80,12 @@ export function ModelPage({ config }: ModelPageProps) {
           <h1 className='mt-5 text-[clamp(1.9rem,4.2vw,2.9rem)] leading-[1.12] font-bold tracking-tight'>
             {t('The same {{model}},', { model: config.displayName })}{' '}
             <span className='bg-gradient-to-r from-violet-600 via-fuchsia-500 to-indigo-500 bg-clip-text text-transparent dark:from-violet-200 dark:via-fuchsia-300 dark:to-indigo-300'>
-              {t('30–50% cheaper')}
+              {t('up to 50% off')}
             </span>
           </h1>
           <p className='text-muted-foreground mt-4 max-w-2xl text-base leading-7'>
             {t(
-              'Same {{official}} upstream, same quality — flatkey costs half. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.',
+              'Same {{official}} upstream, same quality — models priced at 60–90% of official plus the top-up bonus bring it as low as 50% of the official price. Change one line of base_url and your existing OpenAI SDK just works. Try it below, sign in when you are ready.',
               { official: config.officialName }
             )}
           </p>
@@ -108,7 +108,7 @@ export function ModelPage({ config }: ModelPageProps) {
             </div>
             <div className='bg-emerald-500/[0.06] p-6'>
               <div className='text-muted-foreground mb-3 text-xs font-semibold tracking-wide uppercase'>
-                {t('flatkey · same model, same quality')}
+                {t('flatkey · effective price with top-up bonus')}
               </div>
               <div className='text-4xl font-extrabold tracking-tight text-emerald-600'>
                 {config.flatkeyPrice}
@@ -119,7 +119,7 @@ export function ModelPage({ config }: ModelPageProps) {
             </div>
           </div>
           <div className='mt-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-3 text-center text-base font-extrabold text-white shadow-[0_18px_40px_-24px_rgba(5,150,105,0.8)]'>
-            {t('↓ Save 50% — double your token budget')}
+            {t('↓ Top up $200, get $300 — stretch your token budget 1.5×')}
           </div>
 
           {/* Playground + price table */}
@@ -237,13 +237,13 @@ export function ModelPage({ config }: ModelPageProps) {
             </pre>
           </div>
 
-          {/* First top-up bonus */}
+          {/* Every-top-up bonus */}
           <div className='mt-4 flex flex-wrap items-center gap-5 rounded-2xl border border-violet-500/25 bg-gradient-to-br from-violet-500/[0.08] to-fuchsia-500/[0.06] p-5 px-6'>
             <div>
               <div className='flex items-center gap-2 text-[17px] font-extrabold'>
                 <BadgeCheck className='size-4 text-violet-600' />
-                {t('First top-up')}{' '}
-                <span className='text-violet-600'>{t('50% bonus')}</span>
+                {t('Every top-up')}{' '}
+                <span className='text-violet-600'>{t('earns bonus credit')}</span>
               </div>
               <div className='text-muted-foreground mt-1 text-[13px]'>
                 {t(
@@ -254,7 +254,7 @@ export function ModelPage({ config }: ModelPageProps) {
             <div className='flex gap-2.5'>
               <div className='rounded-xl border border-violet-500/18 bg-white/70 px-4 py-3 text-center dark:bg-white/[0.04]'>
                 <b className='block font-mono text-[15px] font-extrabold text-violet-700 dark:text-violet-200'>
-                  {t('Top up $200 get $100')}
+                  {t('Top up $10 get $3')}
                 </b>
                 <small className='text-muted-foreground text-[11px]'>
                   {t('Starter / individual')}
@@ -262,7 +262,7 @@ export function ModelPage({ config }: ModelPageProps) {
               </div>
               <div className='rounded-xl border border-violet-500/18 bg-white/70 px-4 py-3 text-center dark:bg-white/[0.04]'>
                 <b className='block font-mono text-[15px] font-extrabold text-violet-700 dark:text-violet-200'>
-                  {t('Top up $1000 get $500')}
+                  {t('Top up $200 get $100')}
                 </b>
                 <small className='text-muted-foreground text-[11px]'>
                   {t('Team / high-volume')}

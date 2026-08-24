@@ -14,9 +14,10 @@ import (
 
 // captureUpstreamID extracts BlockRun's per-call id — the upstream response
 // body's TOP-LEVEL "id" (chatcmpl-* for OpenAI, msg-* for Anthropic) — and
-// stashes it in the gin context under common.UpstreamRequestIdKey so
-// RecordConsumeLog persists it as logs.upstream_request_id for per-call
-// reconciliation/溯源.
+// stashes it in the gin context under common.UpstreamResponseIdKey so
+// RecordConsumeLog persists it in logs.other.upstream_response_id for manual
+// reconciliation/traceability in log details without changing the large logs
+// table schema. The usage reconciliation API remains a separate contract.
 //
 // Extraction is STRUCTURE-AWARE and dispatches by stream-ness, because a naive
 // "first \"id\" in the bytes" is wrong for a non-stream OpenAI body: there
@@ -54,7 +55,7 @@ func captureNonStreamID(c *gin.Context, resp *http.Response) {
 			ID string `json:"id"`
 		}
 		if common.Unmarshal(body, &probe) == nil && probe.ID != "" {
-			c.Set(common.UpstreamRequestIdKey, probe.ID)
+			c.Set(common.UpstreamResponseIdKey, probe.ID)
 		}
 	}
 	resp.Body = &replayCloser{r: bytes.NewReader(body), err: readErr}
@@ -110,7 +111,7 @@ func (s *streamIDSniffer) Read(p []byte) (int, error) {
 	if n > 0 && !s.done {
 		s.buf = append(s.buf, p[:n]...)
 		if m := idPattern.FindSubmatch(s.buf); m != nil {
-			s.c.Set(common.UpstreamRequestIdKey, string(m[1]))
+			s.c.Set(common.UpstreamResponseIdKey, string(m[1]))
 			s.done = true
 			s.buf = nil
 		} else if len(s.buf) >= idSnifferCap {

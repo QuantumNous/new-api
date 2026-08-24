@@ -74,6 +74,11 @@ function formatRatioCompact(ratio: number | undefined): string {
 }
 
 function getGroupRatioText(other: LogOtherData | null): string | null {
+  const groupModelRatio = other?.group_model_ratio
+  if (groupModelRatio != null && Number.isFinite(groupModelRatio)) {
+    return `${formatRatioCompact(groupModelRatio)}x`
+  }
+
   const userGroupRatio = other?.user_group_ratio
   if (
     userGroupRatio != null &&
@@ -232,20 +237,33 @@ function buildDetailSegments(
         }
       }
     } else {
+      const groupModelRatio = other.group_model_ratio
       const userGroupRatio = other.user_group_ratio
       const groupRatio = other.group_ratio
+      const isGroupModel =
+        groupModelRatio != null && Number.isFinite(groupModelRatio)
       const isUserGroup =
         userGroupRatio != null &&
         Number.isFinite(userGroupRatio) &&
         userGroupRatio !== -1
-      const effectiveRatio = isUserGroup ? userGroupRatio : groupRatio
-      const ratioLabel = isUserGroup
-        ? t('User Exclusive Ratio')
-        : t('Group Ratio')
+      let effectiveRatio = groupRatio
+      let ratioLabel = t('Group Ratio')
+      if (isUserGroup) {
+        effectiveRatio = userGroupRatio
+        ratioLabel = t('User Exclusive Ratio')
+      }
+      if (isGroupModel) {
+        effectiveRatio = groupModelRatio
+        ratioLabel = t('Model Specific Ratio')
+      }
 
       if (effectiveRatio != null && Number.isFinite(effectiveRatio)) {
+        const modelSuffix =
+          isGroupModel && other.group_model_ratio_model
+            ? ` · ${other.group_model_ratio_model}`
+            : ''
         segments.push({
-          text: `${ratioLabel} ${formatRatioCompact(effectiveRatio)}x`,
+          text: `${ratioLabel} ${formatRatioCompact(effectiveRatio)}x${modelSuffix}`,
         })
       }
     }

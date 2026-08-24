@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, CheckCircle2, X } from "lucide-react";
 import { FlatkeyTallyEmbed } from "@/components/flatkey-tally-embed";
 import type { Locale } from "@/lib/locales";
-import { SIGN_UP_URL } from "@/lib/pricing-links";
+import { signUpUrlForLocale } from "@/lib/pricing-links";
 import type { PricingPlan } from "@/components/pricing-page";
 
 type PricingPlansGridContactCopy = {
@@ -43,8 +43,9 @@ export function PricingPlansGrid(props: PricingPlansGridProps) {
         {props.plans.map((plan) => (
           <article
             key={plan.name}
+            id={plan.action === "contact" ? "enterprise" : undefined}
             className={[
-              "relative flex min-h-[440px] flex-col rounded-2xl border bg-white/78 p-6 shadow-[0_24px_80px_-56px_rgba(91,33,182,0.68)] backdrop-blur-sm dark:bg-white/[0.055] dark:shadow-[0_24px_80px_-56px_rgba(124,58,237,0.95)]",
+              "relative flex min-h-[440px] scroll-mt-28 flex-col rounded-2xl border bg-white/78 p-6 shadow-[0_24px_80px_-56px_rgba(91,33,182,0.68)] backdrop-blur-sm dark:bg-white/[0.055] dark:shadow-[0_24px_80px_-56px_rgba(124,58,237,0.95)]",
               plan.featured ? "border-violet-500/45 ring-2 ring-violet-500/12 dark:border-violet-300/45 dark:ring-violet-300/15" : "border-violet-500/14 dark:border-white/10",
             ].join(" ")}
           >
@@ -59,6 +60,10 @@ export function PricingPlansGrid(props: PricingPlansGridProps) {
                 <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-black whitespace-nowrap text-emerald-700 dark:border-emerald-300/20 dark:bg-emerald-300/10 dark:text-emerald-200">{plan.discount}</span>
               ) : null}
             </div>
+            <p className={[
+              "mt-3 min-h-10 text-sm leading-5 font-semibold",
+              plan.action === "contact" ? "text-slate-500 dark:text-slate-400" : "text-emerald-700 dark:text-emerald-200",
+            ].join(" ")}>{plan.caption}</p>
             {plan.action === "contact" ? (
               <button
                 type="button"
@@ -70,7 +75,7 @@ export function PricingPlansGrid(props: PricingPlansGridProps) {
               </button>
             ) : (
               <a
-                href={plan.checkoutUrl ?? SIGN_UP_URL}
+                href={plan.checkoutUrl ?? signUpUrlForLocale(props.locale)}
                 className={[
                   "mt-6 inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-bold transition-colors",
                   plan.featured ? "bg-violet-600 !text-white hover:bg-violet-500 dark:bg-violet-500 dark:hover:bg-violet-400" : "border border-violet-500/18 bg-violet-500/8 text-violet-700 hover:bg-violet-500/12 dark:border-violet-300/20 dark:bg-violet-300/10 dark:text-violet-100 dark:hover:bg-violet-300/15",
@@ -80,7 +85,6 @@ export function PricingPlansGrid(props: PricingPlansGridProps) {
                 <ArrowRight className="ml-2 size-4" />
               </a>
             )}
-            <p className="mt-3 min-h-10 text-sm leading-5 text-slate-500 dark:text-slate-400">{plan.caption}</p>
             <div className="mt-6 space-y-3">
               {plan.features.map((feature) => (
                 <p key={feature} className="flex gap-2 text-sm leading-6 text-slate-700 dark:text-slate-300">

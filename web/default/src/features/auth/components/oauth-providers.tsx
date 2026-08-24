@@ -173,6 +173,15 @@ export function OAuthProviders({
     }
   }
 
+  // Lead with the developer/ad-friendly providers — Google first, GitHub second —
+  // to match the fal.ai / together.ai new-user flow and #406 (ad users are almost all
+  // Google; GitHub signals a developer product). Array.sort is stable, so everything
+  // else keeps its original order; this only promotes google/github, hides nothing.
+  const providerLeadPriority: Record<string, number> = { google: 0, github: 1 }
+  providerButtons.sort(
+    (a, b) => (providerLeadPriority[a.key] ?? 50) - (providerLeadPriority[b.key] ?? 50),
+  )
+
   if (providerButtons.length === 0) return null
 
   return (

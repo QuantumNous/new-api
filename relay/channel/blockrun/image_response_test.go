@@ -1,14 +1,17 @@
 package blockrun
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,6 +33,12 @@ func imageJSONInfo() *relaycommon.RelayInfo {
 		IsStream:    false,
 		ChannelMeta: &relaycommon.ChannelMeta{},
 	}
+}
+
+func imageJSONInfoWithTempURL(enabled bool) *relaycommon.RelayInfo {
+	info := imageJSONInfo()
+	info.Request = &dto.ImageRequest{TempUrl: common.GetPointer(enabled)}
+	return info
 }
 
 // TestImageJSONResponseB64_URLConvertedToB64 asserts that when the upstream
@@ -126,6 +135,50 @@ func TestImageJSONResponseB64_B64AlreadyPresent(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "aGVsbG8=") {
 		t.Fatalf("b64_json must be passed through unchanged: %s", w.Body.String())
+	}
+}
+
+func TestImageJSONResponseB64_TempURLConvertsToSignedURL(t *testing.T) {
+	oldUpload := uploadTempMediaImageForBlockRun
+	defer func() { uploadTempMediaImageForBlockRun = oldUpload }()
+	uploadTempMediaImageForBlockRun = func(ctx context.Context, request service.TempMediaUploadRequest) (*service.TempMediaUploadResult, error) {
+		return &service.TempMediaUploadResult{
+			SignedURL: "https://tmp.example/object",
+			ExpiresAt: 1700003600,
+			ExpiresIn: 3600,
+		}, nil
+	}
+
+	c, w := newImageJSONCtx(t)
+	info := imageJSONInfoWithTempURL(true)
+	body := `{"created":6,"data":[{"b64_json":"aGVsbG8="}]}`
+	resp := fakeResp(200, body, http.Header{"Content-Type": []string{"application/json"}})
+
+	usage, apiErr := imageJSONResponseB64(c, resp, info)
+	if apiErr != nil {
+		t.Fatalf("temp_url image conversion should succeed: %v", apiErr)
+	}
+	if usage == nil {
+		t.Fatal("usage must be non-nil")
+	}
+	var out dto.ImageResponse
+	if err := common.Unmarshal([]byte(w.Body.String()), &out); err != nil {
+		t.Fatalf("response should be ImageResponse: %v / %s", err, w.Body.String())
+	}
+	if len(out.Data) != 1 {
+		t.Fatalf("expect one image, got %d", len(out.Data))
+	}
+	if out.Data[0].Url != "https://tmp.example/object" {
+		t.Fatalf("temp_url should return signed url, got %+v", out.Data[0])
+	}
+	if out.Data[0].B64Json != "" {
+		t.Fatalf("temp_url should suppress inline b64_json: %v", out.Data[0])
+	}
+	if out.Data[0].ExpiresAt != 1700003600 {
+		t.Fatalf("expected expiresAt set from temp upload result, got %d", out.Data[0].ExpiresAt)
+	}
+	if out.Data[0].ExpiresIn != 3600 {
+		t.Fatalf("expected expiresIn set from temp upload result, got %d", out.Data[0].ExpiresIn)
 	}
 }
 

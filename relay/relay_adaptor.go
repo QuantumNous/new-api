@@ -2,6 +2,7 @@ package relay
 
 import (
 	"strconv"
+	"sync"
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -14,10 +15,13 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/cloudflare"
 	"github.com/QuantumNous/new-api/relay/channel/codex"
 	"github.com/QuantumNous/new-api/relay/channel/cohere"
+	"github.com/QuantumNous/new-api/relay/channel/copilot"
 	"github.com/QuantumNous/new-api/relay/channel/coze"
 	"github.com/QuantumNous/new-api/relay/channel/deepseek"
 	"github.com/QuantumNous/new-api/relay/channel/dify"
+	"github.com/QuantumNous/new-api/relay/channel/elevenlabs"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
+	"github.com/QuantumNous/new-api/relay/channel/groksubscription"
 	"github.com/QuantumNous/new-api/relay/channel/jimeng"
 	"github.com/QuantumNous/new-api/relay/channel/jina"
 	"github.com/QuantumNous/new-api/relay/channel/minimax"
@@ -34,18 +38,25 @@ import (
 	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
 	taskblockrunseedance "github.com/QuantumNous/new-api/relay/channel/task/blockrunseedance"
 	taskblockrunvideo "github.com/QuantumNous/new-api/relay/channel/task/blockrunvideo"
+	taskbyteplus "github.com/QuantumNous/new-api/relay/channel/task/byteplus"
 	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
 	taskGemini "github.com/QuantumNous/new-api/relay/channel/task/gemini"
+	taskgroksubscription "github.com/QuantumNous/new-api/relay/channel/task/groksubscription"
 	"github.com/QuantumNous/new-api/relay/channel/task/hailuo"
+	hailuov2 "github.com/QuantumNous/new-api/relay/channel/task/hailuo_v2"
 	taskjimeng "github.com/QuantumNous/new-api/relay/channel/task/jimeng"
 	taskjimengproxy "github.com/QuantumNous/new-api/relay/channel/task/jimengproxy"
 	taskjimengzhizinan "github.com/QuantumNous/new-api/relay/channel/task/jimengzhizinan"
 	"github.com/QuantumNous/new-api/relay/channel/task/kling"
 	taskkuaizi "github.com/QuantumNous/new-api/relay/channel/task/kuaizi"
+	taskmodelapiseedance "github.com/QuantumNous/new-api/relay/channel/task/modelapiseedance"
+	tasksonilo "github.com/QuantumNous/new-api/relay/channel/task/sonilo"
 	tasksora "github.com/QuantumNous/new-api/relay/channel/task/sora"
 	"github.com/QuantumNous/new-api/relay/channel/task/suno"
+	tasktechmobi "github.com/QuantumNous/new-api/relay/channel/task/techmobi"
 	taskvertex "github.com/QuantumNous/new-api/relay/channel/task/vertex"
 	taskVidu "github.com/QuantumNous/new-api/relay/channel/task/vidu"
+	taskxaigrok "github.com/QuantumNous/new-api/relay/channel/task/xaigrok"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
@@ -56,8 +67,35 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var taskAdaptorForTest = struct {
+	sync.RWMutex
+	adaptors map[constant.TaskPlatform]channel.TaskAdaptor
+}{adaptors: map[constant.TaskPlatform]channel.TaskAdaptor{}}
+
+func registerTaskAdaptorForTest(platform constant.TaskPlatform, adaptor channel.TaskAdaptor) func() {
+	taskAdaptorForTest.Lock()
+	old, hadOld := taskAdaptorForTest.adaptors[platform]
+	if adaptor == nil {
+		delete(taskAdaptorForTest.adaptors, platform)
+	} else {
+		taskAdaptorForTest.adaptors[platform] = adaptor
+	}
+	taskAdaptorForTest.Unlock()
+	return func() {
+		taskAdaptorForTest.Lock()
+		defer taskAdaptorForTest.Unlock()
+		if hadOld {
+			taskAdaptorForTest.adaptors[platform] = old
+		} else {
+			delete(taskAdaptorForTest.adaptors, platform)
+		}
+	}
+}
+
 func GetAdaptor(apiType int) channel.Adaptor {
 	switch apiType {
+	case constant.APITypeElevenLabs:
+		return &elevenlabs.Adaptor{}
 	case constant.APITypeAli:
 		return &ali.Adaptor{}
 	case constant.APITypeAnthropic:
@@ -112,6 +150,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &openai.Adaptor{}
 	case constant.APITypeXai:
 		return &xai.Adaptor{}
+	case constant.APITypeGrokSubscription:
+		return &groksubscription.Adaptor{}
 	case constant.APITypeCoze:
 		return &coze.Adaptor{}
 	case constant.APITypeJimeng:
@@ -128,6 +168,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &codex.Adaptor{}
 	case constant.APITypeBlockRun:
 		return &blockrun.Adaptor{}
+	case constant.APITypeCopilot:
+		return &copilot.Adaptor{}
 	}
 	return nil
 }
@@ -141,6 +183,12 @@ func GetTaskPlatform(c *gin.Context) constant.TaskPlatform {
 }
 
 func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
+	taskAdaptorForTest.RLock()
+	if adaptor := taskAdaptorForTest.adaptors[platform]; adaptor != nil {
+		taskAdaptorForTest.RUnlock()
+		return adaptor
+	}
+	taskAdaptorForTest.RUnlock()
 	switch platform {
 	//case constant.APITypeAIProxyLibrary:
 	//	return &aiproxy.Adaptor{}
@@ -171,12 +219,26 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &taskGemini.TaskAdaptor{}
 		case constant.ChannelTypeMiniMax:
 			return &hailuo.TaskAdaptor{}
+		case constant.ChannelTypeMiniMaxH3:
+			return &hailuov2.TaskAdaptor{}
 		case constant.ChannelTypeKuaiziLizhen:
 			return &taskkuaizi.TaskAdaptor{}
 		case constant.ChannelTypeBlockRunVideo:
 			return &taskblockrunvideo.TaskAdaptor{}
 		case constant.ChannelTypeBlockRunSeedance:
 			return &taskblockrunseedance.TaskAdaptor{}
+		case constant.ChannelTypeTechMobiVideo:
+			return &tasktechmobi.TaskAdaptor{}
+		case constant.ChannelTypeBytePlus:
+			return &taskbyteplus.TaskAdaptor{}
+		case constant.ChannelTypeModelAPISeedance:
+			return &taskmodelapiseedance.TaskAdaptor{}
+		case constant.ChannelTypeXaiGrokVideo:
+			return &taskxaigrok.TaskAdaptor{}
+		case constant.ChannelTypeGrokSubscription:
+			return &taskgroksubscription.TaskAdaptor{}
+		case constant.ChannelTypeSonilo:
+			return &tasksonilo.TaskAdaptor{}
 		}
 	}
 	return nil

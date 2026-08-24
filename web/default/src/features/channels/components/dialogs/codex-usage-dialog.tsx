@@ -36,22 +36,13 @@ import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
-import { CodexInvitePanel } from './codex-invite-panel'
-
-type CodexRateLimitWindow = {
-  used_percent?: number
-  reset_at?: number
-  reset_after_seconds?: number
-  limit_window_seconds?: number
-}
-
-type CodexRateLimit = {
-  plan_type?: string
-  allowed?: boolean
-  limit_reached?: boolean
-  primary_window?: CodexRateLimitWindow
-  secondary_window?: CodexRateLimitWindow
-}
+import {
+  getVisibleCodexLimitWindows,
+  resolveCodexLimitWindows,
+  type CodexRateLimit,
+  type CodexRateLimitSource,
+  type CodexRateLimitWindow,
+} from '../../lib/codex-usage-windows'
 
 type CodexAdditionalRateLimit = {
   limit_name?: string
@@ -126,62 +117,6 @@ function formatDurationSeconds(
 function normalizePlanType(value: unknown): string {
   if (value == null) return ''
   return String(value).trim().toLowerCase()
-}
-
-function classifyWindowByDuration(
-  windowData?: CodexRateLimitWindow | null
-): 'weekly' | 'fiveHour' | null {
-  const seconds = Number(windowData?.limit_window_seconds)
-  if (!Number.isFinite(seconds) || seconds <= 0) return null
-  return seconds >= 24 * 60 * 60 ? 'weekly' : 'fiveHour'
-}
-
-type RateLimitSource = {
-  plan_type?: string
-  rate_limit?: CodexRateLimit
-}
-
-function resolveRateLimitWindows(data: RateLimitSource | null): {
-  fiveHourWindow: CodexRateLimitWindow | null
-  weeklyWindow: CodexRateLimitWindow | null
-} {
-  const rateLimit = data?.rate_limit ?? {}
-  const primary = rateLimit?.primary_window ?? null
-  const secondary = rateLimit?.secondary_window ?? null
-  const windows = [primary, secondary].filter(Boolean) as CodexRateLimitWindow[]
-  const planType = normalizePlanType(data?.plan_type ?? rateLimit?.plan_type)
-
-  let fiveHourWindow: CodexRateLimitWindow | null = null
-  let weeklyWindow: CodexRateLimitWindow | null = null
-
-  for (const w of windows) {
-    const bucket = classifyWindowByDuration(w)
-    if (bucket === 'fiveHour' && !fiveHourWindow) {
-      fiveHourWindow = w
-      continue
-    }
-    if (bucket === 'weekly' && !weeklyWindow) {
-      weeklyWindow = w
-    }
-  }
-
-  if (planType === 'free') {
-    if (!weeklyWindow) weeklyWindow = primary ?? secondary ?? null
-    return { fiveHourWindow: null, weeklyWindow }
-  }
-
-  if (!fiveHourWindow && !weeklyWindow) {
-    return { fiveHourWindow: primary, weeklyWindow: secondary }
-  }
-
-  if (!fiveHourWindow) {
-    fiveHourWindow = windows.find((w) => w !== weeklyWindow) ?? null
-  }
-  if (!weeklyWindow) {
-    weeklyWindow = windows.find((w) => w !== fiveHourWindow) ?? null
-  }
-
-  return { fiveHourWindow, weeklyWindow }
 }
 
 const PLAN_TYPE_BADGE: Record<
@@ -264,13 +199,19 @@ function RateLimitWindow(props: RateLimitWindowProps) {
 type RateLimitGroupSectionProps = {
   title: string
   description?: string
-  source: RateLimitSource | null
+  source: CodexRateLimitSource | null
   meteredFeature?: string
 }
 
 function RateLimitGroupSection(props: RateLimitGroupSectionProps) {
   const { t } = useTranslation()
-  const { fiveHourWindow, weeklyWindow } = resolveRateLimitWindows(props.source)
+  const { fiveHourWindow, weeklyWindow, unknownWindows } =
+    resolveCodexLimitWindows(props.source)
+  const windows = getVisibleCodexLimitWindows(
+    fiveHourWindow,
+    weeklyWindow,
+    unknownWindows
+  )
 
   return (
     <section className='space-y-3'>
@@ -290,10 +231,28 @@ function RateLimitGroupSection(props: RateLimitGroupSectionProps) {
           </div>
         )}
       </div>
-      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-        <RateLimitWindow title={t('5-Hour Window')} window={fiveHourWindow} />
-        <RateLimitWindow title={t('Weekly Window')} window={weeklyWindow} />
-      </div>
+      {windows.length > 0 ? (
+        <div
+          className={`grid grid-cols-1 gap-4 ${
+            windows.length > 1 ? 'md:grid-cols-2' : ''
+          }`}
+        >
+          {windows.map((item, index) => {
+            let title = t('Rate Limit Windows')
+            if (item.kind === 'fiveHour') title = t('5-Hour Window')
+            if (item.kind === 'weekly') title = t('Weekly Window')
+            return (
+              <RateLimitWindow
+                key={`${item.kind}-${index}`}
+                title={title}
+                window={item.window}
+              />
+            )
+          })}
+        </div>
+      ) : (
+        <div className='text-muted-foreground text-xs'>-</div>
+      )}
     </section>
   )
 }
@@ -532,14 +491,6 @@ export function CodexUsageDialog({
             />
           </div>
         </div>
-
-        {channelId && (
-          <CodexInvitePanel
-            key={`${channelId}-${open ? 'open' : 'closed'}`}
-            open={open}
-            channelId={channelId}
-          />
-        )}
 
         {/* Rate limit windows */}
         <div className='space-y-5'>

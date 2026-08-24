@@ -31,7 +31,11 @@ env:
   APP_CONSOLE_ORIGIN: ${{ vars.WEBSITE_APP_CONSOLE_ORIGIN }}   # https://console.flatkey.ai
   ROUTER_ORIGIN:      ${{ vars.WEBSITE_ROUTER_ORIGIN }}        # https://router.flatkey.ai
   SITE_ORIGIN:        ${{ vars.WEBSITE_SITE_ORIGIN }}          # https://flatkey.ai
-  BLOGGER_ACCESS_KEY: ${{ secrets.BLOGGER_ACCESS_KEY }}
+  NEXT_PUBLIC_AMPLITUDE_API_KEY: ${{ vars.NEXT_PUBLIC_AMPLITUDE_API_KEY }}
+  COOKIE_SESSION_DOMAIN: ${{ secrets.COOKIE_SESSION_DOMAIN || '.flatkey.ai' }}
+  BLOGGER_API_URL:    ${{ vars.BLOGGER_API_URL || 'https://blogger-api-528088078482.us-central1.run.app' }}
+  BLOGGER_SITE_SLUG:  ${{ vars.BLOGGER_SITE_SLUG || 'flatkey' }}
+  BLOGGER_SECRET:     newapi-website-blogger-access-key
 
 jobs:
   build:
@@ -83,6 +87,10 @@ jobs:
             APP_CONSOLE_ORIGIN=${{ env.APP_CONSOLE_ORIGIN }}
             ROUTER_ORIGIN=${{ env.ROUTER_ORIGIN }}
             SITE_ORIGIN=${{ env.SITE_ORIGIN }}
+            NEXT_PUBLIC_AMPLITUDE_API_KEY=${{ env.NEXT_PUBLIC_AMPLITUDE_API_KEY }}
+            COOKIE_SESSION_DOMAIN=${{ env.COOKIE_SESSION_DOMAIN }}
+            BLOGGER_API_URL=${{ env.BLOGGER_API_URL }}
+            BLOGGER_SITE_SLUG=${{ env.BLOGGER_SITE_SLUG }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/website:main-latest
@@ -120,8 +128,14 @@ jobs:
           if [[ -n "${SITE_ORIGIN}" ]]; then
             env_kvs+=("SITE_ORIGIN=${SITE_ORIGIN}")
           fi
-          if [[ -n "${BLOGGER_ACCESS_KEY}" ]]; then
-            env_kvs+=("BLOGGER_ACCESS_KEY=${BLOGGER_ACCESS_KEY}")
+          if [[ -n "${COOKIE_SESSION_DOMAIN}" ]]; then
+            env_kvs+=("COOKIE_SESSION_DOMAIN=${COOKIE_SESSION_DOMAIN}")
+          fi
+          if [[ -n "${BLOGGER_API_URL}" ]]; then
+            env_kvs+=("BLOGGER_API_URL=${BLOGGER_API_URL}")
+          fi
+          if [[ -n "${BLOGGER_SITE_SLUG}" ]]; then
+            env_kvs+=("BLOGGER_SITE_SLUG=${BLOGGER_SITE_SLUG}")
           fi
           env_args=()
           if [[ ${#env_kvs[@]} -gt 0 ]]; then
@@ -134,6 +148,8 @@ jobs:
             --port=4000 \
             --revision-suffix="${revision_suffix}" \
             --no-traffic \
+            --update-secrets="BLOGGER_ACCESS_KEY=${BLOGGER_SECRET}:latest" \
+            --liveness-probe=httpGet.path=/,httpGet.port=4000,periodSeconds=30,timeoutSeconds=5,failureThreshold=3 \
             "${env_args[@]}" \
             --quiet
           new_rev="$(gcloud run services describe "${RUN_SERVICE}" \

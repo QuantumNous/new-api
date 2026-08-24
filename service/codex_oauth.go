@@ -107,6 +107,7 @@ func refreshCodexOAuthToken(
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
+	ApplyCodexCredentialIdentity(req.Header, ResolveCodexClientIdentity())
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -169,6 +170,7 @@ func exchangeCodexAuthorizationCode(
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
+	ApplyCodexCredentialIdentity(req.Header, ResolveCodexClientIdentity())
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -225,7 +227,7 @@ func buildCodexAuthorizeURL(state string, challenge string) (string, error) {
 	q.Set("state", state)
 	q.Set("id_token_add_organizations", "true")
 	q.Set("codex_cli_simplified_flow", "true")
-	q.Set("originator", "codex_cli_rs")
+	q.Set("originator", ResolveCodexClientIdentity().Originator)
 	u.RawQuery = q.Encode()
 	return u.String(), nil
 }

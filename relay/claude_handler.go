@@ -21,6 +21,78 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func shouldClaudeUseResponsesBridge(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.ChannelMeta == nil {
+		return false
+	}
+
+	// Codex/Grok have no native /v1/messages upstream endpoint. Always bridge
+	// Claude requests through Chat Completions -> Responses, even when a global
+	// or per-channel pass-through switch is enabled; raw Claude passthrough
+	// cannot succeed against these backends.
+	if info.ApiType == constant.APITypeCodex || info.ApiType == constant.APITypeGrokSubscription {
+		return true
+	}
+	if info.ChannelType == constant.ChannelTypeCopilot {
+		return false
+	}
+
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled ||
+		info.ChannelSetting.PassThroughBodyEnabled {
+		return false
+	}
+
+	return service.ShouldChatCompletionsUseResponsesGlobal(
+		info.ChannelId,
+		info.ChannelType,
+		info.OriginModelName,
+	)
+}
+
+func applyClaudeChannelSystemPrompt(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest, deferToAdaptor bool) {
+	if info == nil || info.ChannelMeta == nil || request == nil || info.ChannelSetting.SystemPrompt == "" {
+		return
+	}
+
+	// The Codex Responses adaptor owns instructions injection. Mutating the
+	// Claude request here as well would make SystemPromptOverride prepend the
+	// configured prompt twice after Claude -> Chat -> Responses conversion.
+	if deferToAdaptor {
+		if info.ChannelSetting.SystemPromptOverride && request.System != nil {
+			common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
+		}
+		return
+	}
+
+	if request.System == nil {
+		request.SetStringSystem(info.ChannelSetting.SystemPrompt)
+		return
+	}
+	if !info.ChannelSetting.SystemPromptOverride {
+		return
+	}
+
+	common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
+	if request.IsStringSystem() {
+		existing := strings.TrimSpace(request.GetStringSystem())
+		if existing == "" {
+			request.SetStringSystem(info.ChannelSetting.SystemPrompt)
+		} else {
+			request.SetStringSystem(info.ChannelSetting.SystemPrompt + "\n" + existing)
+		}
+		return
+	}
+
+	systemContents := request.ParseSystem()
+	newSystem := dto.ClaudeMediaMessage{Type: dto.ContentTypeText}
+	newSystem.SetText(info.ChannelSetting.SystemPrompt)
+	if len(systemContents) == 0 {
+		request.System = []dto.ClaudeMediaMessage{newSystem}
+	} else {
+		request.System = append([]dto.ClaudeMediaMessage{newSystem}, systemContents...)
+	}
+}
+
 func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 
 	info.InitChannelMeta(c)
@@ -107,34 +179,10 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		info.UpstreamModelName = request.Model
 	}
 
-	if info.ChannelSetting.SystemPrompt != "" {
-		if request.System == nil {
-			request.SetStringSystem(info.ChannelSetting.SystemPrompt)
-		} else if info.ChannelSetting.SystemPromptOverride {
-			common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
-			if request.IsStringSystem() {
-				existing := strings.TrimSpace(request.GetStringSystem())
-				if existing == "" {
-					request.SetStringSystem(info.ChannelSetting.SystemPrompt)
-				} else {
-					request.SetStringSystem(info.ChannelSetting.SystemPrompt + "\n" + existing)
-				}
-			} else {
-				systemContents := request.ParseSystem()
-				newSystem := dto.ClaudeMediaMessage{Type: dto.ContentTypeText}
-				newSystem.SetText(info.ChannelSetting.SystemPrompt)
-				if len(systemContents) == 0 {
-					request.System = []dto.ClaudeMediaMessage{newSystem}
-				} else {
-					request.System = append([]dto.ClaudeMediaMessage{newSystem}, systemContents...)
-				}
-			}
-		}
-	}
+	useResponsesBridge := shouldClaudeUseResponsesBridge(info)
+	applyClaudeChannelSystemPrompt(c, info, request, useResponsesBridge && info.ApiType == constant.APITypeCodex)
 
-	if !model_setting.GetGlobalSettings().PassThroughRequestEnabled &&
-		!info.ChannelSetting.PassThroughBodyEnabled &&
-		service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName) {
+	if useResponsesBridge {
 		openAIRequest, convErr := service.ClaudeToOpenAIRequest(*request, info)
 		if convErr != nil {
 			return types.NewError(convErr, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())

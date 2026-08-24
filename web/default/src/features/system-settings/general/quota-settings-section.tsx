@@ -46,6 +46,7 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useSettingsForm } from '../hooks/use-settings-form'
 import { useUpdateOption } from '../hooks/use-update-option'
+import { getInvitationRewardModeConfiguration } from './invitation-reward-mode'
 
 const quotaSchema = z.object({
   QuotaForNewUser: z.coerce.number().min(0),
@@ -53,6 +54,7 @@ const quotaSchema = z.object({
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInviterMaxCount: z.coerce.number().int().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
+  InviteFirstSubDiscountUSD: z.coerce.number().min(0),
   TopUpLink: z.string(),
   general_setting: z.object({
     docs_link: z.string(),
@@ -67,11 +69,13 @@ type QuotaFormValues = z.infer<typeof quotaSchema>
 type QuotaSettingsSectionProps = {
   defaultValues: QuotaFormValues
   complianceConfirmed?: boolean
+  inviteRewardSubscriptionMode?: boolean
 }
 
 export function QuotaSettingsSection({
   defaultValues,
   complianceConfirmed = true,
+  inviteRewardSubscriptionMode = false,
 }: QuotaSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
@@ -100,6 +104,9 @@ export function QuotaSettingsSection({
         }
       },
     })
+  const invitationRewardMode = getInvitationRewardModeConfiguration(
+    inviteRewardSubscriptionMode
+  )
 
   return (
     <SettingsSection title={t('Quota Settings')}>
@@ -176,7 +183,7 @@ export function QuotaSettingsSection({
               name='QuotaForInviter'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Inviter Reward')}</FormLabel>
+                  <FormLabel>{t(invitationRewardMode.inviterLabel)}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -188,7 +195,7 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Quota given to users who invite others')}
+                    {t(invitationRewardMode.inviterDescription)}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -197,10 +204,10 @@ export function QuotaSettingsSection({
 
             <FormField
               control={form.control}
-              name='QuotaForInvitee'
+              name={invitationRewardMode.inviteeField}
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Invitee Reward')}</FormLabel>
+                  <FormLabel>{t(invitationRewardMode.inviteeLabel)}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -212,7 +219,7 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t('Quota given to invited users')}
+                    {t(invitationRewardMode.inviteeDescription)}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -224,7 +231,7 @@ export function QuotaSettingsSection({
               name='QuotaForInviterMaxCount'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('Inviter Reward Limit')}</FormLabel>
+                  <FormLabel>{t(invitationRewardMode.maxCountLabel)}</FormLabel>
                   <FormControl>
                     <Input
                       type='number'
@@ -238,9 +245,7 @@ export function QuotaSettingsSection({
                     />
                   </FormControl>
                   <FormDescription>
-                    {t(
-                      'Maximum inviter rewards one account can receive. Set 0 for no limit.'
-                    )}
+                    {t(invitationRewardMode.maxCountDescription)}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

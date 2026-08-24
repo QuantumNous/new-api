@@ -101,11 +101,52 @@ func GlobalAPIRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+func PrometheusMetricsRateLimit() func(c *gin.Context) {
+	maxRequestNum := common.GetEnvOrDefault("PROMETHEUS_METRICS_RATE_LIMIT", 60)
+	if maxRequestNum <= 0 {
+		maxRequestNum = 60
+	}
+	duration := common.GetEnvOrDefault("PROMETHEUS_METRICS_RATE_LIMIT_DURATION", 60)
+	if duration <= 0 {
+		duration = 60
+	}
+	if common.RedisEnabled && common.RDB == nil {
+		inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
+		return func(c *gin.Context) {
+			memoryRateLimiter(c, maxRequestNum, int64(duration), "PM_AUTH_FAIL")
+		}
+	}
+	return rateLimitFactory(maxRequestNum, int64(duration), "PM_AUTH_FAIL")
+}
+
+func RealPersonVerificationCallbackRateLimit() func(c *gin.Context) {
+	return rateLimitFactory(120, 60, "RPV_CB")
+}
+
 func CriticalRateLimit() func(c *gin.Context) {
 	if common.CriticalRateLimitEnable {
 		return rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, "CT")
 	}
 	return defNext
+}
+
+func SubscriptionPaymentRateLimit() func(c *gin.Context) {
+	if !common.SubscriptionPaymentRateLimitEnable {
+		return defNext
+	}
+	return userRateLimitFactory(common.SubscriptionPaymentRateLimitNum, common.SubscriptionPaymentRateLimitDuration, "SP")
+}
+
+func RegistrationEmailVerificationStatusRateLimit() func(c *gin.Context) {
+	return rateLimitFactory(60, 20*60, "EVS")
+}
+
+func CliDeviceAuthorizationCreateRateLimit() func(c *gin.Context) {
+	return rateLimitFactory(30, 10*60, "CLIA_CREATE")
+}
+
+func CliDeviceAuthorizationPollRateLimit() func(c *gin.Context) {
+	return rateLimitFactory(120, 10*60, "CLIA_POLL")
 }
 
 func DownloadRateLimit() func(c *gin.Context) {

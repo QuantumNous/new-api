@@ -39,7 +39,8 @@ import {
   DISABLED_ROW_MOBILE,
   DataTablePage,
 } from '@/components/data-table'
-import { getChannels, searchChannels, getGroups } from '../api'
+import { getChannels, searchChannels, getGroups, getChannelConcurrencyStatus } from '../api'
+import type { ChannelConcurrencyStatus } from '../api'
 import {
   DEFAULT_PAGE_SIZE,
   CHANNEL_STATUS,
@@ -272,6 +273,39 @@ export function ChannelsTable() {
     return rawChannels
   }, [data, enableTagMode])
 
+  // Poll live concurrency counters for bounded channels on the current page.
+  // No bounded channel visible → query disabled, zero extra load.
+  const boundedChannelIds = useMemo(() => {
+    const ids: number[] = []
+    const collect = (rows: Channel[]) => {
+      for (const row of rows) {
+        if (isTagAggregateRow(row)) {
+          if (row.children) collect(row.children as Channel[])
+        } else if ((row.max_concurrency ?? 0) > 0) {
+          ids.push(row.id)
+        }
+      }
+    }
+    collect(channels as Channel[])
+    ids.sort((a, b) => a - b)
+    return ids
+  }, [channels])
+
+  const { data: concurrencyData } = useQuery({
+    queryKey: channelsQueryKeys.concurrency(boundedChannelIds),
+    queryFn: () => getChannelConcurrencyStatus(boundedChannelIds),
+    enabled: boundedChannelIds.length > 0,
+    refetchInterval: 10000,
+  })
+
+  const concurrencyStatusById = useMemo(() => {
+    const map = new Map<number, ChannelConcurrencyStatus>()
+    for (const item of concurrencyData?.data || []) {
+      map.set(item.channel_id, item)
+    }
+    return map
+  }, [concurrencyData])
+
   const totalCount = data?.data?.total || 0
   const typeCounts = data?.data?.type_counts
 
@@ -306,6 +340,7 @@ export function ChannelsTable() {
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true,
+    meta: { concurrencyStatusById },
   })
 
   // Ensure page is in range when total count changes

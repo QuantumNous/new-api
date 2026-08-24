@@ -20,10 +20,6 @@ export default defineConfig(({ envMode }) => {
     process.env.VITE_GADS_SIGNUP_SEND_TO ||
     env.rawPublicVars.VITE_GADS_SIGNUP_SEND_TO ||
     ''
-  const gadsTopupSendTo =
-    process.env.VITE_GADS_TOPUP_SEND_TO ||
-    env.rawPublicVars.VITE_GADS_TOPUP_SEND_TO ||
-    ''
   // Multi-network ad pixels (TikTok / Meta / X) — opt-in per network, no-op when empty.
   const pixelVar = (name: string) =>
     process.env[name] || env.rawPublicVars[name] || ''
@@ -33,6 +29,7 @@ export default defineConfig(({ envMode }) => {
   const xSignupEventId = pixelVar('VITE_X_SIGNUP_EVENT_ID')
   const xTopupEventId = pixelVar('VITE_X_TOPUP_EVENT_ID')
   const officialWebsiteOrigin = pixelVar('VITE_OFFICIAL_WEBSITE_ORIGIN')
+  const cookieSessionDomain = pixelVar('VITE_COOKIE_SESSION_DOMAIN')
 
   const isProd = envMode === 'production'
   const devProxy = Object.fromEntries(
@@ -81,8 +78,6 @@ export default defineConfig(({ envMode }) => {
           JSON.stringify(gadsConversionId),
         'import.meta.env.VITE_GADS_SIGNUP_SEND_TO':
           JSON.stringify(gadsSignupSendTo),
-        'import.meta.env.VITE_GADS_TOPUP_SEND_TO':
-          JSON.stringify(gadsTopupSendTo),
         'import.meta.env.VITE_TIKTOK_PIXEL_ID': JSON.stringify(tiktokPixelId),
         'import.meta.env.VITE_META_PIXEL_ID': JSON.stringify(metaPixelId),
         'import.meta.env.VITE_X_PIXEL_ID': JSON.stringify(xPixelId),
@@ -93,6 +88,8 @@ export default defineConfig(({ envMode }) => {
         'import.meta.env.VITE_OFFICIAL_WEBSITE_ORIGIN': JSON.stringify(
           officialWebsiteOrigin
         ),
+        'import.meta.env.VITE_COOKIE_SESSION_DOMAIN':
+          JSON.stringify(cookieSessionDomain),
       },
     },
     resolve: {
@@ -130,6 +127,7 @@ export default defineConfig(({ envMode }) => {
           gadsConversionId,
           gadsSignupSendTo,
           officialWebsiteOrigin,
+          cookieSessionDomain,
         ],
       },
     },

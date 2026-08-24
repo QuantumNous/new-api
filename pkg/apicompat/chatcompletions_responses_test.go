@@ -1322,9 +1322,8 @@ func TestBufferedResponseAccumulator_MultipleToolCallsNoPanic(t *testing.T) {
 }
 
 // TestResponsesEventToChatChunks_ResponseFailedEmitsErrorFinishReason verifies
-// Wave 6-B Finding N: a terminal response.failed event must NOT surface as a
-// normal "stop" finish_reason. Clients need to be able to distinguish a
-// successful completion from an upstream policy/error failure.
+// that a terminal response.failed event is not surfaced as a normal "stop",
+// while also ensuring upstream error text is never presented as model output.
 func TestResponsesEventToChatChunks_ResponseFailedEmitsErrorFinishReason(t *testing.T) {
 	state := NewResponsesEventToChatState()
 	// First emit a created event so state has ID/Model
@@ -1351,18 +1350,14 @@ func TestResponsesEventToChatChunks_ResponseFailedEmitsErrorFinishReason(t *test
 	// Settled on "content_filter" as a portable signal in the Chat schema.
 	assert.Contains(t, []string{"content_filter", "error"}, *last.Choices[0].FinishReason)
 
-	// The upstream error message should be surfaced somewhere in the chunks
-	// (best-effort: ChatCompletionsChunk has no Error field, so we emit a
-	// delta.content chunk carrying the message).
-	var sawErrMsg bool
-	for _, c := range chunks {
-		for _, ch := range c.Choices {
-			if ch.Delta.Content != nil && *ch.Delta.Content == "refused" {
-				sawErrMsg = true
+	for _, chunk := range chunks {
+		for _, choice := range chunk.Choices {
+			if choice.Delta.Content != nil {
+				assert.NotEqual(t, "refused", *choice.Delta.Content,
+					"upstream error messages must not be embedded in assistant content")
 			}
 		}
 	}
-	assert.True(t, sawErrMsg, "upstream error message should be embedded in delta.content of one chunk")
 }
 
 // TestResponsesStatusToChatFinishReason_Failed locks in the status→reason map

@@ -84,12 +84,20 @@ export const CHANNEL_TYPES = {
   102: 'BlockRunSeedance',
   103: 'JimengProxy',
   104: 'JimengZhizinan',
+  105: 'TechMobiVideo',
+  107: 'BytePlus',
+  109: 'Sonilo',
+  110: 'MiniMax H3',
+  111: 'ModelAPISeedance',
+  112: 'GitHub Copilot',
+  113: 'Grok Subscription',
 } as const
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
   1, 14, 33, 24, 43, 3, 41, 48, 42, 34, 20, 100, 4, 40, 27, 25, 17, 26, 15, 46,
   23, 18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 22, 21, 44, 2, 5, 36,
-  50, 51, 52, 53, 54, 55, 56, 58, 101, 102, 103, 104,
+  50, 51, 52, 53, 54, 55, 56, 58, 101, 102, 103, 104, 105, 107, 109, 110, 111,
+  112, 113,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {
@@ -284,6 +292,7 @@ export const DEFAULT_CHANNEL_VALUES = {
   status: CHANNEL_STATUS.ENABLED,
   priority: 0,
   weight: 0,
+  max_concurrency: 0,
   auto_ban: 1,
   remark: '',
 } as const
@@ -366,6 +375,8 @@ export const FIELD_DESCRIPTIONS = {
     'Map request model names to actual provider model names (JSON format)',
   PRIORITY: 'Higher priority channels are selected first',
   WEIGHT: 'Used for load balancing. Higher weight = more requests',
+  MAX_CONCURRENCY:
+    'Maximum in-flight requests for this channel. Use 0 for unlimited',
   TEST_MODEL: 'Model to use when testing channel connectivity',
   AUTO_BAN: 'Automatically disable channel on repeated failures',
   STATUS_CODE_MAPPING: 'Map response status codes (JSON format)',
@@ -384,8 +395,16 @@ export const FIELD_DESCRIPTIONS = {
 // ============================================================================
 
 export const MODEL_FETCHABLE_TYPES = new Set([
-  1, 4, 14, 17, 20, 23, 24, 25, 26, 27, 31, 34, 35, 40, 42, 43, 47, 48,
-  103, 104,
+  1, 4, 14, 17, 20, 23, 24, 25, 26, 27, 31, 34, 35, 40, 42, 43, 47, 48, 103,
+  104,
+])
+
+// Codex model discovery is intentionally limited to the root-protected
+// create-channel flow. Saved-channel discovery and automatic upstream checks
+// are excluded because they would operate on stored OAuth credentials.
+export const CREATE_MODEL_FETCHABLE_TYPES = new Set([
+  ...MODEL_FETCHABLE_TYPES,
+  57,
 ])
 
 export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
@@ -397,10 +416,14 @@ export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   50: 'Format: AccessKey|SecretKey (or just ApiKey if upstream is New API)',
   51: 'Format: Access Key ID|Secret Access Key',
   57: 'Paste Codex OAuth JSON credential (access_token / refresh_token / account_id)',
+  111: 'API key from the provider',
+  112: 'Copilot authorization is available after saving the channel',
+  113: 'Filled automatically via Grok OAuth authorization after saving; no manual key needed',
 }
 
 export const CHANNEL_TYPE_WARNINGS: Record<number, string> = {
   3: 'For channels added after May 10, 2025, no need to remove "." from model names during deployment',
   8: 'If connecting to upstream One API or New API relay projects, use OpenAI type instead unless you know what you are doing',
   37: 'Dify channels only support chatflow and agent, and agent does not support images',
+  113: 'Grok subscription channels hold one shared OAuth credential per channel; do not paste keys manually',
 }

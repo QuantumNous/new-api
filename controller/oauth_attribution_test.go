@@ -58,3 +58,13 @@ func TestGetOAuthAdsAttributionRejectsInvalidPayload(t *testing.T) {
 
 	require.Empty(t, got)
 }
+
+func TestSanitizeAdsAttributionKeepsKnownKeysOnly(t *testing.T) {
+	got := sanitizeAdsAttribution(`{"gclid":"click-1","utm_campaign":"pt","first_landing_path":"/pt","admin":"true","unexpected_key":"secret"}`)
+
+	require.Contains(t, got, `"gclid":"click-1"`)
+	require.Contains(t, got, `"utm_campaign":"pt"`)
+	require.Contains(t, got, `"first_landing_path":"/pt"`)
+	require.NotContains(t, got, "admin")
+	require.NotContains(t, got, "unexpected_key")
+}

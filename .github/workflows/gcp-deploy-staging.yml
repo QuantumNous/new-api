@@ -27,11 +27,30 @@ env:
   REGION: ${{ vars.GCP_REGION }}
   AR_REPO_URL: ${{ vars.GCP_AR_REPO_URL }}
   RUN_SERVICE: newapi-staging
+  ASSET_STORAGE_BUCKET: vocai-gemini-prod-flatkey-assets-staging
+  VIDEO_RESULT_STORAGE_BUCKET: vocai-gemini-prod-video-results-staging
+  VIDEO_RESULT_RETENTION_SECONDS: '86400'
+  VIDEO_RESULT_SIGNED_URL_TTL_SECONDS: '900'
+  VIDEO_RESULT_FETCH_TIMEOUT_SECONDS: '1800'
+  VIDEO_RESULT_MAX_BYTES: '524288000'
   # Staging console 内部“回官网”链接必须指向 staging website，不能串生产 flatkey.ai。
   STAGING_OFFICIAL_WEBSITE_ORIGIN: ${{ vars.STAGING_OFFICIAL_WEBSITE_ORIGIN || 'https://staging-website.flatkey.ai' }}
   STAGING_APP_CONSOLE_ORIGIN: ${{ vars.STAGING_APP_CONSOLE_ORIGIN || 'https://staging-console.flatkey.ai' }}
-  STAGING_COOKIE_SESSION_DOMAIN: ${{ vars.STAGING_COOKIE_SESSION_DOMAIN || '.flatkey.ai' }}
+  STAGING_COOKIE_SESSION_DOMAIN: ${{ vars.STAGING_COOKIE_SESSION_DOMAIN || '' }}
   STAGING_SESSION_COOKIE_SECURE: ${{ vars.STAGING_SESSION_COOKIE_SECURE || 'true' }}
+  STAGING_BROWSER_QA_ALLOW_EMAIL_ALIASES: true
+  STAGING_VOC_DATA_MCP_URL: ${{ vars.STAGING_VOC_DATA_MCP_URL }}
+  STAGING_VOC_DATA_MCP_MODE: ${{ vars.STAGING_VOC_DATA_MCP_MODE || 'direct' }}
+  STAGING_VOC_DATA_MCP_AUTH_HEADER: ${{ vars.STAGING_VOC_DATA_MCP_AUTH_HEADER || 'X-API-Key' }}
+  STAGING_VOC_DATA_MCP_TIMEOUT_SECONDS: ${{ vars.STAGING_VOC_DATA_MCP_TIMEOUT_SECONDS || '180' }}
+  STAGING_VOC_DATA_MCP_CATALOG_TTL_SECONDS: ${{ vars.STAGING_VOC_DATA_MCP_CATALOG_TTL_SECONDS || '300' }}
+  STAGING_FLATKEY_DATA_TOOL_MARKUP_BPS: ${{ vars.STAGING_FLATKEY_DATA_TOOL_MARKUP_BPS || '10000' }}
+  STAGING_FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD: ${{ vars.STAGING_FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD || '12500' }}
+  STAGING_FLATKEY_DATA_TOOL_MIN_PLAN_RANK: ${{ vars.STAGING_FLATKEY_DATA_TOOL_MIN_PLAN_RANK || '10' }}
+  CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE: ${{ vars.CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE_STAGING }}
+  STAGING_TEMP_MEDIA_BUCKET: vocai-gemini-prod-flatkey-temp-media-staging
+  STAGING_BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL: https://staging-router.flatkey.ai
+  STAGING_BYTEPLUS_REAL_PERSON_CIPHER_SECRET: newapi-staging-byteplus-real-person-cipher-key
 
 jobs:
   build:
@@ -45,16 +64,43 @@ jobs:
 
       - name: Compute image URI
         id: compute_image
+        env:
+          DISPATCH_IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
+          set -euo pipefail
           short_sha="${GITHUB_SHA::12}"
           echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
-          if [[ -n "${{ inputs.image_tag }}" ]]; then
-            echo "image_uri=${AR_REPO_URL}/server:${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          if [[ -n "${DISPATCH_IMAGE_TAG}" ]]; then
+            if [[ ! "${DISPATCH_IMAGE_TAG}" =~ ^staging-sha-[0-9a-f]{12,40}$ ]]; then
+              echo "::error::Invalid image_tag. Expected empty or staging-sha-<12-40 lowercase hex>."
+              exit 1
+            fi
+            echo "image_uri=${AR_REPO_URL}/server:${DISPATCH_IMAGE_TAG}" >> "$GITHUB_OUTPUT"
             echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
           else
             echo "image_uri=${AR_REPO_URL}/server:staging-sha-${short_sha}" >> "$GITHUB_OUTPUT"
             echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
           fi
+
+      - name: Compute cookie domain
+        id: compute_cookie_domain
+        if: env.SKIP_BUILD != 'true'
+        run: |
+          set -euo pipefail
+          host="${STAGING_APP_CONSOLE_ORIGIN#http://}"
+          host="${host#https://}"
+          host="${host%%/*}"
+          cookie_domain=""
+          configured_domain="${STAGING_COOKIE_SESSION_DOMAIN:-}"
+          if [[ -n "${configured_domain}" ]]; then
+            match_domain="${configured_domain#.}"
+            if [[ "${host}" == "${match_domain}" || "${host}" == *."${match_domain}" ]]; then
+              cookie_domain="${configured_domain}"
+            fi
+          elif [[ "${host}" == "flatkey.ai" || "${host}" == *.flatkey.ai ]]; then
+            cookie_domain=".flatkey.ai"
+          fi
+          echo "cookie_domain=${cookie_domain}" >> "$GITHUB_OUTPUT"
 
       - name: Auth to GCP via WIF
         if: env.SKIP_BUILD != 'true'
@@ -80,6 +126,8 @@ jobs:
           push: true
           build-args: |
             VITE_OFFICIAL_WEBSITE_ORIGIN=${{ env.STAGING_OFFICIAL_WEBSITE_ORIGIN }}
+            VITE_AMPLITUDE_API_KEY=${{ vars.VITE_AMPLITUDE_API_KEY }}
+            VITE_COOKIE_SESSION_DOMAIN=${{ steps.compute_cookie_domain.outputs.cookie_domain }}
           tags: |
             ${{ steps.compute_image.outputs.image_uri }}
             ${{ env.AR_REPO_URL }}/server:staging-latest
@@ -100,16 +148,51 @@ jobs:
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Deploy new revision (direct 100% traffic — staging, no canary)
+      - name: Deploy new revision without traffic
         id: deploy
         run: |
           set -euo pipefail
+          : "${CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE:?CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE is required}"
           revision_suffix="$(date -u +%Y%m%d-%H%M%S)-${{ needs.build.outputs.short_sha }}"
+          candidate_tag="staging-candidate"
+          host="${STAGING_APP_CONSOLE_ORIGIN#http://}"
+          host="${host#https://}"
+          host="${host%%/*}"
+          effective_cookie_domain=""
+          configured_domain="${STAGING_COOKIE_SESSION_DOMAIN:-}"
+          if [[ -n "${configured_domain}" ]]; then
+            match_domain="${configured_domain#.}"
+            if [[ "${host}" == "${match_domain}" || "${host}" == *."${match_domain}" ]]; then
+              effective_cookie_domain="${configured_domain}"
+            fi
+          elif [[ "${host}" == "flatkey.ai" || "${host}" == *.flatkey.ai ]]; then
+            effective_cookie_domain=".flatkey.ai"
+          fi
           env_vars=(
             "OFFICIAL_WEBSITE_ORIGIN=${STAGING_OFFICIAL_WEBSITE_ORIGIN}"
             "APP_CONSOLE_ORIGIN=${STAGING_APP_CONSOLE_ORIGIN}"
-            "COOKIE_SESSION_DOMAIN=${STAGING_COOKIE_SESSION_DOMAIN}"
+            "COOKIE_SESSION_DOMAIN=${effective_cookie_domain}"
             "SESSION_COOKIE_SECURE=${STAGING_SESSION_COOKIE_SECURE}"
+            "COPILOT_DEVICE_MEMORY_FALLBACK_ENABLED=true"
+            "STAGING_BROWSER_QA_ALLOW_EMAIL_ALIASES=${STAGING_BROWSER_QA_ALLOW_EMAIL_ALIASES}"
+            "VOC_DATA_MCP_URL=${STAGING_VOC_DATA_MCP_URL}"
+            "VOC_DATA_MCP_SERVICE_KEY=${{ secrets.STAGING_VOC_DATA_MCP_SERVICE_KEY }}"
+            "VOC_DATA_MCP_MODE=${STAGING_VOC_DATA_MCP_MODE}"
+            "VOC_DATA_MCP_AUTH_HEADER=${STAGING_VOC_DATA_MCP_AUTH_HEADER}"
+            "VOC_DATA_MCP_TIMEOUT_SECONDS=${STAGING_VOC_DATA_MCP_TIMEOUT_SECONDS}"
+            "VOC_DATA_MCP_CATALOG_TTL_SECONDS=${STAGING_VOC_DATA_MCP_CATALOG_TTL_SECONDS}"
+            "FLATKEY_DATA_TOOL_MARKUP_BPS=${STAGING_FLATKEY_DATA_TOOL_MARKUP_BPS}"
+            "FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD=${STAGING_FLATKEY_DATA_TOOL_VARIABLE_BASE_MICRO_USD}"
+            "FLATKEY_DATA_TOOL_MIN_PLAN_RANK=${STAGING_FLATKEY_DATA_TOOL_MIN_PLAN_RANK}"
+            "CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE=${CODEX_FINGERPRINT_DEPLOYMENT_NAMESPACE}"
+            "ASSET_STORAGE_BUCKET=${ASSET_STORAGE_BUCKET}"
+            "VIDEO_RESULT_STORAGE_BUCKET=${VIDEO_RESULT_STORAGE_BUCKET}"
+            "VIDEO_RESULT_RETENTION_SECONDS=${VIDEO_RESULT_RETENTION_SECONDS}"
+            "VIDEO_RESULT_SIGNED_URL_TTL_SECONDS=${VIDEO_RESULT_SIGNED_URL_TTL_SECONDS}"
+            "VIDEO_RESULT_FETCH_TIMEOUT_SECONDS=${VIDEO_RESULT_FETCH_TIMEOUT_SECONDS}"
+            "VIDEO_RESULT_MAX_BYTES=${VIDEO_RESULT_MAX_BYTES}"
+            "TEMP_MEDIA_BUCKET=${STAGING_TEMP_MEDIA_BUCKET}"
+            "BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL=${STAGING_BYTEPLUS_REAL_PERSON_CALLBACK_BASE_URL}"
           )
           IFS=,
           env_arg="${env_vars[*]}"
@@ -119,13 +202,62 @@ jobs:
             --region="${REGION}" \
             --image="${{ needs.build.outputs.image_uri }}" \
             --update-env-vars="${env_arg}" \
+            --update-secrets="BYTEPLUS_REAL_PERSON_CIPHER_KEY=${STAGING_BYTEPLUS_REAL_PERSON_CIPHER_SECRET}:latest" \
             --revision-suffix="${revision_suffix}" \
+            --tag="${candidate_tag}" \
+            --no-traffic \
             --quiet
-          new_rev="$(gcloud run services describe "${RUN_SERVICE}" \
+          service_json="$(gcloud run services describe "${RUN_SERVICE}" \
             --project="${PROJECT_ID}" --region="${REGION}" \
-            --format='value(status.latestCreatedRevisionName)')"
+            --format=json)"
+          new_rev="$(jq -r '.status.latestCreatedRevisionName // empty' <<< "${service_json}")"
+          candidate_url="$(jq -r --arg tag "${candidate_tag}" \
+            '.status.traffic[] | select(.tag == $tag) | .url' \
+            <<< "${service_json}")"
+          if [[ -z "${new_rev}" || -z "${candidate_url}" ]]; then
+            echo "Could not resolve the deployed revision or candidate URL" >&2
+            jq '.status | {latestCreatedRevisionName, traffic}' <<< "${service_json}" >&2
+            exit 1
+          fi
           echo "new_revision=${new_rev}" >> "$GITHUB_OUTPUT"
+          echo "candidate_url=${candidate_url}" >> "$GITHUB_OUTPUT"
           echo "Deployed revision: ${new_rev}"
+
+      - name: Health check candidate revision
+        run: |
+          set -euo pipefail
+          new_rev="${{ steps.deploy.outputs.new_revision }}"
+          url="${{ steps.deploy.outputs.candidate_url }}"
+          echo "Probing candidate ${new_rev} at ${url}/api/status ..."
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${url}/api/status" || true)
+            echo "attempt $i -> $code"
+            if [[ "${code}" == "200" ]]; then exit 0; fi
+            sleep 5
+          done
+          echo "Candidate health check failed; traffic was not promoted" >&2
+          exit 1
+
+      - name: Promote the new revision to 100% traffic
+        run: |
+          set -euo pipefail
+          new_rev="${{ steps.deploy.outputs.new_revision }}"
+          gcloud run services update-traffic "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --to-revisions="${new_rev}=100" \
+            --quiet
+          traffic_json="$(gcloud run services describe "${RUN_SERVICE}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --format=json)"
+          if ! jq -e --arg revision "${new_rev}" \
+            '[.status.traffic[] | select((.percent // 0) > 0)] as $active | ($active | length == 1) and ($active[0].revisionName == $revision) and ($active[0].percent == 100)' \
+            <<< "${traffic_json}" > /dev/null; then
+            echo "Expected ${new_rev} to be the only revision serving 100% traffic; actual traffic:" >&2
+            jq '.status.traffic' <<< "${traffic_json}" >&2
+            exit 1
+          fi
 
       - name: Health check
         run: |
@@ -157,3 +289,20 @@ jobs:
           echo "- Revision: \`${{ steps.deploy.outputs.new_revision }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Image:    \`${{ needs.build.outputs.image_uri }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- URL:      ${url}" >> "$GITHUB_STEP_SUMMARY"
+
+  browser-qa-normal:
+    needs: deploy
+    uses: ./.github/workflows/gcp-browser-qa.yml
+    permissions:
+      # Reusable workflow calls cannot elevate permissions inside the called workflow;
+      # this caller ceiling is the exact union of called jobs, not an expansion of browser-qa.
+      contents: write
+      pull-requests: write
+      id-token: write
+    with:
+      mode: normal
+      target_environment: staging
+      fail_on_findings: false
+    secrets:
+      STAGING_BROWSER_QA_DINGTALK_WEBHOOK: ${{ secrets.STAGING_BROWSER_QA_DINGTALK_WEBHOOK }}
+      STAGING_BROWSER_QA_DINGTALK_SIGNING_SECRET: ${{ secrets.STAGING_BROWSER_QA_DINGTALK_SIGNING_SECRET }}

@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -46,6 +47,7 @@ type Channel struct {
 	Status             int     `json:"status" gorm:"default:1"`
 	Name               string  `json:"name" gorm:"index"`
 	Weight             *uint   `json:"weight" gorm:"default:0"`
+	MaxConcurrency     int     `json:"max_concurrency" gorm:"default:0"`
 	CreatedTime        int64   `json:"created_time" gorm:"bigint"`
 	TestTime           int64   `json:"test_time" gorm:"bigint"`
 	ResponseTime       int     `json:"response_time"` // in milliseconds
@@ -54,7 +56,7 @@ type Channel struct {
 	Balance            float64 `json:"balance"` // in USD
 	BalanceUpdatedTime int64   `json:"balance_updated_time" gorm:"bigint"`
 	Models             string  `json:"models"`
-	Group              string  `json:"group" gorm:"type:varchar(64);default:'default'"`
+	Group              string  `json:"group" gorm:"type:varchar(255);default:'default'"`
 	UsedQuota          int64   `json:"used_quota" gorm:"bigint;default:0"`
 	ModelMapping       *string `json:"model_mapping" gorm:"type:text"`
 	//MaxInputTokens     *int    `json:"max_input_tokens" gorm:"default:0"`
@@ -72,8 +74,14 @@ type Channel struct {
 
 	OtherSettings string `json:"settings" gorm:"column:settings"` // 其他设置，存储azure版本等不需要检索的信息，详见dto.ChannelOtherSettings
 
+	CodexFingerprintSeed string `json:"-" gorm:"type:varchar(36);default:''"`
+
 	// cache info
 	Keys []string `json:"-" gorm:"-"`
+
+	// GrokAuthState 是 113(Grok Subscription) 渠道的非秘密认证状态投影，
+	// 仅在 GetChannel detail 动态填充、不落库（gorm:"-"）。绝不含 token/verifier/last_error/lease。
+	GrokAuthState *GrokAuthStateView `json:"grok_auth_state,omitempty" gorm:"-"`
 }
 
 type ChannelInfo struct {
@@ -459,6 +467,9 @@ func BatchInsertChannels(channels []Channel) error {
 	}()
 
 	for _, chunk := range lo.Chunk(channels, 50) {
+		for i := range chunk {
+			chunk[i].prepareCodexFingerprintSeedForInsert()
+		}
 		if err := tx.Create(&chunk).Error; err != nil {
 			tx.Rollback()
 			return err
@@ -467,6 +478,19 @@ func BatchInsertChannels(channels []Channel) error {
 			if err := channel_.AddAbilities(tx); err != nil {
 				tx.Rollback()
 				return err
+			}
+			if channel_.Type == constant.ChannelTypeGrokSubscription {
+				status := GrokAuthStatusPending
+				if strings.TrimSpace(channel_.Key) != "" {
+					status = GrokAuthStatusActive
+				}
+				if err := upsertGrokChannelState(tx, &GrokChannelState{
+					ChannelID:  channel_.Id,
+					AuthStatus: status,
+				}); err != nil {
+					tx.Rollback()
+					return err
+				}
 			}
 		}
 	}
@@ -517,6 +541,13 @@ func (channel *Channel) GetWeight() int {
 	return int(*channel.Weight)
 }
 
+func (channel *Channel) GetMaxConcurrency() int {
+	if channel == nil || channel.MaxConcurrency < 0 {
+		return 0
+	}
+	return channel.MaxConcurrency
+}
+
 func (channel *Channel) GetBaseURL() string {
 	if channel.BaseURL == nil {
 		return ""
@@ -542,8 +573,108 @@ func (channel *Channel) GetStatusCodeMapping() string {
 	return *channel.StatusCodeMapping
 }
 
+func validCodexFingerprintSeed(seed string) bool {
+	trimmed := strings.TrimSpace(seed)
+	parsed, err := uuid.Parse(trimmed)
+	return err == nil && parsed != uuid.Nil && trimmed == parsed.String()
+}
+
+const codexFingerprintSeedBackfillBatchSize = 200
+
+func repairCodexFingerprintSeed(db *gorm.DB, channel *Channel) (bool, error) {
+	if channel == nil || channel.Type != constant.ChannelTypeCodex || channel.Status != common.ChannelStatusEnabled {
+		return false, nil
+	}
+	if validCodexFingerprintSeed(channel.CodexFingerprintSeed) {
+		return false, nil
+	}
+
+	invalidValue := channel.CodexFingerprintSeed
+	nextSeed := uuid.NewString()
+	result := db.Model(&Channel{}).
+		Where("id = ? AND type = ? AND status = ? AND codex_fingerprint_seed = ?",
+			channel.Id, constant.ChannelTypeCodex, common.ChannelStatusEnabled, invalidValue).
+		Update("codex_fingerprint_seed", nextSeed)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	if result.RowsAffected != 1 {
+		return false, nil
+	}
+	channel.CodexFingerprintSeed = nextSeed
+	return true, nil
+}
+
+func EnsureCodexFingerprintSeed(channelID int) (string, error) {
+	for {
+		var channel Channel
+		err := DB.Select("id", "type", "status", "codex_fingerprint_seed").
+			First(&channel, "id = ?", channelID).Error
+		if err != nil {
+			return "", err
+		}
+		if channel.Type != constant.ChannelTypeCodex || channel.Status != common.ChannelStatusEnabled {
+			return "", nil
+		}
+		if validCodexFingerprintSeed(channel.CodexFingerprintSeed) {
+			return channel.CodexFingerprintSeed, nil
+		}
+
+		repaired, err := repairCodexFingerprintSeed(DB, &channel)
+		if err != nil {
+			return "", err
+		}
+		if repaired {
+			refreshLocalChannelCacheAndPublishChanged()
+			return channel.CodexFingerprintSeed, nil
+		}
+	}
+}
+
+func BackfillCodexFingerprintSeeds() error {
+	lastID := 0
+	repairedAny := false
+	for {
+		var channels []Channel
+		if err := DB.Select("id", "type", "status", "codex_fingerprint_seed").
+			Where("type = ? AND status = ? AND id > ?", constant.ChannelTypeCodex, common.ChannelStatusEnabled, lastID).
+			Order("id ASC").
+			Limit(codexFingerprintSeedBackfillBatchSize).
+			Find(&channels).Error; err != nil {
+			return err
+		}
+		if len(channels) == 0 {
+			break
+		}
+		for i := range channels {
+			lastID = channels[i].Id
+			repaired, err := repairCodexFingerprintSeed(DB, &channels[i])
+			if err != nil {
+				return err
+			}
+			repairedAny = repairedAny || repaired
+		}
+		if len(channels) < codexFingerprintSeedBackfillBatchSize {
+			break
+		}
+	}
+	if repairedAny {
+		refreshLocalChannelCacheAndPublishChanged()
+	}
+	return nil
+}
+
+func (channel *Channel) prepareCodexFingerprintSeedForInsert() {
+	if channel.Type != constant.ChannelTypeCodex || channel.Status != common.ChannelStatusEnabled {
+		channel.CodexFingerprintSeed = ""
+		return
+	}
+	channel.CodexFingerprintSeed = uuid.NewString()
+}
+
 func (channel *Channel) Insert() error {
 	var err error
+	channel.prepareCodexFingerprintSeedForInsert()
 	err = DB.Create(channel).Error
 	if err != nil {
 		return err
@@ -557,6 +688,22 @@ func (channel *Channel) Insert() error {
 }
 
 func (channel *Channel) Update() error {
+	if err := channel.update(false); err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
+}
+
+func (channel *Channel) UpdateWithMaxConcurrency() error {
+	if err := channel.update(true); err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
+}
+
+func (channel *Channel) update(forceMaxConcurrency bool) error {
 	// If this is a multi-key channel, recalculate MultiKeySize based on the current key list to avoid inconsistency after editing keys
 	if channel.ChannelInfo.IsMultiKey {
 		var keyStr string
@@ -595,18 +742,30 @@ func (channel *Channel) Update() error {
 			}
 		}
 	}
-	var err error
-	err = DB.Model(channel).Updates(channel).Error
-	if err != nil {
-		return err
-	}
-	DB.Model(channel).First(channel, "id = ?", channel.Id)
-	err = channel.UpdateAbilities(nil)
-	if err != nil {
-		return err
-	}
-	publishChannelsChanged()
-	return nil
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(channel).Updates(channel).Error; err != nil {
+			return err
+		}
+		if forceMaxConcurrency {
+			if err := tx.Model(channel).Update("max_concurrency", channel.MaxConcurrency).Error; err != nil {
+				return err
+			}
+		}
+		if err := tx.Model(channel).First(channel, "id = ?", channel.Id).Error; err != nil {
+			return err
+		}
+		if channel.Type != constant.ChannelTypeCodex && channel.CodexFingerprintSeed != "" {
+			if err := tx.Model(&Channel{}).Where("id = ?", channel.Id).
+				Update("codex_fingerprint_seed", "").Error; err != nil {
+				return err
+			}
+			channel.CodexFingerprintSeed = ""
+		}
+		if _, err := repairCodexFingerprintSeed(tx, channel); err != nil {
+			return err
+		}
+		return channel.UpdateAbilities(tx)
+	})
 }
 
 func (channel *Channel) UpdateResponseTime(responseTime int64) {
@@ -636,6 +795,61 @@ func UpdateChannelKey(id int, key string) error {
 	}
 	publishChannelsChanged()
 	return nil
+}
+
+func UpdateChannelKeyForType(id int, channelType int, key string) error {
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&Channel{}).Where("id = ? AND type = ?", id, channelType).Update("key", key)
+		if result.Error != nil {
+			return result.Error
+		}
+
+		var channel Channel
+		if err := tx.Where("id = ? AND type = ?", id, channelType).First(&channel).Error; err != nil {
+			return err
+		}
+		return channel.UpdateAbilities(tx)
+	})
+	if err != nil {
+		return err
+	}
+	publishChannelsChanged()
+	return nil
+}
+
+// CompareAndSwapChannelKey 仅当 Channel.Key 仍等于 oldKey 时原子写入 newKey（乐观锁 CAS）。
+// Channel 表无 revision 列，用旧 key 值比对作为乐观条件。返回是否成功换入。
+// 用于 Grok OAuth 刷新：并发节点各自刷新时，只有 key 未被别人换过的那次能写回，其余得 ErrRefreshConflict 重试。
+func CompareAndSwapChannelKey(id int, channelType int, oldKey, newKey string) (bool, error) {
+	if oldKey == newKey {
+		return false, errors.New("grok cas: new key equals old key")
+	}
+	var swapped bool
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&Channel{}).
+			Where(map[string]any{"id": id, "type": channelType, "key": oldKey}).
+			Update("key", newKey)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			swapped = false
+			return nil // CAS 失败：key 已被并发换过，或 id/type 不匹配
+		}
+		swapped = true
+		var channel Channel
+		if err := tx.Where("id = ? AND type = ?", id, channelType).First(&channel).Error; err != nil {
+			return err
+		}
+		return channel.UpdateAbilities(tx)
+	})
+	if err != nil {
+		return false, err
+	}
+	if swapped {
+		publishChannelsChanged()
+	}
+	return swapped, nil
 }
 
 func (channel *Channel) Delete() error {
@@ -757,87 +971,76 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 	if common.MemoryCacheEnabled {
 		channelStatusLock.Lock()
 		defer channelStatusLock.Unlock()
-
-		channelCache, _ := CacheGetChannel(channelId)
-		if channelCache == nil {
-			return false
-		}
-		if channelCache.ChannelInfo.IsMultiKey {
-			// Use per-channel lock to prevent concurrent map read/write with GetNextEnabledKey
-			beforeStatus := channelCache.Status
-			pollingLock := GetChannelPollingLock(channelId)
-			pollingLock.Lock()
-			// 如果是多Key模式，更新缓存中的状态
-			handlerMultiKeyUpdate(channelCache, usingKey, status, reason)
-			pollingLock.Unlock()
-			if beforeStatus != channelCache.Status {
-				CacheUpdateChannelStatus(channelId, channelCache.Status)
-			}
-			//CacheUpdateChannel(channelCache)
-			//return true
-		} else {
-			// 如果缓存渠道存在，且状态已是目标状态，直接返回
-			if channelCache.Status == status {
-				return false
-			}
-			CacheUpdateChannelStatus(channelId, status)
-		}
 	}
 
-	shouldUpdateAbilities := false
-	defer func() {
-		if shouldUpdateAbilities {
-			err := UpdateAbilityStatus(channelId, status == common.ChannelStatusEnabled)
-			if err != nil {
-				common.SysLog(fmt.Sprintf("failed to update ability status: channel_id=%d, error=%v", channelId, err))
-			}
+	changed := false
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		channel := &Channel{}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(channel, "id = ?", channelId).Error; err != nil {
+			return err
 		}
-	}()
-	channel, err := GetChannelById(channelId, true)
-	if err != nil {
-		return false
-	} else {
 		if channel.Status == status {
-			return false
+			return nil
 		}
 
+		beforeStatus := channel.Status
 		if channel.ChannelInfo.IsMultiKey {
-			beforeStatus := channel.Status
-			// Protect map writes with the same per-channel lock used by readers
-			pollingLock := GetChannelPollingLock(channelId)
-			pollingLock.Lock()
 			handlerMultiKeyUpdate(channel, usingKey, status, reason)
-			pollingLock.Unlock()
-			if beforeStatus != channel.Status {
-				shouldUpdateAbilities = true
-			}
 		} else {
 			info := channel.GetOtherInfo()
 			info["status_reason"] = reason
 			info["status_time"] = common.GetTimestamp()
 			channel.SetOtherInfo(info)
 			channel.Status = status
-			shouldUpdateAbilities = true
 		}
-		err = channel.SaveWithoutKey()
-		if err != nil {
-			common.SysLog(fmt.Sprintf("failed to update channel status: channel_id=%d, status=%d, error=%v", channel.Id, status, err))
-			return false
+		if channel.Type == constant.ChannelTypeCodex && channel.Status == common.ChannelStatusEnabled &&
+			!validCodexFingerprintSeed(channel.CodexFingerprintSeed) {
+			channel.CodexFingerprintSeed = uuid.NewString()
 		}
+		if err := tx.Omit("key").Save(channel).Error; err != nil {
+			return err
+		}
+		if beforeStatus != channel.Status {
+			if err := updateAbilityStatusWithDB(tx, channelId, channel.Status == common.ChannelStatusEnabled); err != nil {
+				return err
+			}
+		}
+		changed = true
+		return nil
+	})
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to update channel status: channel_id=%d, status=%d, error=%v", channelId, status, err))
+		return false
 	}
-	publishChannelsChanged()
+	if !changed {
+		return false
+	}
+	refreshLocalChannelCacheAndPublishChanged()
 	return true
 }
 
 func EnableChannelByTag(tag string) error {
-	err := DB.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusEnabled).Error
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&Channel{}).Where("tag = ?", tag).Update("status", common.ChannelStatusEnabled).Error; err != nil {
+			return err
+		}
+		var channels []Channel
+		if err := tx.Select("id", "type", "status", "codex_fingerprint_seed").
+			Where("tag = ? AND type = ? AND status = ?", tag, constant.ChannelTypeCodex, common.ChannelStatusEnabled).
+			Find(&channels).Error; err != nil {
+			return err
+		}
+		for i := range channels {
+			if _, err := repairCodexFingerprintSeed(tx, &channels[i]); err != nil {
+				return err
+			}
+		}
+		return updateAbilityStatusByTagWithDB(tx, tag, true)
+	})
 	if err != nil {
 		return err
 	}
-	if err = UpdateAbilityStatusByTag(tag, true); err != nil {
-		return err
-	}
-	publishChannelsChanged()
+	refreshLocalChannelCacheAndPublishChanged()
 	return nil
 }
 
@@ -910,39 +1113,50 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 // 采用与 EditChannelByTag 相同的非事务模式：DB.Updates 先提交，再用 GetChannelsByIds
 // 读已提交的新值重建 abilities。不包外层事务——GetChannelsByIds 走全局 DB 独立连接，
 // 事务内读不到未提交写入，生产 MySQL/PG 会用旧 models/group/priority/weight 重建 abilities。
-// - models / group 变更 → 全量重建 abilities（delete+insert，因模型集合变了）；
-// - 仅 priority / weight 变更 → 走 UpdateAbilityByIds 定向 UPDATE（无需重建，效率与
-//   EditChannelByTag 的 UpdateAbilityByTag 路径对齐）；
-// - model_mapping 单独变更不影响 abilities。
+//   - models / group 变更 → 全量重建 abilities（delete+insert，因模型集合变了）；
+//   - 仅 priority / weight 变更 → 走 UpdateAbilityByIds 定向 UPDATE（无需重建，效率与
+//     EditChannelByTag 的 UpdateAbilityByTag 路径对齐）；
+//   - model_mapping 单独变更不影响 abilities。
+//
 // 重建失败仅记日志、不回滚（与 EditChannelByTag 一致）。
-func EditChannelsByIds(ids []int, modelMapping, models, group *string, priority *int64, weight *uint) error {
+func EditChannelsByIds(ids []int, modelMapping, models, group *string, priority *int64, weight *uint, maxConcurrency *int) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	updateData := Channel{}
+	// Map-based update: one UPDATE statement for every provided field (no
+	// half-applied state from a second write), and zero values like
+	// max_concurrency = 0 or weight = 0 are written instead of being skipped
+	// as struct zero-values.
+	updateMap := map[string]any{}
 	shouldReCreateAbilities := false
 	hasPriorityWeight := false
 	if modelMapping != nil {
-		updateData.ModelMapping = modelMapping
+		updateMap["model_mapping"] = *modelMapping
 	}
 	if models != nil && *models != "" {
 		shouldReCreateAbilities = true
-		updateData.Models = *models
+		updateMap["models"] = *models
 	}
 	if group != nil && *group != "" {
 		shouldReCreateAbilities = true
-		updateData.Group = *group
+		updateMap["group"] = *group
 	}
 	if priority != nil {
 		hasPriorityWeight = true
-		updateData.Priority = priority
+		updateMap["priority"] = *priority
 	}
 	if weight != nil {
 		hasPriorityWeight = true
-		updateData.Weight = weight
+		updateMap["weight"] = *weight
+	}
+	if maxConcurrency != nil {
+		updateMap["max_concurrency"] = *maxConcurrency
+	}
+	if len(updateMap) == 0 {
+		return nil
 	}
 
-	err := DB.Model(&Channel{}).Where("id IN ?", ids).Updates(updateData).Error
+	err := DB.Model(&Channel{}).Where("id IN ?", ids).Updates(updateMap).Error
 	if err != nil {
 		return err
 	}
@@ -957,6 +1171,45 @@ func EditChannelsByIds(ids []int, modelMapping, models, group *string, priority 
 		}
 	}
 	publishChannelsChanged()
+	return nil
+}
+
+// UpdateCodexFingerprintModeByIds updates the Codex fingerprint setting while
+// preserving every other per-channel setting field.
+func UpdateCodexFingerprintModeByIds(ids []int, mode string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	if strings.EqualFold(strings.TrimSpace(mode), "off") {
+		mode = ""
+	}
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var channels []Channel
+		if err := tx.Where("id IN ?", ids).Find(&channels).Error; err != nil {
+			return err
+		}
+		for i := range channels {
+			if channels[i].Type != constant.ChannelTypeCodex {
+				continue
+			}
+			setting := channels[i].GetSetting()
+			setting.CodexFingerprintMode = mode
+			channels[i].SetSetting(setting)
+			if err := tx.Model(&Channel{}).Where("id = ?", channels[i].Id).Update("setting", channels[i].Setting).Error; err != nil {
+				return err
+			}
+			if mode != "" {
+				if _, err := repairCodexFingerprintSeed(tx, &channels[i]); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	refreshLocalChannelCacheAndPublishChanged()
 	return nil
 }
 

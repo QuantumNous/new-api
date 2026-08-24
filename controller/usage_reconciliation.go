@@ -22,6 +22,7 @@ const (
 	usageReconMaxRange      = 31 * 24 * time.Hour
 	usageTxnDefaultPageSize = 100
 	usageTxnMaxPageSize     = 500
+	usageTxnMaxPage         = 10000
 	usageTxnMaxCursorLimit  = 1000
 	usageReconMsLayout      = "2006-01-02T15:04:05.000Z07:00"
 )
@@ -68,6 +69,7 @@ type usageSummaryResponse struct {
 type usageTransaction struct {
 	SourceID            string `json:"source_id"`
 	UpstreamRequestID   string `json:"upstream_request_id,omitempty"`
+	UpstreamResponseID  string `json:"upstream_response_id,omitempty"`
 	RequestID           string `json:"request_id"`
 	APIKeyID            string `json:"api_key_id"`
 	APIKeyName          string `json:"api_key_name"`
@@ -125,6 +127,18 @@ type usageModelsResponse struct {
 	Provider    string            `json:"provider"`
 	Models      []usageModelPrice `json:"models"`
 	GeneratedAt string            `json:"generated_at"`
+}
+
+type usageChannel struct {
+	ChannelID   string `json:"channel_id"`
+	ChannelName string `json:"channel_name"`
+	ChannelType int    `json:"channel_type"`
+}
+
+type usageChannelsResponse struct {
+	Provider    string         `json:"provider"`
+	Channels    []usageChannel `json:"channels"`
+	GeneratedAt string         `json:"generated_at"`
 }
 
 type usageValidationByModel struct {
@@ -199,6 +213,11 @@ func parseUsageOther(s string) map[string]interface{} {
 		return nil
 	}
 	return m
+}
+
+func usageOtherString(other map[string]interface{}, key string) string {
+	value, _ := other[key].(string)
+	return value
 }
 
 // usageOtherInt reads an integer-valued key from the Other map. common.Unmarshal
@@ -323,6 +342,85 @@ func sameIntSlice(a, b []int) bool {
 	return true
 }
 
+func parseUsageChannelIDs(raw string) ([]int, bool) {
+	parts := strings.Split(raw, ",")
+	ids := make([]int, 0, len(parts))
+	seen := map[int]bool{}
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		id, err := strconv.Atoi(part)
+		if err != nil || id < 1 {
+			return nil, false
+		}
+		if !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	sort.Ints(ids)
+	return ids, len(ids) > 0
+}
+
+func requestedUsageChannelIDs(c *gin.Context) ([]int, bool) {
+	raw := c.Query("channel_ids")
+	if raw == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "channel_ids is required"})
+		return nil, false
+	}
+	requested, ok := parseUsageChannelIDs(raw)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid channel_ids"})
+		return nil, false
+	}
+	return requested, true
+}
+
+func requestedUsageChannelTypeName(c *gin.Context) (string, bool) {
+	raw := strings.TrimSpace(c.Query("channel_type_name"))
+	if raw == "" {
+		raw = strings.TrimSpace(c.Query("name"))
+	}
+	if raw == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "channel_type_name is required"})
+		return "", false
+	}
+	return raw, true
+}
+
+func loadKnownUsageChannels(c *gin.Context, ids []int) (map[int]model.BlockRunChannel, bool) {
+	channels, err := model.GetUsageChannelsByIDs(ids)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "query channels failed"})
+		return nil, false
+	}
+	if len(channels) != len(ids) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown channel_id"})
+		return nil, false
+	}
+	return channels, true
+}
+
+func loadUsageChannelsByTypeName(c *gin.Context) (string, map[int]model.BlockRunChannel, []int, bool) {
+	name, ok := requestedUsageChannelTypeName(c)
+	if !ok {
+		return "", nil, nil, false
+	}
+	channels, err := model.GetUsageChannelsByTypeNamePrefix(name)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "query channels failed"})
+		return "", nil, nil, false
+	}
+	ids := blockRunChannelIDs(channels)
+	if len(ids) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown channel_type_name"})
+		return "", nil, nil, false
+	}
+	return name, channels, ids, true
+}
+
 func buildUsageModelPrice(modelName string, ch model.BlockRunChannel, modelRatios map[string]float64) usageModelPrice {
 	out := usageModelPrice{
 		Model:       modelName,
@@ -401,13 +499,29 @@ func GetUsageSummary(c *gin.Context) {
 		return
 	}
 	ids := blockRunChannelIDs(channels)
+	writeUsageSummary(c, channels, ids, startUnix, endUnix, startT, endT)
+}
 
+// GetChannelUsageSummary serves GET /usage/channel-summary.
+func GetChannelUsageSummary(c *gin.Context) {
+	startUnix, endUnix, startT, endT, ok := parseUsageTimeRange(c)
+	if !ok {
+		return
+	}
+	_, channels, ids, ok := loadUsageChannelsByTypeName(c)
+	if !ok {
+		return
+	}
+	writeUsageSummary(c, channels, ids, startUnix, endUnix, startT, endT)
+}
+
+func writeUsageSummary(c *gin.Context, channels map[int]model.BlockRunChannel, ids []int, startUnix, endUnix int64, startT, endT time.Time) {
 	totals := &usageAccum{}
 	byModel := map[string]*usageAccum{}
 	byKey := map[int]*usageAccum{}
 	keyName := map[int]string{}
 
-	err = model.StreamBlockRunUsageLogs(ids, startUnix, endUnix, func(log *model.Log) error {
+	err := model.StreamBlockRunUsageLogs(ids, startUnix, endUnix, func(log *model.Log) error {
 		other := parseUsageOther(log.Other)
 		cacheRead := usageOtherInt(other, "cache_tokens")
 		cacheCreate := usageOtherInt(other, "cache_creation_tokens")
@@ -532,12 +646,28 @@ func GetUsageValidation(c *gin.Context) {
 		return
 	}
 	ids := blockRunChannelIDs(channels)
+	writeUsageValidation(c, channels, ids, startUnix, endUnix, startT, endT)
+}
 
+// GetChannelUsageValidation serves GET /usage/channel-validation.
+func GetChannelUsageValidation(c *gin.Context) {
+	startUnix, endUnix, startT, endT, ok := parseUsageTimeRange(c)
+	if !ok {
+		return
+	}
+	_, channels, ids, ok := loadUsageChannelsByTypeName(c)
+	if !ok {
+		return
+	}
+	writeUsageValidation(c, channels, ids, startUnix, endUnix, startT, endT)
+}
+
+func writeUsageValidation(c *gin.Context, channels map[int]model.BlockRunChannel, ids []int, startUnix, endUnix int64, startT, endT time.Time) {
 	totals := &usageAccum{}
 	byModel := map[usageModelChannelKey]*usageAccum{}
 	byChannel := map[int]*usageAccum{}
 
-	err = model.StreamBlockRunUsageLogs(ids, startUnix, endUnix, func(log *model.Log) error {
+	err := model.StreamBlockRunUsageLogs(ids, startUnix, endUnix, func(log *model.Log) error {
 		other := parseUsageOther(log.Other)
 		cacheRead := usageOtherInt(other, "cache_tokens")
 		cacheCreate := usageOtherInt(other, "cache_creation_tokens")
@@ -596,6 +726,75 @@ func GetUsageTransactions(c *gin.Context) {
 		return
 	}
 	ids := blockRunChannelIDs(channels)
+
+	total, err := model.CountBlockRunUsageLogs(ids, startUnix, endUnix)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "count failed"})
+		return
+	}
+	logs, err := model.QueryBlockRunUsageLogsPaged(ids, startUnix, endUnix, pageSize, (page-1)*pageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "query failed"})
+		return
+	}
+
+	var totalPages int64
+	if pageSize > 0 {
+		totalPages = (total + int64(pageSize) - 1) / int64(pageSize)
+	}
+	c.JSON(http.StatusOK, usageTransactionsResponse{
+		Provider:     usageReconProvider,
+		Period:       usagePeriodLabel(c),
+		Start:        usageFormatTime(startT),
+		End:          usageFormatTime(endT),
+		Transactions: buildUsageTransactions(logs, channels),
+		Pagination: usagePagination{
+			Page:       page,
+			PageSize:   pageSize,
+			TotalPages: totalPages,
+			TotalCount: &total,
+			HasMore:    int64(page)*int64(pageSize) < total,
+		},
+		GeneratedAt: usageFormatTime(time.Now()),
+	})
+}
+
+// GetChannelUsageTransactions serves GET /usage/channel-transactions.
+func GetChannelUsageTransactions(c *gin.Context) {
+	startUnix, endUnix, startT, endT, ok := parseUsageTimeRange(c)
+	if !ok {
+		return
+	}
+	var ids []int
+	var channels map[int]model.BlockRunChannel
+	if strings.TrimSpace(c.Query("channel_ids")) != "" {
+		ids, ok = requestedUsageChannelIDs(c)
+		if !ok {
+			return
+		}
+		channels, ok = loadKnownUsageChannels(c, ids)
+		if !ok {
+			return
+		}
+	} else {
+		_, channels, ids, ok = loadUsageChannelsByTypeName(c)
+		if !ok {
+			return
+		}
+	}
+	if c.Query("limit") != "" || c.Query("cursor") != "" {
+		getUsageTransactionsCursorForChannels(c, ids, channels, startUnix, endUnix, startT, endT)
+		return
+	}
+	page := parseUsagePositiveInt(c.Query("page"), 1)
+	pageSize := parseUsagePositiveInt(c.Query("page_size"), usageTxnDefaultPageSize)
+	if pageSize > usageTxnMaxPageSize {
+		pageSize = usageTxnMaxPageSize
+	}
+	if page > usageTxnMaxPage {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "page exceeds maximum"})
+		return
+	}
 
 	total, err := model.CountBlockRunUsageLogs(ids, startUnix, endUnix)
 	if err != nil {
@@ -696,6 +895,66 @@ func getUsageTransactionsCursor(c *gin.Context, startUnix, endUnix int64, startT
 	})
 }
 
+func getUsageTransactionsCursorForChannels(c *gin.Context, ids []int, channels map[int]model.BlockRunChannel, startUnix, endUnix int64, startT, endT time.Time) {
+	limitRaw := c.Query("limit")
+	if limitRaw == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "limit is required for cursor pagination"})
+		return
+	}
+	limit, err := strconv.Atoi(limitRaw)
+	if err != nil || limit < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid limit"})
+		return
+	}
+	if limit > usageTxnMaxCursorLimit {
+		limit = usageTxnMaxCursorLimit
+	}
+
+	var cursor usageTransactionCursor
+	if rawCursor := c.Query("cursor"); rawCursor != "" {
+		var ok bool
+		cursor, ok = decodeUsageTransactionCursor(rawCursor, startUnix, endUnix, ids)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid cursor"})
+			return
+		}
+	}
+
+	logs, err := model.QueryBlockRunUsageLogsAfterCursor(ids, startUnix, endUnix, limit+1, cursor.CreatedAt, cursor.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "query failed"})
+		return
+	}
+
+	hasMore := len(logs) > limit
+	if hasMore {
+		logs = logs[:limit]
+	}
+	nextCursor := ""
+	if hasMore && len(logs) > 0 {
+		nextCursor, err = encodeUsageTransactionCursor(startUnix, endUnix, ids, logs[len(logs)-1])
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "encode cursor failed"})
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, usageTransactionsResponse{
+		Provider:     usageReconProvider,
+		Period:       usagePeriodLabel(c),
+		Start:        usageFormatTime(startT),
+		End:          usageFormatTime(endT),
+		Transactions: buildUsageTransactions(logs, channels),
+		Pagination: usagePagination{
+			Mode:       "cursor",
+			Limit:      limit,
+			NextCursor: nextCursor,
+			HasMore:    hasMore,
+		},
+		GeneratedAt: usageFormatTime(time.Now()),
+	})
+}
+
 func buildUsageTransactions(logs []*model.Log, channels map[int]model.BlockRunChannel) []usageTransaction {
 	txns := make([]usageTransaction, 0, len(logs))
 	for _, log := range logs {
@@ -706,6 +965,7 @@ func buildUsageTransactions(logs []*model.Log, channels map[int]model.BlockRunCh
 		txns = append(txns, usageTransaction{
 			SourceID:            strconv.Itoa(log.Id),
 			UpstreamRequestID:   log.UpstreamRequestId,
+			UpstreamResponseID:  usageOtherString(other, "upstream_response_id"),
 			RequestID:           log.RequestId,
 			APIKeyID:            strconv.Itoa(log.TokenId),
 			APIKeyName:          log.TokenName,
@@ -735,6 +995,10 @@ func GetUsageModels(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "query models failed"})
 		return
 	}
+	writeUsageModels(c, modelChannels)
+}
+
+func writeUsageModels(c *gin.Context, modelChannels map[string][]model.BlockRunChannel) {
 	modelRatios := ratio_setting.GetModelRatioCopy()
 
 	modelNames := make([]string, 0, len(modelChannels))
@@ -759,6 +1023,64 @@ func GetUsageModels(c *gin.Context) {
 		Models:      items,
 		GeneratedAt: usageFormatTime(time.Now()),
 	})
+}
+
+// GetUsageChannels serves GET /usage/channels.
+func GetUsageChannels(c *gin.Context) {
+	channels, err := model.GetUsageChannels()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "query channels failed"})
+		return
+	}
+	items := make([]usageChannel, 0, len(channels))
+	for _, ch := range channels {
+		items = append(items, usageChannel{
+			ChannelID:   strconv.Itoa(ch.Id),
+			ChannelName: ch.Name,
+			ChannelType: ch.Type,
+		})
+	}
+	c.JSON(http.StatusOK, usageChannelsResponse{
+		Provider:    usageReconProvider,
+		Channels:    items,
+		GeneratedAt: usageFormatTime(time.Now()),
+	})
+}
+
+// GetChannelUsageModels serves GET /usage/channel-models.
+func GetChannelUsageModels(c *gin.Context) {
+	var modelChannels map[string][]model.BlockRunChannel
+	if strings.TrimSpace(c.Query("channel_ids")) != "" {
+		ids, ok := requestedUsageChannelIDs(c)
+		if !ok {
+			return
+		}
+		if _, ok := loadKnownUsageChannels(c, ids); !ok {
+			return
+		}
+		var err error
+		modelChannels, err = model.GetEnabledModelChannelsByIDs(ids)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "query models failed"})
+			return
+		}
+	} else {
+		name, ok := requestedUsageChannelTypeName(c)
+		if !ok {
+			return
+		}
+		var err error
+		modelChannels, err = model.GetEnabledModelChannelsByTypeNamePrefix(name)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "query models failed"})
+			return
+		}
+		if len(modelChannels) == 0 && len(model.ChannelTypesByNamePrefix(name)) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "unknown channel_type_name"})
+			return
+		}
+	}
+	writeUsageModels(c, modelChannels)
 }
 
 func parseUsagePositiveInt(s string, def int) int {

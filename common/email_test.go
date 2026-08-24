@@ -1,0 +1,889 @@
+package common
+
+import (
+	"bufio"
+	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"fmt"
+	"io"
+	"math/big"
+	"net"
+	"net/mail"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
+)
+
+func TestSMTPConfigValidatesCompletePlainMailboxConfiguration(t *testing.T) {
+	valid := SMTPConfig{
+		Server:  "smtp.example.com",
+		Port:    587,
+		Account: "activity@example.com",
+		From:    "campaigns@Mail.Example.COM",
+		Token:   "secret",
+	}
+
+	require.NoError(t, valid.Validate())
+	sender, domain, err := valid.Sender()
+	require.NoError(t, err)
+	require.Equal(t, "campaigns@Mail.Example.COM", sender)
+	require.Equal(t, "mail.example.com", domain)
+
+	tests := []struct {
+		name   string
+		mutate func(*SMTPConfig)
+	}{
+		{name: "server required", mutate: func(config *SMTPConfig) { config.Server = "" }},
+		{name: "port positive", mutate: func(config *SMTPConfig) { config.Port = 0 }},
+		{name: "port bounded", mutate: func(config *SMTPConfig) { config.Port = 65536 }},
+		{name: "account required", mutate: func(config *SMTPConfig) { config.Account = "" }},
+		{name: "from required", mutate: func(config *SMTPConfig) { config.From = "" }},
+		{name: "token required", mutate: func(config *SMTPConfig) { config.Token = "" }},
+		{name: "plain from mailbox", mutate: func(config *SMTPConfig) { config.From = "Campaigns <campaigns@example.com>" }},
+		{name: "header-safe from mailbox", mutate: func(config *SMTPConfig) { config.From = "campaigns@example.com\r\nBcc: victim@example.com" }},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			config := valid
+			testCase.mutate(&config)
+			require.Error(t, config.Validate())
+		})
+	}
+}
+
+func TestSendEmailWithSMTPConfigUsesDedicatedValuesWithoutMutatingGlobals(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{})
+	originalServer := SMTPServer
+	originalPort := SMTPPort
+	originalAccount := SMTPAccount
+	originalFrom := SMTPFrom
+	originalToken := SMTPToken
+	originalSSL := SMTPSSLEnabled
+	originalForceLogin := SMTPForceAuthLogin
+	originalName := SystemName
+	t.Cleanup(func() {
+		SMTPServer = originalServer
+		SMTPPort = originalPort
+		SMTPAccount = originalAccount
+		SMTPFrom = originalFrom
+		SMTPToken = originalToken
+		SMTPSSLEnabled = originalSSL
+		SMTPForceAuthLogin = originalForceLogin
+		SystemName = originalName
+	})
+
+	SMTPServer = "transactional.invalid"
+	SMTPPort = 2525
+	SMTPAccount = "transactional@example.net"
+	SMTPFrom = "transactional@example.net"
+	SMTPToken = "transactional-secret"
+	SMTPSSLEnabled = true
+	SMTPForceAuthLogin = true
+	SystemName = "Flatkey"
+
+	config := SMTPConfig{
+		Server:  "localhost",
+		Port:    port,
+		Account: "activity@example.com",
+		From:    "campaigns@example.com",
+		Token:   "activity-secret",
+	}
+	err := SendEmailWithSMTPConfig(config, "subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+
+	require.NoError(t, err)
+	require.Contains(t, result.commands, "MAIL FROM:<campaigns@example.com>")
+	require.Contains(t, result.data, "From: "+(&mail.Address{Name: SystemName, Address: "campaigns@example.com"}).String()+"\r\n")
+	require.Equal(t, "transactional.invalid", SMTPServer)
+	require.Equal(t, 2525, SMTPPort)
+	require.Equal(t, "transactional@example.net", SMTPAccount)
+	require.Equal(t, "transactional@example.net", SMTPFrom)
+	require.Equal(t, "transactional-secret", SMTPToken)
+	require.True(t, SMTPSSLEnabled)
+	require.True(t, SMTPForceAuthLogin)
+}
+
+func TestEmailMessageIncludesProvidedStableMessageID(t *testing.T) {
+	originalFrom := SMTPFrom
+	originalAccount := SMTPAccount
+	originalName := SystemName
+	t.Cleanup(func() {
+		SMTPFrom = originalFrom
+		SMTPAccount = originalAccount
+		SystemName = originalName
+	})
+	SMTPFrom = "sender@mail.example.com"
+	SMTPAccount = ""
+	SystemName = "Flatkey"
+
+	message, err := buildEmailMessage("Welcome back", "user@example.com", "<p>Hello</p>", "<recall-42-1@mail.example.com>")
+	require.NoError(t, err)
+	require.Contains(t, string(message), "Message-ID: <recall-42-1@mail.example.com>\r\n")
+	require.Contains(t, string(message), "To: user@example.com\r\n")
+}
+
+func TestEmailMessageRejectsHeaderInjection(t *testing.T) {
+	originalFrom := SMTPFrom
+	originalAccount := SMTPAccount
+	t.Cleanup(func() {
+		SMTPFrom = originalFrom
+		SMTPAccount = originalAccount
+	})
+	SMTPFrom = "sender@mail.example.com"
+	SMTPAccount = ""
+
+	tests := []struct {
+		name      string
+		subject   string
+		receiver  string
+		messageID string
+	}{
+		{name: "subject", subject: "Welcome\r\nBcc: victim@example.com", receiver: "user@example.com", messageID: "<recall-42-1@mail.example.com>"},
+		{name: "receiver", subject: "Welcome", receiver: "user@example.com\nBcc: victim@example.com", messageID: "<recall-42-1@mail.example.com>"},
+		{name: "message id", subject: "Welcome", receiver: "user@example.com", messageID: "<recall-42-1@mail.example.com>\r\nBcc: victim@example.com"},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := buildEmailMessage(testCase.subject, testCase.receiver, "body", testCase.messageID)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestEmailMessageDomainUsesEffectiveSenderMailbox(t *testing.T) {
+	originalFrom := SMTPFrom
+	originalAccount := SMTPAccount
+	t.Cleanup(func() {
+		SMTPFrom = originalFrom
+		SMTPAccount = originalAccount
+	})
+
+	SMTPFrom = ""
+	SMTPAccount = "sender@Fallback.Example.COM"
+	domain, err := EmailMessageIDDomain()
+	require.NoError(t, err)
+	require.Equal(t, "fallback.example.com", domain)
+
+	for _, sender := range []string{
+		"sender@example.com,other@example.com",
+		"sender@example.com\r\nBcc: victim@example.com",
+		"sender@invalid_domain",
+	} {
+		SMTPFrom = sender
+		_, err := EmailMessageIDDomain()
+		require.Error(t, err, sender)
+	}
+}
+
+func TestNormalizeSMTPFromAliasesPreservesCanonicalAliasesAndRejectsInjection(t *testing.T) {
+	aliases, err := NormalizeSMTPFromAliases(" Campaigns@Example.com\nalerts@example.com,campaigns@example.com ", "system@example.com", "login@example.com")
+	require.NoError(t, err)
+	require.Equal(t, "Campaigns@Example.com,alerts@example.com", aliases)
+
+	_, err = NormalizeSMTPFromAliases("safe@example.com\nBcc: victim@example.com", "system@example.com", "login@example.com")
+	require.Error(t, err)
+}
+
+func TestResolveSMTPSenderFromConfigUsesCanonicalChoicesAndRejectsUnlistedAliases(t *testing.T) {
+	resolved, err := ResolveSMTPSenderFromConfig("campaigns@example.com", "system@example.com", "login@example.com", "Campaigns@Example.com,alerts@example.com")
+	require.NoError(t, err)
+	require.Equal(t, "Campaigns@Example.com", resolved.Email)
+	require.Equal(t, "example.com", resolved.Domain)
+	require.False(t, resolved.UsesDefault)
+	require.Equal(t, []SMTPSenderChoice{
+		{Email: "system@example.com", IsDefault: true},
+		{Email: "Campaigns@Example.com"},
+		{Email: "alerts@example.com"},
+	}, resolved.Options)
+
+	_, err = ResolveSMTPSenderFromConfig("billing@example.com", "system@example.com", "login@example.com", "Campaigns@Example.com,alerts@example.com")
+	require.ErrorContains(t, err, "not allowed")
+}
+
+func TestSendEmailFromWithMessageIDUsesExplicitEnvelopeAndVisibleFrom(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{})
+	configureSMTPTestClient(t, port, false)
+	SystemName = "Flatkey"
+
+	err := SendEmailFromWithMessageID("campaigns@example.com", "subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+	require.NoError(t, err)
+	require.Contains(t, result.commands, "MAIL FROM:<campaigns@example.com>")
+	require.Contains(t, result.data, "From: "+(&mail.Address{Name: SystemName, Address: "campaigns@example.com"}).String()+"\r\n")
+}
+
+func TestSendEmailWithMessageIDKeepsDefaultEnvelopeAndVisibleFrom(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{})
+	configureSMTPTestClient(t, port, false)
+	SystemName = "Flatkey"
+
+	err := SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+	require.NoError(t, err)
+	require.Contains(t, result.commands, "MAIL FROM:<sender@example.com>")
+	require.Contains(t, result.data, "From: "+(&mail.Address{Name: SystemName, Address: "sender@example.com"}).String()+"\r\n")
+}
+
+func TestDefaultEmailPathsIgnoreMalformedSMTPFromAliases(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{})
+	configureSMTPTestClient(t, port, false)
+	SystemName = "Flatkey"
+	SMTPFromAliases = "safe@example.com\nBcc: victim@example.com"
+
+	domain, err := EmailMessageIDDomain()
+	require.NoError(t, err)
+	require.Equal(t, "example.com", domain)
+
+	message, err := buildEmailMessage("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	require.NoError(t, err)
+	require.Contains(t, string(message), "From: "+(&mail.Address{Name: SystemName, Address: "sender@example.com"}).String()+"\r\n")
+
+	err = SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+	require.NoError(t, err)
+	require.Contains(t, result.commands, "MAIL FROM:<sender@example.com>")
+}
+
+func TestEmailMessageCanonicalizesAddressHeadersAndRejectsInvalidMessageIDDomain(t *testing.T) {
+	originalFrom := SMTPFrom
+	originalAccount := SMTPAccount
+	originalName := SystemName
+	t.Cleanup(func() {
+		SMTPFrom = originalFrom
+		SMTPAccount = originalAccount
+		SystemName = originalName
+	})
+	SMTPFrom = "sender@notify.example.com"
+	SMTPAccount = "sender@notify.example.com"
+	SystemName = `Flatkey "Ops" \ 通知`
+
+	message, err := buildEmailMessage("subject", "one@example.com; two@example.com", "body", "<recall-1-1@notify.example.com>")
+	require.NoError(t, err)
+	require.Contains(t, string(message), "To: one@example.com, two@example.com\r\n")
+	require.Contains(t, string(message), "From: "+(&mail.Address{Name: SystemName, Address: SMTPFrom}).String()+"\r\n")
+
+	for _, messageID := range []string{
+		"<recall-1-1@a..example.com>",
+		"<recall-1-1@.example.com>",
+		"<recall-1-1@example.com.>",
+		"<recall-1-1@invalid_domain>",
+		"<recall-1-1@Notify.Example.com>",
+	} {
+		_, err := buildEmailMessage("subject", "one@example.com", "body", messageID)
+		require.Error(t, err, messageID)
+	}
+}
+
+func TestEmailMessageFallbackDoesNotMutateSMTPFrom(t *testing.T) {
+	originalFrom := SMTPFrom
+	originalAccount := SMTPAccount
+	originalServer := SMTPServer
+	originalPort := SMTPPort
+	originalSSL := SMTPSSLEnabled
+	t.Cleanup(func() {
+		SMTPFrom = originalFrom
+		SMTPAccount = originalAccount
+		SMTPServer = originalServer
+		SMTPPort = originalPort
+		SMTPSSLEnabled = originalSSL
+	})
+	SMTPFrom = ""
+	SMTPAccount = "sender@fallback.example.com"
+	SMTPServer = "127.0.0.1"
+	SMTPPort = 1
+	SMTPSSLEnabled = false
+
+	err := SendEmailWithMessageID("subject", "one@example.com", "body", "<recall-1-1@fallback.example.com>")
+	require.Error(t, err)
+	require.Empty(t, SMTPFrom)
+}
+
+func TestEmailMessageUncertainClassificationPreservesErrorChain(t *testing.T) {
+	cause := errors.New("connection reset after DATA")
+	err := &emailSendError{Uncertain: true, Err: cause}
+	require.True(t, IsEmailSendUncertain(err))
+	require.ErrorIs(t, err, cause)
+	require.Equal(t, cause.Error(), err.Error())
+
+	definite := &emailSendError{Uncertain: false, Err: cause}
+	require.False(t, IsEmailSendUncertain(definite))
+	require.True(t, strings.Contains(definite.Error(), "connection reset"))
+}
+
+func TestEmailMessageManualTLSClassifiesRealSMTPPhases(t *testing.T) {
+	tests := []struct {
+		name          string
+		script        smtpTestScript
+		wantUncertain bool
+		wantError     bool
+		commands      []string
+	}{
+		{name: "final 250 accepted", script: smtpTestScript{useTLS: true}, commands: []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA", "QUIT"}},
+		{name: "RCPT rejection is definite", script: smtpTestScript{useTLS: true, failAt: "RCPT"}, wantError: true, commands: []string{"EHLO", "AUTH", "MAIL", "RCPT"}},
+		{name: "connection loss after DATA is uncertain", script: smtpTestScript{useTLS: true, closeBeforeDataResponse: true}, wantError: true, wantUncertain: true, commands: []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA"}},
+		{name: "cleanup reset after final 250 stays accepted", script: smtpTestScript{useTLS: true, resetAfterFinalResponse: true}, commands: []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA"}},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			port, wait := startSMTPTestServer(t, testCase.script)
+			configureSMTPTestClient(t, port, true)
+
+			err := SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+			result := wait()
+			if testCase.wantError {
+				require.Error(t, err)
+				require.Equal(t, testCase.wantUncertain, IsEmailSendUncertain(err))
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, testCase.commands, smtpCommandNames(result.commands))
+			if testCase.script.failAt == "" {
+				require.Contains(t, result.data, "Message-ID: <recall-1-1@example.com>")
+			}
+		})
+	}
+}
+
+func TestEmailMessageNonImplicitTLSPreDATAErrorsAreDeterminate(t *testing.T) {
+	tests := []struct {
+		name     string
+		script   smtpTestScript
+		commands []string
+	}{
+		{name: "MAIL 421", script: smtpTestScript{failAt: "MAIL", failReply: "421 4.3.0 service unavailable\r\n"}, commands: []string{"EHLO", "AUTH", "MAIL"}},
+		{name: "RCPT 550", script: smtpTestScript{failAt: "RCPT", failReply: "550 5.1.1 mailbox unavailable\r\n"}, commands: []string{"EHLO", "AUTH", "MAIL", "RCPT"}},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			port, wait := startSMTPTestServer(t, testCase.script)
+			configureSMTPTestClient(t, port, false)
+
+			err := SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+			result := wait()
+			require.Error(t, err)
+			require.False(t, IsEmailSendUncertain(err))
+			require.Equal(t, testCase.commands, smtpCommandNames(result.commands))
+		})
+	}
+}
+
+func TestEmailMessageNonImplicitTLSESMTPWithoutAUTHReturnsUnsupportedAUTH(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{omitAuth: true})
+	configureSMTPTestClient(t, port, false)
+
+	err := SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+	require.ErrorContains(t, err, "smtp: server doesn't support AUTH")
+	require.False(t, IsEmailSendUncertain(err))
+	require.Equal(t, []string{"EHLO"}, smtpCommandNames(result.commands))
+}
+
+func TestEmailMessageNonImplicitTLSHELOFallbackSkipsAUTH(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{heloFallback: true})
+	configureSMTPTestClient(t, port, false)
+
+	err := SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+	require.NoError(t, err)
+	require.Equal(t, []string{"EHLO", "HELO", "MAIL", "RCPT", "DATA", "QUIT"}, smtpCommandNames(result.commands))
+	require.Contains(t, result.data, "Message-ID: <recall-1-1@example.com>")
+}
+
+func TestSendEmailWithSMTPConfigNonTLSClassifiesSMTPPhases(t *testing.T) {
+	tests := []struct {
+		name          string
+		script        smtpTestScript
+		wantError     bool
+		wantUncertain bool
+		wantCommands  []string
+	}{
+		{name: "MAIL rejection is definite", script: smtpTestScript{failAt: "MAIL"}, wantError: true, wantCommands: []string{"EHLO", "AUTH", "MAIL"}},
+		{name: "DATA writer close failure is uncertain", script: smtpTestScript{closeBeforeDataResponse: true}, wantError: true, wantUncertain: true, wantCommands: []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA"}},
+		{name: "cleanup reset after final 250 stays accepted", script: smtpTestScript{resetAfterFinalResponse: true}, wantCommands: []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA"}},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			port, wait := startSMTPTestServer(t, testCase.script)
+			config := SMTPConfig{
+				Server:  "localhost",
+				Port:    port,
+				Account: "activity@example.com",
+				From:    "activity@example.com",
+				Token:   "activity-secret",
+			}
+
+			err := SendEmailWithSMTPConfig(config, "subject", "user@example.com", "body", "<recall-1-1@example.com>")
+			result := wait()
+			if testCase.wantError {
+				require.Error(t, err)
+				require.Equal(t, testCase.wantUncertain, IsEmailSendUncertain(err))
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, testCase.wantCommands, smtpCommandNames(result.commands))
+		})
+	}
+
+	port, wait := startSMTPTestServer(t, smtpTestScript{failAt: "MAIL"})
+	configureSMTPTestClient(t, port, false)
+	err := SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+	require.Error(t, err)
+	require.False(t, IsEmailSendUncertain(err))
+	require.Equal(t, []string{"EHLO", "AUTH", "MAIL"}, smtpCommandNames(result.commands))
+}
+
+func TestSendEmailWithSMTPConfigVerifiesImplicitTLSCertificates(t *testing.T) {
+	port, wait := startSMTPTestServerResult(t, smtpTestScript{useTLS: true})
+	err := SendEmailWithSMTPConfig(SMTPConfig{
+		Server:     "localhost",
+		Port:       port,
+		Account:    "activity@example.com",
+		From:       "activity@example.com",
+		Token:      "activity-secret",
+		SSLEnabled: true,
+	}, "subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "certificate")
+	require.Empty(t, result.commands)
+}
+
+func TestGlobalImplicitTLSWrapperKeepsLegacyInsecureCertificateCompatibility(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{useTLS: true})
+	configureSMTPTestClient(t, port, true)
+
+	err := SendEmailWithMessageID("subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA", "QUIT"}, smtpCommandNames(result.commands))
+}
+
+func TestSendEmailWithSMTPConfigRefusesRemotePlaintextAuthWithoutSTARTTLS(t *testing.T) {
+	port, wait := startSMTPTestServerResult(t, smtpTestScript{})
+	config := SMTPConfig{
+		Server:         "smtp.remote.example",
+		Port:           port,
+		Account:        "activity@example.com",
+		From:           "activity@example.com",
+		Token:          "activity-secret",
+		ForceAuthLogin: true,
+	}
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	message, err := buildEmailMessageFrom(config.From, "subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	require.NoError(t, err)
+
+	err = sendEmailSMTPByPhase(config, addr, config.From, []string{"user@example.com"}, getSMTPAuth(config), message)
+	result := wait()
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "STARTTLS")
+	require.Equal(t, []string{"EHLO"}, smtpCommandNames(result.commands))
+}
+
+func TestSendEmailWithSMTPConfigAllowsLocalPlaintextAuthWithoutSTARTTLS(t *testing.T) {
+	port, wait := startSMTPTestServer(t, smtpTestScript{})
+	config := SMTPConfig{
+		Server:         "localhost",
+		Port:           port,
+		Account:        "activity@example.com",
+		From:           "activity@example.com",
+		Token:          "activity-secret",
+		ForceAuthLogin: true,
+	}
+
+	err := SendEmailWithSMTPConfig(config, "subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"EHLO", "AUTH", "MAIL", "RCPT", "DATA", "QUIT"}, smtpCommandNames(result.commands))
+}
+
+func TestSendEmailWithSMTPConfigTimesOutWhenSMTPServerStalls(t *testing.T) {
+	originalTimeout := smtpSessionTimeout
+	smtpSessionTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { smtpSessionTimeout = originalTimeout })
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
+	release := make(chan struct{})
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		accepted <- conn
+		<-release
+		_ = conn.Close()
+	}()
+	t.Cleanup(func() {
+		close(release)
+		select {
+		case conn := <-accepted:
+			_ = conn.Close()
+		default:
+		}
+	})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- SendEmailWithSMTPConfig(SMTPConfig{
+			Server:  "localhost",
+			Port:    listener.Addr().(*net.TCPAddr).Port,
+			Account: "activity@example.com",
+			From:    "activity@example.com",
+			Token:   "activity-secret",
+		}, "subject", "user@example.com", "body", "<recall-1-1@example.com>")
+	}()
+
+	select {
+	case err := <-errCh:
+		require.Error(t, err)
+	case <-time.After(time.Second):
+		require.FailNow(t, "SMTP send did not return before the session timeout")
+	}
+}
+
+func TestSendEmailWithSMTPConfigSuppressesCommonLayerNonTLSFailureLog(t *testing.T) {
+	var logOutput bytes.Buffer
+	LogWriterMu.Lock()
+	originalErrorWriter := gin.DefaultErrorWriter
+	gin.DefaultErrorWriter = &logOutput
+	LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		LogWriterMu.Lock()
+		gin.DefaultErrorWriter = originalErrorWriter
+		LogWriterMu.Unlock()
+	})
+
+	port, wait := startSMTPTestServer(t, smtpTestScript{failAt: "MAIL"})
+	err := SendEmailWithSMTPConfig(SMTPConfig{
+		Server:  "localhost",
+		Port:    port,
+		Account: "activity@example.com",
+		From:    "activity@example.com",
+		Token:   "activity-secret",
+	}, "subject", "activity-recipient@example.com", "body", "<recall-1-1@example.com>")
+	result := wait()
+
+	require.Error(t, err)
+	require.False(t, IsEmailSendUncertain(err))
+	require.Equal(t, []string{"EHLO", "AUTH", "MAIL"}, smtpCommandNames(result.commands))
+	require.NotContains(t, logOutput.String(), "failed to send email")
+	require.NotContains(t, logOutput.String(), "activity-recipient@example.com")
+
+	logOutput.Reset()
+	port, wait = startSMTPTestServer(t, smtpTestScript{failAt: "MAIL"})
+	configureSMTPTestClient(t, port, false)
+	err = SendEmailWithMessageID("subject", "global-recipient@example.com", "body", "<recall-1-1@example.com>")
+	result = wait()
+
+	require.Error(t, err)
+	require.False(t, IsEmailSendUncertain(err))
+	require.Equal(t, []string{"EHLO", "AUTH", "MAIL"}, smtpCommandNames(result.commands))
+	require.Contains(t, logOutput.String(), "failed to send email to global-recipient@example.com")
+}
+
+type smtpTestScript struct {
+	useTLS                  bool
+	omitAuth                bool
+	heloFallback            bool
+	failAt                  string
+	failReply               string
+	closeBeforeDataResponse bool
+	resetAfterFinalResponse bool
+}
+
+type smtpTestResult struct {
+	commands []string
+	data     string
+	err      error
+}
+
+func startSMTPTestServer(t *testing.T, script smtpTestScript) (int, func() smtpTestResult) {
+	t.Helper()
+	port, waitResult := startSMTPTestServerResult(t, script)
+	return port, func() smtpTestResult {
+		t.Helper()
+		result := waitResult()
+		require.NoError(t, result.err)
+		return result
+	}
+}
+
+func startSMTPTestServerResult(t *testing.T, script smtpTestScript) (int, func() smtpTestResult) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
+	certificate := smtpTestCertificate(t)
+	results := make(chan smtpTestResult, 1)
+	go func() {
+		result := smtpTestResult{}
+		rawConn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			result.err = acceptErr
+			results <- result
+			return
+		}
+		_ = listener.Close()
+		defer rawConn.Close()
+		_ = rawConn.SetDeadline(time.Now().Add(5 * time.Second))
+		var conn net.Conn = rawConn
+		if script.useTLS {
+			tlsConn := tls.Server(rawConn, &tls.Config{Certificates: []tls.Certificate{certificate}})
+			if handshakeErr := tlsConn.Handshake(); handshakeErr != nil {
+				result.err = handshakeErr
+				results <- result
+				return
+			}
+			conn = tlsConn
+		}
+		result.err = runSMTPTestScript(conn, rawConn, script, &result)
+		results <- result
+	}()
+	port := listener.Addr().(*net.TCPAddr).Port
+	return port, func() smtpTestResult {
+		t.Helper()
+		select {
+		case result := <-results:
+			return result
+		case <-time.After(6 * time.Second):
+			require.FailNow(t, "scripted SMTP server timed out")
+			return smtpTestResult{}
+		}
+	}
+}
+
+func runSMTPTestScript(conn net.Conn, rawConn net.Conn, script smtpTestScript, result *smtpTestResult) error {
+	reader := bufio.NewReader(conn)
+	writer := bufio.NewWriter(conn)
+	writeReply := func(reply string) error {
+		if _, err := writer.WriteString(reply); err != nil {
+			return err
+		}
+		return writer.Flush()
+	}
+	readLine := func() (string, error) {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+		line = strings.TrimSpace(line)
+		result.commands = append(result.commands, line)
+		return line, nil
+	}
+	readCommand := func(name string) error {
+		line, err := readLine()
+		if err != nil {
+			return err
+		}
+		if !strings.HasPrefix(strings.ToUpper(line), name) {
+			return fmt.Errorf("expected SMTP %s command, got %q", name, line)
+		}
+		return nil
+	}
+	if err := writeReply("220 localhost ESMTP ready\r\n"); err != nil {
+		return err
+	}
+	if err := readCommand("EHLO"); err != nil {
+		return err
+	}
+	if script.heloFallback {
+		if err := writeReply("500 5.5.1 EHLO not supported\r\n"); err != nil {
+			return err
+		}
+		if err := readCommand("HELO"); err != nil {
+			return err
+		}
+		if err := writeReply("250 localhost\r\n"); err != nil {
+			return err
+		}
+	} else if script.omitAuth {
+		if err := writeReply("250-localhost\r\n250 HELP\r\n"); err != nil {
+			return err
+		}
+	} else {
+		if err := writeReply("250-localhost\r\n250 AUTH PLAIN\r\n"); err != nil {
+			return err
+		}
+		if err := readCommand("AUTH"); err != nil {
+			return err
+		}
+		if err := writeReply("235 2.7.0 authenticated\r\n"); err != nil {
+			return err
+		}
+	}
+	if script.omitAuth || script.heloFallback {
+		line, err := readLine()
+		if err != nil {
+			if script.omitAuth && errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+		if strings.HasPrefix(strings.ToUpper(line), "AUTH") {
+			return writeReply("502 5.5.1 AUTH not supported\r\n")
+		}
+		if !strings.HasPrefix(strings.ToUpper(line), "MAIL") {
+			return fmt.Errorf("expected SMTP MAIL command, got %q", line)
+		}
+		if script.failAt == "MAIL" {
+			reply := script.failReply
+			if reply == "" {
+				reply = "550 5.1.0 scripted rejection\r\n"
+			}
+			return writeReply(reply)
+		}
+		if err := writeReply("250 2.1.0 ok\r\n"); err != nil {
+			return err
+		}
+		for _, command := range []string{"RCPT", "DATA"} {
+			if err := readCommand(command); err != nil {
+				return err
+			}
+			if script.failAt == command {
+				reply := script.failReply
+				if reply == "" {
+					reply = "550 5.1.0 scripted rejection\r\n"
+				}
+				return writeReply(reply)
+			}
+			if command == "DATA" {
+				if err := writeReply("354 send message, end with dot\r\n"); err != nil {
+					return err
+				}
+				break
+			}
+			if err := writeReply("250 2.1.0 ok\r\n"); err != nil {
+				return err
+			}
+		}
+		goto data
+	}
+	for _, command := range []string{"MAIL", "RCPT", "DATA"} {
+		if err := readCommand(command); err != nil {
+			return err
+		}
+		if script.failAt == command {
+			reply := script.failReply
+			if reply == "" {
+				reply = "550 5.1.0 scripted rejection\r\n"
+			}
+			return writeReply(reply)
+		}
+		if command == "DATA" {
+			if err := writeReply("354 send message, end with dot\r\n"); err != nil {
+				return err
+			}
+			break
+		}
+		if err := writeReply("250 2.1.0 ok\r\n"); err != nil {
+			return err
+		}
+	}
+data:
+	var data strings.Builder
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return err
+		}
+		if line == ".\r\n" {
+			break
+		}
+		data.WriteString(line)
+	}
+	result.data = data.String()
+	if script.closeBeforeDataResponse {
+		return nil
+	}
+	if err := writeReply("250 2.0.0 queued\r\n"); err != nil {
+		return err
+	}
+	if script.resetAfterFinalResponse {
+		if tcpConn, ok := rawConn.(*net.TCPConn); ok {
+			_ = tcpConn.SetLinger(0)
+		}
+		return nil
+	}
+	line, err := reader.ReadString('\n')
+	if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+		return nil
+	}
+	if err == nil && strings.HasPrefix(strings.ToUpper(strings.TrimSpace(line)), "QUIT") {
+		result.commands = append(result.commands, strings.TrimSpace(line))
+		return writeReply("221 2.0.0 bye\r\n")
+	}
+	return err
+}
+
+func smtpTestCertificate(t *testing.T) tls.Certificate {
+	t.Helper()
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		NotBefore:    time.Now().Add(-time.Minute),
+		NotAfter:     time.Now().Add(time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:     []string{"localhost"},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	require.NoError(t, err)
+	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: privateKey}
+}
+
+func configureSMTPTestClient(t *testing.T, port int, useTLS bool) {
+	t.Helper()
+	originalServer := SMTPServer
+	originalPort := SMTPPort
+	originalSSL := SMTPSSLEnabled
+	originalForceLogin := SMTPForceAuthLogin
+	originalAccount := SMTPAccount
+	originalFrom := SMTPFrom
+	originalAliases := SMTPFromAliases
+	originalToken := SMTPToken
+	originalName := SystemName
+	SMTPServer = "localhost"
+	SMTPPort = port
+	SMTPSSLEnabled = useTLS
+	SMTPForceAuthLogin = false
+	SMTPAccount = "sender@example.com"
+	SMTPFrom = "sender@example.com"
+	SMTPFromAliases = ""
+	SMTPToken = "test-password"
+	t.Cleanup(func() {
+		SMTPServer = originalServer
+		SMTPPort = originalPort
+		SMTPSSLEnabled = originalSSL
+		SMTPForceAuthLogin = originalForceLogin
+		SMTPAccount = originalAccount
+		SMTPFrom = originalFrom
+		SMTPFromAliases = originalAliases
+		SMTPToken = originalToken
+		SystemName = originalName
+	})
+}
+
+func smtpCommandNames(commands []string) []string {
+	names := make([]string, 0, len(commands))
+	for _, command := range commands {
+		name, _, _ := strings.Cut(command, " ")
+		names = append(names, strings.ToUpper(name))
+	}
+	return names
+}
