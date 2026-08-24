@@ -61,6 +61,23 @@ function isAuthenticatedUserId(userId?: number): userId is number {
   return typeof userId === 'number' && Number.isInteger(userId) && userId > 0
 }
 
+export function runUserScopedDrain<T>(
+  inFlight: Map<number, Promise<T>>,
+  userId: number,
+  drain: () => Promise<T>
+): Promise<T> {
+  const existing = inFlight.get(userId)
+  if (existing) return existing
+
+  const promise = Promise.resolve()
+    .then(drain)
+    .finally(() => {
+      if (inFlight.get(userId) === promise) inFlight.delete(userId)
+    })
+  inFlight.set(userId, promise)
+  return promise
+}
+
 export function usePlaygroundPersistence({
   userId,
   messages,
@@ -72,8 +89,8 @@ export function usePlaygroundPersistence({
   const stoppedRef = useRef(false)
   const messagesRef = useRef(messages)
   const conversationIdRef = useRef(conversationId)
-  const drainPromiseRef = useRef<Promise<PlaygroundRecordPayload[]> | null>(
-    null
+  const drainPromisesRef = useRef(
+    new Map<number, Promise<PlaygroundRecordPayload[]>>()
   )
   const [settledUserId, setSettledUserId] = useState<number | null>(null)
   const hasUser = isAuthenticatedUserId(userId)
@@ -103,40 +120,35 @@ export function usePlaygroundPersistence({
 
   const drainStoredRecords = useCallback(
     async (targetUserId: number) => {
-      if (drainPromiseRef.current) return drainPromiseRef.current
+      return runUserScopedDrain(
+        drainPromisesRef.current,
+        targetUserId,
+        async () => {
+          while (true) {
+            const { records: attemptedRecords } =
+              await browserPlaygroundOutbox.read(targetUserId)
+            if (attemptedRecords.length === 0) return []
 
-      const drain = async () => {
-        while (true) {
-          const attemptedRecords =
-            await browserPlaygroundOutbox.list(targetUserId)
-          if (attemptedRecords.length === 0) return []
-
-          const remainingRecords = await drainPlaygroundOutbox(
-            attemptedRecords,
-            savePlaygroundRecord
-          )
-          const deliveredCount =
-            attemptedRecords.length - remainingRecords.length
-          await browserPlaygroundOutbox.remove(
-            targetUserId,
-            attemptedRecords
-              .slice(0, deliveredCount)
-              .map((record) => record.record_id)
-          )
-          clearDeliveredLocalPriority(
-            targetUserId,
-            attemptedRecords.slice(0, deliveredCount)
-          )
-          if (remainingRecords.length > 0) return remainingRecords
+            const remainingRecords = await drainPlaygroundOutbox(
+              attemptedRecords,
+              savePlaygroundRecord
+            )
+            const deliveredCount =
+              attemptedRecords.length - remainingRecords.length
+            await browserPlaygroundOutbox.remove(
+              targetUserId,
+              attemptedRecords
+                .slice(0, deliveredCount)
+                .map((record) => record.record_id)
+            )
+            clearDeliveredLocalPriority(
+              targetUserId,
+              attemptedRecords.slice(0, deliveredCount)
+            )
+            if (remainingRecords.length > 0) return remainingRecords
+          }
         }
-      }
-
-      drainPromiseRef.current = drain()
-      try {
-        return await drainPromiseRef.current
-      } finally {
-        drainPromiseRef.current = null
-      }
+      )
     },
     [clearDeliveredLocalPriority]
   )
@@ -156,7 +168,8 @@ export function usePlaygroundPersistence({
     }
 
     const restore = async () => {
-      const attemptedRecords = await browserPlaygroundOutbox.list(userId)
+      const outbox = await browserPlaygroundOutbox.read(userId)
+      const attemptedRecords = outbox.records
       const priority = loadLocalConversationPriority(userId)
       const result = await restorePlaygroundSession(
         attemptedRecords,
@@ -164,9 +177,10 @@ export function usePlaygroundPersistence({
         getCurrentPlaygroundRecord,
         {
           preferLocal:
-            !!priority &&
-            priority.conversationId === conversationIdRef.current &&
-            messagesRef.current.length > 0,
+            outbox.persistentReadFailed ||
+            (!!priority &&
+              priority.conversationId === conversationIdRef.current &&
+              messagesRef.current.length > 0),
         }
       )
       const deliveredCount =

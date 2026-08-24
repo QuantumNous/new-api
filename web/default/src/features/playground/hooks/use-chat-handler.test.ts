@@ -20,11 +20,12 @@ import { describe, expect, test } from 'bun:test'
 import type { Message } from '../types'
 import {
   applyChatCompletionResponse,
+  cancelChatRequest,
   runSingleChatRequest,
 } from './use-chat-handler'
 
 test('non-streaming requests stay busy until settled and reject reentry', async () => {
-  const gate = { current: false }
+  const gate = { current: null, next: 0 }
   const busyStates: boolean[] = []
   let finishRequest: (() => void) | undefined
   let requestCalls = 0
@@ -46,15 +47,53 @@ test('non-streaming requests stay busy until settled and reject reentry', async 
     }
   )
 
-  expect(gate.current).toBe(true)
+  expect(gate.current).toBe(1)
   expect(busyStates).toEqual([true])
   expect(second).toBe(false)
   expect(requestCalls).toBe(1)
 
   finishRequest?.()
   expect(await first).toBe(true)
-  expect(gate.current).toBe(false)
+  expect(gate.current).toBeNull()
   expect(busyStates).toEqual([true, false])
+})
+
+test('a stopped request cannot release the gate owned by a newer request', async () => {
+  const gate = { current: null, next: 0 }
+  const busyStates: boolean[] = []
+  let finishFirst: (() => void) | undefined
+  let finishSecond: (() => void) | undefined
+
+  const first = runSingleChatRequest(
+    gate,
+    (busy) => busyStates.push(busy),
+    () =>
+      new Promise<void>((resolve) => {
+        finishFirst = resolve
+      })
+  )
+  await Promise.resolve()
+  cancelChatRequest(gate, (busy) => busyStates.push(busy))
+  const second = runSingleChatRequest(
+    gate,
+    (busy) => busyStates.push(busy),
+    () =>
+      new Promise<void>((resolve) => {
+        finishSecond = resolve
+      })
+  )
+  await Promise.resolve()
+
+  finishFirst?.()
+  await first
+
+  expect(gate.current).toBe(2)
+  expect(busyStates).toEqual([true, false, true])
+
+  finishSecond?.()
+  await second
+  expect(gate.current).toBeNull()
+  expect(busyStates).toEqual([true, false, true, false])
 })
 
 describe('applyChatCompletionResponse', () => {

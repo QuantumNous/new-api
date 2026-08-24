@@ -41,9 +41,14 @@ export interface PlaygroundOutbox {
     userId: number,
     payload: PlaygroundRecordPayload
   ): Promise<'persistent' | 'volatile'>
-  list(userId: number): Promise<PlaygroundRecordPayload[]>
+  read(userId: number): Promise<PlaygroundOutboxSnapshot>
   remove(userId: number, recordIds: string[]): Promise<void>
   clear(userId: number): Promise<void>
+}
+
+export interface PlaygroundOutboxSnapshot {
+  records: PlaygroundRecordPayload[]
+  persistentReadFailed: boolean
 }
 
 function recordKey(userId: number, recordId: string): string {
@@ -109,6 +114,31 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
   })
 }
 
+export function createIndexedDbConnectionCache(
+  openDatabase: () => Promise<IDBDatabase>
+): () => Promise<IDBDatabase> {
+  let databasePromise: Promise<IDBDatabase> | null = null
+
+  return () => {
+    if (databasePromise) return databasePromise
+
+    const opening = openDatabase()
+    databasePromise = opening
+    void opening.then(
+      (database) => {
+        database.onversionchange = () => {
+          database.close()
+          if (databasePromise === opening) databasePromise = null
+        }
+      },
+      () => {
+        if (databasePromise === opening) databasePromise = null
+      }
+    )
+    return opening
+  }
+}
+
 export function createIndexedDbPendingRecordStore(
   factory: IDBFactory | undefined = typeof indexedDB === 'undefined'
     ? undefined
@@ -116,35 +146,30 @@ export function createIndexedDbPendingRecordStore(
 ): PendingRecordStore | null {
   if (!factory) return null
 
-  let databasePromise: Promise<IDBDatabase> | null = null
-  const openDatabase = () => {
-    if (databasePromise) return databasePromise
-    databasePromise = new Promise((resolve, reject) => {
-      const request = factory.open(DATABASE_NAME, DATABASE_VERSION)
-      request.onupgradeneeded = () => {
-        const database = request.result
-        const store = database.objectStoreNames.contains(STORE_NAME)
-          ? request.transaction?.objectStore(STORE_NAME)
-          : database.createObjectStore(STORE_NAME, { keyPath: 'key' })
-        if (store && !store.indexNames.contains(USER_INDEX)) {
-          store.createIndex(USER_INDEX, 'userId', { unique: false })
+  const openDatabase = createIndexedDbConnectionCache(
+    () =>
+      new Promise((resolve, reject) => {
+        const request = factory.open(DATABASE_NAME, DATABASE_VERSION)
+        request.onupgradeneeded = () => {
+          const database = request.result
+          const store = database.objectStoreNames.contains(STORE_NAME)
+            ? request.transaction?.objectStore(STORE_NAME)
+            : database.createObjectStore(STORE_NAME, { keyPath: 'key' })
+          if (store && !store.indexNames.contains(USER_INDEX)) {
+            store.createIndex(USER_INDEX, 'userId', { unique: false })
+          }
         }
-      }
-      request.onsuccess = () => {
-        request.result.onversionchange = () => request.result.close()
-        resolve(request.result)
-      }
-      request.onerror = () => {
-        databasePromise = null
-        reject(request.error || new Error('Failed to open Playground outbox'))
-      }
-      request.onblocked = () => {
-        databasePromise = null
-        reject(new Error('Playground outbox upgrade was blocked'))
-      }
-    })
-    return databasePromise
-  }
+        request.onsuccess = () => {
+          resolve(request.result)
+        }
+        request.onerror = () => {
+          reject(request.error || new Error('Failed to open Playground outbox'))
+        }
+        request.onblocked = () => {
+          reject(new Error('Playground outbox upgrade was blocked'))
+        }
+      })
+  )
 
   return {
     async put(userId, payload) {
@@ -208,13 +233,24 @@ export function createPlaygroundOutbox(
       await volatile.put(userId, payload)
       return 'volatile'
     },
-    async list(userId) {
-      const persistent = primary ? await primary.list(userId) : []
+    async read(userId) {
+      let persistent: PlaygroundRecordPayload[] = []
+      let persistentReadFailed = false
+      if (primary) {
+        try {
+          persistent = await primary.list(userId)
+        } catch {
+          persistentReadFailed = true
+        }
+      }
       const inMemory = await volatile.list(userId)
       const merged = new Map<string, PlaygroundRecordPayload>()
       persistent.forEach((record) => merged.set(record.record_id, record))
       inMemory.forEach((record) => merged.set(record.record_id, record))
-      return sortRecords(Array.from(merged.values()))
+      return {
+        records: sortRecords(Array.from(merged.values())),
+        persistentReadFailed,
+      }
     },
     async remove(userId, recordIds) {
       await Promise.allSettled([

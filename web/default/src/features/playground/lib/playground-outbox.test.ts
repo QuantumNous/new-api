@@ -19,10 +19,19 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, test } from 'bun:test'
 import type { PlaygroundRecordPayload } from '../types'
 import {
+  createIndexedDbConnectionCache,
   createMemoryPendingRecordStore,
   createPlaygroundOutbox,
+  type PlaygroundOutbox,
   type PendingRecordStore,
 } from './playground-outbox'
+
+async function listRecords(
+  outbox: PlaygroundOutbox,
+  userId: number
+): Promise<PlaygroundRecordPayload[]> {
+  return (await outbox.read(userId)).records
+}
 
 function sampleRecord(
   recordId: string,
@@ -72,10 +81,9 @@ describe('Playground outbox', () => {
       outbox.enqueue(10, sampleRecord('record-b', 'second', 2000)),
     ])
 
-    expect((await outbox.list(10)).map((record) => record.record_id)).toEqual([
-      'record-a',
-      'record-b',
-    ])
+    expect(
+      (await listRecords(outbox, 10)).map((record) => record.record_id)
+    ).toEqual(['record-a', 'record-b'])
   })
 
   test('updates a duplicate id without changing FIFO position', async () => {
@@ -84,7 +92,7 @@ describe('Playground outbox', () => {
     await outbox.enqueue(10, sampleRecord('record-b', 'second', 2000))
     await outbox.enqueue(10, sampleRecord('record-a', 'final', 1000))
 
-    const pending = await outbox.list(10)
+    const pending = await listRecords(outbox, 10)
 
     expect(pending.map((record) => record.record_id)).toEqual([
       'record-a',
@@ -112,12 +120,12 @@ describe('Playground outbox', () => {
     )
 
     expect(result).toBe('volatile')
-    expect((await outbox.list(10)).map((record) => record.record_id)).toEqual([
-      'record-a',
-    ])
+    expect(
+      (await listRecords(outbox, 10)).map((record) => record.record_id)
+    ).toEqual(['record-a'])
   })
 
-  test('does not hide a durable store read failure as an empty queue', async () => {
+  test('reports a durable read failure while retaining volatile retries', async () => {
     const primary = createMemoryPendingRecordStore()
     const failingPrimary: PendingRecordStore = {
       ...primary,
@@ -129,14 +137,19 @@ describe('Playground outbox', () => {
     await volatile.put(10, sampleRecord('record-a', 'offline', 1000))
     const outbox = createPlaygroundOutbox(failingPrimary, volatile)
 
-    expect(outbox.list(10)).rejects.toThrow('database unavailable')
+    const snapshot = await outbox.read(10)
+
+    expect(snapshot.persistentReadFailed).toBe(true)
+    expect(snapshot.records.map((record) => record.record_id)).toEqual([
+      'record-a',
+    ])
   })
 
   test('removes delivered ids without deleting a record enqueued during delivery', async () => {
     const outbox = createPlaygroundOutbox(createMemoryPendingRecordStore())
     await outbox.enqueue(10, sampleRecord('record-a', 'first', 1000))
     await outbox.enqueue(10, sampleRecord('record-b', 'second', 2000))
-    const attempted = await outbox.list(10)
+    const attempted = await listRecords(outbox, 10)
 
     await outbox.enqueue(10, sampleRecord('record-c', 'new', 3000))
     await outbox.remove(
@@ -144,9 +157,35 @@ describe('Playground outbox', () => {
       attempted.slice(0, 1).map((record) => record.record_id)
     )
 
-    expect((await outbox.list(10)).map((record) => record.record_id)).toEqual([
-      'record-b',
-      'record-c',
-    ])
+    expect(
+      (await listRecords(outbox, 10)).map((record) => record.record_id)
+    ).toEqual(['record-b', 'record-c'])
+  })
+
+  test('reopens IndexedDB after a version change closes the cached connection', async () => {
+    let openCount = 0
+    let firstClosed = false
+    const first = {
+      close: () => {
+        firstClosed = true
+      },
+      onversionchange: null,
+    } as unknown as IDBDatabase
+    const second = {
+      close: () => undefined,
+      onversionchange: null,
+    } as unknown as IDBDatabase
+    const getDatabase = createIndexedDbConnectionCache(async () => {
+      openCount += 1
+      return openCount === 1 ? first : second
+    })
+
+    expect(await getDatabase()).toBe(first)
+    expect(await getDatabase()).toBe(first)
+    first.onversionchange?.({} as IDBVersionChangeEvent)
+
+    expect(firstClosed).toBe(true)
+    expect(await getDatabase()).toBe(second)
+    expect(openCount).toBe(2)
   })
 })

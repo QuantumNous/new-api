@@ -45,40 +45,60 @@ interface UseChatHandlerOptions {
 
 type ChatConfigOverride = Partial<Pick<PlaygroundConfig, 'model' | 'group'>>
 
-interface ChatRequestGate {
-  current: boolean
+export interface ChatRequestGate {
+  current: number | null
+  next: number
 }
 
 function beginChatRequest(
   gate: ChatRequestGate,
   setBusy: (busy: boolean) => void
-): boolean {
-  if (gate.current) return false
-  gate.current = true
+): number | null {
+  if (gate.current !== null) return null
+  gate.next += 1
+  gate.current = gate.next
   setBusy(true)
-  return true
+  return gate.current
 }
 
 function finishChatRequest(
   gate: ChatRequestGate,
+  requestId: number,
   setBusy: (busy: boolean) => void
 ): void {
-  if (!gate.current) return
-  gate.current = false
+  if (gate.current !== requestId) return
+  gate.current = null
+  setBusy(false)
+}
+
+function isCurrentChatRequest(
+  gate: ChatRequestGate,
+  requestId: number
+): boolean {
+  return gate.current === requestId
+}
+
+export function cancelChatRequest(
+  gate: ChatRequestGate,
+  setBusy: (busy: boolean) => void
+): void {
+  if (gate.current === null) return
+  gate.current = null
   setBusy(false)
 }
 
 export async function runSingleChatRequest(
   gate: ChatRequestGate,
   setBusy: (busy: boolean) => void,
-  request: () => Promise<void>
+  request: (requestId: number) => Promise<void>
 ): Promise<boolean> {
-  if (!beginChatRequest(gate, setBusy)) return false
+  const requestId = beginChatRequest(gate, setBusy)
+  if (requestId === null) return false
   try {
-    await request()
+    await request(requestId)
     return true
   } finally {
-    finishChatRequest(gate, setBusy)
+    finishChatRequest(gate, requestId, setBusy)
   }
 }
 
@@ -128,7 +148,7 @@ export function useChatHandler({
   minimalParameters = false,
 }: UseChatHandlerOptions) {
   const { sendStreamRequest, stopStream } = useStreamRequest()
-  const requestGateRef = useRef(false)
+  const requestGateRef = useRef<ChatRequestGate>({ current: null, next: 0 })
   const nonStreamingAbortRef = useRef<AbortController | null>(null)
   const [isRequestGenerating, setIsRequestGenerating] = useState(false)
 
@@ -211,23 +231,47 @@ export function useChatHandler({
         parameterEnabled,
         { minimalParameters }
       )
-      if (!beginChatRequest(requestGateRef, setIsRequestGenerating)) return
+      const requestId = beginChatRequest(
+        requestGateRef.current,
+        setIsRequestGenerating
+      )
+      if (requestId === null) return
       try {
         sendStreamRequest(
           payload,
-          handleStreamUpdate,
-          handleStreamMetadata,
+          (type, chunk) => {
+            if (!isCurrentChatRequest(requestGateRef.current, requestId)) return
+            handleStreamUpdate(type, chunk)
+          },
+          (metadata) => {
+            if (!isCurrentChatRequest(requestGateRef.current, requestId)) return
+            handleStreamMetadata(metadata)
+          },
           () => {
+            if (!isCurrentChatRequest(requestGateRef.current, requestId)) return
             handleStreamComplete()
-            finishChatRequest(requestGateRef, setIsRequestGenerating)
+            finishChatRequest(
+              requestGateRef.current,
+              requestId,
+              setIsRequestGenerating
+            )
           },
           (error, errorCode) => {
+            if (!isCurrentChatRequest(requestGateRef.current, requestId)) return
             handleStreamError(error, errorCode)
-            finishChatRequest(requestGateRef, setIsRequestGenerating)
+            finishChatRequest(
+              requestGateRef.current,
+              requestId,
+              setIsRequestGenerating
+            )
           }
         )
       } catch (error) {
-        finishChatRequest(requestGateRef, setIsRequestGenerating)
+        finishChatRequest(
+          requestGateRef.current,
+          requestId,
+          setIsRequestGenerating
+        )
         throw error
       }
     },
@@ -255,9 +299,9 @@ export function useChatHandler({
       )
 
       await runSingleChatRequest(
-        requestGateRef,
+        requestGateRef.current,
         setIsRequestGenerating,
-        async () => {
+        async (requestId) => {
           const controller = new AbortController()
           nonStreamingAbortRef.current = controller
           try {
@@ -265,14 +309,24 @@ export function useChatHandler({
               payload,
               controller.signal
             )
-            if (controller.signal.aborted) return
+            if (
+              controller.signal.aborted ||
+              !isCurrentChatRequest(requestGateRef.current, requestId)
+            ) {
+              return
+            }
             onMessageUpdate((prev) =>
               updateLastAssistantMessage(prev, (message) =>
                 applyChatCompletionResponse(message, response)
               )
             )
           } catch (error: unknown) {
-            if (controller.signal.aborted) return
+            if (
+              controller.signal.aborted ||
+              !isCurrentChatRequest(requestGateRef.current, requestId)
+            ) {
+              return
+            }
             const err = error as {
               response?: {
                 data?: { message?: string; error?: { code?: string } }
@@ -316,10 +370,10 @@ export function useChatHandler({
 
   // Stop generation
   const stopGeneration = useCallback(() => {
+    cancelChatRequest(requestGateRef.current, setIsRequestGenerating)
     stopStream()
     nonStreamingAbortRef.current?.abort()
     nonStreamingAbortRef.current = null
-    finishChatRequest(requestGateRef, setIsRequestGenerating)
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) =>
         message.status === MESSAGE_STATUS.LOADING ||
