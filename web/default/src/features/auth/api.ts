@@ -123,6 +123,17 @@ export async function sendEmailVerification(
   return res.data
 }
 
+// Send SMS verification code to a phone number
+export async function sendSmsVerification(
+  phone: string,
+  turnstile?: string
+): Promise<ApiResponse> {
+  const res = await api.get('/api/sms_verification', {
+    params: { phone, turnstile },
+  })
+  return res.data
+}
+
 // Bind email to OAuth account
 export async function bindEmail(
   email: string,

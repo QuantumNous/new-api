@@ -44,6 +44,13 @@ export const subscriptionPlanSchema = z.object({
   stripe_price_id: z.string().optional(),
   creem_product_id: z.string().optional(),
   waffo_pancake_product_id: z.string().optional(),
+  // Agent plan extensions (read-side passthrough; empty values mean "legacy plan")
+  tag: z.string().optional().default(''),
+  plan_level: z.string().optional().default(''),
+  five_hour_limit: z.number().optional().default(0),
+  weekly_limit: z.number().optional().default(0),
+  monthly_limit: z.number().optional().default(0),
+  allowed_models: z.string().optional().default(''),
 })
 
 export type SubscriptionPlan = z.infer<typeof subscriptionPlanSchema>

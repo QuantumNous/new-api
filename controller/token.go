@@ -222,6 +222,12 @@ func AddToken(c *gin.Context) {
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
 	}
+	// agent 实例：token 强制 agent 标签，杜绝非 agent 标签
+	if common.AgentModeEnabled {
+		cleanToken.Tag = "agent"
+	} else {
+		cleanToken.Tag = token.Tag
+	}
 	err = cleanToken.Insert()
 	if err != nil {
 		common.ApiError(c, err)
@@ -299,6 +305,12 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		// agent 实例：token 标签强制 agent，杜绝非 agent 标签
+		if common.AgentModeEnabled {
+			cleanToken.Tag = "agent"
+		} else {
+			cleanToken.Tag = token.Tag
+		}
 	}
 	err = cleanToken.Update()
 	if err != nil {

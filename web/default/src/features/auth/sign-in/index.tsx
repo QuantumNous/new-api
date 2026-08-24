@@ -30,6 +30,24 @@ export function SignIn() {
   const { redirect } = useSearch({ from: '/(auth)/sign-in' })
   const { status } = useStatus()
 
+  // agent 实例：网页端不外露登录页，仅 Agent 平台前端提供登录
+  if (status?.agent_mode) {
+    return (
+      <AuthLayout>
+        <div className='w-full space-y-4'>
+          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
+            {t('Sign in')}
+          </h2>
+          <p className='text-muted-foreground text-left text-sm sm:text-base'>
+            {t(
+              'This is an agent-dedicated instance. Please sign in from the SinoWhale Agent client.'
+            )}
+          </p>
+        </div>
+      </AuthLayout>
+    )
+  }
+
   return (
     <AuthLayout>
       <div className='w-full space-y-8'>

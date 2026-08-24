@@ -30,6 +30,9 @@ import (
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	// agent 实例（AGENT_MODE）登录使用：手机号 + 短信验证码 + 密码
+	Phone   string `json:"phone"`
+	SmsCode string `json:"sms_code"`
 }
 
 var (
@@ -48,8 +51,48 @@ func Login(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	username := loginRequest.Username
 	password := loginRequest.Password
+
+	// agent 实例：强制「手机号 + 短信验证码 + 密码」登录
+	if common.AgentModeEnabled {
+		phone := model.NormalizePhone(loginRequest.Phone)
+		if phone == "" {
+			phone = model.NormalizePhone(loginRequest.Username) // 兼容把手机号填在 username 字段
+		}
+		if phone == "" || loginRequest.SmsCode == "" || password == "" {
+			common.ApiErrorI18n(c, i18n.MsgUserLoginSmsRequired)
+			return
+		}
+		if !model.IsValidCNPhone(phone) {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneInvalid)
+			return
+		}
+		if !common.VerifyCodeWithKey(phone, loginRequest.SmsCode, common.SmsLoginPurpose) {
+			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+			return
+		}
+		user, err := model.GetUserByPhoneForAuth(phone)
+		if err != nil {
+			if errors.Is(err, model.ErrPhoneNotFound) {
+				common.ApiErrorI18n(c, i18n.MsgUserPhoneNotFound)
+				return
+			}
+			common.ApiError(c, err)
+			return
+		}
+		if !common.ValidatePasswordAndHash(password, user.Password) || user.Status != common.UserStatusEnabled {
+			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
+			return
+		}
+		common.DeleteKey(phone, common.SmsLoginPurpose)
+		// agent 实例：登录与 api_key 签发强绑定 — 登录成功的同一响应里
+		// 下发「SinoWhale Agent」专属 sk- key，agent 客户端不允许再走单独的
+		// token 签发路径。
+		issueAgentTokenAndRespond(c, user)
+		return
+	}
+
+	username := loginRequest.Username
 	if username == "" || password == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -97,6 +140,33 @@ func Login(c *gin.Context) {
 	setupLogin(&user, c)
 }
 
+// issueAgentTokenAndRespond mints (or reuses) the user's "SinoWhale Agent"
+// token inside a transaction, then delegates to setupLogin with the api_key
+// baked into the response extras. Used by both agent Register and Login so
+// the key is always issued in lockstep with the credential handshake.
+func issueAgentTokenAndRespond(c *gin.Context, user *model.User) {
+	var tokenID int
+	var apiKey string
+	txErr := model.DB.Transaction(func(tx *gorm.DB) error {
+		id, key, err := model.EnsureAgentTokenForUserTx(tx, user.Id)
+		if err != nil {
+			return err
+		}
+		tokenID = id
+		apiKey = key
+		return nil
+	})
+	if txErr != nil {
+		common.ApiError(c, txErr)
+		return
+	}
+	setupLogin(user, c, map[string]any{
+		"api_key":      apiKey,
+		"api_key_id":   tokenID,
+		"api_key_name": model.AgentTokenName,
+	})
+}
+
 // loginMethodFromContext 根据请求路径推导登录方式，用于登录审计日志。
 func loginMethodFromContext(c *gin.Context) string {
 	switch c.FullPath() {
@@ -135,7 +205,7 @@ func recordLoginAudit(user *model.User, c *gin.Context) {
 }
 
 // setup session & cookies and then return user info
-func setupLogin(user *model.User, c *gin.Context) {
+func setupLogin(user *model.User, c *gin.Context, extras ...map[string]any) {
 	model.UpdateUserLastLoginAt(user.Id)
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
@@ -149,17 +219,23 @@ func setupLogin(user *model.User, c *gin.Context) {
 		return
 	}
 	recordLoginAudit(user, c)
+	data := map[string]any{
+		"id":           user.Id,
+		"username":     user.Username,
+		"display_name": user.DisplayName,
+		"role":         user.Role,
+		"status":       user.Status,
+		"group":        user.Group,
+	}
+	for _, extra := range extras {
+		for k, v := range extra {
+			data[k] = v
+		}
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
-		"data": map[string]any{
-			"id":           user.Id,
-			"username":     user.Username,
-			"display_name": user.DisplayName,
-			"role":         user.Role,
-			"status":       user.Status,
-			"group":        user.Group,
-		},
+		"data":    data,
 	})
 }
 
@@ -197,6 +273,7 @@ func Register(c *gin.Context) {
 	}
 	user.Username = strings.TrimSpace(user.Username)
 	user.Email = model.NormalizeEmail(user.Email)
+	user.Phone = model.NormalizePhone(user.Phone)
 	if user.Username == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -204,6 +281,29 @@ func Register(c *gin.Context) {
 	if err := common.Validate.Struct(&user); err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
+	}
+	// agent 实例：注册强制手机号 + 短信验证码；普通实例恢复用户名+密码注册
+	if common.AgentModeEnabled {
+		if user.Phone == "" || user.SmsCode == "" {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneVerificationRequired)
+			return
+		}
+		if !model.IsValidCNPhone(user.Phone) {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneInvalid)
+			return
+		}
+		if !common.VerifyCodeWithKey(user.Phone, user.SmsCode, common.SmsVerificationPurpose) {
+			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+			return
+		}
+		if err := model.EnsurePhoneAvailable(user.Phone, 0); err != nil {
+			if errors.Is(err, model.ErrPhoneAlreadyTaken) {
+				common.ApiErrorI18n(c, i18n.MsgUserPhoneAlreadyTaken)
+				return
+			}
+			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+			return
+		}
 	}
 	if common.EmailVerificationEnabled {
 		if user.Email == "" || user.VerificationCode == "" {
@@ -249,21 +349,36 @@ func Register(c *gin.Context) {
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}
+	if common.AgentModeEnabled {
+		cleanUser.Phone = user.Phone
+	}
 	if err := cleanUser.Insert(inviterId); err != nil {
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
+			return
+		}
+		if errors.Is(err, model.ErrPhoneAlreadyTaken) {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneAlreadyTaken)
 			return
 		}
 		common.ApiError(c, err)
 		return
 	}
 
-	// 获取插入后的用户ID
+	// 注册获取插入后的用户ID，agent 实例的 api_key 在登录态初始化阶段统一签发。
 	var insertedUser model.User
-	if err := model.DB.Where("username = ?", cleanUser.Username).First(&insertedUser).Error; err != nil {
-		common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
+	txErr := model.DB.Transaction(func(tx *gorm.DB) error {
+		return tx.Where("username = ?", cleanUser.Username).First(&insertedUser).Error
+	})
+	if txErr != nil {
+		common.ApiError(c, txErr)
 		return
 	}
+	// agent 模式注册成功后销毁短信验证码，防止复用
+	if common.AgentModeEnabled {
+		common.DeleteKey(user.Phone, common.SmsVerificationPurpose)
+	}
+
 	// 生成默认令牌
 	if constant.GenerateDefaultToken {
 		key, err := common.GenerateKey()
@@ -291,6 +406,13 @@ func Register(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
 			return
 		}
+	}
+
+	// agent 实例：注册即自动登录（下发会话 Cookie + 用户信息），供 Agent 客户端直接完成凭据交换。
+	// api_key 在 setupLogin 之前由 issueAgentTokenAndRespond 内部事务签发并写入响应。
+	if common.AgentModeEnabled {
+		issueAgentTokenAndRespond(c, &insertedUser)
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -486,6 +608,7 @@ func GetSelf(c *gin.Context) {
 		"role":              user.Role,
 		"status":            user.Status,
 		"email":             user.Email,
+		"phone":             user.Phone,
 		"github_id":         user.GitHubId,
 		"discord_id":        user.DiscordId,
 		"oidc_id":           user.OidcId,
@@ -1238,6 +1361,99 @@ func EmailBind(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+	return
+}
+
+type phoneBindRequest struct {
+	Phone string `json:"phone"`
+	Code  string `json:"code"`
+}
+
+// PhoneBind binds a phone number to the current user, or replaces the existing
+// one when the user already has a phone bound (i.e. "change"). Both require a
+// valid SMS verification code sent to the new phone.
+func PhoneBind(c *gin.Context) {
+	var req phoneBindRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiError(c, errors.New("invalid request body"))
+		return
+	}
+	phone := model.NormalizePhone(req.Phone)
+	code := req.Code
+	if !model.IsValidCNPhone(phone) {
+		common.ApiErrorI18n(c, i18n.MsgUserPhoneInvalid)
+		return
+	}
+	if code == "" {
+		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+		return
+	}
+	if !common.VerifyCodeWithKey(phone, code, common.SmsVerificationPurpose) {
+		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+		return
+	}
+	session := sessions.Default(c)
+	user := model.User{
+		Id: session.Get("id").(int),
+	}
+	if err := user.FillUserById(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.BindPhoneToUser(&user, phone); err != nil {
+		if errors.Is(err, model.ErrPhoneAlreadyTaken) {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneAlreadyTaken)
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	common.DeleteKey(phone, common.SmsVerificationPurpose)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+	return
+}
+
+type phoneUnbindRequest struct {
+	Code string `json:"code"`
+}
+
+// PhoneUnbind removes the current user's bound phone number. It requires a
+// valid SMS verification code sent to the currently bound phone.
+func PhoneUnbind(c *gin.Context) {
+	var req phoneUnbindRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiError(c, errors.New("invalid request body"))
+		return
+	}
+	session := sessions.Default(c)
+	user := model.User{
+		Id: session.Get("id").(int),
+	}
+	if err := user.FillUserById(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	phone := model.NormalizePhone(user.Phone)
+	if phone == "" {
+		common.ApiErrorI18n(c, i18n.MsgUserPhoneNotFound)
+		return
+	}
+	if req.Code == "" || !common.VerifyCodeWithKey(phone, req.Code, common.SmsVerificationPurpose) {
+		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+		return
+	}
+	if err := model.UnbindPhoneFromUser(&user); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.DeleteKey(phone, common.SmsVerificationPurpose)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

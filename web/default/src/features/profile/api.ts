@@ -122,6 +122,45 @@ export async function bindEmail(
 }
 
 /**
+ * Send SMS verification code to a phone number (Aliyun SMS)
+ */
+export async function sendSmsVerification(
+  phone: string,
+  turnstileToken?: string
+): Promise<ApiResponse> {
+  const params = new URLSearchParams({ phone })
+  if (turnstileToken) {
+    params.append('turnstile', turnstileToken)
+  }
+  const res = await api.get(`/api/sms_verification?${params}`)
+  return res.data
+}
+
+/**
+ * Bind (or change) the current user's phone number with an SMS code
+ */
+export async function bindPhone(
+  phone: string,
+  code: string
+): Promise<ApiResponse> {
+  const res = await api.post('/api/user/phone/bind', {
+    phone,
+    code,
+  })
+  return res.data
+}
+
+/**
+ * Unbind the current user's phone number with an SMS code
+ */
+export async function unbindPhone(code: string): Promise<ApiResponse> {
+  const res = await api.post('/api/user/phone/unbind', {
+    code,
+  })
+  return res.data
+}
+
+/**
  * Bind WeChat account
  */
 export async function bindWeChat(code: string): Promise<ApiResponse> {

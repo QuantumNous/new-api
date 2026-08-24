@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -29,12 +30,14 @@ type User struct {
 	Role             int                        `json:"role" gorm:"type:int;default:1"`   // admin, common
 	Status           int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
 	Email            string                     `json:"email" gorm:"index" validate:"max=50"`
+	Phone            string                     `json:"phone" gorm:"index" validate:"max=20"`
 	GitHubId         string                     `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId        string                     `json:"discord_id" gorm:"column:discord_id;index"`
 	OidcId           string                     `json:"oidc_id" gorm:"column:oidc_id;index"`
 	WeChatId         string                     `json:"wechat_id" gorm:"column:wechat_id;index"`
 	TelegramId       string                     `json:"telegram_id" gorm:"column:telegram_id;index"`
 	VerificationCode string                     `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
+	SmsCode          string                     `json:"sms_code" gorm:"-:all"`                                  // this field is only for SMS (phone) verification, don't save it to database!
 	AccessToken      *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
 	Quota            int                        `json:"quota" gorm:"type:int;default:0"`
 	UsedQuota        int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
@@ -280,6 +283,174 @@ func withNormalizedEmailLock(tx *gorm.DB, email string, fn func(tx *gorm.DB) err
 	return fn(tx)
 }
 
+func NormalizePhone(phone string) string {
+	return strings.TrimSpace(phone)
+}
+
+// cnPhoneRegex matches valid mainland China mobile numbers: 1[3-9] + 9 digits.
+var cnPhoneRegex = regexp.MustCompile(`^1[3-9]\d{9}$`)
+
+// IsValidCNPhone reports whether phone is a valid mainland China mobile number.
+func IsValidCNPhone(phone string) bool {
+	return cnPhoneRegex.MatchString(NormalizePhone(phone))
+}
+
+func phoneQuery(tx *gorm.DB, phone string) *gorm.DB {
+	if tx == nil {
+		tx = DB
+	}
+	return tx.Unscoped().Model(&User{}).Where("phone = ?", NormalizePhone(phone))
+}
+
+func CountUsersByPhone(phone string) (int64, error) {
+	phone = NormalizePhone(phone)
+	if phone == "" {
+		return 0, nil
+	}
+	var count int64
+	err := phoneQuery(DB, phone).Count(&count).Error
+	return count, err
+}
+
+func IsPhoneAvailable(phone string, excludeUserID int) (bool, error) {
+	phone = NormalizePhone(phone)
+	if phone == "" {
+		return true, nil
+	}
+	query := phoneQuery(DB, phone)
+	if excludeUserID > 0 {
+		query = query.Where("id <> ?", excludeUserID)
+	}
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count == 0, nil
+}
+
+func EnsurePhoneAvailable(phone string, excludeUserID int) error {
+	available, err := IsPhoneAvailable(phone, excludeUserID)
+	if err != nil {
+		return err
+	}
+	if !available {
+		return ErrPhoneAlreadyTaken
+	}
+	return nil
+}
+
+// GetUserByPhone returns the user bound to the given phone number. Returns
+// ErrPhoneNotFound when no user is bound to it.
+func GetUserByPhone(phone string) (*User, error) {
+	phone = NormalizePhone(phone)
+	if phone == "" {
+		return nil, ErrPhoneNotFound
+	}
+	var user User
+	if err := DB.Omit("password", "access_token").First(&user, "phone = ?", phone).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrPhoneNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// GetUserByPhoneForAuth returns the user row including the password hash so
+// callers (e.g. the agent login path) can verify the password. Keep this
+// separate from GetUserByPhone — the public user lookup omits credentials
+// to avoid leaking hashes via cache/log paths.
+func GetUserByPhoneForAuth(phone string) (*User, error) {
+	phone = NormalizePhone(phone)
+	if phone == "" {
+		return nil, ErrPhoneNotFound
+	}
+	var user User
+	if err := DB.First(&user, "phone = ?", phone).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrPhoneNotFound
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
+// withNormalizedPhoneLock serializes concurrent writers that target the same
+// phone inside tx, mirroring withNormalizedEmailLock. It must be called inside
+// an active transaction; the lock is scoped to that transaction and released
+// on commit/rollback. An empty phone is allowed to repeat and needs no
+// serialization.
+func withNormalizedPhoneLock(tx *gorm.DB, phone string, fn func(tx *gorm.DB) error) error {
+	phone = NormalizePhone(phone)
+	if phone == "" {
+		return fn(tx)
+	}
+	switch {
+	case common.UsingMainDatabase(common.DatabaseTypePostgreSQL):
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", phone).Error; err != nil {
+			return err
+		}
+	case common.UsingMainDatabase(common.DatabaseTypeMySQL):
+		var ids []int
+		if err := tx.Raw("SELECT id FROM users WHERE phone = ? FOR UPDATE", phone).Scan(&ids).Error; err != nil {
+			return err
+		}
+	}
+	return fn(tx)
+}
+
+func ensurePhoneAvailableWithTx(tx *gorm.DB, phone string, excludeUserID int) error {
+	phone = NormalizePhone(phone)
+	if phone == "" {
+		return nil
+	}
+	query := phoneQuery(tx, phone)
+	if excludeUserID > 0 {
+		query = query.Where("id <> ?", excludeUserID)
+	}
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return ErrPhoneAlreadyTaken
+	}
+	return nil
+}
+
+// BindPhoneToUser atomically checks phone availability and assigns it to the
+// user, serializing concurrent binds of the same phone so two accounts cannot
+// end up sharing one number. The phone is normalized before check and store.
+func BindPhoneToUser(user *User, phone string) error {
+	phone = NormalizePhone(phone)
+	if err := DB.Transaction(func(tx *gorm.DB) error {
+		return withNormalizedPhoneLock(tx, phone, func(tx *gorm.DB) error {
+			if err := ensurePhoneAvailableWithTx(tx, phone, user.Id); err != nil {
+				return err
+			}
+			user.Phone = phone
+			return user.UpdateWithTx(tx, false)
+		})
+	}); err != nil {
+		return err
+	}
+	return updateUserCache(*user)
+}
+
+// UnbindPhoneFromUser clears the user's bound phone number.
+func UnbindPhoneFromUser(user *User) error {
+	if user.Id == 0 {
+		return errors.New("user id is empty")
+	}
+	if err := DB.Model(&User{}).Where("id = ?", user.Id).Update("phone", "").Error; err != nil {
+		return err
+	}
+	if err := DB.Where("id = ?", user.Id).First(user).Error; err != nil {
+		return err
+	}
+	return updateUserCache(*user)
+}
+
 func GetMaxUserId() int {
 	var user User
 	DB.Unscoped().Last(&user)
@@ -484,6 +655,10 @@ func (user *User) prepareForInsert(tx *gorm.DB) error {
 	if err := ensureEmailAvailableWithTx(tx, user.Email, 0); err != nil {
 		return err
 	}
+	user.Phone = NormalizePhone(user.Phone)
+	if err := ensurePhoneAvailableWithTx(tx, user.Phone, 0); err != nil {
+		return err
+	}
 	if user.Password == "" {
 		return nil
 	}
@@ -533,20 +708,22 @@ func ensureEmailAvailableWithTx(tx *gorm.DB, email string, excludeUserID int) er
 func (user *User) Insert(inviterId int) error {
 	if err := DB.Transaction(func(tx *gorm.DB) error {
 		return withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
-			if err := user.prepareForInsert(tx); err != nil {
-				return err
-			}
-			user.Quota = common.QuotaForNewUser
-			user.AffCode = common.GetRandomString(4)
+			return withNormalizedPhoneLock(tx, user.Phone, func(tx *gorm.DB) error {
+				if err := user.prepareForInsert(tx); err != nil {
+					return err
+				}
+				user.Quota = common.QuotaForNewUser
+				user.AffCode = common.GetRandomString(4)
 
-			// 初始化用户设置，包括默认的边栏配置
-			if user.Setting == "" {
-				defaultSetting := dto.UserSetting{}
-				// 这里暂时不设置SidebarModules，因为需要在用户创建后根据角色设置
-				user.SetSetting(defaultSetting)
-			}
+				// 初始化用户设置，包括默认的边栏配置
+				if user.Setting == "" {
+					defaultSetting := dto.UserSetting{}
+					// 这里暂时不设置SidebarModules，因为需要在用户创建后根据角色设置
+					user.SetSetting(defaultSetting)
+				}
 
-			return tx.Create(user).Error
+				return tx.Create(user).Error
+			})
 		})
 	}); err != nil {
 		return err
@@ -597,19 +774,21 @@ func (user *User) FinishInsert(inviterId int) {
 // Post-creation tasks (sidebar config, logs, inviter rewards) are handled after the transaction commits.
 func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 	return withNormalizedEmailLock(tx, user.Email, func(tx *gorm.DB) error {
-		if err := user.prepareForInsert(tx); err != nil {
-			return err
-		}
-		user.Quota = common.QuotaForNewUser
-		user.AffCode = common.GetRandomString(4)
+		return withNormalizedPhoneLock(tx, user.Phone, func(tx *gorm.DB) error {
+			if err := user.prepareForInsert(tx); err != nil {
+				return err
+			}
+			user.Quota = common.QuotaForNewUser
+			user.AffCode = common.GetRandomString(4)
 
-		// 初始化用户设置
-		if user.Setting == "" {
-			defaultSetting := dto.UserSetting{}
-			user.SetSetting(defaultSetting)
-		}
+			// 初始化用户设置
+			if user.Setting == "" {
+				defaultSetting := dto.UserSetting{}
+				user.SetSetting(defaultSetting)
+			}
 
-		return tx.Create(user).Error
+			return tx.Create(user).Error
+		})
 	})
 }
 
@@ -772,8 +951,8 @@ func (user *User) ValidateAndFill() (err error) {
 	if username == "" || password == "" {
 		return ErrUserEmptyCredentials
 	}
-	// find by username or email
-	err = DB.Where("username = ? OR email = ?", username, username).First(user).Error
+	// find by username or email or phone
+	err = DB.Where("username = ? OR email = ? OR phone = ?", username, username, username).First(user).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrInvalidCredentials

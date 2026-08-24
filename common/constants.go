@@ -129,6 +129,22 @@ var SMTPAccount = ""
 var SMTPFrom = ""
 var SMTPToken = ""
 
+// 阿里云短信配置。AccessKey ID/Secret 仅通过环境变量注入（推荐 SMS_ACCESS_KEY /
+// SMS_SECRET_KEY），不入库不入仓。本实例默认仅启用 mock 模式（控制台打印验证码），
+// 不接真实短信服务商。
+var AliyunSMSAccessKeyId = ""
+var AliyunSMSAccessKeySecret = ""
+var AliyunSMSSignName = ""
+var AliyunSMSTemplateCode = ""
+var AliyunSMSRegionId = "cn-hangzhou"
+
+// AgentModeEnabled 标记本实例是否为独立的 agent 用户实例（AGENT_MODE=true）：
+// - 登录强制「手机号 + 短信验证码 + 密码」；
+// - 注册强制手机号验证（普通实例注册恢复为用户名+密码）；
+// - Token 强制 agent 标签；
+// - 网页端隐藏登录/注册页（仅 Agent 平台前端提供）。
+var AgentModeEnabled bool
+
 var GitHubClientId = ""
 var GitHubClientSecret = ""
 var LinuxDOClientId = ""

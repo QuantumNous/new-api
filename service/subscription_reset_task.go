@@ -86,6 +86,8 @@ func runSubscriptionQuotaResetOnce() {
 		if _, err := model.CleanupSubscriptionPreConsumeRecords(7 * 24 * 3600); err == nil {
 			subscriptionCleanupLast.Store(time.Now().Unix())
 		}
+		// 同步清理已结束的 5h/周/月窗口配额记录（保留 24h 用于读侧回溯）
+		_, _ = model.ResetDueUserPlanUsage(24 * 3600)
 	}
 	if common.DebugEnabled && (totalReset > 0 || totalExpired > 0) {
 		logger.LogDebug(ctx, "subscription maintenance: reset_count=%d, expired_count=%d", totalReset, totalExpired)

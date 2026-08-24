@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -54,6 +55,8 @@ func GetStatus(c *gin.Context) {
 		"version":                     common.Version,
 		"start_time":                  common.StartTime,
 		"email_verification":          common.EmailVerificationEnabled,
+		"phone_verification":          common.AgentModeEnabled, // 仅 agent 实例强制手机验证注册
+		"agent_mode":                  common.AgentModeEnabled, // agent 实例：网页隐藏登录/注册页
 		"github_oauth":                common.GitHubOAuthEnabled,
 		"github_client_id":            common.GitHubClientId,
 		"discord_oauth":               system_setting.GetDiscordSettings().Enabled,
@@ -291,6 +294,72 @@ func SendEmailVerification(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+	return
+}
+
+func SendSmsVerification(c *gin.Context) {
+	phone := model.NormalizePhone(c.Query("phone"))
+	purpose := c.Query("purpose")
+	if !model.IsValidCNPhone(phone) {
+		common.ApiErrorI18n(c, i18n.MsgUserPhoneInvalid)
+		return
+	}
+	if purpose == "login" {
+		// agent 实例登录用：要求手机号已注册，不拒绝"已占用"
+		if _, err := model.GetUserByPhone(phone); err != nil {
+			if errors.Is(err, model.ErrPhoneNotFound) {
+				common.ApiErrorI18n(c, i18n.MsgUserPhoneNotFound)
+				return
+			}
+			common.ApiError(c, err)
+			return
+		}
+		code := common.GenerateVerificationCode(6)
+		if err := common.SendSmsCode(phone, code); err != nil {
+			if errors.Is(err, common.ErrSmsNotConfigured) {
+				common.ApiErrorI18n(c, i18n.MsgSmsNotConfigured)
+				return
+			}
+			common.ApiErrorI18n(c, i18n.MsgSmsSendFailed)
+			return
+		}
+		common.RegisterVerificationCodeWithKey(phone, code, common.SmsLoginPurpose)
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "",
+		})
+		return
+	}
+	// 注册/绑定新手机号时不允许该手机号已被他人占用；解绑场景下当前用户通过
+	// New-Api-User header 携带身份，从而对自己已绑定的手机号发码（排除自身）
+	userID := 0
+	if idStr := c.GetHeader("New-Api-User"); idStr != "" {
+		if id, err := strconv.Atoi(idStr); err == nil {
+			userID = id
+		}
+	}
+	if err := model.EnsurePhoneAvailable(phone, userID); err != nil {
+		if errors.Is(err, model.ErrPhoneAlreadyTaken) {
+			common.ApiErrorI18n(c, i18n.MsgUserPhoneAlreadyTaken)
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	code := common.GenerateVerificationCode(6)
+	if err := common.SendSmsCode(phone, code); err != nil {
+		if errors.Is(err, common.ErrSmsNotConfigured) {
+			common.ApiErrorI18n(c, i18n.MsgSmsNotConfigured)
+			return
+		}
+		common.ApiErrorI18n(c, i18n.MsgSmsSendFailed)
+		return
+	}
+	common.RegisterVerificationCodeWithKey(phone, code, common.SmsVerificationPurpose)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

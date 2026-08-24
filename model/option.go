@@ -66,6 +66,9 @@ func InitOptionMap() {
 	common.OptionMap["SMTPStartTLSEnabled"] = strconv.FormatBool(common.SMTPStartTLSEnabled)
 	common.OptionMap["SMTPInsecureSkipVerify"] = strconv.FormatBool(common.SMTPInsecureSkipVerify)
 	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
+	common.OptionMap["AliyunSMSSignName"] = common.AliyunSMSSignName
+	common.OptionMap["AliyunSMSTemplateCode"] = common.AliyunSMSTemplateCode
+	common.OptionMap["AliyunSMSRegionId"] = common.AliyunSMSRegionId
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -380,6 +383,12 @@ func updateOptionMap(key string, value string) (err error) {
 		common.SMTPFrom = value
 	case "SMTPToken":
 		common.SMTPToken = value
+	case "AliyunSMSSignName":
+		common.AliyunSMSSignName = value
+	case "AliyunSMSTemplateCode":
+		common.AliyunSMSTemplateCode = value
+	case "AliyunSMSRegionId":
+		common.AliyunSMSRegionId = value
 	case "ServerAddress":
 		system_setting.ServerAddress = value
 	case "WorkerUrl":

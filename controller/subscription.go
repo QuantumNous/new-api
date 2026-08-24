@@ -120,7 +120,12 @@ func SubscriptionRequestBalancePay(c *gin.Context) {
 
 func AdminListSubscriptionPlans(c *gin.Context) {
 	var plans []model.SubscriptionPlan
-	if err := model.DB.Order("sort_order desc, id desc").Find(&plans).Error; err != nil {
+	queryBuilder := model.DB
+	if common.AgentModeEnabled {
+		// Agent 实例管理员页只看到 agent 档位套餐
+		queryBuilder = queryBuilder.Where("tag = ?", model.PlanTagAgent)
+	}
+	if err := queryBuilder.Order("sort_order desc, id desc").Find(&plans).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -204,6 +209,20 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
+	if err := model.ValidatePlanTag(strings.TrimSpace(req.Plan.Tag)); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	if err := model.ValidatePlanLevel(strings.TrimSpace(req.Plan.PlanLevel)); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	if req.Plan.FiveHourLimit < 0 || req.Plan.WeeklyLimit < 0 || req.Plan.MonthlyLimit < 0 {
+		common.ApiErrorMsg(c, "套餐窗口限额不能为负数")
+		return
+	}
+	req.Plan.Tag = strings.TrimSpace(req.Plan.Tag)
+	req.Plan.PlanLevel = strings.TrimSpace(req.Plan.PlanLevel)
 	err := model.DB.Create(&req.Plan).Error
 	if err != nil {
 		common.ApiError(c, err)
@@ -278,6 +297,20 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
 		return
 	}
+	if err := model.ValidatePlanTag(strings.TrimSpace(req.Plan.Tag)); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	if err := model.ValidatePlanLevel(strings.TrimSpace(req.Plan.PlanLevel)); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	if req.Plan.FiveHourLimit < 0 || req.Plan.WeeklyLimit < 0 || req.Plan.MonthlyLimit < 0 {
+		common.ApiErrorMsg(c, "套餐窗口限额不能为负数")
+		return
+	}
+	req.Plan.Tag = strings.TrimSpace(req.Plan.Tag)
+	req.Plan.PlanLevel = strings.TrimSpace(req.Plan.PlanLevel)
 
 	err := model.DB.Transaction(func(tx *gorm.DB) error {
 		// update plan (allow zero values updates with map)
@@ -300,6 +333,12 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"downgrade_group":            req.Plan.DowngradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
+			"tag":                        req.Plan.Tag,
+			"plan_level":                 req.Plan.PlanLevel,
+			"five_hour_limit":            req.Plan.FiveHourLimit,
+			"weekly_limit":               req.Plan.WeeklyLimit,
+			"monthly_limit":              req.Plan.MonthlyLimit,
+			"allowed_models":             req.Plan.AllowedModels,
 			"updated_at":                 common.GetTimestamp(),
 		}
 		if req.Plan.AllowBalancePay != nil {

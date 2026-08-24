@@ -50,6 +50,13 @@ export function getPlanFormSchema(t: TFunction) {
     stripe_price_id: z.string().optional(),
     creem_product_id: z.string().optional(),
     waffo_pancake_product_id: z.string().optional(),
+    // Agent plan extensions
+    tag: z.string().optional(),
+    plan_level: z.string().optional(),
+    five_hour_limit: z.coerce.number().min(0).optional(),
+    weekly_limit: z.coerce.number().min(0).optional(),
+    monthly_limit: z.coerce.number().min(0).optional(),
+    allowed_models: z.string().optional(),
   })
 }
 
@@ -75,6 +82,12 @@ export const PLAN_FORM_DEFAULTS: PlanFormValues = {
   stripe_price_id: '',
   creem_product_id: '',
   waffo_pancake_product_id: '',
+  tag: '',
+  plan_level: '',
+  five_hour_limit: 0,
+  weekly_limit: 0,
+  monthly_limit: 0,
+  allowed_models: '',
 }
 
 export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
@@ -98,6 +111,12 @@ export function planToFormValues(plan: SubscriptionPlan): PlanFormValues {
     stripe_price_id: plan.stripe_price_id || '',
     creem_product_id: plan.creem_product_id || '',
     waffo_pancake_product_id: plan.waffo_pancake_product_id || '',
+    tag: plan.tag || '',
+    plan_level: plan.plan_level || '',
+    five_hour_limit: Number(plan.five_hour_limit || 0),
+    weekly_limit: Number(plan.weekly_limit || 0),
+    monthly_limit: Number(plan.monthly_limit || 0),
+    allowed_models: allowedModelsJsonToText(plan.allowed_models || ''),
   }
 }
 
@@ -119,6 +138,67 @@ export function formValuesToPlanPayload(values: PlanFormValues): PlanPayload {
       total_amount: parseQuotaFromDollars(Number(values.total_amount || 0)),
       upgrade_group: values.upgrade_group || '',
       downgrade_group: values.downgrade_group || '',
+      tag: values.tag || '',
+      plan_level: values.plan_level || '',
+      five_hour_limit: Number(values.five_hour_limit || 0),
+      weekly_limit: Number(values.weekly_limit || 0),
+      monthly_limit: Number(values.monthly_limit || 0),
+      allowed_models: parseAllowedModelsText(values.allowed_models || ''),
     },
   }
+}
+
+// ----------------------------------------------------------------------------
+// Allowed models helpers
+// ----------------------------------------------------------------------------
+// The backend stores AllowedModels as a JSON-encoded array of
+// {model, ratio}. The admin drawer edits it as one entry per line in the form
+// "<model> <ratio>" (ratio optional, defaults to 1). Round-tripping through
+// the textarea keeps the form state human-readable without a custom cell editor.
+
+export interface AllowedModelRow {
+  model: string
+  ratio: number
+}
+
+export function parseAllowedModelsText(raw: string): string {
+  const rows = parseAllowedModelsRows(raw)
+  if (rows.length === 0) return ''
+  return JSON.stringify(rows)
+}
+
+export function allowedModelsJsonToText(json: string): string {
+  if (!json) return ''
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    return ''
+  }
+  if (!Array.isArray(parsed)) return ''
+  const rows = (parsed as AllowedModelRow[])
+    .map((r) => {
+      const m = typeof r?.model === 'string' ? r.model.trim() : ''
+      const ratio = Number(r?.ratio ?? 1)
+      if (!m) return ''
+      return `${m} ${Number.isFinite(ratio) ? ratio : 1}`
+    })
+    .filter(Boolean)
+  return rows.join('\n')
+}
+
+export function parseAllowedModelsRows(raw: string): AllowedModelRow[] {
+  if (!raw) return []
+  const out: AllowedModelRow[] = []
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const tokens = trimmed.split(/\s+/)
+    const model = tokens[0]
+    const ratio = Number(tokens[1] ?? 1)
+    if (!model) continue
+    if (!Number.isFinite(ratio) || ratio <= 0) continue
+    out.push({ model, ratio })
+  }
+  return out
 }

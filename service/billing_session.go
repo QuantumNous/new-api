@@ -395,6 +395,25 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		if apiErr := session.preConsume(c, int(subConsume)); apiErr != nil {
 			return nil, apiErr
 		}
+		// 校验 agent plan 的模型白名单（在订阅预扣成功后判断 user_subscription_id 与
+		// 实际请求 model，避免 pre-consume 把白名单外模型也消耗订阅额度）。
+		if common.AgentModeEnabled && relayInfo.OriginModelName != "" {
+			subId := session.relayInfo.SubscriptionId
+			if subId > 0 {
+				ok, mErr := model.IsModelAllowedBySubscription(subId, relayInfo.OriginModelName)
+				if mErr == nil && !ok {
+					// 回滚本次预扣（订阅额度 + token 预扣）
+					session.Refund(c)
+					return nil, types.NewErrorWithStatusCode(
+						fmt.Errorf("当前套餐不支持模型 %s", relayInfo.OriginModelName),
+						types.ErrorCodeInsufficientUserQuota,
+						http.StatusForbidden,
+						types.ErrOptionWithSkipRetry(),
+						types.ErrOptionWithNoRecordErrorLog(),
+					)
+				}
+			}
+		}
 		return session, nil
 	}
 
@@ -415,7 +434,13 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	case "subscription_first":
 		fallthrough
 	default:
-		hasSub, subCheckErr := model.HasActiveUserSubscription(relayInfo.UserId)
+		// agent 实例下只看 agent 标签的订阅；主实例维持原行为（任意 sub）。
+		hasSub, subCheckErr := func() (bool, error) {
+			if common.AgentModeEnabled {
+				return model.HasActiveAgentSubscription(relayInfo.UserId)
+			}
+			return model.HasActiveUserSubscription(relayInfo.UserId)
+		}()
 		if subCheckErr != nil {
 			return nil, types.NewError(subCheckErr, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}

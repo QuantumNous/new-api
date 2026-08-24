@@ -27,7 +27,8 @@ type Token struct {
 	AllowIps           *string        `json:"allow_ips" gorm:"default:''"`
 	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
 	Group              string         `json:"group" gorm:"default:''"`
-	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
+	CrossGroupRetry    bool           `json:"cross_group_retry"`                            // 跨分组重试，仅auto分组有效
+	Tag                string         `json:"tag" gorm:"type:varchar(64);index;default:''"` // token 标签（agent 实例强制 agent）
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
 
@@ -302,7 +303,7 @@ func (token *Token) Update() (err error) {
 		}
 	}()
 	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
-		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry").Updates(token).Error
+		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry", "tag").Updates(token).Error
 	return err
 }
 
@@ -515,4 +516,60 @@ func InvalidateUserTokensCache(userId int) error {
 		}
 	}
 	return firstErr
+}
+
+// AgentTokenName is the canonical name we mint for the agent client's
+// long-lived API key. Both Agent login and Agent register converge on this
+// name so `EnsureAgentTokenForUserTx` is idempotent.
+const AgentTokenName = "SinoWhale Agent"
+
+// EnsureAgentTokenForUserTx returns (tokenId, sk-key) for the agent token
+// bound to userId. If a token with name=AgentTokenName and tag=agent already
+// exists, it reuses the row and returns its existing key. Otherwise it mints
+// a new key inside the same transaction and returns it.
+//
+// Callers must pass `tx` so the token insert participates in the surrounding
+// transaction (registration, etc.). Caller is responsible for any cleanup if
+// the outer transaction rolls back.
+func EnsureAgentTokenForUserTx(tx *gorm.DB, userId int) (tokenId int, apiKey string, err error) {
+	if userId <= 0 {
+		return 0, "", errors.New("invalid userId")
+	}
+	if tx == nil {
+		tx = DB
+	}
+
+	// Reuse path: look up the existing agent token. We intentionally skip
+	// soft-deleted rows via Unscoped + deleted_at IS NULL (the model default
+	// because gorm.DeletedAt is included).
+	var existing Token
+	q := tx.Where("user_id = ? AND name = ? AND tag = ?", userId, AgentTokenName, PlanTagAgent)
+	if err := q.First(&existing).Error; err == nil {
+		return existing.Id, existing.Key, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, "", err
+	}
+
+	// Mint path: generate a fresh sk- key and insert.
+	key, err := common.GenerateKey()
+	if err != nil {
+		return 0, "", fmt.Errorf("generate key: %w", err)
+	}
+	now := common.GetTimestamp()
+	row := Token{
+		UserId:         userId,
+		Name:           AgentTokenName,
+		Key:            key,
+		CreatedTime:    now,
+		AccessedTime:   now,
+		ExpiredTime:    -1, // 永不过期；agent 客户端按需主动撤销
+		RemainQuota:    0,
+		UnlimitedQuota: true,
+		Status:         common.TokenStatusEnabled,
+		Tag:            PlanTagAgent,
+	}
+	if err := tx.Create(&row).Error; err != nil {
+		return 0, "", fmt.Errorf("insert agent token: %w", err)
+	}
+	return row.Id, row.Key, nil
 }

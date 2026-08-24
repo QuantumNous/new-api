@@ -14,6 +14,8 @@ var (
 	ErrEmailAlreadyTaken    = errors.New("email already taken")
 	ErrEmailNotFound        = errors.New("email not found")
 	ErrEmailAmbiguous       = errors.New("email matches multiple users")
+	ErrPhoneAlreadyTaken    = errors.New("phone already taken")
+	ErrPhoneNotFound        = errors.New("phone not found")
 )
 
 // Token auth errors

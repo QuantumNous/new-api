@@ -27,6 +27,7 @@ export {
   register,
   sendPasswordResetEmail,
   sendEmailVerification,
+  sendSmsVerification,
   bindEmail,
   getOAuthState,
   githubOAuthStart,
@@ -67,7 +68,9 @@ export {
   BACKUP_CODE_LENGTH,
   BACKUP_CODE_REGEX,
   OTP_REGEX,
+  CN_PHONE_REGEX,
   EMAIL_VERIFICATION_COUNTDOWN,
+  SMS_VERIFICATION_COUNTDOWN,
   PASSWORD_RESET_COUNTDOWN,
 } from './constants'
 
@@ -108,6 +111,7 @@ export { useTurnstile } from './hooks/use-turnstile'
 export { useOAuthLogin } from './hooks/use-oauth-login'
 export { useAuthRedirect } from './hooks/use-auth-redirect'
 export { useEmailVerification } from './hooks/use-email-verification'
+export { useSmsVerification } from './hooks/use-sms-verification'
 
 // ============================================================================
 // Components

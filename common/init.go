@@ -99,6 +99,24 @@ func InitEnv() {
 	SMTPStartTLSEnabled = GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLE", GetEnvOrDefaultBool("SMTP_STARTTLS_ENABLED", false))
 	SMTPInsecureSkipVerify = GetEnvOrDefaultBool("SMTP_INSECURE_SKIP_VERIFY", GetEnvOrDefaultBool("SMTP_TLS_INSECURE_SKIP_VERIFY", false))
 
+	// 阿里云短信配置（SMS_* 环境变量优先，覆盖代码常量中的默认值；未设置时回落代码常量/管理后台）
+	// SMS_PROVIDER: aliyun（默认）/ mock（开发模式，控制台打印验证码不实际发送）；暂不支持 tencent
+	if v := os.Getenv("SMS_ACCESS_KEY"); v != "" {
+		AliyunSMSAccessKeyId = v
+	}
+	if v := os.Getenv("SMS_SECRET_KEY"); v != "" {
+		AliyunSMSAccessKeySecret = v
+	}
+	if v := os.Getenv("SMS_SIGN_NAME"); v != "" {
+		AliyunSMSSignName = v
+	}
+	if v := os.Getenv("SMS_TEMPLATE_CODE"); v != "" {
+		AliyunSMSTemplateCode = v
+	}
+
+	// Agent 实例模式：独立部署承载 agent 用户（独立 DB/端口）。登录需短信验证、注册强制手机验证、token 强制 agent 标签、网页隐藏登录/注册。
+	AgentModeEnabled = GetEnvOrDefaultBool("AGENT_MODE", false)
+
 	// Parse requestInterval and set RequestInterval
 	requestInterval, _ = strconv.Atoi(os.Getenv("POLLING_INTERVAL"))
 	RequestInterval = time.Duration(requestInterval) * time.Second

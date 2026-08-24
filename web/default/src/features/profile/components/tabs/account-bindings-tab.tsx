@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Mail, Shield, Send, Link2, Unlink } from 'lucide-react'
+import { Mail, Shield, Send, Phone, Link2, Unlink } from 'lucide-react'
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SiGithub, SiWechat, SiLinux } from 'react-icons/si'
@@ -44,6 +44,8 @@ import {
 } from '../../api'
 import type { UserProfile, BindingItem } from '../../types'
 import { EmailBindDialog } from '../dialogs/email-bind-dialog'
+import { PhoneBindDialog } from '../dialogs/phone-bind-dialog'
+import { PhoneUnbindDialog } from '../dialogs/phone-unbind-dialog'
 import { TelegramBindDialog } from '../dialogs/telegram-bind-dialog'
 import { WeChatBindDialog } from '../dialogs/wechat-bind-dialog'
 
@@ -56,7 +58,7 @@ interface AccountBindingsTabProps {
   onUpdate: () => void
 }
 
-type DialogKey = 'email' | 'wechat' | 'telegram'
+type DialogKey = 'email' | 'phone' | 'phone-unbind' | 'wechat' | 'telegram'
 
 export function AccountBindingsTab({
   profile,
@@ -161,6 +163,15 @@ export function AccountBindingsTab({
         isBound: Boolean(profile.email),
         isEnabled: true,
         onBind: () => dialogs.open('email'),
+      },
+      {
+        id: 'phone',
+        label: t('Phone'),
+        icon: Phone,
+        value: profile.phone,
+        isBound: Boolean(profile.phone),
+        isEnabled: true,
+        onBind: () => dialogs.open('phone'),
       },
       {
         id: 'wechat',
@@ -291,19 +302,41 @@ export function AccountBindingsTab({
                 </p>
               </div>
             </div>
-            <Button
-              variant='outline'
-              size='sm'
-              className='h-7 shrink-0 px-2.5 text-xs'
-              onClick={binding.onBind}
-              disabled={binding.isBound && binding.id !== 'email'}
-            >
-              {binding.isBound
-                ? binding.id === 'email'
-                  ? t('Change')
-                  : t('Bound')
-                : t('Bind')}
-            </Button>
+            {binding.id === 'phone' && binding.isBound ? (
+              <div className='flex shrink-0 items-center gap-1.5'>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='h-7 shrink-0 px-2.5 text-xs'
+                  onClick={binding.onBind}
+                >
+                  {t('Change')}
+                </Button>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='text-destructive h-7 shrink-0 px-2.5 text-xs'
+                  onClick={() => dialogs.open('phone-unbind')}
+                >
+                  <Unlink className='mr-1 h-3 w-3' />
+                  {t('Unbind')}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant='outline'
+                size='sm'
+                className='h-7 shrink-0 px-2.5 text-xs'
+                onClick={binding.onBind}
+                disabled={binding.isBound && binding.id !== 'email'}
+              >
+                {binding.isBound
+                  ? binding.id === 'email'
+                    ? t('Change')
+                    : t('Bound')
+                  : t('Bind')}
+              </Button>
+            )}
           </div>
         ))}
       </div>
@@ -399,6 +432,26 @@ export function AccountBindingsTab({
           open ? dialogs.open('email') : dialogs.close('email')
         }
         currentEmail={profile.email}
+        onSuccess={onUpdate}
+      />
+
+      {/* Phone Bind / Change Dialog */}
+      <PhoneBindDialog
+        open={dialogs.isOpen('phone')}
+        onOpenChange={(open) =>
+          open ? dialogs.open('phone') : dialogs.close('phone')
+        }
+        currentPhone={profile.phone}
+        onSuccess={onUpdate}
+      />
+
+      {/* Phone Unbind Dialog */}
+      <PhoneUnbindDialog
+        open={dialogs.isOpen('phone-unbind')}
+        onOpenChange={(open) =>
+          open ? dialogs.open('phone-unbind') : dialogs.close('phone-unbind')
+        }
+        currentPhone={profile.phone}
         onSuccess={onUpdate}
       />
 

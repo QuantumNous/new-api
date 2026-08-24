@@ -41,9 +41,13 @@ import { Label } from '@/components/ui/label'
 import { register, wechatLoginByCode } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
-import { registerFormSchema } from '@/features/auth/constants'
+import {
+  createRegisterFormSchema,
+  type RegisterFormValues,
+} from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
+import { useSmsVerification } from '@/features/auth/hooks/use-sms-verification'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import {
   getAffiliateCode,
@@ -59,6 +63,7 @@ export function SignUpForm({
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
+  const [smsCode, setSmsCode] = useState('')
   const [agreedToLegal, setAgreedToLegal] = useState(false)
   const [wechatCode, setWeChatCode] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
@@ -83,17 +88,35 @@ export function SignUpForm({
     turnstileToken,
     validateTurnstile,
   })
+  const {
+    isSending: isSendingSmsCode,
+    secondsLeft: smsSecondsLeft,
+    isActive: isSmsActive,
+    sendCode: sendSmsCode,
+  } = useSmsVerification({
+    turnstileToken,
+    validateTurnstile,
+  })
 
-  const form = useForm<z.infer<typeof registerFormSchema>>({
-    resolver: zodResolver(registerFormSchema),
+  const phoneVerificationRequired =
+    status?.phone_verification ?? status?.data?.phone_verification ?? false
+  const formSchema = useMemo(
+    () => createRegisterFormSchema(phoneVerificationRequired),
+    [phoneVerificationRequired]
+  )
+  const form = useForm<RegisterFormValues>({
+    resolver: zodResolver(formSchema),
     defaultValues: {
       username: '',
+      phone: '',
+      smsCode: '',
       email: '',
       password: '',
       confirmPassword: '',
     },
   })
 
+  const phoneValue = form.watch('phone')
   const emailValue = form.watch('email')
   const emailVerificationRequired = !!status?.email_verification
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
@@ -135,10 +158,22 @@ export function SignUpForm({
     }
   }, [])
 
-  async function onSubmit(data: z.infer<typeof registerFormSchema>) {
+  async function onSubmit(data: RegisterFormValues) {
     if (requiresLegalConsent && !agreedToLegal) {
       toast.error(legalConsentErrorMessage)
       return
+    }
+
+    // Validate phone verification only when the platform requires it (agent instance)
+    if (phoneVerificationRequired) {
+      if (!data.phone) {
+        toast.error(t('Please enter your phone number'))
+        return
+      }
+      if (!smsCode) {
+        toast.error(t('Please enter the SMS verification code'))
+        return
+      }
     }
 
     // Validate email verification if required
@@ -160,6 +195,8 @@ export function SignUpForm({
       const res = await register({
         username: data.username,
         password: data.password,
+        phone: phoneVerificationRequired ? data.phone : undefined,
+        sms_code: phoneVerificationRequired ? smsCode : undefined,
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
@@ -181,6 +218,10 @@ export function SignUpForm({
 
   async function handleSendVerificationCode() {
     await sendCode(emailValue || '')
+  }
+
+  async function handleSendSmsCode() {
+    await sendSmsCode(phoneValue || '')
   }
 
   const handleOpenWeChatDialog = () => {
@@ -277,6 +318,65 @@ export function SignUpForm({
             </FormItem>
           )}
         />
+
+        {/* Phone + SMS Verification (仅 agent 实例强制手机验证时显示) */}
+        {phoneVerificationRequired && (
+          <>
+            {/* Phone Field */}
+            <FormField
+              control={form.control}
+              name='phone'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Phone number')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder={t('Enter your phone number')}
+                      inputMode='numeric'
+                      maxLength={11}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* SMS Verification Code Field */}
+            <div className='flex items-end gap-2'>
+              <div className='flex-1'>
+                <Input
+                  placeholder={t('SMS verification code')}
+                  value={smsCode}
+                  onChange={(e) => setSmsCode(e.target.value)}
+                  inputMode='numeric'
+                  maxLength={6}
+                  autoComplete='one-time-code'
+                />
+              </div>
+              <Button
+                variant='outline'
+                type='button'
+                disabled={
+                  isLoading ||
+                  isSendingSmsCode ||
+                  isSmsActive ||
+                  !phoneValue ||
+                  !turnstileReady
+                }
+                onClick={handleSendSmsCode}
+              >
+                {isSmsActive ? (
+                  t('Resend ({{seconds}}s)', { seconds: smsSecondsLeft })
+                ) : isSendingSmsCode ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : (
+                  t('Send code')
+                )}
+              </Button>
+            </div>
+          </>
+        )}
 
         {/* Email Verification Section */}
         {emailVerificationRequired && (

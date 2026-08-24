@@ -33,6 +33,35 @@ const (
 	SubscriptionResetCustom  = "custom"
 )
 
+// Agent plan level (Lite/Plus/Max)
+const (
+	PlanLevelLite = "lite"
+	PlanLevelPlus = "plus"
+	PlanLevelMax  = "max"
+)
+
+// SubscriptionPlan.Tag values
+const (
+	PlanTagAgent = "agent" // 用于 Agent 实例的专用 usage plan
+)
+
+// UserPlanUsage window types
+const (
+	UserPlanUsagePeriodFiveHour = "five_hour"
+	UserPlanUsagePeriodWeekly   = "weekly"
+	UserPlanUsagePeriodMonthly  = "monthly"
+)
+
+// PlanLevelRank maps free-form level strings to a comparable rank for upgrade
+// rules. Unknown levels sort low so the legacy plans (no level) rank below
+// any agent plan.
+var PlanLevelRank = map[string]int{
+	"":            0,
+	PlanLevelLite: 1,
+	PlanLevelPlus: 2,
+	PlanLevelMax:  3,
+}
+
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
@@ -185,6 +214,20 @@ type SubscriptionPlan struct {
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
 	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds" gorm:"type:bigint;default:0"`
 
+	// --- Agent plan extensions ---
+	// Tag identifies the plan instance type. Agent-only flows filter on Tag=="agent".
+	Tag string `json:"tag" gorm:"type:varchar(32);default:'';index"`
+	// PlanLevel is the marketing tier (lite/plus/max) used for upgrade ordering.
+	PlanLevel string `json:"plan_level" gorm:"type:varchar(16);default:'';index"`
+	// Window quota caps. 0 means unlimited. Validated server-side before insert.
+	FiveHourLimit int64 `json:"five_hour_limit" gorm:"type:bigint;default:0"`
+	WeeklyLimit   int64 `json:"weekly_limit"    gorm:"type:bigint;default:0"`
+	MonthlyLimit  int64 `json:"monthly_limit"   gorm:"type:bigint;default:0"`
+	// AllowedModels is a JSON-encoded array of {model, ratio}. Empty means "no
+	// restriction" (callers must treat absence as the existing free-for-all).
+	// Stored as a `text` blob to keep migrations idempotent across SQLite/MySQL/PostgreSQL.
+	AllowedModels string `json:"allowed_models" gorm:"type:text;default:''"`
+
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
 }
@@ -260,7 +303,7 @@ type UserSubscription struct {
 
 	StartTime int64  `json:"start_time" gorm:"bigint"`
 	EndTime   int64  `json:"end_time" gorm:"bigint;index;index:idx_user_sub_active,priority:3"`
-	Status    string `json:"status" gorm:"type:varchar(32);index;index:idx_user_sub_active,priority:2"` // active/expired/cancelled
+	Status    string `json:"status" gorm:"type:varchar(32);index;index:idx_user_sub_active,priority:2"` // active/expired/cancelled/replaced
 
 	Source string `json:"source" gorm:"type:varchar(32);default:'order'"` // order/admin
 
@@ -275,6 +318,18 @@ type UserSubscription struct {
 
 	// Whether wallet fallback is allowed after this subscription's quota is exhausted (snapshot from plan)
 	AllowWalletOverflow bool `json:"allow_wallet_overflow"`
+
+	// --- Agent plan snapshot fields ---
+	Tag               string `json:"tag"                gorm:"type:varchar(32);default:''"`
+	PlanLevel         string `json:"plan_level"         gorm:"type:varchar(16);default:''"`
+	FiveHourLimitSnap int64  `json:"five_hour_limit_snap" gorm:"type:bigint;default:0"`
+	WeeklyLimitSnap   int64  `json:"weekly_limit_snap"    gorm:"type:bigint;default:0"`
+	MonthlyLimitSnap  int64  `json:"monthly_limit_snap"   gorm:"type:bigint;default:0"`
+	AllowedModelsSnap string `json:"allowed_models_snap" gorm:"type:text;default:''"`
+	// UpgradeFromId points to the UserSubscription this one replaced. 0 = first purchase.
+	UpgradeFromId int `json:"upgrade_from_id" gorm:"type:int;default:0;index"`
+	// ReplacedById points to the UserSubscription that replaced this one. 0 = still active or naturally expired.
+	ReplacedById int `json:"replaced_by_id" gorm:"type:int;default:0;index"`
 
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
@@ -730,7 +785,15 @@ func calcSubscriptionBalanceQuota(priceAmount float64) (int, error) {
 	return int(quota), nil
 }
 
-// PurchaseSubscriptionWithBalance creates a subscription by deducting the user's wallet quota.
+// PurchaseSubscriptionWithBalance creates (or upgrades to) a subscription by
+// deducting the user's wallet quota.
+//
+// 升级分流（agent 实例）：
+//   - 若用户已有 active agent-tagged sub：
+//   - 新 plan.PlanLevel <= 旧 sub.PlanLevel → 拒绝
+//   - 否则走 UpgradeUserSubscriptionTx；按旧 plan 剩余 quota 的折算金额抵扣
+//     新 plan 的 quota 扣款；旧 sub 标记 replaced，新 sub 携带新 plan snapshot。
+//   - 无 active sub：按原路径创建新 sub。
 func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	if userId <= 0 || planId <= 0 {
 		return errors.New("invalid userId or planId")
@@ -740,6 +803,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	var logMoney float64
 	var chargedQuota int
 	var upgradeGroup string
+	var isUpgrade bool
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		plan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
@@ -764,6 +828,73 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 		if err := lockForUpdate(tx).Where("id = ?", userId).First(&user).Error; err != nil {
 			return err
 		}
+
+		// ---- 升级分流（agent 实例） ----
+		oldSub, oldErr := getActiveAgentSubscriptionTx(tx, userId)
+		if oldErr != nil {
+			return oldErr
+		}
+		if oldSub != nil {
+			if ValidatePlanLevel(plan.PlanLevel) != nil {
+				return ValidatePlanLevel(plan.PlanLevel)
+			}
+			newRank := PlanLevelRank[plan.PlanLevel]
+			oldRank := PlanLevelRank[oldSub.PlanLevel]
+			if newRank <= oldRank {
+				return fmt.Errorf("不允许降级或选择同级套餐（当前等级 %s，目标等级 %s）",
+					oldSub.PlanLevel, plan.PlanLevel)
+			}
+			oldPlan, gpErr := getSubscriptionPlanByIdTx(tx, oldSub.PlanId)
+			if gpErr != nil {
+				return gpErr
+			}
+			discount, _ := ComputeUpgradeDiscount(oldSub, oldPlan, plan)
+			netPrice := plan.PriceAmount - discount
+			if netPrice < 0 {
+				netPrice = 0
+			}
+			netQuota, qErr := calcSubscriptionBalanceQuota(netPrice)
+			if qErr != nil {
+				return qErr
+			}
+			if netQuota > 0 && user.Quota < netQuota {
+				return errors.New("余额不足")
+			}
+			if netQuota > 0 {
+				if err := tx.Model(&User{}).Where("id = ?", userId).
+					Update("quota", gorm.Expr("quota - ?", netQuota)).Error; err != nil {
+					return err
+				}
+			}
+			if _, err := UpgradeUserSubscriptionTx(tx, userId, oldSub, plan); err != nil {
+				return err
+			}
+			now := common.GetTimestamp()
+			tradeNo := fmt.Sprintf("SUBUPGUSR%dNO%s%d", userId, common.GetRandomString(6), time.Now().UnixNano())
+			order := &SubscriptionOrder{
+				UserId:          userId,
+				PlanId:          plan.Id,
+				Money:           netPrice,
+				TradeNo:         tradeNo,
+				PaymentMethod:   PaymentMethodBalance,
+				PaymentProvider: PaymentProviderBalance,
+				Status:          common.TopUpStatusSuccess,
+				CreateTime:      now,
+				CompleteTime:    now,
+				ProviderPayload: fmt.Sprintf("upgrade_from=%d;gross=%.4f;charged_quota=%d", oldSub.Id, plan.PriceAmount, netQuota),
+			}
+			if err := tx.Create(order).Error; err != nil {
+				return err
+			}
+			logPlanTitle = plan.Title
+			logMoney = netPrice
+			chargedQuota = netQuota
+			upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+			isUpgrade = true
+			return nil
+		}
+
+		// ---- 原路径：首次购买 ----
 		if requiredQuota > 0 && user.Quota < requiredQuota {
 			return errors.New("余额不足")
 		}
@@ -814,9 +945,43 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	if upgradeGroup != "" {
 		_ = UpdateUserGroupCache(userId, upgradeGroup)
 	}
-	msg := fmt.Sprintf("使用余额购买订阅成功，套餐: %s，支付金额: %.2f，扣除额度: %d", logPlanTitle, logMoney, chargedQuota)
-	RecordLog(userId, LogTypeTopup, msg)
+	if isUpgrade {
+		msg := fmt.Sprintf("升级套餐成功: %s，抵扣后实付: %.2f，扣除额度: %d", logPlanTitle, logMoney, chargedQuota)
+		RecordLog(userId, LogTypeTopup, msg)
+	} else {
+		msg := fmt.Sprintf("使用余额购买订阅成功，套餐: %s，支付金额: %.2f，扣除额度: %d", logPlanTitle, logMoney, chargedQuota)
+		RecordLog(userId, LogTypeTopup, msg)
+	}
 	return nil
+}
+
+// getActiveAgentSubscriptionTx 在事务内取用户当前唯一活跃 agent 订阅。
+// 没找到时返回 (nil, nil)，避免调用方再判断 record-not-found。
+func getActiveAgentSubscriptionTx(tx *gorm.DB, userId int) (*UserSubscription, error) {
+	if userId <= 0 {
+		return nil, errors.New("invalid userId")
+	}
+	q := DB
+	if tx != nil {
+		q = tx
+	}
+	now := GetDBTimestamp()
+	var sub UserSubscription
+	err := q.Where("user_id = ? AND status = ? AND end_time > ? AND tag = ?",
+		userId, "active", now, PlanTagAgent).
+		Order("end_time desc, id desc").
+		Limit(1).
+		Find(&sub).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if sub.Id == 0 {
+		return nil, nil
+	}
+	return &sub, nil
 }
 
 // GetAllActiveUserSubscriptions returns all active subscriptions for a user.
@@ -1358,6 +1523,19 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			if err := tx.Save(&sub).Error; err != nil {
 				return err
 			}
+			// Agent plan：把预扣同步累加到 5h/周/月三窗口计数器。
+			// 非 agent sub 不写入三窗口（与既有 AmountUsed 行为完全兼容）。
+			if sub.Tag == PlanTagAgent {
+				for _, pt := range []string{UserPlanUsagePeriodFiveHour, UserPlanUsagePeriodWeekly, UserPlanUsagePeriodMonthly} {
+					start, end, perr := ComputeCurrentPeriod(pt, sub.StartTime, now, time.Local)
+					if perr != nil {
+						continue
+					}
+					if uerr := UpsertUserPlanUsage(tx, sub.Id, sub.UserId, pt, start, end, amount); uerr != nil {
+						return uerr
+					}
+				}
+			}
 			returnValue.UserSubscriptionId = sub.Id
 			returnValue.PreConsumed = amount
 			returnValue.AmountTotal = sub.AmountTotal
@@ -1504,6 +1682,461 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
 		}
 		sub.AmountUsed = newUsed
-		return tx.Save(&sub).Error
+		if err := tx.Save(&sub).Error; err != nil {
+			return err
+		}
+		// Agent plan：把 delta 同步到 5h/周/月三窗口。Refund/Settle 都会走这里。
+		// 注意我们直接用 now 计算窗口；如果 delta 来自跨桶的 refund（例如 5h
+		// 桶已过期但 PreConsumeRecord 仍记录旧窗口），按当前窗口调整可能错位——
+		// 这是已知的折中：3 窗口是展示用，不参与强扣费拦截，跨桶差异会在周期
+		// 清理中自然消失。
+		if sub.Tag == PlanTagAgent {
+			now := GetDBTimestamp()
+			for _, pt := range []string{UserPlanUsagePeriodFiveHour, UserPlanUsagePeriodWeekly, UserPlanUsagePeriodMonthly} {
+				start, end, perr := ComputeCurrentPeriod(pt, sub.StartTime, now, time.Local)
+				if perr != nil {
+					continue
+				}
+				if uerr := UpsertUserPlanUsage(tx, sub.Id, sub.UserId, pt, start, end, delta); uerr != nil {
+					return uerr
+				}
+			}
+		}
+		return nil
 	})
+}
+
+// -----------------------------------------------------------------------------
+// Agent Plan extensions: window counters + upgrade flow.
+// 仅在接口层（数据模型 + 查询）实现，不接入 relay 拒绝路径。
+// -----------------------------------------------------------------------------
+
+// UserPlanUsage tracks quota consumed within a time-bucketed window.
+// One row per (UserSubscription, PeriodType, PeriodStart); the window length
+// depends on PeriodType (5h / weekly / monthly from purchase anchor).
+type UserPlanUsage struct {
+	Id                 int64  `json:"id" gorm:"primaryKey"`
+	UserId             int    `json:"user_id" gorm:"index:idx_user_plan_usage_lookup,priority:1"`
+	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index;uniqueIndex:idx_user_plan_usage_window,priority:1"`
+	PeriodType         string `json:"period_type" gorm:"type:varchar(16);uniqueIndex:idx_user_plan_usage_window,priority:2"`
+	PeriodStart        int64  `json:"period_start" gorm:"bigint;uniqueIndex:idx_user_plan_usage_window,priority:3"`
+	PeriodEnd          int64  `json:"period_end" gorm:"bigint"`
+	QuotaUsed          int64  `json:"quota_used" gorm:"type:bigint;default:0"`
+	UpdatedAt          int64  `json:"updated_at" gorm:"bigint;index"`
+	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
+}
+
+func (u *UserPlanUsage) BeforeCreate(tx *gorm.DB) error {
+	now := common.GetTimestamp()
+	u.CreatedAt = now
+	u.UpdatedAt = now
+	return nil
+}
+
+func (u *UserPlanUsage) BeforeUpdate(tx *gorm.DB) error {
+	u.UpdatedAt = common.GetTimestamp()
+	return nil
+}
+
+// WindowUsage is the read-side summary returned by GetUserPlanUsageSummary.
+// Limit=0 means "no configured cap"; Remaining is reported as math.MaxInt64 in
+// that case so callers can render an "unlimited" badge.
+type WindowUsage struct {
+	PeriodType  string `json:"period_type"`
+	PeriodStart int64  `json:"period_start"`
+	PeriodEnd   int64  `json:"period_end"`
+	Used        int64  `json:"used"`
+	Limit       int64  `json:"limit"`
+	Remaining   int64  `json:"remaining"`
+}
+
+// ValidatePlanLevel returns nil if level is empty or one of the supported
+// tiers. Used by admin handlers to reject typos before persisting.
+func ValidatePlanLevel(level string) error {
+	switch strings.TrimSpace(level) {
+	case "", PlanLevelLite, PlanLevelPlus, PlanLevelMax:
+		return nil
+	}
+	return fmt.Errorf("invalid plan level: %s", level)
+}
+
+// ValidatePlanTag returns nil if tag is empty or one of the known tags.
+func ValidatePlanTag(tag string) error {
+	switch strings.TrimSpace(tag) {
+	case "", PlanTagAgent:
+		return nil
+	}
+	return fmt.Errorf("invalid plan tag: %s", tag)
+}
+
+// ComputeCurrentPeriod returns the [start, end] window for a given PeriodType
+// relative to `now`, anchored on the user's subscription start time for the
+// monthly window. End is exclusive.
+//   - five_hour: aligned to 0/5/10/15/20 hour buckets in local time. The final
+//     bucket (20:00–24:00) is only 4 hours long — caller does NOT need to clamp.
+//   - weekly: Monday 00:00 → next Monday 00:00 in local time.
+//   - monthly: rolling 30-day anchor from subStartTime, advancing by AddDate(0,1,0).
+func ComputeCurrentPeriod(periodType string, subStartTime, now int64, loc *time.Location) (int64, int64, error) {
+	if now <= 0 {
+		return 0, 0, errors.New("invalid now")
+	}
+	if loc == nil {
+		loc = time.Local
+	}
+	nowTime := time.Unix(now, 0).In(loc)
+	switch periodType {
+	case UserPlanUsagePeriodFiveHour:
+		// 五小时窗口：每日 0/5/10/15/20 整点分桶。hour >= 20 时 slot=4 但 end 截到当日 24:00。
+		dayStart := time.Date(nowTime.Year(), nowTime.Month(), nowTime.Day(), 0, 0, 0, 0, loc)
+		slot := nowTime.Hour() / 5
+		if slot > 4 {
+			slot = 4
+		}
+		start := dayStart.Add(time.Duration(slot) * 5 * time.Hour)
+		end := start.Add(5 * time.Hour)
+		if !end.After(dayStart.Add(24 * time.Hour)) {
+			// 正常桶
+		} else {
+			// 最后一桶实际只有 4h，但仍以 end-of-day 作为 period_end（24:00 = 次日 0:00）
+			end = dayStart.Add(24 * time.Hour)
+		}
+		return start.Unix(), end.Unix(), nil
+	case UserPlanUsagePeriodWeekly:
+		// 周窗口：周一 0:00 → 下周一 0:00。
+		weekday := int(nowTime.Weekday()) // Sunday=0
+		if weekday == 0 {
+			weekday = 7
+		}
+		daysSinceMonday := weekday - 1
+		monday := time.Date(nowTime.Year(), nowTime.Month(), nowTime.Day(), 0, 0, 0, 0, loc).
+			AddDate(0, 0, -daysSinceMonday)
+		nextMonday := monday.AddDate(0, 0, 7)
+		return monday.Unix(), nextMonday.Unix(), nil
+	case UserPlanUsagePeriodMonthly:
+		// 月窗口：从 subStartTime 锚点逐月滚动。
+		if subStartTime <= 0 {
+			return 0, 0, errors.New("subStartTime required for monthly period")
+		}
+		anchor := time.Unix(subStartTime, 0).In(loc)
+		current := anchor
+		for {
+			next := current.AddDate(0, 1, 0)
+			if next.Unix() > now {
+				break
+			}
+			current = next
+		}
+		return current.Unix(), current.AddDate(0, 1, 0).Unix(), nil
+	default:
+		return 0, 0, fmt.Errorf("invalid period type: %s", periodType)
+	}
+}
+
+// UpsertUserPlanUsage 幂等累加 delta 到当前窗口。如果对应窗口尚未结束则复用
+// period_start 对应的行；如果窗口已结束则视为过期（不主动删除，由
+// ResetDueUserPlanUsage 周期性清理）。
+func UpsertUserPlanUsage(tx *gorm.DB, userSubscriptionId int, userId int, periodType string, periodStart, periodEnd int64, delta int64) error {
+	if tx == nil || userSubscriptionId <= 0 || userId <= 0 {
+		return errors.New("invalid usage args")
+	}
+	if periodStart <= 0 || periodEnd <= periodStart {
+		return errors.New("invalid period range")
+	}
+	if delta == 0 {
+		return nil
+	}
+	var row UserPlanUsage
+	err := tx.Where("user_subscription_id = ? AND period_type = ? AND period_start = ?",
+		userSubscriptionId, periodType, periodStart).
+		First(&row).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		row = UserPlanUsage{
+			UserId:             userId,
+			UserSubscriptionId: userSubscriptionId,
+			PeriodType:         periodType,
+			PeriodStart:        periodStart,
+			PeriodEnd:          periodEnd,
+			QuotaUsed:          0,
+		}
+	}
+	newUsed := row.QuotaUsed + delta
+	if newUsed < 0 {
+		newUsed = 0
+	}
+	row.QuotaUsed = newUsed
+	if row.Id == 0 {
+		row.UserId = userId
+		row.UserSubscriptionId = userSubscriptionId
+		row.PeriodType = periodType
+		row.PeriodStart = periodStart
+		row.PeriodEnd = periodEnd
+		return tx.Create(&row).Error
+	}
+	return tx.Save(&row).Error
+}
+
+// GetUserPlanUsageSummary returns current-window usage for an active
+// subscription. Windows older than `now` are skipped (their rows are left to
+// the periodic cleanup task). Limits come from the UserSubscription snapshot
+// fields so they survive plan edits.
+func GetUserPlanUsageSummary(userSubscriptionId int) (fiveHour, weekly, monthly *WindowUsage, err error) {
+	if userSubscriptionId <= 0 {
+		return nil, nil, nil, errors.New("invalid userSubscriptionId")
+	}
+	var sub UserSubscription
+	if err := DB.Where("id = ?", userSubscriptionId).First(&sub).Error; err != nil {
+		return nil, nil, nil, err
+	}
+	now := GetDBTimestamp()
+	build := func(periodType string, snap int64) (*WindowUsage, error) {
+		start, end, err := ComputeCurrentPeriod(periodType, sub.StartTime, now, time.Local)
+		if err != nil {
+			return nil, err
+		}
+		var row UserPlanUsage
+		err = DB.Where("user_subscription_id = ? AND period_type = ? AND period_start = ?",
+			userSubscriptionId, periodType, start).First(&row).Error
+		used := int64(0)
+		if err == nil {
+			used = row.QuotaUsed
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		limit := snap
+		remaining := int64(1 << 62) // 表示「无限」
+		if limit > 0 {
+			remaining = limit - used
+			if remaining < 0 {
+				remaining = 0
+			}
+		}
+		return &WindowUsage{
+			PeriodType:  periodType,
+			PeriodStart: start,
+			PeriodEnd:   end,
+			Used:        used,
+			Limit:       limit,
+			Remaining:   remaining,
+		}, nil
+	}
+	fiveHour, err = build(UserPlanUsagePeriodFiveHour, sub.FiveHourLimitSnap)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	weekly, err = build(UserPlanUsagePeriodWeekly, sub.WeeklyLimitSnap)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	monthly, err = build(UserPlanUsagePeriodMonthly, sub.MonthlyLimitSnap)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return fiveHour, weekly, monthly, nil
+}
+
+// ResetDueUserPlanUsage deletes usage rows whose period has ended more than
+// retainSeconds ago. Called from the periodic reset task.
+func ResetDueUserPlanUsage(retainSeconds int64) (int64, error) {
+	if retainSeconds <= 0 {
+		retainSeconds = 24 * 3600
+	}
+	now := GetDBTimestamp()
+	cutoff := now - retainSeconds
+	res := DB.Where("period_end > 0 AND period_end <= ?", cutoff).Delete(&UserPlanUsage{})
+	return res.RowsAffected, res.Error
+}
+
+// ComputeUpgradeDiscount estimates how much quota value (in money) the user
+// can deduct from a new plan purchase given their current active subscription.
+// Returns discountMoney in the same unit as plan.PriceAmount. Both quota and
+// money are clamped to >= 0 to keep arithmetic safe.
+func ComputeUpgradeDiscount(oldSub *UserSubscription, oldPlan, newPlan *SubscriptionPlan) (discountMoney float64, usedMoney float64) {
+	if oldSub == nil || oldPlan == nil || newPlan == nil {
+		return 0, 0
+	}
+	if oldPlan.PriceAmount <= 0 || oldPlan.TotalAmount <= 0 {
+		return 0, 0
+	}
+	remainQuota := oldSub.AmountTotal - oldSub.AmountUsed
+	if remainQuota <= 0 {
+		return 0, 0
+	}
+	pricePerUnit := oldPlan.PriceAmount / float64(oldPlan.TotalAmount)
+	discountMoney = pricePerUnit * float64(remainQuota)
+	usedMoney = pricePerUnit * float64(oldSub.AmountUsed)
+	return discountMoney, usedMoney
+}
+
+// UpgradeUserSubscriptionTx deactivates the user's current active subscription
+// (marking it `replaced`) and creates a new one based on newPlan. The caller is
+// responsible for charging the wallet balance / forwarding to the payment
+// gateway for the net (newPlan.PriceAmount - discountMoney) before invoking
+// this function. This function does NOT move quota — quota is reset by the new
+// plan's snapshot fields.
+func UpgradeUserSubscriptionTx(tx *gorm.DB, userId int, oldSub *UserSubscription, newPlan *SubscriptionPlan) (*UserSubscription, error) {
+	if tx == nil {
+		return nil, errors.New("tx is nil")
+	}
+	if userId <= 0 || newPlan == nil || newPlan.Id <= 0 {
+		return nil, errors.New("invalid upgrade args")
+	}
+	now := GetDBTimestamp()
+	newSub, err := CreateUserSubscriptionFromPlanTx(tx, userId, newPlan, "upgrade")
+	if err != nil {
+		return nil, err
+	}
+	newSub.UpgradeFromId = 0
+	if oldSub != nil && oldSub.Id > 0 {
+		newSub.UpgradeFromId = oldSub.Id
+		// 快照旧 plan 的 agent 字段（即使没有也复制空值，保持一致）
+		newSub.Tag = newPlan.Tag
+		newSub.PlanLevel = newPlan.PlanLevel
+		newSub.FiveHourLimitSnap = newPlan.FiveHourLimit
+		newSub.WeeklyLimitSnap = newPlan.WeeklyLimit
+		newSub.MonthlyLimitSnap = newPlan.MonthlyLimit
+		newSub.AllowedModelsSnap = newPlan.AllowedModels
+		if err := tx.Save(newSub).Error; err != nil {
+			return nil, err
+		}
+		oldSub.Status = "replaced"
+		oldSub.ReplacedById = newSub.Id
+		oldSub.EndTime = now
+		oldSub.UpdatedAt = now
+		if err := tx.Save(oldSub).Error; err != nil {
+			return nil, err
+		}
+	} else {
+		newSub.Tag = newPlan.Tag
+		newSub.PlanLevel = newPlan.PlanLevel
+		newSub.FiveHourLimitSnap = newPlan.FiveHourLimit
+		newSub.WeeklyLimitSnap = newPlan.WeeklyLimit
+		newSub.MonthlyLimitSnap = newPlan.MonthlyLimit
+		newSub.AllowedModelsSnap = newPlan.AllowedModels
+		if err := tx.Save(newSub).Error; err != nil {
+			return nil, err
+		}
+	}
+	return newSub, nil
+}
+
+// GetUserActiveAgentSubscription returns the single active agent-tagged
+// subscription for a user, or nil if none. Order is `end_time desc, id desc`
+// so the longest-lasting active sub wins (only ever one in practice).
+func GetUserActiveAgentSubscription(userId int) (*UserSubscription, error) {
+	if userId <= 0 {
+		return nil, errors.New("invalid userId")
+	}
+	now := GetDBTimestamp()
+	var sub UserSubscription
+	err := DB.Where("user_id = ? AND status = ? AND end_time > ? AND tag = ?",
+		userId, "active", now, PlanTagAgent).
+		Order("end_time desc, id desc").
+		Limit(1).
+		Find(&sub).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if sub.Id == 0 {
+		return nil, nil
+	}
+	return &sub, nil
+}
+
+// HasActiveAgentSubscription returns whether the user has any active agent-tagged
+// subscription. Mirrors HasActiveUserSubscription but filters on tag="agent".
+func HasActiveAgentSubscription(userId int) (bool, error) {
+	if userId <= 0 {
+		return false, errors.New("invalid userId")
+	}
+	now := GetDBTimestamp()
+	var count int64
+	if err := DB.Model(&UserSubscription{}).
+		Where("user_id = ? AND status = ? AND end_time > ? AND tag = ?",
+			userId, "active", now, PlanTagAgent).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// IsModelAllowedBySubscription returns whether `modelName` is permitted by the
+// user subscription's AllowedModelsSnap. Empty allow-list means unrestricted.
+func IsModelAllowedBySubscription(userSubscriptionId int, modelName string) (bool, error) {
+	if userSubscriptionId <= 0 {
+		return false, errors.New("invalid userSubscriptionId")
+	}
+	if strings.TrimSpace(modelName) == "" {
+		return true, nil
+	}
+	var snap string
+	if err := DB.Model(&UserSubscription{}).
+		Where("id = ?", userSubscriptionId).
+		Pluck("allowed_models_snap", &snap).Error; err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(snap) == "" {
+		return true, nil
+	}
+	var entries []PlanAllowedModel
+	if err := common.UnmarshalJsonStr(snap, &entries); err != nil {
+		// 损坏的 JSON 视作未限制，避免误拒。
+		return true, nil
+	}
+	if len(entries) == 0 {
+		return true, nil
+	}
+	for _, e := range entries {
+		if strings.EqualFold(strings.TrimSpace(e.Model), strings.TrimSpace(modelName)) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// PlanAllowedModel is the JSON shape stored in SubscriptionPlan.AllowedModels.
+type PlanAllowedModel struct {
+	Model string  `json:"model"`
+	Ratio float64 `json:"ratio"`
+}
+
+// ListUpgradeableAgentPlans returns plans with a strictly higher PlanLevel
+// rank than the user's current active agent subscription. Plans without a
+// recognized level are skipped on the way out.
+func ListUpgradeableAgentPlans(userId int) ([]SubscriptionPlan, error) {
+	if userId <= 0 {
+		return nil, errors.New("invalid userId")
+	}
+	current, err := GetUserActiveAgentSubscription(userId)
+	if err != nil {
+		return nil, err
+	}
+	currentRank := 0
+	if current != nil {
+		currentRank = PlanLevelRank[current.PlanLevel]
+	}
+	var plans []SubscriptionPlan
+	err = DB.Where("enabled = ? AND tag = ?", true, PlanTagAgent).
+		Order("sort_order desc, id desc").
+		Find(&plans).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make([]SubscriptionPlan, 0, len(plans))
+	for _, p := range plans {
+		rank, ok := PlanLevelRank[p.PlanLevel]
+		if !ok || rank <= 0 {
+			continue
+		}
+		if rank <= currentRank {
+			continue
+		}
+		result = append(result, p)
+	}
+	return result, nil
 }

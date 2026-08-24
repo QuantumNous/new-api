@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { SystemBehaviorSection } from '../general/system-behavior-section'
+import { AliyunSmsSettingsSection } from '../integrations/aliyun-sms-settings-section'
 import { EmailSettingsSection } from '../integrations/email-settings-section'
 import { MonitoringSettingsSection } from '../integrations/monitoring-settings-section'
 import { WorkerSettingsSection } from '../integrations/worker-settings-section'
@@ -74,6 +75,19 @@ const OPERATIONS_SECTIONS = [
           SMTPStartTLSEnabled: settings.SMTPStartTLSEnabled,
           SMTPInsecureSkipVerify: settings.SMTPInsecureSkipVerify,
           SMTPForceAuthLogin: settings.SMTPForceAuthLogin,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'aliyun-sms',
+    titleKey: 'Aliyun SMS',
+    build: (settings: OperationsSettings) => (
+      <AliyunSmsSettingsSection
+        defaultValues={{
+          AliyunSMSSignName: settings.AliyunSMSSignName,
+          AliyunSMSTemplateCode: settings.AliyunSMSTemplateCode,
+          AliyunSMSRegionId: settings.AliyunSMSRegionId || 'cn-hangzhou',
         }}
       />
     ),

@@ -17,7 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CalendarClock, CreditCard, RefreshCw, Settings2 } from 'lucide-react'
+import {
+  Bot,
+  CalendarClock,
+  CreditCard,
+  RefreshCw,
+  Settings2,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useForm, type Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -60,6 +66,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 
 import {
@@ -824,6 +831,221 @@ export function SubscriptionsMutateDrawer({
                 }}
               />
             </SideDrawerSection>
+
+            {/* Agent Plan Settings — Lite / Plus / Max 套餐配置。
+                字段总是显示：主实例管理员也可在此录入 tag=agent 的套餐供 Agent 实例复用。*/}
+            <SideDrawerSection>
+              <h3 className='flex items-center gap-2 text-sm font-medium'>
+                <Bot className='h-4 w-4' />
+                {t('Agent Plan Settings')}
+              </h3>
+
+              <FormDescription className='-mt-1'>
+                {t(
+                  'Lite / Plus / Max 套餐配置。Agent 实例的用量包由这里统一管理。'
+                )}
+              </FormDescription>
+
+                <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='tag'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Plan Tag')}</FormLabel>
+                        <Select
+                          items={[
+                            { value: '__none__', label: t('No tag') },
+                            { value: 'agent', label: t('Agent') },
+                          ]}
+                          onValueChange={(v) =>
+                            field.onChange(v === '__none__' ? '' : v)
+                          }
+                          value={field.value || ''}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder={t('No tag')} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              <SelectItem value='__none__'>
+                                {t('No tag')}
+                              </SelectItem>
+                              <SelectItem value='agent'>
+                                {t('Agent')}
+                              </SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {t(
+                            'agent：仅 Agent 实例使用此套餐；留空则主实例与 Agent 实例通用'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='plan_level'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Plan Level')}</FormLabel>
+                        <Select
+                          items={[
+                            { value: '__none__', label: t('No level') },
+                            { value: 'lite', label: t('Lite (入门版)') },
+                            { value: 'plus', label: t('Plus (标准版)') },
+                            { value: 'max', label: t('Max (旗舰版)') },
+                          ]}
+                          onValueChange={(v) =>
+                            field.onChange(v === '__none__' ? '' : v)
+                          }
+                          value={field.value || ''}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder={t('No level')} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent alignItemWithTrigger={false}>
+                            <SelectGroup>
+                              <SelectItem value='__none__'>
+                                {t('No level')}
+                              </SelectItem>
+                              <SelectItem value='lite'>
+                                {t('Lite (入门版)')}
+                              </SelectItem>
+                              <SelectItem value='plus'>
+                                {t('Plus (标准版)')}
+                              </SelectItem>
+                              <SelectItem value='max'>
+                                {t('Max (旗舰版)')}
+                              </SelectItem>
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {t(
+                            '用于升级排序：lite < plus < max；不允许降级'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
+                  <FormField
+                    control={form.control}
+                    name='five_hour_limit'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('5-hour quota cap')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type='number'
+                            min={0}
+                            onChange={(e) =>
+                              field.onChange(
+                                parseInt(e.target.value, 10) || 0
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('0 = 不限（每 5 小时桶）')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='weekly_limit'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Weekly quota cap')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type='number'
+                            min={0}
+                            onChange={(e) =>
+                              field.onChange(
+                                parseInt(e.target.value, 10) || 0
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('0 = 不限（自然周）')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='monthly_limit'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Monthly quota cap')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            type='number'
+                            min={0}
+                            onChange={(e) =>
+                              field.onChange(
+                                parseInt(e.target.value, 10) || 0
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            '0 = 不限（购买日起 30 天滚动）；>0 时与 Quota 同时生效'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name='allowed_models'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Allowed models')}</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          rows={5}
+                          placeholder={'gpt-4 1.0\ngpt-3.5-turbo 0.5'}
+                          className='font-mono text-xs'
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          '每行一条：<model> <ratio>。空 = 不限制模型。比率为该套餐用户调用此模型时的扣费倍率。'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </SideDrawerSection>
           </form>
         </Form>
         <SheetFooter className={sideDrawerFooterClassName()}>
