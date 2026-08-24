@@ -23,8 +23,35 @@ const get = mock(async (_path: string) => ({ data: { success: true } }))
 const post = mock(async (_path: string, _body?: unknown) => ({
   data: { success: true },
 }))
+const getStatus = mock(async () => ({ success: true, data: {} }))
+const getNotice = mock(async () => ({ success: true, data: '' }))
+const getCommonHeaders = mock(() => ({}))
+const getSelf = mock(async () => ({ success: true, data: {} }))
+const getUserModels = mock(async () => ({ success: true, data: [] }))
+const getUserGroups = mock(async () => ({ success: true, data: {} }))
+const get2FAStatus = mock(async () => ({ success: true, data: {} }))
+const setup2FA = mock(async () => ({ success: true, data: {} }))
+const enable2FA = mock(async () => ({ success: true, data: {} }))
+const disable2FA = mock(async () => ({ success: true, data: {} }))
+const regenerate2FABackupCodes = mock(async () => ({
+  success: true,
+  data: {},
+}))
 
-mock.module('@/lib/api', () => ({ api: { get, post } }))
+mock.module('@/lib/api', () => ({
+  api: { get, post },
+  getStatus,
+  getNotice,
+  getCommonHeaders,
+  getSelf,
+  getUserModels,
+  getUserGroups,
+  get2FAStatus,
+  setup2FA,
+  enable2FA,
+  disable2FA,
+  regenerate2FABackupCodes,
+}))
 
 const {
   clearCurrentPlaygroundRecord,

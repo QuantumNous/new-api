@@ -72,6 +72,9 @@ const generateMediaMock = mock(
 )
 const stopChatMock = mock(() => undefined)
 const stopMediaMock = mock(() => undefined)
+const startTurnMock = mock(() => undefined)
+const markActiveTurnStoppedMock = mock(() => undefined)
+const setConversationIdMock = mock(() => undefined)
 const updateConfigMock = mock(() => undefined)
 const updateMessagesMock = mock(() => undefined)
 const setModelsMock = mock(() => undefined)
@@ -140,6 +143,7 @@ spyOn(playgroundInputModule, 'PlaygroundInput').mockImplementation(((
 }) as never)
 
 spyOn(playgroundHooksModule, 'usePlaygroundState').mockImplementation(((
+  _userId?: number,
   initialModel?: string
 ) => {
   receivedInitialModel = initialModel
@@ -148,14 +152,25 @@ spyOn(playgroundHooksModule, 'usePlaygroundState').mockImplementation(((
     config,
     parameterEnabled: DEFAULT_PARAMETER_ENABLED,
     messages: playgroundMessages,
+    conversationId: 'conversation-test',
     models: [],
     groups: [],
     updateMessages: updateMessagesMock,
+    setConversationId: setConversationIdMock,
     setModels: setModelsMock,
     setGroups: setGroupsMock,
     updateConfig: updateConfigMock,
   }
 }) as never)
+
+spyOn(playgroundHooksModule, 'usePlaygroundPersistence').mockImplementation(
+  (() => ({
+    isRestoring: false,
+    startTurn: startTurnMock,
+    markActiveTurnStopped: markActiveTurnStoppedMock,
+    clearCurrentConversation: () => Promise.resolve(true),
+  })) as never
+)
 
 spyOn(playgroundHooksModule, 'useChatHandler').mockImplementation((({
   config,
@@ -222,6 +237,9 @@ beforeEach(() => {
   generateMediaMock.mockClear()
   stopChatMock.mockClear()
   stopMediaMock.mockClear()
+  startTurnMock.mockClear()
+  markActiveTurnStoppedMock.mockClear()
+  setConversationIdMock.mockClear()
   updateConfigMock.mockClear()
   updateMessagesMock.mockClear()
   setModelsMock.mockClear()

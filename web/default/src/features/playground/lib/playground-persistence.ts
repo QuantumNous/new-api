@@ -23,8 +23,8 @@ import type {
   PlaygroundConfig,
   PlaygroundRecordPayload,
 } from '../types'
-import { buildChatCompletionPayload } from './payload-builder'
 import { getCurrentVersion } from './message-utils'
+import { buildChatCompletionPayload } from './payload-builder'
 
 export interface ActivePlaygroundTurn {
   recordId: string
@@ -80,8 +80,12 @@ export function buildPlaygroundRecordPayload(
     )
   }
 
-  const { model, group = '', messages: requestMessages, ...parameters } =
-    active.request
+  const {
+    model,
+    group = '',
+    messages: requestMessages,
+    ...parameters
+  } = active.request
   const isError = assistantMessage.status === 'error'
 
   return {
@@ -106,5 +110,78 @@ export function buildPlaygroundRecordPayload(
     latency_ms: Math.max(0, completedAt - active.startedAt),
     messages_snapshot: messages,
     client_completed_at: completedAt,
+  }
+}
+
+export async function drainPlaygroundOutbox(
+  records: PlaygroundRecordPayload[],
+  save: (record: PlaygroundRecordPayload) => Promise<void>
+): Promise<PlaygroundRecordPayload[]> {
+  for (let index = 0; index < records.length; index += 1) {
+    try {
+      await save(records[index])
+    } catch {
+      return records.slice(index)
+    }
+  }
+
+  return []
+}
+
+export function removeDeliveredPlaygroundRecords(
+  latestRecords: PlaygroundRecordPayload[],
+  attemptedRecords: PlaygroundRecordPayload[],
+  remainingRecords: PlaygroundRecordPayload[]
+): PlaygroundRecordPayload[] {
+  const deliveredCount = Math.max(
+    0,
+    attemptedRecords.length - remainingRecords.length
+  )
+  const deliveredIds = new Set(
+    attemptedRecords.slice(0, deliveredCount).map((record) => record.record_id)
+  )
+  return latestRecords.filter((record) => !deliveredIds.has(record.record_id))
+}
+
+export interface PlaygroundConversationSnapshot {
+  conversation_id: string
+  messages: Message[]
+}
+
+export type PlaygroundRestoreResult =
+  | {
+      pendingRecords: PlaygroundRecordPayload[]
+      shouldApplyCurrent: false
+    }
+  | {
+      pendingRecords: PlaygroundRecordPayload[]
+      shouldApplyCurrent: true
+      current: PlaygroundConversationSnapshot | null
+    }
+
+export async function restorePlaygroundSession(
+  pendingRecords: PlaygroundRecordPayload[],
+  save: (record: PlaygroundRecordPayload) => Promise<void>,
+  getCurrent: () => Promise<PlaygroundConversationSnapshot | null>
+): Promise<PlaygroundRestoreResult> {
+  const remaining = await drainPlaygroundOutbox(pendingRecords, save)
+  if (remaining.length > 0) {
+    return {
+      pendingRecords: remaining,
+      shouldApplyCurrent: false,
+    }
+  }
+
+  try {
+    return {
+      pendingRecords: [],
+      shouldApplyCurrent: true,
+      current: await getCurrent(),
+    }
+  } catch {
+    return {
+      pendingRecords: [],
+      shouldApplyCurrent: false,
+    }
   }
 }

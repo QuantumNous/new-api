@@ -17,16 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
+import type { Message, ParameterEnabled, PlaygroundConfig } from '../types'
 import {
   buildPlaygroundRecordPayload,
   createActivePlaygroundTurn,
+  drainPlaygroundOutbox,
+  removeDeliveredPlaygroundRecords,
+  restorePlaygroundSession,
+  type ActivePlaygroundTurn,
 } from './playground-persistence'
-import type { ActivePlaygroundTurn } from './playground-persistence'
-import type {
-  Message,
-  ParameterEnabled,
-  PlaygroundConfig,
-} from '../types'
 
 const userMessage: Message = {
   key: 'user-message',
@@ -160,5 +159,90 @@ describe('Playground persistence payloads', () => {
     expect(payload.status).toBe('error')
     expect(payload.error_code).toBe('rate_limit_exceeded')
     expect(payload.error_message).toBe('rate limited')
+  })
+
+  test('drains pending records FIFO and stops at the first failure', async () => {
+    const first = buildPlaygroundRecordPayload(
+      activeTurn(),
+      [userMessage, completeAssistant],
+      false,
+      2500
+    )
+    const second = {
+      ...first,
+      record_id: '550e8400-e29b-41d4-a716-446655440002',
+    }
+    const calls: string[] = []
+
+    const remaining = await drainPlaygroundOutbox(
+      [first, second],
+      async (record) => {
+        calls.push(record.record_id)
+        if (record.record_id === second.record_id) {
+          throw new Error('offline')
+        }
+      }
+    )
+
+    expect(calls).toEqual([first.record_id, second.record_id])
+    expect(remaining).toEqual([second])
+  })
+
+  test('does not restore server state while an outbox record still fails', async () => {
+    const pending = buildPlaygroundRecordPayload(
+      activeTurn(),
+      [userMessage, completeAssistant],
+      false,
+      2500
+    )
+    let fetchedCurrent = false
+
+    const result = await restorePlaygroundSession(
+      [pending],
+      async () => {
+        throw new Error('offline')
+      },
+      async () => {
+        fetchedCurrent = true
+        return { conversation_id: pending.conversation_id, messages: [] }
+      }
+    )
+
+    expect(fetchedCurrent).toBe(false)
+    expect(result).toEqual({
+      pendingRecords: [pending],
+      shouldApplyCurrent: false,
+    })
+  })
+
+  test('treats an explicit null server snapshot as restorable state', async () => {
+    const result = await restorePlaygroundSession(
+      [],
+      async () => {},
+      async () => null
+    )
+
+    expect(result).toEqual({
+      pendingRecords: [],
+      shouldApplyCurrent: true,
+      current: null,
+    })
+  })
+
+  test('removes only delivered records from a queue changed during network I/O', () => {
+    const first = buildPlaygroundRecordPayload(
+      activeTurn(),
+      [userMessage, completeAssistant],
+      false,
+      2500
+    )
+    const newlyQueued = {
+      ...first,
+      record_id: '550e8400-e29b-41d4-a716-446655440003',
+    }
+
+    expect(
+      removeDeliveredPlaygroundRecords([first, newlyQueued], [first], [])
+    ).toEqual([newlyQueued])
   })
 })

@@ -19,13 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import { API_ENDPOINTS } from './constants'
 import type { MediaGenerationRequest } from './lib/media-generation'
+import type { PlaygroundConversationSnapshot } from './lib/playground-persistence'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
   GroupOption,
   VideoTask,
-  Message,
-  ModelOption,
   PlaygroundRecordPayload,
 } from './types'
 
@@ -33,11 +32,6 @@ interface PlaygroundApiResponse<T = unknown> {
   success: boolean
   data?: T
   message?: string
-}
-
-interface CurrentPlaygroundRecord {
-  conversation_id: string
-  messages: Message[]
 }
 
 function assertPlaygroundApiSuccess(
@@ -181,9 +175,10 @@ export async function savePlaygroundRecord(
   assertPlaygroundApiSuccess(res.data, 'Failed to save Playground record')
 }
 
-export async function getCurrentPlaygroundRecord(): Promise<CurrentPlaygroundRecord | null> {
+export async function getCurrentPlaygroundRecord(): Promise<PlaygroundConversationSnapshot | null> {
   const res = await api.get(API_ENDPOINTS.PLAYGROUND_RECORDS_CURRENT)
-  const response = res.data as PlaygroundApiResponse<CurrentPlaygroundRecord | null>
+  const response =
+    res.data as PlaygroundApiResponse<PlaygroundConversationSnapshot | null>
   assertPlaygroundApiSuccess(
     response,
     'Failed to restore the current Playground conversation'
@@ -211,5 +206,8 @@ export async function clearCurrentPlaygroundRecord(
     conversation_id: conversationId,
     client_completed_at: clientCompletedAt,
   })
-  assertPlaygroundApiSuccess(res.data, 'Failed to clear Playground conversation')
+  assertPlaygroundApiSuccess(
+    res.data,
+    'Failed to clear Playground conversation'
+  )
 }

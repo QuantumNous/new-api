@@ -45,7 +45,12 @@ import {
   MESSAGE_STATUS,
   MODEL_GENERATOR_DRAFT_CLEANUP_KEY,
 } from './constants'
-import { usePlaygroundState, useChatHandler, useMediaGeneration } from './hooks'
+import {
+  useChatHandler,
+  useMediaGeneration,
+  usePlaygroundPersistence,
+  usePlaygroundState,
+} from './hooks'
 import {
   createUserMessage,
   createLoadingAssistantMessage,
@@ -109,13 +114,24 @@ export function Playground({
     config,
     parameterEnabled,
     messages,
+    conversationId,
     models,
     groups,
     updateMessages,
+    setConversationId,
     setModels,
     setGroups,
     updateConfig,
   } = usePlaygroundState(authUser?.id, initialModel)
+
+  const { isRestoring, startTurn, markActiveTurnStopped } =
+    usePlaygroundPersistence({
+      userId: authUser?.id,
+      messages,
+      conversationId,
+      setConversationId,
+      updateMessages,
+    })
 
   const {
     sendChat,
@@ -135,11 +151,15 @@ export function Playground({
   >({})
 
   const stopGeneration = useCallback(() => {
-    if (isGeneratingChat) stopChatGeneration()
+    if (isGeneratingChat) {
+      markActiveTurnStopped()
+      stopChatGeneration()
+    }
     if (isGeneratingMedia) stopMediaGeneration()
   }, [
     isGeneratingChat,
     isGeneratingMedia,
+    markActiveTurnStopped,
     stopChatGeneration,
     stopMediaGeneration,
   ])
@@ -346,15 +366,23 @@ export function Playground({
         void generateMedia(prompt, model, group, getMediaSettings(model))
         return
       }
+      startTurn(
+        requestMessages,
+        { ...config, ...configOverride },
+        parameterEnabled,
+        firstRun
+      )
       sendChat(requestMessages, configOverride)
     },
     [
-      config.group,
-      config.model,
+      config,
+      firstRun,
       generateMedia,
       getFirstRunChatOverride,
       getMediaSettings,
+      parameterEnabled,
       sendChat,
+      startTurn,
     ]
   )
 
@@ -536,6 +564,7 @@ export function Playground({
 
   const prepareSend = useCallback(
     (targetModel: string) => {
+      if (isRestoring) return false
       const isTargetModelValid = handoff.models.some(
         (model) => model.value === targetModel
       )
@@ -550,7 +579,7 @@ export function Playground({
       if (firstRun) setSentThisSession(true)
       return true
     },
-    [firstRun, handoff.models, isFirstRunModelReady]
+    [firstRun, handoff.models, isFirstRunModelReady, isRestoring]
   )
 
   const clearModelGeneratorDraft = useCallback(() => {
@@ -713,7 +742,7 @@ export function Playground({
           ptFirstCallSecondsRemaining={
             isPtFirstCallExperiment ? ptFirstCallSecondsRemaining : undefined
           }
-          disabled={!isFirstRunModelReady}
+          disabled={!isFirstRunModelReady || isRestoring}
           onPickExample={handleSendMessage}
         />
       )}
@@ -725,7 +754,7 @@ export function Playground({
           onRegenerateMessage={handleRegenerateMessage}
           onEditMessage={handleEditMessage}
           onDeleteMessage={handleDeleteMessage}
-          isGenerating={isGenerating}
+          isGenerating={isGenerating || isRestoring}
           editingKey={editingMessageKey}
           onCancelEdit={handleEditOpenChange}
           onSaveEdit={(newContent) => applyEdit(newContent, false)}
@@ -742,9 +771,11 @@ export function Playground({
       <div className='mx-auto w-full max-w-4xl'>
         <PlaygroundInput
           key={handoff.prompt || 'playground-input'}
-          disabled={isGenerating}
+          disabled={isGenerating || isRestoring}
           initialText={handoff.prompt}
-          submitDisabled={!isCurrentModelValid || !isFirstRunModelReady}
+          submitDisabled={
+            !isCurrentModelValid || !isFirstRunModelReady || isRestoring
+          }
           showGroupSelector={canUseGroups}
           groups={groups}
           groupValue={config.group}
