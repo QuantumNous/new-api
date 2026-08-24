@@ -752,7 +752,7 @@ func responseFromBytePlusRealPerson(profile *model.BytePlusRealPersonProfile, ve
 }
 
 func finishUnknownOrDefinitiveVerificationFailure(record *model.APIIdempotencyRecord, profile *model.BytePlusRealPersonProfile, session *model.BytePlusVisualValidationSession, err error) (*dto.BytePlusRealPersonResponse, *types.NewAPIError) {
-	if isBytePlusDefinitiveResponse(err) {
+	if isRealPersonDefinitiveResponse(err) {
 		_, _ = model.FailBytePlusRealPersonSession(profile.Id, session.Id, "verification_upstream_error", bytePlusAssetNow())
 		payload, marshalErr := marshalAPIIdempotencyResponsePayload(storedRealPersonErrorPayload{ErrorCode: string(types.ErrorCodeVerificationUpstreamError)})
 		if marshalErr != nil {

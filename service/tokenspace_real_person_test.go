@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,6 +96,38 @@ func TestTokenSpaceRealPersonCreateDoesNotRequireBytePlusCallback(t *testing.T) 
 	require.Equal(t, int64(2300), session.ExpiresAt)
 	require.NotEmpty(t, session.BytedTokenCiphertext)
 	require.NotEmpty(t, session.H5LinkCiphertext)
+}
+
+func TestTokenSpaceRealPersonCreateDefinitiveErrorIsSafeFailedReplay(t *testing.T) {
+	newBytePlusRealPersonServiceTestDB(t)
+	installBytePlusRealPersonServiceTestDeps(t, &fakeBytePlusRealPersonClient{})
+	t.Setenv(bytePlusRealPersonCallbackBaseURLEnv, "")
+	calls := 0
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		require.Equal(t, "CreateVisualValidateSession", r.URL.Query().Get("Action"))
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = io.WriteString(w, `{"ResponseMetadata":{"RequestId":"request-rejected"},"Result":{"Error":{"Code":"InvalidAccessKey","Message":"rejected"}}}`)
+	}))
+	defer server.Close()
+	installTokenSpaceMaterialHTTPClientFactory(t, server.Client())
+	insertTokenSpaceRealPersonChannel(t, 42, "default", true)
+	settings := tokenSpaceMaterialSettingsJSON(t, server.URL, "group-virtual-not-for-real-person")
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 42).Update("settings", settings).Error)
+
+	_, apiErr := CreateBytePlusRealPerson(context.Background(), 7, "default", "default", 42, "tokenspace-definitive", dto.BytePlusRealPersonCreateRequest{Name: "Alice"})
+	assertRealPersonError(t, apiErr, types.ErrorCodeVerificationUpstreamError, http.StatusBadGateway)
+	_, apiErr = CreateBytePlusRealPerson(context.Background(), 7, "default", "default", 42, "tokenspace-definitive", dto.BytePlusRealPersonCreateRequest{Name: "Alice"})
+	assertRealPersonError(t, apiErr, types.ErrorCodeVerificationUpstreamError, http.StatusBadGateway)
+	require.Equal(t, 1, calls)
+
+	var profile model.BytePlusRealPersonProfile
+	require.NoError(t, model.DB.First(&profile, "channel_id = ?", 42).Error)
+	require.Equal(t, model.BytePlusRealPersonProfileStatusFailed, profile.Status)
+	var record model.APIIdempotencyRecord
+	require.NoError(t, model.DB.First(&record, "route = ?", bytePlusRealPersonCreateRoute).Error)
+	require.Equal(t, model.APIIdempotencyStatusFailed, record.Status)
+	require.Contains(t, record.ResponsePayload, string(types.ErrorCodeVerificationUpstreamError))
 }
 
 func TestTokenSpaceRealPersonAssetActionsUseAuthenticatedGroup(t *testing.T) {
