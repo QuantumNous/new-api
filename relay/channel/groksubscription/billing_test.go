@@ -292,6 +292,31 @@ func TestProbeBillingReadsSnakeCaseNestedSubscriptionTier(t *testing.T) {
 	}
 }
 
+func TestProbeBillingPreservesNumericSubscriptionTier(t *testing.T) {
+	cred := Credential{AccessToken: "access-secret", TokenType: "Bearer"}
+	doer := doerFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.RequestURI() {
+		case BillingMonthlyPath, BillingWeeklyCreditsPath:
+			return jsonResponse(200, `{}`), nil
+		case SubscriptionTierPath:
+			return jsonResponse(200, `{"user":{"subscriptionTier":3}}`), nil
+		default:
+			return nil, fmt.Errorf("unexpected path %s", req.URL.RequestURI())
+		}
+	})
+
+	got, err := ProbeBilling(context.Background(), doer, cred)
+	if err != nil {
+		t.Fatalf("ProbeBilling err = %v", err)
+	}
+	if got.Tier != "3" {
+		t.Fatalf("Tier = %q, want 3", got.Tier)
+	}
+	if err := EvaluateMediaEligibility(mustBillingSnapshotJSON(t, got), 2000000000, 2000000000); err != nil {
+		t.Fatalf("known numeric paid tier must grant media, got %v", err)
+	}
+}
+
 func TestProbeBillingParsesObservedNestedBillingPayloads(t *testing.T) {
 	cred := Credential{AccessToken: "access-secret", TokenType: "Bearer"}
 	requestCount := 0

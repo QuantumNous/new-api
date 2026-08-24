@@ -48,6 +48,8 @@ describe('Playground media model profiles', () => {
     expect(resolvePlaygroundModelKind('doubao-seedance-2-5-260628')).toBe(
       'video'
     )
+    expect(resolvePlaygroundModelKind('grok-imagine-video')).toBe('video')
+    expect(resolvePlaygroundModelKind('grok-imagine-video-1.5')).toBe('video')
     expect(resolvePlaygroundModelKind('minimax-h3')).toBe('unsupported')
     expect(resolvePlaygroundModelKind('gpt-4o')).toBe('chat')
     expect(resolvePlaygroundModelKind('tts-1')).toBe('unsupported')
@@ -58,6 +60,7 @@ describe('Playground media model profiles', () => {
     expect(
       isSupportedPlaygroundModelName('veo-3.1-fast-generate-preview')
     ).toBe(true)
+    expect(isSupportedPlaygroundModelName('grok-imagine-video-1.5')).toBe(true)
     expect(isSupportedPlaygroundModelName('whisper-1')).toBe(false)
     expect(isSupportedPlaygroundModelName('text-embedding-3-large')).toBe(false)
     expect(isSupportedPlaygroundModelName('sora-2')).toBe(false)
@@ -267,6 +270,32 @@ describe('Playground media model profiles', () => {
         aspectRatio: '16:9',
       }).duration
     ).toBe(8)
+  })
+
+  test('Grok video profiles expose only supported generation controls', () => {
+    const legacy = resolveMediaGenerationProfile('grok-imagine-video')
+    const current = resolveMediaGenerationProfile('grok-imagine-video-1.5')
+
+    expect(legacy?.defaults).toEqual({
+      resolution: '720p',
+      duration: 5,
+      aspectRatio: '16:9',
+    })
+    expect(
+      legacy?.fields
+        .find((field) => field.key === 'resolution')
+        ?.options.map((option) => option.value)
+    ).toEqual(['480p', '720p'])
+    expect(
+      current?.fields
+        .find((field) => field.key === 'resolution')
+        ?.options.map((option) => option.value)
+    ).toEqual(['480p', '720p', '1080p'])
+    expect(current?.fields.map((field) => field.key)).toEqual([
+      'resolution',
+      'duration',
+      'aspectRatio',
+    ])
   })
 })
 
@@ -482,5 +511,31 @@ describe('Playground media request building', () => {
       },
     })
     expect(request?.payload).not.toHaveProperty('seed')
+  })
+
+  test('builds a Grok video request with the upstream field names', () => {
+    const request = buildMediaGenerationRequest(
+      'A blue square slowly rotates',
+      'grok-imagine-video-1.5',
+      'lxy',
+      {
+        resolution: '720p',
+        aspectRatio: '1:1',
+        duration: 5,
+      }
+    )
+
+    expect(request).toEqual({
+      kind: 'video',
+      endpoint: '/pg/videos',
+      payload: {
+        model: 'grok-imagine-video-1.5',
+        group: 'lxy',
+        prompt: 'A blue square slowly rotates',
+        resolution: '720p',
+        aspect_ratio: '1:1',
+        duration: 5,
+      },
+    })
   })
 })
