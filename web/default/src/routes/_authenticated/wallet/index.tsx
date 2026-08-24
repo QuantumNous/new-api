@@ -17,7 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { isPlgUser, useAuthStore } from '@/stores/auth-store'
 import { Wallet } from '@/features/wallet'
 import {
   PADDLE_ORDER_SEARCH_PARAM,
@@ -49,6 +50,11 @@ const walletSearchSchema = z.object({
 export const Route = createFileRoute('/_authenticated/wallet/')({
   component: RouteComponent,
   validateSearch: walletSearchSchema,
+  beforeLoad: () => {
+    if (!isPlgUser(useAuthStore.getState().auth.user?.group)) {
+      throw redirect({ to: '/dashboard' })
+    }
+  },
 })
 
 function RouteComponent() {
