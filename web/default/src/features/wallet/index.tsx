@@ -20,7 +20,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { PartyPopper, Wallet2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useAuthStore } from '@/stores/auth-store'
+import { isPlgUser, useAuthStore } from '@/stores/auth-store'
 import { resumeAmplitudeAfterRecallClaim } from '@/lib/analytics/amplitude'
 import { trackAdsFunnelEvent } from '@/lib/analytics/gtag'
 import { trackTopupOnce } from '@/lib/analytics/topup-tracking'
@@ -141,6 +141,9 @@ function waitForPaddleStatusPollInterval(): Promise<void> {
 
 export function Wallet(props: WalletProps) {
   const { t, i18n } = useTranslation()
+  const showSubscriptionPlans = isPlgUser(
+    useAuthStore((state) => state.auth.user?.group)
+  )
   const [recallClaim] = useState(() =>
     normalizeRecallClaim(props.initialRecallClaim)
   )
@@ -916,22 +919,24 @@ export function Wallet(props: WalletProps) {
               </Alert>
             ) : null}
 
-            <RecallClaimProvider
-              offers={recallOffers}
-              loading={recallOffersLoading}
-              view={
-                recallClaimStatus === 'active'
-                  ? recallClaimView || undefined
-                  : undefined
-              }
-            >
-              <SubscriptionPlansCard
-                topupInfo={topupInfo}
-                userQuota={user?.quota}
-                onPurchaseSuccess={fetchUser}
-                onOpenStripeCheckout={openStripeCheckout}
-              />
-            </RecallClaimProvider>
+            {showSubscriptionPlans ? (
+              <RecallClaimProvider
+                offers={recallOffers}
+                loading={recallOffersLoading}
+                view={
+                  recallClaimStatus === 'active'
+                    ? recallClaimView || undefined
+                    : undefined
+                }
+              >
+                <SubscriptionPlansCard
+                  topupInfo={topupInfo}
+                  userQuota={user?.quota}
+                  onPurchaseSuccess={fetchUser}
+                  onOpenStripeCheckout={openStripeCheckout}
+                />
+              </RecallClaimProvider>
+            ) : null}
 
             <TitledCard
               title={t('Top-ups')}

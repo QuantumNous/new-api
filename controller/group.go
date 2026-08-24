@@ -35,9 +35,10 @@ func userCanUseGroups(userId int) (bool, error) {
 
 func GetGroups(c *gin.Context) {
 	// type=user returns the user identity groups (user.Group), whose authoritative
-	// source is the union of the system default group, the topup group ratio
-	// (充值分组比例), and the outer keys of the group-specific ratio (分组专属倍率
-	// GroupGroupRatio). This mirrors the system-settings group-ratio editor, which
+	// source is the union of the system default group, the fixed PLG group, the
+	// topup group ratio (充值分组比例), and the outer keys of the group-specific
+	// ratio (分组专属倍率 GroupGroupRatio). This mirrors the system-settings
+	// group-ratio editor, which
 	// treats a parent user group as valid if it is configured in either place — a
 	// customer may isolate rates purely via GroupGroupRatio without ever touching
 	// TopupGroupRatio. The system default is always included so newly registered
@@ -54,6 +55,7 @@ func GetGroups(c *gin.Context) {
 			}
 		}
 		addGroup(defaultUserGroup)
+		addGroup(plgGroup)
 		for _, name := range common.GetTopupGroupRatioKeys() {
 			addGroup(name)
 		}
