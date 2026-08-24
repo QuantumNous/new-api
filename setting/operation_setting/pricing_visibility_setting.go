@@ -88,6 +88,19 @@ func IsPricingHiddenModel(modelName string) bool {
 	return false
 }
 
+// FilterPricingVisibleModels removes models matched by the configured hidden
+// patterns while preserving the input order and leaving the input slice intact.
+func FilterPricingVisibleModels(modelNames []string) []string {
+	visible := make([]string, 0, len(modelNames))
+	for _, modelName := range modelNames {
+		if IsPricingHiddenModel(modelName) {
+			continue
+		}
+		visible = append(visible, modelName)
+	}
+	return visible
+}
+
 // matchPricingHiddenPattern 支持前缀/后缀/包含三种通配形式，其余按精确匹配。
 func matchPricingHiddenPattern(pattern, name string) bool {
 	if !strings.Contains(pattern, "*") {

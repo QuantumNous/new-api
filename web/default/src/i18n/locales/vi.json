@@ -6765,6 +6765,8 @@
     "Price depends on request size and options.": "Giá phụ thuộc vào kích thước yêu cầu và các tùy chọn.",
     "Quick start": "Tích hợp nhanh",
     "Quick top-up": "Nạp tiền nhanh",
-    "Save {{percent}}%": "Tiết kiệm {{percent}}%"
+    "Save {{percent}}%": "Tiết kiệm {{percent}}%",
+    "Create an image": "Tạo hình ảnh",
+    "Generate a video": "Tạo video"
   }
 }

@@ -56,3 +56,13 @@ func TestIsPricingHiddenModelEmptyConfigHidesNothing(t *testing.T) {
 	withHiddenModels(t, "   ,  , ")
 	require.False(t, IsPricingHiddenModel("gpt-4o"))
 }
+
+func TestFilterPricingVisibleModelsPreservesOrderAndInput(t *testing.T) {
+	withHiddenModels(t, "gpt-image-2,seedance-*")
+	models := []string{"gpt-4o", "gpt-image-2", "seedance-2.0", "claude-sonnet"}
+
+	visible := FilterPricingVisibleModels(models)
+
+	require.Equal(t, []string{"gpt-4o", "claude-sonnet"}, visible)
+	require.Equal(t, []string{"gpt-4o", "gpt-image-2", "seedance-2.0", "claude-sonnet"}, models)
+}

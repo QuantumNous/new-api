@@ -31,6 +31,7 @@ import {
   NotepadTextIcon,
   CodeSquareIcon,
   GraduationCapIcon,
+  VideoIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -50,17 +51,20 @@ import {
 } from '@/components/ai-elements/prompt-input'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
 import { ModelGroupSelector } from '@/components/model-group-selector'
-import type {
-  MediaGenerationProfile,
-  MediaGenerationSettings,
-  MediaParameterKey,
-  MediaParameterValue,
+import {
+  resolveQuickStartModel,
+  shouldShowQuickStartSuggestions,
+  type MediaGenerationProfile,
+  type MediaGenerationSettings,
+  type MediaParameterKey,
+  type MediaParameterValue,
+  type QuickStartMediaKind,
 } from '../lib'
 import type { ModelOption, GroupOption } from '../types'
 import { PlaygroundParameters } from './playground-parameters'
 
 interface PlaygroundInputProps {
-  onSubmit: (text: string) => void
+  onSubmit: (text: string, model?: string) => void
   onStop?: () => void
   disabled?: boolean
   submitDisabled?: boolean
@@ -83,13 +87,37 @@ interface PlaygroundInputProps {
   ) => void
 }
 
-const suggestions = [
-  { icon: BarChartIcon, text: 'Analyze data', color: '#76d0eb' },
-  { icon: BoxIcon, text: 'Surprise me', color: '#76d0eb' },
-  { icon: NotepadTextIcon, text: 'Summarize text', color: '#ea8444' },
-  { icon: CodeSquareIcon, text: 'Code', color: '#6c71ff' },
-  { icon: GraduationCapIcon, text: 'Get advice', color: '#76d0eb' },
-  { icon: null, text: 'More' },
+type QuickStartSuggestionKind = 'chat' | QuickStartMediaKind
+
+const suggestions: Array<{
+  icon: typeof BarChartIcon | null
+  text: string
+  color?: string
+  kind: QuickStartSuggestionKind
+}> = [
+  { icon: ImageIcon, text: 'Create an image', color: '#ea8444', kind: 'image' },
+  {
+    icon: VideoIcon,
+    text: 'Generate a video',
+    color: '#6c71ff',
+    kind: 'video',
+  },
+  { icon: BarChartIcon, text: 'Analyze data', color: '#76d0eb', kind: 'chat' },
+  { icon: BoxIcon, text: 'Surprise me', color: '#76d0eb', kind: 'chat' },
+  {
+    icon: NotepadTextIcon,
+    text: 'Summarize text',
+    color: '#ea8444',
+    kind: 'chat',
+  },
+  { icon: CodeSquareIcon, text: 'Code', color: '#6c71ff', kind: 'chat' },
+  {
+    icon: GraduationCapIcon,
+    text: 'Get advice',
+    color: '#76d0eb',
+    kind: 'chat',
+  },
+  { icon: null, text: 'More', kind: 'chat' },
 ]
 
 export function PlaygroundInput({
@@ -131,9 +159,21 @@ export function PlaygroundInput({
     })
   }
 
-  const handleSuggestionClick = (suggestion: string) => {
+  const handleSuggestionClick = (
+    suggestion: string,
+    kind: QuickStartSuggestionKind
+  ) => {
     if (isSubmitDisabled) return
-    onSubmit(suggestion)
+    if (kind === 'chat') {
+      onSubmit(suggestion)
+      return
+    }
+    if (modelLocked) return
+
+    const model = resolveQuickStartModel(models, kind)
+    if (!model) return
+    onModelChange(model)
+    onSubmit(suggestion, model)
   }
 
   return (
@@ -258,21 +298,35 @@ export function PlaygroundInput({
         </PromptInputFooter>
       </PromptInput>
 
-      <Suggestions>
-        {suggestions.map(({ icon: Icon, text, color }) => (
-          <Suggestion
-            className={`text-xs font-normal sm:text-sm ${
-              text === 'More' ? 'hidden sm:flex' : ''
-            }`}
-            key={text}
-            onClick={() => handleSuggestionClick(t(text))}
-            suggestion={t(text)}
-          >
-            {Icon && <Icon size={16} style={{ color }} />}
-            {t(text)}
-          </Suggestion>
-        ))}
-      </Suggestions>
+      {shouldShowQuickStartSuggestions(text) && (
+        <div className='grid gap-2'>
+          <p className='text-muted-foreground px-1 text-xs'>
+            {t('Try one of these to get started:')}
+          </p>
+          <Suggestions>
+            {suggestions
+              .filter(
+                (suggestion) =>
+                  suggestion.kind === 'chat' ||
+                  (!modelLocked &&
+                    !!resolveQuickStartModel(models, suggestion.kind))
+              )
+              .map(({ icon: Icon, text: suggestionText, color, kind }) => (
+                <Suggestion
+                  className={`text-xs font-normal sm:text-sm ${
+                    suggestionText === 'More' ? 'hidden sm:flex' : ''
+                  }`}
+                  key={suggestionText}
+                  onClick={() => handleSuggestionClick(t(suggestionText), kind)}
+                  suggestion={t(suggestionText)}
+                >
+                  {Icon && <Icon size={16} style={{ color }} />}
+                  {t(suggestionText)}
+                </Suggestion>
+              ))}
+          </Suggestions>
+        </div>
+      )}
     </div>
   )
 }
