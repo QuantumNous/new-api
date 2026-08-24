@@ -70,6 +70,7 @@ export function usePlaygroundState(userId?: number, initialModel?: string) {
   const [models, setModels] = useState<ModelOption[]>([])
   const [groups, setGroups] = useState<GroupOption[]>([])
 
+  /* eslint-disable react-hooks/set-state-in-effect -- Account changes must replace the user-scoped cache before the browser paints stale data. */
   useLayoutEffect(() => {
     if (!hasUser) {
       setConfig(applyPlaygroundHandoffModel(DEFAULT_CONFIG, initialModel))
@@ -98,6 +99,7 @@ export function usePlaygroundState(userId?: number, initialModel?: string) {
       saveConversationId(userId, nextConversationId)
     }
   }, [hasUser, initialModel, userId])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Update config with automatic save
   const updateConfig = useCallback(

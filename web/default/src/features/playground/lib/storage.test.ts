@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import { STORAGE_KEYS } from '../constants'
+import type { Message, PlaygroundRecordPayload } from '../types'
 import {
   clearUserPlaygroundData,
   enqueuePendingRecord,
@@ -32,7 +33,6 @@ import {
   saveMessages,
   saveParameterEnabled,
 } from './storage'
-import type { Message, PlaygroundRecordPayload } from '../types'
 
 const originalLocalStorage = globalThis.localStorage
 
@@ -73,7 +73,10 @@ const bobMessage: Message = {
   versions: [{ id: 'bob-version', content: 'hello from bob' }],
 }
 
-function sampleRecord(recordId: string, outputText: string): PlaygroundRecordPayload {
+function sampleRecord(
+  recordId: string,
+  outputText: string
+): PlaygroundRecordPayload {
   const assistantMessage: Message = {
     key: `assistant-${recordId}`,
     from: 'assistant',
@@ -139,9 +142,9 @@ describe('Playground user-scoped storage', () => {
     localStorage.setItem(storageKey, JSON.stringify(legacyMessages))
 
     const loaded = loadMessages(10)
-    const persisted = JSON.parse(
-      localStorage.getItem(storageKey) ?? 'null'
-    ) as Message[] | null
+    const persisted = JSON.parse(localStorage.getItem(storageKey) ?? 'null') as
+      | Message[]
+      | null
 
     expect(loaded?.[0]?.generatedMedia).toBeUndefined()
     expect(loaded?.[0]?.versions[0]?.generatedMedia).toEqual([
@@ -206,6 +209,34 @@ describe('Playground user-scoped storage', () => {
     expect(loadMessages(10)).toBe(null)
     expect(loadConfig(10)).toEqual({})
     expect(loadParameterEnabled(10)).toEqual({})
+    errorSpy.mockRestore()
+  })
+
+  test('drops structurally incomplete pending records', () => {
+    localStorage.setItem(
+      'playground_pending_records:v2:10',
+      JSON.stringify([
+        {
+          record_id: 'record-a',
+          conversation_id: 'conversation-a',
+          status: 'complete',
+        },
+      ])
+    )
+
+    expect(loadPendingRecords(10)).toEqual([])
+  })
+
+  test('reports when a pending record cannot be written locally', () => {
+    const storage = installLocalStorage()
+    const errorSpy = spyOn(console, 'error').mockImplementation(() => {})
+    storage.setItem = () => {
+      throw new Error('quota exceeded')
+    }
+
+    expect(enqueuePendingRecord(10, sampleRecord('record-a', 'output'))).toBe(
+      false
+    )
     errorSpy.mockRestore()
   })
 

@@ -159,10 +159,14 @@ export function usePlaygroundPersistence({
       messages,
       stoppedRef.current
     )
-    enqueuePendingRecord(userId, payload)
+    const wasQueued = enqueuePendingRecord(userId, payload)
     activeTurnRef.current = null
     stoppedRef.current = false
-    void drainStoredRecords(userId)
+    if (wasQueued) {
+      void drainStoredRecords(userId)
+    } else {
+      void savePlaygroundRecord(payload).catch(() => {})
+    }
   }, [drainStoredRecords, hasUser, messages, userId])
 
   const startTurn = useCallback(

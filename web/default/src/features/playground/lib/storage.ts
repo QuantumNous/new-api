@@ -39,12 +39,38 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isPendingRecord(value: unknown): value is PlaygroundRecordPayload {
   if (!isRecord(value)) return false
+  const isStatusValid =
+    value.status === 'complete' ||
+    value.status === 'error' ||
+    value.status === 'stopped'
+  const isNonNegativeInteger = (candidate: unknown) =>
+    Number.isInteger(candidate) && Number(candidate) >= 0
+
   return (
     typeof value.record_id === 'string' &&
+    value.record_id.length > 0 &&
     typeof value.conversation_id === 'string' &&
-    (value.status === 'complete' ||
-      value.status === 'error' ||
-      value.status === 'stopped')
+    value.conversation_id.length > 0 &&
+    isRecord(value.user_message) &&
+    Array.isArray(value.request_messages) &&
+    isRecord(value.assistant_message) &&
+    typeof value.reasoning_content === 'string' &&
+    typeof value.input_text === 'string' &&
+    typeof value.output_text === 'string' &&
+    typeof value.model_name === 'string' &&
+    typeof value.group_name === 'string' &&
+    isRecord(value.parameters) &&
+    isStatusValid &&
+    typeof value.error_code === 'string' &&
+    typeof value.error_message === 'string' &&
+    typeof value.relay_request_id === 'string' &&
+    isNonNegativeInteger(value.prompt_tokens) &&
+    isNonNegativeInteger(value.completion_tokens) &&
+    isNonNegativeInteger(value.total_tokens) &&
+    isNonNegativeInteger(value.latency_ms) &&
+    Array.isArray(value.messages_snapshot) &&
+    Number.isInteger(value.client_completed_at) &&
+    Number(value.client_completed_at) > 0
   )
 }
 
@@ -132,9 +158,7 @@ export function saveParameterEnabled(
 export function loadMessages(userId: number): Message[] | null {
   if (!isValidUserId(userId)) return null
   try {
-    const saved = localStorage.getItem(
-      scopedKey(STORAGE_KEYS.MESSAGES, userId)
-    )
+    const saved = localStorage.getItem(scopedKey(STORAGE_KEYS.MESSAGES, userId))
     if (saved) {
       const parsed: unknown = JSON.parse(saved)
       if (!Array.isArray(parsed)) {
@@ -209,9 +233,7 @@ export function saveConversationId(
 /**
  * Load terminal records that still need to be saved by the server
  */
-export function loadPendingRecords(
-  userId: number
-): PlaygroundRecordPayload[] {
+export function loadPendingRecords(userId: number): PlaygroundRecordPayload[] {
   if (!isValidUserId(userId)) return []
   try {
     const saved = localStorage.getItem(
@@ -234,7 +256,7 @@ export function loadPendingRecords(
 export function enqueuePendingRecord(
   userId: number,
   payload: PlaygroundRecordPayload
-): void {
+): boolean {
   const pending = loadPendingRecords(userId)
   const existingIndex = pending.findIndex(
     (record) => record.record_id === payload.record_id
@@ -244,7 +266,7 @@ export function enqueuePendingRecord(
   } else {
     pending.push(payload)
   }
-  replacePendingRecords(userId, pending)
+  return replacePendingRecords(userId, pending)
 }
 
 /**
@@ -253,16 +275,18 @@ export function enqueuePendingRecord(
 export function replacePendingRecords(
   userId: number,
   payloads: PlaygroundRecordPayload[]
-): void {
-  if (!isValidUserId(userId)) return
+): boolean {
+  if (!isValidUserId(userId)) return false
   try {
     localStorage.setItem(
       scopedKey(STORAGE_KEYS.PENDING_RECORDS, userId),
       JSON.stringify(payloads)
     )
+    return true
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to save pending Playground records:', error)
+    return false
   }
 }
 
