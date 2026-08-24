@@ -193,9 +193,15 @@ export function usePlaygroundPersistence({
       }
     }
 
-    void restore().finally(() => {
-      if (!cancelled) setSettledUserId(userId)
-    })
+    void restore()
+      .catch(() => {
+        toast.warning(
+          'Could not read saved Playground retries; keeping the local conversation.'
+        )
+      })
+      .finally(() => {
+        if (!cancelled) setSettledUserId(userId)
+      })
 
     return () => {
       cancelled = true

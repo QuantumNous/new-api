@@ -209,9 +209,7 @@ export function createPlaygroundOutbox(
       return 'volatile'
     },
     async list(userId) {
-      const persistent = primary
-        ? await primary.list(userId).catch(() => [])
-        : []
+      const persistent = primary ? await primary.list(userId) : []
       const inMemory = await volatile.list(userId)
       const merged = new Map<string, PlaygroundRecordPayload>()
       persistent.forEach((record) => merged.set(record.record_id, record))

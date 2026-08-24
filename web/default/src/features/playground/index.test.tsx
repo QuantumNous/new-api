@@ -401,6 +401,28 @@ describe('Playground model landing handoff', () => {
     expect(startTurnMock).toHaveBeenCalledTimes(1)
   })
 
+  test('keeps submit available when regenerate has no earlier user prompt', () => {
+    playgroundMessages = [
+      {
+        key: 'assistant-message',
+        from: 'assistant',
+        versions: [{ id: 'assistant-version', content: 'orphan response' }],
+      },
+    ]
+    modelsQueryData = ['gpt-4o']
+    isModelsQueryLoading = false
+    renderToStaticMarkup(<Playground />)
+    if (!capturedInputProps || !capturedChatProps) {
+      throw new Error('Playground controls were not rendered')
+    }
+
+    capturedChatProps.onRegenerateMessage(playgroundMessages[0])
+    capturedInputProps.onSubmit('new prompt')
+
+    expect(sendChatMock).toHaveBeenCalledTimes(1)
+    expect(startTurnMock).toHaveBeenCalledTimes(1)
+  })
+
   test('stops only the active chat generation', () => {
     modelsQueryData = ['gpt-4o']
     isModelsQueryLoading = false

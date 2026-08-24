@@ -117,6 +117,21 @@ describe('Playground outbox', () => {
     ])
   })
 
+  test('does not hide a durable store read failure as an empty queue', async () => {
+    const primary = createMemoryPendingRecordStore()
+    const failingPrimary: PendingRecordStore = {
+      ...primary,
+      list: async () => {
+        throw new Error('database unavailable')
+      },
+    }
+    const volatile = createMemoryPendingRecordStore()
+    await volatile.put(10, sampleRecord('record-a', 'offline', 1000))
+    const outbox = createPlaygroundOutbox(failingPrimary, volatile)
+
+    expect(outbox.list(10)).rejects.toThrow('database unavailable')
+  })
+
   test('removes delivered ids without deleting a record enqueued during delivery', async () => {
     const outbox = createPlaygroundOutbox(createMemoryPendingRecordStore())
     await outbox.enqueue(10, sampleRecord('record-a', 'first', 1000))

@@ -672,20 +672,20 @@ export function Playground({
     const messageIndex = messages.findIndex((m) => m.key === message.key)
     if (messageIndex === -1) return
 
+    const messagesUpToHere = messages.slice(0, messageIndex)
+    const prompt = [...messagesUpToHere]
+      .reverse()
+      .find((item) => item.from === MESSAGE_ROLES.USER)?.versions[0]?.content
+    if (!prompt) return
+
     const chatOverride = getFirstRunChatOverride()
     const targetModel = chatOverride?.model ?? config.model
     if (!prepareSend(targetModel)) return
 
     // Remove messages after this one and regenerate
-    const messagesUpToHere = messages.slice(0, messageIndex)
-
     const loadingMessage = createLoadingAssistantMessage()
     const newMessages = [...messagesUpToHere, loadingMessage]
 
-    const prompt = [...messagesUpToHere]
-      .reverse()
-      .find((item) => item.from === MESSAGE_ROLES.USER)?.versions[0]?.content
-    if (!prompt) return
     updateMessages(newMessages)
     dispatchGeneration(prompt, newMessages, loadingMessage.key)
   }
