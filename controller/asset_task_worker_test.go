@@ -625,6 +625,122 @@ func TestTokenSpaceRealPersonAssetTaskWorkerReusesOwningChannelBinding(t *testin
 	require.Equal(t, 106, stored.ChannelId)
 }
 
+func TestTokenSpaceRealPersonAssetTaskWorkerNonStrictProfileValidation(t *testing.T) {
+	tests := []struct {
+		name           string
+		profileUserID  int
+		profileChannel int
+		profileStatus  string
+		wantErrorCode  string
+	}{
+		{
+			name:           "active owning profile submits",
+			profileUserID:  7,
+			profileChannel: 106,
+			profileStatus:  model.BytePlusRealPersonProfileStatusActive,
+		},
+		{
+			name:           "inactive profile is rejected",
+			profileUserID:  7,
+			profileChannel: 106,
+			profileStatus:  model.BytePlusRealPersonProfileStatusExpired,
+			wantErrorCode:  "real_person_not_active",
+		},
+		{
+			name:           "profile owned by another user is rejected",
+			profileUserID:  8,
+			profileChannel: 106,
+			profileStatus:  model.BytePlusRealPersonProfileStatusActive,
+			wantErrorCode:  "asset_not_found",
+		},
+		{
+			name:           "profile on another channel is rejected",
+			profileUserID:  7,
+			profileChannel: 107,
+			profileStatus:  model.BytePlusRealPersonProfileStatusActive,
+			wantErrorCode:  "asset_channel_conflict",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			restoreDB := useControllerAssetTaskDBForTest(t)
+			defer restoreDB()
+			restorePricing := useControllerAssetTaskPricingForTest(t)
+			defer restorePricing()
+			restoreHooks := useAssetTaskWorkerHooksForTest(t, 100, func() int64 { return assetTaskWorkerTestNow })
+			defer restoreHooks()
+			originalStrict := service.AssetModelCoverageStrictEnabled
+			service.AssetModelCoverageStrictEnabled = false
+			defer func() { service.AssetModelCoverageStrictEnabled = originalStrict }()
+			oldRetryTimes := common.RetryTimes
+			common.RetryTimes = 0
+			defer func() { common.RetryTimes = oldRetryTimes }()
+
+			adaptor := &controllerFakeTaskAdaptor{upstreamTaskID: "tokenspace-real-person-upstream-task"}
+			restoreAdaptor := registerTaskAdaptorForTest(constant.TaskPlatform(fmt.Sprint(constant.ChannelTypeDoubaoVideo)), adaptor)
+			defer restoreAdaptor()
+
+			seedControllerRelayUserToken(t, 7, 11, 10000, 10000)
+			seedControllerTaskChannelTypeWithPriority(t, 106, constant.ChannelTypeDoubaoVideo, "tokenspace-key", 100, 1)
+			require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 106).Update(
+				"settings",
+				`{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://api.tokenspace.example","group_id":"group-aigc"}}`,
+			).Error)
+			profile := model.BytePlusRealPersonProfile{
+				PublicId:    "rph_worker_tokenspace_non_strict",
+				UserId:      test.profileUserID,
+				Name:        "verified person",
+				ChannelId:   test.profileChannel,
+				Status:      test.profileStatus,
+				CreatedTime: 100,
+				UpdatedTime: 100,
+			}
+			require.NoError(t, model.DB.Create(&profile).Error)
+			publicID := "ast_1234567890abcdefABCDEF1234567890"
+			require.NoError(t, model.DB.Create(&model.BytePlusAsset{
+				PublicId:            publicID,
+				UserId:              7,
+				RealPersonProfileId: &profile.Id,
+				ChannelId:           106,
+				UpstreamAssetId:     "tokenspace-upstream-person",
+				AssetType:           "Image",
+				Status:              model.BytePlusAssetStatusActive,
+			}).Error)
+			task := seedControllerQueuedAssetTask(t, "task_tokenspace_real_person_non_strict", model.TaskPreparationStatusPreparingAssets, "", 0)
+			task.ChannelId = 106
+			task.PrivateData.SpecificChannelId = 106
+			task.NormalizedRequestPayload = []byte(seedanceTaskBody(publicID))
+			require.NoError(t, model.DB.Save(task).Error)
+			model.InitChannelCache()
+
+			assetTaskWorkerTestNow = 1000
+			processed, err := RunAssetTaskWorkerOnce(context.Background(), "node-a", 10)
+
+			require.NoError(t, err)
+			require.Equal(t, 1, processed)
+			var stored model.Task
+			require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&stored).Error)
+			if test.wantErrorCode == "" {
+				require.EqualValues(t, 1, adaptor.providerCalls.Load())
+				require.EqualValues(t, model.TaskStatusSubmitted, stored.Status)
+				require.Len(t, adaptor.rewriteMaps, 1)
+				require.Equal(t, "asset://tokenspace-upstream-person", adaptor.rewriteMaps[0]["asset://"+publicID])
+				return
+			}
+
+			require.Zero(t, adaptor.providerCalls.Load())
+			require.EqualValues(t, model.TaskStatusFailure, stored.Status)
+			require.Equal(t, test.wantErrorCode, stored.PrivateData.ErrorCode)
+			require.Equal(t, 10123, getControllerUserQuota(t, 7))
+			require.Equal(t, 10123, getControllerTokenRemain(t, 11))
+			var refundLogs int64
+			require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("type = ?", model.LogTypeRefund).Count(&refundLogs).Error)
+			require.EqualValues(t, 1, refundLogs)
+		})
+	}
+}
+
 func TestGrokAssetTaskWorkerPollingKeyPolicyDoesNotPersistOAuth(t *testing.T) {
 	key := taskPollingKey(&model.Channel{
 		Id:   113,

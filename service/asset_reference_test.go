@@ -129,6 +129,72 @@ func TestAssetReferenceSetAllowsLegacyAndSourceUnavailableOnlyOnActiveOriginalBi
 	require.Equal(t, AssetReadinessIneligible, readiness)
 }
 
+func TestResolveAssetReferencesRejectsInvalidLegacyRealPersonProfile(t *testing.T) {
+	tests := []struct {
+		name           string
+		profileUserID  int
+		profileChannel int
+		profileStatus  string
+		wantCode       types.ErrorCode
+	}{
+		{
+			name:           "inactive profile",
+			profileUserID:  7,
+			profileChannel: 106,
+			profileStatus:  model.BytePlusRealPersonProfileStatusExpired,
+			wantCode:       types.ErrorCodeRealPersonNotActive,
+		},
+		{
+			name:           "profile belongs to another user",
+			profileUserID:  8,
+			profileChannel: 106,
+			profileStatus:  model.BytePlusRealPersonProfileStatusActive,
+			wantCode:       types.ErrorCodeAssetNotFound,
+		},
+		{
+			name:           "profile belongs to another channel",
+			profileUserID:  7,
+			profileChannel: 107,
+			profileStatus:  model.BytePlusRealPersonProfileStatusActive,
+			wantCode:       types.ErrorCodeAssetChannelConflict,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			newAssetReferenceDB(t)
+			require.NoError(t, model.DB.AutoMigrate(&model.BytePlusRealPersonProfile{}))
+			profile := model.BytePlusRealPersonProfile{
+				PublicId:    "rph_invalid_worker_profile",
+				UserId:      test.profileUserID,
+				ChannelId:   test.profileChannel,
+				Status:      test.profileStatus,
+				CreatedTime: 100,
+				UpdatedTime: 100,
+			}
+			require.NoError(t, model.DB.Create(&profile).Error)
+			publicID := "ast_1234567890abcdefABCDEF1234567890"
+			require.NoError(t, model.DB.Create(&model.BytePlusAsset{
+				PublicId:            publicID,
+				UserId:              7,
+				RealPersonProfileId: &profile.Id,
+				ChannelId:           106,
+				UpstreamAssetId:     "tokenspace-person-asset",
+				AssetType:           "Image",
+				Status:              model.BytePlusAssetStatusActive,
+			}).Error)
+
+			refs, apiErr := ResolveAssetReferences(newAssetReferenceContext(), 7, &dto.SeedanceVideoRequest{
+				Content: []dto.SeedanceContentItem{imageAssetItem(publicID)},
+			})
+
+			require.NotNil(t, apiErr)
+			require.Equal(t, test.wantCode, apiErr.GetErrorCode())
+			require.False(t, refs.HasReferences())
+		})
+	}
+}
+
 func TestAssetReferenceSetMixesRecoverableGeneralizedSourceWithLegacyBinding(t *testing.T) {
 	newAssetReferenceDB(t)
 	assetNow = func() time.Time { return time.Unix(100, 0) }
@@ -230,6 +296,43 @@ func TestTechMobiReadinessRequiresOneKeyScopeToCoverEveryAsset(t *testing.T) {
 	readiness, ok := refs.ReadinessForChannel(channel, "seedance2.0-pro")
 	require.False(t, ok)
 	require.Equal(t, AssetReadinessIneligible, readiness)
+}
+
+func TestResolveAssetMaterializeOptionsAllowsTokenSpaceLegacyRealPersonBindingWithoutStrictCoverage(t *testing.T) {
+	channel := &model.Channel{
+		Id:            106,
+		Type:          constant.ChannelTypeDoubaoVideo,
+		Key:           "tokenspace-key",
+		Status:        common.ChannelStatusEnabled,
+		OtherSettings: `{"asset_materialization":{"provider":"tokenspace_material","gateway_base_url":"https://materials.example.invalid","group_id":"group-aigc"}}`,
+	}
+	refs := AssetReferenceSet{
+		references: []assetReference{{PublicID: "ast_real_person", ExpectedAssetType: "Image"}},
+		assets: map[string]assetReferenceAsset{
+			"ast_real_person": {
+				PublicID:         "ast_real_person",
+				AssetType:        "Image",
+				Status:           model.AssetStatusActive,
+				SourceStatus:     model.AssetSourceStatusUnavailable,
+				LegacyBytePlus:   true,
+				LegacyRealPerson: true,
+				Bindings: []assetReferenceBinding{{
+					ChannelID:       channel.Id,
+					UpstreamAssetID: "tokenspace-person-asset",
+					Status:          model.AssetStatusActive,
+				}},
+			},
+		},
+	}
+
+	options, keyIndex, err := ResolveAssetMaterializeOptions(refs, channel, AssetMaterializeOptions{
+		Model:  "seedance-2.0",
+		APIKey: channel.Key,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, AssetMaterializeOptions{Model: "seedance-2.0", APIKey: channel.Key}, options)
+	require.Equal(t, 0, keyIndex)
 }
 
 func TestExplicitCredentialScopedProviderReadinessRequiresOneKeyScopeToCoverEveryAsset(t *testing.T) {

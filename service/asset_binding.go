@@ -821,6 +821,10 @@ func ResolveAssetMaterializeOptions(set AssetReferenceSet, channel *model.Channe
 					score++
 					continue
 				}
+				if legacyRealPersonAssetCanUseChannel(asset, channel) {
+					score++
+					continue
+				}
 				if !assetReferenceSourceRecoverable(asset) {
 					feasible = false
 					break
