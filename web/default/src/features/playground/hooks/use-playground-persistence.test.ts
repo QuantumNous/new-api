@@ -16,8 +16,80 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import i18next from '@/i18n/config'
 import { expect, test } from 'bun:test'
-import { runUserScopedDrain } from './use-playground-persistence'
+import {
+  runUserScopedDrain,
+  translatePlaygroundPersistenceWarning,
+} from './use-playground-persistence'
+
+const persistenceWarnings = {
+  en: {
+    restore:
+      'Could not read saved Playground retries; keeping the local conversation.',
+    volatile:
+      'This Playground record could not be stored in the browser. Keep this page open while it retries.',
+  },
+  es: {
+    restore:
+      'No se pudieron leer los reintentos guardados de Playground; se conservará la conversación local.',
+    volatile:
+      'Este registro de Playground no se pudo guardar en el navegador. Mantén esta página abierta mientras se reintenta.',
+  },
+  fr: {
+    restore:
+      'Impossible de lire les tentatives enregistrées du Playground ; la conversation locale sera conservée.',
+    volatile:
+      'Cet enregistrement Playground n’a pas pu être stocké dans le navigateur. Gardez cette page ouverte pendant les nouvelles tentatives.',
+  },
+  ja: {
+    restore:
+      '保存された Playground の再試行データを読み込めませんでした。ローカルの会話を保持します。',
+    volatile:
+      'この Playground レコードをブラウザに保存できませんでした。再試行中はこのページを開いたままにしてください。',
+  },
+  pt: {
+    restore:
+      'Não foi possível ler as tentativas salvas do Playground; a conversa local será mantida.',
+    volatile:
+      'Este registro do Playground não pôde ser salvo no navegador. Mantenha esta página aberta enquanto novas tentativas são feitas.',
+  },
+  ru: {
+    restore:
+      'Не удалось прочитать сохранённые повторные попытки Playground; локальный диалог будет сохранён.',
+    volatile:
+      'Не удалось сохранить эту запись Playground в браузере. Не закрывайте страницу, пока выполняются повторные попытки.',
+  },
+  vi: {
+    restore:
+      'Không thể đọc các lần thử lại Playground đã lưu; cuộc trò chuyện cục bộ sẽ được giữ lại.',
+    volatile:
+      'Không thể lưu bản ghi Playground này trong trình duyệt. Hãy giữ trang này mở trong khi hệ thống thử lại.',
+  },
+  zh: {
+    restore: '无法读取已保存的 Playground 重试记录；将保留本地对话。',
+    volatile:
+      '此 Playground 记录无法保存在浏览器中。请保持此页面打开，系统将继续重试。',
+  },
+} as const
+
+test('localizes Playground persistence warnings in every supported language', async () => {
+  const originalLanguage = i18next.language
+
+  try {
+    for (const [locale, expected] of Object.entries(persistenceWarnings)) {
+      await i18next.changeLanguage(locale)
+      expect(translatePlaygroundPersistenceWarning('restore')).toBe(
+        expected.restore
+      )
+      expect(translatePlaygroundPersistenceWarning('volatile')).toBe(
+        expected.volatile
+      )
+    }
+  } finally {
+    await i18next.changeLanguage(originalLanguage)
+  }
+})
 
 test('drains different users independently while deduplicating the same user', async () => {
   const inFlight = new Map<number, Promise<string>>()

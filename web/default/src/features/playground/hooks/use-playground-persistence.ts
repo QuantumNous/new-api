@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import i18next from 'i18next'
 import { toast } from 'sonner'
 import {
   clearCurrentPlaygroundRecord,
@@ -59,6 +60,18 @@ interface UserActiveTurn {
 
 function isAuthenticatedUserId(userId?: number): userId is number {
   return typeof userId === 'number' && Number.isInteger(userId) && userId > 0
+}
+
+export function translatePlaygroundPersistenceWarning(
+  warning: 'restore' | 'volatile'
+): string {
+  return warning === 'restore'
+    ? i18next.t(
+        'Could not read saved Playground retries; keeping the local conversation.'
+      )
+    : i18next.t(
+        'This Playground record could not be stored in the browser. Keep this page open while it retries.'
+      )
 }
 
 export function runUserScopedDrain<T>(
@@ -209,9 +222,7 @@ export function usePlaygroundPersistence({
 
     void restore()
       .catch(() => {
-        toast.warning(
-          'Could not read saved Playground retries; keeping the local conversation.'
-        )
+        toast.warning(translatePlaygroundPersistenceWarning('restore'))
       })
       .finally(() => {
         if (!cancelled) setSettledUserId(userId)
@@ -254,9 +265,7 @@ export function usePlaygroundPersistence({
       const durability = await browserPlaygroundOutbox.enqueue(userId, payload)
       const remaining = await drainStoredRecords(userId)
       if (durability === 'volatile' && remaining.length > 0) {
-        toast.warning(
-          'This Playground record could not be stored in the browser. Keep this page open while it retries.'
-        )
+        toast.warning(translatePlaygroundPersistenceWarning('volatile'))
       }
     })()
   }, [drainStoredRecords, hasUser, messages, userId])

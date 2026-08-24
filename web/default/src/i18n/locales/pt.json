@@ -1853,6 +1853,8 @@
     "Failed to load Passkey status": "Falha ao carregar o status da senha",
     "Failed to load playground groups": "Falha ao carregar grupos de playground",
     "Failed to load playground models": "Falha ao carregar modelos de playground",
+    "Could not read saved Playground retries; keeping the local conversation.": "Não foi possível ler as tentativas salvas do Playground; a conversa local será mantida.",
+    "This Playground record could not be stored in the browser. Keep this page open while it retries.": "Este registro do Playground não pôde ser salvo no navegador. Mantenha esta página aberta enquanto novas tentativas são feitas.",
     "No video generation model is available": "Nenhum modelo de geração de vídeo está disponível",
     "Failed to load profile": "Falha ao carregar perfil",
     "Failed to load redemption codes": "Falha ao carregar códigos de resgate",
