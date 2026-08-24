@@ -132,26 +132,26 @@ func createBytePlusRealPersonAsset(ctx context.Context, userID int, personID, id
 		cleanupRealPersonAssetUpload(ctx, source, store)
 		return replayBytePlusRealPersonAssetClaim(claim.Record)
 	case model.DecisionResume:
-		profile, channel, creds, apiErr := loadBytePlusRealPersonAssetProfileAndChannel(userID, personID)
+		profile, binding, apiErr := loadRealPersonAssetProfileAndProvider(userID, personID)
 		if apiErr != nil {
 			cleanupRealPersonAssetUpload(ctx, source, store)
 			return failExistingRealPersonAssetClaim(recordOrNil(claim.Record), userID, apiErr)
 		}
-		return resumeBytePlusRealPersonAsset(ctx, profile, channel, creds, store, claim.Record, source)
+		return resumeBytePlusRealPersonAsset(ctx, profile, binding, store, claim.Record, source)
 	case model.DecisionOwner:
-		profile, channel, creds, apiErr := loadBytePlusRealPersonAssetProfileAndChannel(userID, personID)
+		profile, binding, apiErr := loadRealPersonAssetProfileAndProvider(userID, personID)
 		if apiErr != nil {
 			cleanupRealPersonAssetUpload(ctx, source, store)
 			return failUnboundRealPersonAssetClaim(claim.Record, apiErr)
 		}
-		return ownBytePlusRealPersonAsset(ctx, profile, channel, creds, store, claim.Record, assetType, name, source)
+		return ownBytePlusRealPersonAsset(ctx, profile, binding, store, claim.Record, assetType, name, source)
 	default:
 		cleanupRealPersonAssetUpload(ctx, source, store)
 		return nil, assetError(errors.New("unknown idempotency decision"), types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
 }
 
-func ownBytePlusRealPersonAsset(ctx context.Context, profile *model.BytePlusRealPersonProfile, channel *model.Channel, creds BytePlusCredentials, store BytePlusTempObjectStore, record *model.APIIdempotencyRecord, assetType, name string, source realPersonAssetSource) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
+func ownBytePlusRealPersonAsset(ctx context.Context, profile *model.BytePlusRealPersonProfile, binding *realPersonProviderBinding, store BytePlusTempObjectStore, record *model.APIIdempotencyRecord, assetType, name string, source realPersonAssetSource) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
 	publicID, err := bytePlusAssetPublicID()
 	if err != nil {
 		cleanupRealPersonAssetUpload(ctx, source, store)
@@ -184,16 +184,19 @@ func ownBytePlusRealPersonAsset(ctx context.Context, profile *model.BytePlusReal
 	}
 	upstreamURL := strings.TrimSpace(source.URL)
 	if source.Uploaded != nil {
+		if binding.StorageCredentials == nil {
+			return failRealPersonAssetWithStoredError(record, asset, "asset_storage_error", types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+		}
 		var apiErr *types.NewAPIError
-		upstreamURL, apiErr = presignRealPersonAssetObject(ctx, creds, store, source.Uploaded.TempObject)
+		upstreamURL, apiErr = presignRealPersonAssetObject(ctx, *binding.StorageCredentials, store, source.Uploaded.TempObject)
 		if apiErr != nil {
 			return failRealPersonAssetWithStoredError(record, asset, "asset_storage_error", types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 		}
 	}
-	return callBytePlusRealPersonAssetUpstream(ctx, channel, creds, record, asset, upstreamURL)
+	return callBytePlusRealPersonAssetUpstream(ctx, binding, record, asset, upstreamURL)
 }
 
-func resumeBytePlusRealPersonAsset(ctx context.Context, profile *model.BytePlusRealPersonProfile, channel *model.Channel, creds BytePlusCredentials, store BytePlusTempObjectStore, record *model.APIIdempotencyRecord, source realPersonAssetSource) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
+func resumeBytePlusRealPersonAsset(ctx context.Context, profile *model.BytePlusRealPersonProfile, binding *realPersonProviderBinding, store BytePlusTempObjectStore, record *model.APIIdempotencyRecord, source realPersonAssetSource) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
 	asset, err := model.GetBytePlusAssetByPublicIDForUser(profile.UserId, record.ResourcePublicId)
 	if err != nil {
 		cleanupRealPersonAssetUpload(ctx, source, store)
@@ -201,6 +204,9 @@ func resumeBytePlusRealPersonAsset(ctx context.Context, profile *model.BytePlusR
 	}
 	upstreamURL := strings.TrimSpace(source.URL)
 	if source.Uploaded != nil {
+		if binding.StorageCredentials == nil {
+			return failRealPersonAssetWithStoredError(record, asset, "asset_storage_error", types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+		}
 		cleanupRealPersonAssetUpload(ctx, source, store)
 		original, err := model.GetBytePlusAssetTempObjectByAssetID(asset.Id)
 		if err != nil || original.CleanupStatus != model.BytePlusTempObjectCleanupPending || strings.TrimSpace(original.ObjectKey) == "" {
@@ -213,27 +219,22 @@ func resumeBytePlusRealPersonAsset(ctx context.Context, profile *model.BytePlusR
 		}
 		original = extended
 		var apiErr *types.NewAPIError
-		upstreamURL, apiErr = presignRealPersonAssetObject(ctx, creds, store, original)
+		upstreamURL, apiErr = presignRealPersonAssetObject(ctx, *binding.StorageCredentials, store, original)
 		if apiErr != nil {
 			return failRealPersonAssetWithStoredError(record, asset, "asset_storage_error", types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 		}
 	}
-	return callBytePlusRealPersonAssetUpstream(ctx, channel, creds, record, asset, upstreamURL)
+	return callBytePlusRealPersonAssetUpstream(ctx, binding, record, asset, upstreamURL)
 }
 
-func callBytePlusRealPersonAssetUpstream(ctx context.Context, channel *model.Channel, creds BytePlusCredentials, record *model.APIIdempotencyRecord, asset *model.BytePlusAsset, upstreamURL string) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
+func callBytePlusRealPersonAssetUpstream(ctx context.Context, binding *realPersonProviderBinding, record *model.APIIdempotencyRecord, asset *model.BytePlusAsset, upstreamURL string) (*dto.BytePlusAssetResponse, *types.NewAPIError) {
 	upstreamURL = strings.TrimSpace(upstreamURL)
 	if upstreamURL == "" {
 		return failRealPersonAssetWithStoredError(record, asset, "asset_storage_error", types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
 	now := bytePlusAssetNow()
 	if err := model.MarkAPIIdempotencyCallingUpstream(record.Id, record.LeaseUpdatedTime, now); err != nil {
-		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_lease_lost")
-		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
-	}
-	client, err := realPersonClientForChannel(channel)
-	if err != nil {
-		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_client_unavailable")
+		markBytePlusRealPersonAssetOutcomeUnknown(ctx, binding.Channel.Id, record, asset, "asset_lease_lost")
 		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	groupID := ""
@@ -241,10 +242,10 @@ func callBytePlusRealPersonAssetUpstream(ctx context.Context, channel *model.Cha
 		groupID = realPersonProfileGroupIDForAsset(record.UserId, *asset.RealPersonProfileId)
 	}
 	if groupID == "" {
-		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_profile_group_missing")
+		markBytePlusRealPersonAssetOutcomeUnknown(ctx, binding.Channel.Id, record, asset, "asset_profile_group_missing")
 		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
-	upstreamID, requestID, err := client.CreateAsset(ctx, creds, BytePlusCreateAssetRequest{
+	upstreamID, requestID, err := binding.Provider.CreateAsset(ctx, BytePlusCreateAssetRequest{
 		GroupID:            groupID,
 		URL:                upstreamURL,
 		AssetType:          asset.AssetType,
@@ -252,15 +253,15 @@ func callBytePlusRealPersonAssetUpstream(ctx context.Context, channel *model.Cha
 		ModerationStrategy: "Default",
 	})
 	if err != nil {
-		if isBytePlusDefinitiveResponse(err) {
+		if isRealPersonDefinitiveResponse(err) {
 			return failRealPersonAssetWithStoredError(record, asset, "asset_upstream_error", types.ErrorCodeAssetUpstreamError, http.StatusBadGateway)
 		}
-		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_upstream_unknown")
+		markBytePlusRealPersonAssetOutcomeUnknown(ctx, binding.Channel.Id, record, asset, "asset_upstream_unknown")
 		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	if err := bytePlusAssetUpdateAssetUpstreamCreated(asset.Id, upstreamID, requestID, model.BytePlusAssetStatusProcessing, bytePlusAssetNow()); err != nil {
-		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_persistence_failed")
-		logBytePlusAssetPersistenceFailure(ctx, channel.Id, requestID)
+		markBytePlusRealPersonAssetOutcomeUnknown(ctx, binding.Channel.Id, record, asset, "asset_persistence_failed")
+		logBytePlusAssetPersistenceFailure(ctx, binding.Channel.Id, requestID)
 		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	asset.UpstreamAssetId = upstreamID
@@ -270,11 +271,11 @@ func callBytePlusRealPersonAssetUpstream(ctx context.Context, channel *model.Cha
 	safe := responseFromBytePlusAsset(asset)
 	payload, err := marshalAPIIdempotencyResponsePayload(safe)
 	if err != nil {
-		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_response_failed")
+		markBytePlusRealPersonAssetOutcomeUnknown(ctx, binding.Channel.Id, record, asset, "asset_response_failed")
 		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	if err := model.CompleteAPIIdempotency(record.Id, record.LeaseUpdatedTime, asset.PublicId, http.StatusOK, payload, bytePlusAssetNow()); err != nil {
-		markBytePlusRealPersonAssetOutcomeUnknown(ctx, channel.Id, record, asset, "asset_ledger_complete_failed")
+		markBytePlusRealPersonAssetOutcomeUnknown(ctx, binding.Channel.Id, record, asset, "asset_ledger_complete_failed")
 		return nil, assetError(errors.New("idempotency outcome unknown"), types.ErrorCodeIdempotencyOutcomeUnknown, http.StatusBadGateway)
 	}
 	return safe, nil
@@ -308,22 +309,22 @@ func defaultBytePlusRealPersonAssetName(filename string) string {
 	return builder.String()
 }
 
-func loadBytePlusRealPersonAssetProfileAndChannel(userID int, personID string) (*model.BytePlusRealPersonProfile, *model.Channel, BytePlusCredentials, *types.NewAPIError) {
+func loadRealPersonAssetProfileAndProvider(userID int, personID string) (*model.BytePlusRealPersonProfile, *realPersonProviderBinding, *types.NewAPIError) {
 	profile, err := model.GetBytePlusRealPersonProfileForUser(userID, strings.TrimSpace(personID))
 	if err != nil {
 		if model.IsBytePlusRealPersonNotFound(err) {
-			return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person not found"), types.ErrorCodeRealPersonNotFound, http.StatusNotFound)
+			return nil, nil, assetError(errors.New("real person not found"), types.ErrorCodeRealPersonNotFound, http.StatusNotFound)
 		}
-		return nil, nil, BytePlusCredentials{}, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
+		return nil, nil, assetError(err, types.ErrorCodeAssetStorageError, http.StatusInternalServerError)
 	}
 	if profile.Status != model.BytePlusRealPersonProfileStatusActive || profile.UpstreamGroupId == nil || strings.TrimSpace(*profile.UpstreamGroupId) == "" {
-		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person is not active"), types.ErrorCodeRealPersonNotActive, http.StatusConflict)
+		return nil, nil, assetError(errors.New("real person is not active"), types.ErrorCodeRealPersonNotActive, http.StatusConflict)
 	}
-	channel, creds, err := loadUsableBytePlusRealPersonChannel(profile.ChannelId, userID, "")
+	binding, err := loadUsableRealPersonProviderBinding(profile.ChannelId, "")
 	if err != nil {
-		return nil, nil, BytePlusCredentials{}, assetError(err, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+		return nil, nil, assetError(err, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	}
-	return profile, channel, creds, nil
+	return profile, binding, nil
 }
 
 func loadBytePlusRealPersonAssetProfileAndStorage(userID int, personID string) (*model.BytePlusRealPersonProfile, *model.Channel, BytePlusCredentials, *types.NewAPIError) {
@@ -337,10 +338,12 @@ func loadBytePlusRealPersonAssetProfileAndStorage(userID int, personID string) (
 	if profile.Status != model.BytePlusRealPersonProfileStatusActive || profile.UpstreamGroupId == nil || strings.TrimSpace(*profile.UpstreamGroupId) == "" {
 		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person is not active"), types.ErrorCodeRealPersonNotActive, http.StatusConflict)
 	}
-	channel, creds, err := loadUsableBytePlusRealPersonChannel(profile.ChannelId, userID, "")
-	if err != nil || channel == nil || channel.Type != constant.ChannelTypeBytePlus {
+	binding, err := loadUsableRealPersonProviderBinding(profile.ChannelId, "")
+	if err != nil || binding == nil || binding.Channel == nil || binding.Channel.Type != constant.ChannelTypeBytePlus || binding.StorageCredentials == nil {
 		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person channel unavailable"), types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	}
+	channel := binding.Channel
+	creds := *binding.StorageCredentials
 	if !bytePlusRealPersonMultipartStorageAvailable(creds) {
 		return nil, nil, BytePlusCredentials{}, assetError(errors.New("real person storage credentials unavailable"), types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
 	}

@@ -186,20 +186,14 @@ func runBytePlusRealPersonVerificationStatusJobs(ctx context.Context, now, stale
 			}
 			continue
 		}
-		channel, creds, err := loadUsableBytePlusRealPersonChannel(profile.ChannelId, profile.UserId, "")
-		if err != nil {
-			warnBytePlusRealPersonJobRow("verification_status")
-			firstErr = firstNonNil(firstErr, retryBytePlusVerificationStatus(session, now))
-			continue
-		}
-		client, err := realPersonClientForChannel(channel)
+		binding, err := loadUsableRealPersonProviderBinding(profile.ChannelId, "")
 		if err != nil {
 			warnBytePlusRealPersonJobRow("verification_status")
 			firstErr = firstNonNil(firstErr, retryBytePlusVerificationStatus(session, now))
 			continue
 		}
 		callCtx, cancel := bytePlusRealPersonJobCallContext(ctx)
-		upstream, err := client.GetVisualValidateResult(callCtx, creds, bytedToken)
+		upstream, err := binding.Provider.GetVisualValidateResult(callCtx, bytedToken)
 		cancel()
 		if err != nil {
 			warnBytePlusRealPersonJobRow("verification_status")
@@ -239,20 +233,14 @@ func runBytePlusRealPersonAssetStatusJobs(ctx context.Context, now, staleBefore 
 	processed := 0
 	var firstErr error
 	for _, asset := range assets {
-		channel, creds, err := loadUsableBytePlusRealPersonChannel(asset.ChannelId, asset.UserId, "")
-		if err != nil {
-			warnBytePlusRealPersonJobRow("asset_status")
-			firstErr = firstNonNil(firstErr, retryBytePlusAssetStatusCheck(asset, now))
-			continue
-		}
-		client, err := realPersonClientForChannel(channel)
+		binding, err := loadUsableRealPersonProviderBinding(asset.ChannelId, "")
 		if err != nil {
 			warnBytePlusRealPersonJobRow("asset_status")
 			firstErr = firstNonNil(firstErr, retryBytePlusAssetStatusCheck(asset, now))
 			continue
 		}
 		callCtx, cancel := bytePlusRealPersonJobCallContext(ctx)
-		status, err := client.GetAsset(callCtx, creds, asset.UpstreamAssetId)
+		status, err := binding.Provider.GetAsset(callCtx, asset.UpstreamAssetId)
 		cancel()
 		if err != nil {
 			warnBytePlusRealPersonJobRow("asset_status")
@@ -305,22 +293,16 @@ func runBytePlusRealPersonAssetDeleteJobs(ctx context.Context, now, staleBefore 
 			}
 			continue
 		}
-		channel, creds, err := loadUsableBytePlusRealPersonChannel(asset.ChannelId, asset.UserId, "")
-		if err != nil {
-			warnBytePlusRealPersonJobRow("asset_delete")
-			firstErr = firstNonNil(firstErr, retryBytePlusAssetDeletion(asset, now))
-			continue
-		}
-		client, err := realPersonClientForChannel(channel)
+		binding, err := loadUsableRealPersonProviderBinding(asset.ChannelId, "")
 		if err != nil {
 			warnBytePlusRealPersonJobRow("asset_delete")
 			firstErr = firstNonNil(firstErr, retryBytePlusAssetDeletion(asset, now))
 			continue
 		}
 		callCtx, cancel := bytePlusRealPersonJobCallContext(ctx)
-		_, err = client.DeleteAsset(callCtx, creds, asset.UpstreamAssetId)
+		_, err = binding.Provider.DeleteAsset(callCtx, asset.UpstreamAssetId)
 		cancel()
-		if err == nil || isBytePlusNotFound(err) {
+		if err == nil || isRealPersonNotFound(err) {
 			if ok, err := model.CompleteBytePlusAssetDeletion(asset.Id, asset.DeleteLeaseUpdatedTime, now); err != nil {
 				warnBytePlusRealPersonJobRow("asset_delete")
 				firstErr = firstNonNil(firstErr, err)

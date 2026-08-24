@@ -37,19 +37,43 @@ type tokenSpaceMaterialGetRequest struct {
 	ID string `json:"Id"`
 }
 
+type tokenSpaceMaterialItem struct {
+	ID          string         `json:"Id"`
+	Name        string         `json:"Name"`
+	GroupID     string         `json:"GroupId"`
+	AssetType   string         `json:"AssetType"`
+	Status      string         `json:"Status"`
+	Moderation  map[string]any `json:"Moderation"`
+	ProjectName string         `json:"ProjectName"`
+	CreateTime  string         `json:"CreateTime"`
+	UpdateTime  string         `json:"UpdateTime"`
+	Error       struct {
+		Code    string `json:"Code"`
+		Message string `json:"Message"`
+	} `json:"Error"`
+}
+
+type tokenSpaceMaterialResult struct {
+	ID         string                   `json:"Id"`
+	Name       string                   `json:"Name"`
+	GroupID    string                   `json:"GroupId"`
+	AssetType  string                   `json:"AssetType"`
+	Status     string                   `json:"Status"`
+	BytedToken string                   `json:"BytedToken"`
+	H5Link     string                   `json:"H5Link"`
+	Items      []tokenSpaceMaterialItem `json:"Items"`
+	TotalCount int                      `json:"TotalCount"`
+	Error      struct {
+		Code    string `json:"Code"`
+		Message string `json:"Message"`
+	} `json:"Error"`
+}
+
 type tokenSpaceMaterialResponse struct {
 	ResponseMetadata struct {
 		RequestID string `json:"RequestId"`
 	} `json:"ResponseMetadata"`
-	Result struct {
-		ID      string `json:"Id"`
-		GroupID string `json:"GroupId"`
-		Status  string `json:"Status"`
-		Error   struct {
-			Code    string `json:"Code"`
-			Message string `json:"Message"`
-		} `json:"Error"`
-	} `json:"Result"`
+	Result tokenSpaceMaterialResult `json:"Result"`
 }
 
 func (tokenSpaceMaterialAssetBindingMaterializer) CreateAsset(ctx context.Context, input AssetMaterializeInput) (AssetMaterializeResult, error) {
@@ -267,6 +291,9 @@ func tokenSpaceMaterialProtocolFailure(status int, cause error) error {
 }
 
 func tokenSpaceMaterialUpstreamCode(upstream tokenSpaceMaterialResponse) string {
+	if strings.EqualFold(strings.TrimSpace(upstream.Result.Status), model.BytePlusAssetStatusFailed) && strings.TrimSpace(upstream.Result.ID) != "" {
+		return ""
+	}
 	return strings.TrimSpace(upstream.Result.Error.Code)
 }
 
