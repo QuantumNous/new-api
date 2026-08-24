@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { DirectoryCopy } from "@/lib/model-directory-copy";
 import type { FeaturedSlide } from "@/lib/model-directory-featured";
 import { localizePath, type Locale } from "@/lib/locales";
@@ -77,7 +77,7 @@ export function ModelsFeaturedCarousel(props: Props) {
           className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,6,23,0.94)_0%,rgba(2,6,23,0.78)_38%,rgba(2,6,23,0.25)_68%,rgba(2,6,23,0.05)_100%)]"
         />
 
-        <div className="absolute inset-y-0 left-0 flex max-w-[min(560px,64%)] flex-col justify-center gap-3 p-6 pb-16 sm:p-10 sm:pb-16">
+        <div className="absolute inset-y-0 left-0 flex max-w-[min(560px,70%)] flex-col justify-center gap-3 p-6 pr-16 pb-16 pl-16 sm:max-w-[min(560px,64%)] sm:p-10 sm:pr-20 sm:pb-16 sm:pl-20">
           <div className="flex flex-wrap gap-1.5">
             {(slide.tags[props.locale] ?? slide.tags.en).map((tag) => (
               <span
@@ -107,28 +107,44 @@ export function ModelsFeaturedCarousel(props: Props) {
         </div>
 
         {count > 1 ? (
-          /* Dots only: they navigate and show position, and keeping the corner
-             free of arrows leaves the slide artwork unobstructed. */
-          <div
-            role="tablist"
-            aria-label={props.copy.chooseSlide}
-            className="absolute right-5 bottom-4 flex items-center gap-1.5 sm:right-6 sm:bottom-5"
-          >
-            {props.slides.map((item, slideIndex) => (
-              <button
-                key={item.modelName}
-                type="button"
-                role="tab"
-                aria-selected={slideIndex === index}
-                aria-label={item.displayName}
-                onClick={() => go(slideIndex)}
-                className={cn(
-                  "h-1 rounded-full transition-all duration-300",
-                  slideIndex === index ? "w-7 bg-white" : "w-4 bg-white/35 hover:bg-white/60"
-                )}
-              />
-            ))}
-          </div>
+          <>
+            <button
+              type="button"
+              aria-label={props.copy.previousSlide}
+              onClick={() => go(index - 1)}
+              className="absolute top-1/2 left-3 z-10 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/25 text-white backdrop-blur-sm transition-colors hover:bg-black/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:left-5"
+            >
+              <ArrowLeft className="size-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              aria-label={props.copy.nextSlide}
+              onClick={() => go(index + 1)}
+              className="absolute top-1/2 right-3 z-10 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/25 text-white backdrop-blur-sm transition-colors hover:bg-black/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:right-5"
+            >
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </button>
+            <div
+              role="tablist"
+              aria-label={props.copy.chooseSlide}
+              className="absolute right-5 bottom-4 flex items-center gap-1.5 sm:right-6 sm:bottom-5"
+            >
+              {props.slides.map((item, slideIndex) => (
+                <button
+                  key={item.modelName}
+                  type="button"
+                  role="tab"
+                  aria-selected={slideIndex === index}
+                  aria-label={item.displayName}
+                  onClick={() => go(slideIndex)}
+                  className={cn(
+                    "h-1 rounded-full transition-all duration-300",
+                    slideIndex === index ? "w-7 bg-white" : "w-4 bg-white/35 hover:bg-white/60"
+                  )}
+                />
+              ))}
+            </div>
+          </>
         ) : null}
       </div>
     </section>
