@@ -69,10 +69,18 @@ func normalizeSkillJSONBObject(j *SkillJSONB) {
 //   - JSON-like columns: TEXT on MySQL/SQLite, jsonb on PG post-migrate (D2)
 //   - actor IDs: BIGINT not UUID (D3)
 //   - instruction_template is NOT stored here (separate skill_versions table, DR-41)
+//
+// Skill.Source values. Two values with one consumer package — a typed enum with a
+// Valid() map would be over-build here (same call as SkillEntitlementSource* in purchase.go).
+const (
+	SkillSourceOfficial = "official"
+	SkillSourceCreator  = "creator"
+)
+
 type Skill struct {
 	ID            string            `gorm:"column:id;type:char(36);primaryKey;not null"`
 	Slug          string            `gorm:"column:slug;type:varchar(128);not null;uniqueIndex"`
-	Status        enums.SkillStatus `gorm:"column:status;type:varchar(32);not null;default:draft;check:chk_skills_status,status IN ('draft','published','deprecated','archived')"`
+	Status        enums.SkillStatus `gorm:"column:status;type:varchar(32);not null;default:draft;check:chk_skills_status,status IN ('draft','submitted','sandbox','pending_launch','published','deprecated','archived')"`
 	Category      string            `gorm:"column:category;type:varchar(64);not null"`
 	Tags          SkillJSONB        `gorm:"column:tags;type:text;not null"`
 	IconURL       *string           `gorm:"column:icon_url;type:text"`
@@ -104,6 +112,30 @@ type Skill struct {
 	KidsApprovalActorID            *int64                   `gorm:"column:kids_approval_actor_id;type:bigint"`
 	KidsApprovalAt                 *time.Time               `gorm:"column:kids_approval_at"`
 	KidsEmergencyApprovalExpiresAt *time.Time               `gorm:"column:kids_emergency_approval_expires_at"`
+
+	// Creator marketplace (Module3 P1, docs/tasks/skill-creator-data-model-prd.md).
+	//
+	// NOTE: none of these carry a `check:` struct tag, deliberately. Adding a NEW
+	// constraint name via a tag makes gorm's HasConstraint return false on an
+	// already-existing table, which sends the glebarez/sqlite migrator down a
+	// table-rebuild path that fails with "invalid DDL, unbalanced brackets"
+	// (see skill_integration_test.go's note) — i.e. every existing SQLite install
+	// would fail to boot. Their CHECK expressions live only in the raw-DDL slice in
+	// migrate.go, which is PG/MySQL-only. See PRD M1.
+	//
+	// CreatorID is the owner (who gets paid, who may edit); CreatedBy above is only
+	// "which account typed it in" and stays whatever it was for official skills.
+	Source        string              `gorm:"column:source;type:varchar(32);not null;default:official"`
+	CreatorID     *int64              `gorm:"column:creator_id;type:bigint"`
+	ReviewStatus  *enums.ReviewStatus `gorm:"column:review_status;type:varchar(32)"`
+	ReviewActorID *int64              `gorm:"column:review_actor_id;type:bigint"`
+	ReviewedAt    *time.Time          `gorm:"column:reviewed_at"`
+	ReviewNote    *string             `gorm:"column:review_note;type:text"`
+	// ScanReport is nullable and object-shaped: NULL means "never scanned", which is
+	// correct for every official skill. Deliberately NOT normalized in BeforeCreate —
+	// nil must stay nil (same call as SkillVersion.OutputSchema).
+	ScanReport *SkillJSONB `gorm:"column:scan_report;type:text"`
+	ScannedAt  *time.Time  `gorm:"column:scanned_at"`
 
 	// AIDisclosureRequired default:true is declared as DB DDL.
 	// Tests must use db.Omit("AIDisclosureRequired").Create() to verify the DB default,

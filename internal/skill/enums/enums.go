@@ -5,20 +5,33 @@ package enums
 
 // SkillStatus is the lifecycle status of a published Skill (tasks/03 §3).
 // "featured" is NOT a status — it is a promotion flag (featured_flag / featured_rank).
+//
+// Constants are declared in lifecycle order. The creator-submission states
+// (submitted / sandbox / pending_launch) were added for the creator marketplace
+// (docs/tasks/skill-creator-data-model-prd.md, Module3 P1); "pending_review" and
+// "suspended" are deliberately NOT statuses — see that PRD's D3 mapping table:
+// a queued submission is status=submitted + review_status=open, and a suspended
+// listing reuses status=deprecated.
 type SkillStatus string
 
 const (
-	SkillStatusDraft      SkillStatus = "draft"
-	SkillStatusPublished  SkillStatus = "published"
-	SkillStatusDeprecated SkillStatus = "deprecated"
-	SkillStatusArchived   SkillStatus = "archived"
+	SkillStatusDraft         SkillStatus = "draft"
+	SkillStatusSubmitted     SkillStatus = "submitted"
+	SkillStatusSandbox       SkillStatus = "sandbox"
+	SkillStatusPendingLaunch SkillStatus = "pending_launch"
+	SkillStatusPublished     SkillStatus = "published"
+	SkillStatusDeprecated    SkillStatus = "deprecated"
+	SkillStatusArchived      SkillStatus = "archived"
 )
 
 var validSkillStatuses = map[SkillStatus]struct{}{
-	SkillStatusDraft:      {},
-	SkillStatusPublished:  {},
-	SkillStatusDeprecated: {},
-	SkillStatusArchived:   {},
+	SkillStatusDraft:         {},
+	SkillStatusSubmitted:     {},
+	SkillStatusSandbox:       {},
+	SkillStatusPendingLaunch: {},
+	SkillStatusPublished:     {},
+	SkillStatusDeprecated:    {},
+	SkillStatusArchived:      {},
 }
 
 func (s SkillStatus) Valid() bool { _, ok := validSkillStatuses[s]; return ok }

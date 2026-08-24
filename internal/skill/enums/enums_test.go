@@ -10,14 +10,20 @@ import (
 
 func TestSkillStatus_Valid(t *testing.T) {
 	valid := []SkillStatus{
-		SkillStatusDraft, SkillStatusPublished,
-		SkillStatusDeprecated, SkillStatusArchived,
+		SkillStatusDraft, SkillStatusSubmitted,
+		SkillStatusSandbox, SkillStatusPendingLaunch,
+		SkillStatusPublished, SkillStatusDeprecated,
+		SkillStatusArchived,
 	}
 	for _, s := range valid {
 		assert.True(t, s.Valid(), "expected %q to be valid", s)
 	}
 
-	invalid := []SkillStatus{"", "featured", "PUBLISHED", "DRAFT", "active", "unknown"}
+	// "pending_review" and "suspended" are deliberately not statuses — the creator
+	// workflow maps them onto submitted+review_status and deprecated respectively
+	// (docs/tasks/skill-creator-data-model-prd.md D3). Assert the mapping stays intact.
+	invalid := []SkillStatus{"", "featured", "PUBLISHED", "DRAFT", "active", "unknown",
+		"pending_review", "suspended", "SUBMITTED", "pending-launch"}
 	for _, s := range invalid {
 		assert.False(t, s.Valid(), "expected %q to be invalid", s)
 	}
@@ -25,6 +31,9 @@ func TestSkillStatus_Valid(t *testing.T) {
 
 func TestSkillStatus_StringValues(t *testing.T) {
 	assert.Equal(t, "draft", string(SkillStatusDraft))
+	assert.Equal(t, "submitted", string(SkillStatusSubmitted))
+	assert.Equal(t, "sandbox", string(SkillStatusSandbox))
+	assert.Equal(t, "pending_launch", string(SkillStatusPendingLaunch))
 	assert.Equal(t, "published", string(SkillStatusPublished))
 	assert.Equal(t, "deprecated", string(SkillStatusDeprecated))
 	assert.Equal(t, "archived", string(SkillStatusArchived))

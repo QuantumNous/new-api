@@ -8,7 +8,7 @@ are derived verbatim from the CHECK constraints in
 
 | Type | Values | Use |
 |---|---|---|
-| `SkillStatus` | draft, published, deprecated, archived | skills.status |
+| `SkillStatus` | draft, submitted, sandbox, pending_launch, published, deprecated, archived | skills.status |
 | `RequiredPlan` | free, pro, enterprise | skills.required_plan |
 | `MonetizationType` | free, plan_included, token_markup, one_time | skills.monetization_type |
 | `SkillVersionStatus` | draft, active, inactive, archived | skill_versions.status |

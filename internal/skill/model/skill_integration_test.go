@@ -1,10 +1,13 @@
 package skillmodel
 
 import (
+	"fmt"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/internal/skill/enums"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -392,5 +395,102 @@ func validSkill(slugSuffix string) Skill {
 		MonetizationType: "free",
 		TimeoutSeconds:   45,
 		CreatedBy:        1,
+	}
+}
+
+// --- Creator marketplace columns (Module3 P1, docs/tasks/skill-creator-data-model-prd.md) ---
+
+// TestMigrateSkills_SQLite_CreatorColumnsExist covers the 8 columns added for the
+// creator workflow. A fresh SQLite DB gets them straight from AutoMigrate.
+func TestMigrateSkills_SQLite_CreatorColumnsExist(t *testing.T) {
+	db := openSQLiteDB(t)
+	if err := MigrateSkills(db); err != nil {
+		t.Fatal(err)
+	}
+	for _, col := range []string{
+		"source", "creator_id", "review_status", "review_actor_id",
+		"reviewed_at", "review_note", "scan_report", "scanned_at",
+	} {
+		if !db.Migrator().HasColumn(&Skill{}, col) {
+			t.Errorf("expected skills.%s to exist after MigrateSkills", col)
+		}
+	}
+}
+
+// TestSkill_SourceDefaultsToOfficial pins the DB-level default. It must Omit the
+// column: a Go zero-value struct would send "" and override the default, the same
+// trap documented on AIDisclosureRequired.
+func TestSkill_SourceDefaultsToOfficial(t *testing.T) {
+	db := openSQLiteDB(t)
+	if err := MigrateSkills(db); err != nil {
+		t.Fatal(err)
+	}
+	s := validSkill("source-default")
+	if err := db.Omit("Source").Create(&s).Error; err != nil {
+		t.Fatal(err)
+	}
+	var got Skill
+	if err := db.First(&got, "id = ?", s.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.Source != SkillSourceOfficial {
+		t.Errorf("expected source to default to %q, got %q", SkillSourceOfficial, got.Source)
+	}
+	if got.CreatorID != nil || got.ReviewStatus != nil || got.ScanReport != nil {
+		t.Errorf("expected creator_id/review_status/scan_report to stay NULL on an official skill, got %v/%v/%v",
+			got.CreatorID, got.ReviewStatus, got.ScanReport)
+	}
+}
+
+// TestCheck_Status_AcceptsCreatorStatuses proves the widened chk_skills_status
+// expression actually reached CREATE TABLE on a fresh SQLite database. The
+// constraint NAME is unchanged, so gorm writes the new expression on a fresh
+// table but leaves an existing one alone — see PRD D2 for that degradation.
+func TestCheck_Status_AcceptsCreatorStatuses(t *testing.T) {
+	db := openSQLiteDB(t)
+	if err := MigrateSkills(db); err != nil {
+		t.Fatal(err)
+	}
+	for i, status := range []string{"submitted", "sandbox", "pending_launch"} {
+		s := validSkill(fmt.Sprintf("creator-status-%d", i))
+		if err := db.Exec(
+			`INSERT INTO skills (id, slug, status, category, tags, default_locale, name, short_description, description, input_hints, example_inputs, example_outputs, required_plan, monetization_type, price_markup, model_whitelist, timeout_seconds, timeout_risk, is_kids_safe, is_kids_exclusive, kids_approval_status, ai_disclosure_required, featured_flag, source, created_by, created_at, updated_at)
+			 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			fmt.Sprintf("id-creator-status-%d", i), s.Slug, status, s.Category, "[]", s.DefaultLocale, s.Name, s.ShortDescription, s.Description, "[]", "[]", "[]", "free", "free", 0, "[]", 45, 0, 0, 0, "not_required", 1, 0, "creator", 1, testTS, testTS,
+		).Error; err != nil {
+			t.Errorf("expected status=%q to be accepted after the creator-workflow widening, got %v", status, err)
+		}
+	}
+}
+
+// TestSkillStatusCheckTagCoversEveryEnumValue is the drift guard that was missing.
+// TestEnumDBValues_MatchCheckConstraints only compares each constant against a
+// hardcoded literal — it never reads the constraint, so "added an enum value but
+// forgot the CHECK" passes it silently. This reads the real struct tag instead.
+func TestSkillStatusCheckTagCoversEveryEnumValue(t *testing.T) {
+	field, ok := reflect.TypeOf(Skill{}).FieldByName("Status")
+	if !ok {
+		t.Fatal("Skill.Status field not found")
+	}
+	tag := field.Tag.Get("gorm")
+	if !strings.Contains(tag, "check:chk_skills_status,") {
+		t.Fatalf("Skill.Status no longer declares chk_skills_status: %s", tag)
+	}
+	for _, v := range []enums.SkillStatus{
+		enums.SkillStatusDraft, enums.SkillStatusSubmitted, enums.SkillStatusSandbox,
+		enums.SkillStatusPendingLaunch, enums.SkillStatusPublished,
+		enums.SkillStatusDeprecated, enums.SkillStatusArchived,
+	} {
+		if !strings.Contains(tag, "'"+string(v)+"'") {
+			t.Errorf("enums.SkillStatus %q is not in the chk_skills_status CHECK expression — "+
+				"adding an enum value without widening the constraint makes it unwritable", v)
+		}
+	}
+	// Values the creator workflow deliberately does NOT have (PRD D3).
+	for _, v := range []string{"pending_review", "suspended"} {
+		if strings.Contains(tag, "'"+v+"'") {
+			t.Errorf("%q must not be a skills.status value — PRD D3 maps it onto "+
+				"submitted+review_status / deprecated instead", v)
+		}
 	}
 }

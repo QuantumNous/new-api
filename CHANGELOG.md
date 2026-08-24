@@ -2,6 +2,7 @@
 
 ## 2026-08-24
 
+- `skills.status` 放宽为 7 值(新增 `submitted` / `sandbox` / `pending_launch`),并给 `skills` 加上创作者工作流的 8 列(`source` / `creator_id` / `review_status` / `review_actor_id` / `reviewed_at` / `review_note` / `scan_report` / `scanned_at`)。**新列一律不带 `check:` struct tag** —— 给已存在的表引入新约束名会让 gorm 的 `HasConstraint` 返回 false,进而触发 glebarez/sqlite 的表重建路径并以 `invalid DDL, unbalanced brackets` 失败,现存 SQLite 部署会开机即挂;这几列的 CHECK 改由 `migrate.go` 的 raw-DDL 数组承载(仅 PG/MySQL)。另补 `TestSkillStatusCheckTagCoversEveryEnumValue`:既有的 `TestEnumDBValues_MatchCheckConstraints` 只把常量与硬编码字面量比对、从不读约束,「加了枚举值但忘了扩 CHECK」它抓不到 —— 新守卫用 reflect 读真 struct tag,并反向断言 `pending_review` / `suspended` 不是状态值(PRD D3)(`internal/skill/enums/enums.go`, `internal/skill/model/skill.go`, `internal/skill/model/skill_integration_test.go`)
 - 新增 `docs/tasks/skill-creator-data-model-prd.md`(Module3 P1):创作者商场的 schema 前置。裁决三件与任务卡原文不符的事 —— ① 用户评分表命名为 `skill_ratings` 而非 `skill_reviews`(后者已被 `docs/skill-marketplace/tasks/03_Data_Model_and_API_Spec.md` §4.6 定义为运营审核队列;若占用它并复用 `enums.ReviewStatus`,`loadApprovedRatingSummariesBySkill` 筛的 `IN ('approved','published')` 与该枚举交集为零,评分会永远显示 0 且无任何报错)② SQLite 无法 ALTER 已存在的 CHECK,不做表重建,改为 log-only 开机探针提示删库重启③ `skills.status` 只加 `submitted`/`sandbox`/`pending_launch` 三值,下游的 `pending_review` 映射为 `submitted`+`review_status='open'`、`suspended` 复用 `deprecated`。另记录三个迁移机制陷阱:新列不得带 `check:` struct tag(glebarez/sqlite 表重建 bug 会让现存 SQLite 部署开机即挂)、改 CHECK 表达式必须配 drop 钩子(否则对已有 PG/MySQL 库是永久静默 no-op)、`skills` 与 `skill_versions` 的加列方式完全不同(前者纯 AutoMigrate,后者要三处手写 DDL 协同)
 ## 2026-08-15
 
