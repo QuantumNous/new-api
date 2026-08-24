@@ -21,7 +21,10 @@ import { SSE } from 'sse.js'
 import { getCommonHeaders } from '@/lib/api'
 import { API_ENDPOINTS, ERROR_MESSAGES } from '../constants'
 import { parseStreamMessageEvent } from '../lib/stream-event-parser'
-import type { ChatCompletionRequest } from '../types'
+import type {
+  ChatCompletionRequest,
+  PlaygroundResponseMetadata,
+} from '../types'
 
 /**
  * Hook for handling streaming chat completion requests
@@ -34,6 +37,7 @@ export function useStreamRequest() {
     (
       payload: ChatCompletionRequest,
       onUpdate: (type: 'reasoning' | 'content', chunk: string) => void,
+      onMetadata: (metadata: PlaygroundResponseMetadata) => void,
       onComplete: () => void,
       onError: (error: string, errorCode?: string) => void
     ) => {
@@ -77,6 +81,10 @@ export function useStreamRequest() {
           console.error('Failed to parse SSE message:', e.data)
           handleError(ERROR_MESSAGES.PARSE_ERROR)
           return
+        }
+
+        if (parsed.responseMetadata) {
+          onMetadata(parsed.responseMetadata)
         }
 
         if (parsed.reasoning) {

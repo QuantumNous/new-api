@@ -27,7 +27,13 @@ import {
   processStreamingContent,
   finalizeMessage,
 } from '../lib'
-import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
+import type {
+  ChatCompletionResponse,
+  Message,
+  ParameterEnabled,
+  PlaygroundConfig,
+  PlaygroundResponseMetadata,
+} from '../types'
 import { useStreamRequest } from './use-stream-request'
 
 interface UseChatHandlerOptions {
@@ -76,6 +82,42 @@ export async function runSingleChatRequest(
   }
 }
 
+function responseMetadataFromCompletion(
+  response: ChatCompletionResponse
+): PlaygroundResponseMetadata {
+  return {
+    relayRequestId: response.id || undefined,
+    promptTokens: response.usage?.prompt_tokens,
+    completionTokens: response.usage?.completion_tokens,
+    totalTokens: response.usage?.total_tokens,
+  }
+}
+
+export function applyChatCompletionResponse(
+  message: Message,
+  response: ChatCompletionResponse
+): Message {
+  const choice = response.choices?.[0]
+  if (!choice) return message
+
+  return {
+    ...finalizeMessage(
+      {
+        ...message,
+        versions: [
+          {
+            ...message.versions[0],
+            content: choice.message?.content || '',
+          },
+        ],
+      },
+      choice.message?.reasoning_content
+    ),
+    status: MESSAGE_STATUS.COMPLETE,
+    responseMetadata: responseMetadataFromCompletion(response),
+  }
+}
+
 /**
  * Hook for handling chat message sending and receiving
  */
@@ -121,6 +163,21 @@ export function useChatHandler({
     [onMessageUpdate]
   )
 
+  const handleStreamMetadata = useCallback(
+    (metadata: PlaygroundResponseMetadata) => {
+      onMessageUpdate((prev) =>
+        updateLastAssistantMessage(prev, (message) => ({
+          ...message,
+          responseMetadata: {
+            ...message.responseMetadata,
+            ...metadata,
+          },
+        }))
+      )
+    },
+    [onMessageUpdate]
+  )
+
   // Handle stream complete
   const handleStreamComplete = useCallback(() => {
     onMessageUpdate((prev) =>
@@ -159,6 +216,7 @@ export function useChatHandler({
         sendStreamRequest(
           payload,
           handleStreamUpdate,
+          handleStreamMetadata,
           () => {
             handleStreamComplete()
             finishChatRequest(requestGateRef, setIsRequestGenerating)
@@ -179,6 +237,7 @@ export function useChatHandler({
       minimalParameters,
       sendStreamRequest,
       handleStreamUpdate,
+      handleStreamMetadata,
       handleStreamComplete,
       handleStreamError,
     ]
@@ -207,25 +266,10 @@ export function useChatHandler({
               controller.signal
             )
             if (controller.signal.aborted) return
-            const choice = response.choices?.[0]
-            if (!choice) return
-
             onMessageUpdate((prev) =>
-              updateLastAssistantMessage(prev, (message) => ({
-                ...finalizeMessage(
-                  {
-                    ...message,
-                    versions: [
-                      {
-                        ...message.versions[0],
-                        content: choice.message?.content || '',
-                      },
-                    ],
-                  },
-                  choice.message?.reasoning_content
-                ),
-                status: MESSAGE_STATUS.COMPLETE,
-              }))
+              updateLastAssistantMessage(prev, (message) =>
+                applyChatCompletionResponse(message, response)
+              )
             )
           } catch (error: unknown) {
             if (controller.signal.aborted) return

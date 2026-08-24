@@ -32,6 +32,13 @@ export interface MessageVersion {
   generatedMedia?: GeneratedMedia[]
 }
 
+export interface PlaygroundResponseMetadata {
+  relayRequestId?: string
+  promptTokens?: number
+  completionTokens?: number
+  totalTokens?: number
+}
+
 export interface Message {
   key: string
   from: MessageRole
@@ -46,6 +53,7 @@ export interface Message {
   isContentComplete?: boolean
   status?: MessageStatus
   errorCode?: string | null
+  responseMetadata?: PlaygroundResponseMetadata
   // Video-generation messages (veo models). `isVideo` marks the assistant bubble
   // as a video result so it renders a progress spinner while generating and an
   // inline `<video>` when done (instead of markdown text). `videoProgress` is the
@@ -101,6 +109,13 @@ export interface ChatCompletionChunk {
     }
     finish_reason: string | null
   }>
+  usage?: ChatCompletionUsage
+}
+
+export interface ChatCompletionUsage {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
 }
 
 export interface ChatCompletionResponse {
@@ -117,11 +132,7 @@ export interface ChatCompletionResponse {
     }
     finish_reason: string
   }>
-  usage?: {
-    prompt_tokens: number
-    completion_tokens: number
-    total_tokens: number
-  }
+  usage?: ChatCompletionUsage
 }
 
 // Video generation (async /v1/videos) task types

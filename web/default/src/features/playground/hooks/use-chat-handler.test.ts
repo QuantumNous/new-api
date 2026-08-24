@@ -16,8 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { expect, test } from 'bun:test'
-import { runSingleChatRequest } from './use-chat-handler'
+import { describe, expect, test } from 'bun:test'
+import type { Message } from '../types'
+import {
+  applyChatCompletionResponse,
+  runSingleChatRequest,
+} from './use-chat-handler'
 
 test('non-streaming requests stay busy until settled and reject reentry', async () => {
   const gate = { current: false }
@@ -51,4 +55,47 @@ test('non-streaming requests stay busy until settled and reject reentry', async 
   expect(await first).toBe(true)
   expect(gate.current).toBe(false)
   expect(busyStates).toEqual([true, false])
+})
+
+describe('applyChatCompletionResponse', () => {
+  test('attaches response identity and token usage to the assistant message', () => {
+    const loadingAssistant: Message = {
+      key: 'assistant-message',
+      from: 'assistant',
+      versions: [{ id: 'assistant-version', content: '' }],
+      status: 'loading',
+    }
+
+    const completed = applyChatCompletionResponse(loadingAssistant, {
+      id: 'chatcmpl-request-1',
+      object: 'chat.completion',
+      created: 1,
+      model: 'gpt-test',
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: 'assistant',
+            content: 'world',
+            reasoning_content: 'thinking',
+          },
+          finish_reason: 'stop',
+        },
+      ],
+      usage: {
+        prompt_tokens: 3,
+        completion_tokens: 5,
+        total_tokens: 8,
+      },
+    })
+
+    expect(completed.versions[0]?.content).toBe('world')
+    expect(completed.status).toBe('complete')
+    expect(completed.responseMetadata).toEqual({
+      relayRequestId: 'chatcmpl-request-1',
+      promptTokens: 3,
+      completionTokens: 5,
+      totalTokens: 8,
+    })
+  })
 })

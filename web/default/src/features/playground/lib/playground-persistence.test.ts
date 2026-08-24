@@ -120,7 +120,18 @@ describe('Playground persistence payloads', () => {
   })
 
   test('builds a complete terminal record', () => {
-    const finalMessages = [userMessage, completeAssistant]
+    const finalMessages = [
+      userMessage,
+      {
+        ...completeAssistant,
+        responseMetadata: {
+          relayRequestId: 'chatcmpl-request-1',
+          promptTokens: 3,
+          completionTokens: 5,
+          totalTokens: 8,
+        },
+      },
+    ]
     const payload = buildPlaygroundRecordPayload(
       activeTurn(),
       finalMessages,
@@ -137,6 +148,10 @@ describe('Playground persistence payloads', () => {
       { role: 'user', content: 'hello' },
     ])
     expect(payload.parameters).toEqual({ stream: true, temperature: 0.7 })
+    expect(payload.relay_request_id).toBe('chatcmpl-request-1')
+    expect(payload.prompt_tokens).toBe(3)
+    expect(payload.completion_tokens).toBe(5)
+    expect(payload.total_tokens).toBe(8)
     expect(payload.messages_snapshot).toEqual(finalMessages)
   })
 

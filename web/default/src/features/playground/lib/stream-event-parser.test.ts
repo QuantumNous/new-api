@@ -58,6 +58,32 @@ describe('parseStreamMessageEvent', () => {
     })
   })
 
+  test('extracts response identity and usage when a stream chunk exposes them', () => {
+    expect(
+      parseStreamMessageEvent(
+        JSON.stringify({
+          id: 'chatcmpl-request-1',
+          choices: [],
+          usage: {
+            prompt_tokens: 3,
+            completion_tokens: 5,
+            total_tokens: 8,
+          },
+        })
+      )
+    ).toEqual({
+      type: 'delta',
+      reasoning: undefined,
+      content: undefined,
+      responseMetadata: {
+        relayRequestId: 'chatcmpl-request-1',
+        promptTokens: 3,
+        completionTokens: 5,
+        totalTokens: 8,
+      },
+    })
+  })
+
   test('reports parse errors for invalid JSON', () => {
     expect(parseStreamMessageEvent('not-json')).toEqual({
       type: 'parse_error',
