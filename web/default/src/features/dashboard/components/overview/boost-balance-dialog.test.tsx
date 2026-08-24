@@ -69,7 +69,7 @@ describe('boost balance dialog', () => {
     expect(html).toContain('Current available balance')
     expect(html).toContain('$82.35')
     expect(html).toContain(
-      'A healthy balance keeps your work and API calls from being interrupted'
+      'Invite friends to get high-value vouchers. Top-up discounts are available for a limited time.'
     )
   })
 

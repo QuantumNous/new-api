@@ -98,7 +98,7 @@ export function BoostBalanceContent(props: {
 
       <DialogDescription>
         {t(
-          'A healthy balance keeps your work and API calls from being interrupted. Top up now, or invite friends to earn reward credits, so you can keep building with costs under control.'
+          'Invite friends to get high-value vouchers. Top-up discounts are available for a limited time.'
         )}
       </DialogDescription>
 
