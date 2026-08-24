@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -312,7 +313,7 @@ func fingerprintMetadataFields(ids *codexFingerprintIDs) []fingerprintMetadataFi
 			fingerprintMetadataField{name: "thread_id", value: ids.threadID},
 			fingerprintMetadataField{name: "turn_id", value: ids.turnID},
 			fingerprintMetadataField{name: "x-codex-window-id", value: ids.windowID},
-			fingerprintMetadataField{name: "turn_started_at_unix_ms", value: ids.startedAtMS},
+			fingerprintMetadataField{name: "turn_started_at_unix_ms", value: strconv.FormatInt(ids.startedAtMS, 10)},
 		)
 	}
 	return fields
