@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
-import { getUserModelAccess } from '../api'
 import {
   createModelAccessQueryOptions,
   modelAccessQueryKeys,
@@ -29,7 +28,7 @@ describe('model access query options', () => {
 
     expect(options.queryKey).toEqual(['user-model-access', 'detail', 42])
     expect(options.queryKey).toEqual(modelAccessQueryKeys.detail(42))
-    expect(options.queryFn).toBe(getUserModelAccess)
+    expect(options.queryFn).toBeFunction()
     expect(options.staleTime).toBe(5 * 60 * 1000)
     expect(options.enabled).toBe(true)
   })
@@ -38,6 +37,19 @@ describe('model access query options', () => {
     expect(createModelAccessQueryOptions(1).queryKey).not.toEqual(
       createModelAccessQueryOptions(2).queryKey
     )
+  })
+
+  test('isolates the available models display payload from full model access', () => {
+    const full = createModelAccessQueryOptions(42)
+    const display = createModelAccessQueryOptions(42, 'available_models')
+
+    expect(display.queryKey).toEqual([
+      'user-model-access',
+      'detail',
+      42,
+      'available_models',
+    ])
+    expect(display.queryKey).not.toEqual(full.queryKey)
   })
 
   test('disables the request when no authenticated user exists', () => {

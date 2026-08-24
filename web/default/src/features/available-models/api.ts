@@ -19,10 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 import type { UserModelAccess, UserModelAccessResponse } from './types'
 
-export async function getUserModelAccess(): Promise<UserModelAccess> {
-  const response = await api.get<UserModelAccessResponse>(
-    '/api/user/model-access'
-  )
+export type UserModelAccessView = 'full' | 'available_models'
+
+export async function getUserModelAccess(
+  view: UserModelAccessView = 'full'
+): Promise<UserModelAccess> {
+  const path =
+    view === 'available_models'
+      ? '/api/user/model-access?view=available_models'
+      : '/api/user/model-access'
+  const response = await api.get<UserModelAccessResponse>(path)
   if (!response.data.success || !response.data.data) {
     throw new Error(response.data.message)
   }

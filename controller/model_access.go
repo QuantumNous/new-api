@@ -48,5 +48,53 @@ func GetUserModelAccess(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if c.Query("view") == "available_models" {
+		filterHiddenModelsFromUserAccess(access)
+	}
 	common.ApiSuccess(c, access)
+}
+
+// filterHiddenModelsFromUserAccess applies the pricing visibility setting to
+// the Console model catalog only. It does not change the user's actual access.
+func filterHiddenModelsFromUserAccess(access *service.UserModelAccess) {
+	if access == nil || len(operation_setting.GetPricingHiddenModelPatterns()) == 0 {
+		return
+	}
+
+	access.IdentityModelIDs = filterVisibleModelIDs(access.IdentityModelIDs)
+	access.IdentityModelRatios = filterVisibleModelRatios(access.IdentityModelRatios)
+	access.AccountModelIDs = filterVisibleModelIDs(access.AccountModelIDs)
+	access.AccountModelRatios = filterVisibleModelRatios(access.AccountModelRatios)
+	for i := range access.Groups {
+		access.Groups[i].ModelIDs = filterVisibleModelIDs(access.Groups[i].ModelIDs)
+		access.Groups[i].ModelRatios = filterVisibleModelRatios(access.Groups[i].ModelRatios)
+	}
+
+	models := make([]service.ModelAccessModel, 0, len(access.Models))
+	for _, item := range access.Models {
+		if !operation_setting.IsPricingHiddenModel(item.ID) {
+			models = append(models, item)
+		}
+	}
+	access.Models = models
+}
+
+func filterVisibleModelIDs(modelIDs []string) []string {
+	visible := make([]string, 0, len(modelIDs))
+	for _, modelID := range modelIDs {
+		if !operation_setting.IsPricingHiddenModel(modelID) {
+			visible = append(visible, modelID)
+		}
+	}
+	return visible
+}
+
+func filterVisibleModelRatios(modelRatios map[string]float64) map[string]float64 {
+	visible := make(map[string]float64, len(modelRatios))
+	for modelID, ratio := range modelRatios {
+		if !operation_setting.IsPricingHiddenModel(modelID) {
+			visible[modelID] = ratio
+		}
+	}
+	return visible
 }

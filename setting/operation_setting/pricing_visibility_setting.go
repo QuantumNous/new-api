@@ -7,8 +7,8 @@ import (
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
-// PricingVisibilitySetting 控制定价接口对外暴露哪些模型。
-// 仅影响 /api/pricing 与 /api/website/pricing 的展示，不影响模型可用性与实际调用。
+// PricingVisibilitySetting 控制面向用户的模型展示入口对外暴露哪些模型。
+// 影响官网定价/模型/排行页与 Console 可用模型页，不影响模型可用性与实际调用。
 type PricingVisibilitySetting struct {
 	// HiddenModels 逗号分隔的模型名，支持 * 通配符，例如 "gpt-4o,claude-*,*-internal"
 	HiddenModels string `json:"hidden_models"`
@@ -74,7 +74,7 @@ func GetPricingHiddenModelPatterns() []string {
 	return patterns
 }
 
-// IsPricingHiddenModel 判断模型是否应从定价接口中隐藏。
+// IsPricingHiddenModel 判断模型是否应从面向用户的模型展示入口中隐藏。
 func IsPricingHiddenModel(modelName string) bool {
 	name := strings.ToLower(strings.TrimSpace(modelName))
 	if name == "" {

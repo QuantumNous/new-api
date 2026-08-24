@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -50,11 +51,25 @@ func withControllerGroupModelRatios(t *testing.T, ratios map[string]map[string]f
 	})
 }
 
+func withControllerHiddenPricingModels(t *testing.T, hiddenModels string) {
+	t.Helper()
+	visibility := operation_setting.GetPricingVisibilitySetting()
+	original := visibility.HiddenModels
+	visibility.HiddenModels = hiddenModels
+	t.Cleanup(func() {
+		visibility.HiddenModels = original
+	})
+}
+
 func requestUserModelAccess(t *testing.T, userID int) (*httptest.ResponseRecorder, userModelAccessResponse) {
+	return requestUserModelAccessAtPath(t, userID, "/api/user/model-access")
+}
+
+func requestUserModelAccessAtPath(t *testing.T, userID int, path string) (*httptest.ResponseRecorder, userModelAccessResponse) {
 	t.Helper()
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/model-access", nil)
+	ctx.Request = httptest.NewRequest(http.MethodGet, path, nil)
 	ctx.Set("id", userID)
 	GetUserModelAccess(ctx)
 
@@ -270,6 +285,71 @@ func TestGetUserModelAccessIdentityOnlyDoesNotExpandSelectableScopes(t *testing.
 	require.Equal(t, []string{"identity-model"}, modelAccessIDs(access.Models))
 }
 
+func TestGetUserModelAccessHidesConfiguredModelsFromSelectableScopes(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	withControllerHiddenPricingModels(t, "hidden-exact, secret-*")
+	withControllerModelAccessGroups(t,
+		map[string]float64{"default": 1, "vip": 2, "plg": 0.9},
+		map[string]string{"default": "Default", "vip": "VIP", "auto": "Automatic"},
+		[]string{"default", "vip"},
+	)
+	withControllerGroupModelRatios(t, map[string]map[string]float64{
+		"default": {"visible-default": 0.5, "hidden-exact": 0.6, "secret-default": 0.7},
+		"vip":     {"visible-vip": 0.8, "secret-vip": 0.9},
+	})
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{Id: 505, Username: "hidden-selectable-model-access", Password: "password", Group: "default", Status: common.UserStatusEnabled}).Error)
+	createAvailableModelFixture(t, db, 505, common.ChannelStatusEnabled, map[string][]string{
+		"default": {"visible-default", "hidden-exact", "secret-default"},
+		"vip":     {"visible-vip", "secret-vip"},
+	})
+
+	_, unfilteredPayload := requestUserModelAccess(t, 505)
+	require.Equal(t, []string{"hidden-exact", "secret-default", "visible-default"}, unfilteredPayload.Data.IdentityModelIDs)
+	require.Contains(t, unfilteredPayload.Data.IdentityModelRatios, "hidden-exact")
+	require.Contains(t, modelAccessIDs(unfilteredPayload.Data.Models), "secret-vip")
+
+	_, payload := requestUserModelAccessAtPath(t, 505, "/api/user/model-access?view=available_models")
+	access := payload.Data
+	require.Equal(t, []string{"visible-default"}, access.IdentityModelIDs)
+	require.Equal(t, map[string]float64{"visible-default": 0.5}, access.IdentityModelRatios)
+	require.Equal(t, []string{"visible-default", "visible-vip"}, modelAccessIDs(access.Models))
+	require.Equal(t, modelAccessIDs(access.Models), referencedModelAccessIDs(access))
+
+	scopes := modelAccessScopesByID(access.Groups)
+	require.Equal(t, []string{"visible-default"}, scopes["default"].ModelIDs)
+	require.Equal(t, map[string]float64{"visible-default": 0.5}, scopes["default"].ModelRatios)
+	require.Equal(t, []string{"visible-vip"}, scopes["vip"].ModelIDs)
+	require.Equal(t, map[string]float64{"visible-vip": 0.8}, scopes["vip"].ModelRatios)
+	require.Equal(t, []string{"visible-default", "visible-vip"}, scopes["auto"].ModelIDs)
+	require.Empty(t, scopes["auto"].ModelRatios)
+}
+
+func TestGetUserModelAccessHidesConfiguredModelsFromFixedAccount(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	withControllerHiddenPricingModels(t, "secret-*")
+	withControllerModelAccessGroups(t,
+		map[string]float64{"default": 1, "plg": 0},
+		map[string]string{"default": "Default"},
+		[]string{"default"},
+	)
+	withControllerGroupModelRatios(t, map[string]map[string]float64{
+		"plg": {"visible-account": 0.5, "secret-account": 0.7},
+	})
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{Id: 506, Username: "hidden-fixed-model-access", Password: "password", Group: "plg", Status: common.UserStatusEnabled}).Error)
+	createAvailableModelFixture(t, db, 506, common.ChannelStatusEnabled, map[string][]string{
+		"plg": {"visible-account", "secret-account"},
+	})
+
+	_, payload := requestUserModelAccessAtPath(t, 506, "/api/user/model-access?view=available_models")
+	access := payload.Data
+	require.Equal(t, []string{"visible-account"}, access.AccountModelIDs)
+	require.Equal(t, map[string]float64{"visible-account": 0.5}, access.AccountModelRatios)
+	require.Equal(t, []string{"visible-account"}, modelAccessIDs(access.Models))
+	require.Equal(t, modelAccessIDs(access.Models), referencedModelAccessIDs(access))
+}
+
 func TestAvailableModelsUsesOnlyAuthenticatedContextAndFailsClosedOnInvalidAllowlist(t *testing.T) {
 	withSelfUseModeEnabled(t)
 	db := setupModelListControllerTestDB(t)
@@ -297,6 +377,14 @@ func modelAccessScopeIDs(scopes []service.ModelAccessScope) []string {
 		ids[i] = scope.ID
 	}
 	return ids
+}
+
+func modelAccessScopesByID(scopes []service.ModelAccessScope) map[string]service.ModelAccessScope {
+	byID := make(map[string]service.ModelAccessScope, len(scopes))
+	for _, scope := range scopes {
+		byID[scope.ID] = scope
+	}
+	return byID
 }
 
 func modelAccessIDs(models []service.ModelAccessModel) []string {

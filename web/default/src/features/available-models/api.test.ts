@@ -39,11 +39,36 @@ describe('getUserModelAccess', () => {
       account_default_ratio: 0,
       models: [],
     }
-    spyOn(api, 'get').mockResolvedValue({
+    const getSpy = spyOn(api, 'get').mockResolvedValue({
       data: { success: true, data },
     } as never)
 
     await expect(getUserModelAccess()).resolves.toEqual(data)
+    expect(getSpy).toHaveBeenCalledWith('/api/user/model-access')
+  })
+
+  test('requests pricing visibility only for the available models view', async () => {
+    const data = {
+      scope_mode: 'fixed_account' as const,
+      identity_scope: null,
+      identity_model_ids: [],
+      identity_model_ratios: {},
+      identity_default_ratio: null,
+      create_default_scope: null,
+      groups: [],
+      account_model_ids: [],
+      account_model_ratios: {},
+      account_default_ratio: 0,
+      models: [],
+    }
+    const getSpy = spyOn(api, 'get').mockResolvedValue({
+      data: { success: true, data },
+    } as never)
+
+    await expect(getUserModelAccess('available_models')).resolves.toEqual(data)
+    expect(getSpy).toHaveBeenCalledWith(
+      '/api/user/model-access?view=available_models'
+    )
   })
 
   test('rejects a business-error envelope instead of succeeding with undefined', async () => {
