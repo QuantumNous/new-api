@@ -275,3 +275,42 @@ func GetUserTokenQuotaDates(userId int, startTime int64, endTime int64, tokenNam
 	err = tx.Find(&rows).Error
 	return rows, err
 }
+
+// ModelDailyUsage is one UTC day's request count for a single model.
+type ModelDailyUsage struct {
+	// Unix seconds at the start of the UTC day.
+	Date  int64 `json:"date"`
+	Count int   `json:"count"`
+}
+
+// GetModelDailyUsage aggregates the hourly quota_data buckets for one model
+// into per-day request counts.
+//
+// The day bucket is computed in Go rather than SQL on purpose: date_trunc
+// (PostgreSQL), FROM_UNIXTIME (MySQL), and strftime (SQLite) have no shared
+// spelling, and created_at is a plain unix integer here, so grouping in SQL
+// would need three dialect branches for arithmetic Go does in one line.
+// The scan is bounded by the caller's time window.
+func GetModelDailyUsage(modelName string, startTime int64, endTime int64) ([]ModelDailyUsage, error) {
+	var rows []*QuotaData
+	err := DB.Table("quota_data").
+		Select("created_at, sum(count) as count").
+		Where("model_name = ? and created_at >= ? and created_at < ?", modelName, startTime, endTime).
+		Group("created_at").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	const daySeconds = int64(24 * 60 * 60)
+	byDay := make(map[int64]int, len(rows))
+	for _, row := range rows {
+		byDay[row.CreatedAt/daySeconds*daySeconds] += row.Count
+	}
+
+	usage := make([]ModelDailyUsage, 0, len(byDay))
+	for date, count := range byDay {
+		usage = append(usage, ModelDailyUsage{Date: date, Count: count})
+	}
+	return usage, nil
+}
