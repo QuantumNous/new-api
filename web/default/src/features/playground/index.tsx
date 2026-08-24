@@ -115,7 +115,7 @@ export function Playground({
     setModels,
     setGroups,
     updateConfig,
-  } = usePlaygroundState(initialModel)
+  } = usePlaygroundState(authUser?.id, initialModel)
 
   const {
     sendChat,

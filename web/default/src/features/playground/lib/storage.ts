@@ -17,17 +17,47 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { STORAGE_KEYS } from '../constants'
-import type { PlaygroundConfig, ParameterEnabled, Message } from '../types'
+import type {
+  Message,
+  ParameterEnabled,
+  PlaygroundConfig,
+  PlaygroundRecordPayload,
+} from '../types'
 import { sanitizeMessagesOnLoad } from './message-utils'
+
+function scopedKey(base: string, userId: number): string {
+  return `${base}:v2:${userId}`
+}
+
+function isValidUserId(userId: number): boolean {
+  return Number.isInteger(userId) && userId > 0
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isPendingRecord(value: unknown): value is PlaygroundRecordPayload {
+  if (!isRecord(value)) return false
+  return (
+    typeof value.record_id === 'string' &&
+    typeof value.conversation_id === 'string' &&
+    (value.status === 'complete' ||
+      value.status === 'error' ||
+      value.status === 'stopped')
+  )
+}
 
 /**
  * Load playground config from localStorage
  */
-export function loadConfig(): Partial<PlaygroundConfig> {
+export function loadConfig(userId: number): Partial<PlaygroundConfig> {
+  if (!isValidUserId(userId)) return {}
   try {
-    const saved = localStorage.getItem(STORAGE_KEYS.CONFIG)
+    const saved = localStorage.getItem(scopedKey(STORAGE_KEYS.CONFIG, userId))
     if (saved) {
-      return JSON.parse(saved)
+      const parsed: unknown = JSON.parse(saved)
+      return isRecord(parsed) ? parsed : {}
     }
   } catch (error) {
     // eslint-disable-next-line no-console
@@ -39,9 +69,16 @@ export function loadConfig(): Partial<PlaygroundConfig> {
 /**
  * Save playground config to localStorage
  */
-export function saveConfig(config: Partial<PlaygroundConfig>): void {
+export function saveConfig(
+  userId: number,
+  config: Partial<PlaygroundConfig>
+): void {
+  if (!isValidUserId(userId)) return
   try {
-    localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config))
+    localStorage.setItem(
+      scopedKey(STORAGE_KEYS.CONFIG, userId),
+      JSON.stringify(config)
+    )
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to save config:', error)
@@ -51,11 +88,17 @@ export function saveConfig(config: Partial<PlaygroundConfig>): void {
 /**
  * Load parameter enabled state from localStorage
  */
-export function loadParameterEnabled(): Partial<ParameterEnabled> {
+export function loadParameterEnabled(
+  userId: number
+): Partial<ParameterEnabled> {
+  if (!isValidUserId(userId)) return {}
   try {
-    const saved = localStorage.getItem(STORAGE_KEYS.PARAMETER_ENABLED)
+    const saved = localStorage.getItem(
+      scopedKey(STORAGE_KEYS.PARAMETER_ENABLED, userId)
+    )
     if (saved) {
-      return JSON.parse(saved)
+      const parsed: unknown = JSON.parse(saved)
+      return isRecord(parsed) ? parsed : {}
     }
   } catch (error) {
     // eslint-disable-next-line no-console
@@ -68,11 +111,13 @@ export function loadParameterEnabled(): Partial<ParameterEnabled> {
  * Save parameter enabled state to localStorage
  */
 export function saveParameterEnabled(
+  userId: number,
   parameterEnabled: Partial<ParameterEnabled>
 ): void {
+  if (!isValidUserId(userId)) return
   try {
     localStorage.setItem(
-      STORAGE_KEYS.PARAMETER_ENABLED,
+      scopedKey(STORAGE_KEYS.PARAMETER_ENABLED, userId),
       JSON.stringify(parameterEnabled)
     )
   } catch (error) {
@@ -84,9 +129,12 @@ export function saveParameterEnabled(
 /**
  * Load messages from localStorage
  */
-export function loadMessages(): Message[] | null {
+export function loadMessages(userId: number): Message[] | null {
+  if (!isValidUserId(userId)) return null
   try {
-    const saved = localStorage.getItem(STORAGE_KEYS.MESSAGES)
+    const saved = localStorage.getItem(
+      scopedKey(STORAGE_KEYS.MESSAGES, userId)
+    )
     if (saved) {
       const parsed: unknown = JSON.parse(saved)
       if (!Array.isArray(parsed)) {
@@ -95,7 +143,7 @@ export function loadMessages(): Message[] | null {
       const sanitized = sanitizeMessagesOnLoad(parsed as Message[])
       // Persist sanitized result to avoid re-sanitizing on subsequent loads
       if (sanitized !== parsed) {
-        saveMessages(sanitized)
+        saveMessages(userId, sanitized)
       }
       return sanitized
     }
@@ -109,9 +157,13 @@ export function loadMessages(): Message[] | null {
 /**
  * Save messages to localStorage
  */
-export function saveMessages(messages: Message[]): void {
+export function saveMessages(userId: number, messages: Message[]): void {
+  if (!isValidUserId(userId)) return
   try {
-    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(messages))
+    localStorage.setItem(
+      scopedKey(STORAGE_KEYS.MESSAGES, userId),
+      JSON.stringify(messages)
+    )
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to save messages:', error)
@@ -119,15 +171,117 @@ export function saveMessages(messages: Message[]): void {
 }
 
 /**
- * Clear all playground data
+ * Load the active conversation id from localStorage
  */
-export function clearPlaygroundData(): void {
+export function loadConversationId(userId: number): string | null {
+  if (!isValidUserId(userId)) return null
   try {
-    localStorage.removeItem(STORAGE_KEYS.CONFIG)
-    localStorage.removeItem(STORAGE_KEYS.PARAMETER_ENABLED)
-    localStorage.removeItem(STORAGE_KEYS.MESSAGES)
+    const saved = localStorage.getItem(
+      scopedKey(STORAGE_KEYS.CONVERSATION, userId)
+    )
+    return saved?.trim() || null
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error('Failed to clear playground data:', error)
+    console.error('Failed to load conversation id:', error)
+    return null
+  }
+}
+
+/**
+ * Save the active conversation id to localStorage
+ */
+export function saveConversationId(
+  userId: number,
+  conversationId: string
+): void {
+  if (!isValidUserId(userId)) return
+  try {
+    localStorage.setItem(
+      scopedKey(STORAGE_KEYS.CONVERSATION, userId),
+      conversationId
+    )
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to save conversation id:', error)
+  }
+}
+
+/**
+ * Load terminal records that still need to be saved by the server
+ */
+export function loadPendingRecords(
+  userId: number
+): PlaygroundRecordPayload[] {
+  if (!isValidUserId(userId)) return []
+  try {
+    const saved = localStorage.getItem(
+      scopedKey(STORAGE_KEYS.PENDING_RECORDS, userId)
+    )
+    if (!saved) return []
+    const parsed: unknown = JSON.parse(saved)
+    if (!Array.isArray(parsed) || !parsed.every(isPendingRecord)) return []
+    return parsed
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load pending Playground records:', error)
+    return []
+  }
+}
+
+/**
+ * Enqueue a record, replacing a matching id without changing FIFO order
+ */
+export function enqueuePendingRecord(
+  userId: number,
+  payload: PlaygroundRecordPayload
+): void {
+  const pending = loadPendingRecords(userId)
+  const existingIndex = pending.findIndex(
+    (record) => record.record_id === payload.record_id
+  )
+  if (existingIndex >= 0) {
+    pending[existingIndex] = payload
+  } else {
+    pending.push(payload)
+  }
+  replacePendingRecords(userId, pending)
+}
+
+/**
+ * Replace the complete pending record queue
+ */
+export function replacePendingRecords(
+  userId: number,
+  payloads: PlaygroundRecordPayload[]
+): void {
+  if (!isValidUserId(userId)) return
+  try {
+    localStorage.setItem(
+      scopedKey(STORAGE_KEYS.PENDING_RECORDS, userId),
+      JSON.stringify(payloads)
+    )
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to save pending Playground records:', error)
+  }
+}
+
+/**
+ * Remove all versioned Playground state for one user
+ */
+export function clearUserPlaygroundData(userId: number): void {
+  if (!isValidUserId(userId)) return
+  try {
+    const keys = [
+      STORAGE_KEYS.CONFIG,
+      STORAGE_KEYS.PARAMETER_ENABLED,
+      STORAGE_KEYS.MESSAGES,
+      STORAGE_KEYS.CONVERSATION,
+      STORAGE_KEYS.PENDING_RECORDS,
+    ]
+    keys.forEach((key) => localStorage.removeItem(scopedKey(key, userId)))
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to clear Playground data:', error)
   }
 }

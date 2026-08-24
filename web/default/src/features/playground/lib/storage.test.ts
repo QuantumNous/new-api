@@ -3,8 +3,8 @@ Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of
-the License, or (at your option) any later version.
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -13,18 +13,38 @@ GNU Affero General Public License for more details.
 
 You should have received a copy of the GNU Affero General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
 */
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 import { STORAGE_KEYS } from '../constants'
-import type { Message } from '../types'
-import { loadMessages } from './storage'
+import {
+  clearUserPlaygroundData,
+  enqueuePendingRecord,
+  loadConfig,
+  loadConversationId,
+  loadMessages,
+  loadParameterEnabled,
+  loadPendingRecords,
+  replacePendingRecords,
+  saveConfig,
+  saveConversationId,
+  saveMessages,
+  saveParameterEnabled,
+} from './storage'
+import type { Message, PlaygroundRecordPayload } from '../types'
 
 const originalLocalStorage = globalThis.localStorage
 
 function installLocalStorage() {
   const values = new Map<string, string>()
-  const localStorage = {
+  const storage = {
+    clear: () => values.clear(),
     getItem: (key: string) => values.get(key) ?? null,
+    key: (index: number) => Array.from(values.keys())[index] ?? null,
+    get length() {
+      return values.size
+    },
     removeItem: (key: string) => {
       values.delete(key)
     },
@@ -36,9 +56,53 @@ function installLocalStorage() {
 
   Object.defineProperty(globalThis, 'localStorage', {
     configurable: true,
-    value: localStorage,
+    value: storage,
   })
-  return localStorage
+  return storage
+}
+
+const aliceMessage: Message = {
+  key: 'alice-message',
+  from: 'user',
+  versions: [{ id: 'alice-version', content: 'hello from alice' }],
+}
+
+const bobMessage: Message = {
+  key: 'bob-message',
+  from: 'user',
+  versions: [{ id: 'bob-version', content: 'hello from bob' }],
+}
+
+function sampleRecord(recordId: string, outputText: string): PlaygroundRecordPayload {
+  const assistantMessage: Message = {
+    key: `assistant-${recordId}`,
+    from: 'assistant',
+    versions: [{ id: `version-${recordId}`, content: outputText }],
+    status: 'complete',
+  }
+  return {
+    record_id: recordId,
+    conversation_id: '550e8400-e29b-41d4-a716-446655440001',
+    user_message: aliceMessage,
+    request_messages: [{ role: 'user', content: 'hello from alice' }],
+    assistant_message: assistantMessage,
+    reasoning_content: '',
+    input_text: 'hello from alice',
+    output_text: outputText,
+    model_name: 'gpt-test',
+    group_name: 'plg',
+    parameters: {},
+    status: 'complete',
+    error_code: '',
+    error_message: '',
+    relay_request_id: '',
+    prompt_tokens: 0,
+    completion_tokens: 0,
+    total_tokens: 0,
+    latency_ms: 100,
+    messages_snapshot: [aliceMessage, assistantMessage],
+    client_completed_at: 2000,
+  }
 }
 
 beforeEach(() => {
@@ -52,8 +116,14 @@ afterEach(() => {
   })
 })
 
-describe('loadMessages', () => {
-  test('persists migrated media from legacy localStorage sessions', () => {
+describe('Playground user-scoped storage', () => {
+  test('does not read legacy unscoped messages', () => {
+    localStorage.setItem('playground_messages', JSON.stringify([aliceMessage]))
+
+    expect(loadMessages(10)).toBe(null)
+  })
+
+  test('persists migrated media from user-scoped localStorage sessions', () => {
     const legacyMessages: Message[] = [
       {
         key: 'assistant-legacy',
@@ -65,11 +135,12 @@ describe('loadMessages', () => {
         ],
       },
     ]
-    localStorage.setItem(STORAGE_KEYS.MESSAGES, JSON.stringify(legacyMessages))
+    const storageKey = `${STORAGE_KEYS.MESSAGES}:v2:10`
+    localStorage.setItem(storageKey, JSON.stringify(legacyMessages))
 
-    const loaded = loadMessages()
+    const loaded = loadMessages(10)
     const persisted = JSON.parse(
-      localStorage.getItem(STORAGE_KEYS.MESSAGES) ?? 'null'
+      localStorage.getItem(storageKey) ?? 'null'
     ) as Message[] | null
 
     expect(loaded?.[0]?.generatedMedia).toBeUndefined()
@@ -77,5 +148,78 @@ describe('loadMessages', () => {
       { type: 'image', url: 'https://cdn.example/legacy.png' },
     ])
     expect(persisted).toEqual(loaded)
+  })
+
+  test('isolates messages, config, and outbox by user', () => {
+    saveMessages(10, [aliceMessage])
+    saveMessages(20, [bobMessage])
+    saveConfig(10, { model: 'alice-model' })
+    saveParameterEnabled(10, { temperature: false })
+    enqueuePendingRecord(10, sampleRecord('record-a', 'alice output'))
+
+    expect(loadMessages(10)).toEqual([aliceMessage])
+    expect(loadMessages(20)).toEqual([bobMessage])
+    expect(loadConfig(10)).toEqual({ model: 'alice-model' })
+    expect(loadConfig(20)).toEqual({})
+    expect(loadParameterEnabled(10)).toEqual({ temperature: false })
+    expect(loadPendingRecords(20)).toEqual([])
+  })
+
+  test('uses versioned keys and persists conversation ids', () => {
+    const storage = installLocalStorage()
+
+    saveConversationId(10, 'conversation-a')
+
+    expect(loadConversationId(10)).toBe('conversation-a')
+    expect(storage.values.get('playground_conversation:v2:10')).toBe(
+      'conversation-a'
+    )
+    expect(storage.values.has('playground_conversation')).toBe(false)
+  })
+
+  test('deduplicates pending records without changing FIFO position', () => {
+    const first = sampleRecord('record-a', 'draft')
+    const second = sampleRecord('record-b', 'second')
+    enqueuePendingRecord(10, first)
+    enqueuePendingRecord(10, second)
+    enqueuePendingRecord(10, { ...first, output_text: 'final' })
+
+    const pending = loadPendingRecords(10)
+    expect(pending.map((record) => record.record_id)).toEqual([
+      'record-a',
+      'record-b',
+    ])
+    expect(pending[0].output_text).toBe('final')
+  })
+
+  test('replaces a pending queue and safely handles corrupt storage', () => {
+    const errorSpy = spyOn(console, 'error').mockImplementation(() => {})
+    replacePendingRecords(10, [sampleRecord('record-a', 'first')])
+    expect(loadPendingRecords(10)).toHaveLength(1)
+
+    localStorage.setItem('playground_pending_records:v2:10', '{broken')
+    localStorage.setItem('playground_messages:v2:10', '{}')
+    localStorage.setItem('playground_config:v2:10', '[]')
+    localStorage.setItem('playground_parameter_enabled:v2:10', 'null')
+
+    expect(loadPendingRecords(10)).toEqual([])
+    expect(loadMessages(10)).toBe(null)
+    expect(loadConfig(10)).toEqual({})
+    expect(loadParameterEnabled(10)).toEqual({})
+    errorSpy.mockRestore()
+  })
+
+  test('clears only the selected user data', () => {
+    saveMessages(10, [aliceMessage])
+    saveMessages(20, [bobMessage])
+    saveConversationId(10, 'conversation-a')
+    enqueuePendingRecord(10, sampleRecord('record-a', 'alice output'))
+
+    clearUserPlaygroundData(10)
+
+    expect(loadMessages(10)).toBe(null)
+    expect(loadConversationId(10)).toBe(null)
+    expect(loadPendingRecords(10)).toEqual([])
+    expect(loadMessages(20)).toEqual([bobMessage])
   })
 })

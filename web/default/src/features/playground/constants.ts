@@ -80,6 +80,8 @@ export const STORAGE_KEYS = {
   CONFIG: 'playground_config',
   MESSAGES: 'playground_messages',
   PARAMETER_ENABLED: 'playground_parameter_enabled',
+  CONVERSATION: 'playground_conversation',
+  PENDING_RECORDS: 'playground_pending_records',
 } as const
 
 // Error messages

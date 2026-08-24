@@ -158,6 +158,32 @@ export interface ParameterEnabled {
   seed: boolean
 }
 
+export type PlaygroundRecordStatus = 'complete' | 'error' | 'stopped'
+
+export interface PlaygroundRecordPayload {
+  record_id: string
+  conversation_id: string
+  user_message: Message
+  request_messages: ChatCompletionMessage[]
+  assistant_message: Message
+  reasoning_content: string
+  input_text: string
+  output_text: string
+  model_name: string
+  group_name: string
+  parameters: Record<string, unknown>
+  status: PlaygroundRecordStatus
+  error_code: string
+  error_message: string
+  relay_request_id: string
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  latency_ms: number
+  messages_snapshot: Message[]
+  client_completed_at: number
+}
+
 // Model and group options
 export interface ModelOption {
   label: string
