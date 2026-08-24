@@ -42,10 +42,12 @@ type tokenSpaceMaterialResponse struct {
 		RequestID string `json:"RequestId"`
 	} `json:"ResponseMetadata"`
 	Result struct {
-		ID      string `json:"Id"`
-		GroupID string `json:"GroupId"`
-		Status  string `json:"Status"`
-		Error   struct {
+		ID         string `json:"Id"`
+		GroupID    string `json:"GroupId"`
+		Status     string `json:"Status"`
+		BytedToken string `json:"BytedToken"`
+		H5Link     string `json:"H5Link"`
+		Error      struct {
 			Code    string `json:"Code"`
 			Message string `json:"Message"`
 		} `json:"Error"`
