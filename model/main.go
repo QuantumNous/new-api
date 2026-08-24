@@ -329,6 +329,12 @@ func migrateDB() error {
 	if err := skillmodel.MigrateSkillTelemetryQuarantine(DB); err != nil {
 		return err
 	}
+	if err := skillmodel.MigrateSkillCalls(DB); err != nil {
+		return err
+	}
+	if err := skillmodel.MigrateSkillRatings(DB); err != nil {
+		return err
+	}
 	if err := referralmodel.MigrateReferrals(DB); err != nil {
 		return err
 	}

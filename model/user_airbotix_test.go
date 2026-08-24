@@ -20,6 +20,8 @@ func TestUser_AirbotixFieldsPresent(t *testing.T) {
 		"AutoTopupEnabled",
 		"AutoTopupThreshold",
 		"AutoTopupAmount",
+		// Skill creator marketplace (Module3 P1)
+		"CreatorInvitedAt",
 	}
 
 	rt := reflect.TypeOf(User{})

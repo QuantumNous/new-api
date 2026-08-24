@@ -78,6 +78,11 @@ type User struct {
 	// reads this server-side on every upload so revocation immediately blocks new events.
 	Tier2TelemetryConsent     bool       `json:"tier2_telemetry_consent" gorm:"type:boolean;default:false;column:tier2_telemetry_consent"`
 	Tier2TelemetryConsentedAt *time.Time `json:"tier2_telemetry_consented_at,omitempty" gorm:"column:tier2_telemetry_consented_at"`
+	// Skill-creator invite (Module3 P1, docs/tasks/skill-creator-data-model-prd.md).
+	// A timestamp rather than a bool: non-nil IS the invite, and it records when.
+	// Write it with an explicit Model().Update() — User.Update() uses Updates(struct)
+	// which skips zero values, so a nil pointer never reaches the database.
+	CreatorInvitedAt *time.Time `json:"creator_invited_at,omitempty" gorm:"column:creator_invited_at"`
 
 	// Auto top-up — OpenAI-style "credit running low, auto-charge saved card" UX.
 	// Requires StripeCustomer set (handled by the regular Stripe checkout flow,

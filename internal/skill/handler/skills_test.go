@@ -141,19 +141,24 @@ func TestListMarketplaceSkills_DR89SocialProofFromApprovedReviewsDownloadsAndBad
 	s.PublishedAt = ptr(now.AddDate(0, 0, -2))
 	require.NoError(t, db.Create(&s).Error)
 
-	require.NoError(t, db.Exec(`
-		CREATE TABLE skill_reviews (
-			id integer primary key autoincrement,
-			skill_id text not null,
-			rating integer not null,
-			status text not null
-		)`).Error)
-	require.NoError(t, db.Exec(
-		`INSERT INTO skill_reviews (skill_id, rating, status) VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?)`,
-		s.ID, 5, "approved",
-		s.ID, 4, "published",
-		s.ID, 1, "open",
-	).Error)
+	// Ratings live in skill_ratings (Module3 P1). This used to hand-roll a
+	// skill_reviews lookalike; publicRatingSource probes skill_ratings first, so
+	// with the real table migrated those rows would never be read. Distinct
+	// user_ids are required by the (skill_id, user_id) unique index.
+	for _, r := range []struct {
+		userID int64
+		rating int
+		status string
+	}{
+		{101, 5, skillmodel.SkillRatingStatusApproved},
+		{102, 4, skillmodel.SkillRatingStatusApproved},
+		{103, 1, skillmodel.SkillRatingStatusPending}, // excluded from the summary
+	} {
+		require.NoError(t, db.Create(&skillmodel.SkillRating{
+			SkillID: s.ID, UserID: r.userID, TenantID: r.userID,
+			Rating: r.rating, Status: r.status,
+		}).Error)
+	}
 	require.NoError(t, db.Create(&skillmodel.UserEnabledSkill{
 		UserID:   10,
 		TenantID: 10,
@@ -2932,6 +2937,8 @@ func testSkillDB(t *testing.T) *gorm.DB {
 	require.NoError(t, skillmodel.MigrateSkillPurchases(db))
 	require.NoError(t, skillmodel.MigrateSkillUsageEvents(db))
 	require.NoError(t, skillmodel.MigrateSkillTelemetryQuarantine(db))
+	require.NoError(t, skillmodel.MigrateSkillCalls(db))
+	require.NoError(t, skillmodel.MigrateSkillRatings(db))
 	return db
 }
 
