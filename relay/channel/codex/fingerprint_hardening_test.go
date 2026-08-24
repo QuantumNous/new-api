@@ -78,6 +78,23 @@ func TestFullMetadataDropsKnownAndUnknownOriginalFields(t *testing.T) {
 	}
 }
 
+func TestFullFingerprintSerializesFlatClientMetadataValuesAsStrings(t *testing.T) {
+	fingerprint := hardeningFingerprint(t, fingerprintFull, "original-session")
+
+	rewritten, err := SanitizeCodexRequestBody(
+		[]byte(`{"model":"gpt-5"}`),
+		fingerprint,
+		fingerprintFull,
+	)
+	require.NoError(t, err)
+
+	metadata := gjson.GetBytes(rewritten, "client_metadata")
+	for key, value := range metadata.Map() {
+		require.Equal(t, gjson.String, value.Type, "client_metadata.%s must be a string", key)
+	}
+	require.Equal(t, "1700000000123", metadata.Get("turn_started_at_unix_ms").String())
+}
+
 func TestPromptCacheKeyOnlyRewritesSessionDefault(t *testing.T) {
 	fingerprint := hardeningFingerprint(t, fingerprintFull, "original-session")
 
