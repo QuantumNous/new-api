@@ -73,6 +73,18 @@ describe('usage token breakdown', () => {
     })
 
     expect(result.cacheWriteTokens).toBe(80)
+    expect(result.cacheWrite5mTokens).toBe(0)
+    expect(result.cacheWrite1hTokens).toBe(0)
+  })
+
+  test('keeps split cache-write rows when they match the normalized total', () => {
+    const result = getUsageTokenBreakdown(usageLog(), {
+      cache_write_tokens: 50,
+      cache_creation_tokens_5m: 20,
+      cache_creation_tokens_1h: 30,
+    })
+
+    expect(result.cacheWriteTokens).toBe(50)
     expect(result.cacheWrite5mTokens).toBe(20)
     expect(result.cacheWrite1hTokens).toBe(30)
   })

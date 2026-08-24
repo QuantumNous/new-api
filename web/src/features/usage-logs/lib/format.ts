@@ -118,15 +118,25 @@ export function getUsageTokenBreakdown(
   const promptTokens = tokenCount(log.prompt_tokens)
   const completionTokens = tokenCount(log.completion_tokens)
   const cacheReadTokens = tokenCount(other?.cache_tokens)
-  const cacheWrite5mTokens = tokenCount(other?.cache_creation_tokens_5m)
-  const cacheWrite1hTokens = tokenCount(other?.cache_creation_tokens_1h)
-  const splitCacheWriteTokens = cacheWrite5mTokens + cacheWrite1hTokens
+  const rawCacheWrite5mTokens = tokenCount(other?.cache_creation_tokens_5m)
+  const rawCacheWrite1hTokens = tokenCount(other?.cache_creation_tokens_1h)
+  const splitCacheWriteTokens = rawCacheWrite5mTokens + rawCacheWrite1hTokens
   const normalizedCacheWriteTokens = tokenCount(other?.cache_write_tokens)
   const legacyCacheWriteTokens = tokenCount(other?.cache_creation_tokens)
   const cacheWriteTokens =
     normalizedCacheWriteTokens ||
     splitCacheWriteTokens ||
     legacyCacheWriteTokens
+  const hasConsistentSplitCacheWrite =
+    splitCacheWriteTokens > 0 &&
+    (normalizedCacheWriteTokens === 0 ||
+      normalizedCacheWriteTokens === splitCacheWriteTokens)
+  const cacheWrite5mTokens = hasConsistentSplitCacheWrite
+    ? rawCacheWrite5mTokens
+    : 0
+  const cacheWrite1hTokens = hasConsistentSplitCacheWrite
+    ? rawCacheWrite1hTokens
+    : 0
   const usesClaudeSemantics =
     other?.claude === true || other?.usage_semantic === 'anthropic'
 
