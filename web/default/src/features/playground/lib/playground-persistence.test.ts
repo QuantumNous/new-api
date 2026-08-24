@@ -79,6 +79,7 @@ function activeTurn(): ActivePlaygroundTurn {
   return {
     recordId: '550e8400-e29b-41d4-a716-446655440000',
     conversationId: '550e8400-e29b-41d4-a716-446655440001',
+    assistantMessageKey: 'assistant-message',
     startedAt: 1000,
     request: {
       model: 'gpt-test',
@@ -99,10 +100,12 @@ describe('Playground persistence payloads', () => {
       config,
       parameterEnabled,
       false,
+      'assistant-message',
       1000
     )
 
     expect(active.startedAt).toBe(1000)
+    expect(active.assistantMessageKey).toBe('assistant-message')
     expect(active.userMessage).toEqual(userMessage)
     expect(active.request).toEqual({
       model: 'gpt-test',
@@ -135,6 +138,25 @@ describe('Playground persistence payloads', () => {
     ])
     expect(payload.parameters).toEqual({ stream: true, temperature: 0.7 })
     expect(payload.messages_snapshot).toEqual(finalMessages)
+  })
+
+  test('binds the terminal payload to the assistant created for that turn', () => {
+    const laterAssistant: Message = {
+      key: 'assistant-later',
+      from: 'assistant',
+      versions: [{ id: 'later-version', content: 'wrong response' }],
+      status: 'complete',
+    }
+
+    const payload = buildPlaygroundRecordPayload(
+      activeTurn(),
+      [userMessage, completeAssistant, laterAssistant],
+      false,
+      2500
+    )
+
+    expect(payload.assistant_message.key).toBe('assistant-message')
+    expect(payload.output_text).toBe('world')
   })
 
   test('distinguishes a stopped turn from a completed UI message', () => {

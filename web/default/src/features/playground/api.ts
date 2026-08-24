@@ -47,9 +47,11 @@ function assertPlaygroundApiSuccess(
  * Send chat completion request (non-streaming)
  */
 export async function sendChatCompletion(
-  payload: ChatCompletionRequest
+  payload: ChatCompletionRequest,
+  signal?: AbortSignal
 ): Promise<ChatCompletionResponse> {
   const res = await api.post(API_ENDPOINTS.CHAT_COMPLETIONS, payload, {
+    signal,
     skipErrorHandler: true,
   } as Record<string, unknown>)
   return res.data

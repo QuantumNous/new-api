@@ -211,7 +211,9 @@ export function usePlaygroundPersistence({
     const active = activeTurnRef.current
     if (!active || !hasUser || active.userId !== userId) return
 
-    const assistantMessage = messages.at(-1)
+    const assistantMessage = messages.find(
+      (message) => message.key === active.turn.assistantMessageKey
+    )
     if (
       assistantMessage?.from !== 'assistant' ||
       (assistantMessage.status !== 'complete' &&
@@ -243,7 +245,8 @@ export function usePlaygroundPersistence({
       requestMessages: Message[],
       effectiveConfig: PlaygroundConfig,
       parameterEnabled: ParameterEnabled,
-      minimalParameters: boolean
+      minimalParameters: boolean,
+      assistantMessageKey: string
     ) => {
       if (!hasUser || !conversationId) return
 
@@ -254,7 +257,8 @@ export function usePlaygroundPersistence({
           requestMessages,
           effectiveConfig,
           parameterEnabled,
-          minimalParameters
+          minimalParameters,
+          assistantMessageKey
         ),
       }
       stoppedRef.current = false

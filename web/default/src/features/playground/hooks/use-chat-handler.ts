@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { sendChatCompletion } from '../api'
 import { MESSAGE_STATUS, ERROR_MESSAGES } from '../constants'
@@ -39,6 +39,43 @@ interface UseChatHandlerOptions {
 
 type ChatConfigOverride = Partial<Pick<PlaygroundConfig, 'model' | 'group'>>
 
+interface ChatRequestGate {
+  current: boolean
+}
+
+function beginChatRequest(
+  gate: ChatRequestGate,
+  setBusy: (busy: boolean) => void
+): boolean {
+  if (gate.current) return false
+  gate.current = true
+  setBusy(true)
+  return true
+}
+
+function finishChatRequest(
+  gate: ChatRequestGate,
+  setBusy: (busy: boolean) => void
+): void {
+  if (!gate.current) return
+  gate.current = false
+  setBusy(false)
+}
+
+export async function runSingleChatRequest(
+  gate: ChatRequestGate,
+  setBusy: (busy: boolean) => void,
+  request: () => Promise<void>
+): Promise<boolean> {
+  if (!beginChatRequest(gate, setBusy)) return false
+  try {
+    await request()
+    return true
+  } finally {
+    finishChatRequest(gate, setBusy)
+  }
+}
+
 /**
  * Hook for handling chat message sending and receiving
  */
@@ -48,7 +85,10 @@ export function useChatHandler({
   onMessageUpdate,
   minimalParameters = false,
 }: UseChatHandlerOptions) {
-  const { sendStreamRequest, stopStream, isStreaming } = useStreamRequest()
+  const { sendStreamRequest, stopStream } = useStreamRequest()
+  const requestGateRef = useRef(false)
+  const nonStreamingAbortRef = useRef<AbortController | null>(null)
+  const [isRequestGenerating, setIsRequestGenerating] = useState(false)
 
   // Handle stream update
   const handleStreamUpdate = useCallback(
@@ -114,12 +154,24 @@ export function useChatHandler({
         parameterEnabled,
         { minimalParameters }
       )
-      sendStreamRequest(
-        payload,
-        handleStreamUpdate,
-        handleStreamComplete,
-        handleStreamError
-      )
+      if (!beginChatRequest(requestGateRef, setIsRequestGenerating)) return
+      try {
+        sendStreamRequest(
+          payload,
+          handleStreamUpdate,
+          () => {
+            handleStreamComplete()
+            finishChatRequest(requestGateRef, setIsRequestGenerating)
+          },
+          (error, errorCode) => {
+            handleStreamError(error, errorCode)
+            finishChatRequest(requestGateRef, setIsRequestGenerating)
+          }
+        )
+      } catch (error) {
+        finishChatRequest(requestGateRef, setIsRequestGenerating)
+        throw error
+      }
     },
     [
       config,
@@ -143,42 +195,59 @@ export function useChatHandler({
         { minimalParameters }
       )
 
-      try {
-        const response = await sendChatCompletion(payload)
-        const choice = response.choices?.[0]
-        if (!choice) return
+      await runSingleChatRequest(
+        requestGateRef,
+        setIsRequestGenerating,
+        async () => {
+          const controller = new AbortController()
+          nonStreamingAbortRef.current = controller
+          try {
+            const response = await sendChatCompletion(
+              payload,
+              controller.signal
+            )
+            if (controller.signal.aborted) return
+            const choice = response.choices?.[0]
+            if (!choice) return
 
-        onMessageUpdate((prev) =>
-          updateLastAssistantMessage(prev, (message) => ({
-            ...finalizeMessage(
-              {
-                ...message,
-                versions: [
+            onMessageUpdate((prev) =>
+              updateLastAssistantMessage(prev, (message) => ({
+                ...finalizeMessage(
                   {
-                    ...message.versions[0],
-                    content: choice.message?.content || '',
+                    ...message,
+                    versions: [
+                      {
+                        ...message.versions[0],
+                        content: choice.message?.content || '',
+                      },
+                    ],
                   },
-                ],
-              },
-              choice.message?.reasoning_content
-            ),
-            status: MESSAGE_STATUS.COMPLETE,
-          }))
-        )
-      } catch (error: unknown) {
-        const err = error as {
-          response?: {
-            data?: { message?: string; error?: { code?: string } }
+                  choice.message?.reasoning_content
+                ),
+                status: MESSAGE_STATUS.COMPLETE,
+              }))
+            )
+          } catch (error: unknown) {
+            if (controller.signal.aborted) return
+            const err = error as {
+              response?: {
+                data?: { message?: string; error?: { code?: string } }
+              }
+              message?: string
+            }
+            handleStreamError(
+              err?.response?.data?.message ||
+                err?.message ||
+                ERROR_MESSAGES.API_REQUEST_ERROR,
+              err?.response?.data?.error?.code || undefined
+            )
+          } finally {
+            if (nonStreamingAbortRef.current === controller) {
+              nonStreamingAbortRef.current = null
+            }
           }
-          message?: string
         }
-        handleStreamError(
-          err?.response?.data?.message ||
-            err?.message ||
-            ERROR_MESSAGES.API_REQUEST_ERROR,
-          err?.response?.data?.error?.code || undefined
-        )
-      }
+      )
     },
     [
       config,
@@ -204,6 +273,9 @@ export function useChatHandler({
   // Stop generation
   const stopGeneration = useCallback(() => {
     stopStream()
+    nonStreamingAbortRef.current?.abort()
+    nonStreamingAbortRef.current = null
+    finishChatRequest(requestGateRef, setIsRequestGenerating)
     onMessageUpdate((prev) =>
       updateLastAssistantMessage(prev, (message) =>
         message.status === MESSAGE_STATUS.LOADING ||
@@ -217,6 +289,6 @@ export function useChatHandler({
   return {
     sendChat,
     stopGeneration,
-    isGenerating: isStreaming,
+    isGenerating: isRequestGenerating,
   }
 }

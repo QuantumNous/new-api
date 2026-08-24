@@ -29,6 +29,7 @@ import { buildChatCompletionPayload } from './payload-builder'
 export interface ActivePlaygroundTurn {
   recordId: string
   conversationId: string
+  assistantMessageKey: string
   startedAt: number
   request: ChatCompletionRequest
   userMessage: Message
@@ -40,6 +41,7 @@ export function createActivePlaygroundTurn(
   config: PlaygroundConfig,
   parameterEnabled: ParameterEnabled,
   minimalParameters: boolean,
+  assistantMessageKey: string,
   now = Date.now()
 ): ActivePlaygroundTurn {
   const userMessage = [...requestMessages]
@@ -53,6 +55,7 @@ export function createActivePlaygroundTurn(
   return {
     recordId: crypto.randomUUID(),
     conversationId,
+    assistantMessageKey,
     startedAt: now,
     request: buildChatCompletionPayload(
       requestMessages,
@@ -70,9 +73,10 @@ export function buildPlaygroundRecordPayload(
   stopped: boolean,
   completedAt = Date.now()
 ): PlaygroundRecordPayload {
-  const assistantMessage = [...messages]
-    .reverse()
-    .find((message) => message.from === 'assistant')
+  const assistantMessage = messages.find(
+    (message) =>
+      message.from === 'assistant' && message.key === active.assistantMessageKey
+  )
 
   if (!assistantMessage) {
     throw new Error(

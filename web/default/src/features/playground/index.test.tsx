@@ -388,6 +388,19 @@ describe('Playground model landing handoff', () => {
     expect(sendChatMock).not.toHaveBeenCalled()
   })
 
+  test('rejects a second synchronous chat submission before React rerenders', () => {
+    modelsQueryData = ['gpt-4o']
+    isModelsQueryLoading = false
+    renderToStaticMarkup(<Playground />)
+    if (!capturedInputProps) throw new Error('PlaygroundInput was not rendered')
+
+    capturedInputProps.onSubmit('first prompt')
+    capturedInputProps.onSubmit('second prompt')
+
+    expect(sendChatMock).toHaveBeenCalledTimes(1)
+    expect(startTurnMock).toHaveBeenCalledTimes(1)
+  })
+
   test('stops only the active chat generation', () => {
     modelsQueryData = ['gpt-4o']
     isModelsQueryLoading = false
