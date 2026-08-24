@@ -75,8 +75,11 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 					},
 				})
 			case "signature_delta":
-				signatureContent := "\n"
-				choice.Delta.ReasoningContent = &signatureContent
+				// 将 signature 以 JSON 标记形式追加到 ReasoningContent，供下一轮请求还原 thinking 块
+				if claudeResponse.Delta.Signature != "" {
+					sigChunk := `{"_sig":"` + claudeResponse.Delta.Signature + `"}`
+					choice.Delta.ReasoningContent = &sigChunk
+				}
 			case "thinking_delta":
 				choice.Delta.ReasoningContent = claudeResponse.Delta.Thinking
 			}
@@ -136,6 +139,9 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 		case "thinking":
 			if message.Thinking != nil {
 				thinkingContent = *message.Thinking
+				if message.Signature != "" {
+					thinkingContent += `{"_sig":"` + message.Signature + `"}`
+				}
 			}
 		case "text":
 			responseText = message.GetText()

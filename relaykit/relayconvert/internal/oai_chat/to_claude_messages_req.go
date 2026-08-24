@@ -225,8 +225,10 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 			textRequest.Messages[i].Role = "user"
 		}
 		fmtMessage := dto.Message{
-			Role:    message.Role,
-			Content: message.Content,
+			Role:             message.Role,
+			Content:          message.Content,
+			ReasoningContent: message.ReasoningContent,
+			Reasoning:        message.Reasoning,
 		}
 		if message.Role == "tool" {
 			fmtMessage.ToolCallId = message.ToolCallId
@@ -381,6 +383,36 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 				}
 			}
 			claudeMessage.Content = claudeMediaMessages
+		}
+		// 若 assistant 消息携带了 reasoning_content，将其还原为 Claude thinking 内容块
+		// reasoning_content 格式：thinking文本 + 可选的 {"_sig":"<signature>"}
+		if message.Role == "assistant" {
+			if rc := message.GetReasoningContent(); rc != "" {
+				thinkingText := rc
+				signature := ""
+				if idx := strings.LastIndex(rc, `{"_sig":"`); idx >= 0 {
+					sigJSON := rc[idx:]
+					if len(sigJSON) > 9 && sigJSON[len(sigJSON)-2:] == `"}` {
+						signature = sigJSON[9 : len(sigJSON)-2]
+						thinkingText = rc[:idx]
+					}
+				}
+				thinkingBlock := dto.ClaudeMediaMessage{
+					Type:      "thinking",
+					Thinking:  &thinkingText,
+					Signature: signature,
+				}
+				// thinking 块需置于 text/tool_use 块之前
+				switch content := claudeMessage.Content.(type) {
+				case string:
+					claudeMessage.Content = []dto.ClaudeMediaMessage{
+						thinkingBlock,
+						{Type: "text", Text: kitutil.GetPointer[string](content)},
+					}
+				case []dto.ClaudeMediaMessage:
+					claudeMessage.Content = append([]dto.ClaudeMediaMessage{thinkingBlock}, content...)
+				}
+			}
 		}
 		claudeMessages = append(claudeMessages, claudeMessage)
 	}
