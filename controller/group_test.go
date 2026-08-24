@@ -1,9 +1,14 @@
 package controller
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUserCanUseGroupsReadsAuthoritativeGroup(t *testing.T) {
@@ -44,4 +49,23 @@ func TestUserCanUseGroupsReadsAuthoritativeGroup(t *testing.T) {
 	if canUseGroups {
 		t.Fatalf("expected empty DB group to disable group selection")
 	}
+}
+
+func TestGetGroupsUserIncludesPLG(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/group/?type=user", nil)
+
+	GetGroups(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success bool     `json:"success"`
+		Data    []string `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	require.Contains(t, response.Data, defaultUserGroup)
+	require.Contains(t, response.Data, plgGroup)
 }
