@@ -89,6 +89,21 @@ describe('usage token breakdown', () => {
     expect(result.cacheWrite1hTokens).toBe(30)
   })
 
+  test('keeps image-only usage visible', () => {
+    const result = getUsageTokenBreakdown(usageLog(), {
+      image: true,
+      image_output: 4096,
+    })
+
+    expect(result).toMatchObject({
+      promptTokens: 0,
+      completionTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      hasTokens: true,
+    })
+  })
+
   test('does not apply Claude labels to OpenAI-compatible usage', () => {
     const result = getUsageTokenBreakdown(
       usageLog({ prompt_tokens: 120, completion_tokens: 10 }),

@@ -118,6 +118,8 @@ export function getUsageTokenBreakdown(
   const promptTokens = tokenCount(log.prompt_tokens)
   const completionTokens = tokenCount(log.completion_tokens)
   const cacheReadTokens = tokenCount(other?.cache_tokens)
+  const imageOutputTokens =
+    other?.image === true ? tokenCount(other.image_output) : 0
   const rawCacheWrite5mTokens = tokenCount(other?.cache_creation_tokens_5m)
   const rawCacheWrite1hTokens = tokenCount(other?.cache_creation_tokens_1h)
   const splitCacheWriteTokens = rawCacheWrite5mTokens + rawCacheWrite1hTokens
@@ -151,7 +153,8 @@ export function getUsageTokenBreakdown(
       promptTokens > 0 ||
       completionTokens > 0 ||
       cacheReadTokens > 0 ||
-      cacheWriteTokens > 0,
+      cacheWriteTokens > 0 ||
+      imageOutputTokens > 0,
     usesClaudeSemantics,
   }
 }
