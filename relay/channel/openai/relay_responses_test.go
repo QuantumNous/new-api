@@ -151,7 +151,7 @@ func TestOaiResponsesStreamHandlerCodexFailedBeforeCommitIsRetryable(t *testing.
 	if apiErr != nil || !info.HasSendResponse() || info.ReceivedResponseCount != 1 {
 		t.Fatalf("retry error=%v sent=%v received=%d", apiErr, info.HasSendResponse(), info.ReceivedResponseCount)
 	}
-	if usage.PromptTokens != 8 || usage.CompletionTokens != 2 || recorder.Header().Get("Content-Type") != "text/event-stream" {
+	if usage.PromptTokens != 8 || usage.CompletionTokens != 2 || !strings.HasPrefix(recorder.Header().Get("Content-Type"), "text/event-stream") {
 		t.Fatalf("retry usage=%#v content-type=%q", *usage, recorder.Header().Get("Content-Type"))
 	}
 }
