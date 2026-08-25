@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { ReactElement } from 'react'
+
 import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/utils'
@@ -29,11 +31,13 @@ interface PasswordStrengthMeterProps {
   value: string
 }
 
-export function PasswordStrengthMeter({ value }: PasswordStrengthMeterProps) {
+export function PasswordStrengthMeter(
+  props: PasswordStrengthMeterProps
+): ReactElement | null {
   const { t } = useTranslation()
-  if (!value) return null
+  if (!props.value) return null
 
-  const strength = passwordStrength(value)
+  const strength = passwordStrength(props.value)
   const segments = [1, 2, 3, 4]
   const isBelowMinimum = strength.score < PASSWORD_MIN_STRENGTH_SCORE
 

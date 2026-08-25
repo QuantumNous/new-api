@@ -1,6 +1,9 @@
 package common
 
-import "errors"
+import (
+	"errors"
+	"unicode"
+)
 
 // ErrPasswordTooWeak is returned when a self-registration password does not
 // meet the minimum strength policy (8-20 characters with at least three
@@ -22,11 +25,11 @@ func validatePasswordCharacterClasses(password string) error {
 	var classes int
 	for _, r := range password {
 		switch {
-		case r >= 'a' && r <= 'z':
+		case unicode.IsLower(r):
 			classes = markClass(classes, 1)
-		case r >= 'A' && r <= 'Z':
+		case unicode.IsUpper(r):
 			classes = markClass(classes, 2)
-		case r >= '0' && r <= '9':
+		case unicode.IsDigit(r):
 			classes = markClass(classes, 4)
 		default:
 			classes = markClass(classes, 8)

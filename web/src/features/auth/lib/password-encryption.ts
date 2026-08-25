@@ -106,7 +106,7 @@ async function encryptWithForge(
 ): Promise<string> {
   const forge = await import('node-forge')
   const publicKey = forge.pki.publicKeyFromPem(publicKeyPem)
-  const encrypted = publicKey.encrypt(password, 'RSA-OAEP', {
+  const encrypted = publicKey.encrypt(forge.util.encodeUtf8(password), 'RSA-OAEP', {
     md: forge.md.sha256.create(),
   })
   return forge.util.encode64(encrypted)

@@ -17,6 +17,7 @@ describe('passwordStrength', () => {
   test('flags a too-long password as score 0', () => {
     const result = passwordStrength('a'.repeat(PASSWORD_MAX_LENGTH + 1))
     expect(result.score).toBe(0)
+    expect(result.labelKey).toBe('Password is too long')
   })
 
   test('labels a valid length with too few classes as Weak', () => {

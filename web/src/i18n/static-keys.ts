@@ -30,6 +30,7 @@ export const STATIC_I18N_KEYS = [
   // Auth password strength (rendered through t(strength.labelKey))
   'Password strength',
   'Password is too short',
+  'Password is too long',
   'Weak password',
   'Fair password',
   'Good password',

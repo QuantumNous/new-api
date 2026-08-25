@@ -3342,6 +3342,7 @@
     "Password must be at most 20 characters long": "Le mot de passe doit comporter au maximum 20 caractères",
     "Password must be between 8 and 20 characters": "Le mot de passe doit comporter entre 8 et 20 caractères",
     "Password Registration": "Inscription par mot de passe",
+    "Password is too long": "Mot de passe trop long",
     "Password is too short": "Mot de passe trop court",
     "Password is too weak. Use at least 8 characters with a mix of letters, numbers and symbols.": "Mot de passe trop faible. Utilisez au moins 8 caractères avec des lettres, des chiffres et des symboles.",
     "Password strength": "Force du mot de passe",

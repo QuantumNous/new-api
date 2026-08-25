@@ -3342,6 +3342,7 @@
     "Password must be at most 20 characters long": "Пароль должен содержать не более 20 символов",
     "Password must be between 8 and 20 characters": "Пароль должен содержать от 8 до 20 символов",
     "Password Registration": "Регистрация пароля",
+    "Password is too long": "Пароль слишком длинный",
     "Password is too short": "Пароль слишком короткий",
     "Password is too weak. Use at least 8 characters with a mix of letters, numbers and symbols.": "Пароль слишком слабый. Используйте не менее 8 символов с буквами, цифрами и знаками.",
     "Password strength": "Надёжность пароля",

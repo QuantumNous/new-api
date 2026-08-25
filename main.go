@@ -324,11 +324,6 @@ func InitResources() error {
 	}
 	model.InitOptionMap()
 
-	if err := common.InitPasswordEncryption(); err != nil {
-		common.FatalLog("failed to initialize password encryption: " + err.Error())
-		return err
-	}
-
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()
 
@@ -341,6 +336,13 @@ func InitResources() error {
 	// Initialize Redis
 	err = common.InitRedisClient()
 	if err != nil {
+		return err
+	}
+
+	// Initialize password encryption after Redis so multi-replica deployments
+	// share one active keypair instead of generating per-instance keys.
+	if err := common.InitPasswordEncryption(); err != nil {
+		common.FatalLog("failed to initialize password encryption: " + err.Error())
 		return err
 	}
 

@@ -92,10 +92,12 @@ func TestValidatePasswordStrength(t *testing.T) {
 		{name: "eight chars three classes", password: "abc123XY", wantErr: false},
 		{name: "twenty chars three classes", password: "abcdefghijk12345678X", wantErr: false},
 		{name: "all four classes", password: "Abc123@!xY", wantErr: false},
+		{name: "unicode letters and digits count as their real classes", password: "éabc123XY", wantErr: false},
 		{name: "seven chars", password: "abc123X", wantErr: true},
 		{name: "twenty one chars", password: "abcdefghijk123456789XYZ", wantErr: true},
 		{name: "two classes only", password: "abcdefgh1234", wantErr: true},
 		{name: "lowercase only", password: "abcdefgh", wantErr: true},
+		{name: "unicode lowercase is not a symbol", password: "éabcdef123", wantErr: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

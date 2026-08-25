@@ -51,10 +51,19 @@ function countCharacterClasses(password: string): number {
 
 export function passwordStrength(password: string): PasswordStrength {
   const length = password.length
-  if (length < PASSWORD_MIN_LENGTH || length > PASSWORD_MAX_LENGTH) {
+  if (length < PASSWORD_MIN_LENGTH) {
     return {
       score: 0,
       labelKey: 'Password is too short',
+      color: 'bg-red-500',
+      percent: 0,
+    }
+  }
+
+  if (length > PASSWORD_MAX_LENGTH) {
+    return {
+      score: 0,
+      labelKey: 'Password is too long',
       color: 'bg-red-500',
       percent: 0,
     }

@@ -3342,6 +3342,7 @@
     "Password must be at most 20 characters long": "Mật khẩu tối đa 20 ký tự",
     "Password must be between 8 and 20 characters": "Mật khẩu phải từ 8 đến 20 ký tự",
     "Password Registration": "Đăng ký mật khẩu",
+    "Password is too long": "Mật khẩu quá dài",
     "Password is too short": "Mật khẩu quá ngắn",
     "Password is too weak. Use at least 8 characters with a mix of letters, numbers and symbols.": "Mật khẩu quá yếu. Hãy dùng ít nhất 8 ký tự kết hợp chữ cái, chữ số và ký hiệu.",
     "Password strength": "Độ mạnh mật khẩu",

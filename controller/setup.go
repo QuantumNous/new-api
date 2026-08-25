@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -72,10 +73,7 @@ func PostSetup(c *gin.Context) {
 	if !rootExists {
 		plainPassword, err := common.GetPlainPassword(req.Password, req.PasswordEncrypted, req.EncryptionKeyID)
 		if err != nil {
-			c.JSON(200, gin.H{
-				"success": false,
-				"message": "密码解密失败，请刷新后重试",
-			})
+			common.ApiErrorI18n(c, i18n.MsgUserPasswordEncryptionInvalid)
 			return
 		}
 
@@ -97,10 +95,7 @@ func PostSetup(c *gin.Context) {
 		}
 
 		if err := common.ValidatePasswordStrength(plainPassword); err != nil {
-			c.JSON(200, gin.H{
-				"success": false,
-				"message": "密码强度不足，请使用至少8位且包含字母、数字和符号的组合",
-			})
+			common.ApiErrorI18n(c, i18n.MsgUserPasswordTooWeak)
 			return
 		}
 

@@ -19,12 +19,12 @@ vi.mock('../lib/password-encryption', () => ({
   clearPasswordEncryptionCache: vi.fn(),
 }))
 
-beforeEach(() => {
+beforeEach((): void => {
   vi.clearAllMocks()
 })
 
 describe('login sends encrypted password', () => {
-  test('encrypts the password and omits plaintext from the request body', async () => {
+  test('encrypts the password and omits plaintext from the request body', async (): Promise<void> => {
     vi.mocked(encryptPassword).mockResolvedValue({
       password_encrypted: 'cipher',
       encryption_key_id: 'kid1',
@@ -48,7 +48,7 @@ describe('login sends encrypted password', () => {
     })
   })
 
-  test('clears the cached encryption key when the login fails', async () => {
+  test('clears the cached encryption key when the login fails', async (): Promise<void> => {
     vi.mocked(encryptPassword).mockResolvedValue({
       password_encrypted: 'cipher',
       encryption_key_id: 'kid1',
@@ -62,7 +62,7 @@ describe('login sends encrypted password', () => {
 })
 
 describe('register sends encrypted password', () => {
-  test('encrypts the password and omits plaintext from the request body', async () => {
+  test('encrypts the password and omits plaintext from the request body', async (): Promise<void> => {
     vi.mocked(encryptPassword).mockResolvedValue({
       password_encrypted: 'cipher',
       encryption_key_id: 'kid1',
@@ -93,7 +93,7 @@ describe('register sends encrypted password', () => {
     expect(config).toEqual({ params: { turnstile: 'tk' } })
   })
 
-  test('clears the cached encryption key when the register fails', async () => {
+  test('clears the cached encryption key when the register fails', async (): Promise<void> => {
     vi.mocked(encryptPassword).mockResolvedValue({
       password_encrypted: 'cipher',
       encryption_key_id: 'kid1',

@@ -12,10 +12,17 @@ vi.mock('@/lib/api', () => ({
   api: { get: vi.fn(), post: vi.fn() },
 }))
 
+const forgeMocks = vi.hoisted(() => {
+  const encrypt = vi.fn(() => 'binary')
+  const encodeUtf8 = vi.fn((input: string) => `utf8:${input}`)
+  const sha256Create = vi.fn(() => ({}))
+  return { encrypt, encodeUtf8, sha256Create }
+})
+
 vi.mock('node-forge', () => ({
-  pki: { publicKeyFromPem: () => ({ encrypt: () => 'binary' }) },
-  util: { encode64: () => 'Zm9yZ2U=' },
-  md: { sha256: { create: () => ({}) } },
+  pki: { publicKeyFromPem: () => ({ encrypt: forgeMocks.encrypt }) },
+  util: { encode64: () => 'Zm9yZ2U=', encodeUtf8: forgeMocks.encodeUtf8 },
+  md: { sha256: { create: forgeMocks.sha256Create } },
 }))
 
 const key = {
@@ -84,5 +91,30 @@ describe('encryptPassword', () => {
       password_encrypted: 'Zm9yZ2U=',
       encryption_key_id: 'kid1',
     })
+    expect(forgeMocks.encodeUtf8).toHaveBeenCalledWith('password')
+    expect(forgeMocks.encrypt).toHaveBeenCalledWith(
+      'utf8:password',
+      'RSA-OAEP',
+      expect.objectContaining({ md: expect.anything() })
+    )
+    expect(forgeMocks.sha256Create).toHaveBeenCalledTimes(1)
+  })
+
+  test('falls back to node-forge with UTF-8 encoded non-ASCII passwords', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { success: true, data: key } })
+    vi.stubGlobal('crypto', {} as Crypto)
+
+    const result = await encryptPassword('密码')
+
+    expect(result).toEqual({
+      password_encrypted: 'Zm9yZ2U=',
+      encryption_key_id: 'kid1',
+    })
+    expect(forgeMocks.encodeUtf8).toHaveBeenCalledWith('密码')
+    expect(forgeMocks.encrypt).toHaveBeenCalledWith(
+      'utf8:密码',
+      'RSA-OAEP',
+      expect.objectContaining({ md: expect.anything() })
+    )
   })
 })

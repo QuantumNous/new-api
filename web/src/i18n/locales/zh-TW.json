@@ -3342,6 +3342,7 @@
     "Password must be at most 20 characters long": "密碼最多 20 個字元",
     "Password must be between 8 and 20 characters": "密碼長度必須在 8 到 20 個字元之間",
     "Password Registration": "密碼註冊",
+    "Password is too long": "密碼太長",
     "Password is too short": "密碼太短",
     "Password is too weak. Use at least 8 characters with a mix of letters, numbers and symbols.": "密碼強度不足，請使用至少8位且包含字母、數字和符號的組合",
     "Password strength": "密碼強度",

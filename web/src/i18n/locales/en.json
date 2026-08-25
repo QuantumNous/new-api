@@ -3342,6 +3342,7 @@
     "Password must be at most 20 characters long": "Password must be at most 20 characters long",
     "Password must be between 8 and 20 characters": "Password must be between 8 and 20 characters",
     "Password Registration": "Password Registration",
+    "Password is too long": "Password is too long",
     "Password is too short": "Password is too short",
     "Password is too weak. Use at least 8 characters with a mix of letters, numbers and symbols.": "Password is too weak. Use at least 8 characters with a mix of letters, numbers and symbols.",
     "Password strength": "Password strength",
