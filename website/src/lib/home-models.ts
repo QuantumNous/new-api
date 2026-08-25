@@ -137,7 +137,11 @@ export function buildRowsForModels(
       // Per-model overrides in group_model_ratio beat the flat group ratio
       // during billing, so the quoted price has to apply them too — otherwise a
       // model priced below its group is advertised higher than it is charged.
-      const effectiveGroupRatio = buildEffectiveGroupRatio(model, groupRatio, groupModelRatio);
+      // The model's own group_model_ratio is the fallback, so a caller that
+      // omits the payload-level map still quotes the billed rate.
+      const overrides =
+        Object.keys(groupModelRatio).length > 0 ? groupModelRatio : modelScopedGroupModelRatio(model);
+      const effectiveGroupRatio = buildEffectiveGroupRatio(model, groupRatio, overrides);
       const listed = official * getBestGroupRatio(model, effectiveGroupRatio);
       const vendor = model.vendor_name ?? getVendorName(model, vendors);
       const displayPrice = resolveModelDisplayPrice(model, undefined, "plg", effectiveGroupRatio);
@@ -151,6 +155,12 @@ export function buildRowsForModels(
       const usesParsedDisplayPrice = displayPrice?.source === "display";
       const discountedUsd = usesParsedDisplayPrice ? displayPrice.value : discountedPriceUsd(listed);
       const billingUnit = modelBillingUnit(model, displayPrice?.unit);
+      // Video models are billed per second rather than by input/output tokens.
+      // Their display contract therefore has no `input`/`output` dimensions;
+      // expose the billed per-second rate as our output price so the directory
+      // table does not render an empty output column for video rows.
+      const displayedOutputPrice = billingUnit === "second" ? displayPrice : outputPrice;
+      const displayedOfficialOutputPrice = billingUnit === "second" ? officialDisplayPrice : officialOutputPrice;
       const inputFilterUsd = billingUnit === "token" ? inputPrice?.value : discountedUsd;
       const outputFilterUsd = billingUnit === "token" ? outputPrice?.value : discountedUsd;
       const directoryMeta = model.directory_metadata;
@@ -164,10 +174,10 @@ export function buildRowsForModels(
         discounted: usesParsedDisplayPrice ? displayPrice.text : formatUsdPrice(discountedUsd),
         officialUsd: usesParsedDisplayPrice && officialDisplayPrice ? officialDisplayPrice.value : official,
         discountedUsd,
-        input: inputPrice?.text ?? (usesParsedDisplayPrice ? displayPrice.text : formatUsdPrice(discountedUsd)),
-        inputOfficial: officialInputPrice?.text ?? (usesParsedDisplayPrice && officialDisplayPrice ? officialDisplayPrice.text : formatUsdPrice(official)),
-        output: outputPrice?.text,
-        outputOfficial: officialOutputPrice?.text,
+        input: inputPrice?.text,
+        inputOfficial: officialInputPrice?.text,
+        output: displayedOutputPrice?.text,
+        outputOfficial: displayedOfficialOutputPrice?.text,
         billingUnit,
         inputFilterUsd,
         outputFilterUsd,
@@ -199,7 +209,7 @@ function pricedTokenModels(data: PricingData): PricingModel[] {
 // (i.e. 60-90% of official). The top-up bonus layer is retired.
 function toHomeRow(model: PricingModel, data: PricingData): HomePricedModel {
   const official = getOfficialPriceUsd(model);
-  const listed = official * getBestGroupRatio(model, data.groupRatio);
+  const listed = official * getBestGroupRatio(model, data.groupRatio, data.groupModelRatio);
   const vendor = model.vendor_name ?? getVendorName(model, data.vendors);
   return {
     name: model.model_name,
@@ -210,6 +220,21 @@ function toHomeRow(model: PricingModel, data: PricingData): HomePricedModel {
     discountedUsd: discountedPriceUsd(listed),
     iconKey: model.icon || model.vendor_icon || modelIconKey(model.model_name, vendor),
   };
+}
+
+/**
+ * The per-model overrides carried on the model itself, reshaped like the
+ * payload-level map. `enrichVendorNames` attaches these, so a caller holding an
+ * enriched model but not the top-level map still resolves the billed ratio.
+ */
+function modelScopedGroupModelRatio(model: PricingModel): GroupModelRatio {
+  const own = model.group_model_ratio;
+  if (!own) return {};
+  const scoped: GroupModelRatio = {};
+  for (const [group, ratio] of Object.entries(own)) {
+    if (typeof ratio === "number" && Number.isFinite(ratio)) scoped[group] = { [model.model_name]: ratio };
+  }
+  return scoped;
 }
 
 function normalizeDisplayUnit(unit: string): string {

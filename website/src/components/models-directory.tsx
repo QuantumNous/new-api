@@ -170,15 +170,15 @@ export function ModelsDirectory(props: Props) {
     <>
       <ModelsFeaturedCarousel slides={featured} copy={copy} locale={props.locale} />
 
-      <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)] xl:gap-0 xl:rounded-2xl xl:border xl:border-[#E7E4EC] xl:bg-white xl:shadow-[0_1px_2px_rgba(24,14,38,0.04),0_18px_46px_-30px_rgba(24,14,38,0.25)] dark:xl:border-white/10 dark:xl:bg-white/[0.03]">
         {/* No max-height or internal scroll: the sidebar grows to whatever the
             expanded groups need. `sticky top-4` still parks it while the much
             taller results column scrolls past. */}
-        <aside className="sticky top-4 hidden self-start rounded-2xl border border-[#E7E4EC] bg-white p-4 shadow-[0_1px_2px_rgba(24,14,38,0.04),0_12px_32px_-26px_rgba(24,14,38,0.2)] dark:border-white/10 dark:bg-white/[0.03] xl:block">
+        <aside className="sticky top-4 hidden self-start border-r border-[#E7E4EC] bg-transparent p-4 dark:border-white/10 xl:block">
           {sidebar}
         </aside>
 
-        <section className="min-w-0 space-y-4">
+        <section className="min-w-0 space-y-4 xl:p-4">
           <div className="rounded-2xl border border-[#E7E4EC] bg-white p-4 shadow-[0_1px_2px_rgba(24,14,38,0.04),0_12px_32px_-26px_rgba(24,14,38,0.2)] dark:border-white/10 dark:bg-white/[0.03]">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="relative min-w-0 flex-1">
@@ -272,7 +272,12 @@ export function ModelsDirectory(props: Props) {
           ) : null}
 
           {visible.length > 0 ? (
-            <ModelsDirectoryTable copy={copy} rows={visible} locale={props.locale} />
+            <ModelsDirectoryTable
+              copy={{ ...copy, colInput: copy.colOurInputPrice, colOutput: copy.colOurOutputPrice }}
+              rows={visible}
+              locale={props.locale}
+              hideOurPrice
+            />
           ) : (
             <div className="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-[#E7E4EC] bg-white px-6 py-14 text-center dark:border-white/10 dark:bg-white/[0.03]">
               <h3 className="text-lg font-bold text-[#0B0B0F] dark:text-white">{copy.noResults}</h3>
@@ -308,6 +313,10 @@ function toTableRow(name: string, priced: Map<string, HomePricedModel>) {
     discounted: row.discounted,
     officialUsd: row.officialUsd,
     discountedUsd: row.discountedUsd,
+    input: row.input,
+    inputOfficial: row.inputOfficial,
+    output: row.output,
+    outputOfficial: row.outputOfficial,
     priceUnit: row.priceUnit,
     pricePrefix: row.pricePrefix,
     contextTokens: row.contextTokens ?? null,
@@ -318,17 +327,17 @@ function toTableRow(name: string, priced: Map<string, HomePricedModel>) {
 
 function buildFilterGroups(locale: Locale, metadataRows: Array<HomePricedModel["directoryMetadata"]>): FilterGroup[] {
   const copy = getDirectoryCopy(locale);
+  // Keep the sidebar compact on first load; visitors can open only the facets
+  // they need instead of pushing the model table below the fold.
   return [
     {
       key: "modalities",
       label: copy.groupModalities,
-      defaultOpen: true,
       options: MODALITIES.map((value) => ({ value, label: MODALITY_LABELS[locale][value] })),
     },
     {
       key: "context",
       label: copy.groupContext,
-      defaultOpen: true,
       options: CONTEXT_BUCKETS.map((value) => ({
         value,
         // The largest bucket is the ceiling, so "1M+" would overstate it.
@@ -338,7 +347,6 @@ function buildFilterGroups(locale: Locale, metadataRows: Array<HomePricedModel["
     {
       key: "inputPrice",
       label: copy.groupInputPrice,
-      defaultOpen: true,
       options: PRICE_BANDS.map((band) => ({ value: band.id, label: priceBandLabel(band) })),
     },
     {
@@ -349,7 +357,6 @@ function buildFilterGroups(locale: Locale, metadataRows: Array<HomePricedModel["
     {
       key: "vendors",
       label: copy.groupVendors,
-      defaultOpen: true,
       options: vendorsForModels(metadataRows).map((value) => ({ value, label: value })),
     },
     {
