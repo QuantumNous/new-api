@@ -14,7 +14,6 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/model_setting"
-	"github.com/QuantumNous/new-api/setting/reasoning"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -185,23 +184,8 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-
-	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled &&
-		!model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) {
-		// 新增逻辑：处理 -thinking-<budget> 格式
-		if strings.Contains(info.UpstreamModelName, "-thinking-") {
-			parts := strings.Split(info.UpstreamModelName, "-thinking-")
-			info.UpstreamModelName = parts[0]
-		} else if strings.HasSuffix(info.UpstreamModelName, "-thinking") { // 旧的适配
-			info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-thinking")
-		} else if strings.HasSuffix(info.UpstreamModelName, "-nothinking") {
-			info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-nothinking")
-		} else if baseModel, level, ok := reasoning.TrimEffortSuffix(info.UpstreamModelName); ok && level != "" {
-			info.UpstreamModelName = baseModel
-		}
-	}
-
-	version := model_setting.GetGeminiVersionSetting(info.UpstreamModelName)
+	modelName := URLModelName(info)
+	version := model_setting.GetGeminiVersionSetting(modelName)
 	if action := nativeGeminiAction(info); action != "" {
 		if requestVersion := nativeGeminiVersion(info); requestVersion != "" {
 			version = requestVersion
@@ -210,21 +194,21 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			action += "?alt=sse"
 			info.DisablePing = true
 		}
-		return fmt.Sprintf("%s/%s/models/%s:%s", info.ChannelBaseUrl, version, info.UpstreamModelName, action), nil
+		return fmt.Sprintf("%s/%s/models/%s:%s", info.ChannelBaseUrl, version, modelName, action), nil
 	}
 
-	if relayconvert.IsImagenPredictModel(info.UpstreamModelName) {
-		return fmt.Sprintf("%s/%s/models/%s:predict", info.ChannelBaseUrl, version, info.UpstreamModelName), nil
+	if relayconvert.IsImagenPredictModel(modelName) {
+		return fmt.Sprintf("%s/%s/models/%s:predict", info.ChannelBaseUrl, version, modelName), nil
 	}
 
-	if strings.HasPrefix(info.UpstreamModelName, "text-embedding") ||
-		strings.HasPrefix(info.UpstreamModelName, "embedding") ||
-		strings.HasPrefix(info.UpstreamModelName, "gemini-embedding") {
+	if strings.HasPrefix(modelName, "text-embedding") ||
+		strings.HasPrefix(modelName, "embedding") ||
+		strings.HasPrefix(modelName, "gemini-embedding") {
 		action := "embedContent"
 		if info.IsGeminiBatchEmbedding {
 			action = "batchEmbedContents"
 		}
-		return fmt.Sprintf("%s/%s/models/%s:%s", info.ChannelBaseUrl, version, info.UpstreamModelName, action), nil
+		return fmt.Sprintf("%s/%s/models/%s:%s", info.ChannelBaseUrl, version, modelName, action), nil
 	}
 
 	action := "generateContent"
@@ -234,7 +218,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			info.DisablePing = true
 		}
 	}
-	return fmt.Sprintf("%s/%s/models/%s:%s", info.ChannelBaseUrl, version, info.UpstreamModelName, action), nil
+	return fmt.Sprintf("%s/%s/models/%s:%s", info.ChannelBaseUrl, version, modelName, action), nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {

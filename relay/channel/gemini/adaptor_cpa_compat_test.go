@@ -67,6 +67,48 @@ func TestGetRequestURLPreservesNativeGeminiActionsForCPA(t *testing.T) {
 	}
 }
 
+func TestGetRequestURLBuildsGenerateContentForClaudeIncoming(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		model    string
+		upstream string
+		wantURL  string
+	}{
+		{
+			name:     "bare model from messages",
+			model:    "gemini-3.7-flash",
+			upstream: "gemini-3.7-flash",
+			wantURL:  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent",
+		},
+		{
+			name:     "publisher prefix is not placed in the path",
+			model:    "gemini-3.7-flash",
+			upstream: "google/gemini-3.7-flash",
+			wantURL:  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			info := &relaycommon.RelayInfo{
+				RequestURLPath:  "/v1/messages",
+				OriginModelName: test.model,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelBaseUrl:    "https://generativelanguage.googleapis.com",
+					UpstreamModelName: test.upstream,
+				},
+			}
+
+			got, err := (&Adaptor{}).GetRequestURL(info)
+			require.NoError(t, err)
+			assert.Equal(t, test.wantURL, got)
+		})
+	}
+}
+
 func TestGeminiCountTokensHandlerReturnsCPAResponseAndUsage(t *testing.T) {
 	t.Parallel()
 

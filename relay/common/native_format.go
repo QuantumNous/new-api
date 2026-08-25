@@ -130,7 +130,8 @@ func nonEmptyIncomingFormat(incoming types.RelayFormat) types.RelayFormat {
 
 func vertexNativeTextFormat(modelName string) types.RelayFormat {
 	name := strings.ToLower(strings.TrimSpace(modelName))
-	if strings.HasPrefix(name, "claude") {
+	id := strings.ToLower(ModelIDWithoutPublisher(modelName))
+	if strings.HasPrefix(id, "claude") || strings.HasPrefix(name, "claude") {
 		return types.RelayFormatClaude
 	}
 	if strings.Contains(name, "llama") || strings.Contains(name, "-maas") {

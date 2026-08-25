@@ -20,6 +20,26 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func applyClaudeNativeRequestDefaults(info *relaycommon.RelayInfo, request *dto.ClaudeRequest) {
+	if request.MaxTokens == nil || *request.MaxTokens == 0 {
+		defaultMaxTokens := uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(request.Model))
+		request.MaxTokens = &defaultMaxTokens
+	}
+
+	request.Model = relayconvert.ApplyClaudeModelThinking(
+		request,
+		request.Model,
+		model_setting.GetClaudeSettings().ThinkingAdapterEnabled,
+		model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName),
+	)
+	info.UpstreamModelName = request.Model
+	if !model_setting.GetGlobalSettings().PassThroughRequestEnabled && !info.ChannelSetting.PassThroughBodyEnabled {
+		if effort := request.GetEfforts(); effort != "" {
+			info.SetReasoningEffort(effort)
+		}
+	}
+}
+
 func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 
 	info.InitChannelMeta(c)
@@ -40,29 +60,20 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
+	// Claude-native defaults (max_tokens, -thinking suffix) only apply when the
+	// selected channel actually speaks Anthropic Messages. Gemini/Vertex go
+	// Claude → Chat → generateContent; injecting Claude thinking there rewrites
+	// the upstream model after adaptor.Init and sends a Claude-shaped name to a
+	// Google publisher URL.
+	if relaycommon.NativeTextFormat(info, types.RelayFormatClaude) == types.RelayFormatClaude {
+		applyClaudeNativeRequestDefaults(info, request)
+	}
+
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
-
-	if request.MaxTokens == nil || *request.MaxTokens == 0 {
-		defaultMaxTokens := uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(request.Model))
-		request.MaxTokens = &defaultMaxTokens
-	}
-
-	request.Model = relayconvert.ApplyClaudeModelThinking(
-		request,
-		request.Model,
-		model_setting.GetClaudeSettings().ThinkingAdapterEnabled,
-		model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName),
-	)
-	info.UpstreamModelName = request.Model
-	if !model_setting.GetGlobalSettings().PassThroughRequestEnabled && !info.ChannelSetting.PassThroughBodyEnabled {
-		if effort := request.GetEfforts(); effort != "" {
-			info.SetReasoningEffort(effort)
-		}
-	}
 
 	if info.ChannelSetting.SystemPrompt != "" {
 		if request.System == nil {

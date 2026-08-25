@@ -60,8 +60,19 @@ func TestGeminiNativeImageModelsExposeImageGenerationEndpoint(t *testing.T) {
 			assert.Contains(t, got, constant.EndpointTypeImageGeneration)
 			assert.Contains(t, got, constant.EndpointTypeGemini)
 			assert.Contains(t, got, constant.EndpointTypeOpenAI)
+			assert.Contains(t, got, constant.EndpointTypeAnthropic)
 		})
 	}
+}
+
+func TestGeminiAndVertexChannelsAcceptAnthropicMessages(t *testing.T) {
+	want := []constant.EndpointType{
+		constant.EndpointTypeGemini,
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeAnthropic,
+	}
+	assert.Equal(t, want, GetEndpointTypesByChannelType(constant.ChannelTypeGemini, "gemini-3.7-flash"))
+	assert.Equal(t, want, GetEndpointTypesByChannelType(constant.ChannelTypeVertexAi, "gemini-3.7-flash"))
 }
 
 func TestGenericImageSubstringDoesNotForceImageEndpoint(t *testing.T) {

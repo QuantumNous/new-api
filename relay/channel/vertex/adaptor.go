@@ -19,7 +19,6 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
-	"github.com/QuantumNous/new-api/setting/reasoning"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -116,13 +115,12 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
-	if strings.HasPrefix(info.UpstreamModelName, "claude") {
+	switch relaycommon.NativeTextFormat(info, types.RelayFormatGemini) {
+	case types.RelayFormatClaude:
 		a.RequestMode = RequestModeClaude
-	} else if strings.Contains(info.UpstreamModelName, "llama") ||
-		// open source models
-		strings.Contains(info.UpstreamModelName, "-maas") {
+	case types.RelayFormatOpenAI:
 		a.RequestMode = RequestModeOpenSource
-	} else {
+	default:
 		a.RequestMode = RequestModeGemini
 	}
 }
@@ -170,22 +168,12 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	// Recompute RequestMode from the current upstream name. ClaudeHelper may
+	// rewrite UpstreamModelName after the first Init().
+	a.Init(info)
 	suffix := ""
 	if a.RequestMode == RequestModeGemini {
-		if model_setting.GetGeminiSettings().ThinkingAdapterEnabled &&
-			!model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) {
-			// 新增逻辑：处理 -thinking-<budget> 格式
-			if strings.Contains(info.UpstreamModelName, "-thinking-") {
-				parts := strings.Split(info.UpstreamModelName, "-thinking-")
-				info.UpstreamModelName = parts[0]
-			} else if strings.HasSuffix(info.UpstreamModelName, "-thinking") { // 旧的适配
-				info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-thinking")
-			} else if strings.HasSuffix(info.UpstreamModelName, "-nothinking") {
-				info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-nothinking")
-			} else if baseModel, level, ok := reasoning.TrimEffortSuffix(info.UpstreamModelName); ok && level != "" {
-				info.UpstreamModelName = baseModel
-			}
-		}
+		modelName := gemini.URLModelName(info)
 
 		if info.IsStream && !gemini.IsImageAPIRelay(info) {
 			suffix = "streamGenerateContent?alt=sse"
@@ -193,10 +181,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			suffix = "generateContent"
 		}
 
-		if relayconvert.IsImagenPredictModel(info.UpstreamModelName) {
+		if relayconvert.IsImagenPredictModel(modelName) {
 			suffix = "predict"
 		}
-		return a.getRequestUrl(info, info.UpstreamModelName, suffix)
+		return a.getRequestUrl(info, modelName, suffix)
 	} else if a.RequestMode == RequestModeClaude {
 		if info.IsStream {
 			suffix = "streamRawPredict?alt=sse"

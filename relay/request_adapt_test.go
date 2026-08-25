@@ -24,6 +24,8 @@ func testRelayInfo(apiType int, model string) *relaycommon.RelayInfo {
 		channelType = constant.ChannelTypeXai
 	case constant.APITypeNewAPI:
 		channelType = constant.ChannelTypeNewAPI
+	case constant.APITypeVertexAi:
+		channelType = constant.ChannelTypeVertexAi
 	}
 	return &relaycommon.RelayInfo{
 		OriginModelName: model,
@@ -120,6 +122,58 @@ func TestConvertRequestToChannelNativeOpenAIChatStaysChat(t *testing.T) {
 		t.Fatalf("got %T", got)
 	}
 	if info.GetFinalRequestRelayFormat() != types.RelayFormatOpenAI {
+		t.Fatalf("final format=%s", info.GetFinalRequestRelayFormat())
+	}
+}
+
+func TestConvertRequestToChannelNativeClaudeToGemini(t *testing.T) {
+	info := testRelayInfo(constant.APITypeGemini, "gemini-3.7-flash")
+	adaptor := GetAdaptor(constant.APITypeGemini)
+	adaptor.Init(info)
+
+	maxTokens := uint(1024)
+	got, err := convertRequestToChannelNative(nil, info, adaptor, &dto.ClaudeRequest{
+		Model:     "gemini-3.7-flash",
+		MaxTokens: &maxTokens,
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: "hi"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, ok := got.(*dto.GeminiChatRequest)
+	if !ok {
+		t.Fatalf("got %T", got)
+	}
+	if len(req.Contents) == 0 || req.Contents[0].Role != "user" {
+		t.Fatalf("contents=%#v", req.Contents)
+	}
+	if info.GetFinalRequestRelayFormat() != types.RelayFormatGemini {
+		t.Fatalf("final format=%s", info.GetFinalRequestRelayFormat())
+	}
+}
+
+func TestConvertRequestToChannelNativeClaudeToVertexGemini(t *testing.T) {
+	info := testRelayInfo(constant.APITypeVertexAi, "gemini-3.7-flash")
+	adaptor := GetAdaptor(constant.APITypeVertexAi)
+	adaptor.Init(info)
+
+	maxTokens := uint(1024)
+	got, err := convertRequestToChannelNative(nil, info, adaptor, &dto.ClaudeRequest{
+		Model:     "gemini-3.7-flash",
+		MaxTokens: &maxTokens,
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: "hi"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got.(*dto.GeminiChatRequest); !ok {
+		t.Fatalf("got %T", got)
+	}
+	if info.GetFinalRequestRelayFormat() != types.RelayFormatGemini {
 		t.Fatalf("final format=%s", info.GetFinalRequestRelayFormat())
 	}
 }
