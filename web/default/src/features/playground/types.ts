@@ -29,7 +29,16 @@ export interface GeneratedMedia {
 export interface MessageVersion {
   id: string
   content: string
+  attachments?: PlaygroundAttachment[]
   generatedMedia?: GeneratedMedia[]
+}
+
+export interface PlaygroundAttachment {
+  kind: 'image' | 'text'
+  filename: string
+  mediaType: string
+  url?: string
+  text?: string
 }
 
 export interface PlaygroundResponseMetadata {
@@ -63,6 +72,9 @@ export interface Message {
   isVideo?: boolean
   videoProgress?: number
   videoUrl?: string
+  // Unified media generation persists the public task id so an in-flight
+  // video can resume polling after navigation or a page reload.
+  videoTaskId?: string
   /** @deprecated Media is stored on MessageVersion; kept for old saved sessions. */
   generatedMedia?: GeneratedMedia[]
 }

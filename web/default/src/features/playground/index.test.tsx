@@ -39,7 +39,11 @@ import * as playgroundInputModule from './components/playground-input'
 import { DEFAULT_CONFIG, DEFAULT_PARAMETER_ENABLED } from './constants'
 import * as playgroundHooksModule from './hooks'
 import { applyPlaygroundHandoffModel } from './lib/playground-handoff'
-import type { Message, PlaygroundConfig } from './types'
+import type {
+  Message,
+  PlaygroundAttachment,
+  PlaygroundConfig,
+} from './types'
 
 type CapturedInputProps = {
   initialText?: string
@@ -47,7 +51,11 @@ type CapturedInputProps = {
   modelValue: string
   onStop?: () => void
   submitDisabled?: boolean
-  onSubmit: (text: string) => void
+  onSubmit: (
+    text: string,
+    model?: string,
+    attachments?: PlaygroundAttachment[]
+  ) => void
 }
 
 type CapturedChatProps = {
@@ -67,7 +75,8 @@ const generateMediaMock = mock(
     _prompt: string,
     _model: string,
     _group: string,
-    _settings: Record<string, unknown>
+    _settings: Record<string, unknown>,
+    _assistantMessageKey: string
   ) => Promise.resolve()
 )
 const stopChatMock = mock(() => undefined)
@@ -279,7 +288,29 @@ describe('Playground model landing handoff', () => {
     expect(generateMediaMock).toHaveBeenCalledTimes(1)
     expect(markCurrentConversationLocalOnlyMock).toHaveBeenCalledTimes(1)
     expect(generateMediaMock.mock.calls[0]?.[1]).toBe('gpt-image-2')
+    expect(generateMediaMock.mock.calls[0]?.[4]).toEqual(expect.any(String))
     expect(sendChatMock).not.toHaveBeenCalled()
+  })
+
+  test('rejects attachments for media models without consuming the send gate', () => {
+    modelsQueryData = ['gpt-image-2']
+    isModelsQueryLoading = false
+    const input = renderHandoff()
+    const attachment: PlaygroundAttachment = {
+      kind: 'image',
+      filename: 'photo.png',
+      mediaType: 'image/png',
+      url: 'data:image/png;base64,AA==',
+    }
+
+    input.onSubmit('Draw a violet fox', undefined, [attachment])
+
+    expect(generateMediaMock).not.toHaveBeenCalled()
+    expect(updateMessagesMock).not.toHaveBeenCalled()
+
+    input.onSubmit('Draw a violet fox')
+
+    expect(generateMediaMock).toHaveBeenCalledTimes(1)
   })
 
   test('does not lock the selector to a URL model missing from the user model list', () => {

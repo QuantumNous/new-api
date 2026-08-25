@@ -714,6 +714,15 @@ export const STATIC_I18N_KEYS = [
   'Copied!',
   'No content to copy',
   'Please wait for the current generation to complete',
+  'Attachment data is invalid',
+  'Attachment exceeds the maximum size',
+  'Attachment is empty',
+  'Attachments are supported only for chat models',
+  'Too many attachments',
+  'Text attachment exceeds the maximum size',
+  'Text attachment is not valid UTF-8',
+  'Unable to process attachment',
+  'Unsupported attachment type',
 
   // Recall campaign audience help
   'registered_only',

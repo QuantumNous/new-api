@@ -18,6 +18,8 @@ import { describe, expect, test } from 'bun:test'
 import { MESSAGE_STATUS } from '../constants'
 import type { Message } from '../types'
 import {
+  createUserMessage,
+  formatMessageForAPI,
   sanitizeMessagesOnLoad,
   updateCurrentVersionContent,
   updateCurrentVersionMedia,
@@ -56,6 +58,60 @@ describe('updateCurrentVersionContent', () => {
   })
 })
 
+describe('Playground message attachments', () => {
+  test('formats supported attachments as multimodal chat content', () => {
+    const message = createUserMessage('describe this', [
+      {
+        kind: 'text',
+        filename: 'notes.txt',
+        mediaType: 'text/plain',
+        text: 'hello',
+      },
+      {
+        kind: 'image',
+        filename: 'photo.png',
+        mediaType: 'image/png',
+        url: 'data:image/png;base64,AA==',
+      },
+    ])
+
+    expect(formatMessageForAPI(message)).toEqual({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'describe this' },
+        { type: 'text', text: '[Attached file: notes.txt]\nhello' },
+        {
+          type: 'image_url',
+          image_url: { url: 'data:image/png;base64,AA==' },
+        },
+      ],
+    })
+  })
+
+  test('keeps the legacy string payload when no attachment exists', () => {
+    expect(formatMessageForAPI(createUserMessage('hello'))).toEqual({
+      role: 'user',
+      content: 'hello',
+    })
+  })
+
+  test('does not pass unsafe image attachment URLs to the API', () => {
+    const message = createUserMessage('describe this', [
+      {
+        kind: 'image',
+        filename: 'unsafe.png',
+        mediaType: 'image/png',
+        url: 'javascript:alert(1)',
+      },
+    ])
+
+    expect(formatMessageForAPI(message)).toEqual({
+      role: 'user',
+      content: 'describe this',
+    })
+  })
+})
+
 describe('updateCurrentVersionMedia', () => {
   test('stores generated media on the current message version', () => {
     const message: Message = {
@@ -81,6 +137,27 @@ describe('updateCurrentVersionMedia', () => {
 })
 
 describe('sanitizeMessagesOnLoad', () => {
+  test('keeps a submitted video task resumable after a page reload', () => {
+    const messages: Message[] = [
+      {
+        key: 'assistant-video',
+        from: 'assistant',
+        status: MESSAGE_STATUS.STREAMING,
+        versions: [{ id: 'version-1', content: 'Generating video... 30%' }],
+        videoTaskId: 'task_video_123',
+      },
+    ]
+
+    const sanitized = sanitizeMessagesOnLoad(messages)
+
+    expect(sanitized).toBe(messages)
+    expect(sanitized[0]).toMatchObject({
+      status: MESSAGE_STATUS.STREAMING,
+      videoTaskId: 'task_video_123',
+    })
+    expect(sanitized[0]?.versions[0]?.content).toBe('Generating video... 30%')
+  })
+
   test('migrates legacy message media to the current version', () => {
     const messages: Message[] = [
       {
