@@ -37,12 +37,34 @@ type grokAccountStatusResponse struct {
 			UsagePercent      *float64 `json:"usage_percent"`
 			UsedPercent       *float64 `json:"used_percent"`
 			MonthlyLimitCents *int64   `json:"monthly_limit_cents"`
+			Limit             *float64 `json:"limit"`
+			Used              *float64 `json:"used"`
+			Remaining         *float64 `json:"remaining"`
+			Unit              string   `json:"unit"`
+			PeriodType        string   `json:"period_type"`
+			PeriodStart       string   `json:"period_start"`
+			PeriodEnd         string   `json:"period_end"`
+			OnDemandCap       *float64 `json:"on_demand_cap"`
+			OnDemandUsed      *float64 `json:"on_demand_used"`
+			OnDemandRemaining *float64 `json:"on_demand_remaining"`
+			PrepaidBalance    *float64 `json:"prepaid_balance"`
 		} `json:"monthly"`
 		Weekly *struct {
 			StatusCode        int      `json:"status_code"`
 			UsagePercent      *float64 `json:"usage_percent"`
 			UsedPercent       *float64 `json:"used_percent"`
 			MonthlyLimitCents *int64   `json:"monthly_limit_cents"`
+			Limit             *float64 `json:"limit"`
+			Used              *float64 `json:"used"`
+			Remaining         *float64 `json:"remaining"`
+			Unit              string   `json:"unit"`
+			PeriodType        string   `json:"period_type"`
+			PeriodStart       string   `json:"period_start"`
+			PeriodEnd         string   `json:"period_end"`
+			OnDemandCap       *float64 `json:"on_demand_cap"`
+			OnDemandUsed      *float64 `json:"on_demand_used"`
+			OnDemandRemaining *float64 `json:"on_demand_remaining"`
+			PrepaidBalance    *float64 `json:"prepaid_balance"`
 		} `json:"weekly"`
 	} `json:"data"`
 }
@@ -167,4 +189,79 @@ func TestGrokAccountStatusHandlerProjectsBothQuotaWindows(t *testing.T) {
 	require.Equal(t, 429, response.Data.Weekly.StatusCode)
 	require.NotNil(t, response.Data.Weekly.UsagePercent)
 	require.Equal(t, 88.25, *response.Data.Weekly.UsagePercent)
+}
+
+func TestGrokAccountStatusHandlerProjectsPackageBalancesWithoutSecrets(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	channel := seedGrokChannel(t)
+	require.NoError(t, model.UpsertGrokChannelState(&model.GrokChannelState{
+		ChannelID:     channel.Id,
+		AuthStatus:    model.GrokAuthStatusActive,
+		QuotaSnapshot: `{"version":1,"plan":"SuperGrok","tier":"x_premium","monthly":{"status_code":200,"limit":100,"used":25,"remaining":75,"unit":"credits","period_type":"USAGE_PERIOD_TYPE_MONTHLY","period_start":"2026-08-01T00:00:00Z","period_end":"2026-09-01T00:00:00Z","on_demand_cap":50,"on_demand_used":12.5,"on_demand_remaining":37.5,"prepaid_balance":3},"weekly":{"status_code":200,"limit":100,"used":42.5,"remaining":57.5,"unit":"percent","period_type":"USAGE_PERIOD_TYPE_WEEKLY","period_end":"2026-08-15T00:00:00Z"}}`,
+		LastError:     "upstream secret should not be projected",
+	}))
+
+	ctx, rec := newGrokAccountStatusContext(t, channel.Id)
+	GrokAccountStatusHandler(ctx)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotContains(t, rec.Body.String(), "quota_snapshot")
+	require.NotContains(t, rec.Body.String(), "upstream secret")
+
+	var response grokAccountStatusResponse
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.NotNil(t, response.Data.Monthly)
+	monthly := response.Data.Monthly
+	require.NotNil(t, monthly.Limit)
+	require.Equal(t, 100.0, *monthly.Limit)
+	require.Equal(t, 25.0, *monthly.Used)
+	require.Equal(t, 75.0, *monthly.Remaining)
+	require.Equal(t, "credits", monthly.Unit)
+	require.Equal(t, "2026-09-01T00:00:00Z", monthly.PeriodEnd)
+	require.NotNil(t, monthly.OnDemandRemaining)
+	require.Equal(t, 37.5, *monthly.OnDemandRemaining)
+	require.NotNil(t, monthly.PrepaidBalance)
+	require.Equal(t, 3.0, *monthly.PrepaidBalance)
+	require.NotNil(t, response.Data.Weekly)
+	require.Equal(t, "percent", response.Data.Weekly.Unit)
+	require.Equal(t, "USAGE_PERIOD_TYPE_WEEKLY", response.Data.Weekly.PeriodType)
+}
+
+func TestGrokAccountStatusHandlerOmitsUnknownQuotaSnapshotFields(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	channel := seedGrokChannel(t)
+	require.NoError(t, model.UpsertGrokChannelState(&model.GrokChannelState{
+		ChannelID:     channel.Id,
+		AuthStatus:    model.GrokAuthStatusActive,
+		QuotaSnapshot: `{"version":1,"monthly":{"status_code":200,"unknown":"raw"},"weekly":{"status_code":200}}`,
+	}))
+
+	ctx, rec := newGrokAccountStatusContext(t, channel.Id)
+	GrokAccountStatusHandler(ctx)
+	require.Equal(t, http.StatusOK, rec.Code)
+	var response grokAccountStatusResponse
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.Nil(t, response.Data.Monthly)
+	require.Nil(t, response.Data.Weekly)
+}
+
+func TestGrokAccountStatusHandlerClampsPercentagesForDisplay(t *testing.T) {
+	setupGrokAuthTestDB(t)
+	channel := seedGrokChannel(t)
+	require.NoError(t, model.UpsertGrokChannelState(&model.GrokChannelState{
+		ChannelID:     channel.Id,
+		AuthStatus:    model.GrokAuthStatusActive,
+		QuotaSnapshot: `{"version":1,"monthly":{"status_code":200,"usage_percent":125,"used_percent":130,"used":130,"limit":100,"remaining":0},"weekly":{"status_code":200}}`,
+	}))
+
+	ctx, rec := newGrokAccountStatusContext(t, channel.Id)
+	GrokAccountStatusHandler(ctx)
+	require.Equal(t, http.StatusOK, rec.Code)
+	var response grokAccountStatusResponse
+	require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+	require.NotNil(t, response.Data.Monthly)
+	require.NotNil(t, response.Data.Monthly.UsagePercent)
+	require.Equal(t, 100.0, *response.Data.Monthly.UsagePercent)
+	require.NotNil(t, response.Data.Monthly.UsedPercent)
+	require.Equal(t, 100.0, *response.Data.Monthly.UsedPercent)
+	require.Equal(t, 130.0, *response.Data.Monthly.Used)
 }

@@ -32,11 +32,56 @@ export function getGrokQuotaPercent(
   return Math.max(0, Math.min(100, value))
 }
 
+function formatGrokNumber(value?: number): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '-'
+  return new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 2,
+  }).format(value)
+}
+
+function formatGrokPeriod(value?: string): string {
+  if (!value || typeof value !== 'string') return '-'
+  const parsed = dayjs(value)
+  return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm:ss') : '-'
+}
+
+export type GrokQuotaPresentation = {
+  usagePercent: number | null
+  used: string
+  limit: string
+  remaining: string
+  unit: string
+  resetAt: string
+  onDemandCap: string
+  onDemandUsed: string
+  onDemandRemaining: string
+  prepaidBalance: string
+}
+
+export function formatGrokQuotaWindow(
+  window?: GrokAccountQuotaWindow
+): GrokQuotaPresentation {
+  return {
+    usagePercent: getGrokQuotaPercent(window),
+    used: formatGrokNumber(window?.used),
+    limit: formatGrokNumber(window?.limit),
+    remaining: formatGrokNumber(window?.remaining),
+    unit: window?.unit?.trim() || '-',
+    resetAt: formatGrokPeriod(window?.period_end),
+    onDemandCap: formatGrokNumber(window?.on_demand_cap),
+    onDemandUsed: formatGrokNumber(window?.on_demand_used),
+    onDemandRemaining: formatGrokNumber(window?.on_demand_remaining),
+    prepaidBalance: formatGrokNumber(window?.prepaid_balance),
+  }
+}
+
 export function formatGrokAccountStatus(status: GrokAccountStatus | null) {
   return {
     authStatus: status?.auth_status || 'pending',
     plan: status?.billing_plan || status?.tier_raw || '-',
     billingObservedAt: formatGrokUnixSeconds(status?.billing_observed_at),
     lastRefreshAt: formatGrokUnixSeconds(status?.last_refresh_at),
+    monthly: formatGrokQuotaWindow(status?.monthly),
+    weekly: formatGrokQuotaWindow(status?.weekly),
   }
 }

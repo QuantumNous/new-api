@@ -30,6 +30,17 @@ type BillingWindowSnapshot struct {
 	UsagePercent      *float64 `json:"usage_percent,omitempty"`
 	UsedPercent       *float64 `json:"used_percent,omitempty"`
 	MonthlyLimitCents *int64   `json:"monthly_limit_cents,omitempty"`
+	Limit             *float64 `json:"limit,omitempty"`
+	Used              *float64 `json:"used,omitempty"`
+	Remaining         *float64 `json:"remaining,omitempty"`
+	Unit              string   `json:"unit,omitempty"`
+	PeriodType        string   `json:"period_type,omitempty"`
+	PeriodStart       string   `json:"period_start,omitempty"`
+	PeriodEnd         string   `json:"period_end,omitempty"`
+	OnDemandCap       *float64 `json:"on_demand_cap,omitempty"`
+	OnDemandUsed      *float64 `json:"on_demand_used,omitempty"`
+	OnDemandRemaining *float64 `json:"on_demand_remaining,omitempty"`
+	PrepaidBalance    *float64 `json:"prepaid_balance,omitempty"`
 }
 
 type BillingProbeSnapshot struct {
@@ -157,9 +168,7 @@ func probeBillingWindow(ctx context.Context, doer HTTPDoer, cred Credential, pat
 		return billingWindowProbe{}, err
 	}
 	out.upstream = upstream
-	out.snapshot.UsagePercent = upstream.firstUsagePercent()
-	out.snapshot.MonthlyLimitCents = upstream.MonthlyLimit
-	out.snapshot.UsedPercent = deriveUsedPercent(upstream.IncludedUsed, upstream.MonthlyLimit)
+	out.snapshot = snapshotFromUpstream(resp.StatusCode, upstream)
 	return out, nil
 }
 
@@ -201,7 +210,7 @@ func probeSubscriptionTier(ctx context.Context, doer HTTPDoer, cred Credential) 
 			tier = firstBillingString(user, "subscriptionTier", "subscription_tier")
 		}
 	}
-	return tier, nil
+	return normalizeSubscriptionTier(tier), nil
 }
 
 func setCLIBillingHeaders(req *http.Request, cred Credential) {
@@ -235,7 +244,16 @@ type upstreamBillingWindow struct {
 	CreditUsagePercent *float64
 	UsagePercent       *float64
 	MonthlyLimit       *int64
+	Used               *float64
 	IncludedUsed       *float64
+	OnDemandCap        *float64
+	OnDemandUsed       *float64
+	PrepaidBalance     *float64
+	PeriodType         string
+	PeriodStart        string
+	PeriodEnd          string
+	BillingPeriodStart string
+	BillingPeriodEnd   string
 }
 
 func parseUpstreamBillingWindow(body []byte) (upstreamBillingWindow, error) {
@@ -282,19 +300,106 @@ func parseUpstreamBillingWindow(body []byte) (upstreamBillingWindow, error) {
 	if err != nil {
 		return upstreamBillingWindow{}, ErrBillingSnapshotInvalid
 	}
-	includedUsed, err := firstBillingNumber(primary, outer, "includedUsed", "included_used", "used", "totalUsed")
+	used, err := firstBillingNumber(primary, outer, "used", "totalUsed", "total_used")
 	if err != nil {
 		return upstreamBillingWindow{}, ErrBillingSnapshotInvalid
+	}
+	includedUsed, err := firstBillingNumber(primary, outer, "includedUsed", "included_used")
+	if err != nil {
+		return upstreamBillingWindow{}, ErrBillingSnapshotInvalid
+	}
+	onDemandCap, err := firstBillingNumber(primary, outer, "onDemandCap", "on_demand_cap", "maxAmountPerMonth", "max_amount_per_month")
+	if err != nil {
+		return upstreamBillingWindow{}, ErrBillingSnapshotInvalid
+	}
+	onDemandUsed, err := firstBillingNumber(primary, outer, "onDemandUsed", "on_demand_used")
+	if err != nil {
+		return upstreamBillingWindow{}, ErrBillingSnapshotInvalid
+	}
+	prepaidBalance, err := firstBillingNumber(primary, outer, "prepaidBalance", "prepaid_balance")
+	if err != nil {
+		return upstreamBillingWindow{}, ErrBillingSnapshotInvalid
+	}
+	for _, value := range []*float64{used, includedUsed, onDemandCap, onDemandUsed, prepaidBalance} {
+		if err := validateNonNegativeBillingNumber(value); err != nil {
+			return upstreamBillingWindow{}, err
+		}
+	}
+	if err := validateBillingPercentage(creditUsagePercent); err != nil {
+		return upstreamBillingWindow{}, err
+	}
+	if err := validateBillingPercentage(usagePercent); err != nil {
+		return upstreamBillingWindow{}, err
+	}
+	periodType, periodStart, periodEnd := billingPeriodValues(primary, outer)
+	billingPeriodStart := firstBillingString(primary, "billingPeriodStart", "billing_period_start")
+	if billingPeriodStart == "" {
+		billingPeriodStart = firstBillingString(outer, "billingPeriodStart", "billing_period_start")
+	}
+	billingPeriodEnd := firstBillingString(primary, "billingPeriodEnd", "billing_period_end")
+	if billingPeriodEnd == "" {
+		billingPeriodEnd = firstBillingString(outer, "billingPeriodEnd", "billing_period_end")
 	}
 
 	return upstreamBillingWindow{
 		Plan:               firstNonEmpty(planName, planCode),
-		Tier:               tier,
+		Tier:               normalizeSubscriptionTier(tier),
 		CreditUsagePercent: creditUsagePercent,
 		UsagePercent:       usagePercent,
 		MonthlyLimit:       monthlyLimit,
+		Used:               used,
 		IncludedUsed:       includedUsed,
+		OnDemandCap:        onDemandCap,
+		OnDemandUsed:       onDemandUsed,
+		PrepaidBalance:     prepaidBalance,
+		PeriodType:         periodType,
+		PeriodStart:        periodStart,
+		PeriodEnd:          periodEnd,
+		BillingPeriodStart: billingPeriodStart,
+		BillingPeriodEnd:   billingPeriodEnd,
 	}, nil
+}
+
+func normalizeSubscriptionTier(value string) string {
+	normalized := strings.TrimSpace(value)
+	switch normalized {
+	case "0":
+		return "free"
+	case "1":
+		return "supergrok"
+	case "2":
+		return "x_basic"
+	case "3":
+		return "x_premium"
+	case "4":
+		return "x_premium_plus"
+	case "5":
+		return "supergrok_heavy"
+	case "6":
+		return "supergrok_lite"
+	default:
+		return normalized
+	}
+}
+
+func billingPeriodValues(primary, fallback map[string]any) (string, string, string) {
+	for _, values := range []map[string]any{primary, fallback} {
+		if current, ok := values["currentPeriod"].(map[string]any); ok {
+			periodType := firstBillingString(current, "type", "periodType", "period_type")
+			periodStart := firstBillingString(current, "start", "periodStart", "period_start")
+			periodEnd := firstBillingString(current, "end", "periodEnd", "period_end")
+			if periodType != "" || periodStart != "" || periodEnd != "" {
+				return periodType, periodStart, periodEnd
+			}
+		}
+		periodType := firstBillingString(values, "usagePeriodType", "usage_period_type", "periodType", "period_type")
+		periodStart := firstBillingString(values, "usagePeriodStart", "usage_period_start", "periodStart", "period_start")
+		periodEnd := firstBillingString(values, "usagePeriodEnd", "usage_period_end", "periodEnd", "period_end")
+		if periodType != "" || periodStart != "" || periodEnd != "" {
+			return periodType, periodStart, periodEnd
+		}
+	}
+	return "", "", ""
 }
 
 func billingPlanValues(values map[string]any) (string, string) {
@@ -406,6 +511,153 @@ func billingInt64(value *float64) (*int64, error) {
 	}
 	converted := int64(*value)
 	return &converted, nil
+}
+
+func validateNonNegativeBillingNumber(value *float64) error {
+	if value != nil && *value < 0 {
+		return ErrBillingSnapshotInvalid
+	}
+	return nil
+}
+
+func validateBillingPercentage(value *float64) error {
+	// Usage can legitimately exceed the included pool when an account is in
+	// overage. Keep the raw observation for accounting and clamp only the
+	// derived/display percentage at the projection boundary.
+	if value != nil && *value < 0 {
+		return ErrBillingSnapshotInvalid
+	}
+	return nil
+}
+
+func snapshotFromUpstream(statusCode int, upstream upstreamBillingWindow) BillingWindowSnapshot {
+	snapshot := BillingWindowSnapshot{
+		StatusCode:        statusCode,
+		UsagePercent:      upstream.firstUsagePercent(),
+		MonthlyLimitCents: upstream.MonthlyLimit,
+		OnDemandCap:       cloneFloat(upstream.OnDemandCap),
+		OnDemandUsed:      cloneFloat(upstream.OnDemandUsed),
+		PrepaidBalance:    cloneFloat(upstream.PrepaidBalance),
+		PeriodType:        upstream.PeriodType,
+		PeriodStart:       upstream.PeriodStart,
+		PeriodEnd:         upstream.PeriodEnd,
+	}
+
+	used := firstNonNilFloat(upstream.Used, upstream.IncludedUsed)
+	if upstream.MonthlyLimit != nil {
+		limit := float64(*upstream.MonthlyLimit)
+		snapshot.Limit = &limit
+		snapshot.Unit = "credits"
+		if used != nil {
+			snapshot.Used = cloneFloat(used)
+			remaining := maxFloat(limit-*used, 0)
+			snapshot.Remaining = &remaining
+			if limit > 0 {
+				usedPercent := *used / limit * 100
+				snapshot.UsedPercent = &usedPercent
+				if snapshot.UsagePercent == nil {
+					snapshot.UsagePercent = &usedPercent
+				}
+			}
+		}
+	}
+
+	if snapshot.Limit == nil && upstream.OnDemandCap != nil {
+		limit := *upstream.OnDemandCap
+		snapshot.Limit = &limit
+		snapshot.Unit = "credits"
+	}
+	if upstream.OnDemandCap != nil {
+		onDemandUsed := upstream.OnDemandUsed
+		if onDemandUsed == nil && *upstream.OnDemandCap > 0 && upstream.firstUsagePercent() != nil && *upstream.firstUsagePercent() > 0 {
+			inferred := *upstream.OnDemandCap * *upstream.firstUsagePercent() / 100
+			onDemandUsed = &inferred
+			snapshot.OnDemandUsed = &inferred
+		}
+		if onDemandUsed != nil {
+			remaining := maxFloat(*upstream.OnDemandCap-*onDemandUsed, 0)
+			snapshot.OnDemandRemaining = &remaining
+			if snapshot.Used == nil {
+				snapshot.Used = cloneFloat(onDemandUsed)
+				snapshot.Remaining = cloneFloat(&remaining)
+			}
+		}
+	}
+	if snapshot.Limit == nil && upstream.PrepaidBalance != nil {
+		snapshot.Unit = "credits"
+		snapshot.Remaining = cloneFloat(upstream.PrepaidBalance)
+	}
+
+	// A currentPeriod is present in both monthly credit and weekly percentage
+	// payloads. Only let an explicitly percentage/weekly period replace the
+	// credit-pool projection; otherwise a monthly limit would be silently
+	// rewritten as a 0..100 percentage window.
+	if isPercentageBillingPeriod(upstream.PeriodType) || (snapshot.Limit == nil && snapshot.UsagePercent != nil) {
+		percent := snapshot.UsagePercent
+		if percent == nil {
+			percent = upstream.firstUsagePercent()
+		}
+		if percent != nil {
+			value := clampBillingPercentage(*percent)
+			snapshot.Unit = "percent"
+			snapshot.Limit = floatPointer(100)
+			snapshot.Used = &value
+			remaining := 100 - value
+			snapshot.Remaining = &remaining
+			snapshot.UsagePercent = &value
+		}
+	}
+	if snapshot.PeriodStart == "" {
+		snapshot.PeriodStart = upstream.BillingPeriodStart
+	}
+	if snapshot.PeriodEnd == "" {
+		snapshot.PeriodEnd = upstream.BillingPeriodEnd
+	}
+	return snapshot
+}
+
+func isPercentageBillingPeriod(periodType string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(periodType))
+	if normalized == "" {
+		return false
+	}
+	return strings.Contains(normalized, "week") || strings.Contains(normalized, "percent")
+}
+
+func firstNonNilFloat(values ...*float64) *float64 {
+	for _, value := range values {
+		if value != nil {
+			return value
+		}
+	}
+	return nil
+}
+
+func cloneFloat(value *float64) *float64 {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+func floatPointer(value float64) *float64 { return &value }
+
+func maxFloat(value, floor float64) float64 {
+	if value < floor {
+		return floor
+	}
+	return value
+}
+
+func clampBillingPercentage(value float64) float64 {
+	if value < 0 {
+		return 0
+	}
+	if value > 100 {
+		return 100
+	}
+	return value
 }
 
 func (w upstreamBillingWindow) firstUsagePercent() *float64 {

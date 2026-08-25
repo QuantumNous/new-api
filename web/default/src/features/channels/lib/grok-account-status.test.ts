@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, it } from 'bun:test'
 import {
   getGrokQuotaPercent,
+  formatGrokQuotaWindow,
   formatGrokAccountStatus,
 } from './grok-account-status'
 
@@ -43,6 +44,30 @@ describe('Grok account status presentation', () => {
       plan: '-',
       billingObservedAt: '-',
       lastRefreshAt: '-',
+      monthly: {
+        usagePercent: null,
+        used: '-',
+        limit: '-',
+        remaining: '-',
+        unit: '-',
+        resetAt: '-',
+        onDemandCap: '-',
+        onDemandUsed: '-',
+        onDemandRemaining: '-',
+        prepaidBalance: '-',
+      },
+      weekly: {
+        usagePercent: null,
+        used: '-',
+        limit: '-',
+        remaining: '-',
+        unit: '-',
+        resetAt: '-',
+        onDemandCap: '-',
+        onDemandUsed: '-',
+        onDemandRemaining: '-',
+        prepaidBalance: '-',
+      },
     })
   })
 
@@ -59,6 +84,30 @@ describe('Grok account status presentation', () => {
       plan: 'SuperGrok',
       billingObservedAt: '2023-11-14 22:13:20',
       lastRefreshAt: '2023-11-14 22:13:30',
+      monthly: {
+        usagePercent: null,
+        used: '-',
+        limit: '-',
+        remaining: '-',
+        unit: '-',
+        resetAt: '-',
+        onDemandCap: '-',
+        onDemandUsed: '-',
+        onDemandRemaining: '-',
+        prepaidBalance: '-',
+      },
+      weekly: {
+        usagePercent: null,
+        used: '-',
+        limit: '-',
+        remaining: '-',
+        unit: '-',
+        resetAt: '-',
+        onDemandCap: '-',
+        onDemandUsed: '-',
+        onDemandRemaining: '-',
+        prepaidBalance: '-',
+      },
     })
   })
 
@@ -71,6 +120,53 @@ describe('Grok account status presentation', () => {
     ).toMatchObject({
       authStatus: 'active',
       plan: 'premium-plus',
+    })
+  })
+
+  it('formats credit balances, on-demand values, and reset periods', () => {
+    expect(
+      formatGrokQuotaWindow({
+        status_code: 200,
+        used: 25,
+        limit: 100,
+        remaining: 75,
+        unit: 'credits',
+        period_end: '2026-09-01T00:00:00Z',
+        on_demand_cap: 50,
+        on_demand_used: 12.5,
+        on_demand_remaining: 37.5,
+        prepaid_balance: 3,
+      })
+    ).toEqual({
+      usagePercent: null,
+      used: '25',
+      limit: '100',
+      remaining: '75',
+      unit: 'credits',
+      resetAt: '2026-09-01 00:00:00',
+      onDemandCap: '50',
+      onDemandUsed: '12.5',
+      onDemandRemaining: '37.5',
+      prepaidBalance: '3',
+    })
+  })
+
+  it('formats weekly percentages and clamps invalid values', () => {
+    expect(
+      formatGrokQuotaWindow({
+        status_code: 200,
+        usage_percent: 125,
+        used: 125,
+        limit: 100,
+        remaining: 0,
+        period_end: 'not-a-date',
+      })
+    ).toMatchObject({
+      usagePercent: 100,
+      used: '125',
+      limit: '100',
+      remaining: '0',
+      resetAt: '-',
     })
   })
 })

@@ -1,8 +1,11 @@
 package controller
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,7 +17,7 @@ import (
 
 // GrokAccountStatusView is a non-secret summary for the admin channel UI.
 // It deliberately contains only the persisted auth/billing projection and a
-// whitelist of numeric billing-window fields. Channel.Key, leases, and the
+// whitelist of billing-window fields. Channel.Key, leases, and the
 // raw upstream/error payload are never serialized here.
 type GrokAccountStatusView struct {
 	ChannelID         int                     `json:"channel_id"`
@@ -33,10 +36,23 @@ type GrokAccountQuotaWindow struct {
 	UsagePercent      *float64 `json:"usage_percent,omitempty"`
 	UsedPercent       *float64 `json:"used_percent,omitempty"`
 	MonthlyLimitCents *int64   `json:"monthly_limit_cents,omitempty"`
+	Limit             *float64 `json:"limit,omitempty"`
+	Used              *float64 `json:"used,omitempty"`
+	Remaining         *float64 `json:"remaining,omitempty"`
+	Unit              string   `json:"unit,omitempty"`
+	PeriodType        string   `json:"period_type,omitempty"`
+	PeriodStart       string   `json:"period_start,omitempty"`
+	PeriodEnd         string   `json:"period_end,omitempty"`
+	OnDemandCap       *float64 `json:"on_demand_cap,omitempty"`
+	OnDemandUsed      *float64 `json:"on_demand_used,omitempty"`
+	OnDemandRemaining *float64 `json:"on_demand_remaining,omitempty"`
+	PrepaidBalance    *float64 `json:"prepaid_balance,omitempty"`
 }
 
 type persistedGrokQuotaSnapshot struct {
 	Version int                    `json:"version"`
+	Plan    string                 `json:"plan,omitempty"`
+	Tier    string                 `json:"tier,omitempty"`
 	Monthly GrokAccountQuotaWindow `json:"monthly"`
 	Weekly  GrokAccountQuotaWindow `json:"weekly"`
 }
@@ -52,13 +68,73 @@ func grokAccountStatusView(channelID int, state *model.GrokChannelState) *GrokAc
 	view.BillingObservedAt = state.BillingObservedAt
 	view.LastRefreshAt = state.LastRefreshAt
 
-	var snapshot persistedGrokQuotaSnapshot
-	if strings.TrimSpace(state.QuotaSnapshot) == "" || json.Unmarshal([]byte(state.QuotaSnapshot), &snapshot) != nil || snapshot.Version != 1 {
+	snapshot, ok := parsePersistedGrokQuotaSnapshot(state.QuotaSnapshot)
+	if !ok {
 		return view
 	}
 	view.Monthly = &snapshot.Monthly
 	view.Weekly = &snapshot.Weekly
 	return view
+}
+
+func parsePersistedGrokQuotaSnapshot(raw string) (persistedGrokQuotaSnapshot, bool) {
+	var snapshot persistedGrokQuotaSnapshot
+	if strings.TrimSpace(raw) == "" {
+		return snapshot, false
+	}
+	dec := json.NewDecoder(bytes.NewReader([]byte(raw)))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&snapshot); err != nil {
+		return persistedGrokQuotaSnapshot{}, false
+	}
+	var extra any
+	if err := dec.Decode(&extra); err != io.EOF {
+		return persistedGrokQuotaSnapshot{}, false
+	}
+	monthly, monthlyOK := sanitizeGrokQuotaWindow(snapshot.Monthly)
+	weekly, weeklyOK := sanitizeGrokQuotaWindow(snapshot.Weekly)
+	if snapshot.Version != 1 || !monthlyOK || !weeklyOK {
+		return persistedGrokQuotaSnapshot{}, false
+	}
+	snapshot.Monthly = monthly
+	snapshot.Weekly = weekly
+	return snapshot, true
+}
+
+func sanitizeGrokQuotaWindow(window GrokAccountQuotaWindow) (GrokAccountQuotaWindow, bool) {
+	for _, value := range []*float64{
+		window.UsagePercent,
+		window.UsedPercent,
+		window.Limit,
+		window.Used,
+		window.Remaining,
+		window.OnDemandCap,
+		window.OnDemandUsed,
+		window.OnDemandRemaining,
+		window.PrepaidBalance,
+	} {
+		if value == nil {
+			continue
+		}
+		if math.IsNaN(*value) || math.IsInf(*value, 0) {
+			return GrokAccountQuotaWindow{}, false
+		}
+		if *value < 0 {
+			return GrokAccountQuotaWindow{}, false
+		}
+	}
+	if window.UsagePercent != nil && *window.UsagePercent > 100 {
+		clamped := 100.0
+		window.UsagePercent = &clamped
+	}
+	if window.UsedPercent != nil && *window.UsedPercent > 100 {
+		clamped := 100.0
+		window.UsedPercent = &clamped
+	}
+	if window.MonthlyLimitCents != nil && *window.MonthlyLimitCents < 0 {
+		return GrokAccountQuotaWindow{}, false
+	}
+	return window, true
 }
 
 // GrokAccountStatusHandler returns the persisted, non-secret Grok account

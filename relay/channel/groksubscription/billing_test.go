@@ -309,11 +309,123 @@ func TestProbeBillingPreservesNumericSubscriptionTier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ProbeBilling err = %v", err)
 	}
-	if got.Tier != "3" {
-		t.Fatalf("Tier = %q, want 3", got.Tier)
+	if got.Tier != "x_premium" {
+		t.Fatalf("Tier = %q, want x_premium", got.Tier)
 	}
 	if err := EvaluateMediaEligibility(mustBillingSnapshotJSON(t, got), 2000000000, 2000000000); err != nil {
 		t.Fatalf("known numeric paid tier must grant media, got %v", err)
+	}
+}
+
+func TestProbeBillingDerivesGrok2APICreditBalancesAndPeriods(t *testing.T) {
+	cred := Credential{AccessToken: "access-secret", TokenType: "Bearer"}
+	doer := doerFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.RequestURI() {
+		case BillingMonthlyPath:
+			return jsonResponse(200, `{"planName":"SuperGrok","config":{"monthlyLimit":{"val":100},"used":{"val":25},"onDemandCap":{"val":50},"onDemandUsed":{"val":12.5},"prepaidBalance":{"val":3},"billingPeriodStart":"2026-07-01T00:00:00Z","billingPeriodEnd":"2026-08-01T00:00:00Z"}}`), nil
+		case BillingWeeklyCreditsPath:
+			return jsonResponse(200, `{"subscriptionTier":"SuperGrok Heavy","config":{"creditUsagePercent":42.5,"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-07-08T00:00:00Z","end":"2026-07-15T00:00:00Z"}}}`), nil
+		default:
+			return nil, fmt.Errorf("unexpected path %s", req.URL.RequestURI())
+		}
+	})
+
+	got, err := ProbeBilling(context.Background(), doer, cred)
+	if err != nil {
+		t.Fatalf("ProbeBilling err = %v", err)
+	}
+	if got.Plan != "SuperGrok" || got.Tier != "SuperGrok Heavy" {
+		t.Fatalf("plan/tier = %q/%q, want SuperGrok/SuperGrok Heavy", got.Plan, got.Tier)
+	}
+	if got.Monthly.Limit == nil || *got.Monthly.Limit != 100 {
+		t.Fatalf("monthly limit = %v, want 100", got.Monthly.Limit)
+	}
+	if got.Monthly.Used == nil || *got.Monthly.Used != 25 {
+		t.Fatalf("monthly used = %v, want 25", got.Monthly.Used)
+	}
+	if got.Monthly.Remaining == nil || *got.Monthly.Remaining != 75 {
+		t.Fatalf("monthly remaining = %v, want 75", got.Monthly.Remaining)
+	}
+	if got.Monthly.OnDemandCap == nil || *got.Monthly.OnDemandCap != 50 {
+		t.Fatalf("on-demand cap = %v, want 50", got.Monthly.OnDemandCap)
+	}
+	if got.Monthly.OnDemandUsed == nil || *got.Monthly.OnDemandUsed != 12.5 {
+		t.Fatalf("on-demand used = %v, want 12.5", got.Monthly.OnDemandUsed)
+	}
+	if got.Monthly.OnDemandRemaining == nil || *got.Monthly.OnDemandRemaining != 37.5 {
+		t.Fatalf("on-demand remaining = %v, want 37.5", got.Monthly.OnDemandRemaining)
+	}
+	if got.Monthly.PrepaidBalance == nil || *got.Monthly.PrepaidBalance != 3 {
+		t.Fatalf("prepaid balance = %v, want 3", got.Monthly.PrepaidBalance)
+	}
+	if got.Monthly.PeriodStart != "2026-07-01T00:00:00Z" || got.Monthly.PeriodEnd != "2026-08-01T00:00:00Z" {
+		t.Fatalf("monthly period = %q/%q", got.Monthly.PeriodStart, got.Monthly.PeriodEnd)
+	}
+	if got.Weekly.Unit != "percent" || got.Weekly.Limit == nil || *got.Weekly.Limit != 100 {
+		t.Fatalf("weekly unit/limit = %q/%v, want percent/100", got.Weekly.Unit, got.Weekly.Limit)
+	}
+	if got.Weekly.Used == nil || *got.Weekly.Used != 42.5 || got.Weekly.Remaining == nil || *got.Weekly.Remaining != 57.5 {
+		t.Fatalf("weekly used/remaining = %v/%v, want 42.5/57.5", got.Weekly.Used, got.Weekly.Remaining)
+	}
+	if got.Weekly.PeriodType != "USAGE_PERIOD_TYPE_WEEKLY" || got.Weekly.PeriodEnd != "2026-07-15T00:00:00Z" {
+		t.Fatalf("weekly period = %q/%q, want weekly/2026-07-15", got.Weekly.PeriodType, got.Weekly.PeriodEnd)
+	}
+}
+
+func TestSnapshotFromUpstreamKeepsMonthlyCreditsWhenCurrentPeriodIsMonthly(t *testing.T) {
+	got, err := parseUpstreamBillingWindow([]byte(`{
+		"monthlyLimit": 100,
+		"used": 25,
+		"creditUsagePercent": 25,
+		"currentPeriod": {
+			"type": "USAGE_PERIOD_TYPE_MONTHLY",
+			"start": "2026-08-01T00:00:00Z",
+			"end": "2026-09-01T00:00:00Z"
+		}
+	}`))
+	if err != nil {
+		t.Fatalf("parseUpstreamBillingWindow err = %v", err)
+	}
+	snapshot := snapshotFromUpstream(http.StatusOK, got)
+	if snapshot.Unit != "credits" || snapshot.Limit == nil || *snapshot.Limit != 100 {
+		t.Fatalf("monthly period must preserve credit limit, got unit=%q limit=%v", snapshot.Unit, snapshot.Limit)
+	}
+	if snapshot.Used == nil || *snapshot.Used != 25 || snapshot.Remaining == nil || *snapshot.Remaining != 75 {
+		t.Fatalf("monthly period must preserve credit balances, got used=%v remaining=%v", snapshot.Used, snapshot.Remaining)
+	}
+}
+
+func TestSnapshotFromUpstreamPreservesOverageAndClampsRemaining(t *testing.T) {
+	got, err := parseUpstreamBillingWindow([]byte(`{"monthlyLimit":100,"used":130,"creditUsagePercent":125}`))
+	if err != nil {
+		t.Fatalf("overage billing values should remain parseable: %v", err)
+	}
+	snapshot := snapshotFromUpstream(http.StatusOK, got)
+	if snapshot.Used == nil || *snapshot.Used != 130 {
+		t.Fatalf("overage used = %v, want 130", snapshot.Used)
+	}
+	if snapshot.Remaining == nil || *snapshot.Remaining != 0 {
+		t.Fatalf("overage remaining = %v, want 0", snapshot.Remaining)
+	}
+}
+
+func TestParseUpstreamBillingWindowRejectsInvalidCreditNumbers(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{name: "negative monthly limit", body: `{"monthlyLimit":-1}`},
+		{name: "negative on demand cap", body: `{"onDemandCap":-1}`},
+		{name: "negative prepaid balance", body: `{"prepaidBalance":-1}`},
+		{name: "nan usage", body: `{"used":"NaN"}`},
+		{name: "infinite usage", body: `{"used":"Infinity"}`},
+		{name: "fractional monthly limit", body: `{"monthlyLimit":1.5}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := parseUpstreamBillingWindow([]byte(tc.body)); !errors.Is(err, ErrBillingSnapshotInvalid) {
+				t.Fatalf("parseUpstreamBillingWindow err = %v, want ErrBillingSnapshotInvalid", err)
+			}
+		})
 	}
 }
 

@@ -129,6 +129,17 @@ export type GrokAccountQuotaWindow = {
   usage_percent?: number
   used_percent?: number
   monthly_limit_cents?: number
+  limit?: number
+  used?: number
+  remaining?: number
+  unit?: string
+  period_type?: string
+  period_start?: string
+  period_end?: string
+  on_demand_cap?: number
+  on_demand_used?: number
+  on_demand_remaining?: number
+  prepaid_balance?: number
 }
 
 export type GrokAccountStatus = {
