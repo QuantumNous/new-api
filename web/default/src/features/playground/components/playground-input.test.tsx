@@ -163,3 +163,12 @@ describe('PlaygroundInput quick starts', () => {
     expect(locked).not.toContain('Generate a video')
   })
 })
+
+describe('PlaygroundInput attachments', () => {
+  test('advertises the supported photo and text attachment types', () => {
+    const markup = renderPlaygroundMarkup()
+
+    expect(markup).toContain('accept="image/*,.txt,.md,.csv,.json"')
+    expect(markup).toContain('aria-label="Upload files"')
+  })
+})

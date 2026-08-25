@@ -497,11 +497,23 @@ export const PromptInput = ({
       if (!accept || accept.trim() === '') {
         return true
       }
-      if (accept.includes('image/*')) {
-        return f.type.startsWith('image/')
-      }
-      // NOTE: keep simple; expand as needed
-      return true
+      const fileType = f.type.toLowerCase()
+      const fileName = f.name.toLowerCase()
+      const acceptedTypes = accept
+        .split(',')
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean)
+
+      return acceptedTypes.some((acceptedType) => {
+        if (acceptedType === '*/*') return true
+        if (acceptedType.endsWith('/*')) {
+          return fileType.startsWith(acceptedType.slice(0, -1))
+        }
+        if (acceptedType.startsWith('.')) {
+          return fileName.endsWith(acceptedType)
+        }
+        return fileType === acceptedType
+      })
     },
     [accept]
   )

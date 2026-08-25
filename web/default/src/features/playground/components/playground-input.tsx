@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import {
   PaperclipIcon,
   FileIcon,
@@ -43,10 +44,14 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   PromptInput,
+  PromptInputAttachment,
+  PromptInputAttachments,
   PromptInputButton,
   PromptInputFooter,
+  PromptInputHeader,
   PromptInputTextarea,
   PromptInputTools,
+  usePromptInputAttachments,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
 import { Suggestion, Suggestions } from '@/components/ai-elements/suggestion'
@@ -59,12 +64,21 @@ import {
   type MediaParameterKey,
   type MediaParameterValue,
   type QuickStartMediaKind,
+  normalizePlaygroundAttachments,
 } from '../lib'
-import type { ModelOption, GroupOption } from '../types'
+import type {
+  GroupOption,
+  ModelOption,
+  PlaygroundAttachment,
+} from '../types'
 import { PlaygroundParameters } from './playground-parameters'
 
 interface PlaygroundInputProps {
-  onSubmit: (text: string, model?: string) => void
+  onSubmit: (
+    text: string,
+    model?: string,
+    attachments?: PlaygroundAttachment[]
+  ) => void
   onStop?: () => void
   disabled?: boolean
   submitDisabled?: boolean
@@ -120,6 +134,89 @@ const suggestions: Array<{
   { icon: null, text: 'More', kind: 'chat' },
 ]
 
+function PlaygroundAttachmentMenuItem({
+  icon: Icon,
+  children,
+}: {
+  icon: ComponentType<{ className?: string; size?: number }>
+  children: ReactNode
+}) {
+  const attachments = usePromptInputAttachments()
+
+  return (
+    <DropdownMenuItem
+      onSelect={(event) => {
+        event.preventDefault()
+        attachments.openFileDialog()
+      }}
+    >
+      <Icon className='mr-2' size={16} />
+      {children}
+    </DropdownMenuItem>
+  )
+}
+
+function PlaygroundAttachmentPreviews() {
+  const attachments = usePromptInputAttachments()
+  if (attachments.files.length === 0) return null
+
+  return (
+    <div className='flex w-full flex-wrap gap-1.5'>
+      <PromptInputAttachments>
+        {(attachment) => <PromptInputAttachment data={attachment} />}
+      </PromptInputAttachments>
+    </div>
+  )
+}
+
+function PlaygroundSubmitButton({
+  disabled,
+  isGenerating,
+  isSubmitDisabled,
+  onStop,
+  text,
+}: {
+  disabled?: boolean
+  isGenerating?: boolean
+  isSubmitDisabled: boolean
+  onStop?: () => void
+  text: string
+}) {
+  const { t } = useTranslation()
+  const attachments = usePromptInputAttachments()
+
+  if (isGenerating && onStop) {
+    return (
+      <PromptInputButton
+        className='text-foreground font-medium'
+        onClick={onStop}
+        variant='secondary'
+      >
+        <SquareIcon className='fill-current' size={16} />
+        <span className='hidden sm:inline'>{t('Stop')}</span>
+        <span className='sr-only sm:hidden'>{t('Stop')}</span>
+      </PromptInputButton>
+    )
+  }
+
+  return (
+    <PromptInputButton
+      className='text-foreground font-medium'
+      disabled={
+        disabled ||
+        isSubmitDisabled ||
+        (!text.trim() && attachments.files.length === 0)
+      }
+      type='submit'
+      variant='secondary'
+    >
+      <SendIcon size={16} />
+      <span className='hidden sm:inline'>Send</span>
+      <span className='sr-only sm:hidden'>Send</span>
+    </PromptInputButton>
+  )
+}
+
 export function PlaygroundInput({
   onSubmit,
   onStop,
@@ -147,16 +244,26 @@ export function PlaygroundInput({
   const isGroupSelectDisabled = disabled || groups.length === 0
   const isSubmitDisabled = disabled || submitDisabled || !modelValue
 
-  const handleSubmit = (message: PromptInputMessage) => {
-    if (!message.text?.trim() || isSubmitDisabled) return
-    onSubmit(message.text)
-    setText('')
-  }
+  const handleSubmit = async (message: PromptInputMessage) => {
+    if ((!message.text?.trim() && !message.files?.length) || isSubmitDisabled) {
+      return
+    }
 
-  const handleFileAction = (action: string) => {
-    toast.info(t('Feature in development'), {
-      description: action,
-    })
+    try {
+      const attachments = await normalizePlaygroundAttachments(
+        message.files ?? []
+      )
+      if (attachments.length && mediaProfile) {
+        throw new Error('Attachments are supported only for chat models')
+      }
+      onSubmit(message.text ?? '', undefined, attachments)
+      setText('')
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unable to process attachment'
+      toast.error(t(errorMessage))
+      throw error
+    }
   }
 
   const handleSuggestionClick = (
@@ -178,7 +285,18 @@ export function PlaygroundInput({
 
   return (
     <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
-      <PromptInput groupClassName='rounded-xl' onSubmit={handleSubmit}>
+      <PromptInput
+        accept='image/*,.txt,.md,.csv,.json'
+        groupClassName='rounded-xl'
+        maxFileSize={10 * 1024 * 1024}
+        maxFiles={5}
+        multiple
+        onError={(error) => toast.error(error.message)}
+        onSubmit={handleSubmit}
+      >
+        <PromptInputHeader className='p-2.5 pb-0'>
+          <PlaygroundAttachmentPreviews />
+        </PromptInputHeader>
         <PromptInputTextarea
           autoComplete='off'
           autoCorrect='off'
@@ -208,26 +326,20 @@ export function PlaygroundInput({
                 <span className='sr-only sm:hidden'>{t('Attach')}</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='start'>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('upload-file')}
-                >
-                  <FileIcon className='mr-2' size={16} />
+                <PlaygroundAttachmentMenuItem icon={FileIcon}>
                   {t('Upload file')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleFileAction('upload-photo')}
-                >
-                  <ImageIcon className='mr-2' size={16} />
+                </PlaygroundAttachmentMenuItem>
+                <PlaygroundAttachmentMenuItem icon={ImageIcon}>
                   {t('Upload photo')}
-                </DropdownMenuItem>
+                </PlaygroundAttachmentMenuItem>
                 <DropdownMenuItem
-                  onClick={() => handleFileAction('take-screenshot')}
+                  onClick={() => toast.info(t('Feature in development'))}
                 >
                   <ScreenShareIcon className='mr-2' size={16} />
                   {t('Take screenshot')}
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => handleFileAction('take-photo')}
+                  onClick={() => toast.info(t('Feature in development'))}
                 >
                   <CameraIcon className='mr-2' size={16} />
                   {t('Take photo')}
@@ -272,28 +384,13 @@ export function PlaygroundInput({
               }
             />
 
-            {isGenerating && onStop ? (
-              <PromptInputButton
-                className='text-foreground font-medium'
-                onClick={onStop}
-                variant='secondary'
-              >
-                <SquareIcon className='fill-current' size={16} />
-                <span className='hidden sm:inline'>{t('Stop')}</span>
-                <span className='sr-only sm:hidden'>{t('Stop')}</span>
-              </PromptInputButton>
-            ) : (
-              <PromptInputButton
-                className='text-foreground font-medium'
-                disabled={isSubmitDisabled || !text.trim()}
-                type='submit'
-                variant='secondary'
-              >
-                <SendIcon size={16} />
-                <span className='hidden sm:inline'>{t('Send')}</span>
-                <span className='sr-only sm:hidden'>{t('Send')}</span>
-              </PromptInputButton>
-            )}
+            <PlaygroundSubmitButton
+              disabled={disabled}
+              isGenerating={isGenerating}
+              isSubmitDisabled={isSubmitDisabled}
+              onStop={onStop}
+              text={text}
+            />
           </div>
         </PromptInputFooter>
       </PromptInput>

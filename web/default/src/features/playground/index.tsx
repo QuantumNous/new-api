@@ -71,7 +71,10 @@ import {
   type MediaParameterKey,
   type MediaParameterValue,
 } from './lib'
-import type { Message as MessageType } from './types'
+import type {
+  Message as MessageType,
+  PlaygroundAttachment,
+} from './types'
 
 // PLG users are always pinned to the single `plg` group.
 const PLG_GROUP = 'plg'
@@ -632,13 +635,23 @@ export function Playground({
   ])
 
   const handleSendMessage = useCallback(
-    (text: string, model?: string) => {
+    (
+      text: string,
+      model?: string,
+      attachments: PlaygroundAttachment[] = []
+    ) => {
       const modelOverride = isHandoffModelLocked ? undefined : model
       const targetModel = modelOverride || config.model
+      if (attachments.length && resolveMediaGenerationProfile(targetModel)) {
+        toast.error(
+          i18next.t('Attachments are supported only for chat models')
+        )
+        return
+      }
       if (!prepareSend(targetModel)) return
       clearModelGeneratorDraft()
       clearPlaygroundHandoffSearch()
-      const userMessage = createUserMessage(text)
+      const userMessage = createUserMessage(text, attachments)
 
       // An example prompt (or the picker) can force a specific model. Persist the
       // selection so the picker reflects it, and mark it as an explicit user choice
@@ -680,13 +693,21 @@ export function Playground({
     if (messageIndex === -1) return
 
     const messagesUpToHere = messages.slice(0, messageIndex)
-    const prompt = [...messagesUpToHere]
+    const userMessage = [...messagesUpToHere]
       .reverse()
-      .find((item) => item.from === MESSAGE_ROLES.USER)?.versions[0]?.content
-    if (!prompt) return
+      .find((item) => item.from === MESSAGE_ROLES.USER)
+    const prompt = userMessage?.versions[0]?.content ?? ''
+    const hasAttachments = !!userMessage?.attachments?.length
+    if (!prompt && !hasAttachments) return
 
     const chatOverride = getFirstRunChatOverride()
     const targetModel = chatOverride?.model ?? config.model
+    if (hasAttachments && resolveMediaGenerationProfile(targetModel)) {
+      toast.error(
+        i18next.t('Attachments are supported only for chat models')
+      )
+      return
+    }
     if (!prepareSend(targetModel)) return
 
     // Remove messages after this one and regenerate

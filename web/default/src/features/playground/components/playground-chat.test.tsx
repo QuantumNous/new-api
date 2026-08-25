@@ -156,4 +156,46 @@ describe('PlaygroundChat', () => {
     expect(html).toContain(`src="${safeSrc}"`)
     expect(html).not.toContain(unsafeSrc)
   })
+
+  test('renders user attachment previews alongside the prompt', () => {
+    const imageSrc = 'data:image/png;base64,QUJDRA=='
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <PlaygroundChat
+          messages={[
+            {
+              key: 'user-attachments',
+              from: 'user',
+              status: 'complete',
+              versions: [
+                {
+                  id: 'version-1',
+                  content: 'Describe these files',
+                  attachments: [
+                    {
+                      kind: 'image',
+                      filename: 'photo.png',
+                      mediaType: 'image/png',
+                      url: imageSrc,
+                    },
+                    {
+                      kind: 'text',
+                      filename: 'notes.txt',
+                      mediaType: 'text/plain',
+                      text: 'hello',
+                    },
+                  ],
+                },
+              ],
+            },
+          ]}
+        />
+      </I18nextProvider>
+    )
+
+    expect(html).toContain(`src="${imageSrc}"`)
+    expect(html).toContain('photo.png')
+    expect(html).toContain('notes.txt')
+    expect(html).toContain('Describe these files')
+  })
 })
