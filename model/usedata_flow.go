@@ -20,6 +20,7 @@ type FlowQuotaData struct {
 	TokenUsed   int    `json:"token_used" gorm:"column:token_used"`
 	Count       int    `json:"count" gorm:"column:count"`
 	Quota       int    `json:"quota" gorm:"column:quota"`
+	DisplayName string `json:"display_name,omitempty" gorm:"-"`
 }
 
 func GetFlowQuotaData(startTime int64, endTime int64, username string, userID int, role int) ([]*FlowQuotaData, error) {
@@ -68,6 +69,9 @@ func getAdminFlowQuotaData(startTime int64, endTime int64, username string) ([]*
 	if err != nil {
 		return nil, err
 	}
+	if err := fillFlowUserDisplayNames(rows); err != nil {
+		return rows, err
+	}
 	return rows, fillFlowChannelNames(rows)
 }
 
@@ -86,6 +90,9 @@ func getRootFlowQuotaData(startTime int64, endTime int64, username string) ([]*F
 		return nil, err
 	}
 	if err := fillFlowTokenNames(rows); err != nil {
+		return rows, err
+	}
+	if err := fillFlowUserDisplayNames(rows); err != nil {
 		return rows, err
 	}
 	return rows, fillFlowChannelNames(rows)
@@ -172,6 +179,49 @@ func fillFlowChannelNames(rows []*FlowQuotaData) error {
 		}
 		if row.ChannelID > 0 {
 			row.ChannelName = fmt.Sprintf("channel-%d", row.ChannelID)
+		}
+	}
+	return nil
+}
+
+func fillFlowUserDisplayNames(rows []*FlowQuotaData) error {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	userIDSet := make(map[int]struct{})
+	userIDs := make([]int, 0)
+	usernameSet := make(map[string]struct{})
+	usernames := make([]string, 0)
+	for _, row := range rows {
+		if row.UserID > 0 {
+			if _, ok := userIDSet[row.UserID]; !ok {
+				userIDSet[row.UserID] = struct{}{}
+				userIDs = append(userIDs, row.UserID)
+			}
+			continue
+		}
+		if row.Username == "" {
+			continue
+		}
+		if _, ok := usernameSet[row.Username]; ok {
+			continue
+		}
+		usernameSet[row.Username] = struct{}{}
+		usernames = append(usernames, row.Username)
+	}
+
+	byID, byName, err := loadUserDisplayNames(userIDs, usernames)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if name, ok := byID[row.UserID]; ok {
+			row.DisplayName = name
+			continue
+		}
+		if name, ok := byName[row.Username]; ok {
+			row.DisplayName = name
 		}
 	}
 	return nil

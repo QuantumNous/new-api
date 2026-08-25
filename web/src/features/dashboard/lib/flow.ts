@@ -69,6 +69,7 @@ type FlowNodeRank = {
 
 type FlowPathContext = {
   deletedTokenLabel?: (tokenId: number) => string
+  userLabels?: Map<string, string>
 }
 
 type FlowGraphOptions = {
@@ -167,11 +168,61 @@ function metricValue(metrics: FlowMetrics, metric: FlowMetric): number {
   return metrics.quota
 }
 
-function userNode(row: FlowQuotaDataItem): FlowPathNode {
+function userNodeId(row: FlowQuotaDataItem): string {
   const userID = numberValue(row.user_id)
+  if (userID > 0) return `user:${userID}`
+  return `user:${(row.username || '').trim() || 'unknown'}`
+}
+
+function preferredUserLabel(row: FlowQuotaDataItem): string {
+  const displayName = (row.display_name || '').trim()
+  if (displayName) return displayName
+  const username = (row.username || '').trim()
+  if (username) return username
+  const userID = numberValue(row.user_id)
+  if (userID > 0) return `user-${userID}`
+  return 'Unknown User'
+}
+
+function uniqueFlowUserLabels(rows: FlowQuotaDataItem[]): Map<string, string> {
+  const preferred = new Map<string, string>()
+  const usernameById = new Map<string, string>()
+  const labelCounts = new Map<string, number>()
+
+  for (const row of rows) {
+    const id = userNodeId(row)
+    if (preferred.has(id)) continue
+    const username = (row.username || '').trim()
+    const label = preferredUserLabel(row)
+    preferred.set(id, label)
+    usernameById.set(id, username)
+    labelCounts.set(label, (labelCounts.get(label) || 0) + 1)
+  }
+
+  const labels = new Map<string, string>()
+  for (const [id, label] of preferred) {
+    const username = usernameById.get(id) || ''
+    if (
+      (labelCounts.get(label) || 0) > 1 &&
+      username !== '' &&
+      label !== username
+    ) {
+      labels.set(id, `${label} (${username})`)
+      continue
+    }
+    labels.set(id, label)
+  }
+  return labels
+}
+
+function userNode(
+  row: FlowQuotaDataItem,
+  ctx: FlowPathContext = EMPTY_FLOW_PATH_CONTEXT
+): FlowPathNode {
+  const id = userNodeId(row)
   return {
-    id: userID > 0 ? `user:${userID}` : `user:${row.username || 'unknown'}`,
-    label: row.username || (userID > 0 ? `user-${userID}` : 'Unknown User'),
+    id,
+    label: ctx.userLabels?.get(id) ?? preferredUserLabel(row),
     kind: 'user',
   }
 }
@@ -837,7 +888,8 @@ function formatNumber(value: number): string {
 function buildUserFilterOptions(
   rows: FlowQuotaDataItem[],
   metric: FlowMetric = 'quota',
-  palette?: readonly string[]
+  palette?: readonly string[],
+  ctx: FlowPathContext = EMPTY_FLOW_PATH_CONTEXT
 ): FlowFilterOptions['users'] {
   const users = new Map<
     string,
@@ -853,7 +905,7 @@ function buildUserFilterOptions(
   )
 
   for (const row of rows) {
-    const user = userNode(row)
+    const user = userNode(row, ctx)
     if (!row.user_id && !row.username) continue
     const metrics = rowMetrics(row)
     const value = metricValue(metrics, metric)
@@ -955,15 +1007,18 @@ export function buildFlowFilterOptions(
   visibleStages?: FlowNodeKind[],
   selectedNodes?: readonly FlowNodeFilter[]
 ): FlowFilterOptions {
+  const ctx = {
+    userLabels: uniqueFlowUserLabels(rows),
+  }
   return {
-    users: buildUserFilterOptions(rows, metric, palette),
+    users: buildUserFilterOptions(rows, metric, palette, ctx),
     nodes: buildNodeFilterOptions(
       rows,
       metric,
       role,
       visibleStages,
       palette,
-      EMPTY_FLOW_PATH_CONTEXT,
+      ctx,
       selectedNodes
     ),
   }
@@ -978,6 +1033,7 @@ export function buildDashboardFlowData(
   const palette = options.colorPalette
   const ctx = {
     deletedTokenLabel: options.deletedTokenLabel,
+    userLabels: uniqueFlowUserLabels(rows),
   }
   const stages = resolveVisibleStages(role, options.visibleStages)
   const userFilteredRows = filterRows(rows, options)
@@ -1007,7 +1063,7 @@ export function buildDashboardFlowData(
       }
     ),
     filterOptions: {
-      users: buildUserFilterOptions(rows, metric, palette),
+      users: buildUserFilterOptions(rows, metric, palette, ctx),
       nodes: buildNodeFilterOptions(
         userFilteredRows,
         metric,
