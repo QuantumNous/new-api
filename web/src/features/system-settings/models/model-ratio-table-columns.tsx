@@ -17,11 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
+import { Search } from 'lucide-react'
 
 import { DataTableColumnHeader } from '@/components/data-table/core/column-header'
 import { StaticRowActions } from '@/components/data-table/static/static-row-actions'
 import { StatusBadge } from '@/components/status-badge'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  DropdownMenuItem,
+  DropdownMenuShortcut,
+} from '@/components/ui/dropdown-menu'
 
 import {
   getModeLabel,
@@ -43,6 +48,7 @@ type BuildModelRatioColumnsOptions = {
   onDelete: (name: string) => void
   onEdit: (model: ModelRow) => void
   deleteDisabled?: boolean
+  onMatchPrice?: (model: ModelRow) => void
   t: (key: string) => string
 }
 
@@ -50,6 +56,7 @@ export function buildModelRatioColumns({
   onDelete,
   onEdit,
   deleteDisabled,
+  onMatchPrice,
   t,
 }: BuildModelRatioColumnsOptions): ColumnDef<ModelRow>[] {
   return [
@@ -154,6 +161,16 @@ export function buildModelRatioColumns({
           onEdit={() => onEdit(row.original)}
           onDelete={() => onDelete(row.original.name)}
           deleteDisabled={deleteDisabled}
+          menuItems={
+            onMatchPrice ? (
+              <DropdownMenuItem onClick={() => onMatchPrice(row.original)}>
+                {t('Find matching prices')}
+                <DropdownMenuShortcut>
+                  <Search size={16} />
+                </DropdownMenuShortcut>
+              </DropdownMenuItem>
+            ) : undefined
+          }
         />
       ),
       enableHiding: false,

@@ -51,6 +51,8 @@ import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { useMediaQuery } from '@/hooks'
 
 import { safeJsonParse } from '../utils/json-parser'
+import { ModelPriceMatchDialog } from './model-price-match-dialog'
+import type { ModelPriceMatch } from './model-price-matching'
 import type { PricingMode } from './model-pricing-core'
 import {
   ModelPricingEditorPanel,
@@ -91,7 +93,7 @@ type ModelRatioVisualEditorProps = {
   candidateModelsLoading?: boolean
   filterMode?: 'all' | 'unset'
   onChange: (field: string, value: string) => void
-  onSave: () => void | Promise<void>
+  onSave: () => boolean | void | Promise<boolean | void>
   isSaving: boolean
 }
 
@@ -140,6 +142,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editData, setEditData] = useState<ModelRatioData | null>(null)
+  const [priceMatchModel, setPriceMatchModel] = useState<ModelRow | null>(null)
+  const [priceMatchDialogOpen, setPriceMatchDialogOpen] = useState(false)
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -434,17 +438,6 @@ const ModelRatioVisualEditorComponent = forwardRef<
     ]
   )
 
-  const columns = useMemo(
-    () =>
-      buildModelRatioColumns({
-        onDelete: handleDelete,
-        onEdit: handleEdit,
-        deleteDisabled: filterMode === 'unset',
-        t,
-      }),
-    [handleEdit, handleDelete, filterMode, t]
-  )
-
   const ensurePageInRange = useCallback((pageCount: number) => {
     setPagination((prev) =>
       pageCount > 0 && prev.pageIndex >= pageCount
@@ -452,31 +445,6 @@ const ModelRatioVisualEditorComponent = forwardRef<
         : prev
     )
   }, [])
-
-  const { table } = useDataTable({
-    data: models,
-    columns,
-    getRowId: (row) => row.name,
-    ensurePageInRange,
-    sorting,
-    columnFilters,
-    globalFilter,
-    columnVisibility,
-    pagination,
-    rowSelection,
-    enableRowSelection: true,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
-    onGlobalFilterChange: handleGlobalFilterChange,
-    onColumnVisibilityChange: setColumnVisibility,
-    onPaginationChange: setPagination,
-    onRowSelectionChange: setRowSelection,
-    autoResetPageIndex: false,
-    globalFilterFn: (row, _columnId, filterValue) => {
-      const searchValue = String(filterValue).toLowerCase()
-      return row.original.name.toLowerCase().includes(searchValue)
-    },
-  })
 
   const persistPricingData = useCallback(
     (data: ModelRatioData, targetNames: string[] = [data.name]) => {
@@ -527,7 +495,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         value: string | undefined
       ) => {
         if (!value || value === '') return
-        const parsed = parseFloat(value)
+        const parsed = Number.parseFloat(value)
         if (Number.isFinite(parsed)) target[name] = parsed
       }
 
@@ -611,6 +579,75 @@ const ModelRatioVisualEditorComponent = forwardRef<
       onChange,
     ]
   )
+
+  const handleOpenPriceMatch = useCallback((model: ModelRow) => {
+    setPriceMatchModel(model)
+    setPriceMatchDialogOpen(true)
+  }, [])
+
+  const handleApplyPriceMatch = useCallback(
+    async (match: ModelPriceMatch) => {
+      if (!priceMatchModel) return false
+
+      persistPricingData(
+        {
+          name: priceMatchModel.name,
+          billingMode: 'per-token',
+          ratio: match.ratio.toString(),
+          completionRatio: match.completionRatio?.toString(),
+          cacheRatio: match.cacheRatio?.toString(),
+        },
+        [priceMatchModel.name]
+      )
+      const saved = await onSave()
+      if (saved === false) return false
+      toast.success(
+        t('Applied {{source}} pricing to {{model}}', {
+          source: match.sourceModel,
+          model: priceMatchModel.name,
+        })
+      )
+      return true
+    },
+    [onSave, persistPricingData, priceMatchModel, t]
+  )
+
+  const columns = useMemo(
+    () =>
+      buildModelRatioColumns({
+        onDelete: handleDelete,
+        onEdit: handleEdit,
+        deleteDisabled: filterMode === 'unset',
+        onMatchPrice: filterMode === 'unset' ? handleOpenPriceMatch : undefined,
+        t,
+      }),
+    [filterMode, handleDelete, handleEdit, handleOpenPriceMatch, t]
+  )
+
+  const { table } = useDataTable({
+    data: models,
+    columns,
+    getRowId: (row) => row.name,
+    ensurePageInRange,
+    sorting,
+    columnFilters,
+    globalFilter,
+    columnVisibility,
+    pagination,
+    rowSelection,
+    enableRowSelection: true,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onGlobalFilterChange: handleGlobalFilterChange,
+    onColumnVisibilityChange: setColumnVisibility,
+    onPaginationChange: setPagination,
+    onRowSelectionChange: setRowSelection,
+    autoResetPageIndex: false,
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const searchValue = String(filterValue).toLowerCase()
+      return row.original.name.toLowerCase().includes(searchValue)
+    },
+  })
 
   const handleBatchCopy = useCallback(async () => {
     if (!editData) {
@@ -778,7 +815,9 @@ const ModelRatioVisualEditorComponent = forwardRef<
             <ModelPricingEditorPanel
               ref={editorPanelRef}
               editData={editData}
-              onSave={onSave}
+              onSave={async () => {
+                await onSave()
+              }}
               isSaving={isSaving}
               className='h-full min-h-0'
             />
@@ -818,10 +857,19 @@ const ModelRatioVisualEditorComponent = forwardRef<
           open={sheetOpen}
           onOpenChange={setSheetOpen}
           editData={editData}
-          onSave={onSave}
+          onSave={async () => {
+            await onSave()
+          }}
           isSaving={isSaving}
         />
       )}
+
+      <ModelPriceMatchDialog
+        modelName={priceMatchModel?.name ?? null}
+        open={priceMatchDialogOpen}
+        onOpenChange={setPriceMatchDialogOpen}
+        onApply={handleApplyPriceMatch}
+      />
     </div>
   )
 })

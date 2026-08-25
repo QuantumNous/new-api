@@ -210,13 +210,18 @@ export const ModelRatioForm = memo(function ModelRatioForm({
     setEditMode((prev) => (prev === 'visual' ? 'json' : 'visual'))
   }, [])
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (): Promise<boolean> => {
     if (editMode === 'visual') {
       const committed = await visualEditorRef.current?.commitOpenEditor()
-      if (committed === false) return
+      if (committed === false) return false
     }
 
-    await form.handleSubmit(onSave)()
+    let saved = false
+    await form.handleSubmit(async (values) => {
+      await onSave(values)
+      saved = true
+    })()
+    return saved
   }, [editMode, form, onSave])
 
   return (
