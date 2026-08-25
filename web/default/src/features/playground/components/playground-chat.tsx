@@ -56,7 +56,10 @@ import {
   parseThinkTags,
   splitGeneratedImageMarkdown,
 } from '../lib/message-utils'
-import type { Message as MessageType } from '../types'
+import type {
+  Message as MessageType,
+  PlaygroundAttachment,
+} from '../types'
 import { MessageActions } from './message-actions'
 import { MessageError } from './message-error'
 
@@ -204,7 +207,10 @@ export function PlaygroundChat({
                                   !!version.attachments?.length ||
                                   !!generatedMedia.length)
 
-                              const attachmentPreviews = (
+                              const attachmentPreviews: Array<{
+                                attachment: PlaygroundAttachment
+                                url?: string
+                              }> = (
                                 version.attachments ?? []
                               ).flatMap((attachment) => {
                                 if (attachment.kind === 'image') {
@@ -213,7 +219,7 @@ export function PlaygroundChat({
                                   )
                                   return url ? [{ attachment, url }] : []
                                 }
-                                return [{ attachment, url: undefined }]
+                                return [{ attachment }]
                               })
 
                               // Extract visible content (remove <think> tags for assistant messages)

@@ -697,7 +697,7 @@ export function Playground({
       .reverse()
       .find((item) => item.from === MESSAGE_ROLES.USER)
     const prompt = userMessage?.versions[0]?.content ?? ''
-    const hasAttachments = !!userMessage?.attachments?.length
+    const hasAttachments = !!userMessage?.versions[0]?.attachments?.length
     if (!prompt && !hasAttachments) return
 
     const chatOverride = getFirstRunChatOverride()

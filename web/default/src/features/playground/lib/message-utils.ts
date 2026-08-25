@@ -136,7 +136,7 @@ export function createLoadingVideoMessage(): Message {
  */
 export function buildMessageContent(
   text: string,
-  attachments: PlaygroundAttachment[] = []
+  attachments?: PlaygroundAttachment[]
 ): string | ContentPart[]
 export function buildMessageContent(
   text: string,
@@ -167,7 +167,7 @@ export function buildMessageContent(
       type: 'text',
       text: text || '',
     },
-    ...attachments.flatMap((attachment) => {
+    ...attachments.flatMap((attachment): ContentPart[] => {
       if (attachment.kind === 'image' && attachment.url?.trim()) {
         return [
           {
