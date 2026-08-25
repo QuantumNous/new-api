@@ -16,14 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
-import type { ComponentType, ReactNode } from 'react'
+import { useState, type ComponentType, type ReactNode } from 'react'
 import {
   PaperclipIcon,
   FileIcon,
   ImageIcon,
-  ScreenShareIcon,
-  CameraIcon,
   GlobeIcon,
   SendIcon,
   SquareIcon,
@@ -332,18 +329,6 @@ export function PlaygroundInput({
                 <PlaygroundAttachmentMenuItem icon={ImageIcon}>
                   {t('Upload photo')}
                 </PlaygroundAttachmentMenuItem>
-                <DropdownMenuItem
-                  onClick={() => toast.info(t('Feature in development'))}
-                >
-                  <ScreenShareIcon className='mr-2' size={16} />
-                  {t('Take screenshot')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => toast.info(t('Feature in development'))}
-                >
-                  <CameraIcon className='mr-2' size={16} />
-                  {t('Take photo')}
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 

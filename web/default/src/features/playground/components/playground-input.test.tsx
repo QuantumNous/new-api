@@ -45,6 +45,24 @@ spyOn(modelGroupSelectorModule, 'ModelGroupSelector').mockImplementation(((
   return null
 }) as never)
 
+// Render the closed dropdown contents in the server-rendered test markup so
+// attachment menu entries can be asserted without a browser interaction.
+mock.module('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: ({ children }: { children?: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  DropdownMenuContent: ({ children }: { children?: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DropdownMenuItem: ({ children }: { children?: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DropdownMenuTrigger: ({ render, children }: {
+    render?: React.ReactNode
+    children?: React.ReactNode
+  }) => <>{render ?? children}</>,
+}))
+
 const { PlaygroundInput } = await import('./playground-input')
 const testI18n = createInstance()
 
@@ -170,5 +188,14 @@ describe('PlaygroundInput attachments', () => {
 
     expect(markup).toContain('accept="image/*,.txt,.md,.csv,.json"')
     expect(markup).toContain('aria-label="Upload files"')
+  })
+
+  test('hides screenshot and camera capture actions while retaining uploads', () => {
+    const markup = renderPlaygroundMarkup()
+
+    expect(markup).toContain('Upload file')
+    expect(markup).toContain('Upload photo')
+    expect(markup).not.toContain('Take screenshot')
+    expect(markup).not.toContain('Take photo')
   })
 })
