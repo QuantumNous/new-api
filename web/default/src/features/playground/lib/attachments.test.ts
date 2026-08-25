@@ -1,6 +1,9 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, spyOn, test } from 'bun:test'
 import type { FileUIPart } from 'ai'
-import { normalizePlaygroundAttachments } from './attachments'
+import {
+  MAX_FILE_BYTES,
+  normalizePlaygroundAttachments,
+} from './attachments'
 
 function textDataUrl(text: string): string {
   return `data:text/plain;base64,${Buffer.from(text, 'utf8').toString('base64')}`
@@ -59,5 +62,22 @@ describe('normalizePlaygroundAttachments', () => {
     await expect(normalizePlaygroundAttachments(files)).rejects.toThrow(
       'Too many attachments'
     )
+  })
+
+  test('rejects oversized data before decoding the base64 payload', async () => {
+    const atobSpy = spyOn(globalThis, 'atob')
+    const encoded = 'A'.repeat(Math.ceil((MAX_FILE_BYTES * 4) / 3) + 4)
+
+    await expect(
+      normalizePlaygroundAttachments([
+        file(
+          'large.png',
+          'image/png',
+          `data:image/png;base64,${encoded}`
+        ),
+      ])
+    ).rejects.toThrow('Attachment exceeds the maximum size')
+    expect(atobSpy).not.toHaveBeenCalled()
+    atobSpy.mockRestore()
   })
 })

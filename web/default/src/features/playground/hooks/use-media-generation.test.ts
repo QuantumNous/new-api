@@ -305,4 +305,36 @@ describe('useMediaGeneration video task lifecycle', () => {
     expect(stopped.status).toBe(MESSAGE_STATUS.COMPLETE)
     expect('videoTaskId' in stopped).toBe(false)
   })
+
+  test('does not replace an active media generation with a second request', async () => {
+    let resolveSubmission: ((value: unknown) => void) | undefined
+    sendMediaGenerationMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSubmission = resolve
+        })
+    )
+    const harness = renderMediaGenerationHook(createMediaMessages())
+
+    const firstGeneration = harness.hook.generateMedia(
+      'A ship at sea',
+      'seedance-2.0',
+      'default',
+      seedanceSettings,
+      'target-assistant'
+    )
+    void harness.hook.generateMedia(
+      'A second ship at sea',
+      'seedance-2.0',
+      'default',
+      seedanceSettings,
+      'target-assistant'
+    )
+
+    expect(sendMediaGenerationMock).toHaveBeenCalledTimes(1)
+
+    harness.hook.stopMediaGeneration()
+    resolveSubmission?.({ id: 'video-task-stopped', status: 'queued' })
+    await firstGeneration
+  })
 })

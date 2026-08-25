@@ -24,6 +24,12 @@ function parseDataUrl(url: string): ParsedDataUrl {
   if (!match) throw new Error('Attachment data is invalid')
 
   const encoded = match[2].replace(/[\r\n]/g, '')
+  const padding = encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0
+  const estimatedBytes = Math.floor((encoded.length * 3) / 4) - padding
+  if (estimatedBytes > MAX_FILE_BYTES) {
+    throw new Error('Attachment exceeds the maximum size')
+  }
+
   try {
     const decoded = atob(encoded)
     const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0))

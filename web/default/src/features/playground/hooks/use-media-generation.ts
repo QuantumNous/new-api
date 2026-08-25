@@ -290,6 +290,8 @@ export function useMediaGeneration(props: UseMediaGenerationOptions) {
       settings: MediaGenerationSettings,
       assistantMessageKey: string
     ) => {
+      if (abortControllerRef.current) return
+
       const request = buildMediaGenerationRequest(
         prompt,
         model,
