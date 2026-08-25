@@ -151,7 +151,7 @@ describe('PlaygroundInput quick starts', () => {
     expect(markup).not.toContain('Generate a video')
   })
 
-  test('hides unavailable and locked media quick starts', () => {
+  test('hides unavailable media quick starts but keeps locked media actions', () => {
     const withoutImage = renderPlaygroundMarkup({
       models: [{ label: 'Seedance 2.5', value: 'seedance-2.5' }],
     })
@@ -159,7 +159,7 @@ describe('PlaygroundInput quick starts', () => {
 
     expect(withoutImage).not.toContain('Create an image')
     expect(withoutImage).toContain('Generate a video')
-    expect(locked).not.toContain('Create an image')
-    expect(locked).not.toContain('Generate a video')
+    expect(locked).toContain('Create an image')
+    expect(locked).toContain('Generate a video')
   })
 })

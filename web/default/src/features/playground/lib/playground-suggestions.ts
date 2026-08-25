@@ -23,7 +23,7 @@ export type QuickStartMediaKind = 'image' | 'video'
 
 const PREFERRED_MEDIA_MODELS: Record<QuickStartMediaKind, string> = {
   image: 'gpt-image-2',
-  video: 'seedance-2.0',
+  video: 'seedance-2.5',
 }
 
 export function resolveQuickStartModel(

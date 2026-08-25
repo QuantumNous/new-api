@@ -168,8 +168,6 @@ export function PlaygroundInput({
       onSubmit(suggestion)
       return
     }
-    if (modelLocked) return
-
     const model = resolveQuickStartModel(models, kind)
     if (!model) return
     onModelChange(model)
@@ -308,8 +306,7 @@ export function PlaygroundInput({
               .filter(
                 (suggestion) =>
                   suggestion.kind === 'chat' ||
-                  (!modelLocked &&
-                    !!resolveQuickStartModel(models, suggestion.kind))
+                  !!resolveQuickStartModel(models, suggestion.kind)
               )
               .map(({ icon: Icon, text: suggestionText, color, kind }) => (
                 <Suggestion

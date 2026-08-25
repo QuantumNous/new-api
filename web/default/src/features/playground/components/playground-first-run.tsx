@@ -48,7 +48,6 @@ const FIRST_RUN_EXAMPLE_PROMPTS: ReadonlyArray<{
 interface FirstRunWelcomeProps {
   onPickExample: (prompt: string, model?: string) => void
   models: ModelOption[]
-  modelLocked?: boolean
   disabled?: boolean
   // New users (via `?first=1`) get the "make your first call in 30s" banner;
   // everyone else lands here on an empty Playground and gets a neutral header
@@ -65,7 +64,6 @@ interface FirstRunWelcomeProps {
 export function FirstRunWelcome({
   onPickExample,
   models,
-  modelLocked = false,
   disabled = false,
   firstRun = false,
   ptFirstCallSecondsRemaining,
@@ -90,7 +88,6 @@ export function FirstRunWelcome({
       result.push({ text: example.text })
       return result
     }
-    if (modelLocked) return result
     const model = resolveQuickStartModel(models, example.kind)
     if (model) result.push({ text: example.text, model })
     return result

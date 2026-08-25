@@ -33,7 +33,7 @@ const models = [
 describe('resolveQuickStartModel', () => {
   test('prefers the configured image and video defaults', () => {
     expect(resolveQuickStartModel(models, 'image')).toBe('gpt-image-2')
-    expect(resolveQuickStartModel(models, 'video')).toBe('seedance-2.0')
+    expect(resolveQuickStartModel(models, 'video')).toBe('seedance-2.5')
   })
 
   test('falls back to the first visible model of the requested media kind', () => {
