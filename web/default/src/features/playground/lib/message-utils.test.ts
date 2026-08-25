@@ -18,6 +18,8 @@ import { describe, expect, test } from 'bun:test'
 import { MESSAGE_STATUS } from '../constants'
 import type { Message } from '../types'
 import {
+  createUserMessage,
+  formatMessageForAPI,
   sanitizeMessagesOnLoad,
   updateCurrentVersionContent,
   updateCurrentVersionMedia,
@@ -53,6 +55,44 @@ describe('updateCurrentVersionContent', () => {
         ],
       },
     ])
+  })
+})
+
+describe('Playground message attachments', () => {
+  test('formats supported attachments as multimodal chat content', () => {
+    const message = createUserMessage('describe this', [
+      {
+        kind: 'text',
+        filename: 'notes.txt',
+        mediaType: 'text/plain',
+        text: 'hello',
+      },
+      {
+        kind: 'image',
+        filename: 'photo.png',
+        mediaType: 'image/png',
+        url: 'data:image/png;base64,AA==',
+      },
+    ])
+
+    expect(formatMessageForAPI(message)).toEqual({
+      role: 'user',
+      content: [
+        { type: 'text', text: 'describe this' },
+        { type: 'text', text: '[Attached file: notes.txt]\nhello' },
+        {
+          type: 'image_url',
+          image_url: { url: 'data:image/png;base64,AA==' },
+        },
+      ],
+    })
+  })
+
+  test('keeps the legacy string payload when no attachment exists', () => {
+    expect(formatMessageForAPI(createUserMessage('hello'))).toEqual({
+      role: 'user',
+      content: 'hello',
+    })
   })
 })
 

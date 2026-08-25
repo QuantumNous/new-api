@@ -24,15 +24,20 @@ import type {
   ChatCompletionMessage,
   ContentPart,
   GeneratedMedia,
+  PlaygroundAttachment,
 } from '../types'
 
 /**
  * Create a new message version
  */
-export function createMessageVersion(content: string): MessageVersion {
+export function createMessageVersion(
+  content: string,
+  attachments?: PlaygroundAttachment[]
+): MessageVersion {
   return {
     id: nanoid(),
     content,
+    ...(attachments?.length ? { attachments: [...attachments] } : {}),
   }
 }
 
@@ -83,11 +88,14 @@ export function updateCurrentVersionMedia(
 /**
  * Create a user message
  */
-export function createUserMessage(content: string): Message {
+export function createUserMessage(
+  content: string,
+  attachments: PlaygroundAttachment[] = []
+): Message {
   return {
     key: nanoid(),
     from: MESSAGE_ROLES.USER,
-    versions: [createMessageVersion(content)],
+    versions: [createMessageVersion(content, attachments)],
   }
 }
 
@@ -128,11 +136,29 @@ export function createLoadingVideoMessage(): Message {
  */
 export function buildMessageContent(
   text: string,
-  imageUrls: string[] = []
+  attachments: PlaygroundAttachment[] = []
+): string | ContentPart[]
+export function buildMessageContent(
+  text: string,
+  imageUrls: string[]
+): string | ContentPart[]
+export function buildMessageContent(
+  text: string,
+  attachmentsOrImageUrls: PlaygroundAttachment[] | string[] = []
 ): string | ContentPart[] {
-  const validImages = imageUrls.filter((url) => url.trim() !== '')
+  const attachments: PlaygroundAttachment[] = attachmentsOrImageUrls.map(
+    (attachment) =>
+      typeof attachment === 'string'
+        ? {
+            kind: 'image',
+            filename: 'image',
+            mediaType: 'image/*',
+            url: attachment,
+          }
+        : attachment
+  )
 
-  if (validImages.length === 0) {
+  if (attachments.length === 0) {
     return text
   }
 
@@ -141,13 +167,28 @@ export function buildMessageContent(
       type: 'text',
       text: text || '',
     },
-    ...validImages.map((url) => ({
-      type: 'image_url' as const,
-      image_url: { url: url.trim() },
-    })),
+    ...attachments.flatMap((attachment) => {
+      if (attachment.kind === 'image' && attachment.url?.trim()) {
+        return [
+          {
+            type: 'image_url' as const,
+            image_url: { url: attachment.url.trim() },
+          },
+        ]
+      }
+      if (attachment.kind === 'text' && attachment.text?.trim()) {
+        return [
+          {
+            type: 'text' as const,
+            text: `[Attached file: ${attachment.filename}]\n${attachment.text}`,
+          },
+        ]
+      }
+      return []
+    }),
   ]
 
-  return parts
+  return parts.length > 1 ? parts : text
 }
 
 /**
@@ -173,7 +214,10 @@ export function formatMessageForAPI(message: Message): ChatCompletionMessage {
   const currentVersion = getCurrentVersion(message)
   return {
     role: message.from,
-    content: currentVersion.content,
+    content: buildMessageContent(
+      currentVersion.content,
+      currentVersion.attachments
+    ),
   }
 }
 
