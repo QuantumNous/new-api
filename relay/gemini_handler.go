@@ -20,6 +20,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func shouldApplyGeminiNativeThinkingConfig(info *relaycommon.RelayInfo, req *dto.GeminiChatRequest, isCountTokensRequest bool) bool {
+	return !isCountTokensRequest &&
+		req != nil &&
+		req.GenerationConfig.ThinkingConfig == nil &&
+		relaycommon.NativeTextFormat(info, types.RelayFormatGemini) == types.RelayFormatGemini
+}
+
 func isNoThinkingRequest(req *dto.GeminiChatRequest) bool {
 	if req.GenerationConfig.ThinkingConfig != nil && req.GenerationConfig.ThinkingConfig.ThinkingBudget != nil {
 		configBudget := req.GenerationConfig.ThinkingConfig.ThinkingBudget
@@ -85,7 +92,10 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			}
 		}
 	}
-	if !isCountTokensRequest && request.GenerationConfig.ThinkingConfig == nil {
+	if shouldApplyGeminiNativeThinkingConfig(info, request, isCountTokensRequest) {
+		// Only inject Gemini-native defaults when the selected provider really
+		// speaks Gemini. Injecting by model name before a Gemini→Chat conversion
+		// turns includeThoughts into foreign reasoning fields and can cause 422s.
 		relayconvert.ApplyGeminiThinkingConfig(request, info)
 	}
 

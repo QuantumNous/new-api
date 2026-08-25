@@ -10,22 +10,52 @@ import (
 )
 
 func testRelayInfo(apiType int, model string) *relaycommon.RelayInfo {
+	channelType := constant.ChannelTypeUnknown
+	switch apiType {
+	case constant.APITypeOpenAI:
+		channelType = constant.ChannelTypeOpenAI
+	case constant.APITypeAnthropic:
+		channelType = constant.ChannelTypeAnthropic
+	case constant.APITypeGemini:
+		channelType = constant.ChannelTypeGemini
+	case constant.APITypeDeepSeek:
+		channelType = constant.ChannelTypeDeepSeek
+	case constant.APITypeXai:
+		channelType = constant.ChannelTypeXai
+	case constant.APITypeNewAPI:
+		channelType = constant.ChannelTypeNewAPI
+	}
 	return &relaycommon.RelayInfo{
 		OriginModelName: model,
 		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       channelType,
 			ApiType:           apiType,
 			UpstreamModelName: model,
 		},
 	}
 }
 
+func TestShouldApplyGeminiNativeThinkingConfigUsesProviderType(t *testing.T) {
+	request := &dto.GeminiChatRequest{}
+
+	geminiInfo := testRelayInfo(constant.APITypeGemini, "gemini-3.7-flash")
+	if !shouldApplyGeminiNativeThinkingConfig(geminiInfo, request, false) {
+		t.Fatal("Gemini provider should receive Gemini-native thinking defaults")
+	}
+
+	xaiInfo := testRelayInfo(constant.APITypeXai, "gemini-3.7-flash")
+	if shouldApplyGeminiNativeThinkingConfig(xaiInfo, request, false) {
+		t.Fatal("xAI provider must not receive Gemini-native thinking defaults based on model name")
+	}
+}
+
 func TestConvertRequestToChannelNativeChatToGeminiIncludesThoughts(t *testing.T) {
-	info := testRelayInfo(constant.APITypeGemini, "gemini-2.5-pro")
+	info := testRelayInfo(constant.APITypeGemini, "gemini-3.7-flash")
 	adaptor := GetAdaptor(constant.APITypeGemini)
 	adaptor.Init(info)
 
 	got, err := convertRequestToChannelNative(nil, info, adaptor, &dto.GeneralOpenAIRequest{
-		Model:    "gemini-2.5-pro",
+		Model:    "gemini-3.7-flash",
 		Messages: []dto.Message{{Role: "user", Content: "hi"}},
 	})
 	if err != nil {

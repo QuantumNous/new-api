@@ -104,6 +104,48 @@ func TestConvertImageRequestRejectsMultipartXAIEdit(t *testing.T) {
 	assert.Contains(t, err.Error(), "application/json")
 }
 
+func TestConvertOpenAIRequestRemovesUnsupportedXAIChatFields(t *testing.T) {
+	topK := 40
+	request := &dto.GeneralOpenAIRequest{
+		Model:           "grok-4.6",
+		TopK:            &topK,
+		ReasoningEffort: "high",
+		Reasoning:       json.RawMessage(`{"enabled":true}`),
+		EnableThinking:  json.RawMessage(`true`),
+		Think:           json.RawMessage(`true`),
+	}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "grok-4.6"}}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIRequest(nil, info, request)
+	require.NoError(t, err)
+	got, ok := converted.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	assert.Nil(t, got.TopK)
+	assert.Empty(t, got.ReasoningEffort)
+	assert.Empty(t, got.Reasoning)
+	assert.Empty(t, got.EnableThinking)
+	assert.Empty(t, got.Think)
+}
+
+func TestConvertGeminiRequestUsesChatConverterForXAI(t *testing.T) {
+	topK := 40.0
+	converted, err := (&Adaptor{}).ConvertGeminiRequest(nil, &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "grok-4.6"},
+	}, &dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{{Role: "user", Parts: []dto.GeminiPart{{Text: "hello"}}}},
+		GenerationConfig: dto.GeminiChatGenerationConfig{
+			TopK:           &topK,
+			ThinkingConfig: &dto.GeminiThinkingConfig{IncludeThoughts: true, ThinkingLevel: "high"},
+		},
+	})
+	require.NoError(t, err)
+	got, ok := converted.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	assert.Equal(t, "grok-4.6", got.Model)
+	assert.Nil(t, got.TopK)
+	assert.Empty(t, got.ReasoningEffort)
+}
+
 func TestModelListIncludesLatestXAIImageModel(t *testing.T) {
 	assert.Contains(t, ModelList, "grok-imagine-image-2.0")
 }

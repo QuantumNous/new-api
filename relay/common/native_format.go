@@ -26,6 +26,74 @@ func NativeTextFormat(info *RelayInfo, incoming types.RelayFormat) types.RelayFo
 		return incoming
 	}
 
+	// ChannelType is the configured provider type and is the source of truth.
+	// ApiType only selects an adaptor implementation; multiple providers may
+	// share an adaptor while exposing different native endpoint capabilities.
+	switch info.ChannelType {
+	case constant.ChannelTypeGemini:
+		return types.RelayFormatGemini
+	case constant.ChannelTypeAnthropic:
+		return types.RelayFormatClaude
+	case constant.ChannelTypeAws:
+		if strings.Contains(strings.ToLower(info.UpstreamModelName), "nova-") {
+			return types.RelayFormatOpenAI
+		}
+		return types.RelayFormatClaude
+	case constant.ChannelTypeVertexAi:
+		return vertexNativeTextFormat(info.UpstreamModelName)
+	case constant.ChannelTypeCodex:
+		return types.RelayFormatOpenAIResponses
+	case constant.ChannelTypeAdvancedCustom, constant.ChannelTypeNewAPI, constant.ChannelTypeSub2API:
+		// These channels either configure conversion per route or speak every
+		// client format natively. Leave the incoming format untouched.
+		return nonEmptyIncomingFormat(incoming)
+	case constant.ChannelTypeMoonshot:
+		if incoming == types.RelayFormatClaude {
+			return types.RelayFormatClaude
+		}
+		return types.RelayFormatOpenAI
+	case constant.ChannelTypeUnknown:
+		return nativeTextFormatFromAPIType(info, incoming)
+	default:
+		if incoming == types.RelayFormatOpenAIResponses && SpeaksResponsesNatively(info) {
+			return types.RelayFormatOpenAIResponses
+		}
+		return types.RelayFormatOpenAI
+	}
+}
+
+// SpeaksResponsesNatively reports whether the channel can forward an OpenAI
+// Responses request without converting it to Chat Completions.
+func SpeaksResponsesNatively(info *RelayInfo) bool {
+	if info == nil || info.ChannelMeta == nil {
+		return false
+	}
+	switch info.ChannelType {
+	case constant.ChannelTypeOpenAI,
+		constant.ChannelTypeAzure,
+		constant.ChannelTypeOpenRouter,
+		constant.ChannelTypeXai,
+		constant.ChannelTypeCodex,
+		constant.ChannelTypeNewAPI,
+		constant.ChannelTypeSub2API,
+		constant.ChannelTypeAdvancedCustom:
+		return true
+	case constant.ChannelTypeUnknown:
+		switch info.ApiType {
+		case constant.APITypeOpenAI,
+			constant.APITypeOpenRouter,
+			constant.APITypeXai,
+			constant.APITypeCodex,
+			constant.APITypeNewAPI,
+			constant.APITypeSub2API,
+			constant.APITypeAdvancedCustom:
+			return true
+		}
+	}
+	return false
+}
+
+func nativeTextFormatFromAPIType(info *RelayInfo, incoming types.RelayFormat) types.RelayFormat {
 	switch info.ApiType {
 	case constant.APITypeGemini:
 		return types.RelayFormatGemini
@@ -41,42 +109,23 @@ func NativeTextFormat(info *RelayInfo, incoming types.RelayFormat) types.RelayFo
 	case constant.APITypeCodex:
 		return types.RelayFormatOpenAIResponses
 	case constant.APITypeAdvancedCustom, constant.APITypeNewAPI, constant.APITypeSub2API:
-		// These channels either configure conversion per route or speak every
-		// client format natively. Leave the incoming format untouched.
-		if incoming == "" {
-			return types.RelayFormatOpenAI
-		}
-		return incoming
+		return nonEmptyIncomingFormat(incoming)
 	case constant.APITypeMoonshot:
 		if incoming == types.RelayFormatClaude {
 			return types.RelayFormatClaude
 		}
-		return types.RelayFormatOpenAI
-	default:
-		if incoming == types.RelayFormatOpenAIResponses && SpeaksResponsesNatively(info) {
-			return types.RelayFormatOpenAIResponses
-		}
-		return types.RelayFormatOpenAI
 	}
+	if incoming == types.RelayFormatOpenAIResponses && SpeaksResponsesNatively(info) {
+		return types.RelayFormatOpenAIResponses
+	}
+	return types.RelayFormatOpenAI
 }
 
-// SpeaksResponsesNatively reports whether the channel can forward an OpenAI
-// Responses request without converting it to Chat Completions.
-func SpeaksResponsesNatively(info *RelayInfo) bool {
-	if info == nil || info.ChannelMeta == nil {
-		return false
+func nonEmptyIncomingFormat(incoming types.RelayFormat) types.RelayFormat {
+	if incoming == "" {
+		return types.RelayFormatOpenAI
 	}
-	switch info.ApiType {
-	case constant.APITypeOpenAI,
-		constant.APITypeOpenRouter,
-		constant.APITypeCodex,
-		constant.APITypeNewAPI,
-		constant.APITypeSub2API,
-		constant.APITypeAdvancedCustom:
-		return true
-	default:
-		return false
-	}
+	return incoming
 }
 
 func vertexNativeTextFormat(modelName string) types.RelayFormat {

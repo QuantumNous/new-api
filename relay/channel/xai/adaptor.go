@@ -2,6 +2,7 @@ package xai
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/QuantumNous/new-api/relay/constant"
 
@@ -21,15 +23,12 @@ import (
 type Adaptor struct {
 }
 
-func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
+	return a.convertToChat(c, info, request)
 }
 
-func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
-	//TODO implement me
-	//panic("implement me")
-	return nil, errors.New("not available")
+func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	return a.convertToChat(c, info, request)
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -89,9 +88,31 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	if strings.HasSuffix(info.UpstreamModelName, "-search") {
-		info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-search")
-		request.Model = info.UpstreamModelName
+
+	modelName := request.Model
+	if info != nil && info.UpstreamModelName != "" {
+		modelName = info.UpstreamModelName
+	}
+
+	// Gemini→Chat can surface Gemini-only sampling fields. xAI's Chat API
+	// rejects top_k, and reasoning_effort is currently supported only by the
+	// grok-3-mini family; keep provider-specific cleanup in the xAI adaptor.
+	request.TopK = nil
+	request.EnableThinking = nil
+	request.ThinkingBudget = nil
+	request.Think = nil
+	request.THINKING = nil
+	if !strings.HasPrefix(modelName, "grok-3-mini") {
+		request.ReasoningEffort = ""
+		request.Reasoning = nil
+	}
+
+	if strings.HasSuffix(modelName, "-search") {
+		modelName = strings.TrimSuffix(modelName, "-search")
+		request.Model = modelName
+		if info != nil {
+			info.UpstreamModelName = modelName
+		}
 		toMap := request.ToMap()
 		toMap["search_parameters"] = map[string]any{
 			"mode": "on",
@@ -110,10 +131,24 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 			request.ReasoningEffort = "low"
 			request.Model = strings.TrimSuffix(request.Model, "-low")
 		}
-		info.SetReasoningEffort(request.ReasoningEffort)
-		info.UpstreamModelName = request.Model
+		if info != nil {
+			info.SetReasoningEffort(request.ReasoningEffort)
+			info.UpstreamModelName = request.Model
+		}
 	}
 	return request, nil
+}
+
+func (a *Adaptor) convertToChat(c *gin.Context, info *relaycommon.RelayInfo, request any) (any, error) {
+	result, err := service.ConvertRequest(c, info, types.RelayFormatOpenAI, request)
+	if err != nil {
+		return nil, err
+	}
+	chatRequest, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value)
+	}
+	return a.ConvertOpenAIRequest(c, info, chatRequest)
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {

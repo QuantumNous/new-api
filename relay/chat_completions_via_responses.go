@@ -36,11 +36,16 @@ func shouldUpgradeChatToResponses(info *relaycommon.RelayInfo) bool {
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		return false
 	}
-	switch info.ApiType {
-	case constant.APITypeAdvancedCustom, constant.APITypeNewAPI, constant.APITypeSub2API:
-		// These channels pick a converter per route or speak every client
+	switch info.ChannelType {
+	case constant.ChannelTypeAdvancedCustom, constant.ChannelTypeNewAPI, constant.ChannelTypeSub2API:
+		// These providers pick a converter per route or speak every client
 		// format natively. A Chat→Responses upgrade would bypass that.
 		return false
+	case constant.ChannelTypeUnknown:
+		switch info.ApiType {
+		case constant.APITypeAdvancedCustom, constant.APITypeNewAPI, constant.APITypeSub2API:
+			return false
+		}
 	}
 	if !relaycommon.SpeaksResponsesNatively(info) {
 		return false

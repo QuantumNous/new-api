@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,4 +90,17 @@ func TestShouldUpgradeChatToResponsesRequiresResponsesNativeChannel(t *testing.T
 	passthrough := testRelayInfo(constant.APITypeOpenAI, "gpt-5")
 	passthrough.ChannelSetting.PassThroughBodyEnabled = true
 	assert.False(t, shouldUpgradeChatToResponses(passthrough))
+
+	settings := model_setting.GetGlobalSettings()
+	originalPolicy := settings.ChatCompletionsToResponsesPolicy
+	t.Cleanup(func() { settings.ChatCompletionsToResponsesPolicy = originalPolicy })
+	settings.ChatCompletionsToResponsesPolicy = model_setting.ChatCompletionsToResponsesPolicy{
+		Enabled:       true,
+		AllChannels:   true,
+		ModelPatterns: []string{`^grok-4\.6$`, `^gpt-5$`},
+	}
+
+	xaiInfo := testRelayInfo(constant.APITypeXai, "grok-4.6")
+	assert.True(t, shouldUpgradeChatToResponses(xaiInfo), "xAI provider natively supports Responses")
+	assert.False(t, shouldUpgradeChatToResponses(geminiInfo), "Gemini provider must not receive Responses payloads")
 }

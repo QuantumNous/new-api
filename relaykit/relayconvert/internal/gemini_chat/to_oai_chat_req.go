@@ -120,14 +120,12 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 	if geminiRequest.GenerationConfig.CandidateCount != nil && *geminiRequest.GenerationConfig.CandidateCount > 0 {
 		openaiRequest.N = kitutil.GetPointer(*geminiRequest.GenerationConfig.CandidateCount)
 	}
-	if cfg := geminiRequest.GenerationConfig.ThinkingConfig; cfg != nil {
-		switch {
-		case cfg.ThinkingLevel != "":
-			openaiRequest.ReasoningEffort = reasoning.OpenAIReasoningEffort(cfg.ThinkingLevel)
-		case cfg.IncludeThoughts:
-			openaiRequest.ReasoningEffort = reasoning.LevelHigh
-		}
+	if cfg := geminiRequest.GenerationConfig.ThinkingConfig; cfg != nil && cfg.ThinkingLevel != "" {
+		openaiRequest.ReasoningEffort = reasoning.OpenAIReasoningEffort(cfg.ThinkingLevel)
 	}
+	// includeThoughts controls response visibility; it is not a reasoning
+	// effort level. Do not invent reasoning_effort=high when converting to
+	// Chat, because many OpenAI-compatible providers reject that field.
 
 	if len(geminiRequest.GetTools()) > 0 {
 		var tools []dto.ToolCallRequest

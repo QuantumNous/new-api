@@ -35,6 +35,19 @@ func TestGeminiGenerateContentRequestToOpenAIChatMapsThinkingLevel(t *testing.T)
 	assert.Equal(t, "thinking", got.Messages[0].GetReasoningContent())
 }
 
+func TestGeminiGenerateContentRequestToOpenAIChatDoesNotInventEffortFromIncludeThoughts(t *testing.T) {
+	got, err := GeminiGenerateContentRequestToOpenAIChat(&dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{
+			{Role: "user", Parts: []dto.GeminiPart{{Text: "hello"}}},
+		},
+		GenerationConfig: dto.GeminiChatGenerationConfig{
+			ThinkingConfig: &dto.GeminiThinkingConfig{IncludeThoughts: true},
+		},
+	}, &convmeta.Values{UpstreamModelName: "grok-4.6"})
+	require.NoError(t, err)
+	assert.Empty(t, got.ReasoningEffort)
+}
+
 func TestStreamResponseGeminiChat2OpenAISplitsThoughtAndText(t *testing.T) {
 	resp, _ := StreamResponseGeminiChat2OpenAI(&dto.GeminiChatResponse{
 		Candidates: []dto.GeminiChatCandidate{
