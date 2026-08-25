@@ -29,7 +29,16 @@ export interface GeneratedMedia {
 export interface MessageVersion {
   id: string
   content: string
+  attachments?: PlaygroundAttachment[]
   generatedMedia?: GeneratedMedia[]
+}
+
+export interface PlaygroundAttachment {
+  kind: 'image' | 'text'
+  filename: string
+  mediaType: string
+  url?: string
+  text?: string
 }
 
 export interface PlaygroundResponseMetadata {
