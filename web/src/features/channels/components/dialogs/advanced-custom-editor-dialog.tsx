@@ -785,7 +785,7 @@ export function AdvancedCustomEditorDialog({
                 size='sm'
                 onClick={() => setExpandedRouteGroups(new Set())}
               >
-                {t('Collapse all')}
+                {t('Collapse All')}
               </Button>
               <Button
                 type='button'
@@ -797,7 +797,7 @@ export function AdvancedCustomEditorDialog({
                   )
                 }
               >
-                {t('Expand all')}
+                {t('Expand All')}
               </Button>
             </div>
           </div>
