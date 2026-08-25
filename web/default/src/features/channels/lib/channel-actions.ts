@@ -112,6 +112,50 @@ export async function handleDisableChannel(
 }
 
 /**
+ * Mark a channel as banned by the upstream provider.
+ */
+export async function handleBanChannel(
+  id: number,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  try {
+    const response = await updateChannel(id, { status: CHANNEL_STATUS.BANNED })
+    if (response.success) {
+      toast.success(i18next.t(SUCCESS_MESSAGES.BANNED))
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    } else {
+      toast.error(response.message || i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
+    }
+  } catch (_error) {
+    toast.error(i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
+  }
+}
+
+/**
+ * Explicitly restore a banned channel to enabled.
+ */
+export async function handleUnbanChannel(
+  id: number,
+  queryClient?: QueryClient,
+  onSuccess?: () => void
+): Promise<void> {
+  try {
+    const response = await updateChannel(id, { status: CHANNEL_STATUS.ENABLED })
+    if (response.success) {
+      toast.success(i18next.t(SUCCESS_MESSAGES.UNBANNED))
+      queryClient?.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      onSuccess?.()
+    } else {
+      toast.error(response.message || i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
+    }
+  } catch (_error) {
+    toast.error(i18next.t(ERROR_MESSAGES.UPDATE_FAILED))
+  }
+}
+
+/**
  * Toggle channel status (enable/disable)
  */
 export async function handleToggleChannelStatus(

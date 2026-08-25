@@ -63,6 +63,8 @@ func parseStatusFilter(statusParam string) int {
 	switch strings.ToLower(statusParam) {
 	case "enabled", "1":
 		return common.ChannelStatusEnabled
+	case "banned", "4":
+		return common.ChannelStatusBanned
 	case "disabled", "0":
 		return 0
 	default:
@@ -80,6 +82,9 @@ func clearChannelInfo(channel *model.Channel) {
 func applyChannelStatusFilter(query *gorm.DB, statusFilter int) *gorm.DB {
 	if statusFilter == common.ChannelStatusEnabled {
 		return query.Where("status = ?", common.ChannelStatusEnabled)
+	}
+	if statusFilter == common.ChannelStatusBanned {
+		return query.Where("status = ?", common.ChannelStatusBanned)
 	}
 	if statusFilter == 0 {
 		return query.Where("status != ?", common.ChannelStatusEnabled)
@@ -105,7 +110,7 @@ func GetAllChannels(c *gin.Context) {
 	enableTagMode, _ := strconv.ParseBool(c.Query("tag_mode"))
 	groupFilter := model.NormalizeChannelGroupFilter(c.Query("group"))
 	statusParam := c.Query("status")
-	// statusFilter: -1 all, 1 enabled, 0 disabled (include auto & manual)
+	// statusFilter: -1 all, 1 enabled, 0 disabled (include auto, manual & banned), 4 banned
 	statusFilter := parseStatusFilter(statusParam)
 	// type filter
 	typeStr := c.Query("type")
@@ -312,10 +317,13 @@ func SearchChannels(c *gin.Context) {
 		channelData = channels
 	}
 
-	if statusFilter == common.ChannelStatusEnabled || statusFilter == 0 {
+	if statusFilter == common.ChannelStatusEnabled || statusFilter == common.ChannelStatusBanned || statusFilter == 0 {
 		filtered := make([]*model.Channel, 0, len(channelData))
 		for _, ch := range channelData {
 			if statusFilter == common.ChannelStatusEnabled && ch.Status != common.ChannelStatusEnabled {
+				continue
+			}
+			if statusFilter == common.ChannelStatusBanned && ch.Status != common.ChannelStatusBanned {
 				continue
 			}
 			if statusFilter == 0 && ch.Status == common.ChannelStatusEnabled {

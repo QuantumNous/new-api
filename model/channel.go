@@ -903,6 +903,10 @@ func CleanupChannelPollingLocks() {
 }
 
 func handlerMultiKeyUpdate(channel *Channel, usingKey string, status int, reason string) {
+	if channel.Status == common.ChannelStatusBanned && status == common.ChannelStatusAutoDisabled {
+		return
+	}
+
 	keys := channel.GetKeys()
 	if len(keys) == 0 {
 		channel.Status = status
@@ -980,6 +984,9 @@ func UpdateChannelStatus(channelId int, usingKey string, status int, reason stri
 			return err
 		}
 		if channel.Status == status {
+			return nil
+		}
+		if channel.Status == common.ChannelStatusBanned && status == common.ChannelStatusAutoDisabled {
 			return nil
 		}
 
