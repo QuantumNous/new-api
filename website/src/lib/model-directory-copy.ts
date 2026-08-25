@@ -21,6 +21,8 @@ export type DirectoryCopy = {
   colModel: string;
   colOfficial: string;
   colOurPrice: string;
+  colOurInputPrice: string;
+  colOurOutputPrice: string;
   colDiscount: string;
   colLatency: string;
   colHealth: string;
@@ -68,6 +70,8 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colModel: "Model",
     colOfficial: "Official",
     colOurPrice: "Our price",
+    colOurInputPrice: "Our input",
+    colOurOutputPrice: "Our output",
     colDiscount: "Discount",
     colLatency: "Latency",
     colHealth: "Health score",
@@ -110,6 +114,8 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colModel: "模型",
     colOfficial: "官方价",
     colOurPrice: "我们的价格",
+    colOurInputPrice: "我们的输入",
+    colOurOutputPrice: "我们的输出",
     colDiscount: "折扣",
     colLatency: "延迟",
     colHealth: "健康评分",
@@ -150,6 +156,8 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colModel: "Modelo",
     colOfficial: "Oficial",
     colOurPrice: "Nuestro precio",
+    colOurInputPrice: "Entrada propia",
+    colOurOutputPrice: "Salida propia",
     colDiscount: "Descuento",
     colLatency: "Latencia",
     colHealth: "Puntuación de salud",
@@ -192,6 +200,8 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colModel: "Modèle",
     colOfficial: "Officiel",
     colOurPrice: "Notre prix",
+    colOurInputPrice: "Entrée Flatkey",
+    colOurOutputPrice: "Sortie Flatkey",
     colDiscount: "Remise",
     colLatency: "Latence",
     colHealth: "Score de santé",
@@ -232,6 +242,8 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colModel: "Modelo",
     colOfficial: "Oficial",
     colOurPrice: "Nosso preço",
+    colOurInputPrice: "Entrada Flatkey",
+    colOurOutputPrice: "Saída Flatkey",
     colDiscount: "Desconto",
     colLatency: "Latência",
     colHealth: "Pontuação de saúde",
@@ -272,6 +284,8 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colModel: "Модель",
     colOfficial: "Официальная",
     colOurPrice: "Наша цена",
+    colOurInputPrice: "Наш ввод",
+    colOurOutputPrice: "Наш вывод",
     colDiscount: "Скидка",
     colLatency: "Задержка",
     colHealth: "Оценка здоровья",
@@ -312,6 +326,8 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colModel: "モデル",
     colOfficial: "公式価格",
     colOurPrice: "当社価格",
+    colOurInputPrice: "当社入力",
+    colOurOutputPrice: "当社出力",
     colDiscount: "割引",
     colLatency: "レイテンシ",
     colHealth: "健全性スコア",
@@ -352,6 +368,8 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colModel: "Mô hình",
     colOfficial: "Giá gốc",
     colOurPrice: "Giá của chúng tôi",
+    colOurInputPrice: "Đầu vào Flatkey",
+    colOurOutputPrice: "Đầu ra Flatkey",
     colDiscount: "Giảm giá",
     colLatency: "Độ trễ",
     colHealth: "Điểm sức khỏe",
@@ -392,6 +410,8 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colModel: "Modell",
     colOfficial: "Offiziell",
     colOurPrice: "Unser Preis",
+    colOurInputPrice: "Unser Input",
+    colOurOutputPrice: "Unser Output",
     colDiscount: "Rabatt",
     colLatency: "Latenz",
     colHealth: "Gesundheitswert",
@@ -432,6 +452,8 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colModel: "Model",
     colOfficial: "Resmi",
     colOurPrice: "Harga kami",
+    colOurInputPrice: "Masukan kami",
+    colOurOutputPrice: "Keluaran kami",
     colDiscount: "Diskon",
     colLatency: "Latensi",
     colHealth: "Skor kesehatan",

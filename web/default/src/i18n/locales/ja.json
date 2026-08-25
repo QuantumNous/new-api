@@ -3196,7 +3196,7 @@
     "Override Rules": "上書きルール",
     "Override the endpoint used for testing. Leave empty to auto detect.": "テストに使用されるエンドポイントを上書きします。自動検出するには空のままにします。",
     "overrides for matching model prefix.": "は一致するモデル接頭辞に上書きします。",
-    "Overview": "概要",
+    "Overview": "クイックスタート",
     "Overwritten": "上書き済み",
     "Paddle": "Paddle",
     "Paddle {{environment}} configuration": "Paddle {{environment}} 設定",
@@ -5375,6 +5375,9 @@
     "Affected users": "影響を受けたユーザー",
     "Blocked at": "ブロック日時",
     "Blocked": "ブロック中",
+    "Banned": "凍結済み",
+    "Mark as Banned": "凍結済みとしてマーク",
+    "Unban": "凍結を解除",
     "View incident details": "インシデントの詳細を表示",
     "Restore and trust": "復元して信頼する",
     "Unblock only": "ブロック解除のみ",
@@ -6778,6 +6781,11 @@
     "Quick top-up": "クイックチャージ",
     "Save {{percent}}%": "{{percent}}% お得",
     "Create an image": "画像を生成",
-    "Generate a video": "動画を生成"
+    "Generate a video": "動画を生成",
+    "View as user": "ユーザーとして表示",
+    "Failed to enter user view": "ユーザー表示に切り替えられませんでした",
+    "You will temporarily see the console as {{username}}. Actions and billing remain subject to the user account.": "一時的に {{username}} としてコンソールを表示します。操作と請求はそのユーザーアカウントに紐づきます。",
+    "Currently viewing as {{username}} (administrator {{administrator}})": "{{username}} として表示中（管理者：{{administrator}}）",
+    "Return to administrator": "管理者に戻る"
   }
 }

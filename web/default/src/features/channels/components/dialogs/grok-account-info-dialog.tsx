@@ -25,7 +25,7 @@ import { StatusBadge, type StatusBadgeProps } from '@/components/status-badge'
 import type { GrokAccountQuotaWindow, GrokAccountStatus } from '../../api'
 import {
   formatGrokAccountStatus,
-  getGrokQuotaPercent,
+  formatGrokQuotaWindow,
 } from '../../lib/grok-account-status'
 
 type GrokAccountInfoDialogProps = {
@@ -63,25 +63,72 @@ function QuotaWindow({
   window?: GrokAccountQuotaWindow
 }) {
   const { t } = useTranslation()
-  const percent = getGrokQuotaPercent(window)
+  const quota = formatGrokQuotaWindow(window)
+  const hasBalance =
+    quota.used !== '-' || quota.limit !== '-' || quota.remaining !== '-'
+  const hasOnDemand =
+    quota.onDemandCap !== '-' ||
+    quota.onDemandUsed !== '-' ||
+    quota.onDemandRemaining !== '-'
+  const hasPrepaid = quota.prepaidBalance !== '-'
   return (
     <div className='rounded-lg border p-4'>
       <div className='flex items-center justify-between gap-2'>
         <span className='text-sm font-medium'>{title}</span>
         <StatusBadge
-          label={percent == null ? '-' : `${percent.toFixed(1)}%`}
-          variant={percent != null && percent >= 90 ? 'danger' : 'info'}
+          label={
+            quota.usagePercent == null
+              ? '-'
+              : `${quota.usagePercent.toFixed(1)}%`
+          }
+          variant={
+            quota.usagePercent != null && quota.usagePercent >= 90
+              ? 'danger'
+              : 'info'
+          }
           copyable={false}
         />
       </div>
-      {percent != null && <Progress className='mt-3' value={percent} />}
+      {quota.usagePercent != null && (
+        <Progress className='mt-3' value={quota.usagePercent} />
+      )}
       <div className='text-muted-foreground mt-2 space-y-1 text-xs'>
         <div>
           {t('Upstream status:')} {window?.status_code ?? '-'}
         </div>
-        {window?.monthly_limit_cents != null && (
+        {hasBalance && (
+          <>
+            <div>
+              {t('Used / limit:')} {quota.used} / {quota.limit}{' '}
+              {quota.unit === '-' ? '' : quota.unit}
+            </div>
+            <div>
+              {t('Remaining:')} {quota.remaining}{' '}
+              {quota.unit === '-' ? '' : quota.unit}
+            </div>
+          </>
+        )}
+        {window?.monthly_limit_cents != null && window.limit == null && (
           <div>
             {t('Monthly limit (cents):')} {window.monthly_limit_cents}
+          </div>
+        )}
+        {quota.resetAt !== '-' && (
+          <div>
+            {t('Resets at:')} {quota.resetAt}
+          </div>
+        )}
+        {hasOnDemand && (
+          <div>
+            {t('On-demand:')} {quota.onDemandUsed} / {quota.onDemandCap}{' '}
+            {quota.unit === '-' ? '' : quota.unit} ({t('remaining:')}{' '}
+            {quota.onDemandRemaining})
+          </div>
+        )}
+        {hasPrepaid && (
+          <div>
+            {t('Prepaid balance:')} {quota.prepaidBalance}{' '}
+            {quota.unit === '-' ? '' : quota.unit}
           </div>
         )}
       </div>

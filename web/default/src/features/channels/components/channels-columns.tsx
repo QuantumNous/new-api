@@ -922,8 +922,8 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
             ? `${t(config.label)} (${enabledCount}/${keySize})`
             : t(config.label)
 
-        // Auto-disabled: show reason and time tooltip
-        if (status === 3) {
+        // Disabled statuses: show reason and time tooltip when available
+        if (status === 3 || status === 4) {
           let statusReason = ''
           let statusTime = ''
           try {
@@ -985,6 +985,7 @@ export function useChannelsColumns(): ColumnDef<Channel>[] {
         if (!value || value.length === 0 || value.includes('all')) return true
         const status = row.getValue(id) as number
         if (value.includes('enabled')) return status === 1
+        if (value.includes('banned')) return status === 4
         if (value.includes('disabled')) return status !== 1
         return false
       },

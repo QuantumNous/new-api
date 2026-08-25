@@ -68,7 +68,7 @@ export function ModelsFeaturedCarousel(props: Props) {
       onFocusCapture={() => setPaused(true)}
       onBlurCapture={() => setPaused(false)}
     >
-      <div className="relative aspect-[24/9] max-h-[360px] min-h-[260px] w-full">
+      <div className="relative min-h-[320px] w-full sm:min-h-[340px] lg:min-h-[360px]">
         <SlideMedia slide={slide} reducedMotion={reducedMotion} />
 
         {/* Scrim: the copy sits left, so the gradient is weighted that way. */}
@@ -77,7 +77,7 @@ export function ModelsFeaturedCarousel(props: Props) {
           className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,6,23,0.94)_0%,rgba(2,6,23,0.78)_38%,rgba(2,6,23,0.25)_68%,rgba(2,6,23,0.05)_100%)]"
         />
 
-        <div className="absolute inset-y-0 left-0 flex max-w-[min(560px,70%)] flex-col justify-center gap-3 p-6 pr-16 pb-16 pl-16 sm:max-w-[min(560px,64%)] sm:p-10 sm:pr-20 sm:pb-16 sm:pl-20">
+        <div className="relative z-10 flex min-h-[320px] w-full max-w-[680px] flex-col justify-center gap-3 px-14 py-8 pb-16 sm:min-h-[340px] sm:max-w-[min(680px,70%)] sm:px-20 sm:py-10 sm:pb-16 lg:min-h-[360px]">
           <div className="flex flex-wrap gap-1.5">
             {(slide.tags[props.locale] ?? slide.tags.en).map((tag) => (
               <span
@@ -93,7 +93,7 @@ export function ModelsFeaturedCarousel(props: Props) {
             {slide.displayName}
           </h2>
 
-          <p className="line-clamp-3 max-w-lg text-sm leading-relaxed text-white/75 sm:text-[15px]">
+          <p className="max-w-2xl whitespace-normal break-words text-sm leading-relaxed text-white/75 sm:text-[15px]">
             {slide.blurb[props.locale] ?? slide.blurb.en}
           </p>
 
@@ -112,7 +112,7 @@ export function ModelsFeaturedCarousel(props: Props) {
               type="button"
               aria-label={props.copy.previousSlide}
               onClick={() => go(index - 1)}
-              className="absolute top-1/2 left-3 z-10 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/25 text-white backdrop-blur-sm transition-colors hover:bg-black/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:left-5"
+              className="absolute top-1/2 left-3 z-10 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/25 text-white backdrop-blur-sm transition-all duration-150 ease-out hover:bg-black/50 active:scale-[0.94] active:bg-white/25 active:shadow-[0_0_0_4px_rgba(255,255,255,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:left-5"
             >
               <ArrowLeft className="size-4" aria-hidden="true" />
             </button>
@@ -120,7 +120,7 @@ export function ModelsFeaturedCarousel(props: Props) {
               type="button"
               aria-label={props.copy.nextSlide}
               onClick={() => go(index + 1)}
-              className="absolute top-1/2 right-3 z-10 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/25 text-white backdrop-blur-sm transition-colors hover:bg-black/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:right-5"
+              className="absolute top-1/2 right-3 z-10 inline-flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/25 text-white backdrop-blur-sm transition-all duration-150 ease-out hover:bg-black/50 active:scale-[0.94] active:bg-white/25 active:shadow-[0_0_0_4px_rgba(255,255,255,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:right-5"
             >
               <ArrowRight className="size-4" aria-hidden="true" />
             </button>

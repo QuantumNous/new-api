@@ -126,6 +126,7 @@ export type PricingSearch = {
   q?: string;
   vendor?: string;
   endpoint?: string;
+  purpose?: string;
   pricing?: string;
   quota?: string;
 };
@@ -272,8 +273,36 @@ export function sortPricingModelsBySeries(models: PricingModel[]): PricingModel[
   });
 }
 
+const VENDOR_BY_MODEL_NAME: Array<[RegExp, string]> = [
+  [/^(gpt|o[1-9]|dall-e|sora|codex|text-embedding|whisper|tts)/i, "OpenAI"],
+  [/^claude/i, "Anthropic"],
+  [/^(gemini|imagen|veo|gemma)/i, "Google"],
+  [/^(seedance|seedream|doubao|bytedance)/i, "ByteDance"],
+  [/^deepseek/i, "DeepSeek"],
+  [/^(qwen|qwq)/i, "Qwen"],
+  [/^(glm|chatglm)/i, "Z.ai"],
+  [/^(kimi|moonshot)/i, "Moonshot"],
+  [/^grok/i, "xAI"],
+  [/^minimax/i, "MiniMax"],
+  [/^(llama|meta)/i, "Meta"],
+  [/^mistral/i, "Mistral"],
+  [/^sonilo/i, "Sonilo"],
+];
+
+/**
+ * Vendor for a model, preferring the catalog's own value.
+ *
+ * The pricing payload leaves vendor_id unresolved for some models (veo-3.1 has
+ * no vendor entry today), and the previous fallback was the literal "AI" --
+ * which rendered as "More AI models from AI" and "AI · $1" on the cards. Model
+ * names carry the vendor reliably, so infer from the name before giving up.
+ */
 export function getVendorName(model: PricingModel, vendors: PricingVendor[]): string {
-  return model.vendor_name ?? vendors.find((vendor) => vendor.id === model.vendor_id)?.name ?? "AI";
+  const known = model.vendor_name ?? vendors.find((vendor) => vendor.id === model.vendor_id)?.name;
+  if (known) return known;
+  const inferred = VENDOR_BY_MODEL_NAME.find(([pattern]) => pattern.test(model.model_name))?.[1];
+  // Last resort names the catalog rather than asserting a vendor we do not know.
+  return inferred ?? "Flatkey catalog";
 }
 
 export function getTopVendors(models: PricingModel[], limit = 10): string[] {
@@ -332,11 +361,21 @@ export function getOfficialPriceUsd(model: PricingModel, type: "input" | "output
 // Cheapest visible group ratio for the model — the "60-90% of official" layer.
 // Group ratios live in the pricing payload's top-level group_ratio map, keyed
 // by the model's enable_groups.
-export function getBestGroupRatio(model: PricingModel, fallbackGroupRatio: Record<string, number>): number {
+//
+// Pass `groupModelRatio` (the payload's top-level map) whenever it is available:
+// per-model overrides beat the flat group ratio during billing, so omitting them
+// quotes a model higher than it is actually charged. Callers that already folded
+// the overrides in (via buildEffectiveGroupRatio) can leave it out.
+export function getBestGroupRatio(
+  model: PricingModel,
+  fallbackGroupRatio: Record<string, number>,
+  groupModelRatio: GroupModelRatio = {}
+): number {
+  const effective = buildEffectiveGroupRatio(model, fallbackGroupRatio, groupModelRatio);
   const groups = Array.isArray(model.enable_groups) ? model.enable_groups.filter(isVisibleGroup) : [];
-  const names = groups.includes("all") ? Object.keys(fallbackGroupRatio).filter(isVisibleGroup) : groups;
+  const names = groups.includes("all") ? Object.keys(effective).filter(isVisibleGroup) : groups;
   const ratios = names
-    .map((group) => model.group_ratio?.[group] ?? fallbackGroupRatio[group])
+    .map((group) => effective[group])
     .filter((ratio): ratio is number => typeof ratio === "number" && Number.isFinite(ratio) && ratio > 0);
   return ratios.length > 0 ? Math.min(...ratios) : 1;
 }

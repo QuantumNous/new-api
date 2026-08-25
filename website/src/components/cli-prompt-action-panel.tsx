@@ -243,8 +243,13 @@ export function CliPromptActionPanel(props: Props) {
   const [copied, setCopied] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const portalRoot = typeof document === "undefined" ? null : document.body;
-  const modelOptions = props.kind === "image" ? imageModelOptions : videoModelOptions;
-  const [selectedModel, setSelectedModel] = useState(modelOptions.includes(props.model) ? props.model : modelOptions[0]);
+  const baseModelOptions = props.kind === "image" ? imageModelOptions : videoModelOptions;
+  const modelOptions = baseModelOptions.includes(props.model) ? baseModelOptions : [...baseModelOptions, props.model];
+  const [modelSelection, setModelSelection] = useState(() => ({
+    sourceModel: props.model,
+    value: props.model,
+  }));
+  const selectedModel = modelSelection.sourceModel === props.model ? modelSelection.value : props.model;
   const [selectedSize, setSelectedSize] = useState(props.kind === "image" ? "1024x1024" : props.ratio === "9:16" ? "9:16" : "16:9");
   const [selectedQuality, setSelectedQuality] = useState("auto");
   const effectiveGenerateUrl = useMemo(() => {
@@ -327,7 +332,13 @@ export function CliPromptActionPanel(props: Props) {
                   onChange={(event) => setPrompt(event.target.value)}
                 />
                 <div className="grid gap-3 border-t border-violet-500/10 bg-white/55 p-4 md:grid-cols-[1.25fr_0.8fr_0.8fr]">
-                  <SelectControl icon={<Sparkles className="size-4" />} label={copy.model} value={selectedModel} values={modelOptions} onChange={setSelectedModel} />
+                  <SelectControl
+                    icon={<Sparkles className="size-4" />}
+                    label={copy.model}
+                    value={selectedModel}
+                    values={modelOptions}
+                    onChange={(value) => setModelSelection({ sourceModel: props.model, value })}
+                  />
                   <SelectControl icon={<Maximize2 className="size-4" />} label={props.kind === "image" ? copy.size : copy.aspectRatio} value={selectedSize} values={props.kind === "image" ? imageSizeOptions : videoAspectOptions} onChange={setSelectedSize} />
                   <SelectControl icon={<Settings2 className="size-4" />} label={copy.quality} value={selectedQuality} values={qualityOptions} valueLabel={(value) => (value === "auto" ? copy.auto : value)} onChange={setSelectedQuality} />
                 </div>

@@ -34,6 +34,7 @@ import {
   Trash2,
   RefreshCw,
   Loader2,
+  Ban,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -55,6 +56,8 @@ import { MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   channelsQueryKeys,
   handleDeleteChannel,
+  handleBanChannel,
+  handleUnbanChannel,
   handleTestChannel,
   handleToggleChannelStatus,
   isChannelEnabled,
@@ -78,6 +81,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const [isTogglingStatus, setIsTogglingStatus] = useState(false)
 
   const isEnabled = isChannelEnabled(channel)
+  const isBanned = channel.status === 4
   const isMultiKey = isMultiKeyChannel(channel)
 
   const handleEdit = () => {
@@ -139,6 +143,24 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     }
   }
 
+  const handleBan = async () => {
+    setIsTogglingStatus(true)
+    try {
+      await handleBanChannel(channel.id, queryClient)
+    } finally {
+      setIsTogglingStatus(false)
+    }
+  }
+
+  const handleUnban = async () => {
+    setIsTogglingStatus(true)
+    try {
+      await handleUnbanChannel(channel.id, queryClient)
+    } finally {
+      setIsTogglingStatus(false)
+    }
+  }
+
   return (
     <div className='flex items-center justify-end gap-1'>
       <Tooltip>
@@ -169,7 +191,7 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               variant='ghost'
               size='icon-sm'
               onClick={handleToggleStatus}
-              disabled={isTogglingStatus}
+              disabled={isTogglingStatus || isBanned}
               aria-label={isEnabled ? t('Disable') : t('Enable')}
               className={
                 isEnabled
@@ -290,6 +312,27 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
               {t('Manage Keys')}
               <DropdownMenuShortcut>
                 <Key size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          )}
+
+          <DropdownMenuSeparator />
+
+          {isBanned ? (
+            <DropdownMenuItem onClick={handleUnban}>
+              {t('Unban')}
+              <DropdownMenuShortcut>
+                <Power size={16} />
+              </DropdownMenuShortcut>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              onClick={handleBan}
+              className='text-destructive focus:text-destructive'
+            >
+              {t('Mark as Banned')}
+              <DropdownMenuShortcut>
+                <Ban size={16} />
               </DropdownMenuShortcut>
             </DropdownMenuItem>
           )}

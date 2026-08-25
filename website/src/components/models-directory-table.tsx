@@ -32,12 +32,15 @@ export type ModelsDirectoryTableCopy = {
   /** Supplying these opts the row into the extra directory columns. */
   colDiscount?: string;
   colContext?: string;
+  colInput?: string;
+  colOutput?: string;
 };
 
 type Props = {
   copy: ModelsDirectoryTableCopy;
   rows: HomePricedModel[];
   locale?: Locale;
+  hideOurPrice?: boolean;
 };
 
 const DEFAULT_TTFT_MS = 600;
@@ -82,19 +85,23 @@ export function ModelsDirectoryTable(props: Props) {
 
   return (
     <div className="overflow-hidden rounded-2xl border border-[#E7E4EC] bg-white shadow-[0_1px_2px_rgba(24,14,38,0.04),0_12px_32px_-24px_rgba(24,14,38,0.18)] dark:border-white/10 dark:bg-white/[0.03]">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[980px] border-collapse text-sm">
+      <div className="touch-pan-x overflow-x-auto overscroll-x-contain [scrollbar-width:thin]">
+        <table className="w-full min-w-[1240px] table-fixed border-collapse text-sm">
         <thead>
-          <tr className="border-b border-[#EFECF3] bg-[#FBFAFC] text-left text-[11px] font-bold tracking-[0.08em] text-[#6B7280] uppercase dark:border-white/10 dark:bg-white/[0.02] dark:text-slate-400">
-            <th className="px-5 py-3.5 font-bold">{props.copy.colModel}</th>
-            <th className="px-3 py-3.5 text-right font-bold">{props.copy.colOfficial}</th>
-            <th className="px-3 py-3.5 text-right font-bold text-[#4C1D95] dark:text-violet-300">
-              {props.copy.colOurPrice ?? props.copy.colFlatkey}
-            </th>
-            {props.copy.colDiscount ? <th className="px-3 py-3.5 text-right font-bold">{props.copy.colDiscount}</th> : null}
-            {props.copy.colContext ? <th className="px-3 py-3.5 text-right font-bold">{props.copy.colContext}</th> : null}
-            <th className="px-3 py-3.5 text-right font-bold">{props.copy.colLatency}</th>
-            <th className="w-[220px] px-5 py-3.5 text-left font-bold">{props.copy.colHealth}</th>
+          <tr className="border-b border-[#EFECF3] bg-[#FBFAFC] text-left text-[11px] leading-4 font-bold tracking-[0.08em] text-[#6B7280] uppercase dark:border-white/10 dark:bg-white/[0.02] dark:text-slate-400">
+            <th className="w-[25%] px-3 py-3.5 font-bold 2xl:px-5">{props.copy.colModel}</th>
+            <th className="w-[11%] px-2 py-3.5 text-right font-bold 2xl:px-3">{props.copy.colOfficial}</th>
+            {!props.hideOurPrice ? (
+              <th className="w-[11%] px-2 py-3.5 text-right font-bold 2xl:px-3">
+                {props.copy.colOurPrice ?? props.copy.colFlatkey}
+              </th>
+            ) : null}
+            {props.copy.colInput ? <th className="w-[11%] px-2 py-3.5 text-right text-[10px] font-bold leading-4 whitespace-normal 2xl:px-3">{props.copy.colInput}</th> : null}
+            {props.copy.colOutput ? <th className="w-[11%] px-2 py-3.5 text-right text-[10px] font-bold leading-4 whitespace-normal 2xl:px-3">{props.copy.colOutput}</th> : null}
+            {props.copy.colDiscount ? <th className="w-[9%] px-2 py-3.5 text-right font-bold 2xl:px-3">{props.copy.colDiscount}</th> : null}
+            {props.copy.colContext ? <th className="w-[8%] px-2 py-3.5 text-right font-bold 2xl:px-3">{props.copy.colContext}</th> : null}
+            <th className="w-[8%] px-2 py-3.5 text-right font-bold 2xl:px-3">{props.copy.colLatency}</th>
+            <th className="w-[17%] px-2 py-3.5 text-left font-bold 2xl:px-5">{props.copy.colHealth}</th>
           </tr>
         </thead>
         <tbody>
@@ -107,6 +114,9 @@ export function ModelsDirectoryTable(props: Props) {
               healthLabel={props.copy.colHealth}
               showDiscount={props.copy.colDiscount != null}
               showContext={props.copy.colContext != null}
+              showInput={props.copy.colInput != null}
+              showOutput={props.copy.colOutput != null}
+              hideOurPrice={props.hideOurPrice}
               locale={props.locale}
               onVisible={() => loadTrend(row.name)}
             />
@@ -125,6 +135,9 @@ function DirectoryRow(props: {
   healthLabel: string;
   showDiscount: boolean;
   showContext: boolean;
+  showInput: boolean;
+  showOutput: boolean;
+  hideOurPrice?: boolean;
   locale?: Locale;
   onVisible: () => void;
 }) {
@@ -165,7 +178,7 @@ function DirectoryRow(props: {
 
   return (
     <tr ref={ref} className="border-b border-[#F1EFF5] transition-colors last:border-b-0 hover:bg-[#FAF9FC] dark:border-white/[0.055] dark:hover:bg-white/[0.03]">
-      <td className="max-w-[280px] px-5 py-3">
+      <td className="max-w-[280px] px-3 py-3 2xl:px-5">
         {props.locale ? (
           <Link
             href={localizePath(modelPublicPath(row.name), props.locale)}
@@ -213,14 +226,18 @@ function DirectoryRow(props: {
           </div>
         )}
       </td>
-      <td className="text-muted-foreground px-3 py-3 text-right font-mono text-[13px]">
+      <td className="text-muted-foreground px-2 py-3 text-right font-mono text-[12px] 2xl:px-3 2xl:text-[13px]">
         <PriceCell price={row.official} unit={localizePriceUnit(row.priceUnit, props.locale)} prefix={row.pricePrefix} struck />
       </td>
-      <td className="px-3 py-3 text-right font-mono text-[13px] font-bold text-emerald-600 dark:text-emerald-400">
-        <PriceCell price={row.discounted} unit={localizePriceUnit(row.priceUnit, props.locale)} prefix={row.pricePrefix} />
-      </td>
+      {!props.hideOurPrice ? (
+        <td className="px-2 py-3 text-right font-mono text-[13px] font-bold text-violet-700 dark:text-violet-300 2xl:px-3">
+          <PriceCell price={row.discounted} unit={localizePriceUnit(row.priceUnit, props.locale)} prefix={row.pricePrefix} />
+        </td>
+      ) : null}
+      {props.showInput ? <td className="px-3 py-3 text-right font-mono text-[13px] font-bold text-violet-700 dark:text-violet-300">{row.input ? <PriceCell price={row.input} unit={localizePriceUnit(row.priceUnit, props.locale)} prefix={row.pricePrefix} /> : "—"}</td> : null}
+      {props.showOutput ? <td className="px-3 py-3 text-right font-mono text-[13px] font-bold text-violet-700 dark:text-violet-300">{row.output ? <PriceCell price={row.output} unit={localizePriceUnit(row.priceUnit, props.locale)} prefix={row.pricePrefix} /> : "—"}</td> : null}
       {props.showDiscount ? (
-        <td className="px-3 py-3 text-right font-mono text-[13px]">
+        <td className="px-2 py-3 text-right font-mono text-[12px] 2xl:px-3 2xl:text-[13px]">
           {discount == null ? (
             <span className="text-muted-foreground/60">—</span>
           ) : (
@@ -229,14 +246,14 @@ function DirectoryRow(props: {
         </td>
       ) : null}
       {props.showContext ? (
-        <td className="px-3 py-3 text-right font-mono text-[13px]">
+        <td className="px-2 py-3 text-right font-mono text-[12px] 2xl:px-3 2xl:text-[13px]">
           {contextLabel ?? <span className="text-muted-foreground/60">—</span>}
         </td>
       ) : null}
-      <td className="px-3 py-3 text-right font-mono text-[13px]">{formatLatencyMs(latencyMs)}</td>
-      <td className="px-5 py-3">
-        <div className="flex items-center gap-3">
-          <div className="h-7 w-[140px]">
+      <td className="px-2 py-3 text-right font-mono text-[12px] 2xl:px-3 2xl:text-[13px]">{formatLatencyMs(latencyMs)}</td>
+      <td className="px-2 py-3 2xl:px-5">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="h-7 w-[clamp(44px,6vw,140px)] shrink-0">
             <DailyHealthBars points={healthTrend} label={props.healthLabel} heightPx={28} maxDays={HEALTH_BAR_COUNT} />
           </div>
           <span className="font-mono text-[13px] font-semibold text-emerald-600 dark:text-emerald-400">

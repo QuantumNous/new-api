@@ -3196,7 +3196,7 @@
     "Override Rules": "Quy tắc ghi đè",
     "Override the endpoint used for testing. Leave empty to auto detect.": "Ghi đè điểm cuối dùng để kiểm thử. Để trống để tự động phát hiện.",
     "overrides for matching model prefix.": "ghi đè theo tiền tố model tương ứng.",
-    "Overview": "Tổng quan",
+    "Overview": "Bắt đầu nhanh",
     "Overwritten": "Đã ghi đè",
     "Paddle": "Paddle",
     "Paddle {{environment}} configuration": "Cấu hình Paddle {{environment}}",
@@ -5375,6 +5375,9 @@
     "Affected users": "Người dùng bị ảnh hưởng",
     "Blocked at": "Thời điểm chặn",
     "Blocked": "Đã chặn",
+    "Banned": "Bị cấm",
+    "Mark as Banned": "Đánh dấu bị cấm",
+    "Unban": "Bỏ cấm",
     "View incident details": "Xem chi tiết sự cố",
     "Restore and trust": "Khôi phục và tin cậy",
     "Unblock only": "Chỉ bỏ chặn",
@@ -6778,6 +6781,11 @@
     "Quick top-up": "Nạp tiền nhanh",
     "Save {{percent}}%": "Tiết kiệm {{percent}}%",
     "Create an image": "Tạo hình ảnh",
-    "Generate a video": "Tạo video"
+    "Generate a video": "Tạo video",
+    "View as user": "Xem với tư cách người dùng",
+    "Failed to enter user view": "Không thể chuyển sang chế độ xem người dùng",
+    "You will temporarily see the console as {{username}}. Actions and billing remain subject to the user account.": "Bạn sẽ tạm thời xem bảng điều khiển với tư cách {{username}}. Các thao tác và thanh toán vẫn thuộc tài khoản người dùng.",
+    "Currently viewing as {{username}} (administrator {{administrator}})": "Đang xem với tư cách {{username}} (quản trị viên {{administrator}})",
+    "Return to administrator": "Trở lại quản trị viên"
   }
 }

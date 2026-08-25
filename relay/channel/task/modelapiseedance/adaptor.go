@@ -113,7 +113,7 @@ func (a *TaskAdaptor) ValidateRequestAfterModelMapping(c *gin.Context, info *rel
 	if err != nil {
 		return taskError(err, "invalid_request", http.StatusBadRequest)
 	}
-	if err := validateModelAPISeedanceRequest(seedReq); err != nil {
+	if err := validateModelAPISeedanceRequestWithTrustedAssetCounts(seedReq, modelAPIAssetRewriteCounts(c)); err != nil {
 		return taskError(err, "invalid_request", http.StatusBadRequest)
 	}
 	info.UpstreamModelName = UpstreamModel
@@ -217,10 +217,14 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, _ *relaycommon.RelayInfo)
 		return nil, err
 	}
 	rewriteMap, _ := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
-	if err := rewriteModelAPIAssetReferences(seedReq, rewriteMap); err != nil {
+	rewriteCounts, err := rewriteModelAPIAssetReferences(seedReq, rewriteMap)
+	if err != nil {
 		return nil, err
 	}
-	if err := validateModelAPISeedanceRequest(seedReq); err != nil {
+	if len(rewriteCounts) > 0 || len(modelAPIAssetRewriteCounts(c)) == 0 {
+		setModelAPIAssetRewriteCounts(c, rewriteCounts)
+	}
+	if err := validateModelAPISeedanceRequestWithTrustedAssetCounts(seedReq, modelAPIAssetRewriteCounts(c)); err != nil {
 		return nil, err
 	}
 	taskcommon.SetSeedanceRequest(c, seedReq)
@@ -681,7 +685,8 @@ func bindModelAPISeedanceRequestAfterAssetRewrite(c *gin.Context, info *relaycom
 		return nil, err
 	}
 	rewriteMap, _ := common.GetContextKeyType[map[string]string](c, constant.ContextKeyAssetRewriteMap)
-	if err := rewriteModelAPIAssetReferences(&req, rewriteMap); err != nil {
+	rewriteCounts, err := rewriteModelAPIAssetReferences(&req, rewriteMap)
+	if err != nil {
 		return nil, err
 	}
 	if err := req.Validate(); err != nil {
@@ -689,12 +694,16 @@ func bindModelAPISeedanceRequestAfterAssetRewrite(c *gin.Context, info *relaycom
 	}
 
 	taskcommon.SetSeedanceRequest(c, &req)
+	setModelAPIAssetRewriteCounts(c, rewriteCounts)
 	return &req, nil
 }
 
-func rewriteModelAPIAssetReferences(seedReq *dto.SeedanceVideoRequest, rewriteMap map[string]string) error {
+const contextKeyModelAPISeedanceAssetRewriteCounts = "modelapi_seedance_asset_rewrite_counts"
+
+func rewriteModelAPIAssetReferences(seedReq *dto.SeedanceVideoRequest, rewriteMap map[string]string) (map[string]int, error) {
+	rewriteCounts := make(map[string]int)
 	if seedReq == nil {
-		return nil
+		return rewriteCounts, nil
 	}
 	for index := range seedReq.Content {
 		item := &seedReq.Content[index]
@@ -705,18 +714,36 @@ func rewriteModelAPIAssetReferences(seedReq *dto.SeedanceVideoRequest, rewriteMa
 			rawURL := media.URL
 			if !service.IsStrictBytePlusAssetURI(rawURL) {
 				if strings.HasPrefix(strings.ToLower(strings.TrimSpace(rawURL)), "asset://ast_") {
-					return fmt.Errorf("invalid asset reference")
+					return nil, fmt.Errorf("invalid asset reference")
 				}
 				continue
 			}
 			upstreamURL, ok := rewriteMap[rawURL]
-			if !ok || validateModelAPIAssetRewriteURL(upstreamURL) != nil {
-				return fmt.Errorf("invalid asset reference")
+			if !ok || validateModelAPIAssetRewriteValue(upstreamURL) != nil {
+				return nil, fmt.Errorf("invalid asset reference")
 			}
 			media.URL = upstreamURL
+			if validateModelAPIUpstreamAssetURI(upstreamURL) == nil {
+				rewriteCounts[upstreamURL]++
+			}
 		}
 	}
-	return nil
+	return rewriteCounts, nil
+}
+
+func modelAPIAssetRewriteCounts(c *gin.Context) map[string]int {
+	if c == nil {
+		return nil
+	}
+	counts, _ := common.GetContextKeyType[map[string]int](c, contextKeyModelAPISeedanceAssetRewriteCounts)
+	return counts
+}
+
+func setModelAPIAssetRewriteCounts(c *gin.Context, counts map[string]int) {
+	if c == nil {
+		return
+	}
+	common.SetContextKey(c, contextKeyModelAPISeedanceAssetRewriteCounts, counts)
 }
 
 var supportedModelAPIResolutions = map[string]struct{}{
@@ -734,6 +761,10 @@ var supportedModelAPIAspectRatios = map[string]struct{}{
 }
 
 func validateModelAPISeedanceRequest(seedReq *dto.SeedanceVideoRequest) error {
+	return validateModelAPISeedanceRequestWithTrustedAssetCounts(seedReq, nil)
+}
+
+func validateModelAPISeedanceRequestWithTrustedAssetCounts(seedReq *dto.SeedanceVideoRequest, trustedAssetCounts map[string]int) error {
 	if seedReq.Duration != nil && (*seedReq.Duration < 4 || *seedReq.Duration > 30) {
 		return fmt.Errorf("duration must be between 4 and 30")
 	}
@@ -750,8 +781,9 @@ func validateModelAPISeedanceRequest(seedReq *dto.SeedanceVideoRequest) error {
 
 	imageCount, videoCount, audioCount := 0, 0, 0
 	firstFrameCount, lastFrameCount := 0, 0
+	remainingTrustedAssets := cloneModelAPIAssetRewriteCounts(trustedAssetCounts)
 	for _, m := range seedReq.Images() {
-		if err := validateModelAPIMediaURL(m.URL); err != nil {
+		if err := validateModelAPIMediaReference(m.URL, remainingTrustedAssets); err != nil {
 			return err
 		}
 		imageCount++
@@ -766,7 +798,7 @@ func validateModelAPISeedanceRequest(seedReq *dto.SeedanceVideoRequest) error {
 		}
 	}
 	for _, m := range seedReq.Videos() {
-		if err := validateModelAPIMediaURL(m.URL); err != nil {
+		if err := validateModelAPIMediaReference(m.URL, remainingTrustedAssets); err != nil {
 			return err
 		}
 		videoCount++
@@ -775,7 +807,7 @@ func validateModelAPISeedanceRequest(seedReq *dto.SeedanceVideoRequest) error {
 		}
 	}
 	for _, m := range seedReq.Audios() {
-		if err := validateModelAPIMediaURL(m.URL); err != nil {
+		if err := validateModelAPIMediaReference(m.URL, remainingTrustedAssets); err != nil {
 			return err
 		}
 		audioCount++
@@ -808,6 +840,19 @@ func validateModelAPISeedanceRequest(seedReq *dto.SeedanceVideoRequest) error {
 	return nil
 }
 
+func cloneModelAPIAssetRewriteCounts(counts map[string]int) map[string]int {
+	if len(counts) == 0 {
+		return nil
+	}
+	cloned := make(map[string]int, len(counts))
+	for uri, count := range counts {
+		if count > 0 {
+			cloned[uri] = count
+		}
+	}
+	return cloned
+}
+
 func validateModelAPIMediaURL(raw string) error {
 	if err := validateModelAPIHTTPSURL(raw); err != nil {
 		return fmt.Errorf("media url is not allowed")
@@ -818,11 +863,52 @@ func validateModelAPIMediaURL(raw string) error {
 	return nil
 }
 
-func validateModelAPIAssetRewriteURL(raw string) error {
-	if err := validateModelAPIHTTPSURL(raw); err != nil {
-		return err
+func validateModelAPIMediaReference(raw string, trustedAssetCounts map[string]int) error {
+	if err := validateModelAPIMediaURL(raw); err == nil {
+		return nil
+	}
+	if trustedAssetCounts[raw] <= 0 {
+		return fmt.Errorf("media url is not allowed")
+	}
+	if err := validateModelAPIUpstreamAssetURI(raw); err != nil {
+		return fmt.Errorf("media url is not allowed")
+	}
+	trustedAssetCounts[raw]--
+	return nil
+}
+
+func validateModelAPIAssetRewriteValue(raw string) error {
+	if validateModelAPIUpstreamAssetURI(raw) == nil {
+		return nil
 	}
 	return validateModelAPIMediaURL(raw)
+}
+
+func validateModelAPIUpstreamAssetURI(raw string) error {
+	if raw == "" || raw != strings.TrimSpace(raw) || len(raw) > 256 {
+		return fmt.Errorf("invalid upstream asset URI")
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "asset" || parsed.Host == "" || parsed.User != nil || parsed.Opaque != "" || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("invalid upstream asset URI")
+	}
+	if len(parsed.Host) > 191 || !isModelAPIUpstreamAssetIDStart(parsed.Host[0]) {
+		return fmt.Errorf("invalid upstream asset URI")
+	}
+	for index := 1; index < len(parsed.Host); index++ {
+		if !isModelAPIUpstreamAssetIDPart(parsed.Host[index]) {
+			return fmt.Errorf("invalid upstream asset URI")
+		}
+	}
+	return nil
+}
+
+func isModelAPIUpstreamAssetIDStart(value byte) bool {
+	return value >= 'a' && value <= 'z' || value >= 'A' && value <= 'Z' || value >= '0' && value <= '9'
+}
+
+func isModelAPIUpstreamAssetIDPart(value byte) bool {
+	return isModelAPIUpstreamAssetIDStart(value) || value == '-' || value == '_' || value == '.'
 }
 
 func validateModelAPIHTTPSURL(raw string) error {

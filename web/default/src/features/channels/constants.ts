@@ -128,6 +128,7 @@ export const CHANNEL_STATUS = {
   ENABLED: 1,
   MANUAL_DISABLED: 2,
   AUTO_DISABLED: 3,
+  BANNED: 4,
 } as const
 
 export const CHANNEL_STATUS_LABELS = {
@@ -135,12 +136,14 @@ export const CHANNEL_STATUS_LABELS = {
   [CHANNEL_STATUS.ENABLED]: 'Enabled',
   [CHANNEL_STATUS.MANUAL_DISABLED]: 'Disabled',
   [CHANNEL_STATUS.AUTO_DISABLED]: 'Auto Disabled',
+  [CHANNEL_STATUS.BANNED]: 'Banned',
 } as const
 
 export const CHANNEL_STATUS_OPTIONS = [
   { value: 'all', label: 'All Status' },
   { value: 'enabled', label: 'Enabled' },
   { value: 'disabled', label: 'Disabled' },
+  { value: 'banned', label: 'Banned' },
 ] as const
 
 export const CHANNEL_STATUS_CONFIG = {
@@ -159,6 +162,10 @@ export const CHANNEL_STATUS_CONFIG = {
   [CHANNEL_STATUS.AUTO_DISABLED]: {
     variant: 'warning' as const,
     label: 'Auto Disabled',
+  },
+  [CHANNEL_STATUS.BANNED]: {
+    variant: 'danger' as const,
+    label: 'Banned',
   },
 }
 
@@ -268,6 +275,8 @@ export const SUCCESS_MESSAGES = {
   DELETED: 'Channel deleted successfully',
   ENABLED: 'Channel enabled successfully',
   DISABLED: 'Channel disabled successfully',
+  BANNED: 'Channel marked as banned',
+  UNBANNED: 'Channel unbanned successfully',
   TESTED: 'Channel test completed',
   BALANCE_QUERIED: 'Balance queried successfully',
   MODELS_FETCHED: 'Models fetched successfully',

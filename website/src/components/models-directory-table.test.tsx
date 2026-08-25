@@ -148,6 +148,35 @@ describe("ModelsDirectoryTable", () => {
     expect(html).toContain("/ 次");
     expect(html).toContain("/ 1M tokens");
   });
+
+  test("places a per-second video rate in the directory's Our output column", () => {
+    const html = renderToStaticMarkup(
+      <ModelsDirectoryTable
+        locale="en"
+        copy={{ ...getModelsDirectoryTableCopy("en"), colInput: "Our input", colOutput: "Our output" }}
+        hideOurPrice
+        rows={[
+          {
+            name: "video-second-model",
+            vendor: "VideoAI",
+            official: "$0.08",
+            discounted: "$0.072",
+            officialUsd: 0.08,
+            discountedUsd: 0.072,
+            iconKey: "videoai",
+            priceUnit: "per second",
+            output: "$0.072",
+          },
+        ]}
+      />
+    );
+
+    const body = html.split("<tbody>")[1]?.split("</tbody>")[0] ?? "";
+    const cells = body.match(/<td[^>]*>[\s\S]*?<\/td>/g) ?? [];
+    // Model, official, input, output, latency, health (Our price is hidden).
+    expect(cells[2]).toContain("—");
+    expect(cells[3]).toContain("$0.072");
+  });
 });
 
 describe("attribution label", () => {

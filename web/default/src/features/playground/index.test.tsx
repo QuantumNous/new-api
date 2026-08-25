@@ -362,8 +362,8 @@ describe('Playground model landing handoff', () => {
     })
   })
 
-  test('keeps first-run example model overrides on the locked handoff model', () => {
-    modelsQueryData = ['gpt-image-2', 'gemini-2.5-flash-image']
+  test('uses an explicit first-run example model on a locked handoff', () => {
+    modelsQueryData = ['gpt-image-2', 'nano-banana-pro-preview']
     isModelsQueryLoading = false
     renderHandoff('gpt-image-2', 'Draw a violet fox')
     if (!capturedWelcomeProps)
@@ -371,16 +371,35 @@ describe('Playground model landing handoff', () => {
 
     capturedWelcomeProps.onPickExample(
       'Generate an image',
-      'gemini-2.5-flash-image'
+      'nano-banana-pro-preview'
     )
 
     expect(generateMediaMock).toHaveBeenCalledTimes(1)
-    expect(generateMediaMock.mock.calls[0]?.[1]).toBe('gpt-image-2')
-    expect(sendChatMock).not.toHaveBeenCalled()
-    expect(updateConfigMock).not.toHaveBeenCalledWith(
-      'model',
-      'gemini-2.5-flash-image'
+    expect(generateMediaMock.mock.calls[0]?.[1]).toBe(
+      'nano-banana-pro-preview'
     )
+    expect(sendChatMock).not.toHaveBeenCalled()
+    expect(updateConfigMock).toHaveBeenCalledWith(
+      'model',
+      'nano-banana-pro-preview'
+    )
+  })
+
+  test('switches to the model carried by a video prompt example', () => {
+    modelsQueryData = ['gpt-image-2', 'seedance-2.5']
+    isModelsQueryLoading = false
+    renderHandoff('gpt-image-2', 'Draw a violet fox')
+    if (!capturedWelcomeProps)
+      throw new Error('FirstRunWelcome was not rendered')
+
+    capturedWelcomeProps.onPickExample(
+      'Generate a video of a cat astronaut',
+      'seedance-2.5'
+    )
+
+    expect(generateMediaMock).toHaveBeenCalledTimes(1)
+    expect(generateMediaMock.mock.calls[0]?.[1]).toBe('seedance-2.5')
+    expect(updateConfigMock).toHaveBeenCalledWith('model', 'seedance-2.5')
   })
 
   test('allows a first-run handoff to an authorized filtered model', () => {

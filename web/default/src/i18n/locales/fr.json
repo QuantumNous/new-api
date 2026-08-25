@@ -3196,7 +3196,7 @@
     "Override Rules": "Règles de remplacement",
     "Override the endpoint used for testing. Leave empty to auto detect.": "Remplacer le point de terminaison utilisé pour les tests. Laisser vide pour la détection automatique.",
     "overrides for matching model prefix.": "remplace le tarif si le modèle a ce préfixe.",
-    "Overview": "Vue d'ensemble",
+    "Overview": "Démarrage rapide",
     "Overwritten": "Écrasé",
     "Paddle": "Paddle",
     "Paddle {{environment}} configuration": "Configuration Paddle {{environment}}",
@@ -5375,6 +5375,9 @@
     "Affected users": "Utilisateurs affectés",
     "Blocked at": "Bloqué le",
     "Blocked": "Bloqué",
+    "Banned": "Banni",
+    "Mark as Banned": "Marquer comme banni",
+    "Unban": "Lever le bannissement",
     "View incident details": "Voir les détails de l'incident",
     "Restore and trust": "Restaurer et approuver",
     "Unblock only": "Débloquer uniquement",
@@ -6778,6 +6781,11 @@
     "Quick top-up": "Recharge rapide",
     "Save {{percent}}%": "Économisez {{percent}} %",
     "Create an image": "Créer une image",
-    "Generate a video": "Générer une vidéo"
+    "Generate a video": "Générer une vidéo",
+    "View as user": "Voir en tant qu’utilisateur",
+    "Failed to enter user view": "Impossible d’accéder à la vue utilisateur",
+    "You will temporarily see the console as {{username}}. Actions and billing remain subject to the user account.": "Vous verrez temporairement la console en tant que {{username}}. Les actions et la facturation resteront associées au compte utilisateur.",
+    "Currently viewing as {{username}} (administrator {{administrator}})": "Vue actuelle : {{username}} (administrateur {{administrator}})",
+    "Return to administrator": "Revenir à l’administrateur"
   }
 }

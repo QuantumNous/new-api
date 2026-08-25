@@ -116,6 +116,8 @@ describe("buildRowsForModels on the plg payload", () => {
     expect(row.priceUnit).toBe("per second");
     expect(row.pricePrefix).toBe("from");
     expect(row.billingUnit).toBe("second");
+    expect(row.output).toBe("$0.072");
+    expect(row.outputOfficial).toBe("$0.08");
     expect(row.inputFilterUsd).toBe(row.discountedUsd);
     expect(row.outputFilterUsd).toBe(row.discountedUsd);
   });

@@ -640,7 +640,10 @@ export function Playground({
       model?: string,
       attachments: PlaygroundAttachment[] = []
     ) => {
-      const modelOverride = isHandoffModelLocked ? undefined : model
+      // A handoff keeps ordinary text submissions on its requested model, but
+      // an explicit quick-start/PE selection is a deliberate model choice and
+      // must be carried through to this generation.
+      const modelOverride = model
       const targetModel = modelOverride || config.model
       if (attachments.length && resolveMediaGenerationProfile(targetModel)) {
         toast.error(
@@ -672,7 +675,6 @@ export function Playground({
       clearPlaygroundHandoffSearch,
       config.model,
       dispatchGeneration,
-      isHandoffModelLocked,
       messages,
       prepareSend,
       setUserPickedModel,
@@ -782,7 +784,6 @@ export function Playground({
         <FirstRunWelcome
           firstRun={firstRun}
           models={handoff.models}
-          modelLocked={isHandoffModelLocked}
           ptFirstCallSecondsRemaining={
             isPtFirstCallExperiment ? ptFirstCallSecondsRemaining : undefined
           }

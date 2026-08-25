@@ -40,7 +40,7 @@ export const channelSchema = z.object({
   key: z.string(),
   openai_organization: z.string().nullish(),
   test_model: z.string().nullish(),
-  status: z.number(), // 1: enabled, 0: manual disabled, 2: auto disabled
+  status: z.number(), // 1: enabled, 2: manual disabled, 3: auto disabled, 4: banned
   name: z.string(),
   weight: z.number().nullish(),
   max_concurrency: z.number().default(0),
@@ -239,7 +239,7 @@ export type ChannelSortOrder = 'asc' | 'desc'
 export interface GetChannelsParams {
   p?: number
   page_size?: number
-  status?: string // 'enabled', 'disabled', or empty for all
+  status?: string // 'enabled', 'disabled', 'banned', or empty for all
   type?: number
   group?: string
   id_sort?: boolean

@@ -241,6 +241,142 @@ func TestCreateRealPersonAssetFromURLAllowsURLOnlyCredentialWithoutTOS(t *testin
 	require.Equal(t, 1, f.fake.createAssetCalls)
 }
 
+func TestCreateRealPersonAssetFromMultipartUsesTokenSpaceProviderAndPrivateGCS(t *testing.T) {
+	newBytePlusRealPersonServiceTestDB(t)
+	installBytePlusRealPersonServiceTestDeps(t, &fakeBytePlusRealPersonClient{})
+	t.Setenv("BYTEPLUS_TEMP_STORAGE_BACKEND", "gcs")
+	t.Setenv("TEMP_MEDIA_BUCKET", "tokenspace-real-person-bucket")
+	oldAssetID := bytePlusAssetPublicID
+	oldUploadNow := bytePlusAssetUploadNow
+	oldUploadRandom := bytePlusAssetUploadRandomKey
+	oldPut, oldSign, oldDelete := putTempMediaObject, signTempMediaObject, deleteTempMediaObject
+	t.Cleanup(func() {
+		bytePlusAssetPublicID = oldAssetID
+		bytePlusAssetUploadNow = oldUploadNow
+		bytePlusAssetUploadRandomKey = oldUploadRandom
+		putTempMediaObject, signTempMediaObject, deleteTempMediaObject = oldPut, oldSign, oldDelete
+	})
+	bytePlusAssetPublicID = func() (string, error) { return "ast_tokenspace_multipart", nil }
+	bytePlusAssetUploadNow = func() int64 { return 0 }
+	bytePlusAssetUploadRandomKey = func(int) (string, error) { return "test-object", nil }
+
+	type gcsPut struct {
+		bucket      string
+		key         string
+		contentType string
+		body        []byte
+	}
+	type gcsSign struct {
+		bucket string
+		key    string
+		method string
+	}
+	var puts []gcsPut
+	var signs []gcsSign
+	var deletes []string
+	putTempMediaObject = func(_ context.Context, cfg TempMediaConfig, key string, body io.Reader, contentType string) error {
+		payload, err := io.ReadAll(body)
+		if err != nil {
+			return err
+		}
+		puts = append(puts, gcsPut{
+			bucket:      cfg.Bucket,
+			key:         key,
+			contentType: contentType,
+			body:        payload,
+		})
+		return err
+	}
+	signTempMediaObject = func(_ context.Context, cfg TempMediaConfig, key, method string) (string, error) {
+		signs = append(signs, gcsSign{bucket: cfg.Bucket, key: key, method: method})
+		return "https://signed.example/" + key, nil
+	}
+	deleteTempMediaObject = func(_ context.Context, _ TempMediaConfig, key string) error {
+		deletes = append(deletes, key)
+		return nil
+	}
+
+	var createAssetCalls int
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "CreateAsset", r.URL.Query().Get("Action"))
+		createAssetCalls++
+		var body tokenSpaceMaterialCreateRequest
+		require.NoError(t, common.DecodeJson(r.Body, &body))
+		require.Equal(t, "group-token-space-real-person", body.GroupID)
+		require.NotEqual(t, "group-virtual-not-for-real-person", body.GroupID)
+		require.Equal(t, "https://signed.example/real-person-assets/7/19700101/test-object", body.URL)
+		require.Equal(t, "Image", body.AssetType)
+		require.Equal(t, "front", body.Name)
+		_, _ = io.WriteString(w, `{"ResponseMetadata":{"RequestId":"request-token-space-multipart"},"Result":{"Id":"asset-token-space-multipart"}}`)
+	}))
+	defer server.Close()
+	installTokenSpaceMaterialHTTPClientFactory(t, server.Client())
+	insertTokenSpaceRealPersonChannel(t, 106, "default", true)
+	settings := tokenSpaceMaterialSettingsJSON(t, server.URL, "group-virtual-not-for-real-person")
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 106).Update("settings", settings).Error)
+	groupID := "group-token-space-real-person"
+	profile := model.BytePlusRealPersonProfile{
+		PublicId: "rph_tokenspace_multipart", UserId: 7, Name: "Alice", ChannelId: 106,
+		UpstreamGroupId: &groupID, Status: model.BytePlusRealPersonProfileStatusActive,
+		CreatedTime: 100, UpdatedTime: 100,
+	}
+	require.NoError(t, model.DB.Create(&profile).Error)
+
+	request := newBytePlusMultipartRequest(t, []multipartTestPart{
+		fieldPart("asset_type", "Image"),
+		fieldPart("name", "front"),
+		filePart("file", "person.png", pngHeader()),
+	})
+	response, apiErr := CreateBytePlusRealPersonAssetFromMultipart(context.Background(), 7, profile.PublicId, "tokenspace-multipart", request)
+
+	if apiErr != nil {
+		assertAssetError(t, apiErr, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+		t.Fatalf("TokenSpace multipart asset creation returned %s/%d before GCS upload and CreateAsset", apiErr.GetErrorCode(), apiErr.StatusCode)
+	}
+	require.Nil(t, apiErr)
+	require.NotNil(t, response)
+	require.Equal(t, "ast_tokenspace_multipart", response.ID)
+	require.Equal(t, model.BytePlusAssetStatusProcessing, response.Status)
+	require.Equal(t, "asset://ast_tokenspace_multipart", response.AssetURI)
+	require.Nil(t, response.Moderation)
+	require.Equal(t, "front", response.Name)
+	require.Equal(t, 1, createAssetCalls)
+	require.Len(t, puts, 1)
+	require.Equal(t, "tokenspace-real-person-bucket", puts[0].bucket)
+	require.Equal(t, "real-person-assets/7/19700101/test-object", puts[0].key)
+	require.Equal(t, "image/png", puts[0].contentType)
+	require.Equal(t, pngHeader(), puts[0].body)
+	require.Len(t, signs, 1)
+	require.Equal(t, "tokenspace-real-person-bucket", signs[0].bucket)
+	require.Equal(t, "real-person-assets/7/19700101/test-object", signs[0].key)
+	require.Equal(t, http.MethodGet, signs[0].method)
+	require.Empty(t, deletes)
+
+	var asset model.BytePlusAsset
+	require.NoError(t, model.DB.First(&asset, "public_id = ?", "ast_tokenspace_multipart").Error)
+	require.Equal(t, 7, asset.UserId)
+	require.Equal(t, 106, asset.ChannelId)
+	require.NotNil(t, asset.RealPersonProfileId)
+	require.Equal(t, profile.Id, *asset.RealPersonProfileId)
+	require.Equal(t, "asset-token-space-multipart", asset.UpstreamAssetId)
+	require.Equal(t, "request-token-space-multipart", asset.UpstreamRequestId)
+	require.Equal(t, "Image", asset.AssetType)
+	require.Equal(t, "front", asset.Name)
+	require.Equal(t, model.BytePlusAssetStatusProcessing, asset.Status)
+	var temp model.BytePlusAssetTempObject
+	require.NoError(t, model.DB.First(&temp, "asset_id = ?", asset.Id).Error)
+	require.Equal(t, 7, temp.UserId)
+	require.Equal(t, 106, temp.ChannelId)
+	require.Equal(t, "gcs:tokenspace-real-person-bucket", temp.Bucket)
+	require.Equal(t, "real-person-assets/7/19700101/test-object", temp.ObjectKey)
+	require.Equal(t, fmt.Sprintf("%x", sha256.Sum256(pngHeader())), temp.ContentSHA256)
+	require.Equal(t, int64(len(pngHeader())), temp.SizeBytes)
+	require.Equal(t, "image/png", temp.MimeType)
+	require.Equal(t, model.BytePlusTempObjectCleanupPending, temp.CleanupStatus)
+	require.Equal(t, int64(45200), temp.SignedURLExpiresAt)
+	require.Equal(t, int64(45200), temp.NextCleanupAt)
+}
+
 func TestCreateRealPersonAssetFromURLCrossUserSameIdempotencyKeyDoesNotPoisonOwner(t *testing.T) {
 	f := newRealPersonAssetFixture(t)
 	key := "same-cross-user-key"
@@ -362,6 +498,78 @@ func TestCreateRealPersonAssetFromMultipartNoBackendFailsBeforeBodyReadOrUpstrea
 	var records int64
 	require.NoError(t, model.DB.Model(&model.APIIdempotencyRecord{}).Count(&records).Error)
 	require.Zero(t, records)
+}
+
+func TestCreateRealPersonAssetFromMultipartTokenSpaceNoGCSBucketFailsBeforeBodyReadOrUpstream(t *testing.T) {
+	cases := []struct {
+		name      string
+		configure func(t *testing.T)
+	}{
+		{
+			name: "blank",
+			configure: func(t *testing.T) {
+				t.Helper()
+				require.NoError(t, os.Setenv("TEMP_MEDIA_BUCKET", " "))
+			},
+		},
+		{
+			name: "absent",
+			configure: func(t *testing.T) {
+				t.Helper()
+				require.NoError(t, os.Unsetenv("TEMP_MEDIA_BUCKET"))
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			oldBucket, hadBucket := os.LookupEnv("TEMP_MEDIA_BUCKET")
+			t.Cleanup(func() {
+				if hadBucket {
+					require.NoError(t, os.Setenv("TEMP_MEDIA_BUCKET", oldBucket))
+				} else {
+					require.NoError(t, os.Unsetenv("TEMP_MEDIA_BUCKET"))
+				}
+			})
+
+			newBytePlusRealPersonServiceTestDB(t)
+			installBytePlusRealPersonServiceTestDeps(t, &fakeBytePlusRealPersonClient{})
+			t.Setenv("BYTEPLUS_TEMP_STORAGE_BACKEND", "gcs")
+			tc.configure(t)
+
+			var createAssetCalls int
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Query().Get("Action") == "CreateAsset" {
+					createAssetCalls++
+				}
+				http.Error(w, "unexpected upstream call", http.StatusInternalServerError)
+			}))
+			defer server.Close()
+			installTokenSpaceMaterialHTTPClientFactory(t, server.Client())
+			insertTokenSpaceRealPersonChannel(t, 106, "default", true)
+			settings := tokenSpaceMaterialSettingsJSON(t, server.URL, "group-virtual-not-for-real-person")
+			require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 106).Update("settings", settings).Error)
+			groupID := "group-token-space-real-person"
+			profile := model.BytePlusRealPersonProfile{
+				PublicId: "rph_tokenspace_no_bucket_" + tc.name, UserId: 7, Name: "Alice", ChannelId: 106,
+				UpstreamGroupId: &groupID, Status: model.BytePlusRealPersonProfileStatusActive,
+				CreatedTime: 100, UpdatedTime: 100,
+			}
+			require.NoError(t, model.DB.Create(&profile).Error)
+			req := httptest.NewRequest(http.MethodPost, "/v1/real-person/assets", &failingReadCloser{t: t})
+			req.Header.Set("Content-Type", "multipart/form-data; boundary=unread")
+
+			_, apiErr := CreateBytePlusRealPersonAssetFromMultipart(context.Background(), 7, profile.PublicId, "tokenspace-no-bucket-"+tc.name, req)
+
+			assertAssetError(t, apiErr, types.ErrorCodeAssetChannelUnavailable, http.StatusServiceUnavailable)
+			require.Zero(t, createAssetCalls)
+			var records, temps int64
+			require.NoError(t, model.DB.Model(&model.APIIdempotencyRecord{}).Count(&records).Error)
+			require.NoError(t, model.DB.Model(&model.BytePlusAssetTempObject{}).Count(&temps).Error)
+			require.Zero(t, records)
+			require.Zero(t, temps)
+		})
+	}
 }
 
 func TestCreateRealPersonAssetFromMultipartInactiveProfileFailsBeforeBodyReadOrIdempotency(t *testing.T) {
