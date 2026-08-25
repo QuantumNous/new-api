@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -39,6 +40,159 @@ func withStripeWalletQuoteSettings(t *testing.T) {
 		operation_setting.GetPaymentSetting().AmountDiscount = originalDiscounts
 		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(originalTopupGroupRatio))
 	})
+}
+
+func TestGetStripeMinAndMaxTopupUseDisplayUnits(t *testing.T) {
+	withStripeWalletQuoteSettings(t)
+
+	previousQuotaPerUnit := common.QuotaPerUnit
+	previousMinTopUp := setting.StripeMinTopUp
+	t.Cleanup(func() {
+		common.QuotaPerUnit = previousQuotaPerUnit
+		setting.StripeMinTopUp = previousMinTopUp
+	})
+
+	setting.StripeMinTopUp = 2
+	common.QuotaPerUnit = 500000
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+	assert.Equal(t, int64(2), getStripeMinTopup())
+	assert.Equal(t, int64(10000), getStripeMaxTopup())
+
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeTokens
+	assert.Equal(t, int64(1_000_000), getStripeMinTopup())
+	assert.Equal(t, int64(5_000_000_000), getStripeMaxTopup())
+	assert.LessOrEqual(t, getStripeMinTopup(), getStripeMaxTopup())
+
+	setting.StripeMinTopUp = 1
+	common.QuotaPerUnit = 1.5
+	assert.Equal(t, int64(2), getStripeMinTopup())
+	assert.Equal(t, int64(15000), getStripeMaxTopup())
+}
+
+func TestGetStripeMinAndMaxTopupRejectInvalidQuotaPerUnit(t *testing.T) {
+	withStripeWalletQuoteSettings(t)
+
+	previousQuotaPerUnit := common.QuotaPerUnit
+	previousMinTopUp := setting.StripeMinTopUp
+	t.Cleanup(func() {
+		common.QuotaPerUnit = previousQuotaPerUnit
+		setting.StripeMinTopUp = previousMinTopUp
+	})
+
+	setting.StripeMinTopUp = 1
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeTokens
+
+	for _, quotaPerUnit := range []float64{
+		0,
+		-1,
+		math.NaN(),
+		math.Inf(1),
+		math.Inf(-1),
+		float64(math.MaxInt64),
+	} {
+		common.QuotaPerUnit = quotaPerUnit
+		_, _, err := getStripeTopupBounds()
+		require.Error(t, err)
+	}
+}
+
+func TestStripeRequestAmountFailsClosedForInvalidQuotaPerUnit(t *testing.T) {
+	withStripeWalletQuoteSettings(t)
+
+	previousQuotaPerUnit := common.QuotaPerUnit
+	previousMinTopUp := setting.StripeMinTopUp
+	common.QuotaPerUnit = 0
+	setting.StripeMinTopUp = 1
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeTokens
+	t.Cleanup(func() {
+		common.QuotaPerUnit = previousQuotaPerUnit
+		setting.StripeMinTopUp = previousMinTopUp
+	})
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	stripeAdaptor.RequestAmount(context, &StripePayRequest{Amount: 1})
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"message":"error"`)
+	assert.Contains(t, recorder.Body.String(), "Stripe 充值配置无效")
+}
+
+func TestStripeTokensMinimumProducesValidQuote(t *testing.T) {
+	withStripeWalletQuoteSettings(t)
+
+	previousQuotaPerUnit := common.QuotaPerUnit
+	previousMinTopUp := setting.StripeMinTopUp
+	common.QuotaPerUnit = 500000
+	setting.StripeMinTopUp = 1
+	setting.StripeUnitPrice = 1
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeTokens
+	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"default":1}`))
+	t.Cleanup(func() {
+		common.QuotaPerUnit = previousQuotaPerUnit
+		setting.StripeMinTopUp = previousMinTopUp
+	})
+
+	amount := getStripeMinTopup()
+	assert.LessOrEqual(t, amount, getStripeMaxTopup())
+
+	creditedQuota, err := validateCreditedQuota(getStripeCreditedQuota(amount, "default"))
+	require.NoError(t, err)
+	assert.Equal(t, 500000, creditedQuota)
+
+	quote := getStripeWalletQuote(amount, "default")
+	assert.Equal(t, "1.00", quote.Amount.StringFixed(2))
+	assert.Equal(t, int64(100), quote.AmountUnit)
+	assert.Equal(t, stripeWalletCurrency, quote.Currency)
+}
+
+func TestGetTopUpInfoUsesEffectiveStripeMinimumWithoutMutatingSettings(t *testing.T) {
+	withStripeWalletQuoteSettings(t)
+
+	previousPayMethods := operation_setting.PayMethods
+	previousCompliance := *operation_setting.GetPaymentSetting()
+	previousAPISecret := setting.StripeApiSecret
+	previousWebhookSecret := setting.StripeWebhookSecret
+	previousMinTopUp := setting.StripeMinTopUp
+	t.Cleanup(func() {
+		operation_setting.PayMethods = previousPayMethods
+		*operation_setting.GetPaymentSetting() = previousCompliance
+		setting.StripeApiSecret = previousAPISecret
+		setting.StripeWebhookSecret = previousWebhookSecret
+		setting.StripeMinTopUp = previousMinTopUp
+	})
+
+	operation_setting.PayMethods = []map[string]string{{
+		"name":      "Stripe",
+		"type":      model.PaymentMethodStripe,
+		"min_topup": "2",
+	}}
+	operation_setting.GetPaymentSetting().ComplianceConfirmed = true
+	operation_setting.GetPaymentSetting().ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeTokens
+	setting.StripeApiSecret = "configured"
+	setting.StripeWebhookSecret = "configured"
+	setting.StripeMinTopUp = 2
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	GetTopUpInfo(context)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Data struct {
+			StripeMinTopup int64               `json:"stripe_min_topup"`
+			PayMethods     []map[string]string `json:"pay_methods"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	expectedMinimum := int64(2 * common.QuotaPerUnit)
+	assert.Equal(t, expectedMinimum, response.Data.StripeMinTopup)
+	require.Len(t, response.Data.PayMethods, 1)
+	assert.Equal(t, fmt.Sprint(expectedMinimum), response.Data.PayMethods[0]["min_topup"])
+	assert.Equal(t, "2", operation_setting.PayMethods[0]["min_topup"])
 }
 
 func TestGetStripeWalletQuote(t *testing.T) {
@@ -298,6 +452,7 @@ func insertStripeWebhookTopUp(t *testing.T, db *gorm.DB, tradeNo string, session
 		ExpectedAmount:            2,
 		ExpectedAmountUnit:        200,
 		ExpectedCurrency:          "USD",
+		ExpectedCreditedQuota:     int64(2 * common.QuotaPerUnit),
 		ExpectedSessionID:         sessionID,
 		ExpectedBindingToken:      stripeWebhookBindingToken,
 		Status:                    common.TopUpStatusPending,
@@ -542,6 +697,7 @@ func TestStripeRequestPay_PersistsExpectationBeforeCheckoutAndSessionAfterward(t
 	assert.Equal(t, common.TopUpStatusPending, pendingBeforeCheckout.Status)
 	assert.Equal(t, model.StripePaymentExpectationVersion, pendingBeforeCheckout.PaymentExpectationVersion)
 	assert.Equal(t, int64(2400), pendingBeforeCheckout.ExpectedAmountUnit)
+	assert.Equal(t, int64(6_000_000), pendingBeforeCheckout.ExpectedCreditedQuota)
 	assert.Equal(t, stripeWalletCurrency, pendingBeforeCheckout.ExpectedCurrency)
 	assert.Empty(t, pendingBeforeCheckout.ExpectedSessionID)
 	require.Len(t, pendingBeforeCheckout.ExpectedBindingToken, stripeWalletBindingTokenLength)
@@ -554,6 +710,7 @@ func TestStripeRequestPay_PersistsExpectationBeforeCheckoutAndSessionAfterward(t
 	require.NoError(t, db.Where("trade_no = ?", pendingBeforeCheckout.TradeNo).First(&persisted).Error)
 	assert.Equal(t, "cs_request_pay", persisted.ExpectedSessionID)
 	assert.Equal(t, pendingBeforeCheckout.ExpectedAmountUnit, persisted.ExpectedAmountUnit)
+	assert.Equal(t, pendingBeforeCheckout.ExpectedCreditedQuota, persisted.ExpectedCreditedQuota)
 	assert.Equal(t, pendingBeforeCheckout.ExpectedCurrency, persisted.ExpectedCurrency)
 	assert.Equal(t, pendingBeforeCheckout.ExpectedBindingToken, persisted.ExpectedBindingToken)
 

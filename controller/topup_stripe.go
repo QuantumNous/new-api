@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ const (
 	stripeWalletProductName        = "New API wallet top up"
 	stripeWalletBindingMetadataKey = "new_api_wallet_binding"
 	stripeWalletBindingTokenLength = 32
+	stripeWalletMaxTopup           = int64(10000)
 )
 
 var createStripeCheckoutSession = session.New
@@ -60,12 +62,17 @@ type StripeAdaptor struct {
 }
 
 func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
-	if req.Amount < getStripeMinTopup() {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getStripeMinTopup())})
+	minTopup, maxTopup, err := getStripeTopupBounds()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Stripe 充值配置无效"})
 		return
 	}
-	if req.Amount > 10000 {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值数量不能大于 10000"})
+	if req.Amount < minTopup {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", minTopup)})
+		return
+	}
+	if req.Amount > maxTopup {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能大于 %d", maxTopup)})
 		return
 	}
 	id := c.GetInt("id")
@@ -96,12 +103,17 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "不支持的支付渠道"})
 		return
 	}
-	if req.Amount < getStripeMinTopup() {
-		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("充值数量不能小于 %d", getStripeMinTopup()), "data": 10})
+	minTopup, maxTopup, err := getStripeTopupBounds()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Stripe 充值配置无效"})
 		return
 	}
-	if req.Amount > 10000 {
-		c.JSON(http.StatusOK, gin.H{"message": "充值数量不能大于 10000", "data": 10})
+	if req.Amount < minTopup {
+		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("充值数量不能小于 %d", minTopup), "data": 10})
+		return
+	}
+	if req.Amount > maxTopup {
+		c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("充值数量不能大于 %d", maxTopup), "data": 10})
 		return
 	}
 
@@ -129,7 +141,12 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 
-	if rejectInvalidCreditedQuota(c, id, getStripeCreditedQuota(req.Amount, user.Group)) {
+	creditedQuota, err := validateCreditedQuota(getStripeCreditedQuota(req.Amount, user.Group))
+	if err == nil {
+		err = model.ValidateTopUpQuotaCapacity(id, creditedQuota)
+	}
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
 		return
 	}
 
@@ -158,6 +175,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		PaymentExpectationVersion: model.StripePaymentExpectationVersion,
 		ExpectedAmount:            quote.Amount.InexactFloat64(),
 		ExpectedAmountUnit:        quote.AmountUnit,
+		ExpectedCreditedQuota:     int64(creditedQuota),
 		ExpectedCurrency:          quote.Currency,
 		ExpectedBindingToken:      bindingToken,
 		CreateTime:                time.Now().Unix(),
@@ -493,9 +511,11 @@ func getStripeCreditedQuota(amount int64, group string) decimal.Decimal {
 	if ratio == 0 {
 		ratio = 1
 	}
-	return decimal.NewFromInt(amount).
-		Mul(decimal.NewFromFloat(ratio)).
-		Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+	quota := decimal.NewFromInt(amount).Mul(decimal.NewFromFloat(ratio))
+	if operation_setting.GetQuotaDisplayType() != operation_setting.QuotaDisplayTypeTokens {
+		quota = quota.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+	}
+	return quota
 }
 
 func getStripeWalletQuote(amount int64, group string) stripeWalletQuote {
@@ -528,10 +548,46 @@ func getStripeWalletQuote(amount int64, group string) stripeWalletQuote {
 	}
 }
 
-func getStripeMinTopup() int64 {
-	minTopup := setting.StripeMinTopUp
-	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		minTopup = minTopup * int(common.QuotaPerUnit)
+func getStripeTopupBounds() (int64, int64, error) {
+	minTopup := decimal.NewFromInt(int64(setting.StripeMinTopUp))
+	maxTopup := decimal.NewFromInt(stripeWalletMaxTopup)
+	if minTopup.LessThanOrEqual(decimal.Zero) {
+		return 0, 0, errors.New("Stripe minimum top-up must be positive")
 	}
-	return int64(minTopup)
+
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		if !hasValidQuotaPerUnit() {
+			return 0, 0, errors.New("quota per unit must be finite and positive")
+		}
+		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		minTopup = minTopup.Mul(dQuotaPerUnit).Ceil()
+		maxTopup = maxTopup.Mul(dQuotaPerUnit).Floor()
+	}
+
+	maxInt64 := decimal.NewFromInt(math.MaxInt64)
+	if minTopup.LessThanOrEqual(decimal.Zero) ||
+		maxTopup.LessThanOrEqual(decimal.Zero) ||
+		minTopup.GreaterThan(maxInt64) ||
+		maxTopup.GreaterThan(maxInt64) ||
+		minTopup.GreaterThan(maxTopup) {
+		return 0, 0, errors.New("Stripe top-up bounds are not representable")
+	}
+
+	return minTopup.IntPart(), maxTopup.IntPart(), nil
+}
+
+func getStripeMaxTopup() int64 {
+	_, maxTopup, err := getStripeTopupBounds()
+	if err != nil {
+		return 0
+	}
+	return maxTopup
+}
+
+func getStripeMinTopup() int64 {
+	minTopup, _, err := getStripeTopupBounds()
+	if err != nil {
+		return 0
+	}
+	return minTopup
 }

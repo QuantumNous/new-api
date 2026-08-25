@@ -127,9 +127,14 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
     return DEFAULT_PAYMENT_TYPE
   }
 
-  // Return first available payment method or default
-  if (topupInfo.pay_methods?.length > 0) {
-    return topupInfo.pay_methods[0].type
+  // Preserve the first configured non-Pancake method as the scalar default.
+  // Pancake may be advertised while its configured product is temporarily
+  // unavailable, but selecting it explicitly must still use its dedicated flow.
+  const configuredDefault = topupInfo.pay_methods?.find(
+    (method) => !isWaffoPancakePayment(method.type)
+  )
+  if (configuredDefault) {
+    return configuredDefault.type
   }
 
   if (topupInfo.enable_stripe_topup) {
@@ -138,6 +143,10 @@ export function getDefaultPaymentType(topupInfo: TopupInfo | null): string {
 
   if (topupInfo.enable_waffo_topup) {
     return PAYMENT_TYPES.WAFFO
+  }
+
+  if (topupInfo.pay_methods?.length > 0) {
+    return topupInfo.pay_methods[0].type
   }
 
   if (topupInfo.enable_waffo_pancake_topup) {

@@ -1,8 +1,10 @@
 package controller
 
 import (
+	"math"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
@@ -35,6 +37,31 @@ func TestStripeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	require.False(t, isStripeWebhookEnabled())
 
 	setting.StripeWebhookSecret = "whsec_test"
+	require.True(t, isStripeWebhookEnabled())
+}
+
+func TestStripeTopUpEnabledRequiresValidQuotaPerUnit(t *testing.T) {
+	confirmPaymentComplianceForTest(t)
+	originalAPISecret := setting.StripeApiSecret
+	originalWebhookSecret := setting.StripeWebhookSecret
+	originalQuotaPerUnit := common.QuotaPerUnit
+	t.Cleanup(func() {
+		setting.StripeApiSecret = originalAPISecret
+		setting.StripeWebhookSecret = originalWebhookSecret
+		common.QuotaPerUnit = originalQuotaPerUnit
+	})
+
+	setting.StripeApiSecret = "configured"
+	setting.StripeWebhookSecret = "configured"
+
+	for _, quotaPerUnit := range []float64{0, -1, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		common.QuotaPerUnit = quotaPerUnit
+		require.False(t, isStripeTopUpEnabled())
+		require.False(t, isStripeWebhookEnabled())
+	}
+
+	common.QuotaPerUnit = 500000
+	require.True(t, isStripeTopUpEnabled())
 	require.True(t, isStripeWebhookEnabled())
 }
 

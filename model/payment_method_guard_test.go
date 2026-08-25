@@ -205,12 +205,47 @@ func insertStripeExpectedTopUpForPaymentGuardTest(t *testing.T, tradeNo string, 
 		ExpectedAmount:            2,
 		ExpectedAmountUnit:        200,
 		ExpectedCurrency:          "USD",
+		ExpectedCreditedQuota:     int64(2 * common.QuotaPerUnit),
 		ExpectedSessionID:         "cs_expected",
 		ExpectedBindingToken:      "stripe_binding_expected",
 		Status:                    common.TopUpStatusPending,
 		CreateTime:                time.Now().Unix(),
 	}
 	require.NoError(t, topUp.Insert())
+}
+
+func TestSetStripeTopUpExpectedSessionID_RejectsMissingCreditedQuotaSnapshot(t *testing.T) {
+	truncateTables(t)
+
+	const userID = 415
+	const tradeNo = "stripe-session-missing-quota"
+	insertUserForPaymentGuardTest(t, userID, 0)
+	insertStripeExpectedTopUpForPaymentGuardTest(t, tradeNo, userID)
+	topUp := GetTopUpByTradeNo(tradeNo)
+	require.NotNil(t, topUp)
+	topUp.ExpectedSessionID = ""
+	topUp.ExpectedCreditedQuota = 0
+	require.NoError(t, topUp.Update())
+
+	require.ErrorIs(t, SetStripeTopUpExpectedSessionID(tradeNo, "cs_rejected"), ErrPaymentExpectationInvalid)
+	stored := GetTopUpByTradeNo(tradeNo)
+	require.NotNil(t, stored)
+	assert.Empty(t, stored.ExpectedSessionID)
+	assert.Equal(t, common.TopUpStatusPending, stored.Status)
+}
+
+func TestRechargeLegacyStripePathFailsClosed(t *testing.T) {
+	truncateTables(t)
+
+	const userID = 416
+	const tradeNo = "stripe-legacy-recharge-disabled"
+	insertUserForPaymentGuardTest(t, userID, 0)
+	insertStripeExpectedTopUpForPaymentGuardTest(t, tradeNo, userID)
+
+	err := Recharge(tradeNo, "cus_legacy", "127.0.0.1")
+	require.ErrorIs(t, err, ErrPaymentExpectationInvalid)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+	assert.Zero(t, getUserQuotaForPaymentGuardTest(t, userID))
 }
 
 func TestRechargeStripeSettlement_RequiresExpectedSettlementAndIsIdempotent(t *testing.T) {
@@ -235,6 +270,114 @@ func TestRechargeStripeSettlement_RequiresExpectedSettlementAndIsIdempotent(t *t
 
 	require.NoError(t, RechargeStripeSettlement(tradeNo, settlement))
 	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
+}
+
+func TestRechargeStripeSettlement_UsesImmutableCreditedQuotaSnapshot(t *testing.T) {
+	truncateTables(t)
+
+	oldQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 500000
+	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
+
+	const userID = 410
+	const tradeNo = "stripe-settlement-immutable-quota"
+	insertUserForPaymentGuardTest(t, userID, 0)
+	insertStripeExpectedTopUpForPaymentGuardTest(t, tradeNo, userID)
+	topUp := GetTopUpByTradeNo(tradeNo)
+	require.NotNil(t, topUp)
+	topUp.Money = 24
+	topUp.ExpectedAmount = 24
+	topUp.ExpectedAmountUnit = 2400
+	topUp.ExpectedCreditedQuota = 6_000_000
+	require.NoError(t, topUp.Update())
+
+	common.QuotaPerUnit = 7
+	settlement := StripeSettlement{
+		SessionID:    "cs_expected",
+		BindingToken: "stripe_binding_expected",
+		AmountUnit:   2400,
+		Currency:     "USD",
+	}
+	require.NoError(t, RechargeStripeSettlement(tradeNo, settlement))
+	assert.Equal(t, 6_000_000, getUserQuotaForPaymentGuardTest(t, userID))
+
+	require.NoError(t, RechargeStripeSettlement(tradeNo, settlement))
+	assert.Equal(t, 6_000_000, getUserQuotaForPaymentGuardTest(t, userID))
+}
+
+func TestRechargeStripeSettlement_RejectsMissingCreditedQuotaSnapshot(t *testing.T) {
+	truncateTables(t)
+
+	const userID = 411
+	const tradeNo = "stripe-settlement-missing-quota"
+	insertUserForPaymentGuardTest(t, userID, 0)
+	insertStripeExpectedTopUpForPaymentGuardTest(t, tradeNo, userID)
+	topUp := GetTopUpByTradeNo(tradeNo)
+	require.NotNil(t, topUp)
+	topUp.ExpectedCreditedQuota = 0
+	require.NoError(t, topUp.Update())
+
+	err := RechargeStripeSettlement(tradeNo, StripeSettlement{
+		SessionID:    "cs_expected",
+		BindingToken: "stripe_binding_expected",
+		AmountUnit:   200,
+		Currency:     "USD",
+	})
+	require.ErrorIs(t, err, ErrPaymentExpectationInvalid)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+	assert.Zero(t, getUserQuotaForPaymentGuardTest(t, userID))
+}
+
+func TestRechargeStripeSettlement_EnforcesFinalWalletQuotaLimit(t *testing.T) {
+	testCases := []struct {
+		name         string
+		currentQuota int
+		wantErr      bool
+		wantQuota    int
+		wantStatus   string
+	}{
+		{
+			name:         "allows exact highest representable wallet balance",
+			currentQuota: common.MaxQuota - 1 - 1_000_000,
+			wantQuota:    common.MaxQuota - 1,
+			wantStatus:   common.TopUpStatusSuccess,
+		},
+		{
+			name:         "rejects balance above int32 quota domain",
+			currentQuota: common.MaxQuota - 1_000_000,
+			wantErr:      true,
+			wantQuota:    common.MaxQuota - 1_000_000,
+			wantStatus:   common.TopUpStatusPending,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			truncateTables(t)
+			const userID = 412
+			const tradeNo = "stripe-settlement-wallet-limit"
+			insertUserForPaymentGuardTest(t, userID, tc.currentQuota)
+			insertStripeExpectedTopUpForPaymentGuardTest(t, tradeNo, userID)
+			topUp := GetTopUpByTradeNo(tradeNo)
+			require.NotNil(t, topUp)
+			topUp.ExpectedCreditedQuota = 1_000_000
+			require.NoError(t, topUp.Update())
+
+			err := RechargeStripeSettlement(tradeNo, StripeSettlement{
+				SessionID:    "cs_expected",
+				BindingToken: "stripe_binding_expected",
+				AmountUnit:   200,
+				Currency:     "USD",
+			})
+			if tc.wantErr {
+				require.ErrorIs(t, err, ErrTopUpQuotaLimitExceeded)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.wantQuota, getUserQuotaForPaymentGuardTest(t, userID))
+			assert.Equal(t, tc.wantStatus, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+		})
+	}
 }
 
 func TestRechargeStripeSettlement_BindsEmptySessionWithMatchingToken(t *testing.T) {
@@ -382,6 +525,12 @@ func TestRechargeStripeSettlement_RejectsBindingExpectationFailures(t *testing.T
 			settlement: StripeSettlement{SessionID: "cs_expected", BindingToken: "stripe_binding_expected", AmountUnit: 200, Currency: "USD"},
 			expected:   ErrPaymentExpectationInvalid,
 		},
+		{
+			name:       "legacy version two without quota snapshot contract",
+			configure:  func(topUp *TopUp) { topUp.PaymentExpectationVersion = 2 },
+			settlement: StripeSettlement{SessionID: "cs_expected", BindingToken: "stripe_binding_expected", AmountUnit: 200, Currency: "USD"},
+			expected:   ErrPaymentExpectationInvalid,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -502,6 +651,53 @@ func TestSetStripeTopUpExpectedSessionID_WebhookFirstSuccessIsIdempotent(t *test
 	assert.Equal(t, "cs_expected", topUp.ExpectedSessionID)
 	assert.Equal(t, common.TopUpStatusSuccess, topUp.Status)
 	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
+}
+
+func TestManualCompleteTopUp_StripeUsesCreditedQuotaSnapshot(t *testing.T) {
+	truncateTables(t)
+
+	oldQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 500000
+	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
+
+	const userID = 413
+	const tradeNo = "stripe-manual-completion-snapshot"
+	insertUserForPaymentGuardTest(t, userID, 0)
+	insertStripeExpectedTopUpForPaymentGuardTest(t, tradeNo, userID)
+	topUp := GetTopUpByTradeNo(tradeNo)
+	require.NotNil(t, topUp)
+	topUp.Money = 24
+	topUp.ExpectedAmount = 24
+	topUp.ExpectedAmountUnit = 2400
+	topUp.ExpectedCreditedQuota = 6_000_000
+	require.NoError(t, topUp.Update())
+
+	common.QuotaPerUnit = 7
+	require.NoError(t, ManualCompleteTopUp(tradeNo, "127.0.0.1"))
+	assert.Equal(t, 6_000_000, getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+
+	require.NoError(t, ManualCompleteTopUp(tradeNo, "127.0.0.1"))
+	assert.Equal(t, 6_000_000, getUserQuotaForPaymentGuardTest(t, userID))
+}
+
+func TestManualCompleteTopUp_StripeRejectsLegacyQuotaExpectation(t *testing.T) {
+	truncateTables(t)
+
+	const userID = 414
+	const tradeNo = "stripe-manual-completion-legacy"
+	insertUserForPaymentGuardTest(t, userID, 0)
+	insertStripeExpectedTopUpForPaymentGuardTest(t, tradeNo, userID)
+	topUp := GetTopUpByTradeNo(tradeNo)
+	require.NotNil(t, topUp)
+	topUp.PaymentExpectationVersion = 2
+	topUp.ExpectedCreditedQuota = 0
+	require.NoError(t, topUp.Update())
+
+	err := ManualCompleteTopUp(tradeNo, "127.0.0.1")
+	require.ErrorIs(t, err, ErrPaymentExpectationInvalid)
+	assert.Zero(t, getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, tradeNo))
 }
 
 func TestUpdatePendingTopUpStatus_RejectsMismatchedPaymentProvider(t *testing.T) {

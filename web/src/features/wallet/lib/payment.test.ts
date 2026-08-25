@@ -17,12 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
+
 import { describe, expect, test } from 'vitest'
 
 import { PAYMENT_TYPES } from '../constants'
 import type { TopupInfo } from '../types'
 import {
   dispatchSelectedPayment,
+  getDefaultPaymentType,
   getPaymentMethodMinTopup,
   isStripePayment,
   isWaffoPayment,
@@ -36,6 +38,38 @@ describe('payment type classification', () => {
     expect(isWaffoPancakePayment(PAYMENT_TYPES.WAFFO_PANCAKE)).toBe(true)
     expect(isWaffoPancakePayment(PAYMENT_TYPES.WAFFO)).toBe(false)
     expect(isStripePayment(PAYMENT_TYPES.STRIPE)).toBe(true)
+  })
+})
+
+describe('default payment selection', () => {
+  const topupInfo: TopupInfo = {
+    enable_online_topup: false,
+    enable_stripe_topup: true,
+    pay_methods: [
+      { name: 'Wechat Pay', type: PAYMENT_TYPES.WAFFO_PANCAKE },
+      { name: 'Stripe', type: PAYMENT_TYPES.STRIPE },
+    ],
+    min_topup: 1,
+    stripe_min_topup: 1,
+    amount_options: [],
+    discount: {},
+    enable_waffo_pancake_topup: true,
+    waffo_pancake_min_topup: 1,
+  }
+
+  test('does not let Pancake displace an existing scalar gateway', () => {
+    assert.equal(getDefaultPaymentType(topupInfo), PAYMENT_TYPES.STRIPE)
+  })
+
+  test('keeps Pancake as the default when it is the only method', () => {
+    assert.equal(
+      getDefaultPaymentType({
+        ...topupInfo,
+        enable_stripe_topup: false,
+        pay_methods: [topupInfo.pay_methods[0]],
+      }),
+      PAYMENT_TYPES.WAFFO_PANCAKE
+    )
   })
 })
 
