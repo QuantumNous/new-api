@@ -108,7 +108,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		case constant.RelayModeRerank:
 			fullRequestURL = fmt.Sprintf("%s/api/v1/services/rerank/text-rerank/text-rerank", info.ChannelBaseUrl)
 		case constant.RelayModeResponses:
-			fullRequestURL = fmt.Sprintf("%s/api/v2/apps/protocols/compatible-mode/v1/responses", info.ChannelBaseUrl)
+			// OpenAI-compatible Responses endpoint; /api/v2/apps/protocols is for Bailian apps, not served by direct MaaS hosts.
+			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/responses", info.ChannelBaseUrl)
 		case constant.RelayModeImagesGenerations:
 			if isSyncImageModel(info.UpstreamModelName) {
 				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", info.ChannelBaseUrl)
