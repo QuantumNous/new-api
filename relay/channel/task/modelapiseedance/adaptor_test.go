@@ -689,6 +689,14 @@ func TestValidateRequestAfterModelMappingRestrictsPublicSubmitEntrypoints(t *tes
 			}
 		})
 	}
+
+	t.Run("allows the authenticated Playground video submit route", func(t *testing.T) {
+		c, _ := newModelAPITestContext(validBody)
+		c.Request.URL.Path = "/pg/videos"
+		if err := validator.ValidateRequestAfterModelMapping(c, newModelAPIRelayInfo("", "")); err != nil {
+			t.Fatalf("Playground video route rejected: %+v", err)
+		}
+	})
 }
 
 func TestBuildAndFetchPathsHeadersAndEscaping(t *testing.T) {
