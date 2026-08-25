@@ -1,5 +1,9 @@
 import { expect, test } from 'bun:test'
 import {
+  CHANNEL_STATUS,
+  CHANNEL_STATUS_CONFIG,
+  CHANNEL_STATUS_LABELS,
+  CHANNEL_STATUS_OPTIONS,
   CHANNEL_TYPE_OPTIONS,
   CHANNEL_TYPES,
   CREATE_MODEL_FETCHABLE_TYPES,
@@ -11,6 +15,16 @@ import {
   getDefaultBaseUrl,
 } from './lib/channel-type-config'
 import { getChannelTypeIcon, getKeyPromptForType } from './lib/channel-utils'
+
+test('Banned channel status is selectable and rendered as a dangerous status', () => {
+  expect(CHANNEL_STATUS.BANNED).toBe(4)
+  expect(CHANNEL_STATUS_LABELS[CHANNEL_STATUS.BANNED]).toBe('Banned')
+  expect(CHANNEL_STATUS_CONFIG[CHANNEL_STATUS.BANNED].variant).toBe('danger')
+  expect(CHANNEL_STATUS_OPTIONS).toContainEqual({
+    value: 'banned',
+    label: 'Banned',
+  })
+})
 
 test('Jimeng zhizinan channel is selectable and model-fetchable', () => {
   expect(CHANNEL_TYPES[104]).toBe('JimengZhizinan')
