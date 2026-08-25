@@ -56,6 +56,7 @@ import { ModelGroupSelector } from '@/components/model-group-selector'
 import {
   isQuickStartModelAvailable,
   QUICK_START_MODELS,
+  resolveQuickStartChatModel,
   shouldShowQuickStartSuggestions,
   type MediaGenerationProfile,
   type MediaGenerationSettings,
@@ -63,11 +64,7 @@ import {
   type MediaParameterValue,
   normalizePlaygroundAttachments,
 } from '../lib'
-import type {
-  GroupOption,
-  ModelOption,
-  PlaygroundAttachment,
-} from '../types'
+import type { GroupOption, ModelOption, PlaygroundAttachment } from '../types'
 import { PlaygroundParameters } from './playground-parameters'
 
 interface PlaygroundInputProps {
@@ -270,14 +267,14 @@ export function PlaygroundInput({
 
   const handleSuggestionClick = (suggestion: string, model?: string) => {
     if (isSubmitDisabled) return
-    if (!model) {
-      onSubmit(suggestion)
-      return
-    }
-    if (!isQuickStartModelAvailable(models, model)) return
-    onModelChange(model)
-    onSubmit(suggestion, model)
+    const targetModel = model ?? resolveQuickStartChatModel(models)
+    if (!targetModel) return
+    if (model && !isQuickStartModelAvailable(models, model)) return
+    onModelChange(targetModel)
+    onSubmit(suggestion, targetModel)
   }
+
+  const textQuickStartModel = resolveQuickStartChatModel(models)
 
   return (
     <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
@@ -386,10 +383,10 @@ export function PlaygroundInput({
           </p>
           <Suggestions>
             {suggestions
-              .filter(
-                (suggestion) =>
-                  !suggestion.model ||
-                  isQuickStartModelAvailable(models, suggestion.model)
+              .filter((suggestion) =>
+                suggestion.model
+                  ? isQuickStartModelAvailable(models, suggestion.model)
+                  : !!textQuickStartModel
               )
               .map(({ icon: Icon, text: suggestionText, color, model }) => (
                 <Suggestion

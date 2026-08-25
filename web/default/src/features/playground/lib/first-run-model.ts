@@ -17,8 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { isPlaygroundChatModelName } from './playground-model-filter'
+import { QUICK_START_TEXT_MODEL } from './playground-suggestions'
 
 const FIRST_RUN_MODEL_PRIORITY = [
+  QUICK_START_TEXT_MODEL,
   'gemini-2.5-flash',
   'gemini-2.0-flash',
   'claude-haiku-4-5',
@@ -32,9 +34,8 @@ export function pickFirstRunModel(
     .map((model) => ({
       value: typeof model.value === 'string' ? model.value.trim() : '',
     }))
-    .filter(
-      (model): model is { value: string } =>
-        isPlaygroundChatModelName(model.value)
+    .filter((model): model is { value: string } =>
+      isPlaygroundChatModelName(model.value)
     )
   const configured = configuredModel?.trim()
   if (configured && validModels.some((model) => model.value === configured)) {

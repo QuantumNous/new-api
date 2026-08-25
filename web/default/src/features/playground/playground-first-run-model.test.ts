@@ -22,6 +22,12 @@ import { pickFirstRunModel } from './lib/first-run-model'
 const models = (...values: string[]) => values.map((value) => ({ value }))
 
 describe('pickFirstRunModel', () => {
+  test('prefers gpt-5.5 as the default text model', () => {
+    expect(
+      pickFirstRunModel(models('gpt-4o', 'gpt-5.5', 'gemini-2.5-flash'))
+    ).toBe('gpt-5.5')
+  })
+
   test('uses the configured model when it is available', () => {
     expect(
       pickFirstRunModel(

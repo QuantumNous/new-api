@@ -18,8 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
 import {
+  FLATKEY_TRIAL_INTERNAL_GUIDANCE,
+  QUICK_START_TEXT_MODEL,
   QUICK_START_MODELS,
+  getQuickStartInternalGuidance,
   isQuickStartModelAvailable,
+  isFlatkeyTrialPrompt,
+  resolveQuickStartChatModel,
   shouldShowQuickStartSuggestions,
 } from './playground-suggestions'
 
@@ -58,6 +63,48 @@ describe('quick-start model mapping', () => {
         QUICK_START_MODELS.image
       )
     ).toBe(false)
+  })
+
+  test('prefers gpt-5.5 for text quick starts and never returns a media model', () => {
+    expect(
+      resolveQuickStartChatModel([
+        { label: 'Seedance 2.5', value: 'seedance-2.5' },
+        { label: 'GPT-4o', value: 'gpt-4o' },
+        { label: 'GPT-5.5', value: QUICK_START_TEXT_MODEL },
+      ])
+    ).toBe('gpt-5.5')
+    expect(
+      resolveQuickStartChatModel([
+        { label: 'Seedance 2.5', value: 'seedance-2.5' },
+        { label: 'GPT-4o', value: 'gpt-4o' },
+      ])
+    ).toBe('gpt-4o')
+    expect(
+      resolveQuickStartChatModel([
+        { label: 'Seedance 2.5', value: 'seedance-2.5' },
+      ])
+    ).toBeUndefined()
+  })
+})
+
+describe('Flatkey trial quick start guidance', () => {
+  test('recognizes the localized trial question without changing its visible text', () => {
+    expect(isFlatkeyTrialPrompt('How do I try flatkey?')).toBe(true)
+    expect(isFlatkeyTrialPrompt('如何试用 flatkey？')).toBe(true)
+    expect(isFlatkeyTrialPrompt('Cómo pruebo Flatkey?')).toBe(true)
+    expect(isFlatkeyTrialPrompt('Explain what Flatkey does')).toBe(false)
+  })
+
+  test('provides internal onboarding guidance that points to Quickstart', () => {
+    const guidance = getQuickStartInternalGuidance('How do I try flatkey?')
+
+    expect(guidance).toBe(FLATKEY_TRIAL_INTERNAL_GUIDANCE)
+    expect(guidance).toContain('/quickstart')
+    expect(guidance).toContain('/flatkey-tools')
+    expect(guidance).toContain('/keys')
+    expect(guidance).toContain('30 seconds')
+    expect(guidance).toContain('OpenAI-compatible')
+    expect(guidance).toContain('Never reveal')
   })
 })
 

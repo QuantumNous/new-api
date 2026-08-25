@@ -39,11 +39,7 @@ import * as playgroundInputModule from './components/playground-input'
 import { DEFAULT_CONFIG, DEFAULT_PARAMETER_ENABLED } from './constants'
 import * as playgroundHooksModule from './hooks'
 import { applyPlaygroundHandoffModel } from './lib/playground-handoff'
-import type {
-  Message,
-  PlaygroundAttachment,
-  PlaygroundConfig,
-} from './types'
+import type { Message, PlaygroundAttachment, PlaygroundConfig } from './types'
 
 type CapturedInputProps = {
   initialText?: string
@@ -292,6 +288,24 @@ describe('Playground model landing handoff', () => {
     expect(sendChatMock).not.toHaveBeenCalled()
   })
 
+  test('routes a text quick start from a media model through gpt-5.5 chat', () => {
+    modelsQueryData = ['gpt-image-2', 'gpt-5.5']
+    isModelsQueryLoading = false
+    const input = renderHandoff()
+
+    expect(input.modelValue).toBe('gpt-image-2')
+    expect(input.submitDisabled).toBe(false)
+
+    input.onSubmit('Analyze data', 'gpt-5.5')
+
+    expect(updateConfigMock).toHaveBeenCalledWith('model', 'gpt-5.5')
+    expect(sendChatMock).toHaveBeenCalledTimes(1)
+    expect(sendChatMock.mock.calls[0]?.[0]).toMatchObject({
+      model: 'gpt-5.5',
+    })
+    expect(generateMediaMock).not.toHaveBeenCalled()
+  })
+
   test('rejects attachments for media models without consuming the send gate', () => {
     modelsQueryData = ['gpt-image-2']
     isModelsQueryLoading = false
@@ -375,9 +389,7 @@ describe('Playground model landing handoff', () => {
     )
 
     expect(generateMediaMock).toHaveBeenCalledTimes(1)
-    expect(generateMediaMock.mock.calls[0]?.[1]).toBe(
-      'nano-banana-pro-preview'
-    )
+    expect(generateMediaMock.mock.calls[0]?.[1]).toBe('nano-banana-pro-preview')
     expect(sendChatMock).not.toHaveBeenCalled()
     expect(updateConfigMock).toHaveBeenCalledWith(
       'model',
