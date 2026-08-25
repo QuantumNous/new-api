@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	common2 "github.com/QuantumNous/new-api/common"
 	rootconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
@@ -276,6 +277,49 @@ func TestDoRequest_BlockRunRedirectPolicyIsRequestScoped(t *testing.T) {
 	require.NoError(t, err)
 	nonBlockRun := clientForRelayRequest(baseClient, nonBlockRunReq, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: rootconstant.ChannelTypeOpenAI}})
 	require.Same(t, baseClient, nonBlockRun, "non-Type 100 must keep the shared client and redirect behavior")
+}
+
+func TestDoRequestCapturesUpstreamRequestIDHeaders(t *testing.T) {
+	service.InitHttpClient()
+
+	tests := []struct {
+		name       string
+		standardID string
+		legacyID   string
+		expectedID string
+	}{
+		{name: "standard x-request-id", standardID: "upstream-standard-id", expectedID: "upstream-standard-id"},
+		{name: "legacy X-Oneapi-Request-Id", legacyID: "upstream-legacy-id", expectedID: "upstream-legacy-id"},
+		{name: "standard takes precedence", standardID: "upstream-standard-id", legacyID: "upstream-legacy-id", expectedID: "upstream-standard-id"},
+		{name: "no request id"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if tt.standardID != "" {
+					w.Header().Set("x-request-id", tt.standardID)
+				}
+				if tt.legacyID != "" {
+					w.Header().Set(common2.RequestIdKey, tt.legacyID)
+				}
+				w.WriteHeader(http.StatusNoContent)
+			}))
+			defer upstream.Close()
+
+			gin.SetMode(gin.TestMode)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+			req, err := http.NewRequest(http.MethodPost, upstream.URL, strings.NewReader("{}"))
+			require.NoError(t, err)
+
+			resp, err := doRequest(ctx, req, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}})
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.NoError(t, resp.Body.Close())
+			require.Equal(t, tt.expectedID, ctx.GetString(common2.UpstreamRequestIdKey))
+		})
+	}
 }
 
 func TestClientForRelayRequest_BlockRunPreservesRedirectPolicy(t *testing.T) {
