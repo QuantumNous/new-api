@@ -104,6 +104,11 @@ var SMTPForceAuthLogin = false
 var SMTPAccount = ""
 var SMTPFrom = ""
 var SMTPToken = ""
+var EmailVerificationSubject = ""
+var EmailVerificationHTML = ""
+var EmailPasswordResetSubject = ""
+var EmailPasswordResetHTML = ""
+var EmailNotifyHTML = ""
 
 var GitHubClientId = ""
 var GitHubClientSecret = ""

@@ -111,6 +111,14 @@ func sendEmailNotify(userEmail string, data dto.Notify) error {
 	for _, value := range data.Values {
 		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
 	}
+	if strings.TrimSpace(common.EmailNotifyHTML) != "" {
+		content = common.RenderEmailTemplate(common.EmailNotifyHTML, content, map[string]string{
+			"system_name": common.SystemName,
+			"title":       data.Title,
+			"content":     content,
+			"email":       userEmail,
+		})
+	}
 	return common.SendEmail(data.Title, userEmail, content)
 }
 
