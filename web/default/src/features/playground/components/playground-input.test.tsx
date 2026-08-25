@@ -70,7 +70,10 @@ mock.module('@/components/ui/dropdown-menu', () => ({
   DropdownMenuItem: ({ children }: { children?: React.ReactNode }) => (
     <div>{children}</div>
   ),
-  DropdownMenuTrigger: ({ render, children }: {
+  DropdownMenuTrigger: ({
+    render,
+    children,
+  }: {
     render?: React.ReactNode
     children?: React.ReactNode
   }) => <>{render ?? children}</>,
@@ -205,8 +208,9 @@ describe('PlaygroundInput quick starts', () => {
     expect(onSubmit).toHaveBeenCalledWith('Generate a video', 'seedance-2.5')
   })
 
-  test('submits a text prompt without overriding the current model', () => {
+  test('routes a text prompt to the preferred text model', () => {
     const onSubmit = mock(() => undefined)
+    const onModelChange = mock(() => undefined)
 
     renderToStaticMarkup(
       <I18nextProvider i18n={testI18n}>
@@ -215,9 +219,12 @@ describe('PlaygroundInput quick starts', () => {
           groupValue='default'
           groups={[]}
           modelValue='gpt-4o'
-          models={[{ label: 'GPT-4o', value: 'gpt-4o' }]}
+          models={[
+            { label: 'GPT-4o', value: 'gpt-4o' },
+            { label: 'GPT-5.5', value: 'gpt-5.5' },
+          ]}
           onGroupChange={() => undefined}
-          onModelChange={() => undefined}
+          onModelChange={onModelChange}
           onSubmit={onSubmit}
           showGroupSelector={false}
           submitDisabled={false}
@@ -234,7 +241,8 @@ describe('PlaygroundInput quick starts', () => {
 
     textSuggestion.onClick('Analyze data')
 
-    expect(onSubmit).toHaveBeenCalledWith('Analyze data')
+    expect(onModelChange).toHaveBeenCalledWith('gpt-5.5')
+    expect(onSubmit).toHaveBeenCalledWith('Analyze data', 'gpt-5.5')
   })
 
   test('shows image and video quick starts for a blank prompt', () => {

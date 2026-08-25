@@ -61,6 +61,7 @@ describe('FirstRunWelcome media examples', () => {
 
   test('keeps media examples available alongside a handoff', () => {
     const markup = renderWelcome([
+      { label: 'GPT-5.5', value: 'gpt-5.5' },
       { label: 'gpt-image-2', value: 'gpt-image-2' },
       { label: 'seedance-2.5', value: 'seedance-2.5' },
     ])

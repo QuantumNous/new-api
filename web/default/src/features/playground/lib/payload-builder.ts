@@ -27,6 +27,8 @@ import {
   isParameterAllowedForModel,
   isReasoningModel,
 } from './model-parameter-profile'
+import { isPlaygroundChatModelName } from './playground-model-filter'
+import { getQuickStartInternalGuidance } from './playground-suggestions'
 
 interface BuildChatCompletionPayloadOptions {
   minimalParameters?: boolean
@@ -46,10 +48,28 @@ export function buildChatCompletionPayload(
     .filter(isValidMessage)
     .map(formatMessageForAPI)
 
+  const latestUserPrompt = [...messages]
+    .reverse()
+    .find((message) => message.from === 'user')?.versions[0]?.content
+
+  const internalGuidance =
+    isPlaygroundChatModelName(config.model) && latestUserPrompt
+      ? getQuickStartInternalGuidance(latestUserPrompt)
+      : undefined
+
+  // Internal onboarding context is sent as a system message only. The visible
+  // user message remains untouched in Playground state and in the chat bubble.
+  const requestMessages = internalGuidance
+    ? [
+        { role: 'system' as const, content: internalGuidance },
+        ...processedMessages,
+      ]
+    : processedMessages
+
   const payload: ChatCompletionRequest = {
     model: config.model,
     group: config.group,
-    messages: processedMessages,
+    messages: requestMessages,
     stream: config.stream,
   }
 

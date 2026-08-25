@@ -20,7 +20,12 @@ import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, Sparkles, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { isQuickStartModelAvailable, QUICK_START_MODELS } from '../lib'
+import {
+  FLATKEY_TRIAL_PROMPT,
+  isQuickStartModelAvailable,
+  QUICK_START_MODELS,
+  resolveQuickStartChatModel,
+} from '../lib'
 import type { ModelOption } from '../types'
 
 // Example prompts shown as one-click chips during the first run. They fill the
@@ -31,7 +36,7 @@ const FIRST_RUN_EXAMPLE_PROMPTS: ReadonlyArray<{
   text: string
   model?: string
 }> = [
-  { text: 'How do I try flatkey?' },
+  { text: FLATKEY_TRIAL_PROMPT },
   {
     text: 'Generate an image of a cat astronaut',
     model: QUICK_START_MODELS.image,
@@ -84,7 +89,8 @@ export function FirstRunWelcome({
     Array<{ text: string; model?: string }>
   >((result, example) => {
     if (!example.model) {
-      result.push({ text: example.text })
+      const textModel = resolveQuickStartChatModel(models)
+      if (textModel) result.push({ text: example.text, model: textModel })
       return result
     }
     if (isQuickStartModelAvailable(models, example.model)) {
