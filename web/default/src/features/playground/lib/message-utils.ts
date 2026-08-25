@@ -27,6 +27,9 @@ import type {
   PlaygroundAttachment,
 } from '../types'
 
+const SAFE_IMAGE_DATA_URL_PATTERN =
+  /^data:image\/(?:png|jpe?g|webp|gif);base64,[a-z0-9+/\r\n]+={0,2}$/i
+
 /**
  * Create a new message version
  */
@@ -168,7 +171,11 @@ export function buildMessageContent(
       text: text || '',
     },
     ...attachments.flatMap((attachment): ContentPart[] => {
-      if (attachment.kind === 'image' && attachment.url?.trim()) {
+      if (
+        attachment.kind === 'image' &&
+        attachment.url?.trim() &&
+        SAFE_IMAGE_DATA_URL_PATTERN.test(attachment.url.trim())
+      ) {
         return [
           {
             type: 'image_url' as const,

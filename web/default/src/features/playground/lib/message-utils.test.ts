@@ -94,6 +94,22 @@ describe('Playground message attachments', () => {
       content: 'hello',
     })
   })
+
+  test('does not pass unsafe image attachment URLs to the API', () => {
+    const message = createUserMessage('describe this', [
+      {
+        kind: 'image',
+        filename: 'unsafe.png',
+        mediaType: 'image/png',
+        url: 'javascript:alert(1)',
+      },
+    ])
+
+    expect(formatMessageForAPI(message)).toEqual({
+      role: 'user',
+      content: 'describe this',
+    })
+  })
 })
 
 describe('updateCurrentVersionMedia', () => {
