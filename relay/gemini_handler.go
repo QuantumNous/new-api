@@ -84,9 +84,9 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 				}
 			}
 		}
-		if request.GenerationConfig.ThinkingConfig == nil {
-			relayconvert.ApplyGeminiThinkingConfig(request, info)
-		}
+	}
+	if !isCountTokensRequest && request.GenerationConfig.ThinkingConfig == nil {
+		relayconvert.ApplyGeminiThinkingConfig(request, info)
 	}
 
 	adaptor := GetAdaptor(info.ApiType)
@@ -136,6 +136,15 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 	}
 
+	if !isCountTokensRequest && shouldUpgradeChatToResponses(info) {
+		usage, newApiErr := convertToChatAndRelayViaResponses(c, info, adaptor, request)
+		if newApiErr != nil {
+			return newApiErr
+		}
+		service.PostTextConsumeQuota(c, info, usage, nil)
+		return nil
+	}
+
 	var requestBody io.Reader
 	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
 		storage, err := common.GetBodyStorage(c)
@@ -144,8 +153,7 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		}
 		requestBody = common.NewReplayableBodyReader(storage)
 	} else {
-		// 使用 ConvertGeminiRequest 转换请求格式
-		convertedRequest, err := adaptor.ConvertGeminiRequest(c, info, request)
+		convertedRequest, err := convertRequestToChannelNative(c, info, adaptor, request)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 		}

@@ -73,15 +73,15 @@ func AttachFirstTextThoughtSignature(opts *convmeta.Options, parts []dto.GeminiP
 }
 
 func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta, oaiRequest ...dto.GeneralOpenAIRequest) {
-	if geminiRequest == nil || info == nil {
+	if geminiRequest == nil {
 		return
 	}
 
 	opts := convmeta.OptionsOf(info)
 	modelName := convmeta.UpstreamModelName(info)
-	var requestEffort string
+	var intent reasoning.Intent
 	if len(oaiRequest) > 0 {
-		requestEffort = oaiRequest[0].ReasoningEffort
+		intent = reasoning.IntentFromChatRequest(oaiRequest[0])
 		if modelName == "" {
 			modelName = oaiRequest[0].Model
 		}
@@ -107,14 +107,19 @@ func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Met
 		}
 	}
 
-	if requestEffort == "" {
-		return
-	}
-	if reasoning.IsDisabledThinkingLevel(requestEffort) {
+	switch {
+	case intent.Disabled:
 		applyGeminiThinkingDisabled(geminiRequest)
-		return
+	case intent.HasLevel():
+		applyGeminiThinkingLevel(geminiRequest, info, intent.Level)
+	case intent.WantsThoughts():
+		applyGeminiIncludeThoughts(geminiRequest)
+	case ModelSupportsThinking(modelName):
+		// includeThoughts does not turn thinking on; it only asks Gemini to
+		// return thought parts when the model is already thinking. Without
+		// this, Chat Completions clients never see reasoning_content.
+		applyGeminiIncludeThoughts(geminiRequest)
 	}
-	applyGeminiThinkingLevel(geminiRequest, info, requestEffort)
 }
 
 func applyGeminiThinkingLevel(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta, level string) {
@@ -122,21 +127,57 @@ func applyGeminiThinkingLevel(geminiRequest *dto.GeminiChatRequest, info convmet
 	if geminiLevel == "" {
 		return
 	}
-	if geminiRequest.GenerationConfig.ThinkingConfig == nil {
-		geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{}
-	}
+	applyGeminiIncludeThoughts(geminiRequest)
 	geminiRequest.GenerationConfig.ThinkingConfig.ThinkingLevel = geminiLevel
-	geminiRequest.GenerationConfig.ThinkingConfig.IncludeThoughts = true
 	geminiRequest.GenerationConfig.ThinkingConfig.ThinkingBudget = nil
 	if info != nil {
 		info.SetReasoningEffort(reasoning.OpenAIReasoningEffort(level))
 	}
 }
 
+func applyGeminiIncludeThoughts(geminiRequest *dto.GeminiChatRequest) {
+	if geminiRequest == nil {
+		return
+	}
+	if geminiRequest.GenerationConfig.ThinkingConfig == nil {
+		geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{}
+	}
+	geminiRequest.GenerationConfig.ThinkingConfig.IncludeThoughts = true
+}
+
 func applyGeminiThinkingDisabled(geminiRequest *dto.GeminiChatRequest) {
 	geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
 		IncludeThoughts: false,
 	}
+}
+
+// ModelSupportsThinking reports whether a Gemini model is known to accept
+// thinkingConfig. Gemini 1.x and 2.0 (except the thinking experimental) reject
+// the field; 2.5 / 3+ think by default and need includeThoughts to return it.
+func ModelSupportsThinking(model string) bool {
+	name := strings.ToLower(strings.TrimSpace(model))
+	name = strings.TrimPrefix(name, "models/")
+	if separator := strings.LastIndex(name, "/"); separator >= 0 {
+		name = name[separator+1:]
+	}
+	if name == "" {
+		return false
+	}
+	if strings.Contains(name, "imagen") || strings.Contains(name, "-image") {
+		return false
+	}
+	if strings.Contains(name, "thinking") {
+		return true
+	}
+	if strings.Contains(name, "gemini-1.") || strings.HasPrefix(name, "gemini-1-") {
+		return false
+	}
+	if strings.Contains(name, "gemini-2.0") || strings.Contains(name, "gemini-2-0") {
+		return false
+	}
+	return strings.Contains(name, "gemini-2.") ||
+		strings.Contains(name, "gemini-3") ||
+		strings.Contains(name, "gemini-4")
 }
 
 func ParseStopSequences(stop any) []string {

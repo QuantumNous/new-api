@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/assert"
@@ -68,4 +69,24 @@ func TestRecalcQuotaFromRatiosRejectsAllInvalidAdjustedRatios(t *testing.T) {
 	require.False(t, ok)
 	assert.Equal(t, 0, quota)
 	assert.True(t, info.PriceData.HasOtherRatio("duration"))
+}
+
+func TestShouldUpgradeChatToResponsesRequiresResponsesNativeChannel(t *testing.T) {
+	assert.False(t, shouldUpgradeChatToResponses(nil))
+
+	openaiInfo := testRelayInfo(constant.APITypeOpenAI, "gpt-5")
+	assert.False(t, shouldUpgradeChatToResponses(openaiInfo), "policy is off by default")
+
+	deepseekInfo := testRelayInfo(constant.APITypeDeepSeek, "gpt-5")
+	assert.False(t, shouldUpgradeChatToResponses(deepseekInfo))
+
+	geminiInfo := testRelayInfo(constant.APITypeGemini, "gpt-5")
+	assert.False(t, shouldUpgradeChatToResponses(geminiInfo))
+
+	newAPIInfo := testRelayInfo(constant.APITypeNewAPI, "gpt-5")
+	assert.False(t, shouldUpgradeChatToResponses(newAPIInfo))
+
+	passthrough := testRelayInfo(constant.APITypeOpenAI, "gpt-5")
+	passthrough.ChannelSetting.PassThroughBodyEnabled = true
+	assert.False(t, shouldUpgradeChatToResponses(passthrough))
 }

@@ -20,9 +20,16 @@ import (
 type Adaptor struct {
 }
 
-func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
+	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatClaude, request)
+	if err != nil {
+		return nil, err
+	}
+	claudeRequest, ok := result.Value.(*dto.ClaudeRequest)
+	if !ok {
+		return nil, fmt.Errorf("expected Anthropic Messages request, got %T", result.Value)
+	}
+	return a.ConvertClaudeRequest(c, info, claudeRequest)
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
@@ -113,8 +120,15 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatClaude, &request)
+	if err != nil {
+		return nil, err
+	}
+	claudeRequest, ok := result.Value.(*dto.ClaudeRequest)
+	if !ok {
+		return nil, fmt.Errorf("expected Anthropic Messages request, got %T", result.Value)
+	}
+	return a.ConvertClaudeRequest(c, info, claudeRequest)
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {

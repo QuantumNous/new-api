@@ -10,6 +10,7 @@ import (
 	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
 	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
 
 const (
@@ -119,18 +120,13 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 		opts.ShouldPreserveThinkingSuffix(textRequest.Model),
 	)
 
-	if textRequest.Reasoning != nil {
-		var reasoningConfig sharedclaude.OpenRouterReasoning
-		if err := kitutil.Unmarshal(textRequest.Reasoning, &reasoningConfig); err != nil {
-			return nil, err
+	if intent := reasoning.IntentFromChatRequest(textRequest); !intent.Disabled {
+		switch {
+		case intent.HasLevel():
+			sharedclaude.ApplyThinkingLevel(&claudeRequest, claudeRequest.Model, intent.Level)
+		case intent.WantsThoughts():
+			sharedclaude.ApplyThinkingLevel(&claudeRequest, claudeRequest.Model, reasoning.LevelHigh)
 		}
-		if reasoningConfig.Effort != "" {
-			sharedclaude.ApplyThinkingLevel(&claudeRequest, claudeRequest.Model, reasoningConfig.Effort)
-		}
-	}
-
-	if textRequest.ReasoningEffort != "" {
-		sharedclaude.ApplyThinkingLevel(&claudeRequest, claudeRequest.Model, textRequest.ReasoningEffort)
 	}
 	sharedclaude.EnsureMaxTokensForThinking(&claudeRequest)
 

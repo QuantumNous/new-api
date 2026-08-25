@@ -29,9 +29,9 @@
   "usageMetadata": {
     "promptTokenCount": 10,
     "toolUsePromptTokenCount": 0,
-    "candidatesTokenCount": 5,
+    "candidatesTokenCount": 3,
     "totalTokenCount": 15,
-    "thoughtsTokenCount": 0,
+    "thoughtsTokenCount": 2,
     "cachedContentTokenCount": 0,
     "promptTokensDetails": null,
     "toolUsePromptTokensDetails": null,

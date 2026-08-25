@@ -15,9 +15,53 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/gin-gonic/gin"
 )
+
+func isChatSystemRole(role, preferred string) bool {
+	return role == preferred || role == "system" || role == "developer"
+}
+
+// shouldUpgradeChatToResponses reports whether this request should be sent as
+// OpenAI Responses even though the client used Chat / Claude / Gemini.
+// The admin chat_completions_to_responses_policy selects models; the channel
+// must actually speak Responses, otherwise the upgrade is skipped and the
+// Chat hub converts to the channel's native format instead.
+func shouldUpgradeChatToResponses(info *relaycommon.RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+		return false
+	}
+	switch info.ApiType {
+	case constant.APITypeAdvancedCustom, constant.APITypeNewAPI, constant.APITypeSub2API:
+		// These channels pick a converter per route or speak every client
+		// format natively. A Chat→Responses upgrade would bypass that.
+		return false
+	}
+	if !relaycommon.SpeaksResponsesNatively(info) {
+		return false
+	}
+	return service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName)
+}
+
+func convertToChatAndRelayViaResponses(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, request any) (*dto.Usage, *types.NewAPIError) {
+	chatRequest, ok := request.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		result, err := service.ConvertRequest(c, info, types.RelayFormatOpenAI, request)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+		chatRequest, ok = result.Value.(*dto.GeneralOpenAIRequest)
+		if !ok {
+			return nil, types.NewError(fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value), types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+		}
+	}
+	return chatCompletionsViaResponses(c, info, adaptor, chatRequest)
+}
 
 func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) {
 	if info == nil || request == nil {
@@ -31,7 +75,7 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 
 	containSystemPrompt := false
 	for _, message := range request.Messages {
-		if message.Role == systemRole {
+		if isChatSystemRole(message.Role, systemRole) {
 			containSystemPrompt = true
 			break
 		}
@@ -51,7 +95,7 @@ func applySystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, requ
 
 	common.SetContextKey(c, constant.ContextKeySystemPromptOverride, true)
 	for i, message := range request.Messages {
-		if message.Role != systemRole {
+		if !isChatSystemRole(message.Role, systemRole) {
 			continue
 		}
 		if message.IsStringContent() {

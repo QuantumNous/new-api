@@ -57,12 +57,14 @@ type Adaptor struct {
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	// Vertex AI does not support functionResponse.id; keep it stripped here for consistency.
-	if model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled {
-		removeFunctionResponseID(request)
+	switch a.RequestMode {
+	case RequestModeClaude:
+		return a.convertIncomingToMode(c, info, request)
+	case RequestModeOpenSource:
+		return a.convertIncomingToMode(c, info, request)
+	default:
+		return a.convertGeminiNative(c, info, request)
 	}
-	geminiAdaptor := gemini.Adaptor{}
-	return geminiAdaptor.ConvertGeminiRequest(c, info, request)
 }
 
 func removeFunctionResponseID(request *dto.GeminiChatRequest) {
@@ -95,13 +97,12 @@ func removeFunctionResponseID(request *dto.GeminiChatRequest) {
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
-	if v, ok := claudeModelMap[info.UpstreamModelName]; ok {
-		c.Set("request_model", v)
-	} else {
-		c.Set("request_model", request.Model)
+	switch a.RequestMode {
+	case RequestModeGemini, RequestModeOpenSource:
+		return a.convertIncomingToMode(c, info, request)
+	default:
+		return a.convertClaudeNative(c, info, request)
 	}
-	vertexClaudeReq := copyRequest(request, anthropicVersion)
-	return vertexClaudeReq, nil
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -329,8 +330,70 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	return a.convertIncomingToMode(c, info, &request)
+}
+
+func (a *Adaptor) convertIncomingToMode(c *gin.Context, info *relaycommon.RelayInfo, request any) (any, error) {
+	var target types.RelayFormat
+	switch a.RequestMode {
+	case RequestModeClaude:
+		target = types.RelayFormatClaude
+	case RequestModeOpenSource:
+		target = types.RelayFormatOpenAI
+	default:
+		target = types.RelayFormatGemini
+	}
+	current := request
+	if incoming, ok := relaycommon.GuessRelayFormatFromRequest(request); ok && incoming != target {
+		result, err := service.ConvertRequest(c, info, target, request)
+		if err != nil {
+			return nil, err
+		}
+		current = result.Value
+	}
+	switch target {
+	case types.RelayFormatClaude:
+		req, ok := current.(*dto.ClaudeRequest)
+		if !ok {
+			if value, ok := current.(dto.ClaudeRequest); ok {
+				req = &value
+			}
+		}
+		if req == nil {
+			return nil, fmt.Errorf("expected Anthropic Messages request, got %T", current)
+		}
+		return a.convertClaudeNative(c, info, req)
+	case types.RelayFormatGemini:
+		req, ok := current.(*dto.GeminiChatRequest)
+		if !ok {
+			if value, ok := current.(dto.GeminiChatRequest); ok {
+				req = &value
+			}
+		}
+		if req == nil {
+			return nil, fmt.Errorf("expected Gemini generateContent request, got %T", current)
+		}
+		return a.convertGeminiNative(c, info, req)
+	default:
+		return current, nil
+	}
+}
+
+func (a *Adaptor) convertGeminiNative(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
+	if model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled {
+		removeFunctionResponseID(request)
+	}
+	geminiAdaptor := gemini.Adaptor{}
+	return geminiAdaptor.ConvertGeminiRequest(c, info, request)
+}
+
+func (a *Adaptor) convertClaudeNative(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	if v, ok := claudeModelMap[info.UpstreamModelName]; ok {
+		c.Set("request_model", v)
+	} else {
+		c.Set("request_model", request.Model)
+	}
+	return copyRequest(request, anthropicVersion), nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {

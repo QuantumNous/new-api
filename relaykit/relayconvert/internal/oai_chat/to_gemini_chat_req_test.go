@@ -29,6 +29,28 @@ func TestOpenAIChatRequestToGeminiEnablesImageModalitiesFromImagineList(t *testi
 	assert.Equal(t, []string{"TEXT", "IMAGE"}, got.GenerationConfig.ResponseModalities)
 }
 
+func TestOpenAIChatRequestToGeminiDefaultsIncludeThoughts(t *testing.T) {
+	got, err := OpenAIChatRequestToGeminiGenerateContent(context.Background(), dto.GeneralOpenAIRequest{
+		Model:    "gemini-2.5-flash",
+		Messages: []dto.Message{{Role: "user", Content: "hi"}},
+	}, &convmeta.Values{UpstreamModelName: "gemini-2.5-flash"})
+	require.NoError(t, err)
+	require.NotNil(t, got.GenerationConfig.ThinkingConfig)
+	assert.True(t, got.GenerationConfig.ThinkingConfig.IncludeThoughts)
+	assert.Empty(t, got.GenerationConfig.ThinkingConfig.ThinkingLevel)
+}
+
+func TestOpenAIChatRequestToGeminiMapsEnableThinking(t *testing.T) {
+	got, err := OpenAIChatRequestToGeminiGenerateContent(context.Background(), dto.GeneralOpenAIRequest{
+		Model:          "gemini-2.5-pro",
+		EnableThinking: []byte(`true`),
+		Messages:       []dto.Message{{Role: "user", Content: "hi"}},
+	}, &convmeta.Values{UpstreamModelName: "gemini-2.5-pro"})
+	require.NoError(t, err)
+	require.NotNil(t, got.GenerationConfig.ThinkingConfig)
+	assert.True(t, got.GenerationConfig.ThinkingConfig.IncludeThoughts)
+}
+
 func TestOpenAIChatRequestToGeminiUsesThinkingLevelAndThoughts(t *testing.T) {
 	reasoningText := "let me think"
 	got, err := OpenAIChatRequestToGeminiGenerateContent(context.Background(), dto.GeneralOpenAIRequest{
@@ -69,12 +91,24 @@ func TestResponseOpenAI2GeminiMapsReasoningContent(t *testing.T) {
 				FinishReason: "stop",
 			},
 		},
+		Usage: dto.Usage{
+			PromptTokens:     10,
+			CompletionTokens: 5,
+			TotalTokens:      15,
+			CompletionTokenDetails: dto.OutputTokenDetails{
+				ReasoningTokens: 2,
+			},
+		},
 	}, nil)
 	require.Len(t, resp.Candidates, 1)
 	require.Len(t, resp.Candidates[0].Content.Parts, 2)
 	assert.True(t, resp.Candidates[0].Content.Parts[0].Thought)
 	assert.Equal(t, reasoningText, resp.Candidates[0].Content.Parts[0].Text)
 	assert.Equal(t, "answer", resp.Candidates[0].Content.Parts[1].Text)
+	assert.Equal(t, 10, resp.UsageMetadata.PromptTokenCount)
+	assert.Equal(t, 3, resp.UsageMetadata.CandidatesTokenCount)
+	assert.Equal(t, 2, resp.UsageMetadata.ThoughtsTokenCount)
+	assert.Equal(t, 15, resp.UsageMetadata.TotalTokenCount)
 }
 
 func TestStreamResponseOpenAI2GeminiMapsReasoningDelta(t *testing.T) {

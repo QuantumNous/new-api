@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/samber/lo"
 )
 
@@ -356,10 +357,12 @@ func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*d
 		out.MaxOutputTokens = lo.ToPtr(maxOutputTokens)
 	}
 
-	if req.ReasoningEffort != "" {
-		out.Reasoning = &dto.Reasoning{
-			Effort:  req.ReasoningEffort,
-			Summary: "detailed",
+	if intent := reasoning.IntentFromChatRequest(*req); !intent.Disabled {
+		switch {
+		case intent.HasLevel():
+			out.Reasoning = &dto.Reasoning{Effort: intent.Level, Summary: "detailed"}
+		case intent.WantsThoughts():
+			out.Reasoning = &dto.Reasoning{Effort: reasoning.LevelHigh, Summary: "detailed"}
 		}
 	}
 
