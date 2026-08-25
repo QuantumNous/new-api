@@ -33,15 +33,10 @@ beforeAll(async () => {
   })
 })
 
-function renderWelcome(
-  models: Array<{ label: string; value: string }>
-) {
+function renderWelcome(models: Array<{ label: string; value: string }>) {
   return renderToStaticMarkup(
     <I18nextProvider i18n={testI18n}>
-      <FirstRunWelcome
-        models={models}
-        onPickExample={() => undefined}
-      />
+      <FirstRunWelcome models={models} onPickExample={() => undefined} />
     </I18nextProvider>
   )
 }
@@ -56,13 +51,19 @@ describe('FirstRunWelcome media examples', () => {
     expect(videoOnly).toContain('Generate a video of a cat astronaut')
   })
 
+  test('does not fall back to another video model for the video example', () => {
+    const staleVideoOnly = renderWelcome([
+      { label: 'seedance-2.0', value: 'seedance-2.0' },
+    ])
+
+    expect(staleVideoOnly).not.toContain('Generate a video of a cat astronaut')
+  })
+
   test('keeps media examples available alongside a handoff', () => {
-    const markup = renderWelcome(
-      [
-        { label: 'gpt-image-2', value: 'gpt-image-2' },
-        { label: 'seedance-2.0', value: 'seedance-2.0' },
-      ]
-    )
+    const markup = renderWelcome([
+      { label: 'gpt-image-2', value: 'gpt-image-2' },
+      { label: 'seedance-2.5', value: 'seedance-2.5' },
+    ])
 
     expect(markup).toContain('Generate an image of a cat astronaut')
     expect(markup).toContain('Generate a video of a cat astronaut')

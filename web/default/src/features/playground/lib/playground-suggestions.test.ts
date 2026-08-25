@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
 import {
-  resolveQuickStartModel,
+  QUICK_START_MODELS,
+  isQuickStartModelAvailable,
   shouldShowQuickStartSuggestions,
 } from './playground-suggestions'
 
@@ -30,25 +31,33 @@ const models = [
   { label: 'seedance-2.0', value: 'seedance-2.0' },
 ]
 
-describe('resolveQuickStartModel', () => {
-  test('prefers the configured image and video defaults', () => {
-    expect(resolveQuickStartModel(models, 'image')).toBe('gpt-image-2')
-    expect(resolveQuickStartModel(models, 'video')).toBe('seedance-2.5')
+describe('quick-start model mapping', () => {
+  test('keeps each media prompt bound to its exact target model', () => {
+    expect(QUICK_START_MODELS).toEqual({
+      image: 'gpt-image-2',
+      video: 'seedance-2.5',
+    })
   })
 
-  test('falls back to the first visible model of the requested media kind', () => {
-    expect(resolveQuickStartModel(models.slice(0, 1), 'image')).toBe(
-      'grok-imagine-image'
+  test('only reports a quick-start model as available on an exact match', () => {
+    expect(isQuickStartModelAvailable(models, QUICK_START_MODELS.image)).toBe(
+      true
     )
-    expect(resolveQuickStartModel(models.slice(2, 3), 'video')).toBe(
-      'seedance-2.5'
-    )
-  })
-
-  test('returns undefined when no visible model supports the media kind', () => {
     expect(
-      resolveQuickStartModel([{ label: 'gpt-4o', value: 'gpt-4o' }], 'image')
-    ).toBeUndefined()
+      isQuickStartModelAvailable(
+        [{ label: 'Seedance 2.0', value: 'seedance-2.0' }],
+        QUICK_START_MODELS.video
+      )
+    ).toBe(false)
+  })
+
+  test('does not treat another model in the same media family as a match', () => {
+    expect(
+      isQuickStartModelAvailable(
+        [{ label: 'Grok Imagine', value: 'grok-imagine-image' }],
+        QUICK_START_MODELS.image
+      )
+    ).toBe(false)
   })
 })
 

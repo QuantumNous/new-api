@@ -17,26 +17,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ModelOption } from '../types'
-import { resolvePlaygroundModelKind } from './media-generation'
 
-export type QuickStartMediaKind = 'image' | 'video'
-
-const PREFERRED_MEDIA_MODELS: Record<QuickStartMediaKind, string> = {
+/**
+ * Media quick-start entries are intentionally bound to one concrete model.
+ * A prompt must not silently switch to another model in the same media family.
+ */
+export const QUICK_START_MODELS = {
   image: 'gpt-image-2',
   video: 'seedance-2.5',
-}
+} as const
 
-export function resolveQuickStartModel(
+export type QuickStartMediaKind = keyof typeof QUICK_START_MODELS
+
+export function isQuickStartModelAvailable(
   models: ModelOption[],
-  kind: QuickStartMediaKind
-): string | undefined {
-  const preferredModel = PREFERRED_MEDIA_MODELS[kind]
-  if (models.some((model) => model.value === preferredModel)) {
-    return preferredModel
-  }
-  return models.find(
-    (model) => resolvePlaygroundModelKind(model.value) === kind
-  )?.value
+  model: string
+): boolean {
+  return models.some((item) => item.value === model)
 }
 
 export function shouldShowQuickStartSuggestions(text: string): boolean {

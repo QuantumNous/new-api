@@ -30,13 +30,26 @@ import {
 import { createInstance } from 'i18next'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
+import * as suggestionModule from '@/components/ai-elements/suggestion'
 import * as modelGroupSelectorModule from '@/components/model-group-selector'
+
+type CapturedSuggestionProps = React.ComponentProps<
+  typeof suggestionModule.Suggestion
+>
 
 type ModelGroupSelectorProps = React.ComponentProps<
   typeof modelGroupSelectorModule.ModelGroupSelector
 >
 
 let capturedSelectorProps: ModelGroupSelectorProps | undefined
+let capturedSuggestionProps: CapturedSuggestionProps[] = []
+
+spyOn(suggestionModule, 'Suggestion').mockImplementation(((
+  props: CapturedSuggestionProps
+) => {
+  capturedSuggestionProps.push(props)
+  return React.createElement('button', { type: 'button' }, props.suggestion)
+}) as never)
 
 spyOn(modelGroupSelectorModule, 'ModelGroupSelector').mockImplementation(((
   props: ModelGroupSelectorProps
@@ -59,6 +72,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   capturedSelectorProps = undefined
+  capturedSuggestionProps = []
 })
 
 afterAll(() => {
@@ -97,7 +111,7 @@ function renderPlaygroundMarkup({
   modelLocked = false,
   models = [
     { label: 'GPT Image 2', value: 'gpt-image-2' },
-    { label: 'Seedance 2.0', value: 'seedance-2.0' },
+    { label: 'Seedance 2.5', value: 'seedance-2.5' },
   ],
 }: {
   initialText?: string
@@ -135,6 +149,76 @@ describe('PlaygroundInput model lock', () => {
 })
 
 describe('PlaygroundInput quick starts', () => {
+  test('submits a media prompt with its exact target model', () => {
+    const onSubmit = mock(() => undefined)
+    const onModelChange = mock(() => undefined)
+
+    renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <PlaygroundInput
+          disabled={false}
+          groupValue='default'
+          groups={[]}
+          modelLocked
+          modelValue='gpt-image-2'
+          models={[
+            { label: 'GPT Image 2', value: 'gpt-image-2' },
+            { label: 'Seedance 2.5', value: 'seedance-2.5' },
+          ]}
+          onGroupChange={() => undefined}
+          onModelChange={onModelChange}
+          onSubmit={onSubmit}
+          showGroupSelector={false}
+          submitDisabled={false}
+        />
+      </I18nextProvider>
+    )
+
+    const videoSuggestion = capturedSuggestionProps.find(
+      (props) => props.suggestion === 'Generate a video'
+    )
+    if (!videoSuggestion?.onClick) {
+      throw new Error('Video quick-start suggestion was not rendered')
+    }
+
+    videoSuggestion.onClick('Generate a video')
+
+    expect(onModelChange).toHaveBeenCalledWith('seedance-2.5')
+    expect(onSubmit).toHaveBeenCalledWith('Generate a video', 'seedance-2.5')
+  })
+
+  test('submits a text prompt without overriding the current model', () => {
+    const onSubmit = mock(() => undefined)
+
+    renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <PlaygroundInput
+          disabled={false}
+          groupValue='default'
+          groups={[]}
+          modelValue='gpt-4o'
+          models={[{ label: 'GPT-4o', value: 'gpt-4o' }]}
+          onGroupChange={() => undefined}
+          onModelChange={() => undefined}
+          onSubmit={onSubmit}
+          showGroupSelector={false}
+          submitDisabled={false}
+        />
+      </I18nextProvider>
+    )
+
+    const textSuggestion = capturedSuggestionProps.find(
+      (props) => props.suggestion === 'Analyze data'
+    )
+    if (!textSuggestion?.onClick) {
+      throw new Error('Text quick-start suggestion was not rendered')
+    }
+
+    textSuggestion.onClick('Analyze data')
+
+    expect(onSubmit).toHaveBeenCalledWith('Analyze data')
+  })
+
   test('shows image and video quick starts for a blank prompt', () => {
     const markup = renderPlaygroundMarkup()
 
@@ -161,5 +245,13 @@ describe('PlaygroundInput quick starts', () => {
     expect(withoutImage).toContain('Generate a video')
     expect(locked).toContain('Create an image')
     expect(locked).toContain('Generate a video')
+  })
+
+  test('hides a video quick start when only another video model is visible', () => {
+    const staleVideoOnly = renderPlaygroundMarkup({
+      models: [{ label: 'Seedance 2.0', value: 'seedance-2.0' }],
+    })
+
+    expect(staleVideoOnly).not.toContain('Generate a video')
   })
 })
