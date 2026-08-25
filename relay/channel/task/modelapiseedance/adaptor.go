@@ -123,13 +123,17 @@ func (a *TaskAdaptor) ValidateRequestAfterModelMapping(c *gin.Context, info *rel
 	return nil
 }
 
-// supportedModelAPISubmitPaths lists the public submit routes this channel is
-// reachable on. Both are shared platform video routes — the ModelAPI upstream
-// path (/v1/tasks) is never exposed. /v1/generation/tasks stays excluded: it
-// answers in the generation-task format, which this channel does not serve.
+// supportedModelAPISubmitPaths lists the submit routes this channel is
+// reachable on. The Playground route is an authenticated alias of the shared
+// /v1/videos entrypoint; relay info normalizes it for the upstream request, but
+// the incoming Gin request still carries /pg/videos at this validation stage.
+// The ModelAPI upstream path (/v1/tasks) is never exposed. /v1/generation/tasks
+// stays excluded: it answers in the generation-task format, which this channel
+// does not serve.
 var supportedModelAPISubmitPaths = map[string]struct{}{
 	"/v1/videos":            {},
 	"/v1/video/generations": {},
+	"/pg/videos":            {},
 }
 
 func isSupportedModelAPISubmitPath(path string) bool {
