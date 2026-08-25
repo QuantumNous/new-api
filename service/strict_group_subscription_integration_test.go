@@ -32,7 +32,7 @@ func TestStrictGroupSubscriptionAccountsStayIsolated(t *testing.T) {
 		require.NoError(t, model.DB.Exec("DELETE FROM subscription_plans").Error)
 	})
 
-	quotaPerDollar := int64(common.QuotaPerUnit)
+	quotaPerDollar := int64(common.QuotaFromFloat(common.QuotaPerUnit))
 	allowWalletOverflow := false
 	plans := []model.SubscriptionPlan{
 		{
@@ -61,7 +61,7 @@ func TestStrictGroupSubscriptionAccountsStayIsolated(t *testing.T) {
 		t.Cleanup(func() { model.InvalidateSubscriptionPlanCache(planID) })
 	}
 
-	walletQuota := int(5 * common.QuotaPerUnit)
+	walletQuota := common.QuotaFromFloat(5 * common.QuotaPerUnit)
 	users := []model.User{
 		{Id: 9801, Username: "local-sub-a", Password: "unused-test-password", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "a-residential", Quota: walletQuota, AffCode: "local-sub-a-aff"},
 		{Id: 9802, Username: "local-sub-b", Password: "unused-test-password", Role: common.RoleCommonUser, Status: common.UserStatusEnabled, Group: "b-residential", Quota: walletQuota, AffCode: "local-sub-b-aff"},
@@ -70,7 +70,7 @@ func TestStrictGroupSubscriptionAccountsStayIsolated(t *testing.T) {
 		require.NoError(t, model.DB.Create(&users[index]).Error)
 	}
 
-	tokenQuota := int(10 * common.QuotaPerUnit)
+	tokenQuota := common.QuotaFromFloat(10 * common.QuotaPerUnit)
 	tokens := []model.Token{
 		{Id: 9811, UserId: users[0].Id, Key: "local-sub-a-key", Name: "local-sub-a", Status: common.TokenStatusEnabled, ExpiredTime: -1, RemainQuota: tokenQuota, Group: users[0].Group},
 		{Id: 9812, UserId: users[1].Id, Key: "local-sub-b-key", Name: "local-sub-b", Status: common.TokenStatusEnabled, ExpiredTime: -1, RemainQuota: tokenQuota, Group: users[1].Group},

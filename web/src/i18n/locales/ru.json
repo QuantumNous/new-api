@@ -2519,7 +2519,7 @@
     "Jina": "Jina",
     "JSON": "JSON",
     "JSON array of group identifiers. When enabled below, new tokens rotate through this list.": "Массив JSON идентификаторов групп. Если включено ниже, новые токены будут циклически перебираться по этому списку.",
-    "JSON array of user groups whose API keys may only inherit or explicitly use their own group. Auto and cross-group retry are disabled.": "JSON-массив строго изолированных групп. Их API-ключи могут использовать только собственную группу; автоматический режим и межгрупповые повторы отключены.",
+    "JSON array of user groups whose API keys may only inherit or explicitly use their own group. Auto and cross-group retry are disabled.": "JSON-массив строго изолированных групп пользователей. Их API-ключи могут только наследовать группу пользователя или явно использовать её; автоматический режим и межгрупповые повторы отключены.",
     "JSON Editor": "Редактирование JSON",
     "JSON format error": "Ошибка формата JSON",
     "JSON format supports service account JSON files": "Формат JSON поддерживает JSON-файлы сервисного аккаунта",

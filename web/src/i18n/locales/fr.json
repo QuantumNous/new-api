@@ -2519,7 +2519,7 @@
     "Jina": "Jina",
     "JSON": "JSON",
     "JSON array of group identifiers. When enabled below, new tokens rotate through this list.": "Tableau JSON d'identifiants de groupe. Lorsqu'il est activé ci-dessous, les nouveaux jetons alternent dans cette liste.",
-    "JSON array of user groups whose API keys may only inherit or explicitly use their own group. Auto and cross-group retry are disabled.": "Tableau JSON des groupes strictement isolés. Leurs clés API ne peuvent utiliser que leur propre groupe ; le mode automatique et les nouvelles tentatives intergroupes sont désactivés.",
+    "JSON array of user groups whose API keys may only inherit or explicitly use their own group. Auto and cross-group retry are disabled.": "Tableau JSON des groupes d’utilisateurs strictement isolés. Leurs clés API peuvent uniquement hériter du groupe de l’utilisateur ou l’utiliser explicitement ; le mode automatique et les nouvelles tentatives intergroupes sont désactivés.",
     "JSON Editor": "Édition JSON",
     "JSON format error": "Erreur de format JSON",
     "JSON format supports service account JSON files": "Le format JSON prend en charge les fichiers JSON de compte de service",

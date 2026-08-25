@@ -228,32 +228,74 @@ func validateOptionValue(key string, value string) error {
 	if key == "MaxTokenAutoGroups" {
 		return setting.ValidateMaxTokenAutoGroups(value)
 	}
-	if key == "StrictGroupIsolationGroups" {
-		var groups []string
-		if err := common.UnmarshalJsonStr(value, &groups); err != nil {
-			return err
-		}
-		unknownGroups := make(map[string]struct{})
-		for _, group := range groups {
-			group = strings.TrimSpace(group)
-			if group != "" && !ratio_setting.ContainsGroupRatio(group) {
-				unknownGroups[group] = struct{}{}
-			}
-		}
-		if len(unknownGroups) > 0 {
-			names := make([]string, 0, len(unknownGroups))
-			for group := range unknownGroups {
-				names = append(names, group)
-			}
-			sort.Strings(names)
-			return fmt.Errorf("strict isolation groups are not configured in GroupRatio: %s", strings.Join(names, ", "))
-		}
+	if key == "GroupRatio" || key == "StrictGroupIsolationGroups" {
+		return validateStrictGroupIsolationOptions(map[string]string{key: value})
 	}
 	return nil
 }
 
+func validateOptionValues(values map[string]string) error {
+	for key, value := range values {
+		if key == "GroupRatio" || key == "StrictGroupIsolationGroups" {
+			continue
+		}
+		if err := validateOptionValue(key, value); err != nil {
+			return err
+		}
+	}
+	if _, updatesGroupRatio := values["GroupRatio"]; updatesGroupRatio {
+		return validateStrictGroupIsolationOptions(values)
+	}
+	if _, updatesStrictGroups := values["StrictGroupIsolationGroups"]; updatesStrictGroups {
+		return validateStrictGroupIsolationOptions(values)
+	}
+	return nil
+}
+
+func validateStrictGroupIsolationOptions(values map[string]string) error {
+	groupRatioValue := ratio_setting.GroupRatio2JSONString()
+	if value, ok := values["GroupRatio"]; ok {
+		groupRatioValue = value
+	}
+	if err := ratio_setting.CheckGroupRatio(groupRatioValue); err != nil {
+		return err
+	}
+	var groupRatios map[string]float64
+	if err := common.UnmarshalJsonStr(groupRatioValue, &groupRatios); err != nil {
+		return err
+	}
+
+	strictGroupsValue := setting.StrictGroupIsolationGroups2JsonString()
+	if value, ok := values["StrictGroupIsolationGroups"]; ok {
+		strictGroupsValue = value
+	}
+	var strictGroups []string
+	if err := common.UnmarshalJsonStr(strictGroupsValue, &strictGroups); err != nil {
+		return err
+	}
+
+	unknownGroups := make(map[string]struct{})
+	for _, group := range strictGroups {
+		group = strings.TrimSpace(group)
+		if group != "" {
+			if _, ok := groupRatios[group]; !ok {
+				unknownGroups[group] = struct{}{}
+			}
+		}
+	}
+	if len(unknownGroups) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(unknownGroups))
+	for group := range unknownGroups {
+		names = append(names, group)
+	}
+	sort.Strings(names)
+	return fmt.Errorf("strict isolation groups are not configured in GroupRatio: %s", strings.Join(names, ", "))
+}
+
 func UpdateOption(key string, value string) error {
-	if err := validateOptionValue(key, value); err != nil {
+	if err := validateOptionValues(map[string]string{key: value}); err != nil {
 		return err
 	}
 	// Save to database first
@@ -280,10 +322,8 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
 	}
-	for key, value := range values {
-		if err := validateOptionValue(key, value); err != nil {
-			return err
-		}
+	if err := validateOptionValues(values); err != nil {
+		return err
 	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
