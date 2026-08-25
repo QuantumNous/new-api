@@ -133,9 +133,10 @@ func TestPersistedTOSObjectUsesTOSFactoryWhileNewUploadsDefaultToGCS(t *testing.
 	}
 	current, err := newBytePlusGCSTempObjectStore()
 	require.NoError(t, err)
+	creds := testBytePlusRealPersonCreds("https://tos-ap-southeast-1.ibytepluses.com")
 
 	store, err := bytePlusTempObjectStoreForPersistedBucket(
-		testBytePlusRealPersonCreds("https://tos-ap-southeast-1.ibytepluses.com"),
+		&creds,
 		current,
 		"tos:real-person-bucket",
 	)

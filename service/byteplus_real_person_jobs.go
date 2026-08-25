@@ -355,19 +355,7 @@ func runBytePlusRealPersonTOSCleanupJobs(ctx context.Context, now, staleBefore i
 				channelID = asset.ChannelId
 			}
 		}
-		channel, err := model.GetChannelById(channelID, true)
-		if err != nil || !bytePlusAssetChannelIsUsable(channel) {
-			warnBytePlusRealPersonJobRow("tos_cleanup")
-			firstErr = firstNonNil(firstErr, retryBytePlusTempObjectCleanup(object, now))
-			continue
-		}
-		creds, err := ParseBytePlusCredentials(channel.Key)
-		if err != nil {
-			warnBytePlusRealPersonJobRow("tos_cleanup")
-			firstErr = firstNonNil(firstErr, retryBytePlusTempObjectCleanup(object, now))
-			continue
-		}
-		store, err := bytePlusTempObjectStoreForPersistedBucket(creds, nil, object.Bucket)
+		store, err := bytePlusTempObjectStoreForCleanupLocator(channelID, object.Bucket)
 		if err != nil {
 			warnBytePlusRealPersonJobRow("tos_cleanup")
 			firstErr = firstNonNil(firstErr, retryBytePlusTempObjectCleanup(object, now))
@@ -391,6 +379,22 @@ func runBytePlusRealPersonTOSCleanupJobs(ctx context.Context, now, staleBefore i
 	return processed, firstErr
 }
 
+func bytePlusTempObjectStoreForCleanupLocator(channelID int, persistedBucket string) (BytePlusTempObjectStore, error) {
+	provider, _ := bytePlusTempObjectLocatorParts(persistedBucket)
+	if provider == bytePlusTempObjectProviderGCS {
+		return bytePlusTempObjectStoreForPersistedBucket(nil, nil, persistedBucket)
+	}
+	channel, err := model.GetChannelById(channelID, true)
+	if err != nil || !bytePlusAssetChannelIsUsable(channel) {
+		return nil, errors.New("real person cleanup channel unavailable")
+	}
+	creds, err := ParseBytePlusCredentials(channel.Key)
+	if err != nil {
+		return nil, err
+	}
+	return bytePlusTempObjectStoreForPersistedBucket(&creds, nil, persistedBucket)
+}
+
 func finalBytePlusAssetStatusProbe(ctx context.Context, assetID int64) (bool, error) {
 	asset, err := model.GetBytePlusAssetByID(assetID)
 	if err != nil {
@@ -402,16 +406,12 @@ func finalBytePlusAssetStatusProbe(ctx context.Context, assetID int64) (bool, er
 	if strings.TrimSpace(asset.UpstreamAssetId) == "" {
 		return false, nil
 	}
-	channel, creds, err := loadUsableBytePlusRealPersonChannel(asset.ChannelId, asset.UserId, "")
-	if err != nil {
-		return false, err
-	}
-	client, err := realPersonClientForChannel(channel)
+	binding, err := loadUsableRealPersonProviderBinding(asset.ChannelId, "")
 	if err != nil {
 		return false, err
 	}
 	callCtx, cancel := bytePlusRealPersonJobCallContext(ctx)
-	status, err := client.GetAsset(callCtx, creds, asset.UpstreamAssetId)
+	status, err := binding.Provider.GetAsset(callCtx, asset.UpstreamAssetId)
 	cancel()
 	if err != nil {
 		return false, err
