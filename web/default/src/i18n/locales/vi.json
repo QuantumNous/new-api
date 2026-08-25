@@ -3192,7 +3192,7 @@
     "Override Rules": "Quy tắc ghi đè",
     "Override the endpoint used for testing. Leave empty to auto detect.": "Ghi đè điểm cuối dùng để kiểm thử. Để trống để tự động phát hiện.",
     "overrides for matching model prefix.": "ghi đè theo tiền tố model tương ứng.",
-    "Overview": "Tổng quan",
+    "Overview": "Bắt đầu nhanh",
     "Overwritten": "Đã ghi đè",
     "Paddle": "Paddle",
     "Paddle {{environment}} configuration": "Cấu hình Paddle {{environment}}",

@@ -3192,7 +3192,7 @@
     "Override Rules": "上書きルール",
     "Override the endpoint used for testing. Leave empty to auto detect.": "テストに使用されるエンドポイントを上書きします。自動検出するには空のままにします。",
     "overrides for matching model prefix.": "は一致するモデル接頭辞に上書きします。",
-    "Overview": "概要",
+    "Overview": "クイックスタート",
     "Overwritten": "上書き済み",
     "Paddle": "Paddle",
     "Paddle {{environment}} configuration": "Paddle {{environment}} 設定",

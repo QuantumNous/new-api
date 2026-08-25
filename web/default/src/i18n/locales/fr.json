@@ -3192,7 +3192,7 @@
     "Override Rules": "Règles de remplacement",
     "Override the endpoint used for testing. Leave empty to auto detect.": "Remplacer le point de terminaison utilisé pour les tests. Laisser vide pour la détection automatique.",
     "overrides for matching model prefix.": "remplace le tarif si le modèle a ce préfixe.",
-    "Overview": "Vue d'ensemble",
+    "Overview": "Démarrage rapide",
     "Overwritten": "Écrasé",
     "Paddle": "Paddle",
     "Paddle {{environment}} configuration": "Configuration Paddle {{environment}}",

@@ -3192,7 +3192,7 @@
     "Override Rules": "Substituir regras",
     "Override the endpoint used for testing. Leave empty to auto detect.": "Substitua o endpoint usado para teste. Deixe em branco para detecção automática.",
     "overrides for matching model prefix.": "substituições para corresponder ao prefixo do modelo.",
-    "Overview": "Visão geral",
+    "Overview": "Início rápido",
     "Overwritten": "Substituído",
     "Paddle": "Remo",
     "Paddle {{environment}} configuration": "Configuração do remo {{environment}}",

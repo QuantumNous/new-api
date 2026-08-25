@@ -3205,7 +3205,7 @@
     "Override Rules": "Override Rules",
     "Override the endpoint used for testing. Leave empty to auto detect.": "Override the endpoint used for testing. Leave empty to auto detect.",
     "overrides for matching model prefix.": "overrides for matching model prefix.",
-    "Overview": "Overview",
+    "Overview": "Quickstart",
     "Overwritten": "Overwritten",
     "Paddle": "Paddle",
     "Paddle {{environment}} configuration": "Paddle {{environment}} configuration",
