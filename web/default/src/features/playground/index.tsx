@@ -627,7 +627,10 @@ export function Playground({
 
   const handleSendMessage = useCallback(
     (text: string, model?: string) => {
-      const modelOverride = isHandoffModelLocked ? undefined : model
+      // A handoff keeps ordinary text submissions on its requested model, but
+      // an explicit quick-start/PE selection is a deliberate model choice and
+      // must be carried through to this generation.
+      const modelOverride = model
       const targetModel = modelOverride || config.model
       if (!prepareSend(targetModel)) return
       clearModelGeneratorDraft()
@@ -653,7 +656,6 @@ export function Playground({
       clearPlaygroundHandoffSearch,
       config.model,
       dispatchGeneration,
-      isHandoffModelLocked,
       messages,
       prepareSend,
       setUserPickedModel,
@@ -755,7 +757,6 @@ export function Playground({
         <FirstRunWelcome
           firstRun={firstRun}
           models={handoff.models}
-          modelLocked={isHandoffModelLocked}
           ptFirstCallSecondsRemaining={
             isPtFirstCallExperiment ? ptFirstCallSecondsRemaining : undefined
           }

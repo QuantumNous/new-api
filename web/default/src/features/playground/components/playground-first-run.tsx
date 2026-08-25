@@ -20,26 +20,25 @@ import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, Sparkles, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
-import { resolveQuickStartModel, type QuickStartMediaKind } from '../lib'
+import { isQuickStartModelAvailable, QUICK_START_MODELS } from '../lib'
 import type { ModelOption } from '../types'
 
 // Example prompts shown as one-click chips during the first run. They fill the
 // input and send immediately so a brand-new user can make their first API call
-// with zero typing. `text` is a translation key rendered via t(). An optional
-// `kind` resolves against the user's visible models so hidden or unavailable
-// media models never produce a dead quick-start action.
+// with zero typing. `text` is a translation key rendered via t(). Media entries
+// carry their exact target model so they never silently switch model families.
 const FIRST_RUN_EXAMPLE_PROMPTS: ReadonlyArray<{
   text: string
-  kind?: QuickStartMediaKind
+  model?: string
 }> = [
   { text: 'How do I try flatkey?' },
   {
     text: 'Generate an image of a cat astronaut',
-    kind: 'image',
+    model: QUICK_START_MODELS.image,
   },
   {
     text: 'Generate a video of a cat astronaut',
-    kind: 'video',
+    model: QUICK_START_MODELS.video,
   },
   { text: 'Write a quicksort in Python' },
   { text: 'Explain Transformers' },
@@ -48,7 +47,6 @@ const FIRST_RUN_EXAMPLE_PROMPTS: ReadonlyArray<{
 interface FirstRunWelcomeProps {
   onPickExample: (prompt: string, model?: string) => void
   models: ModelOption[]
-  modelLocked?: boolean
   disabled?: boolean
   // New users (via `?first=1`) get the "make your first call in 30s" banner;
   // everyone else lands here on an empty Playground and gets a neutral header
@@ -65,7 +63,6 @@ interface FirstRunWelcomeProps {
 export function FirstRunWelcome({
   onPickExample,
   models,
-  modelLocked = false,
   disabled = false,
   firstRun = false,
   ptFirstCallSecondsRemaining,
@@ -86,13 +83,13 @@ export function FirstRunWelcome({
   const examples = FIRST_RUN_EXAMPLE_PROMPTS.reduce<
     Array<{ text: string; model?: string }>
   >((result, example) => {
-    if (!example.kind) {
+    if (!example.model) {
       result.push({ text: example.text })
       return result
     }
-    if (modelLocked) return result
-    const model = resolveQuickStartModel(models, example.kind)
-    if (model) result.push({ text: example.text, model })
+    if (isQuickStartModelAvailable(models, example.model)) {
+      result.push({ text: example.text, model: example.model })
+    }
     return result
   }, [])
   return (
