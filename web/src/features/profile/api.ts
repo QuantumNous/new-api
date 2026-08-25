@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+import type { CustomOAuthBinding } from '@/lib/oauth'
 import type { LoginSession } from '@/stores/auth-store'
 
 import type {
