@@ -702,6 +702,7 @@ const USER_COLORS = [
   '#5D7092',
 ]
 
+// 添加显示名称
 function uniqueUserChartLabels(
   usernames: string[],
   displayNameByUser: Map<string, string>
@@ -777,12 +778,13 @@ export function processUserChartData(
   if (!data || data.length === 0) return emptyResult
 
   const userQuotaTotal = new Map<string, number>()
-  const displayNameByUser = new Map<string, string>()
+  const displayNameByUser = new Map<string, string>() // 添加显示名称
   data.forEach((item) => {
     const username = item.username || 'unknown'
     const prev = userQuotaTotal.get(username) || 0
     userQuotaTotal.set(username, prev + (Number(item.quota) || 0))
     if (!displayNameByUser.has(username)) {
+      // 添加显示名称
       displayNameByUser.set(username, (item.display_name || '').trim())
     }
   })
@@ -793,7 +795,7 @@ export function processUserChartData(
   const topUsers = sorted.slice(0, limit).map(([u]) => u)
   const topUserSet = new Set(topUsers)
   const totalQuota = sorted.slice(0, limit).reduce((s, [, q]) => s + q, 0)
-  const labelByUser = uniqueUserChartLabels(topUsers, displayNameByUser)
+  const labelByUser = uniqueUserChartLabels(topUsers, displayNameByUser) // 添加显示名称
 
   const rankValues = sorted.slice(0, limit).map(([username, quota]) => ({
     User: labelByUser.get(username) || username,

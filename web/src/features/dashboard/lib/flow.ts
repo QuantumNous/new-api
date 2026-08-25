@@ -69,7 +69,7 @@ type FlowNodeRank = {
 
 type FlowPathContext = {
   deletedTokenLabel?: (tokenId: number) => string
-  userLabels?: Map<string, string>
+  userLabels?: Map<string, string> // 添加显示名称
 }
 
 type FlowGraphOptions = {
@@ -174,6 +174,7 @@ function userNodeId(row: FlowQuotaDataItem): string {
   return `user:${(row.username || '').trim() || 'unknown'}`
 }
 
+// 添加显示名称
 function preferredUserLabel(row: FlowQuotaDataItem): string {
   const displayName = (row.display_name || '').trim()
   if (displayName) return displayName
@@ -184,6 +185,7 @@ function preferredUserLabel(row: FlowQuotaDataItem): string {
   return 'Unknown User'
 }
 
+// 添加显示名称
 function uniqueFlowUserLabels(rows: FlowQuotaDataItem[]): Map<string, string> {
   const preferred = new Map<string, string>()
   const usernameById = new Map<string, string>()
@@ -222,7 +224,7 @@ function userNode(
   const id = userNodeId(row)
   return {
     id,
-    label: ctx.userLabels?.get(id) ?? preferredUserLabel(row),
+    label: ctx.userLabels?.get(id) ?? preferredUserLabel(row), // 添加显示名称
     kind: 'user',
   }
 }
@@ -1008,7 +1010,7 @@ export function buildFlowFilterOptions(
   selectedNodes?: readonly FlowNodeFilter[]
 ): FlowFilterOptions {
   const ctx = {
-    userLabels: uniqueFlowUserLabels(rows),
+    userLabels: uniqueFlowUserLabels(rows), // 添加显示名称
   }
   return {
     users: buildUserFilterOptions(rows, metric, palette, ctx),
@@ -1033,7 +1035,7 @@ export function buildDashboardFlowData(
   const palette = options.colorPalette
   const ctx = {
     deletedTokenLabel: options.deletedTokenLabel,
-    userLabels: uniqueFlowUserLabels(rows),
+    userLabels: uniqueFlowUserLabels(rows), // 添加显示名称
   }
   const stages = resolveVisibleStages(role, options.visibleStages)
   const userFilteredRows = filterRows(rows, options)

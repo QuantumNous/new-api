@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// 添加显示名称
 func TestGetQuotaDataGroupByUserReturnsDisplayName(t *testing.T) {
 	truncateTables(t)
 

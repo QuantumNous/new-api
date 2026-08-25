@@ -27,7 +27,7 @@ function rankUsers(data: QuotaDataItem[]): string[] {
   return values.map((item) => item.User)
 }
 
-describe('user consumption ranking labels', () => {
+describe('user consumption ranking labels', () => { // 添加显示名称
   test('uses display name when present and falls back to username', () => {
     const labels = rankUsers([
       {

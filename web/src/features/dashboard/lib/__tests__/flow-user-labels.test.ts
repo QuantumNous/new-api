@@ -46,7 +46,7 @@ function userLabels(rows: FlowQuotaDataItem[]): Array<[string, string]> {
     .map((node) => [node.id, node.label])
 }
 
-describe('dashboard flow user labels', () => {
+describe('dashboard flow user labels', () => { // 添加显示名称
   test('uses display name when present and falls back to username', () => {
     const rows = [
       flowRow({

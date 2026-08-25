@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// QuotaData 柱状图数据
+// QuotaData 柱状图数据 ，添加显示名称
 type QuotaData struct {
 	Id          int    `json:"id"`
 	UserID      int    `json:"user_id" gorm:"index"`
@@ -23,9 +23,10 @@ type QuotaData struct {
 	TokenUsed   int    `json:"token_used" gorm:"default:0"`
 	Count       int    `json:"count" gorm:"default:0"`
 	Quota       int    `json:"quota" gorm:"default:0"`
-	DisplayName string `json:"display_name,omitempty" gorm:"-"`
+	DisplayName string `json:"display_name,omitempty" gorm:"-"` // 添加显示名称
 }
 
+// 添加显示名称
 func loadUserDisplayNames(userIDs []int, usernames []string) (map[int]string, map[string]string, error) {
 	byID := make(map[int]string)
 	byName := make(map[string]string)
@@ -205,9 +206,10 @@ func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*Quota
 	if err != nil {
 		return quotaDatas, err
 	}
-	return quotaDatas, fillQuotaDataDisplayNames(quotaDatas)
+	return quotaDatas, fillQuotaDataDisplayNames(quotaDatas) // 添加显示名称
 }
 
+// 添加显示名称
 func fillQuotaDataDisplayNames(rows []*QuotaData) error {
 	if len(rows) == 0 {
 		return nil

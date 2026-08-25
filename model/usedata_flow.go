@@ -20,7 +20,7 @@ type FlowQuotaData struct {
 	TokenUsed   int    `json:"token_used" gorm:"column:token_used"`
 	Count       int    `json:"count" gorm:"column:count"`
 	Quota       int    `json:"quota" gorm:"column:quota"`
-	DisplayName string `json:"display_name,omitempty" gorm:"-"`
+	DisplayName string `json:"display_name,omitempty" gorm:"-"` // 添加显示名称
 }
 
 func GetFlowQuotaData(startTime int64, endTime int64, username string, userID int, role int) ([]*FlowQuotaData, error) {
@@ -69,7 +69,7 @@ func getAdminFlowQuotaData(startTime int64, endTime int64, username string) ([]*
 	if err != nil {
 		return nil, err
 	}
-	if err := fillFlowUserDisplayNames(rows); err != nil {
+	if err := fillFlowUserDisplayNames(rows); err != nil { // 添加显示名称
 		return rows, err
 	}
 	return rows, fillFlowChannelNames(rows)
@@ -92,7 +92,7 @@ func getRootFlowQuotaData(startTime int64, endTime int64, username string) ([]*F
 	if err := fillFlowTokenNames(rows); err != nil {
 		return rows, err
 	}
-	if err := fillFlowUserDisplayNames(rows); err != nil {
+	if err := fillFlowUserDisplayNames(rows); err != nil { // 添加显示名称
 		return rows, err
 	}
 	return rows, fillFlowChannelNames(rows)
@@ -184,6 +184,7 @@ func fillFlowChannelNames(rows []*FlowQuotaData) error {
 	return nil
 }
 
+// 添加显示名称
 func fillFlowUserDisplayNames(rows []*FlowQuotaData) error {
 	if len(rows) == 0 {
 		return nil
