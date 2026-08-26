@@ -20,6 +20,20 @@ For commercial licensing, please contact support@quantumnous.com
 // OAuth URL Builders
 // ============================================================================
 
+export interface CustomOAuthBinding {
+  provider_id: number
+  provider_name: string
+  provider_slug: string
+  provider_icon: string
+  provider_user_id: string
+}
+
+export function indexCustomOAuthBindings(
+  bindings: CustomOAuthBinding[]
+): Map<number, CustomOAuthBinding> {
+  return new Map(bindings.map((binding) => [binding.provider_id, binding]))
+}
+
 /**
  * Build GitHub OAuth URL
  */

@@ -295,6 +295,61 @@ func TestResponsesRequestToChatCompletionsRequestRejectsStatefulFields(t *testin
 	}
 }
 
+func TestResponsesRequestToChatCompletionsRequestPreservesPenalties(t *testing.T) {
+	tests := []struct {
+		name          string
+		frequencyRaw  json.RawMessage
+		frequencyWant *float64
+		presenceRaw   json.RawMessage
+		presenceWant  *float64
+	}{
+		{
+			name:          "positive values",
+			frequencyRaw:  json.RawMessage(`0.5`),
+			frequencyWant: lo.ToPtr(0.5),
+			presenceRaw:   json.RawMessage(`1.5`),
+			presenceWant:  lo.ToPtr(1.5),
+		},
+		{
+			name:          "explicit zero values",
+			frequencyRaw:  json.RawMessage(`0.0`),
+			frequencyWant: lo.ToPtr(0.0),
+			presenceRaw:   json.RawMessage(`0.0`),
+			presenceWant:  lo.ToPtr(0.0),
+		},
+		{
+			name:         "unset stays nil",
+			frequencyRaw: nil,
+			presenceRaw:  nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+				Model:            "gpt-test",
+				Input:            mustRawMessage(t, "hello"),
+				FrequencyPenalty: tt.frequencyRaw,
+				PresencePenalty:  tt.presenceRaw,
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.frequencyWant, got.FrequencyPenalty)
+			assert.Equal(t, tt.presenceWant, got.PresencePenalty)
+		})
+	}
+}
+
+func TestResponsesRequestToChatCompletionsRequestRejectsMalformedPenalty(t *testing.T) {
+	_, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model:            "gpt-test",
+		Input:            mustRawMessage(t, "hello"),
+		FrequencyPenalty: json.RawMessage(`"not-a-number"`),
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "frequency_penalty")
+}
+
 func mustRawMessage(t *testing.T, value any) []byte {
 	t.Helper()
 	raw, err := kitutil.Marshal(value)
