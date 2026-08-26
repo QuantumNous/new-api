@@ -790,6 +790,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
   return (
     <>
       <TitledCard
+        className='border-border/80 shadow-sm'
         title={t('Subscription Plans')}
         description={t(
           'One key, 100+ frontier models: GPT, Claude, Gemini, DeepSeek, GLM for text, plus Seedance 2.5 and more for image & video generation.'
@@ -850,10 +851,10 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                 <Card
                   key={plan.id}
                   className={cn(
-                    'ring-border rounded-lg shadow-none transition-shadow',
+                    'border-border/80 relative rounded-lg border shadow-sm transition-[transform,box-shadow,border-color]',
                     isMostPopular
-                      ? 'shadow-[0_0_0_6px_rgba(139,92,246,0.1)] ring-2 ring-[#8b5cf6]/60 dark:shadow-[0_0_0_6px_rgba(139,92,246,0.18)]'
-                      : 'hover:ring-foreground/20'
+                      ? 'border-primary/60 shadow-[0_0_0_6px_rgba(139,92,246,0.1)] ring-2 ring-[#8b5cf6]/60 hover:-translate-y-0.5 hover:shadow-lg dark:shadow-[0_0_0_6px_rgba(139,92,246,0.18)]'
+                      : 'hover:border-primary/50 hover:-translate-y-0.5 hover:shadow-lg'
                   )}
                 >
                   <CardContent className='flex h-full flex-col p-5'>

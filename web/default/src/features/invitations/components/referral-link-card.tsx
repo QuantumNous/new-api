@@ -6,8 +6,9 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-import { BriefcaseBusiness, Mail, Share2 } from 'lucide-react'
+import { Mail } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { FaLinkedin, FaXTwitter } from 'react-icons/fa6'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -111,7 +112,7 @@ export function ReferralLinkCard({
                   />
                 }
               >
-                <Share2 aria-hidden='true' />
+                <FaXTwitter aria-hidden='true' />
               </Button>
               <Button
                 variant='outline'
@@ -126,7 +127,7 @@ export function ReferralLinkCard({
                   />
                 }
               >
-                <BriefcaseBusiness aria-hidden='true' />
+                <FaLinkedin aria-hidden='true' />
               </Button>
             </div>
           ) : null}

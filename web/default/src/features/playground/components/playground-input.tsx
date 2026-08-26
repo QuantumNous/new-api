@@ -16,10 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, type ComponentType, type ReactNode } from 'react'
+import { useState, type DragEvent, type KeyboardEvent } from 'react'
 import {
   PaperclipIcon,
-  FileIcon,
   ImageIcon,
   GlobeIcon,
   SendIcon,
@@ -33,12 +32,15 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   PromptInput,
   PromptInputAttachment,
@@ -133,28 +135,6 @@ const suggestions: Array<{
   { icon: null, text: 'More' },
 ]
 
-function PlaygroundAttachmentMenuItem({
-  icon: Icon,
-  children,
-}: {
-  icon: ComponentType<{ className?: string; size?: number }>
-  children: ReactNode
-}) {
-  const attachments = usePromptInputAttachments()
-
-  return (
-    <DropdownMenuItem
-      onSelect={(event) => {
-        event.preventDefault()
-        attachments.openFileDialog()
-      }}
-    >
-      <Icon className='mr-2' size={16} />
-      {children}
-    </DropdownMenuItem>
-  )
-}
-
 function PlaygroundAttachmentPreviews() {
   const attachments = usePromptInputAttachments()
   if (attachments.files.length === 0) return null
@@ -165,6 +145,101 @@ function PlaygroundAttachmentPreviews() {
         {(attachment) => <PromptInputAttachment data={attachment} />}
       </PromptInputAttachments>
     </div>
+  )
+}
+
+type AttachmentDialogProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  acceptedExtensions: string
+}
+
+function PlaygroundAttachmentDialog({
+  open,
+  onOpenChange,
+  acceptedExtensions,
+}: AttachmentDialogProps) {
+  const { t } = useTranslation()
+  const attachments = usePromptInputAttachments()
+  const [isDragging, setIsDragging] = useState(false)
+
+  const openFilePicker = () => attachments.openFileDialog()
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragging(false)
+    if (event.dataTransfer.files.length > 0) {
+      attachments.add(event.dataTransfer.files)
+    }
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      openFilePicker()
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className='sm:max-w-lg'>
+        <DialogHeader>
+          <DialogTitle>{t('Upload files')}</DialogTitle>
+          <DialogDescription>
+            {t('Drag and drop files here, or choose from your device.')}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div
+          aria-label={t('Upload files')}
+          className={`flex min-h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors ${
+            isDragging
+              ? 'border-primary bg-primary/10'
+              : 'border-border hover:border-primary/60 hover:bg-muted/40'
+          }`}
+          onClick={openFilePicker}
+          onDragEnter={(event) => {
+            event.preventDefault()
+            setIsDragging(true)
+          }}
+          onDragLeave={(event) => {
+            if (event.currentTarget === event.target) setIsDragging(false)
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={handleDrop}
+          onKeyDown={handleKeyDown}
+          role='button'
+          tabIndex={0}
+        >
+          <PaperclipIcon className='text-muted-foreground size-8' />
+          <div className='space-y-1'>
+            <p className='font-medium'>{t('Upload files')}</p>
+            <p className='text-muted-foreground text-xs'>
+              {t('Supported file types: {{types}}', {
+                types: acceptedExtensions,
+              })}
+            </p>
+          </div>
+          <Button
+            type='button'
+            variant='outline'
+            onClick={(event) => {
+              event.stopPropagation()
+              openFilePicker()
+            }}
+          >
+            {t('Choose files')}
+          </Button>
+        </div>
+
+        <DialogFooter>
+          <Button type='button' onClick={() => onOpenChange(false)}>
+            {t('Done')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -238,10 +313,28 @@ export function PlaygroundInput({
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
   const [text, setText] = useState(() => initialText?.trim() ?? '')
+  const [isAttachmentDialogOpen, setIsAttachmentDialogOpen] = useState(false)
 
   const isModelSelectDisabled = disabled || isModelLoading || modelLocked
   const isGroupSelectDisabled = disabled || groups.length === 0
   const isSubmitDisabled = disabled || submitDisabled || !modelValue
+  const attachmentConfig =
+    mediaProfile?.kind === 'video'
+      ? {
+          accept:
+            'image/jpeg,image/png,image/webp,video/mp4,.jpg,.jpeg,.png,.webp,.mp4',
+          extensions: '.jpg, .jpeg, .png, .webp, .mp4',
+        }
+      : mediaProfile?.kind === 'image'
+        ? {
+            accept: 'image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp',
+            extensions: '.jpg, .jpeg, .png, .webp',
+          }
+        : {
+            accept:
+              'application/pdf,text/csv,text/comma-separated-values,image/jpeg,image/png,image/webp,video/mp4,.pdf,.csv,.jpg,.jpeg,.png,.webp,.mp4',
+            extensions: '.pdf, .csv, .jpg, .jpeg, .png, .webp, .mp4',
+          }
 
   const handleSubmit = async (message: PromptInputMessage) => {
     if ((!message.text?.trim() && !message.files?.length) || isSubmitDisabled) {
@@ -279,14 +372,19 @@ export function PlaygroundInput({
   return (
     <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
       <PromptInput
-        accept='image/*,.txt,.md,.csv,.json'
-        groupClassName='rounded-xl'
+        accept={attachmentConfig.accept}
+        groupClassName='rounded-xl bg-background dark:bg-background'
         maxFileSize={10 * 1024 * 1024}
         maxFiles={5}
         multiple
         onError={(error) => toast.error(error.message)}
         onSubmit={handleSubmit}
       >
+        <PlaygroundAttachmentDialog
+          acceptedExtensions={attachmentConfig.extensions}
+          onOpenChange={setIsAttachmentDialogOpen}
+          open={isAttachmentDialogOpen}
+        />
         <PromptInputHeader className='p-2.5 pb-0'>
           <PlaygroundAttachmentPreviews />
         </PromptInputHeader>
@@ -304,29 +402,16 @@ export function PlaygroundInput({
 
         <PromptInputFooter className='p-2.5'>
           <PromptInputTools>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <PromptInputButton
-                    className='border font-medium'
-                    disabled={disabled}
-                    variant='outline'
-                  />
-                }
-              >
-                <PaperclipIcon size={16} />
-                <span className='hidden sm:inline'>{t('Attach')}</span>
-                <span className='sr-only sm:hidden'>{t('Attach')}</span>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='start'>
-                <PlaygroundAttachmentMenuItem icon={FileIcon}>
-                  {t('Upload file')}
-                </PlaygroundAttachmentMenuItem>
-                <PlaygroundAttachmentMenuItem icon={ImageIcon}>
-                  {t('Upload photo')}
-                </PlaygroundAttachmentMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <PromptInputButton
+              className='border font-medium'
+              disabled={disabled}
+              onClick={() => setIsAttachmentDialogOpen(true)}
+              variant='outline'
+            >
+              <PaperclipIcon size={16} />
+              <span className='hidden sm:inline'>{t('Attach')}</span>
+              <span className='sr-only sm:hidden'>{t('Attach')}</span>
+            </PromptInputButton>
 
             <PromptInputButton
               className='border font-medium'

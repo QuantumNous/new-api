@@ -939,6 +939,7 @@ export function Wallet(props: WalletProps) {
             ) : null}
 
             <TitledCard
+              className='border-border/80 shadow-sm'
               title={t('Top-ups')}
               description={t(
                 'Plan usage is used first. Wallet balance is used automatically after the plan runs out.'
