@@ -37,7 +37,12 @@
               "result": "15 degrees"
             }
           }
-        },
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
         {
           "text": "Summarize."
         }

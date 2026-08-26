@@ -93,6 +93,10 @@ func TestShouldUpgradeChatToResponsesWhenClientWantsThinking(t *testing.T) {
 	deepseekInfo := testRelayInfo(constant.APITypeDeepSeek, "glm-5.2")
 	deepseekInfo.Request = &dto.GeneralOpenAIRequest{ReasoningEffort: "high"}
 	assert.False(t, shouldUpgradeChatToResponses(deepseekInfo), "Chat-only channels must not receive Responses")
+
+	openAICompatibleInfo := testRelayInfo(constant.APITypeOpenAI, "glm-5.2")
+	openAICompatibleInfo.Request = &dto.GeneralOpenAIRequest{ReasoningEffort: "high"}
+	assert.False(t, shouldUpgradeChatToResponses(openAICompatibleInfo), "OpenAI-compatible Chat models must not receive Responses")
 }
 
 func TestShouldUpgradeChatToResponsesRequiresResponsesNativeChannel(t *testing.T) {

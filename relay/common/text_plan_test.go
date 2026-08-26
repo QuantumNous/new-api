@@ -64,6 +64,32 @@ func TestBuildTextPlanResponsesClientDeepSeekUsesChat(t *testing.T) {
 	}
 }
 
+func TestBuildTextPlanResponsesClientOpenAICompatibleGLMUsesChat(t *testing.T) {
+	t.Parallel()
+	info := planInfo(constant.ChannelTypeOpenAI, constant.APITypeOpenAI, "glm-5.2", types.RelayFormatOpenAIResponses, relayconstant.RelayModeResponses)
+	plan := info.BuildTextPlan(false)
+	if plan.Native != types.RelayFormatOpenAI {
+		t.Fatalf("native=%s", plan.Native)
+	}
+	path, ok := info.OpenAICompatibleRequestPath()
+	if !ok || path != "/v1/chat/completions" {
+		t.Fatalf("path=%q ok=%v", path, ok)
+	}
+}
+
+func TestBuildTextPlanResponsesClientGPT56UsesResponses(t *testing.T) {
+	t.Parallel()
+	info := planInfo(constant.ChannelTypeOpenAI, constant.APITypeOpenAI, "gpt-5.6-sol", types.RelayFormatOpenAIResponses, relayconstant.RelayModeResponses)
+	plan := info.BuildTextPlan(false)
+	if plan.Native != types.RelayFormatOpenAIResponses {
+		t.Fatalf("native=%s", plan.Native)
+	}
+	path, ok := info.OpenAICompatibleRequestPath()
+	if !ok || path != "/v1/responses" {
+		t.Fatalf("path=%q ok=%v", path, ok)
+	}
+}
+
 func TestBuildTextPlanUpgradeChangesNativeNotRelayMode(t *testing.T) {
 	t.Parallel()
 	info := planInfo(constant.ChannelTypeOpenAI, constant.APITypeOpenAI, "gpt-5", types.RelayFormatOpenAI, relayconstant.RelayModeChatCompletions)

@@ -757,7 +757,7 @@ func adaptGeminiRequest(info convmeta.Meta, irReq *ir.Request, req *dto.GeminiCh
 	normalizeGeminiJSONSchema(req)
 	cleanGeminiFunctionParameters(req)
 	normalizeGeminiFunctionArgs(req)
-	mergeAdjacentGeminiContents(req)
+	NormalizeGeminiTurnBoundaries(req)
 	ensureGeminiUserFirst(req)
 	if len(req.SafetySettings) == 0 {
 		for _, category := range sharedgemini.SafetySettingCategories {
@@ -858,6 +858,61 @@ func ensureGeminiUserFirst(req *dto.GeminiChatRequest) {
 	}
 }
 
+// NormalizeGeminiTurnBoundaries keeps tool results and later user prompts in
+// separate Gemini contents. Gemini accepts both as user-role turns, but when a
+// functionResponse and a new instruction share one content many native models
+// answer the tool result and ignore the instruction.
+func NormalizeGeminiTurnBoundaries(req *dto.GeminiChatRequest) {
+	if req == nil {
+		return
+	}
+	splitGeminiFunctionResponseContents(req)
+	mergeAdjacentGeminiContents(req)
+}
+
+func splitGeminiFunctionResponseContents(req *dto.GeminiChatRequest) {
+	if req == nil || len(req.Contents) == 0 {
+		return
+	}
+	contents := make([]dto.GeminiChatContent, 0, len(req.Contents))
+	for _, content := range req.Contents {
+		if content.Role != "user" || len(content.Parts) < 2 {
+			contents = append(contents, content)
+			continue
+		}
+
+		groups := make([][]dto.GeminiPart, 0, 2)
+		var pending []dto.GeminiPart
+		pendingIsFunctionResponse := false
+		flush := func() {
+			if len(pending) == 0 {
+				return
+			}
+			groups = append(groups, pending)
+			pending = nil
+		}
+		for _, part := range content.Parts {
+			isFunctionResponse := part.FunctionResponse != nil
+			if len(pending) > 0 && isFunctionResponse != pendingIsFunctionResponse {
+				flush()
+			}
+			if len(pending) == 0 {
+				pendingIsFunctionResponse = isFunctionResponse
+			}
+			pending = append(pending, part)
+		}
+		flush()
+
+		for _, parts := range groups {
+			contents = append(contents, dto.GeminiChatContent{
+				Role:  content.Role,
+				Parts: parts,
+			})
+		}
+	}
+	req.Contents = contents
+}
+
 func mergeAdjacentGeminiContents(req *dto.GeminiChatRequest) {
 	if req == nil || len(req.Contents) < 2 {
 		return
@@ -867,13 +922,41 @@ func mergeAdjacentGeminiContents(req *dto.GeminiChatRequest) {
 		if len(content.Parts) == 0 {
 			continue
 		}
-		if n := len(merged); n > 0 && merged[n-1].Role == content.Role {
+		if n := len(merged); n > 0 && canMergeGeminiContents(merged[n-1], content) {
 			merged[n-1].Parts = append(merged[n-1].Parts, content.Parts...)
 			continue
 		}
 		merged = append(merged, content)
 	}
 	req.Contents = merged
+}
+
+func canMergeGeminiContents(previous, current dto.GeminiChatContent) bool {
+	if previous.Role != current.Role {
+		return false
+	}
+	if previous.Role != "user" {
+		return true
+	}
+	previousResponses, previousOther := geminiContentPartKinds(previous)
+	currentResponses, currentOther := geminiContentPartKinds(current)
+	if !previousResponses && !currentResponses {
+		return true
+	}
+	// Parallel function responses may share a user turn. A tool-result turn
+	// must never absorb ordinary text/media from the next user turn.
+	return previousResponses && currentResponses && !previousOther && !currentOther
+}
+
+func geminiContentPartKinds(content dto.GeminiChatContent) (hasFunctionResponse bool, hasOther bool) {
+	for _, part := range content.Parts {
+		if part.FunctionResponse != nil {
+			hasFunctionResponse = true
+			continue
+		}
+		hasOther = true
+	}
+	return hasFunctionResponse, hasOther
 }
 
 func attachGeminiThoughtSignatures(opts *convmeta.Options, req *dto.GeminiChatRequest) {

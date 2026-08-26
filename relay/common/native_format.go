@@ -3,6 +3,7 @@ package common
 import (
 	"strings"
 
+	hostcommon "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
@@ -13,11 +14,11 @@ import (
 //
 // OpenAI Responses is special:
 //   - Channels that only speak Responses (Codex) always use it as native.
-//   - Channels that speak both Chat and Responses (OpenAI / Azure / ...) keep
-//     Chat as native. Chat→Responses happens only when the admin
+//   - Channels that speak both Chat and Responses keep Chat as native.
+//     Chat→Responses happens only when the admin
 //     chat_completions_to_responses_policy matches the model — that upgrade
 //     is applied by BuildTextPlan, not by rewriting RelayMode.
-//   - Incoming Responses to a Chat-only channel convert Responses→Chat.
+//   - Incoming Responses to a Chat-only channel/model convert Responses→Chat.
 func NativeTextFormat(info *RelayInfo, incoming types.RelayFormat) types.RelayFormat {
 	if info == nil || info.ChannelMeta == nil {
 		if incoming == "" {
@@ -67,15 +68,19 @@ func NativeTextFormat(info *RelayInfo, incoming types.RelayFormat) types.RelayFo
 	}
 }
 
-// SpeaksResponsesNatively reports whether the channel can forward an OpenAI
-// Responses request without converting it to Chat Completions.
+// SpeaksResponsesNatively reports whether the selected channel/model can
+// forward an OpenAI Responses request without converting it to Chat
+// Completions. Generic "OpenAI" channels are frequently used for
+// OpenAI-compatible providers that expose only /v1/chat/completions, so their
+// model family must participate in the capability decision.
 func SpeaksResponsesNatively(info *RelayInfo) bool {
 	if info == nil || info.ChannelMeta == nil {
 		return false
 	}
 	switch info.ChannelType {
-	case constant.ChannelTypeOpenAI,
-		constant.ChannelTypeAzure,
+	case constant.ChannelTypeOpenAI:
+		return openAICompatibleModelSpeaksResponses(info)
+	case constant.ChannelTypeAzure,
 		constant.ChannelTypeOpenRouter,
 		constant.ChannelTypeXai,
 		constant.ChannelTypeCodex,
@@ -85,8 +90,9 @@ func SpeaksResponsesNatively(info *RelayInfo) bool {
 		return true
 	case constant.ChannelTypeUnknown:
 		switch info.ApiType {
-		case constant.APITypeOpenAI,
-			constant.APITypeOpenRouter,
+		case constant.APITypeOpenAI:
+			return openAICompatibleModelSpeaksResponses(info)
+		case constant.APITypeOpenRouter,
 			constant.APITypeXai,
 			constant.APITypeCodex,
 			constant.APITypeNewAPI,
@@ -96,6 +102,24 @@ func SpeaksResponsesNatively(info *RelayInfo) bool {
 		}
 	}
 	return false
+}
+
+func openAICompatibleModelSpeaksResponses(info *RelayInfo) bool {
+	if info == nil {
+		return false
+	}
+	modelName := strings.TrimSpace(info.UpstreamModelName)
+	if modelName == "" {
+		modelName = strings.TrimSpace(info.OriginModelName)
+	}
+	if modelName == "" {
+		// Preserve the historical channel-level behavior for callers that have
+		// not resolved a model yet. Production text routing always has one.
+		return true
+	}
+	return hostcommon.IsOpenAITextModel(modelName) ||
+		hostcommon.IsOpenAIResponseOnlyModel(modelName) ||
+		hostcommon.IsOpenAIChatAndResponsesModel(modelName)
 }
 
 func nativeTextFormatFromAPIType(info *RelayInfo, incoming types.RelayFormat) types.RelayFormat {

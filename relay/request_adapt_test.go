@@ -131,6 +131,31 @@ func TestConvertRequestToChannelNativeOpenAIChatStaysChat(t *testing.T) {
 	}
 }
 
+func TestConvertRequestToChannelNativeGLMResponsesUsesChat(t *testing.T) {
+	info := testRelayInfo(constant.APITypeOpenAI, "glm-5.2")
+	info.RelayFormat = types.RelayFormatOpenAIResponses
+	adaptor := GetAdaptor(constant.APITypeOpenAI)
+	adaptor.Init(info)
+
+	got, err := convertRequestToChannelNative(nil, info, adaptor, &dto.OpenAIResponsesRequest{
+		Model: "glm-5.2",
+		Input: []byte(`[{"role":"user","content":"hello"}]`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chatReq, ok := got.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		t.Fatalf("got %T", got)
+	}
+	if len(chatReq.Messages) != 1 || chatReq.Messages[0].StringContent() != "hello" {
+		t.Fatalf("messages=%#v", chatReq.Messages)
+	}
+	if info.GetFinalRequestRelayFormat() != types.RelayFormatOpenAI {
+		t.Fatalf("final format=%s", info.GetFinalRequestRelayFormat())
+	}
+}
+
 func TestConvertRequestToChannelNativeClaudeToGemini(t *testing.T) {
 	info := testRelayInfo(constant.APITypeGemini, "gemini-3.7-flash")
 	adaptor := GetAdaptor(constant.APITypeGemini)

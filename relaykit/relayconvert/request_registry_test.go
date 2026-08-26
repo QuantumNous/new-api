@@ -128,6 +128,75 @@ func TestConvertRequestClaudeToolResultKeepsFollowupTextForChat(t *testing.T) {
 	require.Contains(t, chatReq.Messages[3].StringContent(), "停车费")
 }
 
+func TestConvertRequestResponsesToolResultKeepsFollowupTextForChat(t *testing.T) {
+	req := &dto.OpenAIResponsesRequest{
+		Model: "glm-5.2",
+		Input: mustRawMessage(t, []map[string]any{
+			{"role": "user", "content": "Call get_weather with city=北京."},
+			{
+				"type":      "function_call",
+				"call_id":   "call_weather",
+				"name":      "get_weather",
+				"arguments": `{"city":"北京"}`,
+			},
+			{
+				"type":    "function_call_output",
+				"call_id": "call_weather",
+				"output":  `{"temperature":"22°C"}`,
+			},
+			{"role": "user", "content": "请逆序排列文字"},
+		}),
+	}
+
+	result, err := ConvertRequest(nil, nil, types.RelayFormatOpenAI, req)
+	require.NoError(t, err)
+	chatReq, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.Len(t, chatReq.Messages, 4)
+	require.Equal(t, "assistant", chatReq.Messages[1].Role)
+	require.Len(t, chatReq.Messages[1].ParseToolCalls(), 1)
+	require.Equal(t, "tool", chatReq.Messages[2].Role)
+	require.Equal(t, "call_weather", chatReq.Messages[2].ToolCallId)
+	require.Equal(t, "user", chatReq.Messages[3].Role)
+	require.Equal(t, "请逆序排列文字", chatReq.Messages[3].StringContent())
+}
+
+func TestConvertRequestChatToolResultKeepsFollowupTurnForGemini(t *testing.T) {
+	assistant := dto.Message{Role: "assistant"}
+	assistant.SetToolCalls([]dto.ToolCallRequest{{
+		ID:   "call_weather",
+		Type: "function",
+		Function: dto.FunctionRequest{
+			Name:      "get_weather",
+			Arguments: `{"city":"北京"}`,
+		},
+	}})
+	req := &dto.GeneralOpenAIRequest{
+		Model: "gemini-3.7-flash",
+		Messages: []dto.Message{
+			{Role: "user", Content: "Call get_weather with city=北京."},
+			assistant,
+			{Role: "tool", ToolCallId: "call_weather", Content: `{"temperature":"22°C"}`},
+			{Role: "user", Content: "请逆序排列文字"},
+		},
+	}
+
+	result, err := ConvertRequest(nil, nil, types.RelayFormatGemini, req)
+	require.NoError(t, err)
+	geminiReq, ok := result.Value.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	require.Len(t, geminiReq.Contents, 4)
+	toolResult := geminiReq.Contents[2]
+	followup := geminiReq.Contents[3]
+	require.Equal(t, "user", toolResult.Role)
+	require.Len(t, toolResult.Parts, 1)
+	require.NotNil(t, toolResult.Parts[0].FunctionResponse)
+	require.Equal(t, "user", followup.Role)
+	require.Len(t, followup.Parts, 1)
+	require.Nil(t, followup.Parts[0].FunctionResponse)
+	require.Equal(t, "请逆序排列文字", followup.Parts[0].Text)
+}
+
 func TestConvertRequestClaudeToChatRecordsSignatureLoss(t *testing.T) {
 	req := &dto.ClaudeRequest{
 		Model: "claude-test",

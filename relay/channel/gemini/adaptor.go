@@ -58,16 +58,18 @@ func nativeGeminiVersion(info *relaycommon.RelayInfo) string {
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
+	if request == nil {
+		return nil, errors.New("request is nil")
+	}
 	if nativeGeminiAction(info) == "countTokens" {
 		return request, nil
 	}
 	if len(request.Contents) > 0 {
-		for i, content := range request.Contents {
-			if i == 0 {
-				if request.Contents[0].Role == "" {
-					request.Contents[0].Role = "user"
-				}
-			}
+		if request.Contents[0].Role == "" {
+			request.Contents[0].Role = "user"
+		}
+		relayconvert.NormalizeGeminiTurnBoundaries(request)
+		for _, content := range request.Contents {
 			for _, part := range content.Parts {
 				if part.FileData != nil {
 					if part.FileData.MimeType == "" && strings.Contains(part.FileData.FileUri, "www.youtube.com") {
