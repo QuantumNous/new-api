@@ -13,6 +13,8 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+
+	"gorm.io/gorm"
 )
 
 // BackupExportResult 导出结果（包含 ZIP 字节流）。
@@ -244,30 +246,14 @@ func backupExportOne(cat dto.BackupCategory, includeSecret bool, dst interface{}
 
 // saveOrCount 把 rows 拷贝到 dst（如果 dst 非 nil），返回行数。
 func saveOrCount(rows interface{}, dst interface{}) (int, error) {
-	if dst == nil {
-		// 通过 JSON 序列化再反序列化到匿名 slice 来计数。
-		buf, err := json.Marshal(rows)
-		if err != nil {
-			return 0, err
-		}
-		var sl []json.RawMessage
-		if err := json.Unmarshal(buf, &sl); err != nil {
-			return 0, err
-		}
-		return len(sl), nil
-	}
-	// 把 rows 拷贝到 dst 的目标 slice 类型。
-	src, err := json.Marshal(rows)
-	if err != nil {
-		return 0, err
-	}
-	if err := json.Unmarshal(src, dst); err != nil {
-		return 0, err
-	}
-	// 简单计数
 	buf, err := json.Marshal(rows)
 	if err != nil {
 		return 0, err
+	}
+	if dst != nil {
+		if err := json.Unmarshal(buf, dst); err != nil {
+			return 0, err
+		}
 	}
 	var sl []json.RawMessage
 	if err := json.Unmarshal(buf, &sl); err != nil {
@@ -276,76 +262,102 @@ func saveOrCount(rows interface{}, dst interface{}) (int, error) {
 	return len(sl), nil
 }
 
+// backupExportOneAsJSON 导出单个类别到 interface{}（用于 zip writer）。
+// 直接复用 backupExportOne 的 dst 参数，避免重复 SQL。
 func backupExportOneAsJSON(cat dto.BackupCategory, includeSecret bool) (interface{}, error) {
 	switch cat {
 	case dto.BackupCategoryUsers:
 		var v []model.User
-		_, err := backupExportOne(cat, includeSecret, &v)
+		if _, err := backupExportOne(cat, includeSecret, &v); err != nil {
+			return nil, err
+		}
 		if !includeSecret {
 			for i := range v {
 				v[i].Password = ""
 			}
 		}
-		return v, err
+		return v, nil
 	case dto.BackupCategoryChannels:
 		var v []model.Channel
-		_, err := backupExportOne(cat, includeSecret, &v)
+		if _, err := backupExportOne(cat, includeSecret, &v); err != nil {
+			return nil, err
+		}
 		if !includeSecret {
 			for i := range v {
 				v[i].Key = ""
 			}
 		}
-		return v, err
+		return v, nil
 	case dto.BackupCategoryTokens:
 		var v []model.Token
-		_, err := backupExportOne(cat, includeSecret, &v)
+		if _, err := backupExportOne(cat, includeSecret, &v); err != nil {
+			return nil, err
+		}
 		if !includeSecret {
 			for i := range v {
 				v[i].Key = ""
 			}
 		}
-		return v, err
+		return v, nil
 	case dto.BackupCategoryModels:
 		var v []model.Model
-		_, err := backupExportOne(cat, includeSecret, &v)
-		return v, err
+		if _, err := backupExportOne(cat, includeSecret, &v); err != nil {
+			return nil, err
+		}
+		return v, nil
 	case dto.BackupCategoryVendors:
 		var v []model.Vendor
-		_, err := backupExportOne(cat, includeSecret, &v)
-		return v, err
+		if _, err := backupExportOne(cat, includeSecret, &v); err != nil {
+			return nil, err
+		}
+		return v, nil
 	case dto.BackupCategoryAbilities:
 		var v []model.Ability
-		_, err := backupExportOne(cat, includeSecret, &v)
-		return v, err
+		if _, err := backupExportOne(cat, includeSecret, &v); err != nil {
+			return nil, err
+		}
+		return v, nil
 	case dto.BackupCategoryDeployments:
 		var v []model.DeployedModel
-		_, err := backupExportOne(cat, includeSecret, &v)
-		return v, err
+		if _, err := backupExportOne(cat, includeSecret, &v); err != nil {
+			return nil, err
+		}
+		return v, nil
 	case dto.BackupCategoryModelSources:
 		var v []model.ModelSource
-		_, err := backupExportOne(cat, includeSecret, &v)
+		if _, err := backupExportOne(cat, includeSecret, &v); err != nil {
+			return nil, err
+		}
 		if !includeSecret {
 			for i := range v {
 				v[i].Config = ""
 			}
 		}
-		return v, err
+		return v, nil
 	case dto.BackupCategoryPrefillGroups:
 		var v []model.PrefillGroup
-		_, err := backupExportOne(cat, includeSecret, &v)
-		return v, err
+		if _, err := backupExportOne(cat, includeSecret, &v); err != nil {
+			return nil, err
+		}
+		return v, nil
 	case dto.BackupCategoryLogs:
 		var v []model.Log
-		_, err := backupExportOne(cat, includeSecret, &v)
-		return v, err
+		if _, err := backupExportOne(cat, includeSecret, &v); err != nil {
+			return nil, err
+		}
+		return v, nil
 	case dto.BackupCategoryOptions:
 		var v []model.Option
-		_, err := backupExportOne(cat, includeSecret, &v)
-		return v, err
+		if _, err := backupExportOne(cat, includeSecret, &v); err != nil {
+			return nil, err
+		}
+		return v, nil
 	case dto.BackupCategoryHealthChecks:
 		var v []model.PerfMetric
-		_, err := backupExportOne(cat, includeSecret, &v)
-		return v, err
+		if _, err := backupExportOne(cat, includeSecret, &v); err != nil {
+			return nil, err
+		}
+		return v, nil
 	}
 	return nil, fmt.Errorf("unsupported category: %s", cat)
 }
@@ -366,10 +378,25 @@ func backupImportOne(cat dto.BackupCategory, raw []byte, skipExisting, overwrite
 					skipped++
 					continue
 				}
-				r.Id = 0
-				r.AuthVersion = 1
-				if e := model.DB.Create(&r).Error; e != nil {
+				txErr := model.DB.Transaction(func(tx *gorm.DB) error {
+					r.Id = 0
+					r.AuthVersion = 1
+					// 重新生成 aff_code（避免与现有用户冲突）
+					r.AffCode = common.GetRandomString(4)
+					// OAuth 绑定字段清空，避免和外站用户冲突。
+					r.GitHubId = ""
+					r.DiscordId = ""
+					r.OidcId = ""
+					r.WeChatId = ""
+					r.TelegramId = ""
+					r.LinuxDOId = ""
+					// User.Insert 内部会重新 hash 密码（仅当非空），并校验邮箱唯一性。
+					// 导入时 inviterId 设为 0。
+					return r.InsertWithTx(tx, 0)
+				})
+				if txErr != nil {
 					errs++
+					common.SysLog(fmt.Sprintf("backup import user %s failed: %v", r.Username, txErr))
 					continue
 				}
 				imported++
@@ -387,24 +414,33 @@ func backupImportOne(cat dto.BackupCategory, raw []byte, skipExisting, overwrite
 			var existing model.Channel
 			ex := model.DB.Where("name = ?", r.Name).First(&existing).Error
 			if ex == nil {
+				// 新建：清零敏感字段（除非显式覆盖）
 				r.Id = 0
 				if !overwriteSecret {
 					r.Key = ""
 				}
 				if e := model.DB.Create(&r).Error; e != nil {
 					errs++
+					common.SysLog(fmt.Sprintf("backup import channel %s failed: %v", r.Name, e))
 					continue
 				}
 				imported++
 			} else if skipExisting {
 				skipped++
 			} else {
+				// 覆盖：复用 r.Id，但通过 Channel.Update() 走完整的多 Key 计数 / Ability 重建逻辑。
+				// 不更新 balance / used_quota / response_time / test_time 等运行期字段。
+				r.Id = existing.Id
 				if !overwriteSecret {
 					r.Key = existing.Key
 				}
-				r.Id = existing.Id
-				if e := model.DB.Save(&r).Error; e != nil {
+				r.Balance = existing.Balance
+				r.UsedQuota = existing.UsedQuota
+				r.ResponseTime = existing.ResponseTime
+				r.TestTime = existing.TestTime
+				if e := r.Update(); e != nil {
 					errs++
+					common.SysLog(fmt.Sprintf("backup import channel %s update failed: %v", r.Name, e))
 					continue
 				}
 				imported++
@@ -417,12 +453,19 @@ func backupImportOne(cat dto.BackupCategory, raw []byte, skipExisting, overwrite
 			return 0, 0, 0, e
 		}
 		for _, r := range rows {
+			// 跳过同名 token（防止重复创建；用户想覆盖请通过 channels 之类的入口）
+			var existing model.Token
+			if ex := model.DB.Where("user_id = ? AND name = ?", r.UserId, r.Name).First(&existing).Error; ex == nil {
+				skipped++
+				continue
+			}
 			r.Id = 0
 			if !overwriteSecret {
 				r.Key = ""
 			}
-			if e := model.DB.Create(&r).Error; e != nil {
+			if e := r.Insert(); e != nil {
 				errs++
+				common.SysLog(fmt.Sprintf("backup import token %s failed: %v", r.Name, e))
 				continue
 			}
 			imported++
@@ -438,17 +481,20 @@ func backupImportOne(cat dto.BackupCategory, raw []byte, skipExisting, overwrite
 			ex := model.DB.Where("model_name = ?", r.ModelName).First(&existing).Error
 			if ex == nil {
 				r.Id = 0
-				if e := model.DB.Create(&r).Error; e != nil {
+				if e := r.Insert(); e != nil {
 					errs++
+					common.SysLog(fmt.Sprintf("backup import model %s failed: %v", r.ModelName, e))
 					continue
 				}
 				imported++
 			} else if skipExisting {
 				skipped++
 			} else {
+				// 用 Model.Update() 走完整字段更新（含零值）
 				r.Id = existing.Id
-				if e := model.DB.Save(&r).Error; e != nil {
+				if e := r.Update(); e != nil {
 					errs++
+					common.SysLog(fmt.Sprintf("backup import model %s update failed: %v", r.ModelName, e))
 					continue
 				}
 				imported++
@@ -465,8 +511,9 @@ func backupImportOne(cat dto.BackupCategory, raw []byte, skipExisting, overwrite
 			ex := model.DB.Where("name = ?", r.Name).First(&existing).Error
 			if ex == nil {
 				r.Id = 0
-				if e := model.DB.Create(&r).Error; e != nil {
+				if e := r.Insert(); e != nil {
 					errs++
+					common.SysLog(fmt.Sprintf("backup import vendor %s failed: %v", r.Name, e))
 					continue
 				}
 				imported++
@@ -474,8 +521,9 @@ func backupImportOne(cat dto.BackupCategory, raw []byte, skipExisting, overwrite
 				skipped++
 			} else {
 				r.Id = existing.Id
-				if e := model.DB.Save(&r).Error; e != nil {
+				if e := r.Update(); e != nil {
 					errs++
+					common.SysLog(fmt.Sprintf("backup import vendor %s update failed: %v", r.Name, e))
 					continue
 				}
 				imported++
@@ -483,8 +531,8 @@ func backupImportOne(cat dto.BackupCategory, raw []byte, skipExisting, overwrite
 		}
 		return imported, skipped, errs, nil
 	case dto.BackupCategoryAbilities:
-		// 清空重建
-		if e := model.DB.Where("1=1").Delete(&model.Ability{}).Error; e != nil {
+		// 清空重建（abilities 是 channel↔model 的多对多映射，必须配套恢复）
+		if e := model.DB.Session(&gorm.Session{AllowGlobalUpdate: false}).Where("1 = 1").Delete(&model.Ability{}).Error; e != nil {
 			return 0, 0, 0, e
 		}
 		var rows []model.Ability
@@ -495,6 +543,7 @@ func backupImportOne(cat dto.BackupCategory, raw []byte, skipExisting, overwrite
 			rows[i].Id = 0
 			if e := model.DB.Create(&rows[i]).Error; e != nil {
 				errs++
+				common.SysLog(fmt.Sprintf("backup import ability failed: %v", e))
 				continue
 			}
 			imported++
@@ -581,7 +630,11 @@ func backupImportOne(cat dto.BackupCategory, raw []byte, skipExisting, overwrite
 		if e := json.Unmarshal(raw, &rows); e != nil {
 			return 0, 0, 0, e
 		}
-		// 日志追加而非覆盖
+		// 导入端也设上限，避免把 100 万行日志一次性 INSERT。
+		const maxLogImport = 50000
+		if len(rows) > maxLogImport {
+			rows = rows[:maxLogImport]
+		}
 		for i := range rows {
 			rows[i].Id = 0
 			if e := model.DB.Create(&rows[i]).Error; e != nil {
@@ -619,10 +672,13 @@ func backupImportOne(cat dto.BackupCategory, raw []byte, skipExisting, overwrite
 		}
 		return imported, skipped, errs, nil
 	case dto.BackupCategoryHealthChecks:
-		// 健康检查历史指标追加
 		var rows []model.PerfMetric
 		if e := json.Unmarshal(raw, &rows); e != nil {
 			return 0, 0, 0, e
+		}
+		const maxPerfImport = 50000
+		if len(rows) > maxPerfImport {
+			rows = rows[:maxPerfImport]
 		}
 		for i := range rows {
 			rows[i].Id = 0
