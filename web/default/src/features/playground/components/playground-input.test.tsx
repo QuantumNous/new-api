@@ -257,12 +257,12 @@ describe('PlaygroundInput quick starts', () => {
     expect(markup).toContain('Generate a video')
   })
 
-  test('hides quick starts while the prompt contains text', () => {
+  test('keeps quick starts visible while the prompt contains text', () => {
     const markup = renderPlaygroundMarkup({ initialText: 'already typing' })
 
-    expect(markup).not.toContain('Try one of these to get started:')
-    expect(markup).not.toContain('Create an image')
-    expect(markup).not.toContain('Generate a video')
+    expect(markup).toContain('Try one of these to get started:')
+    expect(markup).toContain('Create an image')
+    expect(markup).toContain('Generate a video')
   })
 
   test('hides unavailable media quick starts but keeps locked media actions', () => {

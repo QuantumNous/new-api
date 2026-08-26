@@ -853,7 +853,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                   className={cn(
                     'border-border/80 relative rounded-lg border shadow-sm transition-[transform,box-shadow,border-color]',
                     isMostPopular
-                      ? 'border-primary/60 shadow-[0_0_0_6px_rgba(139,92,246,0.1)] ring-2 ring-[#8b5cf6]/60 hover:-translate-y-0.5 hover:shadow-lg dark:shadow-[0_0_0_6px_rgba(139,92,246,0.18)]'
+                      ? '!border-primary/70 !border-2 shadow-[0_0_0_6px_rgba(139,92,246,0.1)] ring-2 ring-[#8b5cf6]/60 hover:-translate-y-0.5 hover:shadow-lg dark:shadow-[0_0_0_6px_rgba(139,92,246,0.18)]'
                       : 'hover:border-primary/50 hover:-translate-y-0.5 hover:shadow-lg'
                   )}
                 >
@@ -879,7 +879,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                           </span>
                         ) : null}
                         {isMostPopular ? (
-                          <span className='inline-flex items-center gap-1 rounded-full bg-[#f0ebfa] px-2 py-1 text-[11px] font-semibold text-[#4c1d95] dark:bg-[#5b21b6]/25 dark:text-[#c4b5fd]'>
+                          <span className='border-primary/20 inline-flex items-center gap-1 rounded-full border bg-[#f0ebfa] px-2 py-1 text-[11px] font-semibold text-[#4c1d95] dark:bg-[#5b21b6]/25 dark:text-[#c4b5fd]'>
                             <Sparkles className='h-3 w-3' />
                             {t('Most Popular')}
                           </span>

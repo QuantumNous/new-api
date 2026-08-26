@@ -65,7 +65,6 @@ import {
   isQuickStartModelAvailable,
   QUICK_START_MODELS,
   resolveQuickStartChatModel,
-  shouldShowQuickStartSuggestions,
   type MediaGenerationProfile,
   type MediaGenerationSettings,
   type MediaParameterKey,
@@ -415,12 +414,17 @@ export function PlaygroundInput({
   }
 
   const textQuickStartModel = resolveQuickStartChatModel(models)
+  const quickStartSuggestions = suggestions.filter((suggestion) =>
+    suggestion.model
+      ? isQuickStartModelAvailable(models, suggestion.model)
+      : !!textQuickStartModel
+  )
 
   return (
     <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
       <PromptInput
         accept={attachmentConfig.accept}
-        groupClassName='rounded-xl border-border bg-white text-slate-900 shadow-sm dark:bg-white dark:text-slate-900'
+        groupClassName='rounded-xl border-border !bg-white text-slate-900 shadow-sm dark:!bg-white dark:!text-slate-900'
         maxFileSize={10 * 1024 * 1024}
         maxFiles={5}
         multiple
@@ -444,7 +448,7 @@ export function PlaygroundInput({
           className='px-5 md:text-base'
           disabled={disabled}
           onChange={(event) => setText(event.target.value)}
-          placeholder={t('Ask anything')}
+          placeholder=''
           value={text}
         />
 
@@ -509,19 +513,14 @@ export function PlaygroundInput({
         </PromptInputFooter>
       </PromptInput>
 
-      {shouldShowQuickStartSuggestions(text) && (
+      {quickStartSuggestions.length > 0 && (
         <div className='grid gap-2'>
           <p className='text-muted-foreground px-1 text-xs'>
             {t('Try one of these to get started:')}
           </p>
           <Suggestions>
-            {suggestions
-              .filter((suggestion) =>
-                suggestion.model
-                  ? isQuickStartModelAvailable(models, suggestion.model)
-                  : !!textQuickStartModel
-              )
-              .map(({ icon: Icon, text: suggestionText, color, model }) => (
+            {quickStartSuggestions.map(
+              ({ icon: Icon, text: suggestionText, color, model }) => (
                 <Suggestion
                   className={`text-xs font-normal sm:text-sm ${
                     suggestionText === 'More' ? 'hidden sm:flex' : ''
@@ -535,7 +534,8 @@ export function PlaygroundInput({
                   {Icon && <Icon size={16} style={{ color }} />}
                   {t(suggestionText)}
                 </Suggestion>
-              ))}
+              )
+            )}
           </Suggestions>
         </div>
       )}
