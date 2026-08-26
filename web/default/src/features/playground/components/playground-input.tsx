@@ -16,7 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, type DragEvent, type KeyboardEvent } from 'react'
+import {
+  useRef,
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+  type KeyboardEvent,
+} from 'react'
 import {
   PaperclipIcon,
   ImageIcon,
@@ -151,26 +157,39 @@ function PlaygroundAttachmentPreviews() {
 type AttachmentDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  accept: string
   acceptedExtensions: string
 }
 
 function PlaygroundAttachmentDialog({
   open,
   onOpenChange,
+  accept,
   acceptedExtensions,
 }: AttachmentDialogProps) {
   const { t } = useTranslation()
   const attachments = usePromptInputAttachments()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
 
-  const openFilePicker = () => attachments.openFileDialog()
+  const openFilePicker = () => fileInputRef.current?.click()
+
+  const stageFiles = (files: File[] | FileList) => {
+    setPendingFiles((current) => [...current, ...Array.from(files)])
+  }
+
+  const handleFileSelection = (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.currentTarget.files) stageFiles(event.currentTarget.files)
+    event.currentTarget.value = ''
+  }
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     event.stopPropagation()
     setIsDragging(false)
     if (event.dataTransfer.files.length > 0) {
-      attachments.add(event.dataTransfer.files)
+      stageFiles(event.dataTransfer.files)
     }
   }
 
@@ -181,8 +200,19 @@ function PlaygroundAttachmentDialog({
     }
   }
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) setPendingFiles([])
+    onOpenChange(nextOpen)
+  }
+
+  const handleDone = () => {
+    if (pendingFiles.length > 0) attachments.add(pendingFiles)
+    setPendingFiles([])
+    onOpenChange(false)
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className='sm:max-w-lg'>
         <DialogHeader>
           <DialogTitle>{t('Upload files')}</DialogTitle>
@@ -212,6 +242,14 @@ function PlaygroundAttachmentDialog({
           role='button'
           tabIndex={0}
         >
+          <input
+            accept={accept}
+            className='hidden'
+            multiple
+            onChange={handleFileSelection}
+            ref={fileInputRef}
+            type='file'
+          />
           <PaperclipIcon className='text-muted-foreground size-8' />
           <div className='space-y-1'>
             <p className='font-medium'>{t('Upload files')}</p>
@@ -231,10 +269,19 @@ function PlaygroundAttachmentDialog({
           >
             {t('Choose files')}
           </Button>
+          {pendingFiles.length > 0 && (
+            <div className='text-muted-foreground w-full space-y-1 text-left text-xs'>
+              {pendingFiles.map((file, index) => (
+                <div className='truncate' key={`${file.name}-${index}`}>
+                  {file.name}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
-          <Button type='button' onClick={() => onOpenChange(false)}>
+          <Button type='button' onClick={handleDone}>
             {t('Done')}
           </Button>
         </DialogFooter>
@@ -373,7 +420,7 @@ export function PlaygroundInput({
     <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
       <PromptInput
         accept={attachmentConfig.accept}
-        groupClassName='rounded-xl bg-background dark:bg-background'
+        groupClassName='rounded-xl border-border bg-white text-slate-900 shadow-sm dark:bg-white dark:text-slate-900'
         maxFileSize={10 * 1024 * 1024}
         maxFiles={5}
         multiple
@@ -381,6 +428,7 @@ export function PlaygroundInput({
         onSubmit={handleSubmit}
       >
         <PlaygroundAttachmentDialog
+          accept={attachmentConfig.accept}
           acceptedExtensions={attachmentConfig.extensions}
           onOpenChange={setIsAttachmentDialogOpen}
           open={isAttachmentDialogOpen}

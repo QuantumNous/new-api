@@ -1422,7 +1422,7 @@ describe('PlanPurchaseDialog payment choices', () => {
       '<Dialog open={props.open} onOpenChange={props.onOpenChange}>'
     )
     expect(source).toContain(
-      "<DialogContent className='sm:max-w-xl' showCloseButton={false}>"
+      "className='border-border shadow-xl sm:max-w-xl'"
     )
   })
 

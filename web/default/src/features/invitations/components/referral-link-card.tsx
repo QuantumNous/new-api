@@ -112,7 +112,10 @@ export function ReferralLinkCard({
                   />
                 }
               >
-                <FaXTwitter aria-hidden='true' />
+                <FaXTwitter
+                  aria-hidden='true'
+                  className='text-black dark:text-white'
+                />
               </Button>
               <Button
                 variant='outline'
@@ -127,7 +130,7 @@ export function ReferralLinkCard({
                   />
                 }
               >
-                <FaLinkedin aria-hidden='true' />
+                <FaLinkedin aria-hidden='true' className='text-[#0A66C2]' />
               </Button>
             </div>
           ) : null}
