@@ -406,7 +406,6 @@ export function ApiKeysMutateDrawer({
       shouldValidate: true,
     })
   }
-
   let submitLabel = isUpdate ? t('Save changes') : t('Create API Key')
   if (isSubmitting) {
     submitLabel = t('Saving...')
@@ -452,7 +451,11 @@ export function ApiKeysMutateDrawer({
             <DialogDescription>
               {isUpdate
                 ? t('Update the API key by providing necessary info.')
-                : t('Add a new API key by providing necessary info.')}
+                : canUseGroups
+                  ? t('Add a new API key by providing necessary info.')
+                  : t(
+                      'Name the key — everything else uses the default settings.'
+                    )}
             </DialogDescription>
           </DialogHeader>
 
@@ -476,7 +479,8 @@ export function ApiKeysMutateDrawer({
                 )}
               />
 
-              {/* PLG users never see groups; their keys are forced to plg server-side. */}
+              {/* PLG users only need a name; enterprise users retain the full
+                  create-time scope and quota controls. */}
               {!isUpdate && canSelectGroups && (
                 <>
                   <FormField
@@ -527,9 +531,7 @@ export function ApiKeysMutateDrawer({
                 </>
               )}
 
-              {!isUpdate && (
-                // CREATE mode (OpenRouter-style): a single optional credit-limit
-                // input. Blank => unlimited; a number => that quota amount.
+              {!isUpdate && canUseGroups && (
                 <FormItem>
                   <FormLabel>{t('Credit limit (optional)')}</FormLabel>
                   <FormControl>
@@ -546,9 +548,7 @@ export function ApiKeysMutateDrawer({
                 </FormItem>
               )}
 
-              {!isUpdate && (
-                // Mirrors OpenRouter's "Reset limit every…" field. New-API has no per-token
-                // periodic credit reset, so it is shown disabled at N/A for visual parity.
+              {!isUpdate && canUseGroups && (
                 <FormItem>
                   <FormLabel>{t('Reset limit every...')}</FormLabel>
                   <FormControl>
@@ -615,64 +615,66 @@ export function ApiKeysMutateDrawer({
                 </>
               )}
 
-              <FormField
-                control={form.control}
-                name='expired_time'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Expiration Time')}</FormLabel>
-                    <div className='flex flex-col gap-2'>
-                      <FormControl>
-                        <DateTimePicker
-                          value={field.value}
-                          onChange={field.onChange}
-                          placeholder={t('Never expires')}
-                          className='min-w-0 [&_input[type=time]]:w-24 sm:[&_input[type=time]]:w-32'
-                        />
-                      </FormControl>
-                      <div className='grid grid-cols-4 gap-2'>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          className='px-2 text-xs sm:px-3 sm:text-sm'
-                          onClick={() => handleSetExpiry(0, 0, 0)}
-                        >
-                          {t('Never')}
-                        </Button>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          className='px-2 text-xs sm:px-3 sm:text-sm'
-                          onClick={() => handleSetExpiry(1, 0, 0)}
-                        >
-                          {t('1 Month')}
-                        </Button>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          className='px-2 text-xs sm:px-3 sm:text-sm'
-                          onClick={() => handleSetExpiry(0, 1, 0)}
-                        >
-                          {t('1 Day')}
-                        </Button>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          className='px-2 text-xs sm:px-3 sm:text-sm'
-                          onClick={() => handleSetExpiry(0, 0, 1)}
-                        >
-                          {t('1 Hour')}
-                        </Button>
+              {(isUpdate || canUseGroups) && (
+                <FormField
+                  control={form.control}
+                  name='expired_time'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Expiration Time')}</FormLabel>
+                      <div className='flex flex-col gap-2'>
+                        <FormControl>
+                          <DateTimePicker
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder={t('Never expires')}
+                            className='min-w-0 [&_input[type=time]]:w-24 sm:[&_input[type=time]]:w-32'
+                          />
+                        </FormControl>
+                        <div className='grid grid-cols-4 gap-2'>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            className='px-2 text-xs sm:px-3 sm:text-sm'
+                            onClick={() => handleSetExpiry(0, 0, 0)}
+                          >
+                            {t('Never')}
+                          </Button>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            className='px-2 text-xs sm:px-3 sm:text-sm'
+                            onClick={() => handleSetExpiry(1, 0, 0)}
+                          >
+                            {t('1 Month')}
+                          </Button>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            className='px-2 text-xs sm:px-3 sm:text-sm'
+                            onClick={() => handleSetExpiry(0, 1, 0)}
+                          >
+                            {t('1 Day')}
+                          </Button>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            className='px-2 text-xs sm:px-3 sm:text-sm'
+                            onClick={() => handleSetExpiry(0, 0, 1)}
+                          >
+                            {t('1 Hour')}
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               {isUpdate && (
                 <>
