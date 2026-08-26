@@ -141,11 +141,7 @@ export function PlaygroundChat({
                       from={message.from}
                       key={`${message.key}-${version.id}-${versionIndex}`}
                     >
-<<<<<<< HEAD
-                      <div className='flex w-full min-w-0 flex-1 basis-full flex-col items-start py-2 group-[.is-user]:items-end'>
-=======
-                      <div className='w-full min-w-0 flex-1 basis-full space-y-2 py-1'>
->>>>>>> 1a0a155e4 (feat(playground): separate media and text message bubbles)
+                      <div className='flex w-full min-w-0 flex-1 basis-full flex-col items-start space-y-2 py-2 group-[.is-user]:items-end'>
                         {isEditing(message.key) ? (
                           <div className='space-y-2'>
                             <Textarea
