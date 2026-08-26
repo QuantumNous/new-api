@@ -32,12 +32,21 @@ var (
 )
 
 func IsOpenAIResponseOnlyModel(modelName string) bool {
-	for _, m := range OpenAIResponseOnlyModels {
-		if strings.Contains(modelName, m) {
+	modelName = modelBaseName(modelName)
+	for _, model := range OpenAIResponseOnlyModels {
+		if modelName == model || strings.HasPrefix(modelName, model+"-") {
 			return true
 		}
 	}
 	return false
+}
+
+// IsOpenAIGPTModel reports whether the mapped upstream model belongs to the
+// gpt-* family. Provider namespaces such as "openai/gpt-5" are ignored and
+// matching is case-insensitive.
+func IsOpenAIGPTModel(modelName string) bool {
+	modelName = modelBaseName(modelName)
+	return modelName == "gpt" || strings.HasPrefix(modelName, "gpt-")
 }
 
 // IsOpenAIChatAndResponsesModel identifies model families exposed through both

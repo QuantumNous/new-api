@@ -81,7 +81,7 @@ func TestConvertRequestToChannelNativeChatToGeminiIncludesThoughts(t *testing.T)
 }
 
 func TestConvertRequestToChannelNativeGeminiToChat(t *testing.T) {
-	info := testRelayInfo(constant.APITypeOpenAI, "gpt-test")
+	info := testRelayInfo(constant.APITypeOpenAI, "glm-test")
 	adaptor := GetAdaptor(constant.APITypeOpenAI)
 	adaptor.Init(info)
 
@@ -110,7 +110,7 @@ func TestConvertRequestToChannelNativeGeminiToChat(t *testing.T) {
 	}
 }
 
-func TestConvertRequestToChannelNativeOpenAIChatStaysChat(t *testing.T) {
+func TestConvertRequestToChannelNativeOpenAIGPTDefaultsToResponses(t *testing.T) {
 	info := testRelayInfo(constant.APITypeOpenAI, "gpt-4o")
 	adaptor := GetAdaptor(constant.APITypeOpenAI)
 	adaptor.Init(info)
@@ -123,10 +123,12 @@ func TestConvertRequestToChannelNativeOpenAIChatStaysChat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := got.(*dto.GeneralOpenAIRequest); !ok {
+	switch got.(type) {
+	case *dto.OpenAIResponsesRequest, dto.OpenAIResponsesRequest:
+	default:
 		t.Fatalf("got %T", got)
 	}
-	if info.GetFinalRequestRelayFormat() != types.RelayFormatOpenAI {
+	if info.GetFinalRequestRelayFormat() != types.RelayFormatOpenAIResponses {
 		t.Fatalf("final format=%s", info.GetFinalRequestRelayFormat())
 	}
 }
@@ -211,7 +213,7 @@ func TestConvertRequestToChannelNativeClaudeToVertexGemini(t *testing.T) {
 func TestConvertRequestToChannelNativeUpgradeUsesResponses(t *testing.T) {
 	info := testRelayInfo(constant.APITypeOpenAI, "gpt-5")
 	info.RelayFormat = types.RelayFormatOpenAI
-	info.BuildTextPlan(true)
+	info.BuildTextPlan(types.RelayFormatOpenAIResponses)
 	adaptor := GetAdaptor(constant.APITypeOpenAI)
 	adaptor.Init(info)
 

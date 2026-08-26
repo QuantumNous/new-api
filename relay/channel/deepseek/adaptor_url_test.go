@@ -21,7 +21,7 @@ func TestGetRequestURLResponsesClientUsesChatCompletions(t *testing.T) {
 			ChannelBaseUrl: "https://api.deepseek.com",
 		},
 	}
-	info.BuildTextPlan(false)
+	info.BuildTextPlan("")
 	got, err := (&Adaptor{}).GetRequestURL(info)
 	if err != nil {
 		t.Fatal(err)

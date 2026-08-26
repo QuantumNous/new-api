@@ -26,7 +26,7 @@ func planInfo(channelType, apiType int, model string, client types.RelayFormat, 
 func TestBuildTextPlanClaudeClientXAIUsesChatPath(t *testing.T) {
 	t.Parallel()
 	info := planInfo(constant.ChannelTypeXai, constant.APITypeXai, "grok-4.6", types.RelayFormatClaude, relayconstant.RelayModeUnknown)
-	plan := info.BuildTextPlan(false)
+	plan := info.BuildTextPlan("")
 	if plan.Native != types.RelayFormatOpenAI {
 		t.Fatalf("native=%s", plan.Native)
 	}
@@ -42,7 +42,7 @@ func TestBuildTextPlanClaudeClientXAIUsesChatPath(t *testing.T) {
 func TestBuildTextPlanChatClientGeminiStaysGemini(t *testing.T) {
 	t.Parallel()
 	info := planInfo(constant.ChannelTypeGemini, constant.APITypeGemini, "gemini-3.7-flash", types.RelayFormatOpenAI, relayconstant.RelayModeChatCompletions)
-	plan := info.BuildTextPlan(false)
+	plan := info.BuildTextPlan("")
 	if plan.Native != types.RelayFormatGemini {
 		t.Fatalf("native=%s", plan.Native)
 	}
@@ -54,7 +54,7 @@ func TestBuildTextPlanChatClientGeminiStaysGemini(t *testing.T) {
 func TestBuildTextPlanResponsesClientDeepSeekUsesChat(t *testing.T) {
 	t.Parallel()
 	info := planInfo(constant.ChannelTypeDeepSeek, constant.APITypeDeepSeek, "deepseek-chat", types.RelayFormatOpenAIResponses, relayconstant.RelayModeResponses)
-	plan := info.BuildTextPlan(false)
+	plan := info.BuildTextPlan("")
 	if plan.Native != types.RelayFormatOpenAI {
 		t.Fatalf("native=%s", plan.Native)
 	}
@@ -67,7 +67,7 @@ func TestBuildTextPlanResponsesClientDeepSeekUsesChat(t *testing.T) {
 func TestBuildTextPlanResponsesClientOpenAICompatibleGLMUsesChat(t *testing.T) {
 	t.Parallel()
 	info := planInfo(constant.ChannelTypeOpenAI, constant.APITypeOpenAI, "glm-5.2", types.RelayFormatOpenAIResponses, relayconstant.RelayModeResponses)
-	plan := info.BuildTextPlan(false)
+	plan := info.BuildTextPlan("")
 	if plan.Native != types.RelayFormatOpenAI {
 		t.Fatalf("native=%s", plan.Native)
 	}
@@ -80,7 +80,7 @@ func TestBuildTextPlanResponsesClientOpenAICompatibleGLMUsesChat(t *testing.T) {
 func TestBuildTextPlanResponsesClientGPT56UsesResponses(t *testing.T) {
 	t.Parallel()
 	info := planInfo(constant.ChannelTypeOpenAI, constant.APITypeOpenAI, "gpt-5.6-sol", types.RelayFormatOpenAIResponses, relayconstant.RelayModeResponses)
-	plan := info.BuildTextPlan(false)
+	plan := info.BuildTextPlan("")
 	if plan.Native != types.RelayFormatOpenAIResponses {
 		t.Fatalf("native=%s", plan.Native)
 	}
@@ -90,10 +90,10 @@ func TestBuildTextPlanResponsesClientGPT56UsesResponses(t *testing.T) {
 	}
 }
 
-func TestBuildTextPlanUpgradeChangesNativeNotRelayMode(t *testing.T) {
+func TestBuildTextPlanNativeOverrideChangesFormatNotRelayMode(t *testing.T) {
 	t.Parallel()
 	info := planInfo(constant.ChannelTypeOpenAI, constant.APITypeOpenAI, "gpt-5", types.RelayFormatOpenAI, relayconstant.RelayModeChatCompletions)
-	plan := info.BuildTextPlan(true)
+	plan := info.BuildTextPlan(types.RelayFormatOpenAIResponses)
 	if plan.Native != types.RelayFormatOpenAIResponses {
 		t.Fatalf("native=%s", plan.Native)
 	}
@@ -109,14 +109,27 @@ func TestBuildTextPlanUpgradeChangesNativeNotRelayMode(t *testing.T) {
 	}
 }
 
+func TestBuildTextPlanChatOverrideDowngradesResponsesClient(t *testing.T) {
+	t.Parallel()
+	info := planInfo(constant.ChannelTypeOpenAI, constant.APITypeOpenAI, "gpt-5", types.RelayFormatOpenAIResponses, relayconstant.RelayModeResponses)
+	plan := info.BuildTextPlan(types.RelayFormatOpenAI)
+	if plan.Native != types.RelayFormatOpenAI {
+		t.Fatalf("native=%s", plan.Native)
+	}
+	path, ok := info.OpenAICompatibleRequestPath()
+	if !ok || path != "/v1/chat/completions" {
+		t.Fatalf("path=%q ok=%v", path, ok)
+	}
+}
+
 func TestBuildTextPlanVertexFollowsModelFamily(t *testing.T) {
 	t.Parallel()
 	gemini := planInfo(constant.ChannelTypeVertexAi, constant.APITypeVertexAi, "gemini-3.7-flash", types.RelayFormatClaude, relayconstant.RelayModeUnknown)
-	if gemini.BuildTextPlan(false).Native != types.RelayFormatGemini {
+	if gemini.BuildTextPlan("").Native != types.RelayFormatGemini {
 		t.Fatalf("vertex gemini native=%s", gemini.TextNative())
 	}
 	claude := planInfo(constant.ChannelTypeVertexAi, constant.APITypeVertexAi, "claude-sonnet-4", types.RelayFormatOpenAI, relayconstant.RelayModeChatCompletions)
-	if claude.BuildTextPlan(false).Native != types.RelayFormatClaude {
+	if claude.BuildTextPlan("").Native != types.RelayFormatClaude {
 		t.Fatalf("vertex claude native=%s", claude.TextNative())
 	}
 }
@@ -124,7 +137,7 @@ func TestBuildTextPlanVertexFollowsModelFamily(t *testing.T) {
 func TestBuildTextPlanCodexIsResponses(t *testing.T) {
 	t.Parallel()
 	info := planInfo(constant.ChannelTypeCodex, constant.APITypeCodex, "gpt-5", types.RelayFormatOpenAI, relayconstant.RelayModeChatCompletions)
-	plan := info.BuildTextPlan(false)
+	plan := info.BuildTextPlan("")
 	if plan.Native != types.RelayFormatOpenAIResponses {
 		t.Fatalf("native=%s", plan.Native)
 	}
@@ -143,7 +156,7 @@ func TestBuildTextPlanAdvancedCustomTargetOverridesNative(t *testing.T) {
 			}},
 		},
 	}
-	plan := info.BuildTextPlan(false)
+	plan := info.BuildTextPlan("")
 	if plan.Native != types.RelayFormatOpenAI {
 		t.Fatalf("native=%s", plan.Native)
 	}
@@ -165,7 +178,7 @@ func TestBuildTextPlanAdvancedCustomLegacyConverterMapsToTarget(t *testing.T) {
 			}},
 		},
 	}
-	plan := info.BuildTextPlan(false)
+	plan := info.BuildTextPlan("")
 	if plan.Native != types.RelayFormatClaude {
 		t.Fatalf("native=%s", plan.Native)
 	}
@@ -175,7 +188,7 @@ func TestBuildTextPlanAliClaudeClientUsesClaudePath(t *testing.T) {
 	t.Parallel()
 	info := planInfo(constant.ChannelTypeAli, constant.APITypeAli, "qwen-plus", types.RelayFormatClaude, relayconstant.RelayModeUnknown)
 	info.ChannelBaseUrl = "https://dashscope.aliyuncs.com"
-	plan := info.BuildTextPlan(false)
+	plan := info.BuildTextPlan("")
 	if plan.Native != types.RelayFormatClaude {
 		t.Fatalf("native=%s", plan.Native)
 	}
@@ -184,7 +197,7 @@ func TestBuildTextPlanAliClaudeClientUsesClaudePath(t *testing.T) {
 func TestBuildTextPlanAliClaudeClientNonClaudeModelUsesChat(t *testing.T) {
 	t.Parallel()
 	info := planInfo(constant.ChannelTypeAli, constant.APITypeAli, "deepseek-r1", types.RelayFormatClaude, relayconstant.RelayModeUnknown)
-	plan := info.BuildTextPlan(false)
+	plan := info.BuildTextPlan("")
 	if plan.Native != types.RelayFormatOpenAI {
 		t.Fatalf("native=%s", plan.Native)
 	}

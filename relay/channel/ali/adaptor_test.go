@@ -173,7 +173,7 @@ func TestGetRequestURLUsesAnthropicPathWhenNativeIsClaude(t *testing.T) {
 			UpstreamModelName: "qwen-plus",
 		},
 	}
-	info.BuildTextPlan(false)
+	info.BuildTextPlan("")
 
 	url, err := (&Adaptor{}).GetRequestURL(info)
 	require.NoError(t, err)
@@ -191,7 +191,7 @@ func TestGetRequestURLUsesChatPathWhenClaudeClientHitsNonClaudeModel(t *testing.
 			UpstreamModelName: "wanx-v1",
 		},
 	}
-	info.BuildTextPlan(false)
+	info.BuildTextPlan("")
 
 	url, err := (&Adaptor{}).GetRequestURL(info)
 	require.NoError(t, err)

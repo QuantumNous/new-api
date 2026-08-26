@@ -18,6 +18,11 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 				constant.EndpointTypeOpenAIResponseCompact,
 				constant.EndpointTypeOpenAIAlphaSearch,
 			}
+		} else if IsOpenAIGPTModel(modelName) {
+			endpointTypes = []constant.EndpointType{
+				constant.EndpointTypeOpenAI,
+				constant.EndpointTypeOpenAIResponse,
+			}
 		} else {
 			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAI}
 		}

@@ -261,11 +261,20 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 				continue
 			}
 			field.Set(fresh.Elem())
-		case reflect.Slice, reflect.Struct:
+		case reflect.Slice:
 			err := json.Unmarshal([]byte(strValue), field.Addr().Interface())
 			if err != nil {
 				continue
 			}
+		case reflect.Struct:
+			// Treat each structured option value as a complete replacement.
+			// Unmarshalling into the existing field retains omitted members and
+			// makes runtime behavior differ from the persisted JSON after restart.
+			fresh := reflect.New(field.Type())
+			if err := json.Unmarshal([]byte(strValue), fresh.Interface()); err != nil {
+				continue
+			}
+			field.Set(fresh.Elem())
 		}
 	}
 

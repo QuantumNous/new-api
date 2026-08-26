@@ -43,8 +43,10 @@ func (o Outbound) RequestPath() string {
 }
 
 // BuildTextPlan computes Client/Native/Outbound once and stores it on info.
-// upgradeToResponses is the admin Chat→Responses policy; it only changes Native.
-func (info *RelayInfo) BuildTextPlan(upgradeToResponses bool) *TextPlan {
+// nativeOverride is an explicit host routing decision; an empty value keeps the
+// channel's inherent native format. Advanced Custom route targets remain the
+// highest-priority source because they are part of that channel's definition.
+func (info *RelayInfo) BuildTextPlan(nativeOverride types.RelayFormat) *TextPlan {
 	if info == nil {
 		return nil
 	}
@@ -52,8 +54,8 @@ func (info *RelayInfo) BuildTextPlan(upgradeToResponses bool) *TextPlan {
 	native := NativeTextFormat(info, client)
 	if override, ok := info.advancedCustomNative(client); ok {
 		native = override
-	} else if upgradeToResponses {
-		native = types.RelayFormatOpenAIResponses
+	} else if nativeOverride != "" {
+		native = nativeOverride
 	}
 	plan := &TextPlan{
 		Client:   client,

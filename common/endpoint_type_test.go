@@ -41,11 +41,16 @@ func TestOpenAIChannelCLIProxyStandaloneImageModelsUseImagesAPI(t *testing.T) {
 	}
 }
 
-func TestOpenAIChannelLegacyModelEndpointTypeIsUnchanged(t *testing.T) {
-	assert.Equal(t,
-		[]constant.EndpointType{constant.EndpointTypeOpenAI},
-		GetEndpointTypesByChannelType(constant.ChannelTypeOpenAI, "gpt-4o"),
-	)
+func TestOpenAIChannelGPTModelsExposeChatAndResponses(t *testing.T) {
+	want := []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+	}
+	for _, model := range []string{"gpt-4o", "openai/GPT-4.1"} {
+		t.Run(model, func(t *testing.T) {
+			assert.Equal(t, want, GetEndpointTypesByChannelType(constant.ChannelTypeOpenAI, model))
+		})
+	}
 }
 
 func TestGeminiNativeImageModelsExposeImageGenerationEndpoint(t *testing.T) {

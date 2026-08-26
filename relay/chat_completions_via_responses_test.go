@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/assert"
@@ -73,61 +74,80 @@ func TestRecalcQuotaFromRatiosRejectsAllInvalidAdjustedRatios(t *testing.T) {
 	assert.True(t, info.PriceData.HasOtherRatio("duration"))
 }
 
-func TestShouldUpgradeChatToResponsesWhenClientWantsThinking(t *testing.T) {
-	openaiInfo := testRelayInfo(constant.APITypeOpenAI, "gpt-5.6-sol")
-	assert.False(t, shouldUpgradeChatToResponses(openaiInfo), "no thinking request stays Chat")
-
-	openaiInfo.Request = &dto.GeneralOpenAIRequest{
-		Model:           "gpt-5.6-sol",
-		ReasoningEffort: "high",
-	}
-	assert.True(t, shouldUpgradeChatToResponses(openaiInfo), "Chat reasoning_effort upgrades to Responses for summary thinking")
-
-	claudeInfo := testRelayInfo(constant.APITypeOpenAI, "gpt-5.6-sol")
-	claudeInfo.Request = &dto.ClaudeRequest{
-		Model:    "gpt-5.6-sol",
-		Thinking: &dto.Thinking{Type: "adaptive"},
-	}
-	assert.True(t, shouldUpgradeChatToResponses(claudeInfo))
-
-	deepseekInfo := testRelayInfo(constant.APITypeDeepSeek, "glm-5.2")
-	deepseekInfo.Request = &dto.GeneralOpenAIRequest{ReasoningEffort: "high"}
-	assert.False(t, shouldUpgradeChatToResponses(deepseekInfo), "Chat-only channels must not receive Responses")
-
-	openAICompatibleInfo := testRelayInfo(constant.APITypeOpenAI, "glm-5.2")
-	openAICompatibleInfo.Request = &dto.GeneralOpenAIRequest{ReasoningEffort: "high"}
-	assert.False(t, shouldUpgradeChatToResponses(openAICompatibleInfo), "OpenAI-compatible Chat models must not receive Responses")
-}
-
-func TestShouldUpgradeChatToResponsesRequiresResponsesNativeChannel(t *testing.T) {
-	assert.False(t, shouldUpgradeChatToResponses(nil))
-
-	openaiInfo := testRelayInfo(constant.APITypeOpenAI, "gpt-5")
-	assert.False(t, shouldUpgradeChatToResponses(openaiInfo), "policy is off by default")
-
-	deepseekInfo := testRelayInfo(constant.APITypeDeepSeek, "gpt-5")
-	assert.False(t, shouldUpgradeChatToResponses(deepseekInfo))
-
-	geminiInfo := testRelayInfo(constant.APITypeGemini, "gpt-5")
-	assert.False(t, shouldUpgradeChatToResponses(geminiInfo))
-
-	newAPIInfo := testRelayInfo(constant.APITypeNewAPI, "gpt-5")
-	assert.False(t, shouldUpgradeChatToResponses(newAPIInfo))
-
-	passthrough := testRelayInfo(constant.APITypeOpenAI, "gpt-5")
-	passthrough.ChannelSetting.PassThroughBodyEnabled = true
-	assert.False(t, shouldUpgradeChatToResponses(passthrough))
-
+func useResponsesRoutingPolicy(t *testing.T, policy model_setting.ChatCompletionsToResponsesPolicy) {
+	t.Helper()
 	settings := model_setting.GetGlobalSettings()
 	originalPolicy := settings.ChatCompletionsToResponsesPolicy
-	t.Cleanup(func() { settings.ChatCompletionsToResponsesPolicy = originalPolicy })
-	settings.ChatCompletionsToResponsesPolicy = model_setting.ChatCompletionsToResponsesPolicy{
+	originalPassThrough := settings.PassThroughRequestEnabled
+	t.Cleanup(func() {
+		settings.ChatCompletionsToResponsesPolicy = originalPolicy
+		settings.PassThroughRequestEnabled = originalPassThrough
+	})
+	settings.ChatCompletionsToResponsesPolicy = policy
+	settings.PassThroughRequestEnabled = false
+}
+
+func TestResolveTextNativeOverrideOpenAIAutomaticRouting(t *testing.T) {
+	useResponsesRoutingPolicy(t, model_setting.ChatCompletionsToResponsesPolicy{})
+
+	gptInfo := testRelayInfo(constant.APITypeOpenAI, "public-alias")
+	gptInfo.UpstreamModelName = "openai/GPT-5.6-sol"
+	assert.Equal(t, relaytypes.RelayFormat(relaytypes.RelayFormatOpenAIResponses), resolveTextNativeOverride(gptInfo))
+
+	glmInfo := testRelayInfo(constant.APITypeOpenAI, "glm-5.2")
+	assert.Equal(t, relaytypes.RelayFormatOpenAI, resolveTextNativeOverride(glmInfo))
+
+	responsesOnly := testRelayInfo(constant.APITypeOpenAI, "openai/o3-pro")
+	assert.Equal(t, relaytypes.RelayFormat(relaytypes.RelayFormatOpenAIResponses), resolveTextNativeOverride(responsesOnly))
+}
+
+func TestResolveTextNativeOverrideOpenAICustomRulesAreAuthoritative(t *testing.T) {
+	useResponsesRoutingPolicy(t, model_setting.ChatCompletionsToResponsesPolicy{
 		Enabled:       true,
 		AllChannels:   true,
-		ModelPatterns: []string{`^grok-4\.6$`, `^gpt-5$`},
-	}
+		ModelPatterns: []string{`^glm-5\.2$`},
+	})
+
+	matched := testRelayInfo(constant.APITypeOpenAI, "public-alias")
+	matched.UpstreamModelName = "glm-5.2"
+	assert.Equal(t, relaytypes.RelayFormat(relaytypes.RelayFormatOpenAIResponses), resolveTextNativeOverride(matched))
+
+	unmatchedGPT := testRelayInfo(constant.APITypeOpenAI, "gpt-5.6-sol")
+	unmatchedGPT.Request = &dto.GeneralOpenAIRequest{ReasoningEffort: "high"}
+	assert.Equal(t, relaytypes.RelayFormatOpenAI, resolveTextNativeOverride(unmatchedGPT), "thinking must not bypass an enabled custom rule")
+
+	responsesOnly := testRelayInfo(constant.APITypeOpenAI, "o3-pro")
+	assert.Equal(t, relaytypes.RelayFormat(relaytypes.RelayFormatOpenAIResponses), resolveTextNativeOverride(responsesOnly))
+}
+
+func TestResolveTextNativeOverrideOpenAIPassthroughPreservesClientProtocol(t *testing.T) {
+	useResponsesRoutingPolicy(t, model_setting.ChatCompletionsToResponsesPolicy{})
+
+	chat := testRelayInfo(constant.APITypeOpenAI, "gpt-5.6-sol")
+	chat.RelayFormat = relaytypes.RelayFormatOpenAI
+	chat.ChannelSetting.PassThroughBodyEnabled = true
+	assert.Equal(t, relaytypes.RelayFormatOpenAI, resolveTextNativeOverride(chat))
+
+	responses := testRelayInfo(constant.APITypeOpenAI, "glm-5.2")
+	responses.RelayFormat = relaytypes.RelayFormatOpenAIResponses
+	responses.ChannelSetting.PassThroughBodyEnabled = true
+	assert.Equal(t, relaytypes.RelayFormat(relaytypes.RelayFormatOpenAIResponses), resolveTextNativeOverride(responses))
+}
+
+func TestResolveTextNativeOverrideOtherProvidersRetainCapabilityChecks(t *testing.T) {
+	assert.Empty(t, resolveTextNativeOverride(nil))
+
+	deepseekInfo := testRelayInfo(constant.APITypeDeepSeek, "gpt-5")
+	deepseekInfo.Request = &dto.GeneralOpenAIRequest{ReasoningEffort: "high"}
+	assert.Empty(t, resolveTextNativeOverride(deepseekInfo))
+
+	geminiInfo := testRelayInfo(constant.APITypeGemini, "gpt-5")
+	assert.Empty(t, resolveTextNativeOverride(geminiInfo))
+
+	newAPIInfo := testRelayInfo(constant.APITypeNewAPI, "gpt-5")
+	assert.Empty(t, resolveTextNativeOverride(newAPIInfo))
 
 	xaiInfo := testRelayInfo(constant.APITypeXai, "grok-4.6")
-	assert.True(t, shouldUpgradeChatToResponses(xaiInfo), "xAI provider natively supports Responses")
-	assert.False(t, shouldUpgradeChatToResponses(geminiInfo), "Gemini provider must not receive Responses payloads")
+	xaiInfo.Request = &dto.GeneralOpenAIRequest{ReasoningEffort: "high"}
+	assert.Equal(t, relaytypes.RelayFormat(relaytypes.RelayFormatOpenAIResponses), resolveTextNativeOverride(xaiInfo))
 }

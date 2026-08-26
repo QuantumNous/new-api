@@ -25,7 +25,7 @@ func TestGetRequestURLUsesNativeNotClientFormat(t *testing.T) {
 			ChannelBaseUrl:    "https://api.minimax.chat",
 		},
 	}
-	info.BuildTextPlan(false)
+	info.BuildTextPlan("")
 	got, err := GetRequestURL(info)
 	require.NoError(t, err)
 	require.True(t, strings.Contains(got, "/v1/text/chatcompletion_v2"), got)
@@ -46,7 +46,7 @@ func TestGetRequestURLClaudeClientUsesAnthropicPath(t *testing.T) {
 			ChannelBaseUrl:    "https://api.minimax.chat",
 		},
 	}
-	info.BuildTextPlan(false)
+	info.BuildTextPlan("")
 	got, err := GetRequestURL(info)
 	require.NoError(t, err)
 	require.True(t, strings.Contains(got, "/anthropic/v1/messages"), got)

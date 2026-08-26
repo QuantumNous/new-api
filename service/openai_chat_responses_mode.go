@@ -2,13 +2,15 @@ package service
 
 import (
 	"regexp"
+	"strings"
 	"sync"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 )
 
-// Chat→Responses upgrade policy is host routing logic (it decides *whether*
-// to convert, reading host settings), so it lives here, not in relayconvert.
+// Chat/Responses protocol selection is host routing logic (it decides whether
+// to convert and reads host settings), so it lives here, not in relayconvert.
 
 var chatResponsesRegexCache sync.Map // map[string]*regexp.Regexp
 
@@ -17,6 +19,7 @@ func matchAnyModelPattern(patterns []string, model string) bool {
 		return false
 	}
 	for _, pattern := range patterns {
+		pattern = strings.TrimSpace(pattern)
 		if pattern == "" {
 			continue
 		}
@@ -50,5 +53,30 @@ func ShouldChatCompletionsUseResponsesGlobal(channelID int, channelType int, mod
 		channelID,
 		channelType,
 		model,
+	)
+}
+
+// ShouldOpenAIChannelUseResponsesPolicy selects the upstream wire protocol for
+// a configured OpenAI channel. Responses-only models are protected regardless
+// of administrator preference. Selected custom-policy channels use the regex
+// list as the complete source of truth; other channels use automatic routing,
+// where mapped gpt-* models prefer Responses and all other models prefer Chat.
+func ShouldOpenAIChannelUseResponsesPolicy(policy model_setting.ChatCompletionsToResponsesPolicy, channelID int, channelType int, upstreamModel string) bool {
+	upstreamModel = strings.TrimSpace(upstreamModel)
+	if common.IsOpenAIResponseOnlyModel(upstreamModel) {
+		return true
+	}
+	if policy.IsChannelEnabled(channelID, channelType) {
+		return matchAnyModelPattern(policy.ModelPatterns, upstreamModel)
+	}
+	return common.IsOpenAIGPTModel(upstreamModel)
+}
+
+func ShouldOpenAIChannelUseResponsesGlobal(channelID int, channelType int, upstreamModel string) bool {
+	return ShouldOpenAIChannelUseResponsesPolicy(
+		model_setting.GetGlobalSettings().ChatCompletionsToResponsesPolicy,
+		channelID,
+		channelType,
+		upstreamModel,
 	)
 }

@@ -256,6 +256,15 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case model_setting.ChatCompletionsToResponsesPolicyOptionKey:
+		err = model_setting.ValidateChatCompletionsToResponsesPolicy(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	case operation_setting.ToolPriceOptionKey:
 		err = operation_setting.ValidateToolPricesJSON(option.Value.(string))
 		if err != nil {

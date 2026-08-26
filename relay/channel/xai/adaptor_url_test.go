@@ -21,7 +21,7 @@ func TestGetRequestURLClaudeClientUsesChatCompletions(t *testing.T) {
 			ChannelBaseUrl: "https://api.x.ai",
 		},
 	}
-	info.BuildTextPlan(false)
+	info.BuildTextPlan("")
 	got, err := (&Adaptor{}).GetRequestURL(info)
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +43,7 @@ func TestGetRequestURLResponsesClientKeepsResponses(t *testing.T) {
 			ChannelBaseUrl: "https://api.x.ai",
 		},
 	}
-	info.BuildTextPlan(false)
+	info.BuildTextPlan("")
 	got, err := (&Adaptor{}).GetRequestURL(info)
 	if err != nil {
 		t.Fatal(err)

@@ -14,10 +14,11 @@ import (
 //
 // OpenAI Responses is special:
 //   - Channels that only speak Responses (Codex) always use it as native.
-//   - Channels that speak both Chat and Responses keep Chat as native.
-//     Chat→Responses happens only when the admin
-//     chat_completions_to_responses_policy matches the model — that upgrade
-//     is applied by BuildTextPlan, not by rewriting RelayMode.
+//   - Production routing for configured OpenAI channels supplies an explicit
+//     Chat/Responses override based on the mapped upstream model and the admin
+//     custom-routing policy. BuildTextPlan applies it without rewriting RelayMode.
+//   - Other dual-protocol channels preserve incoming Responses and otherwise
+//     use Chat unless host policy explicitly upgrades the request.
 //   - Incoming Responses to a Chat-only channel/model convert Responses→Chat.
 func NativeTextFormat(info *RelayInfo, incoming types.RelayFormat) types.RelayFormat {
 	if info == nil || info.ChannelMeta == nil {
@@ -31,6 +32,8 @@ func NativeTextFormat(info *RelayInfo, incoming types.RelayFormat) types.RelayFo
 	// ApiType only selects an adaptor implementation; multiple providers may
 	// share an adaptor while exposing different native endpoint capabilities.
 	switch info.ChannelType {
+	case constant.ChannelTypeOpenAI:
+		return defaultOpenAIChannelTextFormat(info)
 	case constant.ChannelTypeGemini:
 		return types.RelayFormatGemini
 	case constant.ChannelTypeAnthropic:
@@ -122,8 +125,27 @@ func openAICompatibleModelSpeaksResponses(info *RelayInfo) bool {
 		hostcommon.IsOpenAIChatAndResponsesModel(modelName)
 }
 
+func defaultOpenAIChannelTextFormat(info *RelayInfo) types.RelayFormat {
+	if info == nil {
+		return types.RelayFormatOpenAI
+	}
+	modelName := strings.TrimSpace(info.UpstreamModelName)
+	if modelName == "" {
+		modelName = strings.TrimSpace(info.OriginModelName)
+	}
+	if modelName == "" {
+		return types.RelayFormatOpenAI
+	}
+	if hostcommon.IsOpenAIResponseOnlyModel(modelName) || hostcommon.IsOpenAIGPTModel(modelName) {
+		return types.RelayFormatOpenAIResponses
+	}
+	return types.RelayFormatOpenAI
+}
+
 func nativeTextFormatFromAPIType(info *RelayInfo, incoming types.RelayFormat) types.RelayFormat {
 	switch info.ApiType {
+	case constant.APITypeOpenAI:
+		return defaultOpenAIChannelTextFormat(info)
 	case constant.APITypeGemini:
 		return types.RelayFormatGemini
 	case constant.APITypeAnthropic:

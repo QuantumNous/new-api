@@ -55,12 +55,20 @@ const thinkingBlacklistExample = JSON.stringify(
   2
 )
 
+const chatToResponsesAutomaticExample = JSON.stringify(
+  {
+    enabled: false,
+  },
+  null,
+  2
+)
+
 const chatToResponsesPolicyExample = JSON.stringify(
   {
     enabled: true,
     all_channels: false,
     channel_ids: [1, 2],
-    model_patterns: ['^gpt-4o.*$', '^gpt-5.*$'],
+    model_patterns: ['^gpt-5\\.6(?:-|$)', '^o3-pro$'],
   },
   null,
   2
@@ -70,7 +78,7 @@ const chatToResponsesPolicyAllChannelsExample = JSON.stringify(
   {
     enabled: true,
     all_channels: true,
-    model_patterns: ['^gpt-4o.*$', '^gpt-5.*$'],
+    model_patterns: ['^gpt-5\\.6(?:-|$)', '^o3-pro$'],
   },
   null,
   2
@@ -243,7 +251,7 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
           <div className='space-y-4'>
             <div className='flex items-center gap-2'>
               <h3 className='text-base font-semibold'>
-                {t('ChatCompletions -> Responses Compatibility')}
+                {t('Custom Responses Routing Rules')}
               </h3>
               <StatusBadge
                 label={t('Preview')}
@@ -274,13 +282,54 @@ export function GlobalSettingsCard({ defaultValues }: GlobalSettingsCardProps) {
                       name={field.name}
                       onBlur={field.onBlur}
                       textareaRef={field.ref}
-                      placeholder={`${t('Example (specific channels):')}\n${chatToResponsesPolicyExample}\n\n${t('Example (all channels):')}\n${chatToResponsesPolicyAllChannelsExample}`}
+                      placeholder={`${t('Example (automatic routing):')}\n${chatToResponsesAutomaticExample}\n\n${t('Example (specific channels):')}\n${chatToResponsesPolicyExample}\n\n${t('Example (all channels):')}\n${chatToResponsesPolicyAllChannelsExample}`}
                     />
                   </FormControl>
-                  <FormDescription>
-                    {t('Empty value will be saved as {}.')}
+                  <FormDescription className='space-y-1'>
+                    <span className='block'>
+                      {t(
+                        'When custom routing is disabled for an OpenAI channel, mapped upstream gpt-* models use Responses and other models use Chat Completions. Responses-only models always use Responses.'
+                      )}
+                    </span>
+                    <span className='block'>
+                      {t(
+                        'When custom routing is enabled for a selected channel, model_patterns are matched against the mapped upstream model name. Matches use Responses; non-matches use Chat Completions.'
+                      )}
+                    </span>
+                    <span className='block'>
+                      {t(
+                        'OpenAI channels not selected by the custom policy continue to use automatic routing.'
+                      )}
+                    </span>
+                    <span className='block'>
+                      {t(
+                        'Patterns use Go regular expressions and are case-sensitive unless the pattern enables case-insensitive matching.'
+                      )}
+                    </span>
+                    <span className='block'>
+                      {t(
+                        'With request passthrough enabled, incoming OpenAI Chat and Responses protocols are preserved.'
+                      )}
+                    </span>
+                    <span className='block'>
+                      {t('Empty value will be saved as {}.')}
+                    </span>
                   </FormDescription>
                   <div className='flex flex-wrap gap-2'>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='sm'
+                      onClick={() =>
+                        form.setValue(
+                          'global.chat_completions_to_responses_policy',
+                          chatToResponsesAutomaticExample,
+                          { shouldDirty: true }
+                        )
+                      }
+                    >
+                      {t('Fill example (automatic routing)')}
+                    </Button>
                     <Button
                       type='button'
                       variant='outline'

@@ -5,9 +5,16 @@ import (
 )
 
 type testConfigWithMap struct {
-	Modes map[string]string `json:"modes"`
-	Exprs map[string]string `json:"exprs"`
-	Name  string            `json:"name"`
+	Modes  map[string]string `json:"modes"`
+	Exprs  map[string]string `json:"exprs"`
+	Policy testNestedPolicy  `json:"policy"`
+	Name   string            `json:"name"`
+}
+
+type testNestedPolicy struct {
+	Enabled  bool  `json:"enabled"`
+	AllItems bool  `json:"all_items"`
+	IDs      []int `json:"ids,omitempty"`
 }
 
 func TestUpdateConfigFromMap_MapReplacement(t *testing.T) {
@@ -70,6 +77,26 @@ func TestUpdateConfigFromMap_EmptyMapClearsAll(t *testing.T) {
 	}
 	if len(cfg.Exprs) != 0 {
 		t.Errorf("Exprs should be empty after updating with {}, got %v", cfg.Exprs)
+	}
+}
+
+func TestUpdateConfigFromMap_StructReplacementClearsOmittedFields(t *testing.T) {
+	cfg := &testConfigWithMap{
+		Policy: testNestedPolicy{
+			Enabled:  true,
+			AllItems: true,
+			IDs:      []int{1, 2},
+		},
+	}
+
+	err := UpdateConfigFromMap(cfg, map[string]string{
+		"policy": `{"enabled":false}`,
+	})
+	if err != nil {
+		t.Fatalf("UpdateConfigFromMap failed: %v", err)
+	}
+	if cfg.Policy.Enabled || cfg.Policy.AllItems || len(cfg.Policy.IDs) != 0 {
+		t.Fatalf("Policy retained omitted fields: %+v", cfg.Policy)
 	}
 }
 

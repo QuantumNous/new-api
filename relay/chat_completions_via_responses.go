@@ -8,48 +8,92 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/gin-gonic/gin"
 )
 
-// shouldUpgradeChatToResponses reports whether this request should be sent as
-// OpenAI Responses even though the client used Chat / Claude / Gemini.
-// The admin chat_completions_to_responses_policy selects models; the channel
-// must actually speak Responses, otherwise the upgrade is skipped and the
-// request converts to the channel's native format instead.
+// resolveTextNativeOverride returns an explicit Chat/Responses routing choice
+// when host policy must override the provider's inherent format.
 //
-// Requests that ask for visible thinking also upgrade: Responses summary is
-// the thinking text Chat / Claude / Gemini can display.
+// OpenAI channels use a deterministic model policy independent of the client
+// endpoint: automatic mode sends mapped gpt-* models to Responses and all
+// others to Chat; enabled custom rules use model_patterns as the complete
+// selection for targeted channels. Responses-only models remain protected.
+// Request passthrough takes precedence and preserves incoming Chat/Responses.
 //
-// The upgrade only changes TextPlan.Native. It does not rewrite RelayMode or
-// RequestURLPath; GetRequestURL and DoResponse read the plan.
-func shouldUpgradeChatToResponses(info *relaycommon.RelayInfo) bool {
-	if info == nil {
-		return false
+// Other providers retain the existing opt-in Chat→Responses behavior, including
+// visible-thinking upgrades, but only when the provider speaks Responses.
+func resolveTextNativeOverride(info *relaycommon.RelayInfo) types.RelayFormat {
+	if info == nil || info.ChannelMeta == nil {
+		return ""
 	}
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
-		return false
+	passThrough := model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled
+	if isConfiguredOpenAIChannel(info) {
+		if passThrough {
+			switch info.RelayFormat {
+			case types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses:
+				return info.RelayFormat
+			default:
+				// OpenAI adaptors historically route foreign passthrough bodies to
+				// Chat. Preserve that behavior instead of applying gpt-* auto mode.
+				return types.RelayFormatOpenAI
+			}
+		}
+		if service.ShouldOpenAIChannelUseResponsesGlobal(
+			info.ChannelId,
+			info.ChannelType,
+			resolvedUpstreamModelName(info),
+		) {
+			return types.RelayFormatOpenAIResponses
+		}
+		return types.RelayFormatOpenAI
+	}
+	if passThrough {
+		return ""
 	}
 	switch info.ChannelType {
 	case constant.ChannelTypeAdvancedCustom, constant.ChannelTypeNewAPI, constant.ChannelTypeSub2API:
 		// These providers pick a converter per route or speak every client
 		// format natively. A Chat→Responses upgrade would bypass that.
-		return false
+		return ""
 	case constant.ChannelTypeUnknown:
 		switch info.ApiType {
 		case constant.APITypeAdvancedCustom, constant.APITypeNewAPI, constant.APITypeSub2API:
-			return false
+			return ""
 		}
 	}
 	if !relaycommon.SpeaksResponsesNatively(info) {
+		return ""
+	}
+	if requestWantsVisibleThinking(info) || service.ShouldChatCompletionsUseResponsesGlobal(
+		info.ChannelId,
+		info.ChannelType,
+		resolvedUpstreamModelName(info),
+	) {
+		return types.RelayFormatOpenAIResponses
+	}
+	return ""
+}
+
+func isConfiguredOpenAIChannel(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.ChannelMeta == nil {
 		return false
 	}
-	if requestWantsVisibleThinking(info) {
-		return true
+	return info.ChannelType == constant.ChannelTypeOpenAI ||
+		(info.ChannelType == constant.ChannelTypeUnknown && info.ApiType == constant.APITypeOpenAI)
+}
+
+func resolvedUpstreamModelName(info *relaycommon.RelayInfo) string {
+	if info == nil {
+		return ""
 	}
-	return service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName)
+	if model := strings.TrimSpace(info.UpstreamModelName); model != "" {
+		return model
+	}
+	return strings.TrimSpace(info.OriginModelName)
 }
 
 func requestWantsVisibleThinking(info *relaycommon.RelayInfo) bool {

@@ -6,7 +6,7 @@ func applyTextPlan(info *relaycommon.RelayInfo) {
 	if info == nil {
 		return
 	}
-	info.BuildTextPlan(shouldUpgradeChatToResponses(info))
+	info.BuildTextPlan(resolveTextNativeOverride(info))
 }
 
 // ApplyTextPlan is the production TextPlan decision. Shared with channel-test
