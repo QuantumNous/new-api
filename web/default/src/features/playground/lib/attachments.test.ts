@@ -1,6 +1,9 @@
-import type { FileUIPart } from 'ai'
 import { describe, expect, spyOn, test } from 'bun:test'
-import { MAX_FILE_BYTES, normalizePlaygroundAttachments } from './attachments'
+import type { FileUIPart } from 'ai'
+import {
+  MAX_FILE_BYTES,
+  normalizePlaygroundAttachments,
+} from './attachments'
 
 function textDataUrl(text: string): string {
   return `data:text/plain;base64,${Buffer.from(text, 'utf8').toString('base64')}`
@@ -10,7 +13,11 @@ function videoDataUrl(): string {
   return 'data:video/mp4;base64,AA=='
 }
 
-function file(filename: string, mediaType: string, url: string): FileUIPart {
+function file(
+  filename: string,
+  mediaType: string,
+  url: string
+): FileUIPart {
   return { type: 'file', filename, mediaType, url }
 }
 
@@ -82,7 +89,11 @@ describe('normalizePlaygroundAttachments', () => {
 
     await expect(
       normalizePlaygroundAttachments([
-        file('large.png', 'image/png', `data:image/png;base64,${encoded}`),
+        file(
+          'large.png',
+          'image/png',
+          `data:image/png;base64,${encoded}`
+        ),
       ])
     ).rejects.toThrow('Attachment exceeds the maximum size')
     expect(atobSpy).not.toHaveBeenCalled()

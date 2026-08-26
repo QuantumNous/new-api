@@ -453,7 +453,10 @@ export function PlanPurchaseDialog(props: PlanPurchaseDialogProps) {
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className='sm:max-w-xl' showCloseButton={false}>
+      <DialogContent
+        className='border-border shadow-xl sm:max-w-xl'
+        showCloseButton={false}
+      >
         <DialogHeader>
           <DialogTitle>{t('Purchase plan')}</DialogTitle>
           <DialogDescription>

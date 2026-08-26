@@ -362,6 +362,21 @@ describe('SubscriptionPlansCard flexible wallet plan UI', () => {
     }
   })
 
+  test('keeps Pro emphasis when staging prefixes plan titles', () => {
+    const html = renderWalletCardWithPlans([
+      plan(11, '[TEST] Go', 10),
+      plan(12, '[TEST] Pro', 30),
+      plan(13, '[TEST] Max', 100),
+    ])
+    const proStart = html.indexOf('[TEST] Pro')
+    const maxStart = html.indexOf('[TEST] Max')
+    const proSlice = html.slice(proStart, maxStart)
+
+    expect(proSlice).toContain('Most Popular')
+    expect(html).toContain('!border-primary/70')
+    expect(html.match(/Most Popular/g)?.length).toBe(1)
+  })
+
   test('keeps the Pro most-popular badge visible when there is an active plan', () => {
     const html = renderWalletCard(
       normalizeSelfSubscriptionData({
@@ -1422,7 +1437,7 @@ describe('PlanPurchaseDialog payment choices', () => {
       '<Dialog open={props.open} onOpenChange={props.onOpenChange}>'
     )
     expect(source).toContain(
-      "<DialogContent className='sm:max-w-xl' showCloseButton={false}>"
+      "className='border-border shadow-xl sm:max-w-xl'"
     )
   })
 

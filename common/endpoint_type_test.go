@@ -24,6 +24,7 @@ func TestGetEndpointTypesByChannelType_VideoChannels(t *testing.T) {
 		channelType int
 	}{
 		{"Sora", constant.ChannelTypeSora},
+		{"DoubaoVideo", constant.ChannelTypeDoubaoVideo},
 		{"BlockRunVideo", constant.ChannelTypeBlockRunVideo},
 		{"BlockRunSeedance", constant.ChannelTypeBlockRunSeedance},
 		{"TechMobiVideo", constant.ChannelTypeTechMobiVideo},

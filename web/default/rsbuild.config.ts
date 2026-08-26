@@ -35,9 +35,16 @@ export default defineConfig(({ envMode }) => {
   const devProxy = Object.fromEntries(
     (['/api', '/mj', '/pg'] as const).map((key) => [
       key,
-      { target: serverUrl, changeOrigin: true },
+      {
+        target: serverUrl,
+        changeOrigin: true,
+        cookieDomainRewrite: '127.0.0.1',
+      },
     ]),
-  ) as Record<string, { target: string; changeOrigin: boolean }>
+  ) as Record<
+    string,
+    { target: string; changeOrigin: boolean; cookieDomainRewrite: string }
+  >
 
   return {
     plugins: [pluginReact()],

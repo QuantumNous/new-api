@@ -25,6 +25,7 @@ import {
   Children,
   type ClipboardEventHandler,
   type ComponentProps,
+  type CSSProperties,
   createContext,
   type FormEvent,
   type FormEventHandler,
@@ -290,6 +291,7 @@ export function PromptInputAttachment({
   const mediaType =
     data.mediaType?.startsWith('image/') && data.url ? 'image' : 'file'
   const isImage = mediaType === 'image'
+  const isVideo = data.mediaType?.startsWith('video/') && Boolean(data.url)
 
   const attachmentLabel = filename || (isImage ? 'Image' : 'Attachment')
 
@@ -314,6 +316,17 @@ export function PromptInputAttachment({
                 alt={filename || 'attachment'}
                 className='size-5 object-cover'
                 height={20}
+                src={data.url}
+                width={20}
+              />
+            ) : isVideo ? (
+              <video
+                aria-label={filename || 'video attachment'}
+                className='size-5 object-cover'
+                height={20}
+                muted
+                playsInline
+                preload='metadata'
                 src={data.url}
                 width={20}
               />
@@ -342,15 +355,27 @@ export function PromptInputAttachment({
       </PromptInputHoverCardTrigger>
       <PromptInputHoverCardContent className='w-auto p-2'>
         <div className='w-auto space-y-3'>
-          {isImage && (
+          {(isImage || isVideo) && (
             <div className='flex max-h-96 w-96 items-center justify-center overflow-hidden rounded-md border'>
-              <img
-                alt={filename || 'attachment preview'}
-                className='max-h-full max-w-full object-contain'
-                height={384}
-                src={data.url}
-                width={448}
-              />
+              {isImage ? (
+                <img
+                  alt={filename || 'attachment preview'}
+                  className='max-h-full max-w-full object-contain'
+                  height={384}
+                  src={data.url}
+                  width={448}
+                />
+              ) : (
+                <video
+                  aria-label={filename || 'video attachment preview'}
+                  className='max-h-full max-w-full object-contain'
+                  controls
+                  muted
+                  playsInline
+                  preload='metadata'
+                  src={data.url}
+                />
+              )}
             </div>
           )}
           <div className='flex items-center gap-2.5'>
@@ -450,11 +475,14 @@ export type PromptInputProps = Omit<
    * (useful for layout or semantic radius utilities such as rounded-xl).
    */
   groupClassName?: string
+  /** Optional inline styles applied to the inner InputGroup wrapper. */
+  groupStyle?: CSSProperties
 }
 
 export const PromptInput = ({
   className,
   groupClassName,
+  groupStyle,
   accept,
   multiple,
   globalDrop,
@@ -796,7 +824,9 @@ export const PromptInput = ({
         onSubmit={handleSubmit}
         {...props}
       >
-        <InputGroup className={groupClassName}>{children}</InputGroup>
+        <InputGroup className={groupClassName} style={groupStyle}>
+          {children}
+        </InputGroup>
       </form>
     </>
   )

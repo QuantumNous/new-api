@@ -93,6 +93,14 @@ const PLAN_DISPLAY_ORDER: Record<string, number> = {
   max: 2,
 }
 
+type PlanTier = keyof typeof PLAN_DISPLAY_ORDER
+
+function getPlanTier(title: string): PlanTier | null {
+  const normalizedTitle = title.trim().toLowerCase()
+  const tier = normalizedTitle.match(/\b(go|pro|max)\b/)?.[1]
+  return tier && tier in PLAN_DISPLAY_ORDER ? (tier as PlanTier) : null
+}
+
 function createStableSubscriptionRequestId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID()
@@ -108,7 +116,8 @@ function rememberExternalSubscriptionReturn() {
 }
 
 function getPlanDisplayOrder(title: string): number {
-  return PLAN_DISPLAY_ORDER[title.trim().toLowerCase()] ?? 99
+  const tier = getPlanTier(title)
+  return tier ? PLAN_DISPLAY_ORDER[tier] : 99
 }
 
 function formatPlanPrice(amount: number, currency = 'USD'): string {
@@ -190,7 +199,7 @@ type Translate = (key: string, options?: Record<string, unknown>) => string
 type SelfSubscriptionRefreshResult = 'applied' | 'superseded' | 'failed'
 
 function getPlanAudience(title: string, t: Translate): string {
-  switch (title.trim().toLowerCase()) {
+  switch (getPlanTier(title)) {
     case 'go':
       return t('For individuals and light everyday use')
     case 'pro':
@@ -790,6 +799,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
   return (
     <>
       <TitledCard
+        className='border-border/80 shadow-sm'
         title={t('Subscription Plans')}
         description={t(
           'One key, 100+ frontier models: GPT, Claude, Gemini, DeepSeek, GLM for text, plus Seedance 2.5 and more for image & video generation.'
@@ -828,8 +838,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                 ? formatPlanPrice(discountPreview.total, currency)
                 : originalPrice
               const isMostPopular =
-                plan.title.trim().toLowerCase() === 'pro' &&
-                orderedPlans.length > 1
+                getPlanTier(plan.title) === 'pro' && orderedPlans.length > 1
               const audience =
                 getPlanAudience(plan.title, t) || plan.subtitle || ''
               const action = getFlexiblePlanAction({
@@ -850,10 +859,10 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                 <Card
                   key={plan.id}
                   className={cn(
-                    'ring-border rounded-lg shadow-none transition-shadow',
+                    'border-border/80 relative rounded-lg border shadow-sm transition-[box-shadow,border-color]',
                     isMostPopular
-                      ? 'shadow-[0_0_0_6px_rgba(139,92,246,0.1)] ring-2 ring-[#8b5cf6]/60 dark:shadow-[0_0_0_6px_rgba(139,92,246,0.18)]'
-                      : 'hover:ring-foreground/20'
+                      ? '!border-primary/70 !border-2 shadow-[0_0_0_6px_rgba(139,92,246,0.1)] ring-2 ring-[#8b5cf6]/60 hover:shadow-lg dark:shadow-[0_0_0_6px_rgba(139,92,246,0.18)]'
+                      : 'hover:border-primary/50 hover:shadow-lg'
                   )}
                 >
                   <CardContent className='flex h-full flex-col p-5'>
@@ -878,7 +887,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                           </span>
                         ) : null}
                         {isMostPopular ? (
-                          <span className='inline-flex items-center gap-1 rounded-full bg-[#f0ebfa] px-2 py-1 text-[11px] font-semibold text-[#4c1d95] dark:bg-[#5b21b6]/25 dark:text-[#c4b5fd]'>
+                          <span className='border-primary/20 inline-flex items-center gap-1 rounded-full border bg-[#f0ebfa] px-2 py-1 text-[11px] font-semibold text-[#4c1d95] dark:bg-[#5b21b6]/25 dark:text-[#c4b5fd]'>
                             <Sparkles className='h-3 w-3' />
                             {t('Most Popular')}
                           </span>
