@@ -225,6 +225,15 @@ func SetApiRouter(router *gin.Engine) {
 			performanceRoute.GET("/logs", controller.GetLogFiles)
 			performanceRoute.DELETE("/logs", controller.CleanupLogFiles)
 		}
+		// Data backup / restore (root / 站长管理员)
+		backupRoute := apiRouter.Group("/backup")
+		backupRoute.Use(middleware.RootAuth())
+		{
+			backupRoute.GET("/categories", controller.BackupCategories)
+			backupRoute.GET("/preview", controller.BackupPreview)
+			backupRoute.POST("/export", controller.BackupExport)
+			backupRoute.POST("/import", controller.BackupImport)
+		}
 		ratioSyncRoute := apiRouter.Group("/ratio_sync")
 		ratioSyncRoute.Use(middleware.RootAuth())
 		{
