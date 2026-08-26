@@ -279,7 +279,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		return "", nil, taskError(fmt.Errorf("invalid upstream response"), "invalid_response", http.StatusBadGateway)
 	}
 	if submit.Status == modelAPIStatusFailed {
-		return "", nil, taskError(fmt.Errorf("%s", modelAPIFailureReason()), "upstream_error", modelAPISubmitFailureStatusCode(submit.Error))
+		return "", nil, taskError(fmt.Errorf("%s", modelAPIFailureReason(submit.Error)), "upstream_error", modelAPISubmitFailureStatusCode(submit.Error))
 	}
 	if strings.TrimSpace(submit.TaskID) == "" {
 		return "", nil, taskError(fmt.Errorf("upstream response missing task_id"), "invalid_response", http.StatusBadGateway)
@@ -387,7 +387,7 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case modelAPIStatusFailed:
 		info.Status = model.TaskStatusFailure
 		info.Progress = taskcommon.ProgressComplete
-		info.Reason = modelAPIFailureReason()
+		info.Reason = modelAPIFailureReason(result.Error)
 	default:
 		info.Status = model.TaskStatusInProgress
 		info.Progress = taskcommon.ProgressInProgress
@@ -409,7 +409,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	}
 	if originTask.Status == model.TaskStatusFailure {
 		ov.Error = &dto.OpenAIVideoError{
-			Message: modelAPIFailureReason(),
+			Message: modelAPIFailureReason(modelAPIError{Message: originTask.FailReason}),
 		}
 	}
 	return common.Marshal(ov)
@@ -557,7 +557,18 @@ func defaultedGenerateAudio(requested *bool) *bool {
 	return &enabled
 }
 
-func modelAPIFailureReason() string {
+// modelAPIFailureReason exposes only a narrowly allowlisted provider message.
+// Provider messages may contain hostnames, URLs, or opaque request identifiers;
+// those remain scrubbed behind the generic reason. Copyright moderation is a
+// user-actionable exception, but its request id is intentionally removed.
+func modelAPIFailureReason(upstreamErr ...modelAPIError) string {
+	if len(upstreamErr) > 0 {
+		message := strings.TrimSpace(upstreamErr[0].Message)
+		const copyrightReason = "The request failed because the output video may be related to copyright restrictions."
+		if strings.HasPrefix(strings.ToLower(message), strings.ToLower(copyrightReason)) {
+			return copyrightReason
+		}
+	}
 	return modelAPIGenericFailureReason
 }
 

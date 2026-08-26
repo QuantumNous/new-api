@@ -1054,6 +1054,7 @@ func TestParseTaskResultStatusMappingsAndFailureScrub(t *testing.T) {
 		{name: "unknown progress", body: `{"task_id":"up","status":"mystery"}`, wantStatus: model.TaskStatusInProgress},
 		{name: "succeeded video", body: `{"task_id":"up","status":"succeeded","result":{"assets":[{"type":"image","url":"https://x/i.png"},{"type":"video","url":"https://x/v.mp4"}]}}`, wantStatus: model.TaskStatusSuccess, wantURL: "https://x/v.mp4"},
 		{name: "failed scrubbed", body: `{"task_id":"up","status":"failed","error":{"code":"bad","message":"ModelAPI seedance host api.modelapi.co failed"}}`, wantStatus: model.TaskStatusFailure, wantReason: "task failed at upstream provider"},
+		{name: "failed copyright reason without request id", body: `{"task_id":"up","status":"failed","error":{"code":"content_policy_violation","message":"The request failed because the output video may be related to copyright restrictions. Request id: abc123"}}`, wantStatus: model.TaskStatusFailure, wantReason: "The request failed because the output video may be related to copyright restrictions."},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1146,6 +1147,18 @@ func TestConvertToOpenAIVideoUsesPublicResultURLAndScrubsFailure(t *testing.T) {
 	}
 	if got.Error == nil || got.Error.Message != "task failed at upstream provider" {
 		t.Fatalf("failure error = %+v", got.Error)
+	}
+
+	failure.FailReason = "The request failed because the output video may be related to copyright restrictions. Request id: abc123"
+	raw, err = a.ConvertToOpenAIVideo(failure)
+	if err != nil {
+		t.Fatalf("ConvertToOpenAIVideo copyright failure error: %v", err)
+	}
+	if err := common.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("unmarshal copyright failure video: %v", err)
+	}
+	if got.Error == nil || got.Error.Message != "The request failed because the output video may be related to copyright restrictions." {
+		t.Fatalf("copyright failure error = %+v", got.Error)
 	}
 }
 
