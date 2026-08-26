@@ -22,20 +22,23 @@ For commercial licensing, please contact support@quantumnous.com
  */
 export function getMessageContentStyles() {
   return [
-    // Assistant content fills the row; user bubble auto-width
+    // Assistant content fills the row; user content stays a compact bubble.
     'group-[.is-assistant]:w-full',
     'group-[.is-assistant]:max-w-none',
     'group-[.is-user]:w-fit',
-    // User bubble: rounded and themed background
+    // User bubble: a soft surface with enough breathing room for media and text.
     'group-[.is-user]:text-foreground',
-    'group-[.is-user]:bg-secondary',
-    'dark:group-[.is-user]:bg-muted',
+    'group-[.is-user]:bg-secondary/70',
     'group-[.is-user]:rounded-3xl',
-    // Assistant bubble: flat serif style (one-sided style)
+    'group-[.is-user]:px-4',
+    'group-[.is-user]:py-3',
+    'group-[.is-user]:shadow-sm',
+    'group-[.is-user]:ring-1',
+    'group-[.is-user]:ring-border/60',
+    // Assistant content stays flat and blends into the conversation surface.
     'group-[.is-assistant]:text-foreground',
     'group-[.is-assistant]:bg-transparent',
     'group-[.is-assistant]:p-0',
-    'group-[.is-assistant]:font-serif',
     // Preferred readable widths and wrapping
     'leading-relaxed',
     'break-words',

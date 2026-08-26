@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { LucideIcon } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -53,15 +54,15 @@ export function MessageActionButton({
         render={
           <Button
             variant='ghost'
-            size='icon'
-            className={`${baseStyle} ${className}`}
+            size='icon-sm'
+            className={cn(baseStyle, className)}
             onClick={onClick}
             disabled={disabled}
             aria-label={label}
           />
         }
       >
-        <Icon className={MESSAGE_ACTION_BUTTON_STYLES.ICON} />
+        <Icon aria-hidden='true' />
       </TooltipTrigger>
       <TooltipContent>
         <p>{label}</p>

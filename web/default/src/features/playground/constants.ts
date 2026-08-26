@@ -99,9 +99,8 @@ export const ERROR_MESSAGES = {
 
 // Message action button styles
 export const MESSAGE_ACTION_BUTTON_STYLES = {
-  BASE: 'size-7 text-muted-foreground hover:text-foreground',
-  DELETE: 'size-7 text-muted-foreground hover:text-destructive',
-  ICON: 'size-4',
+  BASE: 'text-muted-foreground hover:text-foreground',
+  DELETE: 'text-muted-foreground hover:text-destructive',
 } as const
 
 // Message action labels
