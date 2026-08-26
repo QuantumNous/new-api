@@ -20,7 +20,7 @@ func TestApplyThinkingConfigUsesLevelsNotBudget(t *testing.T) {
 	if req.GenerationConfig.ThinkingConfig == nil {
 		t.Fatal("expected thinking config")
 	}
-	if req.GenerationConfig.ThinkingConfig.ThinkingLevel != reasoning.LevelHigh {
+	if req.GenerationConfig.ThinkingConfig.ThinkingLevel != "HIGH" {
 		t.Fatalf("thinkingLevel=%q", req.GenerationConfig.ThinkingConfig.ThinkingLevel)
 	}
 	if !req.GenerationConfig.ThinkingConfig.IncludeThoughts {
@@ -51,7 +51,7 @@ func TestApplyThinkingConfigSuffixRequiresAdapter(t *testing.T) {
 
 	info.Options.Gemini.ThinkingAdapterEnabled = true
 	ApplyThinkingConfig(req, info)
-	if req.GenerationConfig.ThinkingConfig == nil || req.GenerationConfig.ThinkingConfig.ThinkingLevel != reasoning.LevelHigh {
+	if req.GenerationConfig.ThinkingConfig == nil || req.GenerationConfig.ThinkingConfig.ThinkingLevel != "HIGH" {
 		t.Fatalf("got %#v", req.GenerationConfig.ThinkingConfig)
 	}
 }
@@ -69,6 +69,22 @@ func TestApplyThinkingConfigDefaultsIncludeThoughtsForGemini25(t *testing.T) {
 	}
 	if req.GenerationConfig.ThinkingConfig.ThinkingLevel != "" {
 		t.Fatalf("did not expect thinkingLevel=%q", req.GenerationConfig.ThinkingConfig.ThinkingLevel)
+	}
+}
+
+func TestApplyThinkingConfigUsesDynamicBudgetForGemini25Effort(t *testing.T) {
+	info := &convmeta.Values{
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gemini-2.5-pro",
+		Options:             &convmeta.Options{},
+	}
+	req := &dto.GeminiChatRequest{}
+	ApplyThinkingConfig(req, info, dto.GeneralOpenAIRequest{ReasoningEffort: reasoning.LevelHigh})
+	if req.GenerationConfig.ThinkingConfig == nil || req.GenerationConfig.ThinkingConfig.ThinkingBudget == nil {
+		t.Fatalf("got %#v", req.GenerationConfig.ThinkingConfig)
+	}
+	if *req.GenerationConfig.ThinkingConfig.ThinkingBudget != -1 || req.GenerationConfig.ThinkingConfig.ThinkingLevel != "" {
+		t.Fatalf("got %#v", req.GenerationConfig.ThinkingConfig)
 	}
 }
 

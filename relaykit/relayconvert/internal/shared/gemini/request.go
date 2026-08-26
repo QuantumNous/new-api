@@ -90,46 +90,54 @@ func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Met
 	if opts.Gemini.ThinkingAdapterEnabled {
 		switch {
 		case strings.Contains(modelName, "-thinking-") || strings.HasSuffix(modelName, "-thinking"):
-			applyGeminiThinkingLevel(geminiRequest, info, reasoning.LevelHigh)
+			applyGeminiThinkingLevel(geminiRequest, info, modelName, reasoning.LevelHigh)
 			return
 		case strings.HasSuffix(modelName, "-nothinking"):
-			applyGeminiThinkingDisabled(geminiRequest)
+			applyGeminiThinkingDisabled(geminiRequest, modelName)
 			return
 		default:
 			if _, level, ok := reasoning.TrimEffortSuffix(modelName); ok && level != "" {
 				if reasoning.IsDisabledThinkingLevel(level) {
-					applyGeminiThinkingDisabled(geminiRequest)
+					applyGeminiThinkingDisabled(geminiRequest, modelName)
 					return
 				}
-				applyGeminiThinkingLevel(geminiRequest, info, level)
+				applyGeminiThinkingLevel(geminiRequest, info, modelName, level)
 				return
 			}
 		}
 	}
 
+	// A Gemini-native explicit budget/level is more precise than a generic
+	// OpenAI effort. Normalize it, remove conflicts, and keep it intact.
+	if cfg := geminiRequest.GenerationConfig.ThinkingConfig; cfg != nil && (cfg.ThinkingBudget != nil || cfg.ThinkingLevel != "") {
+		if cfg.ThinkingBudget != nil {
+			cfg.ThinkingLevel = ""
+		} else {
+			cfg.ThinkingLevel = reasoning.GeminiThinkingLevel(cfg.ThinkingLevel)
+		}
+		if cfg.ThinkingBudget == nil && cfg.ThinkingLevel == "" && !cfg.IncludeThoughts {
+			geminiRequest.GenerationConfig.ThinkingConfig = nil
+		}
+		return
+	}
+
 	switch {
 	case intent.Disabled:
-		applyGeminiThinkingDisabled(geminiRequest)
+		applyGeminiThinkingDisabled(geminiRequest, modelName)
 	case intent.HasLevel():
-		applyGeminiThinkingLevel(geminiRequest, info, intent.Level)
+		applyGeminiThinkingLevel(geminiRequest, info, modelName, intent.Level)
 	case intent.WantsThoughts():
 		applyGeminiIncludeThoughts(geminiRequest)
 	case ModelSupportsThinking(modelName):
-		// includeThoughts does not turn thinking on; it only asks Gemini to
-		// return thought parts when the model is already thinking. Without
-		// this, Chat Completions clients never see reasoning_content.
+		// includeThoughts controls response visibility, not reasoning effort.
 		applyGeminiIncludeThoughts(geminiRequest)
 	}
 }
 
-func applyGeminiThinkingLevel(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta, level string) {
-	geminiLevel := reasoning.GeminiThinkingLevel(level)
-	if geminiLevel == "" {
-		return
-	}
-	applyGeminiIncludeThoughts(geminiRequest)
-	geminiRequest.GenerationConfig.ThinkingConfig.ThinkingLevel = geminiLevel
-	geminiRequest.GenerationConfig.ThinkingConfig.ThinkingBudget = nil
+func applyGeminiThinkingLevel(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta, model, level string) {
+	include := true
+	projection := reasoning.ProjectGeminiThinking(model, false, nil, level, &include, reasoning.DisplayAuto)
+	applyGeminiThinkingProjection(geminiRequest, projection)
 	if info != nil {
 		info.SetReasoningEffort(reasoning.OpenAIReasoningEffort(level))
 	}
@@ -145,39 +153,28 @@ func applyGeminiIncludeThoughts(geminiRequest *dto.GeminiChatRequest) {
 	geminiRequest.GenerationConfig.ThinkingConfig.IncludeThoughts = true
 }
 
-func applyGeminiThinkingDisabled(geminiRequest *dto.GeminiChatRequest) {
+func applyGeminiThinkingDisabled(geminiRequest *dto.GeminiChatRequest, model string) {
+	projection := reasoning.ProjectGeminiThinking(model, true, nil, "", nil, reasoning.DisplayHidden)
+	applyGeminiThinkingProjection(geminiRequest, projection)
+}
+
+func applyGeminiThinkingProjection(geminiRequest *dto.GeminiChatRequest, projection reasoning.GeminiThinkingProjection) {
+	if geminiRequest == nil {
+		return
+	}
+	if projection.ThinkingBudget == nil && projection.ThinkingLevel == "" && !projection.IncludeThoughts {
+		geminiRequest.GenerationConfig.ThinkingConfig = nil
+		return
+	}
 	geminiRequest.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
-		IncludeThoughts: false,
+		IncludeThoughts: projection.IncludeThoughts,
+		ThinkingBudget:  projection.ThinkingBudget,
+		ThinkingLevel:   projection.ThinkingLevel,
 	}
 }
 
-// ModelSupportsThinking reports whether a Gemini model is known to accept
-// thinkingConfig. Gemini 1.x and 2.0 (except the thinking experimental) reject
-// the field; 2.5 / 3+ think by default and need includeThoughts to return it.
 func ModelSupportsThinking(model string) bool {
-	name := strings.ToLower(strings.TrimSpace(model))
-	name = strings.TrimPrefix(name, "models/")
-	if separator := strings.LastIndex(name, "/"); separator >= 0 {
-		name = name[separator+1:]
-	}
-	if name == "" {
-		return false
-	}
-	if strings.Contains(name, "imagen") || strings.Contains(name, "-image") {
-		return false
-	}
-	if strings.Contains(name, "thinking") {
-		return true
-	}
-	if strings.Contains(name, "gemini-1.") || strings.HasPrefix(name, "gemini-1-") {
-		return false
-	}
-	if strings.Contains(name, "gemini-2.0") || strings.Contains(name, "gemini-2-0") {
-		return false
-	}
-	return strings.Contains(name, "gemini-2.") ||
-		strings.Contains(name, "gemini-3") ||
-		strings.Contains(name, "gemini-4")
+	return reasoning.GeminiModelSupportsThinking(model)
 }
 
 func ParseStopSequences(stop any) []string {

@@ -120,27 +120,24 @@ func ToStream(events []ir.Event, state *ir.StreamState) ([]any, error) {
 				}
 			case ir.BlockKindToolUse:
 				if event.Block.ToolUse != nil {
-					state.OpenName = event.Block.ToolUse.Name
-					rememberGeminiTool(state, event.Index, event.Block.ToolUse.Name, string(event.Block.ToolUse.Input))
-					if part := emitGeminiToolIfReady(state, event.Index, false); part != nil {
-						parts = append(parts, *part)
-					}
+					rememberGeminiTool(state, event.Index, event.Block.ToolUse.ID, event.Block.ToolUse.Name, string(event.Block.ToolUse.Input))
 				}
 			}
 		case ir.EventBlockDelta:
+			id, name := "", ""
+			if event.Block != nil && event.Block.ToolUse != nil {
+				id = event.Block.ToolUse.ID
+				name = event.Block.ToolUse.Name
+			}
 			if event.Delta == nil {
+				rememberGeminiTool(state, event.Index, id, name, "")
 				continue
 			}
-			if event.Delta.JSON != "" {
-				name := state.OpenName
-				if name == "" && event.Block != nil && event.Block.ToolUse != nil {
-					name = event.Block.ToolUse.Name
+			if event.Delta.JSON != "" || id != "" || name != "" {
+				rememberGeminiTool(state, event.Index, id, name, event.Delta.JSON)
+				if event.Delta.JSON != "" {
+					continue
 				}
-				rememberGeminiTool(state, event.Index, name, event.Delta.JSON)
-				if part := emitGeminiToolIfReady(state, event.Index, false); part != nil {
-					parts = append(parts, *part)
-				}
-				continue
 			}
 			if event.Delta.Text == "" {
 				continue
@@ -202,79 +199,77 @@ func suffixDelta(prev, next string) string {
 	return next
 }
 
-func rememberGeminiTool(state *ir.StreamState, index int, name, fragment string) {
+func rememberGeminiTool(state *ir.StreamState, index int, id, name, fragment string) {
 	if state == nil {
 		return
 	}
-	if state.GeminiToolName == nil {
-		state.GeminiToolName = map[int]string{}
+	if state.ToolCalls == nil {
+		state.ToolCalls = map[int]*ir.ToolStreamState{}
 	}
-	if state.GeminiToolJSON == nil {
-		state.GeminiToolJSON = map[int]string{}
+	tool := state.ToolCalls[index]
+	if tool == nil {
+		tool = &ir.ToolStreamState{BlockIndex: index, SourceIndex: index}
+		state.ToolCalls[index] = tool
+	}
+	if id != "" {
+		tool.ID = id
 	}
 	if name != "" {
-		state.GeminiToolName[index] = name
-		state.OpenName = name
+		tool.Name = name
 	}
-	if fragment != "" {
-		state.GeminiToolJSON[index] += fragment
+	if fragment == "" {
+		return
+	}
+	tool.Fragments = append(tool.Fragments, fragment)
+	tool.Accumulated += fragment
+	if _, ok := parseGeminiToolArgs(fragment); ok {
+		tool.LatestSnapshot = fragment
 	}
 }
 
 func emitGeminiToolIfReady(state *ir.StreamState, index int, force bool) *dto.GeminiPart {
-	if state == nil {
+	if state == nil || state.ToolCalls == nil {
 		return nil
 	}
-	if state.GeminiToolEmitted != nil && state.GeminiToolEmitted[index] {
+	tool := state.ToolCalls[index]
+	if tool == nil || tool.Emitted || tool.Name == "" {
 		return nil
 	}
-	raw := ""
-	if state.GeminiToolJSON != nil {
-		raw = state.GeminiToolJSON[index]
-	}
-	name := ""
-	if state.GeminiToolName != nil {
-		name = state.GeminiToolName[index]
-	}
-	if name == "" {
-		name = state.OpenName
-	}
-	args, ok := parseGeminiToolArgs(raw)
+	args, ok := finalGeminiToolArgs(tool)
 	if !ok && !force {
-		return nil
-	}
-	if name == "" {
 		return nil
 	}
 	if !ok {
 		args = map[string]any{}
 	}
-	if state.GeminiToolEmitted == nil {
-		state.GeminiToolEmitted = map[int]bool{}
-	}
-	state.GeminiToolEmitted[index] = true
+	tool.Emitted = true
 	return &dto.GeminiPart{
 		FunctionCall: &dto.FunctionCall{
-			FunctionName: name,
+			FunctionName: tool.Name,
 			Arguments:    args,
 		},
 	}
 }
 
+func finalGeminiToolArgs(tool *ir.ToolStreamState) (any, bool) {
+	if tool == nil {
+		return nil, false
+	}
+	if args, ok := parseGeminiToolArgs(tool.Accumulated); ok {
+		return args, true
+	}
+	if args, ok := parseGeminiToolArgs(tool.LatestSnapshot); ok {
+		return args, true
+	}
+	return nil, false
+}
+
 func flushGeminiTools(state *ir.StreamState) []dto.GeminiPart {
-	if state == nil || state.GeminiToolJSON == nil {
+	if state == nil || len(state.ToolCalls) == 0 {
 		return nil
 	}
-	indexes := make([]int, 0, len(state.GeminiToolJSON)+len(state.GeminiToolName))
-	seen := map[int]struct{}{}
-	for idx := range state.GeminiToolJSON {
-		indexes = append(indexes, idx)
-		seen[idx] = struct{}{}
-	}
-	for idx := range state.GeminiToolName {
-		if _, ok := seen[idx]; ok {
-			continue
-		}
+	indexes := make([]int, 0, len(state.ToolCalls))
+	for idx := range state.ToolCalls {
 		indexes = append(indexes, idx)
 	}
 	sort.Ints(indexes)

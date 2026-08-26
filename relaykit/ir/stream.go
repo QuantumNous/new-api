@@ -1,5 +1,24 @@
 package ir
 
+import (
+	"fmt"
+	"sort"
+)
+
+// ToolStreamState keeps one logical streaming tool call isolated from every
+// other call. Fragments may be standard deltas or provider-specific cumulative
+// snapshots; projectors choose the stable final value only at block stop.
+type ToolStreamState struct {
+	SourceIndex    int
+	BlockIndex     int
+	ID             string
+	Name           string
+	Fragments      []string
+	Accumulated    string
+	LatestSnapshot string
+	Emitted        bool
+}
+
 // StreamState is the block-event hub for one streaming response.
 type StreamState struct {
 	ID      string
@@ -16,6 +35,7 @@ type StreamState struct {
 	OpenID     string
 	OpenName   string
 	ToolIndex  map[int]int
+	ToolCalls  map[int]*ToolStreamState
 	BlockKinds map[int]BlockKind
 
 	Finish          Finish
@@ -27,12 +47,9 @@ type StreamState struct {
 	finishEventSent bool
 	usageEventSent  bool
 
-	GeminiText        string
-	GeminiThink       string
-	GeminiToolCount   int
-	GeminiToolJSON    map[int]string
-	GeminiToolName    map[int]string
-	GeminiToolEmitted map[int]bool
+	GeminiText      string
+	GeminiThink     string
+	GeminiToolCount int
 
 	ChatRoleSent         bool
 	ResponsesCreated     bool
@@ -48,6 +65,7 @@ func NewStreamState(id, model string) *StreamState {
 		Model:      model,
 		OpenIndex:  -1,
 		ToolIndex:  make(map[int]int),
+		ToolCalls:  make(map[int]*ToolStreamState),
 		BlockKinds: make(map[int]BlockKind),
 	}
 }
@@ -83,22 +101,120 @@ func (s *StreamState) EnsureBlock(kind BlockKind) (int, []Event) {
 	return s.startBlock(kind, "", "")
 }
 
-func (s *StreamState) EnsureTool(chatIndex int, id, name string) (int, []Event) {
+func (s *StreamState) EnsureTool(sourceIndex int, id, name string) (int, []Event) {
 	if s == nil {
 		return 0, nil
 	}
 	if s.ToolIndex == nil {
 		s.ToolIndex = make(map[int]int)
 	}
-	if idx, ok := s.ToolIndex[chatIndex]; ok {
+	if s.ToolCalls == nil {
+		s.ToolCalls = make(map[int]*ToolStreamState)
+	}
+	if idx, ok := s.ToolIndex[sourceIndex]; ok {
+		tool := s.ToolCalls[idx]
+		if tool == nil {
+			tool = &ToolStreamState{SourceIndex: sourceIndex, BlockIndex: idx}
+			s.ToolCalls[idx] = tool
+		}
+		if id != "" {
+			tool.ID = id
+			s.OpenID = id
+		}
+		if name != "" {
+			tool.Name = name
+			s.OpenName = name
+		}
 		s.HasOpen = true
 		s.OpenKind = BlockKindToolUse
 		s.OpenIndex = idx
 		return idx, nil
 	}
 	idx, events := s.startBlock(BlockKindToolUse, id, name)
-	s.ToolIndex[chatIndex] = idx
+	s.ToolIndex[sourceIndex] = idx
+	s.ToolCalls[idx] = &ToolStreamState{
+		SourceIndex: sourceIndex,
+		BlockIndex:  idx,
+		ID:          id,
+		Name:        name,
+	}
 	return idx, events
+}
+
+// ResolveToolSourceIndex safely associates a tool delta that omitted index.
+// IDs win, then a unique name/current call. Ambiguous argument-only deltas are
+// rejected rather than being merged into another parallel call.
+func (s *StreamState) ResolveToolSourceIndex(index *int, id, name string) (int, error) {
+	if index != nil {
+		return *index, nil
+	}
+	if s == nil || len(s.ToolIndex) == 0 {
+		return 0, nil
+	}
+	if id != "" {
+		for source, block := range s.ToolIndex {
+			if tool := s.ToolCalls[block]; tool != nil && tool.ID == id {
+				return source, nil
+			}
+		}
+		match, matches := 0, 0
+		for source, block := range s.ToolIndex {
+			tool := s.ToolCalls[block]
+			if tool == nil || tool.ID != "" {
+				continue
+			}
+			if name == "" || tool.Name == "" || tool.Name == name {
+				match = source
+				matches++
+			}
+		}
+		if matches == 1 {
+			return match, nil
+		}
+		return s.nextToolSourceIndex(), nil
+	}
+	if name != "" {
+		match, matches := 0, 0
+		for source, block := range s.ToolIndex {
+			if tool := s.ToolCalls[block]; tool != nil && tool.Name == name {
+				match = source
+				matches++
+			}
+		}
+		if matches == 1 {
+			return match, nil
+		}
+		if matches > 1 {
+			return 0, fmt.Errorf("ambiguous tool delta without index for function %q", name)
+		}
+		return s.nextToolSourceIndex(), nil
+	}
+	if len(s.ToolIndex) == 1 {
+		for source := range s.ToolIndex {
+			return source, nil
+		}
+	}
+	return 0, fmt.Errorf("ambiguous tool arguments delta without index or call id")
+}
+
+func (s *StreamState) nextToolSourceIndex() int {
+	next := 0
+	for source := range s.ToolIndex {
+		if source >= next {
+			next = source + 1
+		}
+	}
+	return next
+}
+
+func (s *StreamState) ToolMetadata(blockIndex int) (id, name string) {
+	if s == nil || s.ToolCalls == nil {
+		return "", ""
+	}
+	if tool := s.ToolCalls[blockIndex]; tool != nil {
+		return tool.ID, tool.Name
+	}
+	return "", ""
 }
 
 func (s *StreamState) startBlock(kind BlockKind, id, name string) (int, []Event) {
@@ -151,13 +267,18 @@ func (s *StreamState) StopAll() []Event {
 		return nil
 	}
 	if s.OpenKind == BlockKindToolUse {
-		events := make([]Event, 0, len(s.ToolIndex))
+		indexes := make([]int, 0, len(s.ToolIndex))
 		seen := map[int]struct{}{}
 		for _, idx := range s.ToolIndex {
 			if _, ok := seen[idx]; ok {
 				continue
 			}
 			seen[idx] = struct{}{}
+			indexes = append(indexes, idx)
+		}
+		sort.Ints(indexes)
+		events := make([]Event, 0, len(indexes))
+		for _, idx := range indexes {
 			events = append(events, Event{Kind: EventBlockStop, Index: idx, Block: &Block{Kind: BlockKindToolUse}})
 		}
 		s.HasOpen = false

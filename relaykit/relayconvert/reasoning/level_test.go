@@ -24,23 +24,31 @@ func TestNormalizeThinkingLevel(t *testing.T) {
 	}
 }
 
-func TestGeminiThinkingLevelClampsAboveHigh(t *testing.T) {
+func TestGeminiThinkingLevelUsesNativeEnumAndClampsAboveHigh(t *testing.T) {
 	tests := []struct {
 		in   string
 		want string
 	}{
-		{LevelLow, LevelLow},
-		{LevelMedium, LevelMedium},
-		{LevelHigh, LevelHigh},
-		{LevelXHigh, LevelHigh},
-		{LevelMax, LevelHigh},
-		{LevelMinimal, LevelMinimal},
+		{LevelLow, "LOW"},
+		{LevelMedium, "MEDIUM"},
+		{LevelHigh, "HIGH"},
+		{LevelXHigh, "HIGH"},
+		{LevelMax, "HIGH"},
+		{LevelMinimal, "MINIMAL"},
 		{LevelNone, ""},
 		{"", ""},
 	}
 	for _, tt := range tests {
 		if got := GeminiThinkingLevel(tt.in); got != tt.want {
 			t.Fatalf("GeminiThinkingLevel(%q)=%q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+func TestParseGeminiThinkingLevelAcceptsAnyCasing(t *testing.T) {
+	for _, input := range []string{"HIGH", "high", "High"} {
+		if got := ParseGeminiThinkingLevel(input); got != LevelHigh {
+			t.Fatalf("ParseGeminiThinkingLevel(%q)=%q", input, got)
 		}
 	}
 }

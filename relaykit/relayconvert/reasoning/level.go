@@ -47,21 +47,28 @@ func OpenAIReasoningEffort(level string) string {
 	return NormalizeThinkingLevel(level)
 }
 
-// GeminiThinkingLevel maps a canonical level onto Gemini thinkingLevel.
-// Gemini's documented range stops at high, so xhigh/max collapse to high.
+// GeminiThinkingLevel serializes a canonical level using the native
+// generateContent enum. Gemini's range stops at HIGH, so xhigh/max collapse
+// to HIGH at this protocol boundary.
 func GeminiThinkingLevel(level string) string {
 	switch NormalizeThinkingLevel(level) {
 	case LevelMinimal:
-		return LevelMinimal
+		return "MINIMAL"
 	case LevelLow:
-		return LevelLow
+		return "LOW"
 	case LevelMedium:
-		return LevelMedium
+		return "MEDIUM"
 	case LevelHigh, LevelXHigh, LevelMax:
-		return LevelHigh
+		return "HIGH"
 	default:
 		return ""
 	}
+}
+
+// ParseGeminiThinkingLevel accepts native enum casing as well as permissive
+// compatibility casing and returns the protocol-neutral canonical value.
+func ParseGeminiThinkingLevel(level string) string {
+	return NormalizeThinkingLevel(level)
 }
 
 // ClaudeThinkingEffort maps a canonical level onto Claude output_config.effort.

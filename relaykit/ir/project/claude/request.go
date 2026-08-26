@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/ir"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
 
 func FromRequest(req *dto.ClaudeRequest) (*ir.Request, error) {
@@ -153,7 +154,7 @@ func thinkFromClaude(req *dto.ClaudeRequest) *ir.ThinkConfig {
 	}
 	if req.Thinking != nil {
 		cfg = ensure()
-		cfg.Display = req.Thinking.Display
+		cfg.Display = ir.ThinkDisplayMode(reasoning.NormalizeThinkDisplay(req.Thinking.Display))
 		cfg.Budget = req.Thinking.BudgetTokens
 		switch strings.ToLower(strings.TrimSpace(req.Thinking.Type)) {
 		case "disabled", "none":
@@ -167,22 +168,43 @@ func thinkFromClaude(req *dto.ClaudeRequest) *ir.ThinkConfig {
 				cfg.Mode = ir.ThinkEnabled
 			}
 		}
-		if cfg.Mode != ir.ThinkOff && cfg.Display == "" {
-			cfg.Display = "auto"
+		if cfg.Display == "" && cfg.Mode != ir.ThinkOff {
+			cfg.Display = defaultClaudeThinkDisplay(req.Model, cfg.Mode)
 		}
 	}
-	if effort := req.GetEfforts(); effort != "" {
+	if effort := reasoning.NormalizeThinkingLevel(req.GetEfforts()); effort != "" {
 		cfg = ensure()
-		cfg.Level = effort
+		if effort == reasoning.LevelNone {
+			cfg.Mode = ir.ThinkOff
+		} else {
+			cfg.Level = effort
+		}
 	}
 	return cfg
+}
+
+func defaultClaudeThinkDisplay(model string, mode ir.ThinkMode) ir.ThinkDisplayMode {
+	if mode == ir.ThinkEnabled {
+		// Classic enabled thinking returns visible thinking blocks.
+		return ir.ThinkDisplayAuto
+	}
+	name := strings.ToLower(strings.TrimSpace(model))
+	if strings.HasPrefix(name, "claude-opus-4-7") || strings.HasPrefix(name, "claude-opus-4-8") {
+		// Adaptive thinking is omitted by default on these model generations.
+		return ir.ThinkDisplayHidden
+	}
+	if mode == ir.ThinkAuto {
+		return ir.ThinkDisplayAuto
+	}
+	return ""
 }
 
 func thinkToClaude(cfg *ir.ThinkConfig, ext *ir.ClaudeExt, out *dto.ClaudeRequest) {
 	if ext != nil && rawPresent(ext.OutputConfig) {
 		out.OutputConfig = cloneRaw(ext.OutputConfig)
 	} else if cfg != nil && cfg.Level != "" {
-		raw, err := json.Marshal(map[string]string{"effort": cfg.Level})
+		effort := reasoning.ClaudeThinkingEffort(cfg.Level)
+		raw, err := json.Marshal(map[string]string{"effort": effort})
 		if err == nil {
 			out.OutputConfig = raw
 		}
@@ -191,7 +213,7 @@ func thinkToClaude(cfg *ir.ThinkConfig, ext *ir.ClaudeExt, out *dto.ClaudeReques
 		return
 	}
 	thinking := &dto.Thinking{
-		Display:      cfg.Display,
+		Display:      reasoning.ClaudeThinkingDisplay(string(cfg.Display)),
 		BudgetTokens: cfg.Budget,
 	}
 	switch cfg.Mode {

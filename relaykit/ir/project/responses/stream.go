@@ -219,7 +219,7 @@ func ensureResponsesItem(state *ir.StreamState, index int, kind ir.BlockKind, bl
 			name = block.ToolUse.Name
 		}
 		if name == "" {
-			name = state.OpenName
+			_, name = state.ToolMetadata(index)
 		}
 		item.Name = name
 		item.CallId = callID

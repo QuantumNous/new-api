@@ -1,6 +1,7 @@
 package relayconvert
 
 import (
+	"context"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -468,6 +469,33 @@ func TestConvertStreamResponseStatefulMultiHopResponsesToClaude(t *testing.T) {
 	_, err = FinalizeStreamResponse(nil, info, state)
 	require.NoError(t, err)
 	assert.Equal(t, 5, state.Usage().TotalTokens)
+}
+
+func TestConvertResponsesReasoningSummaryStreamToClaudeThinkingDelta(t *testing.T) {
+	info := &convmeta.Values{ClaudeConvertInfo: &convmeta.ClaudeConvertInfo{LastMessagesType: convmeta.LastMessageTypeNone}}
+	state, err := NewResponseStreamState(
+		types.RelayFormatOpenAIResponses,
+		types.RelayFormatClaude,
+		ResponseStreamOptions{ID: "resp_1", Model: "gpt-test"},
+	)
+	require.NoError(t, err)
+
+	results, err := ConvertStreamResponseChunk(context.Background(), info, state, &dto.ResponsesStreamResponse{
+		Type:  "response.reasoning_summary_text.delta",
+		Delta: "visible summary",
+	})
+	require.NoError(t, err)
+	var sawThinking bool
+	for _, result := range results {
+		response, ok := result.Value.(*dto.ClaudeResponse)
+		if !ok || response.Delta == nil || response.Delta.Thinking == nil {
+			continue
+		}
+		if response.Delta.Type == "thinking_delta" && *response.Delta.Thinking == "visible summary" {
+			sawThinking = true
+		}
+	}
+	require.True(t, sawThinking)
 }
 
 func TestResponseUsageMatrixChatAndResponsesDetails(t *testing.T) {

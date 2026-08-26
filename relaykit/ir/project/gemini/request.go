@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/ir"
 	"github.com/QuantumNous/new-api/relaykit/ir/internal/jsonx"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
 
 var geminiClaimedKeys = []string{"contents", "systemInstruction", "tools", "generationConfig"}
@@ -100,7 +101,7 @@ func ToRequest(req *ir.Request) (*dto.GeminiChatRequest, error) {
 		return nil, fmt.Errorf("ir request is nil")
 	}
 	out := &dto.GeminiChatRequest{
-		GenerationConfig: samplingToGemini(req.Sample, req.Think, req.Format),
+		GenerationConfig: samplingToGemini(req.Model, req.Sample, req.Think, req.Format),
 	}
 	var contents []dto.GeminiChatContent
 	for _, message := range req.Messages {
@@ -227,14 +228,14 @@ func samplingFromGemini(cfg dto.GeminiChatGenerationConfig) ir.Sampling {
 	return sample
 }
 
-func samplingToGemini(sample ir.Sampling, think *ir.ThinkConfig, format *ir.ResponseFormat) dto.GeminiChatGenerationConfig {
+func samplingToGemini(model string, sample ir.Sampling, think *ir.ThinkConfig, format *ir.ResponseFormat) dto.GeminiChatGenerationConfig {
 	cfg := dto.GeminiChatGenerationConfig{
 		Temperature:    sample.Temperature,
 		TopP:           sample.TopP,
 		StopSequences:  append([]string(nil), sample.Stop...),
 		Seed:           sample.Seed,
 		CandidateCount: sample.N,
-		ThinkingConfig: thinkToGemini(think),
+		ThinkingConfig: thinkToGemini(model, think),
 	}
 	if sample.TopK != nil {
 		k := float64(*sample.TopK)
@@ -272,39 +273,47 @@ func thinkFromGemini(cfg *dto.GeminiThinkingConfig) *ir.ThinkConfig {
 	}
 	out := &ir.ThinkConfig{
 		Budget:  cfg.ThinkingBudget,
-		Level:   cfg.ThinkingLevel,
+		Level:   reasoning.ParseGeminiThinkingLevel(cfg.ThinkingLevel),
 		Include: boolPtr(cfg.IncludeThoughts),
+		Display: ir.ThinkDisplayHidden,
 	}
 	if cfg.ThinkingBudget != nil && *cfg.ThinkingBudget == 0 {
 		out.Mode = ir.ThinkOff
+		out.Level = ""
 	} else {
 		out.Mode = ir.ThinkEnabled
-		if cfg.IncludeThoughts && out.Display == "" {
-			out.Display = "auto"
+		if cfg.ThinkingBudget != nil && *cfg.ThinkingBudget > 0 && out.Level == "" {
+			// A numeric budget has no exact Chat/Responses equivalent. High is
+			// the canonical semantic fallback while Budget preserves the source.
+			out.Level = reasoning.LevelHigh
+		}
+		if cfg.IncludeThoughts {
+			out.Display = ir.ThinkDisplayAuto
 		}
 	}
 	return out
 }
 
-func thinkToGemini(cfg *ir.ThinkConfig) *dto.GeminiThinkingConfig {
+func thinkToGemini(model string, cfg *ir.ThinkConfig) *dto.GeminiThinkingConfig {
 	if cfg == nil {
 		return nil
 	}
-	out := &dto.GeminiThinkingConfig{
-		ThinkingBudget: cfg.Budget,
-		ThinkingLevel:  cfg.Level,
+	projection := reasoning.ProjectGeminiThinking(
+		model,
+		cfg.Mode == ir.ThinkOff,
+		cfg.Budget,
+		cfg.Level,
+		cfg.Include,
+		string(cfg.Display),
+	)
+	if projection.ThinkingBudget == nil && projection.ThinkingLevel == "" && !projection.IncludeThoughts {
+		return nil
 	}
-	if cfg.Include != nil {
-		out.IncludeThoughts = *cfg.Include
-	} else if cfg.Mode != ir.ThinkOff {
-		out.IncludeThoughts = true
+	return &dto.GeminiThinkingConfig{
+		IncludeThoughts: projection.IncludeThoughts,
+		ThinkingBudget:  projection.ThinkingBudget,
+		ThinkingLevel:   projection.ThinkingLevel,
 	}
-	if cfg.Mode == ir.ThinkOff && out.ThinkingBudget == nil {
-		zero := 0
-		out.ThinkingBudget = &zero
-		out.IncludeThoughts = false
-	}
-	return out
 }
 
 func formatFromGemini(cfg dto.GeminiChatGenerationConfig) *ir.ResponseFormat {

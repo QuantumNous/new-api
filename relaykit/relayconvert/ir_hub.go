@@ -33,17 +33,24 @@ func convertRequestIR(info convmeta.Meta, from, target types.RelayFormat, reques
 		return nil, err
 	}
 	fillToolResultNames(irReq)
+	if irReq.Model == "" {
+		if name := convmeta.UpstreamModelName(info); name != "" {
+			irReq.Model = name
+		}
+	}
 	report := ir.RequestProjectionLosses(from, target, irReq)
+	projectionModel := convmeta.UpstreamModelName(info)
+	if projectionModel == "" {
+		projectionModel = irReq.Model
+	}
+	if from != target {
+		appendReasoningProjectionLosses(target, projectionModel, irReq, &report)
+	}
 	if target == types.RelayFormatGemini {
 		filterIRForGemini(irReq, &report)
 	}
 	if target != types.RelayFormatOpenAIResponses {
 		mergeAdjacentMessages(irReq)
-	}
-	if irReq.Model == "" {
-		if name := convmeta.UpstreamModelName(info); name != "" {
-			irReq.Model = name
-		}
 	}
 	out, err := project.ToRequest(target, irReq)
 	if err != nil {
@@ -742,18 +749,14 @@ func adaptClaudeRequest(info convmeta.Meta, irReq *ir.Request, req *dto.ClaudeRe
 
 func adaptGeminiRequest(info convmeta.Meta, irReq *ir.Request, req *dto.GeminiChatRequest) {
 	opts := convmeta.OptionsOf(info)
-	oai := dto.GeneralOpenAIRequest{}
-	if irReq != nil {
-		oai.Model = irReq.Model
-		if irReq.Think != nil {
-			if irReq.Think.Mode == ir.ThinkOff {
-				oai.ReasoningEffort = reasoning.LevelNone
-			} else {
-				oai.ReasoningEffort = irReq.Think.Level
-			}
-		}
+	model := convmeta.UpstreamModelName(info)
+	if model == "" && irReq != nil {
+		model = irReq.Model
 	}
-	sharedgemini.ApplyThinkingConfig(req, info, oai)
+	applyIRGeminiThinking(req, model, irReq, opts.Gemini.ThinkingAdapterEnabled)
+	if info != nil && irReq != nil && irReq.Think != nil && irReq.Think.Level != "" {
+		info.SetReasoningEffort(reasoning.OpenAIReasoningEffort(irReq.Think.Level))
+	}
 	normalizeGeminiJSONSchema(req)
 	cleanGeminiFunctionParameters(req)
 	normalizeGeminiFunctionArgs(req)
@@ -775,6 +778,87 @@ func adaptGeminiRequest(info convmeta.Meta, irReq *ir.Request, req *dto.GeminiCh
 		req.GenerationConfig.ResponseModalities = []string{"TEXT", "IMAGE"}
 	}
 	attachGeminiThoughtSignatures(opts, req)
+}
+
+func applyIRGeminiThinking(req *dto.GeminiChatRequest, model string, irReq *ir.Request, adapterEnabled bool) {
+	if req == nil {
+		return
+	}
+	if adapterEnabled {
+		switch {
+		case strings.Contains(model, "-thinking-") || strings.HasSuffix(model, "-thinking"):
+			include := true
+			setGeminiThinkingProjection(req, reasoning.ProjectGeminiThinking(model, false, nil, reasoning.LevelHigh, &include, reasoning.DisplayAuto))
+			return
+		case strings.HasSuffix(model, "-nothinking"):
+			setGeminiThinkingProjection(req, reasoning.ProjectGeminiThinking(model, true, nil, "", nil, reasoning.DisplayHidden))
+			return
+		default:
+			if _, level, ok := reasoning.TrimEffortSuffix(model); ok && level != "" {
+				setGeminiThinkingProjection(req, reasoning.ProjectGeminiThinking(
+					model,
+					reasoning.IsDisabledThinkingLevel(level),
+					nil,
+					level,
+					nil,
+					reasoning.DisplayAuto,
+				))
+				return
+			}
+		}
+	}
+
+	if irReq != nil && irReq.Think != nil {
+		cfg := irReq.Think
+		setGeminiThinkingProjection(req, reasoning.ProjectGeminiThinking(
+			model,
+			cfg.Mode == ir.ThinkOff,
+			cfg.Budget,
+			cfg.Level,
+			cfg.Include,
+			string(cfg.Display),
+		))
+		return
+	}
+	if reasoning.GeminiModelSupportsThinking(model) {
+		include := true
+		setGeminiThinkingProjection(req, reasoning.ProjectGeminiThinking(model, false, nil, "", &include, reasoning.DisplayAuto))
+	}
+}
+
+func setGeminiThinkingProjection(req *dto.GeminiChatRequest, projection reasoning.GeminiThinkingProjection) {
+	if projection.ThinkingBudget == nil && projection.ThinkingLevel == "" && !projection.IncludeThoughts {
+		req.GenerationConfig.ThinkingConfig = nil
+		return
+	}
+	req.GenerationConfig.ThinkingConfig = &dto.GeminiThinkingConfig{
+		IncludeThoughts: projection.IncludeThoughts,
+		ThinkingBudget:  projection.ThinkingBudget,
+		ThinkingLevel:   projection.ThinkingLevel,
+	}
+}
+
+func appendReasoningProjectionLosses(target types.RelayFormat, model string, req *ir.Request, report *ir.Report) {
+	if req == nil || req.Think == nil || report == nil {
+		return
+	}
+	cfg := req.Think
+	if target != types.RelayFormatGemini {
+		return
+	}
+	control := reasoning.GeminiThinkingControlForModel(model)
+	if control != reasoning.GeminiControlBudget {
+		switch reasoning.NormalizeThinkingLevel(cfg.Level) {
+		case reasoning.LevelXHigh, reasoning.LevelMax:
+			report.AddOnce(ir.LossCoerced, "thinking.level", "Gemini thinkingLevel stops at HIGH")
+		}
+	}
+	if control == reasoning.GeminiControlBudget && cfg.Mode != ir.ThinkOff && cfg.Budget == nil && cfg.Level != "" {
+		report.AddOnce(ir.LossCoerced, "thinking.effort_to_budget", "Gemini budget-only model uses dynamic thinkingBudget=-1 for discrete effort")
+	}
+	if control == reasoning.GeminiControlLevel && cfg.Mode == ir.ThinkOff {
+		report.AddOnce(ir.LossCoerced, "thinking.mode", "Gemini level-based model has no native off value; projected to MINIMAL with thoughts hidden")
+	}
 }
 
 func normalizeGeminiJSONSchema(req *dto.GeminiChatRequest) {

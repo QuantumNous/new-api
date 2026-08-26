@@ -30,14 +30,19 @@ func FromStream(chunk *dto.ChatCompletionsStreamResponse, state *ir.StreamState)
 			events = append(events, ir.Event{Kind: ir.EventBlockDelta, Index: idx, Delta: &ir.BlockDelta{Text: content}})
 		}
 		for _, tool := range choice.Delta.ToolCalls {
-			chatIdx := 0
-			if tool.Index != nil {
-				chatIdx = *tool.Index
+			sourceIndex, err := state.ResolveToolSourceIndex(tool.Index, tool.ID, tool.Function.Name)
+			if err != nil {
+				return nil, err
 			}
-			idx, opened := state.EnsureTool(chatIdx, tool.ID, tool.Function.Name)
+			idx, opened := state.EnsureTool(sourceIndex, tool.ID, tool.Function.Name)
 			events = append(events, opened...)
-			if tool.Function.Arguments != "" {
-				events = append(events, ir.Event{Kind: ir.EventBlockDelta, Index: idx, Delta: &ir.BlockDelta{JSON: tool.Function.Arguments}})
+			if tool.Function.Arguments != "" || (len(opened) == 0 && (tool.ID != "" || tool.Function.Name != "")) {
+				events = append(events, ir.Event{
+					Kind:  ir.EventBlockDelta,
+					Index: idx,
+					Block: &ir.Block{Kind: ir.BlockKindToolUse, ToolUse: &ir.ToolUseBlock{ID: tool.ID, Name: tool.Function.Name}},
+					Delta: &ir.BlockDelta{JSON: tool.Function.Arguments},
+				})
 			}
 		}
 		if choice.FinishReason != nil && *choice.FinishReason != "" {

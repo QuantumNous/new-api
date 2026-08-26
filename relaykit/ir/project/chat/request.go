@@ -187,7 +187,9 @@ func thinkFromChat(req dto.GeneralOpenAIRequest) *ir.ThinkConfig {
 	}
 	cfg.Mode = ir.ThinkEnabled
 	if intent.Include {
-		cfg.Display = "auto"
+		cfg.Display = ir.ThinkDisplayAuto
+	} else {
+		cfg.Display = ir.ThinkDisplayHidden
 	}
 	return cfg
 }
@@ -200,8 +202,12 @@ func thinkToChat(cfg *ir.ThinkConfig, out *dto.GeneralOpenAIRequest) {
 		out.ReasoningEffort = "none"
 		return
 	}
-	if cfg.Level != "" {
-		out.ReasoningEffort = cfg.Level
+	if level := reasoning.OpenAIReasoningEffort(cfg.Level); level != "" {
+		out.ReasoningEffort = level
+		return
+	}
+	if cfg.Budget != nil && *cfg.Budget > 0 {
+		out.ReasoningEffort = reasoning.LevelHigh
 	}
 }
 

@@ -195,6 +195,38 @@ func TestRequestRoundtripPrivateExtensions(t *testing.T) {
 	require.Equal(t, "auto", irReq.Extensions.Claude.ServiceTier)
 }
 
+func TestThinkingDisplayNormalizesClaudeWireValues(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		display string
+		want    ir.ThinkDisplayMode
+	}{
+		{display: "summarized", want: ir.ThinkDisplayAuto},
+		{display: "omitted", want: ir.ThinkDisplayHidden},
+	}
+	for _, tt := range tests {
+		req := &dto.ClaudeRequest{Thinking: &dto.Thinking{Type: "adaptive", Display: tt.display}}
+		got, err := FromRequest(req)
+		require.NoError(t, err)
+		require.NotNil(t, got.Think)
+		require.Equal(t, tt.want, got.Think.Display)
+	}
+}
+
+func TestThinkingDisplayProjectsCanonicalSummaryToClaude(t *testing.T) {
+	t.Parallel()
+	for _, display := range []ir.ThinkDisplayMode{ir.ThinkDisplayAuto, ir.ThinkDisplayConcise, ir.ThinkDisplayDetailed} {
+		out, err := ToRequest(&ir.Request{Think: &ir.ThinkConfig{Mode: ir.ThinkAuto, Display: display}})
+		require.NoError(t, err)
+		require.NotNil(t, out.Thinking)
+		require.Equal(t, "summarized", out.Thinking.Display)
+	}
+	out, err := ToRequest(&ir.Request{Think: &ir.ThinkConfig{Mode: ir.ThinkAuto, Display: ir.ThinkDisplayHidden}})
+	require.NoError(t, err)
+	require.NotNil(t, out.Thinking)
+	require.Equal(t, "omitted", out.Thinking.Display)
+}
+
 func TestResponseRoundtripGoldenFixture(t *testing.T) {
 	t.Parallel()
 	resp := unmarshalClaudeResponse(t, `{

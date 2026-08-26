@@ -3,11 +3,11 @@ package responses
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/ir"
 	"github.com/QuantumNous/new-api/relaykit/ir/internal/jsonx"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
 
 var responsesClaimedKeys = []string{
@@ -178,39 +178,50 @@ func thinkFromResponses(req *dto.OpenAIResponsesRequest) *ir.ThinkConfig {
 	}
 	cfg := &ir.ThinkConfig{Mode: ir.ThinkEnabled}
 	if req.Reasoning != nil {
-		cfg.Level = req.Reasoning.Effort
-		cfg.Display = strings.TrimSpace(req.Reasoning.Summary)
-		if cfg.Display != "" && !strings.EqualFold(cfg.Display, "none") {
-			cfg.Include = boolPtr(true)
+		cfg.Level = reasoning.NormalizeThinkingLevel(req.Reasoning.Effort)
+		if cfg.Level == reasoning.LevelNone {
+			cfg.Mode = ir.ThinkOff
+			cfg.Level = ""
 		}
+		cfg.Display = ir.ThinkDisplayMode(reasoning.NormalizeThinkDisplay(req.Reasoning.Summary))
+		switch cfg.Display {
+		case ir.ThinkDisplayAuto, ir.ThinkDisplayConcise, ir.ThinkDisplayDetailed:
+			cfg.Include = boolPtr(true)
+		case ir.ThinkDisplayHidden:
+			cfg.Include = boolPtr(false)
+		}
+		return cfg
+	}
+
+	intent := reasoning.IntentFromChatRequest(dto.GeneralOpenAIRequest{EnableThinking: req.EnableThinking})
+	if intent.Disabled {
+		cfg.Mode = ir.ThinkOff
+		cfg.Include = boolPtr(false)
+		cfg.Display = ir.ThinkDisplayHidden
+		return cfg
+	}
+	cfg.Level = intent.Level
+	cfg.Include = boolPtr(intent.Include)
+	if intent.Include {
+		cfg.Display = ir.ThinkDisplayAuto
 	}
 	return cfg
 }
 
 func thinkToResponses(cfg *ir.ThinkConfig, out *dto.OpenAIResponsesRequest) {
-	if cfg == nil || cfg.Mode == ir.ThinkOff {
+	if cfg == nil {
+		return
+	}
+	if cfg.Mode == ir.ThinkOff {
+		out.Reasoning = &dto.Reasoning{Effort: reasoning.LevelNone}
 		return
 	}
 	out.Reasoning = &dto.Reasoning{
-		Effort:  cfg.Level,
-		Summary: responsesSummaryMode(cfg),
+		Effort:  reasoning.OpenAIReasoningEffort(cfg.Level),
+		Summary: reasoning.ResponsesSummaryMode(string(cfg.Display)),
 	}
 	if out.Reasoning.Effort == "" && out.Reasoning.Summary == "" {
 		out.Reasoning = nil
-	}
-}
-
-func responsesSummaryMode(cfg *ir.ThinkConfig) string {
-	if cfg == nil {
-		return ""
-	}
-	switch strings.ToLower(strings.TrimSpace(cfg.Display)) {
-	case "none", "off", "disabled":
-		return ""
-	case "auto", "concise", "detailed":
-		return strings.ToLower(strings.TrimSpace(cfg.Display))
-	default:
-		return ""
 	}
 }
 

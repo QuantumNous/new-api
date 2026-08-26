@@ -1,6 +1,7 @@
 package relayconvert
 
 import (
+	"context"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -271,6 +272,77 @@ func TestClaudeTargetStatefulStreamTerminalTail(t *testing.T) {
 		assert.Equal(t, 11, messageDelta.Usage.InputTokens)
 		assert.Equal(t, 7, messageDelta.Usage.OutputTokens)
 	})
+}
+
+func TestChatToGeminiStatefulStreamEmitsOneStableToolCall(t *testing.T) {
+	state, err := NewResponseStreamState(
+		types.RelayFormatOpenAI,
+		types.RelayFormatGemini,
+		ResponseStreamOptions{ID: "chatcmpl-tool", Model: "gemini-3.7-pro"},
+	)
+	require.NoError(t, err)
+
+	index := 0
+	chunks := []*dto.ChatCompletionsStreamResponse{
+		{
+			Id: "chatcmpl-tool", Model: "gemini-3.7-pro",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+				ToolCalls: []dto.ToolCallResponse{{
+					Index: &index, ID: "call_1", Type: "function",
+					Function: dto.FunctionResponse{Name: "eval_javascript", Arguments: `{}`},
+				}},
+			}}},
+		},
+		{
+			Id: "chatcmpl-tool", Model: "gemini-3.7-pro",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+				ToolCalls: []dto.ToolCallResponse{{
+					Index:    &index,
+					Function: dto.FunctionResponse{Arguments: `{"code":"1+1"}`},
+				}},
+			}}},
+		},
+		{
+			Id: "chatcmpl-tool", Model: "gemini-3.7-pro",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{FinishReason: terminalTestPtr(types.FinishReasonToolCalls)}},
+			Usage:   &dto.Usage{PromptTokens: 4, CompletionTokens: 2, TotalTokens: 6},
+		},
+	}
+
+	var results []ResponseResult
+	for i, chunk := range chunks {
+		converted, err := ConvertStreamResponseChunk(context.Background(), nil, state, chunk)
+		require.NoError(t, err)
+		if i < 2 {
+			require.Empty(t, terminalTestGeminiFunctionCalls(t, converted), "tool call emitted before finalization")
+		}
+		results = append(results, converted...)
+	}
+	final, err := FinalizeStreamResponse(context.Background(), nil, state)
+	require.NoError(t, err)
+	results = append(results, final...)
+
+	calls := terminalTestGeminiFunctionCalls(t, results)
+	require.Len(t, calls, 1)
+	require.Equal(t, "eval_javascript", calls[0].FunctionName)
+	require.Equal(t, map[string]any{"code": "1+1"}, calls[0].Arguments)
+}
+
+func terminalTestGeminiFunctionCalls(t *testing.T, results []ResponseResult) []dto.FunctionCall {
+	t.Helper()
+	var calls []dto.FunctionCall
+	for _, result := range results {
+		response, ok := result.Value.(*dto.GeminiChatResponse)
+		require.True(t, ok, "unexpected stream result type %T", result.Value)
+		for _, candidate := range response.Candidates {
+			for _, part := range candidate.Content.Parts {
+				if part.FunctionCall != nil {
+					calls = append(calls, *part.FunctionCall)
+				}
+			}
+		}
+	}
+	return calls
 }
 
 func TestConvertStreamResponseKeepsStatelessCompatibility(t *testing.T) {

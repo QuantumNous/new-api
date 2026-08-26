@@ -67,7 +67,7 @@ func TestOpenAIChatRequestToGeminiUsesThinkingLevelAndThoughts(t *testing.T) {
 	}, &convmeta.Values{UpstreamModelName: "gemini-3-pro"})
 	require.NoError(t, err)
 	require.NotNil(t, got.GenerationConfig.ThinkingConfig)
-	assert.Equal(t, reasoning.LevelHigh, got.GenerationConfig.ThinkingConfig.ThinkingLevel)
+	assert.Equal(t, "HIGH", got.GenerationConfig.ThinkingConfig.ThinkingLevel)
 	assert.True(t, got.GenerationConfig.ThinkingConfig.IncludeThoughts)
 	assert.Nil(t, got.GenerationConfig.ThinkingConfig.ThinkingBudget)
 

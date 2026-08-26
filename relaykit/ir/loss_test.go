@@ -55,6 +55,35 @@ func TestRequestProjectionLossesDropsGeminiIncompatibleTools(t *testing.T) {
 	}
 }
 
+func TestRequestProjectionLossesRecordsThinkingCoercions(t *testing.T) {
+	t.Parallel()
+	budget := 16000
+	tests := []struct {
+		name  string
+		to    types.RelayFormat
+		think *ThinkConfig
+		field string
+	}{
+		{name: "detailed to Gemini", to: types.RelayFormatGemini, think: &ThinkConfig{Display: ThinkDisplayDetailed}, field: "thinking.display"},
+		{name: "budget to Chat", to: types.RelayFormatOpenAI, think: &ThinkConfig{Budget: &budget}, field: "thinking.budget"},
+		{name: "detailed to Claude", to: types.RelayFormatClaude, think: &ThinkConfig{Display: ThinkDisplayDetailed}, field: "thinking.display"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := RequestProjectionLosses(types.RelayFormatOpenAIResponses, tt.to, &Request{Think: tt.think})
+			found := false
+			for _, loss := range report.Losses {
+				if loss.Field == tt.field && loss.Kind == LossCoerced {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("losses=%#v", report.Losses)
+			}
+		})
+	}
+}
+
 func TestRequestProjectionLossesEmptyOnRoundtrip(t *testing.T) {
 	t.Parallel()
 	req := &Request{

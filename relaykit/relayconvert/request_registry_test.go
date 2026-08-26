@@ -1,10 +1,12 @@
 package relayconvert
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/ir"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	sharedgemini "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/gemini"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
@@ -64,6 +66,102 @@ func TestConvertRequestChatThinkingAsksResponsesForSummary(t *testing.T) {
 	require.NotNil(t, out.Reasoning)
 	assert.Equal(t, "high", out.Reasoning.Effort)
 	assert.Equal(t, "auto", out.Reasoning.Summary)
+}
+
+func TestConvertRequestChatXHighToGeminiNativeThinkingLevel(t *testing.T) {
+	info := &convmeta.Values{
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gemini-3.7-pro",
+		Options:             &convmeta.Options{},
+	}
+	result, err := ConvertRequest(context.Background(), info, types.RelayFormatGemini, &dto.GeneralOpenAIRequest{
+		Model:           "client-model",
+		ReasoningEffort: "xhigh",
+		Messages:        []dto.Message{{Role: "user", Content: "think"}},
+	})
+	require.NoError(t, err)
+	out := result.Value.(*dto.GeminiChatRequest)
+	require.NotNil(t, out.GenerationConfig.ThinkingConfig)
+	require.Equal(t, "HIGH", out.GenerationConfig.ThinkingConfig.ThinkingLevel)
+	require.Nil(t, out.GenerationConfig.ThinkingConfig.ThinkingBudget)
+	require.True(t, out.GenerationConfig.ThinkingConfig.IncludeThoughts)
+	require.False(t, result.Report.Empty())
+}
+
+func TestConvertRequestChatEffortToGemini25DynamicBudgetReportsLoss(t *testing.T) {
+	info := &convmeta.Values{
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gemini-2.5-pro",
+		Options:             &convmeta.Options{},
+	}
+	result, err := ConvertRequest(context.Background(), info, types.RelayFormatGemini, &dto.GeneralOpenAIRequest{
+		ReasoningEffort: "high",
+		Messages:        []dto.Message{{Role: "user", Content: "think"}},
+	})
+	require.NoError(t, err)
+	out := result.Value.(*dto.GeminiChatRequest)
+	require.NotNil(t, out.GenerationConfig.ThinkingConfig)
+	require.NotNil(t, out.GenerationConfig.ThinkingConfig.ThinkingBudget)
+	require.Equal(t, -1, *out.GenerationConfig.ThinkingConfig.ThinkingBudget)
+	found := false
+	for _, loss := range result.Report.Losses {
+		if loss.Field == "thinking.effort_to_budget" && loss.Kind == ir.LossCoerced {
+			found = true
+		}
+	}
+	require.True(t, found, "losses=%#v", result.Report.Losses)
+}
+
+func TestConvertRequestResponsesXHighSummaryToGemini(t *testing.T) {
+	info := &convmeta.Values{
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gemini-3.7-pro",
+		Options:             &convmeta.Options{},
+	}
+	result, err := ConvertRequest(context.Background(), info, types.RelayFormatGemini, &dto.OpenAIResponsesRequest{
+		Model:     "client-model",
+		Input:     json.RawMessage(`"think"`),
+		Reasoning: &dto.Reasoning{Effort: "xhigh", Summary: "auto"},
+	})
+	require.NoError(t, err)
+	out := result.Value.(*dto.GeminiChatRequest)
+	require.NotNil(t, out.GenerationConfig.ThinkingConfig)
+	require.Equal(t, "HIGH", out.GenerationConfig.ThinkingConfig.ThinkingLevel)
+	require.True(t, out.GenerationConfig.ThinkingConfig.IncludeThoughts)
+}
+
+func TestConvertRequestClaudeSummarizedXHighToResponses(t *testing.T) {
+	result, err := ConvertRequest(context.Background(), nil, types.RelayFormatOpenAIResponses, &dto.ClaudeRequest{
+		Model:        "claude-opus-4-7",
+		Messages:     []dto.ClaudeMessage{{Role: "user", Content: "think"}},
+		Thinking:     &dto.Thinking{Type: "adaptive", Display: "summarized"},
+		OutputConfig: json.RawMessage(`{"effort":"xhigh"}`),
+	})
+	require.NoError(t, err)
+	out := result.Value.(*dto.OpenAIResponsesRequest)
+	require.NotNil(t, out.Reasoning)
+	require.Equal(t, "xhigh", out.Reasoning.Effort)
+	require.Equal(t, "auto", out.Reasoning.Summary)
+}
+
+func TestConvertRequestGeminiBudgetToChatHighWithLoss(t *testing.T) {
+	budget := 16000
+	result, err := ConvertRequest(context.Background(), nil, types.RelayFormatOpenAI, &dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{{Role: "user", Parts: []dto.GeminiPart{{Text: "think"}}}},
+		GenerationConfig: dto.GeminiChatGenerationConfig{
+			ThinkingConfig: &dto.GeminiThinkingConfig{ThinkingBudget: &budget, IncludeThoughts: true},
+		},
+	})
+	require.NoError(t, err)
+	out := result.Value.(*dto.GeneralOpenAIRequest)
+	require.Equal(t, "high", out.ReasoningEffort)
+	found := false
+	for _, loss := range result.Report.Losses {
+		if loss.Field == "thinking.budget" && loss.Kind == ir.LossCoerced {
+			found = true
+		}
+	}
+	require.True(t, found, "losses=%#v", result.Report.Losses)
 }
 
 func TestConvertRequestClaudeToChatDropsCacheControl(t *testing.T) {

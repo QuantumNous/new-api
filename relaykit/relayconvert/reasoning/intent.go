@@ -60,11 +60,12 @@ func intentFromLevel(level string) Intent {
 	}
 	canonical := NormalizeThinkingLevel(level)
 	if canonical == "" {
-		trimmed := strings.ToLower(strings.TrimSpace(level))
-		if trimmed == "" {
+		if strings.TrimSpace(level) == "" {
 			return Intent{}
 		}
-		return Intent{Level: trimmed, Include: true}
+		// Preserve the explicit request to expose thoughts, but do not leak an
+		// unknown provider value into the canonical IR effort field.
+		return Intent{Include: true}
 	}
 	return Intent{Level: canonical, Include: true}
 }

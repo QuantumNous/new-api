@@ -17,6 +17,7 @@ func RequestProjectionLosses(from, to types.RelayFormat, req *Request) Report {
 			report.AddOnce(LossDropped, "tools."+string(tool.Kind), "target protocol does not accept this tool kind")
 		}
 	}
+	collectThinkConfigLosses(to, req.Think, &report)
 	return report
 }
 
@@ -28,6 +29,26 @@ func ResponseProjectionLosses(from, to types.RelayFormat, resp *Response) Report
 	}
 	collectBlockLosses(to, resp.Blocks, &report)
 	return report
+}
+
+func collectThinkConfigLosses(to types.RelayFormat, cfg *ThinkConfig, report *Report) {
+	if cfg == nil || report == nil {
+		return
+	}
+	switch to {
+	case types.RelayFormatGemini:
+		if cfg.Display == ThinkDisplayConcise || cfg.Display == ThinkDisplayDetailed {
+			report.AddOnce(LossCoerced, "thinking.display", "Gemini exposes thoughts without summary granularity controls")
+		}
+	case types.RelayFormatOpenAI:
+		if cfg.Budget != nil && *cfg.Budget > 0 {
+			report.AddOnce(LossCoerced, "thinking.budget", "Chat Completions represents a positive numeric budget as reasoning_effort=high")
+		}
+	case types.RelayFormatClaude:
+		if cfg.Display == ThinkDisplayConcise || cfg.Display == ThinkDisplayDetailed {
+			report.AddOnce(LossCoerced, "thinking.display", "Claude represents visible summaries only as display=summarized")
+		}
+	}
 }
 
 func collectBlockLosses(to types.RelayFormat, blocks []Block, report *Report) {

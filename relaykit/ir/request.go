@@ -19,6 +19,18 @@ const (
 	ThinkAuto    ThinkMode = "auto"
 )
 
+// ThinkDisplayMode is the protocol-neutral visibility requested for model
+// thinking. Vendor wire values such as Claude's "summarized" / "omitted"
+// must be normalized at protocol boundaries instead of being stored here.
+type ThinkDisplayMode string
+
+const (
+	ThinkDisplayHidden   ThinkDisplayMode = "hidden"
+	ThinkDisplayAuto     ThinkDisplayMode = "auto"
+	ThinkDisplayConcise  ThinkDisplayMode = "concise"
+	ThinkDisplayDetailed ThinkDisplayMode = "detailed"
+)
+
 type ToolKind string
 
 const (
@@ -76,11 +88,11 @@ type Sampling struct {
 }
 
 type ThinkConfig struct {
-	Mode    ThinkMode `json:"mode,omitempty"`
-	Budget  *int      `json:"budget,omitempty"`
-	Level   string    `json:"level,omitempty"`
-	Include *bool     `json:"include,omitempty"`
-	Display string    `json:"display,omitempty"`
+	Mode    ThinkMode        `json:"mode,omitempty"`
+	Budget  *int             `json:"budget,omitempty"`
+	Level   string           `json:"level,omitempty"`
+	Include *bool            `json:"include,omitempty"`
+	Display ThinkDisplayMode `json:"display,omitempty"`
 }
 
 type Tool struct {
