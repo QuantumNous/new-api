@@ -29,6 +29,11 @@ func TestCacheHeaders(t *testing.T) {
 			expected: "no-cache",
 		},
 		{
+			name:     "application shell query parameters do not change caching",
+			path:     "/?cache_bust=1",
+			expected: "no-cache",
+		},
+		{
 			name:     "non-fingerprinted public assets keep the existing short cache",
 			path:     "/favicon.ico",
 			expected: "public, max-age=604800",

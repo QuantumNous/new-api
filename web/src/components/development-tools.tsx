@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+import type { ReactElement } from 'react'
 
-export default function DevelopmentTools() {
+export default function DevelopmentTools(): ReactElement {
   return (
     <>
       <ReactQueryDevtools buttonPosition='bottom-left' />

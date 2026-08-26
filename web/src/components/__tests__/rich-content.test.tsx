@@ -25,6 +25,7 @@ describe('RichContent', () => {
   test('renders Markdown after its deferred renderer loads', async () => {
     render(<RichContent content='**Deferred Markdown**' />)
 
+    expect(screen.getByRole('status')).toHaveTextContent('Loading...')
     expect(await screen.findByText('Deferred Markdown')).toBeInTheDocument()
     expect(screen.getByText('Deferred Markdown').tagName).toBe('STRONG')
   })

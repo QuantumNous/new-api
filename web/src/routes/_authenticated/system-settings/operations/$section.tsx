@@ -24,8 +24,6 @@ export const Route = createFileRoute(
   '/_authenticated/system-settings/operations/$section'
 )({
   beforeLoad: async ({ params }) => {
-    const { OPERATIONS_DEFAULT_SECTION, OPERATIONS_SECTION_IDS } =
-      await import('@/features/system-settings/operations/section-registry.tsx')
     if (params.section === 'monitoring') {
       throw redirect({
         to: '/system-settings/models/$section',
@@ -33,6 +31,8 @@ export const Route = createFileRoute(
       })
     }
 
+    const { OPERATIONS_DEFAULT_SECTION, OPERATIONS_SECTION_IDS } =
+      await import('@/features/system-settings/operations/section-registry.tsx')
     const validSections = OPERATIONS_SECTION_IDS as unknown as string[]
     if (!validSections.includes(params.section)) {
       throw redirect({

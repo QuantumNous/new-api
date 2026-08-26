@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { lazy, Suspense } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { HtmlContent, type HtmlContentVariant } from '@/components/html-content'
 
@@ -37,6 +38,8 @@ interface RichContentProps {
 }
 
 export function RichContent(props: RichContentProps) {
+  const { t } = useTranslation()
+
   if (props.mode === 'html') {
     return (
       <HtmlContent
@@ -50,8 +53,15 @@ export function RichContent(props: RichContentProps) {
   return (
     <Suspense
       fallback={
-        <div className={props.className} data-testid='rich-content-loading'>
-          <span className='text-muted-foreground text-sm'>•••</span>
+        <div
+          className={props.className}
+          data-testid='rich-content-loading'
+          role='status'
+        >
+          <span className='sr-only'>{t('Loading...')}</span>
+          <span aria-hidden='true' className='text-muted-foreground text-sm'>
+            •••
+          </span>
         </div>
       }
     >
