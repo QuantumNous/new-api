@@ -175,6 +175,9 @@ func positiveUserSessionEnv(name string, fallback int) int {
 
 func initConstantEnv() {
 	constant.StreamingTimeout = GetEnvOrDefault("STREAMING_TIMEOUT", 300)
+	// ContextOverflowAutoRecovery 上游返回 context 超长错误时，自动裁剪历史消息
+	//（先剥旧图片、再丢最旧对话块）并用同渠道原地重试一次，实现用户无感知恢复
+	constant.ContextOverflowAutoRecovery = GetEnvOrDefaultBool("CONTEXT_OVERFLOW_AUTO_RECOVERY", true)
 	constant.DifyDebug = GetEnvOrDefaultBool("DIFY_DEBUG", true)
 	constant.MaxFileDownloadMB = GetEnvOrDefault("MAX_FILE_DOWNLOAD_MB", 64)
 	constant.StreamScannerMaxBufferMB = GetEnvOrDefault("STREAM_SCANNER_MAX_BUFFER_MB", 128)
