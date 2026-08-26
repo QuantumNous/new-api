@@ -445,9 +445,6 @@ export function PlaygroundInput({
       const attachments = await normalizePlaygroundAttachments(
         message.files ?? []
       )
-      if (attachments.length && mediaProfile) {
-        throw new Error('Attachments are supported only for chat models')
-      }
       onSubmit(message.text ?? '', undefined, attachments)
       setText('')
     } catch (error) {
