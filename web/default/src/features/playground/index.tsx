@@ -60,6 +60,7 @@ import {
   pickFirstRunModel,
   normalizeMediaGenerationSettings,
   resolveMediaGenerationProfile,
+  validateMediaGenerationAttachments,
   shouldOpenFirstRunTopupPrompt,
   clearFirstRunDone,
   isFirstRunActive,
@@ -71,10 +72,7 @@ import {
   type MediaParameterKey,
   type MediaParameterValue,
 } from './lib'
-import type {
-  Message as MessageType,
-  PlaygroundAttachment,
-} from './types'
+import type { Message as MessageType, PlaygroundAttachment } from './types'
 
 // PLG users are always pinned to the single `plg` group.
 const PLG_GROUP = 'plg'
@@ -377,13 +375,18 @@ export function Playground({
       const model = configOverride?.model ?? config.model
       const group = config.group
       if (resolveMediaGenerationProfile(model)) {
+        const mediaAttachments = [...requestMessages]
+          .reverse()
+          .find((message) => message.from === MESSAGE_ROLES.USER)
+          ?.versions[0]?.attachments
         markCurrentConversationLocalOnly()
         void generateMedia(
           prompt,
           model,
           group,
           getMediaSettings(model),
-          assistantMessageKey
+          assistantMessageKey,
+          mediaAttachments
         )
         return
       }
@@ -645,10 +648,12 @@ export function Playground({
       // must be carried through to this generation.
       const modelOverride = model
       const targetModel = modelOverride || config.model
-      if (attachments.length && resolveMediaGenerationProfile(targetModel)) {
-        toast.error(
-          i18next.t('Attachments are supported only for chat models')
-        )
+      const attachmentError = validateMediaGenerationAttachments(
+        targetModel,
+        attachments
+      )
+      if (attachmentError) {
+        toast.error(i18next.t(attachmentError))
         return
       }
       if (!prepareSend(targetModel)) return
@@ -699,15 +704,18 @@ export function Playground({
       .reverse()
       .find((item) => item.from === MESSAGE_ROLES.USER)
     const prompt = userMessage?.versions[0]?.content ?? ''
-    const hasAttachments = !!userMessage?.versions[0]?.attachments?.length
+    const attachments = userMessage?.versions[0]?.attachments ?? []
+    const hasAttachments = attachments.length > 0
     if (!prompt && !hasAttachments) return
 
     const chatOverride = getFirstRunChatOverride()
     const targetModel = chatOverride?.model ?? config.model
-    if (hasAttachments && resolveMediaGenerationProfile(targetModel)) {
-      toast.error(
-        i18next.t('Attachments are supported only for chat models')
-      )
+    const attachmentError = validateMediaGenerationAttachments(
+      targetModel,
+      attachments
+    )
+    if (attachmentError) {
+      toast.error(i18next.t(attachmentError))
       return
     }
     if (!prepareSend(targetModel)) return

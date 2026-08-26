@@ -72,7 +72,8 @@ const generateMediaMock = mock(
     _model: string,
     _group: string,
     _settings: Record<string, unknown>,
-    _assistantMessageKey: string
+    _assistantMessageKey: string,
+    _attachments?: PlaygroundAttachment[]
   ) => Promise.resolve()
 )
 const stopChatMock = mock(() => undefined)
@@ -325,6 +326,26 @@ describe('Playground model landing handoff', () => {
     input.onSubmit('Draw a violet fox')
 
     expect(generateMediaMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('passes image references to video generation models', () => {
+    modelsQueryData = ['veo-3.1-generate-preview']
+    isModelsQueryLoading = false
+    const input = renderHandoff(
+      'veo-3.1-generate-preview',
+      'Animate this frame'
+    )
+    const attachment: PlaygroundAttachment = {
+      kind: 'image',
+      filename: 'frame.png',
+      mediaType: 'image/png',
+      url: 'data:image/png;base64,AA==',
+    }
+
+    input.onSubmit('Animate this frame', undefined, [attachment])
+
+    expect(generateMediaMock).toHaveBeenCalledTimes(1)
+    expect(generateMediaMock.mock.calls[0]?.[5]).toEqual([attachment])
   })
 
   test('does not lock the selector to a URL model missing from the user model list', () => {

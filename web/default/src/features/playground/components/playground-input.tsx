@@ -63,6 +63,7 @@ import {
   type MediaParameterKey,
   type MediaParameterValue,
   normalizePlaygroundAttachments,
+  validateMediaGenerationAttachments,
 } from '../lib'
 import type { GroupOption, ModelOption, PlaygroundAttachment } from '../types'
 import { PlaygroundParameters } from './playground-parameters'
@@ -252,8 +253,12 @@ export function PlaygroundInput({
       const attachments = await normalizePlaygroundAttachments(
         message.files ?? []
       )
-      if (attachments.length && mediaProfile) {
-        throw new Error('Attachments are supported only for chat models')
+      if (mediaProfile) {
+        const attachmentError = validateMediaGenerationAttachments(
+          modelValue,
+          attachments
+        )
+        if (attachmentError) throw new Error(attachmentError)
       }
       onSubmit(message.text ?? '', undefined, attachments)
       setText('')

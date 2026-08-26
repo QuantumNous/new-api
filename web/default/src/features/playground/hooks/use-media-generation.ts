@@ -30,7 +30,7 @@ import {
   updateCurrentVersionMedia,
   type MediaGenerationSettings,
 } from '../lib'
-import type { GeneratedMedia, Message } from '../types'
+import type { GeneratedMedia, Message, PlaygroundAttachment } from '../types'
 
 interface UseMediaGenerationOptions {
   messages: Message[]
@@ -288,7 +288,8 @@ export function useMediaGeneration(props: UseMediaGenerationOptions) {
       model: string,
       group: string,
       settings: MediaGenerationSettings,
-      assistantMessageKey: string
+      assistantMessageKey: string,
+      attachments: PlaygroundAttachment[] = []
     ) => {
       if (abortControllerRef.current) return
 
@@ -296,7 +297,8 @@ export function useMediaGeneration(props: UseMediaGenerationOptions) {
         prompt,
         model,
         group,
-        settings
+        settings,
+        attachments
       )
       if (!request) {
         failMedia(

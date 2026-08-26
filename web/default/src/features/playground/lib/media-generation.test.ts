@@ -22,6 +22,7 @@ import {
   normalizeMediaGenerationSettings,
   resolveMediaGenerationProfile,
   resolvePlaygroundModelKind,
+  validateMediaGenerationAttachments,
 } from './media-generation'
 import { isSupportedPlaygroundModelName } from './playground-model-filter'
 
@@ -321,6 +322,91 @@ describe('Playground media model profiles', () => {
 })
 
 describe('Playground media request building', () => {
+  test('allows image references for video models but rejects unsupported media', () => {
+    const image = {
+      kind: 'image' as const,
+      filename: 'frame.png',
+      mediaType: 'image/png',
+      url: 'data:image/png;base64,AA==',
+    }
+    const video = {
+      kind: 'video' as const,
+      filename: 'clip.mp4',
+      mediaType: 'video/mp4',
+      url: 'data:video/mp4;base64,AA==',
+    }
+
+    expect(
+      validateMediaGenerationAttachments('veo-3.1-generate-preview', [image])
+    ).toBeUndefined()
+    expect(
+      validateMediaGenerationAttachments('seedance-2.0', [video])
+    ).toBeUndefined()
+    expect(
+      validateMediaGenerationAttachments('veo-3.1-generate-preview', [video])
+    ).toBe('Veo supports image-to-video, not video-to-video')
+    expect(
+      validateMediaGenerationAttachments('grok-imagine-video', [video])
+    ).toBe('Grok video editing is not available in Playground yet')
+  })
+
+  test('builds Veo image-to-video requests from an attached frame', () => {
+    const request = buildMediaGenerationRequest(
+      'Animate this frame',
+      'veo-3.1-generate-preview',
+      'plg',
+      { resolution: '720p', duration: 8, aspectRatio: '16:9' },
+      [
+        {
+          kind: 'image',
+          filename: 'frame.png',
+          mediaType: 'image/png',
+          url: 'data:image/png;base64,AA==',
+        },
+      ]
+    )
+
+    expect(request?.payload).toMatchObject({
+      images: ['data:image/png;base64,AA=='],
+    })
+  })
+
+  test('builds Seedance image and video reference content', () => {
+    const request = buildMediaGenerationRequest(
+      'Follow the reference motion',
+      'seedance-2.0',
+      'plg',
+      { resolution: '720p', duration: 5, aspectRatio: '16:9' },
+      [
+        {
+          kind: 'image',
+          filename: 'frame.png',
+          mediaType: 'image/png',
+          url: 'data:image/png;base64,AA==',
+        },
+        {
+          kind: 'video',
+          filename: 'motion.mp4',
+          mediaType: 'video/mp4',
+          url: 'data:video/mp4;base64,AA==',
+        },
+      ]
+    )
+
+    expect(request?.payload.content).toEqual([
+      { type: 'text', text: 'Follow the reference motion' },
+      {
+        type: 'image_url',
+        image_url: { url: 'data:image/png;base64,AA==' },
+      },
+      {
+        type: 'video_url',
+        video_url: { url: 'data:video/mp4;base64,AA==' },
+        role: 'reference_video',
+      },
+    ])
+  })
+
   test('does not silently rewrite configured Veo duration while building the request', () => {
     const request = buildMediaGenerationRequest(
       'A cinematic sunrise',
