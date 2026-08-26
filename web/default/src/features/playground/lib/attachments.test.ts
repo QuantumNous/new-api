@@ -9,6 +9,10 @@ function textDataUrl(text: string): string {
   return `data:text/plain;base64,${Buffer.from(text, 'utf8').toString('base64')}`
 }
 
+function videoDataUrl(): string {
+  return 'data:video/mp4;base64,AA=='
+}
+
 function file(
   filename: string,
   mediaType: string,
@@ -36,6 +40,21 @@ describe('normalizePlaygroundAttachments', () => {
         filename: 'notes.md',
         mediaType: 'text/markdown',
         text: '# Notes',
+      },
+    ])
+  })
+
+  test('normalizes supported mp4 attachments as video files', async () => {
+    await expect(
+      normalizePlaygroundAttachments([
+        file('reference.mp4', 'video/mp4', videoDataUrl()),
+      ])
+    ).resolves.toEqual([
+      {
+        kind: 'video',
+        filename: 'reference.mp4',
+        mediaType: 'video/mp4',
+        url: videoDataUrl(),
       },
     ])
   })

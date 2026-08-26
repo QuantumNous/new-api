@@ -13,6 +13,8 @@ const IMAGE_MEDIA_TYPES = new Set([
 ])
 const TEXT_EXTENSIONS = new Set(['.csv', '.json', '.md', '.txt'])
 const IMAGE_EXTENSIONS = new Set(['.gif', '.jpeg', '.jpg', '.png', '.webp'])
+const VIDEO_MEDIA_TYPES = new Set(['video/mp4'])
+const VIDEO_EXTENSIONS = new Set(['.mp4'])
 
 interface ParsedDataUrl {
   mediaType: string
@@ -71,6 +73,13 @@ function isTextAttachment(mediaType: string, filename: string): boolean {
   )
 }
 
+function isVideoAttachment(mediaType: string, filename: string): boolean {
+  return (
+    VIDEO_MEDIA_TYPES.has(mediaType) ||
+    VIDEO_EXTENSIONS.has(extensionOf(filename))
+  )
+}
+
 export async function normalizePlaygroundAttachments(
   files: FileUIPart[]
 ): Promise<PlaygroundAttachment[]> {
@@ -96,6 +105,14 @@ export async function normalizePlaygroundAttachments(
         throw new Error('Attachment data is invalid')
       }
       attachments.push({ kind: 'image', filename, mediaType, url: file.url })
+      continue
+    }
+
+    if (isVideoAttachment(mediaType, filename)) {
+      if (!VIDEO_MEDIA_TYPES.has(parsed.mediaType)) {
+        throw new Error('Attachment data is invalid')
+      }
+      attachments.push({ kind: 'video', filename, mediaType, url: file.url })
       continue
     }
 

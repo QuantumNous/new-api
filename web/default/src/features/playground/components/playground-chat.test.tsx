@@ -198,4 +198,48 @@ describe('PlaygroundChat', () => {
     expect(html).toContain('notes.txt')
     expect(html).toContain('Describe these files')
   })
+
+  test('renders user media in a separate bubble from the prompt text', () => {
+    const imageSrc = 'data:image/png;base64,QUJDRA=='
+    const videoSrc = 'data:video/mp4;base64,AA=='
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <PlaygroundChat
+          messages={[
+            {
+              key: 'user-media-and-text',
+              from: 'user',
+              status: 'complete',
+              versions: [
+                {
+                  id: 'version-1',
+                  content: 'Describe the media',
+                  attachments: [
+                    {
+                      kind: 'image',
+                      filename: 'photo.png',
+                      mediaType: 'image/png',
+                      url: imageSrc,
+                    },
+                    {
+                      kind: 'video',
+                      filename: 'reference.mp4',
+                      mediaType: 'video/mp4',
+                      url: videoSrc,
+                    },
+                  ],
+                },
+              ],
+            },
+          ]}
+        />
+      </I18nextProvider>
+    )
+
+    expect(html).toContain(`<video aria-label="reference.mp4"`)
+    expect(html.match(/bg-secondary/g)?.length).toBe(2)
+    expect(html.indexOf(imageSrc)).toBeLessThan(
+      html.indexOf('Describe the media')
+    )
+  })
 })
