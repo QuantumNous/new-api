@@ -328,7 +328,7 @@ func TestRechargeEpayEnforcesFinalWalletQuotaLimit(t *testing.T) {
 			wantStatus:   common.TopUpStatusSuccess,
 		},
 		{
-			name:         "rejects balance above int32 quota domain",
+			name:         "rejects balance above 64-bit quota domain",
 			currentQuota: common.MaxQuota - 1_000_000,
 			wantErr:      true,
 			wantQuota:    common.MaxQuota - 1_000_000,

@@ -8,12 +8,12 @@ import (
 )
 
 // Quota conversions are centralized here so every billing path shares one
-// saturation + logging policy. Quota columns (user/token/log) are 32-bit
-// integers in the database, so an oversized product must clamp to the int32
-// range instead of wrapping around and turning a charge into a credit.
+// saturation + logging policy. The project only supports 64-bit builds, so an
+// oversized product must clamp to the platform int range instead of wrapping
+// around and turning a charge into a credit.
 const (
-	MaxQuota = math.MaxInt32
-	MinQuota = math.MinInt32
+	MaxQuota = math.MaxInt64
+	MinQuota = math.MinInt64
 )
 
 // QuotaClampKind identifies why a quota conversion had to be saturated.
@@ -27,7 +27,7 @@ const (
 )
 
 // QuotaClamp describes a single saturation event: a quota conversion whose
-// input fell outside the representable int32 range (or was NaN) and was
+// input fell outside the representable int range (or was NaN) and was
 // therefore clamped. It is surfaced to billing callers so the event can be
 // recorded on the related consume/task log for admin auditing.
 type QuotaClamp struct {
@@ -62,7 +62,7 @@ func (c *QuotaClamp) AuditMap() map[string]interface{} {
 }
 
 // saturateQuota converts an already-rounded quota value to int, clamping to
-// the int32 range. Whenever clamping (what would otherwise be an integer
+// the supported 64-bit int range. Whenever clamping (what would otherwise be an integer
 // wraparound) or a NaN fallback is triggered it logs a warning, because in
 // normal operation a single request never approaches these bounds — hitting
 // them signals a bug or an abusive request. `op` names the caller. When a
@@ -148,7 +148,7 @@ func QuotaFromDecimalChecked(d decimal.Decimal) (int, *QuotaClamp) {
 }
 
 // QuotaFromDecimalStrict converts an in-range decimal quota and rejects a
-// value that would otherwise be saturated at the database's int32 boundary.
+// value that would otherwise be saturated at the supported 64-bit boundary.
 func QuotaFromDecimalStrict(d decimal.Decimal) (int, error) {
 	return strictQuota(QuotaFromDecimalChecked(d))
 }
