@@ -196,7 +196,7 @@ func TestCreateLoginSessionFailsClosedWhenEvictionFails(t *testing.T) {
 	// out even after Redis recovers.
 	var leftover int64
 	require.NoError(t, model.DB.Model(&model.UserSession{}).
-		Where("user_id = ? AND login_method = ?", user.Id, "fail-closed-agent").
+		Where("user_id = ? AND user_agent = ?", user.Id, "fail-closed-agent").
 		Count(&leftover).Error)
 	assert.Zero(t, leftover, "the unissued session row must be removed after the failed login")
 	var activeCount int64
