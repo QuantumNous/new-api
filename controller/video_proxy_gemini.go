@@ -18,7 +18,7 @@ func getGeminiVideoURL(channel *model.Channel, task *model.Task, apiKey string) 
 	}
 
 	if url := extractGeminiVideoURLFromTaskData(task); url != "" {
-		return ensureAPIKey(url, apiKey), nil
+		return ensureGeminiVideoAccess(url, apiKey), nil
 	}
 
 	baseURL := constant.ChannelBaseURLs[channel.Type]
@@ -61,7 +61,7 @@ func getGeminiVideoURL(channel *model.Channel, task *model.Task, apiKey string) 
 	}
 
 	if url := extractGeminiVideoURLFromPayload(body); url != "" {
-		return ensureAPIKey(url, apiKey), nil
+		return ensureGeminiVideoAccess(url, apiKey), nil
 	}
 
 	if parseErr != nil {
