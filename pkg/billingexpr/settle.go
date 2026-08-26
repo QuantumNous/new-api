@@ -6,6 +6,9 @@ import "github.com/QuantumNous/new-api/common"
 // expression version. This is the central dispatch point for future versions
 // that may use a different conversion formula.
 func quotaConversion(exprOutput float64, snap *BillingSnapshot) float64 {
+	if snap.TaskUsageBilling {
+		return exprOutput * snap.QuotaPerUnit
+	}
 	switch snap.ExprVersion {
 	default: // v1: coefficients are $/1M tokens prices
 		return exprOutput / 1_000_000 * snap.QuotaPerUnit
