@@ -38,7 +38,7 @@ export default defineConfig(({ envMode }) => {
       {
         target: serverUrl,
         changeOrigin: true,
-        cookieDomainRewrite: 'localhost',
+        cookieDomainRewrite: '127.0.0.1',
       },
     ]),
   ) as Record<
