@@ -100,13 +100,18 @@ func createLoginSession(userID int, expectedAuthVersion int64, loginMethod, ip, 
 	// session limit: revoke the oldest active sessions so a full session table
 	// can never lock the user out. Enforcement fails closed: if eviction
 	// errors out (e.g. a Redis deny-fence write fails), the just-created
-	// session is revoked and the login fails, so the active-session limit can
-	// never be bypassed by repeated logins while enforcement is failing.
+	// session is removed and the login fails, so the active-session limit can
+	// never be bypassed by repeated logins while enforcement is failing. The
+	// row is deleted outright instead of revoked: no token was issued for it,
+	// revocation depends on the same deny-fence write that is likely failing,
+	// and every stored row counts toward the issuance-limit window.
 	if _, err := model.RevokeOldestActiveUserSessions(
 		userID, int64(common.UserSessionActiveLimit), now, "active_limit_evicted", session.SID,
 	); err != nil {
-		_, _ = model.RevokeUserSession(userID, session.SID, "active_limit_enforcement_failed")
-		common.SysError(fmt.Sprintf("failed to evict oldest user sessions for user %d, revoking the new session: %s", userID, err.Error()))
+		if delErr := model.DeleteUserSession(userID, session.SID); delErr != nil {
+			common.SysError(fmt.Sprintf("failed to remove unissued session %s for user %d after eviction failure: %s", session.SID, userID, delErr.Error()))
+		}
+		common.SysError(fmt.Sprintf("failed to evict oldest user sessions for user %d, removing the new session: %s", userID, err.Error()))
 		return nil, fmt.Errorf("failed to enforce active session limit for user %d: %s", userID, err.Error())
 	}
 	bundle, err := issueAuthBundle(session, session.SID+"."+refreshSecret, true)

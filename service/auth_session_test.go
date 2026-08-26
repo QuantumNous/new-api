@@ -183,14 +183,27 @@ func TestCreateLoginSessionFailsClosedWhenEvictionFails(t *testing.T) {
 	// creating the new session row still succeeds (cache write failures are
 	// tolerated there), but evicting the oldest active session errors out.
 	// Login must fail closed instead of issuing tokens that would leave the
-	// user above the active-session limit. The compensation revoke of the
-	// just-created row may also fail for the same reason; the row carries no
-	// issued tokens and is reclaimed by the periodic revoked-session cleanup.
+	// user above the active-session limit.
 	serverA.Close()
 
 	bundle, err := CreateLoginSession(user.Id, "password", "127.0.0.1", "fail-closed-agent")
 	require.Error(t, err, "eviction failure must fail the login")
 	assert.Nil(t, bundle, "no auth bundle may be issued when eviction fails")
+
+	// The unissued session must not linger: stored rows count toward the
+	// issuance-limit window regardless of status, so leftover rows from a
+	// Redis outage would burn through that window and keep the user locked
+	// out even after Redis recovers.
+	var leftover int64
+	require.NoError(t, model.DB.Model(&model.UserSession{}).
+		Where("user_id = ? AND login_method = ?", user.Id, "fail-closed-agent").
+		Count(&leftover).Error)
+	assert.Zero(t, leftover, "the unissued session row must be removed after the failed login")
+	var activeCount int64
+	require.NoError(t, model.DB.Model(&model.UserSession{}).
+		Where("user_id = ? AND status = ?", user.Id, model.UserSessionStatusActive).
+		Count(&activeCount).Error)
+	assert.Equal(t, int64(2), activeCount, "the pre-existing sessions stay untouched")
 }
 
 func TestCreateLoginSessionEnforcesIssuanceLimitAcrossAllStatuses(t *testing.T) {

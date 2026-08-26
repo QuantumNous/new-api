@@ -822,6 +822,22 @@ func revokeUserSessions(userID int, excludedSID, reason string) (int64, error) {
 	}
 }
 
+// DeleteUserSession permanently removes one session row. It exists for
+// compensation on the login-issuance path: when enforcement fails after a new
+// session row was stored but before any token is issued, the row must not
+// linger: stored rows count toward the issuance-limit window regardless of
+// status — and RevokeUserSession cannot be relied on there because its
+// deny-fence write is likely the very component that is failing. Only use it
+// for sessions that were never issued: a deleted row leaves no tombstone, so
+// tokens handed out for a live session would keep authorizing until their
+// cache entries expire.
+func DeleteUserSession(userID int, sid string) error {
+	if userID <= 0 || sid == "" {
+		return ErrUserSessionInvalid
+	}
+	return DB.Where("sid = ? AND user_id = ?", sid, userID).Delete(&UserSession{}).Error
+}
+
 func DeleteExpiredUserSessions(now int64) error {
 	if now <= 0 {
 		now = time.Now().Unix()
