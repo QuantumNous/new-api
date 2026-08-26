@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ChangeEvent,
   type DragEvent,
@@ -211,30 +210,36 @@ function PlaygroundAttachmentDialog({
 }: AttachmentDialogProps) {
   const { t } = useTranslation()
   const attachments = usePromptInputAttachments()
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
 
-  const openFilePicker = () => {
-    const input = fileInputRef.current
-    if (!input) return
-
-    // Clear before opening as well as after change so selecting the same file
-    // again still emits a change event (and allows incremental selection).
-    input.value = ''
-    const picker = input as HTMLInputElement & {
-      showPicker?: () => void
-    }
-    try {
-      if (typeof picker.showPicker === 'function') picker.showPicker()
-      else input.click()
-    } catch {
-      input.click()
-    }
-  }
-
   const stageFiles = (files: File[] | FileList) => {
     setPendingFiles((current) => [...current, ...Array.from(files)])
+  }
+
+  const openFilePicker = () => {
+    if (typeof document === 'undefined') return
+
+    // Use a fresh input for every interaction. Reusing one input can suppress
+    // the second change event in some browsers after the first file selection.
+    const input = document.createElement('input')
+    input.accept = accept
+    input.className = 'sr-only'
+    input.multiple = true
+    input.type = 'file'
+
+    const cleanup = () => input.remove()
+    input.addEventListener(
+      'change',
+      () => {
+        if (input.files) stageFiles(input.files)
+        cleanup()
+      },
+      { once: true }
+    )
+    input.addEventListener('cancel', cleanup, { once: true })
+    document.body.appendChild(input)
+    input.click()
   }
 
   const handleFileSelection = (event: ChangeEvent<HTMLInputElement>) => {
@@ -301,14 +306,6 @@ function PlaygroundAttachmentDialog({
           role='button'
           tabIndex={0}
         >
-          <input
-            accept={accept}
-            className='sr-only'
-            multiple
-            onChange={handleFileSelection}
-            ref={fileInputRef}
-            type='file'
-          />
           <PaperclipIcon className='text-muted-foreground size-8' />
           <div className='space-y-1'>
             <p className='font-medium'>{t('Upload files')}</p>
@@ -488,7 +485,8 @@ export function PlaygroundInput({
     <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
       <PromptInput
         accept={attachmentConfig.accept}
-        groupClassName='rounded-xl border-border !bg-white text-slate-900 shadow-sm dark:!bg-white dark:!text-slate-900'
+        className='rounded-xl bg-white'
+        groupClassName='rounded-xl border-border !bg-white text-slate-900 shadow-sm overflow-hidden dark:!bg-white dark:!text-slate-900'
         groupStyle={{ backgroundColor: '#fff', color: '#0f172a' }}
         maxFileSize={10 * 1024 * 1024}
         maxFiles={5}
@@ -514,7 +512,7 @@ export function PlaygroundInput({
           disabled={disabled}
           onChange={(event) => setText(event.target.value)}
           placeholder=''
-          style={{ backgroundColor: '#fff', color: '#0f172a' }}
+          style={{ backgroundColor: 'transparent', color: '#0f172a' }}
           value={text}
         />
 
