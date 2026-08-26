@@ -24,6 +24,7 @@ func TestNativeTextFormat(t *testing.T) {
 		{name: "aws nova stays chat", channelType: constant.ChannelTypeAws, apiType: constant.APITypeAws, model: "amazon-nova-pro", incoming: types.RelayFormatOpenAI, want: types.RelayFormatOpenAI},
 		{name: "vertex gemini", channelType: constant.ChannelTypeVertexAi, apiType: constant.APITypeVertexAi, model: "gemini-3.7-flash", incoming: types.RelayFormatOpenAI, want: types.RelayFormatGemini},
 		{name: "vertex gemini with publisher prefix", channelType: constant.ChannelTypeVertexAi, apiType: constant.APITypeVertexAi, model: "google/gemini-3.7-flash", incoming: types.RelayFormatClaude, want: types.RelayFormatGemini},
+		{name: "vertex gemini with publisher and effort suffix", channelType: constant.ChannelTypeVertexAi, apiType: constant.APITypeVertexAi, model: "google/gemini-3.7-flash-high", incoming: types.RelayFormatClaude, want: types.RelayFormatGemini},
 		{name: "vertex claude", channelType: constant.ChannelTypeVertexAi, apiType: constant.APITypeVertexAi, model: "claude-sonnet-4", incoming: types.RelayFormatGemini, want: types.RelayFormatClaude},
 		{name: "vertex claude with publisher prefix", channelType: constant.ChannelTypeVertexAi, apiType: constant.APITypeVertexAi, model: "anthropic/claude-sonnet-4", incoming: types.RelayFormatOpenAI, want: types.RelayFormatClaude},
 		{name: "codex is responses", channelType: constant.ChannelTypeCodex, apiType: constant.APITypeCodex, incoming: types.RelayFormatOpenAI, want: types.RelayFormatOpenAIResponses},

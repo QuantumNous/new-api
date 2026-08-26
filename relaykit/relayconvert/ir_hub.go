@@ -44,7 +44,7 @@ func convertRequestIR(info convmeta.Meta, from, target types.RelayFormat, reques
 		projectionModel = irReq.Model
 	}
 	if from != target {
-		appendReasoningProjectionLosses(target, projectionModel, irReq, &report)
+		appendReasoningProjectionLosses(info, target, projectionModel, irReq, &report)
 	}
 	if target == types.RelayFormatGemini {
 		filterIRForGemini(irReq, &report)
@@ -784,46 +784,59 @@ func applyIRGeminiThinking(req *dto.GeminiChatRequest, model string, irReq *ir.R
 	if req == nil {
 		return
 	}
+	projection, ok := resolveGeminiThinkingProjection(model, irReq, adapterEnabled)
+	if !ok {
+		return
+	}
+	setGeminiThinkingProjection(req, projection)
+}
+
+func resolveGeminiThinkingProjection(model string, irReq *ir.Request, adapterEnabled bool) (reasoning.GeminiThinkingProjection, bool) {
 	if adapterEnabled {
+		adapterBudget := geminiAdapterSourceBudget(model, irReq)
 		switch {
 		case strings.Contains(model, "-thinking-") || strings.HasSuffix(model, "-thinking"):
 			include := true
-			setGeminiThinkingProjection(req, reasoning.ProjectGeminiThinking(model, false, nil, reasoning.LevelHigh, &include, reasoning.DisplayAuto))
-			return
+			return reasoning.ProjectGeminiThinking(model, false, adapterBudget, reasoning.LevelHigh, &include, reasoning.DisplayAuto), true
 		case strings.HasSuffix(model, "-nothinking"):
-			setGeminiThinkingProjection(req, reasoning.ProjectGeminiThinking(model, true, nil, "", nil, reasoning.DisplayHidden))
-			return
+			return reasoning.ProjectGeminiThinking(model, true, nil, "", nil, reasoning.DisplayHidden), true
 		default:
 			if _, level, ok := reasoning.TrimEffortSuffix(model); ok && level != "" {
-				setGeminiThinkingProjection(req, reasoning.ProjectGeminiThinking(
+				return reasoning.ProjectGeminiThinking(
 					model,
 					reasoning.IsDisabledThinkingLevel(level),
-					nil,
+					adapterBudget,
 					level,
 					nil,
 					reasoning.DisplayAuto,
-				))
-				return
+				), true
 			}
 		}
 	}
 
 	if irReq != nil && irReq.Think != nil {
 		cfg := irReq.Think
-		setGeminiThinkingProjection(req, reasoning.ProjectGeminiThinking(
+		return reasoning.ProjectGeminiThinking(
 			model,
 			cfg.Mode == ir.ThinkOff,
 			cfg.Budget,
 			cfg.Level,
 			cfg.Include,
 			string(cfg.Display),
-		))
-		return
+		), true
 	}
 	if reasoning.GeminiModelSupportsThinking(model) {
 		include := true
-		setGeminiThinkingProjection(req, reasoning.ProjectGeminiThinking(model, false, nil, "", &include, reasoning.DisplayAuto))
+		return reasoning.ProjectGeminiThinking(model, false, nil, "", &include, reasoning.DisplayAuto), true
 	}
+	return reasoning.GeminiThinkingProjection{}, false
+}
+
+func geminiAdapterSourceBudget(model string, req *ir.Request) *int {
+	if reasoning.GeminiThinkingControlForModel(model) != reasoning.GeminiControlLevel || req == nil || req.Think == nil {
+		return nil
+	}
+	return req.Think.Budget
 }
 
 func setGeminiThinkingProjection(req *dto.GeminiChatRequest, projection reasoning.GeminiThinkingProjection) {
@@ -838,26 +851,35 @@ func setGeminiThinkingProjection(req *dto.GeminiChatRequest, projection reasonin
 	}
 }
 
-func appendReasoningProjectionLosses(target types.RelayFormat, model string, req *ir.Request, report *ir.Report) {
-	if req == nil || req.Think == nil || report == nil {
+func appendReasoningProjectionLosses(info convmeta.Meta, target types.RelayFormat, model string, req *ir.Request, report *ir.Report) {
+	if target != types.RelayFormatGemini || req == nil || report == nil {
 		return
 	}
-	cfg := req.Think
-	if target != types.RelayFormatGemini {
+	projection, ok := resolveGeminiThinkingProjection(
+		model,
+		req,
+		convmeta.OptionsOf(info).Gemini.ThinkingAdapterEnabled,
+	)
+	if !ok {
 		return
 	}
-	control := reasoning.GeminiThinkingControlForModel(model)
-	if control != reasoning.GeminiControlBudget {
-		switch reasoning.NormalizeThinkingLevel(cfg.Level) {
-		case reasoning.LevelXHigh, reasoning.LevelMax:
+	for _, loss := range projection.Losses {
+		switch loss {
+		case reasoning.GeminiLossBudgetToLevel:
+			report.AddOnce(ir.LossCoerced, "thinking.budget_to_level", "Gemini level-based model represents a positive numeric budget as thinkingLevel=HIGH")
+		case reasoning.GeminiLossBudgetDropped:
+			report.AddOnce(ir.LossCoerced, "thinking.budget", "Gemini level-based model cannot preserve thinkingBudget when an explicit thinking level is available")
+		case reasoning.GeminiLossLevelDropped:
+			report.AddOnce(ir.LossCoerced, "thinking.level", "Gemini compatibility projection prioritizes an explicit thinkingBudget over the discrete thinking level")
+		case reasoning.GeminiLossLevelCapped:
 			report.AddOnce(ir.LossCoerced, "thinking.level", "Gemini thinkingLevel stops at HIGH")
+		case reasoning.GeminiLossEffortToBudget:
+			report.AddOnce(ir.LossCoerced, "thinking.effort_to_budget", "Gemini budget-only model uses dynamic thinkingBudget=-1 for discrete effort")
+		case reasoning.GeminiLossModeCoerced:
+			report.AddOnce(ir.LossCoerced, "thinking.mode", "Gemini level-based model has no native off value; projected to MINIMAL with thoughts hidden")
+		case reasoning.GeminiLossUnknownControl:
+			report.AddOnce(ir.LossCoerced, "thinking.control", "Gemini thinking control capability is unknown; applied the conservative compatibility projection")
 		}
-	}
-	if control == reasoning.GeminiControlBudget && cfg.Mode != ir.ThinkOff && cfg.Budget == nil && cfg.Level != "" {
-		report.AddOnce(ir.LossCoerced, "thinking.effort_to_budget", "Gemini budget-only model uses dynamic thinkingBudget=-1 for discrete effort")
-	}
-	if control == reasoning.GeminiControlLevel && cfg.Mode == ir.ThinkOff {
-		report.AddOnce(ir.LossCoerced, "thinking.mode", "Gemini level-based model has no native off value; projected to MINIMAL with thoughts hidden")
 	}
 }
 

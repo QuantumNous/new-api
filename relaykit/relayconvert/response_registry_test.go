@@ -498,6 +498,152 @@ func TestConvertResponsesReasoningSummaryStreamToClaudeThinkingDelta(t *testing.
 	require.True(t, sawThinking)
 }
 
+func TestConvertGeminiThoughtAndToolResponseToClaude(t *testing.T) {
+	finish := "STOP"
+	result, err := ConvertResponse(context.Background(), nil, types.RelayFormatClaude, &dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{{
+			Content: dto.GeminiChatContent{Role: "model", Parts: []dto.GeminiPart{
+				{Text: "visible thought", Thought: true},
+				{Text: "final answer"},
+				{FunctionCall: &dto.FunctionCall{FunctionName: "lookup", Arguments: map[string]any{"q": "x"}}},
+			}},
+			FinishReason: &finish,
+		}},
+		UsageMetadata: dto.GeminiUsageMetadata{
+			PromptTokenCount:     4,
+			CandidatesTokenCount: 3,
+			ThoughtsTokenCount:   2,
+			TotalTokenCount:      9,
+		},
+	})
+	require.NoError(t, err)
+	response := result.Value.(*dto.ClaudeResponse)
+	require.Len(t, response.Content, 3)
+	require.Equal(t, "thinking", response.Content[0].Type)
+	require.NotNil(t, response.Content[0].Thinking)
+	require.Equal(t, "visible thought", *response.Content[0].Thinking)
+	require.Equal(t, "text", response.Content[1].Type)
+	require.NotNil(t, response.Content[1].Text)
+	require.Equal(t, "final answer", *response.Content[1].Text)
+	require.Equal(t, "tool_use", response.Content[2].Type)
+	require.Equal(t, "lookup", response.Content[2].Name)
+	require.Equal(t, map[string]any{"q": "x"}, response.Content[2].Input)
+	require.Equal(t, "tool_use", response.StopReason)
+}
+
+func TestConvertGeminiResponseWithoutThoughtDoesNotInventClaudeThinking(t *testing.T) {
+	finish := "STOP"
+	result, err := ConvertResponse(context.Background(), nil, types.RelayFormatClaude, &dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{{
+			Content:      dto.GeminiChatContent{Role: "model", Parts: []dto.GeminiPart{{Text: "final answer"}}},
+			FinishReason: &finish,
+		}},
+	})
+	require.NoError(t, err)
+	response := result.Value.(*dto.ClaudeResponse)
+	require.Len(t, response.Content, 1)
+	require.Equal(t, "text", response.Content[0].Type)
+}
+
+func TestConvertGeminiThoughtThenToolStreamToClaudeUsesSeparateBlocks(t *testing.T) {
+	state, err := NewResponseStreamState(
+		types.RelayFormatGemini,
+		types.RelayFormatClaude,
+		ResponseStreamOptions{ID: "msg_gemini", Model: "gemini-3.7-flash"},
+	)
+	require.NoError(t, err)
+
+	thoughtResults, err := ConvertStreamResponseChunk(context.Background(), nil, state, &dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{{
+			Content: dto.GeminiChatContent{Role: "model", Parts: []dto.GeminiPart{
+				{Text: "visible ", Thought: true},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	moreThoughtResults, err := ConvertStreamResponseChunk(context.Background(), nil, state, &dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{{
+			Content: dto.GeminiChatContent{Role: "model", Parts: []dto.GeminiPart{
+				{Text: "visible thought", Thought: true},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+
+	finish := "STOP"
+	toolResults, err := ConvertStreamResponseChunk(context.Background(), nil, state, &dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{{
+			Content: dto.GeminiChatContent{Role: "model", Parts: []dto.GeminiPart{
+				{FunctionCall: &dto.FunctionCall{FunctionName: "lookup", Arguments: map[string]any{"q": "x"}}},
+			}},
+			FinishReason: &finish,
+		}},
+		UsageMetadata: dto.GeminiUsageMetadata{
+			PromptTokenCount:     4,
+			CandidatesTokenCount: 1,
+			ThoughtsTokenCount:   2,
+			TotalTokenCount:      7,
+		},
+	})
+	require.NoError(t, err)
+
+	allResults := append(thoughtResults, moreThoughtResults...)
+	allResults = append(allResults, toolResults...)
+	responses := make([]*dto.ClaudeResponse, 0, len(allResults))
+	for _, result := range allResults {
+		response, ok := result.Value.(*dto.ClaudeResponse)
+		if ok && response != nil {
+			responses = append(responses, response)
+		}
+	}
+	require.NotEmpty(t, responses)
+
+	thinkingIndex, toolIndex := -1, -1
+	thinkingStopped := false
+	thinkingStoppedBeforeTool := false
+	thinkingText := ""
+	toolArgs := ""
+	stopReason := ""
+	for _, response := range responses {
+		switch response.Type {
+		case "content_block_start":
+			require.NotNil(t, response.ContentBlock)
+			require.NotNil(t, response.Index)
+			switch response.ContentBlock.Type {
+			case "thinking":
+				thinkingIndex = *response.Index
+			case "tool_use":
+				toolIndex = *response.Index
+				thinkingStoppedBeforeTool = thinkingStopped
+			}
+		case "content_block_delta":
+			if response.Delta == nil {
+				continue
+			}
+			if response.Delta.Type == "thinking_delta" && response.Delta.Thinking != nil {
+				thinkingText += *response.Delta.Thinking
+			}
+			if response.Delta.Type == "input_json_delta" && response.Delta.PartialJson != nil {
+				toolArgs += *response.Delta.PartialJson
+			}
+		case "content_block_stop":
+			if response.Index != nil && *response.Index == thinkingIndex {
+				thinkingStopped = true
+			}
+		case "message_delta":
+			if response.Delta != nil && response.Delta.StopReason != nil {
+				stopReason = *response.Delta.StopReason
+			}
+		}
+	}
+	require.Equal(t, 0, thinkingIndex)
+	require.Equal(t, 1, toolIndex)
+	require.Equal(t, "visible thought", thinkingText)
+	require.True(t, thinkingStoppedBeforeTool)
+	require.JSONEq(t, `{"q":"x"}`, toolArgs)
+	require.Equal(t, "tool_use", stopReason)
+}
+
 func TestResponseUsageMatrixChatAndResponsesDetails(t *testing.T) {
 	chat := textRegistryChatResponse()
 	chat.Usage = dto.Usage{

@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -207,6 +208,89 @@ func TestConvertRequestToChannelNativeClaudeToVertexGemini(t *testing.T) {
 	}
 	if info.GetFinalRequestRelayFormat() != types.RelayFormatGemini {
 		t.Fatalf("final format=%s", info.GetFinalRequestRelayFormat())
+	}
+}
+
+func TestConvertRequestToChannelNativeClaudeThinkingMatchesGeminiCapability(t *testing.T) {
+	budget := 2048
+	tests := []struct {
+		name       string
+		apiType    int
+		model      string
+		effort     string
+		wantBudget *int
+		wantLevel  string
+	}{
+		{
+			name:      "Gemini 3 budget becomes high level",
+			apiType:   constant.APITypeGemini,
+			model:     "gemini-3.7-flash",
+			wantLevel: "HIGH",
+		},
+		{
+			name:      "Vertex publisher prefix keeps level capability",
+			apiType:   constant.APITypeVertexAi,
+			model:     "google/gemini-3.7-flash",
+			wantLevel: "HIGH",
+		},
+		{
+			name:      "Gemini 3 explicit effort wins over budget",
+			apiType:   constant.APITypeGemini,
+			model:     "gemini-3.7-flash",
+			effort:    "medium",
+			wantLevel: "MEDIUM",
+		},
+		{
+			name:       "Gemini 2.5 preserves budget",
+			apiType:    constant.APITypeGemini,
+			model:      "gemini-2.5-flash",
+			wantBudget: &budget,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := testRelayInfo(tt.apiType, tt.model)
+			adaptor := GetAdaptor(tt.apiType)
+			adaptor.Init(info)
+			request := &dto.ClaudeRequest{
+				Model:    "client-model",
+				Messages: []dto.ClaudeMessage{{Role: "user", Content: "think"}},
+				Thinking: &dto.Thinking{Type: "enabled", BudgetTokens: &budget},
+			}
+			if tt.effort != "" {
+				request.OutputConfig = json.RawMessage(`{"effort":"` + tt.effort + `"}`)
+			}
+
+			got, err := convertRequestToChannelNative(nil, info, adaptor, request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			geminiRequest, ok := got.(*dto.GeminiChatRequest)
+			if !ok {
+				t.Fatalf("got %T", got)
+			}
+			thinking := geminiRequest.GenerationConfig.ThinkingConfig
+			if thinking == nil || !thinking.IncludeThoughts {
+				t.Fatalf("thinkingConfig=%#v", thinking)
+			}
+			if thinking.ThinkingLevel != tt.wantLevel {
+				t.Fatalf("thinkingLevel=%q want %q", thinking.ThinkingLevel, tt.wantLevel)
+			}
+			if tt.wantBudget == nil {
+				if thinking.ThinkingBudget != nil {
+					t.Fatalf("thinkingBudget=%d should be omitted", *thinking.ThinkingBudget)
+				}
+			} else if thinking.ThinkingBudget == nil || *thinking.ThinkingBudget != *tt.wantBudget {
+				t.Fatalf("thinkingBudget=%v want %d", thinking.ThinkingBudget, *tt.wantBudget)
+			}
+			if thinking.ThinkingBudget != nil && thinking.ThinkingLevel != "" {
+				t.Fatalf("thinking controls conflict: %#v", thinking)
+			}
+			if info.GetFinalRequestRelayFormat() != types.RelayFormatGemini {
+				t.Fatalf("final format=%s", info.GetFinalRequestRelayFormat())
+			}
+		})
 	}
 }
 

@@ -112,6 +112,171 @@ func TestConvertRequestChatEffortToGemini25DynamicBudgetReportsLoss(t *testing.T
 	require.True(t, found, "losses=%#v", result.Report.Losses)
 }
 
+func TestConvertRequestClaudeBudgetToGemini3UsesNativeHighLevel(t *testing.T) {
+	budget := 2048
+	info := &convmeta.Values{
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gemini-3.7-flash",
+		Options:             &convmeta.Options{},
+	}
+	result, err := ConvertRequest(context.Background(), info, types.RelayFormatGemini, &dto.ClaudeRequest{
+		Model:    "client-model",
+		Messages: []dto.ClaudeMessage{{Role: "user", Content: "think"}},
+		Thinking: &dto.Thinking{Type: "enabled", BudgetTokens: &budget},
+	})
+	require.NoError(t, err)
+	out := result.Value.(*dto.GeminiChatRequest)
+	requireGeminiThinkingControl(t, out, true, nil, "HIGH")
+	requireRequestLoss(t, result.Report, "thinking.budget_to_level")
+}
+
+func TestConvertRequestClaudeBudgetAndEffortToGemini3PrefersEffort(t *testing.T) {
+	budget := 2048
+	info := &convmeta.Values{
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gemini-3.7-flash",
+		Options:             &convmeta.Options{},
+	}
+	result, err := ConvertRequest(context.Background(), info, types.RelayFormatGemini, &dto.ClaudeRequest{
+		Model:        "client-model",
+		Messages:     []dto.ClaudeMessage{{Role: "user", Content: "think"}},
+		Thinking:     &dto.Thinking{Type: "enabled", BudgetTokens: &budget},
+		OutputConfig: json.RawMessage(`{"effort":"medium"}`),
+	})
+	require.NoError(t, err)
+	out := result.Value.(*dto.GeminiChatRequest)
+	requireGeminiThinkingControl(t, out, true, nil, "MEDIUM")
+	requireRequestLoss(t, result.Report, "thinking.budget")
+}
+
+func TestConvertRequestClaudeBudgetToGemini25PreservesBudget(t *testing.T) {
+	budget := 2048
+	info := &convmeta.Values{
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gemini-2.5-flash",
+		Options:             &convmeta.Options{},
+	}
+	result, err := ConvertRequest(context.Background(), info, types.RelayFormatGemini, &dto.ClaudeRequest{
+		Model:    "client-model",
+		Messages: []dto.ClaudeMessage{{Role: "user", Content: "think"}},
+		Thinking: &dto.Thinking{Type: "enabled", BudgetTokens: &budget},
+	})
+	require.NoError(t, err)
+	out := result.Value.(*dto.GeminiChatRequest)
+	requireGeminiThinkingControl(t, out, true, &budget, "")
+	for _, loss := range result.Report.Losses {
+		require.NotEqual(t, "thinking.budget_to_level", loss.Field, "losses=%#v", result.Report.Losses)
+	}
+}
+
+func TestConvertRequestClaudeDisabledToGemini3ReportsModeCoercion(t *testing.T) {
+	info := &convmeta.Values{
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gemini-3.7-flash",
+		Options:             &convmeta.Options{},
+	}
+	result, err := ConvertRequest(context.Background(), info, types.RelayFormatGemini, &dto.ClaudeRequest{
+		Model:    "client-model",
+		Messages: []dto.ClaudeMessage{{Role: "user", Content: "answer directly"}},
+		Thinking: &dto.Thinking{Type: "disabled"},
+	})
+	require.NoError(t, err)
+	out := result.Value.(*dto.GeminiChatRequest)
+	requireGeminiThinkingControl(t, out, false, nil, "MINIMAL")
+	requireRequestLoss(t, result.Report, "thinking.mode")
+}
+
+func TestConvertRequestClaudeBudgetToUnknownGeminiReportsCapabilityLoss(t *testing.T) {
+	budget := 2048
+	info := &convmeta.Values{
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gemini-future",
+		Options:             &convmeta.Options{},
+	}
+	result, err := ConvertRequest(context.Background(), info, types.RelayFormatGemini, &dto.ClaudeRequest{
+		Model:    "client-model",
+		Messages: []dto.ClaudeMessage{{Role: "user", Content: "think"}},
+		Thinking: &dto.Thinking{Type: "enabled", BudgetTokens: &budget},
+	})
+	require.NoError(t, err)
+	out := result.Value.(*dto.GeminiChatRequest)
+	requireGeminiThinkingControl(t, out, true, &budget, "")
+	requireRequestLoss(t, result.Report, "thinking.control")
+}
+
+func TestConvertRequestClaudeAdaptiveXHighToGemini3CapsAtHigh(t *testing.T) {
+	info := &convmeta.Values{
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gemini-3.7-flash",
+		Options:             &convmeta.Options{},
+	}
+	result, err := ConvertRequest(context.Background(), info, types.RelayFormatGemini, &dto.ClaudeRequest{
+		Model:        "client-model",
+		Messages:     []dto.ClaudeMessage{{Role: "user", Content: "think"}},
+		Thinking:     &dto.Thinking{Type: "adaptive", Display: "summarized"},
+		OutputConfig: json.RawMessage(`{"effort":"xhigh"}`),
+	})
+	require.NoError(t, err)
+	out := result.Value.(*dto.GeminiChatRequest)
+	requireGeminiThinkingControl(t, out, true, nil, "HIGH")
+	requireRequestLoss(t, result.Report, "thinking.level")
+}
+
+func TestConvertRequestClaudeThinkingUsesPrefixedAndSuffixedUpstreamModelCapabilities(t *testing.T) {
+	budget := 2048
+	tests := []struct {
+		name           string
+		model          string
+		adapterEnabled bool
+		thinking       *dto.Thinking
+		wantLevel      string
+		wantLoss       string
+	}{
+		{
+			name:      "models prefix",
+			model:     "models/gemini-3.7-flash",
+			thinking:  &dto.Thinking{Type: "enabled", BudgetTokens: &budget},
+			wantLevel: "HIGH",
+		},
+		{
+			name:      "vertex publisher prefix",
+			model:     "publishers/google/models/gemini-3.7-flash",
+			thinking:  &dto.Thinking{Type: "enabled", BudgetTokens: &budget},
+			wantLevel: "HIGH",
+		},
+		{
+			name:           "effort suffix",
+			model:          "google/gemini-3.7-flash-medium",
+			adapterEnabled: true,
+			thinking:       &dto.Thinking{Type: "enabled", BudgetTokens: &budget},
+			wantLevel:      "MEDIUM",
+			wantLoss:       "thinking.budget",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := &convmeta.Values{
+				ChannelMetaAttached: true,
+				UpstreamModelName:   tt.model,
+				Options: &convmeta.Options{Gemini: convmeta.GeminiOptions{
+					ThinkingAdapterEnabled: tt.adapterEnabled,
+				}},
+			}
+			result, err := ConvertRequest(context.Background(), info, types.RelayFormatGemini, &dto.ClaudeRequest{
+				Model:    "client-model",
+				Messages: []dto.ClaudeMessage{{Role: "user", Content: "think"}},
+				Thinking: tt.thinking,
+			})
+			require.NoError(t, err)
+			out := result.Value.(*dto.GeminiChatRequest)
+			requireGeminiThinkingControl(t, out, true, nil, tt.wantLevel)
+			if tt.wantLoss != "" {
+				requireRequestLoss(t, result.Report, tt.wantLoss)
+			}
+		})
+	}
+}
+
 func TestConvertRequestResponsesXHighSummaryToGemini(t *testing.T) {
 	info := &convmeta.Values{
 		ChannelMetaAttached: true,
@@ -847,6 +1012,31 @@ func TestConvertRequestRejectsUnregisteredExplicitPath(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "from claude to embedding is not registered")
+}
+
+func requireGeminiThinkingControl(t *testing.T, req *dto.GeminiChatRequest, include bool, budget *int, level string) {
+	t.Helper()
+	require.NotNil(t, req.GenerationConfig.ThinkingConfig)
+	cfg := req.GenerationConfig.ThinkingConfig
+	require.Equal(t, include, cfg.IncludeThoughts)
+	require.Equal(t, level, cfg.ThinkingLevel)
+	if budget == nil {
+		require.Nil(t, cfg.ThinkingBudget)
+	} else {
+		require.NotNil(t, cfg.ThinkingBudget)
+		require.Equal(t, *budget, *cfg.ThinkingBudget)
+	}
+	require.False(t, cfg.ThinkingBudget != nil && cfg.ThinkingLevel != "", "thinkingBudget and thinkingLevel must be mutually exclusive")
+}
+
+func requireRequestLoss(t *testing.T, report ir.Report, field string) {
+	t.Helper()
+	for _, loss := range report.Losses {
+		if loss.Field == field && loss.Kind == ir.LossCoerced {
+			return
+		}
+	}
+	t.Fatalf("missing coerced loss %q in %#v", field, report.Losses)
 }
 
 func mustRawMessage(t *testing.T, value any) []byte {

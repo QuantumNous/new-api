@@ -8,6 +8,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,6 +38,32 @@ func TestGetRequestURLClaudeIncomingUsesGooglePublisher(t *testing.T) {
 	assert.Contains(t, got, "/publishers/google/models/gemini-3.7-flash:generateContent")
 	assert.NotContains(t, got, "/publishers/anthropic/")
 	assert.True(t, strings.Contains(got, "key=test-key"))
+}
+
+func TestGetRequestURLStripsThinkingSuffixForGeminiModel(t *testing.T) {
+	settings := model_setting.GetGeminiSettings()
+	previous := settings.ThinkingAdapterEnabled
+	settings.ThinkingAdapterEnabled = true
+	t.Cleanup(func() { settings.ThinkingAdapterEnabled = previous })
+
+	info := &relaycommon.RelayInfo{
+		RequestURLPath:  "/v1/messages",
+		OriginModelName: "gemini-3.7-flash-high",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeVertexAi,
+			ApiType:           constant.APITypeVertexAi,
+			UpstreamModelName: "google/gemini-3.7-flash-high",
+			ApiKey:            "test-key",
+			ChannelOtherSettings: dto.ChannelOtherSettings{
+				VertexKeyType: dto.VertexKeyTypeAPIKey,
+			},
+		},
+	}
+
+	got, err := (&Adaptor{}).GetRequestURL(info)
+	require.NoError(t, err)
+	assert.Contains(t, got, "/publishers/google/models/gemini-3.7-flash:generateContent")
+	assert.NotContains(t, got, "gemini-3.7-flash-high")
 }
 
 func TestGetRequestURLStripsPublisherPrefixForGeminiModel(t *testing.T) {

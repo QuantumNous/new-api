@@ -112,6 +112,25 @@ func TestThinkingConfigUsesNativeLevelForGemini3(t *testing.T) {
 	require.True(t, out.GenerationConfig.ThinkingConfig.IncludeThoughts)
 }
 
+func TestThinkingConfigMapsBudgetToNativeLevelForGemini3(t *testing.T) {
+	t.Parallel()
+	budget := 2048
+	out, err := ToRequest(&ir.Request{
+		Model: "gemini-3.7-flash",
+		Think: &ir.ThinkConfig{
+			Mode:    ir.ThinkEnabled,
+			Budget:  &budget,
+			Include: boolPointer(true),
+			Display: ir.ThinkDisplayAuto,
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, out.GenerationConfig.ThinkingConfig)
+	require.Equal(t, "HIGH", out.GenerationConfig.ThinkingConfig.ThinkingLevel)
+	require.Nil(t, out.GenerationConfig.ThinkingConfig.ThinkingBudget)
+	require.True(t, out.GenerationConfig.ThinkingConfig.IncludeThoughts)
+}
+
 func TestThinkingConfigUsesDynamicBudgetForGemini25(t *testing.T) {
 	t.Parallel()
 	out, err := ToRequest(&ir.Request{
