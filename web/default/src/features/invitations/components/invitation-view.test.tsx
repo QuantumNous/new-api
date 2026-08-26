@@ -145,7 +145,7 @@ describe('InvitationView', () => {
     const topupShareMessage =
       'Share your referral link with friends. Referral rewards are processed after their first successful top-up.'
     const subscriptionShareMessage =
-      'Your friend gets the package discount immediately after registering. You receive your package discount immediately after their first successful paid package purchase.'
+      'I found a great AI Token platform: one key connects you to GPT, Claude, Gemini, Seedance, and other popular models. Sign up now to get a package discount. Come try it!'
 
     expect(html).toContain(
       'Invite friends to subscribe: they get $5 package discount immediately, and you receive $5 package discount after their first successful paid package purchase.'
@@ -157,7 +157,7 @@ describe('InvitationView', () => {
     expect(html).toContain('Send your unique referral link to a friend.')
     expect(html).toContain('Your friend registers')
     expect(html).toContain(
-      'Your friend gets a package discount immediately after registering.'
+      'Your friend gets $5 package discount immediately after registering.'
     )
     expect(html).toContain('You receive $5 package discount')
     expect(html).toContain(
@@ -259,7 +259,7 @@ describe('InvitationView', () => {
     expect(html).toContain('Friends get $6.25 package discount')
     expect(html).toContain('Share your referral link')
     expect(html).toContain(
-      'Your friend gets a package discount immediately after registering.'
+      'Your friend gets $6.25 package discount immediately after registering.'
     )
     expect(html).toContain(
       'You receive $5 package discount immediately after their first successful paid package purchase.'
@@ -287,7 +287,7 @@ describe('InvitationView', () => {
     )
     expect(html).not.toContain(
       encodeURIComponent(
-        'Your friend gets the package discount immediately after registering. You receive your package discount immediately after their first successful paid package purchase.'
+        'I found a great AI Token platform: one key connects you to GPT, Claude, Gemini, Seedance, and other popular models. Sign up now to get a package discount. Come try it!'
       )
     )
   })
@@ -485,7 +485,7 @@ describe('InvitationView', () => {
     const pageDescription =
       'Share your referral link with friends. Referral rewards are processed after their first successful top-up.'
     const shareMessage =
-      'Your friend gets the package discount immediately after registering. You receive your package discount immediately after their first successful paid package purchase.'
+      'I found a great AI Token platform: one key connects you to GPT, Claude, Gemini, Seedance, and other popular models. Sign up now to get a package discount. Come try it!'
 
     expect(html).toContain(pageDescription)
     expect(html).not.toContain(shareMessage)
