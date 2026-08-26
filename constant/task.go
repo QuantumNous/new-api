@@ -8,17 +8,31 @@ const (
 )
 
 const (
-	SunoActionMusic  = "MUSIC"
-	SunoActionLyrics = "LYRICS"
-
-	TaskActionGenerate          = "generate"
-	TaskActionTextGenerate      = "textGenerate"
-	TaskActionFirstTailGenerate = "firstTailGenerate"
-	TaskActionReferenceGenerate = "referenceGenerate"
-	TaskActionRemix             = "remixGenerate"
+	TaskActionImageToVideo     = "image_to_video"
+	TaskActionTextToVideo      = "text_to_video"
+	TaskActionFirstTailToVideo = "first_tail_to_video"
+	TaskActionReferenceToVideo = "reference_to_video"
+	TaskActionRemix            = "remix"
 )
 
-var SunoModel2Action = map[string]string{
-	"suno_music":  SunoActionMusic,
-	"suno_lyrics": SunoActionLyrics,
+var legacyTaskActionAliases = map[string]string{
+	"generate":          TaskActionImageToVideo,
+	"textGenerate":      TaskActionTextToVideo,
+	"firstTailGenerate": TaskActionFirstTailToVideo,
+	"referenceGenerate": TaskActionReferenceToVideo,
+	"remixGenerate":     TaskActionRemix,
+}
+
+// TaskPluginOverrideEnabled controls whether the database override layer is
+// active. When disabled, uploaded plugins are ignored and factory plugins are
+// used instead; the factory layer is unaffected.
+var TaskPluginOverrideEnabled = true
+
+// NormalizeTaskAction maps persisted legacy action names to the canonical task
+// action vocabulary. Unknown platform-specific actions pass through unchanged.
+func NormalizeTaskAction(action string) string {
+	if canonical, ok := legacyTaskActionAliases[action]; ok {
+		return canonical
+	}
+	return action
 }
