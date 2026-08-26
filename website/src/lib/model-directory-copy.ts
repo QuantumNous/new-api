@@ -27,6 +27,8 @@ export type DirectoryCopy = {
   colLatency: string;
   colHealth: string;
   colContext: string;
+  /** Accessible explanation for the em dash shown when a provider gives no window. */
+  contextUnavailable: string;
   learnMore: string;
   featuredLabel: string;
   chooseSlide: string;
@@ -76,6 +78,7 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colLatency: "Latency",
     colHealth: "Health score",
     colContext: "Context",
+    contextUnavailable: "Not published or not applicable",
     learnMore: "Learn More",
     featuredLabel: "Featured models",
     chooseSlide: "Choose a featured model",
@@ -120,6 +123,7 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colLatency: "延迟",
     colHealth: "健康评分",
     colContext: "上下文",
+    contextUnavailable: "未公布或不适用",
     learnMore: "了解更多",
     featuredLabel: "精选模型",
     chooseSlide: "选择精选模型",
@@ -162,6 +166,7 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colLatency: "Latencia",
     colHealth: "Puntuación de salud",
     colContext: "Contexto",
+    contextUnavailable: "No publicado o no aplicable",
     learnMore: "Saber más",
     featuredLabel: "Modelos destacados",
     chooseSlide: "Elige un modelo destacado",
@@ -206,6 +211,7 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colLatency: "Latence",
     colHealth: "Score de santé",
     colContext: "Contexte",
+    contextUnavailable: "Non publié ou non applicable",
     learnMore: "En savoir plus",
     featuredLabel: "Modèles en vedette",
     chooseSlide: "Choisir un modèle en vedette",
@@ -248,6 +254,7 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colLatency: "Latência",
     colHealth: "Pontuação de saúde",
     colContext: "Contexto",
+    contextUnavailable: "Não publicado ou não aplicável",
     learnMore: "Saiba mais",
     featuredLabel: "Modelos em destaque",
     chooseSlide: "Escolha um modelo em destaque",
@@ -290,6 +297,7 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colLatency: "Задержка",
     colHealth: "Оценка здоровья",
     colContext: "Контекст",
+    contextUnavailable: "Не опубликовано или неприменимо",
     learnMore: "Подробнее",
     featuredLabel: "Избранные модели",
     chooseSlide: "Выберите избранную модель",
@@ -332,6 +340,7 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colLatency: "レイテンシ",
     colHealth: "健全性スコア",
     colContext: "コンテキスト",
+    contextUnavailable: "未公開または該当なし",
     learnMore: "詳しく見る",
     featuredLabel: "注目のモデル",
     chooseSlide: "注目のモデルを選ぶ",
@@ -374,6 +383,7 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colLatency: "Độ trễ",
     colHealth: "Điểm sức khỏe",
     colContext: "Ngữ cảnh",
+    contextUnavailable: "Chưa công bố hoặc không áp dụng",
     learnMore: "Tìm hiểu thêm",
     featuredLabel: "Mô hình nổi bật",
     chooseSlide: "Chọn mô hình nổi bật",
@@ -416,6 +426,7 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colLatency: "Latenz",
     colHealth: "Gesundheitswert",
     colContext: "Kontext",
+    contextUnavailable: "Nicht veröffentlicht oder nicht zutreffend",
     learnMore: "Mehr erfahren",
     featuredLabel: "Empfohlene Modelle",
     chooseSlide: "Empfohlenes Modell wählen",
@@ -458,6 +469,7 @@ export const DIRECTORY_COPY: Record<Locale, DirectoryCopy> = {
     colLatency: "Latensi",
     colHealth: "Skor kesehatan",
     colContext: "Konteks",
+    contextUnavailable: "Belum dipublikasikan atau tidak berlaku",
     learnMore: "Pelajari lebih lanjut",
     featuredLabel: "Model unggulan",
     chooseSlide: "Pilih model unggulan",
