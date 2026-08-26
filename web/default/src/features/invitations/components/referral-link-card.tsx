@@ -34,7 +34,7 @@ export function ReferralLinkCard({
   let shareMessage = t('Share your referral link to get started.')
   if (rewardMode === 'subscription') {
     shareMessage = t(
-      'Your friend gets the package discount immediately after registering. You receive your package discount immediately after their first successful paid package purchase.'
+      'I found a great AI Token platform: one key connects you to GPT, Claude, Gemini, Seedance, and other popular models. Sign up now to get a package discount. Come try it!'
     )
   } else if (rewardMode === 'topup') {
     shareMessage = t(
