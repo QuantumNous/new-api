@@ -21,6 +21,8 @@ type Vendor struct {
 	CreatedTime int64          `json:"created_time" gorm:"bigint"`
 	UpdatedTime int64          `json:"updated_time" gorm:"bigint"`
 	DeletedAt   gorm.DeletedAt `json:"-" gorm:"index;uniqueIndex:uk_vendor_name_delete_at,priority:2"`
+	// ModelCount 关联模型数量，仅在列表返回时填充，不落库
+	ModelCount int64 `json:"model_count" gorm:"-"`
 }
 
 // Insert 创建新的供应商记录
@@ -66,7 +68,11 @@ func GetVendorByID(id int) (*Vendor, error) {
 func GetAllVendors(offset int, limit int) ([]*Vendor, error) {
 	var vendors []*Vendor
 	err := DB.Offset(offset).Limit(limit).Find(&vendors).Error
-	return vendors, err
+	if err != nil {
+		return nil, err
+	}
+	fillVendorModelCounts(vendors)
+	return vendors, nil
 }
 
 // SearchVendors 按关键字搜索供应商
@@ -84,5 +90,21 @@ func SearchVendors(keyword string, offset int, limit int) ([]*Vendor, int64, err
 	if err := db.Offset(offset).Limit(limit).Order("id DESC").Find(&vendors).Error; err != nil {
 		return nil, 0, err
 	}
+	fillVendorModelCounts(vendors)
 	return vendors, total, nil
+}
+
+// fillVendorModelCounts 批量填充供应商关联的模型数量，避免 N+1 查询
+func fillVendorModelCounts(vendors []*Vendor) {
+	if len(vendors) == 0 {
+		return
+	}
+	counts, err := GetVendorModelCounts()
+	if err != nil {
+		common.SysError("failed to get vendor model counts: " + err.Error())
+		return
+	}
+	for _, v := range vendors {
+		v.ModelCount = counts[int64(v.Id)]
+	}
 }

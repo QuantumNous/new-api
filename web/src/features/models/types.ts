@@ -65,6 +65,8 @@ export interface Vendor {
   status: number
   created_time: number
   updated_time: number
+  /** Number of models associated with this vendor (list responses only) */
+  model_count?: number
 }
 
 /**
