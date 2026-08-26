@@ -93,6 +93,14 @@ const PLAN_DISPLAY_ORDER: Record<string, number> = {
   max: 2,
 }
 
+type PlanTier = keyof typeof PLAN_DISPLAY_ORDER
+
+function getPlanTier(title: string): PlanTier | null {
+  const normalizedTitle = title.trim().toLowerCase()
+  const tier = normalizedTitle.match(/\b(go|pro|max)\b/)?.[1]
+  return tier && tier in PLAN_DISPLAY_ORDER ? (tier as PlanTier) : null
+}
+
 function createStableSubscriptionRequestId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID()
@@ -108,7 +116,8 @@ function rememberExternalSubscriptionReturn() {
 }
 
 function getPlanDisplayOrder(title: string): number {
-  return PLAN_DISPLAY_ORDER[title.trim().toLowerCase()] ?? 99
+  const tier = getPlanTier(title)
+  return tier ? PLAN_DISPLAY_ORDER[tier] : 99
 }
 
 function formatPlanPrice(amount: number, currency = 'USD'): string {
@@ -190,7 +199,7 @@ type Translate = (key: string, options?: Record<string, unknown>) => string
 type SelfSubscriptionRefreshResult = 'applied' | 'superseded' | 'failed'
 
 function getPlanAudience(title: string, t: Translate): string {
-  switch (title.trim().toLowerCase()) {
+  switch (getPlanTier(title)) {
     case 'go':
       return t('For individuals and light everyday use')
     case 'pro':
@@ -829,8 +838,7 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                 ? formatPlanPrice(discountPreview.total, currency)
                 : originalPrice
               const isMostPopular =
-                plan.title.trim().toLowerCase() === 'pro' &&
-                orderedPlans.length > 1
+                getPlanTier(plan.title) === 'pro' && orderedPlans.length > 1
               const audience =
                 getPlanAudience(plan.title, t) || plan.subtitle || ''
               const action = getFlexiblePlanAction({
