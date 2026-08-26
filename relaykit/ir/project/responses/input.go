@@ -82,7 +82,7 @@ func messageFromResponsesItem(item any) (ir.Message, error) {
 		}
 		return ir.Message{
 			Role:   ir.RoleAssistant,
-			Blocks: []ir.Block{ir.ToolUse(id, jsonx.MapString(m, "name"), input)},
+			Blocks: []ir.Block{ir.ToolUse(id, responsesFunctionName(m), input)},
 		}, nil
 	case "function_call_output":
 		content := m["output"]
@@ -107,6 +107,16 @@ func messageFromResponsesItem(item any) (ir.Message, error) {
 	default:
 		return ir.Message{Role: ir.RoleAssistant, Blocks: []ir.Block{ir.Raw(typ, full)}}, nil
 	}
+}
+
+func responsesFunctionName(m map[string]any) string {
+	if name := jsonx.MapString(m, "name"); name != "" {
+		return name
+	}
+	if fn, ok := jsonx.AsMap(m["function"]); ok {
+		return jsonx.MapString(fn, "name")
+	}
+	return ""
 }
 
 func reasoningTextFromMap(m map[string]any) string {

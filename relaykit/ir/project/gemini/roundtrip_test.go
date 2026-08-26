@@ -32,6 +32,31 @@ func TestRequestRoundtripGoldenFixture(t *testing.T) {
 	require.Equal(t, "get_weather", irReq.Messages[2].Blocks[0].ToolUse.Name)
 }
 
+func TestToRequestSplitsFunctionResponseFromFollowupText(t *testing.T) {
+	t.Parallel()
+	result := ir.ToolResult("call_1", []ir.Block{ir.Text(`{"temp_c":18}`)})
+	result.ToolResult.Name = "get_weather"
+	irReq := &ir.Request{
+		Messages: []ir.Message{
+			{Role: ir.RoleUser, Blocks: []ir.Block{ir.Text("Call get_weather")}},
+			{Role: ir.RoleAssistant, Blocks: []ir.Block{ir.ToolUse("call_1", "get_weather", json.RawMessage(`{"city":"Paris"}`))}},
+			{Role: ir.RoleUser, Blocks: []ir.Block{
+				result,
+				ir.Text("工具结果已经给你了。现在请回答停车费谁亏谁赚？"),
+			}},
+		},
+	}
+	out, err := ToRequest(irReq)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(out.Contents), 4)
+	last := out.Contents[len(out.Contents)-1]
+	prev := out.Contents[len(out.Contents)-2]
+	require.NotNil(t, prev.Parts[0].FunctionResponse)
+	require.Equal(t, "get_weather", prev.Parts[0].FunctionResponse.Name)
+	require.Equal(t, "工具结果已经给你了。现在请回答停车费谁亏谁赚？", last.Parts[0].Text)
+	require.Nil(t, last.Parts[0].FunctionResponse)
+}
+
 func TestRequestRoundtripThoughtSignature(t *testing.T) {
 	t.Parallel()
 	req := unmarshalGeminiRequest(t, `{
@@ -67,6 +92,52 @@ func TestResponseRoundtripGoldenFixture(t *testing.T) {
 	require.Equal(t, "The answer is 42.", irResp.Blocks[0].Text.Text)
 	require.Equal(t, "get_weather", irResp.Blocks[1].ToolUse.Name)
 	require.Equal(t, 2, irResp.Usage.Thought)
+}
+
+func TestToStreamBuffersFunctionCallJSON(t *testing.T) {
+	t.Parallel()
+	state := ir.NewStreamState("g1", "gemini-test")
+	start, err := ToStream([]ir.Event{
+		{Kind: ir.EventStart, ID: "g1", Model: "gemini-test"},
+		{Kind: ir.EventBlockStart, Index: 0, Block: &ir.Block{
+			Kind:    ir.BlockKindToolUse,
+			ToolUse: &ir.ToolUseBlock{Name: "get_weather"},
+		}},
+		{Kind: ir.EventBlockDelta, Index: 0, Delta: &ir.BlockDelta{JSON: `{"city":`}},
+	}, state)
+	require.NoError(t, err)
+	require.False(t, geminiStreamHasFunctionCall(t, start))
+
+	done, err := ToStream([]ir.Event{
+		{Kind: ir.EventBlockDelta, Index: 0, Delta: &ir.BlockDelta{JSON: `"Paris"}`}},
+		{Kind: ir.EventBlockStop, Index: 0},
+	}, state)
+	require.NoError(t, err)
+	calls := geminiStreamFunctionCalls(t, done)
+	require.Len(t, calls, 1)
+	require.Equal(t, "get_weather", calls[0].FunctionName)
+	require.Equal(t, map[string]any{"city": "Paris"}, calls[0].Arguments)
+}
+
+func geminiStreamHasFunctionCall(t *testing.T, chunks []any) bool {
+	t.Helper()
+	return len(geminiStreamFunctionCalls(t, chunks)) > 0
+}
+
+func geminiStreamFunctionCalls(t *testing.T, chunks []any) []dto.FunctionCall {
+	t.Helper()
+	out := make([]dto.FunctionCall, 0)
+	for _, chunk := range chunks {
+		resp, ok := chunk.(*dto.GeminiChatResponse)
+		require.True(t, ok)
+		require.NotEmpty(t, resp.Candidates)
+		for _, part := range resp.Candidates[0].Content.Parts {
+			if part.FunctionCall != nil {
+				out = append(out, *part.FunctionCall)
+			}
+		}
+	}
+	return out
 }
 
 func roundtripRequest(t *testing.T, req *dto.GeminiChatRequest) *ir.Request {

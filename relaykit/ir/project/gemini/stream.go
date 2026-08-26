@@ -3,11 +3,11 @@ package gemini
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/ir"
-	"github.com/QuantumNous/new-api/relaykit/ir/internal/jsonx"
 )
 
 func FromStream(resp *dto.GeminiChatResponse, state *ir.StreamState) ([]ir.Event, error) {
@@ -121,13 +121,9 @@ func ToStream(events []ir.Event, state *ir.StreamState) ([]any, error) {
 			case ir.BlockKindToolUse:
 				if event.Block.ToolUse != nil {
 					state.OpenName = event.Block.ToolUse.Name
-					if jsonx.Present(event.Block.ToolUse.Input) {
-						parts = append(parts, dto.GeminiPart{
-							FunctionCall: &dto.FunctionCall{
-								FunctionName: event.Block.ToolUse.Name,
-								Arguments:    jsonRaw(string(event.Block.ToolUse.Input)),
-							},
-						})
+					rememberGeminiTool(state, event.Index, event.Block.ToolUse.Name, string(event.Block.ToolUse.Input))
+					if part := emitGeminiToolIfReady(state, event.Index, false); part != nil {
+						parts = append(parts, *part)
 					}
 				}
 			}
@@ -140,12 +136,10 @@ func ToStream(events []ir.Event, state *ir.StreamState) ([]any, error) {
 				if name == "" && event.Block != nil && event.Block.ToolUse != nil {
 					name = event.Block.ToolUse.Name
 				}
-				parts = append(parts, dto.GeminiPart{
-					FunctionCall: &dto.FunctionCall{
-						FunctionName: name,
-						Arguments:    jsonRaw(event.Delta.JSON),
-					},
-				})
+				rememberGeminiTool(state, event.Index, name, event.Delta.JSON)
+				if part := emitGeminiToolIfReady(state, event.Index, false); part != nil {
+					parts = append(parts, *part)
+				}
 				continue
 			}
 			if event.Delta.Text == "" {
@@ -156,7 +150,12 @@ func ToStream(events []ir.Event, state *ir.StreamState) ([]any, error) {
 				part.Thought = true
 			}
 			parts = append(parts, part)
+		case ir.EventBlockStop:
+			if part := emitGeminiToolIfReady(state, event.Index, true); part != nil {
+				parts = append(parts, *part)
+			}
 		case ir.EventFinish:
+			parts = append(parts, flushGeminiTools(state)...)
 			reason := "STOP"
 			if event.Finish != nil {
 				switch *event.Finish {
@@ -203,15 +202,105 @@ func suffixDelta(prev, next string) string {
 	return next
 }
 
-func jsonRaw(s string) any {
-	if s == "" {
+func rememberGeminiTool(state *ir.StreamState, index int, name, fragment string) {
+	if state == nil {
+		return
+	}
+	if state.GeminiToolName == nil {
+		state.GeminiToolName = map[int]string{}
+	}
+	if state.GeminiToolJSON == nil {
+		state.GeminiToolJSON = map[int]string{}
+	}
+	if name != "" {
+		state.GeminiToolName[index] = name
+		state.OpenName = name
+	}
+	if fragment != "" {
+		state.GeminiToolJSON[index] += fragment
+	}
+}
+
+func emitGeminiToolIfReady(state *ir.StreamState, index int, force bool) *dto.GeminiPart {
+	if state == nil {
 		return nil
 	}
-	var value any
-	if err := json.Unmarshal([]byte(s), &value); err == nil {
-		return value
+	if state.GeminiToolEmitted != nil && state.GeminiToolEmitted[index] {
+		return nil
 	}
-	return s
+	raw := ""
+	if state.GeminiToolJSON != nil {
+		raw = state.GeminiToolJSON[index]
+	}
+	name := ""
+	if state.GeminiToolName != nil {
+		name = state.GeminiToolName[index]
+	}
+	if name == "" {
+		name = state.OpenName
+	}
+	args, ok := parseGeminiToolArgs(raw)
+	if !ok && !force {
+		return nil
+	}
+	if name == "" {
+		return nil
+	}
+	if !ok {
+		args = map[string]any{}
+	}
+	if state.GeminiToolEmitted == nil {
+		state.GeminiToolEmitted = map[int]bool{}
+	}
+	state.GeminiToolEmitted[index] = true
+	return &dto.GeminiPart{
+		FunctionCall: &dto.FunctionCall{
+			FunctionName: name,
+			Arguments:    args,
+		},
+	}
+}
+
+func flushGeminiTools(state *ir.StreamState) []dto.GeminiPart {
+	if state == nil || state.GeminiToolJSON == nil {
+		return nil
+	}
+	indexes := make([]int, 0, len(state.GeminiToolJSON)+len(state.GeminiToolName))
+	seen := map[int]struct{}{}
+	for idx := range state.GeminiToolJSON {
+		indexes = append(indexes, idx)
+		seen[idx] = struct{}{}
+	}
+	for idx := range state.GeminiToolName {
+		if _, ok := seen[idx]; ok {
+			continue
+		}
+		indexes = append(indexes, idx)
+	}
+	sort.Ints(indexes)
+	parts := make([]dto.GeminiPart, 0, len(indexes))
+	for _, idx := range indexes {
+		if part := emitGeminiToolIfReady(state, idx, true); part != nil {
+			parts = append(parts, *part)
+		}
+	}
+	return parts
+}
+
+func parseGeminiToolArgs(raw string) (any, bool) {
+	if strings.TrimSpace(raw) == "" {
+		return map[string]any{}, false
+	}
+	var value any
+	if err := json.Unmarshal([]byte(raw), &value); err != nil {
+		return nil, false
+	}
+	switch value.(type) {
+	case map[string]any, []any:
+		return value, true
+	default:
+		return nil, false
+	}
 }
 
 func marshalArgs(value any) string {

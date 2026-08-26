@@ -187,6 +187,41 @@ func chatArgumentsToRaw(arguments string) (json.RawMessage, error) {
 	return json.Marshal(arguments)
 }
 
+func blocksToChatMessages(msg ir.Message) ([]dto.Message, error) {
+	groups := ir.PartitionByToolResult(msg.Blocks)
+	if len(groups) <= 1 {
+		chatMsg, err := blocksToChatMessage(msg)
+		if err != nil {
+			return nil, err
+		}
+		return []dto.Message{chatMsg}, nil
+	}
+	out := make([]dto.Message, 0, len(groups))
+	extraUsed := false
+	for _, group := range groups {
+		part := ir.Message{Blocks: group}
+		if len(group) == 1 && group[0].Kind == ir.BlockKindToolResult {
+			part.Role = ir.RoleTool
+			if group[0].ToolResult != nil && group[0].ToolResult.Name != "" {
+				part.Name = group[0].ToolResult.Name
+			}
+		} else {
+			part.Role = msg.Role
+			part.Name = msg.Name
+		}
+		if !extraUsed {
+			part.Extra = msg.Extra
+			extraUsed = true
+		}
+		chatMsg, err := blocksToChatMessage(part)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, chatMsg)
+	}
+	return out, nil
+}
+
 func blocksToChatMessage(msg ir.Message) (dto.Message, error) {
 	out := dto.Message{Role: string(msg.Role)}
 	if msg.Name != "" {
@@ -206,7 +241,10 @@ func blocksToChatMessage(msg ir.Message) (dto.Message, error) {
 	for _, block := range msg.Blocks {
 		switch block.Kind {
 		case ir.BlockKindThink:
-			if block.Think != nil {
+			if block.Think != nil && block.Think.Text != "" {
+				if thinkText != "" {
+					thinkText += "\n"
+				}
 				thinkText += block.Think.Text
 			}
 		case ir.BlockKindToolUse:

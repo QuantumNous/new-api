@@ -51,6 +51,21 @@ func TestConvertRequestToTargetRecordsConversionChain(t *testing.T) {
 	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses}, info.ConversionChain)
 }
 
+func TestConvertRequestChatThinkingAsksResponsesForSummary(t *testing.T) {
+	req := &dto.GeneralOpenAIRequest{
+		Model:           "gpt-test",
+		ReasoningEffort: "high",
+		Messages:        []dto.Message{{Role: "user", Content: "think"}},
+	}
+	result, err := ConvertRequest(nil, nil, types.RelayFormatOpenAIResponses, req)
+	require.NoError(t, err)
+	out, ok := result.Value.(*dto.OpenAIResponsesRequest)
+	require.True(t, ok)
+	require.NotNil(t, out.Reasoning)
+	assert.Equal(t, "high", out.Reasoning.Effort)
+	assert.Equal(t, "auto", out.Reasoning.Summary)
+}
+
 func TestConvertRequestClaudeToChatDropsCacheControl(t *testing.T) {
 	req := &dto.ClaudeRequest{
 		Model: "claude-test",
@@ -79,6 +94,38 @@ func TestConvertRequestClaudeToChatDropsCacheControl(t *testing.T) {
 	raw, err := json.Marshal(chatReq.Messages[0])
 	require.NoError(t, err)
 	require.NotContains(t, string(raw), "cache_control")
+}
+
+func TestConvertRequestClaudeToolResultKeepsFollowupTextForChat(t *testing.T) {
+	req := &dto.ClaudeRequest{
+		Model: "claude-test",
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: "Call get_weather with city=Paris NOW."},
+			{
+				Role: "assistant",
+				Content: []map[string]any{
+					{"type": "tool_use", "id": "toolu_1", "name": "get_weather", "input": map[string]any{"city": "Paris"}},
+				},
+			},
+			{
+				Role: "user",
+				Content: []map[string]any{
+					{"type": "tool_result", "tool_use_id": "toolu_1", "content": "{\"city\":\"Paris\",\"temp_c\":18}"},
+					{"type": "text", "text": "工具结果已经给你了。现在请回答停车费谁亏谁赚？"},
+				},
+			},
+		},
+	}
+
+	result, err := ConvertRequest(nil, nil, types.RelayFormatOpenAI, req)
+	require.NoError(t, err)
+	chatReq, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.GreaterOrEqual(t, len(chatReq.Messages), 4)
+	require.Equal(t, "tool", chatReq.Messages[2].Role)
+	require.Equal(t, "toolu_1", chatReq.Messages[2].ToolCallId)
+	require.Equal(t, "user", chatReq.Messages[3].Role)
+	require.Contains(t, chatReq.Messages[3].StringContent(), "停车费")
 }
 
 func TestConvertRequestClaudeToChatRecordsSignatureLoss(t *testing.T) {

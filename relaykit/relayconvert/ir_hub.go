@@ -577,17 +577,28 @@ func fillToolResultNames(req *ir.Request) {
 		return
 	}
 	names := map[string]string{}
+	var pending []string
 	for i := range req.Messages {
-		for _, block := range req.Messages[i].Blocks {
-			if block.ToolUse != nil && block.ToolUse.ID != "" {
-				names[block.ToolUse.ID] = block.ToolUse.Name
+		for j := range req.Messages[i].Blocks {
+			block := &req.Messages[i].Blocks[j]
+			if block.ToolUse != nil {
+				if block.ToolUse.ID != "" && block.ToolUse.Name != "" {
+					names[block.ToolUse.ID] = block.ToolUse.Name
+				}
+				if block.ToolUse.Name != "" {
+					pending = append(pending, block.ToolUse.Name)
+				}
 			}
-		}
-	}
-	for i := range req.Messages {
-		for _, block := range req.Messages[i].Blocks {
-			if block.ToolResult != nil && block.ToolResult.Name == "" {
-				block.ToolResult.Name = names[block.ToolResult.ToolUseID]
+			if block.ToolResult == nil || block.ToolResult.Name != "" {
+				continue
+			}
+			if n := names[block.ToolResult.ToolUseID]; n != "" {
+				block.ToolResult.Name = n
+				continue
+			}
+			if len(pending) > 0 {
+				block.ToolResult.Name = pending[0]
+				pending = pending[1:]
 			}
 		}
 	}

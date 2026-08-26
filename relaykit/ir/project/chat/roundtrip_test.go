@@ -160,6 +160,49 @@ func canon(t *testing.T, v any) any {
 	return out
 }
 
+func TestToRequestSplitsToolResultFromFollowupText(t *testing.T) {
+	t.Parallel()
+	irReq := &ir.Request{
+		Model: "gpt-test",
+		Messages: []ir.Message{
+			{Role: ir.RoleUser, Blocks: []ir.Block{ir.Text("Call get_weather")}},
+			{Role: ir.RoleAssistant, Blocks: []ir.Block{ir.ToolUse("call_1", "get_weather", json.RawMessage(`{"city":"Paris"}`))}},
+			{Role: ir.RoleUser, Blocks: []ir.Block{
+				ir.ToolResult("call_1", []ir.Block{ir.Text(`{"city":"Paris","temp_c":18}`)}),
+				ir.Text("工具结果已经给你了。现在请回答停车费谁亏谁赚？"),
+			}},
+		},
+	}
+	out, err := ToRequest(irReq)
+	require.NoError(t, err)
+	require.Len(t, out.Messages, 4)
+	require.Equal(t, "tool", out.Messages[2].Role)
+	require.Equal(t, "call_1", out.Messages[2].ToolCallId)
+	require.Equal(t, "user", out.Messages[3].Role)
+	require.Contains(t, out.Messages[3].StringContent(), "停车费")
+}
+
+func TestToRequestSplitsMultipleToolResults(t *testing.T) {
+	t.Parallel()
+	irReq := &ir.Request{
+		Model: "gpt-test",
+		Messages: []ir.Message{{
+			Role: ir.RoleUser,
+			Blocks: []ir.Block{
+				ir.ToolResult("call_1", []ir.Block{ir.Text("a")}),
+				ir.ToolResult("call_2", []ir.Block{ir.Text("b")}),
+			},
+		}},
+	}
+	out, err := ToRequest(irReq)
+	require.NoError(t, err)
+	require.Len(t, out.Messages, 2)
+	require.Equal(t, "tool", out.Messages[0].Role)
+	require.Equal(t, "call_1", out.Messages[0].ToolCallId)
+	require.Equal(t, "tool", out.Messages[1].Role)
+	require.Equal(t, "call_2", out.Messages[1].ToolCallId)
+}
+
 func TestToRequestDropsCacheControlAndFlattensText(t *testing.T) {
 	t.Parallel()
 	irReq := &ir.Request{

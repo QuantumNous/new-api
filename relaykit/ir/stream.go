@@ -27,15 +27,19 @@ type StreamState struct {
 	finishEventSent bool
 	usageEventSent  bool
 
-	GeminiText      string
-	GeminiThink     string
-	GeminiToolCount int
+	GeminiText        string
+	GeminiThink       string
+	GeminiToolCount   int
+	GeminiToolJSON    map[int]string
+	GeminiToolName    map[int]string
+	GeminiToolEmitted map[int]bool
 
-	ChatRoleSent       bool
-	ResponsesCreated   bool
-	ResponsesTextOpen  bool
-	ResponsesItemID    map[int]string
-	ResponsesItemAdded map[int]bool
+	ChatRoleSent         bool
+	ResponsesCreated     bool
+	ResponsesTextOpen    bool
+	ResponsesItemID      map[int]string
+	ResponsesItemAdded   map[int]bool
+	ResponsesSummarySeen bool
 }
 
 func NewStreamState(id, model string) *StreamState {

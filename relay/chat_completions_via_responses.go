@@ -1,10 +1,13 @@
 package relay
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 
@@ -16,6 +19,9 @@ import (
 // The admin chat_completions_to_responses_policy selects models; the channel
 // must actually speak Responses, otherwise the upgrade is skipped and the
 // request converts to the channel's native format instead.
+//
+// Requests that ask for visible thinking also upgrade: Responses summary is
+// the thinking text Chat / Claude / Gemini can display.
 //
 // The upgrade only changes TextPlan.Native. It does not rewrite RelayMode or
 // RequestURLPath; GetRequestURL and DoResponse read the plan.
@@ -40,7 +46,34 @@ func shouldUpgradeChatToResponses(info *relaycommon.RelayInfo) bool {
 	if !relaycommon.SpeaksResponsesNatively(info) {
 		return false
 	}
+	if requestWantsVisibleThinking(info) {
+		return true
+	}
 	return service.ShouldChatCompletionsUseResponsesGlobal(info.ChannelId, info.ChannelType, info.OriginModelName)
+}
+
+func requestWantsVisibleThinking(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.Request == nil {
+		return false
+	}
+	switch req := info.Request.(type) {
+	case *dto.GeneralOpenAIRequest:
+		return reasoning.IntentFromChatRequest(*req).WantsThoughts()
+	case *dto.ClaudeRequest:
+		if req.Thinking != nil {
+			switch strings.ToLower(strings.TrimSpace(req.Thinking.Type)) {
+			case "", "disabled", "none", "off":
+			default:
+				return true
+			}
+		}
+		return req.GetEfforts() != ""
+	case *dto.GeminiChatRequest:
+		cfg := req.GenerationConfig.ThinkingConfig
+		return cfg != nil && cfg.IncludeThoughts
+	default:
+		return false
+	}
 }
 
 func isChatSystemRole(role, preferred string) bool {

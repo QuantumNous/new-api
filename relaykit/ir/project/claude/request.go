@@ -167,6 +167,9 @@ func thinkFromClaude(req *dto.ClaudeRequest) *ir.ThinkConfig {
 				cfg.Mode = ir.ThinkEnabled
 			}
 		}
+		if cfg.Mode != ir.ThinkOff && cfg.Display == "" {
+			cfg.Display = "auto"
+		}
 	}
 	if effort := req.GetEfforts(); effort != "" {
 		cfg = ensure()

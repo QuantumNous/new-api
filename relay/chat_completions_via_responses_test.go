@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/stretchr/testify/assert"
@@ -70,6 +71,28 @@ func TestRecalcQuotaFromRatiosRejectsAllInvalidAdjustedRatios(t *testing.T) {
 	require.False(t, ok)
 	assert.Equal(t, 0, quota)
 	assert.True(t, info.PriceData.HasOtherRatio("duration"))
+}
+
+func TestShouldUpgradeChatToResponsesWhenClientWantsThinking(t *testing.T) {
+	openaiInfo := testRelayInfo(constant.APITypeOpenAI, "gpt-5.6-sol")
+	assert.False(t, shouldUpgradeChatToResponses(openaiInfo), "no thinking request stays Chat")
+
+	openaiInfo.Request = &dto.GeneralOpenAIRequest{
+		Model:           "gpt-5.6-sol",
+		ReasoningEffort: "high",
+	}
+	assert.True(t, shouldUpgradeChatToResponses(openaiInfo), "Chat reasoning_effort upgrades to Responses for summary thinking")
+
+	claudeInfo := testRelayInfo(constant.APITypeOpenAI, "gpt-5.6-sol")
+	claudeInfo.Request = &dto.ClaudeRequest{
+		Model:    "gpt-5.6-sol",
+		Thinking: &dto.Thinking{Type: "adaptive"},
+	}
+	assert.True(t, shouldUpgradeChatToResponses(claudeInfo))
+
+	deepseekInfo := testRelayInfo(constant.APITypeDeepSeek, "glm-5.2")
+	deepseekInfo.Request = &dto.GeneralOpenAIRequest{ReasoningEffort: "high"}
+	assert.False(t, shouldUpgradeChatToResponses(deepseekInfo), "Chat-only channels must not receive Responses")
 }
 
 func TestShouldUpgradeChatToResponsesRequiresResponsesNativeChannel(t *testing.T) {

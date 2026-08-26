@@ -15,7 +15,7 @@ import (
 const (
 	standardChatModel      = "glm-5.2"
 	standardResponsesModel = "gpt-5.6-sol"
-	standardClaudeModel    = "MiniMax-M3-福利"
+	standardClaudeModel    = "minimax-m3"
 	standardGeminiModel    = "gemini-3.7-flash"
 )
 

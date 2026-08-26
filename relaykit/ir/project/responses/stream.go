@@ -31,10 +31,14 @@ func FromStream(event *dto.ResponsesStreamResponse, state *ir.StreamState) ([]ir
 		events = append(events, opened...)
 		events = append(events, ir.Event{Kind: ir.EventBlockDelta, Index: idx, Delta: &ir.BlockDelta{Text: event.Delta}})
 		return events, nil
-	case "response.reasoning_summary_text.delta", "response.reasoning_text.delta":
+	case "response.reasoning_summary_text.delta":
+		if event.Delta == "" {
+			return events, nil
+		}
 		idx, opened := state.EnsureBlock(ir.BlockKindThink)
 		events = append(events, opened...)
 		events = append(events, ir.Event{Kind: ir.EventBlockDelta, Index: idx, Delta: &ir.BlockDelta{Text: event.Delta}})
+		state.ResponsesSummarySeen = true
 		return events, nil
 	case "response.output_item.added":
 		if event.Item == nil || event.Item.Type != "function_call" {
@@ -56,11 +60,17 @@ func FromStream(event *dto.ResponsesStreamResponse, state *ir.StreamState) ([]ir
 		events = append(events, ir.Event{Kind: ir.EventBlockDelta, Index: idx, Delta: &ir.BlockDelta{JSON: event.Delta}})
 		return events, nil
 	case "response.completed", "response.done", "response.incomplete":
-		if event.Response != nil && event.Response.Usage != nil {
-			state.SetUsage(ir.Usage{
-				Input:  event.Response.Usage.InputTokens,
-				Output: event.Response.Usage.OutputTokens,
-			})
+		if event.Response != nil {
+			if event.Response.Usage != nil {
+				state.SetUsage(ir.Usage{
+					Input:   event.Response.Usage.InputTokens,
+					Output:  event.Response.Usage.OutputTokens,
+					Thought: event.Response.Usage.CompletionTokenDetails.ReasoningTokens,
+				})
+			}
+			if !state.ResponsesSummarySeen {
+				events = append(events, summaryEventsFromOutput(state, event.Response.Output)...)
+			}
 		}
 		finish := ir.FinishStop
 		if event.Type == "response.incomplete" {
@@ -201,10 +211,17 @@ func ensureResponsesItem(state *ir.StreamState, index int, kind ir.BlockKind, bl
 	case ir.BlockKindToolUse:
 		item.Type = "function_call"
 		callID := itemID
-		if block != nil && block.ToolUse != nil && block.ToolUse.ID != "" {
-			callID = block.ToolUse.ID
-			item.Name = block.ToolUse.Name
+		name := ""
+		if block != nil && block.ToolUse != nil {
+			if block.ToolUse.ID != "" {
+				callID = block.ToolUse.ID
+			}
+			name = block.ToolUse.Name
 		}
+		if name == "" {
+			name = state.OpenName
+		}
+		item.Name = name
 		item.CallId = callID
 		item.ID = responsesFunctionItemID(callID)
 		if state.ResponsesItemID == nil {
@@ -246,6 +263,24 @@ func responsesStreamItemID(state *ir.StreamState, index int, kind ir.BlockKind, 
 	id := responsesOutputID(state.ID, prefix, index)
 	state.ResponsesItemID[index] = id
 	return id
+}
+
+func summaryEventsFromOutput(state *ir.StreamState, output []dto.ResponsesOutput) []ir.Event {
+	var events []ir.Event
+	for _, item := range output {
+		if item.Type != "reasoning" {
+			continue
+		}
+		text := reasoningSummaryText(item)
+		if text == "" {
+			continue
+		}
+		idx, opened := state.EnsureBlock(ir.BlockKindThink)
+		events = append(events, opened...)
+		events = append(events, ir.Event{Kind: ir.EventBlockDelta, Index: idx, Delta: &ir.BlockDelta{Text: text}})
+		state.ResponsesSummarySeen = true
+	}
+	return events
 }
 
 func firstNonEmpty(values ...string) string {

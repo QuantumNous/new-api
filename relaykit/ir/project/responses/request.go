@@ -3,6 +3,7 @@ package responses
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/ir"
@@ -178,6 +179,10 @@ func thinkFromResponses(req *dto.OpenAIResponsesRequest) *ir.ThinkConfig {
 	cfg := &ir.ThinkConfig{Mode: ir.ThinkEnabled}
 	if req.Reasoning != nil {
 		cfg.Level = req.Reasoning.Effort
+		cfg.Display = strings.TrimSpace(req.Reasoning.Summary)
+		if cfg.Display != "" && !strings.EqualFold(cfg.Display, "none") {
+			cfg.Include = boolPtr(true)
+		}
 	}
 	return cfg
 }
@@ -186,7 +191,31 @@ func thinkToResponses(cfg *ir.ThinkConfig, out *dto.OpenAIResponsesRequest) {
 	if cfg == nil || cfg.Mode == ir.ThinkOff {
 		return
 	}
-	out.Reasoning = &dto.Reasoning{Effort: cfg.Level}
+	out.Reasoning = &dto.Reasoning{
+		Effort:  cfg.Level,
+		Summary: responsesSummaryMode(cfg),
+	}
+	if out.Reasoning.Effort == "" && out.Reasoning.Summary == "" {
+		out.Reasoning = nil
+	}
+}
+
+func responsesSummaryMode(cfg *ir.ThinkConfig) string {
+	if cfg == nil {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(cfg.Display)) {
+	case "none", "off", "disabled":
+		return ""
+	case "auto", "concise", "detailed":
+		return strings.ToLower(strings.TrimSpace(cfg.Display))
+	default:
+		return ""
+	}
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }
 
 func instructionsText(raw json.RawMessage) string {

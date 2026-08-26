@@ -131,13 +131,16 @@ func blocksToGeminiParts(blocks []ir.Block) ([]dto.GeminiPart, error) {
 func blockToGeminiPart(block ir.Block) (*dto.GeminiPart, error) {
 	switch block.Kind {
 	case ir.BlockKindText:
-		if block.Text == nil {
-			return &dto.GeminiPart{}, nil
+		if block.Text == nil || block.Text.Text == "" {
+			return nil, nil
 		}
 		return &dto.GeminiPart{Text: block.Text.Text}, nil
 	case ir.BlockKindThink:
 		if block.Think == nil {
-			return &dto.GeminiPart{Thought: true}, nil
+			return nil, nil
+		}
+		if block.Think.Text == "" && len(block.Think.ProviderSig) == 0 {
+			return nil, nil
 		}
 		return &dto.GeminiPart{
 			Text:             block.Think.Text,
@@ -147,8 +150,8 @@ func blockToGeminiPart(block ir.Block) (*dto.GeminiPart, error) {
 	case ir.BlockKindMedia:
 		return mediaToGeminiPart(block.Media)
 	case ir.BlockKindToolUse:
-		if block.ToolUse == nil {
-			return &dto.GeminiPart{FunctionCall: &dto.FunctionCall{}}, nil
+		if block.ToolUse == nil || block.ToolUse.Name == "" {
+			return nil, nil
 		}
 		var args any
 		if jsonx.Present(block.ToolUse.Input) {
@@ -161,8 +164,8 @@ func blockToGeminiPart(block ir.Block) (*dto.GeminiPart, error) {
 			ThoughtSignature: json.RawMessage(block.ToolUse.ProviderSig),
 		}, nil
 	case ir.BlockKindToolResult:
-		if block.ToolResult == nil {
-			return &dto.GeminiPart{FunctionResponse: &dto.GeminiFunctionResponse{}}, nil
+		if block.ToolResult == nil || block.ToolResult.Name == "" {
+			return nil, nil
 		}
 		response := map[string]any{}
 		if len(block.ToolResult.Blocks) == 1 && block.ToolResult.Blocks[0].Kind == ir.BlockKindText && block.ToolResult.Blocks[0].Text != nil {

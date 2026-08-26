@@ -101,6 +101,55 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 	require.NotNil(t, geminiValue.UsageMetadata.BillingUsage.OpenAIUsage)
 }
 
+func TestConvertResponseResponsesSummaryIsThinkingForOtherFormats(t *testing.T) {
+	resp := &dto.OpenAIResponsesResponse{
+		ID:     "resp_1",
+		Model:  "gpt-test",
+		Status: []byte(`"completed"`),
+		Output: []dto.ResponsesOutput{
+			{
+				Type: "reasoning",
+				ID:   "rs_1",
+				Summary: []dto.ResponsesReasoningSummaryPart{
+					{Type: "summary_text", Text: "Clarifying parking fee cash flow"},
+				},
+			},
+			{
+				Type:    "message",
+				Role:    "assistant",
+				Status:  "completed",
+				Content: []dto.ResponsesOutputContent{{Type: "output_text", Text: "you gained 40"}},
+			},
+		},
+	}
+
+	toChat, err := ConvertResponse(nil, nil, types.RelayFormatOpenAI, resp)
+	require.NoError(t, err)
+	chat := toChat.Value.(*dto.OpenAITextResponse)
+	assert.Equal(t, "Clarifying parking fee cash flow", chat.Choices[0].Message.GetReasoningContent())
+	assert.Equal(t, "you gained 40", chat.Choices[0].Message.StringContent())
+
+	toClaude, err := ConvertResponse(nil, nil, types.RelayFormatClaude, resp)
+	require.NoError(t, err)
+	claude := toClaude.Value.(*dto.ClaudeResponse)
+	require.GreaterOrEqual(t, len(claude.Content), 2)
+	assert.Equal(t, "thinking", claude.Content[0].Type)
+	require.NotNil(t, claude.Content[0].Thinking)
+	assert.Equal(t, "Clarifying parking fee cash flow", *claude.Content[0].Thinking)
+	assert.Equal(t, "text", claude.Content[1].Type)
+
+	toGemini, err := ConvertResponse(nil, &convmeta.Values{ChannelMetaAttached: true, UpstreamModelName: "gemini-test"}, types.RelayFormatGemini, resp)
+	require.NoError(t, err)
+	gemini := toGemini.Value.(*dto.GeminiChatResponse)
+	require.NotEmpty(t, gemini.Candidates)
+	parts := gemini.Candidates[0].Content.Parts
+	require.GreaterOrEqual(t, len(parts), 2)
+	assert.True(t, parts[0].Thought)
+	assert.Equal(t, "Clarifying parking fee cash flow", parts[0].Text)
+	assert.False(t, parts[1].Thought)
+	assert.Equal(t, "you gained 40", parts[1].Text)
+}
+
 func TestConvertResponseMultiHopConverters(t *testing.T) {
 	responses := textRegistryResponsesResponse()
 

@@ -104,18 +104,27 @@ func ToRequest(req *ir.Request) (*dto.GeminiChatRequest, error) {
 	}
 	var contents []dto.GeminiChatContent
 	for _, message := range req.Messages {
-		parts, err := blocksToGeminiParts(message.Blocks)
-		if err != nil {
-			return nil, err
+		groups := ir.PartitionByToolResult(message.Blocks)
+		if len(groups) == 0 {
+			groups = [][]ir.Block{message.Blocks}
 		}
-		if message.Role == ir.RoleSystem {
-			out.SystemInstructions = &dto.GeminiChatContent{Parts: parts}
-			continue
+		for _, group := range groups {
+			parts, err := blocksToGeminiParts(group)
+			if err != nil {
+				return nil, err
+			}
+			if len(parts) == 0 {
+				continue
+			}
+			if message.Role == ir.RoleSystem {
+				out.SystemInstructions = &dto.GeminiChatContent{Parts: parts}
+				continue
+			}
+			contents = append(contents, dto.GeminiChatContent{
+				Role:  irRoleToGemini(message.Role),
+				Parts: parts,
+			})
 		}
-		contents = append(contents, dto.GeminiChatContent{
-			Role:  irRoleToGemini(message.Role),
-			Parts: parts,
-		})
 	}
 	out.Contents = contents
 	tools, err := toolsToGemini(req.Tools)
@@ -270,6 +279,9 @@ func thinkFromGemini(cfg *dto.GeminiThinkingConfig) *ir.ThinkConfig {
 		out.Mode = ir.ThinkOff
 	} else {
 		out.Mode = ir.ThinkEnabled
+		if cfg.IncludeThoughts && out.Display == "" {
+			out.Display = "auto"
+		}
 	}
 	return out
 }

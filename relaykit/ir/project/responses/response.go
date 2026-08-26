@@ -3,6 +3,7 @@ package responses
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/ir"
@@ -87,6 +88,22 @@ func ToResponse(resp *ir.Response) (*dto.OpenAIResponsesResponse, error) {
 	return out, nil
 }
 
+func reasoningSummaryText(item dto.ResponsesOutput) string {
+	var b strings.Builder
+	for _, part := range item.Summary {
+		b.WriteString(part.Text)
+	}
+	if b.Len() > 0 {
+		return b.String()
+	}
+	for _, part := range item.Content {
+		if part.Type == "summary_text" {
+			b.WriteString(part.Text)
+		}
+	}
+	return b.String()
+}
+
 func responsesOutputID(responseID, prefix string, index int) string {
 	base := responseID
 	if base == "" {
@@ -106,17 +123,9 @@ func blocksFromResponsesOutput(item dto.ResponsesOutput) ([]ir.Block, error) {
 	case "function_call":
 		return []ir.Block{ir.ToolUse(item.CallId, item.Name, item.Arguments)}, nil
 	case "reasoning":
-		var text string
-		for _, part := range item.Summary {
-			text += part.Text
-		}
+		text := reasoningSummaryText(item)
 		if text == "" {
-			for _, part := range item.Content {
-				text += part.Text
-			}
-		}
-		if text == "" {
-			text = item.Result
+			return nil, nil
 		}
 		return []ir.Block{ir.Think(text, "")}, nil
 	default:

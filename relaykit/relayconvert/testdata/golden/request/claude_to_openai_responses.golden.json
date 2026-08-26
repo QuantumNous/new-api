@@ -39,7 +39,9 @@
   ],
   "instructions": "You are a helpful assistant.",
   "max_output_tokens": 1024,
-  "reasoning": {},
+  "reasoning": {
+    "summary": "auto"
+  },
   "stream": true,
   "tools": [
     {

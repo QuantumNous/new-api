@@ -103,11 +103,11 @@ func ToRequest(req *ir.Request) (*dto.GeneralOpenAIRequest, error) {
 	out.Tools = tools
 	out.WebSearchOptions = search
 	for _, message := range req.Messages {
-		chatMsg, err := blocksToChatMessage(message)
+		chatMsgs, err := blocksToChatMessages(message)
 		if err != nil {
 			return nil, err
 		}
-		out.Messages = append(out.Messages, chatMsg)
+		out.Messages = append(out.Messages, chatMsgs...)
 	}
 	if req.Extensions.Chat != nil {
 		if err := jsonx.MergeInto(out, req.Extensions.Chat.Raw); err != nil {
@@ -186,6 +186,9 @@ func thinkFromChat(req dto.GeneralOpenAIRequest) *ir.ThinkConfig {
 		return cfg
 	}
 	cfg.Mode = ir.ThinkEnabled
+	if intent.Include {
+		cfg.Display = "auto"
+	}
 	return cfg
 }
 
