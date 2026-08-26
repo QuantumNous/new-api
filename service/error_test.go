@@ -158,6 +158,7 @@ func TestScrubWhitelabelError(t *testing.T) {
 	const leak = "GenerateOpenAIRequest.max_tokens of type x not present in request id"
 	const brand = "blockrun upstream connection timed out"
 	const benign = "Rate limit exceeded, please slow down"
+	const allowlisted = "messages.19.content.0: Invalid signature in thinking block"
 
 	newUpstreamErr := func(oe types.OpenAIError) *types.NewAPIError {
 		return types.WithOpenAIError(oe, http.StatusInternalServerError)
@@ -182,6 +183,74 @@ func TestScrubWhitelabelError(t *testing.T) {
 		require.Equal(t, benign, e.ToOpenAIError().Message)
 	})
 
+	t.Run("allowlisted thinking block validation passes through with a clean envelope", func(t *testing.T) {
+		for _, channelType := range []int{constant.ChannelTypeBlockRun, constant.ChannelTypeCopilot} {
+			e := newUpstreamErr(types.OpenAIError{
+				Message:  allowlisted,
+				Type:     "invalid_request_error",
+				Param:    "messages",
+				Code:     "invalid_request",
+				Metadata: json.RawMessage(`{"retryable":false}`),
+			})
+			ScrubWhitelabelError(context.Background(), e, channelType)
+			oe := e.ToOpenAIError()
+			require.Equal(t, allowlisted, oe.Message)
+			require.Equal(t, string(types.ErrorTypeUpstreamError), oe.Type)
+			require.Equal(t, string(types.ErrorTypeUpstreamError), fmt.Sprintf("%v", oe.Code))
+			require.Empty(t, oe.Param)
+			require.Empty(t, oe.Metadata)
+			claude := e.ToClaudeError()
+			require.Equal(t, allowlisted, claude.Message)
+			require.Equal(t, string(types.ErrorTypeUpstreamError), claude.Type)
+		}
+	})
+
+	t.Run("allowlisted Claude envelope keeps the message on Claude rendering", func(t *testing.T) {
+		e := types.WithClaudeError(types.ClaudeError{
+			Message: allowlisted,
+			Type:    "invalid_request_error",
+		}, http.StatusBadRequest)
+		ScrubWhitelabelError(context.Background(), e, constant.ChannelTypeCopilot)
+		claude := e.ToClaudeError()
+		require.Equal(t, allowlisted, claude.Message)
+		require.Equal(t, string(types.ErrorTypeUpstreamError), claude.Type)
+	})
+
+	t.Run("allowlisted message with a leaking sibling field is scrubbed", func(t *testing.T) {
+		cases := []types.OpenAIError{
+			{
+				Message: allowlisted,
+				Type:    "invalid_request_error",
+				Param:   "GenerateOpenAIRequest.max_tokens",
+				Code:    "invalid_request",
+			},
+			{
+				Message:  allowlisted,
+				Type:     "invalid_request_error",
+				Code:     "invalid_request",
+				Metadata: json.RawMessage(`{"provider":"blockrun"}`),
+			},
+		}
+		for _, upstreamErr := range cases {
+			e := newUpstreamErr(upstreamErr)
+			ScrubWhitelabelError(context.Background(), e, constant.ChannelTypeBlockRun)
+			require.Equal(t, whitelabelGenericErrorMessage, e.ToOpenAIError().Message)
+			require.NotContains(t, e.ToOpenAIError().Message, allowlisted)
+		}
+	})
+
+	t.Run("allowlisted format is strict", func(t *testing.T) {
+		for _, message := range []string{
+			"messages.x.content.0: Invalid signature in thinking block",
+			"messages.19.content.0: Invalid signature in thinking block (provider details)",
+			"messages.19.content.0 invalid signature in thinking block",
+		} {
+			e := plain(message)
+			ScrubWhitelabelError(context.Background(), e, constant.ChannelTypeBlockRun)
+			require.Equal(t, message, e.ToOpenAIError().Message)
+		}
+	})
+
 	t.Run("copilot branded upstream is scrubbed but local unsupported stays clear", func(t *testing.T) {
 		branded := plain("GitHub Copilot upstream api.githubcopilot.com rejected the request")
 		ScrubWhitelabelError(context.Background(), branded, constant.ChannelTypeCopilot)
@@ -196,6 +265,17 @@ func TestScrubWhitelabelError(t *testing.T) {
 		e := plain(leak)
 		ScrubWhitelabelError(context.Background(), e, constant.ChannelTypeOpenAI)
 		require.Equal(t, leak, e.ToOpenAIError().Message)
+
+		allowlistedErr := newUpstreamErr(types.OpenAIError{
+			Message:  allowlisted,
+			Type:     "invalid_request_error",
+			Param:    "messages",
+			Code:     "invalid_request",
+			Metadata: json.RawMessage(`{"provider":"upstream"}`),
+		})
+		ScrubWhitelabelError(context.Background(), allowlistedErr, constant.ChannelTypeOpenAI)
+		require.Equal(t, allowlisted+` ({"provider":"upstream"})`, allowlistedErr.ToOpenAIError().Message)
+		require.Equal(t, "messages", allowlistedErr.ToOpenAIError().Param)
 	})
 
 	t.Run("async video/seedance channels are out of sync scope", func(t *testing.T) {

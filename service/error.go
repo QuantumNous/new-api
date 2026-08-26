@@ -51,6 +51,14 @@ var internalLeakMarkers = []string{
 	"runtime error",
 }
 
+// safeBusinessErrorPattern matches the one upstream validation error that is
+// safe and useful to expose on the synchronous whitelabel channels. Keep this
+// deliberately strict: the message must identify a numeric message/content
+// location and use the exact provider-neutral validation text. Do not broaden
+// this to a substring match, since upstream-controlled fields can otherwise
+// smuggle branding or implementation details alongside the useful message.
+var safeBusinessErrorPattern = regexp.MustCompile(`^messages\.[0-9]+\.content\.[0-9]+: Invalid signature in thinking block$`)
+
 // whitelabelGenericErrorMessage is the sanitized client-facing replacement.
 const whitelabelGenericErrorMessage = "The upstream provider returned an error. Please retry; if it persists, contact support with your request id."
 
@@ -67,6 +75,54 @@ func looksLikeInternalLeak(msg string) bool {
 	return false
 }
 
+func allowlistedBusinessErrorMessage(newApiErr *types.NewAPIError) (string, bool) {
+	if newApiErr == nil {
+		return "", false
+	}
+	var message string
+	switch re := newApiErr.RelayError.(type) {
+	case types.OpenAIError:
+		message = re.Message
+		// WithOpenAIError appends Metadata to the typed message for legacy
+		// rendering. Remove only that exact, locally-added suffix before
+		// applying the strict business-error match.
+		if len(re.Metadata) > 0 {
+			message = strings.TrimSuffix(message, " ("+string(re.Metadata)+")")
+		}
+	case types.ClaudeError:
+		message = re.Message
+	default:
+		return "", false
+	}
+	return message, safeBusinessErrorPattern.MatchString(message)
+}
+
+// preserveAllowlistedBusinessError keeps the approved message while removing
+// upstream-controlled envelope fields that are not needed by the client. This
+// is intentionally separate from OverrideMessage: the latter replaces the
+// message with the generic whitelabel text when a leak is detected.
+func preserveAllowlistedBusinessError(newApiErr *types.NewAPIError, message string) {
+	if newApiErr == nil {
+		return
+	}
+	newApiErr.SetMessage(message)
+	newApiErr.Metadata = nil
+	const genericType = string(types.ErrorTypeUpstreamError)
+	switch re := newApiErr.RelayError.(type) {
+	case types.OpenAIError:
+		re.Message = message
+		re.Param = ""
+		re.Metadata = nil
+		re.Type = genericType
+		re.Code = genericType
+		newApiErr.RelayError = re
+	case types.ClaudeError:
+		re.Message = message
+		re.Type = genericType
+		newApiErr.RelayError = re
+	}
+}
+
 // ScrubWhitelabelError replaces the client-facing message of an upstream error
 // on a whitelabel channel when that message leaks provider branding or internal
 // implementation details. The full original text is logged server-side so
@@ -80,6 +136,7 @@ func ScrubWhitelabelError(ctx context.Context, newApiErr *types.NewAPIError, cha
 	if _, ok := whitelabelSyncChannels[channelType]; !ok {
 		return
 	}
+	allowlistedMessage, allowlisted := allowlistedBusinessErrorMessage(newApiErr)
 	// Inspect the full upstream-controlled surface (message + Type/Param/Code/
 	// Metadata), not just the message: a leak confined to a sibling field would
 	// otherwise evade detection.
@@ -87,7 +144,20 @@ func ScrubWhitelabelError(ctx context.Context, newApiErr *types.NewAPIError, cha
 	if surface == "" {
 		return
 	}
-	if !taskcommon.ContainsBrandKeyword(surface) && !looksLikeInternalLeak(surface) && !isCopilotBrandLeak(channelType, surface) {
+	containsLeak := taskcommon.ContainsBrandKeyword(surface) || looksLikeInternalLeak(surface) || isCopilotBrandLeak(channelType, surface)
+	if allowlisted {
+		if containsLeak {
+			logger.LogError(ctx, fmt.Sprintf("whitelabel error scrub (channel_type=%d): %s", channelType, common.LocalLogPreview(surface)))
+			newApiErr.OverrideMessage(whitelabelGenericErrorMessage)
+			return
+		}
+		// Normalize the envelope even when no leak was detected. Metadata is
+		// appended to Err by WithOpenAIError and would otherwise be exposed on
+		// the Claude rendering path.
+		preserveAllowlistedBusinessError(newApiErr, allowlistedMessage)
+		return
+	}
+	if !containsLeak {
 		return
 	}
 	logger.LogError(ctx, fmt.Sprintf("whitelabel error scrub (channel_type=%d): %s", channelType, common.LocalLogPreview(surface)))
