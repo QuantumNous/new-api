@@ -32,6 +32,7 @@ export type ModelsDirectoryTableCopy = {
   /** Supplying these opts the row into the extra directory columns. */
   colDiscount?: string;
   colContext?: string;
+  contextUnavailable?: string;
   colInput?: string;
   colOutput?: string;
 };
@@ -112,6 +113,7 @@ export function ModelsDirectoryTable(props: Props) {
               perf={summary[row.name]}
               trend={trends[row.name] ?? []}
               healthLabel={props.copy.colHealth}
+              contextUnavailable={props.copy.contextUnavailable}
               showDiscount={props.copy.colDiscount != null}
               showContext={props.copy.colContext != null}
               showInput={props.copy.colInput != null}
@@ -133,6 +135,7 @@ function DirectoryRow(props: {
   perf: HomePerfSummary | undefined;
   trend: HomeTrendPoint[];
   healthLabel: string;
+  contextUnavailable?: string;
   showDiscount: boolean;
   showContext: boolean;
   showInput: boolean;
@@ -247,7 +250,15 @@ function DirectoryRow(props: {
       ) : null}
       {props.showContext ? (
         <td className="px-2 py-3 text-right font-mono text-[12px] 2xl:px-3 2xl:text-[13px]">
-          {contextLabel ?? <span className="text-muted-foreground/60">—</span>}
+          {contextLabel ?? (
+            <span
+              className="text-muted-foreground/60"
+              title={props.contextUnavailable}
+              aria-label={props.contextUnavailable}
+            >
+              —
+            </span>
+          )}
         </td>
       ) : null}
       <td className="px-2 py-3 text-right font-mono text-[12px] 2xl:px-3 2xl:text-[13px]">{formatLatencyMs(latencyMs)}</td>

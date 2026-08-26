@@ -148,8 +148,10 @@ export const FEATURED_SLIDES: FeaturedSlide[] = [
     modelName: "gpt-5.6-sol",
     displayName: "GPT-5.6 Sol",
     vendor: "OpenAI",
-    image: "https://cdn.shulex-voc.com/flatkey/models-featured/openai.jpg",
-    video: "https://cdn.shulex-voc.com/flatkey/models-featured/openai.mp4",
+    // Dedicated artwork supplied for the GPT-5.6 Sol banner. Keep this slide
+    // image-only so the artwork remains the stable visual identity instead of
+    // switching to the generic OpenAI background video.
+    image: "/assets/models-featured/gpt-5.6-sol.png",
     tags: {
       en: ["Chat", "Reasoning", "Tool Use"],
       zh: ["对话", "推理", "工具调用"],
