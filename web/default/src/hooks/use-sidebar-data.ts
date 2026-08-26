@@ -134,7 +134,7 @@ export function buildSidebarData(
         title: t('Personal'),
         items: [
           {
-            title: t('Billing'),
+            title: t('Wallet'),
             url: '/wallet',
             icon: Wallet,
           },

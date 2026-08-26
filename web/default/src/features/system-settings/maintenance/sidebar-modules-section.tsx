@@ -131,7 +131,7 @@ export function SidebarModulesSection({
     },
     personal: {
       topup: {
-        title: t('Billing'),
+        title: t('Wallet'),
         description: t('Top up balance and view billing history.'),
       },
       personal: {

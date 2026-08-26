@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { Check, Copy, Download, Edit, RefreshCw, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { Button } from '@/components/ui/button'
 import {
@@ -90,17 +89,12 @@ export function MessageActions({
 
   const visibilityClass = alwaysVisible
     ? 'opacity-100'
-    : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 max-md:pointer-events-auto max-md:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'
+    : 'opacity-0 group-hover:opacity-100 max-md:opacity-100'
 
   return (
     <TooltipProvider delay={300}>
       <div
-        className={cn(
-          'border-border/60 bg-background/90 w-fit items-center gap-0.5 rounded-full border p-1 shadow-sm backdrop-blur-sm transition-[opacity,transform] duration-150',
-          'flex',
-          visibilityClass,
-          className
-        )}
+        className={`flex items-center gap-0.5 transition-opacity ${visibilityClass} ${className}`}
       >
         {/* Generated image downloads */}
         {downloads.map((download) => (
@@ -109,7 +103,7 @@ export function MessageActions({
               render={
                 <Button
                   variant='ghost'
-                  size='icon-sm'
+                  size='icon'
                   className={MESSAGE_ACTION_BUTTON_STYLES.BASE}
                   render={
                     <a
@@ -121,7 +115,7 @@ export function MessageActions({
                 />
               }
             >
-              <Download aria-hidden='true' />
+              <Download className={MESSAGE_ACTION_BUTTON_STYLES.ICON} />
             </TooltipTrigger>
             <TooltipContent>
               <p>{t('Download')}</p>

@@ -17,13 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
-import { Flame, UserPlus } from 'lucide-react'
+import { Plus, UserPlus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -95,6 +96,12 @@ export function BoostBalanceContent(props: {
         </Badge>
       </div>
 
+      <DialogDescription>
+        {t(
+          'Invite friends to get high-value vouchers. Top-up discounts are available for a limited time.'
+        )}
+      </DialogDescription>
+
       <div className='grid gap-2 sm:grid-cols-2'>
         <Button
           variant='outline'
@@ -102,7 +109,7 @@ export function BoostBalanceContent(props: {
           onClick={props.onNavigate}
           render={<Link to={BOOST_TOPUP_ROUTE} />}
         >
-          <Flame data-icon='inline-start' />
+          <Plus data-icon='inline-start' />
           {t('Quick top-up')}
         </Button>
         <Button
@@ -112,7 +119,7 @@ export function BoostBalanceContent(props: {
           render={<Link to={BOOST_EARN_ROUTE} />}
         >
           <UserPlus data-icon='inline-start' />
-          {t('Invite a friend + 30$')}
+          {t('Earn credits')}
         </Button>
       </div>
     </>

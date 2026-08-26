@@ -132,7 +132,7 @@ export function PlaygroundChat({
                       from={message.from}
                       key={`${message.key}-${version.id}-${versionIndex}`}
                     >
-                      <div className='flex w-full min-w-0 flex-1 basis-full flex-col items-start py-2 group-[.is-user]:items-end'>
+                      <div className='w-full min-w-0 flex-1 basis-full py-1'>
                         {isEditing(message.key) ? (
                           <div className='space-y-2'>
                             <Textarea

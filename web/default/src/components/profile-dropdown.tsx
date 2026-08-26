@@ -106,7 +106,7 @@ export function ProfileDropdown() {
 
           <DropdownMenuItem onClick={() => navigate({ to: '/wallet' })}>
             <Wallet className='size-4' />
-            {t('Billing')}
+            {t('Wallet')}
           </DropdownMenuItem>
 
           {isSuperAdmin && (

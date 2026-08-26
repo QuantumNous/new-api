@@ -93,20 +93,6 @@ describe('buildSidebarData', () => {
     expect(inviteItem?.badge).toBe('Earn More Credits!')
   })
 
-  test('uses Billing for the wallet navigation entry', () => {
-    const personalGroup = buildSidebarData(t).navGroups.find(
-      (group) => group.id === 'personal'
-    )
-    const billingItem = personalGroup?.items.find(
-      (item) => 'url' in item && item.url === '/wallet'
-    )
-
-    expect(billingItem).toMatchObject({
-      title: 'Billing',
-      url: '/wallet',
-    })
-  })
-
   test('keeps the badge language independent of the title translation', () => {
     const translateToChinese = ((key: string) =>
       key === 'Invite' ? '邀请' : key) as TFunction
