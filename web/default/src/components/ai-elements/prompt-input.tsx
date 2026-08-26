@@ -291,6 +291,7 @@ export function PromptInputAttachment({
   const mediaType =
     data.mediaType?.startsWith('image/') && data.url ? 'image' : 'file'
   const isImage = mediaType === 'image'
+  const isVideo = data.mediaType?.startsWith('video/') && Boolean(data.url)
 
   const attachmentLabel = filename || (isImage ? 'Image' : 'Attachment')
 
@@ -315,6 +316,17 @@ export function PromptInputAttachment({
                 alt={filename || 'attachment'}
                 className='size-5 object-cover'
                 height={20}
+                src={data.url}
+                width={20}
+              />
+            ) : isVideo ? (
+              <video
+                aria-label={filename || 'video attachment'}
+                className='size-5 object-cover'
+                height={20}
+                muted
+                playsInline
+                preload='metadata'
                 src={data.url}
                 width={20}
               />
@@ -343,15 +355,27 @@ export function PromptInputAttachment({
       </PromptInputHoverCardTrigger>
       <PromptInputHoverCardContent className='w-auto p-2'>
         <div className='w-auto space-y-3'>
-          {isImage && (
+          {(isImage || isVideo) && (
             <div className='flex max-h-96 w-96 items-center justify-center overflow-hidden rounded-md border'>
-              <img
-                alt={filename || 'attachment preview'}
-                className='max-h-full max-w-full object-contain'
-                height={384}
-                src={data.url}
-                width={448}
-              />
+              {isImage ? (
+                <img
+                  alt={filename || 'attachment preview'}
+                  className='max-h-full max-w-full object-contain'
+                  height={384}
+                  src={data.url}
+                  width={448}
+                />
+              ) : (
+                <video
+                  aria-label={filename || 'video attachment preview'}
+                  className='max-h-full max-w-full object-contain'
+                  controls
+                  muted
+                  playsInline
+                  preload='metadata'
+                  src={data.url}
+                />
+              )}
             </div>
           )}
           <div className='flex items-center gap-2.5'>

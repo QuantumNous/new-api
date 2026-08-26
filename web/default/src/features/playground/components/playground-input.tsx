@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
+  useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -153,6 +155,47 @@ function PlaygroundAttachmentPreviews() {
   )
 }
 
+function PlaygroundPendingFileThumbnail({ file }: { file: File }) {
+  const url = useMemo(() => URL.createObjectURL(file), [file])
+
+  useEffect(() => {
+    return () => URL.revokeObjectURL(url)
+  }, [url])
+
+  if (file.type.startsWith('image/')) {
+    return (
+      <img
+        alt={file.name}
+        className='size-10 rounded-md object-cover'
+        height={40}
+        src={url}
+        width={40}
+      />
+    )
+  }
+
+  if (file.type.startsWith('video/')) {
+    return (
+      <video
+        aria-label={file.name}
+        className='size-10 rounded-md object-cover'
+        height={40}
+        muted
+        playsInline
+        preload='metadata'
+        src={url}
+        width={40}
+      />
+    )
+  }
+
+  return (
+    <span className='bg-muted text-muted-foreground flex size-10 items-center justify-center rounded-md'>
+      <PaperclipIcon className='size-4' />
+    </span>
+  )
+}
+
 type AttachmentDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -269,10 +312,14 @@ function PlaygroundAttachmentDialog({
             {t('Choose files')}
           </Button>
           {pendingFiles.length > 0 && (
-            <div className='text-muted-foreground w-full space-y-1 text-left text-xs'>
+            <div className='flex w-full flex-wrap justify-center gap-2 pt-2'>
               {pendingFiles.map((file, index) => (
-                <div className='truncate' key={`${file.name}-${index}`}>
-                  {file.name}
+                <div
+                  className='bg-muted/50 flex max-w-48 items-center gap-2 rounded-lg border p-1.5 text-left'
+                  key={`${file.name}-${file.lastModified}-${index}`}
+                >
+                  <PlaygroundPendingFileThumbnail file={file} />
+                  <span className='truncate text-xs'>{file.name}</span>
                 </div>
               ))}
             </div>
