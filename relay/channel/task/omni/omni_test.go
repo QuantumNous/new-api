@@ -14,6 +14,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	appI18n "github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
@@ -131,6 +132,7 @@ func TestBuildRequestBodyUsesNestedUserInputForReferenceVideo(t *testing.T) {
 }
 
 func TestValidateReferenceVideoDurationBeforeSubmission(t *testing.T) {
+	require.NoError(t, appI18n.Init())
 	tests := []struct {
 		name    string
 		videos  []string
@@ -143,7 +145,7 @@ func TestValidateReferenceVideoDurationBeforeSubmission(t *testing.T) {
 		{
 			name:    "thirty seconds is rejected",
 			videos:  []string{"data:video/mp4;base64," + base64.StdEncoding.EncodeToString(testMP4(30000))},
-			wantErr: "reference video duration 30.000 seconds exceeds the 10-second maximum",
+			wantErr: "Reference video duration is 30.000 seconds, which exceeds the 10-second limit",
 		},
 		{
 			name: "multiple videos are rejected",
@@ -169,7 +171,45 @@ func TestValidateReferenceVideoDurationBeforeSubmission(t *testing.T) {
 	}
 }
 
+func TestReferenceVideoDurationErrorUsesRequestLanguage(t *testing.T) {
+	require.NoError(t, appI18n.Init())
+	video := "data:video/mp4;base64," + base64.StdEncoding.EncodeToString(testMP4(10056))
+	tests := []struct {
+		name     string
+		language string
+		expected string
+	}{
+		{
+			name:     "simplified Chinese",
+			language: "zh-CN",
+			expected: "参考视频时长为 10.056 秒，超过 gemini-omni-flash-preview 的 10 秒上限。",
+		},
+		{
+			name:     "traditional Chinese",
+			language: "zh-TW",
+			expected: "參考影片時長為 10.056 秒，超過 gemini-omni-flash-preview 的 10 秒上限。",
+		},
+		{
+			name:     "English",
+			language: "en",
+			expected: "Reference video duration is 10.056 seconds, which exceeds the 10-second limit for gemini-omni-flash-preview.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			context := newTaskContext(t, relaycommon.TaskSubmitReq{Prompt: "edit", Video: video, Duration: 3})
+			context.Request.Header.Set("Accept-Language", tt.language)
+
+			err := ValidateRequest(context, &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}})
+
+			require.EqualError(t, err, tt.expected)
+		})
+	}
+}
+
 func TestValidateMultipartReferenceVideoDurationBeforeSubmission(t *testing.T) {
+	require.NoError(t, appI18n.Init())
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	header := make(textproto.MIMEHeader)
@@ -190,7 +230,7 @@ func TestValidateMultipartReferenceVideoDurationBeforeSubmission(t *testing.T) {
 	err = ValidateRequest(context, &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "reference video duration 30.000 seconds exceeds the 10-second maximum")
+	assert.Contains(t, err.Error(), "Reference video duration is 30.000 seconds, which exceeds the 10-second limit")
 }
 
 func TestValidateRequestEnforcesOmniBounds(t *testing.T) {

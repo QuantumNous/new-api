@@ -186,7 +186,7 @@ func ValidateRequest(c *gin.Context, info *relaycommon.RelayInfo) error {
 	}
 	referenceVideo, err := prepareReferenceVideo(c, req)
 	if err != nil {
-		return err
+		return localizeReferenceVideoError(c, err)
 	}
 	if (imageCount > 0 || referenceVideo.Part != nil) && info != nil {
 		info.Action = constant.TaskActionGenerate
@@ -215,7 +215,7 @@ func BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, e
 	}
 	referenceVideo, err := prepareReferenceVideo(c, req)
 	if err != nil {
-		return nil, err
+		return nil, localizeReferenceVideoError(c, err)
 	}
 	if referenceVideo.Part != nil {
 		content := []inputPart{*referenceVideo.Part}

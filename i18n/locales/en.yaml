@@ -203,6 +203,7 @@ twofa.code_invalid: "Verification code or backup code is incorrect"
 # Rate limit messages
 rate_limit.reached: "You have reached the request limit: maximum {{.Max}} requests in {{.Minutes}} minutes"
 rate_limit.total_reached: "You have reached the total request limit: maximum {{.Max}} requests in {{.Minutes}} minutes, including failed attempts"
+video.omni.reference_duration_exceeded: "Reference video duration is {{.Duration}} seconds, which exceeds the {{.Max}}-second limit for {{.Model}}."
 
 # Setting messages
 setting.invalid_type: "Invalid warning type"

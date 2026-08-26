@@ -3,13 +3,16 @@ package omni
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"strings"
 
-	"github.com/QuantumNous/new-api/relay/common"
+	rootcommon "github.com/QuantumNous/new-api/common"
+	appI18n "github.com/QuantumNous/new-api/i18n"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/abema/go-mp4"
 	"github.com/gin-gonic/gin"
@@ -27,12 +30,38 @@ type preparedReferenceVideo struct {
 	DurationSeconds float64
 }
 
+type referenceVideoDurationError struct {
+	DurationSeconds float64
+	MaxSeconds      int
+	Model           string
+}
+
+func (e *referenceVideoDurationError) Error() string {
+	return fmt.Sprintf("reference video duration %.3f seconds exceeds the %d-second maximum for %s", e.DurationSeconds, e.MaxSeconds, e.Model)
+}
+
+func localizeReferenceVideoError(c *gin.Context, err error) error {
+	var durationErr *referenceVideoDurationError
+	if !errors.As(err, &durationErr) {
+		return err
+	}
+	message := rootcommon.TranslateMessage(c, appI18n.MsgOmniReferenceVideoDurationExceeded, map[string]any{
+		"Duration": fmt.Sprintf("%.3f", durationErr.DurationSeconds),
+		"Max":      durationErr.MaxSeconds,
+		"Model":    durationErr.Model,
+	})
+	if message == appI18n.MsgOmniReferenceVideoDurationExceeded {
+		return err
+	}
+	return errors.New(message)
+}
+
 var supportedVideoMimeTypes = map[string]struct{}{
 	"video/mp4":       {},
 	"video/quicktime": {},
 }
 
-func prepareReferenceVideo(c *gin.Context, req common.TaskSubmitReq) (*preparedReferenceVideo, error) {
+func prepareReferenceVideo(c *gin.Context, req relaycommon.TaskSubmitReq) (*preparedReferenceVideo, error) {
 	if cached, ok := c.Get(preparedReferenceVideoKey); ok {
 		if prepared, ok := cached.(*preparedReferenceVideo); ok {
 			return prepared, nil
@@ -181,7 +210,11 @@ func newVideoPart(mimeType string, data []byte, encoded string) (inputPart, floa
 	}
 	duration := float64(probe.Duration) / float64(probe.Timescale)
 	if duration > MaxDurationSeconds {
-		return inputPart{}, 0, fmt.Errorf("reference video duration %.3f seconds exceeds the %d-second maximum for %s", duration, MaxDurationSeconds, ModelGeminiOmniFlashPreview)
+		return inputPart{}, 0, &referenceVideoDurationError{
+			DurationSeconds: duration,
+			MaxSeconds:      MaxDurationSeconds,
+			Model:           ModelGeminiOmniFlashPreview,
+		}
 	}
 	if encoded == "" {
 		encoded = base64.StdEncoding.EncodeToString(data)
