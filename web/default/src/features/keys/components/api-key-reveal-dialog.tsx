@@ -103,13 +103,14 @@ export function ApiKeyRevealDialog({
           </p>
 
           <p className='text-muted-foreground text-sm'>
-            {t('You can use it with OpenAI-compatible apps, or')}{' '}
+            {t('Your new key was created successfully. Click')}{' '}
             <Link
-              to='/quickstart'
+              to='/dashboard/$section'
+              params={{ section: 'overview' }}
               className='text-foreground font-medium underline underline-offset-3'
               onClick={() => onOpenChange(false)}
             >
-              {t('your own code')}
+              {t('Quick start')}
             </Link>
             .
           </p>
