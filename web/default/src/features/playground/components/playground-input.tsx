@@ -222,7 +222,15 @@ function PlaygroundAttachmentDialog({
     // Clear before opening as well as after change so selecting the same file
     // again still emits a change event (and allows incremental selection).
     input.value = ''
-    input.click()
+    const picker = input as HTMLInputElement & {
+      showPicker?: () => void
+    }
+    try {
+      if (typeof picker.showPicker === 'function') picker.showPicker()
+      else input.click()
+    } catch {
+      input.click()
+    }
   }
 
   const stageFiles = (files: File[] | FileList) => {
@@ -295,7 +303,7 @@ function PlaygroundAttachmentDialog({
         >
           <input
             accept={accept}
-            className='hidden'
+            className='sr-only'
             multiple
             onChange={handleFileSelection}
             ref={fileInputRef}
