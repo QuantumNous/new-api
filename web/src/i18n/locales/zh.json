@@ -143,7 +143,7 @@
     "Account Info": "账户信息",
     "Account used when authenticating with the SMTP server": "用于与 SMTP 服务器进行身份验证的账户",
     "Are you sure you want to delete vendor \"{{name}}\"? This action cannot be undone.": "确定要删除供应商 \"{{name}}\" 吗？此操作无法撤销。",
-    "Create your first vendor to get started.": "创建您的第一个供应商开始使用吧。",
+    "Create your first vendor to get started.": "创建您的第一个供应商即可开始使用。",
     "Delete Vendor": "删除供应商",
     "Fetching vendors...": "正在获取供应商...",
     "Manage the vendors that models are associated with. Create, edit, or remove vendors here.": "管理模型关联的供应商，可在此创建、编辑或删除供应商。",
