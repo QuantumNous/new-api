@@ -280,7 +280,7 @@ func ensureUserQuotaColumns(db *gorm.DB, dbType common.DatabaseType) error {
 			}
 			dataType := actual.DatabaseTypeName()
 			if !is64BitIntegerType(dbType, dataType) {
-				return fmt.Errorf("unsupported user quota schema: users.%s uses %s; BIGINT is required before starting", expected, dataType)
+				return fmt.Errorf("users.%s uses %s; 32-bit is not supported", expected, dataType)
 			}
 		}
 	}
