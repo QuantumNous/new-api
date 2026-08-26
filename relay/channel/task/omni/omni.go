@@ -39,6 +39,7 @@ type inputPart struct {
 type responseFormat struct {
 	Type        string  `json:"type"`
 	AspectRatio *string `json:"aspect_ratio,omitempty"`
+	Duration    *string `json:"duration,omitempty"`
 }
 
 type interactionRequest struct {
@@ -218,10 +219,11 @@ func BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, e
 		}
 	}
 	aspectRatio := ResolveAspectRatio(req)
+	durationOption := fmt.Sprintf("%ds", duration)
 	body := interactionRequest{
 		Model:                 info.UpstreamModelName,
 		Input:                 parts,
-		ResponseFormat:        responseFormat{Type: "video", AspectRatio: &aspectRatio},
+		ResponseFormat:        responseFormat{Type: "video", AspectRatio: &aspectRatio, Duration: &durationOption},
 		PreviousInteractionID: previousInteractionID,
 		Background:            true,
 		Store:                 true,

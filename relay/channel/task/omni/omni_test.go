@@ -54,6 +54,8 @@ func TestBuildRequestBodyIncludesPromptReferenceImagesAndAsyncState(t *testing.T
 	assert.Equal(t, "interaction_previous", *request.PreviousInteractionID)
 	require.NotNil(t, request.ResponseFormat.AspectRatio)
 	assert.Equal(t, "9:16", *request.ResponseFormat.AspectRatio)
+	require.NotNil(t, request.ResponseFormat.Duration)
+	assert.Equal(t, "5s", *request.ResponseFormat.Duration)
 	require.Len(t, request.Input, 3)
 	assert.Contains(t, request.Input[0].Text, "Generate exactly a 5-second video.")
 	assert.Equal(t, inputPart{Type: "image", MimeType: "image/png", Data: imageOne}, request.Input[1])
