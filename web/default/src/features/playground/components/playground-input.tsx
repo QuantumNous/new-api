@@ -481,6 +481,7 @@ export function PlaygroundInput({
       <PromptInput
         accept={attachmentConfig.accept}
         groupClassName='rounded-xl border-border !bg-white text-slate-900 shadow-sm dark:!bg-white dark:!text-slate-900'
+        groupStyle={{ backgroundColor: '#fff', color: '#0f172a' }}
         maxFileSize={10 * 1024 * 1024}
         maxFiles={5}
         multiple
@@ -505,6 +506,7 @@ export function PlaygroundInput({
           disabled={disabled}
           onChange={(event) => setText(event.target.value)}
           placeholder=''
+          style={{ backgroundColor: '#fff', color: '#0f172a' }}
           value={text}
         />
 
