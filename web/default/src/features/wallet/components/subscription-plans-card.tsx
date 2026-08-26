@@ -851,10 +851,10 @@ export function SubscriptionPlansCard(props: SubscriptionPlansCardProps) {
                 <Card
                   key={plan.id}
                   className={cn(
-                    'border-border/80 relative rounded-lg border shadow-sm transition-[transform,box-shadow,border-color]',
+                    'border-border/80 relative rounded-lg border shadow-sm transition-[box-shadow,border-color]',
                     isMostPopular
-                      ? '!border-primary/70 !border-2 shadow-[0_0_0_6px_rgba(139,92,246,0.1)] ring-2 ring-[#8b5cf6]/60 hover:-translate-y-0.5 hover:shadow-lg dark:shadow-[0_0_0_6px_rgba(139,92,246,0.18)]'
-                      : 'hover:border-primary/50 hover:-translate-y-0.5 hover:shadow-lg'
+                      ? '!border-primary/70 !border-2 shadow-[0_0_0_6px_rgba(139,92,246,0.1)] ring-2 ring-[#8b5cf6]/60 hover:shadow-lg dark:shadow-[0_0_0_6px_rgba(139,92,246,0.18)]'
+                      : 'hover:border-primary/50 hover:shadow-lg'
                   )}
                 >
                   <CardContent className='flex h-full flex-col p-5'>

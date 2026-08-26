@@ -25,6 +25,7 @@ import {
   Children,
   type ClipboardEventHandler,
   type ComponentProps,
+  type CSSProperties,
   createContext,
   type FormEvent,
   type FormEventHandler,
@@ -450,11 +451,14 @@ export type PromptInputProps = Omit<
    * (useful for layout or semantic radius utilities such as rounded-xl).
    */
   groupClassName?: string
+  /** Optional inline styles applied to the inner InputGroup wrapper. */
+  groupStyle?: CSSProperties
 }
 
 export const PromptInput = ({
   className,
   groupClassName,
+  groupStyle,
   accept,
   multiple,
   globalDrop,
@@ -796,7 +800,9 @@ export const PromptInput = ({
         onSubmit={handleSubmit}
         {...props}
       >
-        <InputGroup className={groupClassName}>{children}</InputGroup>
+        <InputGroup className={groupClassName} style={groupStyle}>
+          {children}
+        </InputGroup>
       </form>
     </>
   )
