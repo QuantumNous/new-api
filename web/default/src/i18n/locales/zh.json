@@ -1447,7 +1447,7 @@
     "Duplicate group names: {{names}}": "存在重复的分组名称：{{names}}",
     "Duplicate source model mappings are not allowed": "不允许重复的源模型映射",
     "Duplicate source model(s): {{models}}": "重复的源模型：{{models}}",
-    "Duration": "耗时",
+    "Duration": "时长",
     "Duration (hours)": "时长 (小时)",
     "Duration Settings": "有效期设置",
     "Duration Unit": "有效期单位",
