@@ -81,7 +81,10 @@ func isWaffoPancakeTopUpEnabled() bool {
 	// the SDK; mode (test/prod) is read from each event.
 	return strings.TrimSpace(setting.WaffoPancakeMerchantID) != "" &&
 		strings.TrimSpace(setting.WaffoPancakePrivateKey) != "" &&
-		strings.TrimSpace(setting.WaffoPancakeProductID) != ""
+		strings.TrimSpace(setting.WaffoPancakeStoreID) != "" &&
+		strings.TrimSpace(setting.WaffoPancakeTopUpProduct100ID) != "" &&
+		strings.TrimSpace(setting.WaffoPancakeTopUpProduct500ID) != "" &&
+		strings.TrimSpace(setting.WaffoPancakeTopUpProduct1000ID) != ""
 }
 
 func isWaffoPancakeWebhookConfigured() bool {

@@ -98,6 +98,7 @@ func SubscriptionRequestWaffoPancakePay(c *gin.Context) {
 	expiresInSeconds := 45 * 60
 	session, err := service.CreateWaffoPancakeCheckoutSession(c.Request.Context(), &service.WaffoPancakeCreateSessionParams{
 		ProductID:     plan.WaffoPancakeProductId,
+		Currency:      strings.ToUpper(strings.TrimSpace(setting.WaffoPancakeCurrency)),
 		BuyerIdentity: service.WaffoPancakeBuyerIdentityFromUserID(user.Id),
 		PriceSnapshot: &service.WaffoPancakePriceSnapshot{
 			Amount:      decimal.NewFromFloat(plan.PriceAmount).StringFixed(2),

@@ -33,24 +33,39 @@ func RequestWaffoPancakeAmount(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", setting.WaffoPancakeMinTopUp)})
 		return
 	}
+	_, payMoney, ok := getWaffoPancakeFixedTopUp(req.Amount)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 仅支持 1000、5000、10000 点固定充值档位"})
+		return
+	}
+	if payMoney <= 0.01 {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
+		return
+	}
 	id := c.GetInt("id")
 	if rejectInvalidTopUpQuota(c, id, req.Amount) {
 		return
 	}
 
-	group, err := model.GetUserGroup(id, true)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
-		return
-	}
-
-	payMoney := getWaffoPancakePayMoney(req.Amount, group)
-	if payMoney <= 0.01 {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
-		return
-	}
-
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": fmt.Sprintf("%.2f", payMoney)})
+}
+
+// getWaffoPancakeFixedTopUp maps the ChimeraHub point bundles to the exact
+// CNY product configured in Pancake. The price comes from the product itself;
+// no group ratio, discount or session price override may alter these bundles.
+func getWaffoPancakeFixedTopUp(amount int64) (productID string, payMoney float64, ok bool) {
+	switch amount {
+	case 1000:
+		productID, payMoney = setting.WaffoPancakeTopUpProduct100ID, 100
+	case 5000:
+		productID, payMoney = setting.WaffoPancakeTopUpProduct500ID, 500
+	case 10000:
+		productID, payMoney = setting.WaffoPancakeTopUpProduct1000ID, 1000
+	default:
+		return "", 0, false
+	}
+	productID = strings.TrimSpace(productID)
+	return productID, payMoney, productID != ""
 }
 
 func getWaffoPancakePayMoney(amount int64, group string) float64 {
@@ -107,11 +122,15 @@ func getWaffoPancakeBuyerEmail(user *model.User) string {
 // resolveWaffoPancakeAdminCreds). Only SaveWaffoPancake writes to OptionMap.
 
 type saveWaffoPancakeRequest struct {
-	MerchantID string `json:"merchant_id"`
-	PrivateKey string `json:"private_key"`
-	ReturnURL  string `json:"return_url"`
-	StoreID    string `json:"store_id"`
-	ProductID  string `json:"product_id"`
+	MerchantID       string `json:"merchant_id"`
+	PrivateKey       string `json:"private_key"`
+	ReturnURL        string `json:"return_url"`
+	Currency         string `json:"currency"`
+	StoreID          string `json:"store_id"`
+	ProductID        string `json:"product_id"`
+	TopUpProduct100  string `json:"topup_product_100_id"`
+	TopUpProduct500  string `json:"topup_product_500_id"`
+	TopUpProduct1000 string `json:"topup_product_1000_id"`
 }
 
 type createWaffoPancakePairRequest struct {
@@ -133,8 +152,12 @@ func SaveWaffoPancake(c *gin.Context) {
 		req.MerchantID,
 		req.PrivateKey,
 		req.ReturnURL,
+		req.Currency,
 		req.StoreID,
 		req.ProductID,
+		req.TopUpProduct100,
+		req.TopUpProduct500,
+		req.TopUpProduct1000,
 	); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf(
 			"Waffo Pancake 保存配置失败 store_id=%q product_id=%q error=%q",
@@ -146,8 +169,12 @@ func SaveWaffoPancake(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
 		"data": gin.H{
-			"product_id": setting.WaffoPancakeProductID,
-			"store_id":   setting.WaffoPancakeStoreID,
+			"product_id":            setting.WaffoPancakeProductID,
+			"store_id":              setting.WaffoPancakeStoreID,
+			"currency":              setting.WaffoPancakeCurrency,
+			"topup_product_100_id":  setting.WaffoPancakeTopUpProduct100ID,
+			"topup_product_500_id":  setting.WaffoPancakeTopUpProduct500ID,
+			"topup_product_1000_id": setting.WaffoPancakeTopUpProduct1000ID,
 		},
 	})
 }
@@ -354,6 +381,11 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", setting.WaffoPancakeMinTopUp)})
 		return
 	}
+	productID, payMoney, ok := getWaffoPancakeFixedTopUp(req.Amount)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 仅支持 1000、5000、10000 点固定充值档位"})
+		return
+	}
 	id := c.GetInt("id")
 	if rejectInvalidTopUpQuota(c, id, req.Amount) {
 		return
@@ -365,13 +397,6 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		return
 	}
 
-	group, err := model.GetUserGroup(id, true)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
-		return
-	}
-
-	payMoney := getWaffoPancakePayMoney(req.Amount, group)
 	if payMoney < 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
@@ -396,12 +421,9 @@ func RequestWaffoPancakePay(c *gin.Context) {
 
 	expiresInSeconds := 45 * 60
 	session, err := service.CreateWaffoPancakeCheckoutSession(c.Request.Context(), &service.WaffoPancakeCreateSessionParams{
-		ProductID:     setting.WaffoPancakeProductID,
-		BuyerIdentity: getWaffoPancakeBuyerIdentity(user),
-		PriceSnapshot: &service.WaffoPancakePriceSnapshot{
-			Amount:      formatWaffoPancakeAmount(payMoney),
-			TaxCategory: "saas",
-		},
+		ProductID:               productID,
+		Currency:                strings.ToUpper(strings.TrimSpace(setting.WaffoPancakeCurrency)),
+		BuyerIdentity:           getWaffoPancakeBuyerIdentity(user),
 		BuyerEmail:              getWaffoPancakeBuyerEmail(user),
 		ExpiresInSeconds:        &expiresInSeconds,
 		OrderMerchantExternalID: tradeNo,
@@ -440,7 +462,11 @@ func validateWaffoPancakeTopUpWebhook(event *service.WaffoPancakeWebhookEvent, t
 		!strings.EqualFold(strings.TrimSpace(event.StoreID), expectedStoreID) {
 		return fmt.Errorf("store id mismatch")
 	}
-	if !strings.EqualFold(strings.TrimSpace(event.Data.Currency), "USD") {
+	expectedCurrency := strings.ToUpper(strings.TrimSpace(setting.WaffoPancakeCurrency))
+	if expectedCurrency == "" {
+		expectedCurrency = "USD"
+	}
+	if !strings.EqualFold(strings.TrimSpace(event.Data.Currency), expectedCurrency) {
 		return fmt.Errorf("currency mismatch")
 	}
 	actualAmount, err := decimal.NewFromString(strings.TrimSpace(event.Data.Amount))

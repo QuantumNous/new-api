@@ -58,7 +58,7 @@ interface BackendBody<T> {
 
 export type CatalogResponse = BackendBody<{ stores: CatalogStore[] }>
 export type PairResponse = BackendBody<PairResult>
-export type SaveResponse = BackendBody<{ product_id: string; store_id: string }>
+export type SaveResponse = BackendBody<{ product_id: string; store_id: string; currency: string; topup_product_100_id: string; topup_product_500_id: string; topup_product_1000_id: string }>
 
 export async function listWaffoPancakeCatalog(
   merchantID: string,
@@ -88,15 +88,23 @@ export async function saveWaffoPancakeConfig(params: {
   merchantID: string
   privateKey: string
   returnURL: string
+  currency: string
   storeID: string
   productID: string
+  topUpProduct100ID: string
+  topUpProduct500ID: string
+  topUpProduct1000ID: string
 }): Promise<SaveResponse> {
   const res = await api.post<SaveResponse>('/api/option/waffo-pancake/save', {
     merchant_id: params.merchantID,
     private_key: params.privateKey,
     return_url: params.returnURL,
+    currency: params.currency,
     store_id: params.storeID,
     product_id: params.productID,
+    topup_product_100_id: params.topUpProduct100ID,
+    topup_product_500_id: params.topUpProduct500ID,
+    topup_product_1000_id: params.topUpProduct1000ID,
   })
   return res.data
 }

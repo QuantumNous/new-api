@@ -21,6 +21,7 @@ type WaffoPancakePriceSnapshot struct {
 // OrderMerchantExternalID = our trade_no; Pancake echoes it back in webhooks.
 type WaffoPancakeCreateSessionParams struct {
 	ProductID               string
+	Currency                string
 	BuyerIdentity           string
 	PriceSnapshot           *WaffoPancakePriceSnapshot
 	BuyerEmail              string
@@ -103,6 +104,9 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 	if strings.TrimSpace(params.BuyerIdentity) == "" {
 		return nil, fmt.Errorf("missing buyer identity")
 	}
+	if strings.TrimSpace(params.Currency) == "" {
+		return nil, fmt.Errorf("missing checkout currency")
+	}
 	if strings.TrimSpace(params.OrderMerchantExternalID) == "" {
 		return nil, fmt.Errorf("missing order merchant external id")
 	}
@@ -114,7 +118,7 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 	sdkParams := pancake.AuthenticatedCheckoutParams{
 		CreateCheckoutSessionParams: pancake.CreateCheckoutSessionParams{
 			ProductID:               params.ProductID,
-			Currency:                "USD",
+			Currency:                strings.ToUpper(strings.TrimSpace(params.Currency)),
 			BuyerEmail:              optionalString(params.BuyerEmail),
 			ExpiresInSeconds:        params.ExpiresInSeconds,
 			OrderMerchantExternalID: optionalString(params.OrderMerchantExternalID),
@@ -388,18 +392,32 @@ func CreateWaffoPancakePrimaryPair(ctx context.Context, merchantID, privateKey, 
 // at the end of the configuration flow via model.UpdateOptionsBulk (single
 // DB transaction). A blank privateKey is treated as "keep current"
 // (Stripe-style API-secret UX) and is omitted from the bulk payload.
-func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnURL, storeID, productID string) error {
+func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnURL, currency, storeID, productID, topUpProduct100, topUpProduct500, topUpProduct1000 string) error {
 	merchantID = strings.TrimSpace(merchantID)
 	storeID = strings.TrimSpace(storeID)
 	productID = strings.TrimSpace(productID)
-	if merchantID == "" || storeID == "" || productID == "" {
-		return fmt.Errorf("merchant id, store id, and product id are required to save")
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	if currency == "" {
+		currency = "CNY"
+	}
+	if currency != "CNY" {
+		return fmt.Errorf("wallet top-up currency must be CNY")
+	}
+	topUpProduct100 = strings.TrimSpace(topUpProduct100)
+	topUpProduct500 = strings.TrimSpace(topUpProduct500)
+	topUpProduct1000 = strings.TrimSpace(topUpProduct1000)
+	if merchantID == "" || storeID == "" || productID == "" || topUpProduct100 == "" || topUpProduct500 == "" || topUpProduct1000 == "" {
+		return fmt.Errorf("merchant id, store id, default product id, and all three top-up product ids are required to save")
 	}
 	values := map[string]string{
-		"WaffoPancakeMerchantID": merchantID,
-		"WaffoPancakeReturnURL":  strings.TrimSpace(returnURL),
-		"WaffoPancakeStoreID":    storeID,
-		"WaffoPancakeProductID":  productID,
+		"WaffoPancakeMerchantID":         merchantID,
+		"WaffoPancakeReturnURL":          strings.TrimSpace(returnURL),
+		"WaffoPancakeCurrency":           currency,
+		"WaffoPancakeStoreID":            storeID,
+		"WaffoPancakeProductID":          productID,
+		"WaffoPancakeTopUpProduct100ID":  topUpProduct100,
+		"WaffoPancakeTopUpProduct500ID":  topUpProduct500,
+		"WaffoPancakeTopUpProduct1000ID": topUpProduct1000,
 	}
 	if pk := strings.TrimSpace(privateKey); pk != "" {
 		values["WaffoPancakePrivateKey"] = pk

@@ -176,6 +176,10 @@ const paymentSchema = z.object({
   WaffoPancakeMerchantID: z.string(),
   WaffoPancakePrivateKey: z.string(),
   WaffoPancakeReturnURL: z.string(),
+  WaffoPancakeCurrency: z.string(),
+  WaffoPancakeTopUpProduct100ID: z.string(),
+  WaffoPancakeTopUpProduct500ID: z.string(),
+  WaffoPancakeTopUpProduct1000ID: z.string(),
 })
 
 type PaymentFormValues = z.infer<typeof paymentSchema>
@@ -705,6 +709,10 @@ export function PaymentSettingsSection({
       sanitized.WaffoPancakeMerchantID !== initial.WaffoPancakeMerchantID ||
       sanitized.WaffoPancakePrivateKey.length > 0 ||
       sanitized.WaffoPancakeReturnURL !== initial.WaffoPancakeReturnURL ||
+      sanitized.WaffoPancakeCurrency !== initial.WaffoPancakeCurrency ||
+      sanitized.WaffoPancakeTopUpProduct100ID !== initial.WaffoPancakeTopUpProduct100ID ||
+      sanitized.WaffoPancakeTopUpProduct500ID !== initial.WaffoPancakeTopUpProduct500ID ||
+      sanitized.WaffoPancakeTopUpProduct1000ID !== initial.WaffoPancakeTopUpProduct1000ID ||
       waffoPancakeSelection.storeID !== waffoPancakeSavedBinding.storeID ||
       waffoPancakeSelection.productID !== waffoPancakeSavedBinding.productID
 
@@ -727,7 +735,17 @@ export function PaymentSettingsSection({
     }
 
     if (!waffoPancakeSelection.storeID || !waffoPancakeSelection.productID) {
-      toast.error(t('Pick or create both a store and a product before saving.'))
+      toast.error(t('Pick or create both a store and a default product before saving.'))
+      return
+    }
+
+    if (
+      sanitized.WaffoPancakeCurrency.trim().toUpperCase() !== 'CNY' ||
+      !sanitized.WaffoPancakeTopUpProduct100ID.trim() ||
+      !sanitized.WaffoPancakeTopUpProduct500ID.trim() ||
+      !sanitized.WaffoPancakeTopUpProduct1000ID.trim()
+    ) {
+      toast.error(t('Set currency to CNY and provide all three fixed top-up product IDs before saving.'))
       return
     }
 
@@ -736,6 +754,10 @@ export function PaymentSettingsSection({
         merchantID: sanitized.WaffoPancakeMerchantID,
         privateKey: sanitized.WaffoPancakePrivateKey,
         returnURL: sanitized.WaffoPancakeReturnURL,
+        currency: sanitized.WaffoPancakeCurrency,
+        topUpProduct100ID: sanitized.WaffoPancakeTopUpProduct100ID,
+        topUpProduct500ID: sanitized.WaffoPancakeTopUpProduct500ID,
+        topUpProduct1000ID: sanitized.WaffoPancakeTopUpProduct1000ID,
         storeID: waffoPancakeSelection.storeID,
         productID: waffoPancakeSelection.productID,
       })
@@ -794,6 +816,10 @@ export function PaymentSettingsSection({
     WaffoPancakeMerchantID: currentFormValues.WaffoPancakeMerchantID,
     WaffoPancakePrivateKey: currentFormValues.WaffoPancakePrivateKey,
     WaffoPancakeReturnURL: currentFormValues.WaffoPancakeReturnURL,
+    WaffoPancakeCurrency: currentFormValues.WaffoPancakeCurrency,
+    WaffoPancakeTopUpProduct100ID: currentFormValues.WaffoPancakeTopUpProduct100ID,
+    WaffoPancakeTopUpProduct500ID: currentFormValues.WaffoPancakeTopUpProduct500ID,
+    WaffoPancakeTopUpProduct1000ID: currentFormValues.WaffoPancakeTopUpProduct1000ID,
   }
 
   return (

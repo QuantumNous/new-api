@@ -173,10 +173,14 @@ func InitOptionMap() {
 	common.OptionMap["WaffoPancakeMerchantID"] = setting.WaffoPancakeMerchantID
 	common.OptionMap["WaffoPancakePrivateKey"] = setting.WaffoPancakePrivateKey
 	common.OptionMap["WaffoPancakeReturnURL"] = setting.WaffoPancakeReturnURL
+	common.OptionMap["WaffoPancakeCurrency"] = setting.WaffoPancakeCurrency
 	common.OptionMap["WaffoPancakeUnitPrice"] = strconv.FormatFloat(setting.WaffoPancakeUnitPrice, 'f', -1, 64)
 	common.OptionMap["WaffoPancakeMinTopUp"] = strconv.Itoa(setting.WaffoPancakeMinTopUp)
 	common.OptionMap["WaffoPancakeStoreID"] = setting.WaffoPancakeStoreID
 	common.OptionMap["WaffoPancakeProductID"] = setting.WaffoPancakeProductID
+	common.OptionMap["WaffoPancakeTopUpProduct100ID"] = setting.WaffoPancakeTopUpProduct100ID
+	common.OptionMap["WaffoPancakeTopUpProduct500ID"] = setting.WaffoPancakeTopUpProduct500ID
+	common.OptionMap["WaffoPancakeTopUpProduct1000ID"] = setting.WaffoPancakeTopUpProduct1000ID
 	common.OptionMap["TopupGroupRatio"] = common.TopupGroupRatio2JSONString()
 	common.OptionMap["Chats"] = setting.Chats2JsonString()
 	common.OptionMap["AutoGroups"] = setting.AutoGroups2JsonString()
@@ -552,10 +556,18 @@ func updateOptionMap(key string, value string) (err error) {
 		setting.WaffoPancakePrivateKey = value
 	case "WaffoPancakeReturnURL":
 		setting.WaffoPancakeReturnURL = value
+	case "WaffoPancakeCurrency":
+		setting.WaffoPancakeCurrency = value
 	case "WaffoPancakeStoreID":
 		setting.WaffoPancakeStoreID = value
 	case "WaffoPancakeProductID":
 		setting.WaffoPancakeProductID = value
+	case "WaffoPancakeTopUpProduct100ID":
+		setting.WaffoPancakeTopUpProduct100ID = value
+	case "WaffoPancakeTopUpProduct500ID":
+		setting.WaffoPancakeTopUpProduct500ID = value
+	case "WaffoPancakeTopUpProduct1000ID":
+		setting.WaffoPancakeTopUpProduct1000ID = value
 	case "WaffoPancakeUnitPrice":
 		setting.WaffoPancakeUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WaffoPancakeMinTopUp":

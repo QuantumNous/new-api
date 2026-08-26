@@ -132,6 +132,8 @@ export interface TopupInfo {
   stripe_min_topup: number
   /** Preset amount options */
   amount_options: number[]
+  /** Fixed point amounts accepted by Waffo Pancake checkout */
+  waffo_pancake_amount_options?: number[]
   /** Discount rates by amount */
   discount: Record<number, number>
   /** Optional topup link for purchasing codes */

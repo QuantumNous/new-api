@@ -176,14 +176,29 @@ export function Wallet(props: WalletProps) {
     setPaymentLoading(method.type)
 
     try {
-      // Validate minimum topup
-      const minTopup = getMinTopupAmount(topupInfo)
-      if (topupAmount < minTopup) {
-        return
+      // Pancake wallets are sold as fixed CNY products. If the user selected
+      // a non-tier amount before selecting Pancake, safely snap to the first
+      // supported tier rather than attempting an invalid checkout.
+      const pancakeAmounts = topupInfo?.waffo_pancake_amount_options ?? [
+        1000, 5000, 10000,
+      ]
+      const amount =
+        method.type === PAYMENT_TYPES.WAFFO_PANCAKE &&
+        !pancakeAmounts.includes(topupAmount)
+          ? pancakeAmounts[0]
+          : topupAmount
+      if (amount !== topupAmount) {
+        setTopupAmount(amount)
+        setSelectedPreset(amount)
       }
 
-      // Calculate payment amount and show confirmation dialog
-      await calculatePaymentAmount(topupAmount, method.type)
+      const minTopup =
+        method.type === PAYMENT_TYPES.WAFFO_PANCAKE
+          ? pancakeAmounts[0]
+          : getMinTopupAmount(topupInfo)
+      if (amount < minTopup) return
+
+      await calculatePaymentAmount(amount, method.type)
       setConfirmDialogOpen(true)
     } finally {
       setPaymentLoading(null)

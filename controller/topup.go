@@ -111,15 +111,16 @@ func GetTopUpInfo(c *gin.Context) {
 			}
 			return nil
 		}(),
-		"creem_products":          setting.CreemProducts,
-		"pay_methods":             payMethods,
-		"min_topup":               operation_setting.MinTopUp,
-		"stripe_min_topup":        setting.StripeMinTopUp,
-		"waffo_min_topup":         setting.WaffoMinTopUp,
-		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
-		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
-		"topup_link":              common.TopUpLink,
+		"creem_products":               setting.CreemProducts,
+		"pay_methods":                  payMethods,
+		"min_topup":                    operation_setting.MinTopUp,
+		"stripe_min_topup":             setting.StripeMinTopUp,
+		"waffo_min_topup":              setting.WaffoMinTopUp,
+		"waffo_pancake_min_topup":      setting.WaffoPancakeMinTopUp,
+		"waffo_pancake_amount_options": []int{1000, 5000, 10000},
+		"amount_options":               operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":                     operation_setting.GetPaymentSetting().AmountDiscount,
+		"topup_link":                   common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
 }

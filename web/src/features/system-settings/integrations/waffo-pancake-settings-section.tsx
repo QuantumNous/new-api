@@ -46,6 +46,10 @@ export type WaffoPancakeSettingsValues = {
   WaffoPancakeMerchantID: string
   WaffoPancakePrivateKey: string
   WaffoPancakeReturnURL: string
+  WaffoPancakeCurrency: string
+  WaffoPancakeTopUpProduct100ID: string
+  WaffoPancakeTopUpProduct500ID: string
+  WaffoPancakeTopUpProduct1000ID: string
 }
 
 export interface WaffoPancakeBinding {
@@ -432,6 +436,18 @@ export function WaffoPancakeSettingsSection({
         </div>
 
         <div className='grid gap-1.5'>
+          <Label>{t('Settlement currency')}</Label>
+          <Input
+            value={values.WaffoPancakeCurrency}
+            onChange={(event) => onValueChange('WaffoPancakeCurrency', event.target.value.toUpperCase())}
+            placeholder='CNY'
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t('Wallet top-ups use fixed CNY products. Keep this set to CNY for the three tiers below.')}
+          </p>
+        </div>
+
+        <div className='grid gap-1.5'>
           <Label>{t('API Private Key')}</Label>
           <Textarea
             rows={4}
@@ -486,7 +502,7 @@ export function WaffoPancakeSettingsSection({
               </li>
               <li>
                 {t(
-                  'The bound Product powers wallet top-ups: when a user enters any amount, new-api runs the checkout against this single Pancake product and overrides the price per session — no need to pre-create $1 / $5 / $10 SKUs.'
+                  'Wallet top-ups use three fixed products: ¥100 for 1,000 points, ¥500 for 5,000 points, and ¥1,000 for 10,000 points. The default Product remains available for legacy or subscription compatibility, but it is not used to price wallet top-ups.'
                 )}
               </li>
               <li>
@@ -593,6 +609,21 @@ export function WaffoPancakeSettingsSection({
               </div>
             </>
           ) : null}
+
+          <div className='grid gap-4 rounded-md border p-4 lg:grid-cols-3'>
+            <div className='grid gap-1.5'>
+              <Label>{t('Top-up product: ¥100 / 1,000 points')}</Label>
+              <Input value={values.WaffoPancakeTopUpProduct100ID} placeholder='PROD_xxx' onChange={(event) => onValueChange('WaffoPancakeTopUpProduct100ID', event.target.value)} />
+            </div>
+            <div className='grid gap-1.5'>
+              <Label>{t('Top-up product: ¥500 / 5,000 points')}</Label>
+              <Input value={values.WaffoPancakeTopUpProduct500ID} placeholder='PROD_xxx' onChange={(event) => onValueChange('WaffoPancakeTopUpProduct500ID', event.target.value)} />
+            </div>
+            <div className='grid gap-1.5'>
+              <Label>{t('Top-up product: ¥1,000 / 10,000 points')}</Label>
+              <Input value={values.WaffoPancakeTopUpProduct1000ID} placeholder='PROD_xxx' onChange={(event) => onValueChange('WaffoPancakeTopUpProduct1000ID', event.target.value)} />
+            </div>
+          </div>
 
           <div className='flex items-center gap-3'>
             {storeID || productID ? (

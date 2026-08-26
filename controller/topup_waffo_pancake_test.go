@@ -29,6 +29,37 @@ func TestFormatWaffoPancakeAmount_UsesDisplayPriceString(t *testing.T) {
 	}
 }
 
+func TestGetWaffoPancakeFixedTopUp(t *testing.T) {
+	original100 := setting.WaffoPancakeTopUpProduct100ID
+	original500 := setting.WaffoPancakeTopUpProduct500ID
+	original1000 := setting.WaffoPancakeTopUpProduct1000ID
+	t.Cleanup(func() {
+		setting.WaffoPancakeTopUpProduct100ID = original100
+		setting.WaffoPancakeTopUpProduct500ID = original500
+		setting.WaffoPancakeTopUpProduct1000ID = original1000
+	})
+	setting.WaffoPancakeTopUpProduct100ID = "PROD_100"
+	setting.WaffoPancakeTopUpProduct500ID = "PROD_500"
+	setting.WaffoPancakeTopUpProduct1000ID = "PROD_1000"
+
+	for _, tc := range []struct {
+		amount  int64
+		product string
+		price   float64
+		ok      bool
+	}{
+		{1000, "PROD_100", 100, true},
+		{5000, "PROD_500", 500, true},
+		{10000, "PROD_1000", 1000, true},
+		{100, "", 0, false},
+	} {
+		product, price, ok := getWaffoPancakeFixedTopUp(tc.amount)
+		require.Equal(t, tc.ok, ok)
+		require.Equal(t, tc.product, product)
+		require.Equal(t, tc.price, price)
+	}
+}
+
 func TestGetWaffoPancakePayMoney(t *testing.T) {
 	originalUnitPrice := setting.WaffoPancakeUnitPrice
 	originalQuotaDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
@@ -94,15 +125,20 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 
 func TestValidateWaffoPancakeTopUpWebhook(t *testing.T) {
 	originalStoreID := setting.WaffoPancakeStoreID
+	originalCurrency := setting.WaffoPancakeCurrency
 	setting.WaffoPancakeStoreID = "STO_test"
-	t.Cleanup(func() { setting.WaffoPancakeStoreID = originalStoreID })
+	setting.WaffoPancakeCurrency = "CNY"
+	t.Cleanup(func() {
+		setting.WaffoPancakeStoreID = originalStoreID
+		setting.WaffoPancakeCurrency = originalCurrency
+	})
 
 	topUp := &model.TopUp{Money: 50.005}
 	validEvent := func() *service.WaffoPancakeWebhookEvent {
 		return &service.WaffoPancakeWebhookEvent{
 			StoreID: "STO_test",
 			Data: service.WaffoPancakeWebhookData{
-				Currency: "USD",
+				Currency: "CNY",
 				Amount:   "50.01",
 			},
 		}
@@ -116,9 +152,9 @@ func TestValidateWaffoPancakeTopUpWebhook(t *testing.T) {
 		event.StoreID = "STO_other"
 		require.ErrorContains(t, validateWaffoPancakeTopUpWebhook(event, topUp), "store id mismatch")
 	})
-	t.Run("rejects a non USD event", func(t *testing.T) {
+	t.Run("rejects an event in another currency", func(t *testing.T) {
 		event := validEvent()
-		event.Data.Currency = "CNY"
+		event.Data.Currency = "USD"
 		require.ErrorContains(t, validateWaffoPancakeTopUpWebhook(event, topUp), "currency mismatch")
 	})
 	t.Run("rejects a changed payment amount", func(t *testing.T) {

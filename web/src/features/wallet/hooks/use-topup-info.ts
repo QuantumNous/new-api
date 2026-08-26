@@ -187,6 +187,9 @@ export function useTopupInfo() {
           response.data.stripe_min_topup
         ),
         amount_options: parseAmountOptions(response.data.amount_options),
+        waffo_pancake_amount_options: parseAmountOptions(
+          response.data.waffo_pancake_amount_options
+        ),
         discount: parseDiscountMap(response.data.discount),
         creem_products: parseCreemProducts(response.data.creem_products),
         waffo_pay_methods: parseWaffoPayMethods(
