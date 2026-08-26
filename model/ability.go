@@ -173,14 +173,24 @@ func filterAbilitiesByRequestPathAndModel(abilities []Ability, requestPath strin
 	}
 
 	advancedConfigs := make(map[int]*dto.AdvancedCustomConfig)
+	volcNativeChannels := make(map[int]bool)
 	for _, channel := range channels {
 		if channel.Type == constant.ChannelTypeAdvancedCustom {
 			advancedConfigs[channel.Id] = channel.GetOtherSettings().AdvancedCustom
+		}
+		if channel.Type == constant.ChannelTypeVolcNative {
+			volcNativeChannels[channel.Id] = true
 		}
 	}
 
 	filtered := make([]Ability, 0, len(abilities))
 	for _, ability := range abilities {
+		if volcNativeChannels[ability.ChannelId] {
+			if strings.HasPrefix(requestPath, "/api/v3/images/generations") || strings.HasPrefix(requestPath, "/api/v3/contents/generations/tasks") {
+				filtered = append(filtered, ability)
+			}
+			continue
+		}
 		config, isAdvancedCustom := advancedConfigs[ability.ChannelId]
 		if !isAdvancedCustom {
 			filtered = append(filtered, ability)
