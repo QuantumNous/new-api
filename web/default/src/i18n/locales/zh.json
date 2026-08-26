@@ -6606,7 +6606,7 @@
     "Default is off. Enable convergence only after measuring your accounts; some accounts reported reduced quota after enabling it.": "默认关闭。仅在账号实测后启用收敛；部分账号曾反馈启用后额度缩水。",
     "Your AI gateway": "你的 AI 网关",
     "Build with any model, your way.": "用任意模型，按你的方式构建。",
-    "One key, every leading model. Choose a starting point below and be up and running in minutes.": "一把密钥，畅用主流模型。从下方选择一种接入方式，几分钟内即可跑通。",
+    "One key connects you to the models shaping AI:": "一把密钥，连接塑造 AI 的模型：",
     "Welcome to Flatkey": "欢迎使用 Flatkey",
     "Your account is ready. Add an API key, then choose the integration that fits your workflow.": "账号已就绪。创建一个 API 密钥，然后选择适合你工作流的接入方式。",
     "Your usage": "你的用量",

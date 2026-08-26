@@ -6593,7 +6593,7 @@
     "Default is off. Enable convergence only after measuring your accounts; some accounts reported reduced quota after enabling it.": "デフォルトはオフです。アカウントで実測してから有効にしてください。有効化後にクォータが減ったという報告が一部あります。",
     "Your AI gateway": "あなたの AI ゲートウェイ",
     "Build with any model, your way.": "どのモデルでも、あなたのやり方で構築できます。",
-    "One key, every leading model. Choose a starting point below and be up and running in minutes.": "1 つのキーで主要モデルをすべて利用できます。下から始め方を選べば数分で動かせます。",
+    "One key connects you to the models shaping AI:": "1つのキーで、AIの未来をつくるモデルに接続できます：",
     "Welcome to Flatkey": "Flatkey へようこそ",
     "Your account is ready. Add an API key, then choose the integration that fits your workflow.": "アカウントの準備ができました。API キーを追加し、ワークフローに合う連携方法を選んでください。",
     "Your usage": "利用状況",
