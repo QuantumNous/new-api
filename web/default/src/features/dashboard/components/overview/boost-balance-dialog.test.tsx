@@ -63,20 +63,24 @@ function renderDialog(props: { balanceDisplay: string; loading?: boolean }) {
 }
 
 describe('boost balance dialog', () => {
-  test('shows the balance without extra guidance copy', () => {
+  test('shows the balance and the guidance copy', () => {
     const html = renderDialog({ balanceDisplay: '$82.35' })
 
     expect(html).toContain('Current available balance')
     expect(html).toContain('$82.35')
-    expect(html).not.toContain('Invite friends to get high-value vouchers')
+    expect(html).toContain('Invite friends to enjoy up to $30 off!')
+    expect(html).toContain('Boost your balance')
+    expect(html).not.toContain('Keep your balance ready whenever you need it')
   })
 
   test('offers both ways to raise the balance', () => {
     const html = renderDialog({ balanceDisplay: '$82.35' })
 
     expect(html).toContain('Quick top-up')
-    expect(html).toContain('Invite a friend + 30$')
-    expect(html).not.toContain('Earn credits')
+    expect(html).toContain('Invite a friend')
+    expect(html).toContain('lucide-flame')
+    expect(html).toContain('+$30')
+    expect(html).toContain('aria-label="Promotion"')
   })
 
   // The destinations are asserted on the exported constants the component

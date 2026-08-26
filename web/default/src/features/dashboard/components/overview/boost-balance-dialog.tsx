@@ -17,15 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
-import { Flame, UserPlus } from 'lucide-react'
+import { Flame, Plus, UserPlus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
-  DialogTitle,
 } from '@/components/ui/dialog'
 
 export interface BoostBalanceDialogProps {
@@ -73,12 +73,9 @@ export function BoostBalanceContent(props: {
   return (
     <>
       <DialogHeader>
-        <span className='text-primary text-xs font-bold tracking-[0.1em] uppercase'>
+        <span className='text-primary text-lg font-bold tracking-[0.1em] uppercase'>
           {t('Boost your balance')}
         </span>
-        <DialogTitle className='text-xl leading-tight font-semibold'>
-          {t('Keep your balance ready whenever you need it')}
-        </DialogTitle>
       </DialogHeader>
 
       <div className='bg-primary/5 border-primary/20 flex items-center justify-between gap-3 rounded-xl border p-4'>
@@ -95,24 +92,42 @@ export function BoostBalanceContent(props: {
         </Badge>
       </div>
 
+      <DialogDescription>
+        {t('Invite friends to enjoy up to $30 off!')}
+      </DialogDescription>
+
       <div className='grid gap-2 sm:grid-cols-2'>
         <Button
           variant='outline'
-          className='h-11'
+          className='relative h-11'
           onClick={props.onNavigate}
           render={<Link to={BOOST_TOPUP_ROUTE} />}
         >
-          <Flame data-icon='inline-start' />
+          <Plus data-icon='inline-start' />
           {t('Quick top-up')}
+          <Badge
+            variant='default'
+            className='bg-primary text-primary-foreground pointer-events-none absolute -top-2 -right-2 size-6 p-0 shadow-sm'
+            aria-label='Promotion'
+          >
+            <Flame className='size-3.5' fill='currentColor' />
+          </Badge>
         </Button>
         <Button
           variant='outline'
-          className='h-11'
+          className='relative h-11'
           onClick={props.onNavigate}
           render={<Link to={BOOST_EARN_ROUTE} />}
         >
           <UserPlus data-icon='inline-start' />
-          {t('Invite a friend + 30$')}
+          {t('Invite a friend')}
+          <Badge
+            variant='default'
+            className='bg-primary text-primary-foreground pointer-events-none absolute -top-2 -right-2 px-2 py-0.5 text-[11px] font-bold shadow-sm'
+            aria-label='+$30'
+          >
+            +$30
+          </Badge>
         </Button>
       </div>
     </>
