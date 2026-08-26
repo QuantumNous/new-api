@@ -56,16 +56,26 @@ import {
   parseThinkTags,
   splitGeneratedImageMarkdown,
 } from '../lib/message-utils'
-import type {
-  Message as MessageType,
-  PlaygroundAttachment,
-} from '../types'
+import type { Message as MessageType, PlaygroundAttachment } from '../types'
 import { MessageActions } from './message-actions'
 import { MessageError } from './message-error'
 
-function sanitizeAttachmentImageUrl(url: string | undefined): string | undefined {
+function sanitizeAttachmentImageUrl(
+  url: string | undefined
+): string | undefined {
   const safeUrl = sanitizeGeneratedMediaUrl(url)
   return safeUrl?.startsWith('data:image/') ? safeUrl : undefined
+}
+
+function sanitizeAttachmentVideoUrl(
+  url: string | undefined
+): string | undefined {
+  if (typeof url !== 'string') return undefined
+  const trimmedUrl = url.trim()
+  if (/^data:video\/mp4;base64,[a-z0-9+/\r\n]+={0,2}$/i.test(trimmedUrl)) {
+    return trimmedUrl
+  }
+  return sanitizeGeneratedMediaUrl(trimmedUrl)
 }
 
 interface PlaygroundChatProps {
@@ -210,17 +220,23 @@ export function PlaygroundChat({
                               const attachmentPreviews: Array<{
                                 attachment: PlaygroundAttachment
                                 url?: string
-                              }> = (
-                                version.attachments ?? []
-                              ).flatMap((attachment) => {
-                                if (attachment.kind === 'image') {
-                                  const url = sanitizeAttachmentImageUrl(
-                                    attachment.url
-                                  )
-                                  return url ? [{ attachment, url }] : []
+                              }> = (version.attachments ?? []).flatMap(
+                                (attachment) => {
+                                  if (attachment.kind === 'image') {
+                                    const url = sanitizeAttachmentImageUrl(
+                                      attachment.url
+                                    )
+                                    return url ? [{ attachment, url }] : []
+                                  }
+                                  if (attachment.kind === 'video') {
+                                    const url = sanitizeAttachmentVideoUrl(
+                                      attachment.url
+                                    )
+                                    return url ? [{ attachment, url }] : []
+                                  }
+                                  return [{ attachment }]
                                 }
-                                return [{ attachment }]
-                              })
+                              )
 
                               // Extract visible content (remove <think> tags for assistant messages)
                               const displayContent = isAssistant
@@ -374,16 +390,32 @@ export function PlaygroundChat({
                                                     attachment.kind ===
                                                       'image' && url ? (
                                                       <img
-                                                        alt={attachment.filename}
+                                                        alt={
+                                                          attachment.filename
+                                                        }
                                                         className='size-24 rounded-lg border object-cover'
                                                         key={`${message.key}-${version.id}-${attachment.filename}`}
+                                                        src={url}
+                                                      />
+                                                    ) : attachment.kind ===
+                                                        'video' && url ? (
+                                                      <video
+                                                        aria-label={
+                                                          attachment.filename
+                                                        }
+                                                        className='max-h-64 max-w-full rounded-lg border object-contain'
+                                                        controls
+                                                        key={`${message.key}-${version.id}-${attachment.filename}`}
+                                                        preload='metadata'
                                                         src={url}
                                                       />
                                                     ) : (
                                                       <span
                                                         className='border-border bg-muted/50 text-muted-foreground inline-flex max-w-full items-center rounded-md border px-2 py-1 text-xs font-medium'
                                                         key={`${message.key}-${version.id}-${attachment.filename}`}
-                                                        title={attachment.filename}
+                                                        title={
+                                                          attachment.filename
+                                                        }
                                                       >
                                                         {attachment.filename}
                                                       </span>

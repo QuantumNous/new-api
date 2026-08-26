@@ -283,10 +283,12 @@ describe('PlaygroundInput quick starts', () => {
 })
 
 describe('PlaygroundInput attachments', () => {
-  test('advertises the supported photo and text attachment types', () => {
+  test('advertises the supported photo, video, and text attachment types', () => {
     const markup = renderPlaygroundMarkup()
 
-    expect(markup).toContain('accept="image/*,.txt,.md,.csv,.json"')
+    expect(markup).toContain(
+      'accept="image/*,video/mp4,.mp4,.txt,.md,.csv,.json"'
+    )
     expect(markup).toContain('aria-label="Upload files"')
   })
 

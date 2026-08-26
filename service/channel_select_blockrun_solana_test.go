@@ -33,7 +33,9 @@ func TestBlockRunSolanaEndpointAllowlist(t *testing.T) {
 		{http.MethodPost, "/v1/audio/speech", false},
 		{http.MethodPost, "/v1/rerank", false},
 		{http.MethodPost, "/v1/video/generations", false},
-		{http.MethodPost, "/pg/chat/completions", false},
+		{http.MethodPost, "/pg/chat/completions", true},
+		{http.MethodPost, "/pg/videos", false},
+		{http.MethodPost, "/pg/images/generations", false},
 		{http.MethodGet, "/v1/responses", false},
 	}
 

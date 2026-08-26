@@ -17,7 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'bun:test'
-import type { Message, ParameterEnabled, PlaygroundConfig } from '../types'
+import type {
+  Message,
+  ParameterEnabled,
+  PlaygroundConfig,
+  PlaygroundRecordPayload,
+} from '../types'
 import {
   buildPlaygroundRecordPayload,
   createActivePlaygroundTurn,
@@ -155,6 +160,119 @@ describe('Playground persistence payloads', () => {
     expect(payload.messages_snapshot).toEqual(finalMessages)
   })
 
+  test('removes embedded base64 media from every persisted record section', () => {
+    const embeddedImage = 'data:image/png;base64,AA=='
+    const remoteImage = 'https://cdn.example.com/photo.png'
+    const userWithAttachments: Message = {
+      ...userMessage,
+      versions: [
+        {
+          ...userMessage.versions[0],
+          attachments: [
+            {
+              kind: 'image',
+              filename: 'photo.png',
+              mediaType: 'image/png',
+              url: embeddedImage,
+            },
+            {
+              kind: 'image',
+              filename: 'remote.png',
+              mediaType: 'image/png',
+              url: remoteImage,
+            },
+            {
+              kind: 'text',
+              filename: 'notes.txt',
+              mediaType: 'text/plain',
+              text: 'keep this text',
+            },
+          ],
+        },
+      ],
+    }
+    const active = {
+      ...activeTurn(),
+      userMessage: userWithAttachments,
+      request: {
+        ...activeTurn().request,
+        messages: [
+          {
+            role: 'user' as const,
+            content: [
+              { type: 'text' as const, text: 'hello' },
+              { type: 'image_url' as const, image_url: { url: embeddedImage } },
+              {
+                type: 'video_url' as const,
+                video_url: { url: 'data:video/mp4;base64,AA==' },
+              },
+              { type: 'image_url' as const, image_url: { url: remoteImage } },
+            ],
+          },
+        ],
+      },
+    }
+    const assistantWithMedia: Message = {
+      ...completeAssistant,
+      versions: [
+        {
+          ...completeAssistant.versions[0],
+          generatedMedia: [
+            { type: 'image', url: embeddedImage },
+            { type: 'image', url: remoteImage },
+          ],
+        },
+      ],
+    }
+
+    const payload = buildPlaygroundRecordPayload(
+      active,
+      [userWithAttachments, assistantWithMedia],
+      false,
+      2500
+    )
+
+    expect(payload.user_message.versions[0]?.attachments).toEqual([
+      {
+        kind: 'image',
+        filename: 'photo.png',
+        mediaType: 'image/png',
+      },
+      {
+        kind: 'image',
+        filename: 'remote.png',
+        mediaType: 'image/png',
+        url: remoteImage,
+      },
+      {
+        kind: 'text',
+        filename: 'notes.txt',
+        mediaType: 'text/plain',
+        text: 'keep this text',
+      },
+    ])
+    expect(payload.request_messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'hello' },
+          { type: 'image_url', image_url: { url: remoteImage } },
+        ],
+      },
+    ])
+    expect(payload.assistant_message.versions[0]?.generatedMedia).toEqual([
+      { type: 'image', url: remoteImage },
+    ])
+    expect(JSON.stringify(payload)).not.toContain(embeddedImage)
+
+    expect(userWithAttachments.versions[0]?.attachments?.[0]?.url).toBe(
+      embeddedImage
+    )
+    expect(assistantWithMedia.versions[0]?.generatedMedia?.[0]?.url).toBe(
+      embeddedImage
+    )
+  })
+
   test('binds the terminal payload to the assistant created for that turn', () => {
     const laterAssistant: Message = {
       key: 'assistant-later',
@@ -196,6 +314,91 @@ describe('Playground persistence payloads', () => {
     expect(payload.status).toBe('error')
     expect(payload.error_code).toBe('rate_limit_exceeded')
     expect(payload.error_message).toBe('rate limited')
+  })
+
+  test('sanitizes records restored from an older outbox before saving', async () => {
+    const embeddedImage = 'data:image/png;base64,AA=='
+    const cleanRecord = buildPlaygroundRecordPayload(
+      activeTurn(),
+      [userMessage, completeAssistant],
+      false,
+      2500
+    )
+    const staleRecord = {
+      ...cleanRecord,
+      user_message: {
+        ...cleanRecord.user_message,
+        versions: [
+          {
+            ...cleanRecord.user_message.versions[0],
+            attachments: [
+              {
+                kind: 'image' as const,
+                filename: 'photo.png',
+                mediaType: 'image/png',
+                url: embeddedImage,
+              },
+            ],
+          },
+        ],
+      },
+    }
+    let savedRecord: typeof staleRecord | undefined
+
+    const remaining = await drainPlaygroundOutbox(
+      [staleRecord],
+      async (record) => {
+        savedRecord = record as typeof staleRecord
+      }
+    )
+
+    expect(remaining).toEqual([])
+    expect(savedRecord?.user_message.versions[0]?.attachments).toEqual([
+      {
+        kind: 'image',
+        filename: 'photo.png',
+        mediaType: 'image/png',
+      },
+    ])
+    expect(staleRecord.user_message.versions[0]?.attachments?.[0]?.url).toBe(
+      embeddedImage
+    )
+  })
+
+  test('removes legacy base64 fields from stale outbox records', async () => {
+    const embeddedImage = 'data:image/png;base64,AA-_=='
+    const staleRecord = {
+      ...buildPlaygroundRecordPayload(
+        activeTurn(),
+        [userMessage, completeAssistant],
+        false,
+        2500
+      ),
+      parameters: {
+        nested: {
+          B64_JSON: embeddedImage,
+          note: `before ${embeddedImage} after`,
+        },
+      },
+    } as PlaygroundRecordPayload
+    let savedRecord: PlaygroundRecordPayload | undefined
+
+    await drainPlaygroundOutbox([staleRecord], async (record) => {
+      savedRecord = record
+    })
+
+    expect(savedRecord?.parameters).toEqual({
+      nested: {
+        note: 'before [embedded media omitted] after',
+      },
+    })
+    expect(JSON.stringify(savedRecord)).not.toContain('B64_JSON')
+    expect(staleRecord.parameters).toEqual({
+      nested: {
+        B64_JSON: embeddedImage,
+        note: `before ${embeddedImage} after`,
+      },
+    })
   })
 
   test('drains pending records FIFO and stops at the first failure', async () => {

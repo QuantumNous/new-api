@@ -30,6 +30,9 @@ import type {
 const SAFE_IMAGE_DATA_URL_PATTERN =
   /^data:image\/(?:png|jpe?g|webp|gif);base64,[a-z0-9+/\r\n]+={0,2}$/i
 
+const SAFE_VIDEO_DATA_URL_PATTERN =
+  /^data:video\/mp4;base64,[a-z0-9+/\r\n]+={0,2}$/i
+
 /**
  * Create a new message version
  */
@@ -180,6 +183,18 @@ export function buildMessageContent(
           {
             type: 'image_url' as const,
             image_url: { url: attachment.url.trim() },
+          },
+        ]
+      }
+      if (
+        attachment.kind === 'video' &&
+        attachment.url?.trim() &&
+        SAFE_VIDEO_DATA_URL_PATTERN.test(attachment.url.trim())
+      ) {
+        return [
+          {
+            type: 'video_url' as const,
+            video_url: { url: attachment.url.trim() },
           },
         ]
       }

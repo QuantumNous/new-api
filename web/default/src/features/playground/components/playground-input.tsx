@@ -279,7 +279,7 @@ export function PlaygroundInput({
   return (
     <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
       <PromptInput
-        accept='image/*,.txt,.md,.csv,.json'
+        accept='image/*,video/mp4,.mp4,.txt,.md,.csv,.json'
         groupClassName='rounded-xl'
         maxFileSize={10 * 1024 * 1024}
         maxFiles={5}

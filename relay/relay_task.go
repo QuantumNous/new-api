@@ -641,6 +641,9 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 }
 
 func isOpenAIVideoFetchPath(path string) bool {
+	if strings.HasPrefix(path, "/pg/") {
+		path = "/v1/" + strings.TrimPrefix(path, "/pg/")
+	}
 	return strings.HasPrefix(path, "/v1/videos/")
 }
 

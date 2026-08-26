@@ -330,6 +330,26 @@ func TestChannelSupportsRequestEndpointAllowsGPTImage2ImageGeneration(t *testing
 	}, "gpt-image-2"))
 }
 
+func TestChannelSupportsRequestEndpointNormalizesPlaygroundVideo(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/pg/videos", nil)
+
+	require.True(t, ChannelSupportsRequestEndpoint(ctx, &model.Channel{
+		Type: constant.ChannelTypeBlockRunVideo,
+	}, "seedance-2.0"))
+	require.True(t, ChannelSupportsRequestEndpoint(ctx, &model.Channel{
+		Type: constant.ChannelTypeGemini,
+	}, "veo-3.1-generate-preview"))
+	require.True(t, ChannelSupportsRequestEndpoint(ctx, &model.Channel{
+		Type: constant.ChannelTypeVertexAi,
+	}, "veo-3.1-generate-preview"))
+	require.False(t, ChannelSupportsRequestEndpoint(ctx, &model.Channel{
+		Type: constant.ChannelTypeGemini,
+	}, "gemini-2.5-flash"))
+}
+
 func TestChannelSupportsRequestEndpointDoesNotFilterLegacyEndpointModes(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -423,6 +443,29 @@ func TestRequestedEndpointTypeRoutesGrokImagesAndVideos(t *testing.T) {
 		{"image edits", "/v1/images/edits", constant.EndpointTypeImageGeneration},
 		{"openai videos", "/v1/videos", constant.EndpointTypeOpenAIVideo},
 		{"shared video generations", "/v1/video/generations", constant.EndpointTypeOpenAIVideo},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, tc.path, nil)
+
+			require.Equal(t, tc.want, requestedEndpointType(ctx))
+		})
+	}
+}
+
+func TestRequestedEndpointTypeNormalizesPlaygroundAliases(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		want constant.EndpointType
+	}{
+		{"playground image generations", "/pg/images/generations", constant.EndpointTypeImageGeneration},
+		{"playground video submit", "/pg/videos", constant.EndpointTypeOpenAIVideo},
+		{"playground video fetch", "/pg/videos/task_example", constant.EndpointTypeOpenAIVideo},
 	}
 
 	for _, tc := range cases {

@@ -217,7 +217,8 @@ func blockRunSolanaSupportsRequest(c *gin.Context, channel *model.Channel) bool 
 	if c == nil || c.Request == nil || c.Request.URL == nil || c.Request.Method != http.MethodPost {
 		return false
 	}
-	switch c.Request.URL.Path {
+	path := normalizePlaygroundRelayPath(c.Request.URL.Path)
+	switch path {
 	case "/v1/chat/completions", "/v1/messages", "/v1/responses":
 		return true
 	default:
@@ -225,11 +226,27 @@ func blockRunSolanaSupportsRequest(c *gin.Context, channel *model.Channel) bool 
 	}
 }
 
+// normalizePlaygroundRelayPath maps the authenticated Playground aliases to
+// their canonical OpenAI paths.  Channel selection is performed before the
+// controller dispatches the request, so endpoint capability checks must see
+// the same path that the relay-mode parser sees.  Without this normalization
+// a /pg/videos request skips the video endpoint filter and can land on a
+// chat-only channel, which commonly surfaces as an upstream 404.
+func normalizePlaygroundRelayPath(path string) string {
+	if path == "/pg" {
+		return "/v1"
+	}
+	if strings.HasPrefix(path, "/pg/") {
+		return "/v1/" + strings.TrimPrefix(path, "/pg/")
+	}
+	return path
+}
+
 func requestedEndpointType(c *gin.Context) constant.EndpointType {
 	if c == nil || c.Request == nil || c.Request.URL == nil {
 		return ""
 	}
-	path := c.Request.URL.Path
+	path := normalizePlaygroundRelayPath(c.Request.URL.Path)
 	if strings.HasPrefix(path, "/v1/responses/compact") {
 		return constant.EndpointTypeOpenAIResponseCompact
 	}

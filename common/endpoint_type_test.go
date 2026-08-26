@@ -63,6 +63,22 @@ func TestGetEndpointTypesByChannelType_ModelAPISeedance(t *testing.T) {
 	}
 }
 
+func TestGetEndpointTypesByChannelType_VeoOnGeminiAndVertex(t *testing.T) {
+	for _, channelType := range []int{constant.ChannelTypeGemini, constant.ChannelTypeVertexAi} {
+		got := GetEndpointTypesByChannelType(channelType, "google/veo-3.1-generate-preview")
+		if !containsEndpointType(got, constant.EndpointTypeOpenAIVideo) {
+			t.Fatalf("channel type %d: expected Veo endpoint %q, got %v", channelType, constant.EndpointTypeOpenAIVideo, got)
+		}
+	}
+}
+
+func TestGetEndpointTypesByChannelType_DoesNotPromoteGeminiChatToVideo(t *testing.T) {
+	got := GetEndpointTypesByChannelType(constant.ChannelTypeGemini, "gemini-2.5-flash")
+	if containsEndpointType(got, constant.EndpointTypeOpenAIVideo) {
+		t.Fatalf("Gemini chat model must not advertise video, got %v", got)
+	}
+}
+
 func TestGrokSubscriptionEndpointTypes(t *testing.T) {
 	t.Run("text model advertises text endpoints only", func(t *testing.T) {
 		got := GetEndpointTypesByChannelType(constant.ChannelTypeGrokSubscription, "grok-4.6")

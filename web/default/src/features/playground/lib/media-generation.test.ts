@@ -40,6 +40,10 @@ describe('Playground media model profiles', () => {
     expect(resolvePlaygroundModelKind('veo-3-1-fast-generate-preview')).toBe(
       'video'
     )
+    expect(resolvePlaygroundModelKind('veo-3.0-generate-001')).toBe('video')
+    expect(resolvePlaygroundModelKind('google/veo-3-0-fast-generate-001')).toBe(
+      'video'
+    )
     expect(resolvePlaygroundModelKind('bytedance/seedance-2.0-fast')).toBe(
       'video'
     )
@@ -272,6 +276,23 @@ describe('Playground media model profiles', () => {
     ).toBe(8)
   })
 
+  test('Veo 3.0 exposes its supported video profile', () => {
+    const profile = resolveMediaGenerationProfile('veo-3.0-generate-001')
+
+    expect(profile?.family).toBe('veo-3.0')
+    expect(
+      profile?.fields
+        .find((field) => field.key === 'resolution')
+        ?.options.map((option) => option.value)
+    ).toEqual(['720p'])
+    expect(
+      normalizeMediaGenerationSettings(profile!, {
+        resolution: '4k',
+        duration: 4,
+      })
+    ).toMatchObject({ resolution: '720p', duration: 4 })
+  })
+
   test('Grok video profiles expose only supported generation controls', () => {
     const legacy = resolveMediaGenerationProfile('grok-imagine-video')
     const current = resolveMediaGenerationProfile('grok-imagine-video-1.5')
@@ -322,6 +343,30 @@ describe('Playground media request building', () => {
         duration: 4,
         metadata: {
           resolution: '4k',
+          aspectRatio: '16:9',
+        },
+      },
+    })
+  })
+
+  test('builds the authenticated Playground request for Veo 3.0', () => {
+    const request = buildMediaGenerationRequest(
+      'A cinematic sunrise',
+      'veo-3.0-generate-001',
+      'plg',
+      { resolution: '720p', duration: 8, aspectRatio: '16:9' }
+    )
+
+    expect(request).toEqual({
+      kind: 'video',
+      endpoint: '/pg/videos',
+      payload: {
+        model: 'veo-3.0-generate-001',
+        group: 'plg',
+        prompt: 'A cinematic sunrise',
+        duration: 8,
+        metadata: {
+          resolution: '720p',
           aspectRatio: '16:9',
         },
       },

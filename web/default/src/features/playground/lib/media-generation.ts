@@ -25,6 +25,7 @@ export type MediaGenerationFamily =
   | 'gemini-image-flash'
   | 'grok-image'
   | 'grok-video'
+  | 'veo-3.0'
   | 'veo-3.1'
   | 'seedance-2.0'
   | 'seedance-2.5'
@@ -275,6 +276,25 @@ const veoProfile: MediaGenerationProfile = {
   noteKey: 'Veo 1080p and 4K output requires an 8-second duration.',
 }
 
+const veo30Profile: MediaGenerationProfile = {
+  kind: 'video',
+  family: 'veo-3.0',
+  defaults: {
+    resolution: '720p',
+    duration: 8,
+    aspectRatio: '16:9',
+  },
+  fields: [
+    selectField('resolution', 'Resolution', ['720p']),
+    selectField('duration', 'Duration', [
+      { value: '4', labelKey: '4 seconds' },
+      { value: '6', labelKey: '6 seconds' },
+      { value: '8', labelKey: '8 seconds' },
+    ]),
+    selectField('aspectRatio', 'Aspect ratio', ['16:9', '9:16']),
+  ],
+}
+
 function createSeedance20Profile(
   resolutions: string[]
 ): MediaGenerationProfile {
@@ -414,6 +434,9 @@ export function resolveMediaGenerationProfile(
   }
   if (/(^|\/)veo-3(?:\.|-)1(?:$|[-_/])/.test(normalized)) {
     return cloneProfile(veoProfile)
+  }
+  if (/(^|\/)veo-3(?:\.|-)0(?:$|[-_/])/.test(normalized)) {
+    return cloneProfile(veo30Profile)
   }
   if (normalized.includes('seedance')) {
     if (/2(?:[.-]|-)?5/.test(normalized)) {
@@ -577,7 +600,7 @@ function buildVideoPayload(
     }
   }
 
-  if (family === 'veo-3.1') {
+  if (family === 'veo-3.1' || family === 'veo-3.0') {
     return {
       model,
       group,

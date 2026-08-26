@@ -17,15 +17,139 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type {
+  ChatCompletionMessage,
   ChatCompletionRequest,
+  ContentPart,
+  GeneratedMedia,
   Message,
   ParameterEnabled,
+  PlaygroundAttachment,
   PlaygroundConfig,
   PlaygroundRecordPayload,
 } from '../types'
 import { getCurrentVersion } from './message-utils'
 import { buildChatCompletionPayload } from './payload-builder'
 import { createPlaygroundId } from './playground-id'
+
+const EMBEDDED_BASE64_DATA_URL_PATTERN =
+  /data:[^,\s"'<>]+;base64(?:,[^,\s"'<>()[\]{}]*)?/gi
+
+function isEmbeddedBase64DataUrl(value: unknown): boolean {
+  if (typeof value !== 'string') return false
+
+  const normalized = value.trim().toLowerCase()
+  if (!normalized.startsWith('data:')) return false
+
+  const comma = normalized.indexOf(',')
+  const header = comma === -1 ? normalized : normalized.slice(0, comma)
+  return header.includes(';base64')
+}
+
+function sanitizePersistedText(value: string): string {
+  if (isEmbeddedBase64DataUrl(value)) return '[embedded media omitted]'
+  return value.replace(
+    EMBEDDED_BASE64_DATA_URL_PATTERN,
+    '[embedded media omitted]'
+  )
+}
+
+// The live message keeps inline media so chat requests and local retries can
+// still use it. The record API deliberately rejects embedded media, so apply
+// this boundary only to the copy sent to (or restored from) the outbox.
+
+function sanitizeAttachment(
+  attachment: PlaygroundAttachment
+): PlaygroundAttachment {
+  const sanitized = { ...attachment }
+  if (isEmbeddedBase64DataUrl(sanitized.url)) delete sanitized.url
+  return sanitized
+}
+
+function sanitizeGeneratedMedia(media: GeneratedMedia[]): GeneratedMedia[] {
+  return media
+    .filter((item) => !isEmbeddedBase64DataUrl(item.url))
+    .map((item) => ({ ...item }))
+}
+
+function sanitizeMessage(message: Message): Message {
+  const sanitized: Message = {
+    ...message,
+    versions: message.versions.map((version) => ({
+      ...version,
+      ...(version.attachments
+        ? { attachments: version.attachments.map(sanitizeAttachment) }
+        : {}),
+      ...(version.generatedMedia
+        ? { generatedMedia: sanitizeGeneratedMedia(version.generatedMedia) }
+        : {}),
+    })),
+  }
+
+  if (message.generatedMedia) {
+    sanitized.generatedMedia = sanitizeGeneratedMedia(message.generatedMedia)
+  }
+  if (message.reasoning) {
+    sanitized.reasoning = { ...message.reasoning }
+  }
+  if (message.sources) {
+    sanitized.sources = message.sources.map((source) => ({ ...source }))
+  }
+
+  return sanitized
+}
+
+function sanitizeRequestMessage(
+  message: ChatCompletionMessage
+): ChatCompletionMessage {
+  if (!Array.isArray(message.content)) return { ...message }
+
+  const content = message.content.flatMap((part): ContentPart[] => {
+    if (
+      (part.type === 'image_url' &&
+        isEmbeddedBase64DataUrl(part.image_url?.url)) ||
+      (part.type === 'video_url' &&
+        isEmbeddedBase64DataUrl(part.video_url?.url))
+    ) {
+      return []
+    }
+
+    return [
+      {
+        ...part,
+        ...(part.image_url ? { image_url: { ...part.image_url } } : {}),
+        ...(part.video_url ? { video_url: { ...part.video_url } } : {}),
+      },
+    ]
+  })
+
+  return { ...message, content }
+}
+
+function sanitizePersistedRecordValue(value: unknown): unknown {
+  if (typeof value === 'string') return sanitizePersistedText(value)
+  if (Array.isArray(value)) return value.map(sanitizePersistedRecordValue)
+  if (!value || typeof value !== 'object') return value
+
+  const sanitized: Record<string, unknown> = {}
+  Object.entries(value).forEach(([key, child]) => {
+    if (key.trim().toLowerCase() === 'b64_json') return
+    sanitized[key] = sanitizePersistedRecordValue(child)
+  })
+  return sanitized
+}
+
+function sanitizePlaygroundRecordPayload(
+  payload: PlaygroundRecordPayload
+): PlaygroundRecordPayload {
+  const normalized = {
+    ...payload,
+    user_message: sanitizeMessage(payload.user_message),
+    request_messages: payload.request_messages.map(sanitizeRequestMessage),
+    assistant_message: sanitizeMessage(payload.assistant_message),
+    messages_snapshot: payload.messages_snapshot.map(sanitizeMessage),
+  }
+  return sanitizePersistedRecordValue(normalized) as PlaygroundRecordPayload
+}
 
 export interface ActivePlaygroundTurn {
   recordId: string
@@ -93,7 +217,7 @@ export function buildPlaygroundRecordPayload(
   } = active.request
   const isError = assistantMessage.status === 'error'
 
-  return {
+  return sanitizePlaygroundRecordPayload({
     record_id: active.recordId,
     conversation_id: active.conversationId,
     user_message: active.userMessage,
@@ -115,18 +239,20 @@ export function buildPlaygroundRecordPayload(
     latency_ms: Math.max(0, completedAt - active.startedAt),
     messages_snapshot: messages,
     client_completed_at: completedAt,
-  }
+  })
 }
 
 export async function drainPlaygroundOutbox(
   records: PlaygroundRecordPayload[],
   save: (record: PlaygroundRecordPayload) => Promise<void>
 ): Promise<PlaygroundRecordPayload[]> {
-  for (let index = 0; index < records.length; index += 1) {
+  const sanitizedRecords = records.map(sanitizePlaygroundRecordPayload)
+
+  for (let index = 0; index < sanitizedRecords.length; index += 1) {
     try {
-      await save(records[index])
+      await save(sanitizedRecords[index])
     } catch {
-      return records.slice(index)
+      return sanitizedRecords.slice(index)
     }
   }
 

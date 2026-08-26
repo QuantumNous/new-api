@@ -198,4 +198,37 @@ describe('PlaygroundChat', () => {
     expect(html).toContain('notes.txt')
     expect(html).toContain('Describe these files')
   })
+
+  test('renders mp4 attachments as playable video media', () => {
+    const html = renderToStaticMarkup(
+      <I18nextProvider i18n={testI18n}>
+        <PlaygroundChat
+          messages={[
+            {
+              key: 'user-video',
+              from: 'user',
+              status: 'complete',
+              versions: [
+                {
+                  id: 'version-1',
+                  content: 'Describe this clip',
+                  attachments: [
+                    {
+                      kind: 'video',
+                      filename: 'reference.mp4',
+                      mediaType: 'video/mp4',
+                      url: 'data:video/mp4;base64,AA==',
+                    },
+                  ],
+                },
+              ],
+            },
+          ]}
+        />
+      </I18nextProvider>
+    )
+
+    expect(html).toContain('<video aria-label="reference.mp4"')
+    expect(html).toContain('Describe this clip')
+  })
 })
