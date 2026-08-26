@@ -461,6 +461,10 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         values.WaffoPancakeReturnURL.trim()
       ),
+      WaffoPancakeCurrency: values.WaffoPancakeCurrency.trim().toUpperCase(),
+      WaffoPancakeTopUpProduct100ID: values.WaffoPancakeTopUpProduct100ID.trim(),
+      WaffoPancakeTopUpProduct500ID: values.WaffoPancakeTopUpProduct500ID.trim(),
+      WaffoPancakeTopUpProduct1000ID: values.WaffoPancakeTopUpProduct1000ID.trim(),
     }
 
     const initial = {
