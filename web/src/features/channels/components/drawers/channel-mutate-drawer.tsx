@@ -134,6 +134,7 @@ import {
   getChannelKey,
   getGroups,
   getPrefillGroups,
+  getTaskPluginOptions,
   refreshCodexCredential,
 } from '../../api'
 import {
@@ -141,6 +142,7 @@ import {
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   CHANNEL_STATUS_LABELS,
   CHANNEL_TYPE_OPTIONS,
+  CHANNEL_TYPE_TASK_PLUGIN,
   CHANNEL_TYPE_WARNINGS,
   ERROR_MESSAGES,
   FIELD_PASSTHROUGH_TYPES,
@@ -929,6 +931,11 @@ export function ChannelMutateDrawer({
         ?.label || `#${currentType}`,
     [currentType]
   )
+  const taskPluginOptionsQuery = useQuery({
+    queryKey: ['task-plugin-options'],
+    queryFn: getTaskPluginOptions,
+    enabled: currentType === CHANNEL_TYPE_TASK_PLUGIN,
+  })
 
   const channelTypeOptions = useMemo(() => {
     const options = CHANNEL_TYPE_OPTIONS.map((option) => ({
@@ -2029,6 +2036,69 @@ export function ChannelMutateDrawer({
                             />
                           </fieldset>
 
+                          {currentType === CHANNEL_TYPE_TASK_PLUGIN && (
+                            <FormField
+                              control={form.control}
+                              name='task_plugin_key'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t('Task plugin *')}</FormLabel>
+                                  <Select
+                                    value={field.value}
+                                    onValueChange={(value) => {
+                                      field.onChange(value)
+                                      const plugin =
+                                        taskPluginOptionsQuery.data?.find(
+                                          (item) => item.key === value
+                                        )
+                                      if (plugin?.models?.length) {
+                                        form.setValue(
+                                          'models',
+                                          formatModelsArray(plugin.models),
+                                          {
+                                            shouldDirty: true,
+                                          }
+                                        )
+                                      }
+                                    }}
+                                    items={(
+                                      taskPluginOptionsQuery.data ?? []
+                                    ).map((plugin) => ({
+                                      value: plugin.key,
+                                      label: `${plugin.name} (${plugin.key})`,
+                                    }))}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue
+                                          placeholder={t('Select task plugin')}
+                                        />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {(taskPluginOptionsQuery.data ?? []).map(
+                                        (plugin) => (
+                                          <SelectItem
+                                            key={plugin.key}
+                                            value={plugin.key}
+                                          >
+                                            {plugin.name} ({plugin.key})
+                                          </SelectItem>
+                                        )
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormDescription>
+                                    {t(
+                                      'Selecting a plugin fills its declared models.'
+                                    )}
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          )}
+
                           <FormField
                             control={form.control}
                             name='name'
@@ -2779,7 +2849,11 @@ export function ChannelMutateDrawer({
                                 name='base_url'
                                 render={({ field }) => (
                                   <FormItem>
-                                    <FormLabel>{t('Base URL')}</FormLabel>
+                                    <FormLabel>
+                                      {currentType === CHANNEL_TYPE_TASK_PLUGIN
+                                        ? t('Base URL *')
+                                        : t('Base URL')}
+                                    </FormLabel>
                                     <FormControl>
                                       <Input
                                         placeholder={t(
