@@ -21,6 +21,7 @@ import (
 	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	vertexcore "github.com/QuantumNous/new-api/relay/channel/vertex"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 )
@@ -81,7 +82,11 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if taskErr := relaycommon.ValidateBasicTaskRequest(c, info, constant.TaskActionTextGenerate); taskErr != nil {
 		return taskErr
 	}
-	if omnitask.IsModel(info.OriginModelName) {
+	info.UpstreamModelName = info.OriginModelName
+	if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+		return service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
+	}
+	if omnitask.IsModel(info.UpstreamModelName) {
 		if err := omnitask.ValidateRequest(c, info); err != nil {
 			return service.TaskErrorWrapperLocal(err, "invalid_omni_request", http.StatusBadRequest)
 		}

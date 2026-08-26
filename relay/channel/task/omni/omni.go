@@ -29,11 +29,12 @@ const (
 )
 
 type inputPart struct {
-	Type     string `json:"type"`
-	Text     string `json:"text,omitempty"`
-	MimeType string `json:"mime_type,omitempty"`
-	Data     string `json:"data,omitempty"`
-	URI      string `json:"uri,omitempty"`
+	Type     string      `json:"type"`
+	Text     string      `json:"text,omitempty"`
+	MimeType string      `json:"mime_type,omitempty"`
+	Data     string      `json:"data,omitempty"`
+	URI      string      `json:"uri,omitempty"`
+	Content  []inputPart `json:"content,omitempty"`
 }
 
 type responseFormat struct {
@@ -165,7 +166,7 @@ func ResolveAspectRatio(req relaycommon.TaskSubmitReq) string {
 	return req.Size
 }
 
-// ValidateRequest enforces Omni duration, aspect-ratio, and image-count limits.
+// ValidateRequest enforces Omni output options and reference-media limits.
 func ValidateRequest(c *gin.Context, info *relaycommon.RelayInfo) error {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
@@ -183,7 +184,11 @@ func ValidateRequest(c *gin.Context, info *relaycommon.RelayInfo) error {
 	if imageCount > MaxImages {
 		return fmt.Errorf("images must contain at most %d items for %s", MaxImages, ModelGeminiOmniFlashPreview)
 	}
-	if imageCount > 0 && info != nil {
+	referenceVideo, err := prepareReferenceVideo(c, req)
+	if err != nil {
+		return err
+	}
+	if (imageCount > 0 || referenceVideo.Part != nil) && info != nil {
 		info.Action = constant.TaskActionGenerate
 	}
 	return nil
@@ -207,6 +212,19 @@ func BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, e
 	parts = append(parts, images...)
 	if len(images) > 0 && info != nil {
 		info.Action = constant.TaskActionGenerate
+	}
+	referenceVideo, err := prepareReferenceVideo(c, req)
+	if err != nil {
+		return nil, err
+	}
+	if referenceVideo.Part != nil {
+		content := []inputPart{*referenceVideo.Part}
+		content = append(content, images...)
+		content = append(content, inputPart{Type: "text", Text: prompt})
+		parts = []inputPart{{Type: "user_input", Content: content}}
+		if info != nil {
+			info.Action = constant.TaskActionGenerate
+		}
 	}
 
 	var previousInteractionID *string

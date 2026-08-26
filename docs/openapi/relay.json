@@ -579,6 +579,12 @@
                     "type": "string",
                     "description": "参考图片文件",
                     "example": ""
+                  },
+                  "video": {
+                    "format": "binary",
+                    "type": "string",
+                    "description": "Gemini Omni Flash 参考视频文件；仅允许一个，最长 10 秒，最大 64 MiB，支持 MP4 或 QuickTime",
+                    "example": ""
                   }
                 }
               },
