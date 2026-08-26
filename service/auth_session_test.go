@@ -126,10 +126,22 @@ func TestCreateLoginSessionEnforcesActiveLimitAcrossAuthVersions(t *testing.T) {
 	require.NoError(t, err, "49 active sessions must allow creation of the 50th")
 
 	_, err = CreateLoginSession(user.Id, "password", "127.0.0.1", "test-agent")
-	assert.ErrorIs(t, err, model.ErrUserSessionLimit)
-	var count int64
-	require.NoError(t, model.DB.Model(&model.UserSession{}).Count(&count).Error)
-	assert.Equal(t, int64(50), count)
+	require.NoError(t, err, "at the active limit the oldest session is evicted to make room")
+
+	var oldest model.UserSession
+	require.NoError(t, model.DB.Where("sid = ?", "active-limit-48").First(&oldest).Error)
+	assert.Equal(t, model.UserSessionStatusRevoked, oldest.Status)
+
+	// The 51st login inserts a new row, so the total row count is 51 (the
+	// evicted row stays revoked and is reclaimed by the periodic cleanup);
+	// the key invariant is that the active count returns to the limit of 50.
+	var activeCount int64
+	require.NoError(t, model.DB.Model(&model.UserSession{}).
+		Where("status = ?", model.UserSessionStatusActive).Count(&activeCount).Error)
+	assert.Equal(t, int64(50), activeCount)
+	var total int64
+	require.NoError(t, model.DB.Model(&model.UserSession{}).Count(&total).Error)
+	assert.Equal(t, int64(51), total)
 }
 
 func TestCreateLoginSessionEnforcesIssuanceLimitAcrossAllStatuses(t *testing.T) {

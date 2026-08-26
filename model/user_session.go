@@ -709,6 +709,47 @@ func RevokeAllUserSessions(userID int, reason string) (int64, error) {
 	return revokeUserSessions(userID, "", reason)
 }
 
+// RevokeOldestActiveUserSessions revokes the oldest active sessions of a user
+// so that the number of active sessions does not exceed limit. It is a no-op
+// when the active count is already at or below limit, and returns the number
+// of sessions actually revoked. It is used at login time to make room for a
+// new session instead of hard-blocking once the active session limit is
+// reached, so a full session table can never lock the user out.
+func RevokeOldestActiveUserSessions(userID int, limit int64, now int64, reason string) (int64, error) {
+	if userID <= 0 || limit <= 0 {
+		return 0, ErrUserSessionInvalid
+	}
+	if now <= 0 {
+		now = time.Now().Unix()
+	}
+	activeCount, err := CountActiveUserSessions(userID, now)
+	if err != nil {
+		return 0, err
+	}
+	toEvict := activeCount - limit
+	if toEvict <= 0 {
+		return 0, nil
+	}
+	var sids []string
+	if err := DB.Model(&UserSession{}).
+		Where("user_id = ? AND status = ? AND expires_at > ?", userID, UserSessionStatusActive, now).
+		Order("last_active_at ASC").Order("created_at ASC").
+		Limit(int(toEvict)).Pluck("sid", &sids).Error; err != nil {
+		return 0, err
+	}
+	var revoked int64
+	for _, sid := range sids {
+		ok, err := RevokeUserSession(userID, sid, reason)
+		if err != nil {
+			return revoked, err
+		}
+		if ok {
+			revoked++
+		}
+	}
+	return revoked, nil
+}
+
 func revokeUserSessions(userID int, excludedSID, reason string) (int64, error) {
 	if userID <= 0 {
 		return 0, ErrUserSessionInvalid

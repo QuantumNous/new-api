@@ -653,3 +653,60 @@ func TestPasswordResetBumpsAuthVersionAndRevokesSessions(t *testing.T) {
 	assert.Equal(t, UserSessionStatusRevoked, storedSession.Status)
 	assert.Equal(t, "password_reset", storedSession.RevokedReason)
 }
+
+func TestRevokeOldestActiveUserSessionsEvictsOldestFirst(t *testing.T) {
+	setupUserSessionTest(t)
+	createUserSessionTestUser(t, 7, 1)
+	now := time.Now().Unix()
+	sessions := []*UserSession{
+		newTestUserSession("evict-oldest", 7, now),
+		newTestUserSession("evict-older", 7, now),
+		newTestUserSession("evict-newer", 7, now),
+		newTestUserSession("evict-newest", 7, now),
+	}
+	sessions[0].LastActiveAt = now - 100
+	sessions[1].LastActiveAt = now - 60
+	sessions[2].LastActiveAt = now - 30
+	sessions[3].LastActiveAt = now
+	expired := newTestUserSession("evict-expired", 7, now)
+	expired.ExpiresAt = now - 1
+	revoked := newTestUserSession("evict-revoked", 7, now)
+	revoked.Status = UserSessionStatusRevoked
+	revoked.RevokedAt = now - 1
+	all := append(sessions, expired, revoked)
+	require.NoError(t, DB.Create(&all).Error)
+
+	// limit=2 with 4 active sessions: only the 2 with the oldest last_active_at
+	// should be revoked.
+	revokedCount, err := RevokeOldestActiveUserSessions(7, 2, now, "test_evict")
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), revokedCount)
+
+	var oldest UserSession
+	require.NoError(t, DB.Where("sid = ?", "evict-oldest").First(&oldest).Error)
+	assert.Equal(t, UserSessionStatusRevoked, oldest.Status)
+	var older UserSession
+	require.NoError(t, DB.Where("sid = ?", "evict-older").First(&older).Error)
+	assert.Equal(t, UserSessionStatusRevoked, older.Status)
+	var newer UserSession
+	require.NoError(t, DB.Where("sid = ?", "evict-newer").First(&newer).Error)
+	assert.Equal(t, UserSessionStatusActive, newer.Status)
+	var newest UserSession
+	require.NoError(t, DB.Where("sid = ?", "evict-newest").First(&newest).Error)
+	assert.Equal(t, UserSessionStatusActive, newest.Status)
+	// Expired/revoked sessions are outside the eviction scope and keep their state.
+	var expiredRow UserSession
+	require.NoError(t, DB.Where("sid = ?", "evict-expired").First(&expiredRow).Error)
+	assert.Equal(t, UserSessionStatusActive, expiredRow.Status)
+}
+
+func TestRevokeOldestActiveUserSessionsNoOpUnderLimit(t *testing.T) {
+	setupUserSessionTest(t)
+	createUserSessionTestUser(t, 8, 1)
+	now := time.Now().Unix()
+	require.NoError(t, DB.Create(newTestUserSession("under-limit", 8, now)).Error)
+
+	revoked, err := RevokeOldestActiveUserSessions(8, 10, now, "test_evict")
+	require.NoError(t, err)
+	assert.Zero(t, revoked)
+}
