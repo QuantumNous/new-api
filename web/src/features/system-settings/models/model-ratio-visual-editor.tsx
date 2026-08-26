@@ -60,6 +60,7 @@ import {
 import {
   buildModelSnapshots,
   getSnapshotSignature,
+  isBasePricingUnset,
   type ModelRow,
 } from './model-pricing-snapshots'
 import { buildModelRatioColumns } from './model-ratio-table-columns'
@@ -85,6 +86,9 @@ type ModelRatioVisualEditorProps = {
   audioCompletionRatio: string
   billingMode: string
   billingExpr: string
+  candidateModelNames?: string[]
+  candidateModelsLoading?: boolean
+  filterMode?: 'all' | 'unset'
   onChange: (field: string, value: string) => void
   onSave: () => void | Promise<void>
   isSaving: boolean
@@ -121,6 +125,9 @@ const ModelRatioVisualEditorComponent = forwardRef<
     audioCompletionRatio,
     billingMode,
     billingExpr,
+    candidateModelNames,
+    candidateModelsLoading,
+    filterMode = 'all',
     onChange,
     onSave,
     isSaving,
@@ -208,32 +215,36 @@ const ModelRatioVisualEditorComponent = forwardRef<
 
     const savedByName = new Map(savedRows.map((row) => [row.name, row]))
     const draftByName = new Map(draftRows.map((row) => [row.name, row]))
-    const modelNames = new Set([...savedByName.keys(), ...draftByName.keys()])
+    const modelNames =
+      filterMode === 'unset'
+        ? new Set(candidateModelNames ?? [])
+        : new Set([...savedByName.keys(), ...draftByName.keys()])
 
     return [...modelNames]
-      .flatMap((name) => {
+      .map((name) => {
         const saved = savedByName.get(name)
         const draft = draftByName.get(name)
-        const displayed = saved ?? draft
-        if (!displayed) return []
+        const displayed = saved ??
+          draft ?? { name, billingMode: 'per-token', hasConflict: false }
 
         const savedSignature = getSnapshotSignature(saved)
         const draftSignature = getSnapshotSignature(draft)
 
-        return [
-          {
-            ...displayed,
-            saved,
-            draft,
-            isDraftChanged: savedSignature !== draftSignature,
-            isDraftDeleted: Boolean(saved && !draft),
-            isDraftNew: Boolean(!saved && draft),
-          },
-        ]
+        return {
+          ...displayed,
+          saved,
+          draft,
+          isDraftChanged: savedSignature !== draftSignature,
+          isDraftDeleted: Boolean(saved && !draft),
+          isDraftNew: Boolean(!saved && draft),
+        }
       })
       .filter((row) => !row.isDraftDeleted)
+      .filter((row) => filterMode !== 'unset' || isBasePricingUnset(row.saved))
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [
+    candidateModelNames,
+    filterMode,
     savedModelPrice,
     savedModelRatio,
     savedCacheRatio,
@@ -486,6 +497,15 @@ const ModelRatioVisualEditorComponent = forwardRef<
 
   const hasRows = table.getRowModel().rows.length > 0
 
+  let emptyStateText = t('No models configured. Use Add model to get started.')
+  if (table.getState().globalFilter) {
+    emptyStateText = t('No models match your search')
+  } else if (filterMode === 'unset') {
+    emptyStateText = candidateModelsLoading
+      ? t('Loading...')
+      : t('No models with unset prices')
+  }
+
   return (
     <div className='flex flex-col gap-4'>
       <div className='grid h-[clamp(720px,calc(100vh-12rem),900px)] min-h-0 gap-4 md:grid-cols-[minmax(300px,0.72fr)_minmax(520px,1.28fr)] xl:grid-cols-[minmax(320px,0.68fr)_minmax(640px,1.32fr)]'>
@@ -517,18 +537,18 @@ const ModelRatioVisualEditorComponent = forwardRef<
               },
             ]}
             preActions={
-              <Button onClick={handleAdd}>
-                <Plus data-icon='inline-start' />
-                {t('Add model')}
-              </Button>
+              filterMode === 'unset' ? undefined : (
+                <Button onClick={handleAdd}>
+                  <Plus data-icon='inline-start' />
+                  {t('Add model')}
+                </Button>
+              )
             }
           />
 
           {!hasRows ? (
             <div className='text-muted-foreground rounded-lg border border-dashed p-8 text-center'>
-              {table.getState().globalFilter
-                ? t('No models match your search')
-                : t('No models configured. Use Add model to get started.')}
+              {emptyStateText}
             </div>
           ) : (
             <DataTableView
@@ -649,6 +669,9 @@ export const ModelRatioVisualEditor = memo(
       prevProps.audioCompletionRatio === nextProps.audioCompletionRatio &&
       prevProps.billingMode === nextProps.billingMode &&
       prevProps.billingExpr === nextProps.billingExpr &&
+      prevProps.candidateModelNames === nextProps.candidateModelNames &&
+      prevProps.candidateModelsLoading === nextProps.candidateModelsLoading &&
+      prevProps.filterMode === nextProps.filterMode &&
       prevProps.onChange === nextProps.onChange &&
       prevProps.onSave === nextProps.onSave &&
       prevProps.isSaving === nextProps.isSaving
