@@ -133,6 +133,32 @@ func TestRefreshTokenNon200ErrorOmitsBody(t *testing.T) {
 	}
 }
 
+func TestRefreshTokenInvalidGrantIsClassifiedWithoutLeakingDescription(t *testing.T) {
+	const secret = "refresh-token-secret-description"
+	store := &fakeStore{
+		key:      `{"version":1,"type":"grok_subscription","access_token":"old","refresh_token":"rt","token_type":"Bearer","expires_at":1000}`,
+		revision: 1,
+	}
+	r := NewRefresher(store, doerFunc(func(req *http.Request) (*http.Response, error) {
+		return jsonResponse(http.StatusBadRequest, `{"error":"invalid_grant","error_description":"`+secret+`"}`), nil
+	}), func() int64 { return 2000 })
+
+	_, err := r.Refresh(context.Background(), 5)
+	if err == nil {
+		t.Fatal("invalid_grant must fail refresh")
+	}
+	var statusErr RefreshHTTPStatusError
+	if !errors.As(err, &statusErr) {
+		t.Fatalf("want RefreshHTTPStatusError, got %T: %v", err, err)
+	}
+	if statusErr.Code != "invalid_grant" {
+		t.Fatalf("code = %q, want invalid_grant", statusErr.Code)
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Fatalf("error leaked error_description: %q", err.Error())
+	}
+}
+
 // TestRefreshTokenPreservesOldRefreshTokenWhenUpstreamOmits 守护 OAuth 正确性（RFC 6749 §6）：
 // 上游 200 但不轮换 refresh_token 时，新凭证须保留旧 refresh_token。变异验证：改成只取 tr.RefreshToken 即 FAIL。
 func TestRefreshTokenPreservesOldRefreshTokenWhenUpstreamOmits(t *testing.T) {

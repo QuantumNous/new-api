@@ -103,6 +103,22 @@ func isGrokImageMode(info *relaycommon.RelayInfo) bool {
 	return info != nil && (info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits)
 }
 
+func isGrokTextMode(info *relaycommon.RelayInfo) bool {
+	if info == nil || isGrokImageMode(info) {
+		return false
+	}
+	switch info.RelayMode {
+	case relayconstant.RelayModeResponses, relayconstant.RelayModeChatCompletions, relayconstant.RelayModeResponsesCompact:
+		return true
+	default:
+		// Claude requests are normalized to Responses in the normal relay
+		// pipeline, but keep the unknown-mode format fallback for callers that
+		// invoke the adaptor directly with a Claude RelayFormat. Explicit media,
+		// audio, and task modes must never enter the replayable text path.
+		return info.RelayMode == relayconstant.RelayModeUnknown && info.RelayFormat == types.RelayFormatClaude
+	}
+}
+
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("request is nil")
@@ -161,6 +177,9 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if isGrokTextMode(info) {
+		return a.doTextRequest(c, info, requestBody)
+	}
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 

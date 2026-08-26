@@ -363,6 +363,17 @@ func finalizeRequestIfSupported(a any, c *gin.Context, req *http.Request, info *
 }
 
 func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+	return doApiRequestWithClient(a, c, info, requestBody, nil)
+}
+
+// DoApiRequestWithClient is the same request pipeline as DoApiRequest, but
+// lets channel-specific adaptors provide an already-configured HTTP client.
+// A nil client preserves the normal proxy/default-client selection.
+func DoApiRequestWithClient(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader, client *http.Client) (*http.Response, error) {
+	return doApiRequestWithClient(a, c, info, requestBody, client)
+}
+
+func doApiRequestWithClient(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader, client *http.Client) (*http.Response, error) {
 	fullRequestURL, err := a.GetRequestURL(info)
 	if err != nil {
 		return nil, MarkDefinitelyNotSent(fmt.Errorf("get request url failed: %w", err))
@@ -395,7 +406,7 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err := finalizeRequestIfSupported(a, c, req, info); err != nil {
 		return nil, err
 	}
-	resp, err := doRequest(c, req, info)
+	resp, err := doRequestWithClient(c, req, info, client)
 	if err != nil {
 		return nil, fmt.Errorf("do request failed: %w", err)
 	}
@@ -564,18 +575,23 @@ func sendPingData(c *gin.Context, mutex *sync.Mutex) error {
 }
 
 func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
-	return doRequest(c, req, info)
+	return doRequestWithClient(c, req, info, nil)
 }
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
-	var client *http.Client
+	return doRequestWithClient(c, req, info, nil)
+}
+
+func doRequestWithClient(c *gin.Context, req *http.Request, info *common.RelayInfo, client *http.Client) (*http.Response, error) {
 	var err error
-	if info.ChannelSetting.Proxy != "" {
-		client, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
-		if err != nil {
-			return nil, fmt.Errorf("new proxy http client failed: %w", err)
+	if client == nil {
+		if info.ChannelSetting.Proxy != "" {
+			client, err = service.NewProxyHttpClient(info.ChannelSetting.Proxy)
+			if err != nil {
+				return nil, fmt.Errorf("new proxy http client failed: %w", err)
+			}
+		} else {
+			client = service.GetHttpClient()
 		}
-	} else {
-		client = service.GetHttpClient()
 	}
 	client = clientForRelayRequest(client, req, info)
 

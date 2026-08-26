@@ -255,6 +255,7 @@ func TestMediaRefreshShouldMarkNeedsReauthOnlyForDefinitiveAuthFailures(t *testi
 		{name: "missing refresh token", err: ErrNotRefreshable, want: true},
 		{name: "token endpoint 401", err: RefreshHTTPStatusError{StatusCode: http.StatusUnauthorized}, want: true},
 		{name: "token endpoint 403", err: RefreshHTTPStatusError{StatusCode: http.StatusForbidden}, want: true},
+		{name: "invalid grant", err: RefreshHTTPStatusError{StatusCode: http.StatusBadRequest, Code: "invalid_grant"}, want: true},
 		{name: "transport error", err: errors.New("dial tcp: transient network failure"), want: false},
 		{name: "token endpoint 500", err: RefreshHTTPStatusError{StatusCode: http.StatusInternalServerError}, want: false},
 		{name: "cas conflict", err: ErrRefreshConflict, want: false},

@@ -18,9 +18,15 @@ var (
 
 type RefreshHTTPStatusError struct {
 	StatusCode int
+	// Code is a sanitized OAuth error category (for example invalid_grant).
+	// It never contains error_description or raw response content.
+	Code string
 }
 
 func (e RefreshHTTPStatusError) Error() string {
+	if e.Code != "" {
+		return fmt.Sprintf("grok refresh: token endpoint status %d (%s)", e.StatusCode, e.Code)
+	}
 	return fmt.Sprintf("grok refresh: token endpoint status %d", e.StatusCode)
 }
 
@@ -91,7 +97,10 @@ func (r *Refresher) Refresh(ctx context.Context, channelID int) (Credential, err
 	// status==200 时读取异常会被后续 json.Unmarshal 失败或空 access_token 检查兜住（均 fail-closed）。
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, maxTokenResponseBytes))
 	if resp.StatusCode != http.StatusOK {
-		return Credential{}, RefreshHTTPStatusError{StatusCode: resp.StatusCode}
+		return Credential{}, RefreshHTTPStatusError{
+			StatusCode: resp.StatusCode,
+			Code:       sanitizeGrantErrorCode(body),
+		}
 	}
 	var tr tokenResponse
 	if err := json.Unmarshal(body, &tr); err != nil {

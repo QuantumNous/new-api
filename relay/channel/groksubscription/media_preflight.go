@@ -459,7 +459,7 @@ func mediaRefreshShouldMarkNeedsReauth(err error) bool {
 	}
 	var statusErr RefreshHTTPStatusError
 	if errors.As(err, &statusErr) {
-		return statusErr.StatusCode == http.StatusUnauthorized || statusErr.StatusCode == http.StatusForbidden
+		return statusErr.StatusCode == http.StatusUnauthorized || statusErr.StatusCode == http.StatusForbidden || statusErr.Code == "invalid_grant"
 	}
 	return false
 }
