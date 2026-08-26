@@ -33,8 +33,8 @@ type Adaptor struct {
 	IsNova     bool
 }
 
-func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	return a.convertToClaude(c, info, request)
+func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
+	return channel.ForeignTextRequest("aws.ConvertGeminiRequest")
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
@@ -121,17 +121,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		return novaReq, nil
 	}
 
-	// 原有的Claude模型处理逻辑
-	result, err := service.ConvertRequest(c, info, types.RelayFormatClaude, request)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to convert openai request to claude request")
-	}
-	claudeReq, ok := result.Value.(*dto.ClaudeRequest)
-	if !ok {
-		return nil, fmt.Errorf("expected Anthropic Messages request, got %T", result.Value)
-	}
-	info.UpstreamModelName = claudeReq.Model
-	return claudeReq, err
+	return channel.ForeignTextRequest("aws.ConvertOpenAIRequest")
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -143,23 +133,8 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	return nil, errors.New("not implemented")
 }
 
-func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return a.convertToClaude(c, info, &request)
-}
-
-func (a *Adaptor) convertToClaude(c *gin.Context, info *relaycommon.RelayInfo, request any) (any, error) {
-	result, err := service.ConvertRequest(c, info, types.RelayFormatClaude, request)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to convert request to claude request")
-	}
-	claudeReq, ok := result.Value.(*dto.ClaudeRequest)
-	if !ok {
-		return nil, fmt.Errorf("expected Anthropic Messages request, got %T", result.Value)
-	}
-	if info != nil && claudeReq.Model != "" {
-		info.UpstreamModelName = claudeReq.Model
-	}
-	return a.ConvertClaudeRequest(c, info, claudeReq)
+func (a *Adaptor) ConvertOpenAIResponsesRequest(*gin.Context, *relaycommon.RelayInfo, dto.OpenAIResponsesRequest) (any, error) {
+	return channel.ForeignTextRequest("aws.ConvertOpenAIResponsesRequest")
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {

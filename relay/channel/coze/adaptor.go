@@ -20,8 +20,7 @@ type Adaptor struct {
 }
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *common.RelayInfo, *dto.GeminiChatRequest) (any, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	return channel.ForeignTextRequest("coze.ConvertGeminiRequest")
 }
 
 // ConvertAudioRequest implements channel.Adaptor.
@@ -31,7 +30,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *common.RelayInfo, re
 
 // ConvertClaudeRequest implements channel.Adaptor.
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *common.RelayInfo, request *dto.ClaudeRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	return channel.ForeignTextRequest("coze.ConvertClaudeRequest")
 }
 
 // ConvertEmbeddingRequest implements channel.Adaptor.

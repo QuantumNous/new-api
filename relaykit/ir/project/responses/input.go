@@ -1,0 +1,345 @@
+package responses
+
+import (
+	"encoding/json"
+
+	"github.com/QuantumNous/new-api/relaykit/ir"
+	"github.com/QuantumNous/new-api/relaykit/ir/internal/jsonx"
+)
+
+func messagesFromResponsesInput(raw json.RawMessage) ([]ir.Message, error) {
+	if !jsonx.Present(raw) {
+		return nil, nil
+	}
+	if jsonx.RawJSONType(raw) == "string" {
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			return nil, err
+		}
+		return []ir.Message{{Role: ir.RoleUser, Blocks: []ir.Block{ir.Text(s)}}}, nil
+	}
+	items, ok := jsonx.AsSlice(raw)
+	if !ok {
+		return nil, nil
+	}
+	out := make([]ir.Message, 0, len(items))
+	for _, item := range items {
+		msg, err := messageFromResponsesItem(item)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, msg)
+	}
+	return out, nil
+}
+
+func messageFromResponsesItem(item any) (ir.Message, error) {
+	m, ok := jsonx.AsMap(item)
+	if !ok {
+		raw, err := jsonx.Marshal(item)
+		if err != nil {
+			return ir.Message{}, err
+		}
+		return ir.Message{Role: ir.RoleUser, Blocks: []ir.Block{ir.Raw("", raw)}}, nil
+	}
+	typ := jsonx.MapString(m, "type")
+	full, err := jsonx.Marshal(m)
+	if err != nil {
+		return ir.Message{}, err
+	}
+	switch typ {
+	case "", "message":
+		role := ir.Role(jsonx.MapString(m, "role"))
+		if role == "" {
+			role = ir.RoleUser
+		}
+		blocks, err := blocksFromResponsesContent(m["content"])
+		if err != nil {
+			return ir.Message{}, err
+		}
+		return ir.Message{Role: role, Blocks: blocks}, nil
+	case "custom_tool_call", "custom_tool_call_output":
+		return ir.Message{Role: ir.RoleAssistant, Blocks: []ir.Block{ir.Raw(typ, full)}}, nil
+	case "function_call":
+		input := json.RawMessage(nil)
+		if args := m["arguments"]; args != nil {
+			input, err = jsonx.Marshal(args)
+			if err != nil {
+				return ir.Message{}, err
+			}
+			if jsonx.RawJSONType(input) == "string" {
+				var s string
+				_ = json.Unmarshal(input, &s)
+				if json.Valid([]byte(s)) {
+					input = json.RawMessage(s)
+				}
+			}
+		}
+		id := jsonx.MapString(m, "call_id")
+		if id == "" {
+			id = jsonx.MapString(m, "id")
+		}
+		return ir.Message{
+			Role:   ir.RoleAssistant,
+			Blocks: []ir.Block{ir.ToolUse(id, jsonx.MapString(m, "name"), input)},
+		}, nil
+	case "function_call_output":
+		content := m["output"]
+		if content == nil {
+			content = m["content"]
+		}
+		blocks, err := blocksFromResponsesContent(content)
+		if err != nil {
+			return ir.Message{}, err
+		}
+		if len(blocks) == 0 {
+			blocks = []ir.Block{ir.Text(jsonx.AsString(content))}
+		}
+		id := jsonx.MapString(m, "call_id")
+		return ir.Message{
+			Role:   ir.RoleTool,
+			Blocks: []ir.Block{ir.ToolResult(id, blocks)},
+		}, nil
+	case "reasoning":
+		text := reasoningTextFromMap(m)
+		return ir.Message{Role: ir.RoleAssistant, Blocks: []ir.Block{ir.Think(text, "")}}, nil
+	default:
+		return ir.Message{Role: ir.RoleAssistant, Blocks: []ir.Block{ir.Raw(typ, full)}}, nil
+	}
+}
+
+func reasoningTextFromMap(m map[string]any) string {
+	if summary, ok := jsonx.AsSlice(m["summary"]); ok {
+		var text string
+		for _, part := range summary {
+			if inner, ok := jsonx.AsMap(part); ok {
+				text += jsonx.MapString(inner, "text")
+			}
+		}
+		return text
+	}
+	return jsonx.MapString(m, "content")
+}
+
+func blocksFromResponsesContent(content any) ([]ir.Block, error) {
+	if content == nil {
+		return nil, nil
+	}
+	if s, ok := content.(string); ok {
+		if s == "" {
+			return nil, nil
+		}
+		return []ir.Block{ir.Text(s)}, nil
+	}
+	if m, ok := jsonx.AsMap(content); ok {
+		raw, err := json.Marshal(m)
+		if err != nil {
+			return nil, err
+		}
+		return []ir.Block{ir.Text(string(raw))}, nil
+	}
+	if raw, ok := content.(json.RawMessage); ok {
+		switch jsonx.RawJSONType(raw) {
+		case "string":
+			var s string
+			if err := json.Unmarshal(raw, &s); err != nil {
+				return nil, err
+			}
+			return []ir.Block{ir.Text(s)}, nil
+		case "array":
+			var items []any
+			if err := json.Unmarshal(raw, &items); err != nil {
+				return nil, err
+			}
+			return blocksFromResponsesContent(items)
+		}
+	}
+	items, ok := jsonx.AsSlice(content)
+	if !ok {
+		if s := jsonx.AsString(content); s != "" {
+			return []ir.Block{ir.Text(s)}, nil
+		}
+		return nil, nil
+	}
+	blocks := make([]ir.Block, 0, len(items))
+	for _, item := range items {
+		block, err := blockFromResponsesPart(item)
+		if err != nil {
+			return nil, err
+		}
+		blocks = append(blocks, block)
+	}
+	return blocks, nil
+}
+
+func blockFromResponsesPart(item any) (ir.Block, error) {
+	m, ok := jsonx.AsMap(item)
+	if !ok {
+		return ir.Text(jsonx.AsString(item)), nil
+	}
+	typ := jsonx.MapString(m, "type")
+	switch typ {
+	case "", "input_text", "output_text", "text":
+		return ir.Text(jsonx.MapString(m, "text")), nil
+	case "input_image":
+		media := &ir.MediaBlock{Kind: ir.MediaImage, Detail: jsonx.MapString(m, "detail")}
+		url := jsonx.MapString(m, "image_url")
+		if url == "" {
+			if inner, ok := jsonx.AsMap(m["image_url"]); ok {
+				url = jsonx.MapString(inner, "url")
+			}
+		}
+		if mime, data, ok := jsonx.ParseDataURL(url); ok {
+			media.Source = ir.MediaSourceBase64
+			media.MIME = mime
+			media.Data = data
+		} else {
+			media.Source = ir.MediaSourceURL
+			media.URL = url
+		}
+		return ir.Block{Kind: ir.BlockKindMedia, Media: media}, nil
+	case "input_file":
+		media := &ir.MediaBlock{Kind: ir.MediaFile, Source: ir.MediaSourceURL, URL: jsonx.MapString(m, "file_url")}
+		if media.URL == "" {
+			if inner, ok := jsonx.AsMap(m["file_url"]); ok {
+				media.URL = jsonx.MapString(inner, "url")
+			}
+		}
+		if id := jsonx.MapString(m, "file_id"); id != "" {
+			media.Source = ir.MediaSourceID
+			media.FileID = id
+		}
+		return ir.Block{Kind: ir.BlockKindMedia, Media: media}, nil
+	default:
+		raw, err := jsonx.Marshal(m)
+		if err != nil {
+			return ir.Block{}, err
+		}
+		return ir.Raw(typ, raw), nil
+	}
+}
+
+func messageToResponsesInput(msg ir.Message) (any, error) {
+	if len(msg.Blocks) == 1 && msg.Blocks[0].Kind == ir.BlockKindRaw && msg.Blocks[0].Raw != nil {
+		var v any
+		if err := json.Unmarshal(msg.Blocks[0].Raw.JSON, &v); err != nil {
+			return nil, err
+		}
+		return v, nil
+	}
+	if msg.Role == ir.RoleTool || (len(msg.Blocks) == 1 && msg.Blocks[0].Kind == ir.BlockKindToolResult) {
+		result := msg.Blocks[0].ToolResult
+		if result == nil && len(msg.Blocks) > 0 {
+			result = msg.Blocks[0].ToolResult
+		}
+		item := map[string]any{"type": "function_call_output"}
+		if result != nil {
+			jsonx.PutIfNotEmpty(item, "call_id", result.ToolUseID)
+			if len(result.Blocks) == 1 && result.Blocks[0].Kind == ir.BlockKindText && result.Blocks[0].Text != nil {
+				item["output"] = result.Blocks[0].Text.Text
+			} else {
+				content, err := blocksToResponsesContent(result.Blocks, false)
+				if err != nil {
+					return nil, err
+				}
+				item["output"] = content
+			}
+		}
+		return item, nil
+	}
+	if len(msg.Blocks) == 1 && msg.Blocks[0].Kind == ir.BlockKindToolUse && msg.Blocks[0].ToolUse != nil {
+		use := msg.Blocks[0].ToolUse
+		item := map[string]any{"type": "function_call"}
+		jsonx.PutIfNotEmpty(item, "call_id", use.ID)
+		jsonx.PutIfNotEmpty(item, "name", use.Name)
+		if jsonx.Present(use.Input) {
+			item["arguments"] = rawToResponsesArguments(use.Input)
+		}
+		return item, nil
+	}
+	if len(msg.Blocks) == 1 && msg.Blocks[0].Kind == ir.BlockKindThink && msg.Blocks[0].Think != nil {
+		return map[string]any{
+			"type": "reasoning",
+			"summary": []any{
+				map[string]any{"type": "summary_text", "text": msg.Blocks[0].Think.Text},
+			},
+		}, nil
+	}
+	content, err := blocksToResponsesContent(msg.Blocks, msg.Role != ir.RoleAssistant)
+	if err != nil {
+		return nil, err
+	}
+	item := map[string]any{"type": "message", "content": content}
+	jsonx.PutIfNotEmpty(item, "role", string(msg.Role))
+	return item, nil
+}
+
+func blocksToResponsesContent(blocks []ir.Block, input bool) (any, error) {
+	if len(blocks) == 1 && blocks[0].Kind == ir.BlockKindText && blocks[0].Text != nil {
+		return blocks[0].Text.Text, nil
+	}
+	parts := make([]any, 0, len(blocks))
+	for _, block := range blocks {
+		part, err := blockToResponsesPart(block, input)
+		if err != nil {
+			return nil, err
+		}
+		if part != nil {
+			parts = append(parts, part)
+		}
+	}
+	return parts, nil
+}
+
+func blockToResponsesPart(block ir.Block, input bool) (any, error) {
+	switch block.Kind {
+	case ir.BlockKindText:
+		text := ""
+		if block.Text != nil {
+			text = block.Text.Text
+		}
+		typ := "output_text"
+		if input {
+			typ = "input_text"
+		}
+		return map[string]any{"type": typ, "text": text}, nil
+	case ir.BlockKindMedia:
+		if block.Media == nil {
+			return nil, nil
+		}
+		if block.Media.Kind == ir.MediaFile {
+			item := map[string]any{"type": "input_file"}
+			jsonx.PutIfNotEmpty(item, "file_url", block.Media.URL)
+			jsonx.PutIfNotEmpty(item, "file_id", block.Media.FileID)
+			return item, nil
+		}
+		url := block.Media.URL
+		if block.Media.Source == ir.MediaSourceBase64 && block.Media.Data != "" {
+			url = jsonx.DataURL(block.Media.MIME, block.Media.Data)
+		}
+		item := map[string]any{"type": "input_image", "image_url": url}
+		jsonx.PutIfNotEmpty(item, "detail", block.Media.Detail)
+		return item, nil
+	case ir.BlockKindRaw:
+		if block.Raw == nil || !jsonx.Present(block.Raw.JSON) {
+			return nil, nil
+		}
+		var v any
+		if err := json.Unmarshal(block.Raw.JSON, &v); err != nil {
+			return nil, err
+		}
+		return v, nil
+	default:
+		return nil, nil
+	}
+}
+
+func rawToResponsesArguments(raw json.RawMessage) string {
+	if jsonx.RawJSONType(raw) == "string" {
+		var s string
+		if err := json.Unmarshal(raw, &s); err == nil {
+			return s
+		}
+	}
+	return string(raw)
+}

@@ -12,17 +12,13 @@
           "type": "input_image"
         }
       ],
-      "role": "user"
+      "role": "user",
+      "type": "message"
     },
     {
-      "content": "",
-      "role": "assistant"
-    },
-    {
-      "arguments": "{\"city\":\"Paris\"}",
-      "call_id": "toolu_abc",
-      "name": "get_weather",
-      "type": "function_call"
+      "content": [],
+      "role": "assistant",
+      "type": "message"
     },
     {
       "call_id": "toolu_abc",
@@ -32,10 +28,7 @@
   ],
   "instructions": "You are a helpful assistant.",
   "max_output_tokens": 1024,
-  "reasoning": {
-    "effort": "high",
-    "summary": "detailed"
-  },
+  "reasoning": {},
   "stream": true,
   "tools": [
     {

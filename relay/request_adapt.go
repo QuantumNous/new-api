@@ -3,6 +3,7 @@ package relay
 import (
 	"fmt"
 
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -11,9 +12,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// convertRequestToChannelNative converts an incoming text request into the
-// channel's native format via the Chat Completions hub, then runs the
-// adaptor's native Convert* hook for channel-specific tweaks.
+// ConvertRequestToChannelNative converts an incoming text request into the
+// channel's native format via IR (From → To), then runs the adaptor's native
+// Convert* hook for channel-specific dialect. Helpers and channel-test share
+// this path so a test request is converted the same way as production traffic.
+func ConvertRequestToChannelNative(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, request any) (any, error) {
+	return convertRequestToChannelNative(c, info, adaptor, request)
+}
+
 func convertRequestToChannelNative(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.Adaptor, request any) (any, error) {
 	if adaptor == nil {
 		return nil, fmt.Errorf("adaptor is nil")
@@ -23,12 +29,18 @@ func convertRequestToChannelNative(c *gin.Context, info *relaycommon.RelayInfo, 
 		return nil, fmt.Errorf("unsupported request type %T", request)
 	}
 	native := relaycommon.NativeTextFormat(info, incoming)
+	if info != nil && info.HasTextPlan() {
+		native = info.TextNative()
+	}
 
 	current := request
 	if incoming != native {
 		result, err := relayconvert.ConvertRequest(c, info, native, request)
 		if err != nil {
 			return nil, err
+		}
+		if c != nil && !result.Report.Empty() {
+			logger.LogDebug(c, fmt.Sprintf("text projection losses %s→%s: %+v", result.From, result.To, result.Report.Losses))
 		}
 		current = result.Value
 	}

@@ -19,7 +19,7 @@
       },
       "finishReason": "STOP",
       "index": 0,
-      "safetyRatings": []
+      "safetyRatings": null
     }
   ],
   "usageMetadata": {

@@ -10,6 +10,8 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -129,9 +131,10 @@ func TestConvertOpenAIRequestRemovesUnsupportedXAIChatFields(t *testing.T) {
 
 func TestConvertGeminiRequestUsesChatConverterForXAI(t *testing.T) {
 	topK := 40.0
-	converted, err := (&Adaptor{}).ConvertGeminiRequest(nil, &relaycommon.RelayInfo{
+	info := &relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "grok-4.6"},
-	}, &dto.GeminiChatRequest{
+	}
+	converted, err := service.ConvertRequest(nil, info, types.RelayFormatOpenAI, &dto.GeminiChatRequest{
 		Contents: []dto.GeminiChatContent{{Role: "user", Parts: []dto.GeminiPart{{Text: "hello"}}}},
 		GenerationConfig: dto.GeminiChatGenerationConfig{
 			TopK:           &topK,
@@ -139,11 +142,15 @@ func TestConvertGeminiRequestUsesChatConverterForXAI(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	got, ok := converted.(*dto.GeneralOpenAIRequest)
+	chatReq, ok := converted.Value.(*dto.GeneralOpenAIRequest)
 	require.True(t, ok)
-	assert.Equal(t, "grok-4.6", got.Model)
-	assert.Nil(t, got.TopK)
-	assert.Empty(t, got.ReasoningEffort)
+	got, err := (&Adaptor{}).ConvertOpenAIRequest(nil, info, chatReq)
+	require.NoError(t, err)
+	chat, ok := got.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	assert.Equal(t, "grok-4.6", chat.Model)
+	assert.Nil(t, chat.TopK)
+	assert.Empty(t, chat.ReasoningEffort)
 }
 
 func TestModelListIncludesLatestXAIImageModel(t *testing.T) {

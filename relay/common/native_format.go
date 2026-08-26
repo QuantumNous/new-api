@@ -9,14 +9,14 @@ import (
 
 // NativeTextFormat is the wire format the selected channel speaks for text
 // generation. Incoming requests in a different format are converted through
-// the Chat Completions hub (the six first-class converters).
+// the IR hub (From → IR → To).
 //
 // OpenAI Responses is special:
 //   - Channels that only speak Responses (Codex) always use it as native.
 //   - Channels that speak both Chat and Responses (OpenAI / Azure / ...) keep
 //     Chat as native. Chat→Responses happens only when the admin
 //     chat_completions_to_responses_policy matches the model — that upgrade
-//     is applied by the Chat / Claude / Gemini helpers, not here.
+//     is applied by BuildTextPlan, not by rewriting RelayMode.
 //   - Incoming Responses to a Chat-only channel convert Responses→Chat.
 func NativeTextFormat(info *RelayInfo, incoming types.RelayFormat) types.RelayFormat {
 	if info == nil || info.ChannelMeta == nil {
@@ -49,6 +49,11 @@ func NativeTextFormat(info *RelayInfo, incoming types.RelayFormat) types.RelayFo
 		return nonEmptyIncomingFormat(incoming)
 	case constant.ChannelTypeMoonshot:
 		if incoming == types.RelayFormatClaude {
+			return types.RelayFormatClaude
+		}
+		return types.RelayFormatOpenAI
+	case constant.ChannelTypeAli:
+		if incoming == types.RelayFormatClaude && AliSpeaksClaude(info.UpstreamModelName) {
 			return types.RelayFormatClaude
 		}
 		return types.RelayFormatOpenAI
@@ -114,6 +119,11 @@ func nativeTextFormatFromAPIType(info *RelayInfo, incoming types.RelayFormat) ty
 		if incoming == types.RelayFormatClaude {
 			return types.RelayFormatClaude
 		}
+	case constant.APITypeAli:
+		if incoming == types.RelayFormatClaude && AliSpeaksClaude(info.UpstreamModelName) {
+			return types.RelayFormatClaude
+		}
+		return types.RelayFormatOpenAI
 	}
 	if incoming == types.RelayFormatOpenAIResponses && SpeaksResponsesNatively(info) {
 		return types.RelayFormatOpenAIResponses

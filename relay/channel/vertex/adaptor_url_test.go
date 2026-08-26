@@ -30,8 +30,7 @@ func TestGetRequestURLClaudeIncomingUsesGooglePublisher(t *testing.T) {
 	}
 
 	adaptor := &Adaptor{}
-	adaptor.Init(info)
-	require.Equal(t, RequestModeGemini, adaptor.RequestMode)
+	require.Equal(t, types.RelayFormat(types.RelayFormatGemini), adaptor.nativeFormat(info))
 
 	got, err := adaptor.GetRequestURL(info)
 	require.NoError(t, err)

@@ -33,6 +33,12 @@ type ClaudeMediaMessage struct {
 	Input     any    `json:"input,omitempty"`
 	Content   any    `json:"content,omitempty"`
 	ToolUseId string `json:"tool_use_id,omitempty"`
+	// Data is redacted_thinking payload.
+	Data string `json:"data,omitempty"`
+	// IsError is tool_result.is_error.
+	IsError *bool `json:"is_error,omitempty"`
+	// Citations is preserved on text/document blocks.
+	Citations json.RawMessage `json:"citations,omitempty"`
 }
 
 func (c *ClaudeMediaMessage) SetText(s string) {
@@ -116,6 +122,7 @@ type ClaudeMessageSource struct {
 	MediaType string `json:"media_type,omitempty"`
 	Data      any    `json:"data,omitempty"`
 	Url       string `json:"url,omitempty"`
+	FileID    string `json:"file_id,omitempty"`
 }
 
 type ClaudeMessage struct {

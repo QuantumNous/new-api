@@ -119,6 +119,7 @@ export interface AdvancedCustomConfig {
 export interface AdvancedCustomRoute {
   incoming_path?: string
   upstream_path?: string
+  target?: AdvancedCustomTarget
   converter?: AdvancedCustomConverter
   models?: string[]
   auth?: AdvancedCustomRouteAuth
@@ -129,6 +130,13 @@ export interface AdvancedCustomRouteAuth {
   name?: string
   value?: string
 }
+
+export type AdvancedCustomTarget =
+  | 'native'
+  | 'chat'
+  | 'responses'
+  | 'claude'
+  | 'gemini'
 
 export type AdvancedCustomConverter =
   | 'none'

@@ -8,30 +8,15 @@
   "model": "gpt-test",
   "output": [
     {
-      "type": "message",
-      "id": "chatcmpl-fixed_msg_0",
-      "status": "completed",
-      "role": "assistant",
-      "content": [
-        {
-          "type": "output_text",
-          "text": "The answer is 42.",
-          "annotations": []
-        }
-      ],
-      "quality": "",
-      "size": ""
-    },
-    {
       "type": "reasoning",
-      "id": "chatcmpl-fixed_reasoning_0",
+      "id": "",
       "status": "completed",
       "role": "",
-      "content": [
+      "content": null,
+      "summary": [
         {
           "type": "summary_text",
-          "text": "Deep thought.",
-          "annotations": null
+          "text": "Deep thought."
         }
       ],
       "quality": "",
@@ -39,7 +24,7 @@
     },
     {
       "type": "function_call",
-      "id": "call_abc",
+      "id": "",
       "status": "completed",
       "role": "",
       "content": null,
@@ -47,7 +32,24 @@
       "size": "",
       "call_id": "call_abc",
       "name": "get_weather",
-      "arguments": "{\"city\":\"Paris\"}"
+      "arguments": {
+        "city": "Paris"
+      }
+    },
+    {
+      "type": "message",
+      "id": "",
+      "status": "completed",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "The answer is 42.",
+          "annotations": null
+        }
+      ],
+      "quality": "",
+      "size": ""
     }
   ],
   "parallel_tool_calls": false,

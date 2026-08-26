@@ -829,6 +829,64 @@ func TestAdaptorConvertsGeminiRequestToOpenAIChatUpstream(t *testing.T) {
 	assert.Equal(t, "user", chatReq.Messages[0].Role)
 }
 
+func TestAdaptorConvertsWithTargetFieldInsteadOfConverter(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{{
+			IncomingPath: "/v1/messages",
+			UpstreamPath: "/v1/chat/completions",
+			Target:       dto.AdvancedCustomTargetChat,
+		}},
+	})
+	info.RelayFormat = types.RelayFormatClaude
+	info.RequestURLPath = "/v1/messages"
+	c := advancedCustomGinContext("/v1/messages")
+
+	converted, err := adaptor.ConvertClaudeRequest(c, info, &dto.ClaudeRequest{
+		Model: "gpt-test",
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: "hello"},
+		},
+	})
+	require.NoError(t, err)
+
+	chatReq, ok := converted.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	assert.Equal(t, "gpt-test", chatReq.Model)
+	require.Len(t, chatReq.Messages, 1)
+	assert.Equal(t, "user", chatReq.Messages[0].Role)
+}
+
+func TestAdaptorConvertsClaudeIncomingToGeminiTarget(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := advancedCustomRelayInfo(&dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{{
+			IncomingPath: "/v1/messages",
+			UpstreamPath: "/v1beta/models/{model}:generateContent",
+			Target:       dto.AdvancedCustomTargetGemini,
+		}},
+	})
+	info.RelayFormat = types.RelayFormatClaude
+	info.RequestURLPath = "/v1/messages"
+	info.UpstreamModelName = "gemini-2.5-flash"
+	c := advancedCustomGinContext("/v1/messages")
+
+	maxTokens := uint(32)
+	converted, err := adaptor.ConvertClaudeRequest(c, info, &dto.ClaudeRequest{
+		Model:     "gemini-2.5-flash",
+		MaxTokens: &maxTokens,
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: "hello"},
+		},
+	})
+	require.NoError(t, err)
+
+	geminiReq, ok := converted.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	require.NotEmpty(t, geminiReq.Contents)
+	assert.Equal(t, "user", geminiReq.Contents[0].Role)
+}
+
 func advancedCustomRelayInfo(config *dto.AdvancedCustomConfig) *relaycommon.RelayInfo {
 	return &relaycommon.RelayInfo{
 		RelayFormat:     types.RelayFormatOpenAI,

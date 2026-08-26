@@ -34,6 +34,9 @@ func TestNativeTextFormat(t *testing.T) {
 		{name: "newapi passthrough gemini", channelType: constant.ChannelTypeNewAPI, apiType: constant.APITypeNewAPI, incoming: types.RelayFormatGemini, want: types.RelayFormatGemini},
 		{name: "moonshot claude native", channelType: constant.ChannelTypeMoonshot, apiType: constant.APITypeMoonshot, incoming: types.RelayFormatClaude, want: types.RelayFormatClaude},
 		{name: "moonshot gemini via chat", channelType: constant.ChannelTypeMoonshot, apiType: constant.APITypeMoonshot, incoming: types.RelayFormatGemini, want: types.RelayFormatOpenAI},
+		{name: "ali qwen claude native", channelType: constant.ChannelTypeAli, apiType: constant.APITypeAli, model: "qwen-plus", incoming: types.RelayFormatClaude, want: types.RelayFormatClaude},
+		{name: "ali chat client stays chat", channelType: constant.ChannelTypeAli, apiType: constant.APITypeAli, model: "qwen-plus", incoming: types.RelayFormatOpenAI, want: types.RelayFormatOpenAI},
+		{name: "ali non-claude model converts to chat", channelType: constant.ChannelTypeAli, apiType: constant.APITypeAli, model: "wanx-v1", incoming: types.RelayFormatClaude, want: types.RelayFormatOpenAI},
 		{name: "api type fallback", apiType: constant.APITypeGemini, incoming: types.RelayFormatOpenAI, want: types.RelayFormatGemini},
 	}
 

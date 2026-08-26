@@ -1,7 +1,6 @@
 package openai
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -47,14 +46,7 @@ func handleClaudeFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 	if err != nil {
 		return err
 	}
-	claudeResponses, ok := result.Value.([]*dto.ClaudeResponse)
-	if !ok {
-		return fmt.Errorf("expected Claude stream responses, got %T", result.Value)
-	}
-	for _, resp := range claudeResponses {
-		helper.ClaudeData(c, *resp)
-	}
-	return nil
+	return helper.WriteProjectedStreamValue(c, info, result.Value)
 }
 
 func handleGeminiFormat(c *gin.Context, data string, info *relaycommon.RelayInfo) error {
@@ -68,26 +60,7 @@ func handleGeminiFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 	if err != nil {
 		return err
 	}
-	geminiResponse, ok := result.Value.(*dto.GeminiChatResponse)
-	if !ok {
-		return fmt.Errorf("expected Gemini stream response, got %T", result.Value)
-	}
-
-	// 如果返回 nil，表示没有实际内容，跳过发送
-	if geminiResponse == nil {
-		return nil
-	}
-
-	geminiResponseStr, err := common.Marshal(geminiResponse)
-	if err != nil {
-		logger.LogError(c, "failed to marshal gemini response: "+err.Error())
-		return err
-	}
-
-	// send gemini format response
-	c.Render(-1, common.CustomEvent{Data: "data: " + string(geminiResponseStr)})
-	_ = helper.FlushWriter(c)
-	return nil
+	return helper.WriteProjectedStreamValue(c, info, result.Value)
 }
 
 func ProcessStreamResponse(streamResponse dto.ChatCompletionsStreamResponse, responseTextBuilder *strings.Builder, toolCount *int) error {
@@ -186,13 +159,8 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 			common.SysLog("error converting Claude stream response: " + err.Error())
 			return
 		}
-		claudeResponses, ok := result.Value.([]*dto.ClaudeResponse)
-		if !ok {
-			common.SysLog(fmt.Sprintf("expected Claude stream responses, got %T", result.Value))
-			return
-		}
-		for _, resp := range claudeResponses {
-			_ = helper.ClaudeData(c, *resp)
+		if writeErr := helper.WriteProjectedStreamValue(c, info, result.Value); writeErr != nil {
+			common.SysLog("error writing Claude stream response: " + writeErr.Error())
 		}
 		info.ClaudeConvertInfo.Done = true
 
@@ -203,36 +171,14 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 			return
 		}
 
-		// 这里处理的是 openai 最后一个流响应，其 delta 为空，有 finish_reason 字段
-		// 因此相比较于 google 官方的流响应，由 openai 转换而来会多一个 parts 为空，finishReason 为 STOP 的响应
-		// 而包含最后一段文本输出的响应（倒数第二个）的 finishReason 为 null
-		// 暂不知是否有程序会不兼容。
-
 		result, err := relayconvert.ConvertStreamResponse(c, info, types.RelayFormatGemini, &streamResponse)
 		if err != nil {
 			common.SysLog("error converting Gemini stream response: " + err.Error())
 			return
 		}
-		geminiResponse, ok := result.Value.(*dto.GeminiChatResponse)
-		if !ok {
-			common.SysLog(fmt.Sprintf("expected Gemini stream response, got %T", result.Value))
-			return
+		if writeErr := helper.WriteProjectedStreamValue(c, info, result.Value); writeErr != nil {
+			common.SysLog("error writing Gemini stream response: " + writeErr.Error())
 		}
-
-		// openai 流响应开头的空数据
-		if geminiResponse == nil {
-			return
-		}
-
-		geminiResponseStr, err := common.Marshal(geminiResponse)
-		if err != nil {
-			common.SysLog("error marshalling gemini response: " + err.Error())
-			return
-		}
-
-		// 发送最终的 Gemini 响应
-		c.Render(-1, common.CustomEvent{Data: "data: " + string(geminiResponseStr)})
-		_ = helper.FlushWriter(c)
 	}
 }
 

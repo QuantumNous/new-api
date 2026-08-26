@@ -12,19 +12,6 @@ import (
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 )
 
-func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info convmeta.Meta, request any) (any, error) {
-	responsesRequest, err := OpenAIResponsesRequestFromAny(request)
-	if err != nil {
-		return nil, err
-	}
-
-	prepared, err := PrepareOpenAIResponsesRequest(*responsesRequest)
-	if err != nil {
-		return nil, err
-	}
-	return OpenAIResponsesRequestToGeminiChat(c, &prepared, info)
-}
-
 func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIResponsesRequest, info convmeta.Meta) (*dto.GeminiChatRequest, error) {
 	opts := convmeta.OptionsOf(info)
 	if req == nil {

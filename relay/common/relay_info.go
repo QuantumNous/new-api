@@ -170,17 +170,22 @@ type RelayInfo struct {
 
 	Request dto.Request
 
-	// RequestConversionChain records request format conversions in order, e.g.
-	// ["openai", "openai_responses"] or ["openai", "claude"].
+	// RequestConversionChain is an audit log of format hops, e.g.
+	// ["openai", "claude"]. Text routing uses TextPlan.Native / FinalRequestRelayFormat.
 	RequestConversionChain []types.RelayFormat
-	// 最终请求到上游的格式。可由 adaptor 显式设置；
-	// 若为空，调用 GetFinalRequestRelayFormat 会回退到 RequestConversionChain 的最后一项或 RelayFormat。
+	// FinalRequestRelayFormat is the upstream wire format. BuildTextPlan sets it
+	// for text requests. GetFinalRequestRelayFormat falls back to the audit chain
+	// or RelayFormat when no plan has been written (non-text helpers).
 	FinalRequestRelayFormat types.RelayFormat
+	// TextPlan is the one-shot text routing decision (client, native, outbound).
+	// Nil for non-text helpers and callers that have not built a plan yet.
+	TextPlan *TextPlan
 
 	StreamStatus *StreamStatus
 
 	// convOptions caches the converter settings snapshot (see ConvOptions).
 	convOptions *convmeta.Options
+	streamHub   any
 
 	ThinkingContentInfo
 	TokenCountMeta
@@ -816,6 +821,19 @@ func (info *RelayInfo) IncrSendResponseCount() {
 
 // ConvOptions snapshots host settings for the converters. Rebuilt on each
 // call site's first use; cached so one relay session sees one snapshot.
+func (info *RelayInfo) GetStreamHub() any {
+	if info == nil {
+		return nil
+	}
+	return info.streamHub
+}
+
+func (info *RelayInfo) SetStreamHub(state any) {
+	if info != nil {
+		info.streamHub = state
+	}
+}
+
 func (info *RelayInfo) ConvOptions() *convmeta.Options {
 	if info != nil && info.convOptions != nil {
 		return info.convOptions

@@ -21,12 +21,11 @@ type Adaptor struct {
 }
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	return channel.ForeignTextRequest("jimeng.ConvertGeminiRequest")
 }
 
 func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
-	return nil, errors.New("not implemented")
+	return channel.ForeignTextRequest("jimeng.ConvertClaudeRequest")
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {

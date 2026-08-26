@@ -12,97 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
-	tests := []struct {
-		converter      string
-		from           types.RelayFormat
-		to             types.RelayFormat
-		quality        RequestConverterQuality
-		stepConverters []string
-		advancedCustom bool
-	}{
-		{converter: ConverterClaudeMessagesToOpenAIChat, from: types.RelayFormatClaude, to: types.RelayFormatOpenAI, quality: RequestConverterQualityFair, advancedCustom: true},
-		{converter: ConverterGeminiContentToOpenAIChat, from: types.RelayFormatGemini, to: types.RelayFormatOpenAI, quality: RequestConverterQualityFair, advancedCustom: true},
-		{converter: ConverterOpenAIChatToClaudeMessages, from: types.RelayFormatOpenAI, to: types.RelayFormatClaude, quality: RequestConverterQualityFair, advancedCustom: true},
-		{converter: ConverterOpenAIChatToGeminiContent, from: types.RelayFormatOpenAI, to: types.RelayFormatGemini, quality: RequestConverterQualityFair, advancedCustom: true},
-		{converter: ConverterOpenAIImageToGeminiContent, from: types.RelayFormatOpenAIImage, to: types.RelayFormatGemini, quality: RequestConverterQualityFair},
-		{converter: ConverterOpenAIChatToOpenAIResponses, from: types.RelayFormatOpenAI, to: types.RelayFormatOpenAIResponses, quality: RequestConverterQualityGood, advancedCustom: true},
-		{converter: ConverterOpenAIResponsesToOpenAIChat, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatOpenAI, quality: RequestConverterQualityGood, advancedCustom: true},
-		{
-			converter: requestConverterClaudeToGemini,
-			from:      types.RelayFormatClaude,
-			to:        types.RelayFormatGemini,
-			quality:   RequestConverterQualityDiscouraged,
-			stepConverters: []string{
-				ConverterClaudeMessagesToOpenAIChat,
-				ConverterOpenAIChatToGeminiContent,
-			},
-		},
-		{
-			converter: requestConverterClaudeToResponses,
-			from:      types.RelayFormatClaude,
-			to:        types.RelayFormatOpenAIResponses,
-			quality:   RequestConverterQualityFair,
-			stepConverters: []string{
-				ConverterClaudeMessagesToOpenAIChat,
-				ConverterOpenAIChatToOpenAIResponses,
-			},
-		},
-		{
-			converter: requestConverterGeminiToClaude,
-			from:      types.RelayFormatGemini,
-			to:        types.RelayFormatClaude,
-			quality:   RequestConverterQualityDiscouraged,
-			stepConverters: []string{
-				ConverterGeminiContentToOpenAIChat,
-				ConverterOpenAIChatToClaudeMessages,
-			},
-		},
-		{
-			converter: requestConverterGeminiToResponses,
-			from:      types.RelayFormatGemini,
-			to:        types.RelayFormatOpenAIResponses,
-			quality:   RequestConverterQualityFair,
-			stepConverters: []string{
-				ConverterGeminiContentToOpenAIChat,
-				ConverterOpenAIChatToOpenAIResponses,
-			},
-		},
-		{
-			converter: requestConverterResponsesToClaude,
-			from:      types.RelayFormatOpenAIResponses,
-			to:        types.RelayFormatClaude,
-			quality:   RequestConverterQualityFair,
-		},
-		{
-			converter:      ConverterOpenAIResponsesToGemini,
-			from:           types.RelayFormatOpenAIResponses,
-			to:             types.RelayFormatGemini,
-			quality:        RequestConverterQualityFair,
-			advancedCustom: true,
-		},
-	}
-
-	require.Len(t, requestConverters, len(tests))
-
-	for _, tt := range tests {
-		t.Run(tt.converter, func(t *testing.T) {
-			spec, ok := LookupRequestConverter(tt.converter)
-
-			require.True(t, ok)
-			assert.Equal(t, tt.converter, spec.ID)
-			assert.Equal(t, tt.from, spec.From)
-			assert.Equal(t, tt.to, spec.To)
-			assert.Equal(t, tt.quality, spec.Quality)
-			assert.Equal(t, tt.stepConverters, spec.StepConverters)
-			if len(tt.stepConverters) == 0 {
-				assert.NotNil(t, spec.Convert)
-			} else {
-				assert.Nil(t, spec.Convert)
-			}
-			assert.Equal(t, tt.advancedCustom, dto.IsAdvancedCustomConverterAllowed(tt.converter))
-		})
-	}
+func TestRequestConverterRegistryKeepsImageConverters(t *testing.T) {
+	spec, ok := LookupRequestConverter(ConverterOpenAIImageToGeminiContent)
+	require.True(t, ok)
+	assert.Equal(t, types.RelayFormat(types.RelayFormatOpenAIImage), spec.From)
+	assert.Equal(t, types.RelayFormat(types.RelayFormatGemini), spec.To)
+	assert.NotNil(t, spec.Convert)
+	assert.Len(t, requestConverters, 1)
 }
 
 func TestConvertRequestToTargetRecordsConversionChain(t *testing.T) {
@@ -134,6 +50,33 @@ func TestConvertRequestToTargetRecordsConversionChain(t *testing.T) {
 	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses}, info.ConversionChain)
 }
 
+func TestConvertRequestClaudeToChatRecordsSignatureLoss(t *testing.T) {
+	req := &dto.ClaudeRequest{
+		Model: "claude-test",
+		Messages: []dto.ClaudeMessage{
+			{
+				Role: "assistant",
+				Content: []map[string]any{
+					{"type": "thinking", "thinking": "secret", "signature": "sig-1"},
+					{"type": "text", "text": "hello"},
+				},
+			},
+		},
+	}
+
+	result, err := ConvertRequest(nil, nil, types.RelayFormatOpenAI, req)
+	require.NoError(t, err)
+	require.False(t, result.Report.Empty())
+	found := false
+	for _, loss := range result.Report.Losses {
+		if loss.Field == "thinking.signature" {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "losses=%#v", result.Report.Losses)
+}
+
 func TestConvertRequestPlansMultiHopPath(t *testing.T) {
 	info := &convmeta.Values{
 		ConversionChain: []types.RelayFormat{types.RelayFormatClaude},
@@ -155,17 +98,12 @@ func TestConvertRequestPlansMultiHopPath(t *testing.T) {
 	assert.Equal(t, RequestConverterQualityFair, result.Quality)
 	assert.Equal(t, []RequestStep{
 		{
-			Converter: ConverterClaudeMessagesToOpenAIChat,
+			Converter: requestConverterClaudeToResponses,
 			From:      types.RelayFormatClaude,
-			To:        types.RelayFormatOpenAI,
-		},
-		{
-			Converter: ConverterOpenAIChatToOpenAIResponses,
-			From:      types.RelayFormatOpenAI,
 			To:        types.RelayFormatOpenAIResponses,
 		},
 	}, result.Steps)
-	assert.Equal(t, []types.RelayFormat{types.RelayFormatClaude, types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses}, info.ConversionChain)
+	assert.Equal(t, []types.RelayFormat{types.RelayFormatClaude, types.RelayFormatOpenAIResponses}, info.ConversionChain)
 }
 
 func TestConvertRequestViaExecutesExplicitPath(t *testing.T) {
@@ -365,14 +303,22 @@ func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {
 	require.Len(t, geminiReq.Contents, 2)
 	assert.Equal(t, "model", geminiReq.Contents[0].Role)
 	require.Len(t, geminiReq.Contents[0].Parts, 2)
-	functionCall := geminiReq.Contents[0].Parts[0].FunctionCall
-	require.NotNil(t, functionCall)
-	assert.Equal(t, "lookup", functionCall.FunctionName)
-	assert.Equal(t, map[string]any{"q": "x"}, functionCall.Arguments)
+	var functionPart, textPart dto.GeminiPart
+	for _, part := range geminiReq.Contents[0].Parts {
+		if part.FunctionCall != nil {
+			functionPart = part
+		}
+		if part.Text != "" {
+			textPart = part
+		}
+	}
+	require.NotNil(t, functionPart.FunctionCall)
+	assert.Equal(t, "lookup", functionPart.FunctionCall.FunctionName)
+	assert.Equal(t, map[string]any{"q": "x"}, functionPart.FunctionCall.Arguments)
 	var thoughtSignature string
-	require.NoError(t, kitutil.Unmarshal(geminiReq.Contents[0].Parts[0].ThoughtSignature, &thoughtSignature))
+	require.NoError(t, kitutil.Unmarshal(functionPart.ThoughtSignature, &thoughtSignature))
 	assert.Equal(t, sharedgemini.ThoughtSignatureBypassValue, thoughtSignature)
-	assert.Equal(t, "I will call.", geminiReq.Contents[0].Parts[1].Text)
+	assert.Equal(t, "I will call.", textPart.Text)
 
 	assert.Equal(t, "user", geminiReq.Contents[1].Role)
 	require.Len(t, geminiReq.Contents[1].Parts, 1)
@@ -534,10 +480,14 @@ func TestConvertRequestResponsesToClaudeUsesDirectConverter(t *testing.T) {
 	}, result.Steps)
 	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAIResponses, types.RelayFormatClaude}, info.ConversionChain)
 
-	system, err := kitutil.Any2Type[[]dto.ClaudeMediaMessage](claudeReq.System)
-	require.NoError(t, err)
-	require.Len(t, system, 1)
-	assert.Equal(t, "system rules", system[0].GetText())
+	if claudeReq.IsStringSystem() {
+		assert.Equal(t, "system rules", claudeReq.GetStringSystem())
+	} else {
+		system, err := kitutil.Any2Type[[]dto.ClaudeMediaMessage](claudeReq.System)
+		require.NoError(t, err)
+		require.Len(t, system, 1)
+		assert.Equal(t, "system rules", system[0].GetText())
+	}
 	require.NotNil(t, claudeReq.Stream)
 	assert.True(t, *claudeReq.Stream)
 	assert.Equal(t, maxOutputTokens, *claudeReq.MaxTokens)
@@ -597,22 +547,17 @@ func TestConvertRequestViaResponsesToGeminiStillUsesDirectSteps(t *testing.T) {
 
 	require.NoError(t, err)
 	require.IsType(t, &dto.GeminiChatRequest{}, result.Value)
-	assert.Equal(t, ConverterOpenAIResponsesToOpenAIChat+","+ConverterOpenAIChatToGeminiContent, result.Converter)
+	assert.Equal(t, ConverterOpenAIResponsesToGemini, result.Converter)
 	assert.Equal(t, []RequestStep{
 		{
-			Converter: ConverterOpenAIResponsesToOpenAIChat,
+			Converter: ConverterOpenAIResponsesToGemini,
 			From:      types.RelayFormatOpenAIResponses,
-			To:        types.RelayFormatOpenAI,
-		},
-		{
-			Converter: ConverterOpenAIChatToGeminiContent,
-			From:      types.RelayFormatOpenAI,
 			To:        types.RelayFormatGemini,
 		},
 	}, result.Steps)
 }
 
-func TestConvertRequestByIDDeduplicatesConversionChain(t *testing.T) {
+func TestConvertRequestDeduplicatesConversionChain(t *testing.T) {
 	info := &convmeta.Values{
 		ConversionChain: []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses},
 	}
@@ -623,7 +568,7 @@ func TestConvertRequestByIDDeduplicatesConversionChain(t *testing.T) {
 		},
 	}
 
-	result, err := ConvertRequestByID(nil, info, ConverterOpenAIChatToOpenAIResponses, req)
+	result, err := ConvertRequest(nil, info, types.RelayFormatOpenAIResponses, req)
 
 	require.NoError(t, err)
 	require.IsType(t, &dto.OpenAIResponsesRequest{}, result.Value)
@@ -631,58 +576,10 @@ func TestConvertRequestByIDDeduplicatesConversionChain(t *testing.T) {
 	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses}, info.ConversionChain)
 }
 
-func TestConvertRequestByIDExecutesMultiHopConverter(t *testing.T) {
-	info := &convmeta.Values{
-		ConversionChain: []types.RelayFormat{types.RelayFormatClaude},
-	}
-	req := &dto.ClaudeRequest{
-		Model: "claude-test",
-		Messages: []dto.ClaudeMessage{
-			{Role: "user", Content: "hello"},
-		},
-	}
-
-	result, err := ConvertRequestByID(nil, info, requestConverterClaudeToResponses, req)
-
-	require.NoError(t, err)
-	require.IsType(t, &dto.OpenAIResponsesRequest{}, result.Value)
-	assert.Equal(t, requestConverterClaudeToResponses, result.Converter)
-	assert.Equal(t, RequestConverterQualityFair, result.Quality)
-	assert.Equal(t, []RequestStep{
-		{
-			Converter: ConverterClaudeMessagesToOpenAIChat,
-			From:      types.RelayFormatClaude,
-			To:        types.RelayFormatOpenAI,
-		},
-		{
-			Converter: ConverterOpenAIChatToOpenAIResponses,
-			From:      types.RelayFormatOpenAI,
-			To:        types.RelayFormatOpenAIResponses,
-		},
-	}, result.Steps)
-	assert.Equal(t, []types.RelayFormat{types.RelayFormatClaude, types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses}, info.ConversionChain)
-}
-
 func TestConvertRequestRejectsUnsupportedConverterAndNilRequest(t *testing.T) {
-	_, err := ConvertRequestByID(nil, &convmeta.Values{}, "missing_converter", &dto.GeneralOpenAIRequest{Model: "gpt-test"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not registered")
-
-	_, err = ConvertRequest(nil, &convmeta.Values{}, types.RelayFormatOpenAIResponses, (*dto.GeneralOpenAIRequest)(nil))
+	_, err := ConvertRequest(nil, &convmeta.Values{}, types.RelayFormatOpenAIResponses, (*dto.GeneralOpenAIRequest)(nil))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "request is nil")
-}
-
-func TestConvertRequestByIDRejectsWrongSourceFormat(t *testing.T) {
-	_, err := ConvertRequestByID(
-		nil,
-		&convmeta.Values{},
-		ConverterOpenAIChatToOpenAIResponses,
-		&dto.ClaudeRequest{Model: "claude-test"},
-	)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "expects openai request")
 }
 
 func TestConvertRequestRejectsUnregisteredExplicitPath(t *testing.T) {

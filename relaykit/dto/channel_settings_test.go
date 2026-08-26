@@ -96,7 +96,7 @@ func TestAdvancedCustomValidateModelListRouteConstraints(t *testing.T) {
 					Converter:    advancedCustomConverterOpenAIChatToOpenAIResponses,
 				},
 			},
-			want: "converter must be none",
+			want: "target must be native",
 		},
 		{
 			name: "model placeholder",
@@ -182,7 +182,7 @@ func TestAdvancedCustomValidateBalanceRouteConstraints(t *testing.T) {
 				UpstreamPath: "/provider/balance",
 				Converter:    advancedCustomConverterOpenAIChatToOpenAIResponses,
 			}},
-			want: "converter must be none",
+			want: "target must be native",
 		},
 		{
 			name: "model placeholder",
@@ -618,6 +618,55 @@ func TestChannelSettingsHTTPTransportJSONRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(encoded), `"http2_connection_shards":4`)
 	assert.NotContains(t, string(encoded), "http_protocol")
+}
+
+func TestAdvancedCustomResolvedTargetMapsLegacyConverter(t *testing.T) {
+	assert.Equal(t, AdvancedCustomTargetNative, AdvancedCustomRoute{}.ResolvedTarget())
+	assert.Equal(t, AdvancedCustomTargetNative, AdvancedCustomRoute{Converter: advancedCustomConverterNone}.ResolvedTarget())
+	assert.Equal(t, AdvancedCustomTargetChat, AdvancedCustomRoute{Converter: advancedCustomConverterClaudeMessagesToOpenAIChat}.ResolvedTarget())
+	assert.Equal(t, AdvancedCustomTargetChat, AdvancedCustomRoute{Converter: advancedCustomConverterOpenAIResponsesToOpenAIChat}.ResolvedTarget())
+	assert.Equal(t, AdvancedCustomTargetChat, AdvancedCustomRoute{Converter: advancedCustomConverterGeminiContentToOpenAIChat}.ResolvedTarget())
+	assert.Equal(t, AdvancedCustomTargetResponses, AdvancedCustomRoute{Converter: advancedCustomConverterOpenAIChatToOpenAIResponses}.ResolvedTarget())
+	assert.Equal(t, AdvancedCustomTargetClaude, AdvancedCustomRoute{Converter: advancedCustomConverterOpenAIChatToClaudeMessages}.ResolvedTarget())
+	assert.Equal(t, AdvancedCustomTargetGemini, AdvancedCustomRoute{Converter: advancedCustomConverterOpenAIChatToGeminiContent}.ResolvedTarget())
+	assert.Equal(t, AdvancedCustomTargetGemini, AdvancedCustomRoute{Converter: advancedCustomConverterOpenAIResponsesToGemini}.ResolvedTarget())
+	assert.Equal(t, AdvancedCustomTargetClaude, AdvancedCustomRoute{
+		Target:    AdvancedCustomTargetClaude,
+		Converter: advancedCustomConverterOpenAIChatToGeminiContent,
+	}.ResolvedTarget())
+}
+
+func TestAdvancedCustomValidateTargetOnlyRoute(t *testing.T) {
+	valid := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{{
+			IncomingPath: "/v1/messages",
+			UpstreamPath: "/v1beta/models/{model}:generateContent",
+			Target:       AdvancedCustomTargetGemini,
+		}},
+	}
+	require.NoError(t, valid.Validate())
+
+	invalid := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{{
+			IncomingPath: "/v1/images/generations",
+			UpstreamPath: "/v1/chat/completions",
+			Target:       AdvancedCustomTargetChat,
+		}},
+	}
+	err := invalid.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "target does not support incoming_path")
+
+	unknown := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{{
+			IncomingPath: "/v1/chat/completions",
+			UpstreamPath: "/v1/chat/completions",
+			Target:       "xml",
+		}},
+	}
+	err = unknown.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "target is invalid")
 }
 
 func TestChannelSettingsValidateHTTPTransport(t *testing.T) {

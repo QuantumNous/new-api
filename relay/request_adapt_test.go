@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -37,16 +38,20 @@ func testRelayInfo(apiType int, model string) *relaycommon.RelayInfo {
 	}
 }
 
-func TestShouldApplyGeminiNativeThinkingConfigUsesProviderType(t *testing.T) {
-	request := &dto.GeminiChatRequest{}
-
+func TestApplyInboundDefaultsGeminiThinkingUsesProviderType(t *testing.T) {
+	geminiReq := &dto.GeminiChatRequest{}
 	geminiInfo := testRelayInfo(constant.APITypeGemini, "gemini-3.7-flash")
-	if !shouldApplyGeminiNativeThinkingConfig(geminiInfo, request, false) {
+	geminiInfo.RelayFormat = types.RelayFormatGemini
+	applyInboundDefaults(geminiInfo, geminiReq)
+	if geminiReq.GenerationConfig.ThinkingConfig == nil {
 		t.Fatal("Gemini provider should receive Gemini-native thinking defaults")
 	}
 
+	xaiReq := &dto.GeminiChatRequest{}
 	xaiInfo := testRelayInfo(constant.APITypeXai, "gemini-3.7-flash")
-	if shouldApplyGeminiNativeThinkingConfig(xaiInfo, request, false) {
+	xaiInfo.RelayFormat = types.RelayFormatGemini
+	applyInboundDefaults(xaiInfo, xaiReq)
+	if xaiReq.GenerationConfig.ThinkingConfig != nil {
 		t.Fatal("xAI provider must not receive Gemini-native thinking defaults based on model name")
 	}
 }
@@ -175,6 +180,49 @@ func TestConvertRequestToChannelNativeClaudeToVertexGemini(t *testing.T) {
 	}
 	if info.GetFinalRequestRelayFormat() != types.RelayFormatGemini {
 		t.Fatalf("final format=%s", info.GetFinalRequestRelayFormat())
+	}
+}
+
+func TestConvertRequestToChannelNativeUpgradeUsesResponses(t *testing.T) {
+	info := testRelayInfo(constant.APITypeOpenAI, "gpt-5")
+	info.RelayFormat = types.RelayFormatOpenAI
+	info.BuildTextPlan(true)
+	adaptor := GetAdaptor(constant.APITypeOpenAI)
+	adaptor.Init(info)
+
+	got, err := convertRequestToChannelNative(nil, info, adaptor, &dto.GeneralOpenAIRequest{
+		Model:    "gpt-5",
+		Messages: []dto.Message{{Role: "user", Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	switch got.(type) {
+	case *dto.OpenAIResponsesRequest, dto.OpenAIResponsesRequest:
+	default:
+		t.Fatalf("got %T", got)
+	}
+	if info.GetFinalRequestRelayFormat() != types.RelayFormatOpenAIResponses {
+		t.Fatalf("final format=%s", info.GetFinalRequestRelayFormat())
+	}
+}
+
+func TestOpenAIAdaptorRejectsForeignClaudeConvert(t *testing.T) {
+	info := testRelayInfo(constant.APITypeOpenAI, "gpt-4o")
+	adaptor := GetAdaptor(constant.APITypeOpenAI)
+	adaptor.Init(info)
+
+	_, err := adaptor.ConvertClaudeRequest(nil, info, &dto.ClaudeRequest{
+		Model: "gpt-4o",
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: "hi"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected leftover ConvertClaudeRequest to fail")
+	}
+	if got, want := err.Error(), "ConvertRequestToChannelNative"; !strings.Contains(got, want) {
+		t.Fatalf("err=%q want substring %q", got, want)
 	}
 }
 

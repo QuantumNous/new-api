@@ -1,26 +1,20 @@
 {
   "model": "gpt-test",
-  "system": [
-    {
-      "type": "text",
-      "text": "You are a helpful assistant."
-    }
-  ],
+  "system": "You are a helpful assistant.",
   "messages": [
     {
       "role": "user",
       "content": [
         {
-          "type": "text",
-          "text": "What is in this image?"
+          "text": "What is in this image?",
+          "type": "text"
         },
         {
-          "type": "image",
           "source": {
-            "type": "base64",
-            "media_type": "image/png",
-            "data": "aGVsbG8="
-          }
+            "type": "url",
+            "url": "https://example.com/cat.png"
+          },
+          "type": "image"
         }
       ]
     },
@@ -28,12 +22,12 @@
       "role": "assistant",
       "content": [
         {
-          "type": "tool_use",
           "id": "call_abc",
-          "name": "get_weather",
           "input": {
             "city": "Paris"
-          }
+          },
+          "name": "get_weather",
+          "type": "tool_use"
         }
       ]
     },
@@ -41,9 +35,10 @@
       "role": "user",
       "content": [
         {
-          "type": "tool_result",
           "content": "15 degrees",
-          "tool_use_id": "call_abc"
+          "name": "get_weather",
+          "tool_use_id": "call_abc",
+          "type": "tool_result"
         }
       ]
     }
@@ -52,7 +47,6 @@
   "stream": true,
   "tools": [
     {
-      "name": "get_weather",
       "description": "Get weather by city",
       "input_schema": {
         "properties": {
@@ -64,7 +58,8 @@
           "city"
         ],
         "type": "object"
-      }
+      },
+      "name": "get_weather"
     }
   ]
 }

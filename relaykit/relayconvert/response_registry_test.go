@@ -11,107 +11,14 @@ import (
 )
 
 func TestLookupBuiltinResponseConverters(t *testing.T) {
-	tests := []struct {
-		lookupID       string
-		id             string
-		from           types.RelayFormat
-		to             types.RelayFormat
-		quality        ResponseConverterQuality
-		stepConverters []string
-	}{
-		{lookupID: ResponseConverterOAIChatToOAIResponses, id: ConverterOpenAIChatToOpenAIResponses, from: types.RelayFormatOpenAI, to: types.RelayFormatOpenAIResponses, quality: ResponseConverterQualityGood},
-		{lookupID: ResponseConverterOAIResponsesToOAIChat, id: ConverterOpenAIResponsesToOpenAIChat, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatOpenAI, quality: ResponseConverterQualityGood},
-		{lookupID: ResponseConverterOAIChatToClaudeMessages, id: ConverterOpenAIChatToClaudeMessages, from: types.RelayFormatOpenAI, to: types.RelayFormatClaude, quality: ResponseConverterQualityFair},
-		{lookupID: ResponseConverterOAIChatToGeminiChat, id: ConverterOpenAIChatToGeminiContent, from: types.RelayFormatOpenAI, to: types.RelayFormatGemini, quality: ResponseConverterQualityFair},
-		{lookupID: ResponseConverterClaudeMessagesToOAIChat, id: ConverterClaudeMessagesToOpenAIChat, from: types.RelayFormatClaude, to: types.RelayFormatOpenAI, quality: ResponseConverterQualityFair},
-		{lookupID: ResponseConverterGeminiChatToOAIChat, id: ConverterGeminiContentToOpenAIChat, from: types.RelayFormatGemini, to: types.RelayFormatOpenAI, quality: ResponseConverterQualityFair},
-		{lookupID: ConverterGeminiContentToOpenAIImage, id: ConverterGeminiContentToOpenAIImage, from: types.RelayFormatGemini, to: types.RelayFormatOpenAIImage, quality: ResponseConverterQualityFair},
-		{
-			lookupID: responseConverterClaudeToGemini,
-			id:       requestConverterClaudeToGemini,
-			from:     types.RelayFormatClaude,
-			to:       types.RelayFormatGemini,
-			quality:  ResponseConverterQualityDiscouraged,
-			stepConverters: []string{
-				ConverterClaudeMessagesToOpenAIChat,
-				ConverterOpenAIChatToGeminiContent,
-			},
-		},
-		{
-			lookupID: responseConverterClaudeToResponses,
-			id:       requestConverterClaudeToResponses,
-			from:     types.RelayFormatClaude,
-			to:       types.RelayFormatOpenAIResponses,
-			quality:  ResponseConverterQualityFair,
-			stepConverters: []string{
-				ConverterClaudeMessagesToOpenAIChat,
-				ConverterOpenAIChatToOpenAIResponses,
-			},
-		},
-		{
-			lookupID: responseConverterGeminiToClaude,
-			id:       requestConverterGeminiToClaude,
-			from:     types.RelayFormatGemini,
-			to:       types.RelayFormatClaude,
-			quality:  ResponseConverterQualityDiscouraged,
-			stepConverters: []string{
-				ConverterGeminiContentToOpenAIChat,
-				ConverterOpenAIChatToClaudeMessages,
-			},
-		},
-		{
-			lookupID: responseConverterGeminiToResponses,
-			id:       requestConverterGeminiToResponses,
-			from:     types.RelayFormatGemini,
-			to:       types.RelayFormatOpenAIResponses,
-			quality:  ResponseConverterQualityFair,
-			stepConverters: []string{
-				ConverterGeminiContentToOpenAIChat,
-				ConverterOpenAIChatToOpenAIResponses,
-			},
-		},
-		{
-			lookupID: responseConverterResponsesToClaude,
-			id:       requestConverterResponsesToClaude,
-			from:     types.RelayFormatOpenAIResponses,
-			to:       types.RelayFormatClaude,
-			quality:  ResponseConverterQualityFair,
-			stepConverters: []string{
-				ConverterOpenAIResponsesToOpenAIChat,
-				ConverterOpenAIChatToClaudeMessages,
-			},
-		},
-		{
-			lookupID: responseConverterResponsesToGemini,
-			id:       ConverterOpenAIResponsesToGemini,
-			from:     types.RelayFormatOpenAIResponses,
-			to:       types.RelayFormatGemini,
-			quality:  ResponseConverterQualityFair,
-			stepConverters: []string{
-				ConverterOpenAIResponsesToOpenAIChat,
-				ConverterOpenAIChatToGeminiContent,
-			},
-		},
-	}
+	spec, ok := LookupResponseConverter(ConverterGeminiContentToOpenAIImage)
+	require.True(t, ok)
+	assert.Equal(t, ConverterGeminiContentToOpenAIImage, spec.ID)
+	assert.Equal(t, types.RelayFormat(types.RelayFormatGemini), spec.From)
+	assert.Equal(t, types.RelayFormat(types.RelayFormatOpenAIImage), spec.To)
+	assert.NotNil(t, spec.Convert)
 
-	for _, tt := range tests {
-		t.Run(tt.lookupID, func(t *testing.T) {
-			spec, ok := LookupResponseConverter(tt.lookupID)
-			require.True(t, ok)
-			assert.Equal(t, tt.id, spec.ID)
-			assert.Equal(t, tt.from, spec.From)
-			assert.Equal(t, tt.to, spec.To)
-			assert.Equal(t, tt.quality, spec.Quality)
-			assert.Equal(t, tt.stepConverters, spec.StepConverters)
-			if len(tt.stepConverters) == 0 {
-				assert.NotNil(t, spec.Convert)
-			} else {
-				assert.Nil(t, spec.Convert)
-			}
-		})
-	}
-
-	_, ok := LookupResponseConverter("missing")
+	_, ok = LookupResponseConverter("missing")
 	assert.False(t, ok)
 }
 
@@ -202,8 +109,7 @@ func TestConvertResponseMultiHopConverters(t *testing.T) {
 	assert.Equal(t, requestConverterResponsesToClaude, toClaude.Converter)
 	assert.Equal(t, ResponseConverterQualityFair, toClaude.Quality)
 	assert.Equal(t, []ResponseStep{
-		{Converter: ConverterOpenAIResponsesToOpenAIChat, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatOpenAI},
-		{Converter: ConverterOpenAIChatToClaudeMessages, From: types.RelayFormatOpenAI, To: types.RelayFormatClaude},
+		{Converter: requestConverterResponsesToClaude, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatClaude},
 	}, toClaude.Steps)
 	require.IsType(t, &dto.ClaudeResponse{}, toClaude.Value)
 	claudeValue := toClaude.Value.(*dto.ClaudeResponse)
@@ -219,8 +125,7 @@ func TestConvertResponseMultiHopConverters(t *testing.T) {
 	assert.Equal(t, ConverterOpenAIResponsesToGemini, toGemini.Converter)
 	assert.Equal(t, ResponseConverterQualityFair, toGemini.Quality)
 	assert.Equal(t, []ResponseStep{
-		{Converter: ConverterOpenAIResponsesToOpenAIChat, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatOpenAI},
-		{Converter: ConverterOpenAIChatToGeminiContent, From: types.RelayFormatOpenAI, To: types.RelayFormatGemini},
+		{Converter: ConverterOpenAIResponsesToGemini, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatGemini},
 	}, toGemini.Steps)
 	require.IsType(t, &dto.GeminiChatResponse{}, toGemini.Value)
 	geminiValue := toGemini.Value.(*dto.GeminiChatResponse)
@@ -231,21 +136,6 @@ func TestConvertResponseMultiHopConverters(t *testing.T) {
 	assert.Equal(t, "lookup", geminiValue.Candidates[0].Content.Parts[1].FunctionCall.FunctionName)
 	assert.Equal(t, map[string]interface{}{"q": "x"}, geminiValue.Candidates[0].Content.Parts[1].FunctionCall.Arguments)
 	assert.Equal(t, 11, toGemini.Usage.TotalTokens)
-}
-
-func TestConvertResponseByIDExecutesMultiHopAndChecksSource(t *testing.T) {
-	responses := textRegistryResponsesResponse()
-
-	result, err := ConvertResponseByID(nil, nil, responseConverterResponsesToGemini, responses)
-	require.NoError(t, err)
-	assert.Equal(t, ConverterOpenAIResponsesToGemini, result.Converter)
-	assert.Equal(t, []ResponseStep{
-		{Converter: ConverterOpenAIResponsesToOpenAIChat, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatOpenAI},
-		{Converter: ConverterOpenAIChatToGeminiContent, From: types.RelayFormatOpenAI, To: types.RelayFormatGemini},
-	}, result.Steps)
-
-	_, err = ConvertResponseByID(nil, nil, responseConverterResponsesToGemini, textRegistryChatResponse())
-	require.Error(t, err)
 }
 
 func TestConvertResponseProviderToOAIChatUsage(t *testing.T) {
@@ -487,7 +377,7 @@ func TestConvertStreamResponseStatefulDirectConverters(t *testing.T) {
 	require.NotEmpty(t, responsesResults)
 	assert.Equal(t, ConverterOpenAIResponsesToOpenAIChat, responsesResults[0].Converter)
 	assert.Equal(t, []ResponseStep{{Converter: ConverterOpenAIResponsesToOpenAIChat, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatOpenAI}}, responsesResults[0].Steps)
-	require.IsType(t, dto.ChatCompletionsStreamResponse{}, responsesResults[len(responsesResults)-1].Value)
+	require.IsType(t, &dto.ChatCompletionsStreamResponse{}, responsesResults[len(responsesResults)-1].Value)
 }
 
 func TestConvertStreamResponseStatefulMultiHopResponsesToClaude(t *testing.T) {
@@ -510,8 +400,7 @@ func TestConvertStreamResponseStatefulMultiHopResponsesToClaude(t *testing.T) {
 	require.NotEmpty(t, results)
 	assert.Equal(t, requestConverterResponsesToClaude, results[0].Converter)
 	assert.Equal(t, []ResponseStep{
-		{Converter: ConverterOpenAIResponsesToOpenAIChat, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatOpenAI},
-		{Converter: ConverterOpenAIChatToClaudeMessages, From: types.RelayFormatOpenAI, To: types.RelayFormatClaude},
+		{Converter: requestConverterResponsesToClaude, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatClaude},
 	}, results[0].Steps)
 
 	var sawTextDelta bool

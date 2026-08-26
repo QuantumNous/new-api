@@ -313,8 +313,8 @@ func TestGoldenRequestConversionMatrix(t *testing.T) {
 			if from == to {
 				continue
 			}
-			if _, ok := lookupRequestRoute(from, to); !ok {
-				t.Fatalf("request route %s -> %s is no longer registered", from, to)
+			if _, ok := lookupTextRoute(from, to); !ok {
+				t.Fatalf("text IR route %s -> %s is no longer registered", from, to)
 			}
 			name := fmt.Sprintf("request/%s_to_%s", from, to)
 			t.Run(name, func(t *testing.T) {

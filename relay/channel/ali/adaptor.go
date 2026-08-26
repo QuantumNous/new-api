@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
@@ -15,44 +14,17 @@ import (
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/gin-gonic/gin"
-	"github.com/samber/lo"
 )
 
 type Adaptor struct {
 	IsSyncImageModel bool
 }
 
-const aliAnthropicMessagesModelsEnv = "ALI_ANTHROPIC_MESSAGES_MODELS"
-const defaultAliAnthropicMessagesModels = "qwen,deepseek-v4,kimi,glm,minimax-m"
-
-/*
-	var syncModels = []string{
-		"z-image",
-		"qwen-image",
-		"wan2.6",
-	}
-*/
 func supportsAliAnthropicMessages(modelName string) bool {
-	normalizedModelName := strings.ToLower(strings.TrimSpace(modelName))
-	if normalizedModelName == "" {
-		return false
-	}
-
-	return lo.SomeBy(aliAnthropicMessagesModelPatterns(), func(pattern string) bool {
-		return strings.Contains(normalizedModelName, pattern)
-	})
-}
-
-func aliAnthropicMessagesModelPatterns() []string {
-	configuredModels := common.GetEnvOrDefaultString(aliAnthropicMessagesModelsEnv, defaultAliAnthropicMessagesModels)
-	return lo.FilterMap(strings.Split(configuredModels, ","), func(item string, _ int) (string, bool) {
-		pattern := strings.ToLower(strings.TrimSpace(item))
-		return pattern, pattern != ""
-	})
+	return relaycommon.AliSpeaksClaude(modelName)
 }
 
 var syncModels = []string{
@@ -66,27 +38,11 @@ func isSyncImageModel(modelName string) bool {
 }
 
 func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeminiChatRequest) (any, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	return channel.ForeignTextRequest("ali.ConvertGeminiRequest")
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	if supportsAliAnthropicMessages(info.UpstreamModelName) {
-		return req, nil
-	}
-
-	result, err := service.ConvertRequest(c, info, types.RelayFormatOpenAI, req)
-	if err != nil {
-		return nil, err
-	}
-	oaiReq, ok := result.Value.(*dto.GeneralOpenAIRequest)
-	if !ok {
-		return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value)
-	}
-	if info.SupportStreamOptions && info.IsStream {
-		oaiReq.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
-	}
-	return a.ConvertOpenAIRequest(c, info, oaiReq)
+	return req, nil
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
@@ -94,13 +50,9 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	var fullRequestURL string
-	switch info.RelayFormat {
+	switch info.TextNative() {
 	case types.RelayFormatClaude:
-		if supportsAliAnthropicMessages(info.UpstreamModelName) {
-			fullRequestURL = fmt.Sprintf("%s/apps/anthropic/v1/messages", info.ChannelBaseUrl)
-		} else {
-			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/chat/completions", info.ChannelBaseUrl)
-		}
+		fullRequestURL = fmt.Sprintf("%s/apps/anthropic/v1/messages", info.ChannelBaseUrl)
 	default:
 		switch info.RelayMode {
 		case constant.RelayModeEmbeddings:

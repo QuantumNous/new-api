@@ -9,21 +9,21 @@
             "thought": true
           },
           {
-            "text": "The answer is 42."
-          },
-          {
             "functionCall": {
               "name": "get_weather",
               "args": {
                 "city": "Paris"
               }
             }
+          },
+          {
+            "text": "The answer is 42."
           }
         ]
       },
       "finishReason": "STOP",
       "index": 0,
-      "safetyRatings": []
+      "safetyRatings": null
     }
   ],
   "usageMetadata": {

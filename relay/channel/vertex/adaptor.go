@@ -17,17 +17,10 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
-)
-
-const (
-	RequestModeClaude     = 1
-	RequestModeGemini     = 2
-	RequestModeOpenSource = 3
 )
 
 var claudeModelMap = map[string]string{
@@ -51,19 +44,11 @@ var claudeModelMap = map[string]string{
 const anthropicVersion = "vertex-2023-10-16"
 
 type Adaptor struct {
-	RequestMode        int
 	AccountCredentials Credentials
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	switch a.RequestMode {
-	case RequestModeClaude:
-		return a.convertIncomingToMode(c, info, request)
-	case RequestModeOpenSource:
-		return a.convertIncomingToMode(c, info, request)
-	default:
-		return a.convertGeminiNative(c, info, request)
-	}
+	return a.convertGeminiNative(c, info, request)
 }
 
 func removeFunctionResponseID(request *dto.GeminiChatRequest) {
@@ -96,12 +81,7 @@ func removeFunctionResponseID(request *dto.GeminiChatRequest) {
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
-	switch a.RequestMode {
-	case RequestModeGemini, RequestModeOpenSource:
-		return a.convertIncomingToMode(c, info, request)
-	default:
-		return a.convertClaudeNative(c, info, request)
-	}
+	return a.convertClaudeNative(c, info, request)
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -114,18 +94,20 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	return geminiAdaptor.ConvertImageRequest(c, info, request)
 }
 
-func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
-	switch relaycommon.NativeTextFormat(info, types.RelayFormatGemini) {
-	case types.RelayFormatClaude:
-		a.RequestMode = RequestModeClaude
-	case types.RelayFormatOpenAI:
-		a.RequestMode = RequestModeOpenSource
-	default:
-		a.RequestMode = RequestModeGemini
+func (a *Adaptor) Init(*relaycommon.RelayInfo) {}
+
+func (a *Adaptor) nativeFormat(info *relaycommon.RelayInfo) types.RelayFormat {
+	if info == nil {
+		return types.RelayFormatGemini
 	}
+	native := info.TextNative()
+	if native == "" {
+		native = relaycommon.NativeTextFormat(info, types.RelayFormatGemini)
+	}
+	return native
 }
 
-func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix string) (string, error) {
+func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, native types.RelayFormat, modelName, suffix string) (string, error) {
 	region := GetModelRegion(info.ApiVersion, info.OriginModelName)
 	if info.ChannelOtherSettings.VertexKeyType != dto.VertexKeyTypeAPIKey {
 		adc := &Credentials{}
@@ -134,11 +116,12 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		}
 		a.AccountCredentials = *adc
 
-		if a.RequestMode == RequestModeGemini {
+		switch native {
+		case types.RelayFormatGemini:
 			return BuildGoogleModelURL(info.ChannelBaseUrl, DefaultAPIVersion, adc.ProjectID, region, modelName, suffix), nil
-		} else if a.RequestMode == RequestModeClaude {
+		case types.RelayFormatClaude:
 			return BuildAnthropicModelURL(info.ChannelBaseUrl, DefaultAPIVersion, adc.ProjectID, region, modelName, suffix), nil
-		} else if a.RequestMode == RequestModeOpenSource {
+		case types.RelayFormatOpenAI:
 			return BuildOpenSourceChatCompletionsURL(info.ChannelBaseUrl, adc.ProjectID, region), nil
 		}
 	} else {
@@ -148,14 +131,15 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		} else {
 			keyPrefix = "?"
 		}
-		if a.RequestMode == RequestModeGemini {
+		switch native {
+		case types.RelayFormatGemini:
 			return fmt.Sprintf(
 				"%s%skey=%s",
 				BuildGoogleModelURL(info.ChannelBaseUrl, DefaultAPIVersion, "", region, modelName, suffix),
 				keyPrefix,
 				info.ApiKey,
 			), nil
-		} else if a.RequestMode == RequestModeClaude {
+		case types.RelayFormatClaude:
 			return fmt.Sprintf(
 				"%s%skey=%s",
 				BuildAnthropicModelURL(info.ChannelBaseUrl, DefaultAPIVersion, "", region, modelName, suffix),
@@ -164,42 +148,36 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 			), nil
 		}
 	}
-	return "", errors.New("unsupported request mode")
+	return "", errors.New("unsupported native text format")
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	// Recompute RequestMode from the current upstream name. ClaudeHelper may
-	// rewrite UpstreamModelName after the first Init().
-	a.Init(info)
-	suffix := ""
-	if a.RequestMode == RequestModeGemini {
+	native := a.nativeFormat(info)
+	switch native {
+	case types.RelayFormatGemini:
 		modelName := gemini.URLModelName(info)
-
+		suffix := "generateContent"
 		if info.IsStream && !gemini.IsImageAPIRelay(info) {
 			suffix = "streamGenerateContent?alt=sse"
-		} else {
-			suffix = "generateContent"
 		}
-
 		if relayconvert.IsImagenPredictModel(modelName) {
 			suffix = "predict"
 		}
-		return a.getRequestUrl(info, modelName, suffix)
-	} else if a.RequestMode == RequestModeClaude {
+		return a.getRequestUrl(info, native, modelName, suffix)
+	case types.RelayFormatClaude:
+		suffix := "rawPredict"
 		if info.IsStream {
 			suffix = "streamRawPredict?alt=sse"
-		} else {
-			suffix = "rawPredict"
 		}
 		model := info.UpstreamModelName
 		if v, ok := claudeModelMap[info.UpstreamModelName]; ok {
 			model = v
 		}
-		return a.getRequestUrl(info, model, suffix)
-	} else if a.RequestMode == RequestModeOpenSource {
-		return a.getRequestUrl(info, "", "")
+		return a.getRequestUrl(info, native, model, suffix)
+	case types.RelayFormatOpenAI:
+		return a.getRequestUrl(info, native, "", "")
 	}
-	return "", errors.New("unsupported request mode")
+	return "", errors.New("unsupported native text format")
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
@@ -224,7 +202,8 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	if a.RequestMode == RequestModeGemini && relayconvert.IsImagenPredictModel(info.UpstreamModelName) {
+	native := a.nativeFormat(info)
+	if native == types.RelayFormatGemini && relayconvert.IsImagenPredictModel(info.UpstreamModelName) {
 		prompt := ""
 		for _, m := range request.Messages {
 			if m.Role == "user" {
@@ -278,34 +257,10 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		c.Set("request_model", request.Model)
 		return a.ConvertImageRequest(c, info, imgReq)
 	}
-	if a.RequestMode == RequestModeClaude {
-		result, err := service.ConvertRequest(c, info, types.RelayFormatClaude, request)
-		if err != nil {
-			return nil, err
-		}
-		claudeReq, ok := result.Value.(*dto.ClaudeRequest)
-		if !ok {
-			return nil, fmt.Errorf("expected Anthropic Messages request, got %T", result.Value)
-		}
-		vertexClaudeReq := copyRequest(claudeReq, anthropicVersion)
-		c.Set("request_model", claudeReq.Model)
-		info.UpstreamModelName = claudeReq.Model
-		return vertexClaudeReq, nil
-	} else if a.RequestMode == RequestModeGemini {
-		result, err := service.ConvertRequest(c, info, types.RelayFormatGemini, request)
-		if err != nil {
-			return nil, err
-		}
-		geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
-		if !ok {
-			return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
-		}
-		c.Set("request_model", request.Model)
-		return geminiRequest, nil
-	} else if a.RequestMode == RequestModeOpenSource {
+	if native == types.RelayFormatOpenAI {
 		return request, nil
 	}
-	return nil, errors.New("unsupported request mode")
+	return channel.ForeignTextRequest("vertex.ConvertOpenAIRequest")
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -317,54 +272,8 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	return nil, errors.New("not implemented")
 }
 
-func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	return a.convertIncomingToMode(c, info, &request)
-}
-
-func (a *Adaptor) convertIncomingToMode(c *gin.Context, info *relaycommon.RelayInfo, request any) (any, error) {
-	var target types.RelayFormat
-	switch a.RequestMode {
-	case RequestModeClaude:
-		target = types.RelayFormatClaude
-	case RequestModeOpenSource:
-		target = types.RelayFormatOpenAI
-	default:
-		target = types.RelayFormatGemini
-	}
-	current := request
-	if incoming, ok := relaycommon.GuessRelayFormatFromRequest(request); ok && incoming != target {
-		result, err := service.ConvertRequest(c, info, target, request)
-		if err != nil {
-			return nil, err
-		}
-		current = result.Value
-	}
-	switch target {
-	case types.RelayFormatClaude:
-		req, ok := current.(*dto.ClaudeRequest)
-		if !ok {
-			if value, ok := current.(dto.ClaudeRequest); ok {
-				req = &value
-			}
-		}
-		if req == nil {
-			return nil, fmt.Errorf("expected Anthropic Messages request, got %T", current)
-		}
-		return a.convertClaudeNative(c, info, req)
-	case types.RelayFormatGemini:
-		req, ok := current.(*dto.GeminiChatRequest)
-		if !ok {
-			if value, ok := current.(dto.GeminiChatRequest); ok {
-				req = &value
-			}
-		}
-		if req == nil {
-			return nil, fmt.Errorf("expected Gemini generateContent request, got %T", current)
-		}
-		return a.convertGeminiNative(c, info, req)
-	default:
-		return current, nil
-	}
+func (a *Adaptor) ConvertOpenAIResponsesRequest(*gin.Context, *relaycommon.RelayInfo, dto.OpenAIResponsesRequest) (any, error) {
+	return channel.ForeignTextRequest("vertex.ConvertOpenAIResponsesRequest")
 }
 
 func (a *Adaptor) convertGeminiNative(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
@@ -389,34 +298,33 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	native := a.nativeFormat(info)
 	claudeAdaptor := claude.Adaptor{}
 	if info.IsStream {
-		switch a.RequestMode {
-		case RequestModeClaude:
+		switch native {
+		case types.RelayFormatClaude:
 			return claudeAdaptor.DoResponse(c, resp, info)
-		case RequestModeGemini:
+		case types.RelayFormatGemini:
 			if info.RelayMode == constant.RelayModeGemini {
 				return gemini.GeminiTextGenerationStreamHandler(c, info, resp)
-			} else {
-				return gemini.GeminiChatStreamHandler(c, info, resp)
 			}
-		case RequestModeOpenSource:
+			return gemini.GeminiChatStreamHandler(c, info, resp)
+		case types.RelayFormatOpenAI:
 			return openai.OaiStreamHandler(c, info, resp)
 		}
 	} else {
-		switch a.RequestMode {
-		case RequestModeClaude:
+		switch native {
+		case types.RelayFormatClaude:
 			return claudeAdaptor.DoResponse(c, resp, info)
-		case RequestModeGemini:
+		case types.RelayFormatGemini:
 			if info.RelayMode == constant.RelayModeGemini {
 				return gemini.GeminiTextGenerationHandler(c, info, resp)
-			} else {
-				if gemini.IsImageAPIRelay(info) {
-					return gemini.HandleGeminiImageAPIResponse(c, info, resp)
-				}
-				return gemini.GeminiChatHandler(c, info, resp)
 			}
-		case RequestModeOpenSource:
+			if gemini.IsImageAPIRelay(info) {
+				return gemini.HandleGeminiImageAPIResponse(c, info, resp)
+			}
+			return gemini.GeminiChatHandler(c, info, resp)
+		case types.RelayFormatOpenAI:
 			return openai.OpenaiHandler(c, info, resp)
 		}
 	}

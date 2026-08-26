@@ -7,10 +7,12 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	hostconstant "github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	relayhelper "github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -158,4 +160,40 @@ func TestMappedAliImageModelUsesUpstreamProtocol(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, adaptor.IsSyncImageModel)
 	assert.IsType(t, &AliImageRequest{}, converted)
+}
+
+func TestGetRequestURLUsesAnthropicPathWhenNativeIsClaude(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatClaude,
+		OriginModelName: "qwen-plus",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       hostconstant.ChannelTypeAli,
+			ApiType:           hostconstant.APITypeAli,
+			ChannelBaseUrl:    "https://dashscope.aliyuncs.com",
+			UpstreamModelName: "qwen-plus",
+		},
+	}
+	info.BuildTextPlan(false)
+
+	url, err := (&Adaptor{}).GetRequestURL(info)
+	require.NoError(t, err)
+	assert.Equal(t, "https://dashscope.aliyuncs.com/apps/anthropic/v1/messages", url)
+}
+
+func TestGetRequestURLUsesChatPathWhenClaudeClientHitsNonClaudeModel(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatClaude,
+		OriginModelName: "wanx-v1",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       hostconstant.ChannelTypeAli,
+			ApiType:           hostconstant.APITypeAli,
+			ChannelBaseUrl:    "https://dashscope.aliyuncs.com",
+			UpstreamModelName: "wanx-v1",
+		},
+	}
+	info.BuildTextPlan(false)
+
+	url, err := (&Adaptor{}).GetRequestURL(info)
+	require.NoError(t, err)
+	assert.Equal(t, "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", url)
 }

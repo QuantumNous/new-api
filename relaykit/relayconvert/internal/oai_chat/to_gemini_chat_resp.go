@@ -198,6 +198,10 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 	return geminiResponse
 }
 
+func GeminiUsageFromOpenAIChatUsage(usage *dto.Usage) dto.GeminiUsageMetadata {
+	return geminiUsageFromOpenAIChatUsage(usage)
+}
+
 func geminiUsageFromOpenAIChatUsage(usage *dto.Usage) dto.GeminiUsageMetadata {
 	if usage == nil {
 		return dto.GeminiUsageMetadata{}

@@ -7,9 +7,8 @@
           "text": "What is in this image?"
         },
         {
-          "inlineData": {
-            "mimeType": "image/png",
-            "data": "aGVsbG8="
+          "fileData": {
+            "fileUri": "https://example.com/cat.png"
           }
         }
       ]
@@ -35,7 +34,7 @@
           "functionResponse": {
             "name": "get_weather",
             "response": {
-              "content": "15 degrees"
+              "result": "15 degrees"
             }
           }
         }

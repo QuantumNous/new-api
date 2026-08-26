@@ -6,6 +6,8 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -91,10 +93,19 @@ func TestConvertOpenAIResponsesRequestToGeminiFunctionCallConversation(t *testin
 	require.Len(t, got.Contents, 2)
 	assert.Equal(t, "model", got.Contents[0].Role)
 	require.Len(t, got.Contents[0].Parts, 2)
-	require.NotNil(t, got.Contents[0].Parts[0].FunctionCall)
-	assert.Equal(t, "lookup", got.Contents[0].Parts[0].FunctionCall.FunctionName)
-	assert.Equal(t, map[string]interface{}{"q": "x"}, got.Contents[0].Parts[0].FunctionCall.Arguments)
-	assert.Equal(t, "I will call.", got.Contents[0].Parts[1].Text)
+	var functionPart, textPart dto.GeminiPart
+	for _, part := range got.Contents[0].Parts {
+		if part.FunctionCall != nil {
+			functionPart = part
+		}
+		if part.Text != "" {
+			textPart = part
+		}
+	}
+	require.NotNil(t, functionPart.FunctionCall)
+	assert.Equal(t, "lookup", functionPart.FunctionCall.FunctionName)
+	assert.Equal(t, map[string]interface{}{"q": "x"}, functionPart.FunctionCall.Arguments)
+	assert.Equal(t, "I will call.", textPart.Text)
 
 	assert.Equal(t, "user", got.Contents[1].Role)
 	require.Len(t, got.Contents[1].Parts, 1)
@@ -161,11 +172,15 @@ func mustConvertResponsesToGemini(t *testing.T, req dto.OpenAIResponsesRequest) 
 			UpstreamModelName: req.Model,
 		},
 	}
-	got, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, info, req)
+	converted, err := service.ConvertRequest(nil, info, types.RelayFormatGemini, &req)
 	require.NoError(t, err)
-	geminiReq, ok := got.(*dto.GeminiChatRequest)
+	geminiReq, ok := converted.Value.(*dto.GeminiChatRequest)
 	require.True(t, ok)
-	return geminiReq
+	dialect, err := (&Adaptor{}).ConvertGeminiRequest(nil, info, geminiReq)
+	require.NoError(t, err)
+	got, ok := dialect.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	return got
 }
 
 func mustGeminiRawMessage(t *testing.T, value any) []byte {

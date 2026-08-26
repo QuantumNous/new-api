@@ -12,7 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -116,32 +115,28 @@ func geminiResponseInlineImageCount(response *dto.GeminiChatResponse) int {
 	return count
 }
 
-func responseGeminiChat2OpenAI(c *gin.Context, response *dto.GeminiChatResponse) *dto.OpenAITextResponse {
-	return relayconvert.ResponseGeminiChat2OpenAI(helper.GetResponseID(c), common.GetTimestamp(), response)
+func geminiClientFormat(info *relaycommon.RelayInfo) types.RelayFormat {
+	if info == nil || info.RelayFormat == "" {
+		return types.RelayFormatOpenAI
+	}
+	return info.RelayFormat
 }
 
-func streamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*dto.ChatCompletionsStreamResponse, bool) {
-	return relayconvert.StreamResponseGeminiChat2OpenAI(geminiResponse)
-}
-
-func handleStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.ChatCompletionsStreamResponse) error {
-	streamData, err := common.Marshal(resp)
-	if err != nil {
-		return fmt.Errorf("failed to marshal stream response: %w", err)
+func writeGeminiNativeBody(c *gin.Context, info *relaycommon.RelayInfo, httpResp *http.Response, geminiResponse *dto.GeminiChatResponse, original []byte) *types.NewAPIError {
+	client := geminiClientFormat(info)
+	if client == types.RelayFormatGemini {
+		service.IOCopyBytesGracefully(c, httpResp, original)
+		return nil
 	}
-	err = openai.HandleStreamFormat(c, info, string(streamData), info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
+	result, err := relayconvert.ConvertResponse(c, info, client, geminiResponse)
 	if err != nil {
-		return fmt.Errorf("failed to handle stream format: %w", err)
+		return types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	return nil
-}
-
-func handleFinalStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.ChatCompletionsStreamResponse) error {
-	streamData, err := common.Marshal(resp)
+	body, err := common.Marshal(result.Value)
 	if err != nil {
-		return fmt.Errorf("failed to marshal stream response: %w", err)
+		return types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
-	openai.HandleFinalResponse(c, info, string(streamData), resp.Id, resp.Created, resp.Model, resp.GetSystemFingerprint(), resp.Usage, false)
+	service.IOCopyBytesGracefully(c, httpResp, body)
 	return nil
 }
 
@@ -164,7 +159,6 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 
 		markGeminiGoogleSearchCall(c, &geminiResponse)
 
-		// 统计图片数量
 		for _, candidate := range geminiResponse.Candidates {
 			for _, part := range candidate.Content.Parts {
 				if part.InlineData != nil && part.InlineData.MimeType != "" {
@@ -176,7 +170,6 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			}
 		}
 
-		// 更新使用量统计
 		if metadata := geminiResponse.GetUsageMetadata(); dto.HasGeminiUsageMetadataTokens(metadata) {
 			mappedUsage := buildUsageFromGeminiMetadata(metadata, info.GetEstimatePromptTokens())
 			*usage = mappedUsage
@@ -208,105 +201,69 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 }
 
 func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	client := geminiClientFormat(info)
 	id := helper.GetResponseID(c)
 	createAt := common.GetTimestamp()
-	finishReason := constant.FinishReasonStop
-	toolCallIndexByChoice := make(map[int]map[string]int)
-	nextToolCallIndexByChoice := make(map[int]int)
 
-	usage, err := geminiStreamHandler(c, info, resp, func(data string, geminiResponse *dto.GeminiChatResponse) bool {
-		response, isStop := streamResponseGeminiChat2OpenAI(geminiResponse)
-
-		response.Id = id
-		response.Created = createAt
-		response.Model = info.UpstreamModelName
-		if response.IsToolCall() {
-			finishReason = constant.FinishReasonToolCalls
-			if info.RelayFormat == types.RelayFormatClaude {
-				for choiceIdx := range response.Choices {
-					response.Choices[choiceIdx].FinishReason = nil
-				}
+	if client == types.RelayFormatGemini {
+		return geminiStreamHandler(c, info, resp, func(data string, _ *dto.GeminiChatResponse) bool {
+			if err := helper.StringData(c, data); err != nil {
+				logger.LogError(c, err.Error())
+				return false
 			}
-		}
-		for choiceIdx := range response.Choices {
-			choiceKey := response.Choices[choiceIdx].Index
-			for toolIdx := range response.Choices[choiceIdx].Delta.ToolCalls {
-				tool := &response.Choices[choiceIdx].Delta.ToolCalls[toolIdx]
-				if tool.ID == "" {
-					continue
-				}
-				m := toolCallIndexByChoice[choiceKey]
-				if m == nil {
-					m = make(map[string]int)
-					toolCallIndexByChoice[choiceKey] = m
-				}
-				if idx, ok := m[tool.ID]; ok {
-					tool.SetIndex(idx)
-					continue
-				}
-				idx := nextToolCallIndexByChoice[choiceKey]
-				nextToolCallIndexByChoice[choiceKey] = idx + 1
-				m[tool.ID] = idx
-				tool.SetIndex(idx)
-			}
-		}
+			info.SendResponseCount++
+			return true
+		})
+	}
 
-		logger.LogDebug(c, "info.SendResponseCount = %d", info.SendResponseCount)
-		if info.SendResponseCount == 0 {
-			// send first response
-			emptyResponse := helper.GenerateStartEmptyResponse(id, createAt, info.UpstreamModelName, nil)
-			if response.IsToolCall() {
-				if len(emptyResponse.Choices) > 0 && len(response.Choices) > 0 {
-					toolCalls := response.Choices[0].Delta.ToolCalls
-					copiedToolCalls := make([]dto.ToolCallResponse, len(toolCalls))
-					for idx := range toolCalls {
-						copiedToolCalls[idx] = toolCalls[idx]
-						copiedToolCalls[idx].Function.Arguments = ""
-					}
-					emptyResponse.Choices[0].Delta.ToolCalls = copiedToolCalls
-				}
-				finishReason = constant.FinishReasonToolCalls
-				err := handleStream(c, info, emptyResponse)
-				if err != nil {
-					logger.LogError(c, err.Error())
-				}
+	state, err := relayconvert.NewResponseStreamState(types.RelayFormatGemini, client, relayconvert.ResponseStreamOptions{
+		ID:      id,
+		Model:   info.UpstreamModelName,
+		Created: createAt,
+	})
+	if err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	if client == types.RelayFormatClaude && info.ClaudeConvertInfo == nil {
+		info.ClaudeConvertInfo = &relaycommon.ClaudeConvertInfo{LastMessagesType: relaycommon.LastMessageTypeNone}
+	}
 
-				response.ClearToolCalls()
-				if response.IsFinished() {
-					response.Choices[0].FinishReason = nil
-				}
-			} else {
-				err := handleStream(c, info, emptyResponse)
-				if err != nil {
-					logger.LogError(c, err.Error())
-				}
-			}
+	var streamErr *types.NewAPIError
+	usage, handlerErr := geminiStreamHandler(c, info, resp, func(_ string, geminiResponse *dto.GeminiChatResponse) bool {
+		results, convErr := relayconvert.ConvertStreamResponseChunk(c, info, state, geminiResponse)
+		if convErr != nil {
+			streamErr = types.NewOpenAIError(convErr, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			return false
 		}
-
-		err := handleStream(c, info, response)
-		if err != nil {
-			logger.LogError(c, err.Error())
-		}
-		if isStop {
-			if info.RelayFormat != types.RelayFormatClaude {
-				_ = handleStream(c, info, helper.GenerateStopResponse(id, createAt, info.UpstreamModelName, finishReason))
-			}
+		if writeErr := helper.WriteProjectedStreamResults(c, info, results); writeErr != nil {
+			streamErr = types.NewOpenAIError(writeErr, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			return false
 		}
 		return true
 	})
-
-	if err != nil {
-		return usage, err
+	if handlerErr != nil {
+		return usage, handlerErr
 	}
-
-	response := helper.GenerateFinalUsageResponse(id, createAt, info.UpstreamModelName, *usage)
-	if info.RelayFormat == types.RelayFormatClaude && info.ClaudeConvertInfo != nil && !info.ClaudeConvertInfo.Done {
-		response = helper.GenerateStopResponse(id, createAt, info.UpstreamModelName, finishReason)
-		response.Usage = usage
+	if streamErr != nil {
+		return usage, streamErr
 	}
-	handleErr := handleFinalStream(c, info, response)
-	if handleErr != nil {
-		common.SysLog("send final response failed: " + handleErr.Error())
+	if usage != nil {
+		state.SetUsage(usage)
+	}
+	finalResults, finalErr := relayconvert.FinalizeStreamResponse(c, info, state)
+	if finalErr != nil {
+		return usage, types.NewOpenAIError(finalErr, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	if writeErr := helper.WriteProjectedStreamResults(c, info, finalResults); writeErr != nil {
+		return usage, types.NewOpenAIError(writeErr, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	if client == types.RelayFormatOpenAI {
+		if info.ShouldIncludeUsage && usage != nil {
+			if writeErr := helper.ObjectData(c, helper.GenerateFinalUsageResponse(id, createAt, info.UpstreamModelName, *usage)); writeErr != nil {
+				common.SysLog("send final response failed: " + writeErr.Error())
+			}
+		}
+		helper.Done(c)
 	}
 	return usage, nil
 }
@@ -359,34 +316,10 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 		}
 		return &usage, nil
 	}
-	fullTextResponse := responseGeminiChat2OpenAI(c, &geminiResponse)
-	fullTextResponse.Model = info.UpstreamModelName
 	usage := buildUsageFromGeminiResponse(c, info, &geminiResponse)
-
-	fullTextResponse.Usage = usage
-
-	switch info.RelayFormat {
-	case types.RelayFormatOpenAI:
-		responseBody, err = common.Marshal(fullTextResponse)
-		if err != nil {
-			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
-		}
-	case types.RelayFormatClaude:
-		convertResult, err := relayconvert.ConvertResponse(c, info, types.RelayFormatClaude, fullTextResponse)
-		if err != nil {
-			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
-		}
-		claudeRespStr, err := common.Marshal(convertResult.Value)
-		if err != nil {
-			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
-		}
-		responseBody = claudeRespStr
-	case types.RelayFormatGemini:
-		break
+	if writeErr := writeGeminiNativeBody(c, info, resp, &geminiResponse, responseBody); writeErr != nil {
+		return nil, writeErr
 	}
-
-	service.IOCopyBytesGracefully(c, resp, responseBody)
-
 	return &usage, nil
 }
 

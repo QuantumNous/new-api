@@ -8,7 +8,7 @@ RelayKit 是从 [new-api](https://github.com/QuantumNous/new-api) 中拆分出�
 
 - 在 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages 和 Gemini `generateContent` 之间转换
 - 同时支持请求、非流式响应和增量流式响应
-- 自动根据 DTO 类型识别源协议，并选择内置的直接或多跳转换路径
+- 自动根据 DTO 类型识别源协议，经内部 IR 投影到目标格式（`From → IR → To`）
 - 返回转换器 ID、质量等级、实际转换步骤和统一 usage，方便审计与调试
 - 支持常用的文本、多模态内容、工具调用、推理内容和 usage 映射
 - 作为独立 Go module 构建，不依赖 new-api 主模块、Gin、数据库或全局设置
@@ -21,16 +21,15 @@ RelayKit 是从 [new-api](https://github.com/QuantumNous/new-api) 中拆分出�
 |---|---:|---:|---:|---:|
 | OpenAI Chat | — | Good | Fair | Fair |
 | OpenAI Responses | Good | — | Fair | Fair |
-| Claude Messages | Fair | Fair | — | Discouraged |
-| Gemini | Fair | Fair | Discouraged | — |
+| Claude Messages | Fair | Fair | — | Fair |
+| Gemini | Fair | Fair | Fair | — |
 
 质量等级表示协议之间的语义匹配程度：
 
 - `Good`：两种协议的核心结构较接近
 - `Fair`：主要能力可转换，但部分协议特性可能需要适配或无法完整保留
-- `Discouraged`：目前需要经过中间协议转换，语义损失风险更高
 
-请求、非流式响应和流式响应均覆盖上述矩阵。实际采用的路径可从转换结果的 `Steps` 和 `Quality` 字段中读取。
+请求、非流式响应和流式事件经内部 IR 投影（`From → IR → To`），不再经 Chat Completions 两跳。宿主用 `TextPlan` 一次决定 native 格式与出站 path，不再改写 `RelayMode`。高级自定义路由选 `target`（native / chat / responses / claude / gemini），旧 converter ID 仅读取时映射。
 
 ## 安装
 
@@ -224,7 +223,7 @@ relayconvert.SetMediaResolver(relayconvert.MediaResolver{
 - `Usage`：响应转换后的统一 token usage
 - `Stream`：结果是否来自流式转换
 
-如果需要固定转换路径，可使用 `ConvertRequestVia`；如果需要按转换器 ID 执行，可使用 `ConvertRequestByID`、`ConvertResponseByID` 和 `NewResponseStreamStateByID`。
+如果需要固定转换路径，可使用 `ConvertRequestVia`。文本请求请按目标格式调用 `ConvertRequest`；按转换器 ID 的入口已删除。
 
 ## 开发
 

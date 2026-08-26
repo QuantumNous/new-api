@@ -5,21 +5,23 @@
         "role": "model",
         "parts": [
           {
+            "text": "Deep thought.",
+            "thought": true
+          },
+          {
             "text": "The answer is 42."
           },
           {
             "functionCall": {
               "name": "get_weather",
-              "args": {
-                "city": "Paris"
-              }
+              "args": "{\"city\":\"Paris\"}"
             }
           }
         ]
       },
       "finishReason": "STOP",
       "index": 0,
-      "safetyRatings": []
+      "safetyRatings": null
     }
   ],
   "usageMetadata": {

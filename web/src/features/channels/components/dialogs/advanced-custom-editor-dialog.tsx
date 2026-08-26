@@ -79,8 +79,8 @@ import {
   ADVANCED_CUSTOM_BALANCE_LABEL,
   ADVANCED_CUSTOM_BALANCE_PATH,
   ADVANCED_CUSTOM_AUTH_MODE_OPTIONS,
-  ADVANCED_CUSTOM_CONVERTER_OPTIONS,
   ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS,
+  ADVANCED_CUSTOM_TARGET_OPTIONS,
   ADVANCED_CUSTOM_MODEL_LIST_LABEL,
   ADVANCED_CUSTOM_MODEL_LIST_PATH,
   ADVANCED_CUSTOM_TEMPLATE_OPTIONS,
@@ -90,8 +90,8 @@ import {
   createAdvancedCustomManagementRoute,
   createAdvancedCustomRoute,
   getAdvancedCustomAuthMode,
-  getAdvancedCustomConverterDefaults,
-  getAdvancedCustomConverterOptions,
+  getAdvancedCustomTargetDefaults,
+  getAdvancedCustomTargetOptions,
   getAdvancedCustomIncomingPathLabel,
   getAdvancedCustomModelRuleKind,
   getAdvancedCustomManagementRoute,
@@ -100,6 +100,7 @@ import {
   getAdvancedCustomUpstreamPathPlaceholder,
   getDefaultAdvancedCustomIncomingPath,
   isAdvancedCustomIncomingPathAllowed,
+  resolveAdvancedCustomTarget,
   isAdvancedCustomManagementPath,
   normalizeAdvancedCustomConfig,
   parseAdvancedCustomRouteModels,
@@ -112,8 +113,8 @@ import {
 import type {
   AdvancedCustomAuthType,
   AdvancedCustomConfig,
-  AdvancedCustomConverter,
   AdvancedCustomRoute,
+  AdvancedCustomTarget,
 } from '../../types'
 
 type AdvancedCustomEditorDialogProps = {
@@ -168,43 +169,42 @@ function isCatchAllRoute(route: AdvancedCustomRoute): boolean {
   return !route.models || route.models.length === 0
 }
 
-function getRouteConverterLabel(route: AdvancedCustomRoute): string {
-  const converter = route.converter || 'none'
+function getRouteTargetLabel(route: AdvancedCustomRoute): string {
+  const target = resolveAdvancedCustomTarget(route)
   return (
-    ADVANCED_CUSTOM_CONVERTER_OPTIONS.find(
-      (option) => option.value === converter
-    )?.triggerLabel || converter
+    ADVANCED_CUSTOM_TARGET_OPTIONS.find((option) => option.value === target)
+      ?.triggerLabel || target
   )
 }
 
-function getRouteConverters(
+function getRouteTargets(
   routes: AdvancedCustomRoute[]
-): Array<{ converter: AdvancedCustomConverter; label: string }> {
-  const converters = new Map<
-    AdvancedCustomConverter,
-    { converter: AdvancedCustomConverter; label: string }
+): Array<{ target: AdvancedCustomTarget; label: string }> {
+  const targets = new Map<
+    AdvancedCustomTarget,
+    { target: AdvancedCustomTarget; label: string }
   >()
   for (const route of routes) {
-    const converter = route.converter || 'none'
-    if (!converters.has(converter)) {
-      converters.set(converter, {
-        converter,
-        label: getRouteConverterLabel(route),
+    const target = resolveAdvancedCustomTarget(route)
+    if (!targets.has(target)) {
+      targets.set(target, {
+        target,
+        label: getRouteTargetLabel(route),
       })
     }
   }
-  return [...converters.values()]
+  return [...targets.values()]
 }
 
 export function RouteModeBadges(props: { routes: AdvancedCustomRoute[] }) {
   const { t } = useTranslation()
-  return getRouteConverters(props.routes).map((item) => (
+  return getRouteTargets(props.routes).map((item) => (
     <Badge
-      key={item.converter}
-      variant={item.converter === 'none' ? 'secondary' : 'outline'}
+      key={item.target}
+      variant={item.target === 'native' ? 'secondary' : 'outline'}
       className='max-w-full'
     >
-      {item.converter === 'none' ? (
+      {item.target === 'native' ? (
         <ArrowRight aria-hidden='true' />
       ) : (
         <Shuffle aria-hidden='true' />
@@ -283,7 +283,7 @@ export function AdvancedCustomEditorDialog({
           routeKeys.at(index) ||
           route.incoming_path ||
           route.upstream_path ||
-          route.converter ||
+          route.target ||
           'advanced-custom-route',
       })),
     [routeKeys, routes]
@@ -454,20 +454,20 @@ export function AdvancedCustomEditorDialog({
           ...route,
           incoming_path: resolvedIncomingPath,
           upstream_path: ADVANCED_CUSTOM_MODEL_LIST_PATH,
-          converter: 'none' as const,
+          target: 'native' as const,
           models: [],
         }
       }
-      const converter = route.converter || 'none'
+      const target = resolveAdvancedCustomTarget(route)
       return {
         ...route,
         incoming_path: resolvedIncomingPath,
-        converter: isAdvancedCustomIncomingPathAllowed(
+        target: isAdvancedCustomIncomingPathAllowed(
           resolvedIncomingPath,
-          converter
+          target
         )
-          ? converter
-          : 'none',
+          ? target
+          : 'native',
       }
     })
     replaceRoutes(nextRoutes)
@@ -1288,7 +1288,7 @@ function RouteGroupEditor({
           <ModelRuleHelpPopover />
         </span>
         <span>{t('Upstream path')}</span>
-        <span>{t('Converter')}</span>
+        <span>{t('Target format')}</span>
         <span>{t('Auth')}</span>
         <span className='text-right'>{t('Actions')}</span>
       </div>
@@ -1352,35 +1352,34 @@ function RouteEditor({
   onRemove: () => void
 }) {
   const { t } = useTranslation()
-  const converter = route.converter || 'none'
+  const target = resolveAdvancedCustomTarget(route)
   const authMode = getAdvancedCustomAuthMode(route)
   const incomingPath =
-    route.incoming_path || getDefaultAdvancedCustomIncomingPath(converter)
+    route.incoming_path || getDefaultAdvancedCustomIncomingPath(target)
   const isModelListRoute = incomingPath === ADVANCED_CUSTOM_MODEL_LIST_PATH
-  const converterOptions = useMemo(
-    () => getAdvancedCustomConverterOptions(incomingPath),
+  const targetOptions = useMemo(
+    () => getAdvancedCustomTargetOptions(incomingPath),
     [incomingPath]
   )
-  const converterTriggerLabel =
-    ADVANCED_CUSTOM_CONVERTER_OPTIONS.find(
-      (option) => option.value === converter
-    )?.triggerLabel || converter
+  const targetTriggerLabel =
+    ADVANCED_CUSTOM_TARGET_OPTIONS.find((option) => option.value === target)
+      ?.triggerLabel || target
   const authLabel = getOptionLabel(ADVANCED_CUSTOM_AUTH_MODE_OPTIONS, authMode)
   const modelsInputValue = route.models?.join(', ') || ''
   const parsedRouteModels = parseAdvancedCustomRouteModels(modelsInputValue)
   const isFallback = !isModelListRoute && parsedRouteModels.length === 0
 
-  const setConverter = (nextConverter: AdvancedCustomConverter) => {
+  const setTarget = (nextTarget: AdvancedCustomTarget) => {
     let nextIncomingPath = incomingPath
-    if (!isAdvancedCustomIncomingPathAllowed(nextIncomingPath, nextConverter)) {
-      nextIncomingPath = getDefaultAdvancedCustomIncomingPath(nextConverter)
+    if (!isAdvancedCustomIncomingPathAllowed(nextIncomingPath, nextTarget)) {
+      nextIncomingPath = getDefaultAdvancedCustomIncomingPath(nextTarget)
     }
-    const defaults = getAdvancedCustomConverterDefaults(
-      nextConverter,
+    const defaults = getAdvancedCustomTargetDefaults(
+      nextTarget,
       nextIncomingPath
     )
     onChange({
-      converter: nextConverter,
+      target: nextTarget,
       incoming_path: nextIncomingPath,
       upstream_path: defaults.upstream_path,
       auth: defaults.auth,
@@ -1546,7 +1545,7 @@ function RouteEditor({
               })
             }
             placeholder={getAdvancedCustomUpstreamPathPlaceholder(
-              converter,
+              target,
               incomingPath
             )}
           />
@@ -1556,20 +1555,18 @@ function RouteEditor({
         </FieldBlock>
 
         <FieldBlock
-          label={t('Converter')}
+          label={t('Target format')}
           className='lg:gap-1'
           labelClassName='lg:sr-only'
         >
           <Select
-            value={converter}
-            disabled={isModelListRoute && converter === 'none'}
-            onValueChange={(value) =>
-              setConverter(value as AdvancedCustomConverter)
-            }
+            value={target}
+            disabled={isModelListRoute && target === 'native'}
+            onValueChange={(value) => setTarget(value as AdvancedCustomTarget)}
           >
             <SelectTrigger className='w-full max-w-full lg:h-8'>
               <SelectValue className='min-w-0 truncate'>
-                {t(converterTriggerLabel)}
+                {t(targetTriggerLabel)}
               </SelectValue>
             </SelectTrigger>
             <SelectContent
@@ -1577,7 +1574,7 @@ function RouteEditor({
               className={longSelectContentClass}
             >
               <SelectGroup>
-                {converterOptions.map((option) => (
+                {targetOptions.map((option) => (
                   <SelectItem
                     key={option.value}
                     value={option.value}

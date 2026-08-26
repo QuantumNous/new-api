@@ -119,6 +119,7 @@ type AdvancedCustomConfig struct {
 type AdvancedCustomRoute struct {
 	IncomingPath string                   `json:"incoming_path,omitempty"`
 	UpstreamPath string                   `json:"upstream_path,omitempty"`
+	Target       string                   `json:"target,omitempty"`
 	Converter    string                   `json:"converter,omitempty"`
 	Models       []string                 `json:"models,omitempty"`
 	Auth         *AdvancedCustomRouteAuth `json:"auth,omitempty"`
@@ -384,9 +385,11 @@ func (c *AdvancedCustomConfig) Validate() error {
 		route.IncomingPath = strings.TrimSpace(route.IncomingPath)
 		upstreamPath := strings.TrimSpace(route.UpstreamPath)
 		route.Converter = strings.TrimSpace(route.Converter)
+		route.Target = strings.ToLower(strings.TrimSpace(route.Target))
 		if route.Converter == "" {
 			route.Converter = advancedCustomConverterNone
 		}
+		target := route.ResolvedTarget()
 
 		if route.IncomingPath == "" {
 			return fmt.Errorf("advanced_custom.advanced_routes[%d].incoming_path is required", i)
@@ -414,8 +417,8 @@ func (c *AdvancedCustomConfig) Validate() error {
 			if len(normalizeAdvancedCustomRouteModels(route.Models)) > 0 {
 				return fmt.Errorf("advanced_custom.advanced_routes[%d].models must be empty for %s", i, managementRouteName)
 			}
-			if route.Converter != advancedCustomConverterNone {
-				return fmt.Errorf("advanced_custom.advanced_routes[%d].converter must be none for %s", i, managementRouteName)
+			if target != AdvancedCustomTargetNative {
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].target must be native for %s", i, managementRouteName)
 			}
 			if strings.Contains(upstreamPath, advancedCustomModelPlaceholder) {
 				return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must not contain %s for %s", i, advancedCustomModelPlaceholder, managementRouteName)
@@ -432,11 +435,20 @@ func (c *AdvancedCustomConfig) Validate() error {
 			return err
 		}
 
-		if !IsAdvancedCustomConverterAllowed(route.Converter) {
-			return fmt.Errorf("advanced_custom.advanced_routes[%d].converter is not registered: %s", i, route.Converter)
-		}
-		if err := validateAdvancedCustomConverterPath(i, route.IncomingPath, route.Converter); err != nil {
-			return err
+		if route.Target != "" {
+			if !IsAdvancedCustomTargetAllowed(route.Target) {
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].target is invalid: %s", i, route.Target)
+			}
+			if err := validateAdvancedCustomTargetPath(i, route.IncomingPath, route.Target); err != nil {
+				return err
+			}
+		} else {
+			if !IsAdvancedCustomConverterAllowed(route.Converter) {
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].converter is not registered: %s", i, route.Converter)
+			}
+			if err := validateAdvancedCustomConverterPath(i, route.IncomingPath, route.Converter); err != nil {
+				return err
+			}
 		}
 		if err := validateAdvancedCustomRouteAuth(i, route.Auth); err != nil {
 			return err
@@ -533,6 +545,16 @@ func validateAdvancedCustomUpstreamTarget(index int, upstreamPath string) error 
 	}
 	if !strings.EqualFold(parsedURL.Scheme, "http") && !strings.EqualFold(parsedURL.Scheme, "https") {
 		return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must use http or https", index)
+	}
+	return nil
+}
+
+func validateAdvancedCustomTargetPath(index int, incomingPath string, target string) error {
+	if target == AdvancedCustomTargetNative {
+		return nil
+	}
+	if incomingPath == advancedCustomEndpointPathOpenAIAlphaSearch || !IsAdvancedCustomTextIncomingPath(incomingPath) {
+		return fmt.Errorf("advanced_custom.advanced_routes[%d].target does not support incoming_path: %s", index, target)
 	}
 	return nil
 }

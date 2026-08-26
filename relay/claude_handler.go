@@ -60,19 +60,12 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
-	// Claude-native defaults (max_tokens, -thinking suffix) only apply when the
-	// selected channel actually speaks Anthropic Messages. Gemini/Vertex go
-	// Claude → Chat → generateContent; injecting Claude thinking there rewrites
-	// the upstream model after adaptor.Init and sends a Claude-shaped name to a
-	// Google publisher URL.
-	if relaycommon.NativeTextFormat(info, types.RelayFormatClaude) == types.RelayFormatClaude {
-		applyClaudeNativeRequestDefaults(info, request)
-	}
-
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
+	applyTextPlan(info)
+	applyInboundDefaults(info, request)
 	adaptor.Init(info)
 
 	if info.ChannelSetting.SystemPrompt != "" {
@@ -98,15 +91,6 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 				}
 			}
 		}
-	}
-
-	if shouldUpgradeChatToResponses(info) {
-		usage, newApiErr := convertToChatAndRelayViaResponses(c, info, adaptor, request)
-		if newApiErr != nil {
-			return newApiErr
-		}
-		service.PostTextConsumeQuota(c, info, usage, nil)
-		return nil
 	}
 
 	var requestBody io.Reader

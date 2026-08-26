@@ -9,21 +9,22 @@
       "role": "user",
       "content": [
         {
-          "type": "text",
-          "text": "What is in this image?"
+          "text": "What is in this image?",
+          "type": "text"
         },
         {
-          "type": "image_url",
           "image_url": {
-            "url": "data:image/png;base64,aGVsbG8=",
-            "MimeType": ""
-          }
+            "mime_type": "image/png",
+            "url": "data:image/png;base64,aGVsbG8="
+          },
+          "type": "image_url"
         }
       ]
     },
     {
       "role": "assistant",
       "content": null,
+      "reasoning_content": "Let me look.",
       "tool_calls": [
         {
           "id": "toolu_abc",
@@ -38,13 +39,11 @@
     {
       "role": "tool",
       "content": "15 degrees",
-      "name": "get_weather",
       "tool_call_id": "toolu_abc"
     }
   ],
   "stream": true,
-  "max_tokens": 1024,
-  "reasoning_effort": "high",
+  "max_completion_tokens": 1024,
   "tools": [
     {
       "type": "function",

@@ -12,20 +12,12 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/gin-gonic/gin"
 )
-
-func shouldApplyGeminiNativeThinkingConfig(info *relaycommon.RelayInfo, req *dto.GeminiChatRequest, isCountTokensRequest bool) bool {
-	return !isCountTokensRequest &&
-		req != nil &&
-		req.GenerationConfig.ThinkingConfig == nil &&
-		relaycommon.NativeTextFormat(info, types.RelayFormatGemini) == types.RelayFormatGemini
-}
 
 func isNoThinkingRequest(req *dto.GeminiChatRequest) bool {
 	if req.GenerationConfig.ThinkingConfig != nil && req.GenerationConfig.ThinkingConfig.ThinkingBudget != nil {
@@ -92,18 +84,12 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			}
 		}
 	}
-	if shouldApplyGeminiNativeThinkingConfig(info, request, isCountTokensRequest) {
-		// Only inject Gemini-native defaults when the selected provider really
-		// speaks Gemini. Injecting by model name before a Gemini→Chat conversion
-		// turns includeThoughts into foreign reasoning fields and can cause 422s.
-		relayconvert.ApplyGeminiThinkingConfig(request, info)
-	}
-
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
-
+	applyTextPlan(info)
+	applyInboundDefaults(info, request)
 	adaptor.Init(info)
 
 	if !isCountTokensRequest && info.ChannelSetting.SystemPrompt != "" {
@@ -144,15 +130,6 @@ func GeminiHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		if !hasContent {
 			request.SystemInstructions = nil
 		}
-	}
-
-	if !isCountTokensRequest && shouldUpgradeChatToResponses(info) {
-		usage, newApiErr := convertToChatAndRelayViaResponses(c, info, adaptor, request)
-		if newApiErr != nil {
-			return newApiErr
-		}
-		service.PostTextConsumeQuota(c, info, usage, nil)
-		return nil
 	}
 
 	var requestBody io.Reader

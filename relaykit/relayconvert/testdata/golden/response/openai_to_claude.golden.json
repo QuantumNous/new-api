@@ -8,16 +8,16 @@
       "thinking": "Deep thought."
     },
     {
-      "type": "text",
-      "text": "The answer is 42."
-    },
-    {
       "type": "tool_use",
       "id": "call_abc",
       "name": "get_weather",
       "input": {
         "city": "Paris"
       }
+    },
+    {
+      "type": "text",
+      "text": "The answer is 42."
     }
   ],
   "stop_reason": "tool_use",
@@ -25,7 +25,7 @@
   "usage": {
     "input_tokens": 10,
     "cache_creation_input_tokens": 0,
-    "cache_read_input_tokens": 3,
+    "cache_read_input_tokens": 0,
     "output_tokens": 5,
     "claude_cache_creation_5_m_tokens": 0,
     "claude_cache_creation_1_h_tokens": 0,

@@ -80,16 +80,8 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 	return request, nil
 }
 
-func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatGemini, req)
-	if err != nil {
-		return nil, err
-	}
-	geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
-	if !ok {
-		return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
-	}
-	return geminiRequest, nil
+func (a *Adaptor) ConvertClaudeRequest(*gin.Context, *relaycommon.RelayInfo, *dto.ClaudeRequest) (any, error) {
+	return channel.ForeignTextRequest("gemini.ConvertClaudeRequest")
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
@@ -227,15 +219,8 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	return nil
 }
 
-func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
-	if request == nil {
-		return nil, errors.New("request is nil")
-	}
-	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatGemini, request)
-	if err != nil {
-		return nil, err
-	}
-	return result.Value, nil
+func (a *Adaptor) ConvertOpenAIRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeneralOpenAIRequest) (any, error) {
+	return channel.ForeignTextRequest("gemini.ConvertOpenAIRequest")
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
@@ -286,16 +271,8 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	}, nil
 }
 
-func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	result, err := relayconvert.ConvertRequest(c, info, types.RelayFormatGemini, &request)
-	if err != nil {
-		return nil, err
-	}
-	geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
-	if !ok {
-		return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
-	}
-	return geminiRequest, nil
+func (a *Adaptor) ConvertOpenAIResponsesRequest(*gin.Context, *relaycommon.RelayInfo, dto.OpenAIResponsesRequest) (any, error) {
+	return channel.ForeignTextRequest("gemini.ConvertOpenAIResponsesRequest")
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
