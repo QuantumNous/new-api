@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { z } from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
+import { DEFAULT_POST_LOGIN_PATH } from '@/features/auth/constants'
 import {
   consumePendingPostLoginRedirect,
   isSafeInternalPath,
@@ -45,10 +46,10 @@ export const Route = createFileRoute('/(auth)/sign-up')({
 
     // Already logged in (e.g. clicking "Get API Key" while authenticated): skip the
     // sign-up form entirely and go straight to the intended destination (the API Keys
-    // tab via ?redirect=/keys), falling back to the dashboard. Mirrors sign-in.
+    // tab via ?redirect=/keys), falling back to the dashboard overview. Mirrors sign-in.
     if (auth.user) {
       // redirect comes from the URL; validate it as an internal path to avoid an
-      // open-redirect, falling back to the dashboard.
+      // open-redirect, falling back to the dashboard overview.
       const postLoginRedirect = resolvePendingPostLoginRedirect(
         search?.redirect,
         search?.recall_redirect
@@ -57,7 +58,7 @@ export const Route = createFileRoute('/(auth)/sign-up')({
       throw redirect({
         to: isSafeInternalPath(postLoginRedirect)
           ? postLoginRedirect
-          : '/dashboard',
+          : DEFAULT_POST_LOGIN_PATH,
       })
     }
   },

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { AuthUser } from '@/stores/auth-store'
+import { DEFAULT_POST_LOGIN_PATH } from '@/features/auth/constants'
 
 type SelfResponse = {
   success?: boolean
@@ -24,7 +25,7 @@ type SelfResponse = {
 }
 
 type HomeRedirectResult = {
-  to: '/dashboard' | '/sign-in'
+  to: typeof DEFAULT_POST_LOGIN_PATH | '/sign-in'
   user: AuthUser | null
 }
 
@@ -33,7 +34,7 @@ export async function resolveHomeRedirect(
 ): Promise<HomeRedirectResult> {
   const response = await getSelf().catch(() => null)
   if (response?.success && response.data) {
-    return { to: '/dashboard', user: response.data }
+    return { to: DEFAULT_POST_LOGIN_PATH, user: response.data }
   }
   return { to: '/sign-in', user: null }
 }

@@ -20,30 +20,29 @@ import { describe, expect, test } from 'bun:test'
 import { getPostWechatLoginTarget } from './oauth'
 
 describe('WeChat OAuth callback target', () => {
-  test('sends new WeChat users to Playground first-run before honoring redirects', () => {
+  test('uses the dashboard overview when no safe redirect is supplied', () => {
+    expect(
+      getPostWechatLoginTarget({
+        isNewUser: true,
+        redirect: undefined,
+      })
+    ).toBe('/dashboard/overview')
+  })
+
+  test('keeps safe redirects for WeChat users', () => {
     expect(
       getPostWechatLoginTarget({
         isNewUser: true,
         redirect: '/keys',
       })
-    ).toBe('/playground?first=1')
-  })
-
-  test('keeps safe redirects for existing WeChat users', () => {
-    expect(
-      getPostWechatLoginTarget({
-        isNewUser: false,
-        redirect: '/keys',
-      })
     ).toBe('/keys')
   })
 
-  test('falls back to dashboard for unsafe redirects', () => {
+  test('falls back to the dashboard overview for unsafe redirects', () => {
     expect(
       getPostWechatLoginTarget({
-        isNewUser: false,
         redirect: 'https://example.com',
       })
-    ).toBe('/dashboard')
+    ).toBe('/dashboard/overview')
   })
 })

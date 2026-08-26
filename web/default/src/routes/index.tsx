@@ -30,6 +30,8 @@ export const Route = createFileRoute('/')({
     } else {
       auth.reset()
     }
-    throw redirect({ to: result.to })
+    // `href` accepts the concrete dashboard section path while the generated
+    // route type only exposes the `/dashboard/$section` pattern to `to`.
+    throw redirect({ href: result.to })
   },
 })

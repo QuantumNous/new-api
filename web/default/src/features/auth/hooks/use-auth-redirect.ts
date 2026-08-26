@@ -30,6 +30,7 @@ import { useOnboardingStore } from '@/stores/onboarding-store'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 import { identifyAmplitudeUser } from '@/lib/analytics/amplitude'
 import { getSelf } from '@/lib/api'
+import { DEFAULT_POST_LOGIN_PATH } from '@/features/auth/constants'
 import type { User } from '@/features/users/types'
 import {
   buildAuthContinuationSearch,
@@ -98,8 +99,7 @@ export function useAuthRedirect() {
     }
 
     // Always consume legacy onboarding so it can never leak into a later login.
-    // New-user Playground first-run is now delivered by an explicit registration
-    // target, so normal logins only honor safe redirects or the dashboard default.
+    // Normal logins honor a safe redirect or the dashboard overview default.
     const pendingOnboarding = consumePendingOnboarding()
 
     // Navigate to target page. Existing redirect behavior and legacy
@@ -112,7 +112,7 @@ export function useAuthRedirect() {
       ? redirectTo
       : undefined
     consumePendingPostLoginRedirect()
-    const targetPath = safeRedirectTo || '/dashboard'
+    const targetPath = safeRedirectTo || DEFAULT_POST_LOGIN_PATH
     if (!safeRedirectTo && pendingOnboarding) {
       const cardBindEnabled =
         useSystemConfigStore.getState().config.enableStripeCardBind === true
@@ -123,9 +123,8 @@ export function useAuthRedirect() {
         useOnboardingStore.getState().openOnboarding()
       }
     }
-    // targetPath may carry a query string and/or hash (e.g. '/playground?first=1'
-    // for the post-registration first-run onboarding, or a nested redirect like
-    // '/callback?redirect=/playground?first=1'). TanStack's navigate does NOT parse
+    // targetPath may carry a query string and/or hash (for example an explicit
+    // Playground handoff or a nested redirect). TanStack's navigate does NOT parse
     // a query/hash out of `to`, so parse with the URL API: it splits on the FIRST
     // '?' only — preserving any nested '?' inside a value — and isolates a trailing
     // '#hash'. Without a query/hash, behavior is identical to before.

@@ -23,18 +23,21 @@ import { toast } from 'sonner'
 import { useAuthStore, type AuthUser } from '@/stores/auth-store'
 import { getSelf } from '@/lib/api'
 import { wechatLoginByCode } from '@/features/auth/api'
+import { DEFAULT_POST_LOGIN_PATH } from '@/features/auth/constants'
 import { isSafeInternalPath } from '@/features/auth/lib/storage'
 
 type WeChatOAuthTargetOptions = {
-  isNewUser: boolean
+  /** Retained for compatibility; the default destination no longer varies by account age. */
+  isNewUser?: boolean
   redirect?: string
 }
 
 export function getPostWechatLoginTarget(
   options: WeChatOAuthTargetOptions
 ): string {
-  if (options.isNewUser) return '/playground?first=1'
-  return isSafeInternalPath(options.redirect) ? options.redirect : '/dashboard'
+  return isSafeInternalPath(options.redirect)
+    ? options.redirect
+    : DEFAULT_POST_LOGIN_PATH
 }
 
 function OAuthComponent() {
@@ -49,17 +52,13 @@ function OAuthComponent() {
   useEffect(() => {
     ;(async () => {
       try {
-        let isNewWechatUser = false
         if (search?.provider === 'wechat' && search.code) {
-          const loginResponse = await wechatLoginByCode(search.code)
-          const loginUser = (loginResponse.data ?? null) as AuthUser | null
-          isNewWechatUser = loginUser?.is_new_user === true
+          await wechatLoginByCode(search.code)
         }
         const res = await getSelf()
         if (res?.success) {
           useAuthStore.getState().auth.setUser(res.data as AuthUser)
           const target = getPostWechatLoginTarget({
-            isNewUser: isNewWechatUser,
             redirect: search?.redirect,
           })
           const parsed = new URL(target, window.location.origin)

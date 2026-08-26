@@ -46,7 +46,10 @@ import { trackPixelsSignup } from '@/lib/analytics/pixels'
 import { trackYahooSignupConversion } from '@/lib/analytics/yahoo'
 import { api, getSelf } from '@/lib/api'
 import { OAuthCallbackScreen } from '@/features/auth/components/oauth-callback-screen'
-import { OAUTH_BIND_STORAGE_KEY } from '@/features/auth/constants'
+import {
+  DEFAULT_POST_LOGIN_PATH,
+  OAUTH_BIND_STORAGE_KEY,
+} from '@/features/auth/constants'
 import {
   consumePendingPostLoginRedirect,
   isSafeInternalPath,
@@ -251,7 +254,9 @@ function OAuthCallback() {
         // so we never navigate to an external origin after authenticating (open-redirect).
         const stored = pendingPostLoginRedirect?.target
         const requested = target || stored || search?.redirect
-        const to = isSafeInternalPath(requested) ? requested : '/dashboard'
+        const to = isSafeInternalPath(requested)
+          ? requested
+          : DEFAULT_POST_LOGIN_PATH
         consumePendingPostLoginRedirect(pendingPostLoginRedirect?.nonce)
         safeNavigate(to)
         toast.success(i18next.t('Signed in successfully!'))
@@ -325,8 +330,8 @@ function OAuthCallback() {
               void _error
             }
             trackOAuthResult('success')
-            // Apply the same activation-first PT paid-search experiment to
-            // brand-new OAuth users while preserving an explicit safe redirect.
+            // Keep signup attribution and experiment enrollment independent from
+            // the default post-login destination, which is the dashboard overview.
             if (isNewUser) {
               trackYahooSignupConversion()
               const requestedTarget =
@@ -340,7 +345,7 @@ function OAuthCallback() {
                 )
               }
               redirectAfterLogin(
-                hasExplicitTarget ? requestedTarget : '/playground?first=1'
+                hasExplicitTarget ? requestedTarget : DEFAULT_POST_LOGIN_PATH
               )
               return
             }

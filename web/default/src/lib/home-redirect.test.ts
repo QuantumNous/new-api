@@ -20,13 +20,13 @@ import { describe, expect, test } from 'bun:test'
 import { resolveHomeRedirect } from './home-redirect'
 
 describe('resolveHomeRedirect', () => {
-  test('redirects to dashboard when self check returns a user', async () => {
+  test('redirects to the dashboard overview when self check returns a user', async () => {
     const result = await resolveHomeRedirect(async () => ({
       success: true,
       data: { id: 1, username: 'demo', role: 1 },
     }))
 
-    expect(result.to).toBe('/dashboard')
+    expect(result.to).toBe('/dashboard/overview')
     expect(result.user?.username).toBe('demo')
   })
 

@@ -32,9 +32,9 @@ describe('GoogleOneTap', () => {
 })
 
 describe('buildGoogleOneTapLoginUri', () => {
-  test('falls back to the dashboard when no redirect is provided', () => {
+  test('falls back to the dashboard overview when no redirect is provided', () => {
     expect(buildGoogleOneTapLoginUri()).toBe(
-      '/api/oauth/google/one-tap?return_to=%2Fdashboard'
+      '/api/oauth/google/one-tap?return_to=%2Fdashboard%2Foverview'
     )
   })
 
@@ -46,10 +46,10 @@ describe('buildGoogleOneTapLoginUri', () => {
 
   test('rejects external and protocol-relative redirects', () => {
     expect(buildGoogleOneTapLoginUri('https://example.com')).toBe(
-      '/api/oauth/google/one-tap?return_to=%2Fdashboard'
+      '/api/oauth/google/one-tap?return_to=%2Fdashboard%2Foverview'
     )
     expect(buildGoogleOneTapLoginUri('//example.com')).toBe(
-      '/api/oauth/google/one-tap?return_to=%2Fdashboard'
+      '/api/oauth/google/one-tap?return_to=%2Fdashboard%2Foverview'
     )
   })
 })

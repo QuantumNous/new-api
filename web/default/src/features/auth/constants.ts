@@ -82,3 +82,6 @@ export const PASSWORD_RESET_COUNTDOWN = 30 // seconds
 // ============================================================================
 
 export const OAUTH_BIND_STORAGE_KEY = 'oauth:binding:result'
+
+/** Default destination after authentication when no safe redirect is supplied. */
+export const DEFAULT_POST_LOGIN_PATH = '/dashboard/overview' as const

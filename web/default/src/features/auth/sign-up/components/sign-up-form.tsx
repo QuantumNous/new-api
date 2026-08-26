@@ -60,7 +60,10 @@ import {
   wechatLoginByCode,
 } from '@/features/auth/api'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
-import { registerFormSchema } from '@/features/auth/constants'
+import {
+  DEFAULT_POST_LOGIN_PATH,
+  registerFormSchema,
+} from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
@@ -321,16 +324,15 @@ export function SignUpForm({
           product_surface: 'console',
           has_email: Boolean(data.email),
         })
-        const postSignupTarget = redirectTo || '/playground?first=1'
+        const postSignupTarget = redirectTo || DEFAULT_POST_LOGIN_PATH
         if (isPtFirstCallExperiment && !redirectTo) {
           startPtFirstCallTopupExperiment()
           trackAdsFunnelEvent('flatkey_pt_first_call_experiment_enrolled', {
             experiment_id: PT_FIRST_CALL_TOPUP_EXPERIMENT_ID,
           })
         }
-        // Explicit safe redirects (for example /keys) still win. Otherwise all
-        // new users enter activation-first Playground; PT paid search is timed
-        // separately and sees the top-up only after a successful first call.
+        // Explicit safe redirects (for example /keys) still win. Otherwise new
+        // users start on the dashboard overview.
         toast.success(t('Account created!'))
         await handleLoginSuccess(
           res.data as { id?: number } | null,

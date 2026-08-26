@@ -31,8 +31,8 @@ import { SignUpForm } from './components/sign-up-form'
 export function SignUp() {
   const { t } = useTranslation()
   const { status } = useStatus()
-  // Keep redirect available for alternate sign-up providers and the sign-in cross-link.
-  // Password registration ignores it after success because new users go to Playground first-run.
+  // Keep the explicit redirect available for alternate sign-up providers and the
+  // sign-in cross-link; password registration otherwise lands on the overview.
   const { redirect: visibleRedirect, recall_redirect: recallRedirect } =
     useSearch({ from: '/(auth)/sign-up' })
   const redirect = resolvePendingPostLoginRedirect(
