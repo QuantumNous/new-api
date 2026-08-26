@@ -162,9 +162,6 @@ func ToStream(events []ir.Event, state *ir.StreamState) ([]any, error) {
 					reason = "SAFETY"
 				}
 			}
-			if state.ProviderFinish != "" {
-				reason = state.ProviderFinish
-			}
 			resp.Candidates[0].FinishReason = &reason
 			hasFinish = true
 		case ir.EventUsage:
@@ -272,7 +269,14 @@ func flushGeminiTools(state *ir.StreamState) []dto.GeminiPart {
 	for idx := range state.ToolCalls {
 		indexes = append(indexes, idx)
 	}
-	sort.Ints(indexes)
+	sort.Slice(indexes, func(i, j int) bool {
+		left := state.ToolCalls[indexes[i]]
+		right := state.ToolCalls[indexes[j]]
+		if left != nil && right != nil && left.SourceIndex != right.SourceIndex {
+			return left.SourceIndex < right.SourceIndex
+		}
+		return indexes[i] < indexes[j]
+	})
 	parts := make([]dto.GeminiPart, 0, len(indexes))
 	for _, idx := range indexes {
 		if part := emitGeminiToolIfReady(state, idx, true); part != nil {

@@ -15,6 +15,72 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestConvertGeminiToolRequestToStreamingChatPreservesLifecycleInputs(t *testing.T) {
+	fixture := `{
+		"systemInstruction":{"parts":[{"text":"workspace system prompt"}]},
+		"generationConfig":{"thinkingConfig":{"includeThoughts":true,"thinkingBudget":16000}},
+		"contents":[
+			{"role":"user","parts":[{"text":"1 2 ?"}]},
+			{"role":"model","parts":[{"text":"1 2 3"}]},
+			{"role":"user","parts":[{"text":"call any tool"}]}
+		],
+		"tools":[{"functionDeclarations":[
+			{"name":"eval_javascript","description":"evaluate code","parameters":{"type":"object","properties":{"code":{"type":"string"}},"required":["code"]}},
+			{"name":"workspace_read_file","description":"read file","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}},
+			{"name":"workspace_write_file","description":"write file","parameters":{"type":"object","properties":{"path":{"type":"string"},"text":{"type":"string"}},"required":["path","text"]}},
+			{"name":"workspace_edit_file","description":"edit file","parameters":{"type":"object","properties":{"path":{"type":"string"},"old_text":{"type":"string"},"new_text":{"type":"string"}},"required":["path","old_text","new_text"]}},
+			{"name":"workspace_shell","description":"run command","parameters":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}}
+		]}]
+	}`
+
+	var request dto.GeminiChatRequest
+	require.NoError(t, json.Unmarshal([]byte(fixture), &request))
+	info := &convmeta.Values{
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gpt-tool-test",
+		IsStream:            true,
+	}
+
+	result, err := ConvertRequest(context.Background(), info, types.RelayFormatOpenAI, &request)
+	require.NoError(t, err)
+	chatRequest, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.NotNil(t, chatRequest.Stream)
+	assert.True(t, *chatRequest.Stream)
+	assert.Equal(t, "gpt-tool-test", chatRequest.Model)
+	assert.Equal(t, "high", chatRequest.ReasoningEffort)
+
+	require.Len(t, chatRequest.Messages, 4)
+	assert.Equal(t, []string{"system", "user", "assistant", "user"}, []string{
+		chatRequest.Messages[0].Role,
+		chatRequest.Messages[1].Role,
+		chatRequest.Messages[2].Role,
+		chatRequest.Messages[3].Role,
+	})
+	assert.Equal(t, "workspace system prompt", chatRequest.Messages[0].StringContent())
+	assert.Equal(t, "1 2 3", chatRequest.Messages[2].StringContent())
+
+	require.Len(t, chatRequest.Tools, 5)
+	toolsByName := make(map[string]dto.ToolCallRequest, len(chatRequest.Tools))
+	for _, tool := range chatRequest.Tools {
+		assert.Equal(t, "function", tool.Type)
+		toolsByName[tool.Function.Name] = tool
+	}
+	require.Contains(t, toolsByName, "eval_javascript")
+	require.Contains(t, toolsByName, "workspace_shell")
+	evalSchema, err := json.Marshal(toolsByName["eval_javascript"].Function.Parameters)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"type":"object","properties":{"code":{"type":"string"}},"required":["code"]}`, string(evalSchema))
+	shellSchema, err := json.Marshal(toolsByName["workspace_shell"].Function.Parameters)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}`, string(shellSchema))
+
+	messagesJSON, err := json.Marshal(chatRequest.Messages)
+	require.NoError(t, err)
+	assert.NotContains(t, string(messagesJSON), "functionDeclarations")
+	assert.NotContains(t, string(messagesJSON), "workspace_shell")
+}
+
 func TestRequestConverterRegistryKeepsImageConverters(t *testing.T) {
 	spec, ok := LookupRequestConverter(ConverterOpenAIImageToGeminiContent)
 	require.True(t, ok)

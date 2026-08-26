@@ -48,8 +48,9 @@ type Meta interface {
 	// Must never return nil.
 	ConvOptions() *Options
 
-	// GetStreamHub / SetStreamHub hold the IR stream state for ConvertStreamResponse
-	// across chunks of one session (HandleStreamFormat).
+	// GetStreamHub / SetStreamHub are retained only for the legacy
+	// ConvertStreamResponse compatibility entry point. Runtime multi-chunk
+	// sessions must own an explicit ResponseStreamState and finalize it at EOF.
 	GetStreamHub() any
 	SetStreamHub(state any)
 }

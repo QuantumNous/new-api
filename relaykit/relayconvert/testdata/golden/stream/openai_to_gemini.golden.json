@@ -63,7 +63,7 @@
             "role": "model",
             "parts": []
           },
-          "finishReason": "stop",
+          "finishReason": "STOP",
           "index": 0,
           "safetyRatings": []
         }

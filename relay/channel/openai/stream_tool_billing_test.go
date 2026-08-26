@@ -3,6 +3,8 @@ package openai
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +21,9 @@ func TestCollectStreamFunctionCallNamesDedupesSameIndex(t *testing.T) {
 		`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{}"}}]}}]}`,
 	}
 	for _, chunk := range chunks {
-		collectStreamFunctionCallNames(chunk, seen, &names)
+		var response dto.ChatCompletionsStreamResponse
+		require.NoError(t, common.UnmarshalJsonStr(chunk, &response))
+		collectStreamFunctionCallNames(response, seen, &names)
 	}
 
 	require.Len(t, names, 2)

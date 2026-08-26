@@ -86,6 +86,7 @@ type ResponseStreamState struct {
 	stepStates []any
 	usage      *dto.Usage
 	irState    *ir.StreamState
+	finalized  bool
 }
 
 var (
@@ -190,6 +191,12 @@ func ConvertResponse(c context.Context, info convmeta.Meta, target types.RelayFo
 	return executeResponseSpec(c, info, from, target, response, spec)
 }
 
+// ConvertStreamResponse is a compatibility entry point for converting one
+// isolated stream value. It may reuse legacy state stored on info, but it does
+// not own or finalize a multi-chunk session. Runtime stream handlers must use
+// NewResponseStreamState, ConvertStreamResponseChunk, and
+// FinalizeStreamResponse so buffered blocks, tools, usage, and terminal events
+// are committed exactly once at EOF.
 func ConvertStreamResponse(c context.Context, info convmeta.Meta, target types.RelayFormat, response any) (*ResponseResult, error) {
 	from, err := inferResponseRelayFormat(response)
 	if err != nil {
@@ -248,6 +255,9 @@ func ConvertStreamResponseChunk(c context.Context, info convmeta.Meta, state *Re
 	if state == nil {
 		return nil, errors.New("response stream state is required")
 	}
+	if state.finalized {
+		return nil, errors.New("response stream state is already finalized")
+	}
 	from, err := inferResponseRelayFormat(response)
 	if err != nil {
 		return nil, err
@@ -277,12 +287,21 @@ func FinalizeStreamResponse(c context.Context, info convmeta.Meta, state *Respon
 	if state == nil {
 		return nil, errors.New("response stream state is required")
 	}
+	if state.finalized {
+		return nil, nil
+	}
 	if state.From == state.To {
+		state.finalized = true
 		return nil, nil
 	}
 
 	if state.irState != nil {
-		return finalizeStreamIR(info, state)
+		results, err := finalizeStreamIR(info, state)
+		if err != nil {
+			return nil, err
+		}
+		state.finalized = true
+		return results, nil
 	}
 
 	if state.To == types.RelayFormatClaude && info != nil {
@@ -316,6 +335,7 @@ func FinalizeStreamResponse(c context.Context, info convmeta.Meta, state *Respon
 		}
 		values = append(values, current...)
 	}
+	state.finalized = true
 	return responseStreamResults(state, values, usage), nil
 }
 
@@ -342,7 +362,7 @@ func (s *ResponseStreamState) Usage() *dto.Usage {
 }
 
 func (s *ResponseStreamState) SetUsage(usage *dto.Usage) {
-	if s == nil || usage == nil {
+	if s == nil || s.finalized || usage == nil {
 		return
 	}
 	s.usage = usage

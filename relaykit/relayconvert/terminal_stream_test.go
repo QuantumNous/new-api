@@ -326,6 +326,60 @@ func TestChatToGeminiStatefulStreamEmitsOneStableToolCall(t *testing.T) {
 	require.Len(t, calls, 1)
 	require.Equal(t, "eval_javascript", calls[0].FunctionName)
 	require.Equal(t, map[string]any{"code": "1+1"}, calls[0].Arguments)
+
+	_, err = ConvertStreamResponseChunk(context.Background(), nil, state, chunks[len(chunks)-1])
+	require.ErrorContains(t, err, "already finalized")
+}
+
+func TestChatToGeminiStatefulStreamKeepsParallelToolsIsolatedAndSourceOrdered(t *testing.T) {
+	state, err := NewResponseStreamState(
+		types.RelayFormatOpenAI,
+		types.RelayFormatGemini,
+		ResponseStreamOptions{ID: "chatcmpl-parallel", Model: "gemini-3.7-pro"},
+	)
+	require.NoError(t, err)
+
+	firstIndex, secondIndex := 0, 1
+	chunks := []*dto.ChatCompletionsStreamResponse{
+		{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{
+					{Index: &secondIndex, ID: "call_2", Type: "function", Function: dto.FunctionResponse{Name: "second", Arguments: `{"value":`}},
+					{Index: &firstIndex, ID: "call_1", Type: "function", Function: dto.FunctionResponse{Name: "first", Arguments: `{"value":`}},
+				}},
+			}},
+		},
+		{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{
+					{Index: &firstIndex, Function: dto.FunctionResponse{Arguments: `"a"}`}},
+					{Index: &secondIndex, Function: dto.FunctionResponse{Arguments: `"b"}`}},
+				}},
+			}},
+		},
+		{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{},
+			Usage:   &dto.Usage{PromptTokens: 4, CompletionTokens: 3, TotalTokens: 7},
+		},
+	}
+
+	var results []ResponseResult
+	for _, chunk := range chunks {
+		converted, err := ConvertStreamResponseChunk(context.Background(), nil, state, chunk)
+		require.NoError(t, err)
+		require.Empty(t, terminalTestGeminiFunctionCalls(t, converted), "parallel tool emitted before EOF")
+		results = append(results, converted...)
+	}
+	final, err := FinalizeStreamResponse(context.Background(), nil, state)
+	require.NoError(t, err)
+	results = append(results, final...)
+
+	calls := terminalTestGeminiFunctionCalls(t, results)
+	require.Len(t, calls, 2)
+	assert.Equal(t, "first", calls[0].FunctionName)
+	assert.Equal(t, map[string]any{"value": "a"}, calls[0].Arguments)
+	assert.Equal(t, "second", calls[1].FunctionName)
+	assert.Equal(t, map[string]any{"value": "b"}, calls[1].Arguments)
 }
 
 func terminalTestGeminiFunctionCalls(t *testing.T, results []ResponseResult) []dto.FunctionCall {

@@ -41,6 +41,7 @@ type StreamState struct {
 	Finish          Finish
 	ProviderFinish  string
 	Usage           Usage
+	UsageSet        bool
 	PendingFinish   bool
 	TerminalSent    bool
 	stopped         bool
@@ -267,19 +268,23 @@ func (s *StreamState) StopAll() []Event {
 		return nil
 	}
 	if s.OpenKind == BlockKindToolUse {
-		indexes := make([]int, 0, len(s.ToolIndex))
-		seen := map[int]struct{}{}
-		for _, idx := range s.ToolIndex {
-			if _, ok := seen[idx]; ok {
-				continue
-			}
-			seen[idx] = struct{}{}
-			indexes = append(indexes, idx)
+		type toolStop struct {
+			source int
+			block  int
 		}
-		sort.Ints(indexes)
-		events := make([]Event, 0, len(indexes))
-		for _, idx := range indexes {
-			events = append(events, Event{Kind: EventBlockStop, Index: idx, Block: &Block{Kind: BlockKindToolUse}})
+		stops := make([]toolStop, 0, len(s.ToolIndex))
+		for source, block := range s.ToolIndex {
+			stops = append(stops, toolStop{source: source, block: block})
+		}
+		sort.Slice(stops, func(i, j int) bool {
+			if stops[i].source == stops[j].source {
+				return stops[i].block < stops[j].block
+			}
+			return stops[i].source < stops[j].source
+		})
+		events := make([]Event, 0, len(stops))
+		for _, stop := range stops {
+			events = append(events, Event{Kind: EventBlockStop, Index: stop.block, Block: &Block{Kind: BlockKindToolUse}})
 		}
 		s.HasOpen = false
 		s.OpenKind = ""
@@ -306,10 +311,11 @@ func (s *StreamState) SetUsage(usage Usage) {
 		return
 	}
 	s.Usage = usage
+	s.UsageSet = true
 }
 
 func (s *StreamState) hasUsage() bool {
-	return s != nil && (s.Usage.Input != 0 || s.Usage.Output != 0 || s.Usage.Thought != 0 || s.Usage.CacheRead != 0 || s.Usage.CacheWrite != 0)
+	return s != nil && s.UsageSet
 }
 
 func (s *StreamState) TerminalEvents() []Event {
@@ -344,7 +350,18 @@ func (s *StreamState) Finalize() []Event {
 		return nil
 	}
 	if !s.PendingFinish && s.Finish == "" {
-		s.SetFinish(FinishStop, "")
+		finish := FinishStop
+		if len(s.ToolIndex) > 0 {
+			finish = FinishTool
+		}
+		s.SetFinish(finish, "")
+	}
+	// EOF is authoritative. Even when the provider omitted usage entirely, a
+	// zero usage event lets target protocols emit their terminal envelope and
+	// marks the state complete. Runtime handlers replace it with final or
+	// estimated usage before finalization whenever available.
+	if !s.UsageSet {
+		s.SetUsage(Usage{})
 	}
 	return s.TerminalEvents()
 }

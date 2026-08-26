@@ -35,7 +35,7 @@
             "role": "model",
             "parts": []
           },
-          "finishReason": "end_turn",
+          "finishReason": "STOP",
           "index": 0,
           "safetyRatings": []
         }

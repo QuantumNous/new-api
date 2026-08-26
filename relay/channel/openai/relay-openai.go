@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
@@ -32,96 +33,190 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	defer service.CloseResponseBodyGracefully(resp)
 
+	projected := info.RelayFormat != "" && info.RelayFormat != types.RelayFormatOpenAI
+	if projected && info.RelayMode != relayconstant.RelayModeChatCompletions {
+		err := fmt.Errorf("cannot project OpenAI completions stream to %s", info.RelayFormat)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+
+	var streamState *relayconvert.ResponseStreamState
+	if projected {
+		var err error
+		streamState, err = relayconvert.NewResponseStreamState(types.RelayFormatOpenAI, info.RelayFormat, relayconvert.ResponseStreamOptions{
+			ID:           helper.GetResponseID(c),
+			Model:        info.UpstreamModelName,
+			Created:      common.GetTimestamp(),
+			IncludeUsage: info.ShouldIncludeUsage,
+		})
+		if err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		}
+		if info.RelayFormat == types.RelayFormatClaude {
+			info.EnsureClaudeConvertInfo()
+		}
+	}
+
 	model := info.UpstreamModelName
-	var responseId string
-	var createAt int64 = 0
+	var responseID string
+	var createdAt int64
 	var systemFingerprint string
 	var containStreamUsage bool
 	var responseTextBuilder strings.Builder
 	var toolCount int
-	var usage = &dto.Usage{}
+	usage := &dto.Usage{}
 	var lastStreamData string
-	var secondLastStreamData string // 存储倒数第二个stream data，用于音频模型
+	var usageStreamData string
+	var lastStreamResponse *dto.ChatCompletionsStreamResponse
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
-
-	// 检查是否为音频模型
-	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
+	var streamErr *types.NewAPIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
-		if lastStreamData != "" {
-			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
-				common.SysLog("error handling stream format: " + err.Error())
+		if streamErr != nil {
+			sr.Stop(streamErr)
+			return
+		}
+
+		// Native Chat passthrough keeps the existing one-chunk delay so a trailing
+		// usage-only chunk can still be hidden when the client did not request it.
+		// Cross-format projection never delays or replays a source chunk.
+		if !projected && lastStreamData != "" {
+			if err := sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
+				common.SysLog("error handling OpenAI stream data: " + err.Error())
 				sr.Error(err)
+			} else {
+				info.SendResponseCount++
 			}
 		}
-		if len(data) > 0 {
-			// 对音频模型，保存倒数第二个stream data
-			if isAudioModel && lastStreamData != "" {
-				secondLastStreamData = lastStreamData
-			}
+		if data == "" {
+			return
+		}
+		lastStreamData = data
 
-			lastStreamData = data
-			collectStreamFunctionCallNames(data, seenStreamToolCalls, &streamFunctionCallNames)
+		var streamResponse dto.ChatCompletionsStreamResponse
+		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+			logger.LogError(c, "error parsing OpenAI stream data: "+err.Error())
+			if projected {
+				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+				sr.Stop(streamErr)
+				return
+			}
+			sr.Error(err)
+			return
+		}
+		lastStreamResponse = &streamResponse
+		if streamResponse.Id != "" {
+			responseID = streamResponse.Id
+		}
+		if streamResponse.Created != 0 {
+			createdAt = streamResponse.Created
+		}
+		if streamResponse.Model != "" {
+			model = streamResponse.Model
+		}
+		if fingerprint := streamResponse.GetSystemFingerprint(); fingerprint != "" {
+			systemFingerprint = fingerprint
+		}
+		if service.ValidUsage(streamResponse.Usage) {
+			usage = streamResponse.Usage
+			containStreamUsage = true
+			usageStreamData = data
+		}
+
+		switch info.RelayMode {
+		case relayconstant.RelayModeChatCompletions:
+			collectStreamFunctionCallNames(streamResponse, seenStreamToolCalls, &streamFunctionCallNames)
+			if err := ProcessStreamResponse(streamResponse, &responseTextBuilder, &toolCount); err != nil {
+				logger.LogError(c, "error processing stream token data: "+err.Error())
+				sr.Error(err)
+			}
+		case relayconstant.RelayModeCompletions:
 			if err := processTokenData(info.RelayMode, data, &responseTextBuilder, &toolCount); err != nil {
 				logger.LogError(c, "error processing stream token data: "+err.Error())
 				sr.Error(err)
 			}
 		}
+
+		if !projected {
+			return
+		}
+		results, err := relayconvert.ConvertStreamResponseChunk(c, info, streamState, &streamResponse)
+		if err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			sr.Stop(streamErr)
+			return
+		}
+		if err := helper.WriteProjectedStreamResults(c, info, results); err != nil {
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+			sr.Stop(streamErr)
+			return
+		}
+		info.SendResponseCount++
 	})
 
-	// 对音频模型，从倒数第二个stream data中提取usage信息
-	if isAudioModel && secondLastStreamData != "" {
-		var streamResp struct {
-			Usage *dto.Usage `json:"usage"`
-		}
-		err := common.Unmarshal([]byte(secondLastStreamData), &streamResp)
-		if err == nil && streamResp.Usage != nil && service.ValidUsage(streamResp.Usage) {
-			usage = streamResp.Usage
-			containStreamUsage = true
+	if streamErr != nil {
+		return nil, streamErr
+	}
 
-			if common.DebugEnabled {
-				logger.LogDebug(c, "Audio model usage extracted from second last SSE: PromptTokens=%d, CompletionTokens=%d, TotalTokens=%d, InputTokens=%d, OutputTokens=%d",
-					usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens,
-					usage.InputTokens, usage.OutputTokens)
+	shouldSendLastResponse := true
+	if lastStreamResponse != nil && service.ValidUsage(lastStreamResponse.Usage) && !info.ShouldIncludeUsage {
+		shouldSendLastResponse = false
+		for _, choice := range lastStreamResponse.Choices {
+			if choice.Delta.GetContentString() != "" || choice.Delta.GetReasoningContent() != "" {
+				shouldSendLastResponse = true
+				break
 			}
 		}
 	}
-
-	// 处理最后的响应
-	shouldSendLastResp := true
-	if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
-		&containStreamUsage, info, &shouldSendLastResp); err != nil {
-		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
-	}
-
-	if info.RelayFormat == types.RelayFormatOpenAI {
-		if shouldSendLastResp {
-			_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
+	if !projected && shouldSendLastResponse && lastStreamData != "" {
+		if err := sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
+			logger.LogError(c, "error sending final OpenAI stream data: "+err.Error())
+		} else {
+			info.SendResponseCount++
 		}
 	}
 
 	if !containStreamUsage {
 		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		usage.CompletionTokens += toolCount * 7
+		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
-
-	applyUsagePostProcessing(info, usage, common.StringToByteSlice(lastStreamData))
+	if usageStreamData == "" {
+		usageStreamData = lastStreamData
+	}
+	applyUsagePostProcessing(info, usage, common.StringToByteSlice(usageStreamData))
 
 	for _, name := range streamFunctionCallNames {
 		info.CountBillableToolCall(dto.BuildInCallFunctionCall, name)
 	}
 
-	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
+	if projected {
+		streamState.SetUsage(usage)
+		if info.RelayFormat == types.RelayFormatClaude {
+			info.EnsureClaudeConvertInfo().Usage = usage
+		}
+		finalResults, err := relayconvert.FinalizeStreamResponse(c, info, streamState)
+		if err != nil {
+			return usage, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		}
+		if err := helper.WriteProjectedStreamResults(c, info, finalResults); err != nil {
+			return usage, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		}
+		return usage, nil
+	}
 
+	if info.ShouldIncludeUsage && !containStreamUsage {
+		response := helper.GenerateFinalUsageResponse(responseID, createdAt, model, *usage)
+		response.SetSystemFingerprint(systemFingerprint)
+		if err := helper.ObjectData(c, response); err != nil {
+			logger.LogError(c, "error sending final OpenAI usage: "+err.Error())
+		}
+	}
+	helper.Done(c)
 	return usage, nil
 }
 
-func collectStreamFunctionCallNames(data string, seen map[string]struct{}, names *[]string) {
-	var streamResponse dto.ChatCompletionsStreamResponse
-	if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
-		return
-	}
+func collectStreamFunctionCallNames(streamResponse dto.ChatCompletionsStreamResponse, seen map[string]struct{}, names *[]string) {
 	for _, choice := range streamResponse.Choices {
 		for i, tc := range choice.Delta.ToolCalls {
 			name := tc.Function.Name
