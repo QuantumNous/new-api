@@ -53,7 +53,7 @@ func getGeminiVideoURL(channel *model.Channel, task *model.Task, apiKey string) 
 	taskInfo, parseErr := adaptor.ParseTaskResult(body)
 	if parseErr == nil && taskInfo != nil {
 		if taskInfo.Url != "" {
-			return taskInfo.Url, nil
+			return ensureAPIKey(taskInfo.Url, apiKey), nil
 		}
 		if taskInfo.RemoteUrl != "" {
 			return ensureAPIKey(taskInfo.RemoteUrl, apiKey), nil

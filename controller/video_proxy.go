@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	vertexcore "github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
@@ -110,6 +111,20 @@ func VideoProxy(c *gin.Context) {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to resolve Vertex video URL for task %s: %s", taskID, err.Error()))
 			videoProxyError(c, http.StatusBadGateway, "server_error", "Failed to resolve Vertex video URL")
 			return
+		}
+		if strings.HasPrefix(videoURL, "http://") || strings.HasPrefix(videoURL, "https://") {
+			credentials := &vertexcore.Credentials{}
+			if decodeErr := common.Unmarshal([]byte(getVertexTaskKey(channel, task)), credentials); decodeErr != nil {
+				videoProxyError(c, http.StatusInternalServerError, "server_error", "Failed to decode Vertex credentials")
+				return
+			}
+			accessToken, tokenErr := vertexcore.AcquireAccessToken(*credentials, proxy)
+			if tokenErr != nil {
+				videoProxyError(c, http.StatusBadGateway, "server_error", "Failed to authenticate Vertex video download")
+				return
+			}
+			req.Header.Set("Authorization", "Bearer "+accessToken)
+			req.Header.Set("x-goog-user-project", credentials.ProjectID)
 		}
 	case constant.ChannelTypeOpenAI, constant.ChannelTypeSora:
 		videoURL = fmt.Sprintf("%s/v1/videos/%s/content", baseURL, task.GetUpstreamTaskID())

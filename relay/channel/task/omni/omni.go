@@ -37,15 +37,15 @@ type inputPart struct {
 }
 
 type responseFormat struct {
-	Type        string `json:"type"`
-	AspectRatio string `json:"aspect_ratio,omitempty"`
+	Type        string  `json:"type"`
+	AspectRatio *string `json:"aspect_ratio,omitempty"`
 }
 
 type interactionRequest struct {
 	Model                 string         `json:"model"`
 	Input                 []inputPart    `json:"input"`
 	ResponseFormat        responseFormat `json:"response_format"`
-	PreviousInteractionID string         `json:"previous_interaction_id,omitempty"`
+	PreviousInteractionID *string        `json:"previous_interaction_id,omitempty"`
 	Background            bool           `json:"background"`
 	Store                 bool           `json:"store"`
 }
@@ -74,14 +74,17 @@ type interactionResponse struct {
 	} `json:"error"`
 }
 
+// IsModel reports whether modelName uses the Omni Interactions protocol.
 func IsModel(modelName string) bool {
 	return strings.TrimSpace(modelName) == ModelGeminiOmniFlashPreview
 }
 
+// IsInteractionTaskName reports whether a stored upstream task name is an interaction.
 func IsInteractionTaskName(name string) bool {
 	return strings.HasPrefix(strings.TrimSpace(name), interactionTaskPrefix)
 }
 
+// InteractionIDFromTaskName extracts and validates an interaction ID from task storage.
 func InteractionIDFromTaskName(name string) (string, error) {
 	id, ok := strings.CutPrefix(strings.TrimSpace(name), interactionTaskPrefix)
 	if !ok || strings.TrimSpace(id) == "" || strings.Contains(id, "/") {
@@ -90,6 +93,7 @@ func InteractionIDFromTaskName(name string) (string, error) {
 	return id, nil
 }
 
+// TaskName encodes an interaction ID into the provider-neutral task name format.
 func TaskName(interactionID string) (string, error) {
 	id := strings.TrimSpace(interactionID)
 	if id == "" || strings.Contains(id, "/") {
@@ -98,6 +102,7 @@ func TaskName(interactionID string) (string, error) {
 	return interactionTaskPrefix + id, nil
 }
 
+// ResolveDuration returns the requested Omni duration, defaulting to three seconds.
 func ResolveDuration(req relaycommon.TaskSubmitReq) int {
 	if req.Metadata != nil {
 		for _, key := range []string{"duration_seconds", "durationSeconds"} {
@@ -129,6 +134,7 @@ func ResolveDuration(req relaycommon.TaskSubmitReq) int {
 	return MinDurationSeconds
 }
 
+// ResolveAspectRatio normalizes task metadata or dimensions to an Omni ratio.
 func ResolveAspectRatio(req relaycommon.TaskSubmitReq) string {
 	if req.Metadata != nil {
 		for _, key := range []string{"aspect_ratio", "aspectRatio"} {
@@ -158,6 +164,7 @@ func ResolveAspectRatio(req relaycommon.TaskSubmitReq) string {
 	return req.Size
 }
 
+// ValidateRequest enforces Omni duration, aspect-ratio, and image-count limits.
 func ValidateRequest(c *gin.Context, info *relaycommon.RelayInfo) error {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
@@ -181,6 +188,7 @@ func ValidateRequest(c *gin.Context, info *relaycommon.RelayInfo) error {
 	return nil
 }
 
+// BuildRequestBody maps a New API video task to a background Interactions request.
 func BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
@@ -200,16 +208,20 @@ func BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, e
 		info.Action = constant.TaskActionGenerate
 	}
 
-	previousInteractionID := ""
+	var previousInteractionID *string
 	if req.Metadata != nil {
 		if value, ok := req.Metadata["previous_interaction_id"].(string); ok {
-			previousInteractionID = strings.TrimSpace(value)
+			value = strings.TrimSpace(value)
+			if value != "" {
+				previousInteractionID = &value
+			}
 		}
 	}
+	aspectRatio := ResolveAspectRatio(req)
 	body := interactionRequest{
 		Model:                 info.UpstreamModelName,
 		Input:                 parts,
-		ResponseFormat:        responseFormat{Type: "video", AspectRatio: ResolveAspectRatio(req)},
+		ResponseFormat:        responseFormat{Type: "video", AspectRatio: &aspectRatio},
 		PreviousInteractionID: previousInteractionID,
 		Background:            true,
 		Store:                 true,
@@ -221,6 +233,7 @@ func BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, e
 	return bytes.NewReader(data), nil
 }
 
+// ParseSubmitResponse validates an interaction submission and returns its task name.
 func ParseSubmitResponse(body []byte) (string, error) {
 	var interaction interactionResponse
 	if err := common.Unmarshal(body, &interaction); err != nil {
@@ -232,6 +245,7 @@ func ParseSubmitResponse(body []byte) (string, error) {
 	return TaskName(interaction.ID)
 }
 
+// IsInteractionResponse distinguishes Interactions payloads from Veo operations.
 func IsInteractionResponse(body []byte) bool {
 	var interaction struct {
 		ID     string `json:"id"`
@@ -243,6 +257,7 @@ func IsInteractionResponse(body []byte) bool {
 	return strings.TrimSpace(interaction.ID) != "" || strings.TrimSpace(interaction.Status) != ""
 }
 
+// ParseTaskResult maps an Interactions lifecycle response to New API task state.
 func ParseTaskResult(body []byte) (*relaycommon.TaskInfo, error) {
 	var interaction interactionResponse
 	if err := common.Unmarshal(body, &interaction); err != nil {
@@ -274,22 +289,20 @@ func ParseTaskResult(body []byte) (*relaycommon.TaskInfo, error) {
 		}
 		return result, nil
 	case "completed":
-		steps := interaction.Steps
-		if len(steps) == 0 {
-			steps = interaction.Outputs
-		}
-		for _, step := range steps {
-			if step.Type != "model_output" {
-				if partURL := videoPartURL(inputPart{Type: step.Type, MimeType: step.MimeType, Data: step.Data, URI: step.URI}); partURL != "" {
-					setCompletedResult(result, partURL, interaction)
-					return result, nil
+		for _, steps := range [][]interactionStep{interaction.Steps, interaction.Outputs} {
+			for _, step := range steps {
+				if step.Type != "model_output" {
+					if partURL := videoPartURL(inputPart{Type: step.Type, MimeType: step.MimeType, Data: step.Data, URI: step.URI}); partURL != "" {
+						setCompletedResult(result, partURL, interaction)
+						return result, nil
+					}
+					continue
 				}
-				continue
-			}
-			for _, part := range step.Content {
-				if partURL := videoPartURL(part); partURL != "" {
-					setCompletedResult(result, partURL, interaction)
-					return result, nil
+				for _, part := range step.Content {
+					if partURL := videoPartURL(part); partURL != "" {
+						setCompletedResult(result, partURL, interaction)
+						return result, nil
+					}
 				}
 			}
 		}

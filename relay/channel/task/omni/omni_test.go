@@ -50,8 +50,10 @@ func TestBuildRequestBodyIncludesPromptReferenceImagesAndAsyncState(t *testing.T
 	assert.Equal(t, ModelGeminiOmniFlashPreview, request.Model)
 	assert.True(t, request.Background)
 	assert.True(t, request.Store)
-	assert.Equal(t, "interaction_previous", request.PreviousInteractionID)
-	assert.Equal(t, responseFormat{Type: "video", AspectRatio: "9:16"}, request.ResponseFormat)
+	require.NotNil(t, request.PreviousInteractionID)
+	assert.Equal(t, "interaction_previous", *request.PreviousInteractionID)
+	require.NotNil(t, request.ResponseFormat.AspectRatio)
+	assert.Equal(t, "9:16", *request.ResponseFormat.AspectRatio)
 	require.Len(t, request.Input, 3)
 	assert.Contains(t, request.Input[0].Text, "Generate exactly a 5-second video.")
 	assert.Equal(t, inputPart{Type: "image", MimeType: "image/png", Data: imageOne}, request.Input[1])
@@ -124,4 +126,17 @@ func TestParseCompletedInteractionWithoutVideoFails(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, string(model.TaskStatusFailure), result.Status)
 	assert.Contains(t, result.Reason, "did not contain video")
+}
+
+func TestParseInteractionChecksOutputsWhenStepsArePresent(t *testing.T) {
+	result, err := ParseTaskResult([]byte(`{
+		"id":"interaction_123",
+		"status":"completed",
+		"steps":[{"type":"thought","content":[]}],
+		"outputs":[{"type":"model_output","content":[{"type":"video","mime_type":"video/mp4","data":"dmlkZW8="}]}]
+	}`))
+
+	require.NoError(t, err)
+	assert.Equal(t, string(model.TaskStatusSuccess), result.Status)
+	assert.Equal(t, "data:video/mp4;base64,dmlkZW8=", result.Url)
 }
