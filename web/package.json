@@ -81,7 +81,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
-    "@rsbuild/core": "^2.1.13",
+    "@rsbuild/core": "^2.2.0",
     "@rsbuild/plugin-react": "^2.1.0",
     "@rsbuild/plugin-tailwindcss": "^2.0.3",
     "@tanstack/react-query-devtools": "^5.102.2",
