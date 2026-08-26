@@ -714,8 +714,12 @@ func RevokeAllUserSessions(userID int, reason string) (int64, error) {
 // when the active count is already at or below limit, and returns the number
 // of sessions actually revoked. It is used at login time to make room for a
 // new session instead of hard-blocking once the active session limit is
-// reached, so a full session table can never lock the user out.
-func RevokeOldestActiveUserSessions(userID int, limit int64, now int64, reason string) (int64, error) {
+// reached, so a full session table can never lock the user out. excludedSID
+// (typically the just-created session) is never considered for eviction:
+// last_active_at and created_at can tie for sessions created within the same
+// second, and without the exclusion the undefined tie order could revoke the
+// new session while its tokens are being issued.
+func RevokeOldestActiveUserSessions(userID int, limit int64, now int64, reason, excludedSID string) (int64, error) {
 	if userID <= 0 || limit <= 0 {
 		return 0, ErrUserSessionInvalid
 	}
@@ -730,9 +734,13 @@ func RevokeOldestActiveUserSessions(userID int, limit int64, now int64, reason s
 	if toEvict <= 0 {
 		return 0, nil
 	}
+	evictQuery := DB.Model(&UserSession{}).
+		Where("user_id = ? AND status = ? AND expires_at > ?", userID, UserSessionStatusActive, now)
+	if excludedSID != "" {
+		evictQuery = evictQuery.Where("sid <> ?", excludedSID)
+	}
 	var sids []string
-	if err := DB.Model(&UserSession{}).
-		Where("user_id = ? AND status = ? AND expires_at > ?", userID, UserSessionStatusActive, now).
+	if err := evictQuery.
 		Order("last_active_at ASC").Order("created_at ASC").
 		Limit(int(toEvict)).Pluck("sid", &sids).Error; err != nil {
 		return 0, err

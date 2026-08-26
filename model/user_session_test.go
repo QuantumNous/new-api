@@ -678,7 +678,7 @@ func TestRevokeOldestActiveUserSessionsEvictsOldestFirst(t *testing.T) {
 
 	// limit=2 with 4 active sessions: only the 2 with the oldest last_active_at
 	// should be revoked.
-	revokedCount, err := RevokeOldestActiveUserSessions(7, 2, now, "test_evict")
+	revokedCount, err := RevokeOldestActiveUserSessions(7, 2, now, "test_evict", "")
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), revokedCount)
 
@@ -706,7 +706,37 @@ func TestRevokeOldestActiveUserSessionsNoOpUnderLimit(t *testing.T) {
 	now := time.Now().Unix()
 	require.NoError(t, DB.Create(newTestUserSession("under-limit", 8, now)).Error)
 
-	revoked, err := RevokeOldestActiveUserSessions(8, 10, now, "test_evict")
+	revoked, err := RevokeOldestActiveUserSessions(8, 10, now, "test_evict", "")
 	require.NoError(t, err)
 	assert.Zero(t, revoked)
+}
+
+func TestRevokeOldestActiveUserSessionsExcludesSpecifiedSession(t *testing.T) {
+	setupUserSessionTest(t)
+	createUserSessionTestUser(t, 9, 1)
+	now := time.Now().Unix()
+	// All sessions share the same created_at and last_active_at, so the
+	// eviction order among them is undefined. The excluded session (the one
+	// just created at login) must never be revoked regardless of that order.
+	sessions := []*UserSession{
+		newTestUserSession("evict-tie-a", 9, now),
+		newTestUserSession("evict-tie-b", 9, now),
+		newTestUserSession("evict-tie-new", 9, now),
+	}
+	require.NoError(t, DB.Create(&sessions).Error)
+
+	// limit=2 with 3 tied active sessions: exactly one must be revoked, and
+	// it must never be the excluded "evict-tie-new" session.
+	revokedCount, err := RevokeOldestActiveUserSessions(9, 2, now, "test_evict", "evict-tie-new")
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), revokedCount)
+
+	var excluded UserSession
+	require.NoError(t, DB.Where("sid = ?", "evict-tie-new").First(&excluded).Error)
+	assert.Equal(t, UserSessionStatusActive, excluded.Status)
+	var activeLeft int64
+	require.NoError(t, DB.Model(&UserSession{}).
+		Where("user_id = ? AND status = ?", 9, UserSessionStatusActive).
+		Count(&activeLeft).Error)
+	assert.Equal(t, int64(2), activeLeft)
 }

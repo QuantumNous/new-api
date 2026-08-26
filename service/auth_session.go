@@ -102,7 +102,7 @@ func createLoginSession(userID int, expectedAuthVersion int64, loginMethod, ip, 
 	// session is already created and stays valid, and the limit converges on
 	// subsequent logins.
 	if _, err := model.RevokeOldestActiveUserSessions(
-		userID, int64(common.UserSessionActiveLimit), now, "active_limit_evicted",
+		userID, int64(common.UserSessionActiveLimit), now, "active_limit_evicted", session.SID,
 	); err != nil {
 		common.SysError(fmt.Sprintf("failed to evict oldest user sessions for user %d: %s", userID, err.Error()))
 	}
