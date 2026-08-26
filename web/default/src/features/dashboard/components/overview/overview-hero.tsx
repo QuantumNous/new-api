@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
+import type { ComponentType } from 'react'
+import { Claude, Doubao, Gemini, Grok, Minimax, OpenAI } from '@lobehub/icons'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/auth-store'
@@ -26,6 +28,21 @@ import {
   hasSeenWelcomeNotice,
   markWelcomeNoticeSeen,
 } from './welcome-notice-persistence'
+
+type ModelLogo = ComponentType<{
+  'aria-hidden'?: boolean
+  className?: string
+  size?: number
+}>
+
+const featuredModels: Array<{ label: string; logo: ModelLogo }> = [
+  { label: 'Seedance', logo: Doubao.Color },
+  { label: 'GPT', logo: OpenAI },
+  { label: 'Claude', logo: Claude.Color },
+  { label: 'Gemini', logo: Gemini.Color },
+  { label: 'Grok', logo: Grok },
+  { label: 'MiniMax', logo: Minimax.Color },
+]
 
 export function OverviewHero() {
   const { t } = useTranslation()
@@ -54,10 +71,29 @@ export function OverviewHero() {
         <h1 className='text-3xl font-semibold tracking-tight sm:text-4xl'>
           {t('Build with any model, your way.')}
         </h1>
-        <p className='text-muted-foreground max-w-2xl text-base'>
-          {t(
-            'One key, every leading model. Choose a starting point below and be up and running in minutes.'
-          )}
+        <p className='text-muted-foreground flex max-w-3xl flex-wrap items-center gap-x-2 gap-y-2 text-base'>
+          <span>{t('One key connects you to the models shaping AI:')}</span>
+          <span className='inline-flex flex-wrap items-center gap-x-3 gap-y-2'>
+            {featuredModels.map((model, index) => {
+              const Logo = model.logo
+              return (
+                <span
+                  className='inline-flex items-center gap-x-3'
+                  key={model.label}
+                >
+                  {index > 0 && (
+                    <span aria-hidden className='text-muted-foreground/60'>
+                      ·
+                    </span>
+                  )}
+                  <span className='text-foreground inline-flex items-center gap-1.5 font-medium'>
+                    <Logo aria-hidden className='size-4 shrink-0' size={16} />
+                    {model.label}
+                  </span>
+                </span>
+              )
+            })}
+          </span>
         </p>
       </div>
 
