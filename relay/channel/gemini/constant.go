@@ -18,6 +18,7 @@ var ModelList = []string{
 	"gemini-3.1-flash-image-preview", "gemini-robotics-er-1.5-preview",
 	"gemini-2.5-computer-use-preview-10-2025", "deep-research-pro-preview-12-2025",
 	"gemini-2.5-flash-native-audio-preview-09-2025", "gemini-2.5-flash-native-audio-preview-12-2025",
+	"gemini-omni-flash-preview",
 	// gemma models
 	"gemma-3-1b-it", "gemma-3-4b-it", "gemma-3-12b-it",
 	"gemma-3-27b-it", "gemma-3n-e4b-it", "gemma-3n-e2b-it",
