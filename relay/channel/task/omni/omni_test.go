@@ -182,12 +182,12 @@ func TestReferenceVideoDurationErrorUsesRequestLanguage(t *testing.T) {
 		{
 			name:     "simplified Chinese",
 			language: "zh-CN",
-			expected: "参考视频时长为 10.056 秒，超过 gemini-omni-flash-preview 的 10 秒上限。",
+			expected: "参考视频时长超过10 秒上限。",
 		},
 		{
 			name:     "traditional Chinese",
 			language: "zh-TW",
-			expected: "參考影片時長為 10.056 秒，超過 gemini-omni-flash-preview 的 10 秒上限。",
+			expected: "參考影片時長超過 10 秒上限。",
 		},
 		{
 			name:     "English",

@@ -204,7 +204,7 @@ twofa.code_invalid: "驗證碼或備用碼不正確"
 # Rate limit messages
 rate_limit.reached: "您已達到請求數限制：{{.Minutes}}分鐘內最多請求{{.Max}}次"
 rate_limit.total_reached: "您已達到總請求數限制：{{.Minutes}}分鐘內最多請求{{.Max}}次，包括失敗次數"
-video.omni.reference_duration_exceeded: "參考影片時長為 {{.Duration}} 秒，超過 {{.Model}} 的 {{.Max}} 秒上限。"
+video.omni.reference_duration_exceeded: "參考影片時長超過 10 秒上限。"
 
 # Setting messages
 setting.invalid_type: "無效的預警類型"
