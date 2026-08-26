@@ -68,6 +68,15 @@ function sanitizeAttachmentImageUrl(url: string | undefined): string | undefined
   return safeUrl?.startsWith('data:image/') ? safeUrl : undefined
 }
 
+function sanitizeAttachmentVideoUrl(url: string | undefined): string | undefined {
+  if (typeof url !== 'string') return undefined
+  const trimmedUrl = url.trim()
+  if (/^data:video\/mp4;base64,[a-z0-9+/\r\n]+={0,2}$/i.test(trimmedUrl)) {
+    return trimmedUrl
+  }
+  return sanitizeGeneratedMediaUrl(trimmedUrl)
+}
+
 interface PlaygroundChatProps {
   messages: MessageType[]
   onCopyMessage?: (message: MessageType) => void
@@ -132,7 +141,7 @@ export function PlaygroundChat({
                       from={message.from}
                       key={`${message.key}-${version.id}-${versionIndex}`}
                     >
-                      <div className='flex w-full min-w-0 flex-1 basis-full flex-col items-start py-2 group-[.is-user]:items-end'>
+                      <div className='flex w-full min-w-0 flex-1 basis-full flex-col items-start space-y-2 py-2 group-[.is-user]:items-end'>
                         {isEditing(message.key) ? (
                           <div className='space-y-2'>
                             <Textarea
@@ -219,8 +228,24 @@ export function PlaygroundChat({
                                   )
                                   return url ? [{ attachment, url }] : []
                                 }
+                                if (attachment.kind === 'video') {
+                                  const url = sanitizeAttachmentVideoUrl(
+                                    attachment.url
+                                  )
+                                  return url ? [{ attachment, url }] : []
+                                }
                                 return [{ attachment }]
                               })
+                              const mediaAttachmentPreviews =
+                                attachmentPreviews.filter(
+                                  ({ attachment }) =>
+                                    attachment.kind === 'image' ||
+                                    attachment.kind === 'video'
+                                )
+                              const textAttachmentPreviews =
+                                attachmentPreviews.filter(
+                                  ({ attachment }) => attachment.kind === 'text'
+                                )
 
                               // Extract visible content (remove <think> tags for assistant messages)
                               const displayContent = isAssistant
@@ -360,26 +385,58 @@ export function PlaygroundChat({
                                   ) : (
                                     showMessageContent && (
                                       <>
-                                        <MessageContent
-                                          variant='flat'
-                                          className={cn(
-                                            getMessageContentStyles()
-                                          )}
-                                        >
-                                          <div className='space-y-3'>
-                                            {!!attachmentPreviews.length && (
-                                              <div className='flex flex-wrap gap-2'>
-                                                {attachmentPreviews.map(
-                                                  ({ attachment, url }) =>
-                                                    attachment.kind ===
-                                                      'image' && url ? (
-                                                      <img
-                                                        alt={attachment.filename}
-                                                        className='size-24 rounded-lg border object-cover'
-                                                        key={`${message.key}-${version.id}-${attachment.filename}`}
-                                                        src={url}
-                                                      />
-                                                    ) : (
+                                        {!!mediaAttachmentPreviews.length && (
+                                          <MessageContent
+                                            variant='flat'
+                                            className={cn(
+                                              getMessageContentStyles()
+                                            )}
+                                          >
+                                            <div className='flex flex-wrap gap-2'>
+                                              {mediaAttachmentPreviews.map(
+                                                ({ attachment, url }) =>
+                                                  attachment.kind === 'image' &&
+                                                  url ? (
+                                                    <img
+                                                      alt={attachment.filename}
+                                                      className='size-32 rounded-lg border object-cover'
+                                                      key={`${message.key}-${version.id}-${attachment.filename}`}
+                                                      src={url}
+                                                    />
+                                                  ) : url ? (
+                                                    <video
+                                                      aria-label={
+                                                        attachment.filename
+                                                      }
+                                                      className='max-h-64 max-w-full rounded-lg border object-contain'
+                                                      controls
+                                                      key={`${message.key}-${version.id}-${attachment.filename}`}
+                                                      preload='metadata'
+                                                      src={url}
+                                                    />
+                                                  ) : null
+                                              )}
+                                            </div>
+                                          </MessageContent>
+                                        )}
+
+                                        {(textAttachmentPreviews.length > 0 ||
+                                          !!generatedMedia.length ||
+                                          !!generatedImageContent.text ||
+                                          generatedImageContent.images.length >
+                                            0 ||
+                                          generatedImageContent.hasPendingImage) && (
+                                          <MessageContent
+                                            variant='flat'
+                                            className={cn(
+                                              getMessageContentStyles()
+                                            )}
+                                          >
+                                            <div className='space-y-3'>
+                                              {!!textAttachmentPreviews.length && (
+                                                <div className='flex flex-wrap gap-2'>
+                                                  {textAttachmentPreviews.map(
+                                                    ({ attachment }) => (
                                                       <span
                                                         className='border-border bg-muted/50 text-muted-foreground inline-flex max-w-full items-center rounded-md border px-2 py-1 text-xs font-medium'
                                                         key={`${message.key}-${version.id}-${attachment.filename}`}
@@ -388,9 +445,9 @@ export function PlaygroundChat({
                                                         {attachment.filename}
                                                       </span>
                                                     )
-                                                )}
-                                              </div>
-                                            )}
+                                                  )}
+                                                </div>
+                                              )}
                                             {!!generatedMedia.length && (
                                               <div className='grid gap-3 sm:grid-cols-2'>
                                                 {generatedMedia.map(
@@ -461,7 +518,8 @@ export function PlaygroundChat({
                                               </div>
                                             )}
                                           </div>
-                                        </MessageContent>
+                                          </MessageContent>
+                                        )}
                                         {actions}
                                       </>
                                     )

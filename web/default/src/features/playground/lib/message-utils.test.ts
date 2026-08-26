@@ -73,6 +73,12 @@ describe('Playground message attachments', () => {
         mediaType: 'image/png',
         url: 'data:image/png;base64,AA==',
       },
+      {
+        kind: 'video',
+        filename: 'reference.mp4',
+        mediaType: 'video/mp4',
+        url: 'data:video/mp4;base64,AA==',
+      },
     ])
 
     expect(formatMessageForAPI(message)).toEqual({
@@ -83,6 +89,10 @@ describe('Playground message attachments', () => {
         {
           type: 'image_url',
           image_url: { url: 'data:image/png;base64,AA==' },
+        },
+        {
+          type: 'video_url',
+          video_url: { url: 'data:video/mp4;base64,AA==' },
         },
       ],
     })

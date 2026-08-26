@@ -34,7 +34,7 @@ export interface MessageVersion {
 }
 
 export interface PlaygroundAttachment {
-  kind: 'image' | 'text'
+  kind: 'image' | 'video' | 'text'
   filename: string
   mediaType: string
   url?: string
@@ -86,9 +86,12 @@ export interface ChatCompletionMessage {
 }
 
 export interface ContentPart {
-  type: 'text' | 'image_url'
+  type: 'text' | 'image_url' | 'video_url'
   text?: string
   image_url?: {
+    url: string
+  }
+  video_url?: {
     url: string
   }
 }

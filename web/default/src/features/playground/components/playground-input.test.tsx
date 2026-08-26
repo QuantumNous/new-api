@@ -32,6 +32,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
 import * as suggestionModule from '@/components/ai-elements/suggestion'
 import * as modelGroupSelectorModule from '@/components/model-group-selector'
+import type { MediaGenerationProfile } from '../lib'
 
 type CapturedSuggestionProps = React.ComponentProps<
   typeof suggestionModule.Suggestion
@@ -130,6 +131,7 @@ function renderPlaygroundInput(modelLocked: boolean) {
 function renderPlaygroundMarkup({
   initialText,
   modelLocked = false,
+  mediaProfile,
   models = [
     { label: 'GPT Image 2', value: 'gpt-image-2' },
     { label: 'Seedance 2.5', value: 'seedance-2.5' },
@@ -137,6 +139,7 @@ function renderPlaygroundMarkup({
 }: {
   initialText?: string
   modelLocked?: boolean
+  mediaProfile?: Pick<MediaGenerationProfile, 'kind'>
   models?: Array<{ label: string; value: string }>
 } = {}) {
   return renderToStaticMarkup(
@@ -146,6 +149,7 @@ function renderPlaygroundMarkup({
         groupValue='default'
         groups={[]}
         initialText={initialText}
+        mediaProfile={mediaProfile as MediaGenerationProfile | undefined}
         modelLocked={modelLocked}
         modelValue={models[0]?.value ?? ''}
         models={models}
@@ -253,12 +257,12 @@ describe('PlaygroundInput quick starts', () => {
     expect(markup).toContain('Generate a video')
   })
 
-  test('hides quick starts while the prompt contains text', () => {
+  test('keeps quick starts visible while the prompt contains text', () => {
     const markup = renderPlaygroundMarkup({ initialText: 'already typing' })
 
-    expect(markup).not.toContain('Try one of these to get started:')
-    expect(markup).not.toContain('Create an image')
-    expect(markup).not.toContain('Generate a video')
+    expect(markup).toContain('Try one of these to get started:')
+    expect(markup).toContain('Create an image')
+    expect(markup).toContain('Generate a video')
   })
 
   test('hides unavailable media quick starts but keeps locked media actions', () => {
@@ -283,19 +287,31 @@ describe('PlaygroundInput quick starts', () => {
 })
 
 describe('PlaygroundInput attachments', () => {
-  test('advertises the supported photo and text attachment types', () => {
+  test('advertises the supported text-model attachment types', () => {
     const markup = renderPlaygroundMarkup()
 
-    expect(markup).toContain('accept="image/*,.txt,.md,.csv,.json"')
+    expect(markup).toContain(
+      'accept="application/pdf,text/csv,text/comma-separated-values,image/jpeg,image/png,image/webp,video/mp4,.pdf,.csv,.jpg,.jpeg,.png,.webp,.mp4"'
+    )
     expect(markup).toContain('aria-label="Upload files"')
   })
 
-  test('hides screenshot and camera capture actions while retaining uploads', () => {
-    const markup = renderPlaygroundMarkup()
+  test('uses model-specific image and video filters', () => {
+    const imageMarkup = renderPlaygroundMarkup({
+      mediaProfile: { kind: 'image' },
+    })
+    const videoMarkup = renderPlaygroundMarkup({
+      mediaProfile: { kind: 'video' },
+    })
 
-    expect(markup).toContain('Upload file')
-    expect(markup).toContain('Upload photo')
-    expect(markup).not.toContain('Take screenshot')
-    expect(markup).not.toContain('Take photo')
+    expect(imageMarkup).toContain(
+      'accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"'
+    )
+    expect(videoMarkup).toContain(
+      'accept="image/jpeg,image/png,image/webp,video/mp4,.jpg,.jpeg,.png,.webp,.mp4"'
+    )
+    expect(imageMarkup).toContain('Upload files')
+    expect(imageMarkup).not.toContain('Take screenshot')
+    expect(imageMarkup).not.toContain('Take photo')
   })
 })
