@@ -1,6 +1,7 @@
 package vertex
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -31,7 +32,7 @@ func TestOmniBuildRequestURL(t *testing.T) {
 
 func TestOmniMappedAliasRunsReferenceVideoValidation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	request := httptest.NewRequest(http.MethodPost, "/v1/videos", strings.NewReader(`{
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/videos", strings.NewReader(`{
 		"model":"gemini-omni-flash",
 		"prompt":"edit this video",
 		"duration":3,

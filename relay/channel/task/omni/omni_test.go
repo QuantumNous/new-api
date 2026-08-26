@@ -2,6 +2,7 @@ package omni
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"io"
@@ -180,7 +181,7 @@ func TestValidateMultipartReferenceVideoDurationBeforeSubmission(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
-	request := httptest.NewRequest(http.MethodPost, "/v1/videos", &body)
+	request := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/v1/videos", &body)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	context, _ := gin.CreateTestContext(httptest.NewRecorder())
 	context.Request = request
