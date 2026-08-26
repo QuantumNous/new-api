@@ -2018,6 +2018,17 @@ func OllamaPullModel(c *gin.Context) {
 	key := strings.Split(channel.Key, "\n")[0]
 	err = ollama.PullOllamaModel(baseURL, key, req.ModelName)
 	if err != nil {
+		if pullErr, ok := ollama.IsOllamaPullError(err); ok {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"error": gin.H{
+					"type":  pullErr.Type,
+					"desc":  pullErr.Desc,
+					"isErr": pullErr.IsErr,
+				},
+			})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": fmt.Sprintf("Failed to pull model: %s", err.Error()),
@@ -2097,10 +2108,19 @@ func OllamaPullModelStream(c *gin.Context) {
 	err = ollama.PullOllamaModelStream(baseURL, key, req.ModelName, progressCallback)
 
 	if err != nil {
-		errorData, _ := json.Marshal(gin.H{
-			"error": err.Error(),
-		})
-		fmt.Fprintf(c.Writer, "data: %s\n\n", string(errorData))
+		if pullErr, ok := ollama.IsOllamaPullError(err); ok {
+			errorData, _ := json.Marshal(gin.H{
+				"type":  pullErr.Type,
+				"desc":  pullErr.Desc,
+				"isErr": pullErr.IsErr,
+			})
+			fmt.Fprintf(c.Writer, "data: %s\n\n", string(errorData))
+		} else {
+			errorData, _ := json.Marshal(gin.H{
+				"error": err.Error(),
+			})
+			fmt.Fprintf(c.Writer, "data: %s\n\n", string(errorData))
+		}
 	} else {
 		successData, _ := json.Marshal(gin.H{
 			"message": fmt.Sprintf("Model %s pulled successfully", req.ModelName),

@@ -292,8 +292,18 @@ export function OllamaModelsDialog({
             const data = JSON.parse(eventData)
             if (data?.status) {
               setPullProgress(data)
-            } else if (data?.error) {
-              toast.error(String(data.error))
+            } else if (data?.isErr || data?.error) {
+              // 结构化错误：优先展示 desc（含解决方案），否则回退到 error 字符串
+              const errDesc = data.desc || data.error || '拉取失败'
+              const errType = data.type || ''
+              if (errType === 'registry_unreachable') {
+                // Ollama 0.9.6+ registry URL 已迁移，给出明确指引
+                toast.error(errDesc, { duration: 12000 })
+              } else if (errType === 'model_not_found') {
+                toast.error(errDesc, { duration: 10000 })
+              } else {
+                toast.error(errDesc)
+              }
               setIsPulling(false)
               setPullProgress(null)
               pullAbortRef.current = null

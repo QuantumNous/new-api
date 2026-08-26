@@ -399,13 +399,22 @@ func PullOllamaModel(baseURL, apiKey, modelName string) error {
 
 	response, err := client.Do(request)
 	if err != nil {
-		return fmt.Errorf("请求失败: %v", err)
+		// 区分网络/连接问题 vs 服务端返回的错误
+		return newOllamaPullError(OllamaPullErrNetwork, fmt.Sprintf("无法连接到 Ollama 服务端 (%s): %v。请检查 Ollama 服务是否运行、端口是否可达、以及网络/DNS 配置。", baseURL, err))
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(response.Body)
-		return fmt.Errorf("拉取模型失败 %d: %s", response.StatusCode, string(body))
+		bodyStr := string(body)
+		// 分类：模型不存在 vs registry 网络/DNS 问题
+		if response.StatusCode == http.StatusNotFound {
+			return newOllamaPullError(OllamaPullErrModelNotFound, fmt.Sprintf("Ollama registry 中未找到模型 '%s'。请确认模型名称正确（格式如 llama3.1:8b），或检查 Ollama 服务端的 registry 配置。", modelName))
+		}
+		if response.StatusCode == http.StatusBadGateway || response.StatusCode == http.StatusServiceUnavailable {
+			return newOllamaPullError(OllamaPullErrRegistry, fmt.Sprintf("Ollama 无法连接到模型 registry（状态码 %d）。如果使用的是 Ollama 0.9.6+，默认 registry URL 已迁移至 Cloudflare R2，容器/Docker 环境可能无法解析。解决方案：在 Ollama 服务端设置环境变量 OLLAMA_REGISTRIES=\"https://registry.ollama.ai\" 或 OLLAMA_MODEL_REGISTRY=\"https://registry.ollama.ai\" 后重启 Ollama。", response.StatusCode))
+		}
+		return newOllamaPullError(OllamaPullErrOther, fmt.Sprintf("Ollama 返回错误（状态码 %d）: %s", response.StatusCode, bodyStr))
 	}
 
 	return nil
@@ -440,13 +449,20 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 
 	response, err := client.Do(request)
 	if err != nil {
-		return fmt.Errorf("请求失败: %v", err)
+		return newOllamaPullError(OllamaPullErrNetwork, fmt.Sprintf("无法连接到 Ollama 服务端 (%s): %v。请检查 Ollama 服务是否运行、端口是否可达、以及网络/DNS 配置。", baseURL, err))
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(response.Body)
-		return fmt.Errorf("拉取模型失败 %d: %s", response.StatusCode, string(body))
+		bodyStr := string(body)
+		if response.StatusCode == http.StatusNotFound {
+			return newOllamaPullError(OllamaPullErrModelNotFound, fmt.Sprintf("Ollama registry 中未找到模型 '%s'。请确认模型名称正确（格式如 llama3.1:8b），或检查 Ollama 服务端的 registry 配置。", modelName))
+		}
+		if response.StatusCode == http.StatusBadGateway || response.StatusCode == http.StatusServiceUnavailable {
+			return newOllamaPullError(OllamaPullErrRegistry, fmt.Sprintf("Ollama 无法连接到模型 registry（状态码 %d）。如果使用的是 Ollama 0.9.6+，默认 registry URL 已迁移至 Cloudflare R2，容器/Docker 环境可能无法解析。解决方案：在 Ollama 服务端设置环境变量 OLLAMA_REGISTRIES=\"https://registry.ollama.ai\" 或 OLLAMA_MODEL_REGISTRY=\"https://registry.ollama.ai\" 后重启 Ollama。", response.StatusCode))
+		}
+		return newOllamaPullError(OllamaPullErrOther, fmt.Sprintf("Ollama 返回错误（状态码 %d）: %s", response.StatusCode, bodyStr))
 	}
 
 	// 读取流式响应
@@ -469,7 +485,15 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 
 		// 检查是否出现错误或完成
 		if strings.EqualFold(pullResponse.Status, "error") {
-			return fmt.Errorf("拉取模型失败: %s", strings.TrimSpace(line))
+			// 从流中拿到的 error 也做分类尝试
+			lineLower := strings.ToLower(strings.TrimSpace(line))
+			if strings.Contains(lineLower, "registry") || strings.Contains(lineLower, "timeout") || strings.Contains(lineLower, "dns") || strings.Contains(lineLower, "connect") {
+				return newOllamaPullError(OllamaPullErrRegistry, fmt.Sprintf("Ollama 拉取模型时遇到 registry 问题：可能 registry URL 不可达（Ollama 0.9.6+ 已迁移至 Cloudflare R2）。请检查网络/DNS/代理配置，或在 Ollama 服务端设置 OLLAMA_REGISTRIES 环境变量。完整错误：%s", strings.TrimSpace(line)))
+			}
+			if strings.Contains(lineLower, "not found") {
+				return newOllamaPullError(OllamaPullErrModelNotFound, fmt.Sprintf("Ollama registry 中未找到模型 '%s'。请确认模型名称正确（格式如 llama3.1:8b）。完整错误：%s", modelName, strings.TrimSpace(line)))
+			}
+			return newOllamaPullError(OllamaPullErrOther, fmt.Sprintf("拉取模型失败：%s", strings.TrimSpace(line)))
 		}
 		if strings.EqualFold(pullResponse.Status, "success") {
 			successful = true
@@ -482,7 +506,7 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 	}
 
 	if !successful {
-		return fmt.Errorf("拉取模型未完成: 未收到成功状态")
+		return newOllamaPullError(OllamaPullErrOther, "拉取模型未完成：未收到成功状态")
 	}
 
 	return nil
@@ -572,4 +596,45 @@ func FetchOllamaVersion(baseURL, apiKey string) (string, error) {
 	}
 
 	return versionResp.Version, nil
+}
+
+// ============================================================
+// Ollama Pull Error — 结构化错误，用于区分模型不存在、registry 网络问题等
+// ============================================================
+
+// OllamaPullErrType 表示 Ollama 拉取模型失败的类型。
+type OllamaPullErrType string
+
+const (
+	OllamaPullErrModelNotFound OllamaPullErrType = "model_not_found"     // 模型在 registry 中不存在
+	OllamaPullErrRegistry      OllamaPullErrType = "registry_unreachable" // registry 网络/DNS/超时
+	OllamaPullErrNetwork       OllamaPullErrType = "network_unreachable" // 无法连接到 Ollama 服务端
+	OllamaPullErrOther         OllamaPullErrType = "other"               // 其他错误
+)
+
+// OllamaPullError 是拉取模型的结构化错误。
+type OllamaPullError struct {
+	Type  OllamaPullErrType `json:"type"`
+	Desc  string            `json:"desc"`
+	IsErr bool              `json:"-"`
+}
+
+func (e *OllamaPullError) Error() string {
+	return e.Desc
+}
+
+// IsOllamaPullError 判断 err 是否为 OllamaPullError。
+func IsOllamaPullError(err error) (*OllamaPullError, bool) {
+	if err == nil {
+		return nil, false
+	}
+	pullErr, ok := err.(*OllamaPullError)
+	if !ok {
+		return nil, false
+	}
+	return pullErr, true
+}
+
+func newOllamaPullError(typ OllamaPullErrType, desc string) *OllamaPullError {
+	return &OllamaPullError{Type: typ, Desc: desc, IsErr: true}
 }
