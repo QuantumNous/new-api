@@ -774,9 +774,9 @@ func TestComposeTieredTextQuotaErrorFallbackUsesPreConsumedQuota(t *testing.T) {
 // settlement both saturates the quota and records the clamp on RelayInfo, so
 // every consume path (text, audio, WSS) can surface it under admin_info.
 func TestTryTieredSettleRecordsClampOnOverflow(t *testing.T) {
-	// exprOutput = p * 1e9; quotaBeforeGroup = p*1e9 / 1e6 * 5e5 far exceeds
-	// MaxInt32 and must saturate.
-	exprStr := `tier("base", p * 1000000000)`
+	// exprOutput = p * 1e12; quotaBeforeGroup = p*1e12 / 1e6 * 5e5 far exceeds
+	// the supported single-request range and must saturate.
+	exprStr := `tier("base", p * 1000000000000)`
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName: "overflow-model",
 		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
@@ -792,7 +792,7 @@ func TestTryTieredSettleRecordsClampOnOverflow(t *testing.T) {
 
 	require.True(t, ok)
 	require.NotNil(t, result)
-	require.Equal(t, math.MaxInt32, quota, "oversized settlement must clamp, never wrap negative")
+	require.Equal(t, common.MaxQuota, quota, "oversized settlement must clamp, never wrap negative")
 	require.NotNil(t, relayInfo.QuotaClamp, "clamp must be recorded on RelayInfo for admin auditing")
 	require.Equal(t, common.QuotaClampOverflow, relayInfo.QuotaClamp.Kind)
 }
