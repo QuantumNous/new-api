@@ -98,13 +98,16 @@ func createLoginSession(userID int, expectedAuthVersion int64, loginMethod, ip, 
 	}
 	// Make room for the new session instead of hard-blocking at the active
 	// session limit: revoke the oldest active sessions so a full session table
-	// can never lock the user out. Eviction failure is only logged; the new
-	// session is already created and stays valid, and the limit converges on
-	// subsequent logins.
+	// can never lock the user out. Enforcement fails closed: if eviction
+	// errors out (e.g. a Redis deny-fence write fails), the just-created
+	// session is revoked and the login fails, so the active-session limit can
+	// never be bypassed by repeated logins while enforcement is failing.
 	if _, err := model.RevokeOldestActiveUserSessions(
 		userID, int64(common.UserSessionActiveLimit), now, "active_limit_evicted", session.SID,
 	); err != nil {
-		common.SysError(fmt.Sprintf("failed to evict oldest user sessions for user %d: %s", userID, err.Error()))
+		_, _ = model.RevokeUserSession(userID, session.SID, "active_limit_enforcement_failed")
+		common.SysError(fmt.Sprintf("failed to evict oldest user sessions for user %d, revoking the new session: %s", userID, err.Error()))
+		return nil, fmt.Errorf("failed to enforce active session limit for user %d: %s", userID, err.Error())
 	}
 	bundle, err := issueAuthBundle(session, session.SID+"."+refreshSecret, true)
 	if err != nil {

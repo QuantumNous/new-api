@@ -144,6 +144,55 @@ func TestCreateLoginSessionEnforcesActiveLimitAcrossAuthVersions(t *testing.T) {
 	assert.Equal(t, int64(51), total)
 }
 
+func TestCreateLoginSessionFailsClosedWhenEvictionFails(t *testing.T) {
+	useTestSessionSecret(t)
+	user := setupAuthSessionTestDB(t)
+	serverA, _, _, _ := useIndependentAuthSessionRedis(t)
+	common.UserSessionActiveLimit = 2
+	common.UserSessionIssuanceLimit = 100
+	now := time.Now().Unix()
+	rows := []model.UserSession{
+		{
+			SID:             "fail-closed-old-a",
+			UserID:          user.Id,
+			Version:         1,
+			UserAuthVersion: user.AuthVersion,
+			Status:          model.UserSessionStatusActive,
+			RefreshHash:     "hash-old-a",
+			LoginMethod:     "password",
+			CreatedAt:       now - 10,
+			LastActiveAt:    now - 10,
+			ExpiresAt:       now + 3600,
+		},
+		{
+			SID:             "fail-closed-old-b",
+			UserID:          user.Id,
+			Version:         1,
+			UserAuthVersion: user.AuthVersion,
+			Status:          model.UserSessionStatusActive,
+			RefreshHash:     "hash-old-b",
+			LoginMethod:     "password",
+			CreatedAt:       now - 5,
+			LastActiveAt:    now - 5,
+			ExpiresAt:       now + 3600,
+		},
+	}
+	require.NoError(t, model.DB.Create(&rows).Error)
+
+	// Kill Redis so the deny-fence write inside session revocation fails:
+	// creating the new session row still succeeds (cache write failures are
+	// tolerated there), but evicting the oldest active session errors out.
+	// Login must fail closed instead of issuing tokens that would leave the
+	// user above the active-session limit. The compensation revoke of the
+	// just-created row may also fail for the same reason; the row carries no
+	// issued tokens and is reclaimed by the periodic revoked-session cleanup.
+	serverA.Close()
+
+	bundle, err := CreateLoginSession(user.Id, "password", "127.0.0.1", "fail-closed-agent")
+	require.Error(t, err, "eviction failure must fail the login")
+	assert.Nil(t, bundle, "no auth bundle may be issued when eviction fails")
+}
+
 func TestCreateLoginSessionEnforcesIssuanceLimitAcrossAllStatuses(t *testing.T) {
 	useTestSessionSecret(t)
 	user := setupAuthSessionTestDB(t)
