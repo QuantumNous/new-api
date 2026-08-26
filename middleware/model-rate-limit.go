@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -139,11 +140,25 @@ func redisRateLimitHandler(duration int64, totalMaxCount, successMaxCount int, g
 // 共享单例在路由注册时被以 RateLimitKeyExpirationDuration（20 分钟）Init，
 // 而 Init 仅在 store 为 nil 时生效，模型限流传入的清理周期永远不生效，
 // 过期 key 长期滞留会放大共享队列被撑长的问题。
-var modelRateLimiter common.InMemoryRateLimiter
+var (
+	modelRateLimiter common.InMemoryRateLimiter
+	modelLimiterOnce sync.Once
+)
 
 // 内存限流处理器
 func memoryRateLimitHandler(duration int64, totalMaxCount, successMaxCount int, group string) gin.HandlerFunc {
-	modelRateLimiter.Init(time.Duration(setting.ModelRequestRateLimitDurationMinutes) * time.Minute)
+	// 一次性初始化：每请求调用 Init 时，并发首批请求会在 store 尚为 nil 时
+	// 进入 Request 并触发 "assignment to entry in nil map" panic。
+	// 清理周期下限 1 分钟：首请求时 DurationMinutes 可能为 0，此时 Init 不会
+	// 启动清理 goroutine 且 Once 不再重试，过期 key 将滞留到进程重启。
+	// 下限只影响 key 清理节奏，限流窗口仍按每次请求读取的配置值生效。
+	modelLimiterOnce.Do(func() {
+		minutes := setting.ModelRequestRateLimitDurationMinutes
+		if minutes <= 0 {
+			minutes = 1
+		}
+		modelRateLimiter.Init(time.Duration(minutes) * time.Minute)
+	})
 
 	return func(c *gin.Context) {
 		userId := strconv.Itoa(c.GetInt("id"))
@@ -161,10 +176,10 @@ func memoryRateLimitHandler(duration int64, totalMaxCount, successMaxCount int, 
 			return
 		}
 
-		// 2. 检查成功请求数限制
+		// 2. 检查成功请求数限制（successMaxCount 为 0 表示不限制，与 Redis 路径一致）
 		// 使用一个临时key来检查限制，这样可以避免实际记录
 		checkKey := successKey + "_check"
-		if !modelRateLimiter.Request(checkKey, successMaxCount, duration) {
+		if successMaxCount > 0 && !modelRateLimiter.Request(checkKey, successMaxCount, duration) {
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return
@@ -173,8 +188,8 @@ func memoryRateLimitHandler(duration int64, totalMaxCount, successMaxCount int, 
 		// 3. 处理请求
 		c.Next()
 
-		// 4. 如果请求成功，记录到实际的成功请求计数中
-		if c.Writer.Status() < 400 {
+		// 4. 如果请求成功，记录到实际的成功请求计数中（successMaxCount 为 0 时不记录）
+		if successMaxCount > 0 && c.Writer.Status() < 400 {
 			modelRateLimiter.Request(successKey, successMaxCount, duration)
 		}
 	}
