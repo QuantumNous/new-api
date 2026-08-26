@@ -82,8 +82,9 @@ func SetRelayRouter(router *gin.Engine) {
 	playgroundRouter.Use(middleware.SystemPerformanceCheck())
 	playgroundRouter.Use(middleware.UserAuth(), middleware.Distribute())
 	{
-		playgroundRouter.POST("/chat/completions", controller.Playground)
-		playgroundRouter.POST("/images/generations", controller.PlaygroundImage)
+	playgroundRouter.POST("/chat/completions", controller.Playground)
+	playgroundRouter.POST("/images/generations", controller.PlaygroundImage)
+	playgroundRouter.POST("/images/edits", controller.PlaygroundImage)
 		playgroundRouter.POST("/videos", controller.PlaygroundVideoSubmit)
 		playgroundRouter.GET("/videos/:task_id", controller.PlaygroundVideoFetch)
 	}

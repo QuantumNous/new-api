@@ -8,10 +8,12 @@ package codex
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -290,6 +292,22 @@ func TestReadCodexEditImages_NoMaskIsFine(t *testing.T) {
 	}
 	if mask != "" {
 		t.Fatalf("absent mask should yield empty mask, got %q", mask)
+	}
+}
+
+func TestReadCodexJSONEditImages_ReadsPlaygroundAttachments(t *testing.T) {
+	request := dto.ImageRequest{
+		Images: json.RawMessage(`["data:image/png;base64,AA==",{"url":"https://example.com/ref.png"}]`),
+	}
+	images, mask, err := readCodexJSONEditImages(request)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !reflect.DeepEqual(images, []string{"data:image/png;base64,AA==", "https://example.com/ref.png"}) {
+		t.Fatalf("unexpected images: %#v", images)
+	}
+	if mask != "" {
+		t.Fatalf("JSON Playground edits must not synthesize a mask: %q", mask)
 	}
 }
 

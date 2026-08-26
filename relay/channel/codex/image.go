@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -182,6 +183,50 @@ func readCodexEditImages(c *gin.Context) (images []string, mask string, err erro
 		mask = u
 	}
 	return images, mask, nil
+}
+
+// readCodexJSONEditImages reads the JSON image list used by the authenticated
+// Playground edit path. The public OpenAI edit endpoint remains multipart, but
+// Playground attachments are already serialized as safe data URLs in JSON.
+func readCodexJSONEditImages(request dto.ImageRequest) (images []string, mask string, err error) {
+	appendValue := func(raw json.RawMessage) error {
+		var value string
+		if err := json.Unmarshal(raw, &value); err == nil {
+			if strings.TrimSpace(value) != "" {
+				images = append(images, strings.TrimSpace(value))
+			}
+			return nil
+		}
+		var object struct {
+			URL string `json:"url"`
+		}
+		if err := json.Unmarshal(raw, &object); err != nil || strings.TrimSpace(object.URL) == "" {
+			return errors.New("image entries must be URL strings or objects")
+		}
+		images = append(images, strings.TrimSpace(object.URL))
+		return nil
+	}
+
+	if len(request.Images) > 0 && string(request.Images) != "null" {
+		var values []json.RawMessage
+		if err := json.Unmarshal(request.Images, &values); err != nil {
+			return nil, "", fmt.Errorf("codex image: invalid images field: %w", err)
+		}
+		for _, value := range values {
+			if err := appendValue(value); err != nil {
+				return nil, "", fmt.Errorf("codex image: invalid images field: %w", err)
+			}
+		}
+	}
+	if len(images) == 0 && len(request.Image) > 0 && string(request.Image) != "null" {
+		if err := appendValue(request.Image); err != nil {
+			return nil, "", fmt.Errorf("codex image: invalid image field: %w", err)
+		}
+	}
+	if len(images) == 0 {
+		return nil, "", errors.New("image is required")
+	}
+	return images, "", nil
 }
 
 // imageIndexKeyLess 比较两个形如 "image[N]" 的键，优先按 N 的数值升序；

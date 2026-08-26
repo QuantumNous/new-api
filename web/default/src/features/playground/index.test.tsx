@@ -307,7 +307,7 @@ describe('Playground model landing handoff', () => {
     expect(generateMediaMock).not.toHaveBeenCalled()
   })
 
-  test('rejects attachments for media models without consuming the send gate', () => {
+  test('accepts image attachments for GPT Image 2 editing', () => {
     modelsQueryData = ['gpt-image-2']
     isModelsQueryLoading = false
     const input = renderHandoff()
@@ -320,12 +320,10 @@ describe('Playground model landing handoff', () => {
 
     input.onSubmit('Draw a violet fox', undefined, [attachment])
 
-    expect(generateMediaMock).not.toHaveBeenCalled()
-    expect(updateMessagesMock).not.toHaveBeenCalled()
-
-    input.onSubmit('Draw a violet fox')
-
     expect(generateMediaMock).toHaveBeenCalledTimes(1)
+    expect(updateMessagesMock).toHaveBeenCalledTimes(1)
+    expect(generateMediaMock.mock.calls[0]?.[1]).toBe('gpt-image-2')
+    expect(generateMediaMock.mock.calls[0]?.[5]).toEqual([attachment])
   })
 
   test('passes image references to video generation models', () => {

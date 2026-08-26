@@ -58,7 +58,12 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		action = "edit"
 		imgs, m, err := readCodexEditImages(c)
 		if err != nil {
-			return nil, err
+			// Playground sends attachment data URLs as JSON. Keep the standard
+			// multipart edit contract intact while accepting that trusted path.
+			imgs, m, err = readCodexJSONEditImages(request)
+			if err != nil {
+				return nil, err
+			}
 		}
 		inputImages, mask = imgs, m
 	}

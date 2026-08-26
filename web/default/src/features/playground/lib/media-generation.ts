@@ -97,7 +97,11 @@ export interface MediaGenerationProfile {
 
 export interface MediaGenerationRequest {
   kind: 'image' | 'video'
-  endpoint: '/pg/chat/completions' | '/pg/images/generations' | '/pg/videos'
+  endpoint:
+    | '/pg/chat/completions'
+    | '/pg/images/generations'
+    | '/pg/images/edits'
+    | '/pg/videos'
   payload: Record<string, unknown>
 }
 
@@ -107,7 +111,19 @@ export function validateMediaGenerationAttachments(
 ): string | undefined {
   if (attachments.length === 0) return undefined
   const profile = resolveMediaGenerationProfile(model)
-  if (!profile || profile.kind !== 'video') {
+  // Ordinary chat models already accept multimodal attachments through the
+  // chat-completions path. Only validate attachments when the selected model
+  // has a dedicated media profile.
+  if (!profile) return undefined
+  if (profile.kind === 'image') {
+    if (profile.family === 'gpt-image') {
+      return attachments.some((attachment) => attachment.kind !== 'image')
+        ? 'Image editing accepts image references only'
+        : undefined
+    }
+    return 'This image model does not support attachments in Playground'
+  }
+  if (profile.kind !== 'video') {
     return 'Attachments are supported only for chat models'
   }
   if (attachments.some((attachment) => attachment.kind === 'text')) {
@@ -565,7 +581,8 @@ function buildGptImagePayload(
   prompt: string,
   model: string,
   group: string,
-  settings: MediaGenerationSettings
+  settings: MediaGenerationSettings,
+  attachments: PlaygroundAttachment[] = []
 ): Record<string, unknown> {
   const outputFormat = settings.outputFormat === 'jpeg' ? 'jpeg' : 'png'
   const background = settings.background === 'opaque' ? 'opaque' : 'auto'
@@ -583,6 +600,15 @@ function buildGptImagePayload(
   if (outputFormat === 'jpeg') {
     payload.output_compression = settings.compression
   }
+  const images = attachments
+    .filter(
+      (attachment) =>
+        attachment.kind === 'image' &&
+        typeof attachment.url === 'string' &&
+        attachment.url.trim() !== ''
+    )
+    .map((attachment) => attachment.url!.trim())
+  if (images.length > 0) payload.images = images
   return payload
 }
 
@@ -706,10 +732,24 @@ export function buildMediaGenerationRequest(
   // match the values visible in the parameter panel.
 
   if (profile.family === 'gpt-image') {
+    const hasImageAttachments = attachments.some(
+      (attachment) =>
+        attachment.kind === 'image' &&
+        typeof attachment.url === 'string' &&
+        attachment.url.trim() !== ''
+    )
     return {
       kind: 'image',
-      endpoint: '/pg/images/generations',
-      payload: buildGptImagePayload(prompt, model, group, settings),
+      endpoint: hasImageAttachments
+        ? '/pg/images/edits'
+        : '/pg/images/generations',
+      payload: buildGptImagePayload(
+        prompt,
+        model,
+        group,
+        settings,
+        attachments
+      ),
     }
   }
   if (profile.family === 'grok-image') {

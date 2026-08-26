@@ -14,6 +14,7 @@ func TestSetRelayRouterRegistersPlaygroundMediaRoutes(t *testing.T) {
 	want := map[string]bool{
 		"POST /pg/chat/completions":   false,
 		"POST /pg/images/generations": false,
+		"POST /pg/images/edits":       false,
 		"POST /pg/videos":             false,
 		"GET /pg/videos/:task_id":     false,
 	}

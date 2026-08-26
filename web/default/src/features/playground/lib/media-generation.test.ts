@@ -71,6 +71,37 @@ describe('Playground media model profiles', () => {
     expect(isSupportedPlaygroundModelName('sora-2')).toBe(false)
   })
 
+  test('allows image attachments for GPT Image 2 editing', () => {
+    const image = {
+      kind: 'image' as const,
+      filename: 'reference.png',
+      mediaType: 'image/png',
+      url: 'data:image/png;base64,AA==',
+    }
+
+    expect(validateMediaGenerationAttachments('gpt-image-2', [image])).toBe(
+      undefined
+    )
+
+    expect(
+      buildMediaGenerationRequest(
+        'Turn this into a watercolor illustration',
+        'gpt-image-2',
+        'plg',
+        {},
+        [image]
+      )
+    ).toEqual({
+      kind: 'image',
+      endpoint: '/pg/images/edits',
+      payload: expect.objectContaining({
+        model: 'gpt-image-2',
+        prompt: 'Turn this into a watercolor illustration',
+        images: ['data:image/png;base64,AA=='],
+      }),
+    })
+  })
+
   test('does not apply a concrete model profile to adjacent image families', () => {
     expect(resolvePlaygroundModelKind('gpt-image-1')).toBe('unsupported')
     expect(resolvePlaygroundModelKind('gemini-2.5-flash-image')).toBe(
