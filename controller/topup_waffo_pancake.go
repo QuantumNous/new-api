@@ -139,6 +139,11 @@ type createWaffoPancakePairRequest struct {
 	ReturnURL  string `json:"return_url"`
 }
 
+type listWaffoPancakeCatalogRequest struct {
+	MerchantID string `json:"merchant_id"`
+	PrivateKey string `json:"private_key"`
+}
+
 // SaveWaffoPancake atomically persists all five operator-controlled fields.
 // Catalog / pair endpoints are transient — only this one writes the OptionMap.
 func SaveWaffoPancake(c *gin.Context) {
@@ -246,11 +251,16 @@ func CreateWaffoPancakePair(c *gin.Context) {
 // Doubles as a credential probe (a successful 200 proves the resolved creds
 // authenticate). See resolveWaffoPancakeAdminCreds for credential resolution.
 func ListWaffoPancakeCatalog(c *gin.Context) {
-	// Missing query creds mean "use persisted creds".
-	merchantID, privateKey := resolveWaffoPancakeAdminCreds(
-		strings.TrimSpace(c.Query("merchant_id")),
-		strings.TrimSpace(c.Query("private_key")),
-	)
+	// Credentials are accepted only in the request body so an API private key
+	// can never be exposed through URLs, access logs, browser history, or referrers.
+	var req listWaffoPancakeCatalogRequest
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
+			return
+		}
+	}
+	merchantID, privateKey := resolveWaffoPancakeAdminCreds(req.MerchantID, req.PrivateKey)
 	if merchantID == "" || privateKey == "" {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 凭证未配置"})
 		return

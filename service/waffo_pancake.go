@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"strings"
 
@@ -77,10 +79,30 @@ func (e *WaffoPancakeWebhookEvent) NormalizedEventType() string {
 // runtime checkout / webhook paths use this; configuration endpoints use
 // newWaffoPancakeClientFromCreds so the operator can verify typed-but-not-
 // yet-saved credentials.
+// normalizeWaffoPancakePrivateKey accepts the PEM format documented by the
+// SDK as well as the unwrapped base64 PKCS#8 form exported by Pancake's UI.
+// The latter is converted in memory only; callers must never log either form.
+func normalizeWaffoPancakePrivateKey(privateKey string) string {
+	privateKey = strings.TrimSpace(privateKey)
+	if strings.Contains(privateKey, "-----BEGIN") {
+		return privateKey
+	}
+	der, err := base64.StdEncoding.DecodeString(strings.Map(func(r rune) rune {
+		if r == ' ' || r == '\n' || r == '\r' || r == '\t' {
+			return -1
+		}
+		return r
+	}, privateKey))
+	if err != nil {
+		return privateKey
+	}
+	return string(pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}))
+}
+
 func newWaffoPancakeClient() (*pancake.Client, error) {
 	return pancake.New(pancake.Config{
 		MerchantID: setting.WaffoPancakeMerchantID,
-		PrivateKey: setting.WaffoPancakePrivateKey,
+		PrivateKey: normalizeWaffoPancakePrivateKey(setting.WaffoPancakePrivateKey),
 	})
 }
 
@@ -90,7 +112,7 @@ func newWaffoPancakeClientFromCreds(merchantID, privateKey string) (*pancake.Cli
 	}
 	return pancake.New(pancake.Config{
 		MerchantID: merchantID,
-		PrivateKey: privateKey,
+		PrivateKey: normalizeWaffoPancakePrivateKey(privateKey),
 	})
 }
 
