@@ -345,7 +345,7 @@ func TestQuotaRound(t *testing.T) {
 		{999.4999, 999},
 		{999.5, 1000},
 		{1e9 + 0.5, 1e9 + 1},
-		// Oversized expression results saturate at the supported 64-bit limit (delegated to
+		// Oversized expression results saturate at the single-request limit (delegated to
 		// common.QuotaRound); full saturation coverage lives in common.
 		{3.6893488147419103e19, common.MaxQuota},
 	}
