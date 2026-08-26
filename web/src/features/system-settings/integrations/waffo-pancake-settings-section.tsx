@@ -373,7 +373,7 @@ export function WaffoPancakeSettingsSection({
     )
   } else {
     bindStatusMessage = t(
-      'No stores on this merchant yet. Set a return URL and click Create to mint your first pair.'
+      'No stores were returned. Create a new pair, or manually bind an existing Store and default Product ID below.'
     )
   }
 
@@ -608,6 +608,45 @@ export function WaffoPancakeSettingsSection({
                 </div>
               </div>
             </>
+          ) : !verifying && credsReady ? (
+            <div className='grid gap-3 rounded-md border border-dashed p-4 md:grid-cols-2'>
+              <div className='md:col-span-2'>
+                <p className='text-sm font-medium'>
+                  {t('Manual binding for an existing Pancake catalog')}
+                </p>
+                <p className='text-muted-foreground text-xs'>
+                  {t(
+                    'Use this only when the verified catalog does not list an already-created Store. The IDs are saved unchanged and must belong to the verified merchant.'
+                  )}
+                </p>
+              </div>
+              <div className='grid gap-1.5'>
+                <Label>{t('Store ID (manual binding)')}</Label>
+                <Input
+                  value={chosenStoreID}
+                  placeholder='STO_xxx'
+                  onChange={(event) =>
+                    onSelectedBindingChange((previous) => ({
+                      ...previous,
+                      storeID: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className='grid gap-1.5'>
+                <Label>{t('Default product ID (manual binding)')}</Label>
+                <Input
+                  value={chosenProductID}
+                  placeholder='PROD_xxx'
+                  onChange={(event) =>
+                    onSelectedBindingChange((previous) => ({
+                      ...previous,
+                      productID: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
           ) : null}
 
           <div className='grid gap-4 rounded-md border p-4 lg:grid-cols-3'>
