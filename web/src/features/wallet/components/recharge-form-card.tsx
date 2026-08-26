@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Gift, Loader2, Receipt, WalletCards } from 'lucide-react'
+import { Loader2, Receipt, WalletCards } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -64,10 +64,6 @@ interface RechargeFormCardProps {
   calculating: boolean
   onPaymentMethodSelect: (method: PaymentMethod) => void
   paymentLoading: string | null
-  redemptionCode: string
-  onRedemptionCodeChange: (code: string) => void
-  onRedeem: () => void
-  redeeming: boolean
   loading?: boolean
   priceRatio?: number
   usdExchangeRate?: number
@@ -93,10 +89,6 @@ export function RechargeFormCard({
   calculating,
   onPaymentMethodSelect,
   paymentLoading,
-  redemptionCode,
-  onRedemptionCodeChange,
-  onRedeem,
-  redeeming,
   loading,
   priceRatio = 1,
   usdExchangeRate = 1,
@@ -139,7 +131,6 @@ export function RechargeFormCard({
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
-  const redemptionEnabled = topupInfo?.enable_redemption !== false
 
   if (loading) {
     return (
@@ -479,7 +470,7 @@ export function RechargeFormCard({
         <Alert>
           <AlertDescription>
             {t(
-              'Online topup is not enabled. Please use redemption code or contact administrator.'
+              'Online topup is not enabled. Please contact administrator.'
             )}
           </AlertDescription>
         </Alert>
@@ -501,48 +492,6 @@ export function RechargeFormCard({
           </div>
         )}
 
-      {/* Redemption Code Section */}
-      {redemptionEnabled ? (
-        <div className='space-y-2.5 border-t pt-4 sm:space-y-3 sm:pt-6'>
-          <div className='flex items-center gap-2'>
-            <IconBadge tone='warning' size='xs'>
-              <Gift />
-            </IconBadge>
-            <Label
-              htmlFor='redemption-code'
-              className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
-            >
-              {t('Have a Code?')}
-            </Label>
-          </div>
-          <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
-            <Input
-              id='redemption-code'
-              value={redemptionCode}
-              onChange={(e) => onRedemptionCodeChange(e.target.value)}
-              placeholder={t('Enter your redemption code')}
-              className='h-9 min-w-0'
-            />
-            <Button
-              onClick={onRedeem}
-              disabled={redeeming}
-              variant='outline'
-              className='h-9 px-4'
-            >
-              {redeeming && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-              {t('Redeem')}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <Alert className='border-t'>
-          <AlertDescription>
-            {t(
-              'Redemption codes are disabled until the administrator confirms compliance terms.'
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
     </TitledCard>
   )
 }

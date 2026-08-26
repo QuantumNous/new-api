@@ -37,7 +37,6 @@ import {
   useTopupInfo,
   usePayment,
   useAffiliate,
-  useRedemption,
   useCreemPayment,
   useWaffoPayment,
   useWaffoPancakePayment,
@@ -74,7 +73,6 @@ export function Wallet(props: WalletProps) {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
-  const [redemptionCode, setRedemptionCode] = useState('')
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
@@ -103,7 +101,6 @@ export function Wallet(props: WalletProps) {
     transferQuota,
     transferring,
   } = useAffiliate()
-  const { redeeming, redeemCode } = useRedemption()
   const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
   const { processing: waffoProcessing, processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
@@ -226,17 +223,6 @@ export function Wallet(props: WalletProps) {
     }
   }
 
-  // Handle redemption
-  const handleRedeem = async () => {
-    if (!redemptionCode) return
-
-    const success = await redeemCode(redemptionCode)
-    if (success) {
-      setRedemptionCode('')
-      await fetchUser()
-    }
-  }
-
   // Handle transfer
   const handleTransfer = async (amount: number) => {
     const success = await transferQuota(amount)
@@ -324,10 +310,6 @@ export function Wallet(props: WalletProps) {
                   calculating={calculating}
                   onPaymentMethodSelect={handlePaymentMethodSelect}
                   paymentLoading={paymentLoading}
-                  redemptionCode={redemptionCode}
-                  onRedemptionCodeChange={setRedemptionCode}
-                  onRedeem={handleRedeem}
-                  redeeming={redeeming}
                   loading={topupLoading}
                   priceRatio={(status?.price as number) || 1}
                   usdExchangeRate={effectiveUsdExchangeRate}
