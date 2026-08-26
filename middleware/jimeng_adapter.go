@@ -16,14 +16,14 @@ func JimengRequestConvert() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		action := c.Query("Action")
 		if action == "" {
-			abortWithOpenAiMessage(c, http.StatusBadRequest, "Action query parameter is required")
+			abortWithRelayMessage(c, http.StatusBadRequest, "Action query parameter is required")
 			return
 		}
 
 		// Handle Jimeng official API request
 		var originalReq map[string]interface{}
 		if err := common.UnmarshalBodyReusable(c, &originalReq); err != nil {
-			abortWithOpenAiMessage(c, http.StatusBadRequest, "Invalid request body")
+			abortWithRelayMessage(c, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 		model, _ := originalReq["req_key"].(string)
@@ -37,7 +37,7 @@ func JimengRequestConvert() func(c *gin.Context) {
 
 		jsonData, err := json.Marshal(unifiedReq)
 		if err != nil {
-			abortWithOpenAiMessage(c, http.StatusInternalServerError, "Failed to marshal request body")
+			abortWithRelayMessage(c, http.StatusInternalServerError, "Failed to marshal request body")
 			return
 		}
 
@@ -54,7 +54,7 @@ func JimengRequestConvert() func(c *gin.Context) {
 		if action == "CVSync2AsyncGetResult" {
 			taskId, ok := originalReq["task_id"].(string)
 			if !ok || taskId == "" {
-				abortWithOpenAiMessage(c, http.StatusBadRequest, "task_id is required for CVSync2AsyncGetResult")
+				abortWithRelayMessage(c, http.StatusBadRequest, "task_id is required for CVSync2AsyncGetResult")
 				return
 			}
 			c.Request.URL.Path = "/v1/video/generations/" + taskId

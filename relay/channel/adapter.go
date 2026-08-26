@@ -32,6 +32,15 @@ type Adaptor interface {
 	ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error)
 }
 
+// ClaudeCountTokensAdaptor is implemented only by channels that provide a
+// model-aware Claude token counting operation. Keeping this capability
+// separate prevents /v1/messages/count_tokens from falling through to a text
+// generation endpoint or an unrelated OpenAI-compatible tokenizer.
+type ClaudeCountTokensAdaptor interface {
+	ConvertClaudeCountTokensRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error)
+	DoClaudeCountTokensResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) *types.NewAPIError
+}
+
 type TaskAdaptor interface {
 	Init(info *relaycommon.RelayInfo)
 

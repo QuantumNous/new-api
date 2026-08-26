@@ -202,6 +202,15 @@ func TestFormatClaudeResponseInfo_NilClaudeInfo(t *testing.T) {
 	}
 }
 
+func TestFormatClaudeResponseInfo_MessageStop(t *testing.T) {
+	claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+
+	ok := FormatClaudeResponseInfo(&dto.ClaudeResponse{Type: "message_stop"}, nil, claudeInfo)
+
+	assert.False(t, ok)
+	assert.True(t, claudeInfo.MessageStopReceived)
+}
+
 func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
 	text := "hello"
 	claudeInfo := &ClaudeResponseInfo{

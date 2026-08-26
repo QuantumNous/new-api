@@ -488,6 +488,28 @@ type ClaudeErrorWithStatusCode struct {
 	LocalError bool
 }
 
+// ClaudeCountTokensRequest contains only fields accepted by Anthropic's
+// /v1/messages/count_tokens endpoint. Generation-only fields such as
+// max_tokens and temperature must not leak into token-count requests.
+type ClaudeCountTokensRequest struct {
+	Model             string          `json:"model"`
+	System            any             `json:"system,omitempty"`
+	Messages          []ClaudeMessage `json:"messages"`
+	CacheControl      json.RawMessage `json:"cache_control,omitempty"`
+	ContextManagement json.RawMessage `json:"context_management,omitempty"`
+	McpServers        json.RawMessage `json:"mcp_servers,omitempty"`
+	OutputConfig      json.RawMessage `json:"output_config,omitempty"`
+	OutputFormat      json.RawMessage `json:"output_format,omitempty"`
+	Speed             json.RawMessage `json:"speed,omitempty"`
+	Thinking          *Thinking       `json:"thinking,omitempty"`
+	ToolChoice        any             `json:"tool_choice,omitempty"`
+	Tools             any             `json:"tools,omitempty"`
+}
+
+type ClaudeCountTokensResponse struct {
+	InputTokens *int `json:"input_tokens"`
+}
+
 type ClaudeResponse struct {
 	Id           string               `json:"id,omitempty"`
 	Type         string               `json:"type"`
