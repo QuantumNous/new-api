@@ -16,8 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { lazy, Suspense } from 'react'
+
 import { HtmlContent, type HtmlContentVariant } from '@/components/html-content'
-import { Markdown } from '@/components/ui/markdown'
+
+const Markdown = lazy(() =>
+  import('@/components/ui/markdown').then((module) => ({
+    default: module.Markdown,
+  }))
+)
 
 type RichContentMode = 'markdown' | 'html'
 
@@ -41,8 +48,16 @@ export function RichContent(props: RichContentProps) {
   }
 
   return (
-    <Markdown breaks={props.breaks} className={props.className}>
-      {props.content}
-    </Markdown>
+    <Suspense
+      fallback={
+        <div className={props.className} data-testid='rich-content-loading'>
+          <span className='text-muted-foreground text-sm'>•••</span>
+        </div>
+      }
+    >
+      <Markdown breaks={props.breaks} className={props.className}>
+        {props.content}
+      </Markdown>
+    </Suspense>
   )
 }

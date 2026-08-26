@@ -29,6 +29,13 @@ export default defineConfig(({ envMode }) => {
     splitChunks: {
       preset: 'default',
       cacheGroups: {
+        'vendor-markdown': {
+          test: /node_modules[\\/](katex|marked)[\\/]/,
+          name: 'vendor-markdown',
+          chunks: 'async',
+          priority: 20,
+          enforce: true,
+        },
         'vendor-react': {
           test: /node_modules[\\/](react|react-dom)[\\/]/,
           name: 'vendor-react',
@@ -39,14 +46,14 @@ export default defineConfig(({ envMode }) => {
         'vendor-ui-primitives': {
           test: /node_modules[\\/](@base-ui|@radix-ui)[\\/]/,
           name: 'vendor-ui-primitives',
-          chunks: 'all',
+          chunks: 'initial',
           priority: 0,
           enforce: true,
         },
         'vendor-tanstack': {
           test: /node_modules[\\/]@tanstack[\\/]/,
           name: 'vendor-tanstack',
-          chunks: 'all',
+          chunks: 'initial',
           priority: 0,
           enforce: true,
         },

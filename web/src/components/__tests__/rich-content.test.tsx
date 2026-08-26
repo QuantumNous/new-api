@@ -16,15 +16,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { render, screen } from '@testing-library/react'
+import { describe, expect, test } from 'vitest'
 
-export const Route = createFileRoute('/_authenticated/system-settings/auth/')({
-  beforeLoad: async () => {
-    const { AUTH_DEFAULT_SECTION } =
-      await import('@/features/system-settings/auth/section-registry.tsx')
-    throw redirect({
-      to: '/system-settings/auth/$section',
-      params: { section: AUTH_DEFAULT_SECTION },
-    })
-  },
+import { RichContent } from '../rich-content'
+
+describe('RichContent', () => {
+  test('renders Markdown after its deferred renderer loads', async () => {
+    render(<RichContent content='**Deferred Markdown**' />)
+
+    expect(await screen.findByText('Deferred Markdown')).toBeInTheDocument()
+    expect(screen.getByText('Deferred Markdown').tagName).toBe('STRONG')
+  })
+
+  test('keeps HTML content on the immediate renderer path', () => {
+    render(<RichContent mode='html' content='<strong>Trusted HTML</strong>' />)
+
+    expect(screen.getByText('Trusted HTML').tagName).toBe('STRONG')
+  })
 })
