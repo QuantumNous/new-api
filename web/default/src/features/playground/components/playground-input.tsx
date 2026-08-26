@@ -215,14 +215,23 @@ function PlaygroundAttachmentDialog({
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [isDragging, setIsDragging] = useState(false)
 
-  const openFilePicker = () => fileInputRef.current?.click()
+  const openFilePicker = () => {
+    const input = fileInputRef.current
+    if (!input) return
+
+    // Clear before opening as well as after change so selecting the same file
+    // again still emits a change event (and allows incremental selection).
+    input.value = ''
+    input.click()
+  }
 
   const stageFiles = (files: File[] | FileList) => {
     setPendingFiles((current) => [...current, ...Array.from(files)])
   }
 
   const handleFileSelection = (event: ChangeEvent<HTMLInputElement>) => {
-    if (event.currentTarget.files) stageFiles(event.currentTarget.files)
+    const files = event.currentTarget.files
+    if (files) stageFiles(files)
     event.currentTarget.value = ''
   }
 
