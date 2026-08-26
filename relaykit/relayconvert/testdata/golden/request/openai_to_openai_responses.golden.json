@@ -19,6 +19,7 @@
     {
       "arguments": "{\"city\":\"Paris\"}",
       "call_id": "call_abc",
+      "id": "fc_call_abc",
       "name": "get_weather",
       "type": "function_call"
     },

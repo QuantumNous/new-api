@@ -77,7 +77,7 @@ func ToStream(events []ir.Event, state *ir.StreamState) ([]any, error) {
 	if state == nil {
 		state = ir.NewStreamState("", "")
 	}
-	out := make([]any, 0, len(events)+2)
+	out := make([]any, 0, len(events)+4)
 	for _, event := range events {
 		switch event.Kind {
 		case ir.EventStart:
@@ -85,6 +85,12 @@ func ToStream(events []ir.Event, state *ir.StreamState) ([]any, error) {
 				continue
 			}
 			state.ResponsesCreated = true
+			if event.ID != "" {
+				state.ID = event.ID
+			}
+			if event.Model != "" {
+				state.Model = event.Model
+			}
 			out = append(out, dto.ResponsesStreamResponse{
 				Type: "response.created",
 				Response: &dto.OpenAIResponsesResponse{
@@ -95,48 +101,30 @@ func ToStream(events []ir.Event, state *ir.StreamState) ([]any, error) {
 				},
 			})
 		case ir.EventBlockStart:
-			if event.Block != nil && event.Block.Kind == ir.BlockKindText && !state.ResponsesTextOpen {
-				state.ResponsesTextOpen = true
-				idx := event.Index
-				out = append(out, dto.ResponsesStreamResponse{
-					Type:        "response.output_item.added",
-					OutputIndex: &idx,
-					Item: &dto.ResponsesOutput{
-						Type:   "message",
-						ID:     firstNonEmpty(event.ID, state.ID) + "_msg",
-						Status: "in_progress",
-						Role:   "assistant",
-					},
-				})
+			kind := ir.BlockKindText
+			if event.Block != nil {
+				kind = event.Block.Kind
 			}
-			if event.Block != nil && event.Block.Kind == ir.BlockKindToolUse {
-				idx := event.Index
-				name, id := "", ""
-				if event.Block.ToolUse != nil {
-					name = event.Block.ToolUse.Name
-					id = event.Block.ToolUse.ID
-				}
-				out = append(out, dto.ResponsesStreamResponse{
-					Type:        "response.output_item.added",
-					OutputIndex: &idx,
-					Item: &dto.ResponsesOutput{
-						Type:   "function_call",
-						ID:     id,
-						CallId: id,
-						Name:   name,
-						Status: "in_progress",
-					},
-				})
-			}
+			out = append(out, ensureResponsesItem(state, event.Index, kind, event.Block)...)
 		case ir.EventBlockDelta:
 			if event.Delta == nil {
 				continue
 			}
+			kind := state.KindOf(event.Index)
+			if kind == "" && event.Delta.JSON != "" {
+				kind = ir.BlockKindToolUse
+			}
+			if kind == "" {
+				kind = ir.BlockKindText
+			}
+			out = append(out, ensureResponsesItem(state, event.Index, kind, event.Block)...)
 			idx := event.Index
+			itemID := responsesStreamItemID(state, idx, kind, event.Block)
 			if event.Delta.JSON != "" {
 				out = append(out, dto.ResponsesStreamResponse{
 					Type:        "response.function_call_arguments.delta",
 					OutputIndex: &idx,
+					ItemID:      itemID,
 					Delta:       event.Delta.JSON,
 				})
 				continue
@@ -145,29 +133,34 @@ func ToStream(events []ir.Event, state *ir.StreamState) ([]any, error) {
 				continue
 			}
 			typ := "response.output_text.delta"
-			if state.BlockKinds[event.Index] == ir.BlockKindThink {
+			if kind == ir.BlockKindThink {
 				typ = "response.reasoning_summary_text.delta"
 			}
 			out = append(out, dto.ResponsesStreamResponse{
 				Type:        typ,
 				OutputIndex: &idx,
+				ItemID:      itemID,
 				Delta:       event.Delta.Text,
 			})
 		case ir.EventUsage:
-			if state.ResponsesTextOpen {
-				idx := 0
-				out = append(out, dto.ResponsesStreamResponse{
-					Type:        "response.output_text.done",
-					OutputIndex: &idx,
-				})
-			}
-			for chatIdx, irIdx := range state.ToolIndex {
-				_ = chatIdx
-				idx := irIdx
-				out = append(out, dto.ResponsesStreamResponse{
-					Type:        "response.function_call_arguments.done",
-					OutputIndex: &idx,
-				})
+			for idx := 0; idx < state.NextIndex; idx++ {
+				kind := state.KindOf(idx)
+				itemID := responsesStreamItemID(state, idx, kind, nil)
+				i := idx
+				switch kind {
+				case ir.BlockKindText:
+					out = append(out, dto.ResponsesStreamResponse{
+						Type:        "response.output_text.done",
+						OutputIndex: &i,
+						ItemID:      itemID,
+					})
+				case ir.BlockKindToolUse:
+					out = append(out, dto.ResponsesStreamResponse{
+						Type:        "response.function_call_arguments.done",
+						OutputIndex: &i,
+						ItemID:      itemID,
+					})
+				}
 			}
 			resp := &dto.OpenAIResponsesResponse{
 				ID:     state.ID,
@@ -189,6 +182,70 @@ func ToStream(events []ir.Event, state *ir.StreamState) ([]any, error) {
 		}
 	}
 	return out, nil
+}
+
+func ensureResponsesItem(state *ir.StreamState, index int, kind ir.BlockKind, block *ir.Block) []any {
+	if state.ResponsesItemAdded == nil {
+		state.ResponsesItemAdded = map[int]bool{}
+	}
+	if state.ResponsesItemAdded[index] {
+		return nil
+	}
+	itemID := responsesStreamItemID(state, index, kind, block)
+	state.ResponsesItemAdded[index] = true
+	idx := index
+	item := &dto.ResponsesOutput{ID: itemID, Status: "in_progress"}
+	switch kind {
+	case ir.BlockKindThink:
+		item.Type = "reasoning"
+	case ir.BlockKindToolUse:
+		item.Type = "function_call"
+		callID := itemID
+		if block != nil && block.ToolUse != nil && block.ToolUse.ID != "" {
+			callID = block.ToolUse.ID
+			item.Name = block.ToolUse.Name
+		}
+		item.CallId = callID
+		item.ID = responsesFunctionItemID(callID)
+		if state.ResponsesItemID == nil {
+			state.ResponsesItemID = map[int]string{}
+		}
+		state.ResponsesItemID[index] = item.ID
+	default:
+		item.Type = "message"
+		item.Role = "assistant"
+		state.ResponsesTextOpen = true
+	}
+	return []any{dto.ResponsesStreamResponse{
+		Type:        "response.output_item.added",
+		OutputIndex: &idx,
+		ItemID:      item.ID,
+		Item:        item,
+	}}
+}
+
+func responsesStreamItemID(state *ir.StreamState, index int, kind ir.BlockKind, block *ir.Block) string {
+	if state.ResponsesItemID == nil {
+		state.ResponsesItemID = map[int]string{}
+	}
+	if id := state.ResponsesItemID[index]; id != "" {
+		return id
+	}
+	prefix := "msg"
+	switch kind {
+	case ir.BlockKindThink:
+		prefix = "rs"
+	case ir.BlockKindToolUse:
+		prefix = "fc"
+		if block != nil && block.ToolUse != nil && block.ToolUse.ID != "" {
+			id := responsesFunctionItemID(block.ToolUse.ID)
+			state.ResponsesItemID[index] = id
+			return id
+		}
+	}
+	id := responsesOutputID(state.ID, prefix, index)
+	state.ResponsesItemID[index] = id
+	return id
 }
 
 func firstNonEmpty(values ...string) string {

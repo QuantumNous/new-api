@@ -9,7 +9,7 @@
   "output": [
     {
       "type": "reasoning",
-      "id": "",
+      "id": "rs_chatcmpl-fixed_0",
       "status": "completed",
       "role": "",
       "content": null,
@@ -24,7 +24,7 @@
     },
     {
       "type": "function_call",
-      "id": "",
+      "id": "fc_call_abc",
       "status": "completed",
       "role": "",
       "content": null,
@@ -38,7 +38,7 @@
     },
     {
       "type": "message",
-      "id": "",
+      "id": "msg_chatcmpl-fixed_2",
       "status": "completed",
       "role": "assistant",
       "content": [

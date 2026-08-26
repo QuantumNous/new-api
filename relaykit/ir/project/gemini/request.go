@@ -40,6 +40,7 @@ func FromRequest(req *dto.GeminiChatRequest) (*ir.Request, error) {
 			Blocks: blocks,
 		})
 	}
+	assignGeminiToolIDs(out)
 	tools, err := toolsFromGemini(req)
 	if err != nil {
 		return nil, err
@@ -429,3 +430,31 @@ func toolChoiceToGemini(choice *ir.ToolChoice) *dto.ToolConfig {
 }
 
 func boolPtr(v bool) *bool { return &v }
+
+func assignGeminiToolIDs(req *ir.Request) {
+	if req == nil {
+		return
+	}
+	n := 0
+	var pending []string
+	for i := range req.Messages {
+		for j := range req.Messages[i].Blocks {
+			block := &req.Messages[i].Blocks[j]
+			if block.ToolUse != nil {
+				if block.ToolUse.ID == "" {
+					n++
+					name := block.ToolUse.Name
+					if name == "" {
+						name = "tool"
+					}
+					block.ToolUse.ID = fmt.Sprintf("call_%s_%d", name, n)
+				}
+				pending = append(pending, block.ToolUse.ID)
+			}
+			if block.ToolResult != nil && block.ToolResult.ToolUseID == "" && len(pending) > 0 {
+				block.ToolResult.ToolUseID = pending[0]
+				pending = pending[1:]
+			}
+		}
+	}
+}

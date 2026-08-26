@@ -323,18 +323,33 @@ func blocksToClaudeMediaList(blocks []ir.Block) ([]dto.ClaudeMediaMessage, error
 }
 
 func toolResultContent(blocks []ir.Block) (any, error) {
-	if len(blocks) == 1 && blocks[0].Kind == ir.BlockKindText && blocks[0].Text != nil {
-		text := blocks[0].Text.Text
-		var value any
-		if err := json.Unmarshal([]byte(text), &value); err == nil {
-			switch value.(type) {
-			case map[string]any, []any:
-				return value, nil
-			}
-		}
-		return text, nil
+	if len(blocks) == 0 {
+		return "", nil
 	}
-	return blocksToClaudeContent(blocks)
+	if len(blocks) == 1 && blocks[0].Kind == ir.BlockKindText && blocks[0].Text != nil {
+		return blocks[0].Text.Text, nil
+	}
+	out := make([]any, 0, len(blocks))
+	for _, block := range blocks {
+		switch block.Kind {
+		case ir.BlockKindText, ir.BlockKindMedia:
+			item, err := blockToClaudeValue(block)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, item)
+		default:
+			text := ""
+			if block.Text != nil {
+				text = block.Text.Text
+			}
+			if text == "" && block.Raw != nil && rawPresent(block.Raw.JSON) {
+				text = string(block.Raw.JSON)
+			}
+			out = append(out, map[string]any{"type": "text", "text": text})
+		}
+	}
+	return out, nil
 }
 
 func systemFromClaude(system any) ([]ir.Block, error) {

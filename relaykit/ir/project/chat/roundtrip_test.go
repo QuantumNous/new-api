@@ -159,3 +159,29 @@ func canon(t *testing.T, v any) any {
 	require.NoError(t, json.Unmarshal(raw, &out))
 	return out
 }
+
+func TestToRequestDropsCacheControlAndFlattensText(t *testing.T) {
+	t.Parallel()
+	irReq := &ir.Request{
+		Model: "gpt-test",
+		Messages: []ir.Message{{
+			Role: ir.RoleUser,
+			Blocks: []ir.Block{{
+				Kind: ir.BlockKindText,
+				Text: &ir.TextBlock{
+					Text:         "hello workspace",
+					CacheControl: &ir.CacheControl{Type: "ephemeral", TTL: "1h"},
+				},
+			}},
+		}},
+	}
+	out, err := ToRequest(irReq)
+	require.NoError(t, err)
+	require.Len(t, out.Messages, 1)
+	content, ok := out.Messages[0].Content.(string)
+	require.True(t, ok, "content=%T", out.Messages[0].Content)
+	require.Equal(t, "hello workspace", content)
+	raw, err := json.Marshal(out.Messages[0])
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "cache_control")
+}

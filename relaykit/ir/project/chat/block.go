@@ -257,32 +257,60 @@ func blocksToChatContent(blocks []ir.Block) (any, error) {
 	if len(blocks) == 0 {
 		return nil, nil
 	}
-	if len(blocks) == 1 && blocks[0].Kind == ir.BlockKindText && blocks[0].Text != nil &&
-		blocks[0].Text.CacheControl == nil {
-		return blocks[0].Text.Text, nil
-	}
 	parts := make([]any, 0, len(blocks))
+	onlyText := true
+	var texts []string
 	for _, block := range blocks {
 		part, err := blockToChatPart(block)
 		if err != nil {
 			return nil, err
 		}
+		if part == nil {
+			continue
+		}
 		parts = append(parts, part)
+		text, ok := chatPartText(part)
+		if !ok {
+			onlyText = false
+			continue
+		}
+		texts = append(texts, text)
+	}
+	if len(parts) == 0 {
+		return nil, nil
+	}
+	if onlyText {
+		return strings.Join(texts, ""), nil
 	}
 	return parts, nil
+}
+
+func chatPartText(part any) (string, bool) {
+	m, ok := jsonx.AsMap(part)
+	if !ok {
+		return "", false
+	}
+	if jsonx.MapString(m, "type") != "text" && jsonx.MapString(m, "type") != "" {
+		return "", false
+	}
+	for key := range m {
+		switch key {
+		case "type", "text":
+		default:
+			return "", false
+		}
+	}
+	return jsonx.MapString(m, "text"), true
 }
 
 func blockToChatPart(block ir.Block) (any, error) {
 	switch block.Kind {
 	case ir.BlockKindText:
-		if block.Text == nil {
-			return map[string]any{"type": "text", "text": ""}, nil
+		text := ""
+		if block.Text != nil {
+			text = block.Text.Text
 		}
-		m := map[string]any{"type": "text", "text": block.Text.Text}
-		if cc := jsonx.CacheControlToMap(block.Text.CacheControl); cc != nil {
-			m["cache_control"] = cc
-		}
-		return m, nil
+		return map[string]any{"type": "text", "text": text}, nil
 	case ir.BlockKindMedia:
 		return mediaToChatPart(block.Media)
 	case ir.BlockKindRaw:
@@ -316,24 +344,15 @@ func mediaToChatPart(media *ir.MediaBlock) (any, error) {
 				"format": format,
 			},
 		}
-		if cc := jsonx.CacheControlToMap(media.CacheControl); cc != nil {
-			m["cache_control"] = cc
-		}
 		return m, nil
 	case ir.MediaFile:
 		file := map[string]any{}
 		jsonx.PutIfNotEmpty(file, "file_id", media.FileID)
 		jsonx.PutIfNotEmpty(file, "file_data", media.Data)
 		m := map[string]any{"type": dto.ContentTypeFile, "file": file}
-		if cc := jsonx.CacheControlToMap(media.CacheControl); cc != nil {
-			m["cache_control"] = cc
-		}
 		return m, nil
 	case ir.MediaVideo:
 		m := map[string]any{"type": dto.ContentTypeVideoUrl, "video_url": map[string]any{"url": media.URL}}
-		if cc := jsonx.CacheControlToMap(media.CacheControl); cc != nil {
-			m["cache_control"] = cc
-		}
 		return m, nil
 	default:
 		url := media.URL
@@ -344,9 +363,6 @@ func mediaToChatPart(media *ir.MediaBlock) (any, error) {
 		jsonx.PutIfNotEmpty(image, "detail", media.Detail)
 		jsonx.PutIfNotEmpty(image, "mime_type", media.MIME)
 		m := map[string]any{"type": dto.ContentTypeImageURL, "image_url": image}
-		if cc := jsonx.CacheControlToMap(media.CacheControl); cc != nil {
-			m["cache_control"] = cc
-		}
 		return m, nil
 	}
 }

@@ -26,6 +26,9 @@ func convertRequestIR(info convmeta.Meta, from, target types.RelayFormat, reques
 	if err != nil {
 		return nil, err
 	}
+	if info != nil && info.GetIsStream() {
+		irReq.Stream = true
+	}
 	if err := rejectStatefulResponses(irReq, target); err != nil {
 		return nil, err
 	}
@@ -744,6 +747,7 @@ func adaptGeminiRequest(info convmeta.Meta, irReq *ir.Request, req *dto.GeminiCh
 	cleanGeminiFunctionParameters(req)
 	normalizeGeminiFunctionArgs(req)
 	mergeAdjacentGeminiContents(req)
+	ensureGeminiUserFirst(req)
 	if len(req.SafetySettings) == 0 {
 		for _, category := range sharedgemini.SafetySettingCategories {
 			threshold := opts.Gemini.SafetySettingFor(category)
@@ -828,6 +832,18 @@ func normalizeGeminiFunctionArgs(req *dto.GeminiChatRequest) {
 				part.FunctionCall.Arguments = value
 			}
 		}
+	}
+}
+
+func ensureGeminiUserFirst(req *dto.GeminiChatRequest) {
+	if req == nil || len(req.Contents) == 0 {
+		return
+	}
+	if req.Contents[0].Role == "model" {
+		req.Contents = append([]dto.GeminiChatContent{{
+			Role:  "user",
+			Parts: []dto.GeminiPart{{Text: " "}},
+		}}, req.Contents...)
 	}
 }
 

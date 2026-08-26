@@ -2,6 +2,7 @@ package responses
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/ir"
 	"github.com/QuantumNous/new-api/relaykit/ir/internal/jsonx"
@@ -219,59 +220,120 @@ func blockFromResponsesPart(item any) (ir.Block, error) {
 	}
 }
 
-func messageToResponsesInput(msg ir.Message) (any, error) {
+func messageToResponsesItems(msg ir.Message) ([]any, error) {
 	if len(msg.Blocks) == 1 && msg.Blocks[0].Kind == ir.BlockKindRaw && msg.Blocks[0].Raw != nil {
 		var v any
 		if err := json.Unmarshal(msg.Blocks[0].Raw.JSON, &v); err != nil {
 			return nil, err
 		}
-		return v, nil
+		return []any{v}, nil
 	}
-	if msg.Role == ir.RoleTool || (len(msg.Blocks) == 1 && msg.Blocks[0].Kind == ir.BlockKindToolResult) {
-		result := msg.Blocks[0].ToolResult
-		if result == nil && len(msg.Blocks) > 0 {
-			result = msg.Blocks[0].ToolResult
+	var items []any
+	var pending []ir.Block
+	flushMessage := func() error {
+		if len(pending) == 0 {
+			return nil
 		}
-		item := map[string]any{"type": "function_call_output"}
-		if result != nil {
-			jsonx.PutIfNotEmpty(item, "call_id", result.ToolUseID)
-			if len(result.Blocks) == 1 && result.Blocks[0].Kind == ir.BlockKindText && result.Blocks[0].Text != nil {
-				item["output"] = result.Blocks[0].Text.Text
-			} else {
-				content, err := blocksToResponsesContent(result.Blocks, false)
-				if err != nil {
+		content, err := blocksToResponsesContent(pending, msg.Role != ir.RoleAssistant)
+		if err != nil {
+			return err
+		}
+		item := map[string]any{"type": "message", "content": content}
+		jsonx.PutIfNotEmpty(item, "role", string(msg.Role))
+		items = append(items, item)
+		pending = nil
+		return nil
+	}
+	for _, block := range msg.Blocks {
+		switch block.Kind {
+		case ir.BlockKindThink:
+			if err := flushMessage(); err != nil {
+				return nil, err
+			}
+			text := ""
+			if block.Think != nil {
+				text = block.Think.Text
+			}
+			items = append(items, map[string]any{
+				"type": "reasoning",
+				"summary": []any{
+					map[string]any{"type": "summary_text", "text": text},
+				},
+			})
+		case ir.BlockKindToolUse:
+			if err := flushMessage(); err != nil {
+				return nil, err
+			}
+			items = append(items, functionCallItem(block.ToolUse))
+		case ir.BlockKindToolResult:
+			if err := flushMessage(); err != nil {
+				return nil, err
+			}
+			item, err := functionCallOutputItem(block.ToolResult)
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, item)
+		case ir.BlockKindRaw:
+			if err := flushMessage(); err != nil {
+				return nil, err
+			}
+			if block.Raw != nil && jsonx.Present(block.Raw.JSON) {
+				var v any
+				if err := json.Unmarshal(block.Raw.JSON, &v); err != nil {
 					return nil, err
 				}
-				item["output"] = content
+				items = append(items, v)
 			}
+		default:
+			pending = append(pending, block)
 		}
+	}
+	if err := flushMessage(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func functionCallItem(use *ir.ToolUseBlock) map[string]any {
+	item := map[string]any{"type": "function_call"}
+	if use == nil {
+		return item
+	}
+	jsonx.PutIfNotEmpty(item, "call_id", use.ID)
+	if use.ID != "" {
+		item["id"] = responsesFunctionItemID(use.ID)
+	}
+	jsonx.PutIfNotEmpty(item, "name", use.Name)
+	if jsonx.Present(use.Input) {
+		item["arguments"] = rawToResponsesArguments(use.Input)
+	}
+	return item
+}
+
+func functionCallOutputItem(result *ir.ToolResultBlock) (map[string]any, error) {
+	item := map[string]any{"type": "function_call_output"}
+	if result == nil {
 		return item, nil
 	}
-	if len(msg.Blocks) == 1 && msg.Blocks[0].Kind == ir.BlockKindToolUse && msg.Blocks[0].ToolUse != nil {
-		use := msg.Blocks[0].ToolUse
-		item := map[string]any{"type": "function_call"}
-		jsonx.PutIfNotEmpty(item, "call_id", use.ID)
-		jsonx.PutIfNotEmpty(item, "name", use.Name)
-		if jsonx.Present(use.Input) {
-			item["arguments"] = rawToResponsesArguments(use.Input)
-		}
+	jsonx.PutIfNotEmpty(item, "call_id", result.ToolUseID)
+	if len(result.Blocks) == 1 && result.Blocks[0].Kind == ir.BlockKindText && result.Blocks[0].Text != nil {
+		item["output"] = result.Blocks[0].Text.Text
 		return item, nil
 	}
-	if len(msg.Blocks) == 1 && msg.Blocks[0].Kind == ir.BlockKindThink && msg.Blocks[0].Think != nil {
-		return map[string]any{
-			"type": "reasoning",
-			"summary": []any{
-				map[string]any{"type": "summary_text", "text": msg.Blocks[0].Think.Text},
-			},
-		}, nil
-	}
-	content, err := blocksToResponsesContent(msg.Blocks, msg.Role != ir.RoleAssistant)
+	content, err := blocksToResponsesContent(result.Blocks, false)
 	if err != nil {
 		return nil, err
 	}
-	item := map[string]any{"type": "message", "content": content}
-	jsonx.PutIfNotEmpty(item, "role", string(msg.Role))
+	item["output"] = content
 	return item, nil
+}
+
+func responsesFunctionItemID(callID string) string {
+	if strings.HasPrefix(callID, "fc_") {
+		return callID
+	}
+	return "fc_" + callID
 }
 
 func blocksToResponsesContent(blocks []ir.Block, input bool) (any, error) {

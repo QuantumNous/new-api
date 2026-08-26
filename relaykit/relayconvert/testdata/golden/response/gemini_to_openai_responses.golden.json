@@ -9,7 +9,7 @@
   "output": [
     {
       "type": "message",
-      "id": "",
+      "id": "msg_chatcmpl-<uuid>_0",
       "status": "completed",
       "role": "assistant",
       "content": [
@@ -24,7 +24,7 @@
     },
     {
       "type": "function_call",
-      "id": "",
+      "id": "fc_call_<uuid>",
       "status": "completed",
       "role": "",
       "content": null,

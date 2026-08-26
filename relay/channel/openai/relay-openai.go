@@ -252,6 +252,16 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 		responseBody = geminiRespStr
+	case types.RelayFormatOpenAIResponses:
+		convertResult, err := relayconvert.ConvertResponse(c, info, types.RelayFormatOpenAIResponses, &simpleResponse)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
+		responsesBody, err := common.Marshal(convertResult.Value)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
+		responseBody = responsesBody
 	}
 
 	service.IOCopyBytesGracefully(c, resp, responseBody)

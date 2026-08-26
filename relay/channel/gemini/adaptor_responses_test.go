@@ -90,11 +90,12 @@ func TestConvertOpenAIResponsesRequestToGeminiFunctionCallConversation(t *testin
 		}),
 	})
 
-	require.Len(t, got.Contents, 2)
-	assert.Equal(t, "model", got.Contents[0].Role)
-	require.Len(t, got.Contents[0].Parts, 2)
+	contents := geminiContentsWithoutLeadingPad(got.Contents)
+	require.Len(t, contents, 2)
+	assert.Equal(t, "model", contents[0].Role)
+	require.Len(t, contents[0].Parts, 2)
 	var functionPart, textPart dto.GeminiPart
-	for _, part := range got.Contents[0].Parts {
+	for _, part := range contents[0].Parts {
 		if part.FunctionCall != nil {
 			functionPart = part
 		}
@@ -107,11 +108,11 @@ func TestConvertOpenAIResponsesRequestToGeminiFunctionCallConversation(t *testin
 	assert.Equal(t, map[string]interface{}{"q": "x"}, functionPart.FunctionCall.Arguments)
 	assert.Equal(t, "I will call.", textPart.Text)
 
-	assert.Equal(t, "user", got.Contents[1].Role)
-	require.Len(t, got.Contents[1].Parts, 1)
-	require.NotNil(t, got.Contents[1].Parts[0].FunctionResponse)
-	assert.Equal(t, "lookup", got.Contents[1].Parts[0].FunctionResponse.Name)
-	assert.Equal(t, map[string]interface{}{"ok": true}, got.Contents[1].Parts[0].FunctionResponse.Response)
+	assert.Equal(t, "user", contents[1].Role)
+	require.Len(t, contents[1].Parts, 1)
+	require.NotNil(t, contents[1].Parts[0].FunctionResponse)
+	assert.Equal(t, "lookup", contents[1].Parts[0].FunctionResponse.Name)
+	assert.Equal(t, map[string]interface{}{"ok": true}, contents[1].Parts[0].FunctionResponse.Response)
 }
 
 func TestConvertOpenAIResponsesRequestToGeminiSkipsCustomToolCalls(t *testing.T) {
@@ -152,16 +153,28 @@ func TestConvertOpenAIResponsesRequestToGeminiSkipsCustomToolCalls(t *testing.T)
 	})
 
 	assert.Empty(t, got.GetTools())
-	require.Len(t, got.Contents, 2)
-	assert.Equal(t, "model", got.Contents[0].Role)
-	require.Len(t, got.Contents[0].Parts, 1)
-	assert.Equal(t, "before custom", got.Contents[0].Parts[0].Text)
-	assert.Nil(t, got.Contents[0].Parts[0].FunctionCall)
+	contents := geminiContentsWithoutLeadingPad(got.Contents)
+	require.Len(t, contents, 2)
+	assert.Equal(t, "model", contents[0].Role)
+	require.Len(t, contents[0].Parts, 1)
+	assert.Equal(t, "before custom", contents[0].Parts[0].Text)
+	assert.Nil(t, contents[0].Parts[0].FunctionCall)
 
-	assert.Equal(t, "user", got.Contents[1].Role)
-	require.Len(t, got.Contents[1].Parts, 1)
-	assert.Equal(t, "next turn", got.Contents[1].Parts[0].Text)
-	assert.Nil(t, got.Contents[1].Parts[0].FunctionResponse)
+	assert.Equal(t, "user", contents[1].Role)
+	require.Len(t, contents[1].Parts, 1)
+	assert.Equal(t, "next turn", contents[1].Parts[0].Text)
+	assert.Nil(t, contents[1].Parts[0].FunctionResponse)
+}
+
+func geminiContentsWithoutLeadingPad(contents []dto.GeminiChatContent) []dto.GeminiChatContent {
+	if len(contents) == 0 {
+		return contents
+	}
+	first := contents[0]
+	if first.Role == "user" && len(first.Parts) == 1 && first.Parts[0].FunctionResponse == nil && first.Parts[0].Text == " " {
+		return contents[1:]
+	}
+	return contents
 }
 
 func mustConvertResponsesToGemini(t *testing.T, req dto.OpenAIResponsesRequest) *dto.GeminiChatRequest {

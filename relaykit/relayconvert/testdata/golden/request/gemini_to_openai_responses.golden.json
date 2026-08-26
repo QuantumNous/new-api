@@ -17,10 +17,13 @@
     },
     {
       "arguments": "{\"city\":\"Paris\"}",
+      "call_id": "call_get_weather_1",
+      "id": "fc_call_get_weather_1",
       "name": "get_weather",
       "type": "function_call"
     },
     {
+      "call_id": "call_get_weather_1",
       "output": "{\"result\":\"15 degrees\"}",
       "type": "function_call_output"
     }

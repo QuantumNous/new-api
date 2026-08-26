@@ -16,9 +16,20 @@
       "type": "message"
     },
     {
-      "content": [],
-      "role": "assistant",
-      "type": "message"
+      "summary": [
+        {
+          "text": "Let me look.",
+          "type": "summary_text"
+        }
+      ],
+      "type": "reasoning"
+    },
+    {
+      "arguments": "{\"city\":\"Paris\"}",
+      "call_id": "toolu_abc",
+      "id": "fc_toolu_abc",
+      "name": "get_weather",
+      "type": "function_call"
     },
     {
       "call_id": "toolu_abc",

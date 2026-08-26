@@ -110,13 +110,11 @@ func ToRequest(req *ir.Request) (*dto.OpenAIResponsesRequest, error) {
 			system = append(system, message.Blocks...)
 			continue
 		}
-		item, err := messageToResponsesInput(message)
+		items, err := messageToResponsesItems(message)
 		if err != nil {
 			return nil, err
 		}
-		if item != nil {
-			inputItems = append(inputItems, item)
-		}
+		inputItems = append(inputItems, items...)
 	}
 	if len(system) > 0 {
 		if len(system) == 1 && system[0].Kind == ir.BlockKindText && system[0].Text != nil {

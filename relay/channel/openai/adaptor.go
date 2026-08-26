@@ -213,10 +213,17 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
+	streaming := info.IsStream || (request.Stream != nil && *request.Stream)
+	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure || !streaming {
 		request.StreamOptions = nil
-	} else if info.SupportStreamOptions && info.IsStream && request.StreamOptions == nil {
-		request.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+	} else {
+		if request.Stream == nil || !*request.Stream {
+			stream := true
+			request.Stream = &stream
+		}
+		if info.SupportStreamOptions && request.StreamOptions == nil {
+			request.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
+		}
 	}
 	if info.ChannelType == constant.ChannelTypeOpenRouter {
 		if len(request.Usage) == 0 {

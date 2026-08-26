@@ -132,3 +132,55 @@ func canon(t *testing.T, v any) any {
 	require.NoError(t, json.Unmarshal(raw, &out))
 	return out
 }
+
+func TestToRequestSplitsThinkingTextAndTool(t *testing.T) {
+	t.Parallel()
+	irReq := &ir.Request{
+		Model: "gpt-test",
+		Messages: []ir.Message{{
+			Role: ir.RoleAssistant,
+			Blocks: []ir.Block{
+				ir.Think("deep thought", "sig"),
+				ir.Text("the answer"),
+				ir.ToolUse("call_1", "lookup", json.RawMessage(`{"q":"x"}`)),
+			},
+		}},
+	}
+	out, err := ToRequest(irReq)
+	require.NoError(t, err)
+	var items []map[string]any
+	require.NoError(t, json.Unmarshal(out.Input, &items))
+	require.Len(t, items, 3)
+	require.Equal(t, "reasoning", items[0]["type"])
+	require.Equal(t, "message", items[1]["type"])
+	require.Equal(t, "function_call", items[2]["type"])
+	require.Equal(t, "call_1", items[2]["call_id"])
+	require.Equal(t, "fc_call_1", items[2]["id"])
+}
+
+func TestToStreamIncludesItemIDOnDeltas(t *testing.T) {
+	t.Parallel()
+	state := ir.NewStreamState("resp_1", "gpt-test")
+	events := []ir.Event{
+		{Kind: ir.EventStart, ID: "resp_1", Model: "gpt-test"},
+		{Kind: ir.EventBlockStart, Index: 0, Block: &ir.Block{Kind: ir.BlockKindText, Text: &ir.TextBlock{}}},
+		{Kind: ir.EventBlockDelta, Index: 0, Delta: &ir.BlockDelta{Text: "hi"}},
+	}
+	out, err := ToStream(events, state)
+	require.NoError(t, err)
+	var addedID, deltaID string
+	for _, item := range out {
+		ev, ok := item.(dto.ResponsesStreamResponse)
+		require.True(t, ok)
+		switch ev.Type {
+		case "response.output_item.added":
+			require.NotNil(t, ev.Item)
+			addedID = ev.Item.ID
+			require.Equal(t, addedID, ev.ItemID)
+		case "response.output_text.delta":
+			deltaID = ev.ItemID
+		}
+	}
+	require.NotEmpty(t, addedID)
+	require.Equal(t, addedID, deltaID)
+}

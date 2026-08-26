@@ -9,7 +9,7 @@
   "output": [
     {
       "type": "message",
-      "id": "",
+      "id": "msg_msg_fixed_0",
       "status": "completed",
       "role": "assistant",
       "content": [
@@ -24,7 +24,7 @@
     },
     {
       "type": "function_call",
-      "id": "",
+      "id": "fc_toolu_abc",
       "status": "completed",
       "role": "",
       "content": null,

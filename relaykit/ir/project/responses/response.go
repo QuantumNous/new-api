@@ -52,8 +52,8 @@ func ToResponse(resp *ir.Response) (*dto.OpenAIResponsesResponse, error) {
 		return nil, fmt.Errorf("ir response is nil")
 	}
 	output := make([]dto.ResponsesOutput, 0, len(resp.Blocks))
-	for _, block := range resp.Blocks {
-		item, err := blockToResponsesOutput(block)
+	for i, block := range resp.Blocks {
+		item, err := blockToResponsesOutput(resp.ID, i, block)
 		if err != nil {
 			return nil, err
 		}
@@ -85,6 +85,14 @@ func ToResponse(resp *ir.Response) (*dto.OpenAIResponsesResponse, error) {
 		}
 	}
 	return out, nil
+}
+
+func responsesOutputID(responseID, prefix string, index int) string {
+	base := responseID
+	if base == "" {
+		base = "resp"
+	}
+	return fmt.Sprintf("%s_%s_%d", prefix, base, index)
 }
 
 func blocksFromResponsesOutput(item dto.ResponsesOutput) ([]ir.Block, error) {
@@ -120,7 +128,7 @@ func blocksFromResponsesOutput(item dto.ResponsesOutput) ([]ir.Block, error) {
 	}
 }
 
-func blockToResponsesOutput(block ir.Block) (dto.ResponsesOutput, error) {
+func blockToResponsesOutput(responseID string, index int, block ir.Block) (dto.ResponsesOutput, error) {
 	switch block.Kind {
 	case ir.BlockKindText:
 		text := ""
@@ -129,6 +137,7 @@ func blockToResponsesOutput(block ir.Block) (dto.ResponsesOutput, error) {
 		}
 		return dto.ResponsesOutput{
 			Type:    "message",
+			ID:      responsesOutputID(responseID, "msg", index),
 			Role:    "assistant",
 			Status:  "completed",
 			Content: []dto.ResponsesOutputContent{{Type: "output_text", Text: text}},
@@ -140,6 +149,7 @@ func blockToResponsesOutput(block ir.Block) (dto.ResponsesOutput, error) {
 		}
 		return dto.ResponsesOutput{
 			Type:   "reasoning",
+			ID:     responsesOutputID(responseID, "rs", index),
 			Status: "completed",
 			Summary: []dto.ResponsesReasoningSummaryPart{{
 				Type: "summary_text",
@@ -150,6 +160,10 @@ func blockToResponsesOutput(block ir.Block) (dto.ResponsesOutput, error) {
 		out := dto.ResponsesOutput{Type: "function_call", Status: "completed"}
 		if block.ToolUse != nil {
 			out.CallId = block.ToolUse.ID
+			out.ID = responsesFunctionItemID(block.ToolUse.ID)
+			if out.ID == "" {
+				out.ID = responsesOutputID(responseID, "fc", index)
+			}
 			out.Name = block.ToolUse.Name
 			out.Arguments = jsonx.Clone(block.ToolUse.Input)
 		}

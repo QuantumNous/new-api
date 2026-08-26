@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/ir"
+	"github.com/QuantumNous/new-api/relaykit/ir/internal/jsonx"
 )
 
 func FromStream(resp *dto.GeminiChatResponse, state *ir.StreamState) ([]ir.Event, error) {
@@ -96,14 +97,52 @@ func ToStream(events []ir.Event, state *ir.StreamState) ([]any, error) {
 	hasFinish := false
 	for _, event := range events {
 		switch event.Kind {
+		case ir.EventBlockStart:
+			if event.Block == nil {
+				continue
+			}
+			switch event.Block.Kind {
+			case ir.BlockKindThink:
+				text := ""
+				if event.Block.Think != nil {
+					text = event.Block.Think.Text
+				}
+				if text != "" {
+					parts = append(parts, dto.GeminiPart{Text: text, Thought: true})
+				}
+			case ir.BlockKindText:
+				text := ""
+				if event.Block.Text != nil {
+					text = event.Block.Text.Text
+				}
+				if text != "" {
+					parts = append(parts, dto.GeminiPart{Text: text})
+				}
+			case ir.BlockKindToolUse:
+				if event.Block.ToolUse != nil {
+					state.OpenName = event.Block.ToolUse.Name
+					if jsonx.Present(event.Block.ToolUse.Input) {
+						parts = append(parts, dto.GeminiPart{
+							FunctionCall: &dto.FunctionCall{
+								FunctionName: event.Block.ToolUse.Name,
+								Arguments:    jsonRaw(string(event.Block.ToolUse.Input)),
+							},
+						})
+					}
+				}
+			}
 		case ir.EventBlockDelta:
 			if event.Delta == nil {
 				continue
 			}
 			if event.Delta.JSON != "" {
+				name := state.OpenName
+				if name == "" && event.Block != nil && event.Block.ToolUse != nil {
+					name = event.Block.ToolUse.Name
+				}
 				parts = append(parts, dto.GeminiPart{
 					FunctionCall: &dto.FunctionCall{
-						FunctionName: state.OpenName,
+						FunctionName: name,
 						Arguments:    jsonRaw(event.Delta.JSON),
 					},
 				})
@@ -113,7 +152,7 @@ func ToStream(events []ir.Event, state *ir.StreamState) ([]any, error) {
 				continue
 			}
 			part := dto.GeminiPart{Text: event.Delta.Text}
-			if state.BlockKinds[event.Index] == ir.BlockKindThink {
+			if state.KindOf(event.Index) == ir.BlockKindThink {
 				part.Thought = true
 			}
 			parts = append(parts, part)

@@ -2,6 +2,7 @@ package relay
 
 import (
 	"fmt"
+	"net/http"
 
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -11,6 +12,10 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 )
+
+func newConvertRequestError(err error) *types.NewAPIError {
+	return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithStatusCode(http.StatusBadRequest), types.ErrOptionWithSkipRetry())
+}
 
 // ConvertRequestToChannelNative converts an incoming text request into the
 // channel's native format via IR (From → To), then runs the adaptor's native

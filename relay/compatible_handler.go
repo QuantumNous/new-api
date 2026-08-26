@@ -89,7 +89,7 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		applySystemPromptIfNeeded(c, info, request)
 		convertedRequest, err := convertRequestToChannelNative(c, info, adaptor, request)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			return newConvertRequestError(err)
 		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
 

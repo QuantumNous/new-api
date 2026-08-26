@@ -34,14 +34,15 @@
         "type": "response.output_item.added",
         "item": {
           "type": "message",
-          "id": "stream_fixed_msg",
+          "id": "msg_stream_fixed_0",
           "status": "in_progress",
           "role": "assistant",
           "content": null,
           "quality": "",
           "size": ""
         },
-        "output_index": 0
+        "output_index": 0,
+        "item_id": "msg_stream_fixed_0"
       }
     },
     {
@@ -49,7 +50,8 @@
       "Payload": {
         "type": "response.output_text.delta",
         "delta": "Hello",
-        "output_index": 0
+        "output_index": 0,
+        "item_id": "msg_stream_fixed_0"
       }
     },
     {
@@ -57,14 +59,16 @@
       "Payload": {
         "type": "response.output_text.delta",
         "delta": " world",
-        "output_index": 0
+        "output_index": 0,
+        "item_id": "msg_stream_fixed_0"
       }
     },
     {
       "Type": "response.output_text.done",
       "Payload": {
         "type": "response.output_text.done",
-        "output_index": 0
+        "output_index": 0,
+        "item_id": "msg_stream_fixed_0"
       }
     },
     {

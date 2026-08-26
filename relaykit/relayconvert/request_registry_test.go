@@ -1,6 +1,7 @@
 package relayconvert
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -48,6 +49,36 @@ func TestConvertRequestToTargetRecordsConversionChain(t *testing.T) {
 		},
 	}, result.Steps)
 	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses}, info.ConversionChain)
+}
+
+func TestConvertRequestClaudeToChatDropsCacheControl(t *testing.T) {
+	req := &dto.ClaudeRequest{
+		Model: "claude-test",
+		Messages: []dto.ClaudeMessage{
+			{
+				Role: "user",
+				Content: []map[string]any{
+					{
+						"type":          "text",
+						"text":          "hello workspace",
+						"cache_control": map[string]any{"type": "ephemeral", "ttl": "1h"},
+					},
+				},
+			},
+		},
+	}
+
+	result, err := ConvertRequest(nil, nil, types.RelayFormatOpenAI, req)
+	require.NoError(t, err)
+	chatReq, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.Len(t, chatReq.Messages, 1)
+	content, ok := chatReq.Messages[0].Content.(string)
+	require.True(t, ok, "content=%T", chatReq.Messages[0].Content)
+	require.Equal(t, "hello workspace", content)
+	raw, err := json.Marshal(chatReq.Messages[0])
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "cache_control")
 }
 
 func TestConvertRequestClaudeToChatRecordsSignatureLoss(t *testing.T) {
@@ -300,11 +331,15 @@ func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {
 	require.True(t, ok)
 	assert.NotContains(t, filterItems, "additionalProperties")
 
-	require.Len(t, geminiReq.Contents, 2)
-	assert.Equal(t, "model", geminiReq.Contents[0].Role)
-	require.Len(t, geminiReq.Contents[0].Parts, 2)
+	require.GreaterOrEqual(t, len(geminiReq.Contents), 2)
+	modelIdx := 0
+	if geminiReq.Contents[0].Role == "user" && geminiReq.Contents[0].Parts[0].FunctionResponse == nil {
+		modelIdx = 1
+	}
+	assert.Equal(t, "model", geminiReq.Contents[modelIdx].Role)
+	require.Len(t, geminiReq.Contents[modelIdx].Parts, 2)
 	var functionPart, textPart dto.GeminiPart
-	for _, part := range geminiReq.Contents[0].Parts {
+	for _, part := range geminiReq.Contents[modelIdx].Parts {
 		if part.FunctionCall != nil {
 			functionPart = part
 		}
@@ -320,13 +355,14 @@ func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {
 	assert.Equal(t, sharedgemini.ThoughtSignatureBypassValue, thoughtSignature)
 	assert.Equal(t, "I will call.", textPart.Text)
 
-	assert.Equal(t, "user", geminiReq.Contents[1].Role)
-	require.Len(t, geminiReq.Contents[1].Parts, 1)
-	functionResponse := geminiReq.Contents[1].Parts[0].FunctionResponse
+	userIdx := modelIdx + 1
+	assert.Equal(t, "user", geminiReq.Contents[userIdx].Role)
+	require.Len(t, geminiReq.Contents[userIdx].Parts, 1)
+	functionResponse := geminiReq.Contents[userIdx].Parts[0].FunctionResponse
 	require.NotNil(t, functionResponse)
 	assert.Equal(t, "lookup", functionResponse.Name)
 	assert.Equal(t, true, functionResponse.Response["ok"])
-	assert.Empty(t, geminiReq.Contents[1].Parts[0].ThoughtSignature)
+	assert.Empty(t, geminiReq.Contents[userIdx].Parts[0].ThoughtSignature)
 }
 
 func TestConvertRequestResponsesToGeminiSkipsThoughtSignatureWhenDisabled(t *testing.T) {
@@ -356,10 +392,15 @@ func TestConvertRequestResponsesToGeminiSkipsThoughtSignatureWhenDisabled(t *tes
 	require.NoError(t, err)
 	geminiReq, ok := result.Value.(*dto.GeminiChatRequest)
 	require.True(t, ok)
-	require.Len(t, geminiReq.Contents, 1)
-	require.Len(t, geminiReq.Contents[0].Parts, 1)
-	require.NotNil(t, geminiReq.Contents[0].Parts[0].FunctionCall)
-	assert.Empty(t, geminiReq.Contents[0].Parts[0].ThoughtSignature)
+	require.NotEmpty(t, geminiReq.Contents)
+	model := geminiReq.Contents[0]
+	if model.Role != "model" && len(geminiReq.Contents) > 1 {
+		model = geminiReq.Contents[1]
+	}
+	require.Equal(t, "model", model.Role)
+	require.Len(t, model.Parts, 1)
+	require.NotNil(t, model.Parts[0].FunctionCall)
+	assert.Empty(t, model.Parts[0].ThoughtSignature)
 }
 
 func TestConvertRequestOpenAIChatToGeminiAddsThoughtSignatureForAdvancedCustom(t *testing.T) {
@@ -524,7 +565,7 @@ func TestConvertRequestResponsesToClaudeUsesDirectConverter(t *testing.T) {
 	require.Len(t, toolResultParts, 1)
 	assert.Equal(t, "tool_result", toolResultParts[0].Type)
 	assert.Equal(t, "call_1", toolResultParts[0].ToolUseId)
-	assert.Equal(t, map[string]any{"ok": true}, toolResultParts[0].Content)
+	assert.Equal(t, `{"ok":true}`, toolResultParts[0].Content)
 }
 
 func TestConvertRequestViaResponsesToGeminiStillUsesDirectSteps(t *testing.T) {

@@ -288,3 +288,22 @@ func canon(t *testing.T, v any) any {
 	require.NoError(t, json.Unmarshal(raw, &out))
 	return out
 }
+
+func TestToolResultJSONStaysString(t *testing.T) {
+	t.Parallel()
+	irReq := &ir.Request{
+		Model: "claude-test",
+		Messages: []ir.Message{
+			{Role: ir.RoleUser, Blocks: []ir.Block{ir.Text("hi")}},
+			{Role: ir.RoleAssistant, Blocks: []ir.Block{ir.ToolUse("toolu_1", "lookup", json.RawMessage(`{"q":"x"}`))}},
+			{Role: ir.RoleTool, Blocks: []ir.Block{ir.ToolResult("toolu_1", []ir.Block{ir.Text(`{"ok":true}`)})}},
+		},
+	}
+	out, err := ToRequest(irReq)
+	require.NoError(t, err)
+	require.Len(t, out.Messages, 3)
+	raw, err := json.Marshal(out.Messages[2].Content)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), `\"ok\":true`)
+	require.NotContains(t, string(raw), `"content":{"ok"`)
+}

@@ -47,7 +47,7 @@ func NativeTextFormat(info *RelayInfo, incoming types.RelayFormat) types.RelayFo
 		// These channels either configure conversion per route or speak every
 		// client format natively. Leave the incoming format untouched.
 		return nonEmptyIncomingFormat(incoming)
-	case constant.ChannelTypeMoonshot:
+	case constant.ChannelTypeMoonshot, constant.ChannelTypeMiniMax:
 		if incoming == types.RelayFormatClaude {
 			return types.RelayFormatClaude
 		}
