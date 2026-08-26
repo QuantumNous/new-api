@@ -20,7 +20,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  type ChangeEvent,
   type DragEvent,
   type KeyboardEvent,
 } from 'react'
@@ -240,12 +239,6 @@ function PlaygroundAttachmentDialog({
     input.addEventListener('cancel', cleanup, { once: true })
     document.body.appendChild(input)
     input.click()
-  }
-
-  const handleFileSelection = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.currentTarget.files
-    if (files) stageFiles(files)
-    event.currentTarget.value = ''
   }
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
