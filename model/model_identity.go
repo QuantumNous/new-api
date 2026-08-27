@@ -89,6 +89,13 @@ func NormalizeChannelModel(
 	if canonicalModel == "" {
 		return "", "", ErrModelNameEmpty
 	}
+	if channelType == constant.ChannelTypeOpenRouter {
+		canonicalModel, err = normalizeOpenRouterModel(canonicalModel)
+		if err != nil {
+			return "", "", err
+		}
+		return canonicalModel, upstreamModel, nil
+	}
 
 	for {
 		matchedRule := false
@@ -113,6 +120,28 @@ func NormalizeChannelModel(
 	}
 
 	return canonicalModel, upstreamModel, nil
+}
+
+func normalizeOpenRouterModel(modelName string) (string, error) {
+	namespace, modelNameWithoutNamespace, hasNamespace := strings.Cut(modelName, "/")
+	if !hasNamespace {
+		return modelName, nil
+	}
+	if strings.TrimSpace(modelNameWithoutNamespace) == "" {
+		return "", ErrModelNameEmpty
+	}
+	if namespace != "openrouter" {
+		return modelNameWithoutNamespace, nil
+	}
+
+	_, nestedModelName, hasNestedNamespace := strings.Cut(modelNameWithoutNamespace, "/")
+	if !hasNestedNamespace {
+		return modelName, nil
+	}
+	if strings.TrimSpace(nestedModelName) == "" {
+		return "", ErrModelNameEmpty
+	}
+	return nestedModelName, nil
 }
 
 func ResolveChannelModelTarget(

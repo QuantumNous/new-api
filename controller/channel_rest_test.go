@@ -263,7 +263,7 @@ func TestAddChannel_RejectsCanonicalCollision(t *testing.T) {
 			"name":   "OpenRouter collision",
 			"type":   constant.ChannelTypeOpenRouter,
 			"key":    "sk-test",
-			"models": "anthropic/claude-fable-5,openrouter/claude-fable-5",
+			"models": "anthropic/claude-fable-5,other-provider/claude-fable-5",
 			"group":  "default",
 			"status": common.ChannelStatusEnabled,
 		},
