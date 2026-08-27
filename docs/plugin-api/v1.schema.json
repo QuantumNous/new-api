@@ -16,5 +16,18 @@
     ]}},
     "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}}, "usageSchema": {"type": "object"}, "usageExamples": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "facts"], "properties": {"label": {"type": "string"}, "facts": {"type": "object"}}}}, "auth": {}
   },
-  "$defs": {"route": {"type": "object", "additionalProperties": false, "required": ["method", "path", "type", "render"], "properties": {"method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]}, "path": {"type": "string", "pattern": "^/"}, "type": {"enum": ["submit", "query", "dynamic"]}, "action": {"type": "string"}, "taskIdParam": {"type": "string"}, "decode": {"type": "string"}, "render": {"type": "string"}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}, "allOf": [{"if": {"properties": {"type": {"const": "query"}}}, "then": {"allOf": [{"not": {"required": ["decode"]}}, {"not": {"required": ["models"]}}]}}, {"if": {"properties": {"type": {"enum": ["submit", "dynamic"]}}}, "then": {"required": ["decode"]}}]}}
+  "$defs": {
+    "filePlaceholder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["__fileRef", "encoding"],
+      "properties": {
+        "__fileRef": {"type": "string", "minLength": 1},
+        "encoding": {"enum": ["base64", "dataUrl"]},
+        "mimeType": {"type": "string", "minLength": 1},
+        "maxBytes": {"type": "integer", "exclusiveMinimum": 0}
+      }
+    },
+    "route": {"type": "object", "additionalProperties": false, "required": ["method", "path", "type", "render"], "properties": {"method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]}, "path": {"type": "string", "pattern": "^/"}, "type": {"enum": ["submit", "query", "dynamic"]}, "action": {"type": "string"}, "taskIdParam": {"type": "string"}, "decode": {"type": "string"}, "render": {"type": "string"}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}, "allOf": [{"if": {"properties": {"type": {"const": "query"}}}, "then": {"allOf": [{"not": {"required": ["decode"]}}, {"not": {"required": ["models"]}}]}}, {"if": {"properties": {"type": {"enum": ["submit", "dynamic"]}}}, "then": {"required": ["decode"]}}]}
+  }
 }

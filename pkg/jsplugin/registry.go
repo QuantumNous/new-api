@@ -65,7 +65,7 @@ type AuthMeta struct {
 
 // UsageFieldSchema declares how one usage fact is validated before it can
 // influence billing. Numeric facts use one of the host-owned canonical units;
-// enum facts constrain non-numeric pricing selectors.
+// boolean facts are flags; enum facts constrain non-numeric pricing selectors.
 type UsageFieldSchema struct {
 	Type        string   `json:"type,omitempty"`
 	Unit        string   `json:"unit,omitempty"`
@@ -1067,8 +1067,14 @@ func validateUsageFieldSchema(name string, field UsageFieldSchema) error {
 		}
 		return nil
 	}
+	if field.Type == "boolean" {
+		if field.Unit != "" {
+			return fmt.Errorf("plugin meta usageSchema field %q cannot combine boolean with unit", name)
+		}
+		return nil
+	}
 	if field.Type != "number" {
-		return fmt.Errorf("plugin meta usageSchema field %q type must be number", name)
+		return fmt.Errorf("plugin meta usageSchema field %q type must be number or boolean", name)
 	}
 	if field.Unit != "second" && field.Unit != "count" && field.Unit != "token" && field.Unit != "credit" {
 		return fmt.Errorf("plugin meta usageSchema field %q unit must be second, count, token, or credit", name)
@@ -1180,6 +1186,12 @@ func validateUsageExampleValue(value any, field UsageFieldSchema) error {
 			return nil
 		}
 		return fmt.Errorf("enum is not an allowed value")
+	}
+	if field.Type == "boolean" {
+		if _, ok := value.(bool); !ok {
+			return fmt.Errorf("must be a boolean")
+		}
+		return nil
 	}
 	number, ok := usageExampleNumber(value)
 	if !ok {

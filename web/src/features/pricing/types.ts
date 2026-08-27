@@ -30,7 +30,7 @@ export type PricingVendor = {
 export type BillingUsageUnit = 'second' | 'count' | 'token' | 'credit'
 
 export type BillingUsageFieldSchema = {
-  type?: 'number'
+  type?: 'number' | 'boolean'
   unit?: BillingUsageUnit
   enum?: string[]
   description?: string

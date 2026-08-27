@@ -184,8 +184,9 @@ func TestRegistryDecodesAndValidatesUsageSchema(t *testing.T) {
 			tokens: {type: "number", unit: "token", description: "Upstream billing tokens."},
 			credits: {type: "number", unit: "credit", description: "Vendor resource-pack units."},
 			mode: {enum: ["std", "pro"], description: "Provider quality tier."},
+			generate_audio: {type: "boolean", description: "Whether audio is generated."},
 		},
-		usageExamples: [{label: "std · 1s", facts: {duration: 1, count: 1, tokens: 1, credits: 1, mode: "std"}}],`,
+		usageExamples: [{label: "std · 1s", facts: {duration: 1, count: 1, tokens: 1, credits: 1, mode: "std", generate_audio: true}}],`,
 		"",
 	)
 	plugin, err := CompilePlugin(valid, Options{})
@@ -203,6 +204,8 @@ func TestRegistryDecodesAndValidatesUsageSchema(t *testing.T) {
 	assert.Equal(t, "Vendor resource-pack units.", plugin.Meta.UsageSchema["credits"].Description)
 	assert.Equal(t, []string{"std", "pro"}, plugin.Meta.UsageSchema["mode"].Enum)
 	assert.Equal(t, "Provider quality tier.", plugin.Meta.UsageSchema["mode"].Description)
+	assert.Equal(t, "boolean", plugin.Meta.UsageSchema["generate_audio"].Type)
+	assert.Equal(t, "Whether audio is generated.", plugin.Meta.UsageSchema["generate_audio"].Description)
 	require.Len(t, plugin.Meta.UsageExamples, 1)
 	assert.Equal(t, "std · 1s", plugin.Meta.UsageExamples[0].Label)
 	assert.Equal(t, int64(1), plugin.Meta.UsageExamples[0].Facts["tokens"])
@@ -216,6 +219,11 @@ func TestRegistryDecodesAndValidatesUsageSchema(t *testing.T) {
 			name:          "unsupported numeric unit",
 			declaration:   `{type: "number", unit: "minute"}`,
 			expectedError: "unit must be second, count, token, or credit",
+		},
+		{
+			name:          "boolean cannot mix unit",
+			declaration:   `{type: "boolean", unit: "second"}`,
+			expectedError: "cannot combine boolean with unit",
 		},
 		{
 			name:          "enum cannot mix numeric shape",

@@ -44,13 +44,14 @@ func TestVertexAIResponsesProtocol(t *testing.T) {
 	})
 
 	t.Run("declares documented usage facts", func(t *testing.T) {
-		require.Len(t, plugin.Meta.UsageSchema, 2)
-		for _, key := range []string{"seconds", "resolution"} {
+		require.Len(t, plugin.Meta.UsageSchema, 3)
+		for _, key := range []string{"seconds", "resolution", "generate_audio"} {
 			schema, exists := plugin.Meta.UsageSchema[key]
 			require.True(t, exists, key)
 			assert.NotEmpty(t, schema.Description, key)
 		}
 		assert.Equal(t, []string{"720p", "1080p", "4k"}, plugin.Meta.UsageSchema["resolution"].Enum)
+		assert.Equal(t, "boolean", plugin.Meta.UsageSchema["generate_audio"].Type)
 	})
 
 	callProtocol := func(t *testing.T, hook string, args ...any) any {
@@ -111,13 +112,13 @@ func TestVertexAIResponsesProtocol(t *testing.T) {
 			"usagePurpose": "facts",
 		})
 		require.NoError(t, callErr)
-		assert.Equal(t, map[string]any{"seconds": int64(8), "resolution": "1080p"}, value)
+		assert.Equal(t, map[string]any{"seconds": int64(8), "resolution": "1080p", "generate_audio": true}, value)
 
 		value, callErr = plugin.Engine.Call(t.Context(), "extractUsageOnComplete", nil, map[string]any{}, map[string]any{
 			"response": map[string]any{"videos": []any{map[string]any{"durationSeconds": 7, "resolution": "4K"}}},
 		})
 		require.NoError(t, callErr)
-		assert.Equal(t, map[string]any{"seconds": int64(7), "resolution": "4k"}, value)
+		assert.Nil(t, value)
 	})
 
 	protocolContext := map[string]any{

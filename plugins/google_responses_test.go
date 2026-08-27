@@ -24,7 +24,7 @@ func TestGoogleResponsesProtocol(t *testing.T) {
 			"size":     "1280x720",
 			"metadata": map[string]any{},
 		},
-		wantUsageKeys:  []string{"seconds"},
+		wantUsageKeys:  []string{"resolution", "seconds"},
 		wantVendorName: "gemini",
 	})
 }

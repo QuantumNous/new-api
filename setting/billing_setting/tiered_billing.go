@@ -167,6 +167,10 @@ func taskUsageSmokeVectors(schema map[string]jsplugin.UsageFieldSchema) []map[st
 			dimensions = append(dimensions, usageSmokeDimension{name: name, values: values})
 			continue
 		}
+		if field.Type == "boolean" {
+			dimensions = append(dimensions, usageSmokeDimension{name: name, values: []any{false, true}})
+			continue
+		}
 		limit := relaycommon.MaxTaskDurationSeconds
 		if field.Unit == "count" {
 			limit = dto.MaxImageN

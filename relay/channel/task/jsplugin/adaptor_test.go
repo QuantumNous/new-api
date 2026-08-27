@@ -3,15 +3,18 @@ package jsplugin
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"io"
 	"math"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
@@ -110,6 +113,102 @@ export function parseSubmitResponse(ctx,r){return {taskId:"1"}} export function 
 	content, err := io.ReadAll(opened)
 	require.NoError(t, err)
 	assert.Equal(t, "image-bytes", string(content))
+}
+
+func TestTaskAdaptorInlinesJSONFilePlaceholders(t *testing.T) {
+	const fileBytes = "image-bytes"
+	encoded := base64.StdEncoding.EncodeToString([]byte(fileBytes))
+	source := `
+export const meta = {apiVersion:1,key:"json-inline",name:"JSON Inline",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"per_task"};
+export function buildSubmitRequest(ctx) {
+  return {url:ctx.baseUrl+"/submit",body:{
+    prompt:"p",
+    image:{__fileRef:ctx.files[0].ref,encoding:"base64"},
+    nested:{items:[{__fileRef:ctx.files[0].ref,encoding:"dataUrl",mimeType:"image/png"}]},
+    dataUrl:{__fileRef:ctx.files[0].ref,encoding:"dataUrl"}
+  }};
+}
+export function parseSubmitResponse(){return {taskId:"1"}} export function buildQueryRequest(){return {url:"https://example.com"}} export function parseTaskResult(){return {status:"SUCCESS"}}
+`
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+	adaptor.Init(info)
+	c := newMultipartFileContext(t, "input_reference", "ref.png", "image/jpeg", []byte(fileBytes))
+	c.Set("task_request", map[string]any{"prompt": "p"})
+	body, err := adaptor.BuildRequestBody(c, info)
+	require.NoError(t, err)
+	requestBytes, err := io.ReadAll(body)
+	require.NoError(t, err)
+	var decoded map[string]any
+	require.NoError(t, common.Unmarshal(requestBytes, &decoded))
+	assert.Equal(t, "p", decoded["prompt"])
+	assert.Equal(t, encoded, decoded["image"])
+	nested := decoded["nested"].(map[string]any)
+	items := nested["items"].([]any)
+	require.Len(t, items, 1)
+	assert.Equal(t, "data:image/png;base64,"+encoded, items[0])
+	assert.Equal(t, "data:image/jpeg;base64,"+encoded, decoded["dataUrl"])
+}
+
+func TestTaskAdaptorJSONFilePlaceholderErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		part        string
+		fileSize    int
+		globalMB    int
+		wantContain string
+	}{
+		{name: "unknown ref", part: `{__fileRef:"request_file:missing",encoding:"base64"}`, fileSize: 4, wantContain: `unknown file reference "request_file:missing"`},
+		{name: "extra key", part: `{__fileRef:"request_file:input_reference",encoding:"base64",extra:true}`, fileSize: 4, wantContain: "invalid file placeholder"},
+		{name: "missing encoding", part: `{__fileRef:"request_file:input_reference"}`, fileSize: 4, wantContain: "encoding"},
+		{name: "oversize maxBytes", part: `{__fileRef:"request_file:input_reference",encoding:"base64",maxBytes:3}`, fileSize: 4, wantContain: "3 byte limit"},
+		{name: "oversize global", part: `{__fileRef:"request_file:input_reference",encoding:"base64"}`, fileSize: 2 << 20, globalMB: 1, wantContain: "1048576 byte limit"},
+		{name: "multiple references cap", part: `{a:{__fileRef:"request_file:input_reference",encoding:"base64"},b:{__fileRef:"request_file:input_reference",encoding:"base64"}}`, fileSize: 700 << 10, globalMB: 1, wantContain: "1048576 byte limit"},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			if testCase.globalMB > 0 {
+				previous := constant.MaxFileDownloadMB
+				constant.MaxFileDownloadMB = testCase.globalMB
+				t.Cleanup(func() { constant.MaxFileDownloadMB = previous })
+			}
+			source := strings.Replace(`
+export const meta = {apiVersion:1,key:"json-inline-err",name:"JSON Inline Err",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"per_task"};
+export function buildSubmitRequest() { return {url:"https://provider.example/submit",body:PLACEHOLDER}; }
+export function parseSubmitResponse(){return {taskId:"1"}} export function buildQueryRequest(){return {url:"https://example.com"}} export function parseTaskResult(){return {status:"SUCCESS"}}
+`, "PLACEHOLDER", testCase.part, 1)
+			plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+			require.NoError(t, err)
+			adaptor := New(plugin)
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+			adaptor.Init(info)
+			c := newMultipartFileContext(t, "input_reference", "ref.bin", "application/octet-stream", bytes.Repeat([]byte("x"), testCase.fileSize))
+			c.Set("task_request", map[string]any{"prompt": "p"})
+			_, err = adaptor.BuildRequestBody(c, info)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), testCase.wantContain)
+		})
+	}
+}
+
+func newMultipartFileContext(t *testing.T, field, filename, contentType string, content []byte) *gin.Context {
+	t.Helper()
+	var input bytes.Buffer
+	writer := multipart.NewWriter(&input)
+	part, err := writer.CreatePart(textproto.MIMEHeader{
+		"Content-Disposition": {`form-data; name="` + field + `"; filename="` + filename + `"`},
+		"Content-Type":        {contentType},
+	})
+	require.NoError(t, err)
+	_, err = part.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", bytes.NewReader(input.Bytes()))
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	return c
 }
 
 func TestTaskAdaptorDoesNotEmitInjectedMultipartDispositionHeaders(t *testing.T) {

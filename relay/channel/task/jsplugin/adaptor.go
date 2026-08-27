@@ -3,6 +3,7 @@ package jsplugin
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"maps"
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/logger"
@@ -285,11 +287,134 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if text, ok := descriptor.Body.(string); ok {
 		return strings.NewReader(text), nil
 	}
-	body, err := common.Marshal(descriptor.Body)
+	inlined, err := inlineJSONFilePlaceholders(c, descriptor.Body)
+	if err != nil {
+		return nil, err
+	}
+	body, err := common.Marshal(inlined)
 	if err != nil {
 		return nil, err
 	}
 	return bytes.NewReader(body), nil
+}
+
+func maxInlineFileBytes() int64 {
+	limitMB := constant.MaxFileDownloadMB
+	if limitMB <= 0 {
+		limitMB = 64
+	}
+	return int64(limitMB) << 20
+}
+
+func inlineJSONFilePlaceholders(c *gin.Context, body any) (any, error) {
+	cloned := jsonValue(body)
+	var form *multipart.Form
+	if c != nil && c.Request != nil && strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data") {
+		parsed, parseErr := common.ParseMultipartFormReusable(c)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		form = parsed
+		defer form.RemoveAll()
+	}
+	limit := maxInlineFileBytes()
+	var total int64
+	return replaceJSONFilePlaceholders(cloned, form, limit, &total)
+}
+
+func replaceJSONFilePlaceholders(value any, form *multipart.Form, limit int64, total *int64) (any, error) {
+	switch typed := value.(type) {
+	case map[string]any:
+		if _, isPlaceholder := typed["__fileRef"]; isPlaceholder {
+			return encodeFilePlaceholder(typed, form, limit, total)
+		}
+		for key, item := range typed {
+			replaced, err := replaceJSONFilePlaceholders(item, form, limit, total)
+			if err != nil {
+				return nil, err
+			}
+			typed[key] = replaced
+		}
+		return typed, nil
+	case []any:
+		for index, item := range typed {
+			replaced, err := replaceJSONFilePlaceholders(item, form, limit, total)
+			if err != nil {
+				return nil, err
+			}
+			typed[index] = replaced
+		}
+		return typed, nil
+	default:
+		return value, nil
+	}
+}
+
+func encodeFilePlaceholder(placeholder map[string]any, form *multipart.Form, limit int64, total *int64) (string, error) {
+	for key := range placeholder {
+		switch key {
+		case "__fileRef", "encoding", "mimeType", "maxBytes":
+		default:
+			return "", fmt.Errorf("invalid file placeholder")
+		}
+	}
+	ref, _ := placeholder["__fileRef"].(string)
+	if strings.TrimSpace(ref) == "" {
+		return "", fmt.Errorf("unknown file reference %q", ref)
+	}
+	encoding, _ := placeholder["encoding"].(string)
+	if encoding != "base64" && encoding != "dataUrl" {
+		return "", fmt.Errorf("file placeholder encoding must be \"base64\" or \"dataUrl\"")
+	}
+	if form == nil {
+		return "", fmt.Errorf("unknown file reference %q", ref)
+	}
+	field := strings.TrimPrefix(ref, "request_file:")
+	files := form.File[field]
+	if len(files) == 0 {
+		return "", fmt.Errorf("unknown file reference %q", ref)
+	}
+	header := files[0]
+	maxBytes := limit
+	if raw, exists := placeholder["maxBytes"]; exists {
+		n, ok := usageNumber(raw, false)
+		if !ok || n <= 0 || n != math.Trunc(n) {
+			return "", fmt.Errorf("invalid file placeholder")
+		}
+		if int64(n) < maxBytes {
+			maxBytes = int64(n)
+		}
+	}
+	if header.Size > maxBytes {
+		return "", fmt.Errorf("file %q exceeds the %d byte limit", ref, maxBytes)
+	}
+	file, openErr := header.Open()
+	if openErr != nil {
+		return "", openErr
+	}
+	data, readErr := io.ReadAll(io.LimitReader(file, maxBytes+1))
+	file.Close()
+	if readErr != nil {
+		return "", readErr
+	}
+	if int64(len(data)) > maxBytes {
+		return "", fmt.Errorf("file %q exceeds the %d byte limit", ref, maxBytes)
+	}
+	if *total+int64(len(data)) > limit {
+		return "", fmt.Errorf("inlined files exceed the %d byte limit", limit)
+	}
+	*total += int64(len(data))
+	encoded := base64.StdEncoding.EncodeToString(data)
+	if encoding == "base64" {
+		return encoded, nil
+	}
+	mimeType := "application/octet-stream"
+	if override, ok := placeholder["mimeType"].(string); ok && strings.TrimSpace(override) != "" {
+		mimeType = override
+	} else if contentType := header.Header.Get("Content-Type"); contentType != "" {
+		mimeType = contentType
+	}
+	return "data:" + mimeType + ";base64," + encoded, nil
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, body io.Reader) (*http.Response, error) {
@@ -1171,6 +1296,12 @@ func validateUsageValue(value any, schema pluginruntime.UsageFieldSchema, allowN
 			return 0, nil
 		}
 		return 0, fmt.Errorf("plugin usage enum is not an allowed value")
+	}
+	if schema.Type == "boolean" {
+		if _, ok := value.(bool); !ok {
+			return 0, fmt.Errorf("plugin usage value must be a boolean")
+		}
+		return 0, nil
 	}
 	number, ok := usageNumber(value, allowNumericString)
 	if !ok {

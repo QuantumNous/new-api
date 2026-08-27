@@ -9,8 +9,18 @@ export const meta = {
   models: ["veo-3.0-generate-001", "veo-3.0-fast-generate-001", "veo-3.1-generate-preview", "veo-3.1-fast-generate-preview"],
   fetchMode: "per_task",
   usageSchema: {
-    seconds: { type: "number", unit: "second", description: "Requested video duration in seconds." },
+    seconds: { type: "number", unit: "second", description: "Requested video duration in seconds. Allowed values: 4, 6, 8." },
+    resolution: {
+      enum: ["720p", "1080p", "4k"],
+      description: "Requested video output resolution. Veo prices differ per resolution tier.",
+    },
   },
+  usageExamples: [
+    { label: "8s × 720p", facts: { seconds: 8, resolution: "720p" } },
+    { label: "8s × 1080p", facts: { seconds: 8, resolution: "1080p" } },
+    { label: "8s × 4k", facts: { seconds: 8, resolution: "4k" } },
+    { label: "4s × 720p", facts: { seconds: 4, resolution: "720p" } },
+  ],
   protocols: ["openai_responses", "openai_video"],
 };
 
@@ -87,14 +97,26 @@ function aspectForSize(size) {
   return parts[1] > parts[0] ? "9:16" : "16:9";
 }
 
-function imageInput(value) {
+function imageInput(value, files) {
+  if (value && typeof value === "object" && !Array.isArray(value) && value.__fileRef) {
+    let mime = value.mimeType || "";
+    if (!mime && files) {
+      for (const file of files) {
+        if (file.ref === value.__fileRef || file.field === "input_reference") {
+          mime = file.mimeType || "";
+          break;
+        }
+      }
+    }
+    return { inlineData: { mimeType: mime || "application/octet-stream", data: value } };
+  }
   value = String(value || "").trim();
   if (!value) return null;
   if (value.startsWith("data:")) {
     const comma = value.indexOf(",");
     if (comma < 0 || !value.slice(comma + 1)) return null;
     const mediaType = value.slice(5, comma).split(";")[0];
-    return { bytesBase64Encoded: value.slice(comma + 1), mimeType: mediaType || "application/octet-stream" };
+    return { inlineData: { mimeType: mediaType || "application/octet-stream", data: value.slice(comma + 1) } };
   }
   // Raw base64 input is accepted by the Go adaptor. The common fixtures use
   // PNG data; browser-free plugins cannot invoke net/http DetectContentType.
@@ -104,20 +126,20 @@ function imageInput(value) {
   else if (value.startsWith("/9j/")) mime = "image/jpeg";
   else if (value.startsWith("R0lGOD")) mime = "image/gif";
   else if (value.startsWith("UklGR")) mime = "image/webp";
-  return { bytesBase64Encoded: value, mimeType: mime };
+  return { inlineData: { mimeType: mime, data: value } };
 }
 
 function converted(ctx) {
   const req = ctx.requestBody || {};
   const metadata = Object.assign({}, req.metadata || {});
   const params = Object.assign({}, metadata);
-  if (!params.durationSeconds && Number(req.duration) > 0) params.durationSeconds = Number(req.duration);
+  if (Number(req.duration) > 0) params.durationSeconds = Number(req.duration);
   if (!params.resolution && req.size) params.resolution = resolutionForSize(req.size);
   if (!params.aspectRatio && req.size) params.aspectRatio = aspectForSize(req.size);
   if (params.resolution) params.resolution = String(params.resolution).toLowerCase();
-  params.sampleCount = 1;
+  params.numberOfVideos = 1;
   const instance = { prompt: req.prompt };
-  const image = imageInput((req.images || [])[0]);
+  const image = imageInput((req.images || [])[0], ctx.files);
   if (image) instance.image = image;
   return { body: { instances: [instance], parameters: params }, action: image ? "image_to_video" : "text_to_video" };
 }
@@ -153,24 +175,14 @@ export function parseSubmitResponse(ctx, resp) {
 export function extractUsage(ctx) {
   const req = ctx.requestBody || {};
   const metadata = req.metadata || {};
-  let seconds = Number(metadata.durationSeconds || req.duration || req.seconds || 8);
+  let seconds = Number(req.duration);
   if (!Number.isFinite(seconds) || seconds <= 0) seconds = 8;
-  seconds = Math.min(seconds, 3600);
-  if (ctx.usagePurpose === "billing_ratios") {
-    const resolution = String(metadata.resolution || resolutionForSize(req.size) || "720p").toLowerCase();
-    let ratio = 1;
-    if (resolution === "4k" && String(ctx.upstreamModel).includes("3.1-fast-generate")) ratio = 2.333333;
-    else if (resolution === "4k" && String(ctx.upstreamModel).includes("3.1")) ratio = 1.5;
-    return { seconds: seconds, resolution: ratio };
-  }
-  return { seconds: seconds };
+  const resolution = String(metadata.resolution || resolutionForSize(req.size) || "720p").toLowerCase();
+  return { seconds: seconds, resolution: resolution };
 }
 
-export function extractUsageOnComplete(task, taskResult, body) {
-  const videos = (((body || {}).response || {}).generateVideoResponse || {}).generatedVideos || [];
-  const video = videos.length ? videos[0].video || {} : {};
-  const seconds = Number(video.durationSeconds || video.duration || 0);
-  return Number.isFinite(seconds) && seconds > 0 ? { seconds: Math.min(seconds, 3600) } : {};
+export function extractUsageOnComplete() {
+  return null;
 }
 
 export function buildQueryRequest(ctx) {
@@ -293,15 +305,59 @@ const legacyRenderers = {
 
 protocols.openai_video = {
   decodeRequest: function (ctx) {
-    if (!ctx.body || ctx.body.kind !== "json" || !ctx.body.value || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
-    const req = ctx.body.value;
+    if (!ctx.body || (ctx.body.kind !== "json" && ctx.body.kind !== "multipart")) throw new Error("JSON or multipart body required");
+    let req;
+    let hasInputReferenceFile = false;
+    if (ctx.body.kind === "json") {
+      if (!ctx.body.value || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
+      req = Object.assign({}, ctx.body.value);
+    } else {
+      const first = function (name) {
+        const values = (ctx.body.fields || {})[name] || [];
+        if (values.length > 1) throw new Error(name + " must be provided once");
+        return values[0];
+      };
+      req = {};
+      const fields = ctx.body.fields || {};
+      for (const name of Object.keys(fields)) {
+        req[name] = first(name);
+      }
+      for (const file of ctx.body.files || []) {
+        if (file.field !== "input_reference") throw new Error("unexpected file field: " + file.field);
+        if (hasInputReferenceFile) throw new Error("input_reference must be provided once");
+        hasInputReferenceFile = true;
+      }
+      if (req.metadata !== undefined) {
+        let parsed;
+        try {
+          parsed = JSON.parse(req.metadata);
+        } catch {
+          throw new Error("metadata must be a JSON object string");
+        }
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("metadata must be a JSON object string");
+        req.metadata = parsed;
+      }
+      if (req.seconds !== undefined) req.seconds = Number(req.seconds);
+      else if (req.duration !== undefined) req.seconds = Number(req.duration);
+    }
     const seconds = req.seconds === undefined ? req.duration : req.seconds;
-    if (seconds !== undefined && (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0 || Number(seconds) > 3600))
-      throw new Error("seconds must be between 1 and 3600");
+    if (seconds !== undefined) {
+      const n = Number(seconds);
+      if (n !== 4 && n !== 6 && n !== 8) throw new Error("seconds must be one of 4, 6, or 8");
+      req.duration = n;
+    }
+    const providedResolution = req.resolution !== undefined ? req.resolution : req.metadata && req.metadata.resolution;
+    if (providedResolution !== undefined && providedResolution !== "") {
+      const resolution = String(providedResolution).toLowerCase();
+      if (resolution !== "720p" && resolution !== "1080p" && resolution !== "4k") throw new Error("resolution must be one of 720p, 1080p, or 4k");
+    }
+    if (hasInputReferenceFile) {
+      req.images = [{ __fileRef: "request_file:input_reference", encoding: "base64", maxBytes: 20971520 }];
+    }
     return {
       kind: "submit",
       model: ctx.model,
-      action: req.input_reference || req.image ? "image_to_video" : "text_to_video",
+      action: hasInputReferenceFile || req.input_reference || req.image ? "image_to_video" : "text_to_video",
       requestBody: Object.assign({}, req, { model: ctx.model }),
     };
   },
