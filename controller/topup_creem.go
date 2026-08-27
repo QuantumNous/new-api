@@ -151,6 +151,11 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 }
 
 func RequestCreemPay(c *gin.Context) {
+	if !isCreemTopUpEnabled() {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "在线充值暂未开启"})
+		return
+	}
+
 	var req CreemPayRequest
 
 	// 读取body内容用于打印，同时保留原始数据供后续使用

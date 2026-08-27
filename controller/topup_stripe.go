@@ -142,6 +142,11 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 }
 
 func RequestStripeAmount(c *gin.Context) {
+	if !isStripeTopUpEnabled() {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "在线充值暂未开启"})
+		return
+	}
+
 	var req StripePayRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
@@ -152,6 +157,11 @@ func RequestStripeAmount(c *gin.Context) {
 }
 
 func RequestStripePay(c *gin.Context) {
+	if !isStripeTopUpEnabled() {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "在线充值暂未开启"})
+		return
+	}
+
 	var req StripePayRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {

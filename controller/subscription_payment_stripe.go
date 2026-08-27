@@ -24,6 +24,10 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
 		return
 	}
+	if !isStripeTopUpEnabled() {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "在线支付暂未开启"})
+		return
+	}
 
 	var req SubscriptionStripePayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {

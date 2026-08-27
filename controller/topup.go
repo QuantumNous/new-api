@@ -27,7 +27,7 @@ func GetTopUpInfo(c *gin.Context) {
 
 	// 获取支付方式
 	payMethods := operation_setting.PayMethods
-	if !complianceConfirmed {
+	if !complianceConfirmed || !setting.WalletOnlinePaymentEnabled {
 		payMethods = []map[string]string{}
 	}
 
@@ -102,7 +102,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
-		"enable_redemption":                complianceConfirmed,
+		"enable_redemption":                true,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,
 		"waffo_pay_methods": func() interface{} {
@@ -265,6 +265,11 @@ func rejectInvalidTopUpQuota(c *gin.Context, userId int, amount int64) bool {
 }
 
 func RequestEpay(c *gin.Context) {
+	if !isEpayTopUpEnabled() {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "在线充值暂未开启"})
+		return
+	}
+
 	var req EpayRequest
 	err := c.ShouldBindJSON(&req)
 	if err != nil {

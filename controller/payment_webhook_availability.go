@@ -12,9 +12,10 @@ func isPaymentComplianceConfirmed() bool {
 }
 
 func isStripeTopUpEnabled() bool {
-	if !isPaymentComplianceConfirmed() {
-		return false
-	}
+	return setting.WalletOnlinePaymentEnabled && isPaymentComplianceConfirmed() && isStripeConfigured()
+}
+
+func isStripeConfigured() bool {
 	return strings.TrimSpace(setting.StripeApiSecret) != "" &&
 		strings.TrimSpace(setting.StripeWebhookSecret) != "" &&
 		strings.TrimSpace(setting.StripePriceId) != ""
@@ -25,13 +26,14 @@ func isStripeWebhookConfigured() bool {
 }
 
 func isStripeWebhookEnabled() bool {
-	return isStripeTopUpEnabled()
+	return isPaymentComplianceConfirmed() && isStripeConfigured()
 }
 
 func isCreemTopUpEnabled() bool {
-	if !isPaymentComplianceConfirmed() {
-		return false
-	}
+	return setting.WalletOnlinePaymentEnabled && isPaymentComplianceConfirmed() && isCreemConfigured()
+}
+
+func isCreemConfigured() bool {
 	products := strings.TrimSpace(setting.CreemProducts)
 	return strings.TrimSpace(setting.CreemApiKey) != "" &&
 		products != "" &&
@@ -43,11 +45,11 @@ func isCreemWebhookConfigured() bool {
 }
 
 func isCreemWebhookEnabled() bool {
-	return isCreemTopUpEnabled() && isCreemWebhookConfigured()
+	return isPaymentComplianceConfirmed() && isCreemWebhookConfigured() && isCreemConfigured()
 }
 
 func isWaffoTopUpEnabled() bool {
-	if !isPaymentComplianceConfirmed() {
+	if !setting.WalletOnlinePaymentEnabled || !isPaymentComplianceConfirmed() {
 		return false
 	}
 	if !setting.WaffoEnabled {
@@ -70,15 +72,20 @@ func isWaffoWebhookConfigured() bool {
 }
 
 func isWaffoWebhookEnabled() bool {
-	return isWaffoTopUpEnabled()
+	return isPaymentComplianceConfirmed() && setting.WaffoEnabled && isWaffoWebhookConfigured()
 }
 
 func isWaffoPancakeTopUpEnabled() bool {
-	if !isPaymentComplianceConfirmed() {
+	if !setting.WalletOnlinePaymentEnabled || !isPaymentComplianceConfirmed() {
 		return false
 	}
-	// Presence-of-credentials = enabled. Webhook public keys ship inside
-	// the SDK; mode (test/prod) is read from each event.
+	return isWaffoPancakeWebhookConfigured()
+}
+
+func isWaffoPancakeWebhookConfigured() bool {
+	// Presence-of-credentials = configured. Webhook processing intentionally
+	// does not depend on WalletOnlinePaymentEnabled so delayed notifications for
+	// orders created before a shutdown can still be verified and settled.
 	return strings.TrimSpace(setting.WaffoPancakeMerchantID) != "" &&
 		strings.TrimSpace(setting.WaffoPancakePrivateKey) != "" &&
 		strings.TrimSpace(setting.WaffoPancakeStoreID) != "" &&
@@ -87,16 +94,12 @@ func isWaffoPancakeTopUpEnabled() bool {
 		strings.TrimSpace(setting.WaffoPancakeTopUpProduct1000ID) != ""
 }
 
-func isWaffoPancakeWebhookConfigured() bool {
-	return isWaffoPancakeTopUpEnabled()
-}
-
 func isWaffoPancakeWebhookEnabled() bool {
-	return isWaffoPancakeTopUpEnabled()
+	return isPaymentComplianceConfirmed() && isWaffoPancakeWebhookConfigured()
 }
 
 func isEpayTopUpEnabled() bool {
-	if !isPaymentComplianceConfirmed() {
+	if !setting.WalletOnlinePaymentEnabled || !isPaymentComplianceConfirmed() {
 		return false
 	}
 	return isEpayWebhookConfigured() && len(operation_setting.PayMethods) > 0
@@ -109,5 +112,5 @@ func isEpayWebhookConfigured() bool {
 }
 
 func isEpayWebhookEnabled() bool {
-	return isEpayTopUpEnabled()
+	return isPaymentComplianceConfirmed() && isEpayWebhookConfigured() && len(operation_setting.PayMethods) > 0
 }

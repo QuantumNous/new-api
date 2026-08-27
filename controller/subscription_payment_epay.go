@@ -25,6 +25,10 @@ func SubscriptionRequestEpay(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
 		return
 	}
+	if !isEpayTopUpEnabled() {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "在线支付暂未开启"})
+		return
+	}
 
 	var req SubscriptionEpayPayRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {

@@ -505,13 +505,7 @@ export function RechargeFormCard({
             </>
           )}
         </div>
-      ) : (
-        <Alert>
-          <AlertDescription>
-            {t('Online topup is not enabled. Please contact administrator.')}
-          </AlertDescription>
-        </Alert>
-      )}
+      ) : null}
 
       {/* Creem Products Section */}
       {enableCreemTopup &&

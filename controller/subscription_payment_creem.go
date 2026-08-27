@@ -24,6 +24,10 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	if !requirePaymentCompliance(c) {
 		return
 	}
+	if !isCreemTopUpEnabled() {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "在线支付暂未开启"})
+		return
+	}
 
 	var req SubscriptionCreemPayRequest
 
