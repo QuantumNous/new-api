@@ -48,6 +48,8 @@ services:
     image: redis:7-alpine
     container_name: new-api-dev-redis
     restart: unless-stopped
+    volumes:
+      - dev_redis_data:/data
     networks:
       - dev-network
 
@@ -72,6 +74,7 @@ services:
 volumes:
   dev_data:
   dev_pg_data:
+  dev_redis_data:
 
 networks:
   dev-network:
