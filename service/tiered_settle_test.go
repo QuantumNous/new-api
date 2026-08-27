@@ -404,7 +404,7 @@ func TestPrepareTieredBillingForSelectedGroupStartsBillingAfterFreeGroup(t *test
 
 	userQuota, err := model.GetUserQuota(userID, false)
 	require.NoError(t, err)
-	assert.Equal(t, 400_000, userQuota)
+	assert.Equal(t, int64(400_000), userQuota)
 }
 
 func TestPrepareTieredBillingForSelectedGroupPaidToFreeKeepsFreeModelFalse(t *testing.T) {
@@ -479,14 +479,14 @@ func TestPrepareTieredBillingForSelectedGroupTopUpArrearsAllowsNegativeBalance(t
 	assert.Equal(t, 100_000, relayInfo.TieredBillingSnapshot.EstimatedQuotaAfterGroup)
 	userQuota, err := model.GetUserQuota(userID, false)
 	require.NoError(t, err)
-	assert.Equal(t, -30_000, userQuota)
+	assert.Equal(t, int64(-30_000), userQuota)
 
 	// Settlement still reconciles against the full reservation: actual 80k
 	// refunds the 20k over-reserve, landing at seed - (actual - initial) = -10k.
 	require.NoError(t, session.Settle(80_000))
 	userQuota, err = model.GetUserQuota(userID, false)
 	require.NoError(t, err)
-	assert.Equal(t, -10_000, userQuota)
+	assert.Equal(t, int64(-10_000), userQuota)
 }
 
 func TestBillingSessionReserveWalletTopUpDecrementsBalance(t *testing.T) {
@@ -511,7 +511,7 @@ func TestBillingSessionReserveWalletTopUpDecrementsBalance(t *testing.T) {
 	assert.Equal(t, 100_000, relayInfo.FinalPreConsumedQuota)
 	userQuota, err := model.GetUserQuota(userID, false)
 	require.NoError(t, err)
-	assert.Equal(t, 450_000, userQuota)
+	assert.Equal(t, int64(450_000), userQuota)
 }
 
 func TestTryTieredSettleUsesFinalGroupAfterRetry(t *testing.T) {

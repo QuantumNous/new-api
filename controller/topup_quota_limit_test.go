@@ -140,10 +140,12 @@ func TestRequestAmountRejectsTopUpThatWouldOverflowWallet(t *testing.T) {
 		}
 	})
 
+	// 钱包聚合上限为 common.MaxWalletQuota（$2,000,000）：当前余额已贴近上限，
+	// 再充值 4294 单位（约 $4294 × QuotaPerUnit）必须被 capacity guard 拒绝。
 	require.NoError(t, model.DB.Create(&model.User{
 		Id:       42,
 		Username: "topup_capacity_user",
-		Quota:    1_000_000,
+		Quota:    common.MaxWalletQuota - 1_000_000_000,
 		Status:   common.UserStatusEnabled,
 	}).Error)
 

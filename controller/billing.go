@@ -9,7 +9,7 @@ import (
 )
 
 func GetSubscription(c *gin.Context) {
-	var remainQuota int
+	var remainQuota int64
 	var usedQuota int
 	var err error
 	var token *model.Token
@@ -18,7 +18,7 @@ func GetSubscription(c *gin.Context) {
 		tokenId := c.GetInt("token_id")
 		token, err = model.GetTokenById(tokenId)
 		expiredTime = token.ExpiredTime
-		remainQuota = token.RemainQuota
+		remainQuota = int64(token.RemainQuota)
 		usedQuota = token.UsedQuota
 	} else {
 		userId := c.GetInt("id")
@@ -38,7 +38,7 @@ func GetSubscription(c *gin.Context) {
 		})
 		return
 	}
-	quota := remainQuota + usedQuota
+	quota := remainQuota + int64(usedQuota)
 	amount := float64(quota)
 	// OpenAI 兼容接口中的 *_USD 字段含义保持“额度单位”对应值：
 	// 我们将其解释为以“站点展示类型”为准：

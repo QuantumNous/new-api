@@ -219,7 +219,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		}
 	}
 
-	if userQuota-priceData.Quota < 0 {
+	if userQuota-int64(priceData.Quota) < 0 {
 		return &dto.MidjourneyResponse{
 			Code:        4,
 			Description: "quota_not_enough",
@@ -532,7 +532,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		}
 	}
 
-	if consumeQuota && userQuota-priceData.Quota < 0 {
+	if consumeQuota && userQuota-int64(priceData.Quota) < 0 {
 		return &dto.MidjourneyResponse{
 			Code:        4,
 			Description: "quota_not_enough",

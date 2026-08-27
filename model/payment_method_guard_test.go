@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func insertUserForPaymentGuardTest(t *testing.T, id int, quota int) *User {
+func insertUserForPaymentGuardTest(t *testing.T, id int, quota int64) *User {
 	t.Helper()
 	user := &User{
 		Id:       id,
@@ -92,7 +92,7 @@ func countUserSubscriptionsForPaymentGuardTest(t *testing.T, userID int) int64 {
 	return count
 }
 
-func getUserQuotaForPaymentGuardTest(t *testing.T, userID int) int {
+func getUserQuotaForPaymentGuardTest(t *testing.T, userID int) int64 {
 	t.Helper()
 	var user User
 	require.NoError(t, DB.Select("quota").Where("id = ?", userID).First(&user).Error)
@@ -114,7 +114,7 @@ func TestRechargeWaffoPancake_RejectsMismatchedPaymentMethod(t *testing.T) {
 	topUp := GetTopUpByTradeNo("waffo-pancake-guard")
 	require.NotNil(t, topUp)
 	assert.Equal(t, common.TopUpStatusPending, topUp.Status)
-	assert.Equal(t, 0, getUserQuotaForPaymentGuardTest(t, 101))
+	assert.Equal(t, int64(0), getUserQuotaForPaymentGuardTest(t, 101))
 }
 
 func TestRechargeWaffoPancake_RejectsUnexpectedSettlementExpectation(t *testing.T) {
@@ -188,9 +188,9 @@ func TestRechargeWaffoPancakeSettlementMatchIsIdempotent(t *testing.T) {
 	settlement := WaffoPancakeSettlement{Amount: "9.990", Currency: " usd ", StoreID: " store-expected "}
 	require.NoError(t, RechargeWaffoPancake(tradeNo, settlement))
 	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, tradeNo))
-	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
 	require.NoError(t, RechargeWaffoPancake(tradeNo, settlement))
-	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
 }
 func insertStripeExpectedTopUpForPaymentGuardTest(t *testing.T, tradeNo string, userID int) {
 	t.Helper()
@@ -266,10 +266,10 @@ func TestRechargeStripeSettlement_RequiresExpectedSettlementAndIsIdempotent(t *t
 	}
 	require.NoError(t, RechargeStripeSettlement(tradeNo, settlement))
 	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, tradeNo))
-	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
 
 	require.NoError(t, RechargeStripeSettlement(tradeNo, settlement))
-	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
 }
 
 func TestRechargeStripeSettlement_UsesImmutableCreditedQuotaSnapshot(t *testing.T) {
@@ -299,10 +299,10 @@ func TestRechargeStripeSettlement_UsesImmutableCreditedQuotaSnapshot(t *testing.
 		Currency:     "USD",
 	}
 	require.NoError(t, RechargeStripeSettlement(tradeNo, settlement))
-	assert.Equal(t, 6_000_000, getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(6_000_000), getUserQuotaForPaymentGuardTest(t, userID))
 
 	require.NoError(t, RechargeStripeSettlement(tradeNo, settlement))
-	assert.Equal(t, 6_000_000, getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(6_000_000), getUserQuotaForPaymentGuardTest(t, userID))
 }
 
 func TestRechargeStripeSettlement_RejectsMissingCreditedQuotaSnapshot(t *testing.T) {
@@ -331,22 +331,22 @@ func TestRechargeStripeSettlement_RejectsMissingCreditedQuotaSnapshot(t *testing
 func TestRechargeStripeSettlement_EnforcesFinalWalletQuotaLimit(t *testing.T) {
 	testCases := []struct {
 		name         string
-		currentQuota int
+		currentQuota int64
 		wantErr      bool
-		wantQuota    int
+		wantQuota    int64
 		wantStatus   string
 	}{
 		{
-			name:         "allows exact highest representable wallet balance",
-			currentQuota: common.MaxQuota - 1 - 1_000_000,
-			wantQuota:    common.MaxQuota - 1,
+			name:         "allows exact wallet cap boundary",
+			currentQuota: common.MaxWalletQuota - 1_000_000,
+			wantQuota:    common.MaxWalletQuota,
 			wantStatus:   common.TopUpStatusSuccess,
 		},
 		{
-			name:         "rejects balance above int32 quota domain",
-			currentQuota: common.MaxQuota - 1_000_000,
+			name:         "rejects top-up exceeding wallet cap",
+			currentQuota: common.MaxWalletQuota - 500_000,
 			wantErr:      true,
-			wantQuota:    common.MaxQuota - 1_000_000,
+			wantQuota:    common.MaxWalletQuota - 500_000,
 			wantStatus:   common.TopUpStatusPending,
 		},
 	}
@@ -402,10 +402,10 @@ func TestRechargeStripeSettlement_BindsEmptySessionWithMatchingToken(t *testing.
 	require.NotNil(t, stored)
 	assert.Equal(t, "cs_recovered", stored.ExpectedSessionID)
 	assert.Equal(t, common.TopUpStatusSuccess, stored.Status)
-	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
 
 	require.NoError(t, RechargeStripeSettlement(tradeNo, settlement))
-	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
 	settlement.SessionID = "cs_other"
 	require.ErrorIs(t, RechargeStripeSettlement(tradeNo, settlement), ErrPaymentSettlementMismatch)
 }
@@ -493,7 +493,7 @@ func TestRechargeStripeSettlement_RecoversAfterExpectedSessionPersistenceFailure
 	require.NotNil(t, stored)
 	assert.Equal(t, sessionID, stored.ExpectedSessionID)
 	assert.Equal(t, common.TopUpStatusSuccess, stored.Status)
-	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
 }
 
 func TestRechargeStripeSettlement_RejectsBindingExpectationFailures(t *testing.T) {
@@ -641,7 +641,7 @@ func TestSetStripeTopUpExpectedSessionID_WebhookFirstSuccessIsIdempotent(t *test
 		Currency:     "USD",
 	}
 	require.NoError(t, RechargeStripeSettlement(tradeNo, settlement))
-	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
 
 	require.NoError(t, SetStripeTopUpExpectedSessionID(tradeNo, "cs_expected"))
 	require.ErrorIs(t, SetStripeTopUpExpectedSessionID(tradeNo, "cs_other"), ErrPaymentSettlementMismatch)
@@ -650,7 +650,7 @@ func TestSetStripeTopUpExpectedSessionID_WebhookFirstSuccessIsIdempotent(t *test
 	require.NotNil(t, topUp)
 	assert.Equal(t, "cs_expected", topUp.ExpectedSessionID)
 	assert.Equal(t, common.TopUpStatusSuccess, topUp.Status)
-	assert.Equal(t, int(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
 }
 
 func TestManualCompleteTopUp_StripeUsesCreditedQuotaSnapshot(t *testing.T) {
@@ -674,11 +674,11 @@ func TestManualCompleteTopUp_StripeUsesCreditedQuotaSnapshot(t *testing.T) {
 
 	common.QuotaPerUnit = 7
 	require.NoError(t, ManualCompleteTopUp(tradeNo, "127.0.0.1"))
-	assert.Equal(t, 6_000_000, getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(6_000_000), getUserQuotaForPaymentGuardTest(t, userID))
 	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, tradeNo))
 
 	require.NoError(t, ManualCompleteTopUp(tradeNo, "127.0.0.1"))
-	assert.Equal(t, 6_000_000, getUserQuotaForPaymentGuardTest(t, userID))
+	assert.Equal(t, int64(6_000_000), getUserQuotaForPaymentGuardTest(t, userID))
 }
 
 func TestManualCompleteTopUp_StripeRejectsLegacyQuotaExpectation(t *testing.T) {
@@ -911,7 +911,7 @@ func TestRechargeEpayCreditsQuotaExactlyOnce(t *testing.T) {
 	alreadyDone, err := RechargeEpay(order.TradeNo, "alipay", "127.0.0.1")
 	require.NoError(t, err)
 	assert.False(t, alreadyDone)
-	assert.Equal(t, 2*500000, getUserQuotaForPaymentGuardTest(t, user.Id))
+	assert.Equal(t, int64(2*500000), getUserQuotaForPaymentGuardTest(t, user.Id))
 
 	reloaded := GetTopUpByTradeNo(order.TradeNo)
 	require.NotNil(t, reloaded)
@@ -921,7 +921,7 @@ func TestRechargeEpayCreditsQuotaExactlyOnce(t *testing.T) {
 	alreadyDone, err = RechargeEpay(order.TradeNo, "alipay", "127.0.0.1")
 	require.NoError(t, err)
 	assert.True(t, alreadyDone)
-	assert.Equal(t, 2*500000, getUserQuotaForPaymentGuardTest(t, user.Id))
+	assert.Equal(t, int64(2*500000), getUserQuotaForPaymentGuardTest(t, user.Id))
 }
 
 func TestRechargeEpayKeepsRedisAndDatabaseCreditInSync(t *testing.T) {
@@ -939,17 +939,17 @@ func TestRechargeEpayKeepsRedisAndDatabaseCreditInSync(t *testing.T) {
 	alreadyDone, err := RechargeEpay(order.TradeNo, "alipay", "127.0.0.1")
 	require.NoError(t, err)
 	assert.False(t, alreadyDone)
-	assert.Equal(t, 17, getUserQuotaForPaymentGuardTest(t, user.Id))
+	assert.Equal(t, int64(17), getUserQuotaForPaymentGuardTest(t, user.Id))
 	cached, err := cacheGetUserBase(user.Id)
 	require.NoError(t, err)
-	assert.Equal(t, 17, cached.Quota)
+	assert.Equal(t, int64(17), cached.Quota)
 
 	alreadyDone, err = RechargeEpay(order.TradeNo, "alipay", "127.0.0.1")
 	require.NoError(t, err)
 	assert.True(t, alreadyDone)
 	cached, err = cacheGetUserBase(user.Id)
 	require.NoError(t, err)
-	assert.Equal(t, 17, cached.Quota)
+	assert.Equal(t, int64(17), cached.Quota)
 }
 
 func TestRechargeEpayUpdatesPaymentMethodToActual(t *testing.T) {
@@ -969,7 +969,7 @@ func TestRechargeEpayUpdatesPaymentMethodToActual(t *testing.T) {
 	reloaded := GetTopUpByTradeNo(order.TradeNo)
 	require.NotNil(t, reloaded)
 	assert.Equal(t, "wxpay", reloaded.PaymentMethod)
-	assert.Equal(t, 2*500000, getUserQuotaForPaymentGuardTest(t, user.Id))
+	assert.Equal(t, int64(2*500000), getUserQuotaForPaymentGuardTest(t, user.Id))
 }
 
 func TestRechargeEpayRejectsForeignAndNonPendingOrders(t *testing.T) {
@@ -985,14 +985,14 @@ func TestRechargeEpayRejectsForeignAndNonPendingOrders(t *testing.T) {
 		order := createEpayTestOrder(t, user.Id, "EPAYTESTSTRIPE", PaymentProviderStripe, common.TopUpStatusPending)
 		_, err := RechargeEpay(order.TradeNo, "alipay", "127.0.0.1")
 		assert.ErrorIs(t, err, ErrPaymentMethodMismatch)
-		assert.Equal(t, 7, getUserQuotaForPaymentGuardTest(t, user.Id))
+		assert.Equal(t, int64(7), getUserQuotaForPaymentGuardTest(t, user.Id))
 	})
 
 	t.Run("order that is not pending", func(t *testing.T) {
 		order := createEpayTestOrder(t, user.Id, "EPAYTESTEXPIRED", PaymentProviderEpay, common.TopUpStatusExpired)
 		_, err := RechargeEpay(order.TradeNo, "alipay", "127.0.0.1")
 		assert.ErrorIs(t, err, ErrTopUpStatusInvalid)
-		assert.Equal(t, 7, getUserQuotaForPaymentGuardTest(t, user.Id))
+		assert.Equal(t, int64(7), getUserQuotaForPaymentGuardTest(t, user.Id))
 	})
 
 	t.Run("missing order", func(t *testing.T) {
@@ -1013,7 +1013,7 @@ func TestRechargeEpayRejectsQuotaOverflowBeforeCompletingOrder(t *testing.T) {
 
 	_, err := RechargeEpay(order.TradeNo, "alipay", "127.0.0.1")
 	require.Error(t, err)
-	assert.Equal(t, 3, getUserQuotaForPaymentGuardTest(t, user.Id))
+	assert.Equal(t, int64(3), getUserQuotaForPaymentGuardTest(t, user.Id))
 	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, order.TradeNo))
 }
 
@@ -1024,22 +1024,22 @@ func TestRechargeEpayEnforcesFinalWalletQuotaLimit(t *testing.T) {
 
 	testCases := []struct {
 		name         string
-		currentQuota int
+		currentQuota int64
 		wantErr      bool
-		wantQuota    int
+		wantQuota    int64
 		wantStatus   string
 	}{
 		{
-			name:         "allows exact highest representable wallet balance",
-			currentQuota: common.MaxQuota - 1 - 1_000_000,
-			wantQuota:    common.MaxQuota - 1,
+			name:         "allows exact wallet cap boundary",
+			currentQuota: common.MaxWalletQuota - 1_000_000,
+			wantQuota:    common.MaxWalletQuota,
 			wantStatus:   common.TopUpStatusSuccess,
 		},
 		{
-			name:         "rejects balance above int32 quota domain",
-			currentQuota: common.MaxQuota - 1_000_000,
+			name:         "rejects top-up exceeding wallet cap",
+			currentQuota: common.MaxWalletQuota - 500_000,
 			wantErr:      true,
-			wantQuota:    common.MaxQuota - 1_000_000,
+			wantQuota:    common.MaxWalletQuota - 500_000,
 			wantStatus:   common.TopUpStatusPending,
 		},
 	}
@@ -1060,4 +1060,243 @@ func TestRechargeEpayEnforcesFinalWalletQuotaLimit(t *testing.T) {
 			assert.Equal(t, tc.wantStatus, getTopUpStatusForPaymentGuardTest(t, order.TradeNo))
 		})
 	}
+}
+
+// 充值额度固定为 Amount × QuotaPerUnit（fixture Amount=2、QuotaPerUnit=500000 → 1000000）。
+func TestRechargeWaffoEnforcesFinalWalletQuotaLimit(t *testing.T) {
+	oldQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 500000
+	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
+
+	testCases := []struct {
+		name         string
+		currentQuota int64
+		wantErr      bool
+		wantQuota    int64
+		wantStatus   string
+	}{
+		{
+			name:         "allows exact wallet cap boundary",
+			currentQuota: common.MaxWalletQuota - 1_000_000,
+			wantQuota:    common.MaxWalletQuota,
+			wantStatus:   common.TopUpStatusSuccess,
+		},
+		{
+			name:         "rejects top-up exceeding wallet cap",
+			currentQuota: common.MaxWalletQuota - 500_000,
+			wantErr:      true,
+			wantQuota:    common.MaxWalletQuota - 500_000,
+			wantStatus:   common.TopUpStatusPending,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			truncateTables(t)
+			const userID = 601
+			const tradeNo = "waffo-wallet-limit"
+			insertUserForPaymentGuardTest(t, userID, tc.currentQuota)
+			insertTopUpForPaymentGuardTest(t, tradeNo, userID, PaymentProviderWaffo)
+
+			err := RechargeWaffo(tradeNo, "127.0.0.1")
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.wantQuota, getUserQuotaForPaymentGuardTest(t, userID))
+			assert.Equal(t, tc.wantStatus, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+		})
+	}
+}
+
+func TestRechargeWaffoPancakeEnforcesFinalWalletQuotaLimit(t *testing.T) {
+	oldQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 500000
+	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
+
+	testCases := []struct {
+		name         string
+		currentQuota int64
+		wantErr      bool
+		wantQuota    int64
+		wantStatus   string
+	}{
+		{
+			name:         "allows exact wallet cap boundary",
+			currentQuota: common.MaxWalletQuota - 1_000_000,
+			wantQuota:    common.MaxWalletQuota,
+			wantStatus:   common.TopUpStatusSuccess,
+		},
+		{
+			name:         "rejects top-up exceeding wallet cap",
+			currentQuota: common.MaxWalletQuota - 500_000,
+			wantErr:      true,
+			wantQuota:    common.MaxWalletQuota - 500_000,
+			wantStatus:   common.TopUpStatusPending,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			truncateTables(t)
+			const userID = 602
+			const tradeNo = "waffo-pancake-wallet-limit"
+			insertUserForPaymentGuardTest(t, userID, tc.currentQuota)
+			topUp := &TopUp{
+				UserId:                    userID,
+				Amount:                    2,
+				Money:                     9.99,
+				TradeNo:                   tradeNo,
+				PaymentMethod:             PaymentMethodWaffoPancake,
+				PaymentProvider:           PaymentProviderWaffoPancake,
+				PaymentExpectationVersion: WaffoPancakePaymentExpectationVersion,
+				ExpectedAmount:            9.99,
+				ExpectedCurrency:          "USD",
+				ExpectedStoreID:           "store-expected",
+				Status:                    common.TopUpStatusPending,
+				CreateTime:                time.Now().Unix(),
+			}
+			require.NoError(t, topUp.Insert())
+
+			err := RechargeWaffoPancake(tradeNo, WaffoPancakeSettlement{Amount: "9.99", Currency: "USD", StoreID: "store-expected"})
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.wantQuota, getUserQuotaForPaymentGuardTest(t, userID))
+			assert.Equal(t, tc.wantStatus, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+		})
+	}
+}
+
+// Creem 直接使用 Amount 作为充值额度。
+func TestRechargeCreemEnforcesFinalWalletQuotaLimit(t *testing.T) {
+	testCases := []struct {
+		name         string
+		currentQuota int64
+		wantErr      bool
+		wantQuota    int64
+		wantStatus   string
+	}{
+		{
+			name:         "allows exact wallet cap boundary",
+			currentQuota: common.MaxWalletQuota - 2_000_000,
+			wantQuota:    common.MaxWalletQuota,
+			wantStatus:   common.TopUpStatusSuccess,
+		},
+		{
+			name:         "rejects top-up exceeding wallet cap",
+			currentQuota: common.MaxWalletQuota - 1_000_000,
+			wantErr:      true,
+			wantQuota:    common.MaxWalletQuota - 1_000_000,
+			wantStatus:   common.TopUpStatusPending,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			truncateTables(t)
+			const userID = 603
+			const tradeNo = "creem-wallet-limit"
+			insertUserForPaymentGuardTest(t, userID, tc.currentQuota)
+			topUp := &TopUp{
+				UserId:          userID,
+				Amount:          2_000_000,
+				Money:           19.99,
+				TradeNo:         tradeNo,
+				PaymentMethod:   PaymentMethodCreem,
+				PaymentProvider: PaymentProviderCreem,
+				Status:          common.TopUpStatusPending,
+				CreateTime:      time.Now().Unix(),
+			}
+			require.NoError(t, topUp.Insert())
+
+			err := RechargeCreem(tradeNo, "", "", "127.0.0.1")
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tc.wantQuota, getUserQuotaForPaymentGuardTest(t, userID))
+			assert.Equal(t, tc.wantStatus, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+		})
+	}
+}
+
+func TestRechargeWaffoCreditsPendingOrderAndIsIdempotent(t *testing.T) {
+	truncateTables(t)
+
+	oldQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 500000
+	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
+
+	const userID = 604
+	const tradeNo = "waffo-settlement-credit"
+	insertUserForPaymentGuardTest(t, userID, 0)
+	insertTopUpForPaymentGuardTest(t, tradeNo, userID, PaymentProviderWaffo)
+
+	require.NoError(t, RechargeWaffo(tradeNo, "127.0.0.1"))
+	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+	assert.Equal(t, int64(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
+
+	// 已成功订单重复回调必须幂等，不得二次入账
+	require.NoError(t, RechargeWaffo(tradeNo, "127.0.0.1"))
+	assert.Equal(t, int64(2*common.QuotaPerUnit), getUserQuotaForPaymentGuardTest(t, userID))
+}
+
+func TestRechargeCreemCreditsQuotaAndBackfillsEmptyEmailOnly(t *testing.T) {
+	t.Run("backfills empty email", func(t *testing.T) {
+		truncateTables(t)
+		const userID = 605
+		const tradeNo = "creem-settlement-backfill"
+		insertUserForPaymentGuardTest(t, userID, 0)
+		topUp := &TopUp{
+			UserId:          userID,
+			Amount:          3000,
+			Money:           19.99,
+			TradeNo:         tradeNo,
+			PaymentMethod:   PaymentMethodCreem,
+			PaymentProvider: PaymentProviderCreem,
+			Status:          common.TopUpStatusPending,
+			CreateTime:      time.Now().Unix(),
+		}
+		require.NoError(t, topUp.Insert())
+
+		require.NoError(t, RechargeCreem(tradeNo, "buyer@example.com", "Buyer", "127.0.0.1"))
+		assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+		assert.Equal(t, int64(3000), getUserQuotaForPaymentGuardTest(t, userID))
+
+		var user User
+		require.NoError(t, DB.Select("email").Where("id = ?", userID).First(&user).Error)
+		assert.Equal(t, "buyer@example.com", user.Email)
+	})
+
+	t.Run("keeps existing email", func(t *testing.T) {
+		truncateTables(t)
+		const userID = 606
+		const tradeNo = "creem-settlement-keep-email"
+		user := insertUserForPaymentGuardTest(t, userID, 0)
+		require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("email", "kept@example.com").Error)
+		topUp := &TopUp{
+			UserId:          userID,
+			Amount:          3000,
+			Money:           19.99,
+			TradeNo:         tradeNo,
+			PaymentMethod:   PaymentMethodCreem,
+			PaymentProvider: PaymentProviderCreem,
+			Status:          common.TopUpStatusPending,
+			CreateTime:      time.Now().Unix(),
+		}
+		require.NoError(t, topUp.Insert())
+
+		require.NoError(t, RechargeCreem(tradeNo, "buyer@example.com", "Buyer", "127.0.0.1"))
+		assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, tradeNo))
+		assert.Equal(t, int64(3000), getUserQuotaForPaymentGuardTest(t, userID))
+
+		var stored User
+		require.NoError(t, DB.Select("email").Where("id = ?", userID).First(&stored).Error)
+		assert.Equal(t, "kept@example.com", stored.Email)
+	})
 }

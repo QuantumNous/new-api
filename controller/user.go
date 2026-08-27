@@ -1203,7 +1203,7 @@ func ManageUser(c *gin.Context) {
 				return
 			}
 			recordManageAuditFor(c, user.Id, "user.quota_override", map[string]interface{}{
-				"from": logger.LogQuota(oldQuota),
+				"from": logger.LogQuota64(oldQuota),
 				"to":   logger.LogQuota(req.Value),
 			})
 		default:

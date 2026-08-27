@@ -462,7 +462,7 @@ func insertStripeWebhookTopUp(t *testing.T, db *gorm.DB, tradeNo string, session
 	return userID
 }
 
-func getStripeWebhookUserQuota(t *testing.T, db *gorm.DB, userID int) int {
+func getStripeWebhookUserQuota(t *testing.T, db *gorm.DB, userID int) int64 {
 	t.Helper()
 	var user model.User
 	require.NoError(t, db.Select("quota").Where("id = ?", userID).First(&user).Error)
@@ -483,7 +483,7 @@ func TestStripeWebhook_MatchingBindingRecoversSessionAndSettlesExactlyOnce(t *te
 	require.NotNil(t, success)
 	assert.Equal(t, common.TopUpStatusSuccess, success.Status)
 	assert.Equal(t, sessionID, success.ExpectedSessionID)
-	expectedQuota := int(2 * common.QuotaPerUnit)
+	expectedQuota := int64(2 * common.QuotaPerUnit)
 	assert.Equal(t, expectedQuota, getStripeWebhookUserQuota(t, db, userID))
 
 	replay := invokeStripeWebhook(signedStripeWebhookRequest(t, payload))

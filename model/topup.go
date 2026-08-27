@@ -82,11 +82,16 @@ type StripeSettlement struct {
 	CallerIP     string
 }
 
-func topUpQuotaMaxCurrent(creditedQuota int) (int, error) {
+// topUpQuotaMaxCurrent returns the largest existing wallet balance that may
+// still accept creditedQuota without exceeding common.MaxWalletQuota. The
+// credited amount itself stays in the int32 domain: each individual top-up
+// entitlement is bounded by common.MaxQuota, while the aggregate user wallet
+// is an int64 column bounded by the separate wallet ceiling.
+func topUpQuotaMaxCurrent(creditedQuota int) (int64, error) {
 	if creditedQuota <= 0 || creditedQuota >= common.MaxQuota {
 		return 0, ErrInvalidTopUpQuota
 	}
-	return common.MaxQuota - 1 - creditedQuota, nil
+	return common.MaxWalletQuota - int64(creditedQuota), nil
 }
 
 // ValidateTopUpQuotaCapacity performs the user-facing pre-payment check. The
@@ -108,7 +113,7 @@ func ValidateTopUpQuotaCapacity(userId int, creditedQuota int) error {
 	return nil
 }
 
-// creditTopUpQuota atomically enforces the int32 wallet ceiling while adding
+// creditTopUpQuota atomically enforces the int64 wallet ceiling while adding
 // quota. Keeping the predicate and increment in one UPDATE prevents two
 // concurrent callbacks from both passing a separate read/check.
 func creditTopUpQuota(tx *gorm.DB, userId int, creditedQuota int, updates map[string]interface{}) error {
@@ -644,7 +649,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		return errors.New("未提供支付单号")
 	}
 
-	var quota int64
+	var quotaToAdd int
 	topUp := &TopUp{}
 
 	refCol := "`trade_no`"
@@ -666,22 +671,21 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			return errors.New("充值订单状态错误")
 		}
 
+		// Creem 直接使用 Amount 作为充值额度（整数）
+		var quotaErr error
+		quotaToAdd, quotaErr = common.QuotaFromDecimalStrict(decimal.NewFromInt(topUp.Amount))
+		if quotaErr != nil || quotaToAdd <= 0 {
+			return ErrInvalidTopUpQuota
+		}
+
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
-		err = tx.Save(topUp).Error
-		if err != nil {
+		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
 
-		// Creem 直接使用 Amount 作为充值额度（整数）
-		quota = topUp.Amount
-
-		// 构建更新字段，优先使用邮箱，如果邮箱为空则使用用户名
-		updateFields := map[string]interface{}{
-			"quota": gorm.Expr("quota + ?", quota),
-		}
-
 		// 如果有客户邮箱，尝试更新用户邮箱（仅当用户邮箱为空时）
+		updateFields := map[string]interface{}{}
 		if customerEmail != "" {
 			// 先检查用户当前邮箱是否为空
 			var user User
@@ -696,12 +700,7 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 			}
 		}
 
-		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(updateFields).Error
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return creditTopUpQuota(tx, topUp.UserId, quotaToAdd, updateFields)
 	})
 
 	if err != nil {
@@ -709,7 +708,10 @@ func RechargeCreem(referenceId string, customerEmail string, customerName string
 		return errors.New("充值失败，请稍后重试")
 	}
 
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quota, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+	if quotaToAdd > 0 {
+		syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, "creem topup")
+		RecordTopupLog(topUp.UserId, fmt.Sprintf("使用Creem充值成功，充值额度: %v，支付金额：%.2f", quotaToAdd, topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodCreem)
+	}
 
 	return nil
 }
@@ -745,11 +747,10 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 			return errors.New("充值订单状态错误")
 		}
 
-		dAmount := decimal.NewFromInt(topUp.Amount)
-		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-		quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
-		if quotaToAdd <= 0 {
-			return errors.New("无效的充值额度")
+		var quotaErr error
+		quotaToAdd, quotaErr = common.QuotaFromDecimalStrict(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)))
+		if quotaErr != nil || quotaToAdd <= 0 {
+			return ErrInvalidTopUpQuota
 		}
 
 		topUp.CompleteTime = common.GetTimestamp()
@@ -758,11 +759,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 			return err
 		}
 
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
-			return err
-		}
-
-		return nil
+		return creditTopUpQuota(tx, topUp.UserId, quotaToAdd, nil)
 	})
 
 	if err != nil {
@@ -771,6 +768,7 @@ func RechargeWaffo(tradeNo string, callerIp string) (err error) {
 	}
 
 	if quotaToAdd > 0 {
+		syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, "waffo topup")
 		RecordTopupLog(topUp.UserId, fmt.Sprintf("Waffo充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money), callerIp, topUp.PaymentMethod, PaymentMethodWaffo)
 	}
 
@@ -819,29 +817,24 @@ func RechargeWaffoPancake(tradeNo string, settlement WaffoPancakeSettlement) (er
 		if topUp.Status != common.TopUpStatusPending {
 			return errors.New("充值订单状态错误")
 		}
-		quotaToAdd = int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
-		if quotaToAdd <= 0 {
-			return errors.New("无效的充值额度")
+		var quotaErr error
+		quotaToAdd, quotaErr = common.QuotaFromDecimalStrict(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)))
+		if quotaErr != nil || quotaToAdd <= 0 {
+			return ErrInvalidTopUpQuota
 		}
 		topUp.CompleteTime = common.GetTimestamp()
 		topUp.Status = common.TopUpStatusSuccess
 		if err := tx.Save(topUp).Error; err != nil {
 			return err
 		}
-		result := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd))
-		if result.Error != nil {
-			return result.Error
-		}
-		if result.RowsAffected != 1 {
-			return errors.New("充值用户不存在")
-		}
-		return nil
+		return creditTopUpQuota(tx, topUp.UserId, quotaToAdd, nil)
 	})
 	if err != nil {
 		common.SysError("waffo pancake topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
 	}
 	if quotaToAdd > 0 {
+		syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, "waffo pancake topup")
 		RecordLog(topUp.UserId, LogTypeTopup, fmt.Sprintf("Waffo Pancake充值成功，充值额度: %v，支付金额: %.2f", logger.FormatQuota(quotaToAdd), topUp.Money))
 	}
 	return nil

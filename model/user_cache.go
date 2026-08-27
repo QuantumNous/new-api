@@ -11,13 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const userCacheSchemaVersion = 2
+const userCacheSchemaVersion = 3
 
 type UserBase struct {
 	Id          int    `json:"id"`
 	Group       string `json:"group"`
 	Email       string `json:"email"`
-	Quota       int    `json:"quota"`
+	Quota       int64  `json:"quota"`
 	Status      int    `json:"status"`
 	Role        int    `json:"role"`
 	Username    string `json:"username"`
@@ -173,7 +173,7 @@ func getUserGroupCache(userId int) (string, error) {
 	return cache.Group, nil
 }
 
-func getUserQuotaCache(userId int) (int, error) {
+func getUserQuotaCache(userId int) (int64, error) {
 	cache, err := GetUserCache(userId)
 	if err != nil {
 		return 0, err
