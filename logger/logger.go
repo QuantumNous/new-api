@@ -120,7 +120,13 @@ func logHelper(ctx context.Context, level string, msg string) {
 }
 
 func LogQuota(quota int) string {
-	// 新逻辑：根据额度展示类型输出
+	return LogQuota64(int64(quota))
+}
+
+// LogQuota64 formats an aggregate wallet total for audit/log output. Individual
+// charges stay in the int domain and go through LogQuota; only the user's
+// int64 wallet total (bounded by common.MaxWalletQuota) may exceed int32.
+func LogQuota64(quota int64) string {
 	q := float64(quota)
 	switch operation_setting.GetQuotaDisplayType() {
 	case operation_setting.QuotaDisplayTypeCNY:
@@ -147,6 +153,17 @@ func LogQuota(quota int) string {
 }
 
 func FormatQuota(quota int) string {
+	return formatQuota64(int64(quota))
+}
+
+// FormatQuota64 formats an aggregate wallet balance. Individual charges stay
+// in the int domain and go through FormatQuota; only the user's int64 wallet
+// total (bounded by common.MaxWalletQuota) may exceed the int32 range.
+func FormatQuota64(quota int64) string {
+	return formatQuota64(quota)
+}
+
+func formatQuota64(quota int64) string {
 	q := float64(quota)
 	switch operation_setting.GetQuotaDisplayType() {
 	case operation_setting.QuotaDisplayTypeCNY:

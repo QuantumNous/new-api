@@ -29,6 +29,29 @@ func TestSelectBinaryAsset_LinuxAmd64(t *testing.T) {
 	assert.Equal(t, "checksums-linux.txt", sum.Name)
 }
 
+func TestSelectBinaryAsset_LinuxAmd64RejectsExplicitForeignArchitecture(t *testing.T) {
+	assets := []Asset{
+		{Name: "new-api-linux-armv7-v1.0.0", DownloadURL: "https://github.com/x/armv7"},
+		{Name: "new-api-linux-riscv64-v1.0.0", DownloadURL: "https://github.com/x/riscv64"},
+		{Name: "new-api-linux-loong64-v1.0.0", DownloadURL: "https://github.com/x/loong64"},
+		{Name: "checksums-linux.txt", DownloadURL: "https://github.com/x/checksums"},
+	}
+
+	_, _, err := SelectBinaryAsset(assets, "linux", "amd64")
+	require.Error(t, err)
+}
+
+func TestSelectBinaryAsset_LinuxAmd64AcceptsExplicitAmd64(t *testing.T) {
+	assets := []Asset{
+		{Name: "new-api-linux-amd64-v1.0.0", DownloadURL: "https://github.com/x/amd64"},
+		{Name: "checksums-linux.txt", DownloadURL: "https://github.com/x/checksums"},
+	}
+
+	bin, _, err := SelectBinaryAsset(assets, "linux", "amd64")
+	require.NoError(t, err)
+	assert.Equal(t, "new-api-linux-amd64-v1.0.0", bin.Name)
+}
+
 func TestSelectBinaryAsset_LinuxArm64(t *testing.T) {
 	assets := []Asset{
 		{Name: "new-api-arm64-v1.0.0-rc.21", DownloadURL: "https://github.com/x/a"},
@@ -93,6 +116,154 @@ func TestSelectBinaryAsset_NoChecksum(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "new-api-v1.0.0", bin.Name)
 	assert.Nil(t, sum)
+}
+
+func TestSelectReleaseBinaryAsset(t *testing.T) {
+	const tag = "v2.0.0"
+
+	for _, tc := range []struct {
+		name     string
+		goos     string
+		goarch   string
+		assets   []Asset
+		wantName string
+		wantErr  string
+	}{
+		{
+			name:   "linux amd64 chooses exact current release asset",
+			goos:   "linux",
+			goarch: "amd64",
+			assets: []Asset{
+				{Name: "new-api-v2.0.0-arm64"},
+				{Name: "new-api-v1.9.0"},
+				{Name: "new-api-linux-amd64-arm64-v2.0.0"},
+				{Name: "new-api-v2.0.0"},
+				{Name: "checksums-linux.txt"},
+			},
+			wantName: "new-api-v2.0.0",
+		},
+		{
+			name:   "linux arm64 chooses exact current release asset",
+			goos:   "linux",
+			goarch: "arm64",
+			assets: []Asset{
+				{Name: "new-api-arm64-v1.9.0"},
+				{Name: "new-api-v2.0.0"},
+				{Name: "new-api-linux-arm64-v2.0.0"},
+				{Name: "checksums-linux.txt"},
+			},
+			wantName: "new-api-linux-arm64-v2.0.0",
+		},
+		{
+			name:   "linux arm64 prefers workflow asset over alternate alias",
+			goos:   "linux",
+			goarch: "arm64",
+			assets: []Asset{
+				{Name: "new-api-linux-arm64-v2.0.0"},
+				{Name: "new-api-arm64-v2.0.0"},
+				{Name: "checksums-linux.txt"},
+			},
+			wantName: "new-api-arm64-v2.0.0",
+		},
+		{
+			name:   "linux arm64 reversed aliases remain deterministic",
+			goos:   "linux",
+			goarch: "arm64",
+			assets: []Asset{
+				{Name: "new-api-arm64-v2.0.0"},
+				{Name: "new-api-linux-arm64-v2.0.0"},
+				{Name: "checksums-linux.txt"},
+			},
+			wantName: "new-api-arm64-v2.0.0",
+		},
+		{
+			name:   "linux 386 does not accept x86 64",
+			goos:   "linux",
+			goarch: "386",
+			assets: []Asset{
+				{Name: "new-api-linux-x86_64-v2.0.0"},
+				{Name: "checksums-linux.txt"},
+			},
+			wantErr: "no binary asset",
+		},
+		{
+			name:   "windows requires exact release asset",
+			goos:   "windows",
+			goarch: "amd64",
+			assets: []Asset{
+				{Name: "new-api-v1.9.0.exe"},
+				{Name: "new-api-windows-arm64-v2.0.0.exe"},
+				{Name: "unrelated-tool.exe"},
+				{Name: "new-api-v2.0.0.exe"},
+				{Name: "checksums-windows.txt"},
+			},
+			wantName: "new-api-v2.0.0.exe",
+		},
+		{
+			name:   "darwin requires exact release asset",
+			goos:   "darwin",
+			goarch: "amd64",
+			assets: []Asset{
+				{Name: "new-api-macos-v1.9.0"},
+				{Name: "new-api-macos-arm64-v2.0.0"},
+				{Name: "new-api-macos-v2.0.0"},
+				{Name: "checksums-macos.txt"},
+			},
+			wantName: "new-api-macos-v2.0.0",
+		},
+		{
+			name:   "unsupported platform architecture is rejected",
+			goos:   "windows",
+			goarch: "arm64",
+			assets: []Asset{
+				{Name: "new-api-windows-arm64-v2.0.0.exe"},
+			},
+			wantErr: "no supported release asset naming",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rel := &ReleaseInfo{TagName: tag, Assets: tc.assets}
+			bin, _, err := SelectReleaseBinaryAsset(rel, tc.goos, tc.goarch)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantName, bin.Name)
+		})
+	}
+}
+
+func TestSelectReleaseBinaryAssetRejectsUnsafeReleaseTag(t *testing.T) {
+	for _, tag := range []string{"", " v2.0.0", "v2.0.0 ", "v2/../evil", "v2.0.0\nother"} {
+		t.Run(fmt.Sprintf("reject %q", tag), func(t *testing.T) {
+			_, _, err := SelectReleaseBinaryAsset(&ReleaseInfo{
+				TagName: tag,
+				Assets:  []Asset{{Name: "new-api-v2.0.0"}},
+			}, "linux", "amd64")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "release tag is invalid")
+		})
+	}
+}
+
+func TestIsSafeAssetBasename(t *testing.T) {
+	for _, name := range []string{
+		"",
+		".",
+		"..",
+		"../new-api-v2.0.0",
+		"dir/new-api-v2.0.0",
+		"new-api-v2.0.0\\other",
+		"new-api-v2.0.0\nother",
+	} {
+		t.Run(fmt.Sprintf("reject %q", name), func(t *testing.T) {
+			assert.False(t, isSafeAssetBasename(name))
+		})
+	}
+	assert.True(t, isSafeAssetBasename("new-api-v2.0.0"))
+	assert.True(t, isSafeAssetBasename("new-api-v1.0.0-rc.21-th.1"))
 }
 
 // ---------------------------------------------------------------------------
@@ -165,10 +336,10 @@ func TestApplyBinaryUpdate_Success(t *testing.T) {
 	sum := sha256.Sum256(newContent)
 	gotHex := hex.EncodeToString(sum[:])
 
-	const binURL = "https://github.com/x/new-api-v2"
+	const binURL = "https://github.com/x/new-api-v2.0.0"
 	const sumURL = "https://github.com/x/checksums-linux.txt"
 
-	checksumLine := fmt.Sprintf("%s  new-api-v2\n", gotHex)
+	checksumLine := fmt.Sprintf("%s  new-api-v2.0.0\n", gotHex)
 
 	client := &fakeGH{
 		files: map[string][]byte{
@@ -180,7 +351,7 @@ func TestApplyBinaryUpdate_Success(t *testing.T) {
 	rel := &ReleaseInfo{
 		TagName: "v2.0.0",
 		Assets: []Asset{
-			{Name: "new-api-v2", DownloadURL: binURL, Size: int64(len(newContent))},
+			{Name: "new-api-v2.0.0", DownloadURL: binURL, Size: int64(len(newContent))},
 			{Name: "checksums-linux.txt", DownloadURL: sumURL},
 		},
 	}
@@ -208,19 +379,20 @@ func TestApplyBinaryUpdate_BadChecksum(t *testing.T) {
 	currentExe := filepath.Join(dir, "new-api")
 	require.NoError(t, os.WriteFile(currentExe, []byte("old"), 0o755))
 
-	const binURL = "https://github.com/x/new-api-v2"
+	const binURL = "https://github.com/x/new-api-v2.0.0"
 	const sumURL = "https://github.com/x/checksums-linux.txt"
 
 	client := &fakeGH{
 		files: map[string][]byte{
 			binURL: []byte("new content"),
-			sumURL: []byte("0000000000000000000000000000000000000000000000000000000000000000  new-api-v2\n"),
+			sumURL: []byte("0000000000000000000000000000000000000000000000000000000000000000  new-api-v2.0.0\n"),
 		},
 	}
 
 	rel := &ReleaseInfo{
+		TagName: "v2.0.0",
 		Assets: []Asset{
-			{Name: "new-api-v2", DownloadURL: binURL},
+			{Name: "new-api-v2.0.0", DownloadURL: binURL},
 			{Name: "checksums-linux.txt", DownloadURL: sumURL},
 		},
 	}
@@ -241,8 +413,9 @@ func TestApplyBinaryUpdate_BadChecksum(t *testing.T) {
 
 func TestApplyBinaryUpdate_NoChecksumAsset(t *testing.T) {
 	rel := &ReleaseInfo{
+		TagName: "v2.0.0",
 		Assets: []Asset{
-			{Name: "new-api-v2", DownloadURL: "https://github.com/x/new-api-v2"},
+			{Name: "new-api-v2.0.0", DownloadURL: "https://github.com/x/new-api-v2.0.0"},
 		},
 	}
 

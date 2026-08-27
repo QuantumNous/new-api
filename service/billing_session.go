@@ -221,7 +221,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 				userQuota = 0
 			}
 			return types.NewErrorWithStatusCode(
-				fmt.Errorf("用户额度不足, 剩余额度: %s", logger.FormatQuota(userQuota)),
+				fmt.Errorf("用户额度不足, 剩余额度: %s", logger.FormatQuota64(userQuota)),
 				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
@@ -317,7 +317,7 @@ func (s *BillingSession) shouldTrust(c *gin.Context) bool {
 
 	switch s.funding.Source() {
 	case BillingSourceWallet:
-		return s.relayInfo.UserQuota > trustQuota
+		return s.relayInfo.UserQuota > int64(trustQuota)
 	case BillingSourceSubscription:
 		// 订阅不能启用信任旁路。原因：
 		// 1. PreConsumeUserSubscription 要求 amount>0 来创建预扣记录并锁定订阅
@@ -369,13 +369,13 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		}
 		if userQuota <= 0 {
 			return nil, types.NewErrorWithStatusCode(
-				fmt.Errorf("用户额度不足, 剩余额度: %s", logger.FormatQuota(userQuota)),
+				fmt.Errorf("用户额度不足, 剩余额度: %s", logger.FormatQuota64(userQuota)),
 				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
-		if userQuota-preConsumedQuota < 0 {
+		if userQuota-int64(preConsumedQuota) < 0 {
 			return nil, types.NewErrorWithStatusCode(
-				fmt.Errorf("预扣费额度失败, 用户剩余额度: %s, 需要预扣费额度: %s", logger.FormatQuota(userQuota), logger.FormatQuota(preConsumedQuota)),
+				fmt.Errorf("预扣费额度失败, 用户剩余额度: %s, 需要预扣费额度: %s", logger.FormatQuota64(userQuota), logger.FormatQuota(preConsumedQuota)),
 				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
 				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}

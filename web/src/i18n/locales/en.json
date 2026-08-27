@@ -3342,6 +3342,7 @@
     "Payment Gateway": "Payment Gateway",
     "Payment initiated": "Payment initiated",
     "Payment Method": "Payment Method",
+    "Final payment amount is calculated at checkout.": "Final payment amount is calculated at checkout.",
     "Payment method identifier": "Payment method identifier",
     "Payment method identifier is required": "Payment method identifier is required",
     "Payment method name": "Payment method name",

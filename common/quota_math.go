@@ -13,7 +13,7 @@ import (
 const (
 	MaxQuota       = math.MaxInt32
 	MinQuota       = math.MinInt32
-	MaxWalletQuota = 1<<53 - 1
+	MaxWalletQuota = 1_000_000_000_000
 )
 
 // ValidateWalletQuota enforces the upper bound shared by wallet mutations.

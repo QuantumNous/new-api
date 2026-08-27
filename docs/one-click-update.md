@@ -110,21 +110,26 @@ fork **没有任何 Release** 时：检查更新会提示「当前是最新版�
 | `NEWAPI_UPDATE_REPO` | `ChinaToyHunter/new-api` | Release 检查与下载仓库 |
 | `NEWAPI_DOCKER_HOST` | `unix:///var/run/docker.sock` | Docker Engine 地址 |
 | `NEWAPI_DOCKER_IMAGE` | 空（用当前容器 image） | pull 目标镜像引用 |
+| `NEWAPI_COMPOSE_SYNC_ENABLED` | `false` | 是否在 GitHub Release 生成本地镜像的 Docker 更新中同步 Compose 服务的 `image:` 声明；默认不修改 Compose |
+| `NEWAPI_COMPOSE_FILE` | 空 | 开启声明同步时必填：容器内的绝对 `.yml` / `.yaml` 路径，且必须位于已有的可写 bind mount 内 |
+| `NEWAPI_COMPOSE_SERVICE` | 空 | 可选 Compose 服务名；优先使用当前容器的 `com.docker.compose.service` 标签，两者同时设置时必须一致 |
 | `NEWAPI_GITHUB_TOKEN` | 空 | 可选，提高 GitHub API 限额（不用于改仓库） |
 
 ## 二进制部署
 
 ### 发版资产建议
 
-与上游类似的命名，例如：
+与当前 Release tag **精确匹配**的资产命名如下（不匹配的名称不会用于自更新）：
 
 - `new-api-vX.Y.Z`（linux/amd64）
-- `new-api-arm64-vX.Y.Z`
-- `new-api-macos-vX.Y.Z`
-- `new-api-vX.Y.Z.exe` / windows 资产
+- `new-api-arm64-vX.Y.Z`（linux/arm64）
+- `new-api-macos-vX.Y.Z`（macOS/amd64）
+- `new-api-vX.Y.Z.exe`（Windows/amd64）
 - `checksums-linux.txt` / `checksums-macos.txt` / `checksums-windows.txt`（或 `checksums.txt`）
 
-checksum 行为：`hex  filename`（SHA256）。**有 checksum 文件时强制校验**；找不到对应 checksum 则拒绝更新。
+当前 release workflow 只发布上述 amd64/arm64 组合；未由 workflow 发布的操作系统或架构会拒绝二进制自更新，而不是猜测选择相似名称的资产。
+
+checksum 行为：`hex  filename`（SHA256）。二进制更新（包括 Docker 的 GitHub 本地镜像路径）必须找到对应 checksum；缺失或不匹配时拒绝更新。
 
 ### 重启
 
@@ -155,15 +160,50 @@ services:
 
 ### 行为说明
 
-- **Docker + GitHub 资产（推荐，ali 现网）**  
-  当 fork 的 Latest Release **带有** `new-api-v*` 二进制 + `checksums-linux.txt` 时，「拉取更新」会：
-  1. 从 GitHub 下载 linux 资产并校验 SHA256  
-  2. 基于当前运行镜像 commit 出 `local/new-api:{ReleaseTag}`  
-  3. recreate 当前容器到该本地镜像  
-  **不依赖**公有镜像仓库；compose 里 `image:` 可保持 `local/new-api:…`。
-- **Docker 无资产时的回退**  
-  若 Release 没有可下载资产，则仍 pull 当前容器的 image 引用（或 `NEWAPI_DOCKER_IMAGE`）。仅改 tag、不推 registry 时无法更新。
+- **Docker + GitHub 资产（推荐，ali 现网）**
+  仅当 fork 的 Latest Release 含有与运行架构匹配的 `linux/<GOARCH>` new-api 二进制时，「拉取更新」才会进入 GitHub 本地镜像路径：
+  1. 下载匹配的 linux 资产，并要求 `checksums-linux.txt`（或 `checksums.txt`）中包含该文件的 SHA256；匹配二进制但缺少可用 checksum 会**拒绝更新**，不会回退到 registry
+  2. 基于当前运行镜像 commit 出 `local/new-api:{ReleaseTag}`
+  3. 由独立辅助容器 recreate 当前容器到该本地镜像
+  **不依赖**公有镜像仓库；Compose 声明同步仅可发生在这条已校验的本地镜像路径上。
+- **Docker registry 回退**
+  若 Release **没有**匹配 `linux/<GOARCH>` 的二进制，仍 pull 当前容器的 image 引用（或 `NEWAPI_DOCKER_IMAGE`）。仅改 tag、不推 registry 时无法更新；此回退路径保持历史 recreate 行为，**永不**同步 Compose 声明。
 - **「是否有更新」** 依据 GitHub Release 语义版本（含 `-th.N` 比较）；Docker 真正是否 recreate 以新镜像构建/digest 为准。
+
+### Compose 声明同步（可选）
+
+默认情况下，Docker 一键更新**不会修改** Compose 文件。若希望更新后的容器和后续 `docker compose up -d` 使用同一镜像声明，可显式启用：
+
+```yaml
+services:
+  new-api:
+    image: calciumion/new-api:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Compose 文件所在目录必须以 bind mount 方式挂到容器内。
+      - /opt/new-api:/opt/new-api
+    environment:
+      - NEWAPI_COMPOSE_SYNC_ENABLED=true
+      - NEWAPI_COMPOSE_FILE=/opt/new-api/docker-compose.yml
+      # 可省略：优先读取 com.docker.compose.service 标签。
+      - NEWAPI_COMPOSE_SERVICE=new-api
+```
+
+启用后的边界和回滚规则：
+
+- Docker 一键更新（GitHub 本地镜像和 registry 回退两条路径）均由独立辅助容器完成，因而仅支持使用 **Unix Docker socket** 的 Linux/Unix Docker 部署；`npipe://` 和 `tcp://` Docker host 会在创建辅助容器前被拒绝。
+- `NEWAPI_COMPOSE_FILE` 只能是容器内绝对 `.yml` / `.yaml` 文件，并且必须落在当前容器已有的**最具体的可写 bind mount** 内；具名卷、匿名卷、只读 bind mount，以及 host root (`/`) bind mount 都会被拒绝。
+- 运行前必须把 Compose 文件放在稳定、受控的专用目录中：该 bind source、其父路径，以及 Docker daemon 解析它们的路径均不得含可变的符号链接、junction、mount/reparse point 或其他重定向。应用会检查可见文件路径中的常规符号链接，但无法替 Docker daemon 固定 host bind source 的对象身份。
+- 服务名优先使用 Docker Compose 的 `com.docker.compose.service` 标签；若同时配置 `NEWAPI_COMPOSE_SERVICE`，两者不一致会拒绝更新，避免误改其他服务。
+- 只改目标服务的字面量 `image:` 标量。多 YAML 文档，以及 `services`、目标服务或其 `image` 的重复键都会被拒绝；目标 `image:` 使用锚点/别名或 `${...}` 插值时也会拒绝。成功写回可能会规范化该 YAML 文件的格式。
+- 应用会在准备阶段和辅助容器写入前比较 SHA-256，并通过 Unix `O_NOFOLLOW` 读取最终文件。这些检查可检测校验点上的意外修改，却**不是**对恶意或不协作并发写入者的完全 TOCTOU 防护：最终 rename、恢复和 Docker daemon 绑定路径之间仍有路径级竞态。因此不要在更新期间手工修改目标文件或其目录；需要抵御 hostile writer 时应关闭该功能并使用受控部署流程。
+- GitHub Release 本地镜像更新会移除容器环境中的 `NEWAPI_DOCKER_IMAGE`，因此开启 Compose 同步时，旧容器若仍设置了**非空** `NEWAPI_DOCKER_IMAGE` 会在停止容器前拒绝更新；先从 Compose/部署环境中删除该变量并重新创建到不含该变量的版本后再更新。
+- 原文件会在同目录保留为临时备份，直到新容器通过就绪检查、Compose 声明同步且旧容器删除后才删除。创建、启动、就绪或 Compose 同步失败时会恢复 Compose 声明并尝试恢复旧容器；若恢复动作也失败，错误会同时报告主失败和恢复失败，需立即人工检查 Docker 与 Compose 文件。
+- 新容器健康后才写入 Compose 声明，随后删除旧容器。若删除旧容器失败，更新会报告“新容器健康且 Compose 已同步、但旧容器删除失败”的部分成功状态，并保留备份供人工处理；若旧容器已删除但备份清理失败，则服务已切换成功，只需人工清理备份。
+- 辅助容器需要**整个 Compose 父目录**的读写 bind mount，而不是单文件权限；同目录的 `.env`、凭据、其他 Compose 文件和任何 sibling 均处于它的写入权限范围。务必使用不含秘密或无关文件的专用、受控目录。
+- 写回文件只保留原文件的 Unix permission mode；不会保留 UID/GID、ACL、xattr、SELinux/其他安全标签或 Windows DACL。依赖这些元数据的部署应关闭同步或在更新后按既定运维流程恢复它们。
+
+辅助容器使用 `network=none` 且会自动删除；不过 Docker socket 本身仍属于高权限能力，必须继续按前述安全措施保护管理面。
 
 ### 手动发版（使网页可拉取）清单
 

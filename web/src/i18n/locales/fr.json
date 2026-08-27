@@ -3342,6 +3342,7 @@
     "Payment Gateway": "Passerelle de paiement",
     "Payment initiated": "Paiement initié",
     "Payment Method": "Méthode de paiement",
+    "Final payment amount is calculated at checkout.": "Le montant final du paiement est calculé lors du passage en caisse.",
     "Payment method identifier": "Identifiant du mode de paiement",
     "Payment method identifier is required": "L’identifiant du mode de paiement est requis",
     "Payment method name": "Nom du mode de paiement",

@@ -1,8 +1,10 @@
 package controller
 
 import (
+	"math"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
@@ -11,13 +13,18 @@ func isPaymentComplianceConfirmed() bool {
 	return operation_setting.IsPaymentComplianceConfirmed()
 }
 
+func hasValidQuotaPerUnit() bool {
+	return !math.IsNaN(common.QuotaPerUnit) &&
+		!math.IsInf(common.QuotaPerUnit, 0) &&
+		common.QuotaPerUnit > 0
+}
+
 func isStripeTopUpEnabled() bool {
-	if !isPaymentComplianceConfirmed() {
+	if !isPaymentComplianceConfirmed() || !hasValidQuotaPerUnit() {
 		return false
 	}
 	return strings.TrimSpace(setting.StripeApiSecret) != "" &&
-		strings.TrimSpace(setting.StripeWebhookSecret) != "" &&
-		strings.TrimSpace(setting.StripePriceId) != ""
+		strings.TrimSpace(setting.StripeWebhookSecret) != ""
 }
 
 func isStripeWebhookConfigured() bool {
@@ -81,7 +88,9 @@ func isWaffoPancakeTopUpEnabled() bool {
 	// the SDK; mode (test/prod) is read from each event.
 	return strings.TrimSpace(setting.WaffoPancakeMerchantID) != "" &&
 		strings.TrimSpace(setting.WaffoPancakePrivateKey) != "" &&
-		strings.TrimSpace(setting.WaffoPancakeProductID) != ""
+		strings.TrimSpace(setting.WaffoPancakeStoreID) != "" &&
+		strings.TrimSpace(setting.WaffoPancakeProductID) != "" &&
+		strings.TrimSpace(setting.WaffoPancakeCurrency) != ""
 }
 
 func isWaffoPancakeWebhookConfigured() bool {

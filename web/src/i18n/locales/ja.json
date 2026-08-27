@@ -3342,6 +3342,7 @@
     "Payment Gateway": "決済ゲートウェイ",
     "Payment initiated": "支払いが開始されました",
     "Payment Method": "チャージ方法",
+    "Final payment amount is calculated at checkout.": "最終的な支払額は決済時に計算されます。",
     "Payment method identifier": "決済方法の識別子",
     "Payment method identifier is required": "決済方法の識別子は必須です",
     "Payment method name": "決済方法名",

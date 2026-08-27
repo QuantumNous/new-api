@@ -37,11 +37,13 @@ import {
 import { formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { PAYMENT_TYPES } from '../constants'
 import {
   formatCurrency,
   getDiscountLabel,
   getPaymentIcon,
   getMinTopupAmount,
+  getPaymentMethodMinTopup,
   calculatePresetPricing,
 } from '../lib'
 import type {
@@ -117,6 +119,7 @@ export function RechargeFormCard({
 
   useEffect(() => {
     // Empty string must survive, otherwise the field can never be cleared
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLocalAmount((prev) =>
       prev === '' && topupAmount === 0 ? prev : topupAmount.toString()
     )
@@ -136,8 +139,23 @@ export function RechargeFormCard({
     enableWaffoTopup ||
     enableWaffoPancakeTopup
   const hasAnyTopup = hasConfigurableTopup || enableCreemTopup
-  const hasStandardPaymentMethods =
-    Array.isArray(topupInfo?.pay_methods) && topupInfo.pay_methods.length > 0
+  const configuredPaymentMethods = (topupInfo?.pay_methods || []).filter(
+    (method) => method.type !== PAYMENT_TYPES.WAFFO
+  )
+  const hasConfiguredWaffoPancake = configuredPaymentMethods.some(
+    (method) => method.type === PAYMENT_TYPES.WAFFO_PANCAKE
+  )
+  const paymentMethods: PaymentMethod[] =
+    enableWaffoPancakeTopup && !hasConfiguredWaffoPancake
+      ? [
+          ...configuredPaymentMethods,
+          {
+            name: t('Wechat Pay'),
+            type: PAYMENT_TYPES.WAFFO_PANCAKE,
+          },
+        ]
+      : configuredPaymentMethods
+  const hasStandardPaymentMethods = paymentMethods.length > 0
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
@@ -319,11 +337,14 @@ export function RechargeFormCard({
                 </Label>
                 {hasStandardPaymentMethods ? (
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
-                    {topupInfo?.pay_methods?.map((method) => {
-                      const minTopup = Math.max(
-                        method.min_topup || 0,
-                        getMinTopupAmount(topupInfo)
-                      )
+                    {paymentMethods.map((method) => {
+                      const minTopup =
+                        method.type === PAYMENT_TYPES.WAFFO_PANCAKE
+                          ? getPaymentMethodMinTopup(topupInfo, method)
+                          : Math.max(
+                              method.min_topup || 0,
+                              getMinTopupAmount(topupInfo)
+                            )
                       const disabled = minTopup > topupAmount
                       const disabledReason = disabled
                         ? t('Minimum topup amount: {{amount}}', {

@@ -134,7 +134,7 @@ func TestRedeemCreditsQuotaExactlyOnce(t *testing.T) {
 
 	var user User
 	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
-	assert.Equal(t, 500, user.Quota)
+	assert.Equal(t, int64(500), user.Quota)
 
 	var redemption Redemption
 	require.NoError(t, DB.First(&redemption, "name = ?", "redeem-test").Error)
@@ -145,7 +145,7 @@ func TestRedeemCreditsQuotaExactlyOnce(t *testing.T) {
 	_, err = Redeem(key, userId)
 	require.Error(t, err)
 	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
-	assert.Equal(t, 500, user.Quota)
+	assert.Equal(t, int64(500), user.Quota)
 }
 
 func TestRedeemRejectsWalletOverflow(t *testing.T) {
@@ -157,7 +157,7 @@ func TestRedeemRejectsWalletOverflow(t *testing.T) {
 
 	var user User
 	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
-	assert.Equal(t, common.MaxWalletQuota-10, user.Quota)
+	assert.Equal(t, int64(common.MaxWalletQuota-10), user.Quota)
 
 	var redemption Redemption
 	require.NoError(t, DB.First(&redemption, "key = ?", key).Error)
@@ -206,5 +206,5 @@ func TestRedeemConcurrentSingleSuccess(t *testing.T) {
 
 	var user User
 	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
-	assert.Equal(t, 300, user.Quota, "quota must be credited exactly once")
+	assert.Equal(t, int64(300), user.Quota, "quota must be credited exactly once")
 }

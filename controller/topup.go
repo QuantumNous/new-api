@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -26,18 +27,23 @@ func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
 
 	// 获取支付方式
-	payMethods := operation_setting.PayMethods
+	payMethods := make([]map[string]string, len(operation_setting.PayMethods))
+	for i, method := range operation_setting.PayMethods {
+		payMethods[i] = maps.Clone(method)
+	}
 	if !complianceConfirmed {
 		payMethods = []map[string]string{}
 	}
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
 	if isStripeTopUpEnabled() {
+		stripeMinTopup := strconv.FormatInt(getStripeMinTopup(), 10)
 		// 检查是否已经包含 Stripe
 		hasStripe := false
-		for _, method := range payMethods {
+		for i, method := range payMethods {
 			if method["type"] == "stripe" {
 				hasStripe = true
+				payMethods[i]["min_topup"] = stripeMinTopup
 				break
 			}
 		}
@@ -47,7 +53,7 @@ func GetTopUpInfo(c *gin.Context) {
 				"name":      "Stripe",
 				"type":      "stripe",
 				"color":     "#635BFF",
-				"min_topup": strconv.Itoa(setting.StripeMinTopUp),
+				"min_topup": stripeMinTopup,
 			}
 			payMethods = append(payMethods, stripeMethod)
 		}
@@ -114,7 +120,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"creem_products":          setting.CreemProducts,
 		"pay_methods":             payMethods,
 		"min_topup":               operation_setting.MinTopUp,
-		"stripe_min_topup":        setting.StripeMinTopUp,
+		"stripe_min_topup":        getStripeMinTopup(),
 		"waffo_min_topup":         setting.WaffoMinTopUp,
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,

@@ -45,6 +45,7 @@ import {
 import {
   getDefaultPaymentType,
   getMinTopupAmount,
+  getPaymentMethodMinTopup,
   dispatchSelectedPayment,
 } from './lib'
 import type {
@@ -126,11 +127,15 @@ export function Wallet(props: WalletProps) {
   }, [])
 
   useEffect(() => {
+    // This effect intentionally starts the initial user-data request on mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchUser()
   }, [fetchUser])
 
   useEffect(() => {
     if (props.initialShowHistory) {
+      // The route flag is converted into controlled dialog state once on arrival.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBillingDialogOpen(true)
       window.history.replaceState({}, '', window.location.pathname)
     }
@@ -176,8 +181,12 @@ export function Wallet(props: WalletProps) {
     setPaymentLoading(method.type)
 
     try {
-      // Validate minimum topup
-      const minTopup = getMinTopupAmount(topupInfo)
+      // Preserve rc.23 minimum behavior for existing gateways. Pancake alone
+      // uses its gateway-specific minimum.
+      const minTopup =
+        method.type === PAYMENT_TYPES.WAFFO_PANCAKE
+          ? getPaymentMethodMinTopup(topupInfo, method)
+          : getMinTopupAmount(topupInfo)
       if (topupAmount < minTopup) {
         return
       }

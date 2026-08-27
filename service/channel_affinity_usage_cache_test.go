@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -26,9 +25,12 @@ func buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP string)
 }
 
 func TestObserveChannelAffinityUsageCacheByRelayFormat_ClaudeMode(t *testing.T) {
-	ruleName := fmt.Sprintf("rule_%d", time.Now().UnixNano())
+	// t.Name() keeps each test's stats entry independent; UnixNano collided
+	// across sequential tests on Windows' coarse clock and poisoned the
+	// package-level stats cache.
+	ruleName := fmt.Sprintf("rule_%s", t.Name())
 	usingGroup := "default"
-	keyFP := fmt.Sprintf("fp_%d", time.Now().UnixNano())
+	keyFP := fmt.Sprintf("fp_%s", t.Name())
 	ctx := buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP)
 
 	usage := &dto.Usage{
@@ -53,9 +55,9 @@ func TestObserveChannelAffinityUsageCacheByRelayFormat_ClaudeMode(t *testing.T) 
 }
 
 func TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode(t *testing.T) {
-	ruleName := fmt.Sprintf("rule_%d", time.Now().UnixNano())
+	ruleName := fmt.Sprintf("rule_%s", t.Name())
 	usingGroup := "default"
-	keyFP := fmt.Sprintf("fp_%d", time.Now().UnixNano())
+	keyFP := fmt.Sprintf("fp_%s", t.Name())
 	ctx := buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP)
 
 	openAIUsage := &dto.Usage{
@@ -83,9 +85,9 @@ func TestObserveChannelAffinityUsageCacheByRelayFormat_MixedMode(t *testing.T) {
 }
 
 func TestObserveChannelAffinityUsageCacheByRelayFormat_UnsupportedModeKeepsEmpty(t *testing.T) {
-	ruleName := fmt.Sprintf("rule_%d", time.Now().UnixNano())
+	ruleName := fmt.Sprintf("rule_%s", t.Name())
 	usingGroup := "default"
-	keyFP := fmt.Sprintf("fp_%d", time.Now().UnixNano())
+	keyFP := fmt.Sprintf("fp_%s", t.Name())
 	ctx := buildChannelAffinityStatsContextForTest(ruleName, usingGroup, keyFP)
 
 	usage := &dto.Usage{

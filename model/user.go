@@ -92,7 +92,7 @@ type User struct {
 	TelegramId       string                     `json:"telegram_id" gorm:"column:telegram_id;index"`
 	VerificationCode string                     `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
 	AccessToken      *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // this token is for system management
-	Quota            int                        `json:"quota" gorm:"type:int;default:0"`
+	Quota            int64                      `json:"quota" gorm:"type:bigint;default:0"`
 	UsedQuota        int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
 	RequestCount     int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
 	Group            string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
@@ -570,7 +570,7 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 
 	// 更新用户额度
 	user.AffQuota -= quota
-	user.Quota += quota
+	user.Quota += int64(quota)
 
 	// 保存用户状态
 	if err := tx.Save(user).Error; err != nil {
@@ -638,7 +638,7 @@ func (user *User) Insert(inviterId int) error {
 			if err := user.prepareForInsert(tx); err != nil {
 				return err
 			}
-			user.Quota = common.QuotaForNewUser
+			user.Quota = int64(common.QuotaForNewUser)
 			user.AffCode = common.GetRandomString(4)
 
 			// 初始化用户设置，包括默认的边栏配置
@@ -702,7 +702,7 @@ func (user *User) InsertWithTx(tx *gorm.DB, inviterId int) error {
 		if err := user.prepareForInsert(tx); err != nil {
 			return err
 		}
-		user.Quota = common.QuotaForNewUser
+		user.Quota = int64(common.QuotaForNewUser)
 		user.AffCode = common.GetRandomString(4)
 
 		// 初始化用户设置
@@ -1179,7 +1179,7 @@ func ValidateAccessToken(token string) (*User, error) {
 }
 
 // GetUserQuota gets quota from Redis first, falls back to DB if needed
-func GetUserQuota(id int, fromDB bool) (quota int, err error) {
+func GetUserQuota(id int, fromDB bool) (quota int64, err error) {
 	if !fromDB && common.RedisEnabled {
 		return getUserQuotaCache(id)
 	}

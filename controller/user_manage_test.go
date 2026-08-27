@@ -173,10 +173,10 @@ func TestManageUserQuotaRespectsWalletCeiling(t *testing.T) {
 
 	var updated model.User
 	require.NoError(t, db.First(&updated, user.Id).Error)
-	assert.Equal(t, common.MaxWalletQuota-1, updated.Quota)
+	assert.Equal(t, int64(common.MaxWalletQuota-1), updated.Quota)
 
 	recorder = performManageUserRequest(t, fmt.Sprintf(`{"id":%d,"action":"add_quota","mode":"override","value":%d}`, user.Id, common.MaxWalletQuota+1))
 	assert.Contains(t, recorder.Body.String(), `"success":false`)
 	require.NoError(t, db.First(&updated, user.Id).Error)
-	assert.Equal(t, common.MaxWalletQuota-1, updated.Quota)
+	assert.Equal(t, int64(common.MaxWalletQuota-1), updated.Quota)
 }

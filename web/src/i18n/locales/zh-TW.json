@@ -3342,6 +3342,7 @@
     "Payment Gateway": "支付閘道",
     "Payment initiated": "已發起支付",
     "Payment Method": "付款方式",
+    "Final payment amount is calculated at checkout.": "最終付款金額將在結帳時計算。",
     "Payment method identifier": "支付方式標識",
     "Payment method identifier is required": "支付方式標識不能為空",
     "Payment method name": "支付方式名稱",

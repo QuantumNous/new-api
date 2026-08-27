@@ -144,6 +144,8 @@ func TestRequestAmountRejectsTopUpThatWouldOverflowWallet(t *testing.T) {
 		}
 	})
 
+	// 钱包聚合上限为 common.MaxWalletQuota（$2,000,000）：当前余额已贴近上限，
+	// 再充值 4294 单位（约 $4294 × QuotaPerUnit）必须被 capacity guard 拒绝。
 	require.NoError(t, model.DB.Create(&model.User{
 		Id:       42,
 		Username: "topup_capacity_user",
@@ -181,16 +183,46 @@ func TestValidateCreditedQuotaRejectsOverflow(t *testing.T) {
 	)
 }
 
-func TestStripeCreditedQuotaIncludesGroupRatio(t *testing.T) {
+func TestStripeCreditedQuotaUsesDisplayAwarePurchaseUnits(t *testing.T) {
 	oldQuotaPerUnit := common.QuotaPerUnit
+	oldDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
 	oldTopupGroupRatio := common.TopupGroupRatio2JSONString()
 	common.QuotaPerUnit = 500000
 	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"vip":2}`))
 	t.Cleanup(func() {
 		common.QuotaPerUnit = oldQuotaPerUnit
+		operation_setting.GetGeneralSetting().QuotaDisplayType = oldDisplayType
 		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(oldTopupGroupRatio))
 	})
 
+	testCases := []struct {
+		name        string
+		displayType string
+		amount      int64
+		wantQuota   int64
+	}{
+		{
+			name:        "currency purchase units scale by quota per unit",
+			displayType: operation_setting.QuotaDisplayTypeUSD,
+			amount:      2,
+			wantQuota:   2_000_000,
+		},
+		{
+			name:        "token purchase units are already quota units",
+			displayType: operation_setting.QuotaDisplayTypeTokens,
+			amount:      1_000_000,
+			wantQuota:   2_000_000,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			operation_setting.GetGeneralSetting().QuotaDisplayType = tc.displayType
+			assert.True(t, decimal.NewFromInt(tc.wantQuota).Equal(getStripeCreditedQuota(tc.amount, "vip")))
+		})
+	}
+
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
 	_, err := validateCreditedQuota(getStripeCreditedQuota(2147, "vip"))
 	require.NoError(t, err)
 	_, err = validateCreditedQuota(getStripeCreditedQuota(2148, "vip"))

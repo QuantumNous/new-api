@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func createReserveTestUser(t *testing.T, quota int) User {
+func createReserveTestUser(t *testing.T, quota int64) User {
 	t.Helper()
 	user := User{
 		Username:    "reserve-user-" + common.GetRandomString(6),
@@ -45,7 +45,7 @@ func getUserQuotaFromDB(t *testing.T, id int) int {
 	t.Helper()
 	var user User
 	require.NoError(t, DB.Select("quota").First(&user, id).Error)
-	return user.Quota
+	return int(user.Quota)
 }
 
 func getTokenFromDB(t *testing.T, id int) Token {
@@ -120,7 +120,7 @@ func TestRedisBatchReserveNeverFallsBackToStaleDatabaseBalance(t *testing.T) {
 	assert.False(t, reserved, "stale DB balance must not authorize a second spend")
 	cachedUser, err := GetUserCache(user.Id)
 	require.NoError(t, err)
-	assert.Equal(t, 2, cachedUser.Quota)
+	assert.Equal(t, int64(2), cachedUser.Quota)
 
 	token := createReserveTestToken(t, 9)
 	reserved, err = TryReserveTokenQuota(token.Id, token.Key, 7, false)
@@ -205,7 +205,7 @@ func TestSynchronousReserveCompensatesCacheWhenPersistenceFails(t *testing.T) {
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 	cached, cacheErr := cacheGetUserBase(user.Id)
 	require.NoError(t, cacheErr)
-	assert.Equal(t, 10, cached.Quota)
+	assert.Equal(t, int64(10), cached.Quota)
 
 	token := createReserveTestToken(t, 12)
 	_, err = GetTokenByKey(token.Key, true)
