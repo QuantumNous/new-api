@@ -29,8 +29,11 @@ jobs:
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          # This user-scoped package predates the fork and is not repository-
+          # linked, so GITHUB_TOKEN cannot read its existing layers. Keep the
+          # package-scoped publisher credential in the repository secret.
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
