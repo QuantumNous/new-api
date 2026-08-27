@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { SectionPageLayout } from '@/components/layout'
 import { useStatus } from '@/hooks/use-status'
@@ -37,6 +38,7 @@ import {
   useTopupInfo,
   usePayment,
   useAffiliate,
+  useRedemption,
   useCreemPayment,
   useWaffoPayment,
   useWaffoPancakePayment,
@@ -73,6 +75,7 @@ export function Wallet(props: WalletProps) {
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
+  const [redemptionCode, setRedemptionCode] = useState('')
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
@@ -101,6 +104,7 @@ export function Wallet(props: WalletProps) {
     transferQuota,
     transferring,
   } = useAffiliate()
+  const { redeeming, redeemCode } = useRedemption()
   const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
   const { processing: waffoProcessing, processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
@@ -195,7 +199,11 @@ export function Wallet(props: WalletProps) {
           : getMinTopupAmount(topupInfo)
       if (amount < minTopup) return
 
-      await calculatePaymentAmount(amount, method.type)
+      const calculatedAmount = await calculatePaymentAmount(amount, method.type)
+      if (!Number.isFinite(calculatedAmount) || calculatedAmount <= 0) {
+        toast.error(t('Unable to calculate payment amount. Please try again.'))
+        return
+      }
       setConfirmDialogOpen(true)
     } finally {
       setPaymentLoading(null)
@@ -219,6 +227,18 @@ export function Wallet(props: WalletProps) {
 
     if (success) {
       setConfirmDialogOpen(false)
+      await fetchUser()
+    }
+  }
+
+  // Handle redemption
+  const handleRedeem = async () => {
+    const code = redemptionCode.trim()
+    if (!code) return
+
+    const success = await redeemCode(code)
+    if (success) {
+      setRedemptionCode('')
       await fetchUser()
     }
   }
@@ -310,6 +330,10 @@ export function Wallet(props: WalletProps) {
                   calculating={calculating}
                   onPaymentMethodSelect={handlePaymentMethodSelect}
                   paymentLoading={paymentLoading}
+                  redemptionCode={redemptionCode}
+                  onRedemptionCodeChange={setRedemptionCode}
+                  onRedeem={handleRedeem}
+                  redeeming={redeeming}
                   loading={topupLoading}
                   priceRatio={(status?.price as number) || 1}
                   usdExchangeRate={effectiveUsdExchangeRate}

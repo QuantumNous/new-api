@@ -462,9 +462,12 @@ export function PaymentSettingsSection({
         values.WaffoPancakeReturnURL.trim()
       ),
       WaffoPancakeCurrency: values.WaffoPancakeCurrency.trim().toUpperCase(),
-      WaffoPancakeTopUpProduct100ID: values.WaffoPancakeTopUpProduct100ID.trim(),
-      WaffoPancakeTopUpProduct500ID: values.WaffoPancakeTopUpProduct500ID.trim(),
-      WaffoPancakeTopUpProduct1000ID: values.WaffoPancakeTopUpProduct1000ID.trim(),
+      WaffoPancakeTopUpProduct100ID:
+        values.WaffoPancakeTopUpProduct100ID.trim(),
+      WaffoPancakeTopUpProduct500ID:
+        values.WaffoPancakeTopUpProduct500ID.trim(),
+      WaffoPancakeTopUpProduct1000ID:
+        values.WaffoPancakeTopUpProduct1000ID.trim(),
     }
 
     const initial = {
@@ -512,6 +515,13 @@ export function PaymentSettingsSection({
       WaffoPancakeReturnURL: removeTrailingSlash(
         initialRef.current.WaffoPancakeReturnURL.trim()
       ),
+      WaffoPancakeCurrency: initialRef.current.WaffoPancakeCurrency.trim(),
+      WaffoPancakeTopUpProduct100ID:
+        initialRef.current.WaffoPancakeTopUpProduct100ID.trim(),
+      WaffoPancakeTopUpProduct500ID:
+        initialRef.current.WaffoPancakeTopUpProduct500ID.trim(),
+      WaffoPancakeTopUpProduct1000ID:
+        initialRef.current.WaffoPancakeTopUpProduct1000ID.trim(),
     }
 
     const updates: Array<{ key: string; value: string | number | boolean }> = []
@@ -714,9 +724,12 @@ export function PaymentSettingsSection({
       sanitized.WaffoPancakePrivateKey.length > 0 ||
       sanitized.WaffoPancakeReturnURL !== initial.WaffoPancakeReturnURL ||
       sanitized.WaffoPancakeCurrency !== initial.WaffoPancakeCurrency ||
-      sanitized.WaffoPancakeTopUpProduct100ID !== initial.WaffoPancakeTopUpProduct100ID ||
-      sanitized.WaffoPancakeTopUpProduct500ID !== initial.WaffoPancakeTopUpProduct500ID ||
-      sanitized.WaffoPancakeTopUpProduct1000ID !== initial.WaffoPancakeTopUpProduct1000ID ||
+      sanitized.WaffoPancakeTopUpProduct100ID !==
+        initial.WaffoPancakeTopUpProduct100ID ||
+      sanitized.WaffoPancakeTopUpProduct500ID !==
+        initial.WaffoPancakeTopUpProduct500ID ||
+      sanitized.WaffoPancakeTopUpProduct1000ID !==
+        initial.WaffoPancakeTopUpProduct1000ID ||
       waffoPancakeSelection.storeID !== waffoPancakeSavedBinding.storeID ||
       waffoPancakeSelection.productID !== waffoPancakeSavedBinding.productID
 
@@ -739,7 +752,9 @@ export function PaymentSettingsSection({
     }
 
     if (!waffoPancakeSelection.storeID || !waffoPancakeSelection.productID) {
-      toast.error(t('Pick or create both a store and a default product before saving.'))
+      toast.error(
+        t('Pick or create both a store and a default product before saving.')
+      )
       return
     }
 
@@ -749,7 +764,11 @@ export function PaymentSettingsSection({
       !sanitized.WaffoPancakeTopUpProduct500ID.trim() ||
       !sanitized.WaffoPancakeTopUpProduct1000ID.trim()
     ) {
-      toast.error(t('Set currency to CNY and provide all three fixed top-up product IDs before saving.'))
+      toast.error(
+        t(
+          'Set currency to CNY and provide all three fixed top-up product IDs before saving.'
+        )
+      )
       return
     }
 
@@ -821,9 +840,12 @@ export function PaymentSettingsSection({
     WaffoPancakePrivateKey: currentFormValues.WaffoPancakePrivateKey,
     WaffoPancakeReturnURL: currentFormValues.WaffoPancakeReturnURL,
     WaffoPancakeCurrency: currentFormValues.WaffoPancakeCurrency,
-    WaffoPancakeTopUpProduct100ID: currentFormValues.WaffoPancakeTopUpProduct100ID,
-    WaffoPancakeTopUpProduct500ID: currentFormValues.WaffoPancakeTopUpProduct500ID,
-    WaffoPancakeTopUpProduct1000ID: currentFormValues.WaffoPancakeTopUpProduct1000ID,
+    WaffoPancakeTopUpProduct100ID:
+      currentFormValues.WaffoPancakeTopUpProduct100ID,
+    WaffoPancakeTopUpProduct500ID:
+      currentFormValues.WaffoPancakeTopUpProduct500ID,
+    WaffoPancakeTopUpProduct1000ID:
+      currentFormValues.WaffoPancakeTopUpProduct1000ID,
   }
 
   return (

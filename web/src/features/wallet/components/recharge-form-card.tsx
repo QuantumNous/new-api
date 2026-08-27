@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Loader2, Receipt, WalletCards } from 'lucide-react'
+import { Gift, Loader2, Receipt, WalletCards } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -64,6 +64,10 @@ interface RechargeFormCardProps {
   calculating: boolean
   onPaymentMethodSelect: (method: PaymentMethod) => void
   paymentLoading: string | null
+  redemptionCode: string
+  onRedemptionCodeChange: (code: string) => void
+  onRedeem: () => void
+  redeeming: boolean
   loading?: boolean
   priceRatio?: number
   usdExchangeRate?: number
@@ -90,6 +94,10 @@ export function RechargeFormCard({
   calculating,
   onPaymentMethodSelect,
   paymentLoading,
+  redemptionCode,
+  onRedemptionCodeChange,
+  onRedeem,
+  redeeming,
   loading,
   priceRatio = 1,
   usdExchangeRate = 1,
@@ -133,10 +141,13 @@ export function RechargeFormCard({
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
+  const redemptionEnabled = topupInfo?.enable_redemption !== false
   const isWaffoPancakeSelected = selectedPaymentMethodType === 'waffo_pancake'
-  const pancakeAmounts = topupInfo?.waffo_pancake_amount_options ?? [1000, 5000, 10000]
+  const pancakeAmounts = topupInfo?.waffo_pancake_amount_options ?? [
+    1000, 5000, 10000,
+  ]
   const visiblePresets = isWaffoPancakeSelected
-    ? pancakeAmounts.map((value) => ({ value }))
+    ? pancakeAmounts.map((value): PresetAmount => ({ value }))
     : presetAmounts
 
   if (loading) {
@@ -254,7 +265,11 @@ export function RechargeFormCard({
                         >
                           <div className='flex w-full items-center justify-between'>
                             <div className='text-base font-semibold sm:text-lg'>
-                              {formatNumber(isWaffoPancakeSelected ? preset.value : displayValue)}
+                              {formatNumber(
+                                isWaffoPancakeSelected
+                                  ? preset.value
+                                  : displayValue
+                              )}
                             </div>
                             {hasDiscount && (
                               <div className='text-xs font-medium text-green-600'>
@@ -263,17 +278,19 @@ export function RechargeFormCard({
                             )}
                           </div>
                           <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
-                            {isWaffoPancakeSelected
-                              ? `¥${pancakePrice.toLocaleString('zh-CN')} · ${t('Fixed bundle')}`
-                              : <>
-                                  Pay {formatCurrency(actualPrice)}
-                                  {hasDiscount && savedAmount > 0 && (
-                                    <span className='text-green-600'>
-                                      {' '}
-                                      • Save {formatCurrency(savedAmount)}
-                                    </span>
-                                  )}
-                                </>}
+                            {isWaffoPancakeSelected ? (
+                              `¥${pancakePrice.toLocaleString('zh-CN')} · ${t('Fixed bundle')}`
+                            ) : (
+                              <>
+                                Pay {formatCurrency(actualPrice)}
+                                {hasDiscount && savedAmount > 0 && (
+                                  <span className='text-green-600'>
+                                    {' '}
+                                    • Save {formatCurrency(savedAmount)}
+                                  </span>
+                                )}
+                              </>
+                            )}
                           </div>
                         </Button>
                       )
@@ -283,41 +300,43 @@ export function RechargeFormCard({
               )}
 
               {!isWaffoPancakeSelected ? (
-              <div className='space-y-2.5 sm:space-y-3'>
-                <Label
-                  htmlFor='topup-amount'
-                  className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
-                >
-                  {t('Custom Amount')}
-                </Label>
-                <div className='grid grid-cols-[minmax(0,1fr)_minmax(110px,0.55fr)] gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center'>
-                  <Input
-                    id='topup-amount'
-                    type='number'
-                    value={localAmount}
-                    onChange={(e) => handleAmountChange(e.target.value)}
-                    min={minTopup}
-                    placeholder={`Minimum ${minTopup}`}
-                    className='h-9 text-base sm:h-10 sm:text-lg'
-                  />
-                  <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
-                    <span className='text-muted-foreground truncate text-xs'>
-                      {t('Amount to pay:')}
-                    </span>
-                    {calculating ? (
-                      <Skeleton className='h-5 w-16' />
-                    ) : (
-                      <span className='text-sm font-semibold'>
-                        {formatCurrency(paymentAmount)}
+                <div className='space-y-2.5 sm:space-y-3'>
+                  <Label
+                    htmlFor='topup-amount'
+                    className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
+                  >
+                    {t('Custom Amount')}
+                  </Label>
+                  <div className='grid grid-cols-[minmax(0,1fr)_minmax(110px,0.55fr)] gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center'>
+                    <Input
+                      id='topup-amount'
+                      type='number'
+                      value={localAmount}
+                      onChange={(e) => handleAmountChange(e.target.value)}
+                      min={minTopup}
+                      placeholder={`Minimum ${minTopup}`}
+                      className='h-9 text-base sm:h-10 sm:text-lg'
+                    />
+                    <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
+                      <span className='text-muted-foreground truncate text-xs'>
+                        {t('Amount to pay:')}
                       </span>
-                    )}
+                      {calculating ? (
+                        <Skeleton className='h-5 w-16' />
+                      ) : (
+                        <span className='text-sm font-semibold'>
+                          {formatCurrency(paymentAmount)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
               ) : (
                 <Alert>
                   <AlertDescription>
-                    {t('Waffo Pancake supports fixed CNY bundles only. Select one of the three amounts above.')}
+                    {t(
+                      'Waffo Pancake supports fixed CNY bundles only. Select one of the three amounts above.'
+                    )}
                   </AlertDescription>
                 </Alert>
               )}
@@ -489,9 +508,7 @@ export function RechargeFormCard({
       ) : (
         <Alert>
           <AlertDescription>
-            {t(
-              'Online topup is not enabled. Please contact administrator.'
-            )}
+            {t('Online topup is not enabled. Please contact administrator.')}
           </AlertDescription>
         </Alert>
       )}
@@ -512,6 +529,51 @@ export function RechargeFormCard({
           </div>
         )}
 
+      {/* Redemption Code Section */}
+      {redemptionEnabled ? (
+        <div className='space-y-2.5 border-t pt-4 sm:space-y-3 sm:pt-6'>
+          <div className='flex items-center gap-2'>
+            <IconBadge tone='warning' size='xs'>
+              <Gift />
+            </IconBadge>
+            <Label
+              htmlFor='redemption-code'
+              className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
+            >
+              {t('Have a Code?')}
+            </Label>
+          </div>
+          <div className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'>
+            <Input
+              id='redemption-code'
+              value={redemptionCode}
+              onChange={(e) => onRedemptionCodeChange(e.target.value)}
+              placeholder={t('Enter your redemption code')}
+              className='h-9 min-w-0'
+            />
+            <Button
+              onClick={onRedeem}
+              disabled={redeeming || !redemptionCode.trim()}
+              variant='outline'
+              className='h-9 px-4'
+            >
+              {redeeming && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+              {t('Redeem')}
+            </Button>
+          </div>
+          <p className='text-muted-foreground text-xs'>
+            联系 QQ：1241789369，充值无手续费
+          </p>
+        </div>
+      ) : (
+        <Alert className='border-t'>
+          <AlertDescription>
+            {t(
+              'Redemption codes are disabled until the administrator confirms compliance terms.'
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
     </TitledCard>
   )
 }
