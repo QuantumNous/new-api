@@ -134,6 +134,34 @@ func TestConvertRequestToChannelNativeOpenAIGPTDefaultsToResponses(t *testing.T)
 	}
 }
 
+func TestConvertRequestToChannelNativeResponsesDeveloperUsesChatSystem(t *testing.T) {
+	info := testRelayInfo(constant.APITypeOpenAI, "glm-5.2")
+	info.RelayFormat = types.RelayFormatOpenAIResponses
+	adaptor := GetAdaptor(constant.APITypeOpenAI)
+	adaptor.Init(info)
+
+	got, err := convertRequestToChannelNative(nil, info, adaptor, &dto.OpenAIResponsesRequest{
+		Model: "glm-5.2",
+		Input: []byte(`[
+			{"role":"developer","content":"Follow deployment policy."},
+			{"role":"user","content":"hello"}
+		]`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chatReq, ok := got.(*dto.GeneralOpenAIRequest)
+	if !ok {
+		t.Fatalf("got %T", got)
+	}
+	if len(chatReq.Messages) != 2 || chatReq.Messages[0].Role != "system" {
+		t.Fatalf("messages=%#v", chatReq.Messages)
+	}
+	if chatReq.Messages[0].StringContent() != "Follow deployment policy." {
+		t.Fatalf("system=%q", chatReq.Messages[0].StringContent())
+	}
+}
+
 func TestConvertRequestToChannelNativeGLMResponsesUsesChat(t *testing.T) {
 	info := testRelayInfo(constant.APITypeOpenAI, "glm-5.2")
 	info.RelayFormat = types.RelayFormatOpenAIResponses
@@ -334,6 +362,34 @@ func TestOpenAIAdaptorRejectsForeignClaudeConvert(t *testing.T) {
 	}
 	if got, want := err.Error(), "ConvertRequestToChannelNative"; !strings.Contains(got, want) {
 		t.Fatalf("err=%q want substring %q", got, want)
+	}
+}
+
+func TestConvertRequestToChannelNativePreflightsEverySameFormatChatPDF(t *testing.T) {
+	info := testRelayInfo(constant.APITypeOpenAI, "generic-chat-model")
+	info.RelayFormat = types.RelayFormatOpenAI
+	adaptor := GetAdaptor(constant.APITypeOpenAI)
+	adaptor.Init(info)
+
+	_, err := convertRequestToChannelNative(nil, info, adaptor, &dto.GeneralOpenAIRequest{
+		Model: "generic-chat-model",
+		Messages: []dto.Message{{Role: "user", Content: []any{map[string]any{
+			"type": "file",
+			"file": map[string]any{
+				"filename":  "matrix-document.pdf",
+				"file_data": "data:application/pdf;base64,JVBERi0xLjQ=",
+			},
+		}}}},
+	})
+	if err == nil {
+		t.Fatal("expected capability_unsupported")
+	}
+	apiErr, ok := err.(*types.NewAPIError)
+	if !ok {
+		t.Fatalf("got %T: %v", err, err)
+	}
+	if apiErr.GetErrorCode() != types.ErrorCodeCapabilityUnsupported {
+		t.Fatalf("code=%s", apiErr.GetErrorCode())
 	}
 }
 

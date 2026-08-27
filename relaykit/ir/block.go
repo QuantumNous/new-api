@@ -59,6 +59,7 @@ type TextBlock struct {
 type MediaBlock struct {
 	Kind         MediaKind       `json:"kind,omitempty"`
 	MIME         string          `json:"mime,omitempty"`
+	Filename     string          `json:"filename,omitempty"`
 	Source       MediaSourceKind `json:"source,omitempty"`
 	URL          string          `json:"url,omitempty"`
 	Data         string          `json:"data,omitempty"`

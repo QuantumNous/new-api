@@ -4,6 +4,7 @@
       "Type": "response.created",
       "Payload": {
         "type": "response.created",
+        "sequence_number": 0,
         "response": {
           "id": "chatcmpl-fixed",
           "object": "response",
@@ -12,7 +13,7 @@
           "instructions": null,
           "max_output_tokens": 0,
           "model": "gpt-test",
-          "output": null,
+          "output": [],
           "parallel_tool_calls": false,
           "previous_response_id": null,
           "reasoning": null,
@@ -32,12 +33,13 @@
       "Type": "response.output_item.added",
       "Payload": {
         "type": "response.output_item.added",
+        "sequence_number": 1,
         "item": {
           "type": "message",
           "id": "msg_chatcmpl-fixed_0",
           "status": "in_progress",
           "role": "assistant",
-          "content": null,
+          "content": [],
           "quality": "",
           "size": ""
         },
@@ -46,11 +48,27 @@
       }
     },
     {
+      "Type": "response.content_part.added",
+      "Payload": {
+        "type": "response.content_part.added",
+        "sequence_number": 2,
+        "output_index": 0,
+        "content_index": 0,
+        "item_id": "msg_chatcmpl-fixed_0",
+        "part": {
+          "type": "output_text",
+          "text": ""
+        }
+      }
+    },
+    {
       "Type": "response.output_text.delta",
       "Payload": {
         "type": "response.output_text.delta",
+        "sequence_number": 3,
         "delta": "Hello",
         "output_index": 0,
+        "content_index": 0,
         "item_id": "msg_chatcmpl-fixed_0"
       }
     },
@@ -58,8 +76,10 @@
       "Type": "response.output_text.delta",
       "Payload": {
         "type": "response.output_text.delta",
+        "sequence_number": 4,
         "delta": " world",
         "output_index": 0,
+        "content_index": 0,
         "item_id": "msg_chatcmpl-fixed_0"
       }
     },
@@ -67,6 +87,47 @@
       "Type": "response.output_text.done",
       "Payload": {
         "type": "response.output_text.done",
+        "sequence_number": 5,
+        "text": "Hello world",
+        "output_index": 0,
+        "content_index": 0,
+        "item_id": "msg_chatcmpl-fixed_0"
+      }
+    },
+    {
+      "Type": "response.content_part.done",
+      "Payload": {
+        "type": "response.content_part.done",
+        "sequence_number": 6,
+        "output_index": 0,
+        "content_index": 0,
+        "item_id": "msg_chatcmpl-fixed_0",
+        "part": {
+          "type": "output_text",
+          "text": "Hello world"
+        }
+      }
+    },
+    {
+      "Type": "response.output_item.done",
+      "Payload": {
+        "type": "response.output_item.done",
+        "sequence_number": 7,
+        "item": {
+          "type": "message",
+          "id": "msg_chatcmpl-fixed_0",
+          "status": "completed",
+          "role": "assistant",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Hello world",
+              "annotations": []
+            }
+          ],
+          "quality": "",
+          "size": ""
+        },
         "output_index": 0,
         "item_id": "msg_chatcmpl-fixed_0"
       }
@@ -75,6 +136,7 @@
       "Type": "response.completed",
       "Payload": {
         "type": "response.completed",
+        "sequence_number": 8,
         "response": {
           "id": "chatcmpl-fixed",
           "object": "response",
@@ -83,7 +145,23 @@
           "instructions": null,
           "max_output_tokens": 0,
           "model": "gpt-test",
-          "output": null,
+          "output": [
+            {
+              "type": "message",
+              "id": "msg_chatcmpl-fixed_0",
+              "status": "completed",
+              "role": "assistant",
+              "content": [
+                {
+                  "type": "output_text",
+                  "text": "Hello world",
+                  "annotations": []
+                }
+              ],
+              "quality": "",
+              "size": ""
+            }
+          ],
           "parallel_tool_calls": false,
           "previous_response_id": null,
           "reasoning": null,
@@ -94,8 +172,8 @@
           "top_p": 0,
           "truncation": null,
           "usage": {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
+            "prompt_tokens": 4,
+            "completion_tokens": 2,
             "total_tokens": 6,
             "prompt_tokens_details": {
               "cached_tokens": 0,

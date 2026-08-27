@@ -152,11 +152,25 @@ func audioFromChatMap(m map[string]any) (ir.Block, error) {
 func fileFromChatMap(m map[string]any) (ir.Block, error) {
 	media := &ir.MediaBlock{Kind: ir.MediaFile, CacheControl: jsonx.CacheControlFrom(m["cache_control"])}
 	if inner, ok := jsonx.AsMap(m["file"]); ok {
+		media.Filename = firstNonEmptyString(jsonx.MapString(inner, "filename"), jsonx.MapString(inner, "file_name"))
+		media.MIME = firstNonEmptyString(jsonx.MapString(inner, "mime_type"), jsonx.MapString(inner, "media_type"))
 		media.FileID = jsonx.MapString(inner, "file_id")
-		media.Data = jsonx.MapString(inner, "file_data")
-		if media.Data != "" {
+		media.URL = jsonx.MapString(inner, "file_url")
+		data := jsonx.MapString(inner, "file_data")
+		switch {
+		case data != "":
 			media.Source = ir.MediaSourceBase64
-		} else if media.FileID != "" {
+			if mime, payload, ok := jsonx.ParseDataURL(data); ok {
+				if media.MIME == "" {
+					media.MIME = mime
+				}
+				media.Data = payload
+			} else {
+				media.Data = data
+			}
+		case media.URL != "":
+			media.Source = ir.MediaSourceURL
+		case media.FileID != "":
 			media.Source = ir.MediaSourceID
 		}
 	}
@@ -385,8 +399,18 @@ func mediaToChatPart(media *ir.MediaBlock) (any, error) {
 		return m, nil
 	case ir.MediaFile:
 		file := map[string]any{}
-		jsonx.PutIfNotEmpty(file, "file_id", media.FileID)
-		jsonx.PutIfNotEmpty(file, "file_data", media.Data)
+		jsonx.PutIfNotEmpty(file, "filename", media.Filename)
+		jsonx.PutIfNotEmpty(file, "mime_type", media.MIME)
+		switch media.Source {
+		case ir.MediaSourceBase64:
+			if media.Data != "" {
+				file["file_data"] = jsonx.DataURL(media.MIME, media.Data)
+			}
+		case ir.MediaSourceURL:
+			jsonx.PutIfNotEmpty(file, "file_url", media.URL)
+		case ir.MediaSourceID:
+			jsonx.PutIfNotEmpty(file, "file_id", media.FileID)
+		}
 		m := map[string]any{"type": dto.ContentTypeFile, "file": file}
 		return m, nil
 	case ir.MediaVideo:
@@ -403,6 +427,15 @@ func mediaToChatPart(media *ir.MediaBlock) (any, error) {
 		m := map[string]any{"type": dto.ContentTypeImageURL, "image_url": image}
 		return m, nil
 	}
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func rawToChatArguments(raw json.RawMessage) string {

@@ -2,6 +2,7 @@ package relayconvert
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -21,7 +22,7 @@ func isTextRelayFormat(format types.RelayFormat) bool {
 	return project.IsTextFormat(format)
 }
 
-func convertRequestIR(info convmeta.Meta, from, target types.RelayFormat, request any) (*RequestResult, error) {
+func convertRequestIR(ctx context.Context, info convmeta.Meta, from, target types.RelayFormat, request any) (*RequestResult, error) {
 	irReq, err := project.FromRequest(from, request)
 	if err != nil {
 		return nil, err
@@ -30,6 +31,9 @@ func convertRequestIR(info convmeta.Meta, from, target types.RelayFormat, reques
 		irReq.Stream = true
 	}
 	if err := rejectStatefulResponses(irReq, target); err != nil {
+		return nil, err
+	}
+	if err := normalizeRequestMedia(ctx, from, target, irReq); err != nil {
 		return nil, err
 	}
 	fillToolResultNames(irReq)
@@ -337,19 +341,25 @@ func adaptIRResponse(info convmeta.Meta, resp *ir.Response) {
 	if resp == nil {
 		return
 	}
-	if resp.ID == "" {
-		resp.ID = "chatcmpl-" + kitutil.GetUUID()
-	}
 	if resp.Model == "" {
 		if name := convmeta.UpstreamModelName(info); name != "" {
 			resp.Model = name
 		}
 	}
+	toolScope := resp.ID
+	if toolScope == "" {
+		toolScope = resp.Model
+	}
+	if resp.ID == "" {
+		resp.ID = "chatcmpl-" + kitutil.GetUUID()
+	}
+	toolIndex := 0
 	for i := range resp.Blocks {
-		if resp.Blocks[i].ToolUse == nil || resp.Blocks[i].ToolUse.ID != "" {
+		if resp.Blocks[i].ToolUse == nil {
 			continue
 		}
-		resp.Blocks[i].ToolUse.ID = fmt.Sprintf("call_%s", kitutil.GetUUID())
+		resp.Blocks[i].ToolUse.ID = ir.CanonicalToolCallID(toolScope, toolIndex, resp.Blocks[i].ToolUse.ID)
+		toolIndex++
 	}
 	if responseHasToolUse(resp) && (resp.Finish == "" || resp.Finish == ir.FinishStop || resp.Finish == ir.FinishUnknown) {
 		resp.Finish = ir.FinishTool

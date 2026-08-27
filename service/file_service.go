@@ -349,6 +349,12 @@ func loadFromBase64(base64String string, providedMimeType string) (*types.Cached
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode base64 data: %w", err)
 	}
+	if mimeType == "" || mimeType == "application/octet-stream" {
+		detected := smartDetectMimeType(&http.Response{Header: make(http.Header)}, "", decodedData)
+		if detected != "" {
+			mimeType = detected
+		}
+	}
 
 	base64Size := int64(len(cleanBase64))
 	var cachedData *types.CachedFileData

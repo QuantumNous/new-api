@@ -11,7 +11,7 @@
         "content": "The answer is 42.",
         "tool_calls": [
           {
-            "id": "call_<uuid>",
+            "id": "call_ca96334fffc1_0",
             "type": "function",
             "function": {
               "name": "get_weather",

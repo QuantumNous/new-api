@@ -26,7 +26,7 @@
       "content": null,
       "tool_calls": [
         {
-          "id": "call_get_weather_1",
+          "id": "call_5a6a196ff6f5_0",
           "type": "function",
           "function": {
             "name": "get_weather",
@@ -38,7 +38,7 @@
     {
       "role": "tool",
       "content": "{\"result\":\"15 degrees\"}",
-      "tool_call_id": "call_get_weather_1"
+      "tool_call_id": "call_5a6a196ff6f5_0"
     }
   ],
   "max_completion_tokens": 1024,

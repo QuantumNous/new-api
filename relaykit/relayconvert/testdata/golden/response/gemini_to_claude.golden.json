@@ -9,7 +9,7 @@
     },
     {
       "type": "tool_use",
-      "id": "call_<uuid>",
+      "id": "call_ca96334fffc1_0",
       "name": "get_weather",
       "input": {
         "city": "Paris"

@@ -24,17 +24,15 @@
     },
     {
       "type": "function_call",
-      "id": "fc_call_<uuid>",
+      "id": "fc_call_ca96334fffc1_0",
       "status": "completed",
       "role": "",
       "content": null,
       "quality": "",
       "size": "",
-      "call_id": "call_<uuid>",
+      "call_id": "call_ca96334fffc1_0",
       "name": "get_weather",
-      "arguments": {
-        "city": "Paris"
-      }
+      "arguments": "{\"city\":\"Paris\"}"
     }
   ],
   "parallel_tool_calls": false,

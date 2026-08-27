@@ -107,6 +107,9 @@ func ToRequest(req *ir.Request) (*dto.OpenAIResponsesRequest, error) {
 	var system []ir.Block
 	var inputItems []any
 	for _, message := range req.Messages {
+		if !ir.ValidRole(message.Role) {
+			return nil, fmt.Errorf("responses projection: unsupported message role %q", message.Role)
+		}
 		if message.Role == ir.RoleSystem {
 			system = append(system, message.Blocks...)
 			continue

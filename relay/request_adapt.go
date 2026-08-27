@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	rootcommon "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -38,17 +39,19 @@ func convertRequestToChannelNative(c *gin.Context, info *relaycommon.RelayInfo, 
 		native = info.TextNative()
 	}
 
-	current := request
-	if incoming != native {
-		result, err := relayconvert.ConvertRequest(c, info, native, request)
-		if err != nil {
-			return nil, err
-		}
-		if c != nil && !result.Report.Empty() {
-			logger.LogDebug(c, fmt.Sprintf("text projection losses %s→%s: %+v", result.From, result.To, result.Report.Losses))
-		}
-		current = result.Value
+	result, err := relayconvert.ConvertRequest(c, info, native, request)
+	if err != nil {
+		return nil, err
 	}
+	if c != nil && !result.Report.Empty() {
+		logger.LogDebug(c, fmt.Sprintf("text projection losses %s→%s: %+v", result.From, result.To, result.Report.Losses))
+	}
+	if c != nil && rootcommon.DebugEnabled {
+		if summary, summaryErr := relayconvert.SummarizeRequestConversion(result.From, result.To, request, result.Value, result.Report); summaryErr == nil {
+			logger.LogDebug(c, fmt.Sprintf("text conversion summary: %+v", summary))
+		}
+	}
+	current := result.Value
 	syncUpstreamModelFromNative(info, current)
 	converted, err := adaptNativeRequest(c, info, adaptor, native, current)
 	if err != nil {

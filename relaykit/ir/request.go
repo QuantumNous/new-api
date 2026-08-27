@@ -1,6 +1,10 @@
 package ir
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
 
 type Role string
 
@@ -10,6 +14,34 @@ const (
 	RoleAssistant Role = "assistant"
 	RoleTool      Role = "tool"
 )
+
+// NormalizeRole converts protocol-specific role spellings into the closed IR
+// role set. Developer is an instruction role and model is Gemini's assistant
+// spelling; arbitrary role strings are rejected instead of leaking across
+// protocol boundaries.
+func NormalizeRole(value string) (Role, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "system", "developer":
+		return RoleSystem, nil
+	case "user", "":
+		return RoleUser, nil
+	case "assistant", "model":
+		return RoleAssistant, nil
+	case "tool":
+		return RoleTool, nil
+	default:
+		return "", fmt.Errorf("unsupported message role %q", value)
+	}
+}
+
+func ValidRole(role Role) bool {
+	switch role {
+	case RoleSystem, RoleUser, RoleAssistant, RoleTool:
+		return true
+	default:
+		return false
+	}
+}
 
 type ThinkMode string
 

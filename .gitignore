@@ -26,6 +26,8 @@ plans
 
 electron/node_modules
 electron/dist
+tests/ai-sdk-protocol-matrix/node_modules
+tests/ai-sdk-protocol-matrix/artifacts
 /data/
 .gomodcache/
 .gocache-temp

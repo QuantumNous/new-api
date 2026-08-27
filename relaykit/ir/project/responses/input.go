@@ -50,9 +50,9 @@ func messageFromResponsesItem(item any) (ir.Message, error) {
 	}
 	switch typ {
 	case "", "message":
-		role := ir.Role(jsonx.MapString(m, "role"))
-		if role == "" {
-			role = ir.RoleUser
+		role, err := ir.NormalizeRole(jsonx.MapString(m, "role"))
+		if err != nil {
+			return ir.Message{}, err
 		}
 		blocks, err := blocksFromResponsesContent(m["content"])
 		if err != nil {
@@ -210,15 +210,45 @@ func blockFromResponsesPart(item any) (ir.Block, error) {
 		}
 		return ir.Block{Kind: ir.BlockKindMedia, Media: media}, nil
 	case "input_file":
-		media := &ir.MediaBlock{Kind: ir.MediaFile, Source: ir.MediaSourceURL, URL: jsonx.MapString(m, "file_url")}
-		if media.URL == "" {
+		media := &ir.MediaBlock{
+			Kind:     ir.MediaFile,
+			Filename: firstNonEmpty(jsonx.MapString(m, "filename"), jsonx.MapString(m, "file_name")),
+			MIME:     firstNonEmpty(jsonx.MapString(m, "mime_type"), jsonx.MapString(m, "media_type")),
+		}
+		fileData := jsonx.MapString(m, "file_data")
+		fileURL := jsonx.MapString(m, "file_url")
+		if fileURL == "" {
 			if inner, ok := jsonx.AsMap(m["file_url"]); ok {
-				media.URL = jsonx.MapString(inner, "url")
+				fileURL = jsonx.MapString(inner, "url")
 			}
 		}
-		if id := jsonx.MapString(m, "file_id"); id != "" {
+		media.URL = fileURL
+		media.FileID = jsonx.MapString(m, "file_id")
+		switch {
+		case fileData != "":
+			media.Source = ir.MediaSourceBase64
+			if mime, data, ok := jsonx.ParseDataURL(fileData); ok {
+				if media.MIME == "" {
+					media.MIME = mime
+				}
+				media.Data = data
+			} else {
+				media.Data = fileData
+			}
+		case fileURL != "":
+			if mime, data, ok := jsonx.ParseDataURL(fileURL); ok {
+				media.Source = ir.MediaSourceBase64
+				media.URL = ""
+				if media.MIME == "" {
+					media.MIME = mime
+				}
+				media.Data = data
+			} else {
+				media.Source = ir.MediaSourceURL
+				media.URL = fileURL
+			}
+		case media.FileID != "":
 			media.Source = ir.MediaSourceID
-			media.FileID = id
 		}
 		return ir.Block{Kind: ir.BlockKindMedia, Media: media}, nil
 	default:
@@ -341,7 +371,7 @@ func functionCallOutputItem(result *ir.ToolResultBlock) (map[string]any, error) 
 
 func responsesFunctionItemID(callID string) string {
 	if strings.HasPrefix(callID, "fc_") {
-		return callID
+		return "fc_item_" + strings.TrimPrefix(callID, "fc_")
 	}
 	return "fc_" + callID
 }
@@ -381,8 +411,17 @@ func blockToResponsesPart(block ir.Block, input bool) (any, error) {
 		}
 		if block.Media.Kind == ir.MediaFile {
 			item := map[string]any{"type": "input_file"}
-			jsonx.PutIfNotEmpty(item, "file_url", block.Media.URL)
-			jsonx.PutIfNotEmpty(item, "file_id", block.Media.FileID)
+			jsonx.PutIfNotEmpty(item, "filename", block.Media.Filename)
+			switch block.Media.Source {
+			case ir.MediaSourceBase64:
+				if block.Media.Data != "" {
+					item["file_data"] = jsonx.DataURL(block.Media.MIME, block.Media.Data)
+				}
+			case ir.MediaSourceURL:
+				jsonx.PutIfNotEmpty(item, "file_url", block.Media.URL)
+			case ir.MediaSourceID:
+				jsonx.PutIfNotEmpty(item, "file_id", block.Media.FileID)
+			}
 			return item, nil
 		}
 		url := block.Media.URL
@@ -404,6 +443,21 @@ func blockToResponsesPart(block ir.Block, input bool) (any, error) {
 	default:
 		return nil, nil
 	}
+}
+
+func responsesArgumentsToRaw(raw json.RawMessage) json.RawMessage {
+	if jsonx.RawJSONType(raw) != "string" {
+		return jsonx.Clone(raw)
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return jsonx.Clone(raw)
+	}
+	if json.Valid([]byte(value)) {
+		return json.RawMessage(value)
+	}
+	encoded, _ := json.Marshal(value)
+	return encoded
 }
 
 func rawToResponsesArguments(raw json.RawMessage) string {

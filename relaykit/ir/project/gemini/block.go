@@ -55,6 +55,12 @@ func blocksFromGeminiPart(part dto.GeminiPart) ([]ir.Block, error) {
 			Source: ir.MediaSourceBase64,
 			Data:   part.InlineData.Data,
 		}
+		if mime, data, ok := jsonx.ParseDataURL(media.Data); ok {
+			if media.MIME == "" {
+				media.MIME = mime
+			}
+			media.Data = data
+		}
 		return []ir.Block{{Kind: ir.BlockKindMedia, Media: media}}, nil
 	case part.FileData != nil:
 		media := &ir.MediaBlock{
@@ -216,10 +222,14 @@ func mediaToGeminiPart(media *ir.MediaBlock) (*dto.GeminiPart, error) {
 	if media == nil {
 		return &dto.GeminiPart{}, nil
 	}
-	if media.Source == ir.MediaSourceURI || media.URL != "" && media.Data == "" {
+	switch media.Source {
+	case ir.MediaSourceURI:
 		return &dto.GeminiPart{FileData: &dto.GeminiFileData{MimeType: media.MIME, FileUri: media.URL}}, nil
+	case ir.MediaSourceBase64:
+		return &dto.GeminiPart{InlineData: &dto.GeminiInlineData{MimeType: media.MIME, Data: media.Data}}, nil
+	default:
+		return nil, fmt.Errorf("gemini projection requires inline base64 or a Gemini file URI, got %q", media.Source)
 	}
-	return &dto.GeminiPart{InlineData: &dto.GeminiInlineData{MimeType: media.MIME, Data: media.Data}}, nil
 }
 
 func geminiRoleToIR(role string) ir.Role {

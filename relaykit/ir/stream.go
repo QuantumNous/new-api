@@ -11,12 +11,27 @@ import (
 type ToolStreamState struct {
 	SourceIndex    int
 	BlockIndex     int
+	ProviderItemID string
 	ID             string
 	Name           string
 	Fragments      []string
 	Accumulated    string
 	LatestSnapshot string
 	Emitted        bool
+}
+
+// ResponsesStreamItemState tracks the complete lifecycle and accumulated
+// payload for one projected Responses output item.
+type ResponsesStreamItemState struct {
+	Kind      BlockKind
+	ItemID    string
+	CallID    string
+	Name      string
+	Text      string
+	Arguments string
+	Added     bool
+	PartAdded bool
+	Done      bool
 }
 
 // StreamState is the block-event hub for one streaming response.
@@ -28,15 +43,17 @@ type StreamState struct {
 	Started bool
 	Done    bool
 
-	NextIndex  int
-	HasOpen    bool
-	OpenKind   BlockKind
-	OpenIndex  int
-	OpenID     string
-	OpenName   string
-	ToolIndex  map[int]int
-	ToolCalls  map[int]*ToolStreamState
-	BlockKinds map[int]BlockKind
+	NextIndex    int
+	HasOpen      bool
+	OpenKind     BlockKind
+	OpenIndex    int
+	OpenID       string
+	OpenName     string
+	ToolIndex    map[int]int
+	ToolCalls    map[int]*ToolStreamState
+	BlockKinds   map[int]BlockKind
+	ClosedBlocks map[int]bool
+	ToolIDScope  string
 
 	Finish          Finish
 	ProviderFinish  string
@@ -52,22 +69,27 @@ type StreamState struct {
 	GeminiThink     string
 	GeminiToolCount int
 
-	ChatRoleSent         bool
-	ResponsesCreated     bool
-	ResponsesTextOpen    bool
-	ResponsesItemID      map[int]string
-	ResponsesItemAdded   map[int]bool
-	ResponsesSummarySeen bool
+	ChatRoleSent             bool
+	ResponsesCreated         bool
+	ResponsesItems           map[int]*ResponsesStreamItemState
+	ResponsesSourceBlocks    map[int]int
+	ResponsesSourceText      map[int]string
+	ResponsesSourceReasoning map[int]string
+	ResponsesSourceArguments map[int]string
+	ResponsesSequence        int64
+	ResponsesSummarySeen     bool
 }
 
 func NewStreamState(id, model string) *StreamState {
 	return &StreamState{
-		ID:         id,
-		Model:      model,
-		OpenIndex:  -1,
-		ToolIndex:  make(map[int]int),
-		ToolCalls:  make(map[int]*ToolStreamState),
-		BlockKinds: make(map[int]BlockKind),
+		ID:           id,
+		Model:        model,
+		OpenIndex:    -1,
+		ToolIndex:    make(map[int]int),
+		ToolCalls:    make(map[int]*ToolStreamState),
+		BlockKinds:   make(map[int]BlockKind),
+		ClosedBlocks: make(map[int]bool),
+		ToolIDScope:  NewToolCallScope(id),
 	}
 }
 
@@ -118,10 +140,13 @@ func (s *StreamState) EnsureTool(sourceIndex int, id, name string) (int, []Event
 			tool = &ToolStreamState{SourceIndex: sourceIndex, BlockIndex: idx}
 			s.ToolCalls[idx] = tool
 		}
-		if id != "" {
-			tool.ID = id
-			s.OpenID = id
+		if id != "" && tool.ProviderItemID == "" {
+			tool.ProviderItemID = id
 		}
+		if tool.ID == "" {
+			tool.ID = CanonicalToolCallID(s.ToolIDScope, sourceIndex, id)
+		}
+		s.OpenID = tool.ID
 		if name != "" {
 			tool.Name = name
 			s.OpenName = name
@@ -131,13 +156,15 @@ func (s *StreamState) EnsureTool(sourceIndex int, id, name string) (int, []Event
 		s.OpenIndex = idx
 		return idx, nil
 	}
-	idx, events := s.startBlock(BlockKindToolUse, id, name)
+	canonicalID := CanonicalToolCallID(s.ToolIDScope, sourceIndex, id)
+	idx, events := s.startBlock(BlockKindToolUse, canonicalID, name)
 	s.ToolIndex[sourceIndex] = idx
 	s.ToolCalls[idx] = &ToolStreamState{
-		SourceIndex: sourceIndex,
-		BlockIndex:  idx,
-		ID:          id,
-		Name:        name,
+		SourceIndex:    sourceIndex,
+		BlockIndex:     idx,
+		ProviderItemID: id,
+		ID:             canonicalID,
+		Name:           name,
 	}
 	return idx, events
 }
@@ -154,14 +181,14 @@ func (s *StreamState) ResolveToolSourceIndex(index *int, id, name string) (int, 
 	}
 	if id != "" {
 		for source, block := range s.ToolIndex {
-			if tool := s.ToolCalls[block]; tool != nil && tool.ID == id {
+			if tool := s.ToolCalls[block]; tool != nil && (tool.ID == id || tool.ProviderItemID == id) {
 				return source, nil
 			}
 		}
 		match, matches := 0, 0
 		for source, block := range s.ToolIndex {
 			tool := s.ToolCalls[block]
-			if tool == nil || tool.ID != "" {
+			if tool == nil || tool.ProviderItemID != "" {
 				continue
 			}
 			if name == "" || tool.Name == "" || tool.Name == name {
@@ -220,6 +247,9 @@ func (s *StreamState) ToolMetadata(blockIndex int) (id, name string) {
 
 func (s *StreamState) startBlock(kind BlockKind, id, name string) (int, []Event) {
 	events := s.StopNonTools()
+	if kind != BlockKindToolUse {
+		events = append(events, s.StopTools()...)
+	}
 	idx := s.NextIndex
 	s.NextIndex++
 	s.HasOpen = true
@@ -248,12 +278,27 @@ func (s *StreamState) StopOpen() []Event {
 	if s == nil || !s.HasOpen {
 		return nil
 	}
-	idx := s.OpenIndex
-	kind := s.OpenKind
-	s.HasOpen = false
-	s.OpenKind = ""
+	return s.StopBlock(s.OpenIndex)
+}
+
+func (s *StreamState) StopBlock(index int) []Event {
+	if s == nil || s.ClosedBlocks[index] {
+		return nil
+	}
+	kind := s.KindOf(index)
+	if kind == "" {
+		return nil
+	}
+	if s.ClosedBlocks == nil {
+		s.ClosedBlocks = make(map[int]bool)
+	}
+	s.ClosedBlocks[index] = true
+	if s.HasOpen && s.OpenIndex == index {
+		s.HasOpen = false
+		s.OpenKind = ""
+	}
 	block := &Block{Kind: kind}
-	return []Event{{Kind: EventBlockStop, Index: idx, Block: block}}
+	return []Event{{Kind: EventBlockStop, Index: index, Block: block}}
 }
 
 func (s *StreamState) StopNonTools() []Event {
@@ -263,34 +308,43 @@ func (s *StreamState) StopNonTools() []Event {
 	return s.StopOpen()
 }
 
-func (s *StreamState) StopAll() []Event {
-	if s == nil || !s.HasOpen {
+func (s *StreamState) StopTools() []Event {
+	if s == nil {
 		return nil
 	}
-	if s.OpenKind == BlockKindToolUse {
-		type toolStop struct {
-			source int
-			block  int
-		}
-		stops := make([]toolStop, 0, len(s.ToolIndex))
-		for source, block := range s.ToolIndex {
-			stops = append(stops, toolStop{source: source, block: block})
-		}
-		sort.Slice(stops, func(i, j int) bool {
-			if stops[i].source == stops[j].source {
-				return stops[i].block < stops[j].block
-			}
-			return stops[i].source < stops[j].source
-		})
-		events := make([]Event, 0, len(stops))
-		for _, stop := range stops {
-			events = append(events, Event{Kind: EventBlockStop, Index: stop.block, Block: &Block{Kind: BlockKindToolUse}})
-		}
-		s.HasOpen = false
-		s.OpenKind = ""
-		return events
+	type toolStop struct {
+		source int
+		block  int
 	}
-	return s.StopOpen()
+	stops := make([]toolStop, 0, len(s.ToolIndex))
+	for source, block := range s.ToolIndex {
+		if s.ClosedBlocks[block] {
+			continue
+		}
+		stops = append(stops, toolStop{source: source, block: block})
+	}
+	sort.Slice(stops, func(i, j int) bool {
+		if stops[i].source == stops[j].source {
+			return stops[i].block < stops[j].block
+		}
+		return stops[i].source < stops[j].source
+	})
+	events := make([]Event, 0, len(stops))
+	for _, stop := range stops {
+		events = append(events, s.StopBlock(stop.block)...)
+	}
+	return events
+}
+
+func (s *StreamState) StopAll() []Event {
+	if s == nil {
+		return nil
+	}
+	events := s.StopNonTools()
+	events = append(events, s.StopTools()...)
+	s.HasOpen = false
+	s.OpenKind = ""
+	return events
 }
 
 func (s *StreamState) SetFinish(finish Finish, provider string) {

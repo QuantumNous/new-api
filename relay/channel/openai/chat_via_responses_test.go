@@ -214,11 +214,15 @@ func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 	requireOrderedSubstrings(t, got,
 		`event: response.created`,
 		`event: response.output_item.added`,
+		`event: response.content_part.added`,
 		`event: response.output_text.delta`,
+		`event: response.output_text.done`,
+		`event: response.content_part.done`,
+		`event: response.output_item.done`,
 		`event: response.output_item.added`,
 		`event: response.function_call_arguments.delta`,
-		`event: response.output_text.done`,
 		`event: response.function_call_arguments.done`,
+		`event: response.output_item.done`,
 		`event: response.completed`,
 	)
 }

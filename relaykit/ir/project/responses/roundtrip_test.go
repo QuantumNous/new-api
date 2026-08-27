@@ -302,6 +302,51 @@ func TestToStreamFunctionCallNameWithoutID(t *testing.T) {
 	require.NotEmpty(t, added.Item.CallId)
 }
 
+func TestFromRequestNormalizesDeveloperRoleToInstruction(t *testing.T) {
+	t.Parallel()
+	req := unmarshalResponsesRequest(t, `{
+		"model": "gpt-test",
+		"input": [
+			{"role": "developer", "content": "Follow the deployment policy."},
+			{"role": "user", "content": "hello"}
+		]
+	}`)
+	irReq, err := FromRequest(req)
+	require.NoError(t, err)
+	require.Len(t, irReq.Messages, 2)
+	require.Equal(t, ir.RoleSystem, irReq.Messages[0].Role)
+	require.Equal(t, "Follow the deployment policy.", irReq.Messages[0].Blocks[0].Text.Text)
+}
+
+func TestFromRequestParsesInlinePDFFileData(t *testing.T) {
+	t.Parallel()
+	req := unmarshalResponsesRequest(t, `{
+		"model": "gpt-test",
+		"input": [{"role": "user", "content": [{
+			"type": "input_file",
+			"filename": "matrix-document.pdf",
+			"file_data": "data:application/pdf;base64,JVBERi0xLjQ="
+		}]}]
+	}`)
+	irReq, err := FromRequest(req)
+	require.NoError(t, err)
+	media := irReq.Messages[0].Blocks[0].Media
+	require.NotNil(t, media)
+	require.Equal(t, ir.MediaSourceBase64, media.Source)
+	require.Equal(t, "application/pdf", media.MIME)
+	require.Equal(t, "matrix-document.pdf", media.Filename)
+	require.Equal(t, "JVBERi0xLjQ=", media.Data)
+
+	wired, err := ToRequest(irReq)
+	require.NoError(t, err)
+	var items []map[string]any
+	require.NoError(t, json.Unmarshal(wired.Input, &items))
+	content := items[0]["content"].([]any)
+	file := content[0].(map[string]any)
+	require.Equal(t, "matrix-document.pdf", file["filename"])
+	require.Equal(t, "data:application/pdf;base64,JVBERi0xLjQ=", file["file_data"])
+}
+
 func TestToStreamIncludesItemIDOnDeltas(t *testing.T) {
 	t.Parallel()
 	state := ir.NewStreamState("resp_1", "gpt-test")
@@ -327,4 +372,56 @@ func TestToStreamIncludesItemIDOnDeltas(t *testing.T) {
 	}
 	require.NotEmpty(t, addedID)
 	require.Equal(t, addedID, deltaID)
+}
+
+func TestToStreamEmitsCompleteFunctionCallLifecycle(t *testing.T) {
+	t.Parallel()
+	state := ir.NewStreamState("resp_1", "gpt-test")
+	_, opened := state.EnsureTool(0, "", "analyze_ledger")
+	events := append([]ir.Event{{Kind: ir.EventStart, ID: "resp_1", Model: "gpt-test"}}, opened...)
+	events = append(events,
+		ir.Event{Kind: ir.EventBlockDelta, Index: 0, Delta: &ir.BlockDelta{JSON: `{"receipt":"R-1"}`}},
+		ir.Event{Kind: ir.EventBlockStop, Index: 0, Block: &ir.Block{Kind: ir.BlockKindToolUse}},
+		ir.Event{Kind: ir.EventUsage, Usage: &ir.Usage{Input: 7, Output: 3}},
+	)
+	out, err := ToStream(events, state)
+	require.NoError(t, err)
+
+	var types []string
+	var previousSequence int64 = -1
+	var added, done *dto.ResponsesOutput
+	var completed *dto.OpenAIResponsesResponse
+	for _, value := range out {
+		event := value.(dto.ResponsesStreamResponse)
+		types = append(types, event.Type)
+		require.NotNil(t, event.SequenceNumber)
+		require.Greater(t, *event.SequenceNumber, previousSequence)
+		previousSequence = *event.SequenceNumber
+		switch event.Type {
+		case "response.output_item.added":
+			added = event.Item
+		case "response.output_item.done":
+			done = event.Item
+		case "response.completed":
+			completed = event.Response
+		}
+	}
+	require.Equal(t, []string{
+		"response.created",
+		"response.output_item.added",
+		"response.function_call_arguments.delta",
+		"response.function_call_arguments.done",
+		"response.output_item.done",
+		"response.completed",
+	}, types)
+	require.NotNil(t, added)
+	require.NotEmpty(t, added.CallId)
+	require.NotEqual(t, added.ID, added.CallId)
+	require.NotNil(t, done)
+	require.Equal(t, added.CallId, done.CallId)
+	require.Equal(t, `{"receipt":"R-1"}`, done.ArgumentsString())
+	require.NotNil(t, completed)
+	require.Len(t, completed.Output, 1)
+	require.Equal(t, done.CallId, completed.Output[0].CallId)
+	require.Equal(t, `{"receipt":"R-1"}`, completed.Output[0].ArgumentsString())
 }

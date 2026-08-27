@@ -63,6 +63,7 @@ const (
 	// client request error
 	ErrorCodeReadRequestBodyFailed ErrorCode = "read_request_body_failed"
 	ErrorCodeConvertRequestFailed  ErrorCode = "convert_request_failed"
+	ErrorCodeCapabilityUnsupported ErrorCode = "capability_unsupported"
 	ErrorCodeAccessDenied          ErrorCode = "access_denied"
 
 	// request error

@@ -29,12 +29,16 @@ func FromRequest(req *dto.GeneralOpenAIRequest) (*ir.Request, error) {
 		out.Stream = *req.Stream
 	}
 	for _, message := range req.Messages {
+		role, err := ir.NormalizeRole(message.Role)
+		if err != nil {
+			return nil, err
+		}
 		blocks, err := blocksFromChatMessage(message)
 		if err != nil {
 			return nil, err
 		}
 		irMsg := ir.Message{
-			Role:   ir.Role(message.Role),
+			Role:   role,
 			Blocks: blocks,
 		}
 		if message.Name != nil {
@@ -103,6 +107,9 @@ func ToRequest(req *ir.Request) (*dto.GeneralOpenAIRequest, error) {
 	out.Tools = tools
 	out.WebSearchOptions = search
 	for _, message := range req.Messages {
+		if !ir.ValidRole(message.Role) {
+			return nil, fmt.Errorf("chat projection: unsupported message role %q", message.Role)
+		}
 		chatMsgs, err := blocksToChatMessages(message)
 		if err != nil {
 			return nil, err

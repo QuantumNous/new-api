@@ -203,6 +203,43 @@ func TestToRequestSplitsMultipleToolResults(t *testing.T) {
 	require.Equal(t, "call_2", out.Messages[1].ToolCallId)
 }
 
+func TestFromRequestParsesPDFDataURLAndFilename(t *testing.T) {
+	t.Parallel()
+	req := unmarshalChatRequest(t, `{
+		"model": "gpt-test",
+		"messages": [{"role": "user", "content": [{
+			"type": "file",
+			"file": {
+				"filename": "matrix-document.pdf",
+				"file_data": "data:application/pdf;base64,JVBERi0xLjQ="
+			}
+		}]}]
+	}`)
+	irReq, err := FromRequest(req)
+	require.NoError(t, err)
+	media := irReq.Messages[0].Blocks[0].Media
+	require.NotNil(t, media)
+	require.Equal(t, ir.MediaFile, media.Kind)
+	require.Equal(t, ir.MediaSourceBase64, media.Source)
+	require.Equal(t, "application/pdf", media.MIME)
+	require.Equal(t, "matrix-document.pdf", media.Filename)
+	require.Equal(t, "JVBERi0xLjQ=", media.Data)
+
+	wired, err := ToRequest(irReq)
+	require.NoError(t, err)
+	parts := wired.Messages[0].Content.([]any)
+	part := parts[0].(map[string]any)
+	file := part["file"].(map[string]any)
+	require.Equal(t, "matrix-document.pdf", file["filename"])
+	require.Equal(t, "data:application/pdf;base64,JVBERi0xLjQ=", file["file_data"])
+}
+
+func TestToRequestRejectsUnknownIRRole(t *testing.T) {
+	t.Parallel()
+	_, err := ToRequest(&ir.Request{Messages: []ir.Message{{Role: ir.Role("developer"), Blocks: []ir.Block{ir.Text("rules")}}}})
+	require.ErrorContains(t, err, "unsupported message role")
+}
+
 func TestToRequestDropsCacheControlAndFlattensText(t *testing.T) {
 	t.Parallel()
 	irReq := &ir.Request{

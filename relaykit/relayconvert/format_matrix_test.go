@@ -1,6 +1,8 @@
 package relayconvert
 
 import (
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -61,7 +63,7 @@ func TestStandardAPIFormatRequestMatrix(t *testing.T) {
 							},
 						},
 					}
-					result, err := ConvertRequest(nil, info, to, src)
+					result, err := ConvertRequest(context.Background(), info, to, src)
 					require.NoError(t, err, "from=%s to=%s", from, to)
 					require.Equal(t, from, result.From)
 					require.Equal(t, to, result.To)
@@ -85,7 +87,7 @@ func TestStandardAPIFormatResponseMatrix(t *testing.T) {
 				}
 				to := to
 				t.Run("to_"+string(to), func(t *testing.T) {
-					result, err := ConvertResponse(nil, nil, to, src)
+					result, err := ConvertResponse(context.Background(), nil, to, src)
 					require.NoError(t, err, "from=%s to=%s", from, to)
 					assertStandardResponseShape(t, to, result.Value)
 				})
@@ -116,7 +118,7 @@ func TestStandardAPIStreamToResponsesHasItemID(t *testing.T) {
 		}},
 	}
 	thinkChunk.Choices[0].Delta.SetReasoningContent("let me think")
-	thinkResults, err := ConvertStreamResponseChunk(nil, info, state, thinkChunk)
+	thinkResults, err := ConvertStreamResponseChunk(context.Background(), info, state, thinkChunk)
 	require.NoError(t, err)
 
 	textChunk := &dto.ChatCompletionsStreamResponse{
@@ -127,7 +129,7 @@ func TestStandardAPIStreamToResponsesHasItemID(t *testing.T) {
 		}},
 	}
 	textChunk.Choices[0].Delta.SetContentString("the answer")
-	textResults, err := ConvertStreamResponseChunk(nil, info, state, textChunk)
+	textResults, err := ConvertStreamResponseChunk(context.Background(), info, state, textChunk)
 	require.NoError(t, err)
 
 	var events []any
@@ -155,6 +157,269 @@ func TestStandardAPIStreamToResponsesHasItemID(t *testing.T) {
 	require.NotEmpty(t, itemIDs["message"], "text must open a message item")
 }
 
+func TestResponsesDeveloperProjectsToChatSystem(t *testing.T) {
+	request := &dto.OpenAIResponsesRequest{
+		Model: standardResponsesModel,
+		Input: mustJSON(t, []map[string]any{
+			{"role": "developer", "content": "Follow the deployment policy."},
+			{"role": "user", "content": "hello"},
+		}),
+	}
+	result, err := ConvertRequest(context.Background(), &convmeta.Values{
+		ChannelMetaAttached: true,
+		UpstreamModelName:   standardChatModel,
+	}, types.RelayFormatOpenAI, request)
+	require.NoError(t, err)
+	chat := result.Value.(*dto.GeneralOpenAIRequest)
+	require.Len(t, chat.Messages, 2)
+	require.Equal(t, "system", chat.Messages[0].Role)
+	require.Equal(t, "Follow the deployment policy.", chat.Messages[0].StringContent())
+	summary, err := SummarizeRequestConversion(result.From, result.To, request, result.Value, result.Report)
+	require.NoError(t, err)
+	require.Equal(t, []string{"developer", "user"}, summary.SourceRoles)
+	require.Equal(t, []string{"system", "user"}, summary.TargetRoles)
+
+	native, err := ConvertRequest(context.Background(), nil, types.RelayFormatOpenAIResponses, request)
+	require.NoError(t, err)
+	require.Same(t, request, native.Value)
+	require.Contains(t, string(request.Input), `"developer"`)
+}
+
+func TestStandardAPIPDFConversionMatrix(t *testing.T) {
+	const pdfBase64 = "JVBERi0xLjQKMSAwIG9iago8PD4+CmVuZG9iago="
+	const pdfDataURL = "data:application/pdf;base64," + pdfBase64
+
+	newInfo := func(target types.RelayFormat) *convmeta.Values {
+		return &convmeta.Values{
+			ChannelMetaAttached: true,
+			UpstreamModelName:   standardModel(target),
+			Options: &convmeta.Options{Claude: convmeta.ClaudeOptions{
+				DefaultMaxTokens: func(string) int { return 4096 },
+			}},
+		}
+	}
+	newChatRequest := func() *dto.GeneralOpenAIRequest {
+		return &dto.GeneralOpenAIRequest{
+			Model: standardChatModel,
+			Messages: []dto.Message{{Role: "user", Content: []any{
+				map[string]any{"type": "text", "text": "read the document"},
+				map[string]any{"type": "file", "file": map[string]any{
+					"filename":  "matrix-document.pdf",
+					"file_data": pdfDataURL,
+				}},
+			}}},
+		}
+	}
+
+	t.Run("chat to responses", func(t *testing.T) {
+		result, err := ConvertRequest(context.Background(), newInfo(types.RelayFormatOpenAIResponses), types.RelayFormatOpenAIResponses, newChatRequest())
+		require.NoError(t, err)
+		file := responsesFilePart(t, result.Value.(*dto.OpenAIResponsesRequest))
+		require.Equal(t, "matrix-document.pdf", file["filename"])
+		require.Equal(t, pdfDataURL, file["file_data"])
+		assertPDFBytes(t, file["file_data"].(string), pdfBase64)
+		require.NotContains(t, file, "file_url")
+		require.NotContains(t, file, "file_id")
+		summary, err := SummarizeRequestConversion(result.From, result.To, newChatRequest(), result.Value, result.Report)
+		require.NoError(t, err)
+		require.Len(t, summary.Media, 1)
+		require.Equal(t, "application/pdf", summary.Media[0].MIME)
+		require.NotEmpty(t, summary.Media[0].SHA256)
+		summaryJSON, err := json.Marshal(summary)
+		require.NoError(t, err)
+		require.NotContains(t, string(summaryJSON), pdfBase64)
+		require.NotContains(t, string(summaryJSON), "read the document")
+	})
+
+	t.Run("chat to claude", func(t *testing.T) {
+		result, err := ConvertRequest(context.Background(), newInfo(types.RelayFormatClaude), types.RelayFormatClaude, newChatRequest())
+		require.NoError(t, err)
+		request := result.Value.(*dto.ClaudeRequest)
+		content := request.Messages[0].Content.([]any)
+		document := content[1].(map[string]any)
+		source := document["source"].(map[string]any)
+		require.Equal(t, "document", document["type"])
+		require.Equal(t, "base64", source["type"])
+		require.Equal(t, "application/pdf", source["media_type"])
+		require.Equal(t, pdfBase64, source["data"])
+		require.NotContains(t, source["data"].(string), "data:")
+	})
+
+	t.Run("chat to gemini", func(t *testing.T) {
+		result, err := ConvertRequest(context.Background(), newInfo(types.RelayFormatGemini), types.RelayFormatGemini, newChatRequest())
+		require.NoError(t, err)
+		request := result.Value.(*dto.GeminiChatRequest)
+		require.NotNil(t, request.Contents[0].Parts[1].InlineData)
+		require.Equal(t, "application/pdf", request.Contents[0].Parts[1].InlineData.MimeType)
+		require.Equal(t, pdfBase64, request.Contents[0].Parts[1].InlineData.Data)
+		require.NotContains(t, request.Contents[0].Parts[1].InlineData.Data, "data:")
+	})
+
+	responsesRequest := func() *dto.OpenAIResponsesRequest {
+		return &dto.OpenAIResponsesRequest{
+			Model: standardResponsesModel,
+			Input: mustJSON(t, []map[string]any{{
+				"role": "user",
+				"content": []map[string]any{{
+					"type":      "input_file",
+					"filename":  "matrix-document.pdf",
+					"file_data": pdfDataURL,
+				}},
+			}}),
+		}
+	}
+
+	for _, target := range []types.RelayFormat{types.RelayFormatClaude, types.RelayFormatGemini} {
+		target := target
+		t.Run("responses to "+string(target), func(t *testing.T) {
+			result, err := ConvertRequest(context.Background(), newInfo(target), target, responsesRequest())
+			require.NoError(t, err)
+			raw, err := json.Marshal(result.Value)
+			require.NoError(t, err)
+			require.Contains(t, string(raw), pdfBase64)
+			require.NotContains(t, string(raw), pdfDataURL)
+			require.Contains(t, string(raw), "application/pdf")
+		})
+	}
+
+	t.Run("claude to responses", func(t *testing.T) {
+		request := &dto.ClaudeRequest{
+			Model: standardClaudeModel,
+			Messages: []dto.ClaudeMessage{{Role: "user", Content: []any{map[string]any{
+				"type":   "document",
+				"source": map[string]any{"type": "base64", "media_type": "application/pdf", "data": pdfBase64},
+			}}}},
+		}
+		result, err := ConvertRequest(context.Background(), newInfo(types.RelayFormatOpenAIResponses), types.RelayFormatOpenAIResponses, request)
+		require.NoError(t, err)
+		file := responsesFilePart(t, result.Value.(*dto.OpenAIResponsesRequest))
+		require.Equal(t, "document.pdf", file["filename"])
+		require.Equal(t, pdfDataURL, file["file_data"])
+	})
+
+	t.Run("gemini to responses", func(t *testing.T) {
+		request := &dto.GeminiChatRequest{Contents: []dto.GeminiChatContent{{Role: "user", Parts: []dto.GeminiPart{{
+			InlineData: &dto.GeminiInlineData{MimeType: "application/pdf", Data: pdfBase64},
+		}}}}}
+		result, err := ConvertRequest(context.Background(), newInfo(types.RelayFormatOpenAIResponses), types.RelayFormatOpenAIResponses, request)
+		require.NoError(t, err)
+		file := responsesFilePart(t, result.Value.(*dto.OpenAIResponsesRequest))
+		require.Equal(t, "document.pdf", file["filename"])
+		require.Equal(t, pdfDataURL, file["file_data"])
+	})
+}
+
+func TestChatProtocolRejectsPDFFromEverySourceFormat(t *testing.T) {
+	t.Parallel()
+	const fileData = "JVBERi0xLjQ="
+	cases := []struct {
+		name    string
+		from    types.RelayFormat
+		request any
+	}{
+		{
+			name: "chat",
+			from: types.RelayFormatOpenAI,
+			request: &dto.GeneralOpenAIRequest{
+				Model: "generic-chat-model",
+				Messages: []dto.Message{{Role: "user", Content: []any{map[string]any{
+					"type": "file",
+					"file": map[string]any{
+						"filename":  "matrix-document.pdf",
+						"file_data": "data:application/pdf;base64," + fileData,
+					},
+				}}}},
+			},
+		},
+		{
+			name: "responses",
+			from: types.RelayFormatOpenAIResponses,
+			request: &dto.OpenAIResponsesRequest{
+				Model: "generic-chat-model",
+				Input: json.RawMessage(`[{"role":"user","content":[{"type":"input_file","filename":"matrix-document.pdf","file_data":"data:application/pdf;base64,JVBERi0xLjQ="}]}]`),
+			},
+		},
+		{
+			name: "claude",
+			from: types.RelayFormatClaude,
+			request: &dto.ClaudeRequest{
+				Model: "generic-chat-model",
+				Messages: []dto.ClaudeMessage{{Role: "user", Content: []any{map[string]any{
+					"type":   "document",
+					"source": map[string]any{"type": "base64", "media_type": "application/pdf", "data": fileData},
+				}}}},
+			},
+		},
+		{
+			name: "gemini",
+			from: types.RelayFormatGemini,
+			request: &dto.GeminiChatRequest{Contents: []dto.GeminiChatContent{{Role: "user", Parts: []dto.GeminiPart{{
+				InlineData: &dto.GeminiInlineData{MimeType: "application/pdf", Data: fileData},
+			}}}}},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			info := &convmeta.Values{ChannelMetaAttached: true, UpstreamModelName: "generic-chat-model"}
+			_, err := ConvertRequest(context.Background(), info, types.RelayFormatOpenAI, tc.request)
+			require.Error(t, err)
+			var apiErr *types.NewAPIError
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, types.ErrorCodeCapabilityUnsupported, apiErr.GetErrorCode())
+			require.Equal(t, 400, apiErr.StatusCode)
+			require.ErrorContains(t, apiErr, "Chat Completions protocol")
+		})
+	}
+}
+
+func TestPDFLocatorConflictIsRejected(t *testing.T) {
+	request := &dto.GeneralOpenAIRequest{
+		Messages: []dto.Message{{Role: "user", Content: []any{map[string]any{
+			"type": "file",
+			"file": map[string]any{
+				"filename":  "matrix-document.pdf",
+				"file_data": "data:application/pdf;base64,JVBERi0xLjQ=",
+				"file_id":   "file_123",
+			},
+		}}}},
+	}
+	_, err := ConvertRequest(context.Background(), nil, types.RelayFormatOpenAIResponses, request)
+	require.ErrorContains(t, err, "exactly one")
+}
+
+func responsesFilePart(t *testing.T, request *dto.OpenAIResponsesRequest) map[string]any {
+	t.Helper()
+	var items []map[string]any
+	require.NoError(t, json.Unmarshal(request.Input, &items))
+	for _, item := range items {
+		content, ok := item["content"].([]any)
+		if !ok {
+			continue
+		}
+		for _, value := range content {
+			part, ok := value.(map[string]any)
+			if ok && part["type"] == "input_file" {
+				return part
+			}
+		}
+	}
+	t.Fatal("missing Responses input_file part")
+	return nil
+}
+
+func assertPDFBytes(t *testing.T, dataURL, expectedBase64 string) {
+	t.Helper()
+	parts := strings.SplitN(dataURL, ",", 2)
+	require.Len(t, parts, 2)
+	actual, err := base64.StdEncoding.DecodeString(parts[1])
+	require.NoError(t, err)
+	expected, err := base64.StdEncoding.DecodeString(expectedBase64)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
 func TestStandardAPIResponsesStatefulRejected(t *testing.T) {
 	t.Parallel()
 	req := &dto.OpenAIResponsesRequest{
@@ -162,7 +427,7 @@ func TestStandardAPIResponsesStatefulRejected(t *testing.T) {
 		PreviousResponseID: "resp_abc",
 		Input:              json.RawMessage(`"hello"`),
 	}
-	_, err := ConvertRequest(nil, nil, types.RelayFormatOpenAI, req)
+	_, err := ConvertRequest(context.Background(), nil, types.RelayFormatOpenAI, req)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "previous_response_id")
 }

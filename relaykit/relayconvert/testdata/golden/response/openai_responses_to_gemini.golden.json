@@ -14,7 +14,9 @@
           {
             "functionCall": {
               "name": "get_weather",
-              "args": "{\"city\":\"Paris\"}"
+              "args": {
+                "city": "Paris"
+              }
             }
           }
         ]

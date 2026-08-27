@@ -32,9 +32,7 @@
       "size": "",
       "call_id": "call_abc",
       "name": "get_weather",
-      "arguments": {
-        "city": "Paris"
-      }
+      "arguments": "{\"city\":\"Paris\"}"
     },
     {
       "type": "message",

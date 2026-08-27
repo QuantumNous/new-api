@@ -234,19 +234,30 @@ func MergeInto(dst any, extra json.RawMessage) error {
 }
 
 func ParseDataURL(url string) (mime, data string, ok bool) {
-	if !strings.HasPrefix(url, "data:") {
+	if len(url) < len("data:") || !strings.EqualFold(url[:len("data:")], "data:") {
 		return "", "", false
 	}
-	rest := strings.TrimPrefix(url, "data:")
-	mime, payload, found := strings.Cut(rest, ",")
+	header, payload, found := strings.Cut(url[len("data:"):], ",")
 	if !found {
 		return "", "", false
 	}
-	mime = strings.TrimSuffix(mime, ";base64")
-	return mime, payload, true
+	parts := strings.Split(header, ";")
+	mime = strings.TrimSpace(parts[0])
+	base64Encoded := false
+	for _, part := range parts[1:] {
+		if strings.EqualFold(strings.TrimSpace(part), "base64") {
+			base64Encoded = true
+			break
+		}
+	}
+	if !base64Encoded {
+		return "", "", false
+	}
+	return mime, strings.TrimSpace(payload), true
 }
 
 func DataURL(mime, data string) string {
+	mime = strings.TrimSpace(strings.SplitN(mime, ";", 2)[0])
 	if mime == "" {
 		mime = "application/octet-stream"
 	}

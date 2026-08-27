@@ -1060,10 +1060,14 @@ func (r *OpenAIResponsesRequest) GetTokenCountMeta() *types.TokenCountMeta {
 					})
 				}
 			} else if input.Type == "input_file" {
-				if input.FileUrl != "" {
+				fileData := input.FileUrl
+				if input.FileData != "" {
+					fileData = input.FileData
+				}
+				if fileData != "" {
 					fileMeta = append(fileMeta, &types.FileMeta{
 						FileType: types.FileTypeFile,
-						Source:   types.NewFileSourceFromData(input.FileUrl, ""),
+						Source:   types.NewFileSourceFromData(fileData, input.MimeType),
 					})
 				}
 			} else {
@@ -1138,6 +1142,10 @@ type MediaInput struct {
 	Type     string `json:"type"`
 	Text     string `json:"text,omitempty"`
 	FileUrl  string `json:"file_url,omitempty"`
+	FileData string `json:"file_data,omitempty"`
+	FileID   string `json:"file_id,omitempty"`
+	Filename string `json:"filename,omitempty"`
+	MimeType string `json:"mime_type,omitempty"`
 	ImageUrl string `json:"image_url,omitempty"`
 	Detail   string `json:"detail,omitempty"` // 仅 input_image 有效
 }
@@ -1148,88 +1156,74 @@ type MediaInput struct {
 //   - input can be an array of objects with a `type` field
 //     supported types: input_text, input_image, input_file
 func (r *OpenAIResponsesRequest) ParseInput() []MediaInput {
-	if r.Input == nil {
+	if r == nil || len(r.Input) == 0 {
 		return nil
 	}
-
-	var mediaInputs []MediaInput
-
-	// Try string first
-	// if str, ok := kitutil.GetJsonType(r.Input); ok {
-	// 	inputs = append(inputs, MediaInput{Type: "input_text", Text: str})
-	// 	return inputs
-	// }
-	if kitutil.GetJsonType(r.Input) == "string" {
-		var str string
-		_ = kitutil.Unmarshal(r.Input, &str)
-		mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: str})
-		return mediaInputs
+	var value any
+	if err := kitutil.Unmarshal(r.Input, &value); err != nil {
+		return nil
 	}
+	return parseResponsesMediaInputs(value)
+}
 
-	// Try array of parts
-	if kitutil.GetJsonType(r.Input) == "array" {
-		var inputs []Input
-		_ = kitutil.Unmarshal(r.Input, &inputs)
-		for _, input := range inputs {
-			if kitutil.GetJsonType(input.Content) == "string" {
-				var str string
-				_ = kitutil.Unmarshal(input.Content, &str)
-				mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: str})
-			}
-
-			if kitutil.GetJsonType(input.Content) == "array" {
-				var array []any
-				_ = kitutil.Unmarshal(input.Content, &array)
-				for _, itemAny := range array {
-					// Already parsed MediaContent
-					if media, ok := itemAny.(MediaInput); ok {
-						mediaInputs = append(mediaInputs, media)
-						continue
-					}
-
-					// Generic map
-					item, ok := itemAny.(map[string]any)
-					if !ok {
-						continue
-					}
-
-					typeVal, ok := item["type"].(string)
-					if !ok {
-						continue
-					}
-					switch typeVal {
-					case "input_text":
-						text, _ := item["text"].(string)
-						mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: text})
-					case "input_image":
-						// image_url may be string or object with url field
-						var imageUrl string
-						switch v := item["image_url"].(type) {
-						case string:
-							imageUrl = v
-						case map[string]any:
-							if url, ok := v["url"].(string); ok {
-								imageUrl = url
-							}
-						}
-						mediaInputs = append(mediaInputs, MediaInput{Type: "input_image", ImageUrl: imageUrl})
-					case "input_file":
-						// file_url may be string or object with url field
-						var fileUrl string
-						switch v := item["file_url"].(type) {
-						case string:
-							fileUrl = v
-						case map[string]any:
-							if url, ok := v["url"].(string); ok {
-								fileUrl = url
-							}
-						}
-						mediaInputs = append(mediaInputs, MediaInput{Type: "input_file", FileUrl: fileUrl})
-					}
-				}
-			}
+func parseResponsesMediaInputs(value any) []MediaInput {
+	switch typed := value.(type) {
+	case string:
+		return []MediaInput{{Type: "input_text", Text: typed}}
+	case []any:
+		var out []MediaInput
+		for _, item := range typed {
+			out = append(out, parseResponsesMediaInputs(item)...)
+		}
+		return out
+	case map[string]any:
+		typeValue, _ := typed["type"].(string)
+		switch typeValue {
+		case "", "message":
+			return parseResponsesMediaInputs(typed["content"])
+		case "input_text", "output_text", "text":
+			text, _ := typed["text"].(string)
+			return []MediaInput{{Type: "input_text", Text: text}}
+		case "input_image":
+			return []MediaInput{{
+				Type:     "input_image",
+				ImageUrl: nestedStringValue(typed["image_url"], "url"),
+				Detail:   stringValue(typed["detail"]),
+			}}
+		case "input_file":
+			return []MediaInput{{
+				Type:     "input_file",
+				FileUrl:  nestedStringValue(typed["file_url"], "url"),
+				FileData: stringValue(typed["file_data"]),
+				FileID:   stringValue(typed["file_id"]),
+				Filename: firstNonEmptyDTO(stringValue(typed["filename"]), stringValue(typed["file_name"])),
+				MimeType: firstNonEmptyDTO(stringValue(typed["mime_type"]), stringValue(typed["media_type"])),
+			}}
 		}
 	}
+	return nil
+}
 
-	return mediaInputs
+func nestedStringValue(value any, key string) string {
+	if text, ok := value.(string); ok {
+		return text
+	}
+	if object, ok := value.(map[string]any); ok {
+		return stringValue(object[key])
+	}
+	return ""
+}
+
+func stringValue(value any) string {
+	text, _ := value.(string)
+	return text
+}
+
+func firstNonEmptyDTO(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

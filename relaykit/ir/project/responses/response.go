@@ -121,7 +121,7 @@ func blocksFromResponsesOutput(item dto.ResponsesOutput) ([]ir.Block, error) {
 		}
 		return blocks, nil
 	case "function_call":
-		return []ir.Block{ir.ToolUse(item.CallId, item.Name, item.Arguments)}, nil
+		return []ir.Block{ir.ToolUse(item.CallId, item.Name, responsesArgumentsToRaw(item.Arguments))}, nil
 	case "reasoning":
 		text := reasoningSummaryText(item)
 		if text == "" {
@@ -174,7 +174,7 @@ func blockToResponsesOutput(responseID string, index int, block ir.Block) (dto.R
 				out.ID = responsesOutputID(responseID, "fc", index)
 			}
 			out.Name = block.ToolUse.Name
-			out.Arguments = jsonx.Clone(block.ToolUse.Input)
+			out.Arguments = responsesArgumentsRaw(rawToResponsesArguments(block.ToolUse.Input))
 		}
 		return out, nil
 	case ir.BlockKindRaw:

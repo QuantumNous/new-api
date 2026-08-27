@@ -155,6 +155,9 @@ func ConvertRequest(c context.Context, info convmeta.Meta, target types.RelayFor
 	if target == "" {
 		return nil, errors.New("target relay format is required")
 	}
+	if err := validateRequestCapabilities(info, from, target, request); err != nil {
+		return nil, err
+	}
 	if from == target {
 		return &RequestResult{
 			Value: request,
@@ -164,7 +167,7 @@ func ConvertRequest(c context.Context, info convmeta.Meta, target types.RelayFor
 	}
 
 	if isTextRelayFormat(from) && isTextRelayFormat(target) {
-		return convertRequestIR(info, from, target, request)
+		return convertRequestIR(c, info, from, target, request)
 	}
 
 	spec, ok := lookupRequestRoute(from, target)
@@ -194,6 +197,9 @@ func ConvertRequestVia(c context.Context, info convmeta.Meta, request any, path 
 		targets = targets[1:]
 	}
 	if len(targets) == 0 {
+		if err := validateRequestCapabilities(info, from, from, request); err != nil {
+			return nil, err
+		}
 		return &RequestResult{
 			Value: request,
 			From:  from,
@@ -202,8 +208,11 @@ func ConvertRequestVia(c context.Context, info convmeta.Meta, request any, path 
 	}
 
 	final := targets[len(targets)-1]
+	if err := validateRequestCapabilities(info, from, final, request); err != nil {
+		return nil, err
+	}
 	if isTextRelayFormat(from) && isTextRelayFormat(final) {
-		return convertRequestIR(info, from, final, request)
+		return convertRequestIR(c, info, from, final, request)
 	}
 
 	steps := make([]RequestConverterSpec, 0, len(targets))

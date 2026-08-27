@@ -105,6 +105,9 @@ func ToRequest(req *ir.Request) (*dto.GeminiChatRequest, error) {
 	}
 	var contents []dto.GeminiChatContent
 	for _, message := range req.Messages {
+		if !ir.ValidRole(message.Role) {
+			return nil, fmt.Errorf("gemini projection: unsupported message role %q", message.Role)
+		}
 		groups := ir.PartitionByToolResult(message.Blocks)
 		if len(groups) == 0 {
 			groups = [][]ir.Block{message.Blocks}
@@ -456,6 +459,7 @@ func assignGeminiToolIDs(req *ir.Request) {
 	if req == nil {
 		return
 	}
+	scope := ir.NewToolCallScope(req.Model, "gemini-request")
 	n := 0
 	var pending []string
 	for i := range req.Messages {
@@ -463,13 +467,9 @@ func assignGeminiToolIDs(req *ir.Request) {
 			block := &req.Messages[i].Blocks[j]
 			if block.ToolUse != nil {
 				if block.ToolUse.ID == "" {
-					n++
-					name := block.ToolUse.Name
-					if name == "" {
-						name = "tool"
-					}
-					block.ToolUse.ID = fmt.Sprintf("call_%s_%d", name, n)
+					block.ToolUse.ID = ir.CanonicalToolCallID(scope, n, "")
 				}
+				n++
 				pending = append(pending, block.ToolUse.ID)
 			}
 			if block.ToolResult != nil && block.ToolResult.ToolUseID == "" && len(pending) > 0 {

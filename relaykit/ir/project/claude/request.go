@@ -32,12 +32,16 @@ func FromRequest(req *dto.ClaudeRequest) (*ir.Request, error) {
 	}
 
 	for _, message := range req.Messages {
+		role, err := ir.NormalizeRole(message.Role)
+		if err != nil {
+			return nil, err
+		}
 		blocks, err := blocksFromClaudeContent(message.Content)
 		if err != nil {
 			return nil, err
 		}
 		out.Messages = append(out.Messages, ir.Message{
-			Role:   ir.Role(message.Role),
+			Role:   role,
 			Blocks: blocks,
 		})
 	}
@@ -83,6 +87,9 @@ func ToRequest(req *ir.Request) (*dto.ClaudeRequest, error) {
 	var systemBlocks []ir.Block
 	messages := make([]dto.ClaudeMessage, 0, len(req.Messages))
 	for _, message := range req.Messages {
+		if !ir.ValidRole(message.Role) {
+			return nil, fmt.Errorf("claude projection: unsupported message role %q", message.Role)
+		}
 		if message.Role == ir.RoleSystem {
 			systemBlocks = append(systemBlocks, message.Blocks...)
 			continue

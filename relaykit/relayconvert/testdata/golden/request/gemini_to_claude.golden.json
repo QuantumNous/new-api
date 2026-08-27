@@ -23,7 +23,7 @@
       "role": "assistant",
       "content": [
         {
-          "id": "call_get_weather_1",
+          "id": "call_5a6a196ff6f5_0",
           "input": {
             "city": "Paris"
           },
@@ -38,7 +38,7 @@
         {
           "content": "{\"result\":\"15 degrees\"}",
           "name": "get_weather",
-          "tool_use_id": "call_get_weather_1",
+          "tool_use_id": "call_5a6a196ff6f5_0",
           "type": "tool_result"
         }
       ]

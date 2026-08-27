@@ -274,6 +274,83 @@ func TestClaudeTargetStatefulStreamTerminalTail(t *testing.T) {
 	})
 }
 
+func TestGeminiMissingToolIDGetsOnePortableCanonicalID(t *testing.T) {
+	for _, target := range []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatClaude, types.RelayFormatOpenAIResponses} {
+		target := target
+		t.Run(string(target), func(t *testing.T) {
+			state, err := NewResponseStreamState(
+				types.RelayFormatGemini,
+				target,
+				ResponseStreamOptions{ID: "stream-tool-id", Model: "gemini-3.7-pro"},
+			)
+			require.NoError(t, err)
+			finish := "STOP"
+			chunk := &dto.GeminiChatResponse{
+				Candidates: []dto.GeminiChatCandidate{{
+					Content: dto.GeminiChatContent{Role: "model", Parts: []dto.GeminiPart{{
+						FunctionCall: &dto.FunctionCall{FunctionName: "analyze_ledger", Arguments: map[string]any{"receipt": "R-1"}},
+					}}},
+					FinishReason: &finish,
+				}},
+				HasUsageMetadata: true,
+				UsageMetadata:    dto.GeminiUsageMetadata{PromptTokenCount: 4, CandidatesTokenCount: 2, TotalTokenCount: 6},
+			}
+			results, err := ConvertStreamResponseChunk(context.Background(), nil, state, chunk)
+			require.NoError(t, err)
+			final, err := FinalizeStreamResponse(context.Background(), nil, state)
+			require.NoError(t, err)
+			results = append(results, final...)
+
+			var callID string
+			switch target {
+			case types.RelayFormatOpenAI:
+				for _, result := range results {
+					response := result.Value.(*dto.ChatCompletionsStreamResponse)
+					for _, call := range response.Choices[0].Delta.ToolCalls {
+						if call.ID != "" {
+							callID = call.ID
+						}
+					}
+				}
+			case types.RelayFormatClaude:
+				for _, result := range results {
+					response := result.Value.(*dto.ClaudeResponse)
+					if response.Type == "content_block_start" && response.ContentBlock != nil && response.ContentBlock.Type == "tool_use" {
+						callID = response.ContentBlock.Id
+					}
+				}
+			case types.RelayFormatOpenAIResponses:
+				var addedCallID, doneCallID string
+				var lifecycle []string
+				for _, result := range results {
+					event, ok := asResponsesStream(result.Value)
+					require.True(t, ok, "unexpected Responses event type %T", result.Value)
+					lifecycle = append(lifecycle, event.Type)
+					switch event.Type {
+					case "response.output_item.added":
+						if event.Item != nil && event.Item.Type == "function_call" {
+							addedCallID = event.Item.CallId
+						}
+					case "response.output_item.done":
+						if event.Item != nil && event.Item.Type == "function_call" {
+							doneCallID = event.Item.CallId
+							require.Equal(t, `{"receipt":"R-1"}`, event.Item.ArgumentsString())
+						}
+					}
+				}
+				require.Contains(t, lifecycle, "response.function_call_arguments.done")
+				require.Contains(t, lifecycle, "response.output_item.done")
+				require.Contains(t, lifecycle, "response.completed")
+				require.Equal(t, addedCallID, doneCallID)
+				callID = doneCallID
+			}
+			require.NotEmpty(t, callID)
+			require.Regexp(t, `^[A-Za-z0-9_-]+$`, callID)
+			require.LessOrEqual(t, len(callID), 64)
+		})
+	}
+}
+
 func TestChatToGeminiStatefulStreamEmitsOneStableToolCall(t *testing.T) {
 	state, err := NewResponseStreamState(
 		types.RelayFormatOpenAI,

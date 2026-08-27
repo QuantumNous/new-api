@@ -7,8 +7,9 @@
           "text": "What is in this image?"
         },
         {
-          "fileData": {
-            "fileUri": "https://example.com/cat.png"
+          "inlineData": {
+            "mimeType": "image/png",
+            "data": "aGVsbG8="
           }
         }
       ]

@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/ir"
+	"github.com/QuantumNous/new-api/relaykit/ir/internal/jsonx"
 )
 
 func blocksFromClaudeContent(content any) ([]ir.Block, error) {
@@ -121,6 +122,7 @@ func mediaFromClaudeMap(typ string, m map[string]any) (ir.Block, error) {
 	}
 	media := &ir.MediaBlock{
 		Kind:         kind,
+		Filename:     firstNonEmptyClaude(mapString(m, "filename"), mapString(m, "file_name")),
 		CacheControl: cacheControlFromAny(m["cache_control"]),
 	}
 	if src, ok := asMap(m["source"]); ok {
@@ -137,13 +139,30 @@ func mediaFromClaudeMap(typ string, m map[string]any) (ir.Block, error) {
 			}
 		default:
 			media.Source = ir.MediaSourceBase64
-			media.Data = asString(src["data"])
+			data := asString(src["data"])
+			if mime, payload, ok := jsonx.ParseDataURL(data); ok {
+				if media.MIME == "" {
+					media.MIME = mime
+				}
+				media.Data = payload
+			} else {
+				media.Data = data
+			}
 			if media.URL == "" {
 				media.URL = mapString(src, "url")
 			}
 		}
 	}
 	return ir.Block{Kind: ir.BlockKindMedia, Media: media}, nil
+}
+
+func firstNonEmptyClaude(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func toolResultFromClaudeMap(m map[string]any) (ir.Block, error) {
@@ -269,12 +288,13 @@ func mediaToClaudeValue(media *ir.MediaBlock) (any, error) {
 	case ir.MediaSourceID:
 		source["type"] = "file"
 		putIfNotEmpty(source, "file_id", media.FileID)
-	default:
+	case ir.MediaSourceBase64:
 		source["type"] = "base64"
 		if media.Data != "" {
 			source["data"] = media.Data
 		}
-		putIfNotEmpty(source, "url", media.URL)
+	default:
+		return nil, fmt.Errorf("claude projection does not support media source %q", media.Source)
 	}
 	putIfNotEmpty(source, "media_type", media.MIME)
 	m := map[string]any{"type": typ, "source": source}
