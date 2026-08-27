@@ -9,6 +9,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/stretchr/testify/require"
 )
 
 func testRelayInfo(apiType int, model string) *relaycommon.RelayInfo {
@@ -26,6 +27,8 @@ func testRelayInfo(apiType int, model string) *relaycommon.RelayInfo {
 		channelType = constant.ChannelTypeXai
 	case constant.APITypeNewAPI:
 		channelType = constant.ChannelTypeNewAPI
+	case constant.APITypeOllama:
+		channelType = constant.ChannelTypeOllama
 	case constant.APITypeVertexAi:
 		channelType = constant.ChannelTypeVertexAi
 	}
@@ -78,6 +81,44 @@ func TestConvertRequestToChannelNativeChatToGeminiIncludesThoughts(t *testing.T)
 	}
 	if info.GetFinalRequestRelayFormat() != types.RelayFormatGemini {
 		t.Fatalf("final format=%s", info.GetFinalRequestRelayFormat())
+	}
+}
+
+func TestConvertRequestToChannelNativeOllamaPreservesNativeTextProtocols(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		format  types.RelayFormat
+		request any
+		want    any
+	}{
+		{
+			name:    "claude messages",
+			format:  types.RelayFormatClaude,
+			request: &dto.ClaudeRequest{Model: "qwen3", Messages: []dto.ClaudeMessage{{Role: "user", Content: "hello"}}},
+			want:    &dto.ClaudeRequest{},
+		},
+		{
+			name:    "openai responses",
+			format:  types.RelayFormatOpenAIResponses,
+			request: &dto.OpenAIResponsesRequest{Model: "qwen3", Input: json.RawMessage(`"hello"`)},
+			want:    dto.OpenAIResponsesRequest{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			info := testRelayInfo(constant.APITypeOllama, "qwen3")
+			info.RelayFormat = tt.format
+			adaptor := GetAdaptor(constant.APITypeOllama)
+			adaptor.Init(info)
+
+			got, err := convertRequestToChannelNative(nil, info, adaptor, tt.request)
+			require.NoError(t, err)
+			require.IsType(t, tt.want, got)
+			require.Equal(t, tt.format, info.GetFinalRequestRelayFormat())
+		})
 	}
 }
 

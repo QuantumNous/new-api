@@ -47,6 +47,8 @@ func NativeTextFormat(info *RelayInfo, incoming types.RelayFormat) types.RelayFo
 		return vertexNativeTextFormat(info.UpstreamModelName)
 	case constant.ChannelTypeCodex:
 		return types.RelayFormatOpenAIResponses
+	case constant.ChannelTypeOllama:
+		return ollamaNativeTextFormat(incoming)
 	case constant.ChannelTypeAdvancedCustom, constant.ChannelTypeNewAPI, constant.ChannelTypeSub2API:
 		// These channels either configure conversion per route or speak every
 		// client format natively. Leave the incoming format untouched.
@@ -84,6 +86,7 @@ func SpeaksResponsesNatively(info *RelayInfo) bool {
 	case constant.ChannelTypeOpenAI:
 		return openAICompatibleModelSpeaksResponses(info)
 	case constant.ChannelTypeAzure,
+		constant.ChannelTypeOllama,
 		constant.ChannelTypeOpenRouter,
 		constant.ChannelTypeXai,
 		constant.ChannelTypeCodex,
@@ -95,7 +98,8 @@ func SpeaksResponsesNatively(info *RelayInfo) bool {
 		switch info.ApiType {
 		case constant.APITypeOpenAI:
 			return openAICompatibleModelSpeaksResponses(info)
-		case constant.APITypeOpenRouter,
+		case constant.APITypeOllama,
+			constant.APITypeOpenRouter,
 			constant.APITypeXai,
 			constant.APITypeCodex,
 			constant.APITypeNewAPI,
@@ -159,6 +163,8 @@ func nativeTextFormatFromAPIType(info *RelayInfo, incoming types.RelayFormat) ty
 		return vertexNativeTextFormat(info.UpstreamModelName)
 	case constant.APITypeCodex:
 		return types.RelayFormatOpenAIResponses
+	case constant.APITypeOllama:
+		return ollamaNativeTextFormat(incoming)
 	case constant.APITypeAdvancedCustom, constant.APITypeNewAPI, constant.APITypeSub2API:
 		return nonEmptyIncomingFormat(incoming)
 	case constant.APITypeMoonshot:
@@ -175,6 +181,15 @@ func nativeTextFormatFromAPIType(info *RelayInfo, incoming types.RelayFormat) ty
 		return types.RelayFormatOpenAIResponses
 	}
 	return types.RelayFormatOpenAI
+}
+
+func ollamaNativeTextFormat(incoming types.RelayFormat) types.RelayFormat {
+	switch incoming {
+	case types.RelayFormatClaude, types.RelayFormatOpenAIResponses:
+		return incoming
+	default:
+		return types.RelayFormatOpenAI
+	}
 }
 
 func nonEmptyIncomingFormat(incoming types.RelayFormat) types.RelayFormat {

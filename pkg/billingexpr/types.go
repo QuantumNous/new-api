@@ -68,7 +68,7 @@ type TieredResult struct {
 	MatchedTier            string             `json:"matched_tier"`
 	RequestRules           []RequestRuleTrace `json:"request_rules,omitempty"`
 	CrossedTier            bool               `json:"crossed_tier"`
-	// Clamp records an int32 saturation event during quota conversion so the
+	// Clamp records a single-request saturation event during quota conversion so the
 	// caller can surface it on the consume log for admin auditing. Nil when no
 	// clamping occurred. Not serialized: the marker is attached separately via
 	// the shared quota-saturation audit path.

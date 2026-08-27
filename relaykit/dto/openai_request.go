@@ -108,6 +108,8 @@ type GeneralOpenAIRequest struct {
 	SearchMode             json.RawMessage `json:"search_mode,omitempty"`
 	// Minimax
 	ReasoningSplit json.RawMessage `json:"reasoning_split,omitempty"`
+	// vLLM
+	ThinkingTokenBudget json.RawMessage `json:"thinking_token_budget,omitempty"`
 }
 
 func (r GeneralOpenAIRequest) MarshalJSON() ([]byte, error) {
