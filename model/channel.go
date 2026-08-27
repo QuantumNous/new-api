@@ -608,6 +608,21 @@ func (channel *Channel) UpdateBalance(balance float64) {
 	}
 }
 
+// UpdatePlanUsage records a coding-plan channel's windowed usage snapshot in
+// other_info, leaving the USD balance untouched.
+func (channel *Channel) UpdatePlanUsage(usage any) {
+	info := channel.GetOtherInfo()
+	info["plan_usage"] = usage
+	channel.SetOtherInfo(info)
+	err := DB.Model(channel).Select("other_info", "balance_updated_time").Updates(Channel{
+		OtherInfo:          channel.OtherInfo,
+		BalanceUpdatedTime: common.GetTimestamp(),
+	}).Error
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to update plan usage: channel_id=%d, error=%v", channel.Id, err))
+	}
+}
+
 func (channel *Channel) Delete() error {
 	var err error
 	err = DB.Delete(channel).Error

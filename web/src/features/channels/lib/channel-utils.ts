@@ -27,7 +27,13 @@ import {
   RESPONSE_TIME_THRESHOLDS,
   TYPE_TO_KEY_PROMPT,
 } from '../constants'
-import type { Channel, ChannelSettings, ChannelOtherSettings } from '../types'
+import type {
+  Channel,
+  ChannelPlanUsage,
+  ChannelSettings,
+  ChannelOtherSettings,
+  PlanUsageWindow,
+} from '../types'
 
 // ============================================================================
 // Channel Type Utilities
@@ -350,6 +356,115 @@ export function getBalanceVariant(
     return 'danger'
   }
   if (balance < 10) {
+    return 'warning'
+  }
+  return 'success'
+}
+
+/**
+ * Read the persisted window snapshot of a coding-plan channel from its
+ * other_info JSON; null when it has never been queried.
+ */
+export function parsePlanUsageFromOtherInfo(
+  otherInfo: string | null | undefined
+): ChannelPlanUsage | null {
+  if (!otherInfo) {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(otherInfo) as Record<string, unknown>
+    const raw = parsed?.plan_usage
+    if (raw == null || typeof raw !== 'object') {
+      return null
+    }
+    const usage = raw as Partial<ChannelPlanUsage>
+    if (!Array.isArray(usage.windows)) {
+      return null
+    }
+    const windows = usage.windows
+      .filter(
+        (window) =>
+          window != null &&
+          typeof window === 'object' &&
+          typeof window.kind === 'string' &&
+          typeof window.used_percent === 'number' &&
+          Number.isFinite(window.used_percent)
+      )
+      .map((window) => ({
+        ...(window as PlanUsageWindow),
+        used_percent: Math.max(0, Math.min(100, window.used_percent)),
+        reset_time:
+          typeof window.reset_time === 'number' &&
+          Number.isFinite(window.reset_time)
+            ? window.reset_time
+            : 0,
+      }))
+    if (windows.length === 0) {
+      return null
+    }
+    return {
+      provider: usage.provider === 'minimax' ? 'minimax' : 'zhipu',
+      level: typeof usage.level === 'string' ? usage.level : undefined,
+      windows,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Compact countdown until a unix-seconds reset time: "3d20h", "3.7h", "20m".
+ */
+export function formatPlanResetCountdown(
+  resetTime: number,
+  now: number
+): string {
+  if (!Number.isFinite(resetTime) || resetTime <= 0) {
+    return '-'
+  }
+  const secondsLeft = resetTime - now
+  if (secondsLeft <= 0) {
+    return '0m'
+  }
+  const days = Math.floor(secondsLeft / 86400)
+  if (days > 0) {
+    const hours = Math.floor((secondsLeft % 86400) / 3600)
+    return `${days}d${hours}h`
+  }
+  if (secondsLeft >= 3600) {
+    return `${(secondsLeft / 3600).toFixed(1)}h`
+  }
+  const minutes = Math.floor(secondsLeft / 60)
+  if (minutes > 0) {
+    return `${minutes}m`
+  }
+  return `${Math.floor(secondsLeft)}s`
+}
+
+/**
+ * Format the remaining percent of a coding-plan channel's tightest window.
+ */
+export function formatPlanRemainingPercent(remaining: number): string {
+  if (!Number.isFinite(remaining)) {
+    return '-'
+  }
+  const clamped = Math.max(0, Math.min(100, remaining))
+  return `${Math.round(clamped * 10) / 10}%`
+}
+
+/**
+ * Status color for a coding-plan channel's remaining percent
+ */
+export function getPlanRemainingVariant(
+  remaining: number
+): 'success' | 'warning' | 'danger' | 'neutral' {
+  if (remaining <= 0) {
+    return 'neutral'
+  }
+  if (remaining < 20) {
+    return 'danger'
+  }
+  if (remaining < 50) {
     return 'warning'
   }
   return 'success'

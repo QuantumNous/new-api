@@ -22,6 +22,19 @@ For commercial licensing, please contact support@quantumnous.com
 // ============================================================================
 
 export const CHANNEL_TYPE_NEW_API = 60
+export const CHANNEL_TYPE_ZHIPU = 16
+export const CHANNEL_TYPE_ZHIPU_V4 = 26
+export const CHANNEL_TYPE_MINIMAX = 35
+
+// Coding-plan channels expose windowed quota instead of a wallet balance;
+// their balance column shows the remaining percent of the tightest window.
+export function isPlanUsageChannelType(type: number | undefined): boolean {
+  return (
+    type === CHANNEL_TYPE_ZHIPU ||
+    type === CHANNEL_TYPE_ZHIPU_V4 ||
+    type === CHANNEL_TYPE_MINIMAX
+  )
+}
 
 export const CHANNEL_TYPES = {
   0: 'Unknown',

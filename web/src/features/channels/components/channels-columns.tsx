@@ -46,6 +46,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { Progress } from '@/components/ui/progress'
 import { toIntlLocale } from '@/i18n/languages'
 import {
   formatCurrencyFromUSD,
@@ -56,8 +57,13 @@ import { formatTimestampToDate } from '@/lib/format'
 import { truncateText } from '@/lib/utils'
 
 import { getCodexUsage, updateChannelBalance } from '../api'
-import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
+  CHANNEL_STATUS_CONFIG,
+  MODEL_FETCHABLE_TYPES,
+  isPlanUsageChannelType,
+} from '../constants'
+import {
+  formatPlanResetCountdown,
   formatRelativeTime,
   formatResponseTime,
   getBalanceVariant,
@@ -68,6 +74,7 @@ import {
   parseModelsList,
   parseGroupsList,
   parseChannelSettings,
+  parsePlanUsageFromOtherInfo,
   channelsQueryKeys,
   handleUpdateChannelField,
   handleUpdateTagField,
@@ -76,7 +83,7 @@ import {
   type TagRow,
 } from '../lib'
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
-import type { Channel } from '../types'
+import type { Channel, ChannelPlanUsage } from '../types'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
 import { useChannels } from './channels-provider'
 import { DataTableRowActions } from './data-table-row-actions'
@@ -324,6 +331,52 @@ const MAX_INLINE_BALANCE_CHARS = 8
 const SENSITIVE_MASK = '••••'
 
 /**
+ * Compact plan-watch style usage widget for coding-plan channels: one row per
+ * quota window with a progress bar, used percent, and reset countdown.
+ * Rendered as a dimmed placeholder until the first query, so the trigger is
+ * always visible (the USD remaining badge stays non-interactive for plan
+ * channels). Clicking it opens the plan usage dialog.
+ */
+function PlanUsageInlineWidget(props: {
+  usage: ChannelPlanUsage | null
+  onClick: () => void
+}) {
+  const { t } = useTranslation()
+  const now = Math.floor(Date.now() / 1000)
+  const queried = props.usage != null
+  const windows =
+    props.usage?.windows ?? [
+      { kind: 'interval_5h', used_percent: 0, reset_time: 0 },
+      { kind: 'weekly', used_percent: 0, reset_time: 0 },
+    ]
+  return (
+    <button
+      type='button'
+      onClick={props.onClick}
+      className={`hover:bg-muted/50 flex shrink-0 cursor-pointer flex-col gap-1 rounded-md p-1 transition-colors${
+        queried ? '' : ' opacity-50'
+      }`}
+      aria-label={t('Click to view plan usage')}
+    >
+      {windows.map((window) => (
+        <div key={window.kind} className='flex items-center gap-1.5'>
+          <span className='text-muted-foreground w-4 text-right text-[10px] leading-none'>
+            {window.kind === 'interval_5h' ? '5h' : 'W'}
+          </span>
+          <Progress value={window.used_percent} className='h-1.5 w-14' />
+          <span className='text-[10px] leading-none tabular-nums'>
+            {queried ? `${Math.round(window.used_percent)}%` : '-'}
+          </span>
+          <span className='text-muted-foreground text-[10px] leading-none tabular-nums'>
+            {formatPlanResetCountdown(window.reset_time, now)}
+          </span>
+        </div>
+      ))}
+    </button>
+  )
+}
+
+/**
  * Balance cell component with click to update
  */
 export function BalanceCell({ channel }: { channel: Channel }) {
@@ -332,12 +385,19 @@ export function BalanceCell({ channel }: { channel: Channel }) {
   const layout = useContext(ChannelRowActionsLayoutContext)
   const { sensitiveVisible, setCurrentRow } = useChannels()
   const isTagRow = isTagAggregateRow(channel)
+  const isPlanUsage = isPlanUsageChannelType(channel.type)
+  // Plan channels keep the USD used/remaining badges untouched and surface
+  // the windowed usage as an inline widget once it has been queried.
+  const planUsage = isPlanUsage
+    ? parsePlanUsageFromOtherInfo(channel.other_info)
+    : null
   const balance = channel.balance || 0
   const usedQuota = channel.used_quota || 0
   const [isUpdating, setIsUpdating] = useState(false)
   const [rawBalanceResponse, setRawBalanceResponse] = useState<string | null>(
     null
   )
+  const [planQueryOpen, setPlanQueryOpen] = useState(false)
   const [codexUsageOpen, setCodexUsageOpen] = useState(false)
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
@@ -446,6 +506,13 @@ export function BalanceCell({ channel }: { channel: Channel }) {
       return
     }
 
+    if (isPlanUsage) {
+      setCurrentRow(channel)
+      setPlanQueryOpen(true)
+      setIsUpdating(false)
+      return
+    }
+
     try {
       const response = await updateChannelBalance(channel.id)
       if (response.success && response.balance !== undefined) {
@@ -523,16 +590,21 @@ export function BalanceCell({ channel }: { channel: Channel }) {
                 size='sm'
                 copyable={false}
                 showDot={false}
-                className='cursor-pointer'
-                onClick={handleClickUpdate}
+                className={isPlanUsage ? 'cursor-help' : 'cursor-pointer'}
+                onClick={isPlanUsage ? undefined : handleClickUpdate}
               />
             }
           />
           <TooltipContent>
             <p>{remainingTooltipLabel}</p>
-            {channel.type !== 57 && <p>{t('Click to update balance')}</p>}
+            {channel.type !== 57 && !isPlanUsage && (
+              <p>{t('Click to update balance')}</p>
+            )}
           </TooltipContent>
         </Tooltip>
+        {isPlanUsage && sensitiveVisible && (
+          <PlanUsageInlineWidget usage={planUsage} onClick={handleClickUpdate} />
+        )}
       </div>
 
       <CodexUsageDialog
@@ -573,6 +645,16 @@ export function BalanceCell({ channel }: { channel: Channel }) {
           onOpenChange={(open) => {
             if (!open) {
               setRawBalanceResponse(null)
+            }
+          }}
+        />
+      )}
+      {planQueryOpen && (
+        <BalanceQueryDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setPlanQueryOpen(false)
             }
           }}
         />

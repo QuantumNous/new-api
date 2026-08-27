@@ -192,12 +192,34 @@ export interface ChannelTestResponse {
   }
 }
 
+export type PlanUsageWindowKind = 'interval_5h' | 'weekly'
+
+export interface PlanUsageWindow {
+  kind: PlanUsageWindowKind
+  /** Used percent of the window (0-100). */
+  used_percent: number
+  /** Unix seconds, 0 = unknown. */
+  reset_time: number
+  limit_type?: string
+  /** Zhipu credit plans report absolute quota per window. */
+  total_quota?: number
+  used_quota?: number
+  remaining_quota?: number
+}
+
+export interface ChannelPlanUsage {
+  provider: 'zhipu' | 'minimax'
+  level?: string
+  windows: PlanUsageWindow[]
+}
+
 export interface ChannelBalanceResponse {
   success: boolean
   message?: string
   balance?: number
   currency?: string
   raw_response?: string
+  plan_usage?: ChannelPlanUsage
 }
 
 export interface FetchModelsResponse {

@@ -34,12 +34,15 @@ import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 
 import { getCodexUsage, updateChannelBalance } from '../../api'
+import { isPlanUsageChannelType } from '../../constants'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
 import {
   CodexUsageDialog,
   type CodexUsageDialogData,
 } from './codex-usage-dialog'
+import { PlanUsageDialog } from './plan-usage-dialog'
+import type { ChannelPlanUsage } from '../../types'
 
 type BalanceQueryDialogProps = {
   initialRawResponse?: string
@@ -61,8 +64,10 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
   )
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
+  const [planUsage, setPlanUsage] = useState<ChannelPlanUsage | null>(null)
 
   const isCodex = currentRow?.type === 57
+  const isPlanUsage = isPlanUsageChannelType(currentRow?.type)
 
   const handleQueryCodexUsage = async () => {
     const row = currentRow
@@ -84,11 +89,15 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
   }
 
   useEffect(() => {
-    if (!isCodex) return
+    if (!isCodex && !isPlanUsage) return
     if (!props.open) return
-    handleQueryCodexUsage()
+    if (isCodex) {
+      handleQueryCodexUsage()
+    } else {
+      handleQueryBalance()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.open, isCodex])
+  }, [props.open, isCodex, isPlanUsage])
 
   if (!currentRow) return null
 
@@ -96,7 +105,18 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
     setIsQuerying(true)
     try {
       const response = await updateChannelBalance(currentRow.id)
-      if (response.success && response.balance !== undefined) {
+      if (response.success && response.plan_usage !== undefined) {
+        setPlanUsage(response.plan_usage)
+        const now = Math.floor(Date.now() / 1000)
+        setCurrentRow({
+          ...currentRow,
+          balance: response.balance ?? currentRow.balance,
+          balance_updated_time: now,
+        })
+        await queryClient.invalidateQueries({
+          queryKey: channelsQueryKeys.lists(),
+        })
+      } else if (response.success && response.balance !== undefined) {
         const newBalance = response.balance
         const now = Math.floor(Date.now() / 1000)
 
@@ -135,6 +155,7 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
     setBalanceUpdatedTime(null)
     setRawResponse(null)
     setCodexUsageResponse(null)
+    setPlanUsage(null)
     props.onOpenChange(false)
   }
 
@@ -161,6 +182,22 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
         channelId={currentRow.id}
         response={codexUsageResponse}
         onRefresh={handleQueryCodexUsage}
+        isRefreshing={isQuerying}
+      />
+    )
+  }
+
+  if (isPlanUsage) {
+    return (
+      <PlanUsageDialog
+        open={props.open}
+        onOpenChange={(v) => {
+          if (!v) handleClose()
+        }}
+        channelName={currentRow.name}
+        usage={planUsage}
+        balanceUpdatedTime={currentRow.balance_updated_time}
+        onRefresh={handleQueryBalance}
         isRefreshing={isQuerying}
       />
     )

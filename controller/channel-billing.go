@@ -58,6 +58,7 @@ const maxAdvancedCustomBalanceResponseBytes = 256 << 10
 type channelBalanceResult struct {
 	Balance     float64
 	RawResponse string
+	PlanUsage   *ChannelPlanUsage
 }
 
 type OpenAIUsageResponse struct {
@@ -458,6 +459,12 @@ func updateChannelBalance(channel *model.Channel) (channelBalanceResult, error) 
 	if channel.Type == constant.ChannelTypeAdvancedCustom {
 		return fetchAdvancedCustomBalance(channel)
 	}
+	switch channel.Type {
+	case constant.ChannelTypeZhipu, constant.ChannelTypeZhipu_v4:
+		return fetchZhipuPlanBalance(channel)
+	case constant.ChannelTypeMiniMax:
+		return fetchMiniMaxPlanBalance(channel)
+	}
 	balance, err := updateStandardChannelBalance(channel)
 	return channelBalanceResult{Balance: balance}, err
 }
@@ -554,6 +561,9 @@ func UpdateChannelBalance(c *gin.Context) {
 		"success": true,
 		"message": "",
 	}
+	if result.PlanUsage != nil {
+		response["plan_usage"] = result.PlanUsage
+	}
 	if result.RawResponse == "" {
 		response["balance"] = result.Balance
 	} else {
@@ -582,8 +592,10 @@ func updateAllChannelsBalance() error {
 		if err != nil {
 			continue
 		} else if result.RawResponse == "" {
-			// err is nil & balance <= 0 means quota is used up
-			if result.Balance <= 0 {
+			// err is nil & balance <= 0 means quota is used up. Plan channels
+			// report a windowed remaining percent that self-recovers on reset,
+			// so they are never auto-disabled here.
+			if result.Balance <= 0 && !isPlanUsageChannelType(channel.Type) {
 				service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan()), "余额不足")
 			}
 		}
