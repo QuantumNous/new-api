@@ -316,7 +316,7 @@ func (channel *Channel) GetOtherInfo() map[string]interface{} {
 }
 
 func (channel *Channel) SetOtherInfo(otherInfo map[string]interface{}) {
-	otherInfoBytes, err := json.Marshal(otherInfo)
+	otherInfoBytes, err := common.Marshal(otherInfo)
 	if err != nil {
 		common.SysLog(fmt.Sprintf("failed to marshal other info: channel_id=%d, tag=%s, name=%s, error=%v", channel.Id, channel.GetTag(), channel.Name, err))
 		return
@@ -610,7 +610,7 @@ func (channel *Channel) UpdateBalance(balance float64) {
 
 // UpdatePlanUsage records a coding-plan channel's windowed usage snapshot in
 // other_info, leaving the USD balance untouched.
-func (channel *Channel) UpdatePlanUsage(usage any) {
+func (channel *Channel) UpdatePlanUsage(usage any) error {
 	info := channel.GetOtherInfo()
 	info["plan_usage"] = usage
 	channel.SetOtherInfo(info)
@@ -621,6 +621,7 @@ func (channel *Channel) UpdatePlanUsage(usage any) {
 	if err != nil {
 		common.SysLog(fmt.Sprintf("failed to update plan usage: channel_id=%d, error=%v", channel.Id, err))
 	}
+	return err
 }
 
 func (channel *Channel) Delete() error {

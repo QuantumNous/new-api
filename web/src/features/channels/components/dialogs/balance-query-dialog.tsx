@@ -35,7 +35,7 @@ import { formatTimestampToDate } from '@/lib/format'
 
 import { getCodexUsage, updateChannelBalance } from '../../api'
 import { isPlanUsageChannelType } from '../../constants'
-import { channelsQueryKeys } from '../../lib'
+import { channelsQueryKeys, normalizePlanUsage } from '../../lib'
 import { useChannels } from '../channels-provider'
 import {
   CodexUsageDialog,
@@ -106,7 +106,9 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
     try {
       const response = await updateChannelBalance(currentRow.id)
       if (response.success && response.plan_usage !== undefined) {
-        setPlanUsage(response.plan_usage)
+        // Normalize before storing: an upstream payload without usable windows
+        // must render the empty state, not crash the dialog.
+        setPlanUsage(normalizePlanUsage(response.plan_usage))
         const now = Math.floor(Date.now() / 1000)
         setCurrentRow({
           ...currentRow,

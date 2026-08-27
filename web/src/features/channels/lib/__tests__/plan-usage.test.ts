@@ -28,6 +28,7 @@ import {
   formatPlanRemainingPercent,
   formatPlanResetCountdown,
   getPlanRemainingVariant,
+  normalizePlanUsage,
   parsePlanUsageFromOtherInfo,
 } from '../channel-utils'
 
@@ -88,6 +89,37 @@ describe('parsePlanUsageFromOtherInfo', () => {
     ).toBeNull()
     expect(
       parsePlanUsageFromOtherInfo('{"plan_usage":{"windows":[{"kind":5}]}}')
+    ).toBeNull()
+  })
+})
+
+describe('normalizePlanUsage', () => {
+  test('accepts a valid query response payload', () => {
+    const usage = normalizePlanUsage({
+      provider: 'minimax',
+      windows: [{ kind: 'interval_5h', used_percent: 29.5, reset_time: 1787641200 }],
+    })
+    expect(usage).toEqual({
+      provider: 'minimax',
+      level: undefined,
+      windows: [
+        { kind: 'interval_5h', used_percent: 29.5, reset_time: 1787641200 },
+      ],
+    })
+  })
+
+  test('rejects payloads without usable windows so the dialog renders empty', () => {
+    // A malformed upstream body must never reach Math.max() as an empty list
+    // (which would make the overall remaining percent Infinity).
+    expect(normalizePlanUsage(null)).toBeNull()
+    expect(normalizePlanUsage('x')).toBeNull()
+    expect(normalizePlanUsage({ provider: 'zhipu' })).toBeNull()
+    expect(normalizePlanUsage({ windows: [] })).toBeNull()
+    expect(
+      normalizePlanUsage({ windows: [{ kind: 'weekly', used_percent: 'x' }] })
+    ).toBeNull()
+    expect(
+      normalizePlanUsage({ windows: [{ kind: 'weekly', used_percent: NaN }] })
     ).toBeNull()
   })
 })

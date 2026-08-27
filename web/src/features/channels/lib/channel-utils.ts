@@ -362,6 +362,47 @@ export function getBalanceVariant(
 }
 
 /**
+ * Normalize an untrusted plan usage payload: window list must be non-empty
+ * with numeric used_percent; drift is clamped into 0-100. Returns null when
+ * the payload does not describe at least one valid window.
+ */
+export function normalizePlanUsage(raw: unknown): ChannelPlanUsage | null {
+  if (raw == null || typeof raw !== 'object') {
+    return null
+  }
+  const usage = raw as Partial<ChannelPlanUsage>
+  if (!Array.isArray(usage.windows)) {
+    return null
+  }
+  const windows = usage.windows
+    .filter(
+      (window) =>
+        window != null &&
+        typeof window === 'object' &&
+        typeof window.kind === 'string' &&
+        typeof window.used_percent === 'number' &&
+        Number.isFinite(window.used_percent)
+    )
+    .map((window) => ({
+      ...(window as PlanUsageWindow),
+      used_percent: Math.max(0, Math.min(100, window.used_percent)),
+      reset_time:
+        typeof window.reset_time === 'number' &&
+        Number.isFinite(window.reset_time)
+          ? window.reset_time
+          : 0,
+    }))
+  if (windows.length === 0) {
+    return null
+  }
+  return {
+    provider: usage.provider === 'minimax' ? 'minimax' : 'zhipu',
+    level: typeof usage.level === 'string' ? usage.level : undefined,
+    windows,
+  }
+}
+
+/**
  * Read the persisted window snapshot of a coding-plan channel from its
  * other_info JSON; null when it has never been queried.
  */
@@ -373,40 +414,7 @@ export function parsePlanUsageFromOtherInfo(
   }
   try {
     const parsed = JSON.parse(otherInfo) as Record<string, unknown>
-    const raw = parsed?.plan_usage
-    if (raw == null || typeof raw !== 'object') {
-      return null
-    }
-    const usage = raw as Partial<ChannelPlanUsage>
-    if (!Array.isArray(usage.windows)) {
-      return null
-    }
-    const windows = usage.windows
-      .filter(
-        (window) =>
-          window != null &&
-          typeof window === 'object' &&
-          typeof window.kind === 'string' &&
-          typeof window.used_percent === 'number' &&
-          Number.isFinite(window.used_percent)
-      )
-      .map((window) => ({
-        ...(window as PlanUsageWindow),
-        used_percent: Math.max(0, Math.min(100, window.used_percent)),
-        reset_time:
-          typeof window.reset_time === 'number' &&
-          Number.isFinite(window.reset_time)
-            ? window.reset_time
-            : 0,
-      }))
-    if (windows.length === 0) {
-      return null
-    }
-    return {
-      provider: usage.provider === 'minimax' ? 'minimax' : 'zhipu',
-      level: typeof usage.level === 'string' ? usage.level : undefined,
-      windows,
-    }
+    return normalizePlanUsage(parsed?.plan_usage)
   } catch {
     return null
   }

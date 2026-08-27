@@ -229,18 +229,6 @@ func resolveMiniMaxRemainsURL(baseURL string) string {
 	return "https://api.minimaxi.com/v1/api/openplatform/coding_plan/remains"
 }
 
-// planUsageRemainingPercent returns the remaining percent of the tightest
-// window; this is what gets persisted for a plan channel.
-func planUsageRemainingPercent(usage *ChannelPlanUsage) float64 {
-	remaining := 100.0
-	for _, window := range usage.Windows {
-		if r := 100 - window.UsedPercent; r < remaining {
-			remaining = r
-		}
-	}
-	return clampPlanPercent(remaining)
-}
-
 func fetchZhipuPlanBalance(channel *model.Channel) (channelBalanceResult, error) {
 	url := resolveZhipuMonitorURL(channel.GetBaseURL())
 	// The monitor API takes the raw key without a Bearer prefix.
@@ -254,7 +242,9 @@ func fetchZhipuPlanBalance(channel *model.Channel) (channelBalanceResult, error)
 	if err != nil {
 		return channelBalanceResult{}, err
 	}
-	channel.UpdatePlanUsage(usage)
+	if err := channel.UpdatePlanUsage(usage); err != nil {
+		return channelBalanceResult{}, err
+	}
 	// Keep the USD balance passthrough so the wallet semantics stay untouched.
 	return channelBalanceResult{Balance: channel.Balance, PlanUsage: usage}, nil
 }
@@ -269,7 +259,9 @@ func fetchMiniMaxPlanBalance(channel *model.Channel) (channelBalanceResult, erro
 	if err != nil {
 		return channelBalanceResult{}, err
 	}
-	channel.UpdatePlanUsage(usage)
+	if err := channel.UpdatePlanUsage(usage); err != nil {
+		return channelBalanceResult{}, err
+	}
 	// Keep the USD balance passthrough so the wallet semantics stay untouched.
 	return channelBalanceResult{Balance: channel.Balance, PlanUsage: usage}, nil
 }
