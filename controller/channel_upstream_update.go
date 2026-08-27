@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
 )
 
 const (
@@ -50,6 +52,22 @@ var channelUpstreamModelUpdateSelectFields = []string{
 	"tag",
 	"channel_info",
 	"header_override",
+}
+
+var fetchChannelUpstreamModelIDsFn = fetchChannelUpstreamModelIDs
+
+type channelUpstreamModelFetchFingerprint struct {
+	Type               int
+	Key                string
+	EffectiveBaseURL   string
+	Proxy              string
+	HeaderOverride     string
+	IsMultiKey         bool
+	MultiKeySize       int
+	MultiKeyStatusList map[int]int
+	DisabledReason     map[int]string
+	DisabledTime       map[int]int64
+	MultiKeyMode       constant.MultiKeyMode
 }
 
 var channelUpstreamModelUpdateNotifyState = struct {
@@ -88,6 +106,17 @@ type upstreamModelUpdateChannelSummary struct {
 	ChannelName string
 	AddCount    int
 	RemoveCount int
+}
+
+type appliedChannelUpstreamModelUpdates struct {
+	AddedModels           []string
+	RemovedModels         []string
+	IgnoredModels         []string
+	RemainingModels       []string
+	RemainingRemoveModels []string
+	ModelsChanged         bool
+	MappingChanged        bool
+	HadPending            bool
 }
 
 func normalizeModelNames(models []string) []string {
@@ -142,31 +171,84 @@ func applySelectedModelChanges(originModels []string, addModels []string, remove
 	return subtractModelNames(mergeModelNames(originModels, normalizedAdd), normalizedRemove)
 }
 
-func normalizeChannelModelMapping(channel *model.Channel) map[string]string {
+func normalizeChannelModelMapping(channel *model.Channel) (map[string]string, error) {
 	if channel == nil || channel.ModelMapping == nil {
-		return nil
+		return nil, nil
 	}
-	rawMapping := strings.TrimSpace(*channel.ModelMapping)
-	if rawMapping == "" || rawMapping == "{}" {
-		return nil
+	rawMapping := *channel.ModelMapping
+	trimmedMapping := strings.TrimSpace(rawMapping)
+	if trimmedMapping == "" || trimmedMapping == "{}" {
+		return nil, nil
 	}
 	parsed := make(map[string]string)
 	if err := common.UnmarshalJsonStr(rawMapping, &parsed); err != nil {
-		return nil
+		return nil, fmt.Errorf("invalid model mapping: %w", err)
 	}
-	normalized := make(map[string]string, len(parsed))
-	for source, target := range parsed {
-		normalizedSource := strings.TrimSpace(source)
-		normalizedTarget := strings.TrimSpace(target)
-		if normalizedSource == "" || normalizedTarget == "" {
-			continue
+	if err := validateResolvableChannelModelMapping(parsed); err != nil {
+		return nil, err
+	}
+	return parsed, nil
+}
+
+func validateResolvableChannelModelMapping(modelMapping map[string]string) error {
+	if err := validateChannelModelMappingEntries(modelMapping); err != nil {
+		return err
+	}
+	for source := range modelMapping {
+		if _, err := resolveExactChannelModelTarget(source, modelMapping); err != nil {
+			return err
 		}
-		normalized[normalizedSource] = normalizedTarget
 	}
-	if len(normalized) == 0 {
-		return nil
+	return nil
+}
+
+func resolveExactChannelModelTarget(modelName string, modelMapping map[string]string) (string, error) {
+	if strings.TrimSpace(modelName) == "" {
+		return "", model.ErrModelNameEmpty
 	}
-	return normalized
+
+	currentModel := modelName
+	visitedModels := map[string]bool{currentModel: true}
+	for {
+		mappedModel, exists := modelMapping[currentModel]
+		if !exists {
+			return currentModel, nil
+		}
+		if mappedModel == currentModel {
+			return currentModel, nil
+		}
+		if visitedModels[mappedModel] {
+			return "", model.ErrModelMappingCycle
+		}
+		visitedModels[mappedModel] = true
+		currentModel = mappedModel
+	}
+}
+
+func validateChannelModelMappingEntries(modelMapping map[string]string) error {
+	for source, target := range modelMapping {
+		if strings.TrimSpace(source) == "" {
+			return model.ErrModelMappingSourceEmpty
+		}
+		if strings.TrimSpace(target) == "" {
+			return model.ErrModelMappingTargetEmpty
+		}
+	}
+	return nil
+}
+
+func parseChannelOtherSettings(channel *model.Channel) (dto.ChannelOtherSettings, error) {
+	settings := dto.ChannelOtherSettings{}
+	if channel == nil {
+		return settings, fmt.Errorf("channel is nil")
+	}
+	if channel.OtherSettings == "" {
+		return settings, nil
+	}
+	if err := common.UnmarshalJsonStr(channel.OtherSettings, &settings); err != nil {
+		return dto.ChannelOtherSettings{}, fmt.Errorf("invalid channel other settings: %w", err)
+	}
+	return settings, nil
 }
 
 func collectPendingUpstreamModelChangesFromModels(
@@ -174,33 +256,28 @@ func collectPendingUpstreamModelChangesFromModels(
 	upstreamModels []string,
 	ignoredModels []string,
 	modelMapping map[string]string,
-) (pendingAddModels []string, pendingRemoveModels []string) {
-	localSet := make(map[string]struct{})
+) (pendingAddModels []string, pendingRemoveModels []string, err error) {
+	if err := validateResolvableChannelModelMapping(modelMapping); err != nil {
+		return nil, nil, err
+	}
 	localModels = normalizeModelNames(localModels)
 	upstreamModels = normalizeModelNames(upstreamModels)
-	for _, modelName := range localModels {
-		localSet[modelName] = struct{}{}
-	}
 	upstreamSet := make(map[string]struct{}, len(upstreamModels))
 	for _, modelName := range upstreamModels {
 		upstreamSet[modelName] = struct{}{}
 	}
 
 	normalizedIgnoredModels := normalizeModelNames(ignoredModels)
-
-	redirectSourceSet := make(map[string]struct{}, len(modelMapping))
-	redirectTargetSet := make(map[string]struct{}, len(modelMapping))
-	for source, target := range modelMapping {
-		redirectSourceSet[source] = struct{}{}
-		redirectTargetSet[target] = struct{}{}
-	}
-
-	coveredUpstreamSet := make(map[string]struct{}, len(localSet)+len(redirectTargetSet))
-	for modelName := range localSet {
-		coveredUpstreamSet[modelName] = struct{}{}
-	}
-	for modelName := range redirectTargetSet {
-		coveredUpstreamSet[modelName] = struct{}{}
+	coveredUpstreamSet := make(map[string]struct{}, len(localModels))
+	for _, modelName := range localModels {
+		terminalTarget, resolveErr := resolveExactChannelModelTarget(modelName, modelMapping)
+		if resolveErr != nil {
+			return nil, nil, resolveErr
+		}
+		coveredUpstreamSet[terminalTarget] = struct{}{}
+		if _, ok := upstreamSet[terminalTarget]; !ok {
+			pendingRemoveModels = append(pendingRemoveModels, modelName)
+		}
 	}
 
 	pendingAdd := lo.Filter(upstreamModels, func(modelName string, _ int) bool {
@@ -218,16 +295,19 @@ func collectPendingUpstreamModelChangesFromModels(
 		}
 		return true
 	})
-	pendingRemove := lo.Filter(localModels, func(modelName string, _ int) bool {
-		// Redirect source models are virtual aliases and should not be removed
-		// only because they are absent from upstream model list.
-		if _, ok := redirectSourceSet[modelName]; ok {
-			return false
-		}
-		_, ok := upstreamSet[modelName]
-		return !ok
-	})
-	return normalizeModelNames(pendingAdd), normalizeModelNames(pendingRemove)
+	return normalizeModelNames(pendingAdd), normalizeModelNames(pendingRemoveModels), nil
+}
+
+func rejectSameNameModelMappingReplacement(pendingAddModels []string, pendingRemoveModels []string) error {
+	conflictingModels := intersectModelNames(pendingAddModels, pendingRemoveModels)
+	if len(conflictingModels) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: canonical model %q is pending both addition and removal",
+		model.ErrModelMappingConflict,
+		conflictingModels[0],
+	)
 }
 
 func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.ChannelOtherSettings) (pendingAddModels []string, pendingRemoveModels []string, err error) {
@@ -235,13 +315,17 @@ func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.Cha
 	if err != nil {
 		return nil, nil, err
 	}
-	pendingAddModels, pendingRemoveModels = collectPendingUpstreamModelChangesFromModels(
+	modelMapping, err := normalizeChannelModelMapping(channel)
+	if err != nil {
+		return nil, nil, err
+	}
+	pendingAddModels, pendingRemoveModels, err = collectPendingUpstreamModelChangesFromModels(
 		channel.GetModels(),
 		upstreamModels,
 		settings.UpstreamModelUpdateIgnoredModels,
-		normalizeChannelModelMapping(channel),
+		modelMapping,
 	)
-	return pendingAddModels, pendingRemoveModels, nil
+	return pendingAddModels, pendingRemoveModels, err
 }
 
 func getUpstreamModelUpdateMinCheckIntervalSeconds() int64 {
@@ -253,6 +337,38 @@ func getUpstreamModelUpdateMinCheckIntervalSeconds() int64 {
 		return channelUpstreamModelUpdateMinCheckIntervalSeconds
 	}
 	return interval
+}
+
+func selectChannelUpstreamModelDiscoveryKey(channel *model.Channel) (string, error) {
+	if channel == nil {
+		return "", fmt.Errorf("channel is nil")
+	}
+	if !channel.ChannelInfo.IsMultiKey {
+		return channel.Key, nil
+	}
+
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return "", fmt.Errorf("no keys available")
+	}
+	start := 0
+	if channel.ChannelInfo.MultiKeyMode == constant.MultiKeyModePolling {
+		start = channel.ChannelInfo.MultiKeyPollingIndex
+		if start < 0 || start >= len(keys) {
+			start = 0
+		}
+	}
+	for offset := 0; offset < len(keys); offset++ {
+		index := (start + offset) % len(keys)
+		status := common.ChannelStatusEnabled
+		if configuredStatus, ok := channel.ChannelInfo.MultiKeyStatusList[index]; ok {
+			status = configuredStatus
+		}
+		if status == common.ChannelStatusEnabled {
+			return keys[index], nil
+		}
+	}
+	return "", fmt.Errorf("no enabled keys")
 }
 
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
@@ -273,9 +389,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	}
 
 	if channel.Type == constant.ChannelTypeGemini {
-		key, _, apiErr := channel.GetNextEnabledKey()
-		if apiErr != nil {
-			return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+		key, keyErr := selectChannelUpstreamModelDiscoveryKey(channel)
+		if keyErr != nil {
+			return nil, fmt.Errorf("获取渠道密钥失败: %w", keyErr)
 		}
 		key = strings.TrimSpace(key)
 		models, err := gemini.FetchGeminiModels(baseURL, key, channel.GetSetting().Proxy)
@@ -311,9 +427,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		url = fmt.Sprintf("%s/v1/models", baseURL)
 	}
 
-	key, _, apiErr := channel.GetNextEnabledKey()
-	if apiErr != nil {
-		return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+	key, keyErr := selectChannelUpstreamModelDiscoveryKey(channel)
+	if keyErr != nil {
+		return nil, fmt.Errorf("获取渠道密钥失败: %w", keyErr)
 	}
 	key = strings.TrimSpace(key)
 
@@ -342,15 +458,76 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	return normalizeModelNames(ids), nil
 }
 
-func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool) error {
+func buildChannelUpstreamModelFetchFingerprint(channel *model.Channel) (channelUpstreamModelFetchFingerprint, error) {
+	if channel == nil {
+		return channelUpstreamModelFetchFingerprint{}, fmt.Errorf("channel is nil")
+	}
+
+	setting := dto.ChannelSettings{}
+	if channel.Setting != nil && strings.TrimSpace(*channel.Setting) != "" {
+		if err := common.UnmarshalJsonStr(*channel.Setting, &setting); err != nil {
+			return channelUpstreamModelFetchFingerprint{}, fmt.Errorf("invalid channel setting: %w", err)
+		}
+	}
+
+	effectiveBaseURL := constant.ChannelBaseURLs[channel.Type]
+	if channel.GetBaseURL() != "" {
+		effectiveBaseURL = channel.GetBaseURL()
+	}
+	headerOverride := ""
+	if channel.HeaderOverride != nil {
+		headerOverride = *channel.HeaderOverride
+	}
+
+	statusList := make(map[int]int, len(channel.ChannelInfo.MultiKeyStatusList))
+	for index, status := range channel.ChannelInfo.MultiKeyStatusList {
+		statusList[index] = status
+	}
+	disabledReason := make(map[int]string, len(channel.ChannelInfo.MultiKeyDisabledReason))
+	for index, reason := range channel.ChannelInfo.MultiKeyDisabledReason {
+		disabledReason[index] = reason
+	}
+	disabledTime := make(map[int]int64, len(channel.ChannelInfo.MultiKeyDisabledTime))
+	for index, disabledAt := range channel.ChannelInfo.MultiKeyDisabledTime {
+		disabledTime[index] = disabledAt
+	}
+
+	return channelUpstreamModelFetchFingerprint{
+		Type:               channel.Type,
+		Key:                channel.Key,
+		EffectiveBaseURL:   effectiveBaseURL,
+		Proxy:              setting.Proxy,
+		HeaderOverride:     headerOverride,
+		IsMultiKey:         channel.ChannelInfo.IsMultiKey,
+		MultiKeySize:       channel.ChannelInfo.MultiKeySize,
+		MultiKeyStatusList: statusList,
+		DisabledReason:     disabledReason,
+		DisabledTime:       disabledTime,
+		MultiKeyMode:       channel.ChannelInfo.MultiKeyMode,
+	}, nil
+}
+
+func persistChannelUpstreamModelState(
+	tx *gorm.DB,
+	channel *model.Channel,
+	settings dto.ChannelOtherSettings,
+	configChanged bool,
+) error {
 	channel.SetOtherSettings(settings)
 	updates := map[string]interface{}{
 		"settings": channel.OtherSettings,
 	}
-	if updateModels {
+	if configChanged {
 		updates["models"] = channel.Models
+		updates["model_mapping"] = channel.ModelMapping
 	}
-	return model.DB.Model(&model.Channel{}).Where("id = ?", channel.Id).Updates(updates).Error
+	if err := tx.Model(&model.Channel{}).Where("id = ?", channel.Id).Updates(updates).Error; err != nil {
+		return err
+	}
+	if configChanged {
+		return channel.UpdateAbilities(tx)
+	}
+	return nil
 }
 
 func checkAndPersistChannelUpstreamModelUpdates(
@@ -358,7 +535,8 @@ func checkAndPersistChannelUpstreamModelUpdates(
 	settings *dto.ChannelOtherSettings,
 	force bool,
 	allowAutoApply bool,
-) (modelsChanged bool, autoAdded int, err error) {
+	requireEnabled bool,
+) (configChanged bool, autoAdded int, err error) {
 	now := common.GetTimestamp()
 	if !force {
 		minInterval := getUpstreamModelUpdateMinCheckIntervalSeconds()
@@ -368,38 +546,107 @@ func checkAndPersistChannelUpstreamModelUpdates(
 		}
 	}
 
-	pendingAddModels, pendingRemoveModels, fetchErr := collectPendingUpstreamModelChanges(channel, *settings)
-	settings.UpstreamModelUpdateLastCheckTime = now
-	if fetchErr != nil {
-		if err = updateChannelUpstreamModelSettings(channel, *settings, false); err != nil {
-			return false, 0, err
+	fetchFingerprint, err := buildChannelUpstreamModelFetchFingerprint(channel)
+	if err != nil {
+		return false, 0, err
+	}
+	upstreamModels, fetchErr := fetchChannelUpstreamModelIDsFn(channel)
+
+	var freshChannel *model.Channel
+	var freshSettings dto.ChannelOtherSettings
+	freshCheckDisabled := false
+	persistErr := model.DB.Transaction(func(tx *gorm.DB) error {
+		freshChannel, err = model.GetChannelByIdForUpdate(tx, channel.Id)
+		if err != nil {
+			return err
 		}
+		freshFingerprint, fingerprintErr := buildChannelUpstreamModelFetchFingerprint(freshChannel)
+		if fingerprintErr != nil {
+			return fingerprintErr
+		}
+		if !reflect.DeepEqual(fetchFingerprint, freshFingerprint) {
+			return fmt.Errorf("channel fetch configuration changed during upstream model discovery")
+		}
+		if requireEnabled && freshChannel.Status != common.ChannelStatusEnabled {
+			freshCheckDisabled = true
+			return nil
+		}
+
+		freshSettings, err = parseChannelOtherSettings(freshChannel)
+		if err != nil {
+			return err
+		}
+		if !force {
+			if !freshSettings.UpstreamModelUpdateCheckEnabled {
+				freshCheckDisabled = true
+				return nil
+			}
+			minInterval := getUpstreamModelUpdateMinCheckIntervalSeconds()
+			if freshSettings.UpstreamModelUpdateLastCheckTime > 0 &&
+				now-freshSettings.UpstreamModelUpdateLastCheckTime < minInterval {
+				return nil
+			}
+		}
+		freshSettings.UpstreamModelUpdateLastCheckTime = now
+		if fetchErr != nil {
+			return persistChannelUpstreamModelState(tx, freshChannel, freshSettings, false)
+		}
+
+		modelMapping, mappingErr := normalizeChannelModelMapping(freshChannel)
+		if mappingErr != nil {
+			return mappingErr
+		}
+		pendingAddModels, pendingRemoveModels, collectErr := collectPendingUpstreamModelChangesFromModels(
+			freshChannel.GetModels(),
+			upstreamModels,
+			freshSettings.UpstreamModelUpdateIgnoredModels,
+			modelMapping,
+		)
+		if collectErr != nil {
+			return collectErr
+		}
+
+		if allowAutoApply && freshSettings.UpstreamModelUpdateAutoSyncEnabled && len(pendingAddModels) > 0 {
+			if conflictErr := rejectSameNameModelMappingReplacement(pendingAddModels, pendingRemoveModels); conflictErr != nil {
+				return conflictErr
+			}
+			originModels := normalizeModelNames(freshChannel.GetModels())
+			freshChannel.Models = strings.Join(mergeModelNames(originModels, pendingAddModels), ",")
+			if canonicalizeErr := freshChannel.CanonicalizeModelConfig(); canonicalizeErr != nil {
+				return canonicalizeErr
+			}
+			nextModels := normalizeModelNames(freshChannel.GetModels())
+			modelsChanged := !slices.Equal(originModels, nextModels)
+			nextModelMapping, mappingErr := normalizeChannelModelMapping(freshChannel)
+			if mappingErr != nil {
+				return mappingErr
+			}
+			mappingChanged := !reflect.DeepEqual(modelMapping, nextModelMapping)
+			configChanged = modelsChanged || mappingChanged
+			if modelsChanged {
+				autoAdded = len(nextModels) - len(originModels)
+			}
+			freshSettings.UpstreamModelUpdateLastDetectedModels = []string{}
+		} else {
+			freshSettings.UpstreamModelUpdateLastDetectedModels = pendingAddModels
+		}
+		freshSettings.UpstreamModelUpdateLastRemovedModels = pendingRemoveModels
+		return persistChannelUpstreamModelState(tx, freshChannel, freshSettings, configChanged)
+	})
+	if persistErr != nil {
+		return false, 0, persistErr
+	}
+	if freshChannel != nil {
+		*channel = *freshChannel
+		*settings = freshSettings
+	}
+	if freshCheckDisabled {
+		return false, 0, nil
+	}
+	if fetchErr != nil {
 		return false, 0, fetchErr
 	}
-
-	if allowAutoApply && settings.UpstreamModelUpdateAutoSyncEnabled && len(pendingAddModels) > 0 {
-		originModels := normalizeModelNames(channel.GetModels())
-		mergedModels := mergeModelNames(originModels, pendingAddModels)
-		if len(mergedModels) > len(originModels) {
-			channel.Models = strings.Join(mergedModels, ",")
-			autoAdded = len(mergedModels) - len(originModels)
-			modelsChanged = true
-		}
-		settings.UpstreamModelUpdateLastDetectedModels = []string{}
-	} else {
-		settings.UpstreamModelUpdateLastDetectedModels = pendingAddModels
-	}
-	settings.UpstreamModelUpdateLastRemovedModels = pendingRemoveModels
-
-	if err = updateChannelUpstreamModelSettings(channel, *settings, modelsChanged); err != nil {
-		return false, autoAdded, err
-	}
-	if modelsChanged {
-		if err = channel.UpdateAbilities(nil); err != nil {
-			return true, autoAdded, err
-		}
-	}
-	return modelsChanged, autoAdded, nil
+	return configChanged, autoAdded, nil
 }
 
 func refreshChannelRuntimeCache() {
@@ -591,13 +838,19 @@ scanLoop:
 				report(processed, int(totalChannels))
 			}
 
-			settings := channel.GetOtherSettings()
+			settings, settingsErr := parseChannelOtherSettings(channel)
+			if settingsErr != nil {
+				failedChannels++
+				failedChannelIDs = append(failedChannelIDs, channel.Id)
+				common.SysLog(fmt.Sprintf("upstream model update settings invalid: channel_id=%d channel_name=%s err=%v", channel.Id, channel.Name, settingsErr))
+				continue
+			}
 			if !settings.UpstreamModelUpdateCheckEnabled {
 				continue
 			}
 
 			checkedChannels++
-			modelsChanged, autoAdded, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, force, allowAutoApply)
+			configChanged, autoAdded, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, force, allowAutoApply, true)
 			if err != nil {
 				failedChannels++
 				failedChannelIDs = append(failedChannelIDs, channel.Id)
@@ -620,7 +873,7 @@ scanLoop:
 			}
 			addModelSamples = mergeModelNames(addModelSamples, currentAddModels)
 			removeModelSamples = mergeModelNames(removeModelSamples, currentRemoveModels)
-			if modelsChanged {
+			if configChanged {
 				refreshNeeded = true
 			}
 			autoAddedModels += autoAdded
@@ -718,21 +971,20 @@ func ApplyChannelUpstreamModelUpdates(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	beforeSettings := channel.GetOtherSettings()
-	ignoredModels := intersectModelNames(req.IgnoreModels, beforeSettings.UpstreamModelUpdateLastDetectedModels)
-
-	addedModels, removedModels, remainingModels, remainingRemoveModels, modelsChanged, err := applyChannelUpstreamModelUpdates(
+	result, err := applyChannelUpstreamModelUpdatesWithMode(
 		channel,
 		req.AddModels,
 		req.IgnoreModels,
 		req.RemoveModels,
+		false,
+		false,
 	)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
-	if modelsChanged {
+	if result.ModelsChanged || result.MappingChanged {
 		refreshChannelRuntimeCache()
 	}
 
@@ -744,11 +996,11 @@ func ApplyChannelUpstreamModelUpdates(c *gin.Context) {
 		"message": "",
 		"data": gin.H{
 			"id":                      channel.Id,
-			"added_models":            addedModels,
-			"removed_models":          removedModels,
-			"ignored_models":          ignoredModels,
-			"remaining_models":        remainingModels,
-			"remaining_remove_models": remainingRemoveModels,
+			"added_models":            result.AddedModels,
+			"removed_models":          result.RemovedModels,
+			"ignored_models":          result.IgnoredModels,
+			"remaining_models":        result.RemainingModels,
+			"remaining_remove_models": result.RemainingRemoveModels,
 			"models":                  channel.Models,
 			"settings":                channel.OtherSettings,
 		},
@@ -775,13 +1027,17 @@ func DetectChannelUpstreamModelUpdates(c *gin.Context) {
 		return
 	}
 
-	settings := channel.GetOtherSettings()
-	modelsChanged, autoAdded, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, true, false)
+	settings, err := parseChannelOtherSettings(channel)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	if modelsChanged {
+	configChanged, autoAdded, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, true, false, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if configChanged {
 		refreshChannelRuntimeCache()
 	}
 
@@ -812,41 +1068,126 @@ func applyChannelUpstreamModelUpdates(
 	modelsChanged bool,
 	err error,
 ) {
-	settings := channel.GetOtherSettings()
-	pendingAddModels := normalizeModelNames(settings.UpstreamModelUpdateLastDetectedModels)
-	pendingRemoveModels := normalizeModelNames(settings.UpstreamModelUpdateLastRemovedModels)
-	addModels := intersectModelNames(addModelsInput, pendingAddModels)
-	ignoreModels := intersectModelNames(ignoreModelsInput, pendingAddModels)
-	removeModels := intersectModelNames(removeModelsInput, pendingRemoveModels)
-	removeModels = subtractModelNames(removeModels, addModels)
+	result, err := applyChannelUpstreamModelUpdatesWithMode(
+		channel,
+		addModelsInput,
+		ignoreModelsInput,
+		removeModelsInput,
+		false,
+		false,
+	)
+	return result.AddedModels,
+		result.RemovedModels,
+		result.RemainingModels,
+		result.RemainingRemoveModels,
+		result.ModelsChanged,
+		err
+}
 
-	originModels := normalizeModelNames(channel.GetModels())
-	nextModels := applySelectedModelChanges(originModels, addModels, removeModels)
-	modelsChanged = !slices.Equal(originModels, nextModels)
-	if modelsChanged {
-		channel.Models = strings.Join(nextModels, ",")
+func applyChannelUpstreamModelUpdatesWithMode(
+	channel *model.Channel,
+	addModelsInput []string,
+	ignoreModelsInput []string,
+	removeModelsInput []string,
+	applyAll bool,
+	requireCheckEnabled bool,
+) (result appliedChannelUpstreamModelUpdates, err error) {
+	if _, err = parseChannelOtherSettings(channel); err != nil {
+		return result, err
+	}
+	fetchFingerprint, err := buildChannelUpstreamModelFetchFingerprint(channel)
+	if err != nil {
+		return result, err
+	}
+	upstreamModels, err := fetchChannelUpstreamModelIDsFn(channel)
+	if err != nil {
+		return result, err
 	}
 
-	settings.UpstreamModelUpdateIgnoredModels = mergeModelNames(settings.UpstreamModelUpdateIgnoredModels, ignoreModels)
-	if len(addModels) > 0 {
-		settings.UpstreamModelUpdateIgnoredModels = subtractModelNames(settings.UpstreamModelUpdateIgnoredModels, addModels)
-	}
-	remainingModels = subtractModelNames(pendingAddModels, append(addModels, ignoreModels...))
-	remainingRemoveModels = subtractModelNames(pendingRemoveModels, removeModels)
-	settings.UpstreamModelUpdateLastDetectedModels = remainingModels
-	settings.UpstreamModelUpdateLastRemovedModels = remainingRemoveModels
-	settings.UpstreamModelUpdateLastCheckTime = common.GetTimestamp()
-
-	if err := updateChannelUpstreamModelSettings(channel, settings, modelsChanged); err != nil {
-		return nil, nil, nil, nil, false, err
-	}
-
-	if modelsChanged {
-		if err := channel.UpdateAbilities(nil); err != nil {
-			return addModels, removeModels, remainingModels, remainingRemoveModels, true, err
+	var freshChannel *model.Channel
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		freshChannel, err = model.GetChannelByIdForUpdate(tx, channel.Id)
+		if err != nil {
+			return err
 		}
+		freshFingerprint, fingerprintErr := buildChannelUpstreamModelFetchFingerprint(freshChannel)
+		if fingerprintErr != nil {
+			return fingerprintErr
+		}
+		if !reflect.DeepEqual(fetchFingerprint, freshFingerprint) {
+			return fmt.Errorf("channel fetch configuration changed during upstream model discovery")
+		}
+		if requireCheckEnabled && freshChannel.Status != common.ChannelStatusEnabled {
+			return nil
+		}
+
+		settings, settingsErr := parseChannelOtherSettings(freshChannel)
+		if settingsErr != nil {
+			return settingsErr
+		}
+		if requireCheckEnabled && !settings.UpstreamModelUpdateCheckEnabled {
+			return nil
+		}
+		modelMapping, mappingErr := normalizeChannelModelMapping(freshChannel)
+		if mappingErr != nil {
+			return mappingErr
+		}
+		pendingAddModels, pendingRemoveModels, collectErr := collectPendingUpstreamModelChangesFromModels(
+			freshChannel.GetModels(),
+			upstreamModels,
+			settings.UpstreamModelUpdateIgnoredModels,
+			modelMapping,
+		)
+		if collectErr != nil {
+			return collectErr
+		}
+		if conflictErr := rejectSameNameModelMappingReplacement(pendingAddModels, pendingRemoveModels); conflictErr != nil {
+			return conflictErr
+		}
+		result.HadPending = len(pendingAddModels) > 0 || len(pendingRemoveModels) > 0
+		if applyAll {
+			result.AddedModels = pendingAddModels
+			result.RemovedModels = pendingRemoveModels
+		} else {
+			result.AddedModels = intersectModelNames(addModelsInput, pendingAddModels)
+			result.IgnoredModels = intersectModelNames(ignoreModelsInput, pendingAddModels)
+			result.RemovedModels = intersectModelNames(removeModelsInput, pendingRemoveModels)
+		}
+		result.RemovedModels = subtractModelNames(result.RemovedModels, result.AddedModels)
+
+		originModels := normalizeModelNames(freshChannel.GetModels())
+		nextModels := applySelectedModelChanges(originModels, result.AddedModels, result.RemovedModels)
+		if !slices.Equal(originModels, nextModels) {
+			freshChannel.Models = strings.Join(nextModels, ",")
+			if canonicalizeErr := freshChannel.CanonicalizeModelConfig(); canonicalizeErr != nil {
+				return canonicalizeErr
+			}
+			nextModels = normalizeModelNames(freshChannel.GetModels())
+		}
+		result.ModelsChanged = !slices.Equal(originModels, nextModels)
+		nextModelMapping, mappingErr := normalizeChannelModelMapping(freshChannel)
+		if mappingErr != nil {
+			return mappingErr
+		}
+		result.MappingChanged = !reflect.DeepEqual(modelMapping, nextModelMapping)
+
+		settings.UpstreamModelUpdateIgnoredModels = mergeModelNames(settings.UpstreamModelUpdateIgnoredModels, result.IgnoredModels)
+		if len(result.AddedModels) > 0 {
+			settings.UpstreamModelUpdateIgnoredModels = subtractModelNames(settings.UpstreamModelUpdateIgnoredModels, result.AddedModels)
+		}
+		result.RemainingModels = subtractModelNames(pendingAddModels, append(result.AddedModels, result.IgnoredModels...))
+		result.RemainingRemoveModels = subtractModelNames(pendingRemoveModels, result.RemovedModels)
+		settings.UpstreamModelUpdateLastDetectedModels = result.RemainingModels
+		settings.UpstreamModelUpdateLastRemovedModels = result.RemainingRemoveModels
+		settings.UpstreamModelUpdateLastCheckTime = common.GetTimestamp()
+
+		return persistChannelUpstreamModelState(tx, freshChannel, settings, result.ModelsChanged || result.MappingChanged)
+	})
+	if err != nil {
+		return result, err
 	}
-	return addModels, removeModels, remainingModels, remainingRemoveModels, modelsChanged, nil
+	*channel = *freshChannel
+	return result, nil
 }
 
 func collectPendingApplyUpstreamModelChanges(settings dto.ChannelOtherSettings) (pendingAddModels []string, pendingRemoveModels []string) {
@@ -890,38 +1231,42 @@ func ApplyAllChannelUpstreamModelUpdates(c *gin.Context) {
 				continue
 			}
 
-			settings := channel.GetOtherSettings()
+			settings, settingsErr := parseChannelOtherSettings(channel)
+			if settingsErr != nil {
+				failed = append(failed, channel.Id)
+				continue
+			}
 			if !settings.UpstreamModelUpdateCheckEnabled {
 				continue
 			}
 
-			pendingAddModels, pendingRemoveModels := collectPendingApplyUpstreamModelChanges(settings)
-			if len(pendingAddModels) == 0 && len(pendingRemoveModels) == 0 {
-				continue
-			}
-
-			addedModels, removedModels, remainingModels, remainingRemoveModels, modelsChanged, err := applyChannelUpstreamModelUpdates(
+			result, err := applyChannelUpstreamModelUpdatesWithMode(
 				channel,
-				pendingAddModels,
 				nil,
-				pendingRemoveModels,
+				nil,
+				nil,
+				true,
+				true,
 			)
 			if err != nil {
 				failed = append(failed, channel.Id)
 				continue
 			}
-			if modelsChanged {
+			if !result.HadPending {
+				continue
+			}
+			if result.ModelsChanged || result.MappingChanged {
 				refreshNeeded = true
 			}
-			addedModelCount += len(addedModels)
-			removedModelCount += len(removedModels)
+			addedModelCount += len(result.AddedModels)
+			removedModelCount += len(result.RemovedModels)
 			results = append(results, applyAllChannelUpstreamModelUpdatesResult{
 				ChannelID:             channel.Id,
 				ChannelName:           channel.Name,
-				AddedModels:           addedModels,
-				RemovedModels:         removedModels,
-				RemainingModels:       remainingModels,
-				RemainingRemoveModels: remainingRemoveModels,
+				AddedModels:           result.AddedModels,
+				RemovedModels:         result.RemovedModels,
+				RemainingModels:       result.RemainingModels,
+				RemainingRemoveModels: result.RemainingRemoveModels,
 			})
 		}
 
