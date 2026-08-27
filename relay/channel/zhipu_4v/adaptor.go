@@ -68,6 +68,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 				return fmt.Sprintf("%s/images/generations", specialPlan.OpenAIBaseURL), nil
 			}
 			return fmt.Sprintf("%s/api/paas/v4/images/generations", baseURL), nil
+		case relayconstant.RelayModeResponses:
+			return fmt.Sprintf("%s/api/v1/responses", baseURL), nil
 		default:
 			if hasSpecialPlan && specialPlan.OpenAIBaseURL != "" {
 				return fmt.Sprintf("%s/chat/completions", specialPlan.OpenAIBaseURL), nil
@@ -102,8 +104,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	return request, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
