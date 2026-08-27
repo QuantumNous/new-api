@@ -639,6 +639,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	if info.TextPlanApplies() {
 		return DoPlannedTextResponse(c, info, resp)
 	}
+	if info.IsStream && IsLegacyCompletionsEndpoint(info) {
+		return OaiCompletionsStreamHandler(c, info, resp)
+	}
 	switch info.RelayMode {
 	case relayconstant.RelayModeResponses:
 		if info.IsStream {

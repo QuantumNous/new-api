@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"fmt"
 	"net/http"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -30,7 +31,7 @@ func DoPlannedTextResponse(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 			return OaiResponsesToChatBufferedStreamHandler(c, info, resp)
 		}
 		return OaiResponsesToChatHandler(c, info, resp)
-	default:
+	case types.RelayFormatOpenAI:
 		if client == types.RelayFormatOpenAIResponses {
 			if info.IsStream {
 				return OaiChatToResponsesStreamHandler(c, info, resp)
@@ -41,5 +42,8 @@ func DoPlannedTextResponse(c *gin.Context, info *relaycommon.RelayInfo, resp *ht
 			return OaiStreamHandler(c, info, resp)
 		}
 		return OpenaiHandler(c, info, resp)
+	default:
+		err := fmt.Errorf("planned OpenAI response dispatcher received unsupported native format %s", native)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
 }

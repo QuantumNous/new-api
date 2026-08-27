@@ -70,8 +70,15 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if info.TextPlanApplies() {
+		return openai.DoPlannedTextResponse(c, info, resp)
+	}
 	if info.IsStream {
-		usage, err = openai.OaiStreamHandler(c, info, resp)
+		if openai.IsLegacyCompletionsEndpoint(info) {
+			usage, err = openai.OaiCompletionsStreamHandler(c, info, resp)
+		} else {
+			usage, err = openai.OaiStreamHandler(c, info, resp)
+		}
 	} else {
 		usage, err = openai.OpenaiHandler(c, info, resp)
 	}

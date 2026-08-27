@@ -148,6 +148,14 @@ type ChatCompletionsStreamResponse struct {
 	SystemFingerprint *string                               `json:"system_fingerprint"`
 	Choices           []ChatCompletionsStreamResponseChoice `json:"choices"`
 	Usage             *Usage                                `json:"usage"`
+	Error             any                                   `json:"error,omitempty"`
+}
+
+func (c *ChatCompletionsStreamResponse) GetOpenAIError() *types.OpenAIError {
+	if c == nil {
+		return nil
+	}
+	return GetOpenAIError(c.Error)
 }
 
 func (c *ChatCompletionsStreamResponse) IsFinished() bool {
@@ -195,6 +203,7 @@ func (c *ChatCompletionsStreamResponse) Copy() *ChatCompletionsStreamResponse {
 		SystemFingerprint: c.SystemFingerprint,
 		Choices:           choices,
 		Usage:             c.Usage,
+		Error:             c.Error,
 	}
 }
 
@@ -214,11 +223,28 @@ type ChatCompletionsStreamResponseSimple struct {
 	Usage   *Usage                                `json:"usage"`
 }
 
+type CompletionsStreamResponseChoice struct {
+	Text         string `json:"text"`
+	Index        int    `json:"index"`
+	FinishReason string `json:"finish_reason"`
+}
+
 type CompletionsStreamResponse struct {
-	Choices []struct {
-		Text         string `json:"text"`
-		FinishReason string `json:"finish_reason"`
-	} `json:"choices"`
+	Id                string                            `json:"id"`
+	Object            string                            `json:"object"`
+	Created           int64                             `json:"created"`
+	Model             string                            `json:"model"`
+	SystemFingerprint *string                           `json:"system_fingerprint,omitempty"`
+	Choices           []CompletionsStreamResponseChoice `json:"choices"`
+	Usage             *Usage                            `json:"usage,omitempty"`
+	Error             any                               `json:"error,omitempty"`
+}
+
+func (c *CompletionsStreamResponse) GetOpenAIError() *types.OpenAIError {
+	if c == nil {
+		return nil
+	}
+	return GetOpenAIError(c.Error)
 }
 
 type Usage struct {

@@ -310,6 +310,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			}
 			return gemini.GeminiChatStreamHandler(c, info, resp)
 		case types.RelayFormatOpenAI:
+			if info.TextPlanApplies() {
+				return openai.DoPlannedTextResponse(c, info, resp)
+			}
 			return openai.OaiStreamHandler(c, info, resp)
 		}
 	} else {
@@ -325,6 +328,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			}
 			return gemini.GeminiChatHandler(c, info, resp)
 		case types.RelayFormatOpenAI:
+			if info.TextPlanApplies() {
+				return openai.DoPlannedTextResponse(c, info, resp)
+			}
 			return openai.OpenaiHandler(c, info, resp)
 		}
 	}

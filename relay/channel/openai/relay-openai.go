@@ -11,7 +11,6 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
@@ -25,20 +24,33 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 	return helper.WriteChatCompletionsStreamData(c, info, data, forceFormat, thinkToContent)
 }
 
+// IsLegacyCompletionsEndpoint identifies the unplanned /v1/completions path
+// that an OpenAI-compatible adaptor forwards as the legacy wire protocol. The
+// response handlers use this explicit endpoint boundary instead of RelayMode.
+func IsLegacyCompletionsEndpoint(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.TextPlanApplies() {
+		return false
+	}
+	path := strings.SplitN(info.RequestURLPath, "?", 2)[0]
+	return strings.TrimRight(path, "/") == "/v1/completions"
+}
+
 func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if info == nil {
+		return nil, types.NewOpenAIError(fmt.Errorf("relay info is required"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
 	if resp == nil || resp.Body == nil {
 		logger.LogError(c, "invalid response or response body")
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
-
 	defer service.CloseResponseBodyGracefully(resp)
 
-	projected := info.RelayFormat != "" && info.RelayFormat != types.RelayFormatOpenAI
-	if projected && info.RelayMode != relayconstant.RelayModeChatCompletions {
-		err := fmt.Errorf("cannot project OpenAI completions stream to %s", info.RelayFormat)
+	if info.HasTextPlan() && info.TextNative() != types.RelayFormatOpenAI {
+		err := fmt.Errorf("OpenAI Chat stream handler received unexpected source format %s", info.TextNative())
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
 
+	projected := info.RelayFormat != "" && info.RelayFormat != types.RelayFormatOpenAI
 	var streamState *relayconvert.ResponseStreamState
 	if projected {
 		var err error
@@ -61,14 +73,11 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var createdAt int64
 	var systemFingerprint string
 	var containStreamUsage bool
-	var responseTextBuilder strings.Builder
-	var toolCount int
+	stats := newChatStreamStats()
 	usage := &dto.Usage{}
 	var lastStreamData string
 	var usageStreamData string
 	var lastStreamResponse *dto.ChatCompletionsStreamResponse
-	seenStreamToolCalls := make(map[string]struct{})
-	var streamFunctionCallNames []string
 	var streamErr *types.NewAPIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
@@ -82,11 +91,12 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		// Cross-format projection never delays or replays a source chunk.
 		if !projected && lastStreamData != "" {
 			if err := sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
-				common.SysLog("error handling OpenAI stream data: " + err.Error())
-				sr.Error(err)
-			} else {
-				info.SendResponseCount++
+				common.SysLog("error handling OpenAI Chat stream data: " + err.Error())
+				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+				sr.Stop(streamErr)
+				return
 			}
+			info.SendResponseCount++
 		}
 		if data == "" {
 			return
@@ -95,15 +105,17 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 		var streamResponse dto.ChatCompletionsStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
-			logger.LogError(c, "error parsing OpenAI stream data: "+err.Error())
-			if projected {
-				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
-				sr.Stop(streamErr)
-				return
-			}
-			sr.Error(err)
+			logger.LogError(c, "error parsing OpenAI Chat stream data: "+err.Error())
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			sr.Stop(streamErr)
 			return
 		}
+		if oaiError := streamResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
+			streamErr = types.WithOpenAIError(*oaiError, resp.StatusCode)
+			sr.Stop(streamErr)
+			return
+		}
+
 		lastStreamResponse = &streamResponse
 		if streamResponse.Id != "" {
 			responseID = streamResponse.Id
@@ -122,20 +134,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			containStreamUsage = true
 			usageStreamData = data
 		}
-
-		switch info.RelayMode {
-		case relayconstant.RelayModeChatCompletions:
-			collectStreamFunctionCallNames(streamResponse, seenStreamToolCalls, &streamFunctionCallNames)
-			if err := ProcessStreamResponse(streamResponse, &responseTextBuilder, &toolCount); err != nil {
-				logger.LogError(c, "error processing stream token data: "+err.Error())
-				sr.Error(err)
-			}
-		case relayconstant.RelayModeCompletions:
-			if err := processTokenData(info.RelayMode, data, &responseTextBuilder, &toolCount); err != nil {
-				logger.LogError(c, "error processing stream token data: "+err.Error())
-				sr.Error(err)
-			}
-		}
+		stats.Observe(streamResponse)
 
 		if !projected {
 			return
@@ -157,6 +156,9 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	if streamErr != nil {
 		return nil, streamErr
 	}
+	if endErr := openAIStreamEndError(info, "OpenAI Chat"); endErr != nil {
+		return nil, endErr
+	}
 
 	shouldSendLastResponse := true
 	if lastStreamResponse != nil && service.ValidUsage(lastStreamResponse.Usage) && !info.ShouldIncludeUsage {
@@ -170,25 +172,21 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	}
 	if !projected && shouldSendLastResponse && lastStreamData != "" {
 		if err := sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
-			logger.LogError(c, "error sending final OpenAI stream data: "+err.Error())
-		} else {
-			info.SendResponseCount++
+			logger.LogError(c, "error sending final OpenAI Chat stream data: "+err.Error())
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 		}
+		info.SendResponseCount++
 	}
 
 	if !containStreamUsage {
-		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
-		usage.CompletionTokens += toolCount * 7
+		usage = service.ResponseText2Usage(c, stats.Text(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		usage.CompletionTokens += stats.ToolCount() * 7
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
 	if usageStreamData == "" {
 		usageStreamData = lastStreamData
 	}
 	applyUsagePostProcessing(info, usage, common.StringToByteSlice(usageStreamData))
-
-	for _, name := range streamFunctionCallNames {
-		info.CountBillableToolCall(dto.BuildInCallFunctionCall, name)
-	}
 
 	if projected {
 		streamState.SetUsage(usage)
@@ -202,6 +200,9 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		if err := helper.WriteProjectedStreamResults(c, info, finalResults); err != nil {
 			return usage, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 		}
+		for _, name := range stats.FunctionCallNames() {
+			info.CountBillableToolCall(dto.BuildInCallFunctionCall, name)
+		}
 		return usage, nil
 	}
 
@@ -209,32 +210,159 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		response := helper.GenerateFinalUsageResponse(responseID, createdAt, model, *usage)
 		response.SetSystemFingerprint(systemFingerprint)
 		if err := helper.ObjectData(c, response); err != nil {
-			logger.LogError(c, "error sending final OpenAI usage: "+err.Error())
+			logger.LogError(c, "error sending final OpenAI Chat usage: "+err.Error())
+			return usage, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		}
+	}
+	for _, name := range stats.FunctionCallNames() {
+		info.CountBillableToolCall(dto.BuildInCallFunctionCall, name)
+	}
+	helper.Done(c)
+	return usage, nil
+}
+
+// OaiCompletionsStreamHandler owns the legacy /v1/completions wire format.
+// Legacy text completions are never parsed as Chat Completions and cannot be
+// projected to Gemini, Claude, or Responses.
+func OaiCompletionsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if info == nil {
+		return nil, types.NewOpenAIError(fmt.Errorf("relay info is required"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	if resp == nil || resp.Body == nil {
+		logger.LogError(c, "invalid response or response body")
+		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+	defer service.CloseResponseBodyGracefully(resp)
+
+	if info.RelayFormat != "" && info.RelayFormat != types.RelayFormatOpenAI {
+		err := fmt.Errorf("legacy OpenAI Completions stream cannot be projected to %s", info.RelayFormat)
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+	}
+
+	model := info.UpstreamModelName
+	var responseID string
+	var createdAt int64
+	var systemFingerprint *string
+	var containStreamUsage bool
+	var responseTextBuilder strings.Builder
+	usage := &dto.Usage{}
+	var lastStreamData string
+	var usageStreamData string
+	var lastStreamResponse *dto.CompletionsStreamResponse
+	var streamErr *types.NewAPIError
+
+	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if streamErr != nil {
+			sr.Stop(streamErr)
+			return
+		}
+		if lastStreamData != "" {
+			if err := helper.StringData(c, lastStreamData); err != nil {
+				streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+				sr.Stop(streamErr)
+				return
+			}
+			info.SendResponseCount++
+		}
+		if data == "" {
+			return
+		}
+		lastStreamData = data
+
+		var streamResponse dto.CompletionsStreamResponse
+		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
+			logger.LogError(c, "error parsing legacy OpenAI Completions stream data: "+err.Error())
+			streamErr = types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+			sr.Stop(streamErr)
+			return
+		}
+		if oaiError := streamResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
+			streamErr = types.WithOpenAIError(*oaiError, resp.StatusCode)
+			sr.Stop(streamErr)
+			return
+		}
+
+		lastStreamResponse = &streamResponse
+		if streamResponse.Id != "" {
+			responseID = streamResponse.Id
+		}
+		if streamResponse.Created != 0 {
+			createdAt = streamResponse.Created
+		}
+		if streamResponse.Model != "" {
+			model = streamResponse.Model
+		}
+		if streamResponse.SystemFingerprint != nil {
+			systemFingerprint = streamResponse.SystemFingerprint
+		}
+		if service.ValidUsage(streamResponse.Usage) {
+			usage = streamResponse.Usage
+			containStreamUsage = true
+			usageStreamData = data
+		}
+		processCompletionsStreamResponse(streamResponse, &responseTextBuilder)
+	})
+
+	if streamErr != nil {
+		return nil, streamErr
+	}
+	if endErr := openAIStreamEndError(info, "legacy OpenAI Completions"); endErr != nil {
+		return nil, endErr
+	}
+
+	shouldSendLastResponse := true
+	if lastStreamResponse != nil && service.ValidUsage(lastStreamResponse.Usage) && !info.ShouldIncludeUsage {
+		shouldSendLastResponse = false
+		for _, choice := range lastStreamResponse.Choices {
+			if choice.Text != "" {
+				shouldSendLastResponse = true
+				break
+			}
+		}
+	}
+	if shouldSendLastResponse && lastStreamData != "" {
+		if err := helper.StringData(c, lastStreamData); err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
+		}
+		info.SendResponseCount++
+	}
+
+	if !containStreamUsage {
+		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+	}
+	if usageStreamData == "" {
+		usageStreamData = lastStreamData
+	}
+	applyUsagePostProcessing(info, usage, common.StringToByteSlice(usageStreamData))
+
+	if info.ShouldIncludeUsage && !containStreamUsage {
+		response := &dto.CompletionsStreamResponse{
+			Id:                responseID,
+			Object:            "text_completion",
+			Created:           createdAt,
+			Model:             model,
+			SystemFingerprint: systemFingerprint,
+			Choices:           make([]dto.CompletionsStreamResponseChoice, 0),
+			Usage:             usage,
+		}
+		if err := helper.ObjectData(c, response); err != nil {
+			return usage, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 		}
 	}
 	helper.Done(c)
 	return usage, nil
 }
 
-func collectStreamFunctionCallNames(streamResponse dto.ChatCompletionsStreamResponse, seen map[string]struct{}, names *[]string) {
-	for _, choice := range streamResponse.Choices {
-		for i, tc := range choice.Delta.ToolCalls {
-			name := tc.Function.Name
-			if name == "" {
-				continue
-			}
-			toolIdx := i
-			if tc.Index != nil {
-				toolIdx = *tc.Index
-			}
-			key := fmt.Sprintf("%d-%d", choice.Index, toolIdx)
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
-			*names = append(*names, name)
-		}
+func openAIStreamEndError(info *relaycommon.RelayInfo, source string) *types.NewAPIError {
+	if info == nil || info.StreamStatus == nil || info.StreamStatus.IsNormalEnd() {
+		return nil
 	}
+	if info.StreamStatus.EndError != nil {
+		err := fmt.Errorf("%s stream ended abnormally (%s): %w", source, info.StreamStatus.EndReason, info.StreamStatus.EndError)
+		return types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+	err := fmt.Errorf("%s stream ended abnormally (%s)", source, info.StreamStatus.EndReason)
+	return types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 }
 
 func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
