@@ -665,6 +665,10 @@ func AddChannel(c *gin.Context) {
 		common.ApiErrorMsgStatusCode(c, http.StatusBadRequest, "mode_unsupported", "不支持的添加模式")
 		return
 	}
+	if err := addChannelRequest.Channel.CanonicalizeModelConfig(); err != nil {
+		common.ApiErrorMsgStatusCode(c, http.StatusBadRequest, "channel_validation_failed", err.Error())
+		return
+	}
 
 	channels := make([]model.Channel, 0, len(keys))
 	for _, key := range keys {
@@ -912,13 +916,13 @@ type ChannelStatusBatchRequest struct {
 }
 
 func UpdateChannel(c *gin.Context) {
-	channel := PatchChannel{}
+	requestChannel := PatchChannel{}
 	rawBody, err := c.GetRawData()
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	if err := common.Unmarshal(rawBody, &channel); err != nil {
+	if err := common.Unmarshal(rawBody, &requestChannel); err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -931,116 +935,141 @@ func UpdateChannel(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	clearChannelReadOnlyFields(&channel, requestData)
 
-	// 使用统一的校验函数
-	if err := validateChannel(&channel.Channel, false); err != nil {
-		common.ApiErrorMsgStatusCode(c, http.StatusBadRequest, "channel_validation_failed", err.Error())
-		return
-	}
-	// Preserve existing ChannelInfo to ensure multi-key channels keep correct state even if the client does not send ChannelInfo in the request.
-	originChannel, err := model.GetChannelById(channel.Id, true)
+	var channel PatchChannel
+	var originChannel *model.Channel
+	var validationErr error
+	permissionErr := errors.New("channel sensitive write permission denied")
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
+		lockedChannel, err := model.GetChannelByIdForUpdate(tx, requestChannel.Id)
+		if err != nil {
+			return err
+		}
+		originChannel = lockedChannel
+
+		lockedChannelData, err := common.Marshal(lockedChannel)
+		if err != nil {
+			return err
+		}
+		if err := common.Unmarshal(lockedChannelData, &channel.Channel); err != nil {
+			return err
+		}
+		storedChannelInfo := channel.ChannelInfo
+		channel.ChannelInfo = model.ChannelInfo{}
+		if err := common.Unmarshal(rawBody, &channel); err != nil {
+			return err
+		}
+		channel.ChannelInfo = storedChannelInfo
+		clearChannelReadOnlyFields(&channel, requestData)
+		if channel.Type == 0 {
+			channel.Type = lockedChannel.Type
+		}
+		if channel.Models == "" {
+			channel.Models = lockedChannel.Models
+		}
+		if mappingValue, present := requestData["model_mapping"]; !present || mappingValue == nil {
+			channel.ModelMapping = lockedChannel.ModelMapping
+		}
+
+		if err := channel.CanonicalizeModelConfig(); err != nil {
+			validationErr = err
+			return err
+		}
+		if err := validateChannel(&channel.Channel, false); err != nil {
+			validationErr = err
+			return err
+		}
+		if channelHasSensitiveChanges(&channel, lockedChannel, requestData) &&
+			!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
+			return permissionErr
+		}
+
+		if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
+			channel.ChannelInfo.MultiKeyMode = constant.MultiKeyMode(*channel.MultiKeyMode)
+		}
+
+		if channel.KeyMode != nil && channel.ChannelInfo.IsMultiKey {
+			switch *channel.KeyMode {
+			case "append":
+				if lockedChannel.Key != "" {
+					var newKeys []string
+					var existingKeys []string
+
+					if strings.HasPrefix(strings.TrimSpace(lockedChannel.Key), "[") {
+						var arr []json.RawMessage
+						if err := common.Unmarshal([]byte(strings.TrimSpace(lockedChannel.Key)), &arr); err == nil {
+							existingKeys = make([]string, len(arr))
+							for i, v := range arr {
+								existingKeys[i] = string(v)
+							}
+						}
+					} else {
+						existingKeys = strings.Split(strings.Trim(lockedChannel.Key, "\n"), "\n")
+					}
+
+					if channel.Type == constant.ChannelTypeVertexAi && channel.GetOtherSettings().VertexKeyType != dto.VertexKeyTypeAPIKey {
+						if strings.HasPrefix(strings.TrimSpace(channel.Key), "[") {
+							array, err := getVertexArrayKeys(channel.Key)
+							if err != nil {
+								validationErr = fmt.Errorf("追加密钥解析失败: %w", err)
+								return validationErr
+							}
+							newKeys = array
+						} else {
+							newKeys = []string{channel.Key}
+						}
+					} else {
+						inputKeys := strings.Split(channel.Key, "\n")
+						for _, key := range inputKeys {
+							key = strings.TrimSpace(key)
+							if key != "" {
+								newKeys = append(newKeys, key)
+							}
+						}
+					}
+
+					seen := make(map[string]struct{}, len(existingKeys)+len(newKeys))
+					for _, key := range existingKeys {
+						normalized := strings.TrimSpace(key)
+						if normalized != "" {
+							seen[normalized] = struct{}{}
+						}
+					}
+					dedupedNewKeys := make([]string, 0, len(newKeys))
+					for _, key := range newKeys {
+						normalized := strings.TrimSpace(key)
+						if normalized == "" {
+							continue
+						}
+						if _, ok := seen[normalized]; ok {
+							continue
+						}
+						seen[normalized] = struct{}{}
+						dedupedNewKeys = append(dedupedNewKeys, normalized)
+					}
+
+					allKeys := append(existingKeys, dedupedNewKeys...)
+					channel.Key = strings.Join(allKeys, "\n")
+				}
+			case "replace":
+			}
+		}
+
+		return channel.UpdateWithTx(tx)
+	})
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		common.ApiErrorI18nStatusCode(c, http.StatusNotFound, "channel_not_found", i18n.MsgChannelNotExists)
 		return
 	}
-	if err != nil {
-		common.ApiErrorStatusCode(c, http.StatusInternalServerError, "internal_error", err)
+	if validationErr != nil {
+		common.ApiErrorMsgStatusCode(c, http.StatusBadRequest, "channel_validation_failed", validationErr.Error())
 		return
 	}
-
-	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
-	channel.ChannelInfo = originChannel.ChannelInfo
-
-	if channelHasSensitiveChanges(&channel, originChannel, requestData) &&
-		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.ChannelSensitiveWrite) {
+	if errors.Is(err, permissionErr) {
 		common.ApiErrorI18n(c, i18n.MsgAuthInsufficientPrivilege)
 		return
 	}
-
-	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
-	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
-		channel.ChannelInfo.MultiKeyMode = constant.MultiKeyMode(*channel.MultiKeyMode)
-	}
-
-	// 处理多key模式下的密钥追加/覆盖逻辑
-	if channel.KeyMode != nil && channel.ChannelInfo.IsMultiKey {
-		switch *channel.KeyMode {
-		case "append":
-			// 追加模式：将新密钥添加到现有密钥列表
-			if originChannel.Key != "" {
-				var newKeys []string
-				var existingKeys []string
-
-				// 解析现有密钥
-				if strings.HasPrefix(strings.TrimSpace(originChannel.Key), "[") {
-					// JSON数组格式
-					var arr []json.RawMessage
-					if err := json.Unmarshal([]byte(strings.TrimSpace(originChannel.Key)), &arr); err == nil {
-						existingKeys = make([]string, len(arr))
-						for i, v := range arr {
-							existingKeys[i] = string(v)
-						}
-					}
-				} else {
-					// 换行分隔格式
-					existingKeys = strings.Split(strings.Trim(originChannel.Key, "\n"), "\n")
-				}
-
-				// 处理 Vertex AI 的特殊情况
-				if channel.Type == constant.ChannelTypeVertexAi && channel.GetOtherSettings().VertexKeyType != dto.VertexKeyTypeAPIKey {
-					// 尝试解析新密钥为JSON数组
-					if strings.HasPrefix(strings.TrimSpace(channel.Key), "[") {
-						array, err := getVertexArrayKeys(channel.Key)
-						if err != nil {
-							common.ApiErrorMsgStatusCode(c, http.StatusBadRequest, "channel_validation_failed", "追加密钥解析失败: "+err.Error())
-							return
-						}
-						newKeys = array
-					} else {
-						// 单个JSON密钥
-						newKeys = []string{channel.Key}
-					}
-				} else {
-					// 普通渠道的处理
-					inputKeys := strings.Split(channel.Key, "\n")
-					for _, key := range inputKeys {
-						key = strings.TrimSpace(key)
-						if key != "" {
-							newKeys = append(newKeys, key)
-						}
-					}
-				}
-
-				seen := make(map[string]struct{}, len(existingKeys)+len(newKeys))
-				for _, key := range existingKeys {
-					normalized := strings.TrimSpace(key)
-					if normalized == "" {
-						continue
-					}
-					seen[normalized] = struct{}{}
-				}
-				dedupedNewKeys := make([]string, 0, len(newKeys))
-				for _, key := range newKeys {
-					normalized := strings.TrimSpace(key)
-					if normalized == "" {
-						continue
-					}
-					if _, ok := seen[normalized]; ok {
-						continue
-					}
-					seen[normalized] = struct{}{}
-					dedupedNewKeys = append(dedupedNewKeys, normalized)
-				}
-
-				allKeys := append(existingKeys, dedupedNewKeys...)
-				channel.Key = strings.Join(allKeys, "\n")
-			}
-		case "replace":
-			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
-		}
-	}
-	if err := channel.Update(); err != nil {
+	if err != nil {
 		common.ApiErrorStatusCode(c, http.StatusInternalServerError, "internal_error", err)
 		return
 	}

@@ -423,6 +423,14 @@ func GetChannelById(id int, selectAll bool) (*Channel, error) {
 	return channel, nil
 }
 
+func GetChannelByIdForUpdate(tx *gorm.DB, id int) (*Channel, error) {
+	channel := &Channel{Id: id}
+	if err := lockForUpdate(tx).First(channel, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return channel, nil
+}
+
 func BatchInsertChannels(channels []Channel) error {
 	if len(channels) == 0 {
 		return nil
@@ -524,21 +532,25 @@ func (channel *Channel) Insert() error {
 }
 
 func (channel *Channel) Update() error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		existing, err := GetChannelByIdForUpdate(tx, channel.Id)
+		if err != nil {
+			return err
+		}
+		if channel.ChannelInfo.IsMultiKey && channel.Key == "" {
+			channel.Key = existing.Key
+		}
+		return channel.UpdateWithTx(tx)
+	})
+}
+
+func (channel *Channel) UpdateWithTx(tx *gorm.DB) error {
 	// If this is a multi-key channel, recalculate MultiKeySize based on the current key list to avoid inconsistency after editing keys
 	if channel.ChannelInfo.IsMultiKey {
-		var keyStr string
-		if channel.Key != "" {
-			keyStr = channel.Key
-		} else {
-			// If key is not provided, read the existing key from the database
-			if existing, err := GetChannelById(channel.Id, true); err == nil {
-				keyStr = existing.Key
-			}
-		}
 		// Parse the key list (supports newline separation or JSON array)
 		keys := []string{}
-		if keyStr != "" {
-			trimmed := strings.TrimSpace(keyStr)
+		if channel.Key != "" {
+			trimmed := strings.TrimSpace(channel.Key)
 			if strings.HasPrefix(trimmed, "[") {
 				var arr []json.RawMessage
 				if err := common.Unmarshal([]byte(trimmed), &arr); err == nil {
@@ -549,7 +561,7 @@ func (channel *Channel) Update() error {
 				}
 			}
 			if len(keys) == 0 { // fallback to newline split
-				keys = strings.Split(strings.Trim(keyStr, "\n"), "\n")
+				keys = strings.Split(strings.Trim(channel.Key, "\n"), "\n")
 			}
 		}
 		channel.ChannelInfo.MultiKeySize = len(keys)
@@ -562,14 +574,13 @@ func (channel *Channel) Update() error {
 			}
 		}
 	}
-	var err error
-	err = DB.Model(channel).Updates(channel).Error
-	if err != nil {
+	if err := tx.Model(channel).Updates(channel).Error; err != nil {
 		return err
 	}
-	DB.Model(channel).First(channel, "id = ?", channel.Id)
-	err = channel.UpdateAbilities(nil)
-	return err
+	if err := tx.Model(channel).First(channel, "id = ?", channel.Id).Error; err != nil {
+		return err
+	}
+	return channel.UpdateAbilities(tx)
 }
 
 func (channel *Channel) UpdateResponseTime(responseTime int64) {
