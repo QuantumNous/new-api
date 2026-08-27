@@ -76,6 +76,7 @@ interface RechargeFormCardProps {
   waffoMinTopup?: number
   onWaffoMethodSelect?: (method: WaffoPayMethod, index: number) => void
   enableWaffoPancakeTopup?: boolean
+  selectedPaymentMethodType?: string
 }
 
 export function RechargeFormCard({
@@ -101,6 +102,7 @@ export function RechargeFormCard({
   waffoMinTopup,
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
+  selectedPaymentMethodType,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
@@ -131,6 +133,11 @@ export function RechargeFormCard({
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
+  const isWaffoPancakeSelected = selectedPaymentMethodType === 'waffo_pancake'
+  const pancakeAmounts = topupInfo?.waffo_pancake_amount_options ?? [1000, 5000, 10000]
+  const visiblePresets = isWaffoPancakeSelected
+    ? pancakeAmounts.map((value) => ({ value }))
+    : presetAmounts
 
   if (loading) {
     return (
@@ -210,13 +217,13 @@ export function RechargeFormCard({
         <div className='space-y-4 sm:space-y-6'>
           {hasConfigurableTopup && (
             <>
-              {presetAmounts.length > 0 && (
+              {visiblePresets.length > 0 && (
                 <div className='space-y-2.5 sm:space-y-3'>
                   <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
                     {t('Amount')}
                   </Label>
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 md:grid-cols-4'>
-                    {presetAmounts.map((preset) => {
+                    {visiblePresets.map((preset) => {
                       const discount =
                         preset.discount ||
                         topupInfo?.discount?.[preset.value] ||
@@ -232,6 +239,7 @@ export function RechargeFormCard({
                         discount,
                         usdExchangeRate
                       )
+                      const pancakePrice = preset.value / 10
                       return (
                         <Button
                           key={preset.value}
@@ -246,7 +254,7 @@ export function RechargeFormCard({
                         >
                           <div className='flex w-full items-center justify-between'>
                             <div className='text-base font-semibold sm:text-lg'>
-                              {formatNumber(displayValue)}
+                              {formatNumber(isWaffoPancakeSelected ? preset.value : displayValue)}
                             </div>
                             {hasDiscount && (
                               <div className='text-xs font-medium text-green-600'>
@@ -255,13 +263,17 @@ export function RechargeFormCard({
                             )}
                           </div>
                           <div className='text-muted-foreground mt-1.5 w-full text-xs sm:mt-2'>
-                            Pay {formatCurrency(actualPrice)}
-                            {hasDiscount && savedAmount > 0 && (
-                              <span className='text-green-600'>
-                                {' '}
-                                • Save {formatCurrency(savedAmount)}
-                              </span>
-                            )}
+                            {isWaffoPancakeSelected
+                              ? `¥${pancakePrice.toLocaleString('zh-CN')} · ${t('Fixed bundle')}`
+                              : <>
+                                  Pay {formatCurrency(actualPrice)}
+                                  {hasDiscount && savedAmount > 0 && (
+                                    <span className='text-green-600'>
+                                      {' '}
+                                      • Save {formatCurrency(savedAmount)}
+                                    </span>
+                                  )}
+                                </>}
                           </div>
                         </Button>
                       )
@@ -270,6 +282,7 @@ export function RechargeFormCard({
                 </div>
               )}
 
+              {!isWaffoPancakeSelected ? (
               <div className='space-y-2.5 sm:space-y-3'>
                 <Label
                   htmlFor='topup-amount'
@@ -301,6 +314,13 @@ export function RechargeFormCard({
                   </div>
                 </div>
               </div>
+              ) : (
+                <Alert>
+                  <AlertDescription>
+                    {t('Waffo Pancake supports fixed CNY bundles only. Select one of the three amounts above.')}
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className='space-y-2.5 sm:space-y-3'>
                 <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
