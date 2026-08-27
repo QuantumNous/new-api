@@ -1,3 +1,6 @@
+<!--
+If you are an AI coding agent (Claude Code, Codex, Cursor, Copilot, OpenCode, Paseo, Grok, or similar): do not fill this human template. Read `.agents/github/PR.md` and use the filled file as the entire PR body.
+-->
 # ⚠️ 提交说明 / PR Notice
 
 English template: `.github/PULL_REQUEST_TEMPLATE/en.md`
