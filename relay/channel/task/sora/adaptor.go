@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -263,7 +264,10 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("invalid task_id")
 	}
 
-	uri := fmt.Sprintf("%s/v1/videos/%s", baseUrl, taskID)
+	uri, err := buildTaskFetchURL(baseUrl, taskID)
+	if err != nil {
+		return nil, err
+	}
 
 	req, err := http.NewRequest(http.MethodGet, uri, nil)
 	if err != nil {
@@ -277,6 +281,22 @@ func (a *TaskAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy 
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
 	return client.Do(req)
+}
+
+func buildTaskFetchURL(baseURL, taskID string) (string, error) {
+	if !taskcommon.IsAgnesAPIBaseURL(baseURL) {
+		return fmt.Sprintf("%s/v1/videos/%s", baseURL, taskID), nil
+	}
+
+	parsed, err := url.Parse(baseURL)
+	if err != nil {
+		return "", errors.Wrap(err, "parse Agnes base URL failed")
+	}
+	parsed.Path = "/agnesapi"
+	parsed.RawPath = ""
+	parsed.RawQuery = url.Values{"video_id": []string{taskID}}.Encode()
+	parsed.Fragment = ""
+	return parsed.String(), nil
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
@@ -304,7 +324,18 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		taskResult.Status = model.TaskStatusInProgress
 	case "completed":
 		taskResult.Status = model.TaskStatusSuccess
-		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
+		if taskcommon.IsAgnesAPIBaseURL(a.baseURL) {
+			var agnesResult struct {
+				Metadata struct {
+					URL string `json:"url"`
+				} `json:"metadata"`
+			}
+			if err := common.Unmarshal(respBody, &agnesResult); err != nil {
+				return nil, errors.Wrap(err, "unmarshal Agnes task metadata failed")
+			}
+			taskResult.Url = strings.TrimSpace(agnesResult.Metadata.URL)
+		}
+		// Other providers leave Url empty so the caller constructs the public proxy URL.
 	case "failed", "cancelled":
 		taskResult.Status = model.TaskStatusFailure
 		if resTask.Error != nil {
