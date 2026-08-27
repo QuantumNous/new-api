@@ -29,6 +29,8 @@ type Pricing struct {
 	OwnerBy                string                               `json:"owner_by"`
 	CompletionRatio        float64                              `json:"completion_ratio"`
 	CacheRatio             *float64                             `json:"cache_ratio,omitempty"`
+	AudioCacheRatio        *float64                             `json:"audio_cache_ratio,omitempty"`
+	ImageCacheRatio        *float64                             `json:"image_cache_ratio,omitempty"`
 	CreateCacheRatio       *float64                             `json:"create_cache_ratio,omitempty"`
 	ImageRatio             *float64                             `json:"image_ratio,omitempty"`
 	AudioRatio             *float64                             `json:"audio_ratio,omitempty"`
@@ -391,6 +393,14 @@ func updatePricing() {
 		if cacheRatio, ok := ratio_setting.GetCacheRatio(model); ok {
 			pricing.CacheRatio = &cacheRatio
 		}
+		if ratio_setting.ContainsAudioCacheRatio(model) {
+			audioCacheRatio, _ := ratio_setting.GetAudioCacheRatio(model)
+			pricing.AudioCacheRatio = &audioCacheRatio
+		}
+		if ratio_setting.ContainsImageCacheRatio(model) {
+			imageCacheRatio, _ := ratio_setting.GetImageCacheRatio(model)
+			pricing.ImageCacheRatio = &imageCacheRatio
+		}
 		if createCacheRatio, ok := ratio_setting.GetCreateCacheRatio(model); ok {
 			pricing.CreateCacheRatio = &createCacheRatio
 		}
@@ -450,7 +460,7 @@ func updatePricing() {
 
 	// 防止大更新后数据不通用
 	if len(pricingMap) > 0 {
-		pricingMap[0].PricingVersion = "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
+		pricingMap[0].PricingVersion = "9376f0f6e0acb8e3770bd77d71d97bbd39f4d9165bb641531cc8fa3f1eeb27d1"
 	}
 
 	// 刷新缓存映射，供高并发快速查询

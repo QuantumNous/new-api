@@ -46,6 +46,8 @@ const defaultModelSettings: ModelSettings = {
   ModelPrice: '',
   ModelRatio: '',
   CacheRatio: '',
+  AudioCacheRatio: '',
+  ImageCacheRatio: '',
   CreateCacheRatio: '',
   CompletionRatio: '',
   ImageRatio: '',

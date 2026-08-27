@@ -226,7 +226,6 @@ function BillingBreakdown(props: {
   const { t } = useTranslation()
   const { log, other, isAdmin } = props
   const isPerCall = isPerCallBilling(other.model_price)
-  const isClaude = other.claude === true
   const isTieredExpr = other.billing_mode === 'tiered_expr'
   const tieredSummary = getTieredBillingSummary(other)
 
@@ -293,11 +292,23 @@ function BillingBreakdown(props: {
     })
   }
 
-  if (!isTieredExpr && isClaude && hasAnyCacheTokens(other)) {
+  if (!isTieredExpr && hasAnyCacheTokens(other)) {
     if (other.cache_ratio != null && other.cache_ratio !== 1) {
       rows.push({
         label: t('Cache Read'),
         value: `${fmtPrice(baseInputUSD * other.cache_ratio)}/M`,
+      })
+    }
+    if (other.audio_cache_ratio != null && other.audio_cache_ratio !== 1) {
+      rows.push({
+        label: t('Cached audio input'),
+        value: `${fmtPrice(baseInputUSD * other.audio_cache_ratio)}/M`,
+      })
+    }
+    if (other.image_cache_ratio != null && other.image_cache_ratio !== 1) {
+      rows.push({
+        label: t('Cached image input'),
+        value: `${fmtPrice(baseInputUSD * other.image_cache_ratio)}/M`,
       })
     }
     if (
@@ -343,7 +354,7 @@ function BillingBreakdown(props: {
     ) {
       rows.push({
         label: t('Audio output'),
-        value: `${fmtPrice(baseInputUSD * other.audio_completion_ratio)}/M`,
+        value: `${fmtPrice(baseInputUSD * (other.audio_ratio ?? 1) * other.audio_completion_ratio)}/M`,
       })
     }
 

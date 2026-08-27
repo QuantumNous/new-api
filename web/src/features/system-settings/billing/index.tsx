@@ -42,6 +42,8 @@ const defaultBillingSettings: BillingSettings = {
   ModelPrice: '',
   ModelRatio: '',
   CacheRatio: '',
+  AudioCacheRatio: '',
+  ImageCacheRatio: '',
   CreateCacheRatio: '',
   CompletionRatio: '',
   ImageRatio: '',

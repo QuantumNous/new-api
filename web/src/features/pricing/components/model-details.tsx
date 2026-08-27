@@ -666,6 +666,16 @@ function PriceSection(props: {
       available: props.model.cache_ratio != null,
     },
     {
+      label: t('Cached audio input'),
+      type: 'audio_cache',
+      available: props.model.audio_cache_ratio != null,
+    },
+    {
+      label: t('Cached image input'),
+      type: 'image_cache',
+      available: props.model.image_cache_ratio != null,
+    },
+    {
       label: t('Cache write'),
       type: 'create_cache',
       available: props.model.create_cache_ratio != null,
@@ -954,6 +964,12 @@ function GroupPricingSection(props: {
     const types: { label: string; type: PriceType }[] = []
     if (props.model.cache_ratio != null) {
       types.push({ label: t('Cache'), type: 'cache' })
+    }
+    if (props.model.audio_cache_ratio != null) {
+      types.push({ label: t('Audio Cache'), type: 'audio_cache' })
+    }
+    if (props.model.image_cache_ratio != null) {
+      types.push({ label: t('Image Cache'), type: 'image_cache' })
     }
     if (props.model.create_cache_ratio != null) {
       types.push({ label: t('Cache Write'), type: 'create_cache' })

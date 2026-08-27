@@ -74,6 +74,8 @@ type ModelRatioVisualEditorProps = {
   savedModelPrice: string
   savedModelRatio: string
   savedCacheRatio: string
+  savedAudioCacheRatio: string
+  savedImageCacheRatio: string
   savedCreateCacheRatio: string
   savedCompletionRatio: string
   savedImageRatio: string
@@ -84,6 +86,8 @@ type ModelRatioVisualEditorProps = {
   modelPrice: string
   modelRatio: string
   cacheRatio: string
+  audioCacheRatio: string
+  imageCacheRatio: string
   createCacheRatio: string
   completionRatio: string
   imageRatio: string
@@ -113,6 +117,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
     savedModelPrice,
     savedModelRatio,
     savedCacheRatio,
+    savedAudioCacheRatio,
+    savedImageCacheRatio,
     savedCreateCacheRatio,
     savedCompletionRatio,
     savedImageRatio,
@@ -123,6 +129,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
     modelPrice,
     modelRatio,
     cacheRatio,
+    audioCacheRatio,
+    imageCacheRatio,
     createCacheRatio,
     completionRatio,
     imageRatio,
@@ -162,6 +170,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
           return safeJsonParse<VisibilityState>(saved, {
             fallback: {
               cacheRatio: false,
+              audioCacheRatio: false,
+              imageCacheRatio: false,
               createCacheRatio: false,
               imageRatio: false,
               audioRatio: false,
@@ -172,6 +182,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
         } catch {
           return {
             cacheRatio: false,
+            audioCacheRatio: false,
+            imageCacheRatio: false,
             createCacheRatio: false,
             imageRatio: false,
             audioRatio: false,
@@ -181,6 +193,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
       }
       return {
         cacheRatio: false,
+        audioCacheRatio: false,
+        imageCacheRatio: false,
         createCacheRatio: false,
         imageRatio: false,
         audioRatio: false,
@@ -212,6 +226,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
       modelPrice: savedModelPrice,
       modelRatio: savedModelRatio,
       cacheRatio: savedCacheRatio,
+      audioCacheRatio: savedAudioCacheRatio,
+      imageCacheRatio: savedImageCacheRatio,
       createCacheRatio: savedCreateCacheRatio,
       completionRatio: savedCompletionRatio,
       imageRatio: savedImageRatio,
@@ -224,6 +240,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
       modelPrice,
       modelRatio,
       cacheRatio,
+      audioCacheRatio,
+      imageCacheRatio,
       createCacheRatio,
       completionRatio,
       imageRatio,
@@ -325,6 +343,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
         price: editableModel.price,
         ratio: editableModel.ratio,
         cacheRatio: editableModel.cacheRatio,
+        audioCacheRatio: editableModel.audioCacheRatio,
+        imageCacheRatio: editableModel.imageCacheRatio,
         createCacheRatio: editableModel.createCacheRatio,
         completionRatio: editableModel.completionRatio,
         imageRatio: editableModel.imageRatio,
@@ -375,6 +395,20 @@ const ModelRatioVisualEditorComponent = forwardRef<
         fallback: {},
         silent: true,
       })
+      const audioCacheMap = safeJsonParse<Record<string, number>>(
+        audioCacheRatio,
+        {
+          fallback: {},
+          silent: true,
+        }
+      )
+      const imageCacheMap = safeJsonParse<Record<string, number>>(
+        imageCacheRatio,
+        {
+          fallback: {},
+          silent: true,
+        }
+      )
       const createCacheMap = safeJsonParse<Record<string, number>>(
         createCacheRatio,
         { fallback: {}, silent: true }
@@ -407,6 +441,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
       delete priceMap[name]
       delete ratioMap[name]
       delete cacheMap[name]
+      delete audioCacheMap[name]
+      delete imageCacheMap[name]
       delete createCacheMap[name]
       delete completionMap[name]
       delete imageMap[name]
@@ -418,6 +454,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
       onChange('ModelPrice', JSON.stringify(priceMap, null, 2))
       onChange('ModelRatio', JSON.stringify(ratioMap, null, 2))
       onChange('CacheRatio', JSON.stringify(cacheMap, null, 2))
+      onChange('AudioCacheRatio', JSON.stringify(audioCacheMap, null, 2))
+      onChange('ImageCacheRatio', JSON.stringify(imageCacheMap, null, 2))
       onChange('CreateCacheRatio', JSON.stringify(createCacheMap, null, 2))
       onChange('CompletionRatio', JSON.stringify(completionMap, null, 2))
       onChange('ImageRatio', JSON.stringify(imageMap, null, 2))
@@ -445,6 +483,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
       modelPrice,
       modelRatio,
       cacheRatio,
+      audioCacheRatio,
+      imageCacheRatio,
       createCacheRatio,
       completionRatio,
       imageRatio,
@@ -516,6 +556,20 @@ const ModelRatioVisualEditorComponent = forwardRef<
         fallback: {},
         silent: true,
       })
+      const audioCacheMap = safeJsonParse<Record<string, number>>(
+        audioCacheRatio,
+        {
+          fallback: {},
+          silent: true,
+        }
+      )
+      const imageCacheMap = safeJsonParse<Record<string, number>>(
+        imageCacheRatio,
+        {
+          fallback: {},
+          silent: true,
+        }
+      )
       const createCacheMap = safeJsonParse<Record<string, number>>(
         createCacheRatio,
         { fallback: {}, silent: true }
@@ -559,6 +613,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
         delete priceMap[name]
         delete ratioMap[name]
         delete cacheMap[name]
+        delete audioCacheMap[name]
+        delete imageCacheMap[name]
         delete createCacheMap[name]
         delete completionMap[name]
         delete imageMap[name]
@@ -583,6 +639,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
           setIfPresent(priceMap, name, data.price)
           setIfPresent(ratioMap, name, data.ratio)
           setIfPresent(cacheMap, name, data.cacheRatio)
+          setIfPresent(audioCacheMap, name, data.audioCacheRatio)
+          setIfPresent(imageCacheMap, name, data.imageCacheRatio)
           setIfPresent(createCacheMap, name, data.createCacheRatio)
           setIfPresent(completionMap, name, data.completionRatio)
           setIfPresent(imageMap, name, data.imageRatio)
@@ -593,6 +651,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
         } else {
           setIfPresent(ratioMap, name, data.ratio)
           setIfPresent(cacheMap, name, data.cacheRatio)
+          setIfPresent(audioCacheMap, name, data.audioCacheRatio)
+          setIfPresent(imageCacheMap, name, data.imageCacheRatio)
           setIfPresent(createCacheMap, name, data.createCacheRatio)
           setIfPresent(completionMap, name, data.completionRatio)
           setIfPresent(imageMap, name, data.imageRatio)
@@ -604,6 +664,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
       onChange('ModelPrice', JSON.stringify(priceMap, null, 2))
       onChange('ModelRatio', JSON.stringify(ratioMap, null, 2))
       onChange('CacheRatio', JSON.stringify(cacheMap, null, 2))
+      onChange('AudioCacheRatio', JSON.stringify(audioCacheMap, null, 2))
+      onChange('ImageCacheRatio', JSON.stringify(imageCacheMap, null, 2))
       onChange('CreateCacheRatio', JSON.stringify(createCacheMap, null, 2))
       onChange('CompletionRatio', JSON.stringify(completionMap, null, 2))
       onChange('ImageRatio', JSON.stringify(imageMap, null, 2))
@@ -625,6 +687,8 @@ const ModelRatioVisualEditorComponent = forwardRef<
       modelPrice,
       modelRatio,
       cacheRatio,
+      audioCacheRatio,
+      imageCacheRatio,
       createCacheRatio,
       completionRatio,
       imageRatio,
@@ -863,6 +927,8 @@ export const ModelRatioVisualEditor = memo(
       prevProps.savedModelPrice === nextProps.savedModelPrice &&
       prevProps.savedModelRatio === nextProps.savedModelRatio &&
       prevProps.savedCacheRatio === nextProps.savedCacheRatio &&
+      prevProps.savedAudioCacheRatio === nextProps.savedAudioCacheRatio &&
+      prevProps.savedImageCacheRatio === nextProps.savedImageCacheRatio &&
       prevProps.savedCreateCacheRatio === nextProps.savedCreateCacheRatio &&
       prevProps.savedCompletionRatio === nextProps.savedCompletionRatio &&
       prevProps.savedImageRatio === nextProps.savedImageRatio &&
@@ -874,6 +940,8 @@ export const ModelRatioVisualEditor = memo(
       prevProps.modelPrice === nextProps.modelPrice &&
       prevProps.modelRatio === nextProps.modelRatio &&
       prevProps.cacheRatio === nextProps.cacheRatio &&
+      prevProps.audioCacheRatio === nextProps.audioCacheRatio &&
+      prevProps.imageCacheRatio === nextProps.imageCacheRatio &&
       prevProps.createCacheRatio === nextProps.createCacheRatio &&
       prevProps.completionRatio === nextProps.completionRatio &&
       prevProps.imageRatio === nextProps.imageRatio &&

@@ -23,6 +23,7 @@ var defaultCacheRatio = map[string]float64{
 	"gpt-4o-mini-2024-07-18":              0.5,
 	"gpt-4o-mini":                         0.5,
 	"gpt-4o-realtime-preview":             0.5,
+	"gpt-realtime-2.1":                    0.1,
 	"gpt-4o-mini-realtime-preview":        0.5,
 	"gpt-4.5-preview":                     0.5,
 	"gpt-4.5-preview-2025-02-27":          0.5,
@@ -128,6 +129,10 @@ var defaultCreateCacheRatio = map[string]float64{
 //var defaultCreateCacheRatio = map[string]float64{}
 
 var cacheRatioMap = types.NewRWMap[string, float64]()
+var defaultAudioCacheRatio = map[string]float64{"gpt-realtime-2.1": 0.1}
+var defaultImageCacheRatio = map[string]float64{"gpt-realtime-2.1": 0.125}
+var audioCacheRatioMap = types.NewRWMap[string, float64]()
+var imageCacheRatioMap = types.NewRWMap[string, float64]()
 var createCacheRatioMap = types.NewRWMap[string, float64]()
 
 // GetCacheRatioMap returns a copy of the cache ratio map
@@ -140,6 +145,14 @@ func CacheRatio2JSONString() string {
 	return cacheRatioMap.MarshalJSONString()
 }
 
+func AudioCacheRatio2JSONString() string {
+	return audioCacheRatioMap.MarshalJSONString()
+}
+
+func ImageCacheRatio2JSONString() string {
+	return imageCacheRatioMap.MarshalJSONString()
+}
+
 // CreateCacheRatio2JSONString converts the create cache ratio map to a JSON string
 func CreateCacheRatio2JSONString() string {
 	return createCacheRatioMap.MarshalJSONString()
@@ -148,6 +161,14 @@ func CreateCacheRatio2JSONString() string {
 // UpdateCacheRatioByJSONString updates the cache ratio map from a JSON string
 func UpdateCacheRatioByJSONString(jsonStr string) error {
 	return types.LoadFromJsonStringWithCallback(cacheRatioMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func UpdateAudioCacheRatioByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(audioCacheRatioMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func UpdateImageCacheRatioByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(imageCacheRatioMap, jsonStr, InvalidateExposedDataCache)
 }
 
 // UpdateCreateCacheRatioByJSONString updates the create cache ratio map from a JSON string
@@ -164,6 +185,34 @@ func GetCacheRatio(name string) (float64, bool) {
 	return ratio, true
 }
 
+// GetAudioCacheRatio falls back to the legacy cache ratio so existing model
+// settings keep their current behaviour until an audio-specific value is set.
+func GetAudioCacheRatio(name string) (float64, bool) {
+	if ratio, ok := audioCacheRatioMap.Get(name); ok {
+		return ratio, true
+	}
+	return GetCacheRatio(name)
+}
+
+func ContainsAudioCacheRatio(name string) bool {
+	_, ok := audioCacheRatioMap.Get(name)
+	return ok
+}
+
+// GetImageCacheRatio falls back to the legacy cache ratio so existing model
+// settings keep their current behaviour until an image-specific value is set.
+func GetImageCacheRatio(name string) (float64, bool) {
+	if ratio, ok := imageCacheRatioMap.Get(name); ok {
+		return ratio, true
+	}
+	return GetCacheRatio(name)
+}
+
+func ContainsImageCacheRatio(name string) bool {
+	_, ok := imageCacheRatioMap.Get(name)
+	return ok
+}
+
 func GetCreateCacheRatio(name string) (float64, bool) {
 	ratio, ok := createCacheRatioMap.Get(name)
 	if !ok {
@@ -174,6 +223,14 @@ func GetCreateCacheRatio(name string) (float64, bool) {
 
 func GetCacheRatioCopy() map[string]float64 {
 	return cacheRatioMap.ReadAll()
+}
+
+func GetAudioCacheRatioCopy() map[string]float64 {
+	return audioCacheRatioMap.ReadAll()
+}
+
+func GetImageCacheRatioCopy() map[string]float64 {
+	return imageCacheRatioMap.ReadAll()
 }
 
 func GetCreateCacheRatioCopy() map[string]float64 {

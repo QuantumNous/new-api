@@ -25,6 +25,8 @@ export type ModelPricingSnapshotInput = {
   modelPrice: string
   modelRatio: string
   cacheRatio: string
+  audioCacheRatio?: string
+  imageCacheRatio?: string
   createCacheRatio: string
   completionRatio: string
   imageRatio: string
@@ -39,6 +41,8 @@ export type ModelPricingSnapshot = {
   price?: string
   ratio?: string
   cacheRatio?: string
+  audioCacheRatio?: string
+  imageCacheRatio?: string
   createCacheRatio?: string
   completionRatio?: string
   imageRatio?: string
@@ -122,6 +126,8 @@ export const getPriceSummary = (
   const extraCount = [
     row.completionRatio,
     row.cacheRatio,
+    row.audioCacheRatio,
+    row.imageCacheRatio,
     row.createCacheRatio,
     row.imageRatio,
     row.audioRatio,
@@ -154,6 +160,10 @@ export const getPriceDetail = (
       `${t('Output')} $${ratioToPrice(row.completionRatio, inputPrice)}`,
     row.cacheRatio &&
       `${t('Cache')} $${ratioToPrice(row.cacheRatio, inputPrice)}`,
+    row.audioCacheRatio &&
+      `${t('Audio Cache')} $${ratioToPrice(row.audioCacheRatio, inputPrice)}`,
+    row.imageCacheRatio &&
+      `${t('Image Cache')} $${ratioToPrice(row.imageCacheRatio, inputPrice)}`,
     row.createCacheRatio &&
       `${t('Cache write')} $${ratioToPrice(row.createCacheRatio, inputPrice)}`,
   ]
@@ -167,6 +177,8 @@ export const buildModelSnapshots = ({
   modelPrice,
   modelRatio,
   cacheRatio,
+  audioCacheRatio,
+  imageCacheRatio,
   createCacheRatio,
   completionRatio,
   imageRatio,
@@ -187,6 +199,20 @@ export const buildModelSnapshots = ({
     fallback: {},
     context: 'cache ratios',
   })
+  const audioCacheMap = safeJsonParse<Record<string, number>>(
+    audioCacheRatio || '{}',
+    {
+      fallback: {},
+      context: 'audio cache ratios',
+    }
+  )
+  const imageCacheMap = safeJsonParse<Record<string, number>>(
+    imageCacheRatio || '{}',
+    {
+      fallback: {},
+      context: 'image cache ratios',
+    }
+  )
   const createCacheMap = safeJsonParse<Record<string, number>>(
     createCacheRatio,
     { fallback: {}, context: 'create cache ratios' }
@@ -220,6 +246,8 @@ export const buildModelSnapshots = ({
     ...Object.keys(priceMap),
     ...Object.keys(ratioMap),
     ...Object.keys(cacheMap),
+    ...Object.keys(audioCacheMap),
+    ...Object.keys(imageCacheMap),
     ...Object.keys(createCacheMap),
     ...Object.keys(completionMap),
     ...Object.keys(imageMap),
@@ -233,6 +261,8 @@ export const buildModelSnapshots = ({
     const price = priceMap[name]?.toString() || ''
     const ratio = ratioMap[name]?.toString() || ''
     const cache = cacheMap[name]?.toString() || ''
+    const audioCache = audioCacheMap[name]?.toString() || ''
+    const imageCache = imageCacheMap[name]?.toString() || ''
     const createCache = createCacheMap[name]?.toString() || ''
     const completion = completionMap[name]?.toString() || ''
     const image = imageMap[name]?.toString() || ''
@@ -252,6 +282,8 @@ export const buildModelSnapshots = ({
         price,
         ratio,
         cacheRatio: cache,
+        audioCacheRatio: audioCache,
+        imageCacheRatio: imageCache,
         createCacheRatio: createCache,
         completionRatio: completion,
         imageRatio: image,
@@ -266,6 +298,8 @@ export const buildModelSnapshots = ({
       price,
       ratio,
       cacheRatio: cache,
+      audioCacheRatio: audioCache,
+      imageCacheRatio: imageCache,
       createCacheRatio: createCache,
       completionRatio: completion,
       imageRatio: image,
@@ -277,6 +311,8 @@ export const buildModelSnapshots = ({
         (ratio !== '' ||
           completion !== '' ||
           cache !== '' ||
+          audioCache !== '' ||
+          imageCache !== '' ||
           createCache !== '' ||
           image !== '' ||
           audio !== '' ||
@@ -291,6 +327,8 @@ export const getSnapshotSignature = (snapshot?: ModelPricingSnapshot) => {
     price: snapshot.price || '',
     ratio: snapshot.ratio || '',
     cacheRatio: snapshot.cacheRatio || '',
+    audioCacheRatio: snapshot.audioCacheRatio || '',
+    imageCacheRatio: snapshot.imageCacheRatio || '',
     createCacheRatio: snapshot.createCacheRatio || '',
     completionRatio: snapshot.completionRatio || '',
     imageRatio: snapshot.imageRatio || '',

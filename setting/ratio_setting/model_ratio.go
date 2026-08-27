@@ -46,6 +46,7 @@ var defaultModelRatio = map[string]float64{
 	"gpt-4o-2024-08-06":                         1.25, // $2.5 / 1M tokens
 	"gpt-4o-2024-11-20":                         1.25, // $2.5 / 1M tokens
 	"gpt-4o-realtime-preview":                   2.5,
+	"gpt-realtime-2.1":                          2,
 	"gpt-4o-realtime-preview-2024-10-01":        2.5,
 	"gpt-4o-realtime-preview-2024-12-17":        2.5,
 	"gpt-4o-mini-realtime-preview":              0.3,
@@ -307,12 +308,14 @@ var defaultAudioRatio = map[string]float64{
 	"gpt-4o-audio-preview":         16,
 	"gpt-4o-mini-audio-preview":    66.67,
 	"gpt-4o-realtime-preview":      8,
+	"gpt-realtime-2.1":             8,
 	"gpt-4o-mini-realtime-preview": 16.67,
 	"gpt-4o-mini-tts":              25,
 }
 
 var defaultAudioCompletionRatio = map[string]float64{
 	"gpt-4o-realtime":      2,
+	"gpt-realtime-2.1":     2,
 	"gpt-4o-mini-realtime": 2,
 	"gpt-4o-mini-tts":      1,
 	"tts-1":                0,
@@ -326,10 +329,11 @@ var modelRatioMap = types.NewRWMap[string, float64]()
 var completionRatioMap = types.NewRWMap[string, float64]()
 
 var defaultCompletionRatio = map[string]float64{
-	"gpt-4-gizmo-*":  2,
-	"gpt-4o-gizmo-*": 3,
-	"gpt-4-all":      2,
-	"gpt-image-1":    8,
+	"gpt-4-gizmo-*":    2,
+	"gpt-4o-gizmo-*":   3,
+	"gpt-realtime-2.1": 6,
+	"gpt-4-all":        2,
+	"gpt-image-1":      8,
 }
 
 // InitRatioSettings initializes all model related settings maps
@@ -338,6 +342,8 @@ func InitRatioSettings() {
 	modelRatioMap.AddAll(defaultModelRatio)
 	completionRatioMap.AddAll(defaultCompletionRatio)
 	cacheRatioMap.AddAll(defaultCacheRatio)
+	audioCacheRatioMap.AddAll(defaultAudioCacheRatio)
+	imageCacheRatioMap.AddAll(defaultImageCacheRatio)
 	createCacheRatioMap.AddAll(defaultCreateCacheRatio)
 	imageRatioMap.AddAll(defaultImageRatio)
 	audioRatioMap.AddAll(defaultAudioRatio)
@@ -636,7 +642,8 @@ func ModelRatio2JSONString() string {
 }
 
 var defaultImageRatio = map[string]float64{
-	"gpt-image-1": 2,
+	"gpt-image-1":      2,
+	"gpt-realtime-2.1": 1.25,
 }
 var imageRatioMap = types.NewRWMap[string, float64]()
 var audioRatioMap = types.NewRWMap[string, float64]()

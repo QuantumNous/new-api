@@ -23,10 +23,13 @@ import (
 )
 
 type TokenDetails struct {
-	TextTokens   int
-	AudioTokens  int
-	ImageTokens  int
-	CachedTokens int
+	TextTokens        int
+	AudioTokens       int
+	ImageTokens       int
+	ReasoningTokens   int
+	CachedTextTokens  int
+	CachedAudioTokens int
+	CachedImageTokens int
 }
 
 type QuotaInfo struct {
@@ -39,6 +42,8 @@ type QuotaInfo struct {
 	CompletionRatio      float64
 	ImageRatio           float64
 	CacheRatio           float64
+	AudioCacheRatio      float64
+	ImageCacheRatio      float64
 	AudioRatio           float64
 	AudioCompletionRatio float64
 }
@@ -66,31 +71,45 @@ func calculateAudioQuota(info QuotaInfo) (int, *common.QuotaClamp) {
 	audioCompletionRatio := decimal.NewFromFloat(info.AudioCompletionRatio)
 	imageRatio := decimal.NewFromFloat(info.ImageRatio)
 	cacheRatio := decimal.NewFromFloat(info.CacheRatio)
+	audioCacheRatio := decimal.NewFromFloat(info.AudioCacheRatio)
+	imageCacheRatio := decimal.NewFromFloat(info.ImageCacheRatio)
 
 	groupRatio := decimal.NewFromFloat(info.GroupRatio)
 	modelRatio := decimal.NewFromFloat(info.ModelRatio)
 	ratio := groupRatio.Mul(modelRatio)
 
 	inputTextTokens := decimal.NewFromInt(int64(info.InputDetails.TextTokens))
-	outputTextTokens := decimal.NewFromInt(int64(info.OutputDetails.TextTokens))
+	outputTextTokens := decimal.NewFromInt(int64(info.OutputDetails.TextTokens + info.OutputDetails.ReasoningTokens))
 	inputAudioTokens := decimal.NewFromInt(int64(info.InputDetails.AudioTokens))
 	outputAudioTokens := decimal.NewFromInt(int64(info.OutputDetails.AudioTokens))
 	inputImageTokens := decimal.NewFromInt(int64(info.InputDetails.ImageTokens))
 	outputImageTokens := decimal.NewFromInt(int64(info.OutputDetails.ImageTokens))
-	cachedTokens := decimal.NewFromInt(int64(info.InputDetails.CachedTokens))
+	cachedTextTokens := decimal.NewFromInt(int64(info.InputDetails.CachedTextTokens))
+	cachedAudioTokens := decimal.NewFromInt(int64(info.InputDetails.CachedAudioTokens))
+	cachedImageTokens := decimal.NewFromInt(int64(info.InputDetails.CachedImageTokens))
 
-	baseInputTokens := inputTextTokens.Sub(cachedTokens)
+	baseInputTokens := inputTextTokens.Sub(cachedTextTokens)
+	baseInputAudioTokens := inputAudioTokens.Sub(cachedAudioTokens)
+	baseInputImageTokens := inputImageTokens.Sub(cachedImageTokens)
 	if baseInputTokens.IsNegative() {
 		baseInputTokens = decimal.Zero
+	}
+	if baseInputAudioTokens.IsNegative() {
+		baseInputAudioTokens = decimal.Zero
+	}
+	if baseInputImageTokens.IsNegative() {
+		baseInputImageTokens = decimal.Zero
 	}
 
 	quota := decimal.Zero
 	quota = quota.Add(baseInputTokens)
 	quota = quota.Add(outputTextTokens.Add(outputImageTokens).Mul(completionRatio))
-	quota = quota.Add(inputAudioTokens.Mul(audioRatio))
+	quota = quota.Add(baseInputAudioTokens.Mul(audioRatio))
 	quota = quota.Add(outputAudioTokens.Mul(audioRatio).Mul(audioCompletionRatio))
-	quota = quota.Add(inputImageTokens.Mul(imageRatio))
-	quota = quota.Add(cachedTokens.Mul(cacheRatio))
+	quota = quota.Add(baseInputImageTokens.Mul(imageRatio))
+	quota = quota.Add(cachedTextTokens.Mul(cacheRatio))
+	quota = quota.Add(cachedAudioTokens.Mul(audioCacheRatio))
+	quota = quota.Add(cachedImageTokens.Mul(imageCacheRatio))
 
 	quota = quota.Mul(ratio)
 
@@ -103,17 +122,28 @@ func calculateAudioQuota(info QuotaInfo) (int, *common.QuotaClamp) {
 }
 
 func newRealtimeQuotaInfo(relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage) QuotaInfo {
+	cachedDetails := usage.InputTokenDetails.CachedTokensDetails
+	cachedTextTokens := cachedDetails.TextTokens
+	cachedDetailTotal := cachedDetails.TextTokens + cachedDetails.AudioTokens + cachedDetails.ImageTokens
+	if uncategorizedCachedTokens := usage.InputTokenDetails.CachedTokens - cachedDetailTotal; uncategorizedCachedTokens > 0 {
+		// Legacy Realtime usage only exposes cached_tokens. Preserve the historic
+		// text-cache interpretation until an upstream supplies modality details.
+		cachedTextTokens += uncategorizedCachedTokens
+	}
 	return QuotaInfo{
 		InputDetails: TokenDetails{
-			TextTokens:   usage.InputTokenDetails.TextTokens,
-			AudioTokens:  usage.InputTokenDetails.AudioTokens,
-			ImageTokens:  usage.InputTokenDetails.ImageTokens,
-			CachedTokens: usage.InputTokenDetails.CachedTokens,
+			TextTokens:        usage.InputTokenDetails.TextTokens,
+			AudioTokens:       usage.InputTokenDetails.AudioTokens,
+			ImageTokens:       usage.InputTokenDetails.ImageTokens,
+			CachedTextTokens:  cachedTextTokens,
+			CachedAudioTokens: cachedDetails.AudioTokens,
+			CachedImageTokens: cachedDetails.ImageTokens,
 		},
 		OutputDetails: TokenDetails{
-			TextTokens:  usage.OutputTokenDetails.TextTokens,
-			AudioTokens: usage.OutputTokenDetails.AudioTokens,
-			ImageTokens: usage.OutputTokenDetails.ImageTokens,
+			TextTokens:      usage.OutputTokenDetails.TextTokens,
+			AudioTokens:     usage.OutputTokenDetails.AudioTokens,
+			ImageTokens:     usage.OutputTokenDetails.ImageTokens,
+			ReasoningTokens: usage.OutputTokenDetails.ReasoningTokens,
 		},
 		UsePrice:             relayInfo.PriceData.UsePrice,
 		ModelPrice:           relayInfo.PriceData.ModelPrice,
@@ -122,6 +152,8 @@ func newRealtimeQuotaInfo(relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeU
 		CompletionRatio:      relayInfo.PriceData.CompletionRatio,
 		ImageRatio:           relayInfo.PriceData.ImageRatio,
 		CacheRatio:           relayInfo.PriceData.CacheRatio,
+		AudioCacheRatio:      relayInfo.PriceData.AudioCacheRatio,
+		ImageCacheRatio:      relayInfo.PriceData.ImageCacheRatio,
 		AudioRatio:           relayInfo.PriceData.AudioRatio,
 		AudioCompletionRatio: relayInfo.PriceData.AudioCompletionRatio,
 	}
@@ -209,6 +241,8 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	audioCompletionRatio := decimal.NewFromFloat(relayInfo.PriceData.AudioCompletionRatio)
 	imageRatio := relayInfo.PriceData.ImageRatio
 	cacheRatio := relayInfo.PriceData.CacheRatio
+	audioCacheRatio := relayInfo.PriceData.AudioCacheRatio
+	imageCacheRatio := relayInfo.PriceData.ImageCacheRatio
 
 	modelRatio := relayInfo.PriceData.ModelRatio
 	groupRatio := relayInfo.PriceData.GroupRatioInfo.GroupRatio
@@ -224,8 +258,8 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	totalTokens := usage.TotalTokens
 	var logContent string
 	if !usePrice {
-		logContent = fmt.Sprintf("模型倍率 %.2f，补全倍率 %.2f，缓存倍率 %.2f，图片倍率 %.2f，音频倍率 %.2f，音频补全倍率 %.2f，分组倍率 %.2f",
-			modelRatio, completionRatio.InexactFloat64(), cacheRatio, imageRatio, audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), groupRatio)
+		logContent = fmt.Sprintf("模型倍率 %.2f，补全倍率 %.2f，文本缓存倍率 %.2f，音频缓存倍率 %.2f，图片缓存倍率 %.2f，图片倍率 %.2f，音频倍率 %.2f，音频补全倍率 %.2f，分组倍率 %.2f",
+			modelRatio, completionRatio.InexactFloat64(), cacheRatio, audioCacheRatio, imageCacheRatio, imageRatio, audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), groupRatio)
 	} else {
 		logContent = fmt.Sprintf("模型价格 %.2f，分组倍率 %.2f", modelPrice, groupRatio)
 	}
@@ -252,7 +286,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		logContent += ", " + extraContent
 	}
 	other := GenerateWssOtherInfo(ctx, relayInfo, usage, modelRatio, groupRatio,
-		completionRatio.InexactFloat64(), cachedTokens, cacheRatio, imageRatio, audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+		completionRatio.InexactFloat64(), cachedTokens, cacheRatio, audioCacheRatio, imageCacheRatio, imageRatio, audioRatio.InexactFloat64(), audioCompletionRatio.InexactFloat64(), modelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredResult != nil {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}

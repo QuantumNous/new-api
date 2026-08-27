@@ -175,6 +175,10 @@ export interface LogOtherData {
   audio_output?: number
   text_input?: number
   text_output?: number
+  image_input?: number
+  cached_text_input?: number
+  cached_audio_input?: number
+  cached_image_input?: number
   cache_tokens?: number
   cache_creation_tokens?: number
   cache_creation_tokens_5m?: number
@@ -186,6 +190,8 @@ export interface LogOtherData {
   group_ratio?: number
   user_group_ratio?: number
   cache_ratio?: number
+  audio_cache_ratio?: number
+  image_cache_ratio?: number
   cache_creation_ratio?: number
   cache_creation_ratio_5m?: number
   cache_creation_ratio_1h?: number

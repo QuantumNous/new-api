@@ -28,6 +28,8 @@ export const createModelPricingSchema = (t: (key: string) => string) =>
     price: z.string().optional(),
     ratio: z.string().optional(),
     cacheRatio: z.string().optional(),
+    audioCacheRatio: z.string().optional(),
+    imageCacheRatio: z.string().optional(),
     createCacheRatio: z.string().optional(),
     completionRatio: z.string().optional(),
     imageRatio: z.string().optional(),
@@ -44,6 +46,8 @@ export type PricingMode = 'per-token' | 'per-request' | 'tiered_expr'
 export type LaneKey =
   | 'completion'
   | 'cache'
+  | 'audioCache'
+  | 'imageCache'
   | 'createCache'
   | 'image'
   | 'audioInput'
@@ -54,6 +58,8 @@ export type ModelRatioData = {
   price?: string
   ratio?: string
   cacheRatio?: string
+  audioCacheRatio?: string
+  imageCacheRatio?: string
   createCacheRatio?: string
   completionRatio?: string
   imageRatio?: string
@@ -76,6 +82,8 @@ export const numericDraftRegex = /^(\d+(\.\d*)?|\.\d*)?$/
 export const EMPTY_LANE_PRICES: Record<LaneKey, string> = {
   completion: '',
   cache: '',
+  audioCache: '',
+  imageCache: '',
   createCache: '',
   image: '',
   audioInput: '',
@@ -85,6 +93,8 @@ export const EMPTY_LANE_PRICES: Record<LaneKey, string> = {
 export const EMPTY_LANE_ENABLED: Record<LaneKey, boolean> = {
   completion: false,
   cache: false,
+  audioCache: false,
+  imageCache: false,
   createCache: false,
   image: false,
   audioInput: false,
@@ -94,6 +104,8 @@ export const EMPTY_LANE_ENABLED: Record<LaneKey, boolean> = {
 export const ratioFieldByLane: Record<LaneKey, keyof ModelPricingFormValues> = {
   completion: 'completionRatio',
   cache: 'cacheRatio',
+  audioCache: 'audioCacheRatio',
+  imageCache: 'imageCacheRatio',
   createCache: 'createCacheRatio',
   image: 'imageRatio',
   audioInput: 'audioRatio',
@@ -117,6 +129,18 @@ export const laneConfigs: Array<{
     titleKey: 'Cache read price',
     descriptionKey: 'Token price for cache reads.',
     placeholder: '0.3',
+  },
+  {
+    key: 'audioCache',
+    titleKey: 'Audio cache read price',
+    descriptionKey: 'Token price for cached audio input.',
+    placeholder: '0.4',
+  },
+  {
+    key: 'imageCache',
+    titleKey: 'Image cache read price',
+    descriptionKey: 'Token price for cached image input.',
+    placeholder: '0.5',
   },
   {
     key: 'createCache',
@@ -187,6 +211,8 @@ export function createInitialLaneState(data?: ModelRatioData | null) {
   const prices: Record<LaneKey, string> = {
     completion: deriveLanePrice(data.completionRatio, promptPrice),
     cache: deriveLanePrice(data.cacheRatio, promptPrice),
+    audioCache: deriveLanePrice(data.audioCacheRatio, promptPrice),
+    imageCache: deriveLanePrice(data.imageCacheRatio, promptPrice),
     createCache: deriveLanePrice(data.createCacheRatio, promptPrice),
     image: deriveLanePrice(data.imageRatio, promptPrice),
     audioInput: audioInputPrice,
@@ -199,6 +225,8 @@ export function createInitialLaneState(data?: ModelRatioData | null) {
     enabled: {
       completion: hasValue(data.completionRatio),
       cache: hasValue(data.cacheRatio),
+      audioCache: hasValue(data.audioCacheRatio),
+      imageCache: hasValue(data.imageCacheRatio),
       createCache: hasValue(data.createCacheRatio),
       image: hasValue(data.imageRatio),
       audioInput: hasValue(data.audioRatio),

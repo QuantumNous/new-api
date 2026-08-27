@@ -245,7 +245,7 @@ func appendFinalRequestFormat(relayInfo *relaycommon.RelayInfo, other map[string
 	}
 }
 
-func GenerateWssOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage, modelRatio, groupRatio, completionRatio float64, cacheTokens int, cacheRatio, imageRatio, audioRatio, audioCompletionRatio, modelPrice, userGroupRatio float64) map[string]interface{} {
+func GenerateWssOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage, modelRatio, groupRatio, completionRatio float64, cacheTokens int, cacheRatio, audioCacheRatio, imageCacheRatio, imageRatio, audioRatio, audioCompletionRatio, modelPrice, userGroupRatio float64) map[string]interface{} {
 	info := GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice, userGroupRatio)
 	info["ws"] = true
 	info["audio_input"] = usage.InputTokenDetails.AudioTokens
@@ -259,6 +259,8 @@ func GenerateWssOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	info["cached_audio_input"] = usage.InputTokenDetails.CachedTokensDetails.AudioTokens
 	info["cached_image_input"] = usage.InputTokenDetails.CachedTokensDetails.ImageTokens
 	info["image_ratio"] = imageRatio
+	info["audio_cache_ratio"] = audioCacheRatio
+	info["image_cache_ratio"] = imageCacheRatio
 	info["audio_ratio"] = audioRatio
 	info["audio_completion_ratio"] = audioCompletionRatio
 	return info

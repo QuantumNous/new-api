@@ -65,6 +65,8 @@ var pricingSyncFields = []string{
 	"model_ratio",
 	"completion_ratio",
 	"cache_ratio",
+	"audio_cache_ratio",
+	"image_cache_ratio",
 	"create_cache_ratio",
 	"image_ratio",
 	"audio_ratio",
@@ -78,6 +80,8 @@ var numericPricingSyncFields = map[string]bool{
 	"model_ratio":            true,
 	"completion_ratio":       true,
 	"cache_ratio":            true,
+	"audio_cache_ratio":      true,
+	"image_cache_ratio":      true,
 	"create_cache_ratio":     true,
 	"image_ratio":            true,
 	"audio_ratio":            true,
@@ -135,6 +139,8 @@ func getLocalPricingSyncData() map[string]any {
 	data := billing_setting.GetPricingSyncData(map[string]any(ratio_setting.GetExposedData()))
 	data["image_ratio"] = ratio_setting.GetImageRatioCopy()
 	data["audio_ratio"] = ratio_setting.GetAudioRatioCopy()
+	data["audio_cache_ratio"] = ratio_setting.GetAudioCacheRatioCopy()
+	data["image_cache_ratio"] = ratio_setting.GetImageCacheRatioCopy()
 	data["audio_completion_ratio"] = ratio_setting.GetAudioCompletionRatioCopy()
 	return data
 }
@@ -385,6 +391,8 @@ func FetchUpstreamRatios(c *gin.Context) {
 				ModelPrice           float64  `json:"model_price"`
 				CompletionRatio      float64  `json:"completion_ratio"`
 				CacheRatio           *float64 `json:"cache_ratio"`
+				AudioCacheRatio      *float64 `json:"audio_cache_ratio"`
+				ImageCacheRatio      *float64 `json:"image_cache_ratio"`
 				CreateCacheRatio     *float64 `json:"create_cache_ratio"`
 				ImageRatio           *float64 `json:"image_ratio"`
 				AudioRatio           *float64 `json:"audio_ratio"`
@@ -401,6 +409,8 @@ func FetchUpstreamRatios(c *gin.Context) {
 			modelRatioMap := make(map[string]float64)
 			completionRatioMap := make(map[string]float64)
 			cacheRatioMap := make(map[string]float64)
+			audioCacheRatioMap := make(map[string]float64)
+			imageCacheRatioMap := make(map[string]float64)
 			createCacheRatioMap := make(map[string]float64)
 			imageRatioMap := make(map[string]float64)
 			audioRatioMap := make(map[string]float64)
@@ -426,6 +436,12 @@ func FetchUpstreamRatios(c *gin.Context) {
 				}
 				if item.CacheRatio != nil {
 					cacheRatioMap[item.ModelName] = *item.CacheRatio
+				}
+				if item.AudioCacheRatio != nil {
+					audioCacheRatioMap[item.ModelName] = *item.AudioCacheRatio
+				}
+				if item.ImageCacheRatio != nil {
+					imageCacheRatioMap[item.ModelName] = *item.ImageCacheRatio
 				}
 				if item.CreateCacheRatio != nil {
 					createCacheRatioMap[item.ModelName] = *item.CreateCacheRatio
@@ -460,6 +476,12 @@ func FetchUpstreamRatios(c *gin.Context) {
 			}
 			if len(cacheRatioMap) > 0 {
 				converted["cache_ratio"] = valueMap(cacheRatioMap)
+			}
+			if len(audioCacheRatioMap) > 0 {
+				converted["audio_cache_ratio"] = valueMap(audioCacheRatioMap)
+			}
+			if len(imageCacheRatioMap) > 0 {
+				converted["image_cache_ratio"] = valueMap(imageCacheRatioMap)
 			}
 			if len(createCacheRatioMap) > 0 {
 				converted["create_cache_ratio"] = valueMap(createCacheRatioMap)

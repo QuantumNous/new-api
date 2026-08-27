@@ -84,6 +84,8 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var modelRatio float64
 	var completionRatio float64
 	var cacheRatio float64
+	var audioCacheRatio float64
+	var imageCacheRatio float64
 	var imageRatio float64
 	var cacheCreationRatio float64
 	var cacheCreationRatio5m float64
@@ -110,6 +112,8 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		}
 		completionRatio = ratio_setting.GetCompletionRatio(info.OriginModelName)
 		cacheRatio, _ = ratio_setting.GetCacheRatio(info.OriginModelName)
+		audioCacheRatio, _ = ratio_setting.GetAudioCacheRatio(info.OriginModelName)
+		imageCacheRatio, _ = ratio_setting.GetImageCacheRatio(info.OriginModelName)
 		cacheCreationRatio, _ = ratio_setting.GetCreateCacheRatio(info.OriginModelName)
 		cacheCreationRatio5m = cacheCreationRatio
 		// 固定1h和5min缓存写入价格的比例
@@ -156,6 +160,8 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		GroupRatioInfo:       groupRatioInfo,
 		UsePrice:             usePrice,
 		CacheRatio:           cacheRatio,
+		AudioCacheRatio:      audioCacheRatio,
+		ImageCacheRatio:      imageCacheRatio,
 		ImageRatio:           imageRatio,
 		AudioRatio:           audioRatio,
 		AudioCompletionRatio: audioCompletionRatio,

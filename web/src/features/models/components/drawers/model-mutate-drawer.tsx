@@ -101,6 +101,8 @@ const extendedModelFormSchema = z.object({
   price: z.string().optional(),
   ratio: z.string().optional(),
   cacheRatio: z.string().optional(),
+  audioCacheRatio: z.string().optional(),
+  imageCacheRatio: z.string().optional(),
   completionRatio: z.string().optional(),
   imageRatio: z.string().optional(),
   audioRatio: z.string().optional(),
@@ -112,11 +114,16 @@ type ExtendedModelFormValues = z.infer<typeof extendedModelFormSchema>
 type PricingMode = 'per-token' | 'per-request'
 type PricingSubMode = 'ratio' | 'price'
 
+const isRealtimeModel = (modelName: string) =>
+  /(?:^|-)realtime(?:-|$)/i.test(modelName)
+
 type PricingFields = Pick<
   ExtendedModelFormValues,
   | 'price'
   | 'ratio'
   | 'cacheRatio'
+  | 'audioCacheRatio'
+  | 'imageCacheRatio'
   | 'completionRatio'
   | 'imageRatio'
   | 'audioRatio'
@@ -136,6 +143,8 @@ const EMPTY_PRICING_FIELDS: PricingFields = {
   price: '',
   ratio: '',
   cacheRatio: '',
+  audioCacheRatio: '',
+  imageCacheRatio: '',
   completionRatio: '',
   imageRatio: '',
   audioRatio: '',
@@ -173,6 +182,8 @@ function readPricingConfig(
   const price = lookupModelRatio(settings.ModelPrice, modelName)
   const ratio = lookupModelRatio(settings.ModelRatio, modelName)
   const cacheRatio = lookupModelRatio(settings.CacheRatio, modelName)
+  const audioCacheRatio = lookupModelRatio(settings.AudioCacheRatio, modelName)
+  const imageCacheRatio = lookupModelRatio(settings.ImageCacheRatio, modelName)
   const completionRatio = lookupModelRatio(settings.CompletionRatio, modelName)
   const imageRatio = lookupModelRatio(settings.ImageRatio, modelName)
   const audioRatio = lookupModelRatio(settings.AudioRatio, modelName)
@@ -208,6 +219,8 @@ function readPricingConfig(
       price: '',
       ratio: ratio?.toString() || '',
       cacheRatio: cacheRatio?.toString() || '',
+      audioCacheRatio: audioCacheRatio?.toString() || '',
+      imageCacheRatio: imageCacheRatio?.toString() || '',
       completionRatio: completionRatio?.toString() || '',
       imageRatio: imageRatio?.toString() || '',
       audioRatio: audioRatio?.toString() || '',
@@ -219,6 +232,8 @@ function readPricingConfig(
     // instance) still has to be visible rather than hidden behind the collapse.
     advancedOpen: [
       cacheRatio,
+      audioCacheRatio,
+      imageCacheRatio,
       imageRatio,
       audioRatio,
       audioCompletionRatio,
@@ -306,6 +321,8 @@ export function ModelMutateDrawer({
       ModelPrice: '',
       ModelRatio: '',
       CacheRatio: '',
+      AudioCacheRatio: '',
+      ImageCacheRatio: '',
       CompletionRatio: '',
       ImageRatio: '',
       AudioRatio: '',
@@ -373,6 +390,8 @@ export function ModelMutateDrawer({
       price: '',
       ratio: '',
       cacheRatio: '',
+      audioCacheRatio: '',
+      imageCacheRatio: '',
       completionRatio: '',
       imageRatio: '',
       audioRatio: '',
@@ -485,6 +504,8 @@ export function ModelMutateDrawer({
           price,
           ratio,
           cacheRatio,
+          audioCacheRatio,
+          imageCacheRatio,
           completionRatio,
           imageRatio,
           audioRatio,
@@ -507,6 +528,8 @@ export function ModelMutateDrawer({
             (pricingMode === 'per-token' &&
               (values.ratio ||
                 values.cacheRatio ||
+                values.audioCacheRatio ||
+                values.imageCacheRatio ||
                 values.completionRatio ||
                 values.imageRatio ||
                 values.audioRatio ||
@@ -526,6 +549,14 @@ export function ModelMutateDrawer({
             )
             const cacheMap = safeJsonParse<Record<string, number>>(
               modelSettings.CacheRatio,
+              { fallback: {}, silent: true }
+            )
+            const audioCacheMap = safeJsonParse<Record<string, number>>(
+              modelSettings.AudioCacheRatio,
+              { fallback: {}, silent: true }
+            )
+            const imageCacheMap = safeJsonParse<Record<string, number>>(
+              modelSettings.ImageCacheRatio,
               { fallback: {}, silent: true }
             )
             const completionMap = safeJsonParse<Record<string, number>>(
@@ -550,6 +581,8 @@ export function ModelMutateDrawer({
               delete priceMap[oldModelName]
               delete ratioMap[oldModelName]
               delete cacheMap[oldModelName]
+              delete audioCacheMap[oldModelName]
+              delete imageCacheMap[oldModelName]
               delete completionMap[oldModelName]
               delete imageMap[oldModelName]
               delete audioMap[oldModelName]
@@ -569,6 +602,8 @@ export function ModelMutateDrawer({
               delete priceMap[finalModelName]
               delete ratioMap[finalModelName]
               delete cacheMap[finalModelName]
+              delete audioCacheMap[finalModelName]
+              delete imageCacheMap[finalModelName]
               delete completionMap[finalModelName]
               delete imageMap[finalModelName]
               delete audioMap[finalModelName]
@@ -590,6 +625,16 @@ export function ModelMutateDrawer({
                 if (values.cacheRatio && values.cacheRatio !== '') {
                   cacheMap[finalModelName] = Number.parseFloat(
                     values.cacheRatio
+                  )
+                }
+                if (values.audioCacheRatio && values.audioCacheRatio !== '') {
+                  audioCacheMap[finalModelName] = Number.parseFloat(
+                    values.audioCacheRatio
+                  )
+                }
+                if (values.imageCacheRatio && values.imageCacheRatio !== '') {
+                  imageCacheMap[finalModelName] = Number.parseFloat(
+                    values.imageCacheRatio
                   )
                 }
                 if (values.completionRatio && values.completionRatio !== '') {
@@ -640,6 +685,30 @@ export function ModelMutateDrawer({
               newCacheRatio !== normalizeJsonString(modelSettings.CacheRatio)
             ) {
               updates.push({ key: 'CacheRatio', value: newCacheRatio })
+            }
+            const newAudioCacheRatio = normalizeJsonString(
+              JSON.stringify(audioCacheMap)
+            )
+            if (
+              newAudioCacheRatio !==
+              normalizeJsonString(modelSettings.AudioCacheRatio)
+            ) {
+              updates.push({
+                key: 'AudioCacheRatio',
+                value: newAudioCacheRatio,
+              })
+            }
+            const newImageCacheRatio = normalizeJsonString(
+              JSON.stringify(imageCacheMap)
+            )
+            if (
+              newImageCacheRatio !==
+              normalizeJsonString(modelSettings.ImageCacheRatio)
+            ) {
+              updates.push({
+                key: 'ImageCacheRatio',
+                value: newImageCacheRatio,
+              })
             }
 
             const newCompletionRatio = normalizeJsonString(
@@ -1264,6 +1333,34 @@ export function ModelMutateDrawer({
                         )}
                       />
 
+                      {isRealtimeModel(form.watch('model_name')) && (
+                        <FormField
+                          control={form.control}
+                          name='imageCacheRatio'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Image cache ratio')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='text'
+                                  placeholder='0.1'
+                                  {...field}
+                                  onChange={(e) => {
+                                    const value = e.target.value
+                                    if (validateNumber(value))
+                                      field.onChange(value)
+                                  }}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t('Multiplier for cached image inputs.')}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
                       <FormField
                         control={form.control}
                         name='audioRatio'
@@ -1317,6 +1414,34 @@ export function ModelMutateDrawer({
                           </FormItem>
                         )}
                       />
+
+                      {isRealtimeModel(form.watch('model_name')) && (
+                        <FormField
+                          control={form.control}
+                          name='audioCacheRatio'
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t('Audio cache ratio')}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type='text'
+                                  placeholder='0.1'
+                                  {...field}
+                                  onChange={(e) => {
+                                    const value = e.target.value
+                                    if (validateNumber(value))
+                                      field.onChange(value)
+                                  }}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                {t('Multiplier for cached audio inputs.')}
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
                     </CollapsibleContent>
                   </Collapsible>
                 </>

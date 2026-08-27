@@ -72,6 +72,8 @@ type UpstreamRatioSyncProps = {
     ModelRatio: string
     CompletionRatio: string
     CacheRatio: string
+    AudioCacheRatio: string
+    ImageCacheRatio: string
     CreateCacheRatio: string
     ImageRatio: string
     AudioRatio: string
@@ -294,6 +296,8 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       ModelRatio: parseJsonRecord<number>(modelRatios.ModelRatio),
       CompletionRatio: parseJsonRecord<number>(modelRatios.CompletionRatio),
       CacheRatio: parseJsonRecord<number>(modelRatios.CacheRatio),
+      AudioCacheRatio: parseJsonRecord<number>(modelRatios.AudioCacheRatio),
+      ImageCacheRatio: parseJsonRecord<number>(modelRatios.ImageCacheRatio),
       CreateCacheRatio: parseJsonRecord<number>(modelRatios.CreateCacheRatio),
       ImageRatio: parseJsonRecord<number>(modelRatios.ImageRatio),
       AudioRatio: parseJsonRecord<number>(modelRatios.AudioRatio),
@@ -321,6 +325,8 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
       currentRatios.ModelRatio[model] !== undefined ||
       currentRatios.CompletionRatio[model] !== undefined ||
       currentRatios.CacheRatio[model] !== undefined ||
+      currentRatios.AudioCacheRatio[model] !== undefined ||
+      currentRatios.ImageCacheRatio[model] !== undefined ||
       currentRatios.CreateCacheRatio[model] !== undefined ||
       currentRatios.ImageRatio[model] !== undefined ||
       currentRatios.AudioRatio[model] !== undefined ||
@@ -337,6 +343,8 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
         ModelRatio: { ...currentRatios.ModelRatio },
         CompletionRatio: { ...currentRatios.CompletionRatio },
         CacheRatio: { ...currentRatios.CacheRatio },
+        AudioCacheRatio: { ...currentRatios.AudioCacheRatio },
+        ImageCacheRatio: { ...currentRatios.ImageCacheRatio },
         CreateCacheRatio: { ...currentRatios.CreateCacheRatio },
         ImageRatio: { ...currentRatios.ImageRatio },
         AudioRatio: { ...currentRatios.AudioRatio },
@@ -361,6 +369,8 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
           delete finalRatios.ModelRatio[model]
           delete finalRatios.CompletionRatio[model]
           delete finalRatios.CacheRatio[model]
+          delete finalRatios.AudioCacheRatio[model]
+          delete finalRatios.ImageCacheRatio[model]
           delete finalRatios.CreateCacheRatio[model]
           delete finalRatios.ImageRatio[model]
           delete finalRatios.AudioRatio[model]

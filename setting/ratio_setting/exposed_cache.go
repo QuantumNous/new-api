@@ -45,6 +45,8 @@ func GetExposedData() gin.H {
 		"model_ratio":        GetModelRatioCopy(),
 		"completion_ratio":   GetCompletionRatioCopy(),
 		"cache_ratio":        GetCacheRatioCopy(),
+		"audio_cache_ratio":  GetAudioCacheRatioCopy(),
+		"image_cache_ratio":  GetImageCacheRatioCopy(),
 		"create_cache_ratio": GetCreateCacheRatioCopy(),
 		"model_price":        GetModelPriceCopy(),
 	}

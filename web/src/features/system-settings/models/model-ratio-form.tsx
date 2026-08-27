@@ -51,6 +51,8 @@ type ModelFormValues = {
   ModelPrice: string
   ModelRatio: string
   CacheRatio: string
+  AudioCacheRatio: string
+  ImageCacheRatio: string
   CreateCacheRatio: string
   CompletionRatio: string
   ImageRatio: string
@@ -75,6 +77,8 @@ type ModelJsonFieldName =
   | 'ModelPrice'
   | 'ModelRatio'
   | 'CacheRatio'
+  | 'AudioCacheRatio'
+  | 'ImageCacheRatio'
   | 'CreateCacheRatio'
   | 'CompletionRatio'
   | 'ImageRatio'
@@ -101,6 +105,16 @@ const modelJsonFields: Array<{
     name: 'CacheRatio',
     labelKey: 'Prompt cache ratio',
     descriptionKey: 'Optional ratio used when upstream cache hits occur.',
+  },
+  {
+    name: 'AudioCacheRatio',
+    labelKey: 'Audio cache ratio',
+    descriptionKey: 'Optional ratio used when cached audio input tokens occur.',
+  },
+  {
+    name: 'ImageCacheRatio',
+    labelKey: 'Image cache ratio',
+    descriptionKey: 'Optional ratio used when cached image input tokens occur.',
   },
   {
     name: 'CreateCacheRatio',
@@ -268,6 +282,8 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               savedModelPrice={savedValues.ModelPrice}
               savedModelRatio={savedValues.ModelRatio}
               savedCacheRatio={savedValues.CacheRatio}
+              savedAudioCacheRatio={savedValues.AudioCacheRatio}
+              savedImageCacheRatio={savedValues.ImageCacheRatio}
               savedCreateCacheRatio={savedValues.CreateCacheRatio}
               savedCompletionRatio={savedValues.CompletionRatio}
               savedImageRatio={savedValues.ImageRatio}
@@ -278,6 +294,8 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               modelPrice={form.watch('ModelPrice')}
               modelRatio={form.watch('ModelRatio')}
               cacheRatio={form.watch('CacheRatio')}
+              audioCacheRatio={form.watch('AudioCacheRatio')}
+              imageCacheRatio={form.watch('ImageCacheRatio')}
               createCacheRatio={form.watch('CreateCacheRatio')}
               completionRatio={form.watch('CompletionRatio')}
               imageRatio={form.watch('ImageRatio')}

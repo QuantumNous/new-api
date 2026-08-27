@@ -76,6 +76,14 @@ function calculateTokenPrice(
       return hasRatio(model.cache_ratio)
         ? base * Number(model.cache_ratio)
         : Number.NaN
+    case 'audio_cache':
+      return hasRatio(model.audio_cache_ratio)
+        ? base * Number(model.audio_cache_ratio)
+        : Number.NaN
+    case 'image_cache':
+      return hasRatio(model.image_cache_ratio)
+        ? base * Number(model.image_cache_ratio)
+        : Number.NaN
     case 'create_cache':
       return hasRatio(model.create_cache_ratio)
         ? base * Number(model.create_cache_ratio)

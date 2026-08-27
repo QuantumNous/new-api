@@ -62,6 +62,8 @@ export const RATIO_SYNC_FIELDS: RatioType[] = [
   'model_ratio',
   'completion_ratio',
   'cache_ratio',
+  'audio_cache_ratio',
+  'image_cache_ratio',
   'create_cache_ratio',
   'image_ratio',
   'audio_ratio',

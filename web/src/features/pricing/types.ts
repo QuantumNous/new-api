@@ -57,6 +57,8 @@ export type PricingModel = {
   completion_ratio: number
   model_price?: number
   cache_ratio?: number | null
+  audio_cache_ratio?: number | null
+  image_cache_ratio?: number | null
   create_cache_ratio?: number | null
   image_ratio?: number | null
   audio_ratio?: number | null
@@ -124,6 +126,8 @@ export type PriceType =
   | 'input'
   | 'output'
   | 'cache'
+  | 'audio_cache'
+  | 'image_cache'
   | 'create_cache'
   | 'image'
   | 'audio_input'
