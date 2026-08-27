@@ -1,8 +1,14 @@
 package controller
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -84,4 +90,42 @@ func TestValidateMetaproxyProvisionRequestRejectsMalformedRatioJson(t *testing.T
 	request.Options.GroupRatio = `{"standard":"free"}`
 	err := validateMetaproxyProvisionRequest(request, request.Digest, "none")
 	require.ErrorContains(t, err, "GroupRatio")
+}
+
+func TestCommaValuesNormalizesWhitespace(t *testing.T) {
+	values, err := commaValues("model-a, model-b\t")
+	require.NoError(t, err)
+	require.Equal(t, []string{"model-a", "model-b"}, values)
+}
+
+func TestToMetaproxyProvisionConfigStoresNormalizedLists(t *testing.T) {
+	request := validMetaproxyProvisionRequest()
+	request.Channels[0].Models = "model-one, model-two\t"
+	request.Channels[0].Group = "standard, archive\t"
+
+	config := toMetaproxyProvisionConfig(request)
+	require.Equal(t, "model-one,model-two", config.Channels[0].Models)
+	require.Equal(t, "standard,archive", config.Channels[0].Group)
+}
+
+func TestApplyMetaproxyProvisionRequiresMemoryCache(t *testing.T) {
+	previous := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() { common.MemoryCacheEnabled = previous })
+
+	body, err := json.Marshal(validMetaproxyProvisionRequest())
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/metaproxy/provision", bytes.NewReader(body))
+	context.Request.Header.Set(
+		"Idempotency-Key",
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+	)
+	context.Request.Header.Set("If-Match", "none")
+
+	ApplyMetaproxyProvision(context)
+
+	require.Equal(t, http.StatusPreconditionFailed, recorder.Code)
+	require.Contains(t, recorder.Body.String(), "MEMORY_CACHE_ENABLED=true")
 }

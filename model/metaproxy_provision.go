@@ -19,10 +19,11 @@ const (
 )
 
 var (
-	ErrMetaproxyProvisionConflict = errors.New("metaproxy provision revision conflict")
-	metaproxyProvisionLock        sync.Mutex
-	metaproxyProvisionRuntimeLock sync.RWMutex
-	provisionRuntimeFrozen        atomic.Bool
+	ErrMetaproxyProvisionConflict            = errors.New("metaproxy provision revision conflict")
+	ErrMetaproxyProvisionRequiresMemoryCache = errors.New("metaproxy provision requires MEMORY_CACHE_ENABLED=true")
+	metaproxyProvisionLock                   sync.Mutex
+	metaproxyProvisionRuntimeLock            sync.RWMutex
+	provisionRuntimeFrozen                   atomic.Bool
 )
 
 type MetaproxyProvisionChannel struct {
@@ -96,7 +97,7 @@ func activeMetaproxyProvisionDigest() string {
 
 func provisionOptionValue(tx *gorm.DB, key string) (string, error) {
 	var option Option
-	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&option, "key = ?", key).Error
+	err := lockForUpdate(tx).First(&option, &Option{Key: key}).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return MetaproxyProvisionNoDigest, nil
 	}
@@ -111,7 +112,7 @@ func provisionOptionValue(tx *gorm.DB, key string) (string, error) {
 
 func optionMatches(tx *gorm.DB, key, value string) (bool, error) {
 	var option Option
-	err := tx.First(&option, "key = ?", key).Error
+	err := tx.First(&option, &Option{Key: key}).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return false, nil
 	}
@@ -245,6 +246,7 @@ func replaceManagedProvisionState(tx *gorm.DB, config MetaproxyProvisionConfig) 
 			}
 			continue
 		}
+		desired.CreatedTime = common.GetTimestamp()
 		if err := tx.Create(&desired).Error; err != nil {
 			return err
 		}
@@ -285,6 +287,9 @@ func ApplyMetaproxyProvision(
 	config MetaproxyProvisionConfig,
 	expectedDigest string,
 ) (MetaproxyProvisionResult, error) {
+	if !common.MemoryCacheEnabled {
+		return MetaproxyProvisionResult{}, ErrMetaproxyProvisionRequiresMemoryCache
+	}
 	metaproxyProvisionLock.Lock()
 	defer metaproxyProvisionLock.Unlock()
 	metaproxyProvisionRuntimeLock.Lock()

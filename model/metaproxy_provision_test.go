@@ -19,7 +19,9 @@ func setupMetaproxyProvisionTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, db.AutoMigrate(&Channel{}, &Ability{}, &Option{}))
 
 	previousDB := DB
+	previousMemoryCacheEnabled := common.MemoryCacheEnabled
 	DB = db
+	common.MemoryCacheEnabled = true
 	provisionRuntimeFrozen.Store(false)
 	common.OptionMapRWMutex.Lock()
 	previousOptions := common.OptionMap
@@ -30,6 +32,7 @@ func setupMetaproxyProvisionTestDB(t *testing.T) *gorm.DB {
 	common.OptionMapRWMutex.Unlock()
 	t.Cleanup(func() {
 		DB = previousDB
+		common.MemoryCacheEnabled = previousMemoryCacheEnabled
 		provisionRuntimeFrozen.Store(false)
 		common.OptionMapRWMutex.Lock()
 		common.OptionMap = previousOptions
@@ -120,6 +123,7 @@ func TestApplyMetaproxyProvisionReplacesManagedStateAtomically(t *testing.T) {
 	require.Len(t, channels, 1)
 	require.Equal(t, "New upstream [new]", channels[0].Name)
 	require.Equal(t, "new-key", channels[0].Key)
+	require.Greater(t, channels[0].CreatedTime, int64(0))
 
 	var abilities []Ability
 	require.NoError(t, db.Find(&abilities).Error)
@@ -156,6 +160,14 @@ func TestApplyMetaproxyProvisionConflictDoesNotWrite(t *testing.T) {
 	var digest Option
 	require.NoError(t, db.First(&digest, "key = ?", MetaproxyProvisionDigestOption).Error)
 	require.Equal(t, "old-digest", digest.Value)
+}
+
+func TestApplyMetaproxyProvisionRequiresMemoryCache(t *testing.T) {
+	setupMetaproxyProvisionTestDB(t)
+	common.MemoryCacheEnabled = false
+
+	_, err := ApplyMetaproxyProvision(desiredProvisionConfig(), "none")
+	require.ErrorIs(t, err, ErrMetaproxyProvisionRequiresMemoryCache)
 }
 
 func TestApplyMetaproxyProvisionUpdatesInPlaceAndIsIdempotent(t *testing.T) {

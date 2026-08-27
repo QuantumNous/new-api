@@ -92,7 +92,7 @@ func validateOptionalJSONObject(name, raw string) error {
 func commaValues(raw string) ([]string, error) {
 	parts := strings.Split(raw, ",")
 	seen := make(map[string]struct{}, len(parts))
-	for _, part := range parts {
+	for index, part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			return nil, errors.New("contains an empty item")
@@ -101,6 +101,7 @@ func commaValues(raw string) ([]string, error) {
 			return nil, fmt.Errorf("contains duplicate item %q", part)
 		}
 		seen[part] = struct{}{}
+		parts[index] = part
 	}
 	return parts, nil
 }
@@ -229,14 +230,16 @@ func validateMetaproxyProvisionRequest(
 func toMetaproxyProvisionConfig(request metaproxyProvisionRequest) model.MetaproxyProvisionConfig {
 	channels := make([]model.MetaproxyProvisionChannel, 0, len(request.Channels))
 	for _, channel := range request.Channels {
+		models, _ := commaValues(channel.Models)
+		groups, _ := commaValues(channel.Group)
 		channels = append(channels, model.MetaproxyProvisionChannel{
 			Type:           channel.Type,
 			Key:            channel.Key,
 			Name:           channel.Name,
 			BaseURL:        channel.BaseURL,
-			Models:         channel.Models,
+			Models:         strings.Join(models, ","),
 			ModelMapping:   channel.ModelMapping,
-			Group:          channel.Group,
+			Group:          strings.Join(groups, ","),
 			Priority:       channel.Priority,
 			Weight:         channel.Weight,
 			Status:         channel.Status,
@@ -275,6 +278,10 @@ func ApplyMetaproxyProvision(c *gin.Context) {
 	}
 
 	result, err := model.ApplyMetaproxyProvision(toMetaproxyProvisionConfig(request), expectedDigest)
+	if errors.Is(err, model.ErrMetaproxyProvisionRequiresMemoryCache) {
+		c.JSON(http.StatusPreconditionFailed, gin.H{"success": false, "message": err.Error()})
+		return
+	}
 	if errors.Is(err, model.ErrMetaproxyProvisionConflict) {
 		c.JSON(http.StatusConflict, gin.H{"success": false, "message": err.Error()})
 		return
