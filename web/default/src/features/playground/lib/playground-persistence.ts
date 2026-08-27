@@ -279,6 +279,102 @@ export interface PlaygroundConversationSnapshot {
   messages: Message[]
 }
 
+function hasAttachmentData(attachment: PlaygroundAttachment): boolean {
+  return (
+    (typeof attachment.url === 'string' && attachment.url.length > 0) ||
+    (typeof attachment.text === 'string' && attachment.text.length > 0)
+  )
+}
+
+function attachmentIdentity(attachment: PlaygroundAttachment): string {
+  return `${attachment.kind}\u0000${attachment.filename}\u0000${attachment.mediaType}`
+}
+
+function mergeRestoredAttachments(
+  serverAttachments: PlaygroundAttachment[] | undefined,
+  localAttachments: PlaygroundAttachment[] | undefined
+): PlaygroundAttachment[] | undefined {
+  if (!localAttachments || localAttachments.length === 0) {
+    return serverAttachments
+  }
+  if (!serverAttachments || serverAttachments.length === 0) {
+    return localAttachments
+  }
+
+  const localByIdentity = new Map(
+    localAttachments.map((attachment) => [
+      attachmentIdentity(attachment),
+      attachment,
+    ])
+  )
+  let changed = false
+  const merged = serverAttachments.map((serverAttachment, index) => {
+    if (hasAttachmentData(serverAttachment)) return serverAttachment
+
+    const localAttachment =
+      localByIdentity.get(attachmentIdentity(serverAttachment)) ??
+      localAttachments[index]
+    if (!localAttachment || !hasAttachmentData(localAttachment)) {
+      return serverAttachment
+    }
+
+    changed = true
+    return { ...serverAttachment, ...localAttachment }
+  })
+
+  return changed ? merged : serverAttachments
+}
+
+/**
+ * Rehydrates attachment data stripped from the server's persisted snapshot.
+ * Inline media remains browser-local by design, so only matching messages and
+ * versions from the same conversation may contribute the missing fields.
+ */
+export function mergeRestoredMessages(
+  serverMessages: Message[],
+  localMessages: Message[]
+): Message[] {
+  if (serverMessages.length === 0 || localMessages.length === 0) {
+    return serverMessages
+  }
+
+  const localByKey = new Map(
+    localMessages.map((message) => [message.key, message])
+  )
+  let changed = false
+  const mergedMessages = serverMessages.map((serverMessage) => {
+    const localMessage = localByKey.get(serverMessage.key)
+    if (!localMessage) return serverMessage
+
+    const localVersionsById = new Map(
+      localMessage.versions.map((version) => [version.id, version])
+    )
+    let messageChanged = false
+    const mergedVersions = serverMessage.versions.map(
+      (serverVersion, index) => {
+        const localVersion =
+          localVersionsById.get(serverVersion.id) ??
+          localMessage.versions[index]
+        const attachments = mergeRestoredAttachments(
+          serverVersion.attachments,
+          localVersion?.attachments
+        )
+        if (attachments === serverVersion.attachments) return serverVersion
+
+        messageChanged = true
+        changed = true
+        return { ...serverVersion, attachments }
+      }
+    )
+
+    return messageChanged
+      ? { ...serverMessage, versions: mergedVersions }
+      : serverMessage
+  })
+
+  return changed ? mergedMessages : serverMessages
+}
+
 export type PlaygroundRestoreResult =
   | {
       pendingRecords: PlaygroundRecordPayload[]

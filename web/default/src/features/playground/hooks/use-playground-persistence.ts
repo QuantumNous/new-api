@@ -32,6 +32,7 @@ import {
   createPlaygroundId,
   drainPlaygroundOutbox,
   loadLocalConversationPriority,
+  mergeRestoredMessages,
   restorePlaygroundSession,
   saveLocalConversationPriority,
   type ActivePlaygroundTurn,
@@ -212,8 +213,15 @@ export function usePlaygroundPersistence({
       if (cancelled || !result.shouldApplyCurrent) return
 
       if (result.current) {
+        const restoredMessages =
+          result.current.conversation_id === conversationIdRef.current
+            ? mergeRestoredMessages(
+                result.current.messages,
+                messagesRef.current
+              )
+            : result.current.messages
         setConversationId(result.current.conversation_id)
-        updateMessages(result.current.messages)
+        updateMessages(restoredMessages)
       } else {
         updateMessages([])
         setConversationId(createPlaygroundId())

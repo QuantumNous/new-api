@@ -27,6 +27,7 @@ import {
   buildPlaygroundRecordPayload,
   createActivePlaygroundTurn,
   drainPlaygroundOutbox,
+  mergeRestoredMessages,
   removeDeliveredPlaygroundRecords,
   restorePlaygroundSession,
   type ActivePlaygroundTurn,
@@ -98,6 +99,78 @@ function activeTurn(): ActivePlaygroundTurn {
 }
 
 describe('Playground persistence payloads', () => {
+  test('restores local attachment data omitted from the server snapshot', () => {
+    const serverMessages: Message[] = [
+      {
+        ...userMessage,
+        versions: [
+          {
+            ...userMessage.versions[0],
+            attachments: [
+              {
+                kind: 'image',
+                filename: 'photo.png',
+                mediaType: 'image/png',
+              },
+            ],
+          },
+        ],
+      },
+    ]
+    const localMessages: Message[] = [
+      {
+        ...userMessage,
+        versions: [
+          {
+            ...userMessage.versions[0],
+            attachments: [
+              {
+                kind: 'image',
+                filename: 'photo.png',
+                mediaType: 'image/png',
+                url: 'data:image/png;base64,AA==',
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const restored = mergeRestoredMessages(serverMessages, localMessages)
+
+    expect(restored[0].versions[0].attachments).toEqual(
+      localMessages[0].versions[0].attachments
+    )
+    expect(restored[0].versions[0].content).toBe('hello')
+  })
+
+  test('does not copy attachments across unrelated messages', () => {
+    const serverMessages: Message[] = [userMessage]
+    const localMessages: Message[] = [
+      {
+        ...userMessage,
+        key: 'different-message',
+        versions: [
+          {
+            ...userMessage.versions[0],
+            attachments: [
+              {
+                kind: 'image',
+                filename: 'photo.png',
+                mediaType: 'image/png',
+                url: 'data:image/png;base64,AA==',
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    expect(mergeRestoredMessages(serverMessages, localMessages)).toEqual(
+      serverMessages
+    )
+  })
+
   test('captures the normalized relay request when a turn starts', () => {
     const active = createActivePlaygroundTurn(
       '550e8400-e29b-41d4-a716-446655440001',
