@@ -1227,6 +1227,57 @@ func TestRetrieveTaskPluginResponseNotFound(t *testing.T) {
 	}
 }
 
+func TestRespondPluginProtocolSubmissionErrorPassesValidationMessage(t *testing.T) {
+	pinned := compilePluginProtocolTestEndpoint(t, "protocol-validation-detail", `
+		export const protocols = {openai_responses: {
+			renderEvents: function() { return {events: [], done: false}; },
+			renderFinal: function() { return {}; }
+		}};
+	`)
+	c, recorder := newPluginProtocolTestContext(false, false)
+	deps := pluginProtocolTestDeps()
+	deps.submit = func(*gin.Context, *relaycommon.RelayInfo) (*taskSubmissionOutcome, *dto.TaskError) {
+		return nil, &dto.TaskError{
+			Code:       "invalid_request",
+			Message:    "model is required",
+			StatusCode: http.StatusBadRequest,
+			LocalError: true,
+		}
+	}
+
+	serveTaskPluginProtocol(c, pinned, deps)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"message":"model is required"`)
+	assert.Contains(t, recorder.Body.String(), `"code":"invalid_request_error"`)
+	assert.NotContains(t, recorder.Body.String(), "Invalid task protocol request")
+}
+
+func TestRespondPluginProtocolSubmissionErrorKeepsGenericNonValidation400(t *testing.T) {
+	pinned := compilePluginProtocolTestEndpoint(t, "protocol-generic-400", `
+		export const protocols = {openai_responses: {
+			renderEvents: function() { return {events: [], done: false}; },
+			renderFinal: function() { return {}; }
+		}};
+	`)
+	c, recorder := newPluginProtocolTestContext(false, false)
+	deps := pluginProtocolTestDeps()
+	deps.submit = func(*gin.Context, *relaycommon.RelayInfo) (*taskSubmissionOutcome, *dto.TaskError) {
+		return nil, &dto.TaskError{
+			Code:       "task_not_exist",
+			Message:    "task_origin_not_exist",
+			StatusCode: http.StatusBadRequest,
+			LocalError: true,
+		}
+	}
+
+	serveTaskPluginProtocol(c, pinned, deps)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "Invalid task protocol request")
+	assert.NotContains(t, recorder.Body.String(), "task_origin_not_exist")
+}
+
 func compilePluginProtocolTestEndpoint(t *testing.T, key, source string) pluginruntime.PinnedEndpoint {
 	t.Helper()
 	return compilePluginProtocolTestEndpointWithOptions(t, key, source, pluginruntime.Options{})

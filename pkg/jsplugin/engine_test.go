@@ -3,9 +3,11 @@ package jsplugin
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
@@ -166,6 +168,66 @@ func TestEngineInterruptsLongRunningHook(t *testing.T) {
 	_, err = engine.Call(context.Background(), "run")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "timed out")
+	var hookErr *HookError
+	assert.False(t, errors.As(err, &hookErr), "timeouts must not be HookError")
+}
+
+func TestEngineHookErrorExtractsSanitizedJSMessage(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		source      string
+		wantMessage string
+		wantLen     int
+	}{
+		{
+			name:        "Error object",
+			source:      `export function run() { throw new Error("model is required"); }`,
+			wantMessage: "model is required",
+		},
+		{
+			name:        "raw string throw",
+			source:      `export function run() { throw "raw string"; }`,
+			wantMessage: "raw string",
+		},
+		{
+			name:        "truncates to 512 runes",
+			source:      `export function run() { throw new Error("x".repeat(2000)); }`,
+			wantLen:     512,
+			wantMessage: strings.Repeat("x", 512),
+		},
+		{
+			name:        "scrubs control characters",
+			source:      "export function run() { throw new Error(\"line1\\nline2\\x1b[31mred\"); }",
+			wantMessage: "line1 line2 [31mred",
+		},
+		{
+			name:        "throwing message getter falls back without crashing",
+			source:      `export function run() { throw {get message() { throw {get message() { return "deep"; }}; }}; }`,
+			wantMessage: "plugin hook failed",
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			engine, err := Compile(testCase.source, Options{Key: "diag", Version: "1.0.0"})
+			require.NoError(t, err)
+
+			_, err = engine.Call(context.Background(), "run")
+			require.Error(t, err)
+
+			var hookErr *HookError
+			require.True(t, errors.As(err, &hookErr))
+			assert.Equal(t, "run", hookErr.Hook)
+			assert.Equal(t, testCase.wantMessage, hookErr.Message)
+			if testCase.wantLen > 0 {
+				assert.Equal(t, testCase.wantLen, utf8.RuneCountInString(hookErr.Message))
+			}
+			assert.Contains(t, hookErr.Error(), "plugin diag@1.0.0")
+			assert.NotContains(t, hookErr.Message, "Error:")
+			assert.NotContains(t, hookErr.Message, "plugin diag@")
+		})
+	}
 }
 
 func TestEngineReportsProtocolAdmissionTimeoutSeparately(t *testing.T) {

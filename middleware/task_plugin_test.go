@@ -802,7 +802,11 @@ func TestPrepareTaskPluginEndpointRejectsModelDriftBeforeDistribution(t *testing
 
 	assert.False(t, reachedDistribution)
 	assert.Equal(t, http.StatusBadRequest, recorder.Code)
-	assert.NotContains(t, recorder.Body.String(), "outside-model")
+	var payload map[string]any
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	errObj, _ := payload["error"].(map[string]any)
+	require.NotNil(t, errObj)
+	assert.Contains(t, fmt.Sprint(errObj["message"]), `model "outside-model" is not served by this plugin`)
 }
 
 func TestPrepareTaskPluginEndpointAcceptsRegisteredVideoMultipartBody(t *testing.T) {
@@ -1128,7 +1132,7 @@ export const native = {error: function(ctx, error) {
 	  "message": "Task request failed",
 	  "status": 502,
 	  "retryable": true,
-	  "keys": ["code", "httpStatus", "message", "retryable"]
+	  "keys": ["code", "httpStatus", "message", "requestId", "retryable"]
 	}`, recorder.Body.String())
 	assert.NotContains(t, recorder.Body.String(), "upstream.invalid")
 	assert.NotContains(t, recorder.Body.String(), "secret")
@@ -1148,6 +1152,7 @@ func TestTaskPluginErrorFallbackIsSanitized(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(recorder)
 			c.Request = httptest.NewRequest(http.MethodPost, "/vendor/failure", nil)
+			c.Set(common.RequestIdKey, "fallback-req")
 			c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Plugin: plugin})
 			c.Set(jsplugin.ContextKeyRouteRequest, jsplugin.RouteRequestContext{
 				Path: "/vendor/failure", Method: http.MethodPost,
@@ -1157,7 +1162,7 @@ func TestTaskPluginErrorFallbackIsSanitized(t *testing.T) {
 			abortWithOpenAiMessage(c, http.StatusBadGateway, "https://user:password@upstream.invalid?token=secret")
 
 			assert.Equal(t, http.StatusBadGateway, recorder.Code)
-			assert.JSONEq(t, `{"code":"server_error","message":"Task request failed","data":null}`, recorder.Body.String())
+			assert.JSONEq(t, `{"code":"server_error","message":"Task request failed (request id: fallback-req)","data":null}`, recorder.Body.String())
 			assert.NotContains(t, recorder.Body.String(), "upstream.invalid")
 			assert.NotContains(t, recorder.Body.String(), "renderer secret")
 			assert.NotContains(t, recorder.Body.String(), "password")
@@ -1215,6 +1220,195 @@ func TestSunoFetchEmptyIDsReturnsSuccessfulEmptyArray(t *testing.T) {
 	assert.False(t, nextHandlerCalled)
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.JSONEq(t, `{"code":"success","message":"","data":[]}`, recorder.Body.String())
+}
+
+func TestPrepareTaskPluginRouteSurfacesDecodeHookMessage(t *testing.T) {
+	plugin := compileTaskRoutePlugin(t, `
+export const meta = {
+  apiVersion: 1, key: "route-decode-detail-test", name: "Decode", version: "1.0.0",
+  author: {name: "Test"},
+  models: ["detail-model"], fetchMode: "per_task",
+  routes: [{method: "POST", path: "/vendor/jobs", type: "submit", decode: "createTask", render: "created"}],
+};
+export const native = {createTask: function() { throw new Error("model is required"); }, created: function(ctx, task) { return task; }};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+`)
+	router := gin.New()
+	router.POST("/vendor/jobs", pinTaskPluginRoute(plugin, 0), PrepareTaskPluginRoute(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/vendor/jobs", strings.NewReader(`{"prompt":"x"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	var body dto.TaskError
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &body))
+	assert.Equal(t, "invalid_request", body.Code)
+	assert.Equal(t, "model is required", body.Message)
+}
+
+func TestPrepareTaskPluginRouteNativeErrorReceivesHookMessage(t *testing.T) {
+	plugin := compileTaskRoutePlugin(t, `
+export const meta = {
+  apiVersion: 1, key: "route-error-detail-test", name: "Error", version: "1.0.0",
+  author: {name: "Test"},
+  models: ["detail-model"], fetchMode: "per_task",
+  routes: [{method: "POST", path: "/vendor/jobs", type: "submit", decode: "createTask", render: "created"}],
+};
+export const native = {
+  createTask: function() { throw new Error("model is required"); },
+  created: function(ctx, task) { return task; },
+  error: function(ctx, error) { return {code: error.code, message: error.message, requestId: error.requestId}; },
+};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+`)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(common.RequestIdKey, "native-error-req")
+		c.Next()
+	})
+	router.POST("/vendor/jobs", pinTaskPluginRoute(plugin, 0), PrepareTaskPluginRoute(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/vendor/jobs", strings.NewReader(`{"prompt":"x"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.JSONEq(t, `{"code":"invalid_request","message":"model is required","requestId":"native-error-req"}`, recorder.Body.String())
+}
+
+func TestPrepareTaskPluginRouteRejectsNonObjectResultWithFixedMessage(t *testing.T) {
+	plugin := compileTaskRoutePlugin(t, `
+export const meta = {
+  apiVersion: 1, key: "route-result-object-test", name: "Result", version: "1.0.0",
+  author: {name: "Test"},
+  models: ["detail-model"], fetchMode: "per_task",
+  routes: [{method: "POST", path: "/vendor/jobs", type: "submit", decode: "createTask", render: "created"}],
+};
+export const native = {createTask: function() { return "not-an-object"; }, created: function(ctx, task) { return task; }};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+`)
+	router := gin.New()
+	router.POST("/vendor/jobs", pinTaskPluginRoute(plugin, 0), PrepareTaskPluginRoute(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/vendor/jobs", strings.NewReader(`{"model":"detail-model"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	var body dto.TaskError
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &body))
+	assert.Equal(t, "invalid_request", body.Code)
+	assert.Equal(t, "plugin returned an invalid route result", body.Message)
+}
+
+func TestPrepareTaskPluginRouteSurfacesRequestDecodeDetail(t *testing.T) {
+	plugin := compileTaskRoutePlugin(t, `
+export const meta = {
+  apiVersion: 1, key: "route-decode-body-test", name: "Decode", version: "1.0.0",
+  author: {name: "Test"},
+  models: ["detail-model"], fetchMode: "per_task",
+  routes: [{method: "POST", path: "/vendor/jobs", type: "submit", decode: "createTask", render: "created"}],
+};
+export const native = {createTask: function() { throw new Error("decoder must not run"); }, created: function(ctx, task) { return task; }};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+`)
+	router := gin.New()
+	router.POST("/vendor/jobs", pinTaskPluginRoute(plugin, 0), PrepareTaskPluginRoute(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/vendor/jobs", strings.NewReader(`{}`))
+	request.Header["Content-Type"] = []string{"application/json", "application/x-www-form-urlencoded"}
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	var body dto.TaskError
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &body))
+	assert.Equal(t, "invalid_request", body.Code)
+	assert.Contains(t, body.Message, "conflicting Content-Type")
+}
+
+func TestSanitizedTaskPluginErrorIgnoresDetailOn5xx(t *testing.T) {
+	got := sanitizedTaskPluginError(http.StatusInternalServerError, "database secret")
+	assert.Equal(t, "server_error", got.Code)
+	assert.Equal(t, "Task request failed", got.Message)
+	assert.Equal(t, http.StatusInternalServerError, got.HTTPStatus)
+
+	got = sanitizedTaskPluginError(http.StatusBadGateway, "https://user:password@upstream.invalid")
+	assert.Equal(t, "server_error", got.Code)
+	assert.Equal(t, "Task request failed", got.Message)
+}
+
+func TestTaskPluginErrorFallbackMessageIncludesRequestID(t *testing.T) {
+	plugin := compileTaskRoutePlugin(t, genericTaskPluginSource)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/vendor/failure", nil)
+	c.Set(common.RequestIdKey, "req-fallback-1")
+	c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Plugin: plugin})
+	c.Set(jsplugin.ContextKeyRouteRequest, jsplugin.RouteRequestContext{
+		Path: "/vendor/failure", Method: http.MethodPost,
+		Params: map[string]string{}, Query: map[string][]string{},
+	})
+
+	abortTaskPluginRouteErrorDetail(c, http.StatusBadRequest, "model is required")
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	var body dto.TaskError
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &body))
+	assert.Equal(t, "invalid_request", body.Code)
+	assert.Equal(t, "model is required (request id: req-fallback-1)", body.Message)
+	assert.True(t, strings.HasSuffix(body.Message, "(request id: req-fallback-1)"))
+}
+
+func TestPrepareTaskPluginEndpointSurfacesDecodeHookMessage(t *testing.T) {
+	const key = "endpoint-decode-detail-test"
+	_, err := jsplugin.DefaultRegistry.Register(taskProtocolPluginSource(
+		key,
+		"1.0.0",
+		`["claimed-model"]`,
+		"/v1/responses",
+		`throw new Error("model is required");`,
+	), jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(key)) })
+
+	router := gin.New()
+	router.POST("/v1/responses", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"claimed-model"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	router.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "model is required")
+	assert.NotContains(t, recorder.Body.String(), "Invalid task protocol request")
 }
 
 func compileTaskRoutePlugin(t *testing.T, source string) *jsplugin.LoadedPlugin {

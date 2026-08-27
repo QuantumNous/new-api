@@ -1171,7 +1171,11 @@ func respondPluginProtocolSubmissionError(c *gin.Context, taskErr *dto.TaskError
 	}
 	switch status {
 	case http.StatusBadRequest:
-		respondPluginProtocolError(c, status, "invalid_request_error", "Invalid task protocol request")
+		message := "Invalid task protocol request"
+		if taskErr != nil && taskErr.Message != "" && (taskErr.Code == "invalid_request" || strings.HasPrefix(taskErr.Code, "invalid_request")) {
+			message = taskErr.Message
+		}
+		respondPluginProtocolError(c, status, "invalid_request_error", message)
 	case http.StatusUnauthorized:
 		respondPluginProtocolError(c, status, "authentication_error", "Authentication failed")
 	case http.StatusForbidden:

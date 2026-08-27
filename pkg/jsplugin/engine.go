@@ -21,6 +21,83 @@ const (
 
 var ErrCallAdmissionTimeout = errors.New("plugin call admission timed out")
 
+const hookErrorMessageLimit = 512
+
+// HookError reports a JavaScript exception thrown by a plugin hook. Message
+// is the sanitized JS error message with engine prefixes stripped; it is safe
+// to surface to API callers.
+type HookError struct {
+	Hook    string
+	Message string
+	wrapped error
+}
+
+func (e *HookError) Error() string {
+	if e == nil || e.wrapped == nil {
+		return "plugin hook failed"
+	}
+	return e.wrapped.Error()
+}
+
+func (e *HookError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.wrapped
+}
+
+func newHookError(hook, rawMessage string, wrapped error) *HookError {
+	var b strings.Builder
+	b.Grow(len(rawMessage))
+	count := 0
+	for _, r := range rawMessage {
+		if count >= hookErrorMessageLimit {
+			break
+		}
+		if r < 0x20 || (r >= 0x80 && r <= 0x9F) {
+			r = ' '
+		}
+		b.WriteRune(r)
+		count++
+	}
+	message := b.String()
+	if message == "" {
+		message = "plugin hook failed"
+	}
+	return &HookError{Hook: hook, Message: message, wrapped: wrapped}
+}
+
+func hookErrorFromException(hook string, exc *sobek.Exception, wrapped error) (hookErr *HookError) {
+	// Reading message/toString executes plugin getters, which can throw again
+	// and panic sobek. By this point the caller's recover is already consumed,
+	// so a second panic would crash the process; fall back to a blank message.
+	defer func() {
+		if recover() != nil {
+			hookErr = newHookError(hook, "", wrapped)
+		}
+	}()
+	raw := ""
+	if exc != nil {
+		if val := exc.Value(); val != nil && !sobek.IsUndefined(val) && !sobek.IsNull(val) {
+			gotMessage := false
+			if obj, ok := val.(*sobek.Object); ok {
+				if msg := obj.Get("message"); msg != nil && !sobek.IsUndefined(msg) && !sobek.IsNull(msg) {
+					raw = msg.String()
+					gotMessage = true
+				}
+			}
+			if !gotMessage {
+				if exported, ok := val.Export().(string); ok {
+					raw = exported
+				} else {
+					raw = val.String()
+				}
+			}
+		}
+	}
+	return newHookError(hook, raw, wrapped)
+}
+
 var forbiddenSyntax = regexp.MustCompile(`(?m)(^|[^A-Za-z0-9_$])(async|await|import)([^A-Za-z0-9_$]|$)`)
 
 type Options struct {
@@ -289,7 +366,8 @@ func (e *Engine) call(
 			case *sobek.InterruptedError:
 				err = fmt.Errorf("plugin %s@%s hook %s interrupted: %v", e.key, e.version, hookName, value.Value())
 			case *sobek.Exception:
-				err = fmt.Errorf("plugin %s@%s hook %s failed: %v", e.key, e.version, hookName, value)
+				wrapped := fmt.Errorf("plugin %s@%s hook %s failed: %v", e.key, e.version, hookName, value)
+				err = hookErrorFromException(hookName, value, wrapped)
 			default:
 				panic(recovered)
 			}
@@ -322,8 +400,14 @@ func (e *Engine) call(
 		var interrupted *sobek.InterruptedError
 		if errors.As(err, &interrupted) {
 			reusable = false
+			return nil, fmt.Errorf("plugin %s@%s hook %s failed: %w", e.key, e.version, hookName, err)
 		}
-		return nil, fmt.Errorf("plugin %s@%s hook %s failed: %w", e.key, e.version, hookName, err)
+		wrapped := fmt.Errorf("plugin %s@%s hook %s failed: %w", e.key, e.version, hookName, err)
+		var exc *sobek.Exception
+		if errors.As(err, &exc) {
+			return nil, hookErrorFromException(hookName, exc, wrapped)
+		}
+		return nil, wrapped
 	}
 	return value.Export(), nil
 }
