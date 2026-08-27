@@ -96,12 +96,34 @@ func GetTopUpInfo(c *gin.Context) {
 		}
 	}
 
+	// 微信/支付宝原生扫码支付（区别于易支付聚合的 alipay/wxpay，type 独立、走二维码流程）
+	enableWechatNative := isWechatNativeTopUpEnabled()
+	if enableWechatNative {
+		payMethods = append(payMethods, map[string]string{
+			"name":  "微信支付",
+			"type":  model.PaymentMethodWechatNative,
+			"color": "#07C160",
+			"flow":  "qr",
+		})
+	}
+	enableAlipayNative := isAlipayNativeTopUpEnabled()
+	if enableAlipayNative {
+		payMethods = append(payMethods, map[string]string{
+			"name":  "支付宝",
+			"type":  model.PaymentMethodAlipayNative,
+			"color": "#1677FF",
+			"flow":  "qr",
+		})
+	}
+
 	data := gin.H{
 		"enable_online_topup":              isEpayTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
+		"enable_wechat_native_topup":       enableWechatNative,
+		"enable_alipay_native_topup":       enableAlipayNative,
 		"enable_redemption":                complianceConfirmed,
 		"payment_compliance_confirmed":     complianceConfirmed,
 		"payment_compliance_terms_version": operation_setting.CurrentComplianceTermsVersion,

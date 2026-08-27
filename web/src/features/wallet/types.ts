@@ -42,6 +42,11 @@ export type StripePaymentResponse = ApiResponse<{ pay_link: string }>
 export type AffiliateCodeResponse = ApiResponse<string>
 export type AffiliateTransferResponse = ApiResponse
 export type CreemPaymentResponse = ApiResponse<{ checkout_url: string }>
+export type NativePaymentResponse = ApiResponse<{
+  code_url: string
+  trade_no: string
+}>
+export type NativeQueryResponse = ApiResponse<{ status: string }>
 export type WaffoPaymentResponse = ApiResponse<
   { payment_url?: string } | string
 >
@@ -150,6 +155,10 @@ export interface TopupInfo {
   enable_waffo_pancake_topup?: boolean
   /** Minimum topup amount for Waffo Pancake */
   waffo_pancake_min_topup?: number
+  /** Whether native WeChat Pay (QR) topup is enabled */
+  enable_wechat_native_topup?: boolean
+  /** Whether native Alipay (QR) topup is enabled */
+  enable_alipay_native_topup?: boolean
   /** Whether redemption code usage is enabled */
   enable_redemption?: boolean
   /** Whether compliance confirmation has been completed */

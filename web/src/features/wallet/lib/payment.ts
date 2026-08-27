@@ -93,6 +93,19 @@ export function isWaffoPancakePayment(paymentType: string): boolean {
   return paymentType === PAYMENT_TYPES.WAFFO_PANCAKE
 }
 
+/**
+ * Check if payment method is a native WeChat/Alipay QR payment.
+ *
+ * These render an inline QR code and poll order status, rather than the epay
+ * form redirect or Stripe/Creem new-tab flows.
+ */
+export function isNativeQrPayment(paymentType: string): boolean {
+  return (
+    paymentType === PAYMENT_TYPES.WECHAT_NATIVE ||
+    paymentType === PAYMENT_TYPES.ALIPAY_NATIVE
+  )
+}
+
 export interface PaymentProcessors {
   regular: (topupAmount: number, paymentType: string) => Promise<boolean>
   waffo: (topupAmount: number, payMethodIndex: number) => Promise<boolean>
