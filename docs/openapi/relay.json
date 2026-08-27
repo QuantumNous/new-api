@@ -555,6 +555,59 @@
         "parameters": [],
         "requestBody": {
           "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "model",
+                  "prompt"
+                ],
+                "properties": {
+                  "model": {
+                    "description": "模型名称",
+                    "example": "gemini-omni-flash-preview",
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "description": "提示词",
+                    "example": "Change the sphere to green. Keep everything else the same.",
+                    "type": "string"
+                  },
+                  "duration": {
+                    "description": "输出视频秒数；Gemini Omni Flash 支持 3 至 10 秒",
+                    "example": 3,
+                    "oneOf": [
+                      {
+                        "type": "integer"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "size": {
+                    "description": "输出尺寸",
+                    "example": "1280x720",
+                    "type": "string"
+                  },
+                  "video": {
+                    "description": "单个参考视频；支持原始 Base64、Data URI 或经过 SSRF 防护的 HTTP(S) URL。最长 10 秒，最大 64 MiB，支持 MP4 或 QuickTime",
+                    "example": "data:video/mp4;base64,...",
+                    "type": "string"
+                  },
+                  "videos": {
+                    "description": "参考视频数组；Gemini Omni Flash 当前最多允许一个",
+                    "maxItems": 1,
+                    "type": "array",
+                    "items": {
+                      "description": "原始 Base64、Data URI 或经过 SSRF 防护的 HTTP(S) URL",
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "examples": {}
+            },
             "multipart/form-data": {
               "schema": {
                 "type": "object",
@@ -578,6 +631,12 @@
                     "format": "binary",
                     "type": "string",
                     "description": "参考图片文件",
+                    "example": ""
+                  },
+                  "video": {
+                    "format": "binary",
+                    "type": "string",
+                    "description": "Gemini Omni Flash 参考视频文件；仅允许一个，最长 10 秒，最大 64 MiB，支持 MP4 或 QuickTime",
                     "example": ""
                   }
                 }

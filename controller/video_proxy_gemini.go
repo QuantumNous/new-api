@@ -18,7 +18,7 @@ func getGeminiVideoURL(channel *model.Channel, task *model.Task, apiKey string) 
 	}
 
 	if url := extractGeminiVideoURLFromTaskData(task); url != "" {
-		return ensureAPIKey(url, apiKey), nil
+		return ensureGeminiVideoAccess(url, apiKey), nil
 	}
 
 	baseURL := constant.ChannelBaseURLs[channel.Type]
@@ -51,12 +51,17 @@ func getGeminiVideoURL(channel *model.Channel, task *model.Task, apiKey string) 
 	}
 
 	taskInfo, parseErr := adaptor.ParseTaskResult(body)
-	if parseErr == nil && taskInfo != nil && taskInfo.RemoteUrl != "" {
-		return ensureAPIKey(taskInfo.RemoteUrl, apiKey), nil
+	if parseErr == nil && taskInfo != nil {
+		if taskInfo.Url != "" {
+			return ensureGeminiVideoAccess(taskInfo.Url, apiKey), nil
+		}
+		if taskInfo.RemoteUrl != "" {
+			return ensureGeminiVideoAccess(taskInfo.RemoteUrl, apiKey), nil
+		}
 	}
 
 	if url := extractGeminiVideoURLFromPayload(body); url != "" {
-		return ensureAPIKey(url, apiKey), nil
+		return ensureGeminiVideoAccess(url, apiKey), nil
 	}
 
 	if parseErr != nil {
@@ -64,6 +69,13 @@ func getGeminiVideoURL(channel *model.Channel, task *model.Task, apiKey string) 
 	}
 
 	return "", fmt.Errorf("gemini video url not found")
+}
+
+func ensureGeminiVideoAccess(videoURL string, apiKey string) string {
+	if strings.HasPrefix(strings.TrimSpace(videoURL), "data:") {
+		return videoURL
+	}
+	return ensureAPIKey(videoURL, apiKey)
 }
 
 func extractGeminiVideoURLFromTaskData(task *model.Task) string {

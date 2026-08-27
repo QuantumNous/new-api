@@ -168,6 +168,7 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 		Model:    formData.Get("model"),
 		Mode:     formData.Get("mode"),
 		Image:    formData.Get("image"),
+		Video:    formData.Get("video"),
 		Size:     formData.Get("size"),
 		Metadata: make(map[string]interface{}),
 	}
@@ -180,6 +181,9 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 
 	if images := formData["images"]; len(images) > 0 {
 		req.Images = images
+	}
+	if videos := formData["videos"]; len(videos) > 0 {
+		req.Videos = videos
 	}
 
 	for key, values := range formData {
@@ -273,6 +277,8 @@ func isKnownTaskField(field string) bool {
 		"mode":            true,
 		"image":           true,
 		"images":          true,
+		"video":           true,
+		"videos":          true,
 		"size":            true,
 		"duration":        true,
 		"input_reference": true, // Sora 特有字段

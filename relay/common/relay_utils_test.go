@@ -77,6 +77,23 @@ func TestValidateMultipartDirectNormalizesImageField(t *testing.T) {
 	require.Equal(t, constant.TaskActionGenerate, info.Action)
 }
 
+func TestValidateBasicTaskRequestStoresReferenceVideo(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := strings.NewReader(`{"model":"gemini-omni-flash-preview","prompt":"edit","video":"data:video/mp4;base64,AAAA"}`)
+	request := httptest.NewRequest(http.MethodPost, "/v1/videos", body)
+	request.Header.Set("Content-Type", "application/json")
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Request = request
+	info := &RelayInfo{TaskRelayInfo: &TaskRelayInfo{}}
+
+	taskErr := ValidateBasicTaskRequest(context, info, constant.TaskActionTextGenerate)
+
+	require.Nil(t, taskErr)
+	storedReq, err := GetTaskRequest(context)
+	require.NoError(t, err)
+	assert.Equal(t, "data:video/mp4;base64,AAAA", storedReq.Video)
+}
+
 // TestTaskDurationBounds guards the billing invariant that user-supplied
 // video duration (a quota multiplier via OtherRatio "seconds") is bounded, so
 // it can never overflow quota calculation into a negative charge.

@@ -620,6 +620,26 @@ func redactVideoResponseBody(body []byte) []byte {
 			}
 		}
 	}
+	for _, field := range []string{"steps", "outputs"} {
+		items, _ := m[field].([]any)
+		for _, item := range items {
+			step, _ := item.(map[string]any)
+			stepType, _ := step["type"].(string)
+			stepMimeType, _ := step["mime_type"].(string)
+			if stepType == "video" || strings.HasPrefix(stepMimeType, "video/") {
+				delete(step, "data")
+			}
+			contents, _ := step["content"].([]any)
+			for _, content := range contents {
+				part, _ := content.(map[string]any)
+				partType, _ := part["type"].(string)
+				mimeType, _ := part["mime_type"].(string)
+				if partType == "video" || strings.HasPrefix(mimeType, "video/") {
+					delete(part, "data")
+				}
+			}
+		}
+	}
 	b, err := common.Marshal(m)
 	if err != nil {
 		return body

@@ -241,6 +241,11 @@ const (
 	MsgRateLimitTotalReached = "rate_limit.total_reached"
 )
 
+// Video task validation messages
+const (
+	MsgOmniReferenceVideoDurationExceeded = "video.omni.reference_duration_exceeded"
+)
+
 // Setting related messages
 const (
 	MsgSettingInvalidType      = "setting.invalid_type"
