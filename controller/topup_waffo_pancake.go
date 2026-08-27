@@ -180,6 +180,7 @@ type createWaffoPancakePairRequest struct {
 	MerchantID string `json:"merchant_id"`
 	PrivateKey string `json:"private_key"`
 	ReturnURL  string `json:"return_url"`
+	Currency   string `json:"currency"`
 }
 
 // SaveWaffoPancake atomically persists all five operator-controlled fields.
@@ -249,8 +250,16 @@ func CreateWaffoPancakePair(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 凭证未配置"})
 		return
 	}
+	currency := strings.ToUpper(strings.TrimSpace(req.Currency))
+	if currency == "" {
+		currency = "USD"
+	}
+	if currency != "USD" && currency != "CNY" {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "商品币种仅支持 USD 或 CNY"})
+		return
+	}
 	result, err := service.CreateWaffoPancakePrimaryPair(
-		c.Request.Context(), merchantID, privateKey, req.ReturnURL,
+		c.Request.Context(), merchantID, privateKey, req.ReturnURL, currency,
 	)
 	if err != nil {
 		orphan := result != nil && result.OrphanStore
@@ -482,7 +491,7 @@ func RequestWaffoPancakePay(c *gin.Context) {
 	expiresInSeconds := 45 * 60
 	session, err := createWaffoPancakeCheckoutSession(c.Request.Context(), &service.WaffoPancakeCreateSessionParams{
 		ProductID:     setting.WaffoPancakeProductID,
-		Currency:      product.Currency,
+		Currency:      strings.ToUpper(strings.TrimSpace(product.Currency)),
 		BuyerIdentity: getWaffoPancakeBuyerIdentity(user),
 		PriceSnapshot: &service.WaffoPancakePriceSnapshot{
 			Amount:      formatWaffoPancakeAmount(payMoney),

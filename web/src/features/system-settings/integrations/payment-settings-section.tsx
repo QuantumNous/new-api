@@ -1232,7 +1232,7 @@ export function PaymentSettingsSection({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>
-                          {t('Price (local currency / USD)')}
+                          {t('Epay price (local currency / wallet USD)')}
                         </FormLabel>
                         <FormControl>
                           <Input
@@ -1244,7 +1244,7 @@ export function PaymentSettingsSection({
                         </FormControl>
                         <FormDescription>
                           {t(
-                            'How much to charge for each US dollar of balance (Epay)'
+                            'How much Epay charges in local currency for each USD of wallet balance. This does not affect Stripe, Creem, Waffo, or Waffo Pancake. It is also used to convert Moonshot channel balances reported in CNY to USD.'
                           )}
                         </FormDescription>
                         <FormMessage />
@@ -1257,7 +1257,7 @@ export function PaymentSettingsSection({
                     name='MinTopUp'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                        <FormLabel>{t('Epay minimum top-up (USD)')}</FormLabel>
                         <FormControl>
                           <Input
                             type='number'
@@ -1267,7 +1267,9 @@ export function PaymentSettingsSection({
                           />
                         </FormControl>
                         <FormDescription>
-                          {t('Smallest USD amount users can recharge (Epay)')}
+                          {t(
+                            'Smallest wallet USD amount accepted by Epay. Other gateways use their own minimum top-up settings.'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>

@@ -90,11 +90,13 @@ export async function createWaffoPancakePair(params: {
   merchantID: string
   privateKey: string
   returnURL: string
+  currency?: string
 }): Promise<PairResponse> {
   const res = await api.post<PairResponse>('/api/option/waffo-pancake/pair', {
     merchant_id: params.merchantID,
     private_key: params.privateKey,
     return_url: params.returnURL,
+    currency: params.currency?.trim().toUpperCase() || 'USD',
   })
   return res.data
 }

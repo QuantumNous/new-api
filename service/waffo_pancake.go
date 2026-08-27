@@ -282,6 +282,30 @@ func CreateWaffoPancakePrimaryStore(ctx context.Context, merchantID, privateKey 
 	return storeRes.Store.ID, nil
 }
 
+func normalizeWaffoPancakeProductCurrency(currency string) (string, error) {
+	currency = strings.ToUpper(strings.TrimSpace(currency))
+	if currency == "" {
+		return "USD", nil
+	}
+	if currency != "USD" && currency != "CNY" {
+		return "", fmt.Errorf("product currency must be USD or CNY")
+	}
+	return currency, nil
+}
+
+func buildWaffoPancakeProductPrices(currency, amount string) (pancake.Prices, string, error) {
+	currency, err := normalizeWaffoPancakeProductCurrency(currency)
+	if err != nil {
+		return nil, "", err
+	}
+	return pancake.Prices{
+		currency: {
+			Amount:      amount,
+			TaxCategory: pancake.TaxCategory("saas"),
+		},
+	}, currency, nil
+}
+
 func normalizeWaffoPancakePlanProductAmount(amount string) (string, error) {
 	amount = strings.TrimSpace(amount)
 	if amount == "" {
@@ -348,24 +372,23 @@ func CreateWaffoPancakeProductForPlan(ctx context.Context, merchantID, privateKe
 // CreateWaffoPancakePrimaryProduct mints (and publishes) the wallet-top-up
 // OnetimeProduct under storeID. Per-checkout price overrides via PriceSnapshot
 // are what make the "1.00" seed price irrelevant at runtime.
-func CreateWaffoPancakePrimaryProduct(ctx context.Context, merchantID, privateKey, storeID, returnURL string) (string, error) {
+func CreateWaffoPancakePrimaryProduct(ctx context.Context, merchantID, privateKey, storeID, returnURL, currency string) (string, error) {
 	storeID = strings.TrimSpace(storeID)
 	if storeID == "" {
 		return "", fmt.Errorf("store id is required to create a product")
+	}
+	prices, _, err := buildWaffoPancakeProductPrices(currency, "1.00")
+	if err != nil {
+		return "", err
 	}
 	client, err := newWaffoPancakeClientFromCreds(merchantID, privateKey)
 	if err != nil {
 		return "", err
 	}
 	prodRes, err := client.OnetimeProducts.Create(ctx, pancake.CreateOnetimeProductParams{
-		StoreID: storeID,
-		Name:    defaultWaffoPancakeProductName,
-		Prices: pancake.Prices{
-			"USD": {
-				Amount:      "1.00", // overridden at checkout via PriceSnapshot
-				TaxCategory: pancake.TaxCategory("saas"),
-			},
-		},
+		StoreID:    storeID,
+		Name:       defaultWaffoPancakeProductName,
+		Prices:     prices,
 		SuccessURL: optionalString(strings.TrimSpace(returnURL)),
 	})
 	if err != nil {
@@ -392,12 +415,16 @@ type WaffoPancakePairResult struct {
 // CreateWaffoPancakePrimaryPair mints a Store + OnetimeProduct in one
 // round-trip — the canonical "+ Create" entry point. Nothing is persisted
 // to settings; the operator's final Save commits the chosen IDs.
-func CreateWaffoPancakePrimaryPair(ctx context.Context, merchantID, privateKey, returnURL string) (*WaffoPancakePairResult, error) {
+func CreateWaffoPancakePrimaryPair(ctx context.Context, merchantID, privateKey, returnURL, currency string) (*WaffoPancakePairResult, error) {
+	currency, err := normalizeWaffoPancakeProductCurrency(currency)
+	if err != nil {
+		return nil, err
+	}
 	storeID, err := CreateWaffoPancakePrimaryStore(ctx, merchantID, privateKey)
 	if err != nil {
 		return nil, err
 	}
-	productID, err := CreateWaffoPancakePrimaryProduct(ctx, merchantID, privateKey, storeID, returnURL)
+	productID, err := CreateWaffoPancakePrimaryProduct(ctx, merchantID, privateKey, storeID, returnURL, currency)
 	if err != nil {
 		return &WaffoPancakePairResult{
 			StoreID:     storeID,

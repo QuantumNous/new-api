@@ -72,6 +72,10 @@ const PANCAKE_DASHBOARD_URL = 'https://pancake.waffo.ai/merchant/dashboard'
 const DEFAULT_NEW_STORE_NAME = 'new-api-store'
 const DEFAULT_NEW_PRODUCT_NAME = 'new-api-charge-product'
 const DEFAULT_NEW_PAIR_NAME = `${DEFAULT_NEW_STORE_NAME} + ${DEFAULT_NEW_PRODUCT_NAME}`
+const WALLET_PRODUCT_CURRENCY_ITEMS = [
+  { value: 'USD', label: 'USD' },
+  { value: 'CNY', label: 'CNY' },
+]
 
 export function WaffoPancakeSettingsSection({
   defaultValues,
@@ -135,10 +139,7 @@ export function WaffoPancakeSettingsSection({
   }, [selectedProduct])
 
   React.useEffect(() => {
-    if (!selectedProduct) {
-      if (selectedCurrency) onValueChange('WaffoPancakeCurrency', '')
-      return
-    }
+    if (!selectedProduct) return
 
     const currencies = selectedProduct.prices.map((price) =>
       price.currency.trim().toUpperCase()
@@ -333,6 +334,7 @@ export function WaffoPancakeSettingsSection({
         merchantID,
         privateKey,
         returnURL: trimmedReturn,
+        currency: selectedCurrency || 'USD',
       })
       if (
         body?.message === 'success' &&
@@ -489,7 +491,11 @@ export function WaffoPancakeSettingsSection({
         </div>
 
         <div className='grid gap-1.5'>
-          <Label>{t('Unit price (selected currency / USD)')}</Label>
+          <Label>
+            {t('Pancake exchange rate ({{currency}} per wallet USD)', {
+              currency: selectedCurrency || 'USD',
+            })}
+          </Label>
           <Input
             type='number'
             step='0.01'
@@ -501,7 +507,7 @@ export function WaffoPancakeSettingsSection({
           />
           <p className='text-muted-foreground text-xs'>
             {t(
-              'Amount charged for each USD of balance, before group ratios and amount discounts.'
+              'Amount charged in the selected Pancake currency for each USD of wallet balance, before group ratios and amount discounts. This setting is independent from the Epay Price field.'
             )}
           </p>
         </div>
@@ -518,7 +524,9 @@ export function WaffoPancakeSettingsSection({
             }
           />
           <p className='text-muted-foreground text-xs'>
-            {t('Smallest balance amount a user can purchase through Pancake.')}
+            {t(
+              'Smallest wallet balance amount a user can purchase through Pancake. This setting is independent from the Epay Minimum top-up field.'
+            )}
           </p>
         </div>
 
@@ -570,6 +578,30 @@ export function WaffoPancakeSettingsSection({
           </div>
 
           {/* Create section — first, since creating auto-fills the pick-existing dropdowns below. */}
+          <div className='space-y-1.5'>
+            <Label>{t('Currency for newly created wallet product')}</Label>
+            <Select
+              items={WALLET_PRODUCT_CURRENCY_ITEMS}
+              value={selectedCurrency || 'USD'}
+              onValueChange={(value) =>
+                onValueChange('WaffoPancakeCurrency', value ?? 'USD')
+              }
+            >
+              <SelectTrigger className='w-full'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='USD'>USD</SelectItem>
+                <SelectItem value='CNY'>CNY</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'The + Create action mints the Pancake product in this currency. Existing USD configurations remain unchanged; choose CNY for a CNY-only product.'
+              )}
+            </p>
+          </div>
+
           <div className='space-y-1.5'>
             <Label>{t('Payment return URL')}</Label>
             <div className='flex gap-2'>

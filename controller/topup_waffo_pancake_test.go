@@ -36,6 +36,7 @@ func setupWaffoPancakeControllerTest(t *testing.T) *gorm.DB {
 	previousCurrency := setting.WaffoPancakeCurrency
 	previousUnitPrice := setting.WaffoPancakeUnitPrice
 	previousMinTopUp := setting.WaffoPancakeMinTopUp
+	previousCommonPrice := operation_setting.Price
 	previousResolveConfigured := resolveConfiguredWaffoPancakeProduct
 	previousResolveProduct := resolveWaffoPancakeProduct
 	previousCreateSession := createWaffoPancakeCheckoutSession
@@ -79,6 +80,7 @@ func setupWaffoPancakeControllerTest(t *testing.T) *gorm.DB {
 		setting.WaffoPancakeCurrency = previousCurrency
 		setting.WaffoPancakeUnitPrice = previousUnitPrice
 		setting.WaffoPancakeMinTopUp = previousMinTopUp
+		operation_setting.Price = previousCommonPrice
 		resolveConfiguredWaffoPancakeProduct = previousResolveConfigured
 		resolveWaffoPancakeProduct = previousResolveProduct
 		createWaffoPancakeCheckoutSession = previousCreateSession
@@ -310,6 +312,39 @@ func TestRequestWaffoPancakePay_CheckoutErrorPreservesPendingExpectations(t *tes
 	require.Equal(t, "store-test", topUp.ExpectedStoreID)
 }
 
+func TestRequestWaffoPancakePay_CNYUsesIndependentRateAndSnapshotsCurrency(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupWaffoPancakeControllerTest(t)
+	const userID = 707
+	insertWaffoPancakeControllerUser(t, db, userID)
+	setting.WaffoPancakeCurrency = "CNY"
+	setting.WaffoPancakeUnitPrice = 7.25
+	operation_setting.Price = 1
+	getWaffoPancakeUserGroup = func(int, bool) (string, error) { return "default", nil }
+	resolveConfiguredWaffoPancakeProduct = func(context.Context) (waffoPancakeResolvedProduct, error) {
+		return waffoPancakeResolvedProduct{Amount: "1.00", Currency: "cny", TaxCategory: "digital-services"}, nil
+	}
+	var checkoutParams *service.WaffoPancakeCreateSessionParams
+	createWaffoPancakeCheckoutSession = func(_ context.Context, params *service.WaffoPancakeCreateSessionParams) (*service.WaffoPancakeCheckoutSession, error) {
+		checkoutParams = params
+		return nil, errors.New("stop after capturing checkout params")
+	}
+
+	response := invokeWaffoPancakePay(t, userID, `{"amount":10}`, RequestWaffoPancakePay)
+
+	require.Equal(t, http.StatusOK, response.Code)
+	require.JSONEq(t, `{"message":"error","data":"拉起支付失败"}`, response.Body.String())
+	require.NotNil(t, checkoutParams)
+	require.Equal(t, "CNY", checkoutParams.Currency)
+	require.NotNil(t, checkoutParams.PriceSnapshot)
+	require.Equal(t, "72.50", checkoutParams.PriceSnapshot.Amount)
+	var topUps []model.TopUp
+	require.NoError(t, db.Find(&topUps).Error)
+	require.Len(t, topUps, 1)
+	require.InDelta(t, 72.50, topUps[0].ExpectedAmount, 0.000001)
+	require.Equal(t, "CNY", topUps[0].ExpectedCurrency)
+}
+
 func TestSubscriptionRequestWaffoPancakePay_CheckoutErrorPreservesPendingSnapshots(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := setupWaffoPancakeControllerTest(t)
@@ -426,6 +461,7 @@ func TestFormatWaffoPancakeAmount_UsesDisplayPriceString(t *testing.T) {
 
 func TestGetWaffoPancakePayMoney(t *testing.T) {
 	originalUnitPrice := setting.WaffoPancakeUnitPrice
+	originalCommonPrice := operation_setting.Price
 	originalQuotaDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
 	originalDiscounts := make(map[int]float64, len(operation_setting.GetPaymentSetting().AmountDiscount))
 	for k, v := range operation_setting.GetPaymentSetting().AmountDiscount {
@@ -435,12 +471,14 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 
 	t.Cleanup(func() {
 		setting.WaffoPancakeUnitPrice = originalUnitPrice
+		operation_setting.Price = originalCommonPrice
 		operation_setting.GetGeneralSetting().QuotaDisplayType = originalQuotaDisplayType
 		operation_setting.GetPaymentSetting().AmountDiscount = originalDiscounts
 		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(originalTopupGroupRatio))
 	})
 
 	setting.WaffoPancakeUnitPrice = 2.5
+	operation_setting.Price = 99
 	operation_setting.GetPaymentSetting().AmountDiscount = map[int]float64{
 		10:                           0.8,
 		int(common.QuotaPerUnit * 3): 0.5,
@@ -456,7 +494,7 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 		expected         float64
 	}{
 		{
-			name:             "currency display applies unit price group ratio and discount",
+			name:             "currency display uses Pancake rate instead of common Epay price",
 			amount:           10,
 			group:            "vip",
 			quotaDisplayType: operation_setting.QuotaDisplayTypeUSD,

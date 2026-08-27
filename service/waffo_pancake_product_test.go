@@ -6,6 +6,59 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNormalizeWaffoPancakeProductCurrency(t *testing.T) {
+	testCases := []struct {
+		name     string
+		currency string
+		want     string
+		wantErr  string
+	}{
+		{name: "defaults blank currency to USD for legacy callers", want: "USD"},
+		{name: "normalizes USD", currency: " usd ", want: "USD"},
+		{name: "normalizes CNY", currency: " cny ", want: "CNY"},
+		{name: "rejects unsupported currency", currency: "EUR", wantErr: "USD or CNY"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := normalizeWaffoPancakeProductCurrency(tc.currency)
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestBuildWaffoPancakeProductPricesUsesRequestedCurrency(t *testing.T) {
+	testCases := []struct {
+		name     string
+		currency string
+		want     string
+	}{
+		{name: "preserves legacy USD product creation", want: "USD"},
+		{name: "creates CNY wallet products", currency: "CNY", want: "CNY"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			prices, currency, err := buildWaffoPancakeProductPrices(tc.currency, "1.00")
+			require.NoError(t, err)
+			require.Equal(t, tc.want, currency)
+			require.Len(t, prices, 1)
+			price, ok := prices[tc.want]
+			require.True(t, ok)
+			require.Equal(t, "1.00", price.Amount)
+			require.Equal(t, "saas", string(price.TaxCategory))
+		})
+	}
+
+	_, _, err := buildWaffoPancakeProductPrices("EUR", "1.00")
+	require.ErrorContains(t, err, "USD or CNY")
+}
+
 func TestNormalizeWaffoPancakePlanProductAmount(t *testing.T) {
 	testCases := []struct {
 		name    string
