@@ -56,6 +56,21 @@ func playgroundRecordTestContext(t *testing.T, userID int, method, body string) 
 	return c, recorder
 }
 
+func playgroundExportTestContext(t *testing.T, adminID int, query string) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	path := "/api/playground/records/export"
+	if query != "" {
+		path += "?" + query
+	}
+	c.Request = httptest.NewRequest(http.MethodGet, path, nil)
+	c.Set("id", adminID)
+	return c, recorder
+}
+
 func validPlaygroundRecordBody() string {
 	return `{
 		"record_id":"550e8400-e29b-41d4-a716-446655440000",
@@ -251,4 +266,90 @@ func TestClearPlaygroundRecordRemovesCurrentAndKeepsHistory(t *testing.T) {
 	require.NoError(t, model.DB.Where("user_id = ? AND record_id = ?", 210, playgroundRecordID).First(&stored).Error)
 	require.Equal(t, "durable output", string(stored.OutputText))
 	require.NotEmpty(t, stored.MessagesSnapshot)
+}
+
+func TestExportPlaygroundRecords(t *testing.T) {
+	setupPlaygroundControllerDB(t, 211, 212)
+	recordA := &model.PlaygroundRecord{
+		UserID:            211,
+		RecordID:          "record-a",
+		RecordType:        model.PlaygroundRecordTypeTurn,
+		ConversationID:    "conversation-a",
+		OutputText:        "owned output",
+		Status:            model.PlaygroundStatusComplete,
+		ClientCompletedAt: 1000,
+	}
+	recordB := &model.PlaygroundRecord{
+		UserID:            212,
+		RecordID:          "record-b",
+		RecordType:        model.PlaygroundRecordTypeTurn,
+		ConversationID:    "conversation-b",
+		OutputText:        "other output",
+		Status:            model.PlaygroundStatusError,
+		ClientCompletedAt: 2000,
+	}
+	require.NoError(t, model.SavePlaygroundRecord(recordA))
+	require.NoError(t, model.SavePlaygroundRecord(recordB))
+	require.NoError(t, model.DB.Create(&model.PlaygroundRecord{
+		UserID:            211,
+		RecordID:          "record-clear",
+		RecordType:        model.PlaygroundRecordTypeClear,
+		ConversationID:    "conversation-a",
+		Status:            model.PlaygroundStatusCleared,
+		ClientCompletedAt: 3000,
+	}).Error)
+
+	t.Run("filters by user and returns a download", func(t *testing.T) {
+		c, recorder := playgroundExportTestContext(t, 1, "user_id=211")
+
+		ExportPlaygroundRecords(c)
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+		require.Equal(t, "application/json; charset=utf-8", recorder.Header().Get("Content-Type"))
+		require.Contains(t, recorder.Header().Get("Content-Disposition"), "attachment; filename=playground-records-211-")
+		var exported []model.PlaygroundRecord
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &exported))
+		require.Equal(t, []string{"record-a", "record-clear"}, exportedPlaygroundRecordIDs(exported))
+		require.Equal(t, "owned output", string(exported[0].OutputText))
+	})
+
+	t.Run("without a filter returns every user", func(t *testing.T) {
+		c, recorder := playgroundExportTestContext(t, 1, "")
+
+		ExportPlaygroundRecords(c)
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+		var exported []model.PlaygroundRecord
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &exported))
+		require.Equal(t, []string{"record-a", "record-clear", "record-b"}, exportedPlaygroundRecordIDs(exported))
+	})
+
+	t.Run("empty filter result is an empty JSON array", func(t *testing.T) {
+		c, recorder := playgroundExportTestContext(t, 1, "user_id=999999")
+
+		ExportPlaygroundRecords(c)
+
+		require.Equal(t, http.StatusOK, recorder.Code)
+		require.JSONEq(t, `[]`, recorder.Body.String())
+	})
+
+	for _, query := range []string{"user_id=not-a-number", "user_id=", "user_id=%20", "user_id=0", "user_id=-1"} {
+		t.Run("rejects invalid user filter "+query, func(t *testing.T) {
+			c, recorder := playgroundExportTestContext(t, 1, query)
+
+			ExportPlaygroundRecords(c)
+
+			require.Equal(t, http.StatusBadRequest, recorder.Code)
+			require.Contains(t, recorder.Body.String(), "success")
+			require.NotContains(t, recorder.Header().Get("Content-Disposition"), "attachment")
+		})
+	}
+}
+
+func exportedPlaygroundRecordIDs(records []model.PlaygroundRecord) []string {
+	ids := make([]string, 0, len(records))
+	for _, record := range records {
+		ids = append(ids, record.RecordID)
+	}
+	return ids
 }

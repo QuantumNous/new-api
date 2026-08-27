@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -106,6 +109,55 @@ func GetCurrentPlaygroundRecord(c *gin.Context) {
 		"conversation_id": record.ConversationID,
 		"messages":        json.RawMessage(record.MessagesSnapshot),
 	})
+}
+
+// ExportPlaygroundRecords downloads durable Playground records for
+// administrators. Without a user_id query parameter it includes all users;
+// otherwise it is restricted to the requested positive user ID.
+func ExportPlaygroundRecords(c *gin.Context) {
+	rawUserID, hasUserID := c.GetQuery("user_id")
+	userID, err := parsePlaygroundExportUserID(rawUserID, hasUserID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": common.TranslateMessage(c, i18n.MsgLogInvalidUserId),
+		})
+		return
+	}
+
+	records, err := model.ListPlaygroundRecordsForExport(userID)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	data, err := common.Marshal(records)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	filename := "playground-records"
+	if userID != nil {
+		filename += fmt.Sprintf("-%d", *userID)
+	}
+	filename += "-" + time.Now().UTC().Format("20060102T150405Z") + ".json"
+	c.Header("Content-Disposition", "attachment; filename="+filename)
+	c.Data(http.StatusOK, "application/json; charset=utf-8", data)
+}
+
+func parsePlaygroundExportUserID(raw string, present bool) (*int, error) {
+	if !present {
+		return nil, nil
+	}
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, errors.New("invalid user_id")
+	}
+	userID, err := strconv.Atoi(raw)
+	if err != nil || userID <= 0 {
+		return nil, errors.New("invalid user_id")
+	}
+	return &userID, nil
 }
 
 func ClearPlaygroundRecord(c *gin.Context) {

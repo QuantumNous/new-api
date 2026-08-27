@@ -355,6 +355,64 @@
         ]
       }
     },
+    "/api/playground/records/export": {
+      "get": {
+        "summary": "导出 Playground 保存记录",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限（Admin）。默认导出所有用户已持久化的 Playground turn/clear 记录；可通过 user_id 筛选单个用户。响应为 JSON 下载文件。",
+        "tags": [
+          "数据统计"
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "description": "可选的用户 ID；必须为正整数。",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON 文件下载",
+            "headers": {
+              "Content-Disposition": {
+                "description": "下载文件名",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "description": "PlaygroundRecord 完整持久化记录（包含 turn 与 clear 记录）。",
+                    "additionalProperties": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "user_id 无效"
+          }
+        },
+        "security": [
+          {
+            "Combination343": []
+          },
+          {
+            "Combination1243": []
+          }
+        ]
+      }
+    },
     "/api/uptime/status": {
       "get": {
         "summary": "获取Uptime Kuma状态",

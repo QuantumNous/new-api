@@ -141,6 +141,11 @@ func SetApiRouter(router *gin.Engine) {
 			playgroundRecordRoute.GET("/current", controller.GetCurrentPlaygroundRecord)
 			playgroundRecordRoute.POST("/clear", controller.ClearPlaygroundRecord)
 		}
+		playgroundRecordExportRoute := apiRouter.Group("/playground/records")
+		playgroundRecordExportRoute.Use(middleware.RouteTag("playground-records-export"), middleware.AdminAuth())
+		{
+			playgroundRecordExportRoute.GET("/export", controller.ExportPlaygroundRecords)
+		}
 
 		userRoute := apiRouter.Group("/user")
 		{

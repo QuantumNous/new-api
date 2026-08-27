@@ -227,3 +227,54 @@ func TestPlaygroundRecordUserIsolation(t *testing.T) {
 	require.NoError(t, DB.Model(&PlaygroundRecord{}).Where("record_id = ?", "shared").Count(&count).Error)
 	require.EqualValues(t, 2, count)
 }
+
+func TestListPlaygroundRecordsForExportFiltersAndOrdersStable(t *testing.T) {
+	setupPlaygroundRecordTestDBWithUsers(t, 301, 302)
+
+	first := samplePlaygroundTurn(301, "record-b", "conversation-a", 2000)
+	second := samplePlaygroundTurn(301, "record-a", "conversation-a", 1000)
+	otherUser := samplePlaygroundTurn(302, "record-c", "conversation-b", 1000)
+	require.NoError(t, SavePlaygroundRecord(first))
+	require.NoError(t, SavePlaygroundRecord(second))
+	require.NoError(t, SavePlaygroundRecord(otherUser))
+	require.NoError(t, DB.Create(&PlaygroundRecord{
+		UserID:            301,
+		RecordID:          "record-clear",
+		RecordType:        PlaygroundRecordTypeClear,
+		ConversationID:    "conversation-a",
+		Status:            PlaygroundStatusCleared,
+		ClientCompletedAt: 3000,
+	}).Error)
+
+	all, err := ListPlaygroundRecordsForExport(nil)
+	require.NoError(t, err)
+	require.Equal(t, []string{"record-a", "record-b", "record-clear", "record-c"}, playgroundRecordIDs(all))
+	require.Equal(t, []string{PlaygroundRecordTypeTurn, PlaygroundRecordTypeTurn, PlaygroundRecordTypeClear, PlaygroundRecordTypeTurn}, playgroundRecordTypes(all))
+
+	filtered, err := ListPlaygroundRecordsForExport(intPtr(301))
+	require.NoError(t, err)
+	require.Equal(t, []string{"record-a", "record-b", "record-clear"}, playgroundRecordIDs(filtered))
+	for _, record := range filtered {
+		require.Equal(t, 301, record.UserID)
+	}
+}
+
+func intPtr(value int) *int {
+	return &value
+}
+
+func playgroundRecordIDs(records []PlaygroundRecord) []string {
+	ids := make([]string, 0, len(records))
+	for _, record := range records {
+		ids = append(ids, record.RecordID)
+	}
+	return ids
+}
+
+func playgroundRecordTypes(records []PlaygroundRecord) []string {
+	types := make([]string, 0, len(records))
+	for _, record := range records {
+		types = append(types, record.RecordType)
+	}
+	return types
+}

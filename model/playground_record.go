@@ -141,6 +141,26 @@ func GetCurrentPlaygroundRecord(userID int) (*PlaygroundRecord, error) {
 	return &record, nil
 }
 
+// ListPlaygroundRecordsForExport returns durable Playground records in a
+// deterministic order. A nil userID selects all users; otherwise only the
+// requested user's records are returned.
+func ListPlaygroundRecordsForExport(userID *int) ([]PlaygroundRecord, error) {
+	query := DB.Model(&PlaygroundRecord{}).
+		Order("user_id ASC").
+		Order("client_completed_at ASC").
+		Order("record_id ASC").
+		Order("id ASC")
+	if userID != nil {
+		query = query.Where("user_id = ?", *userID)
+	}
+
+	records := make([]PlaygroundRecord, 0)
+	if err := query.Find(&records).Error; err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
 func ClearPlaygroundConversation(userID int, recordID, conversationID string, clientCompletedAt int64) error {
 	return DB.Transaction(func(tx *gorm.DB) error {
 		if err := lockPlaygroundUser(tx, userID); err != nil {
