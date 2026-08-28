@@ -33,3 +33,27 @@ func TestFormatUserLogsStripsQuotaSaturation(t *testing.T) {
 	// Non-admin billing fields remain visible.
 	require.Contains(t, parsed, "model_price")
 }
+
+func TestFormatUserLogsKeepsRequestTiming(t *testing.T) {
+	other := common.MapToJsonStr(map[string]interface{}{
+		"request_timing": map[string]interface{}{
+			"total_ms":               42,
+			"gateway_ms":             4,
+			"upstream_first_data_ms": 30,
+		},
+		"admin_info": map[string]interface{}{
+			"channel_id": 9,
+		},
+	})
+	logs := []*Log{{Other: other}}
+
+	formatUserLogs(logs, 0)
+
+	parsed, err := common.StrToMap(logs[0].Other)
+	require.NoError(t, err)
+	require.Contains(t, parsed, "request_timing")
+	require.NotContains(t, parsed, "admin_info")
+	timing, ok := parsed["request_timing"].(map[string]interface{})
+	require.True(t, ok)
+	require.Equal(t, float64(42), timing["total_ms"])
+}

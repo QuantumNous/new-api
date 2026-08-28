@@ -294,6 +294,7 @@ function MobileStreamTimingField({ log }: { log: UsageLog }) {
         useTimeSec={useTime}
         completionTokens={log.completion_tokens}
         frtMs={other?.frt}
+        requestTiming={other?.request_timing}
         isStream={log.is_stream}
         indicator='dot'
         className='min-w-0 flex-1'
