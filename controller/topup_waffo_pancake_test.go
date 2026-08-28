@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -64,7 +65,7 @@ func setupWaffoPancakeControllerTest(t *testing.T) *gorm.DB {
 	setting.WaffoPancakeStoreID = "store-test"
 	setting.WaffoPancakeProductID = "product-test"
 	setting.WaffoPancakeCurrency = "USD"
-	setting.WaffoPancakeUnitPrice = 0.15
+	setting.WaffoPancakeUnitPrice = 1 / 0.15
 	setting.WaffoPancakeMinTopUp = 10
 	confirmPaymentComplianceForTest(t)
 
@@ -318,7 +319,7 @@ func TestRequestWaffoPancakePay_CNYUsesIndependentRateAndSnapshotsCurrency(t *te
 	const userID = 707
 	insertWaffoPancakeControllerUser(t, db, userID)
 	setting.WaffoPancakeCurrency = "CNY"
-	setting.WaffoPancakeUnitPrice = 7.25
+	setting.WaffoPancakeUnitPrice = 0.14
 	operation_setting.Price = 1
 	getWaffoPancakeUserGroup = func(int, bool) (string, error) { return "default", nil }
 	resolveConfiguredWaffoPancakeProduct = func(context.Context) (waffoPancakeResolvedProduct, error) {
@@ -337,11 +338,11 @@ func TestRequestWaffoPancakePay_CNYUsesIndependentRateAndSnapshotsCurrency(t *te
 	require.NotNil(t, checkoutParams)
 	require.Equal(t, "CNY", checkoutParams.Currency)
 	require.NotNil(t, checkoutParams.PriceSnapshot)
-	require.Equal(t, "72.50", checkoutParams.PriceSnapshot.Amount)
+	require.Equal(t, "71.43", checkoutParams.PriceSnapshot.Amount)
 	var topUps []model.TopUp
 	require.NoError(t, db.Find(&topUps).Error)
 	require.Len(t, topUps, 1)
-	require.InDelta(t, 72.50, topUps[0].ExpectedAmount, 0.000001)
+	require.InDelta(t, 71.43, topUps[0].ExpectedAmount, 0.000001)
 	require.Equal(t, "CNY", topUps[0].ExpectedCurrency)
 }
 
@@ -459,6 +460,24 @@ func TestFormatWaffoPancakeAmount_UsesDisplayPriceString(t *testing.T) {
 	}
 }
 
+func TestGetWaffoPancakePayMoney_RejectsInvalidRate(t *testing.T) {
+	originalUnitPrice := setting.WaffoPancakeUnitPrice
+	t.Cleanup(func() {
+		setting.WaffoPancakeUnitPrice = originalUnitPrice
+	})
+
+	for _, rate := range []float64{0, -1, setting.WaffoPancakeMinUnitPrice / 2, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		setting.WaffoPancakeUnitPrice = rate
+		_, ok := getWaffoPancakePayAmount(10, "default")
+		require.False(t, ok)
+	}
+
+	setting.WaffoPancakeUnitPrice = setting.WaffoPancakeMinUnitPrice
+	payMoney, ok := getWaffoPancakePayAmount(10, "default")
+	require.True(t, ok)
+	require.True(t, payMoney.Equal(decimal.NewFromInt(100000)))
+}
+
 func TestGetWaffoPancakePayMoney(t *testing.T) {
 	originalUnitPrice := setting.WaffoPancakeUnitPrice
 	originalCommonPrice := operation_setting.Price
@@ -477,7 +496,7 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(originalTopupGroupRatio))
 	})
 
-	setting.WaffoPancakeUnitPrice = 2.5
+	setting.WaffoPancakeUnitPrice = 0.4
 	operation_setting.Price = 99
 	operation_setting.GetPaymentSetting().AmountDiscount = map[int]float64{
 		10:                           0.8,

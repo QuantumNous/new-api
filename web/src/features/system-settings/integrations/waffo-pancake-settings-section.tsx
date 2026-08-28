@@ -492,14 +492,14 @@ export function WaffoPancakeSettingsSection({
 
         <div className='grid gap-1.5'>
           <Label>
-            {t('Pancake exchange rate ({{currency}} per wallet USD)', {
+            {t('Pancake exchange rate (wallet USD per {{currency}})', {
               currency: selectedCurrency || 'USD',
             })}
           </Label>
           <Input
             type='number'
-            step='0.01'
-            min={0.01}
+            step='0.0001'
+            min={0.0001}
             value={values.WaffoPancakeUnitPrice}
             onChange={(event) =>
               onValueChange('WaffoPancakeUnitPrice', Number(event.target.value))
@@ -507,7 +507,7 @@ export function WaffoPancakeSettingsSection({
           />
           <p className='text-muted-foreground text-xs'>
             {t(
-              'Amount charged in the selected Pancake currency for each USD of wallet balance, before group ratios and amount discounts. This setting is independent from the Epay Price field.'
+              'Wallet USD credited per one unit of the selected Pancake currency, before group ratios and amount discounts. This setting is independent from the Epay Price field.'
             )}
           </p>
         </div>

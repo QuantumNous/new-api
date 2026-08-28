@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 
@@ -451,8 +450,8 @@ func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnU
 	if merchantID == "" || storeID == "" || productID == "" {
 		return fmt.Errorf("merchant id, store id, and product id are required to save")
 	}
-	if math.IsNaN(unitPrice) || math.IsInf(unitPrice, 0) || unitPrice <= 0 {
-		return fmt.Errorf("unit price must be greater than zero")
+	if !setting.IsValidWaffoPancakeUnitPrice(unitPrice) {
+		return fmt.Errorf("unit price must be at least %.4f", setting.WaffoPancakeMinUnitPrice)
 	}
 	if minTopUp < 1 {
 		return fmt.Errorf("minimum top-up must be at least one")

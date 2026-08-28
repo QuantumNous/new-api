@@ -80,13 +80,18 @@ func isWaffoWebhookEnabled() bool {
 	return isWaffoTopUpEnabled()
 }
 
+func hasValidWaffoPancakeUnitPrice() bool {
+	return setting.IsValidWaffoPancakeUnitPrice(setting.WaffoPancakeUnitPrice)
+}
+
 func isWaffoPancakeTopUpEnabled() bool {
 	if !isPaymentComplianceConfirmed() {
 		return false
 	}
 	// Presence-of-credentials = enabled. Webhook public keys ship inside
 	// the SDK; mode (test/prod) is read from each event.
-	return strings.TrimSpace(setting.WaffoPancakeMerchantID) != "" &&
+	return hasValidWaffoPancakeUnitPrice() &&
+		strings.TrimSpace(setting.WaffoPancakeMerchantID) != "" &&
 		strings.TrimSpace(setting.WaffoPancakePrivateKey) != "" &&
 		strings.TrimSpace(setting.WaffoPancakeStoreID) != "" &&
 		strings.TrimSpace(setting.WaffoPancakeProductID) != "" &&

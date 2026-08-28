@@ -65,11 +65,11 @@ describe('Waffo Pancake wallet currency settings', () => {
 
     expect(screen.getByText('USD')).toBeInTheDocument()
     expect(
-      screen.getByText('Pancake exchange rate (USD per wallet USD)')
+      screen.getByText('Pancake exchange rate (wallet USD per USD)')
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Amount charged in the selected Pancake currency for each USD of wallet balance, before group ratios and amount discounts. This setting is independent from the Epay Price field.'
+        'Wallet USD credited per one unit of the selected Pancake currency, before group ratios and amount discounts. This setting is independent from the Epay Price field.'
       )
     ).toBeInTheDocument()
     expect(
@@ -85,7 +85,7 @@ describe('Waffo Pancake wallet currency settings', () => {
     const currencyTrigger = screen.getAllByRole('combobox')[0]
     expect(currencyTrigger).toHaveTextContent('CNY')
     expect(
-      screen.getByText('Pancake exchange rate (CNY per wallet USD)')
+      screen.getByText('Pancake exchange rate (wallet USD per CNY)')
     ).toBeInTheDocument()
   })
 })

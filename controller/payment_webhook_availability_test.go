@@ -140,12 +140,14 @@ func TestWaffoPancakeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	originalStoreID := setting.WaffoPancakeStoreID
 	originalProductID := setting.WaffoPancakeProductID
 	originalCurrency := setting.WaffoPancakeCurrency
+	originalUnitPrice := setting.WaffoPancakeUnitPrice
 	t.Cleanup(func() {
 		setting.WaffoPancakeMerchantID = originalMerchantID
 		setting.WaffoPancakePrivateKey = originalPrivateKey
 		setting.WaffoPancakeStoreID = originalStoreID
 		setting.WaffoPancakeProductID = originalProductID
 		setting.WaffoPancakeCurrency = originalCurrency
+		setting.WaffoPancakeUnitPrice = originalUnitPrice
 	})
 
 	setting.WaffoPancakeMerchantID = "merchant"
@@ -153,6 +155,7 @@ func TestWaffoPancakeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	setting.WaffoPancakeStoreID = "store"
 	setting.WaffoPancakeProductID = "product"
 	setting.WaffoPancakeCurrency = "USD"
+	setting.WaffoPancakeUnitPrice = 1
 	require.True(t, isWaffoPancakeWebhookEnabled())
 
 	setting.WaffoPancakeMerchantID = ""
@@ -166,6 +169,13 @@ func TestWaffoPancakeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	setting.WaffoPancakeCurrency = ""
 	require.False(t, isWaffoPancakeWebhookEnabled())
 	setting.WaffoPancakeCurrency = "USD"
+
+	for _, rate := range []float64{0, -1, setting.WaffoPancakeMinUnitPrice / 2, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		setting.WaffoPancakeUnitPrice = rate
+		require.False(t, isWaffoPancakeWebhookEnabled())
+	}
+	setting.WaffoPancakeUnitPrice = setting.WaffoPancakeMinUnitPrice
+	require.True(t, isWaffoPancakeWebhookEnabled())
 
 	setting.WaffoPancakeProductID = ""
 	require.False(t, isWaffoPancakeWebhookEnabled())

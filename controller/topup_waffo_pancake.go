@@ -76,7 +76,12 @@ func RequestWaffoPancakeAmount(c *gin.Context) {
 		return
 	}
 
-	payMoney := normalizeWaffoPancakePayAmount(getWaffoPancakePayAmount(req.Amount, group))
+	payMoney, ok := getWaffoPancakePayAmount(req.Amount, group)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 汇率配置无效，请联系管理员"})
+		return
+	}
+	payMoney = normalizeWaffoPancakePayAmount(payMoney)
 	if payMoney.LessThan(decimal.NewFromFloat(0.01)) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
@@ -100,10 +105,18 @@ func RequestWaffoPancakeAmount(c *gin.Context) {
 }
 
 func getWaffoPancakePayMoney(amount int64, group string) float64 {
-	return getWaffoPancakePayAmount(amount, group).InexactFloat64()
+	payMoney, ok := getWaffoPancakePayAmount(amount, group)
+	if !ok {
+		return 0
+	}
+	return payMoney.InexactFloat64()
 }
 
-func getWaffoPancakePayAmount(amount int64, group string) decimal.Decimal {
+func getWaffoPancakePayAmount(amount int64, group string) (decimal.Decimal, bool) {
+	if !hasValidWaffoPancakeUnitPrice() {
+		return decimal.Zero, false
+	}
+
 	dAmount := decimal.NewFromInt(amount)
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
 		dAmount = dAmount.Div(decimal.NewFromFloat(common.QuotaPerUnit))
@@ -120,11 +133,11 @@ func getWaffoPancakePayAmount(amount int64, group string) decimal.Decimal {
 	}
 
 	payMoney := dAmount.
-		Mul(decimal.NewFromFloat(setting.WaffoPancakeUnitPrice)).
+		Div(decimal.NewFromFloat(setting.WaffoPancakeUnitPrice)).
 		Mul(decimal.NewFromFloat(topupGroupRatio)).
 		Mul(decimal.NewFromFloat(discount))
 
-	return payMoney
+	return payMoney, true
 }
 
 func normalizeWaffoPancakeTopUpAmount(amount int64) int64 {
@@ -451,7 +464,12 @@ func RequestWaffoPancakePay(c *gin.Context) {
 		return
 	}
 
-	payMoney := normalizeWaffoPancakePayAmount(getWaffoPancakePayAmount(req.Amount, group))
+	payMoney, ok := getWaffoPancakePayAmount(req.Amount, group)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 汇率配置无效，请联系管理员"})
+		return
+	}
+	payMoney = normalizeWaffoPancakePayAmount(payMoney)
 	if payMoney.LessThan(decimal.NewFromFloat(0.01)) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
