@@ -9,8 +9,21 @@ export const meta = {
   models: ["jimeng_vgfm_t2v_l20"],
   fetchMode: "per_task",
   usageSchema: {
-    seconds: { type: "number", unit: "second", description: "Requested video duration in seconds." },
+    seconds: { type: "number", unit: "second", description: "Requested video duration in seconds. S2.0 Pro is fixed at 5; 3.0 req_keys allow 5 or 10." },
+    product: {
+      enum: ["s2_pro", "v30_720p", "v30_1080p", "v30_pro"],
+      description: "Product tier derived from the final outbound req_key.",
+    },
   },
+  usageExamples: [
+    { label: "S2.0 Pro 5s", facts: { seconds: 5, product: "s2_pro" } },
+    { label: "3.0 720P 5s", facts: { seconds: 5, product: "v30_720p" } },
+    { label: "3.0 720P 10s", facts: { seconds: 10, product: "v30_720p" } },
+    { label: "3.0 1080P 5s", facts: { seconds: 5, product: "v30_1080p" } },
+    { label: "3.0 1080P 10s", facts: { seconds: 10, product: "v30_1080p" } },
+    { label: "3.0 Pro 5s", facts: { seconds: 5, product: "v30_pro" } },
+    { label: "3.0 Pro 10s", facts: { seconds: 10, product: "v30_pro" } },
+  ],
   protocols: ["openai_responses", "openai_video"],
   routes: [{ method: "POST", path: "/jimeng/", type: "dynamic", decode: "decodeRequest", render: "renderTask" }],
 };
@@ -152,7 +165,22 @@ function requestHeaders(ctx, method, url, bodyText) {
   return headers;
 }
 
+const ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9"];
+const ASPECT_RATIO_VALUES = [
+  ["16:9", 16 / 9],
+  ["9:16", 9 / 16],
+  ["1:1", 1],
+  ["4:3", 4 / 3],
+  ["3:4", 3 / 4],
+  ["21:9", 21 / 9],
+];
+
+function isV3ReqKey(reqKey) {
+  return String(reqKey || "").includes("v30");
+}
+
 function convertedReqKey(reqKey, imageCount) {
+  if (reqKey === "jimeng_vgfm_t2v_l20" && imageCount > 0) return "jimeng_vgfm_i2v_l20";
   if (!reqKey.includes("jimeng_v30")) return reqKey;
   if (reqKey === "jimeng_v30_pro") return "jimeng_ti2v_v30_pro";
   if (imageCount > 1) return reqKey.replace("jimeng_v30", "jimeng_i2v_first_tail_v30").replace(/p$/, "");
@@ -160,36 +188,140 @@ function convertedReqKey(reqKey, imageCount) {
   return reqKey.replace("jimeng_v30", "jimeng_t2v_v30");
 }
 
+function productForReqKey(reqKey) {
+  const key = String(reqKey || "");
+  if (key.includes("vgfm") && key.endsWith("_l20")) return "s2_pro";
+  if (key === "jimeng_ti2v_v30_pro" || key.includes("v30_pro")) return "v30_pro";
+  if (key.includes("1080")) return "v30_1080p";
+  if (key.includes("v30")) return "v30_720p";
+  return "s2_pro";
+}
+
+function submitImageCount(req) {
+  const metadata = (req && req.metadata) || {};
+  const binaryCount = Array.isArray(metadata.binary_data_base64) ? metadata.binary_data_base64.length : 0;
+  const urlCount = Array.isArray(metadata.image_urls) ? metadata.image_urls.length : 0;
+  if (binaryCount + urlCount > 0) return binaryCount + urlCount;
+  return Array.isArray(req && req.images) ? req.images.length : 0;
+}
+
+function submitReqKey(ctx) {
+  const req = (ctx && ctx.requestBody) || {};
+  const metadata = req.metadata || {};
+  const base = metadata.req_key || (ctx && ctx.upstreamModel) || req.model || "";
+  return convertedReqKey(String(base), submitImageCount(req)) || "jimeng_vgfm_t2v_l20";
+}
+
+function outboundSeconds(req, reqKey) {
+  if (!isV3ReqKey(reqKey)) return 5;
+  const metadata = (req && req.metadata) || {};
+  if (Number(metadata.frames) === 241) return 10;
+  if (Number(metadata.frames) === 121) return 5;
+  const seconds = Number(req && req.duration);
+  return seconds === 10 ? 10 : 5;
+}
+
+function aspectRatioFromSize(size) {
+  const raw = String(size || "").trim();
+  if (ASPECT_RATIOS.indexOf(raw) >= 0) return raw;
+  const parts = raw.toLowerCase().split("x");
+  if (parts.length !== 2) return "";
+  const width = Number(parts[0]);
+  const height = Number(parts[1]);
+  if (!(width > 0) || !(height > 0)) return "";
+  const value = width / height;
+  let best = "";
+  let bestDiff = Infinity;
+  for (let i = 0; i < ASPECT_RATIO_VALUES.length; i++) {
+    const diff = Math.abs(value - ASPECT_RATIO_VALUES[i][1]);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = ASPECT_RATIO_VALUES[i][0];
+    }
+  }
+  return best;
+}
+
+function outboundAspectRatio(req) {
+  const metadata = (req && req.metadata) || {};
+  if (ASPECT_RATIOS.indexOf(metadata.aspect_ratio) >= 0) return metadata.aspect_ratio;
+  if (ASPECT_RATIOS.indexOf(req && req.aspect_ratio) >= 0) return req.aspect_ratio;
+  if (req && req.size) return aspectRatioFromSize(req.size);
+  return "";
+}
+
+function filePlaceholder(image) {
+  if (!image || typeof image !== "object" || Array.isArray(image) || !image.__fileRef) return image;
+  const placeholder = { __fileRef: image.__fileRef, encoding: image.encoding };
+  if (image.mimeType) placeholder.mimeType = image.mimeType;
+  if (image.maxBytes !== undefined && image.maxBytes !== null) placeholder.maxBytes = image.maxBytes;
+  return placeholder;
+}
+
+function queryReqKey(ctx) {
+  const data = (ctx && ctx.data) || {};
+  if (typeof data.req_key === "string" && data.req_key.trim()) return data.req_key.trim();
+  const req = (ctx && ctx.requestBody) || {};
+  if (typeof req.req_key === "string" && req.req_key.trim()) return req.req_key.trim();
+  if (ctx && ctx.action === "image_to_video") return "jimeng_vgfm_i2v_l20";
+  if (ctx && ctx.action === "first_tail_to_video") return "jimeng_i2v_first_tail_v30";
+  return "jimeng_vgfm_t2v_l20";
+}
+
+function validateSecondsForReqKey(reqKey, seconds) {
+  const n = Number(seconds);
+  if (isV3ReqKey(reqKey)) {
+    if (n !== 5 && n !== 10) throw new Error("seconds must be 5 or 10");
+    return n;
+  }
+  if (n !== 5) throw new Error("seconds must be 5");
+  return n;
+}
+
+function decodeImageCount(req, hasInputReferenceFile) {
+  if (hasInputReferenceFile) return Math.max(1, Array.isArray(req.images) ? req.images.length : 0);
+  if (Array.isArray(req.images) && req.images.length) return req.images.length;
+  if (trimmed(req.input_reference) || trimmed(req.image)) return 1;
+  return submitImageCount(req);
+}
+
 export function buildSubmitRequest(ctx) {
-  const req = ctx.requestBody;
+  const req = ctx.requestBody || {};
   const metadata = req.metadata || {};
   const images = req.images || [];
   const body = {
     req_key: ctx.upstreamModel,
     prompt: req.prompt || undefined,
     seed: 0,
-    aspect_ratio: "",
-    frames: req.duration === 10 ? 241 : 121,
   };
+  const aspectRatio = outboundAspectRatio(req);
+  if (aspectRatio) body.aspect_ratio = aspectRatio;
   if (images.length) {
     if (String(images[0]).startsWith("http")) body.image_urls = images;
-    else body.binary_data_base64 = images;
+    else body.binary_data_base64 = images.map(filePlaceholder);
   }
   ["req_key", "binary_data_base64", "image_urls", "prompt", "seed", "aspect_ratio", "frames"].forEach(function (key) {
-    if (metadata[key] !== undefined && metadata[key] !== null) body[key] = metadata[key];
+    if (metadata[key] === undefined || metadata[key] === null) return;
+    if (key === "aspect_ratio" && !String(metadata[key]).trim()) return;
+    body[key] = metadata[key];
   });
+  if (Array.isArray(body.binary_data_base64)) body.binary_data_base64 = body.binary_data_base64.map(filePlaceholder);
   const binaryCount = Array.isArray(body.binary_data_base64) ? body.binary_data_base64.length : 0;
   const urlCount = Array.isArray(body.image_urls) ? body.image_urls.length : 0;
   const metadataImageCount = binaryCount + urlCount;
   const imageCount = metadataImageCount > 0 ? metadataImageCount : images.length;
   body.req_key = convertedReqKey(body.req_key, imageCount);
+  if (isV3ReqKey(body.req_key) && (body.frames === undefined || body.frames === null)) {
+    body.frames = outboundSeconds(req, body.req_key) === 10 ? 241 : 121;
+  }
+  if (!isV3ReqKey(body.req_key)) delete body.frames;
 
   const ordered = { req_key: body.req_key };
   if (body.binary_data_base64 && body.binary_data_base64.length) ordered.binary_data_base64 = body.binary_data_base64;
   if (body.image_urls && body.image_urls.length) ordered.image_urls = body.image_urls;
   if (body.prompt) ordered.prompt = body.prompt;
   ordered.seed = body.seed;
-  ordered.aspect_ratio = body.aspect_ratio;
+  if (body.aspect_ratio) ordered.aspect_ratio = body.aspect_ratio;
   if (body.frames) ordered.frames = body.frames;
   const url = endpoint(ctx.baseUrl, ctx.apiKey, "CVSync2AsyncSubmitTask");
   const bodyText = JSON.stringify(ordered);
@@ -206,21 +338,17 @@ export function parseSubmitResponse(ctx, resp) {
   const body = resp.body || {};
   if (body.code !== 10000) throw new Error(body.message || "jimeng submit failed");
   if (!body.data || !body.data.task_id) throw new Error("missing task_id");
-  return { taskId: body.data.task_id, taskData: body };
+  return { taskId: body.data.task_id, taskData: Object.assign({}, body, { req_key: submitReqKey(ctx) }) };
 }
 
 export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
-  const req = ctx.requestBody || {};
-  const metadata = req.metadata || {};
-  let seconds = Number(req.duration || req.seconds || 0);
-  if ((!Number.isFinite(seconds) || seconds <= 0) && Number(metadata.frames) > 0) seconds = Number(metadata.frames) > 121 ? 10 : 5;
-  if (!Number.isFinite(seconds) || seconds <= 0) seconds = 5;
-  return { seconds: Math.min(seconds, 3600) };
+  const reqKey = submitReqKey(ctx);
+  return { seconds: outboundSeconds(ctx.requestBody || {}, reqKey), product: productForReqKey(reqKey) };
 }
 
 export function buildQueryRequest(ctx) {
-  const body = JSON.stringify({ req_key: "jimeng_vgfm_t2v_l20", task_id: ctx.taskId });
+  const body = JSON.stringify({ req_key: queryReqKey(ctx), task_id: ctx.taskId });
   const url = endpoint(ctx.baseUrl, ctx.apiKey, "CVSync2AsyncGetResult");
   return { url: url, method: "POST", headers: requestHeaders(ctx, "POST", url, body), body: body };
 }
@@ -263,11 +391,8 @@ export function buildContentRequest(ctx) {
   return { url: url, method: ctx.clientRequest.method, credentialless: true };
 }
 
-export function extractUsageOnComplete(task, taskResult, body) {
-  const data = (body && body.data) || {};
-  let seconds = Number(data.duration || data.seconds || 0);
-  if ((!Number.isFinite(seconds) || seconds <= 0) && Number(data.frames) > 0) seconds = Number(data.frames) > 121 ? 10 : 5;
-  return Number.isFinite(seconds) && seconds > 0 ? { seconds: Math.min(seconds, 3600) } : {};
+export function extractUsageOnComplete() {
+  return null;
 }
 
 export const protocols = {
@@ -354,15 +479,55 @@ const legacyRenderers = {
 
 protocols.openai_video = {
   decodeRequest: function (ctx) {
-    if (!ctx.body || ctx.body.kind !== "json" || !ctx.body.value || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
-    const req = ctx.body.value;
+    if (!ctx.body || (ctx.body.kind !== "json" && ctx.body.kind !== "multipart")) throw new Error("JSON or multipart body required");
+    let req;
+    let hasInputReferenceFile = false;
+    if (ctx.body.kind === "json") {
+      if (!ctx.body.value || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
+      req = Object.assign({}, ctx.body.value);
+    } else {
+      const first = function (name) {
+        const values = (ctx.body.fields || {})[name] || [];
+        if (values.length > 1) throw new Error(name + " must be provided once");
+        return values[0];
+      };
+      req = {};
+      const fields = ctx.body.fields || {};
+      for (const name of Object.keys(fields)) {
+        req[name] = first(name);
+      }
+      for (const file of ctx.body.files || []) {
+        if (file.field !== "input_reference") throw new Error("unexpected file field: " + file.field);
+        if (hasInputReferenceFile) throw new Error("input_reference must be provided once");
+        hasInputReferenceFile = true;
+      }
+      if (req.metadata !== undefined) {
+        let parsed;
+        try {
+          parsed = JSON.parse(req.metadata);
+        } catch (e) {
+          throw new Error("metadata must be a JSON object string");
+        }
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("metadata must be a JSON object string");
+        req.metadata = parsed;
+      }
+      if (req.seconds !== undefined) req.seconds = Number(req.seconds);
+      else if (req.duration !== undefined) req.seconds = Number(req.duration);
+    }
+    if (hasInputReferenceFile) {
+      req.images = [{ __fileRef: "request_file:input_reference", encoding: "base64", maxBytes: 4928307 }];
+    } else {
+      const image = trimmed(req.input_reference || req.image);
+      if (image && (!Array.isArray(req.images) || req.images.length === 0)) req.images = [image];
+    }
     const seconds = req.seconds === undefined ? req.duration : req.seconds;
-    if (seconds !== undefined && (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0 || Number(seconds) > 3600))
-      throw new Error("seconds must be between 1 and 3600");
+    if (seconds !== undefined) {
+      req.duration = validateSecondsForReqKey(convertedReqKey(String(ctx.model || req.model || ""), decodeImageCount(req, hasInputReferenceFile)), seconds);
+    }
     return {
       kind: "submit",
       model: ctx.model,
-      action: req.input_reference || req.image ? "image_to_video" : "text_to_video",
+      action: actionForImageCount(decodeImageCount(req, hasInputReferenceFile)),
       requestBody: Object.assign({}, req, { model: ctx.model }),
     };
   },

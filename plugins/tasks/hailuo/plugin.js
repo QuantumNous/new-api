@@ -19,9 +19,17 @@ export const meta = {
   ],
   fetchMode: "per_task",
   usageSchema: {
-    seconds: { type: "number", unit: "second", description: "Requested video duration in seconds." },
-    resolution: { enum: ["512P", "720P", "768P", "1080P"], description: "Requested output video resolution." },
+    seconds: { type: "number", unit: "second", description: "Requested video duration in seconds. Hailuo 2.3/02/2.3-Fast allow 6 or 10; 01-series allow 6." },
+    resolution: { enum: ["512P", "768P", "720P", "1080P"], description: "Requested output video resolution." },
   },
+  usageExamples: [
+    { label: "2.3/02 768P 6s", facts: { seconds: 6, resolution: "768P" } },
+    { label: "2.3/02 768P 10s", facts: { seconds: 10, resolution: "768P" } },
+    { label: "2.3/02 1080P 6s", facts: { seconds: 6, resolution: "1080P" } },
+    { label: "02 512P 6s", facts: { seconds: 6, resolution: "512P" } },
+    { label: "02 512P 10s", facts: { seconds: 10, resolution: "512P" } },
+    { label: "01-series 720P 6s", facts: { seconds: 6, resolution: "720P" } },
+  ],
   protocols: ["openai_responses", "openai_video"],
 };
 
@@ -29,8 +37,12 @@ function trimmed(value) {
   return String(value || "").trim();
 }
 
+function isModernHailuo(model) {
+  return model === "MiniMax-Hailuo-2.3" || model === "MiniMax-Hailuo-2.3-Fast" || model === "MiniMax-Hailuo-02";
+}
+
 function defaultResolution(model) {
-  if (model === "MiniMax-Hailuo-2.3" || model === "MiniMax-Hailuo-2.3-Fast" || model === "MiniMax-Hailuo-02" || model === "T2V-01-Director") return "768P";
+  if (model === "MiniMax-Hailuo-2.3" || model === "MiniMax-Hailuo-2.3-Fast" || model === "MiniMax-Hailuo-02") return "768P";
   return "720P";
 }
 
@@ -38,9 +50,60 @@ function resolutionFor(size, model) {
   const value = String(size || "");
   if (value.includes("1080")) return "1080P";
   if (value.includes("768")) return "768P";
-  if (value.includes("720")) return "720P";
+  if (value.includes("720")) return isModernHailuo(model) ? "768P" : "720P";
   if (value.includes("512")) return "512P";
   return defaultResolution(model);
+}
+
+function outboundDuration(req) {
+  const n = Number(req && req.duration);
+  if (Number.isFinite(n) && n > 0) return n;
+  return 6;
+}
+
+function outboundResolution(req, model) {
+  if (req && req.resolution) return resolutionFor(req.resolution, model);
+  const metadata = (req && req.metadata) || {};
+  if (metadata.resolution) return resolutionFor(metadata.resolution, model);
+  if (req && req.size) return resolutionFor(req.size, model);
+  return defaultResolution(model);
+}
+
+function hasHailuoImage(req, hasInputReferenceFile) {
+  if (hasInputReferenceFile) return true;
+  const metadata = (req && req.metadata) || {};
+  return Boolean(
+    trimmed(req && req.input_reference) ||
+    trimmed(req && req.image) ||
+    (Array.isArray(req && req.images) && req.images.length) ||
+    metadata.first_frame_image ||
+    metadata.last_frame_image ||
+    metadata.subject_reference
+  );
+}
+
+// Older T2V-01*/I2V-01*/S2V-01 official tables disagree on 1080P support (research: 未验证).
+// Keep those models permissive: duration 6 only, resolution optional.
+function validateHailuoCombo(model, duration, resolution, hasImage) {
+  if (model === "MiniMax-Hailuo-2.3-Fast" && !hasImage) {
+    throw new Error("MiniMax-Hailuo-2.3-Fast supports image-to-video only");
+  }
+  if (!isModernHailuo(model)) {
+    if (duration !== undefined && Number(duration) !== 6) throw new Error(model + " duration must be 6");
+    return;
+  }
+  const n = duration === undefined ? 6 : Number(duration);
+  if (n !== 6 && n !== 10) throw new Error(model + " duration must be 6 or 10");
+  if (n === 10) {
+    if (model === "MiniMax-Hailuo-02" && hasImage) {
+      if (resolution !== "768P" && resolution !== "512P") throw new Error("MiniMax-Hailuo-02 duration 10 only allows resolution 768P or 512P");
+      return;
+    }
+    if (resolution !== "768P") throw new Error(model + " duration 10 only allows resolution 768P");
+    return;
+  }
+  const allowed = model === "MiniMax-Hailuo-02" && hasImage ? ["512P", "768P", "1080P"] : ["768P", "1080P"];
+  if (allowed.indexOf(resolution) < 0) throw new Error(model + " duration 6 only allows resolution " + allowed.join(" or "));
 }
 
 function responsesInput(req) {
@@ -90,14 +153,14 @@ function responsesVideoText(ctx) {
 }
 
 export function buildSubmitRequest(ctx) {
-  const req = ctx.requestBody;
+  const req = ctx.requestBody || {};
   const model = ctx.upstreamModel;
   const metadata = req.metadata || {};
   const body = {
     model: model,
     prompt: req.prompt || undefined,
-    duration: req.duration > 0 ? req.duration : 6,
-    resolution: resolutionFor(req.size, model),
+    duration: outboundDuration(req),
+    resolution: outboundResolution(req, model),
   };
   ["prompt_optimizer", "fast_pretreatment", "callback_url", "aigc_watermark", "first_frame_image", "last_frame_image", "subject_reference"].forEach(
     function (key) {
@@ -109,7 +172,7 @@ export function buildSubmitRequest(ctx) {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
     body: body,
-    action: req.image || (req.images && req.images.length) ? "image_to_video" : "text_to_video",
+    action: hasHailuoImage(req, false) ? "image_to_video" : "text_to_video",
   };
 }
 
@@ -124,9 +187,8 @@ export function parseSubmitResponse(ctx, resp) {
 export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const req = ctx.requestBody || {};
-  let seconds = Number(req.duration || req.seconds || 6);
-  if (!Number.isFinite(seconds) || seconds <= 0) seconds = 6;
-  return { seconds: Math.min(seconds, 3600), resolution: resolutionFor(req.size || req.resolution, ctx.upstreamModel || req.model) };
+  const model = ctx.upstreamModel || req.model;
+  return { seconds: outboundDuration(req), resolution: outboundResolution(req, model) };
 }
 
 export function buildQueryRequest(ctx) {
@@ -171,15 +233,11 @@ export function buildContentRequest(ctx) {
   };
 }
 
-export function extractUsageOnComplete(task, taskResult, body) {
-  const facts = {};
-  const seconds = Number((body || {}).duration || (body || {}).duration_seconds || 0);
-  if (Number.isFinite(seconds) && seconds > 0) facts.seconds = Math.min(seconds, 3600);
+export function extractUsageOnComplete(_task, _taskResult, body) {
   const width = Number((body || {}).video_width || 0);
   const height = Number((body || {}).video_height || 0);
-  const resolution = resolutionFor(trimmed((body || {}).resolution) || (width > 0 && height > 0 ? width + "x" + height : ""), "");
-  if (trimmed((body || {}).resolution) || width > 0 || height > 0) facts.resolution = resolution;
-  return facts;
+  if (!(width > 0) || !(height > 0)) return null;
+  return { resolution: resolutionFor(width + "x" + height, "") };
 }
 
 export const protocols = {
@@ -266,15 +324,61 @@ const legacyRenderers = {
 
 protocols.openai_video = {
   decodeRequest: function (ctx) {
-    if (!ctx.body || ctx.body.kind !== "json" || !ctx.body.value || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
-    const req = ctx.body.value;
+    if (!ctx.body || (ctx.body.kind !== "json" && ctx.body.kind !== "multipart")) throw new Error("JSON or multipart body required");
+    let req;
+    let hasInputReferenceFile = false;
+    if (ctx.body.kind === "json") {
+      if (!ctx.body.value || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
+      req = Object.assign({}, ctx.body.value);
+    } else {
+      const first = function (name) {
+        const values = (ctx.body.fields || {})[name] || [];
+        if (values.length > 1) throw new Error(name + " must be provided once");
+        return values[0];
+      };
+      req = {};
+      const fields = ctx.body.fields || {};
+      for (const name of Object.keys(fields)) {
+        req[name] = first(name);
+      }
+      for (const file of ctx.body.files || []) {
+        if (file.field !== "input_reference") throw new Error("unexpected file field: " + file.field);
+        if (hasInputReferenceFile) throw new Error("input_reference must be provided once");
+        hasInputReferenceFile = true;
+      }
+      if (req.metadata !== undefined) {
+        let parsed;
+        try {
+          parsed = JSON.parse(req.metadata);
+        } catch (e) {
+          throw new Error("metadata must be a JSON object string");
+        }
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("metadata must be a JSON object string");
+        req.metadata = parsed;
+      }
+      if (req.seconds !== undefined) req.seconds = Number(req.seconds);
+      else if (req.duration !== undefined) req.seconds = Number(req.duration);
+    }
     const seconds = req.seconds === undefined ? req.duration : req.seconds;
-    if (seconds !== undefined && (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0 || Number(seconds) > 3600))
-      throw new Error("seconds must be between 1 and 3600");
+    if (seconds !== undefined) req.duration = Number(seconds);
+    if (hasInputReferenceFile) {
+      req.metadata = Object.assign({}, req.metadata || {}, {
+        first_frame_image: { __fileRef: "request_file:input_reference", encoding: "dataUrl", maxBytes: 20971520 },
+      });
+    } else {
+      const image = trimmed(req.input_reference || req.image);
+      if (image) {
+        req.metadata = Object.assign({}, req.metadata || {});
+        if (!req.metadata.first_frame_image) req.metadata.first_frame_image = image;
+      }
+    }
+    const hasImage = hasHailuoImage(req, hasInputReferenceFile);
+    const duration = req.duration === undefined ? undefined : Number(req.duration);
+    validateHailuoCombo(ctx.model, duration, outboundResolution(req, ctx.model), hasImage);
     return {
       kind: "submit",
       model: ctx.model,
-      action: req.input_reference || req.image ? "image_to_video" : "text_to_video",
+      action: hasImage ? "image_to_video" : "text_to_video",
       requestBody: Object.assign({}, req, { model: ctx.model }),
     };
   },

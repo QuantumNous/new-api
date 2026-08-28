@@ -21,7 +21,7 @@ func TestJimengResponsesProtocol(t *testing.T) {
 			"duration": float64(10),
 			"metadata": map[string]any{"aspect_ratio": "16:9"},
 		},
-		wantUsageKeys:  []string{"seconds"},
+		wantUsageKeys:  []string{"product", "seconds"},
 		wantVendorName: "jimeng",
 	})
 }
