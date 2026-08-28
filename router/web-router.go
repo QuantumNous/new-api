@@ -33,14 +33,32 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
 
-	// Register OAuth Provider routes BEFORE static.Serve so they take precedence
+	// Register OAuth Provider routes FIRST as route handlers (before static middleware)
 	router.GET("/oauth/authorize", middleware.DisableCache(), controller.OAuthProviderAuthorize)
 	router.POST("/oauth/authorize", middleware.DisableCache(), controller.OAuthProviderAuthorizePost)
 	router.POST("/oauth/token", middleware.DisableCache(), controller.OAuthProviderToken)
 	router.GET("/oauth/userinfo", middleware.DisableCache(), controller.OAuthProviderUserInfo)
 	router.GET("/.well-known/openid-configuration", controller.OAuthProviderWellKnown)
 
-	router.Use(static.Serve("/", frontendFS))
+	// Static file serving - use conditional to skip API routes
+	router.Use(func(c *gin.Context) {
+		path := c.Request.URL.Path
+		// Skip static serving for API paths and known API-related paths
+		if strings.HasPrefix(path, "/api/") ||
+			strings.HasPrefix(path, "/oauth/") ||
+			strings.HasPrefix(path, "/v1/") ||
+			strings.HasPrefix(path, "/.well-known") ||
+			strings.HasPrefix(path, "/assets/") ||
+			path == "/api" ||
+			path == "/oauth" ||
+			path == "/v1" {
+			c.Next()
+			return
+		}
+		// Let static middleware handle the rest
+		static.Serve("/", frontendFS)(c)
+	})
+
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")
 		if isRelayNoRoutePath(c.Request.URL.Path) {
