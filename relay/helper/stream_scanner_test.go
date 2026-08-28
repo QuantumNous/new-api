@@ -211,6 +211,41 @@ func TestStreamScannerHandler_DataWithExtraSpaces(t *testing.T) {
 	assert.Equal(t, "{\"trimmed\":true}", got)
 }
 
+func TestStreamScannerHandler_ForwardsAllowlistedUpstreamResponseHeaders(t *testing.T) {
+	t.Parallel()
+
+	allowedHeaders := []string{
+		"X-Reasoning-Included",
+		"X-Codex-Turn-State",
+		"X-Attestation-Profile",
+		"X-Attestation-Future-Field",
+	}
+	upstreamHeaders := make(http.Header, len(allowedHeaders)+1)
+	for _, name := range allowedHeaders {
+		upstreamHeaders.Set(name, "allowed")
+	}
+	upstreamHeaders.Set("X-Unrelated-Upstream", "must-not-forward")
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	resp := &http.Response{
+		Body:   io.NopCloser(strings.NewReader("data: chunk\ndata: [DONE]\n")),
+		Header: upstreamHeaders,
+	}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		_ = StringData(c, data)
+	})
+
+	response := recorder.Result()
+	for _, name := range allowedHeaders {
+		assert.Equal(t, "allowed", response.Header.Get(name), name)
+	}
+	assert.Empty(t, response.Header.Get("X-Unrelated-Upstream"))
+}
+
 // TestStreamScannerHandler_ClientCancelAbortsUpstreamAndReturns pins the
 // disconnect contract: when the client goes away, the handler must return
 // promptly (all goroutines joined, so the gin.Context can never leak into a

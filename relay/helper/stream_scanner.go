@@ -46,13 +46,16 @@ func NewStreamScanner(reader io.Reader) *bufio.Scanner {
 	return scanner
 }
 
-func copyCodexSSEHeaders(c *gin.Context, resp *http.Response) {
+func copyAllowedSSEHeaders(c *gin.Context, resp *http.Response) {
 	if c == nil || c.Writer == nil || resp == nil {
 		return
 	}
-	// codex
-	for _, name := range []string{"X-Reasoning-Included", "X-Codex-Turn-State"} {
-		values := resp.Header.Values(name)
+	for name, values := range resp.Header {
+		isCodexHeader := strings.EqualFold(name, "X-Reasoning-Included") ||
+			strings.EqualFold(name, "X-Codex-Turn-State")
+		if !isCodexHeader && !strings.HasPrefix(strings.ToLower(name), "x-attestation-") {
+			continue
+		}
 		if !service.ShouldCopyUpstreamHeader(c, name, values) {
 			continue
 		}
@@ -141,7 +144,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	defer cleanup()
 
 	scanner.Split(bufio.ScanLines)
-	copyCodexSSEHeaders(c, resp)
+	copyAllowedSSEHeaders(c, resp)
 	SetEventStreamHeaders(c)
 
 	ctx = context.WithValue(ctx, "stop_chan", stopChan)
