@@ -51,13 +51,14 @@ type operationResponse struct {
 	Name     string `json:"name"`
 	Done     bool   `json:"done"`
 	Response struct {
-		Type                  string           `json:"@type"`
-		RaiMediaFilteredCount int              `json:"raiMediaFilteredCount"`
-		Videos                []operationVideo `json:"videos"`
-		BytesBase64Encoded    string           `json:"bytesBase64Encoded"`
-		Encoding              string           `json:"encoding"`
-		Video                 string           `json:"video"`
-		GenerateVideoResponse struct {
+		Type                    string           `json:"@type"`
+		RaiMediaFilteredCount   int              `json:"raiMediaFilteredCount"`
+		RaiMediaFilteredReasons []string         `json:"raiMediaFilteredReasons"`
+		Videos                  []operationVideo `json:"videos"`
+		BytesBase64Encoded      string           `json:"bytesBase64Encoded"`
+		Encoding                string           `json:"encoding"`
+		Video                   string           `json:"video"`
+		GenerateVideoResponse   struct {
 			GeneratedVideos []struct {
 				Video struct {
 					URI string `json:"uri"`

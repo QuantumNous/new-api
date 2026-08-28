@@ -151,6 +151,9 @@ func (a *TaskAdaptor) GetModelList() []string {
 		"veo-3.0-fast-generate-001",
 		"veo-3.1-generate-preview",
 		"veo-3.1-fast-generate-preview",
+		"veo-3.1-generate-001",
+		"veo-3.1-fast-generate-001",
+		"veo-3.1-lite-generate-001",
 	}
 }
 
@@ -230,6 +233,16 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		return ti, nil
 	}
 
+	if op.Response.RaiMediaFilteredCount > 0 {
+		ti.Status = model.TaskStatusFailure
+		ti.Progress = "100%"
+		if len(op.Response.RaiMediaFilteredReasons) > 0 {
+			ti.Reason = op.Response.RaiMediaFilteredReasons[0]
+		} else {
+			ti.Reason = "videos were filtered out due to Google's Responsible AI practices"
+		}
+		return ti, nil
+	}
 	ti.Status = model.TaskStatusSuccess
 	ti.Progress = "100%"
 
