@@ -3395,6 +3395,7 @@
     "Percentage:": "Pourcentage :",
     "Performance": "Performances",
     "Performance data is not yet available for this model.": "Aucune donnée de performance n'est encore disponible pour ce modèle.",
+    "Model performance metrics are disabled.": "Les indicateurs de performance des modèles sont désactivés.",
     "Performance health": "Santé des performances",
     "Performance metrics for the last 24 hours": "Indicateurs de performance des dernières 24 heures",
     "Performance metrics shown here are simulated for preview purposes and will be replaced with live observability data once the backend integration is complete.": "Les indicateurs de performance présentés ici sont simulés à des fins de prévisualisation et seront remplacés par des données d'observabilité réelles une fois l'intégration du backend terminée.",

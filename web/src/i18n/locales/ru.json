@@ -3395,6 +3395,7 @@
     "Percentage:": "Процент:",
     "Performance": "Производительность",
     "Performance data is not yet available for this model.": "Данные о производительности этой модели пока недоступны.",
+    "Model performance metrics are disabled.": "Метрики производительности моделей отключены.",
     "Performance health": "Состояние производительности",
     "Performance metrics for the last 24 hours": "Метрики производительности за последние 24 часа",
     "Performance metrics shown here are simulated for preview purposes and will be replaced with live observability data once the backend integration is complete.": "Показанные метрики производительности сгенерированы для предпросмотра и будут заменены реальными данными наблюдаемости после интеграции бэкенда.",

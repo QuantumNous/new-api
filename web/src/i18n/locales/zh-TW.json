@@ -3395,6 +3395,7 @@
     "Percentage:": "百分比：",
     "Performance": "效能",
     "Performance data is not yet available for this model.": "該模型暫無效能數據。",
+    "Model performance metrics are disabled.": "模型效能指標已關閉。",
     "Performance health": "效能健康",
     "Performance metrics for the last 24 hours": "最近 24 小時的效能指標",
     "Performance metrics shown here are simulated for preview purposes and will be replaced with live observability data once the backend integration is complete.": "此處展示的效能指標為預覽模擬數據，待後端對接完成後將替換為真實可觀測數據。",

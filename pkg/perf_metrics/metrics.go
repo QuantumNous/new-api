@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
@@ -26,6 +27,9 @@ func Init() {
 
 func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens int64) {
 	if info == nil {
+		return
+	}
+	if relayTargetsOnlyAsyncVideo(info) {
 		return
 	}
 	now := time.Now()
@@ -54,6 +58,81 @@ func RecordRelaySample(info *relaycommon.RelayInfo, success bool, outputTokens i
 	})
 }
 
+// RecordTaskTerminalSample records one terminal sample for an asynchronous
+// video task. The caller must invoke it only after winning the terminal status
+// transition, so overlapping pollers cannot count the same task twice.
+func RecordTaskTerminalSample(task *model.Task) {
+	sample, ok := taskTerminalSample(task, time.Now().Unix())
+	if !ok {
+		return
+	}
+	Record(sample)
+}
+
+func taskTerminalSample(task *model.Task, now int64) (Sample, bool) {
+	if task == nil || task.Platform == constant.TaskPlatformSuno || task.Platform == constant.TaskPlatformMidjourney {
+		return Sample{}, false
+	}
+	if task.Status != model.TaskStatusSuccess && task.Status != model.TaskStatusFailure {
+		return Sample{}, false
+	}
+
+	modelName := task.Properties.OriginModelName
+	if modelName == "" && task.PrivateData.BillingContext != nil {
+		modelName = task.PrivateData.BillingContext.OriginModelName
+	}
+	if modelName == "" {
+		modelName = task.Properties.UpstreamModelName
+	}
+	if modelName == "" {
+		return Sample{}, false
+	}
+
+	startedAt := task.SubmitTime
+	if startedAt <= 0 {
+		startedAt = task.CreatedAt
+	}
+	finishedAt := task.FinishTime
+	if finishedAt <= 0 {
+		finishedAt = now
+	}
+	latencyMs := int64(0)
+	if startedAt > 0 && finishedAt > startedAt {
+		latencyMs = (finishedAt - startedAt) * 1000
+	}
+
+	return Sample{
+		Model:        modelName,
+		Group:        task.Group,
+		LatencyMs:    latencyMs,
+		Success:      task.Status == model.TaskStatusSuccess,
+		GenerationMs: latencyMs,
+	}, true
+}
+
+func relayTargetsOnlyAsyncVideo(info *relaycommon.RelayInfo) bool {
+	endpoints := model.GetModelSupportEndpointTypes(info.OriginModelName)
+	if len(endpoints) == 0 && info.ChannelMeta != nil {
+		endpoints = common.GetEndpointTypesByChannelType(info.ChannelMeta.ChannelType, info.OriginModelName)
+	}
+	return supportsOnlyAsyncVideo(endpoints)
+}
+
+func supportsOnlyAsyncVideo(endpoints []constant.EndpointType) bool {
+	if len(endpoints) == 0 {
+		return false
+	}
+	hasVideo := false
+	for _, endpoint := range endpoints {
+		if endpoint == constant.EndpointTypeOpenAIVideo {
+			hasVideo = true
+			continue
+		}
+		return false
+	}
+	return hasVideo
+}
+
 func Record(sample Sample) {
 	setting := perf_metrics_setting.GetSetting()
 	if !setting.Enabled || sample.Model == "" {
@@ -77,6 +156,14 @@ func Record(sample Sample) {
 }
 
 func Query(params QueryParams) (QueryResult, error) {
+	if !perf_metrics_setting.GetSetting().Enabled {
+		return QueryResult{
+			Enabled:      false,
+			ModelName:    params.Model,
+			SeriesSchema: seriesSchema,
+			Groups:       make([]GroupResult, 0),
+		}, nil
+	}
 	if params.Hours <= 0 {
 		params.Hours = 24
 	}
@@ -123,6 +210,9 @@ func Query(params QueryParams) (QueryResult, error) {
 }
 
 func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
+	if !perf_metrics_setting.GetSetting().Enabled {
+		return SummaryAllResult{Enabled: false, Models: make([]ModelSummary, 0)}, nil
+	}
 	if hours <= 0 {
 		hours = 24
 	}
@@ -195,7 +285,7 @@ func QuerySummaryAll(hours int, groups []string) (SummaryAllResult, error) {
 		return models[i].RequestCount > models[j].RequestCount
 	})
 
-	return SummaryAllResult{Models: models}, nil
+	return SummaryAllResult{Enabled: true, Models: models}, nil
 }
 
 func mergeModelTotals(totals map[string]counters, modelName string, value counters) {
@@ -340,6 +430,7 @@ func buildQueryResult(modelName string, merged map[bucketKey]counters) QueryResu
 	}
 
 	return QueryResult{
+		Enabled:      true,
 		ModelName:    modelName,
 		SeriesSchema: seriesSchema,
 		Groups:       results,
