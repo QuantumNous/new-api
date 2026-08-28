@@ -43,6 +43,7 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 
 	// Debug: log and skip static for known API paths
 	router.Use(func(c *gin.Context) {
+		common.SysLog(fmt.Sprintf("DEBUG MIDDLEWARE: path=%s method=%s", c.Request.URL.Path, c.Request.Method))
 		path := c.Request.URL.Path
 		if strings.HasPrefix(path, "/api/") ||
 			strings.HasPrefix(path, "/oauth/") ||

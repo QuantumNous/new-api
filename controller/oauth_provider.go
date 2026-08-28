@@ -20,6 +20,7 @@ import (
 
 // OAuthProviderAuthorize handles GET /oauth/authorize — shows consent page or redirects to login
 func OAuthProviderAuthorize(c *gin.Context) {
+	common.SysLog("OAuthProviderAuthorize called!")
 	clientId := c.Query("client_id")
 	redirectUri := c.Query("redirect_uri")
 	responseType := c.Query("response_type")
@@ -233,6 +234,7 @@ func OAuthProviderUserInfo(c *gin.Context) {
 
 // OAuthProviderWellKnown handles GET /.well-known/openid-configuration — OIDC discovery
 func OAuthProviderWellKnown(c *gin.Context) {
+	common.SysLog("OAuthProviderWellKnown called!")
 	baseURL := strings.TrimSuffix(system_setting.ServerAddress, "/")
 	c.JSON(http.StatusOK, gin.H{
 		"issuer":                               baseURL,
