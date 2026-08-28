@@ -15,9 +15,9 @@ func flushLoop() {
 		interval := perf_metrics_setting.GetFlushIntervalMinutes()
 		time.Sleep(time.Duration(interval) * time.Minute)
 		setting := perf_metrics_setting.GetSetting()
-		if !setting.Enabled {
-			continue
-		}
+		// Collection stops at Record when metrics are disabled. Flush samples
+		// that were already accepted before the toggle, and keep retention
+		// cleanup independent from collection state.
 		flushCompletedBuckets()
 		cleanupExpiredMetrics(setting.RetentionDays)
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/bytedance/gopkg/util/gopool"
@@ -28,6 +29,44 @@ type taskPollingFetchAdaptor struct {
 	blockStarted chan struct{}
 	releaseBlock chan struct{}
 	blockOnce    sync.Once
+}
+
+type terminalVideoPollingAdaptor struct {
+	statuses map[string]model.TaskStatus
+}
+
+func (a *terminalVideoPollingAdaptor) Init(_ *relaycommon.RelayInfo) {}
+
+func (a *terminalVideoPollingAdaptor) FetchTask(_ string, _ string, body map[string]any, _ string) (*http.Response, error) {
+	taskID, _ := body["task_id"].(string)
+	status := a.statuses[taskID]
+	response := taskdto.TaskResponse[model.Task]{
+		Code: taskdto.TaskSuccessCode,
+		Data: model.Task{
+			TaskID:   taskID,
+			Status:   status,
+			Progress: "100%",
+		},
+	}
+	if status == model.TaskStatusFailure {
+		response.Data.FailReason = "upstream failed"
+	}
+	responseBody, err := common.Marshal(response)
+	if err != nil {
+		return nil, err
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(responseBody)),
+	}, nil
+}
+
+func (a *terminalVideoPollingAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) {
+	return nil, nil
+}
+
+func (a *terminalVideoPollingAdaptor) AdjustBillingOnComplete(_ *model.Task, _ *relaycommon.TaskInfo) int {
+	return 0
 }
 
 type sunoFailurePollingAdaptor struct {
@@ -370,6 +409,61 @@ func TestUpdateVideoTasksMixedChannelSleepSettings(t *testing.T) {
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.ElementsMatch(t, []string{"upstream_sleepy_1", "upstream_fast_1", "upstream_fast_2"}, adaptor.fetchedTaskIDs())
+}
+
+func TestUpdateVideoSingleTaskRecordsTerminalMetrics(t *testing.T) {
+	truncate(t)
+
+	const channelID = 105
+	const modelName = "video-terminal-metrics-test"
+	const groupName = "video-test"
+	seedTaskPollingChannel(t, channelID, true)
+
+	successTask := seedPollingTask(t, channelID, "task_metric_success", "upstream_metric_success")
+	failureTask := seedPollingTask(t, channelID, "task_metric_failure", "upstream_metric_failure")
+	for _, task := range []*model.Task{successTask, failureTask} {
+		task.Group = groupName
+		task.SubmitTime = time.Now().Add(-10 * time.Second).Unix()
+		task.Properties = model.Properties{OriginModelName: modelName}
+		require.NoError(t, model.DB.Save(task).Error)
+	}
+	staleSuccessTask := *successTask
+
+	var channel model.Channel
+	require.NoError(t, model.DB.First(&channel, channelID).Error)
+	adaptor := &terminalVideoPollingAdaptor{statuses: map[string]model.TaskStatus{
+		successTask.GetUpstreamTaskID(): model.TaskStatusSuccess,
+		failureTask.GetUpstreamTaskID(): model.TaskStatusFailure,
+	}}
+
+	require.NoError(t, updateVideoSingleTask(context.Background(), adaptor, &channel,
+		successTask.GetUpstreamTaskID(), map[string]*model.Task{successTask.GetUpstreamTaskID(): successTask}))
+	require.NoError(t, updateVideoSingleTask(context.Background(), adaptor, &channel,
+		failureTask.GetUpstreamTaskID(), map[string]*model.Task{failureTask.GetUpstreamTaskID(): failureTask}))
+	// A stale overlapping poller loses the terminal CAS and must not record a
+	// duplicate success sample.
+	require.NoError(t, updateVideoSingleTask(context.Background(), adaptor, &channel,
+		staleSuccessTask.GetUpstreamTaskID(), map[string]*model.Task{staleSuccessTask.GetUpstreamTaskID(): &staleSuccessTask}))
+
+	require.Eventually(t, func() bool {
+		result, err := perfmetrics.Query(perfmetrics.QueryParams{Model: modelName, Hours: 1})
+		return err == nil && len(result.Groups) == 1 && result.Groups[0].SuccessRate == 50
+	}, time.Second, 10*time.Millisecond)
+
+	result, err := perfmetrics.Query(perfmetrics.QueryParams{Model: modelName, Hours: 1})
+	require.NoError(t, err)
+	require.True(t, result.Enabled)
+	require.Len(t, result.Groups, 1)
+	assert.Equal(t, groupName, result.Groups[0].Group)
+	assert.Equal(t, 50.0, result.Groups[0].SuccessRate)
+	assert.GreaterOrEqual(t, result.Groups[0].AvgLatencyMs, int64(10_000))
+
+	var reloadedSuccess model.Task
+	var reloadedFailure model.Task
+	require.NoError(t, model.DB.First(&reloadedSuccess, successTask.ID).Error)
+	require.NoError(t, model.DB.First(&reloadedFailure, failureTask.ID).Error)
+	assert.EqualValues(t, model.TaskStatusSuccess, reloadedSuccess.Status)
+	assert.EqualValues(t, model.TaskStatusFailure, reloadedFailure.Status)
 }
 
 func TestUpdateSunoTasksStalePollsRefundExactlyOnce(t *testing.T) {

@@ -36,7 +36,7 @@ import {
 import type { PerformanceGroup } from '@/features/performance-metrics/types'
 import { cn } from '@/lib/utils'
 
-import { type UptimeDayPoint } from '../lib/mock-stats'
+import type { UptimeDayPoint } from '../lib/mock-stats'
 import type { PricingModel } from '../types'
 import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'
 import { UptimeSparkline } from './model-details-uptime-sparkline'
@@ -97,7 +97,7 @@ function toLatencySeries(groups: PerformanceGroup[]) {
     }
   }
 
-  return Array.from(byTs.entries())
+  return [...byTs.entries()]
     .sort(([a], [b]) => a - b)
     .map(([ts, values]) => ({
       timestamp: new Date(ts * 1000).toISOString(),
@@ -121,7 +121,7 @@ function toUptimeSeries(groups: PerformanceGroup[]): UptimeDayPoint[] {
       byTs.set(point.ts, current)
     }
   }
-  return Array.from(byTs.entries())
+  return [...byTs.entries()]
     .sort(([a], [b]) => a - b)
     .map(([ts, value]) => {
       const uptime =
@@ -172,6 +172,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
     () => metricsQuery.data?.data.groups ?? [],
     [metricsQuery.data]
   )
+  const metricsEnabled = metricsQuery.data?.data.enabled ?? true
   const performances = useMemo<PerformanceRow[]>(
     () =>
       groups.map((group) => ({
@@ -192,6 +193,14 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
     }
     return map
   }, [groups])
+
+  if (!metricsQuery.isLoading && !metricsEnabled) {
+    return (
+      <div className='text-muted-foreground rounded-lg border p-6 text-center text-sm'>
+        {t('Model performance metrics are disabled.')}
+      </div>
+    )
+  }
 
   if (metricsQuery.isLoading || performances.length === 0) {
     return (

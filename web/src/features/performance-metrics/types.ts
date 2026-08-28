@@ -37,6 +37,7 @@ export type PerformanceMetricsData = {
   success: boolean
   message?: string
   data: {
+    enabled?: boolean
     model_name: string
     series_schema?: string
     groups: PerformanceGroup[]
@@ -56,6 +57,7 @@ export type PerfSummaryAllData = {
   success: boolean
   message?: string
   data: {
+    enabled?: boolean
     models: PerfModelSummary[]
   }
 }

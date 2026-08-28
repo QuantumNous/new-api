@@ -13,12 +13,14 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 )
 
@@ -483,7 +485,13 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 	}
 
 	if !snap.Equal(task.Snapshot()) {
-		_, _ = task.UpdateWithStatus(snap.Status)
+		won, _ := task.UpdateWithStatus(snap.Status)
+		if won && (task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure) {
+			taskSnapshot := *task
+			gopool.Go(func() {
+				perfmetrics.RecordTaskTerminalSample(&taskSnapshot)
+			})
+		}
 	}
 
 	// OpenAI Video API 由调用者的 ConvertToOpenAIVideo 分支处理

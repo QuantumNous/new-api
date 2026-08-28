@@ -42,6 +42,7 @@ type GroupResult struct {
 }
 
 type QueryResult struct {
+	Enabled      bool          `json:"enabled"`
 	ModelName    string        `json:"model_name"`
 	SeriesSchema string        `json:"series_schema"`
 	Groups       []GroupResult `json:"groups"`
@@ -57,7 +58,8 @@ type ModelSummary struct {
 }
 
 type SummaryAllResult struct {
-	Models []ModelSummary `json:"models"`
+	Enabled bool           `json:"enabled"`
+	Models  []ModelSummary `json:"models"`
 }
 
 type bucketKey struct {

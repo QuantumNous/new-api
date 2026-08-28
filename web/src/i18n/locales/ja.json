@@ -3395,6 +3395,7 @@
     "Percentage:": "パーセンテージ:",
     "Performance": "パフォーマンス",
     "Performance data is not yet available for this model.": "このモデルのパフォーマンスデータはまだ利用できません。",
+    "Model performance metrics are disabled.": "モデル性能メトリクスは無効です。",
     "Performance health": "パフォーマンス状態",
     "Performance metrics for the last 24 hours": "直近24時間のパフォーマンス指標",
     "Performance metrics shown here are simulated for preview purposes and will be replaced with live observability data once the backend integration is complete.": "ここに表示されているパフォーマンス指標はプレビュー用のシミュレーションデータです。バックエンド連携の完了後、実データに置き換えられます。",

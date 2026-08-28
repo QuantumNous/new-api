@@ -3395,6 +3395,7 @@
     "Percentage:": "Phần trăm:",
     "Performance": "Hiệu suất",
     "Performance data is not yet available for this model.": "Chưa có dữ liệu hiệu năng cho mô hình này.",
+    "Model performance metrics are disabled.": "Chỉ số hiệu năng mô hình đã bị tắt.",
     "Performance health": "Tình trạng hiệu suất",
     "Performance metrics for the last 24 hours": "Chỉ số hiệu năng trong 24 giờ qua",
     "Performance metrics shown here are simulated for preview purposes and will be replaced with live observability data once the backend integration is complete.": "Các chỉ số hiệu năng hiển thị tại đây là dữ liệu mô phỏng để xem trước và sẽ được thay thế bằng dữ liệu thực sau khi tích hợp backend.",
