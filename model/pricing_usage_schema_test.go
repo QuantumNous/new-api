@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +43,7 @@ func TestPricingCarriesTaskUsageSchemaAndRefreshesWithPluginGeneration(t *testin
 	require.Contains(t, initialPricing, "pricing-usage-model")
 	require.Contains(t, initialPricing, "ordinary-model")
 	assert.Equal(t, "second", initialPricing["pricing-usage-model"].BillingUsageSchema["seconds"].Unit)
-	assert.Equal(t, "Estimated duration.", initialPricing["pricing-usage-model"].BillingUsageSchema["seconds"].Description)
+	assert.Equal(t, "Estimated duration.", initialPricing["pricing-usage-model"].BillingUsageSchema["seconds"].Description["en"])
 	assert.Nil(t, initialPricing["ordinary-model"].BillingUsageSchema)
 
 	updatedSource := pricingUsagePluginSource("1.1.0", `{
@@ -56,7 +56,7 @@ func TestPricingCarriesTaskUsageSchemaAndRefreshesWithPluginGeneration(t *testin
 
 	refreshedPricing := pricingByModel(GetPricing())
 	require.Len(t, refreshedPricing["pricing-usage-model"].BillingUsageSchema, 2)
-	assert.Equal(t, "Measured duration.", refreshedPricing["pricing-usage-model"].BillingUsageSchema["seconds"].Description)
+	assert.Equal(t, "Measured duration.", refreshedPricing["pricing-usage-model"].BillingUsageSchema["seconds"].Description["en"])
 	assert.Equal(t, "count", refreshedPricing["pricing-usage-model"].BillingUsageSchema["clips"].Unit)
 }
 

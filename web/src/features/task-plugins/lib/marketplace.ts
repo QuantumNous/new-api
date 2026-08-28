@@ -147,13 +147,28 @@ function parseMarketplacePlugin(entry: unknown): MarketplacePlugin | null {
     key,
     name: typeof raw.name === 'string' && raw.name ? raw.name : key,
     icon,
-    description:
-      typeof raw.description === 'string' ? raw.description : undefined,
+    description: parseMarketplaceDescription(raw.description),
     channelTypes: numberArray(raw.channelTypes),
     models: stringArray(raw.models),
     latest,
     versions,
   }
+}
+
+function parseMarketplaceDescription(
+  value: unknown
+): string | Record<string, string> | undefined {
+  if (typeof value === 'string') return value
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+  const mapped: Record<string, string> = {}
+  for (const [locale, text] of Object.entries(
+    value as Record<string, unknown>
+  )) {
+    if (typeof text === 'string') mapped[locale] = text
+  }
+  return Object.keys(mapped).length > 0 ? mapped : undefined
 }
 
 function stringArray(value: unknown): string[] | undefined {
@@ -233,12 +248,19 @@ export function indexHasIntegrityHashes(index: MarketplaceIndex): boolean {
 }
 
 export const DEFAULT_MARKETPLACE_INDEX_URL =
+  'https://www.newapi.ai/api/v1/plugins/index.json'
+
+export const GITHUB_MARKETPLACE_INDEX_URL =
   'https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/index.json'
 
 /**
- * Third-party sources get an explicit at-your-own-risk label. "Default" means
- * the official index URL the backend falls back to when no sources are set.
+ * Both built-in indexes are maintained by the project. Other configured
+ * sources get an explicit at-your-own-risk label.
  */
 export function isDefaultMarketplaceSource(indexUrl: string): boolean {
-  return indexUrl.trim() === DEFAULT_MARKETPLACE_INDEX_URL
+  const normalized = indexUrl.trim()
+  return (
+    normalized === DEFAULT_MARKETPLACE_INDEX_URL ||
+    normalized === GITHUB_MARKETPLACE_INDEX_URL
+  )
 }

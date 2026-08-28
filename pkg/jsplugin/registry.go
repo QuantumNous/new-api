@@ -26,14 +26,60 @@ import (
 
 const APIVersion1 = 1
 
+const (
+	maxLocalizedTextLocales       = 16
+	maxMetaDescriptionRunes       = 512
+	maxUsageFieldDescriptionRunes = 256
+)
+
 var pluginKeyPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
 var pluginVersionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
+var localeTagPattern = regexp.MustCompile(`^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$`)
+
+// LocalizedText is locale-keyed display copy. Plugin source may use a bare
+// string (normalized to {"en": s}) or a map that must include "en". API
+// responses always emit an object.
+type LocalizedText map[string]string
+
+func (t LocalizedText) MarshalJSON() ([]byte, error) {
+	if t == nil {
+		return common.Marshal(map[string]string{})
+	}
+	return common.Marshal(map[string]string(t))
+}
+
+func (t *LocalizedText) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		*t = nil
+		return nil
+	}
+	switch trimmed[0] {
+	case '"':
+		var text string
+		if err := common.Unmarshal(data, &text); err != nil {
+			return err
+		}
+		*t = LocalizedText{"en": text}
+		return nil
+	case '{':
+		var object map[string]string
+		if err := common.Unmarshal(data, &object); err != nil {
+			return err
+		}
+		*t = LocalizedText(object)
+		return nil
+	default:
+		return fmt.Errorf("localized text must be a string or object")
+	}
+}
 
 type Meta struct {
 	APIVersion    int                         `json:"apiVersion"`
 	Key           string                      `json:"key"`
 	Name          string                      `json:"name"`
 	Icon          string                      `json:"icon,omitempty"`
+	Description   LocalizedText               `json:"description,omitempty"`
 	Version       string                      `json:"version"`
 	Author        AuthorMeta                  `json:"author"`
 	ChannelTypes  []int                       `json:"channelTypes,omitempty"`
@@ -67,10 +113,10 @@ type AuthMeta struct {
 // influence billing. Numeric facts use one of the host-owned canonical units;
 // boolean facts are flags; enum facts constrain non-numeric pricing selectors.
 type UsageFieldSchema struct {
-	Type        string   `json:"type,omitempty"`
-	Unit        string   `json:"unit,omitempty"`
-	Enum        []string `json:"enum,omitempty"`
-	Description string   `json:"description,omitempty"`
+	Type        string        `json:"type,omitempty"`
+	Unit        string        `json:"unit,omitempty"`
+	Enum        []string      `json:"enum,omitempty"`
+	Description LocalizedText `json:"description,omitempty"`
 }
 
 type LoadedPlugin struct {
@@ -654,11 +700,17 @@ func cloneMeta(meta Meta) Meta {
 	for index := range meta.Protocols {
 		meta.Protocols[index].Models = append([]string(nil), meta.Protocols[index].Models...)
 	}
+	if meta.Description != nil {
+		meta.Description = maps.Clone(meta.Description)
+	}
 	if meta.UsageSchema != nil {
 		usageSchema := make(map[string]UsageFieldSchema, len(meta.UsageSchema))
 		for key, field := range meta.UsageSchema {
 			if field.Enum != nil {
 				field.Enum = append([]string{}, field.Enum...)
+			}
+			if field.Description != nil {
+				field.Description = maps.Clone(field.Description)
 			}
 			usageSchema[key] = field
 		}
@@ -739,7 +791,7 @@ func decodeMeta(value any) (Meta, error) {
 	}
 	for field := range object {
 		switch field {
-		case "apiVersion", "key", "name", "icon", "version", "author", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "routes", "protocols", "usageSchema", "usageExamples", "auth", "endpoints", "submitPaths", "actions":
+		case "apiVersion", "key", "name", "icon", "description", "version", "author", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "routes", "protocols", "usageSchema", "usageExamples", "auth", "endpoints", "submitPaths", "actions":
 		default:
 			return Meta{}, fmt.Errorf("plugin meta has unknown field %q", field)
 		}
@@ -760,6 +812,9 @@ func decodeMeta(value any) (Meta, error) {
 		return Meta{}, err
 	}
 	meta.Icon = strings.TrimSpace(meta.Icon)
+	if meta.Description, err = localizedTextMetaField(object, "description", maxMetaDescriptionRunes); err != nil {
+		return Meta{}, err
+	}
 	if meta.Version, err = stringMetaField(object, "version"); err != nil {
 		return Meta{}, err
 	}
@@ -890,6 +945,9 @@ func normalizeV1Meta(meta *Meta) error {
 				return fmt.Errorf("plugin meta icon must not contain control characters")
 			}
 		}
+	}
+	if err := validateLocalizedText(meta.Description, "description", maxMetaDescriptionRunes); err != nil {
+		return err
 	}
 	meta.Author.Name = strings.TrimSpace(meta.Author.Name)
 	if meta.Author.Name == "" {
@@ -1031,7 +1089,7 @@ func decodeUsageSchema(value any) (map[string]UsageFieldSchema, error) {
 		if field.Unit, err = stringMetaField(fieldObject, "unit"); err != nil {
 			return nil, err
 		}
-		if field.Description, err = stringMetaField(fieldObject, "description"); err != nil {
+		if field.Description, err = localizedTextMetaField(fieldObject, "description", maxUsageFieldDescriptionRunes); err != nil {
 			return nil, err
 		}
 		if _, exists := fieldObject["enum"]; exists {
@@ -1048,8 +1106,8 @@ func decodeUsageSchema(value any) (map[string]UsageFieldSchema, error) {
 }
 
 func validateUsageFieldSchema(name string, field UsageFieldSchema) error {
-	if utf8.RuneCountInString(field.Description) > 256 {
-		return fmt.Errorf("plugin meta usageSchema field %q description must not exceed 256 characters", name)
+	if err := validateLocalizedText(field.Description, fmt.Sprintf("usageSchema field %q description", name), maxUsageFieldDescriptionRunes); err != nil {
+		return err
 	}
 	if field.Enum != nil {
 		if field.Type != "" || field.Unit != "" {
@@ -1391,6 +1449,95 @@ func stringMetaField(object map[string]any, name string) (string, error) {
 		return "", fmt.Errorf("plugin meta %s must be a string", name)
 	}
 	return text, nil
+}
+
+func localizedTextMetaField(object map[string]any, name string, maxRunes int) (LocalizedText, error) {
+	value, exists := object[name]
+	if !exists {
+		return nil, nil
+	}
+	var text LocalizedText
+	switch typed := value.(type) {
+	case string:
+		text = LocalizedText{"en": typed}
+	case map[string]any:
+		text = make(LocalizedText, len(typed))
+		for locale, raw := range typed {
+			item, ok := raw.(string)
+			if !ok {
+				return nil, fmt.Errorf("plugin meta %s locale %q must be a string", name, locale)
+			}
+			text[locale] = item
+		}
+	default:
+		return nil, fmt.Errorf("plugin meta %s must be a string or object", name)
+	}
+	if err := validateLocalizedText(text, name, maxRunes); err != nil {
+		return nil, err
+	}
+	return text, nil
+}
+
+func validateLocalizedText(text LocalizedText, name string, maxRunes int) error {
+	if text == nil {
+		return nil
+	}
+	if len(text) > maxLocalizedTextLocales {
+		return fmt.Errorf("plugin meta %s must not exceed %d locales", name, maxLocalizedTextLocales)
+	}
+	canonical := make(map[string]string, len(text))
+	for locale, value := range text {
+		if !localeTagPattern.MatchString(locale) {
+			return fmt.Errorf("plugin meta %s has invalid locale %q", name, locale)
+		}
+		canonicalLocale := canonicalLocaleTag(locale)
+		if _, duplicate := canonical[canonicalLocale]; duplicate {
+			return fmt.Errorf("plugin meta %s has duplicate locale %q", name, canonicalLocale)
+		}
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return fmt.Errorf("plugin meta %s value for %q must be a non-empty string", name, locale)
+		}
+		for _, character := range trimmed {
+			if unicode.IsControl(character) {
+				return fmt.Errorf("plugin meta %s value for %q must not contain control characters", name, locale)
+			}
+		}
+		if utf8.RuneCountInString(trimmed) > maxRunes {
+			return fmt.Errorf("plugin meta %s must not exceed %d characters", name, maxRunes)
+		}
+		canonical[canonicalLocale] = trimmed
+	}
+	if strings.TrimSpace(canonical["en"]) == "" {
+		return fmt.Errorf("plugin meta %s must include a non-empty \"en\" value", name)
+	}
+	for locale := range text {
+		delete(text, locale)
+	}
+	for locale, value := range canonical {
+		text[locale] = value
+	}
+	return nil
+}
+
+// canonicalLocaleTag applies BCP-47 case conventions so lookups can use
+// exact matching: language lowercase, 2-letter region uppercase, 4-letter
+// script title case (zh-tw -> zh-TW, EN -> en, zh-hans -> zh-Hans).
+func canonicalLocaleTag(tag string) string {
+	parts := strings.Split(tag, "-")
+	parts[0] = strings.ToLower(parts[0])
+	for index := 1; index < len(parts); index++ {
+		switch len(parts[index]) {
+		case 2:
+			parts[index] = strings.ToUpper(parts[index])
+		case 4:
+			lowered := strings.ToLower(parts[index])
+			parts[index] = strings.ToUpper(lowered[:1]) + lowered[1:]
+		default:
+			parts[index] = strings.ToLower(parts[index])
+		}
+	}
+	return strings.Join(parts, "-")
 }
 
 func strictStringSlice(object map[string]any, name string) ([]string, error) {

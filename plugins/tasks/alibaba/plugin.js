@@ -3,6 +3,10 @@ export const meta = {
   key: "alibaba",
   name: "Alibaba Bailian",
   icon: "Bailian.Color",
+  description: {
+    en: "Alibaba Cloud Bailian Wanxiang video generation (text-to-video and image-to-video)",
+    zh: "阿里云百炼万相视频生成（文生视频、图生视频）",
+  },
   version: "1.0.0",
   author: { name: "QuantumNous" },
   channelTypes: [17],
@@ -18,8 +22,15 @@ export const meta = {
   ],
   fetchMode: "per_task",
   usageSchema: {
-    seconds: { type: "number", unit: "second", description: "Requested video duration in seconds." },
-    resolution: { enum: ["480P", "720P", "1080P"], description: "Requested output video resolution." },
+    seconds: {
+      type: "number",
+      unit: "second",
+      description: { en: "Requested video duration in seconds.", zh: "请求的视频时长，单位为秒。" },
+    },
+    resolution: {
+      enum: ["480P", "720P", "1080P"],
+      description: { en: "Requested output video resolution.", zh: "请求的输出视频分辨率。" },
+    },
   },
   routes: [
     { method: "POST", path: "/ali/api/v1/services/aigc/video-generation/video-synthesis", type: "submit", decode: "createVideoTask", render: "taskCreated" },

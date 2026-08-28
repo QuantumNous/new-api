@@ -181,7 +181,7 @@ export function parseTaskResult() { return {}; }
 			continue
 		}
 		assert.Equal(t, "second", option.UsageSchema["seconds"].Unit)
-		assert.Equal(t, "Generated media duration.", option.UsageSchema["seconds"].Description)
+		assert.Equal(t, "Generated media duration.", option.UsageSchema["seconds"].Description["en"])
 		return
 	}
 	t.Fatal("task plugin option not found")
@@ -903,10 +903,10 @@ func TestGetTaskPluginMarketplaceSourcesDefaultWhenUnset(t *testing.T) {
 	}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
 	require.True(t, response.Success)
-	require.Equal(t, []setting.TaskPluginMarketplaceSource{{
-		Name:     "Official",
-		IndexURL: "https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/index.json",
-	}}, response.Data)
+	require.Equal(t, []setting.TaskPluginMarketplaceSource{
+		{Name: "Official", IndexURL: "https://www.newapi.ai/api/v1/plugins/index.json"},
+		{Name: "GitHub", IndexURL: "https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/index.json"},
+	}, response.Data)
 	var count int64
 	require.NoError(t, model.DB.Model(&model.Option{}).Where("key = ?", setting.TaskPluginMarketplaceSourcesKey).Count(&count).Error)
 	assert.Zero(t, count)
@@ -916,7 +916,7 @@ func TestUpdateTaskPluginMarketplaceSourcesRoundTrip(t *testing.T) {
 	setupTaskPluginMarketplaceSourcesTest(t)
 	payload := []setting.TaskPluginMarketplaceSource{
 		{Name: "Mirror", IndexURL: "https://example.com/plugins/index.json"},
-		{Name: "Official", IndexURL: "https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/index.json"},
+		{Name: "Official", IndexURL: "https://www.newapi.ai/api/v1/plugins/index.json"},
 	}
 	body, err := common.Marshal(payload)
 	require.NoError(t, err)

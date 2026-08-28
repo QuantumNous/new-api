@@ -49,6 +49,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { resolveLocalizedText } from '@/lib/localized-text'
 
 import {
   activateTaskPlugin,
@@ -67,7 +68,7 @@ type PluginDetailSheetProps = {
 }
 
 export function PluginDetailSheet(props: PluginDetailSheetProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const key = props.plugin?.meta.key ?? ''
   const [compareVersion, setCompareVersion] = useState('')
@@ -98,6 +99,10 @@ export function PluginDetailSheet(props: PluginDetailSheetProps) {
   })
   const detail = detailQuery.data
   const versions = versionsQuery.data ?? []
+  const description = resolveLocalizedText(
+    detail?.meta.description ?? props.plugin?.meta.description,
+    i18n.language
+  )
   return (
     <Sheet open={Boolean(props.plugin)} onOpenChange={props.onOpenChange}>
       <SheetContent className='w-full overflow-y-auto sm:max-w-4xl'>
@@ -105,7 +110,12 @@ export function PluginDetailSheet(props: PluginDetailSheetProps) {
           <SheetTitle>
             {detail?.meta.name ?? props.plugin?.meta.name}
           </SheetTitle>
-          <SheetDescription>{key}</SheetDescription>
+          <SheetDescription>
+            <span className='block font-mono'>{key}</span>
+            {description ? (
+              <span className='mt-1 block'>{description}</span>
+            ) : null}
+          </SheetDescription>
         </SheetHeader>
         <div className='space-y-4 px-4 pb-6'>
           {detail && (

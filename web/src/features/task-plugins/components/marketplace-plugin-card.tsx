@@ -27,6 +27,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getChannelTypeLabel } from '@/features/channels/lib'
+import { resolveLocalizedText } from '@/lib/localized-text'
 
 import { findMarketplaceVersion, type InstallState } from '../lib/marketplace'
 import type { MarketplacePlugin, TaskPluginListItem } from '../types'
@@ -40,8 +41,9 @@ type MarketplacePluginCardProps = {
 }
 
 export function MarketplacePluginCard(props: MarketplacePluginCardProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const plugin = props.plugin
+  const description = resolveLocalizedText(plugin.description, i18n.language)
   const channelTypes = plugin.channelTypes ?? []
   const latestEntry = findMarketplaceVersion(plugin, plugin.latest)
   const labelClass = 'text-muted-foreground text-[11px] font-medium select-none'
@@ -63,11 +65,11 @@ export function MarketplacePluginCard(props: MarketplacePluginCardProps) {
         <InstallStateBadge state={props.installState} />
       </div>
 
-      {plugin.description && (
+      {description ? (
         <p className='text-muted-foreground line-clamp-2 text-xs'>
-          {plugin.description}
+          {description}
         </p>
-      )}
+      ) : null}
 
       <div className='grid grid-cols-3 gap-x-3 gap-y-1'>
         <div className='min-w-0'>

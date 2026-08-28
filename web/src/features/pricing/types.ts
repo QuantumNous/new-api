@@ -33,7 +33,7 @@ export type BillingUsageFieldSchema = {
   type?: 'number' | 'boolean'
   unit?: BillingUsageUnit
   enum?: string[]
-  description?: string
+  description?: string | Record<string, string>
 }
 
 export type BillingUsageSchema = Record<string, BillingUsageFieldSchema>

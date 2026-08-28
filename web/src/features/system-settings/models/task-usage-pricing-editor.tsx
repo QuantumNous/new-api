@@ -60,6 +60,7 @@ import type {
   BillingUsageExample,
   BillingUsageSchema,
 } from '@/features/pricing/types'
+import { resolveLocalizedText } from '@/lib/localized-text'
 
 import { formatPricingNumber } from './pricing-format'
 import { TaskPricingMatrix } from './task-pricing-matrix'
@@ -250,7 +251,7 @@ function TaskBillingPreview(props: TaskBillingPreviewProps) {
 export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
   props: TaskUsagePricingEditorProps
 ) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [editorMode, setEditorMode] = useState<EditorMode>(() =>
     props.billingExpr &&
     !tryParseTaskMatrixConfig(props.billingExpr, props.usageSchema)
@@ -468,48 +469,52 @@ export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
                       {t('Usage prices')}
                     </Label>
                     <div className='grid gap-3 sm:grid-cols-2'>
-                      {numberFields.map(([field, definition]) => (
-                        <Field key={field} className='gap-1.5'>
-                          <FieldLabel>
-                            <code>{field}</code>
-                          </FieldLabel>
-                          <div className='flex items-center gap-2'>
-                            <Input
-                              type='number'
-                              min={0}
-                              step={0.000001}
-                              value={matrixRows[0].unitPrices[field] ?? 0}
-                              onFocus={(event) => {
-                                if (Number(event.currentTarget.value) === 0) {
-                                  event.currentTarget.select()
-                                }
-                              }}
-                              onChange={(event) => {
-                                const value = Number(event.target.value)
-                                handleRowChange(0, {
-                                  ...matrixRows[0],
-                                  unitPrices: {
-                                    ...matrixRows[0].unitPrices,
-                                    [field]:
-                                      Number.isFinite(value) && value >= 0
-                                        ? value
-                                        : 0,
-                                  },
-                                })
-                              }}
-                              className='font-mono'
-                            />
-                            <span className='text-muted-foreground shrink-0 text-xs'>
-                              $/{t(getTaskUsagePriceUnitLabelKey(definition.unit))}
-                            </span>
-                          </div>
-                          {definition.description && (
-                            <FieldDescription>
-                              {definition.description}
-                            </FieldDescription>
-                          )}
-                        </Field>
-                      ))}
+                      {numberFields.map(([field, definition]) => {
+                        const description = resolveLocalizedText(
+                          definition.description,
+                          i18n.language
+                        )
+                        return (
+                          <Field key={field} className='gap-1.5'>
+                            <FieldLabel>
+                              <code>{field}</code>
+                            </FieldLabel>
+                            <div className='flex items-center gap-2'>
+                              <Input
+                                type='number'
+                                min={0}
+                                step={0.000001}
+                                value={matrixRows[0].unitPrices[field] ?? 0}
+                                onFocus={(event) => {
+                                  if (Number(event.currentTarget.value) === 0) {
+                                    event.currentTarget.select()
+                                  }
+                                }}
+                                onChange={(event) => {
+                                  const value = Number(event.target.value)
+                                  handleRowChange(0, {
+                                    ...matrixRows[0],
+                                    unitPrices: {
+                                      ...matrixRows[0].unitPrices,
+                                      [field]:
+                                        Number.isFinite(value) && value >= 0
+                                          ? value
+                                          : 0,
+                                    },
+                                  })
+                                }}
+                                className='font-mono'
+                              />
+                              <span className='text-muted-foreground shrink-0 text-xs'>
+                                $/{t(getTaskUsagePriceUnitLabelKey(definition.unit))}
+                              </span>
+                            </div>
+                            {description ? (
+                              <FieldDescription>{description}</FieldDescription>
+                            ) : null}
+                          </Field>
+                        )
+                      })}
                       <Field className='gap-1.5'>
                         <FieldLabel>{t('Base charge')}</FieldLabel>
                         <div className='flex items-center gap-2'>

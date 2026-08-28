@@ -3,6 +3,10 @@ export const meta = {
   key: "vertex-ai",
   name: "Google Veo (Vertex AI)",
   icon: "VertexAI.Color",
+  description: {
+    en: "Google Veo video generation on Vertex AI (text-to-video and image-to-video)",
+    zh: "Google Veo 视频生成（文生视频、图生视频），Vertex AI 版本",
+  },
   version: "1.0.0",
   channelTypes: [41],
   author: { name: "QuantumNous" },
@@ -10,9 +14,25 @@ export const meta = {
   fetchMode: "per_task",
   auth: { type: "oauth2_jwt" },
   usageSchema: {
-    seconds: { type: "number", unit: "second", description: "Requested video duration in seconds. Allowed values: 4, 6, 8." },
-    resolution: { enum: ["720p", "1080p", "4k"], description: "Requested video output resolution." },
-    generate_audio: { type: "boolean", description: "Whether audio is generated. Default true. Audio and muted tiers have different prices." },
+    seconds: {
+      type: "number",
+      unit: "second",
+      description: {
+        en: "Requested video duration in seconds. Allowed values: 4, 6, 8.",
+        zh: "请求的视频时长，单位为秒。允许值为 4、6、8。",
+      },
+    },
+    resolution: {
+      enum: ["720p", "1080p", "4k"],
+      description: { en: "Requested video output resolution.", zh: "请求的输出视频分辨率。" },
+    },
+    generate_audio: {
+      type: "boolean",
+      description: {
+        en: "Whether audio is generated. Default true. Audio and muted tiers have different prices.",
+        zh: "是否生成音频。默认为 true。有声与静音档位计费不同。",
+      },
+    },
   },
   usageExamples: [
     { label: "8s 720p audio", facts: { seconds: 8, resolution: "720p", generate_audio: true } },

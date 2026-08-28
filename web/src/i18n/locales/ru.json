@@ -1787,6 +1787,7 @@
     "Enterprise-grade security with comprehensive permission management": "Безопасность корпоративного уровня с комплексным управлением разрешениями",
     "Entrypoint (space separated)": "Точка входа (через пробелы)",
     "Enum": "Перечисление",
+    "Boolean": "Логический",
     "Enum values": "Значения перечисления",
     "Env (JSON object)": "Env (объект JSON)",
     "Environment variables": "Переменные окружения",

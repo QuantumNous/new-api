@@ -1787,6 +1787,7 @@
     "Enterprise-grade security with comprehensive permission management": "Sécurité de niveau entreprise avec gestion complète des autorisations",
     "Entrypoint (space separated)": "Point d'entrée (séparés par des espaces)",
     "Enum": "Énumération",
+    "Boolean": "Booléen",
     "Enum values": "Valeurs de l'énumération",
     "Env (JSON object)": "Env (objet JSON)",
     "Environment variables": "Variables d'environnement",

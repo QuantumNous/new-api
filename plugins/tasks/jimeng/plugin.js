@@ -3,16 +3,27 @@ export const meta = {
   key: "jimeng",
   name: "Jimeng",
   icon: "Jimeng.Color",
+  description: {
+    en: "Volcengine Jimeng video generation (text-to-video, image-to-video, and first-and-last-frame)",
+    zh: "火山引擎即梦视频生成（文生视频、图生视频、首尾帧）",
+  },
   version: "1.0.0",
   author: { name: "QuantumNous" },
   channelTypes: [51],
   models: ["jimeng_vgfm_t2v_l20"],
   fetchMode: "per_task",
   usageSchema: {
-    seconds: { type: "number", unit: "second", description: "Requested video duration in seconds. S2.0 Pro is fixed at 5; 3.0 req_keys allow 5 or 10." },
+    seconds: {
+      type: "number",
+      unit: "second",
+      description: {
+        en: "Requested video duration in seconds. S2.0 Pro is fixed at 5; 3.0 req_keys allow 5 or 10.",
+        zh: "请求的视频时长，单位为秒。S2.0 Pro 固定为 5；3.0 req_keys 允许 5 或 10。",
+      },
+    },
     product: {
       enum: ["s2_pro", "v30_720p", "v30_1080p", "v30_pro"],
-      description: "Product tier derived from the final outbound req_key.",
+      description: { en: "Product tier derived from the final outbound req_key.", zh: "由最终出站 req_key 推导出的产品档位。" },
     },
   },
   usageExamples: [

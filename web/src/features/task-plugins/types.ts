@@ -23,6 +23,7 @@ export type TaskPluginMeta = {
   key: string
   name: string
   icon?: string
+  description?: Record<string, string>
   version: string
   author: {
     name: string
@@ -114,7 +115,7 @@ export type MarketplacePlugin = {
   key: string
   name: string
   icon?: string
-  description?: string
+  description?: string | Record<string, string>
   channelTypes?: number[]
   models?: string[]
   latest: string

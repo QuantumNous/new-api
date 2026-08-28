@@ -20,6 +20,8 @@ import { flexRender, type Row } from '@tanstack/react-table'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { resolveLocalizedText } from '@/lib/localized-text'
+
 import { PluginIcon } from './plugin-icon'
 import type { TaskPluginListItem } from '../types'
 import { UsageSchemaTable } from './usage-schema-table'
@@ -31,8 +33,12 @@ import { UsageSchemaTable } from './usage-schema-table'
  * and the actions menu.
  */
 function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const cells = row.getAllCells()
+  const description = resolveLocalizedText(
+    row.original.meta.description,
+    i18n.language
+  )
 
   const renderCell = (id: string) => {
     const cell = cells.find((c) => c.column.id === id)
@@ -45,7 +51,7 @@ function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
   const labelClass = 'text-muted-foreground text-[11px] font-medium select-none'
 
   return (
-    <div className='flex h-full flex-col gap-2.5'>
+    <div className='flex h-full flex-col gap-2'>
       {/* Row 1: type icon + name/key, with runtime status + actions menu */}
       <div className='flex items-start justify-between gap-2'>
         <div className='flex min-w-0 flex-1 items-center gap-2.5'>
@@ -66,32 +72,32 @@ function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
         </div>
       </div>
 
+      {description ? (
+        <p className='text-muted-foreground line-clamp-2 text-xs'>
+          {description}
+        </p>
+      ) : null}
+
       {/* Row 2: source + runtime badges wrap freely */}
       <div className='flex flex-wrap items-center gap-1.5'>
         {renderCell('source')}
         {renderCell('runtime')}
       </div>
 
-      {/* Row 3: key fields in compact labeled columns */}
-      <div className='grid grid-cols-3 gap-x-3 gap-y-1'>
-        <div className='min-w-0'>
-          <div className={labelClass}>{t('Active version')}</div>
-          <div className='truncate font-mono text-xs'>
-            {row.original.meta.version || '-'}
-          </div>
-        </div>
-        <div className='min-w-0'>
-          <div className={labelClass}>{t('API version')}</div>
-          <div className='truncate font-mono text-xs'>
-            {row.original.meta.apiVersion}
-          </div>
-        </div>
-        <div className='min-w-0'>
-          <div className={labelClass}>{t('Models')}</div>
-          <div className='truncate text-xs'>
-            {row.original.meta.models?.length ?? 0}
-          </div>
-        </div>
+      {/* Row 3: scalar fields as one inline stats row that wraps as needed */}
+      <div className='flex flex-wrap items-center gap-x-3 gap-y-1 text-xs'>
+        <span className='flex items-baseline gap-1'>
+          <span className={labelClass}>{t('Active version')}</span>
+          <span className='font-mono'>{row.original.meta.version || '-'}</span>
+        </span>
+        <span className='flex items-baseline gap-1'>
+          <span className={labelClass}>{t('API version')}</span>
+          <span className='font-mono'>v{row.original.meta.apiVersion}</span>
+        </span>
+        <span className='flex items-baseline gap-1'>
+          <span className={labelClass}>{t('Models')}</span>
+          <span>{row.original.meta.models?.length ?? 0}</span>
+        </span>
       </div>
 
       {row.original.meta.usageSchema &&

@@ -17,11 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
+
 import { describe, test } from 'vitest'
 
 import {
   deriveInstallState,
   findMarketplaceVersion,
+  GITHUB_MARKETPLACE_INDEX_URL,
   indexHasIntegrityHashes,
   isDefaultMarketplaceSource,
   parseMarketplaceIndex,
@@ -33,8 +35,7 @@ import type {
   TaskPluginListItem,
 } from '../types'
 
-const OFFICIAL_INDEX_URL =
-  'https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/index.json'
+const OFFICIAL_INDEX_URL = 'https://www.newapi.ai/api/v1/plugins/index.json'
 
 function marketplacePlugin(
   overrides: Partial<MarketplacePlugin> = {}
@@ -87,11 +88,8 @@ describe('marketplace source path resolution', () => {
 
   test('resolves against a root index without dropping the path', () => {
     assert.equal(
-      resolvePluginSourceUrl(
-        OFFICIAL_INDEX_URL,
-        'plugins/tasks/x/1.0.0/plugin.js'
-      ),
-      'https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/plugins/tasks/x/1.0.0/plugin.js'
+      resolvePluginSourceUrl(OFFICIAL_INDEX_URL, 'x/1.0.0/plugin.js'),
+      'https://www.newapi.ai/api/v1/plugins/x/1.0.0/plugin.js'
     )
   })
 
@@ -283,6 +281,57 @@ describe('marketplace index parsing', () => {
     assert.equal(index.plugins[0].icon, undefined)
   })
 
+  test('keeps a bare string description from a legacy index', () => {
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [
+        {
+          key: 'kling',
+          latest: '1.0.0',
+          description: 'Video generation via Kling API',
+          versions: [{ version: '1.0.0', path: 'a/plugin.js' }],
+        },
+      ],
+    })
+    assert.equal(index.plugins[0].description, 'Video generation via Kling API')
+  })
+
+  test('keeps a LocalizedText object description from a current index', () => {
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [
+        {
+          key: 'kling',
+          latest: '1.0.0',
+          description: {
+            en: 'Video generation via Kling API',
+            zh: '可灵视频生成',
+          },
+          versions: [{ version: '1.0.0', path: 'a/plugin.js' }],
+        },
+      ],
+    })
+    assert.deepEqual(index.plugins[0].description, {
+      en: 'Video generation via Kling API',
+      zh: '可灵视频生成',
+    })
+  })
+
+  test('omits a non-string, non-object description', () => {
+    const index = parseMarketplaceIndex({
+      indexVersion: 1,
+      plugins: [
+        {
+          key: 'kling',
+          latest: '1.0.0',
+          description: 12,
+          versions: [{ version: '1.0.0', path: 'a/plugin.js' }],
+        },
+      ],
+    })
+    assert.equal(index.plugins[0].description, undefined)
+  })
+
   test('drops an icon longer than 128 characters', () => {
     const index = parseMarketplaceIndex({
       indexVersion: 1,
@@ -408,9 +457,10 @@ describe('source integrity and trust labels', () => {
     assert.equal(indexHasIntegrityHashes(index([])), false)
   })
 
-  test('labels the official index URL as the default source', () => {
+  test('labels both built-in index URLs as official sources', () => {
     assert.equal(isDefaultMarketplaceSource(OFFICIAL_INDEX_URL), true)
     assert.equal(isDefaultMarketplaceSource(` ${OFFICIAL_INDEX_URL} `), true)
+    assert.equal(isDefaultMarketplaceSource(GITHUB_MARKETPLACE_INDEX_URL), true)
   })
 
   test('labels any other index URL as third-party', () => {

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -193,19 +194,19 @@ func TestRegistryDecodesAndValidatesUsageSchema(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "number", plugin.Meta.UsageSchema["duration"].Type)
 	assert.Equal(t, "second", plugin.Meta.UsageSchema["duration"].Unit)
-	assert.Equal(t, "Generated video duration.", plugin.Meta.UsageSchema["duration"].Description)
+	assert.Equal(t, LocalizedText{"en": "Generated video duration."}, plugin.Meta.UsageSchema["duration"].Description)
 	assert.Equal(t, "number", plugin.Meta.UsageSchema["count"].Type)
 	assert.Equal(t, "count", plugin.Meta.UsageSchema["count"].Unit)
 	assert.Equal(t, "number", plugin.Meta.UsageSchema["tokens"].Type)
 	assert.Equal(t, "token", plugin.Meta.UsageSchema["tokens"].Unit)
-	assert.Equal(t, "Upstream billing tokens.", plugin.Meta.UsageSchema["tokens"].Description)
+	assert.Equal(t, LocalizedText{"en": "Upstream billing tokens."}, plugin.Meta.UsageSchema["tokens"].Description)
 	assert.Equal(t, "number", plugin.Meta.UsageSchema["credits"].Type)
 	assert.Equal(t, "credit", plugin.Meta.UsageSchema["credits"].Unit)
-	assert.Equal(t, "Vendor resource-pack units.", plugin.Meta.UsageSchema["credits"].Description)
+	assert.Equal(t, LocalizedText{"en": "Vendor resource-pack units."}, plugin.Meta.UsageSchema["credits"].Description)
 	assert.Equal(t, []string{"std", "pro"}, plugin.Meta.UsageSchema["mode"].Enum)
-	assert.Equal(t, "Provider quality tier.", plugin.Meta.UsageSchema["mode"].Description)
+	assert.Equal(t, LocalizedText{"en": "Provider quality tier."}, plugin.Meta.UsageSchema["mode"].Description)
 	assert.Equal(t, "boolean", plugin.Meta.UsageSchema["generate_audio"].Type)
-	assert.Equal(t, "Whether audio is generated.", plugin.Meta.UsageSchema["generate_audio"].Description)
+	assert.Equal(t, LocalizedText{"en": "Whether audio is generated."}, plugin.Meta.UsageSchema["generate_audio"].Description)
 	require.Len(t, plugin.Meta.UsageExamples, 1)
 	assert.Equal(t, "std · 1s", plugin.Meta.UsageExamples[0].Label)
 	assert.Equal(t, int64(1), plugin.Meta.UsageExamples[0].Facts["tokens"])
@@ -251,9 +252,9 @@ func TestRegistryDecodesAndValidatesUsageSchema(t *testing.T) {
 			expectedError: `unknown property "maximum"`,
 		},
 		{
-			name:          "description must be a string",
+			name:          "description must be a string or object",
 			declaration:   `{type: "number", unit: "second", description: 5}`,
-			expectedError: "description must be a string",
+			expectedError: "description must be a string or object",
 		},
 		{
 			name:          "description is bounded",
@@ -569,4 +570,292 @@ export function parseTaskResult() { return {}; }
 			require.ErrorContains(t, err, testCase.expectedError)
 		})
 	}
+}
+
+func TestLocalizedTextContract(t *testing.T) {
+	validMeta := func() Meta {
+		return Meta{
+			APIVersion: 1,
+			Key:        "localized-text",
+			Name:       "Localized Text",
+			Version:    "1.0.0",
+			Author:     AuthorMeta{Name: "Test"},
+			Models:     []string{"model"},
+			FetchMode:  "per_task",
+		}
+	}
+
+	t.Run("bare string meta description normalizes to en", func(t *testing.T) {
+		plugin, err := CompilePlugin(
+			routingTestPluginSource("localized-text", 0, `["model"]`, `description: "Video generation via the vendor API",`, ""),
+			Options{},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, LocalizedText{"en": "Video generation via the vendor API"}, plugin.Meta.Description)
+	})
+
+	t.Run("bare string usage field description normalizes to en", func(t *testing.T) {
+		plugin, err := CompilePlugin(
+			routingTestPluginSource(
+				"localized-text",
+				0,
+				`["model"]`,
+				`usageSchema: {seconds: {type: "number", unit: "second", description: "Generated media duration."}},`,
+				"",
+			),
+			Options{},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, LocalizedText{"en": "Generated media duration."}, plugin.Meta.UsageSchema["seconds"].Description)
+	})
+
+	t.Run("map form is accepted when en is present", func(t *testing.T) {
+		plugin, err := CompilePlugin(
+			routingTestPluginSource(
+				"localized-text",
+				0,
+				`["model"]`,
+				`description: {en: "Video generation via the vendor API", zh: "通过厂商接口生成视频"},
+				usageSchema: {seconds: {type: "number", unit: "second", description: {en: "Generated media duration.", "zh-TW": "產生的媒體時長"}}},`,
+				"",
+			),
+			Options{},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, LocalizedText{"en": "Video generation via the vendor API", "zh": "通过厂商接口生成视频"}, plugin.Meta.Description)
+		assert.Equal(t, LocalizedText{"en": "Generated media duration.", "zh-TW": "產生的媒體時長"}, plugin.Meta.UsageSchema["seconds"].Description)
+	})
+
+	t.Run("trim is written back", func(t *testing.T) {
+		plugin, err := CompilePlugin(
+			routingTestPluginSource("localized-text", 0, `["model"]`, `description: "  Video generation via the vendor API  ",`, ""),
+			Options{},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, LocalizedText{"en": "Video generation via the vendor API"}, plugin.Meta.Description)
+	})
+
+	t.Run("locale tags are canonicalized to BCP-47 casing", func(t *testing.T) {
+		plugin, err := CompilePlugin(
+			routingTestPluginSource(
+				"localized-text",
+				0,
+				`["model"]`,
+				`description: {EN: "Video generation via the vendor API", "zh-tw": "透過廠商介面產生影片", "zh-hans": "通过厂商接口生成视频"},`,
+				"",
+			),
+			Options{},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, LocalizedText{
+			"en":      "Video generation via the vendor API",
+			"zh-TW":   "透過廠商介面產生影片",
+			"zh-Hans": "通过厂商接口生成视频",
+		}, plugin.Meta.Description)
+	})
+
+	for _, testCase := range []struct {
+		name          string
+		metaFields    string
+		expectedError string
+	}{
+		{
+			name:          "map missing en",
+			metaFields:    `description: {zh: "通过厂商接口生成视频"},`,
+			expectedError: `must include a non-empty "en" value`,
+		},
+		{
+			name:          "en is whitespace",
+			metaFields:    `description: {en: "   ", zh: "通过厂商接口生成视频"},`,
+			expectedError: `value for "en" must be a non-empty string`,
+		},
+		{
+			name:          "chinese locale key",
+			metaFields:    `description: {en: "Video generation via the vendor API", "英文": "通过厂商接口生成视频"},`,
+			expectedError: `invalid locale "英文"`,
+		},
+		{
+			name:          "empty locale key",
+			metaFields:    `description: {en: "Video generation via the vendor API", "": "through the vendor API"},`,
+			expectedError: `invalid locale ""`,
+		},
+		{
+			name:          "oversized locale key",
+			metaFields:    `description: {en: "Video generation via the vendor API", toolonglocalekey123456: "through the vendor API"},`,
+			expectedError: `invalid locale "toolonglocalekey123456"`,
+		},
+		{
+			name:          "case-variant duplicate locale",
+			metaFields:    `description: {en: "Video generation via the vendor API", EN: "duplicate"},`,
+			expectedError: `duplicate locale "en"`,
+		},
+		{
+			name:          "meta description exceeds 512 runes",
+			metaFields:    `description: "` + strings.Repeat("x", 513) + `",`,
+			expectedError: "description must not exceed 512 characters",
+		},
+		{
+			name:          "usage field description exceeds 256 runes",
+			metaFields:    `usageSchema: {seconds: {type: "number", unit: "second", description: "` + strings.Repeat("x", 257) + `"}},`,
+			expectedError: "description must not exceed 256 characters",
+		},
+		{
+			name:          "control character",
+			metaFields:    `description: "Video\u0000 generation via the vendor API",`,
+			expectedError: "must not contain control characters",
+		},
+		{
+			name:          "more than 16 locales",
+			metaFields:    `description: {en:"a",aa:"a",ab:"a",af:"a",ak:"a",am:"a",an:"a",ar:"a",as:"a",av:"a",ay:"a",az:"a",ba:"a",be:"a",bg:"a",bh:"a",bi:"a"},`,
+			expectedError: "must not exceed 16 locales",
+		},
+		{
+			name:          "description number",
+			metaFields:    `description: 1,`,
+			expectedError: "description must be a string or object",
+		},
+		{
+			name:          "description array",
+			metaFields:    `description: ["Video generation via the vendor API"],`,
+			expectedError: "description must be a string or object",
+		},
+		{
+			name:          "unknown meta field is still rejected",
+			metaFields:    `description: "Video generation via the vendor API", extra: true,`,
+			expectedError: `unknown field "extra"`,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := CompilePlugin(
+				routingTestPluginSource("localized-text", 0, `["model"]`, testCase.metaFields, ""),
+				Options{},
+			)
+			require.ErrorContains(t, err, testCase.expectedError)
+		})
+	}
+
+	t.Run("boundary rune lengths and 16 locales are accepted", func(t *testing.T) {
+		plugin, err := CompilePlugin(
+			routingTestPluginSource(
+				"localized-text",
+				0,
+				`["model"]`,
+				`description: {en:"a",aa:"a",ab:"a",af:"a",ak:"a",am:"a",an:"a",ar:"a",as:"a",av:"a",ay:"a",az:"a",ba:"a",be:"a",bg:"a",bh:"a"},
+				usageSchema: {seconds: {type: "number", unit: "second", description: "`+strings.Repeat("x", 256)+`"}},`,
+				"",
+			),
+			Options{},
+		)
+		require.NoError(t, err)
+		assert.Len(t, plugin.Meta.Description, 16)
+		assert.Equal(t, 256, len([]rune(plugin.Meta.UsageSchema["seconds"].Description["en"])))
+
+		plugin, err = CompilePlugin(
+			routingTestPluginSource("localized-text-max", 0, `["model"]`, `description: "`+strings.Repeat("x", 512)+`",`, ""),
+			Options{},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, 512, len([]rune(plugin.Meta.Description["en"])))
+	})
+
+	for _, testCase := range []struct {
+		name          string
+		mutate        func(*Meta)
+		expectedError string
+	}{
+		{
+			name: "ValidateV1Meta map missing en",
+			mutate: func(meta *Meta) {
+				meta.Description = LocalizedText{"zh": "通过厂商接口生成视频"}
+			},
+			expectedError: `must include a non-empty "en" value`,
+		},
+		{
+			name: "ValidateV1Meta blank en",
+			mutate: func(meta *Meta) {
+				meta.Description = LocalizedText{"en": "  "}
+			},
+			expectedError: `value for "en" must be a non-empty string`,
+		},
+		{
+			name: "ValidateV1Meta invalid locale",
+			mutate: func(meta *Meta) {
+				meta.Description = LocalizedText{"en": "Video generation via the vendor API", "英文": "通过厂商接口生成视频"}
+			},
+			expectedError: `invalid locale "英文"`,
+		},
+		{
+			name: "ValidateV1Meta usage field too long",
+			mutate: func(meta *Meta) {
+				meta.UsageSchema = map[string]UsageFieldSchema{
+					"seconds": {Type: "number", Unit: "second", Description: LocalizedText{"en": strings.Repeat("x", 257)}},
+				}
+			},
+			expectedError: "description must not exceed 256 characters",
+		},
+		{
+			name: "ValidateV1Meta control character",
+			mutate: func(meta *Meta) {
+				meta.Description = LocalizedText{"en": "Video\u0000 generation via the vendor API"}
+			},
+			expectedError: "must not contain control characters",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			meta := validMeta()
+			testCase.mutate(&meta)
+			require.ErrorContains(t, ValidateV1Meta(meta), testCase.expectedError)
+		})
+	}
+
+	t.Run("MarshalJSON of Meta description is an object", func(t *testing.T) {
+		meta := validMeta()
+		meta.Description = LocalizedText{"en": "Video generation via the vendor API", "zh": "通过厂商接口生成视频"}
+		encoded, err := common.Marshal(meta)
+		require.NoError(t, err)
+		var raw map[string]any
+		require.NoError(t, common.Unmarshal(encoded, &raw))
+		object, ok := raw["description"].(map[string]any)
+		require.True(t, ok, "API description must be an object, got %T", raw["description"])
+		assert.Equal(t, "Video generation via the vendor API", object["en"])
+		assert.Equal(t, "通过厂商接口生成视频", object["zh"])
+	})
+
+	t.Run("UnmarshalJSON accepts string and object", func(t *testing.T) {
+		var fromString LocalizedText
+		require.NoError(t, common.Unmarshal([]byte(`"Video generation via the vendor API"`), &fromString))
+		assert.Equal(t, LocalizedText{"en": "Video generation via the vendor API"}, fromString)
+
+		var fromObject LocalizedText
+		require.NoError(t, common.Unmarshal([]byte(`{"en":"Video generation via the vendor API","zh":"通过厂商接口生成视频"}`), &fromObject))
+		assert.Equal(t, LocalizedText{"en": "Video generation via the vendor API", "zh": "通过厂商接口生成视频"}, fromObject)
+
+		encoded, err := common.Marshal(fromString)
+		require.NoError(t, err)
+		assert.Equal(t, `{"en":"Video generation via the vendor API"}`, string(encoded))
+	})
+
+	t.Run("cloneMeta deep-copies localized text", func(t *testing.T) {
+		registry := NewRegistry()
+		_, err := registry.Register(
+			routingTestPluginSource(
+				"localized-text",
+				0,
+				`["model"]`,
+				`description: {en: "Video generation via the vendor API", zh: "通过厂商接口生成视频"},
+				usageSchema: {seconds: {type: "number", unit: "second", description: {en: "Generated media duration."}}},`,
+				"",
+			),
+			Options{},
+		)
+		require.NoError(t, err)
+		snapshot := registry.Snapshot()
+		require.Len(t, snapshot.Override, 1)
+		snapshot.Override[0].Description["en"] = "changed"
+		snapshot.Override[0].UsageSchema["seconds"].Description["en"] = "changed"
+		plugin, ok := registry.Get("localized-text")
+		require.True(t, ok)
+		assert.Equal(t, "Video generation via the vendor API", plugin.Meta.Description["en"])
+		assert.Equal(t, "Generated media duration.", plugin.Meta.UsageSchema["seconds"].Description["en"])
+	})
 }

@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
 import { getChannelTypeLabel } from '@/features/channels/lib'
+import { resolveLocalizedText } from '@/lib/localized-text'
 
 import {
   deleteTaskPluginVersion,
@@ -54,7 +55,7 @@ type PluginsTableProps = {
 }
 
 export function PluginsTable(props: PluginsTableProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const [deleteTarget, setDeleteTarget] = useState<TaskPluginListItem | null>(
     null
@@ -118,8 +119,15 @@ export function PluginsTable(props: PluginsTableProps) {
         accessorFn: (row) => `${row.meta.name} ${row.meta.key}`,
         header: t('Plugin'),
         cell: ({ row }) => {
+          const description = resolveLocalizedText(
+            row.original.meta.description,
+            i18n.language
+          )
           return (
-            <div className='flex min-w-0 items-center gap-2'>
+            <div
+              className='flex min-w-0 items-center gap-2'
+              title={description || undefined}
+            >
               <span className='shrink-0'>
                 <PluginIcon plugin={row.original.meta} size={18} />
               </span>
@@ -281,7 +289,7 @@ export function PluginsTable(props: PluginsTableProps) {
         ),
       },
     ],
-    [props, statusMutation, t]
+    [i18n.language, props, statusMutation, t]
   )
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')

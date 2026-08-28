@@ -1787,6 +1787,7 @@
     "Enterprise-grade security with comprehensive permission management": "Bảo mật cấp doanh nghiệp với quản lý quyền toàn diện",
     "Entrypoint (space separated)": "Entrypoint (cách nhau bằng dấu cách)",
     "Enum": "Liệt kê",
+    "Boolean": "Boolean",
     "Enum values": "Các giá trị liệt kê",
     "Env (JSON object)": "Env (đối tượng JSON)",
     "Environment variables": "Biến môi trường",

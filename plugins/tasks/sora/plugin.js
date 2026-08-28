@@ -3,14 +3,25 @@ export const meta = {
   key: "sora",
   name: "Sora",
   icon: "Sora.Color",
+  description: {
+    en: "OpenAI Sora video generation (text-to-video, image-to-video, and remix)",
+    zh: "OpenAI Sora 视频生成（文生视频、图生视频、remix）",
+  },
   version: "1.0.0",
   channelTypes: [55, 1], // OpenAI-type channels natively serve sora with the same wire format
   author: { name: "QuantumNous" },
   models: ["sora-2", "sora-2-pro"],
   fetchMode: "per_task",
   usageSchema: {
-    seconds: { type: "number", unit: "second", description: "Requested video duration in seconds." },
-    size: { enum: ["720x1280", "1280x720", "1792x1024", "1024x1792"], description: "Requested output video dimensions." },
+    seconds: {
+      type: "number",
+      unit: "second",
+      description: { en: "Requested video duration in seconds.", zh: "请求的视频时长，单位为秒。" },
+    },
+    size: {
+      enum: ["720x1280", "1280x720", "1792x1024", "1024x1792"],
+      description: { en: "Requested output video dimensions.", zh: "请求的输出视频尺寸。" },
+    },
   },
   protocols: ["openai_responses", "openai_video"],
 };

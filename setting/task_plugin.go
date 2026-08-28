@@ -6,7 +6,12 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
-const TaskPluginMarketplaceSourcesKey = "TaskPluginMarketplaceSources"
+const (
+	TaskPluginMarketplaceSourcesKey = "TaskPluginMarketplaceSources"
+
+	officialTaskPluginMarketplaceIndexURL = "https://www.newapi.ai/api/v1/plugins/index.json"
+	githubTaskPluginMarketplaceIndexURL   = "https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/index.json"
+)
 
 type TaskPluginMarketplaceSource struct {
 	Name     string `json:"name"`
@@ -14,10 +19,10 @@ type TaskPluginMarketplaceSource struct {
 }
 
 func defaultTaskPluginMarketplaceSources() []TaskPluginMarketplaceSource {
-	return []TaskPluginMarketplaceSource{{
-		Name:     "Official",
-		IndexURL: "https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/index.json",
-	}}
+	return []TaskPluginMarketplaceSource{
+		{Name: "Official", IndexURL: officialTaskPluginMarketplaceIndexURL},
+		{Name: "GitHub", IndexURL: githubTaskPluginMarketplaceIndexURL},
+	}
 }
 
 func GetTaskPluginMarketplaceSources() []TaskPluginMarketplaceSource {

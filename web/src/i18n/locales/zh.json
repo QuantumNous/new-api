@@ -1787,6 +1787,7 @@
     "Enterprise-grade security with comprehensive permission management": "企业级安全性，提供全面的权限管理",
     "Entrypoint (space separated)": "入口点 (空格分隔)",
     "Enum": "枚举",
+    "Boolean": "布尔",
     "Enum values": "枚举值",
     "Env (JSON object)": "环境变量 (JSON 对象)",
     "Environment variables": "环境变量",

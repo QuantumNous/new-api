@@ -3,15 +3,30 @@ export const meta = {
   key: "vidu",
   name: "Vidu",
   icon: "Vidu.Color",
+  description: {
+    en: "Shengshu Vidu video generation (text-to-video, image-to-video, first-and-last-frame, and reference-to-video)",
+    zh: "生数 Vidu 视频生成（文生视频、图生视频、首尾帧、参考生视频）",
+  },
   version: "1.0.0",
   author: { name: "QuantumNous" },
   channelTypes: [52],
   models: ["viduq2", "viduq1", "vidu2.0", "vidu1.5"],
   fetchMode: "per_task",
   usageSchema: {
-    credits: { type: "number", unit: "credit", description: "estimated/actual Vidu credits" },
-    duration: { type: "number", unit: "second", description: "Requested video duration in seconds." },
-    resolution: { enum: ["360p", "540p", "720p", "1080p"], description: "Requested output video resolution." },
+    credits: {
+      type: "number",
+      unit: "credit",
+      description: { en: "estimated/actual Vidu credits", zh: "预估/实际的 Vidu 积分" },
+    },
+    duration: {
+      type: "number",
+      unit: "second",
+      description: { en: "Requested video duration in seconds.", zh: "请求的视频时长，单位为秒。" },
+    },
+    resolution: {
+      enum: ["360p", "540p", "720p", "1080p"],
+      description: { en: "Requested output video resolution.", zh: "请求的输出视频分辨率。" },
+    },
   },
   // credits is 0 in examples because this plugin does not estimate vendor credits;
   // schema completeness requires the key. Actual credits arrive from upstream.

@@ -3,6 +3,10 @@ export const meta = {
   key: "hailuo",
   name: "Hailuo Video",
   icon: "Hailuo.Color",
+  description: {
+    en: "MiniMax Hailuo video generation (text-to-video and image-to-video)",
+    zh: "MiniMax 海螺视频生成（文生视频、图生视频）",
+  },
   version: "1.0.0",
   author: { name: "QuantumNous" },
   channelTypes: [35],
@@ -19,8 +23,18 @@ export const meta = {
   ],
   fetchMode: "per_task",
   usageSchema: {
-    seconds: { type: "number", unit: "second", description: "Requested video duration in seconds. Hailuo 2.3/02/2.3-Fast allow 6 or 10; 01-series allow 6." },
-    resolution: { enum: ["512P", "768P", "720P", "1080P"], description: "Requested output video resolution." },
+    seconds: {
+      type: "number",
+      unit: "second",
+      description: {
+        en: "Requested video duration in seconds. Hailuo 2.3/02/2.3-Fast allow 6 or 10; 01-series allow 6.",
+        zh: "请求的视频时长，单位为秒。Hailuo 2.3/02/2.3-Fast 允许 6 或 10；01 系列允许 6。",
+      },
+    },
+    resolution: {
+      enum: ["512P", "768P", "720P", "1080P"],
+      description: { en: "Requested output video resolution.", zh: "请求的输出视频分辨率。" },
+    },
   },
   usageExamples: [
     { label: "2.3/02 768P 6s", facts: { seconds: 6, resolution: "768P" } },

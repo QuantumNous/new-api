@@ -65,7 +65,7 @@ export type DynamicPriceEntry = {
   formattedRange?: string
   unit: 'token' | BillingUsageUnit | 'request'
   variable?: BillingVar
-  description?: string
+  description?: string | Record<string, string>
 }
 
 export type CardExamplePrice = {

@@ -3,6 +3,10 @@ export const meta = {
   key: "doubao",
   name: "Doubao Video",
   icon: "Doubao.Color",
+  description: {
+    en: "Volcengine Doubao Seedance video generation (text-to-video, image-to-video, and video-to-video)",
+    zh: "火山引擎豆包 Seedance 视频生成（文生视频、图生视频、视频生视频）",
+  },
   version: "1.0.0",
   author: { name: "QuantumNous" },
   channelTypes: [54, 45], // VolcEngine-type channels serve Ark video models with the same wire format
@@ -21,15 +25,24 @@ export const meta = {
     tokens: {
       type: "number",
       unit: "token",
-      description: "Upstream billing tokens (estimated at submit, actual on completion).",
+      description: {
+        en: "Upstream billing tokens (estimated at submit, actual on completion).",
+        zh: "上游计费 token（提交时预估，完成后按实际值）。",
+      },
     },
     resolution: {
       enum: ["480p", "720p", "1080p", "4k"],
-      description: "Output video resolution; Seedance token unit price varies by resolution tier.",
+      description: {
+        en: "Output video resolution; Seedance token unit price varies by resolution tier.",
+        zh: "输出视频分辨率；Seedance token 单价随分辨率档位变化。",
+      },
     },
     video_input: {
       enum: ["none", "video"],
-      description: "Whether the request includes reference video input; Seedance prices video-to-video tokens at a lower unit rate.",
+      description: {
+        en: "Whether the request includes reference video input; Seedance prices video-to-video tokens at a lower unit rate.",
+        zh: "请求是否包含参考视频输入；Seedance 对视频生视频 token 按更低单价计费。",
+      },
     },
   },
   // Official Ark formula tokens = (input + output seconds) × W × H × 24 / 1024,

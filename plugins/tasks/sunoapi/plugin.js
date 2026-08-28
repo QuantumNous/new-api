@@ -1,16 +1,26 @@
+// Unofficial plugin
+// https://github.com/Suno-API/Suno-API
 export const meta = {
   apiVersion: 1,
   key: "sunoapi",
   name: "SunoAPI",
   icon: "text",
+  description: {
+    en: "SunoAPI project music and lyrics generation",
+    zh: "SunoAPI 项目 音乐与歌词生成",
+  },
   version: "1.0.0",
   author: { name: "QuantumNous" },
   channelTypes: [36],
   models: ["suno_music", "suno_lyrics"],
   fetchMode: "batch",
   usageSchema: {
-    clips: { type: "number", unit: "count", description: "Number of generated music or lyrics clips." },
-    action: { enum: ["music", "lyrics"], description: "Suno generation action." },
+    clips: {
+      type: "number",
+      unit: "count",
+      description: { en: "Number of generated music or lyrics clips.", zh: "生成的音乐或歌词片段数量。" },
+    },
+    action: { enum: ["music", "lyrics"], description: { en: "Suno generation action.", zh: "Suno 生成动作。" } },
   },
   protocols: ["openai_responses"],
   routes: [

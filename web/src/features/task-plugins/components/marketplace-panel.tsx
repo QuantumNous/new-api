@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQueries, useQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { RefreshCw, Settings2, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,6 +31,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
 import { listMarketplaceSources, listTaskPlugins } from '../api'
 import {
@@ -50,6 +51,7 @@ import { MarketplaceSourcesDialog } from './marketplace-sources-dialog'
 export function MarketplacePanel() {
   const { t } = useTranslation()
   const [sourcesOpen, setSourcesOpen] = useState(false)
+  const [selectedSourceUrl, setSelectedSourceUrl] = useState('')
   const [installTarget, setInstallTarget] =
     useState<MarketplaceInstallTarget | null>(null)
 
@@ -62,25 +64,28 @@ export function MarketplacePanel() {
     queryFn: listTaskPlugins,
   })
   const sources = sourcesQuery.data ?? []
+  const selectedSource =
+    sources.find((source) => source.index_url === selectedSourceUrl) ??
+    sources[0]
 
-  // One query per source so a broken or offline index degrades on its own card
-  // instead of blanking the panel. Every fetch happens in the browser.
-  const indexQueries = useQueries({
-    queries: sources.map((source) => ({
-      queryKey: ['task-plugin-marketplace', source.index_url],
-      retry: false,
-      queryFn: async (): Promise<MarketplaceIndex> => {
-        const response = await fetch(source.index_url)
-        if (!response.ok) {
-          throw new Error(
-            t('Index request failed with HTTP {{status}}', {
-              status: response.status,
-            })
-          )
-        }
-        return parseMarketplaceIndex(await response.json())
-      },
-    })),
+  // Only the selected source is requested. Alternate sources stay idle until
+  // the administrator explicitly switches to them.
+  const indexQuery = useQuery({
+    queryKey: ['task-plugin-marketplace', selectedSource?.index_url],
+    enabled: Boolean(selectedSource),
+    retry: false,
+    queryFn: async (): Promise<MarketplaceIndex> => {
+      if (!selectedSource) throw new Error('marketplace source is not selected')
+      const response = await fetch(selectedSource.index_url)
+      if (!response.ok) {
+        throw new Error(
+          t('Index request failed with HTTP {{status}}', {
+            status: response.status,
+          })
+        )
+      }
+      return parseMarketplaceIndex(await response.json())
+    },
   })
 
   return (
@@ -96,10 +101,8 @@ export function MarketplacePanel() {
             <Button
               variant='outline'
               size='sm'
-              disabled={indexQueries.some((query) => query.isFetching)}
-              onClick={() => {
-                for (const query of indexQueries) void query.refetch()
-              }}
+              disabled={!selectedSource || indexQuery.isFetching}
+              onClick={() => void indexQuery.refetch()}
             >
               <RefreshCw />
               {t('Refresh')}
@@ -131,17 +134,42 @@ export function MarketplacePanel() {
           </Empty>
         )}
 
-        {sources.map((source, index) => (
+        {sources.length > 1 && selectedSource && (
+          <ToggleGroup
+            value={[selectedSource.index_url]}
+            onValueChange={(value) => {
+              const nextSourceUrl = value.find(
+                (item) => item !== selectedSource.index_url
+              )
+              if (nextSourceUrl) setSelectedSourceUrl(nextSourceUrl)
+            }}
+            aria-label={t('Marketplace sources')}
+            variant='outline'
+            size='sm'
+            className='max-w-full overflow-x-auto'
+          >
+            {sources.map((source) => (
+              <ToggleGroupItem
+                key={`${source.index_url}|${source.name}`}
+                value={source.index_url}
+              >
+                {t(source.name)}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        )}
+
+        {selectedSource && (
           <MarketplaceSourceSection
-            key={`${source.index_url}|${source.name}`}
-            source={source}
-            index={indexQueries[index]?.data}
-            isLoading={indexQueries[index]?.isLoading ?? false}
-            error={indexQueries[index]?.error ?? null}
+            key={`${selectedSource.index_url}|${selectedSource.name}`}
+            source={selectedSource}
+            index={indexQuery.data}
+            isLoading={indexQuery.isLoading}
+            error={indexQuery.error}
             installed={installedQuery.data ?? []}
             onInstall={setInstallTarget}
           />
-        ))}
+        )}
       </div>
 
       <MarketplaceSourcesDialog
@@ -194,9 +222,6 @@ function MarketplaceSourceSection(props: MarketplaceSourceSectionProps) {
             {t('No integrity verification')}
           </Badge>
         )}
-        <span className='text-muted-foreground truncate font-mono text-xs'>
-          {props.source.index_url}
-        </span>
       </div>
 
       {props.isLoading && (

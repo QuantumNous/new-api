@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	"sync"
@@ -414,6 +415,7 @@ func updatePricing() {
 			pricing.BillingUsageSchema = make(map[string]jsplugin.UsageFieldSchema, len(plugin.Meta.UsageSchema))
 			for key, field := range plugin.Meta.UsageSchema {
 				field.Enum = append([]string(nil), field.Enum...)
+				field.Description = maps.Clone(field.Description)
 				pricing.BillingUsageSchema[key] = field
 			}
 			if len(plugin.Meta.UsageExamples) > 0 {

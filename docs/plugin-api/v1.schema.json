@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["apiVersion", "key", "name", "version", "author", "models", "fetchMode"],
   "properties": {
-    "apiVersion": {"const": 1}, "key": {"type": "string"}, "name": {"type": "string"}, "icon": {"type": "string", "maxLength": 128}, "version": {"type": "string"},
+    "apiVersion": {"const": 1}, "key": {"type": "string"}, "name": {"type": "string"}, "icon": {"type": "string", "maxLength": 128}, "description": {"$ref": "#/$defs/localizedText"}, "version": {"type": "string"},
     "author": {"type": "object", "required": ["name"], "additionalProperties": false, "properties": {"name": {"type": "string"}, "url": {"type": "string", "format": "uri"}}},
     "channelTypes": {"type": "array", "uniqueItems": true, "items": {"type": "integer", "minimum": 1}}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
     "fetchMode": {"enum": ["per_task", "batch"]}, "allowedHosts": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
@@ -14,9 +14,21 @@
       {"enum": ["openai_responses", "openai_video"]},
       {"type": "object", "additionalProperties": false, "required": ["name"], "properties": {"name": {"enum": ["openai_responses", "openai_video"]}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}}
     ]}},
-    "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}}, "usageSchema": {"type": "object"}, "usageExamples": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "facts"], "properties": {"label": {"type": "string"}, "facts": {"type": "object"}}}}, "auth": {}
+    "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}}, "usageSchema": {"type": "object", "additionalProperties": {"type": "object", "properties": {"description": {"$ref": "#/$defs/localizedText"}}}}, "usageExamples": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "facts"], "properties": {"label": {"type": "string"}, "facts": {"type": "object"}}}}, "auth": {}
   },
   "$defs": {
+    "localizedText": {
+      "oneOf": [
+        {"type": "string", "minLength": 1},
+        {
+          "type": "object",
+          "required": ["en"],
+          "maxProperties": 16,
+          "propertyNames": {"pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$"},
+          "additionalProperties": {"type": "string", "minLength": 1}
+        }
+      ]
+    },
     "filePlaceholder": {
       "type": "object",
       "additionalProperties": false,

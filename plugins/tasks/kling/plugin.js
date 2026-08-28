@@ -3,6 +3,10 @@ export const meta = {
   key: "kling",
   name: "Kling",
   icon: "Kling.Color",
+  description: {
+    en: "Kuaishou Kling video generation (text-to-video and image-to-video)",
+    zh: "快手可灵视频生成（文生视频、图生视频）",
+  },
   version: "1.0.0",
   author: { name: "QuantumNous" },
   channelTypes: [50],
@@ -12,7 +16,10 @@ export const meta = {
     units: {
       type: "number",
       unit: "credit",
-      description: "Kling final unit deduction (estimated at submit, actual on completion).",
+      description: {
+        en: "Kling final unit deduction (estimated at submit, actual on completion).",
+        zh: "可灵最终单位消耗（提交时预估，完成后按实际值）。",
+      },
     },
   },
   usageExamples: [
@@ -38,8 +45,6 @@ const UNITS_PER_SECOND = {
   "kling-v1-6": { std: 0.4, pro: 0.7 },
   "kling-v2-master": { pro: 2.0 },
 };
-
-
 
 function trimmed(value) {
   return String(value || "").trim();

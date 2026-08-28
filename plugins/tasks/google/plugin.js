@@ -3,16 +3,30 @@ export const meta = {
   key: "google",
   name: "Google Veo (Gemini API)",
   icon: "Gemini.Color",
+  description: {
+    en: "Google Veo video generation on the Gemini API (text-to-video and image-to-video)",
+    zh: "Google Veo 视频生成（文生视频、图生视频），Gemini API 版本",
+  },
   version: "1.0.0",
   author: { name: "QuantumNous" },
   channelTypes: [24],
   models: ["veo-3.0-generate-001", "veo-3.0-fast-generate-001", "veo-3.1-generate-preview", "veo-3.1-fast-generate-preview"],
   fetchMode: "per_task",
   usageSchema: {
-    seconds: { type: "number", unit: "second", description: "Requested video duration in seconds. Allowed values: 4, 6, 8." },
+    seconds: {
+      type: "number",
+      unit: "second",
+      description: {
+        en: "Requested video duration in seconds. Allowed values: 4, 6, 8.",
+        zh: "请求的视频时长，单位为秒。允许值为 4、6、8。",
+      },
+    },
     resolution: {
       enum: ["720p", "1080p", "4k"],
-      description: "Requested video output resolution. Veo prices differ per resolution tier.",
+      description: {
+        en: "Requested video output resolution. Veo prices differ per resolution tier.",
+        zh: "请求的输出视频分辨率。Veo 各分辨率档位计费不同。",
+      },
     },
   },
   usageExamples: [
