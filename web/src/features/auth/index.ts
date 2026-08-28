@@ -99,7 +99,7 @@ export {
 // Hooks
 // ============================================================================
 
-export { useTurnstile } from './hooks/use-turnstile'
+export { useCaptcha } from './hooks/use-captcha'
 export { useOAuthLogin } from './hooks/use-oauth-login'
 export { useAuthRedirect } from './hooks/use-auth-redirect'
 export { useEmailVerification } from './hooks/use-email-verification'

@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
@@ -24,7 +25,8 @@ func TurnstileCheck() gin.HandlerFunc {
 				c.Abort()
 				return
 			}
-			rawRes, err := http.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", url.Values{
+			client := &http.Client{Timeout: 5 * time.Second}
+			rawRes, err := client.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", url.Values{
 				"secret":   {common.TurnstileSecretKey},
 				"response": {response},
 				"remoteip": {c.ClientIP()},
