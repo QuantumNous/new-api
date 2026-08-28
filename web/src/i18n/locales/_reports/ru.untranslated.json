@@ -1,4 +1,6 @@
 {
+  "Order Management": "Order Management",
+  "Order Number": "Order Number",
   "Scan to Pay": "Scan to Pay",
   "Scan the QR code with WeChat to pay": "Scan the QR code with WeChat to pay",
   "Scan the QR code with Alipay to pay": "Scan the QR code with Alipay to pay",
@@ -26,5 +28,6 @@
   "Alipay app private key": "Alipay app private key",
   "Alipay public key": "Alipay public key",
   "Paste the Alipay public key (PEM)": "Paste the Alipay public key (PEM)",
-  "Used to verify gateway responses and async notifications.": "Used to verify gateway responses and async notifications."
+  "Used to verify gateway responses and async notifications.": "Used to verify gateway responses and async notifications.",
+  "Review topup orders and manually complete payments.": "Review topup orders and manually complete payments."
 }

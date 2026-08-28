@@ -9,5 +9,6 @@
   "Show Alipay scan-to-pay on the top-up page": "Show Alipay scan-to-pay on the top-up page",
   "Turn off to use the Alipay sandbox": "Turn off to use the Alipay sandbox",
   "Paste the Alipay public key (PEM)": "Paste the Alipay public key (PEM)",
-  "Used to verify gateway responses and async notifications.": "Used to verify gateway responses and async notifications."
+  "Used to verify gateway responses and async notifications.": "Used to verify gateway responses and async notifications.",
+  "Review topup orders and manually complete payments.": "Review topup orders and manually complete payments."
 }
