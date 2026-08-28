@@ -142,7 +142,7 @@ func validateMetaproxyProvisionRequest(
 		return errors.New("channels exceeds the 256-channel limit")
 	}
 
-	modelRatios, err := parseRatioMap("ModelRatio", request.Options.ModelRatio, false)
+	modelRatios, err := parseRatioMap("ModelRatio", request.Options.ModelRatio, true)
 	if err != nil {
 		return err
 	}
@@ -219,8 +219,12 @@ func validateMetaproxyProvisionRequest(
 			continue
 		}
 		for _, modelName := range models {
-			if _, priced := modelRatios[modelName]; !priced {
+			ratio, priced := modelRatios[modelName]
+			if !priced {
 				return fmt.Errorf("enabled model %q in an offered group is missing from ModelRatio", modelName)
+			}
+			if ratio == 0 {
+				return fmt.Errorf("enabled model %q in an offered group must have a positive ModelRatio", modelName)
 			}
 		}
 	}

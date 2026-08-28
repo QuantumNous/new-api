@@ -85,6 +85,20 @@ func TestValidateMetaproxyProvisionRequestAllowsUnpricedModelInUnpublishedGroup(
 	require.NoError(t, validateMetaproxyProvisionRequest(request, request.Digest, "none"))
 }
 
+func TestValidateMetaproxyProvisionRequestAllowsLegacyZeroRatioOutsideManagedChannels(t *testing.T) {
+	request := validMetaproxyProvisionRequest()
+	request.Options.ModelRatio = `{"model-one":1,"legacy-disabled-model":0}`
+	require.NoError(t, validateMetaproxyProvisionRequest(request, request.Digest, "none"))
+}
+
+func TestValidateMetaproxyProvisionRequestRejectsZeroRatioForOfferedModel(t *testing.T) {
+	request := validMetaproxyProvisionRequest()
+	request.Options.ModelRatio = `{"model-one":0}`
+	err := validateMetaproxyProvisionRequest(request, request.Digest, "none")
+	require.ErrorContains(t, err, "model-one")
+	require.ErrorContains(t, err, "positive ModelRatio")
+}
+
 func TestValidateMetaproxyProvisionRequestRejectsMalformedRatioJson(t *testing.T) {
 	request := validMetaproxyProvisionRequest()
 	request.Options.GroupRatio = `{"standard":"free"}`
