@@ -8,6 +8,12 @@ DEV_POSTGRES_DB = new-api
 DEV_POSTGRES_USER = root
 DEV_SQLITE_PATH ?= one-api.db
 
+# Stable Compose project name so every git worktree shares one dev stack.
+# container_name is hardcoded in docker-compose.dev.yml, so without a fixed
+# project name each worktree (project = dir basename) fights over the same
+# container names and `make dev` fails with a name conflict. Override if needed.
+export COMPOSE_PROJECT_NAME ?= new-api-dev
+
 .PHONY: all build-web build-all-web start-api dev dev-api dev-api-rebuild dev-web reset-setup test
 
 all: build-all-web start-api
