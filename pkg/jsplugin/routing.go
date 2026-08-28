@@ -37,9 +37,20 @@ type Route struct {
 
 // ProtocolClaim is one entry of meta.protocols. Models narrows the protocol's
 // endpoint bindings to a subset of meta.models; empty binds every model.
+// Supports names the request forms a mode-bearing protocol accepts; decode
+// and normalize rewrite it into host-table order.
 type ProtocolClaim struct {
-	Name   string   `json:"name"`
-	Models []string `json:"models,omitempty"`
+	Name       string   `json:"name"`
+	Models     []string `json:"models,omitempty"`
+	Supports   []string `json:"supports,omitempty"`
+	objectForm bool
+}
+
+// ProtocolMode is one client request form a host protocol operation accepts
+// and the plugin hook that implements it.
+type ProtocolMode struct {
+	Name string
+	Hook string
 }
 
 type BodyKind string
@@ -58,7 +69,7 @@ type HostProtocolOperation struct {
 	BodyKinds               []BodyKind
 	ModelField              string
 	RequiredProtocolMembers []string
-	OptionalProtocolMembers []string
+	Modes                   []ProtocolMode
 	RequiredDriverHooks     []string
 }
 
@@ -69,7 +80,7 @@ type HostProtocolDefinition struct {
 
 var hostProtocols = []HostProtocolDefinition{
 	{Name: "openai_responses", Operations: []HostProtocolOperation{
-		{Name: "create", Methods: []string{http.MethodPost}, Path: "/v1/responses", BodyKinds: []BodyKind{BodyJSON}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest", "renderFinal"}, OptionalProtocolMembers: []string{"renderEvents"}},
+		{Name: "create", Methods: []string{http.MethodPost}, Path: "/v1/responses", BodyKinds: []BodyKind{BodyJSON}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest"}, Modes: []ProtocolMode{{Name: "stream", Hook: "renderEvents"}, {Name: "sync", Hook: "renderFinal"}, {Name: "background", Hook: "renderFinal"}}},
 		{Name: "retrieve", Methods: []string{http.MethodGet}, Path: "/v1/responses/:response_id", BodyKinds: []BodyKind{BodyNone}},
 	}},
 	{Name: "openai_video", Operations: []HostProtocolOperation{
@@ -98,11 +109,63 @@ func HostProtocols() []HostProtocolDefinition {
 			operation.Methods = append([]string(nil), operation.Methods...)
 			operation.BodyKinds = append([]BodyKind(nil), operation.BodyKinds...)
 			operation.RequiredProtocolMembers = append([]string(nil), operation.RequiredProtocolMembers...)
-			operation.OptionalProtocolMembers = append([]string(nil), operation.OptionalProtocolMembers...)
+			operation.Modes = append([]ProtocolMode(nil), operation.Modes...)
 			operation.RequiredDriverHooks = append([]string(nil), operation.RequiredDriverHooks...)
 		}
 	}
 	return definitions
+}
+
+// DefinedModes returns each distinct mode on the protocol in host-table order.
+func (d HostProtocolDefinition) DefinedModes() []ProtocolMode {
+	seen := make(map[string]struct{})
+	modes := make([]ProtocolMode, 0)
+	for _, operation := range d.Operations {
+		for _, mode := range operation.Modes {
+			if _, exists := seen[mode.Name]; exists {
+				continue
+			}
+			seen[mode.Name] = struct{}{}
+			modes = append(modes, mode)
+		}
+	}
+	return modes
+}
+
+func orderProtocolSupports(protocol string, supports []string) []string {
+	if len(supports) == 0 {
+		return supports
+	}
+	definition, ok := HostProtocol(protocol)
+	if !ok {
+		return supports
+	}
+	rank := make(map[string]int)
+	for index, mode := range definition.DefinedModes() {
+		rank[mode.Name] = index
+	}
+	ordered := append([]string(nil), supports...)
+	slices.SortStableFunc(ordered, func(left, right string) int {
+		leftRank, leftKnown := rank[left]
+		rightRank, rightKnown := rank[right]
+		switch {
+		case leftKnown && rightKnown:
+			if leftRank < rightRank {
+				return -1
+			}
+			if leftRank > rightRank {
+				return 1
+			}
+			return 0
+		case leftKnown:
+			return -1
+		case rightKnown:
+			return 1
+		default:
+			return 0
+		}
+	})
+	return ordered
 }
 
 func LookupHostProtocolOperation(method, path string) (string, HostProtocolOperation, bool) {

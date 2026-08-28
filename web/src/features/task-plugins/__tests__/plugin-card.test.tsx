@@ -34,9 +34,7 @@ vi.mock('@/lib/lobe-icon', () => ({
   getLobeIcon: () => null,
 }))
 
-function makeItem(
-  overrides?: Partial<TaskPluginListItem>
-): TaskPluginListItem {
+function makeItem(overrides?: Partial<TaskPluginListItem>): TaskPluginListItem {
   return {
     meta: {
       apiVersion: 1,
@@ -46,7 +44,6 @@ function makeItem(
       author: { name: 'acme' },
       models: ['kling-v1', 'kling-v2'],
       fetchMode: 'proxy',
-      actions: null,
       description: { en: 'Generate videos with Kling.' },
       usageSchema: {
         duration: { type: 'number', unit: 'second' },

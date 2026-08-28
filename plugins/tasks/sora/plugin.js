@@ -23,7 +23,7 @@ export const meta = {
       description: { en: "Requested output video dimensions.", zh: "请求的输出视频尺寸。" },
     },
   },
-  protocols: ["openai_responses", "openai_video"],
+  protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };
 
 function trimmed(value) {

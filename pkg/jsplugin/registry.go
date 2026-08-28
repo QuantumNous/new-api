@@ -93,6 +93,16 @@ type Meta struct {
 	Auth          AuthMeta                    `json:"auth"`
 }
 
+// ProtocolSupports reports whether the named protocol claim includes mode.
+func (m Meta) ProtocolSupports(protocol, mode string) bool {
+	for _, claim := range m.Protocols {
+		if claim.Name == protocol {
+			return slices.Contains(claim.Supports, mode)
+		}
+	}
+	return false
+}
+
 // UsageExample is a display-only pricing sample: a labeled complete vector
 // over usageSchema. It never participates in billing.
 type UsageExample struct {
@@ -299,13 +309,20 @@ func CompilePlugin(source string, options Options) (*LoadedPlugin, error) {
 		definition, _ := HostProtocol(protocol)
 		required := make(map[string]struct{})
 		allowed := make(map[string]struct{})
+		modeHookUsers := make(map[string][]string)
 		for _, operation := range definition.Operations {
 			for _, hook := range operation.RequiredProtocolMembers {
 				required[hook] = struct{}{}
 				allowed[hook] = struct{}{}
 			}
-			for _, hook := range operation.OptionalProtocolMembers {
-				allowed[hook] = struct{}{}
+			for _, mode := range operation.Modes {
+				allowed[mode.Hook] = struct{}{}
+				if !slices.Contains(modeHookUsers[mode.Hook], mode.Name) {
+					modeHookUsers[mode.Hook] = append(modeHookUsers[mode.Hook], mode.Name)
+				}
+				if slices.Contains(claim.Supports, mode.Name) {
+					required[mode.Hook] = struct{}{}
+				}
 			}
 			for _, hook := range operation.RequiredDriverHooks {
 				has, hasErr := engine.HasCallablePath(context.Background(), hook)
@@ -328,7 +345,50 @@ func CompilePlugin(source string, options Options) (*LoadedPlugin, error) {
 				return nil, hasErr
 			}
 			if !has {
+				if users := modeHookUsers[hook]; len(users) > 0 {
+					mentioned := ""
+					for _, name := range claim.Supports {
+						if slices.Contains(users, name) {
+							mentioned = name
+							break
+						}
+					}
+					suggested := make([]string, 0)
+					for _, mode := range definition.DefinedModes() {
+						exported, exportedErr := engine.HasCallablePath(context.Background(), "protocols", protocol, mode.Hook)
+						if exportedErr != nil {
+							return nil, exportedErr
+						}
+						if exported && !slices.Contains(suggested, mode.Name) {
+							suggested = append(suggested, mode.Name)
+						}
+					}
+					message := fmt.Sprintf("plugin %s protocol %q supports %q but does not export protocols.%s.%s; implement it", meta.Key, protocol, mentioned, protocol, hook)
+					if len(suggested) > 0 {
+						message += fmt.Sprintf(" or declare supports: [%s]", quotedJoin(suggested, ", "))
+					}
+					return nil, errors.New(message)
+				}
 				return nil, fmt.Errorf("plugin %s protocol %q is missing hook %q", meta.Key, protocol, hook)
+			}
+		}
+		seenModeHook := make(map[string]struct{})
+		for _, operation := range definition.Operations {
+			for _, mode := range operation.Modes {
+				if _, seen := seenModeHook[mode.Hook]; seen {
+					continue
+				}
+				seenModeHook[mode.Hook] = struct{}{}
+				if _, need := required[mode.Hook]; need {
+					continue
+				}
+				has, hasErr := engine.HasCallablePath(context.Background(), "protocols", protocol, mode.Hook)
+				if hasErr != nil {
+					return nil, hasErr
+				}
+				if has {
+					return nil, fmt.Errorf("plugin %s protocol %q exports protocols.%s.%s but no supported mode uses it; add %s to supports or remove the hook", meta.Key, protocol, protocol, mode.Hook, quotedJoin(modeHookUsers[mode.Hook], " or "))
+				}
 			}
 		}
 		protocolValue, exportErr := engine.Export(context.Background(), "protocols")
@@ -699,6 +759,7 @@ func cloneMeta(meta Meta) Meta {
 	meta.Protocols = append([]ProtocolClaim(nil), meta.Protocols...)
 	for index := range meta.Protocols {
 		meta.Protocols[index].Models = append([]string(nil), meta.Protocols[index].Models...)
+		meta.Protocols[index].Supports = append([]string(nil), meta.Protocols[index].Supports...)
 	}
 	if meta.Description != nil {
 		meta.Description = maps.Clone(meta.Description)
@@ -1029,8 +1090,43 @@ func normalizeV1Meta(meta *Meta) error {
 		routeKeys[key] = struct{}{}
 	}
 	protocols := make(map[string]struct{}, len(meta.Protocols))
-	for _, claim := range meta.Protocols {
-		if _, ok := HostProtocol(claim.Name); !ok {
+	for index := range meta.Protocols {
+		claim := &meta.Protocols[index]
+		definition, known := HostProtocol(claim.Name)
+		modes := definition.DefinedModes()
+		if len(modes) > 0 {
+			modeNames := make([]string, len(modes))
+			for modeIndex, mode := range modes {
+				modeNames[modeIndex] = mode.Name
+			}
+			choosingFrom := quotedJoin(modeNames, ", ")
+			if claim.Supports == nil {
+				if claim.objectForm {
+					return fmt.Errorf("plugin %s protocol %q must declare supports; add supports: [...] choosing from %s", meta.Key, claim.Name, choosingFrom)
+				}
+				return fmt.Errorf("plugin %s protocol %q must declare supports; replace the bare string with {name: %q, supports: [...]} choosing from %s", meta.Key, claim.Name, claim.Name, choosingFrom)
+			}
+			if len(claim.Supports) == 0 {
+				return fmt.Errorf("plugin %s protocol %q supports must contain at least one of %s", meta.Key, claim.Name, choosingFrom)
+			}
+			seenSupports := make(map[string]struct{}, len(claim.Supports))
+			for _, support := range claim.Supports {
+				if _, duplicate := seenSupports[support]; duplicate {
+					return fmt.Errorf("plugin %s protocol %q supports must be unique", meta.Key, claim.Name)
+				}
+				seenSupports[support] = struct{}{}
+				if !slices.Contains(modeNames, support) {
+					if support == "retrieve" {
+						return fmt.Errorf("plugin %s protocol %q has no mode %q; retrieval of a created response is always available and is never declared", meta.Key, claim.Name, support)
+					}
+					return fmt.Errorf("plugin %s protocol %q has no mode %q", meta.Key, claim.Name, support)
+				}
+			}
+			claim.Supports = orderProtocolSupports(claim.Name, claim.Supports)
+		} else if claim.Supports != nil {
+			return fmt.Errorf("plugin %s protocol %q does not define modes; supports is not allowed", meta.Key, claim.Name)
+		}
+		if !known {
 			return fmt.Errorf("plugin meta protocol %q is unknown", claim.Name)
 		}
 		if _, duplicate := protocols[claim.Name]; duplicate {
@@ -1346,9 +1442,9 @@ func decodeRoutes(value any) ([]Route, error) {
 }
 
 // decodeProtocolClaims accepts both protocol entry shapes: a bare protocol
-// name string (binds every meta.models entry) and an object {name, models}
-// narrowing the binding to a model subset. An absent key is empty; a
-// present null or non-array is rejected.
+// name string (binds every meta.models entry) and an object {name, models,
+// supports}. An absent key is empty; a present null or non-array is rejected.
+// The supports key is decoded only when present so an absent key stays nil.
 func decodeProtocolClaims(object map[string]any, name string) ([]ProtocolClaim, error) {
 	value, exists := object[name]
 	if !exists {
@@ -1366,12 +1462,12 @@ func decodeProtocolClaims(object map[string]any, name string) ([]ProtocolClaim, 
 		case map[string]any:
 			for key := range entry {
 				switch key {
-				case "name", "models":
+				case "name", "models", "supports":
 				default:
 					return nil, fmt.Errorf("plugin meta protocol %d has unknown field %q", index, key)
 				}
 			}
-			claim := ProtocolClaim{}
+			claim := ProtocolClaim{objectForm: true}
 			var err error
 			if claim.Name, err = stringMetaField(entry, "name"); err != nil {
 				return nil, err
@@ -1383,6 +1479,12 @@ func decodeProtocolClaims(object map[string]any, name string) ([]ProtocolClaim, 
 				if len(claim.Models) == 0 {
 					return nil, fmt.Errorf("plugin meta protocol %d models must contain at least one model", index)
 				}
+			}
+			if _, exists := entry["supports"]; exists {
+				if claim.Supports, err = strictStringSlice(entry, "supports"); err != nil {
+					return nil, err
+				}
+				claim.Supports = orderProtocolSupports(claim.Name, claim.Supports)
 			}
 			claims = append(claims, claim)
 		default:
@@ -1538,6 +1640,14 @@ func canonicalLocaleTag(tag string) string {
 		}
 	}
 	return strings.Join(parts, "-")
+}
+
+func quotedJoin(items []string, sep string) string {
+	parts := make([]string, len(items))
+	for index, item := range items {
+		parts[index] = fmt.Sprintf("%q", item)
+	}
+	return strings.Join(parts, sep)
 }
 
 func strictStringSlice(object map[string]any, name string) ([]string, error) {

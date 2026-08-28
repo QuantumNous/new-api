@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -134,7 +134,7 @@ export const meta = {
   channelTypes: [%d],
   models: ["task-model"],
   fetchMode: "per_task",
-  protocols: ["openai_responses"],
+  protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],
 };
 export function buildSubmitRequest() { return {}; }
 export function parseSubmitResponse() { return {taskId: "task"}; }

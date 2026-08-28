@@ -22,7 +22,7 @@ export const meta = {
     },
     action: { enum: ["music", "lyrics"], description: { en: "Suno generation action.", zh: "Suno 生成动作。" } },
   },
-  protocols: ["openai_responses"],
+  protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }],
   routes: [
     { method: "POST", path: "/suno/submit/:action", type: "submit", decode: "decodeSubmit", render: "renderSubmit" },
     { method: "POST", path: "/suno/fetch", type: "dynamic", decode: "decodeBatch", render: "renderTasks" },

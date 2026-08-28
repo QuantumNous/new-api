@@ -600,6 +600,30 @@ func (m *PluginResponsesMachine) FinalResponse(payload any, taskStatus string) (
 	return response, nil
 }
 
+// FinalFromEvents synthesizes the retrieval Response for stream-only plugins
+// from one renderEvents call at terminal task status. Synthesis runs on a
+// scratch machine so a hook failure leaves the receiver untouched and the
+// caller's failure-envelope path (which requires an unstarted machine) stays valid.
+func (m *PluginResponsesMachine) FinalFromEvents(result ProtocolEventResult, taskStatus string) (map[string]any, error) {
+	if m.started || m.terminal {
+		return nil, errors.New("response state machine has already started")
+	}
+	scratch := NewPluginResponsesMachine(m.taskID, m.model, m.createdAt, m.limits)
+	scratch.background = m.background
+	scratch.started = true
+	if _, err := scratch.ApplyTick(result, taskStatus); err != nil {
+		return nil, err
+	}
+	if !scratch.terminal {
+		return nil, errors.New("renderEvents did not terminate at terminal task status")
+	}
+	if scratch.status != pluginResponseStatusCompleted {
+		return nil, errors.New("renderEvents reported failure at terminal task status")
+	}
+	*m = *scratch
+	return pluginResponseMap(m.responseSnapshot(nil))
+}
+
 // FailureResponse returns a sanitized non-stream failure for host-side
 // protocol errors.
 func (m *PluginResponsesMachine) FailureResponse(taskStatus ...string) (*dto.PluginResponsesResponse, error) {

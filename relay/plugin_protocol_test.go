@@ -517,3 +517,46 @@ func TestPluginResponsesMachineEnforcesCumulativeOutputLimit(t *testing.T) {
 	_, err = machine.ApplyTick(second, "IN_PROGRESS")
 	require.ErrorContains(t, err, "outputs exceed limit")
 }
+
+func TestPluginResponsesMachineFinalFromEvents(t *testing.T) {
+	t.Run("output event becomes completed response", func(t *testing.T) {
+		machine := NewPluginResponsesMachine("task_from_events", "model", 99, PluginProtocolLimits{})
+		result, err := DecodePluginProtocolEventResult(map[string]any{
+			"events": []any{map[string]any{"type": "output", "data": "synthesized-output"}},
+			"done":   true,
+		}, PluginProtocolLimits{})
+		require.NoError(t, err)
+
+		response, err := machine.FinalFromEvents(result, "SUCCESS")
+		require.NoError(t, err)
+		assert.Equal(t, "completed", response["status"])
+		output, ok := response["output"].([]any)
+		require.True(t, ok)
+		require.NotEmpty(t, output)
+	})
+
+	t.Run("error event leaves receiver unstarted", func(t *testing.T) {
+		machine := NewPluginResponsesMachine("task_from_events_fail", "model", 99, PluginProtocolLimits{})
+		result, err := DecodePluginProtocolEventResult(map[string]any{
+			"events": []any{map[string]any{"type": "error", "message": "provider failed"}},
+			"done":   true,
+		}, PluginProtocolLimits{})
+		require.NoError(t, err)
+
+		_, err = machine.FinalFromEvents(result, "SUCCESS")
+		require.ErrorContains(t, err, "reported failure")
+
+		response, failErr := machine.FailureResponse("FAILURE")
+		require.NoError(t, failErr)
+		require.NotNil(t, response)
+		assert.Equal(t, "failed", response.Status)
+	})
+
+	t.Run("started machine is rejected", func(t *testing.T) {
+		machine := NewPluginResponsesMachine("task_from_events_started", "model", 99, PluginProtocolLimits{})
+		_, err := machine.CreatedEvent()
+		require.NoError(t, err)
+		_, err = machine.FinalFromEvents(ProtocolEventResult{}, "SUCCESS")
+		require.ErrorContains(t, err, "already started")
+	})
+}

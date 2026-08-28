@@ -29,7 +29,7 @@ export const meta = {
     { label: "v1-6 pro 10s", facts: { units: 7 } },
     { label: "v2-master pro 5s", facts: { units: 10 } },
   ],
-  protocols: ["openai_responses", "openai_video"],
+  protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
   routes: [
     { method: "POST", path: "/kling/v1/videos/text2video", type: "submit", action: "text_to_video", decode: "decodeSubmit", render: "taskCreated" },
     { method: "POST", path: "/kling/v1/videos/image2video", type: "submit", action: "image_to_video", decode: "decodeSubmit", render: "taskCreated" },

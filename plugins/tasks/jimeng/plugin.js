@@ -35,7 +35,7 @@ export const meta = {
     { label: "3.0 Pro 5s", facts: { seconds: 5, product: "v30_pro" } },
     { label: "3.0 Pro 10s", facts: { seconds: 10, product: "v30_pro" } },
   ],
-  protocols: ["openai_responses", "openai_video"],
+  protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
   routes: [{ method: "POST", path: "/jimeng/", type: "dynamic", decode: "decodeRequest", render: "renderTask" }],
 };
 

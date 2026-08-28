@@ -22,7 +22,7 @@ func TestRegistryIndexesNativeRoutesAndProtocolsInOneGeneration(t *testing.T) {
 			{method: "POST", path: "/vendor/videos", type: "submit", action: "generate", decode: "decodeVideo", render: "videoCreated"},
 			{method: "GET", path: "/vendor/videos/:task_id", type: "query", render: "videoStatus"}
 		],
-		protocols: ["openai_responses"],`,
+		protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
 		`export const native = {
 			decodeVideo: function(ctx) { return {kind: "submit", model: "video-alpha", requestBody: ctx.body.value}; },
 			videoCreated: function(ctx, task) { return task; },
@@ -64,10 +64,10 @@ func TestRegistryIndexesNativeRoutesAndProtocolsInOneGeneration(t *testing.T) {
 func TestRegistryIndexesSharedEndpointCandidatesForDistinctLegacyProviders(t *testing.T) {
 	registry := NewRegistry()
 	gemini := mustCompileRoutingPlugin(t, "gemini-provider", 24, `["shared-video"]`,
-		`protocols: ["openai_responses"],`,
+		`protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
 		routingProtocolExport("openai_responses"))
 	vertex := mustCompileRoutingPlugin(t, "vertex-provider", 41, `["shared-video"]`,
-		`protocols: ["openai_responses"],`,
+		`protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
 		routingProtocolExport("openai_responses"))
 
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{vertex, gemini}))
@@ -94,7 +94,7 @@ func TestLookupHostProtocolOperationExcludesRetrieveWithoutModelField(t *testing
 func TestPerProtocolModelsNarrowEndpointBindings(t *testing.T) {
 	registry := NewRegistry()
 	plugin := mustCompileRoutingPlugin(t, "narrow-protocol", 50, `["gpt-5.5", "gpt-5.6"]`,
-		`protocols: [{name: "openai_responses", models: ["gpt-5.5"]}],`,
+		`protocols: [{name: "openai_responses", models: ["gpt-5.5"], supports: ["stream", "sync", "background"]}],`,
 		routingProtocolExport("openai_responses"))
 
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{plugin}))
@@ -111,10 +111,10 @@ func TestPerProtocolModelsNarrowEndpointBindings(t *testing.T) {
 func TestPerProtocolModelsAllowDisjointPluginsOnSharedProtocol(t *testing.T) {
 	registry := NewRegistry()
 	left := mustCompileRoutingPlugin(t, "disjoint-left", 0, `["model-a"]`,
-		`protocols: [{name: "openai_responses", models: ["model-a"]}],`,
+		`protocols: [{name: "openai_responses", models: ["model-a"], supports: ["stream", "sync", "background"]}],`,
 		routingProtocolExport("openai_responses"))
 	right := mustCompileRoutingPlugin(t, "disjoint-right", 0, `["model-b"]`,
-		`protocols: [{name: "openai_responses", models: ["model-b"]}],`,
+		`protocols: [{name: "openai_responses", models: ["model-b"], supports: ["stream", "sync", "background"]}],`,
 		routingProtocolExport("openai_responses"))
 
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{left, right}))
@@ -148,10 +148,10 @@ func TestPreflightRoutingConflict(t *testing.T) {
 	require.NoError(t, PreflightRoutingConflict(current, replacement), "same-key re-upload must replace rather than self-conflict")
 
 	left := mustCompileRoutingPlugin(t, "preflight-left", 0, `["shared-model"]`,
-		`protocols: ["openai_responses"],`,
+		`protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
 		routingProtocolExport("openai_responses"))
 	right := mustCompileRoutingPlugin(t, "preflight-right", 0, `["shared-model"]`,
-		`protocols: ["openai_responses"],`,
+		`protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
 		routingProtocolExport("openai_responses"))
 	protocolRegistry := NewRegistry()
 	require.NoError(t, protocolRegistry.ReplaceOverrides([]*LoadedPlugin{left}))
@@ -164,10 +164,10 @@ func TestPreflightRoutingConflict(t *testing.T) {
 func TestPerProtocolModelsStillConflictOnOverlap(t *testing.T) {
 	registry := NewRegistry()
 	first := mustCompileRoutingPlugin(t, "overlap-first", 0, `["shared-model"]`,
-		`protocols: [{name: "openai_responses", models: ["shared-model"]}],`,
+		`protocols: [{name: "openai_responses", models: ["shared-model"], supports: ["stream", "sync", "background"]}],`,
 		routingProtocolExport("openai_responses"))
 	second := mustCompileRoutingPlugin(t, "overlap-second", 0, `["shared-model"]`,
-		`protocols: [{name: "openai_responses", models: ["shared-model"]}],`,
+		`protocols: [{name: "openai_responses", models: ["shared-model"], supports: ["stream", "sync", "background"]}],`,
 		routingProtocolExport("openai_responses"))
 
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{first, second}))
@@ -195,7 +195,7 @@ func TestProtocolClaimDecodeAndValidation(t *testing.T) {
 		{
 			name:       "string and object entries mix",
 			models:     `["gpt-5.5", "gpt-5.6"]`,
-			metaFields: `protocols: ["openai_responses", {name: "openai_video", models: ["gpt-5.5"]}],`,
+			metaFields: `protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}, {name: "openai_video", models: ["gpt-5.5"]}],`,
 			exports: `export const protocols = {
 				openai_responses: {
 					decodeRequest: function(ctx) { return ctx; },
@@ -210,8 +210,8 @@ func TestProtocolClaimDecodeAndValidation(t *testing.T) {
 			export function listArtifacts() { return []; }
 			export function buildContentRequest() { return {}; }`,
 			wantProtocols: []ProtocolClaim{
-				{Name: "openai_responses"},
-				{Name: "openai_video", Models: []string{"gpt-5.5"}},
+				{Name: "openai_responses", Supports: []string{"stream", "sync", "background"}, objectForm: true},
+				{Name: "openai_video", Models: []string{"gpt-5.5"}, objectForm: true},
 			},
 		},
 		{
@@ -228,19 +228,19 @@ func TestProtocolClaimDecodeAndValidation(t *testing.T) {
 		{
 			name:        "model outside meta models",
 			models:      `["gpt-5.5"]`,
-			metaFields:  `protocols: [{name: "openai_responses", models: ["gpt-9.9"]}],`,
+			metaFields:  `protocols: [{name: "openai_responses", models: ["gpt-9.9"], supports: ["stream", "sync", "background"]}],`,
 			errContains: "is not declared in plugin meta models",
 		},
 		{
 			name:        "duplicate models in claim",
 			models:      `["gpt-5.5"]`,
-			metaFields:  `protocols: [{name: "openai_responses", models: ["gpt-5.5", "gpt-5.5"]}],`,
+			metaFields:  `protocols: [{name: "openai_responses", models: ["gpt-5.5", "gpt-5.5"], supports: ["stream", "sync", "background"]}],`,
 			errContains: "models must be unique",
 		},
 		{
 			name:        "blank model in claim",
 			models:      `["gpt-5.5"]`,
-			metaFields:  `protocols: [{name: "openai_responses", models: [" "]}],`,
+			metaFields:  `protocols: [{name: "openai_responses", models: [" "], supports: ["stream", "sync", "background"]}],`,
 			errContains: "non-empty canonical names",
 		},
 		{
@@ -503,10 +503,10 @@ func TestRegistryExcludesConflictingPluginWithoutBlockingGeneration(t *testing.T
 		{
 			name: "endpoint model ownership",
 			first: mustCompileRoutingPlugin(t, "endpoint-alpha", 0, `["shared-model"]`,
-				`protocols: ["openai_responses"],`,
+				`protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
 				routingProtocolExport("openai_responses")),
 			second: mustCompileRoutingPlugin(t, "endpoint-beta", 0, `["shared-model"]`,
-				`protocols: ["openai_responses"],`,
+				`protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
 				routingProtocolExport("openai_responses")),
 			expectedError: `model "shared-model" conflicts`,
 		},
@@ -844,7 +844,7 @@ func TestRemovedEndpointsAndProtocolHooksAreValidatedAtCompileTime(t *testing.T)
 		}};`,
 	)
 	_, err = CompilePlugin(missingHook, Options{})
-	require.ErrorContains(t, err, `protocol "openai_responses" is missing hook "renderFinal"`)
+	require.ErrorContains(t, err, `plugin bad-protocol protocol "openai_responses" must declare supports; replace the bare string with {name: "openai_responses", supports: [...]} choosing from "stream", "sync", "background"`)
 
 	for _, removedExport := range []string{"renderers", "renderError", "resolveRequest"} {
 		t.Run("removed export "+removedExport, func(t *testing.T) {
@@ -891,7 +891,7 @@ func TestRegistryRejectsPrototypeInheritedHooks(t *testing.T) {
 			"inherited-protocol",
 			0,
 			`["model"]`,
-			`protocols: ["openai_responses"],`,
+			`protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
 			`const protocol = {
 				decodeRequest: function(ctx) { return ctx; },
 				renderEvents: function() { return {events: [], state: null, done: false}; },
@@ -909,7 +909,7 @@ func TestRegistryRejectsPrototypeInheritedHooks(t *testing.T) {
 			"inherited-protocol-hook",
 			0,
 			`["model"]`,
-			`protocols: ["openai_responses"],`,
+			`protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
 			`const protocolPrototype = {
 				decodeRequest: function(ctx) { return ctx; },
 				renderEvents: function() { return {events: [], state: null, done: false}; },
@@ -971,7 +971,7 @@ export const meta = {
 	apiVersion: 1, key: "getter-timeout", name: "Getter", version: "1.0.0",
 	author: {name: "Test"},
 	models: ["model"], fetchMode: "per_task",
-	protocols: ["openai_responses"],
+	protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],
 };
 export function buildSubmitRequest() { return {}; }
 export function parseSubmitResponse() { return {}; }

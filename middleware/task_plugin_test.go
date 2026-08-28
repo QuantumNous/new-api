@@ -597,7 +597,7 @@ func TestPrepareTaskPluginEndpointUsesStrictOriginalStreamFlag(t *testing.T) {
 	assert.True(t, reachedDistribution)
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
 
-	for _, invalid := range []string{`null`, `"true"`, `1`} {
+	for _, invalid := range []string{`null`, `"true"`, `1`, `"yes"`} {
 		request = httptest.NewRequest(
 			http.MethodPost,
 			"/v1/responses",
@@ -1411,6 +1411,177 @@ func TestPrepareTaskPluginEndpointSurfacesDecodeHookMessage(t *testing.T) {
 	assert.NotContains(t, recorder.Body.String(), "Invalid task protocol request")
 }
 
+func TestPinTaskPluginEndpointRejectsUnsupportedRequestForms(t *testing.T) {
+	setupTaskPluginRouteDB(t)
+	tests := []struct {
+		name     string
+		key      string
+		supports string
+		hooks    string
+		body     string
+		message  string
+	}{
+		{
+			name:     "stream against sync and background",
+			key:      "form-gate-final-only",
+			supports: `["sync", "background"]`,
+			hooks:    `renderFinal: function() { return {}; }`,
+			body:     `{"model":"form-gate-model","stream":true}`,
+			message:  `Streaming is not supported for this model. Set "stream": false, or use "background": true and retrieve the response later.`,
+		},
+		{
+			name:     "sync against stream only",
+			key:      "form-gate-stream-only",
+			supports: `["stream"]`,
+			hooks:    `renderEvents: function() { return {events: [], done: false}; }`,
+			body:     `{"model":"form-gate-model"}`,
+			message:  `Synchronous non-streaming requests are not supported for this model. Set "stream": true.`,
+		},
+		{
+			name:     "background against stream and sync",
+			key:      "form-gate-no-background",
+			supports: `["stream", "sync"]`,
+			hooks:    `renderEvents: function() { return {events: [], done: false}; }, renderFinal: function() { return {}; }`,
+			body:     `{"model":"form-gate-model","background":true}`,
+			message:  `Background mode is not supported for this model. Remove "background": true.`,
+		},
+		{
+			name:     "background plus stream reports stream first",
+			key:      "form-gate-no-stream",
+			supports: `["sync", "background"]`,
+			hooks:    `renderFinal: function() { return {}; }`,
+			body:     `{"model":"form-gate-model","stream":true,"background":true}`,
+			message:  `Streaming is not supported for this model. Set "stream": false, or use "background": true and retrieve the response later.`,
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, err := jsplugin.DefaultRegistry.Register(taskResponsesPluginSource(
+				testCase.key, 0, `["form-gate-model"]`, testCase.supports, testCase.hooks, `return {model: ctx.model};`,
+			), jsplugin.Options{})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(testCase.key)) })
+
+			reachedPrepare := false
+			quotaConsumed := false
+			router := gin.New()
+			router.POST("/v1/responses", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+				reachedPrepare = true
+				quotaConsumed = true
+				require.NoError(t, model.DB.Create(&model.Task{TaskID: "should-not-exist", UserId: 1}).Error)
+				c.Status(http.StatusNoContent)
+			})
+			request := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(testCase.body))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+
+			assert.Equal(t, http.StatusBadRequest, recorder.Code)
+			var payload map[string]any
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+			errObj, ok := payload["error"].(map[string]any)
+			require.True(t, ok)
+			message, _ := errObj["message"].(string)
+			assert.Contains(t, message, testCase.message)
+			assert.False(t, reachedPrepare)
+			assert.False(t, quotaConsumed)
+			var count int64
+			require.NoError(t, model.DB.Model(&model.Task{}).Count(&count).Error)
+			assert.Zero(t, count)
+		})
+	}
+}
+
+func TestPinTaskPluginEndpointMalformedStreamStillFailsInPrepare(t *testing.T) {
+	const key = "form-gate-malformed-stream"
+	_, err := jsplugin.DefaultRegistry.Register(taskResponsesPluginSource(
+		key, 0, `["form-gate-bool-model"]`, `["sync", "background"]`,
+		`renderFinal: function() { return {}; }`,
+		`return {model: ctx.model};`,
+	), jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(key)) })
+
+	reachedNext := false
+	router := gin.New()
+	router.POST("/v1/responses", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+		reachedNext = true
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"form-gate-bool-model","stream":"yes"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "stream must be a boolean")
+	assert.False(t, reachedNext)
+}
+
+func TestPinTaskPluginEndpointMovesParserToSurvivingSharedCandidate(t *testing.T) {
+	streamOnly, err := jsplugin.DefaultRegistry.Register(taskResponsesPluginSource(
+		"alpha-stream", constant.ChannelTypeReplicate, `["shared-form-model"]`, `["stream"]`,
+		`renderEvents: function() { return {events: [], done: false}; }`,
+		`return {model: ctx.model, action: "stream-parser"};`,
+	), jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister("alpha-stream")) })
+	full, err := jsplugin.DefaultRegistry.Register(taskResponsesPluginSource(
+		"bravo-full", constant.ChannelTypeCodex, `["shared-form-model"]`, `["stream", "sync", "background"]`,
+		`renderEvents: function() { return {events: [], done: false}; }, renderFinal: function() { return {}; }`,
+		`return {model: ctx.model, action: "full-parser"};`,
+	), jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister("bravo-full")) })
+
+	generation := jsplugin.DefaultRegistry.Generation()
+	unfiltered := generation.LookupEndpointCandidates("POST", "/v1/responses", "shared-form-model")
+	require.Len(t, unfiltered, 2)
+	assert.Equal(t, "alpha-stream", unfiltered[0].Plugin.Meta.Key)
+
+	t.Run("sync moves pin to second candidate", func(t *testing.T) {
+		var pinned jsplugin.PinnedEndpoint
+		var action string
+		router := gin.New()
+		router.POST("/v1/responses", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+			pinned = c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint)
+			action = c.GetString("task_action")
+			c.Status(http.StatusNoContent)
+		})
+		request := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"shared-form-model"}`))
+		request.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+
+		assert.Equal(t, http.StatusNoContent, recorder.Code)
+		assert.Same(t, full, pinned.Plugin)
+		require.Len(t, pinned.Candidates, 1)
+		assert.Same(t, full, pinned.Candidates[0].Plugin)
+		assert.Equal(t, "full-parser", action)
+	})
+
+	t.Run("stream keeps first candidate", func(t *testing.T) {
+		var pinned jsplugin.PinnedEndpoint
+		var action string
+		router := gin.New()
+		router.POST("/v1/responses", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+			pinned = c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint)
+			action = c.GetString("task_action")
+			c.Status(http.StatusNoContent)
+		})
+		request := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"shared-form-model","stream":true}`))
+		request.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, request)
+
+		assert.Equal(t, http.StatusNoContent, recorder.Code)
+		assert.Same(t, streamOnly, pinned.Plugin)
+		require.Len(t, pinned.Candidates, 2)
+		assert.Same(t, streamOnly, pinned.Candidates[0].Plugin)
+		assert.Equal(t, "stream-parser", action)
+	})
+}
+
 func compileTaskRoutePlugin(t *testing.T, source string) *jsplugin.LoadedPlugin {
 	t.Helper()
 	plugin, err := jsplugin.CompilePlugin(source, jsplugin.Options{})
@@ -1418,11 +1589,49 @@ func compileTaskRoutePlugin(t *testing.T, source string) *jsplugin.LoadedPlugin 
 	return plugin
 }
 
+func taskResponsesPluginSource(key string, channelType int, models, supports, hooks, parseRequestBody string) string {
+	channelField := ""
+	if channelType > 0 {
+		channelField = fmt.Sprintf("channelTypes: [%d],", channelType)
+	}
+	return fmt.Sprintf(`
+export const meta = {
+  apiVersion: 1,
+  key: %q,
+  name: %q,
+  version: "1.0.0",
+  author: {name: "Test"},
+  %s
+  models: %s,
+  fetchMode: "per_task",
+  protocols: [{name: "openai_responses", supports: %s}],
+};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+export function listArtifacts() { return []; }
+export function buildContentRequest() { throw new Error("artifact_not_found"); }
+export const protocols = {openai_responses: {
+  decodeRequest: function(ctx) {
+    ctx.requestBody = ctx.body.value;
+    const decode = function() { %s };
+    const result = decode();
+    if (!result.kind) result.kind = "submit";
+    return result;
+  },
+  %s
+}};
+`, key, key, channelField, models, supports, parseRequestBody, hooks)
+}
+
 func taskProtocolPluginSource(key, version, models, endpoint, parseRequestBody string) string {
 	protocol := "openai_responses"
+	protocolClaim := `{name: "openai_responses", supports: ["stream", "sync", "background"]}`
 	presenters := `renderEvents: function() { return {events: [], done: false}; }, renderFinal: function() { return {}; },`
 	if endpoint == "/v1/videos" {
 		protocol = "openai_video"
+		protocolClaim = `"openai_video"`
 		presenters = `render: function() { return {}; },`
 	}
 	return fmt.Sprintf(`
@@ -1434,7 +1643,7 @@ export const meta = {
   author: {name: "Test"},
   models: %s,
   fetchMode: "per_task",
-  protocols: [%q],
+  protocols: [%s],
 };
 export function buildSubmitRequest() { return {url: "https://example.com"}; }
 export function parseSubmitResponse() { return {taskId: "one"}; }
@@ -1458,7 +1667,7 @@ export const protocols = {
 		%s
   },
 };
-`, key, key, version, models, protocol, protocol, parseRequestBody, presenters)
+`, key, key, version, models, protocolClaim, protocol, parseRequestBody, presenters)
 }
 
 func pinTaskPluginRoute(plugin *jsplugin.LoadedPlugin, routeIndex int) gin.HandlerFunc {

@@ -58,6 +58,7 @@ import {
 } from '../api'
 import type { TaskPluginListItem } from '../types'
 import { JavaScriptViewer } from './javascript-viewer'
+import { PluginMetadataCard } from './plugin-metadata-card'
 import { PluginSandbox } from './plugin-sandbox'
 import { SourceDiff } from './source-diff'
 import { UsageSchemaTable } from './usage-schema-table'
@@ -120,28 +121,7 @@ export function PluginDetailSheet(props: PluginDetailSheetProps) {
         <div className='space-y-4 px-4 pb-6'>
           {detail && (
             <>
-              <Card>
-                <CardHeader>
-                  <CardTitle>{t('Plugin metadata')}</CardTitle>
-                </CardHeader>
-                <CardContent className='grid gap-2 text-sm sm:grid-cols-2'>
-                  <p>
-                    {t('Version')}: {detail.meta.version}
-                  </p>
-                  <p>apiVersion: {detail.meta.apiVersion}</p>
-                  <p>
-                    channelTypes:{' '}
-                    {detail.meta.channelTypes?.join(', ') || '—'}
-                  </p>
-                  <p>fetchMode: {detail.meta.fetchMode || '—'}</p>
-                  <p className='sm:col-span-2'>
-                    {t('Models')}: {detail.meta.models?.join(', ') || '—'}
-                  </p>
-                  <p className='sm:col-span-2'>
-                    {t('Actions')}: {detail.meta.actions?.join(', ') || '—'}
-                  </p>
-                </CardContent>
-              </Card>
+              <PluginMetadataCard meta={detail.meta} />
               <Card>
                 <CardHeader>
                   <CardTitle>{t('Billing parameters')}</CardTitle>

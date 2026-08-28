@@ -35,7 +35,7 @@ export const meta = {
     { label: "8s × 4k", facts: { seconds: 8, resolution: "4k" } },
     { label: "4s × 720p", facts: { seconds: 4, resolution: "720p" } },
   ],
-  protocols: ["openai_responses", "openai_video"],
+  protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };
 
 function trimmed(value) {

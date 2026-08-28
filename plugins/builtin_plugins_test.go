@@ -88,7 +88,17 @@ func TestBuiltInTaskPluginResponsesAndUsageContracts(t *testing.T) {
 			plugin, registerErr := registry.RegisterFactory(source, jsplugin.Options{Key: key})
 			require.NoError(t, registerErr)
 
-			require.Contains(t, plugin.Meta.Protocols, jsplugin.ProtocolClaim{Name: "openai_responses"})
+			var responsesClaim jsplugin.ProtocolClaim
+			foundResponses := false
+			for _, claim := range plugin.Meta.Protocols {
+				if claim.Name == "openai_responses" {
+					responsesClaim = claim
+					foundResponses = true
+					break
+				}
+			}
+			require.True(t, foundResponses, "openai_responses claim must be present")
+			assert.Equal(t, []string{"stream", "sync", "background"}, responsesClaim.Supports)
 			for _, model := range plugin.Meta.Models {
 				binding, claimed := registry.Generation().LookupEndpoint("POST", "/v1/responses", model)
 				require.True(t, claimed, model)

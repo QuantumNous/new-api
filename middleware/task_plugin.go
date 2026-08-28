@@ -26,6 +26,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 const contextKeyTaskPluginEndpointModel = "task_plugin_endpoint_model_request"
@@ -346,6 +347,42 @@ func PinTaskPluginEndpoint() gin.HandlerFunc {
 		if len(candidates) == 0 {
 			candidates = []pluginruntime.ProtocolBinding{binding}
 		}
+		if definition, known := pluginruntime.HostProtocol(binding.Protocol); known && len(definition.DefinedModes()) > 0 {
+			stream, background := jsonBodyBoolFlags(c)
+			required := make([]string, 0, 2)
+			if stream {
+				required = append(required, "stream")
+			}
+			if background {
+				required = append(required, "background")
+			}
+			if !stream && !background {
+				required = append(required, "sync")
+			}
+			unfiltered := candidates
+			filtered := make([]pluginruntime.ProtocolBinding, 0, len(candidates))
+			for _, candidate := range candidates {
+				if candidate.Plugin == nil {
+					continue
+				}
+				supported := true
+				for _, mode := range required {
+					if !candidate.Plugin.Meta.ProtocolSupports(candidate.Protocol, mode) {
+						supported = false
+						break
+					}
+				}
+				if supported {
+					filtered = append(filtered, candidate)
+				}
+			}
+			if len(filtered) == 0 {
+				abortWithOpenAiMessage(c, http.StatusBadRequest, unsupportedProtocolFormMessage(unfiltered, binding.Protocol, stream, background))
+				return
+			}
+			candidates = filtered
+			binding = candidates[0]
+		}
 
 		pin := pluginruntime.PinnedPlugin{Generation: generation, Plugin: binding.Plugin}
 		pinnedEndpoint := pluginruntime.PinnedEndpoint{
@@ -370,6 +407,51 @@ func PinTaskPluginEndpoint() gin.HandlerFunc {
 		)
 		c.Next()
 	}
+}
+
+func jsonBodyBoolFlags(c *gin.Context) (stream, background bool) {
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return false, false
+	}
+	requestBody, err := storage.Bytes()
+	if err != nil {
+		return false, false
+	}
+	values := gjson.GetManyBytes(requestBody, "stream", "background")
+	return values[0].Type == gjson.True, values[1].Type == gjson.True
+}
+
+func unsupportedProtocolFormMessage(candidates []pluginruntime.ProtocolBinding, protocol string, stream, background bool) string {
+	supports := func(mode string) bool {
+		for _, candidate := range candidates {
+			if candidate.Plugin != nil && candidate.Plugin.Meta.ProtocolSupports(protocol, mode) {
+				return true
+			}
+		}
+		return false
+	}
+	if stream && !supports("stream") {
+		if supports("background") {
+			return `Streaming is not supported for this model. Set "stream": false, or use "background": true and retrieve the response later.`
+		}
+		return `Streaming is not supported for this model. Set "stream": false.`
+	}
+	if background && !supports("background") {
+		return `Background mode is not supported for this model. Remove "background": true.`
+	}
+	forms := make([]string, 0, 2)
+	if supports("stream") {
+		forms = append(forms, `"stream": true`)
+	}
+	if supports("background") {
+		forms = append(forms, `"background": true`)
+	}
+	message := "Synchronous non-streaming requests are not supported for this model."
+	if len(forms) == 0 {
+		return message
+	}
+	return message + " Set " + strings.Join(forms, " or ") + "."
 }
 
 // TaskPluginEndpointOnly applies middleware only after a shared endpoint has

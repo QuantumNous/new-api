@@ -510,14 +510,13 @@ func TestServeTaskPluginProtocolStreamsPinnedGenerationWithHostFraming(t *testin
 	assert.NotContains(t, recorder.Body.String(), "new-generation")
 }
 
-func TestServeTaskPluginProtocolStreamUsesHostEventsWhenRenderEventsMissing(t *testing.T) {
+func TestServeTaskPluginProtocolStreamMissingRenderEventsUsesFailureEnvelope(t *testing.T) {
 	tests := []struct {
-		name       string
-		status     model.TaskStatus
-		transcript []string
+		name   string
+		status model.TaskStatus
 	}{
-		{name: "success", status: model.TaskStatusSuccess, transcript: []string{"response.created", "response.completed"}},
-		{name: "failure", status: model.TaskStatusFailure, transcript: []string{"response.created", "response.failed"}},
+		{name: "success", status: model.TaskStatusSuccess},
+		{name: "failure", status: model.TaskStatusFailure},
 	}
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -537,7 +536,7 @@ func TestServeTaskPluginProtocolStreamUsesHostEventsWhenRenderEventsMissing(t *t
 
 			serveTaskPluginProtocol(c, pinned, deps)
 
-			assert.Equal(t, testCase.transcript, pluginProtocolTestSSEEventTypes(recorder.Body.String()))
+			assert.Equal(t, []string{"response.created", "response.failed"}, pluginProtocolTestSSEEventTypes(recorder.Body.String()))
 			assert.NotContains(t, recorder.Body.String(), "stream must not call")
 		})
 	}
@@ -1139,6 +1138,120 @@ func TestRetrieveTaskPluginResponseSuccessRendersFinal(t *testing.T) {
 	assert.Equal(t, "retrieved-final", response.Output[0].Content[0].Text)
 }
 
+func TestRetrieveTaskPluginResponseStreamOnlySuccessSynthesizesFromEvents(t *testing.T) {
+	logs := make([]string, 0, 1)
+	pinned := compilePluginProtocolRetrieveEndpoint(t, "retrieve-stream-only", `
+		export const protocols = {openai_responses: {
+			renderEvents: function() {
+				console.log("renderEvents called");
+				return {events: [{type: "output", data: "synthesized-retrieve"}], done: true};
+			},
+			renderFinal: function() { throw new Error("stream-only retrieve called renderFinal"); }
+		}};
+	`, logsAppender(&logs))
+	pinned.Plugin.Meta.Protocols = []pluginruntime.ProtocolClaim{{Name: "openai_responses", Supports: []string{"stream"}}}
+	c, recorder := newPluginProtocolRetrieveContext("resp_retrieve_stream")
+	deps := pluginProtocolRetrieveDeps(pinned, &model.Task{
+		TaskID:     "task_retrieve_stream",
+		Platform:   constant.TaskPlatform(pinned.Plugin.Meta.Key),
+		UserId:     71,
+		Status:     model.TaskStatusSuccess,
+		Properties: model.Properties{OriginModelName: "video-model"},
+		CreatedAt:  1_710_000_000,
+	}, true, nil)
+
+	retrieveTaskPluginResponse(c, deps)
+
+	require.NotEmpty(t, logs)
+	assert.Contains(t, logs[0], "renderEvents called")
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	var response dto.PluginResponsesResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.Equal(t, "completed", response.Status)
+	require.NotEmpty(t, response.Output)
+}
+
+func TestRetrieveTaskPluginResponseStreamOnlyPendingAndFailureStayHostEnvelopes(t *testing.T) {
+	logs := make([]string, 0, 1)
+	pinned := compilePluginProtocolRetrieveEndpoint(t, "retrieve-stream-envelope", `
+		export const protocols = {openai_responses: {
+			renderEvents: function() { throw new Error("envelope retrieve called renderEvents"); },
+			renderFinal: function() { throw new Error("envelope retrieve called renderFinal"); }
+		}};
+	`, logsAppender(&logs))
+	pinned.Plugin.Meta.Protocols = []pluginruntime.ProtocolClaim{{Name: "openai_responses", Supports: []string{"stream"}}}
+
+	t.Run("pending", func(t *testing.T) {
+		logs = logs[:0]
+		c, recorder := newPluginProtocolRetrieveContext("resp_retrieve_stream_pending")
+		deps := pluginProtocolRetrieveDeps(pinned, &model.Task{
+			TaskID:     "task_retrieve_stream_pending",
+			Platform:   constant.TaskPlatform(pinned.Plugin.Meta.Key),
+			UserId:     71,
+			Status:     model.TaskStatusInProgress,
+			Properties: model.Properties{OriginModelName: "video-model"},
+			CreatedAt:  1_710_000_000,
+		}, true, nil)
+		retrieveTaskPluginResponse(c, deps)
+		assert.Empty(t, logs)
+		assert.Equal(t, http.StatusOK, recorder.Code)
+		var response map[string]any
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		assert.Equal(t, "in_progress", response["status"])
+		assert.Empty(t, response["output"])
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		logs = logs[:0]
+		c, recorder := newPluginProtocolRetrieveContext("resp_retrieve_stream_failure")
+		deps := pluginProtocolRetrieveDeps(pinned, &model.Task{
+			TaskID:     "task_retrieve_stream_failure",
+			Platform:   constant.TaskPlatform(pinned.Plugin.Meta.Key),
+			UserId:     71,
+			Status:     model.TaskStatusFailure,
+			Properties: model.Properties{OriginModelName: "video-model"},
+		}, true, nil)
+		retrieveTaskPluginResponse(c, deps)
+		assert.Empty(t, logs)
+		assert.Equal(t, http.StatusOK, recorder.Code)
+		var response dto.PluginResponsesResponse
+		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+		assert.Equal(t, "failed", response.Status)
+		require.NotNil(t, response.Error)
+		assert.Equal(t, "The task failed.", response.Error.Message)
+	})
+}
+
+func TestRetrieveTaskPluginResponseStreamOnlyRenderErrorUsesFailureEnvelope(t *testing.T) {
+	pinned := compilePluginProtocolRetrieveEndpoint(t, "retrieve-stream-throw", `
+		export const protocols = {openai_responses: {
+			renderEvents: function() { throw new Error("retrieve boom"); },
+			renderFinal: function() { throw new Error("stream-only retrieve called renderFinal"); }
+		}};
+	`, pluginruntime.Options{})
+	pinned.Plugin.Meta.Protocols = []pluginruntime.ProtocolClaim{{Name: "openai_responses", Supports: []string{"stream"}}}
+	c, recorder := newPluginProtocolRetrieveContext("resp_retrieve_stream_throw")
+	deps := pluginProtocolRetrieveDeps(pinned, &model.Task{
+		TaskID:     "task_retrieve_stream_throw",
+		Platform:   constant.TaskPlatform(pinned.Plugin.Meta.Key),
+		UserId:     71,
+		Status:     model.TaskStatusSuccess,
+		Properties: model.Properties{OriginModelName: "video-model"},
+		CreatedAt:  1_710_000_000,
+	}, true, nil)
+
+	retrieveTaskPluginResponse(c, deps)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.NotContains(t, recorder.Body.String(), "retrieve boom")
+	var response dto.PluginResponsesResponse
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.Equal(t, "failed", response.Status)
+	require.NotNil(t, response.Error)
+	assert.Equal(t, "server_error", response.Error.Code)
+	assert.Equal(t, "The task could not be observed.", response.Error.Message)
+}
+
 func TestRetrieveTaskPluginResponseFailureUsesFailedEnvelope(t *testing.T) {
 	logs := make([]string, 0, 1)
 	pinned := compilePluginProtocolRetrieveEndpoint(t, "retrieve-failure", `
@@ -1206,7 +1319,7 @@ func TestRetrieveTaskPluginResponseNotFound(t *testing.T) {
 				if testCase.claims != nil {
 					testCase.plugin.Meta.Protocols = testCase.claims
 				} else {
-					testCase.plugin.Meta.Protocols = []pluginruntime.ProtocolClaim{{Name: "openai_responses"}}
+					testCase.plugin.Meta.Protocols = []pluginruntime.ProtocolClaim{{Name: "openai_responses", Supports: []string{"stream", "sync", "background"}}}
 				}
 			}
 			c, recorder := newPluginProtocolRetrieveContext(testCase.responseID)
@@ -1298,7 +1411,14 @@ func compilePluginProtocolTestEndpointWithOptions(
 	return pluginruntime.PinnedEndpoint{
 		Generation: &pluginruntime.RoutingGeneration{Number: 41},
 		Plugin: &pluginruntime.LoadedPlugin{
-			Meta:   pluginruntime.Meta{Key: key, Version: "1.0.0"},
+			Meta: pluginruntime.Meta{
+				Key:     key,
+				Version: "1.0.0",
+				Protocols: []pluginruntime.ProtocolClaim{{
+					Name:     "openai_responses",
+					Supports: []string{"stream", "sync", "background"},
+				}},
+			},
 			Engine: engine,
 		},
 		Protocol:  "openai_responses",
@@ -1391,7 +1511,7 @@ func setProtocolRequestBackground(c *gin.Context, background bool) {
 func compilePluginProtocolRetrieveEndpoint(t *testing.T, key, source string, options pluginruntime.Options) pluginruntime.PinnedEndpoint {
 	t.Helper()
 	pinned := compilePluginProtocolTestEndpointWithOptions(t, key, source, options)
-	pinned.Plugin.Meta.Protocols = []pluginruntime.ProtocolClaim{{Name: "openai_responses"}}
+	pinned.Plugin.Meta.Protocols = []pluginruntime.ProtocolClaim{{Name: "openai_responses", Supports: []string{"stream", "sync", "background"}}}
 	return pinned
 }
 

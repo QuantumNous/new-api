@@ -40,7 +40,7 @@ export const meta = {
     { label: "8s 1080p audio", facts: { seconds: 8, resolution: "1080p", generate_audio: true } },
     { label: "8s 4k audio", facts: { seconds: 8, resolution: "4k", generate_audio: true } },
   ],
-  protocols: ["openai_responses", "openai_video"],
+  protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };
 
 function trimmed(value) {

@@ -171,6 +171,29 @@ func serveTaskPluginProtocol(
 		respondPluginProtocolError(c, http.StatusInternalServerError, "task_protocol_error", "Task protocol request failed")
 		return
 	}
+	if definition, known := pluginruntime.HostProtocol(pinned.Protocol); known && len(definition.DefinedModes()) > 0 && pinned.Plugin != nil {
+		background := false
+		if body, ok := protocolRequest.Body.(map[string]any); ok && body["kind"] == string(pluginruntime.BodyJSON) {
+			if requestBody, ok := body["value"].(map[string]any); ok {
+				background, _ = requestBody["background"].(bool)
+			}
+		}
+		missing := false
+		if protocolRequest.Stream && !pinned.Plugin.Meta.ProtocolSupports(pinned.Protocol, "stream") {
+			missing = true
+		}
+		if background && !pinned.Plugin.Meta.ProtocolSupports(pinned.Protocol, "background") {
+			missing = true
+		}
+		if !protocolRequest.Stream && !background && !pinned.Plugin.Meta.ProtocolSupports(pinned.Protocol, "sync") {
+			missing = true
+		}
+		if missing {
+			logger.LogError(c, "pinned task plugin does not support the requested protocol form")
+			respondPluginProtocolError(c, http.StatusInternalServerError, "task_protocol_error", "Task protocol request failed")
+			return
+		}
+	}
 	logger.LogDebug(
 		c,
 		"task_plugin subsystem=protocol event=request_ready generation=%d plugin=%q protocol=%q stream=%t",
@@ -384,12 +407,6 @@ func streamTaskPluginProtocol(
 	defer heartbeatTicker.Stop()
 
 	var previous relay.ProtocolState
-	hasRenderEvents, hookLookupErr := pinned.Plugin.Engine.HasCallablePath(observationContext, "protocols", pinned.Protocol, "renderEvents")
-	if hookLookupErr != nil {
-		logger.LogError(c, "inspect task protocol render hook failed")
-		writeTaskPluginProtocolFailure(c, machine, "")
-		return
-	}
 	tickNumber := uint64(0)
 	lastStatus := ""
 	for {
@@ -479,27 +496,23 @@ func streamTaskPluginProtocol(
 			return
 		}
 		hookStarted := deps.now()
-		var value any = map[string]any{"events": []any{}, "done": false}
-		var callErr error
-		if hasRenderEvents {
-			rendererContext, contextErr := taskPluginProtocolRendererContext(protocolRequest, pinned, task, deps.artifactContentURL)
-			if contextErr != nil {
-				logger.LogError(c, "build task protocol renderer context failed")
+		rendererContext, contextErr := taskPluginProtocolRendererContext(protocolRequest, pinned, task, deps.artifactContentURL)
+		if contextErr != nil {
+			logger.LogError(c, "build task protocol renderer context failed")
+			writeTaskPluginProtocolFailure(c, machine, lastStatus)
+			return
+		}
+		args := []any{rendererContext, viewValue}
+		if previous.Present {
+			previousValue, stateErr := previous.PluginValue()
+			if stateErr != nil {
+				logger.LogError(c, "decode task protocol state failed: "+stateErr.Error())
 				writeTaskPluginProtocolFailure(c, machine, lastStatus)
 				return
 			}
-			args := []any{rendererContext, viewValue}
-			if previous.Present {
-				previousValue, stateErr := previous.PluginValue()
-				if stateErr != nil {
-					logger.LogError(c, "decode task protocol state failed: "+stateErr.Error())
-					writeTaskPluginProtocolFailure(c, machine, lastStatus)
-					return
-				}
-				args = append(args, previousValue)
-			}
-			value, callErr = pinned.Plugin.Engine.CallPathWithAdmissionTimeout(observationContext, deps.admissionTimeout, "protocols", []string{pinned.Protocol, "renderEvents"}, args...)
+			args = append(args, previousValue)
 		}
+		value, callErr := pinned.Plugin.Engine.CallPathWithAdmissionTimeout(observationContext, deps.admissionTimeout, "protocols", []string{pinned.Protocol, "renderEvents"}, args...)
 		hookElapsed := deps.now().Sub(hookStarted)
 		overloaded := false
 		if callErr != nil {
@@ -860,6 +873,55 @@ func renderTaskPluginProtocolFinalResponse(
 	return response, hookElapsed, nil
 }
 
+func renderTaskPluginProtocolEventsResponse(
+	ctx context.Context,
+	pinned pluginruntime.PinnedEndpoint,
+	protocolRequest pluginruntime.ProtocolRequestContext,
+	task *model.Task,
+	machine *relay.PluginResponsesMachine,
+	deps pluginProtocolBridgeDeps,
+) (map[string]any, time.Duration, error) {
+	view, err := service.BuildTaskPluginView(task)
+	if err != nil {
+		return nil, 0, err
+	}
+	viewValue, err := taskPluginProtocolJSONValue(view)
+	if err != nil {
+		return nil, 0, err
+	}
+	rendererContext, err := taskPluginProtocolRendererContext(
+		protocolRequest,
+		pinned,
+		task,
+		deps.artifactContentURL,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	hookStarted := deps.now()
+	value, err := pinned.Plugin.Engine.CallPathWithAdmissionTimeout(
+		ctx,
+		deps.admissionTimeout,
+		"protocols",
+		[]string{pinned.Protocol, "renderEvents"},
+		rendererContext,
+		viewValue,
+	)
+	hookElapsed := deps.now().Sub(hookStarted)
+	if err != nil {
+		return nil, hookElapsed, err
+	}
+	result, err := relay.DecodePluginProtocolEventResult(value, deps.protocolLimits)
+	if err != nil {
+		return nil, hookElapsed, err
+	}
+	response, err := machine.FinalFromEvents(result, string(task.Status))
+	if err != nil {
+		return nil, hookElapsed, err
+	}
+	return response, hookElapsed, nil
+}
+
 func RetrieveTaskPluginResponse(c *gin.Context) {
 	retrieveTaskPluginResponse(c, defaultPluginProtocolBridgeDeps())
 }
@@ -952,14 +1014,30 @@ func retrieveTaskPluginResponse(c *gin.Context, deps pluginProtocolBridgeDeps) {
 		return
 	}
 
-	response, hookElapsed, renderErr := renderTaskPluginProtocolFinalResponse(
-		c.Request.Context(),
-		pinned,
-		protocolRequest,
-		task,
-		machine,
-		deps,
+	var (
+		response    map[string]any
+		hookElapsed time.Duration
+		renderErr   error
 	)
+	if plugin.Meta.ProtocolSupports("openai_responses", "sync") || plugin.Meta.ProtocolSupports("openai_responses", "background") {
+		response, hookElapsed, renderErr = renderTaskPluginProtocolFinalResponse(
+			c.Request.Context(),
+			pinned,
+			protocolRequest,
+			task,
+			machine,
+			deps,
+		)
+	} else {
+		response, hookElapsed, renderErr = renderTaskPluginProtocolEventsResponse(
+			c.Request.Context(),
+			pinned,
+			protocolRequest,
+			task,
+			machine,
+			deps,
+		)
+	}
 	if renderErr != nil {
 		logger.LogError(c, "task protocol retrieve render failed")
 		logger.LogDebug(

@@ -14,7 +14,11 @@ export type QueryIntent = {kind: "query"; taskIds: readonly string[]};
 export type TaskIntent = SubmitIntent | QueryIntent;
 export interface NativeRoute {method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; path: string; type: "submit" | "query" | "dynamic"; action?: string; taskIdParam?: string; decode?: string; render: string; models?: readonly string[]}
 export type ProtocolName = "openai_responses" | "openai_video";
-export type ProtocolClaim = ProtocolName | {name: ProtocolName; models?: readonly string[]};
+export type ResponsesMode = "stream" | "sync" | "background";
+export type ProtocolClaim =
+  | "openai_video"
+  | {name: "openai_responses"; supports: readonly ResponsesMode[]; models?: readonly string[]}
+  | {name: "openai_video"; models?: readonly string[]};
 export type LocalizedText = string | ({ en: string } & Record<string, string>);
 export type UsageFieldSchema = {type: "number"; unit: "second" | "count" | "token" | "credit"; description?: LocalizedText} | {type: "boolean"; description?: LocalizedText} | {enum: readonly string[]; description?: LocalizedText};
 export type UsageExample = {label: string; facts: Readonly<Record<string, string | number>>};
@@ -28,7 +32,7 @@ export interface TaskArtifact {key: string; type: "video" | "audio" | "image" | 
 export declare const meta: Meta;
 export declare const native: Record<string, ((ctx: NativeDecodeContext) => TaskIntent) | ((ctx: NativeDecodeContext, task: TaskView | readonly TaskView[]) => unknown)> & {error?: (ctx: NativeDecodeContext, error: {code: string; message: string; httpStatus: number; retryable: boolean}) => unknown};
 export declare const protocols: {
-  openai_responses?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; renderEvents?(ctx: unknown, task: TaskView, previousState: unknown): unknown; renderFinal(ctx: unknown, task: TaskView): unknown};
+  openai_responses?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; renderEvents?(ctx: unknown, task: TaskView, previousState: unknown): unknown; renderFinal?(ctx: unknown, task: TaskView): unknown};
   openai_video?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; render(ctx: unknown, task: TaskView): unknown};
 };
 export declare function buildSubmitRequest(ctx: DriverContext): RequestDescriptor;

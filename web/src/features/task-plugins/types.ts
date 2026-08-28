@@ -18,6 +18,26 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { BillingUsageSchema } from '@/features/pricing/types'
 
+export type TaskPluginProtocolClaim =
+  | string
+  | {
+      name: string
+      models?: string[]
+      supports?: ('stream' | 'sync' | 'background')[]
+    }
+
+/**
+ * One native route declared by `meta.routes` (backend `jsplugin.Route`). Only
+ * the fields the admin UI renders are typed; hook bindings such as `decode`,
+ * `render` and `action` are implementation detail of the plugin.
+ */
+export type TaskPluginRoute = {
+  method: string
+  path: string
+  type: 'submit' | 'query' | 'dynamic'
+  models?: string[]
+}
+
 export type TaskPluginMeta = {
   apiVersion: number
   key: string
@@ -32,7 +52,8 @@ export type TaskPluginMeta = {
   channelTypes?: number[] | null
   models: string[] | null
   fetchMode: string
-  actions: string[] | null
+  routes?: TaskPluginRoute[]
+  protocols?: TaskPluginProtocolClaim[]
   usageSchema?: BillingUsageSchema
 }
 

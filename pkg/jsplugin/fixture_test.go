@@ -9,7 +9,7 @@ import (
 )
 
 const fixturePlugin = `
-export const meta = { apiVersion: 1, key: "fixture", name: "Fixture", version: "1.0.0", author: {name: "Test"}, channelTypes: [1002], models: ["fixture-model"], fetchMode: "per_task", protocols: ["openai_responses"] };
+export const meta = { apiVersion: 1, key: "fixture", name: "Fixture", version: "1.0.0", author: {name: "Test"}, channelTypes: [1002], models: ["fixture-model"], fetchMode: "per_task", protocols: [{name: "openai_responses", supports: ["sync", "background"]}] };
 export function buildSubmitRequest(ctx) { return {url: ctx.baseUrl + "/submit"}; }
 export function parseSubmitResponse(ctx, resp) { return {taskId: resp.body.id}; }
 export function buildQueryRequest(ctx) { return {url: ctx.baseUrl + "/task"}; }

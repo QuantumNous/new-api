@@ -97,7 +97,7 @@ export const meta = {
   %s
   models: ["task-model"],
   fetchMode: "per_task",
-  protocols: ["openai_responses"],
+  protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],
 };
 export function buildSubmitRequest() { return {}; }
 export function parseSubmitResponse() { return {taskId: "task"}; }

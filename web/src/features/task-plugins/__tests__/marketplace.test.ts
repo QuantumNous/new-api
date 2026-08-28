@@ -62,7 +62,6 @@ function installedPlugin(key: string, version: string): TaskPluginListItem {
       author: { name: 'test' },
       models: null,
       fetchMode: 'poll',
-      actions: null,
     },
     source: 'override',
     enabled: true,
