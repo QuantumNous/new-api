@@ -3,6 +3,12 @@ package constant
 var StreamingTimeout int
 var DifyDebug bool
 var MaxFileDownloadMB int
+
+// MaxRelayResponseMB bounds the size of a non-stream upstream response body
+// read fully into memory by relay handlers. A malicious or misbehaving
+// upstream (e.g. free proxies) must not be able to OOM the gateway with an
+// unbounded JSON body (F-36).
+var MaxRelayResponseMB int
 var StreamScannerMaxBufferMB int
 var ForceStreamOption bool
 var CountToken bool
