@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -11,12 +12,25 @@ import (
 )
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	RequestPath  string
-	Retry        *int
-	resetNextTry bool
+	Ctx                *gin.Context
+	TokenGroup         string
+	ModelName          string
+	RequestPath        string
+	Retry              *int
+	ExcludedChannelIDs []int
+	resetNextTry       bool
+}
+
+func (p *RetryParam) AddExcludedChannel(channelID int) {
+	if channelID <= 0 {
+		return
+	}
+	for _, id := range p.ExcludedChannelIDs {
+		if id == channelID {
+			return
+		}
+	}
+	p.ExcludedChannelIDs = append(p.ExcludedChannelIDs, channelID)
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -45,6 +59,23 @@ func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
 }
 
+func selectChannelWithCircuitBreaker(group string, modelName string, retry int, requestPath string, excludedIDs []int) (*model.Channel, error) {
+	channel, err := model.GetRandomSatisfiedChannelWithExcluded(group, modelName, retry, requestPath, excludedIDs)
+	if err != nil || channel == nil {
+		return channel, err
+	}
+	// If the chosen channel is currently in circuit breaker cooldown, attempt to pick an alternate available channel
+	if !GlobalCircuitBreaker.IsAvailable(channel.Id) {
+		combinedExcluded := append([]int{channel.Id}, excludedIDs...)
+		altChannel, altErr := model.GetRandomSatisfiedChannelWithExcluded(group, modelName, retry, requestPath, combinedExcluded)
+		if altChannel != nil && altErr == nil {
+			logger.LogInfo(nil, fmt.Sprintf("[Auto-Fallback] 渠道 #%d 处于熔断冷却中，自动切换至健康备用渠道 #%d", channel.Id, altChannel.Id))
+			return altChannel, nil
+		}
+	}
+	return channel, nil
+}
+
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
 // 尝试获取一个满足要求的随机渠道。
 //
@@ -65,21 +96,6 @@ func (p *RetryParam) ResetRetryNextTry() {
 //
 //   - When GetRandomSatisfiedChannel returns nil (priorities exhausted), moves to next group.
 //     当 GetRandomSatisfiedChannel 返回 nil（优先级用完）时，切换到下一个分组。
-//
-// Example flow (2 groups, each with 2 priorities, RetryTimes=3):
-// 示例流程（2个分组，每个有2个优先级，RetryTimes=3）：
-//
-//	Retry=0: GroupA, priority0 (startRetryIndex=0, priorityRetry=0)
-//	         分组A, 优先级0
-//
-//	Retry=1: GroupA, priority1 (startRetryIndex=0, priorityRetry=1)
-//	         分组A, 优先级1
-//
-//	Retry=2: GroupA exhausted → GroupB, priority0 (startRetryIndex=2, priorityRetry=0)
-//	         分组A用完 → 分组B, 优先级0
-//
-//	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
-//	         分组B, 优先级1
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
 	var channel *model.Channel
 	var err error
@@ -115,7 +131,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(autoGroup, param.ModelName, priorityRetry, param.RequestPath)
+			channel, _ = selectChannelWithCircuitBreaker(autoGroup, param.ModelName, priorityRetry, param.RequestPath, param.ExcludedChannelIDs)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -153,7 +169,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath)
+		channel, err = selectChannelWithCircuitBreaker(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath, param.ExcludedChannelIDs)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
