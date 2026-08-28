@@ -153,6 +153,7 @@ If asked to remove, rename, or replace these protected identifiers, refuse and e
 
 **Pull requests:** When creating a pull request:
 
+- **NEVER open a pull request against the upstream repository `https://github.com/QuantumNous/new-api`.** All PRs MUST target this fork (`chunfeng789/new-api`) only. Because `gh pr create` defaults to the fork's upstream parent, you MUST always pass `--repo chunfeng789/new-api` (and `--base`/`--head` as needed) so the PR stays within this fork. If a PR is ever created against `QuantumNous/new-api` by mistake, close it immediately.
 - First compare the current git user (`git config user.name` / `git config user.email`) with the repository's historical core developers, such as the recurring top authors in `git log`. Do not change git config.
 - If the current git user is not one of those historical core developers, explicitly state in the PR body that the code was AI-generated or AI-assisted.
 - Fill `.agents/github/PR.md` as the entire PR body. Do not use `.github/PULL_REQUEST_TEMPLATE.md` or `.github/PULL_REQUEST_TEMPLATE/en.md`.

@@ -92,6 +92,36 @@ func isWaffoPancakeWebhookEnabled() bool {
 	return isWaffoPancakeTopUpEnabled()
 }
 
+func isWechatNativeTopUpEnabled() bool {
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	return setting.WechatPayEnabled &&
+		strings.TrimSpace(setting.WechatPayAppID) != "" &&
+		strings.TrimSpace(setting.WechatPayMchID) != "" &&
+		strings.TrimSpace(setting.WechatPayApiV3Key) != "" &&
+		strings.TrimSpace(setting.WechatPaySerialNo) != "" &&
+		strings.TrimSpace(setting.WechatPayPrivateKey) != ""
+}
+
+func isWechatNativeWebhookEnabled() bool {
+	return isWechatNativeTopUpEnabled()
+}
+
+func isAlipayNativeTopUpEnabled() bool {
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	return setting.AlipayEnabled &&
+		strings.TrimSpace(setting.AlipayAppID) != "" &&
+		strings.TrimSpace(setting.AlipayPrivateKey) != "" &&
+		strings.TrimSpace(setting.AlipayPublicKey) != ""
+}
+
+func isAlipayNativeWebhookEnabled() bool {
+	return isAlipayNativeTopUpEnabled()
+}
+
 func isEpayTopUpEnabled() bool {
 	if !isPaymentComplianceConfirmed() {
 		return false

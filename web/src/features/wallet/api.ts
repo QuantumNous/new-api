@@ -35,6 +35,8 @@ import type {
   CompleteOrderRequest,
   CreemPaymentRequest,
   CreemPaymentResponse,
+  NativePaymentResponse,
+  NativeQueryResponse,
   WaffoPaymentRequest,
   WaffoPaymentResponse,
   WaffoPancakePaymentRequest,
@@ -128,6 +130,33 @@ export async function requestStripePayment(
   request: PaymentRequest
 ): Promise<StripePaymentResponse> {
   const res = await api.post('/api/user/stripe/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request native WeChat/Alipay QR payment.
+ * Returns a code_url string to render as a QR code plus the local trade_no.
+ */
+export async function requestNativePayment(
+  request: PaymentRequest
+): Promise<NativePaymentResponse> {
+  const res = await api.post('/api/user/native/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Poll the status of a native QR order. The backend actively re-queries the
+ * gateway and settles on success, so this drives both display and crediting.
+ */
+export async function queryNativeOrder(
+  tradeNo: string
+): Promise<NativeQueryResponse> {
+  const params = new URLSearchParams({ trade_no: tradeNo })
+  const res = await api.get(`/api/user/native/query?${params.toString()}`, {
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data

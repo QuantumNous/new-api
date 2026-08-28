@@ -27,6 +27,7 @@ import { getSelf } from '@/lib/api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
+import { NativeQrDialog } from './components/dialogs/native-qr-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
@@ -39,13 +40,16 @@ import {
   useAffiliate,
   useRedemption,
   useCreemPayment,
+  useNativePayment,
   useWaffoPayment,
   useWaffoPancakePayment,
+  type NativeQrOrder,
 } from './hooks'
 import {
   getDefaultPaymentType,
   getMinTopupAmount,
   dispatchSelectedPayment,
+  isNativeQrPayment,
 } from './lib'
 import type {
   UserWalletData,
@@ -78,6 +82,8 @@ export function Wallet(props: WalletProps) {
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
+  const [qrDialogOpen, setQrDialogOpen] = useState(false)
+  const [qrOrder, setQrOrder] = useState<NativeQrOrder | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
 
   const { status } = useStatus()
@@ -105,6 +111,7 @@ export function Wallet(props: WalletProps) {
   } = useAffiliate()
   const { redeeming, redeemCode } = useRedemption()
   const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
+  const { processing: nativeProcessing, requestNativeQr } = useNativePayment()
   const { processing: waffoProcessing, processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
     useWaffoPancakePayment()
@@ -193,6 +200,18 @@ export function Wallet(props: WalletProps) {
   // Handle payment confirmation
   const handlePaymentConfirm = async () => {
     if (!selectedPaymentMethod) return
+
+    // Native WeChat/Alipay QR: create the order, then show an inline QR dialog
+    // that polls for completion instead of redirecting.
+    if (isNativeQrPayment(selectedPaymentMethod.type)) {
+      const order = await requestNativeQr(topupAmount, selectedPaymentMethod.type)
+      if (order) {
+        setConfirmDialogOpen(false)
+        setQrOrder(order)
+        setQrDialogOpen(true)
+      }
+      return
+    }
 
     const success = await dispatchSelectedPayment(
       selectedPaymentMethod,
@@ -360,9 +379,20 @@ export function Wallet(props: WalletProps) {
         paymentAmount={paymentAmount}
         paymentMethod={selectedPaymentMethod}
         calculating={calculating}
-        processing={processing || waffoProcessing || pancakeProcessing}
+        processing={
+          processing || waffoProcessing || pancakeProcessing || nativeProcessing
+        }
         discountRate={getDiscountRate()}
         usdExchangeRate={effectiveUsdExchangeRate}
+      />
+
+      <NativeQrDialog
+        open={qrDialogOpen}
+        onOpenChange={setQrDialogOpen}
+        order={qrOrder}
+        paymentMethod={selectedPaymentMethod}
+        paymentAmount={paymentAmount}
+        onSuccess={fetchUser}
       />
 
       <TransferDialog
