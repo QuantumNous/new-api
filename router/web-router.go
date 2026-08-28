@@ -2,6 +2,7 @@ package router
 
 import (
 	"embed"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -33,17 +34,16 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
 
-	// Register OAuth Provider routes FIRST as route handlers (before static middleware)
+	// Register OAuth Provider routes as route handlers (before static middleware)
 	router.GET("/oauth/authorize", middleware.DisableCache(), controller.OAuthProviderAuthorize)
 	router.POST("/oauth/authorize", middleware.DisableCache(), controller.OAuthProviderAuthorizePost)
 	router.POST("/oauth/token", middleware.DisableCache(), controller.OAuthProviderToken)
 	router.GET("/oauth/userinfo", middleware.DisableCache(), controller.OAuthProviderUserInfo)
 	router.GET("/.well-known/openid-configuration", controller.OAuthProviderWellKnown)
 
-	// Static file serving - use conditional to skip API routes
+	// Debug: log and skip static for known API paths
 	router.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
-		// Skip static serving for API paths and known API-related paths
 		if strings.HasPrefix(path, "/api/") ||
 			strings.HasPrefix(path, "/oauth/") ||
 			strings.HasPrefix(path, "/v1/") ||
@@ -52,10 +52,11 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 			path == "/api" ||
 			path == "/oauth" ||
 			path == "/v1" {
+			common.SysLog(fmt.Sprintf("Skipping static for API path: %s", path))
 			c.Next()
 			return
 		}
-		// Let static middleware handle the rest
+		common.SysLog(fmt.Sprintf("Static middleware handling: %s", path))
 		static.Serve("/", frontendFS)(c)
 	})
 
