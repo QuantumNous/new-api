@@ -5316,6 +5316,10 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Native OpenAI Batch API": "Нативный OpenAI Batch API",
+    "Allow File and Batch API passthrough for this upstream": "Разрешить сквозную передачу File и Batch API для этого вышестоящего сервиса",
+    "OpenAI Batch API": "Пакетный API OpenAI",
+    "Enable native File and Batch passthrough. New API does not currently settle Batch quota; upstream charges still apply.": "Включает нативную сквозную передачу File и Batch API. New API пока не списывает квоту Batch, но плата вышестоящего сервиса по-прежнему применяется."
   }
 }

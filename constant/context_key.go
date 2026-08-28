@@ -7,8 +7,12 @@ const (
 	ContextKeyPromptTokens    ContextKey = "prompt_tokens"
 	ContextKeyEstimatedTokens ContextKey = "estimated_tokens"
 
-	ContextKeyOriginalModel    ContextKey = "original_model"
-	ContextKeyRequestStartTime ContextKey = "request_start_time"
+	ContextKeyOriginalModel                  ContextKey = "original_model"
+	ContextKeyRequestStartTime               ContextKey = "request_start_time"
+	ContextKeyUpstreamResourceModel          ContextKey = "upstream_resource_model"
+	ContextKeyUpstreamResourceChannelId      ContextKey = "upstream_resource_channel_id"
+	ContextKeyUpstreamResourceKeyIndex       ContextKey = "upstream_resource_key_index"
+	ContextKeyUpstreamResourceKeyFingerprint ContextKey = "upstream_resource_key_fingerprint"
 
 	/* token related keys */
 	ContextKeyTokenUnlimited         ContextKey = "token_unlimited_quota"

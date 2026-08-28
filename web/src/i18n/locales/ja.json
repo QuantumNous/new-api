@@ -5316,6 +5316,10 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Native OpenAI Batch API": "ネイティブ OpenAI Batch API",
+    "Allow File and Batch API passthrough for this upstream": "このアップストリームへの File API と Batch API のパススルーを許可します",
+    "OpenAI Batch API": "OpenAI Batch API",
+    "Enable native File and Batch passthrough. New API does not currently settle Batch quota; upstream charges still apply.": "ネイティブの File API と Batch API のパススルーを有効にします。New API は現在 Batch クォータを精算しませんが、アップストリーム料金は引き続き発生します。"
   }
 }

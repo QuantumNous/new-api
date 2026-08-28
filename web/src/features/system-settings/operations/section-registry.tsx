@@ -36,6 +36,8 @@ const OPERATIONS_SECTIONS = [
           DefaultCollapseSidebar: settings.DefaultCollapseSidebar,
           DemoSiteEnabled: settings.DemoSiteEnabled,
           SelfUseModeEnabled: settings.SelfUseModeEnabled,
+          'openai_batch_setting.enabled':
+            settings['openai_batch_setting.enabled'],
         }}
       />
     ),
