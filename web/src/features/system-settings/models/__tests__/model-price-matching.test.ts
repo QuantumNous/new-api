@@ -88,4 +88,23 @@ describe('model price matching', () => {
       false
     )
   })
+
+  test('uses the current ratio when the upstream reports it is unchanged', () => {
+    const matches = findModelPriceMatches('glm-5.3', {
+      'z-ai/glm-5.3': {
+        model_ratio: {
+          current: 0.7,
+          upstreams: { openrouter: 'same' },
+          confidence: { openrouter: true },
+        },
+      },
+    })
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        sourceModel: 'z-ai/glm-5.3',
+        ratio: 0.7,
+      }),
+    ])
+  })
 })

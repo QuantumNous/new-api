@@ -169,4 +169,59 @@ describe('model price match dialog', () => {
     expect(screen.getByRole('dialog')).toBeVisible()
     queryClient.clear()
   })
+
+  test('reuses the upstream price response when switching models', async () => {
+    vi.mocked(fetchUpstreamRatios).mockResolvedValue({
+      success: true,
+      message: '',
+      data: {
+        test_results: [],
+        differences: {
+          'z-ai/glm-5.3': {
+            model_ratio: {
+              current: null,
+              upstreams: { openrouter: 0.7 },
+              confidence: { openrouter: true },
+            },
+          },
+          'z-ai/glm-5.2': {
+            model_ratio: {
+              current: null,
+              upstreams: { openrouter: 0.483 },
+              confidence: { openrouter: true },
+            },
+          },
+        },
+      },
+    })
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <ModelPriceMatchDialog
+          modelName='glm-5.3'
+          open
+          onOpenChange={() => undefined}
+          onApply={() => undefined}
+        />
+      </QueryClientProvider>
+    )
+
+    await screen.findByRole('radio', { name: /z-ai\/glm-5\.3/ })
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <ModelPriceMatchDialog
+          modelName='glm-5.2'
+          open
+          onOpenChange={() => undefined}
+          onApply={() => undefined}
+        />
+      </QueryClientProvider>
+    )
+    await screen.findByRole('radio', { name: /z-ai\/glm-5\.2/ })
+
+    expect(fetchUpstreamRatios).toHaveBeenCalledTimes(1)
+    queryClient.clear()
+  })
 })

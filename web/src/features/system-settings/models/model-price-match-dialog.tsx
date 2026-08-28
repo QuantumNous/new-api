@@ -71,13 +71,16 @@ const matchLabelKeys: Record<PriceMatchKind, string> = {
   fuzzy: 'Fuzzy match',
 }
 
-export function ModelPriceMatchDialog(props: ModelPriceMatchDialogProps) {
+export function ModelPriceMatchDialog(
+  props: ModelPriceMatchDialogProps
+): ReactNode {
   const { t } = useTranslation()
   const [selectedSourceModel, setSelectedSourceModel] = useState('')
   const [isApplying, setIsApplying] = useState(false)
 
   const matchesQuery = useQuery({
-    queryKey: ['openrouter-price-matches', props.modelName],
+    queryKey: ['openrouter-price-matches'],
+    staleTime: 5 * 60 * 1000,
     enabled: props.open && Boolean(props.modelName),
     queryFn: async () => {
       const response = await fetchUpstreamRatios({
@@ -117,7 +120,7 @@ export function ModelPriceMatchDialog(props: ModelPriceMatchDialogProps) {
     (match) => match.sourceModel === selectedSourceModel
   )
 
-  const handleApply = async () => {
+  const handleApply = async (): Promise<void> => {
     if (!selectedMatch) return
     setIsApplying(true)
     try {

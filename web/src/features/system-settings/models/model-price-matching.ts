@@ -66,6 +66,14 @@ const firstNumericUpstreamValue = (
     const numericValue = Number(value)
     if (Number.isFinite(numericValue)) return numericValue
   }
+  if (
+    difference?.current !== null &&
+    difference?.current !== undefined &&
+    difference.current !== 'same'
+  ) {
+    const currentValue = Number(difference.current)
+    if (Number.isFinite(currentValue)) return currentValue
+  }
   return undefined
 }
 

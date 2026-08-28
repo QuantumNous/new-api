@@ -34,6 +34,7 @@ import {
   forwardRef,
   useImperativeHandle,
   useRef,
+  type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -94,6 +95,7 @@ type ModelRatioVisualEditorProps = {
   filterMode?: 'all' | 'unset'
   onChange: (field: string, value: string) => void
   onSave: () => boolean | void | Promise<boolean | void>
+  onApplyPriceMatchSave: () => Promise<boolean>
   isSaving: boolean
 }
 
@@ -133,10 +135,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
     filterMode = 'all',
     onChange,
     onSave,
+    onApplyPriceMatchSave,
     isSaving,
   },
   ref
-) {
+): ReactNode {
   const { t } = useTranslation()
   const isMobile = useMediaQuery('(max-width: 767px)')
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -580,13 +583,13 @@ const ModelRatioVisualEditorComponent = forwardRef<
     ]
   )
 
-  const handleOpenPriceMatch = useCallback((model: ModelRow) => {
+  const handleOpenPriceMatch = useCallback((model: ModelRow): void => {
     setPriceMatchModel(model)
     setPriceMatchDialogOpen(true)
   }, [])
 
   const handleApplyPriceMatch = useCallback(
-    async (match: ModelPriceMatch) => {
+    async (match: ModelPriceMatch): Promise<boolean> => {
       if (!priceMatchModel) return false
 
       persistPricingData(
@@ -599,7 +602,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         },
         [priceMatchModel.name]
       )
-      const saved = await onSave()
+      const saved = await onApplyPriceMatchSave()
       if (saved === false) return false
       toast.success(
         t('Applied {{source}} pricing to {{model}}', {
@@ -609,7 +612,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
       )
       return true
     },
-    [onSave, persistPricingData, priceMatchModel, t]
+    [onApplyPriceMatchSave, persistPricingData, priceMatchModel, t]
   )
 
   const columns = useMemo(
@@ -905,6 +908,7 @@ export const ModelRatioVisualEditor = memo(
       prevProps.filterMode === nextProps.filterMode &&
       prevProps.onChange === nextProps.onChange &&
       prevProps.onSave === nextProps.onSave &&
+      prevProps.onApplyPriceMatchSave === nextProps.onApplyPriceMatchSave &&
       prevProps.isSaving === nextProps.isSaving
     )
   }

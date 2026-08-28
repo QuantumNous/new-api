@@ -210,19 +210,23 @@ export const ModelRatioForm = memo(function ModelRatioForm({
     setEditMode((prev) => (prev === 'visual' ? 'json' : 'visual'))
   }, [])
 
-  const handleSave = useCallback(async (): Promise<boolean> => {
-    if (editMode === 'visual') {
-      const committed = await visualEditorRef.current?.commitOpenEditor()
-      if (committed === false) return false
-    }
-
+  const submitForm = useCallback(async (): Promise<boolean> => {
     let saved = false
     await form.handleSubmit(async (values) => {
       await onSave(values)
       saved = true
     })()
     return saved
-  }, [editMode, form, onSave])
+  }, [form, onSave])
+
+  const handleSave = useCallback(async (): Promise<boolean> => {
+    if (editMode === 'visual') {
+      const committed = await visualEditorRef.current?.commitOpenEditor()
+      if (committed === false) return false
+    }
+
+    return submitForm()
+  }, [editMode, submitForm])
 
   return (
     <div className='space-y-6'>
@@ -298,6 +302,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
               }
               filterMode={isUnsetVariant ? 'unset' : 'all'}
               onSave={handleSave}
+              onApplyPriceMatchSave={submitForm}
               isSaving={isSaving}
               onChange={(field, value) => {
                 const fieldMap: Record<string, keyof ModelFormValues> = {

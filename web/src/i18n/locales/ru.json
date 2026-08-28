@@ -428,7 +428,7 @@
     "appended": "добавлено",
     "Application": "Приложение",
     "Applied {{name}} pricing to {{count}} models": "Тариф {{name}} применён к {{count}} моделям",
-    "Applied {{source}} pricing to {{model}}": "Цена {{source}} применена к {{model}}",
+    "Applied {{source}} pricing to {{model}}": "Тарифы {{source}} применены к {{model}}",
     "Applied upstream model changes to {{count}} channels": "Изменения вышестоящих моделей применены к {{count}} каналам",
     "Applied upstream model changes to channel (ID: {{id}})": "Изменения вышестоящих моделей применены к каналу (ID: {{id}})",
     "Applies to custom completion endpoints. JSON map of model → ratio.": "Применяется к пользовательским конечным точкам завершения. JSON-карта модель → коэффициент.",
