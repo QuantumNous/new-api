@@ -72,11 +72,16 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (hosttypes.PriceData, error) {
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
+	billingMode := info.BillingMode
+	if billingMode == "" {
+		billingMode = billing_setting.GetBillingMode(info.OriginModelName)
+		info.BillingMode = billingMode
+	}
 
 	groupRatioInfo := HandleGroupRatio(c, info)
 
 	// Check if this model uses tiered_expr billing
-	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
+	if billingMode == billing_setting.BillingModeTieredExpr {
 		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
 	}
 
@@ -92,8 +97,11 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var audioCompletionRatio float64
 	var freeModel bool
 	if !usePrice {
-		preConsumedTokens := common.Max(promptTokens, common.PreConsumedQuota)
-		if meta.MaxTokens != 0 {
+		preConsumedTokens := promptTokens
+		if billingMode != billing_setting.BillingModeUTF8Bytes {
+			preConsumedTokens = common.Max(promptTokens, common.PreConsumedQuota)
+		}
+		if billingMode != billing_setting.BillingModeUTF8Bytes && meta.MaxTokens != 0 {
 			preConsumedTokens += meta.MaxTokens
 		}
 		var success bool

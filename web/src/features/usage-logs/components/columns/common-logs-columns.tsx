@@ -213,6 +213,12 @@ function buildTypeDetailSegments(
         muted: true,
       })
     }
+  } else if (other.billing_mode === 'utf8_bytes') {
+    if (other.model_ratio != null) {
+      segments.push({
+        text: `${t('UTF-8 bytes')} · ${formatPriceCompact(other.model_ratio * 2.0)}/M`,
+      })
+    }
   } else {
     const modelPrice = other.model_price
     const isPerCall = isPerCallBilling(modelPrice)
@@ -644,7 +650,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     },
     {
       accessorKey: 'prompt_tokens',
-      header: 'Tokens',
+      header: t('Usage'),
       cell: ({ row }) => {
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
@@ -655,6 +661,13 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
         const completionTokens = log.completion_tokens || 0
         if (promptTokens === 0 && completionTokens === 0) {
           return <span className='text-muted-foreground text-xs'>-</span>
+        }
+        if (other?.billing_mode === 'utf8_bytes') {
+          return (
+            <span className='font-mono text-xs font-medium tabular-nums'>
+              {promptTokens.toLocaleString()} {t('UTF-8 bytes')}
+            </span>
+          )
         }
 
         const cacheReadTokens = other?.cache_tokens || 0

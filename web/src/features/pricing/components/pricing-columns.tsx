@@ -34,7 +34,7 @@ import {
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { isTokenBasedModel } from '../lib/model-helpers'
+import { isTokenBasedModel, isUTF8BytesModel } from '../lib/model-helpers'
 import {
   formatPrice,
   formatRequestPrice,
@@ -175,6 +175,7 @@ export function usePricingColumns(
         }
 
         const isTokenBased = isTokenBasedModel(model)
+        const isUTF8Bytes = isUTF8BytesModel(model)
 
         if (isTokenBased) {
           const inputPrice = stripTrailingZeros(
@@ -188,27 +189,34 @@ export function usePricingColumns(
               selectedGroup
             )
           )
-          const outputPrice = stripTrailingZeros(
-            formatPrice(
-              model,
-              'output',
-              tokenUnit,
-              showRechargePrice,
-              priceRate,
-              usdExchangeRate,
-              selectedGroup
-            )
-          )
+          const outputPrice = isUTF8Bytes
+            ? ''
+            : stripTrailingZeros(
+                formatPrice(
+                  model,
+                  'output',
+                  tokenUnit,
+                  showRechargePrice,
+                  priceRate,
+                  usdExchangeRate,
+                  selectedGroup
+                )
+              )
 
           return (
             <div className='max-w-full min-w-0'>
               <span className='font-mono text-sm tabular-nums'>
                 {inputPrice}
-                <span className='text-muted-foreground/40 mx-1'>/</span>
-                {outputPrice}
+                {outputPrice && (
+                  <>
+                    <span className='text-muted-foreground/40 mx-1'>/</span>
+                    {outputPrice}
+                  </>
+                )}
               </span>
               <div className='text-muted-foreground/50 text-[10px]'>
-                / {tokenUnitLabel} tokens
+                / {tokenUnitLabel}{' '}
+                {isUTF8Bytes ? t('UTF-8 bytes') : t('tokens')}
               </div>
             </div>
           )

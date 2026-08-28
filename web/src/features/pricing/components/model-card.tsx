@@ -30,7 +30,7 @@ import {
   getDynamicPricingSummary,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { isTokenBasedModel } from '../lib/model-helpers'
+import { isTokenBasedModel, isUTF8BytesModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
@@ -55,6 +55,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const usdExchangeRate = props.usdExchangeRate ?? 1
   const showRechargePrice = props.showRechargePrice ?? false
   const isTokenBased = isTokenBasedModel(props.model)
+  const isUTF8Bytes = isUTF8BytesModel(props.model)
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
   const tags = parseTags(props.model.tags)
   const groups = props.model.enable_groups || []
@@ -65,7 +66,8 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const isDynamicPricing =
     props.model.billing_mode === 'tiered_expr' &&
     Boolean(props.model.billing_expr)
-  const hasCachedPrice = isTokenBased && props.model.cache_ratio != null
+  const hasCachedPrice =
+    isTokenBased && !isUTF8Bytes && props.model.cache_ratio != null
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, {
         tokenUnit,
@@ -144,20 +146,22 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             )}
           </span>
         </span>
-        <span className='text-muted-foreground whitespace-nowrap'>
-          {t('Output')}{' '}
-          <span className='text-foreground font-mono font-semibold'>
-            {formatPrice(
-              props.model,
-              'output',
-              tokenUnit,
-              showRechargePrice,
-              priceRate,
-              usdExchangeRate,
-              props.selectedGroup
-            )}
+        {!isUTF8Bytes && (
+          <span className='text-muted-foreground whitespace-nowrap'>
+            {t('Output')}{' '}
+            <span className='text-foreground font-mono font-semibold'>
+              {formatPrice(
+                props.model,
+                'output',
+                tokenUnit,
+                showRechargePrice,
+                priceRate,
+                usdExchangeRate,
+                props.selectedGroup
+              )}
+            </span>
           </span>
-        </span>
+        )}
         {hasCachedPrice && (
           <span className='text-muted-foreground whitespace-nowrap'>
             {t('Cached')}{' '}
@@ -264,7 +268,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             </span>
           ))}
           <span className='text-muted-foreground/50 text-xs'>
-            {tokenUnitLabel}
+            {tokenUnitLabel} {isUTF8Bytes ? t('UTF-8 bytes') : t('tokens')}
           </span>
           {hiddenCount > 0 && (
             <span className='text-muted-foreground/40 text-xs'>
