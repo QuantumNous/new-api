@@ -18,10 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
-import { useMemo } from 'react'
+import { ArrowUpDown } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DataTablePage, useDataTable } from '@/components/data-table'
+import { Button } from '@/components/ui/button'
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 
@@ -35,6 +37,7 @@ import { modelsQueryKeys, vendorsQueryKeys } from '../lib'
 import { DataTableBulkActions } from './data-table-bulk-actions'
 import { useModelsColumns } from './models-columns'
 import { useModels } from './models-provider'
+import { ModelsReorderView } from './models-reorder-view'
 
 const route = getRouteApi('/_authenticated/models/$section')
 
@@ -42,6 +45,7 @@ export function ModelsTable() {
   const { t } = useTranslation()
   const { selectedVendor } = useModels()
   const isMobile = useMediaQuery('(max-width: 640px)')
+  const [reorderMode, setReorderMode] = useState(false)
 
   // URL state management
   const {
@@ -188,6 +192,27 @@ export function ModelsTable() {
     })),
   ]
 
+  const reorderButton = (
+    <Button
+      variant='outline'
+      size='sm'
+      onClick={() => setReorderMode(true)}
+      disabled={models.length === 0}
+    >
+      <ArrowUpDown className='size-4' />
+      {t('Reorder Mode')}
+    </Button>
+  )
+
+  if (reorderMode) {
+    return (
+      <ModelsReorderView
+        vendors={vendors}
+        onExit={() => setReorderMode(false)}
+      />
+    )
+  }
+
   return (
     <DataTablePage
       table={table}
@@ -223,6 +248,7 @@ export function ModelsTable() {
             singleSelect: true,
           },
         ],
+        additionalSearch: reorderButton,
       }}
       bulkActions={<DataTableBulkActions table={table} />}
     />

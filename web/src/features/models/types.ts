@@ -46,6 +46,7 @@ export interface Model {
   created_time: number
   updated_time: number
   name_rule: number
+  sort_order?: number
   // Runtime fields
   bound_channels?: BoundChannel[]
   enable_groups?: string[]
@@ -127,6 +128,15 @@ export interface GetModelResponse {
   success: boolean
   message?: string
   data?: Model
+}
+
+/**
+ * Get all models (unpaginated) response — used by the drag-to-reorder view
+ */
+export interface GetAllModelsForReorderResponse {
+  success: boolean
+  message?: string
+  data?: Model[]
 }
 
 /**

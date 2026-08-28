@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"sync"
@@ -21,6 +22,7 @@ type Pricing struct {
 	Icon                   string                  `json:"icon,omitempty"`
 	Tags                   string                  `json:"tags,omitempty"`
 	VendorID               int                     `json:"vendor_id,omitempty"`
+	SortOrder              int                     `json:"sort_order,omitempty"`
 	QuotaType              int                     `json:"quota_type"`
 	ModelRatio             float64                 `json:"model_ratio"`
 	ModelPrice             float64                 `json:"model_price"`
@@ -372,6 +374,7 @@ func updatePricing() {
 			pricing.Icon = meta.Icon
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
+			pricing.SortOrder = meta.SortOrder
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {
@@ -409,7 +412,25 @@ func updatePricing() {
 		pricingMap = append(pricingMap, pricing)
 	}
 
-	// 防止大更新后数据不通用
+	// 按 sort_order 排序：0 视为未设置排末尾；其余升序；同值按名称字母序
+	sort.SliceStable(pricingMap, func(i, j int) bool {
+		si, sj := pricingMap[i].SortOrder, pricingMap[j].SortOrder
+		if si == 0 && sj == 0 {
+			return pricingMap[i].ModelName < pricingMap[j].ModelName
+		}
+		if si == 0 {
+			return false
+		}
+		if sj == 0 {
+			return true
+		}
+		if si == sj {
+			return pricingMap[i].ModelName < pricingMap[j].ModelName
+		}
+		return si < sj
+	})
+
+	// 防止大更新后数据不通用（排序后再赋值，保证始终在 pricingMap[0]）
 	if len(pricingMap) > 0 {
 		pricingMap[0].PricingVersion = "5a90f2b86c08bd983a9a2e6d66c255f4eaef9c4bc934386d2b6ae84ef0ff1f1f"
 	}

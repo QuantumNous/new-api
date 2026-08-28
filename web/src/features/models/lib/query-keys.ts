@@ -28,6 +28,7 @@ export const modelsQueryKeys = {
     [...modelsQueryKeys.lists(), filters] as const,
   detail: (id: number) => [...modelsQueryKeys.all, 'detail', id] as const,
   missing: () => [...modelsQueryKeys.all, 'missing'] as const,
+  reorderList: () => [...modelsQueryKeys.all, 'reorder-list'] as const,
 }
 
 /**

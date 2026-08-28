@@ -115,6 +115,18 @@ export function sortModels(
   const sorted = [...models]
 
   switch (sortBy) {
+    case SORT_OPTIONS.DEFAULT:
+      sorted.sort((a, b) => {
+        const sa = a.sort_order ?? 0
+        const sb = b.sort_order ?? 0
+        if (sa === 0 && sb === 0)
+          return (a.model_name || '').localeCompare(b.model_name || '')
+        if (sa === 0) return 1
+        if (sb === 0) return -1
+        if (sa !== sb) return sa - sb
+        return (a.model_name || '').localeCompare(b.model_name || '')
+      })
+      break
     case SORT_OPTIONS.NAME:
       sorted.sort((a, b) =>
         (a.model_name || '').localeCompare(b.model_name || '')

@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // GetAllModelsMeta 获取模型列表（分页）
@@ -117,6 +118,7 @@ func CreateModelMeta(c *gin.Context) {
 // UpdateModelMeta 更新模型
 func UpdateModelMeta(c *gin.Context) {
 	statusOnly := c.Query("status_only") == "true"
+	sortOrderOnly := c.Query("sort_order_only") == "true"
 
 	var m model.Model
 	if err := c.ShouldBindJSON(&m); err != nil {
@@ -131,6 +133,12 @@ func UpdateModelMeta(c *gin.Context) {
 	if statusOnly {
 		// 只更新状态，防止误清空其他字段
 		if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Update("status", m.Status).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	} else if sortOrderOnly {
+		// 只更新排序权重，防止误清空其他字段
+		if err := model.DB.Model(&model.Model{}).Where("id = ?", m.Id).Update("sort_order", m.SortOrder).Error; err != nil {
 			common.ApiError(c, err)
 			return
 		}
@@ -151,6 +159,57 @@ func UpdateModelMeta(c *gin.Context) {
 	}
 	model.RefreshPricing()
 	common.ApiSuccess(c, &m)
+}
+
+// GetAllModelsForReorder 获取全部模型（不分页），供拖拽排序视图使用
+func GetAllModelsForReorder(c *gin.Context) {
+	modelsMeta, err := model.GetAllModels(0, 10000)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	enrichModels(modelsMeta)
+	common.ApiSuccess(c, modelsMeta)
+}
+
+// ReorderModels 批量更新模型排序权重（拖拽排序，按新顺序重新编号为 1..N）
+func ReorderModels(c *gin.Context) {
+	var req struct {
+		Items []struct {
+			Id        int `json:"id"`
+			SortOrder int `json:"sort_order"`
+		} `json:"items"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if len(req.Items) == 0 {
+		common.ApiErrorMsg(c, "排序列表不能为空")
+		return
+	}
+	for _, item := range req.Items {
+		if item.Id <= 0 {
+			common.ApiErrorMsg(c, "无效的模型 ID")
+			return
+		}
+	}
+
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		for _, item := range req.Items {
+			if err := tx.Model(&model.Model{}).Where("id = ?", item.Id).Update("sort_order", item.SortOrder).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	model.RefreshPricing()
+	common.ApiSuccess(c, nil)
 }
 
 // DeleteModelMeta 删除模型
