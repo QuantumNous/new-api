@@ -32,6 +32,14 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
+
+	// Register OAuth Provider routes BEFORE static.Serve so they take precedence
+	router.GET("/oauth/authorize", middleware.DisableCache(), controller.OAuthProviderAuthorize)
+	router.POST("/oauth/authorize", middleware.DisableCache(), controller.OAuthProviderAuthorizePost)
+	router.POST("/oauth/token", middleware.DisableCache(), controller.OAuthProviderToken)
+	router.GET("/oauth/userinfo", middleware.DisableCache(), controller.OAuthProviderUserInfo)
+	router.GET("/.well-known/openid-configuration", controller.OAuthProviderWellKnown)
+
 	router.Use(static.Serve("/", frontendFS))
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")

@@ -417,17 +417,3 @@ func SetApiRouter(router *gin.Engine) {
 		}
 	}
 }
-
-// registerOAuthProviderRoutes registers OAuth Provider endpoints on the root router.
-// This is called AFTER SetWebRouter so these routes take precedence over the static file server.
-func registerOAuthProviderRoutes(router *gin.Engine) {
-	oauthRoute := router.Group("/")
-	oauthRoute.Use(middleware.CriticalRateLimit())
-	{
-		oauthRoute.GET("/oauth/authorize", middleware.DisableCache(), controller.OAuthProviderAuthorize)
-		oauthRoute.POST("/oauth/authorize", middleware.DisableCache(), controller.OAuthProviderAuthorizePost)
-		oauthRoute.POST("/oauth/token", middleware.DisableCache(), controller.OAuthProviderToken)
-		oauthRoute.GET("/oauth/userinfo", middleware.DisableCache(), controller.OAuthProviderUserInfo)
-		oauthRoute.GET("/.well-known/openid-configuration", controller.OAuthProviderWellKnown)
-	}
-}

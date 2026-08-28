@@ -24,9 +24,6 @@ func SetRouter(router *gin.Engine, assets WebAssets) {
 	}
 	if frontendBaseUrl == "" {
 		SetWebRouter(router, assets)
-		// Register OAuth Provider routes AFTER web router so they take precedence
-		// (static.Serve only handles actual file paths, not API routes)
-		registerOAuthProviderRoutes(router)
 	} else {
 		frontendBaseUrl = strings.TrimSuffix(frontendBaseUrl, "/")
 		router.NoRoute(func(c *gin.Context) {
