@@ -221,6 +221,25 @@ func TestAddChannel_BadJson_400(t *testing.T) {
 	}
 }
 
+func TestAddChannel_RejectsMissingChannel(t *testing.T) {
+	testCases := map[string]map[string]any{
+		"missing channel": {"mode": "single"},
+		"null channel":    {"mode": "single", "channel": nil},
+	}
+
+	for name, body := range testCases {
+		t.Run(name, func(t *testing.T) {
+			ctx, rec := newRestContext(t, http.MethodPost, "/api/channel/", body,
+				nil, common.RoleAdminUser)
+
+			AddChannel(ctx)
+
+			require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+			assert.Equal(t, "channel_validation_failed", decodeRestError(t, rec).Code)
+		})
+	}
+}
+
 func TestAddChannel_CanonicalizesModels(t *testing.T) {
 	db := openChannelControllerTestDB(t)
 	body := map[string]any{
