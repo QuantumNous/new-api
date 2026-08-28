@@ -13,13 +13,14 @@ import (
 )
 
 type videoResponsesTestCase struct {
-	pluginKey      string
-	model          string
-	requestBody    map[string]any
-	wantAction     string
-	wantRequest    map[string]any
-	wantUsageKeys  []string
-	wantVendorName string
+	pluginKey           string
+	model               string
+	requestBody         map[string]any
+	wantAction          string
+	wantRequest         map[string]any
+	wantUsageKeys       []string
+	wantSubmitUsageKeys []string
+	wantVendorName      string
 }
 
 func testVideoResponsesProtocol(t *testing.T, testCase videoResponsesTestCase) {
@@ -105,7 +106,10 @@ func testVideoResponsesProtocol(t *testing.T, testCase videoResponsesTestCase) {
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
-		expected := append([]string(nil), testCase.wantUsageKeys...)
+		expected := append([]string(nil), testCase.wantSubmitUsageKeys...)
+		if len(expected) == 0 {
+			expected = append([]string(nil), testCase.wantUsageKeys...)
+		}
 		sort.Strings(expected)
 		assert.Equal(t, expected, keys)
 	})

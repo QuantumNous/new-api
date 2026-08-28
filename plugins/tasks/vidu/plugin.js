@@ -9,14 +9,120 @@ export const meta = {
   models: ["viduq2", "viduq1", "vidu2.0", "vidu1.5"],
   fetchMode: "per_task",
   usageSchema: {
-    seconds: { type: "number", unit: "second", description: "Requested video duration in seconds." },
+    credits: { type: "number", unit: "credit", description: "estimated/actual Vidu credits" },
+    duration: { type: "number", unit: "second", description: "Requested video duration in seconds." },
     resolution: { enum: ["360p", "540p", "720p", "1080p"], description: "Requested output video resolution." },
   },
+  // credits is 0 in examples because this plugin does not estimate vendor credits;
+  // schema completeness requires the key. Actual credits arrive from upstream.
+  usageExamples: [
+    { label: "q2 5s 720p", facts: { credits: 0, duration: 5, resolution: "720p" } },
+    { label: "q1 5s 1080p", facts: { credits: 0, duration: 5, resolution: "1080p" } },
+    { label: "2.0 4s 360p", facts: { credits: 0, duration: 4, resolution: "360p" } },
+    { label: "2.0 4s 720p", facts: { credits: 0, duration: 4, resolution: "720p" } },
+    { label: "2.0 8s 720p", facts: { credits: 0, duration: 8, resolution: "720p" } },
+  ],
   protocols: ["openai_responses", "openai_video"],
 };
 
+const RESOLUTIONS = ["360p", "540p", "720p", "1080p"];
+
 function trimmed(value) {
   return String(value || "").trim();
+}
+
+function isQ2Model(model) {
+  return String(model || "").indexOf("viduq2") === 0;
+}
+
+function defaultDuration(model) {
+  if (model === "vidu2.0") return 4;
+  return 5;
+}
+
+function defaultResolution(model) {
+  if (isQ2Model(model)) return "720p";
+  if (model === "vidu2.0") return "360p";
+  return "1080p";
+}
+
+function normalizeResolution(value, model) {
+  if (model === "viduq1") return "1080p";
+  const raw = trimmed(value).toLowerCase();
+  if (RESOLUTIONS.indexOf(raw) >= 0) return raw;
+  const parts = raw.replace("*", "x").split("x");
+  if (parts.length === 2) {
+    const width = Number(parts[0]);
+    const height = Number(parts[1]);
+    if (width > 0 && height > 0) {
+      const max = Math.max(width, height);
+      if (max >= 1920) return "1080p";
+      if (max >= 1280) return "720p";
+      if (max >= 960) return "540p";
+      return "360p";
+    }
+  }
+  return defaultResolution(model);
+}
+
+function outboundDuration(req, model) {
+  const n = Number(req && req.duration);
+  if (Number.isFinite(n) && n > 0) return n;
+  return defaultDuration(model);
+}
+
+function outboundResolution(req, model) {
+  if (req && req.resolution) return normalizeResolution(req.resolution, model);
+  const metadata = (req && req.metadata) || {};
+  if (metadata.resolution) return normalizeResolution(metadata.resolution, model);
+  if (req && req.size) return normalizeResolution(req.size, model);
+  return defaultResolution(model);
+}
+
+function hasViduImages(req, hasInputReferenceFile) {
+  if (hasInputReferenceFile) return true;
+  if (Array.isArray(req && req.images) && req.images.length) return true;
+  return Boolean(trimmed(req && req.input_reference) || trimmed(req && req.image));
+}
+
+function validateViduCombo(model, duration, resolution, hasImages) {
+  if (model === "vidu2.0" && !hasImages) {
+    throw new Error("vidu2.0 does not support text-to-video");
+  }
+  if (model === "viduq1") {
+    if (duration !== undefined && Number(duration) !== 5) throw new Error("viduq1 duration must be 5");
+    return;
+  }
+  if (model === "vidu2.0") {
+    const n = duration === undefined ? 4 : Number(duration);
+    if (n === 4) {
+      if (["360p", "720p", "1080p"].indexOf(resolution) < 0) throw new Error("vidu2.0 duration 4 only allows resolution 360p, 720p, or 1080p");
+      return;
+    }
+    if (n === 8) {
+      if (resolution !== "720p") throw new Error("vidu2.0 duration 8 only allows resolution 720p");
+      return;
+    }
+    throw new Error("vidu2.0 duration must be 4 or 8");
+  }
+  if (isQ2Model(model)) {
+    if (duration === undefined) return;
+    const n = Number(duration);
+    if (!Number.isInteger(n) || n < 1 || n > 10) throw new Error("viduq2 duration must be between 1 and 10");
+    return;
+  }
+  if (duration !== undefined) {
+    const n = Number(duration);
+    if (!Number.isInteger(n) || n <= 0 || n > 3600) throw new Error("seconds must be between 1 and 3600");
+  }
+}
+
+function filePlaceholder(image) {
+  if (!image || typeof image !== "object" || Array.isArray(image) || !image.__fileRef) return image;
+  const placeholder = { __fileRef: image.__fileRef, encoding: image.encoding };
+  if (image.mimeType) placeholder.mimeType = image.mimeType;
+  if (image.maxBytes !== undefined && image.maxBytes !== null) placeholder.maxBytes = image.maxBytes;
+  return placeholder;
 }
 
 function responsesInput(req) {
@@ -95,13 +201,14 @@ export function buildSubmitRequest(ctx) {
   const metadata = req.metadata || {};
   let model = ctx.upstreamModel || "viduq1";
   if (action === "reference_to_video" && model.includes("viduq2")) model = "viduq2";
+  const images = Array.isArray(req.images) ? req.images.map(filePlaceholder) : null;
   const body = Object.assign(
     {
       model: model,
-      images: req.images || null,
+      images: images,
       prompt: req.prompt || null,
-      duration: req.duration || 5,
-      resolution: req.size || "1080p",
+      duration: outboundDuration(req, model),
+      resolution: outboundResolution(req, model),
       movement_amplitude: "auto",
     },
     metadata
@@ -109,6 +216,7 @@ export function buildSubmitRequest(ctx) {
   delete body.action;
   if (!body.prompt) delete body.prompt;
   if (!body.bgm) delete body.bgm;
+  if (Array.isArray(body.images)) body.images = body.images.map(filePlaceholder);
   return {
     url: ctx.baseUrl + "/ent/v2" + pathFor(action),
     method: "POST",
@@ -127,12 +235,8 @@ export function parseSubmitResponse(ctx, resp) {
 export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const req = ctx.requestBody || {};
-  const metadata = req.metadata || {};
-  let seconds = Number(req.duration || req.seconds || metadata.duration || 5);
-  if (!Number.isFinite(seconds) || seconds <= 0) seconds = 5;
-  let resolution = trimmed(req.size || metadata.resolution || "1080p").toLowerCase();
-  if (!["360p", "540p", "720p", "1080p"].includes(resolution)) resolution = "1080p";
-  return { seconds: Math.min(seconds, 3600), resolution: resolution };
+  const model = ctx.upstreamModel || req.model;
+  return { duration: outboundDuration(req, model), resolution: outboundResolution(req, model) };
 }
 
 export function buildQueryRequest(ctx) {
@@ -175,15 +279,11 @@ export function buildContentRequest(ctx) {
   return { url: url, method: ctx.clientRequest.method, credentialless: true };
 }
 
-export function extractUsageOnComplete(task, taskResult, body) {
-  const creations = body && Array.isArray(body.creations) ? body.creations : [];
-  const creation = creations.length ? creations[0] || {} : {};
-  const facts = {};
-  const seconds = Number(creation.duration || (body || {}).duration || 0);
-  if (Number.isFinite(seconds) && seconds > 0) facts.seconds = Math.min(seconds, 3600);
-  const resolution = trimmed(creation.resolution || (body || {}).resolution).toLowerCase();
-  if (["360p", "540p", "720p", "1080p"].includes(resolution)) facts.resolution = resolution;
-  return facts;
+export function extractUsageOnComplete(_task, _taskResult, body) {
+  if (!body || !Object.prototype.hasOwnProperty.call(body, "credits") || body.credits === undefined || body.credits === null) return null;
+  const credits = Number(body.credits);
+  if (!Number.isFinite(credits)) return null;
+  return { credits: credits };
 }
 
 export const protocols = {
@@ -211,6 +311,8 @@ export const protocols = {
       else if (Object.prototype.hasOwnProperty.call(req, "duration")) requestBody.duration = req.duration;
       if (Object.prototype.hasOwnProperty.call(req, "size")) requestBody.size = req.size;
       if (Object.prototype.hasOwnProperty.call(req, "metadata")) requestBody.metadata = req.metadata;
+      const duration = requestBody.duration === undefined ? undefined : Number(requestBody.duration);
+      validateViduCombo(model, duration, outboundResolution(requestBody, model), images.length > 0);
       return { kind: "submit", model: model, action: actionFor(requestBody), requestBody: requestBody };
     },
     renderEvents: function (ctx, task, previousState) {
@@ -265,15 +367,58 @@ const legacyRenderers = {
 
 protocols.openai_video = {
   decodeRequest: function (ctx) {
-    if (!ctx.body || ctx.body.kind !== "json" || !ctx.body.value || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
-    const req = ctx.body.value;
+    if (!ctx.body || (ctx.body.kind !== "json" && ctx.body.kind !== "multipart")) throw new Error("JSON or multipart body required");
+    let req;
+    let hasInputReferenceFile = false;
+    if (ctx.body.kind === "json") {
+      if (!ctx.body.value || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
+      req = Object.assign({}, ctx.body.value);
+    } else {
+      const first = function (name) {
+        const values = (ctx.body.fields || {})[name] || [];
+        if (values.length > 1) throw new Error(name + " must be provided once");
+        return values[0];
+      };
+      req = {};
+      const fields = ctx.body.fields || {};
+      for (const name of Object.keys(fields)) {
+        req[name] = first(name);
+      }
+      for (const file of ctx.body.files || []) {
+        if (file.field !== "input_reference") throw new Error("unexpected file field: " + file.field);
+        if (hasInputReferenceFile) throw new Error("input_reference must be provided once");
+        hasInputReferenceFile = true;
+      }
+      if (req.metadata !== undefined) {
+        let parsed;
+        try {
+          parsed = JSON.parse(req.metadata);
+        } catch (e) {
+          throw new Error("metadata must be a JSON object string");
+        }
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("metadata must be a JSON object string");
+        req.metadata = parsed;
+      }
+      if (req.seconds !== undefined) req.seconds = Number(req.seconds);
+      else if (req.duration !== undefined) req.seconds = Number(req.duration);
+    }
+    const model = ctx.model || req.model;
     const seconds = req.seconds === undefined ? req.duration : req.seconds;
-    if (seconds !== undefined && (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0 || Number(seconds) > 3600))
-      throw new Error("seconds must be between 1 and 3600");
+    if (seconds !== undefined) req.duration = Number(seconds);
+    else req.duration = defaultDuration(model);
+    if (hasInputReferenceFile) {
+      req.images = [{ __fileRef: "request_file:input_reference", encoding: "dataUrl", maxBytes: 15728640 }];
+    } else {
+      const image = trimmed(req.input_reference || req.image);
+      if (image && (!Array.isArray(req.images) || req.images.length === 0)) req.images = [image];
+    }
+    req.resolution = outboundResolution(req, model);
+    const hasImages = hasViduImages(req, hasInputReferenceFile);
+    validateViduCombo(model, req.duration, req.resolution, hasImages);
     return {
       kind: "submit",
       model: ctx.model,
-      action: req.input_reference || req.image ? "image_to_video" : "text_to_video",
+      action: actionFor(req),
       requestBody: Object.assign({}, req, { model: ctx.model }),
     };
   },

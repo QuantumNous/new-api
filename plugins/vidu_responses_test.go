@@ -24,7 +24,8 @@ func TestViduResponsesProtocol(t *testing.T) {
 			"duration": float64(8),
 			"size":     "720p",
 		},
-		wantUsageKeys:  []string{"resolution", "seconds"},
-		wantVendorName: "vidu",
+		wantUsageKeys:       []string{"credits", "duration", "resolution"},
+		wantSubmitUsageKeys: []string{"duration", "resolution"},
+		wantVendorName:      "vidu",
 	})
 }

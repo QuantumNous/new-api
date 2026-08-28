@@ -1311,7 +1311,12 @@ func validateUsageValue(value any, schema pluginruntime.UsageFieldSchema, allowN
 		if math.IsNaN(number) || math.IsInf(number, 0) || number < 0 {
 			return 0, fmt.Errorf("plugin usage value must be a finite non-negative number")
 		}
-		return float64(common.QuotaFromFloat(number)), nil
+		// Bound-check with QuotaFromFloatChecked (int32 saturation) but keep
+		// the original fractional part so credit facts like 3.5 survive.
+		if quota, clamp := common.QuotaFromFloatChecked(number); clamp != nil {
+			return float64(quota), nil
+		}
+		return number, nil
 	}
 	limit := relaycommon.MaxTaskDurationSeconds
 	if schema.Unit == "count" {

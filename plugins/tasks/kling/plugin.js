@@ -1,8 +1,3 @@
-// Official legacy price list (verified via third-party analysis 2026-08):
-// std 10s = 4.0, pro 10s = 7.0 units. Per-5s rates are half of those.
-// estimateUnits and usageExamples must read this table so they cannot drift.
-const UNITS_PER_5S = { std: 2, pro: 3.5 };
-
 export const meta = {
   apiVersion: 1,
   key: "kling",
@@ -21,10 +16,11 @@ export const meta = {
     },
   },
   usageExamples: [
-    { label: "std · 5s", facts: { units: UNITS_PER_5S.std } },
-    { label: "std · 10s", facts: { units: UNITS_PER_5S.std * 2 } },
-    { label: "pro · 5s", facts: { units: UNITS_PER_5S.pro } },
-    { label: "pro · 10s", facts: { units: UNITS_PER_5S.pro * 2 } },
+    { label: "v1 std 5s", facts: { units: 1 } },
+    { label: "v1 pro 5s", facts: { units: 3.5 } },
+    { label: "v1-6 std 5s", facts: { units: 2 } },
+    { label: "v1-6 pro 10s", facts: { units: 7 } },
+    { label: "v2-master pro 5s", facts: { units: 10 } },
   ],
   protocols: ["openai_responses", "openai_video"],
   routes: [
@@ -34,6 +30,16 @@ export const meta = {
     { method: "GET", path: "/kling/v1/videos/image2video/:task_id", type: "query", render: "taskStatus" },
   ],
 };
+
+// Official unit consumption (units per output video second), not a currency price.
+// Source: https://kling.ai/dev/pricing
+const UNITS_PER_SECOND = {
+  "kling-v1": { std: 0.2, pro: 0.7 },
+  "kling-v1-6": { std: 0.4, pro: 0.7 },
+  "kling-v2-master": { pro: 2.0 },
+};
+
+
 
 function trimmed(value) {
   return String(value || "").trim();
@@ -110,9 +116,69 @@ function aspectRatio(size) {
   return ratios[size] || "1:1";
 }
 
-function estimateUnits(duration, mode) {
-  const blocks = Math.max(1, Math.ceil(duration / 5));
-  return blocks * (UNITS_PER_5S[mode] || UNITS_PER_5S.std);
+function submitModel(ctx, req) {
+  return (ctx && ctx.upstreamModel) || (ctx && ctx.model) || (req && req.model) || "kling-v1";
+}
+
+function resolveKlingMode(model, mode) {
+  const raw = trimmed(mode).toLowerCase();
+  if (model === "kling-v2-master") {
+    if (raw === "std") throw new Error("kling-v2-master does not support mode std");
+    if (raw && raw !== "pro") throw new Error("mode must be pro");
+    return "pro";
+  }
+  if (!raw) return "std";
+  if (raw !== "std" && raw !== "pro") throw new Error("mode must be std or pro");
+  return raw;
+}
+
+function perSecondRate(model, mode) {
+  const table = UNITS_PER_SECOND[model] || UNITS_PER_SECOND["kling-v1"];
+  if (table[mode] !== undefined) return table[mode];
+  if (table.pro !== undefined) return table.pro;
+  return table.std;
+}
+
+function estimateUnits(model, mode, durationSeconds) {
+  return perSecondRate(model, mode) * durationSeconds;
+}
+
+// Official current pages list 3–15s for new models; old-model duration "5"|"10"
+// is unverifiable (research 2026-08-27). Keep permissive positive integers up to
+// the host task duration bound.
+function validateKlingDuration(value) {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n <= 0 || n > 3600) throw new Error("seconds must be a positive integer at most 3600");
+  return n;
+}
+
+function outboundDuration(req) {
+  const n = Number(req && req.duration);
+  if (Number.isFinite(n) && n > 0) return n;
+  const metadata = (req && req.metadata) || {};
+  const fromMeta = Number(metadata.duration);
+  if (Number.isFinite(fromMeta) && fromMeta > 0) return fromMeta;
+  return 5;
+}
+
+function outboundMode(req, model) {
+  const metadata = (req && req.metadata) || {};
+  return resolveKlingMode(model, (req && req.mode) || metadata.mode);
+}
+
+function hasKlingImage(req, hasInputReferenceFile) {
+  if (hasInputReferenceFile) return true;
+  const metadata = (req && req.metadata) || {};
+  if (req && req.image && typeof req.image === "object" && !Array.isArray(req.image) && req.image.__fileRef) return true;
+  return Boolean(trimmed(req && req.input_reference) || trimmed(req && req.image) || metadata.image || metadata.image_tail);
+}
+
+function filePlaceholder(image) {
+  if (!image || typeof image !== "object" || Array.isArray(image) || !image.__fileRef) return image;
+  const placeholder = { __fileRef: image.__fileRef, encoding: image.encoding };
+  if (image.mimeType) placeholder.mimeType = image.mimeType;
+  if (image.maxBytes !== undefined && image.maxBytes !== null) placeholder.maxBytes = image.maxBytes;
+  return placeholder;
 }
 
 function decodeNativeSubmit(ctx) {
@@ -164,7 +230,7 @@ export function buildSubmitRequest(ctx) {
     {
       prompt: req.prompt,
       image: req.image,
-      mode: req.mode || "std",
+      mode: outboundMode(req, model),
       duration: String(req.duration || 5),
       aspect_ratio: aspectRatio(req.size),
       model_name: model,
@@ -173,6 +239,9 @@ export function buildSubmitRequest(ctx) {
     },
     metadata
   );
+  body.mode = outboundMode({ mode: body.mode, metadata: metadata }, model);
+  if (body.image) body.image = filePlaceholder(body.image);
+  if (body.image_tail) body.image_tail = filePlaceholder(body.image_tail);
   if (!body.prompt) delete body.prompt;
   if (!body.image) delete body.image;
   return {
@@ -194,12 +263,10 @@ export function parseSubmitResponse(ctx, resp) {
 export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const req = ctx.requestBody || {};
-  const metadata = req.metadata || {};
-  let duration = Number(req.duration || req.seconds || metadata.duration || 5);
-  if (!Number.isFinite(duration) || duration <= 0) duration = 5;
-  duration = Math.min(duration, 3600);
-  const mode = String(req.mode || metadata.mode || "std").toLowerCase() === "pro" ? "pro" : "std";
-  return { units: estimateUnits(duration, mode) };
+  const model = submitModel(ctx, req);
+  const duration = outboundDuration(req);
+  const mode = outboundMode(req, model);
+  return { units: estimateUnits(model, mode, duration) };
 }
 
 export function buildQueryRequest(ctx) {
@@ -249,11 +316,19 @@ export function buildContentRequest(ctx) {
   return { url: url, method: ctx.clientRequest.method, credentialless: true };
 }
 
-export function extractUsageOnComplete(task, taskResult, body) {
+export function extractUsageOnComplete(_task, _taskResult, body) {
   const data = (body && body.data) || {};
-  const units = Number.parseFloat(data.final_unit_deduction || "");
-  if (Number.isFinite(units) && units > 0) return { units: units };
-  return {};
+  if (
+    !Object.prototype.hasOwnProperty.call(data, "final_unit_deduction") ||
+    data.final_unit_deduction === undefined ||
+    data.final_unit_deduction === null ||
+    data.final_unit_deduction === ""
+  ) {
+    return null;
+  }
+  const units = Number.parseFloat(data.final_unit_deduction);
+  if (!Number.isFinite(units)) return null;
+  return { units: units };
 }
 
 export const protocols = {
@@ -277,6 +352,7 @@ export const protocols = {
       if (!prompt && images.length === 0) throw new Error("input is required");
       const metadata = Object.assign({}, req.metadata || {});
       if (Object.prototype.hasOwnProperty.call(req, "mode")) metadata.mode = req.mode;
+      metadata.mode = resolveKlingMode(model, metadata.mode);
       if (images.length > 1 && !metadata.image_tail) metadata.image_tail = images[1];
       const requestBody = { model: model, prompt: prompt, metadata: metadata };
       if (images.length) requestBody.image = images[0];
@@ -319,21 +395,59 @@ export const protocols = {
   openai_video: {
     decodeRequest: function (ctx) {
       if (!ctx.body || (ctx.body.kind !== "json" && ctx.body.kind !== "multipart")) throw new Error("JSON or multipart body required");
-      let req = ctx.body.kind === "json" ? ctx.body.value : {};
-      if (ctx.body.kind === "multipart") {
+      let req;
+      let hasInputReferenceFile = false;
+      if (ctx.body.kind === "json") {
+        if (!ctx.body.value || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
+        req = Object.assign({}, ctx.body.value);
+      } else {
         const first = function (name) {
           const values = (ctx.body.fields || {})[name] || [];
           if (values.length > 1) throw new Error(name + " must be provided once");
           return values[0];
         };
-        req = { prompt: first("prompt"), seconds: first("seconds"), size: first("size") };
-        const file = (ctx.body.files || []).find(function (item) {
-          return item.field === "input_reference";
-        });
-        if (file) throw new Error("uploaded input_reference is not supported");
+        req = {};
+        const fields = ctx.body.fields || {};
+        for (const name of Object.keys(fields)) {
+          req[name] = first(name);
+        }
+        for (const file of ctx.body.files || []) {
+          if (file.field !== "input_reference") throw new Error("unexpected file field: " + file.field);
+          if (hasInputReferenceFile) throw new Error("input_reference must be provided once");
+          hasInputReferenceFile = true;
+        }
+        if (req.metadata !== undefined) {
+          let parsed;
+          try {
+            parsed = JSON.parse(req.metadata);
+          } catch (e) {
+            throw new Error("metadata must be a JSON object string");
+          }
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("metadata must be a JSON object string");
+          req.metadata = parsed;
+        }
+        if (req.seconds !== undefined) req.seconds = Number(req.seconds);
+        else if (req.duration !== undefined) req.seconds = Number(req.duration);
       }
-      const requestBody = { model: ctx.model, prompt: req.prompt || "", duration: req.seconds || req.duration, size: req.size, metadata: {} };
-      return { kind: "submit", model: ctx.model, action: "text_to_video", requestBody: requestBody };
+      const seconds = req.seconds === undefined ? req.duration : req.seconds;
+      if (seconds !== undefined) req.duration = validateKlingDuration(seconds);
+      else req.duration = 5;
+      if (hasInputReferenceFile) {
+        req.image = { __fileRef: "request_file:input_reference", encoding: "base64", maxBytes: 10485760 };
+      } else {
+        const image = trimmed(req.input_reference || req.image);
+        if (image) req.image = image;
+      }
+      const model = ctx.model || req.model || "kling-v1";
+      const metadata = req.metadata || {};
+      req.mode = resolveKlingMode(model, req.mode || metadata.mode);
+      const hasImage = hasKlingImage(req, hasInputReferenceFile);
+      return {
+        kind: "submit",
+        model: ctx.model,
+        action: hasImage ? "image_to_video" : "text_to_video",
+        requestBody: Object.assign({}, req, { model: ctx.model }),
+      };
     },
     render: function (ctx, task) {
       const response = task.data || {};

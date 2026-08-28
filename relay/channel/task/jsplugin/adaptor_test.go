@@ -881,6 +881,45 @@ export function extractUsageOnComplete(task, result, body) { return (body || {})
 		assert.EqualValues(t, 500000, result.UsageFacts["tokens"])
 	})
 
+	t.Run("declared credit facts keep sub-integer precision", func(t *testing.T) {
+		source := `
+export const meta = {
+  apiVersion: 1, key: "credit-decimals", name: "Credit Decimals", version: "1.0.0",
+  author: {name: "Test"}, models: ["model"], fetchMode: "per_task",
+  usageSchema: {units: {type: "number", unit: "credit"}},
+  usageExamples: [{label: "3.5 credits", facts: {units: 3.5}}],
+};
+export function buildSubmitRequest(ctx) { return {url: ctx.baseUrl + "/submit"}; }
+export function parseSubmitResponse() { return {taskId: "task"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+export function extractUsage() { return {units: 3.5}; }
+export function extractUsageOnComplete() { return {units: 3.5}; }
+`
+		plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+		require.NoError(t, err)
+		adaptor := New(plugin)
+		info := &relaycommon.RelayInfo{
+			ChannelMeta:   &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example"},
+			TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+		}
+		adaptor.Init(info)
+		context, _ := gin.CreateTestContext(httptest.NewRecorder())
+		context.Request = httptest.NewRequest(http.MethodPost, "/native/submit", nil)
+		context.Set("task_request", map[string]any{"model": "model"})
+		require.Nil(t, adaptor.ValidateRequestAndSetAction(context, info))
+
+		facts, err := adaptor.ExtractUsageFactsValidated(context, info)
+		require.NoError(t, err)
+		assert.Equal(t, 3.5, facts["units"])
+
+		body, err := common.Marshal(map[string]any{})
+		require.NoError(t, err)
+		result, err := adaptor.ParseTaskResult(body)
+		require.NoError(t, err)
+		assert.Equal(t, 3.5, result.UsageFacts["units"])
+	})
+
 	t.Run("completion token facts are saturated instead of duration-capped", func(t *testing.T) {
 		adaptor, _, _ := newRequest(t, map[string]any{})
 		body, err := common.Marshal(map[string]any{"completionUsage": map[string]any{"upstreamUnits": 5000}})
