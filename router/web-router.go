@@ -35,6 +35,10 @@ func SetWebRouter(router *gin.Engine, assets WebAssets) {
 	router.Use(middleware.Cache())
 
 	// Register OAuth Provider routes as route handlers (before static middleware)
+	testRoute := router.Group("/")
+	testRoute.GET("/debug-test", func(c *gin.Context) {
+		c.String(200, "TEST OK")
+	})
 	router.GET("/oauth/authorize", middleware.DisableCache(), controller.OAuthProviderAuthorize)
 	router.POST("/oauth/authorize", middleware.DisableCache(), controller.OAuthProviderAuthorizePost)
 	router.POST("/oauth/token", middleware.DisableCache(), controller.OAuthProviderToken)
