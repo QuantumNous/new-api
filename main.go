@@ -196,8 +196,12 @@ func main() {
 
 	// 设置路由
 	router.SetRouter(server, router.WebAssets{
-		BuildFS:   buildFS,
-		IndexPage: indexPage,
+		BuildFS:                     buildFS,
+		IndexPage:                   indexPage,
+		CloudflareWebAnalyticsToken: os.Getenv("CLOUDFLARE_WEB_ANALYTICS_TOKEN"),
+		CloudflareWebAnalyticsHostTokens: router.ParseCloudflareWebAnalyticsHostTokens(
+			os.Getenv("CLOUDFLARE_WEB_ANALYTICS_HOST_TOKENS"),
+		),
 	})
 	var port = os.Getenv("PORT")
 	if port == "" {

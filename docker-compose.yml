@@ -49,6 +49,8 @@ services:
 #      - USER_SESSION_HOURLY_ALERT_THRESHOLD=5000  # 仅告警，不做全局拒绝 (alert only; never globally rejects login)
 #      - SYNC_FREQUENCY=60  # Uncomment if regular database syncing is needed
 #      - GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX  # Google Analytics 的测量 ID (Google Analytics Measurement ID)
+#      - CLOUDFLARE_WEB_ANALYTICS_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx  # Cloudflare Web Analytics 单站点 Token；设置 HOST_TOKENS 后不再使用 (single-site token; ignored when HOST_TOKENS is set)
+#      - CLOUDFLARE_WEB_ANALYTICS_HOST_TOKENS=example.com=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,mirror.example.net=yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy  # 按 Host 选择 Token (host-specific tokens)
 #      - UMAMI_WEBSITE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Umami 网站 ID (Umami Website ID)
 #      - UMAMI_SCRIPT_URL=https://analytics.umami.is/script.js  # Umami 脚本 URL，默认为官方地址 (Umami Script URL, defaults to official URL)
 
