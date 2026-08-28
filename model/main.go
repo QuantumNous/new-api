@@ -294,6 +294,7 @@ func migrateDB() error {
 		&StudioServiceCharge{},
 		&CasbinRule{},
 		&AuthzRole{},
+		&OAuthClient{},
 	)
 	if err != nil {
 		return err
