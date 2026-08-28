@@ -5537,6 +5537,8 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Multi-Key Auto Recovery": "多金鑰自動恢復",
+    "After the channel is auto-disabled, channel tests probe each auto-disabled key and restore the keys that are available again. Manually disabled keys are not tested. One check may make multiple upstream requests.": "渠道被自動停用後，渠道測試將逐一探測自動停用的金鑰，並恢復已重新可用的金鑰。手動停用的金鑰不會被測試。一次檢查可能產生多次上游請求。"
   }
 }

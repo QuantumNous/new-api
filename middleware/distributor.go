@@ -592,6 +592,16 @@ func getTaskOriginModelName(c *gin.Context) string {
 }
 
 func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string) *types.NewAPIError {
+	return setupContextForSelectedChannel(c, channel, modelName, nil)
+}
+
+// SetupContextForSelectedChannelKey is used by channel health checks that must
+// probe a specific disabled key without changing normal request key selection.
+func SetupContextForSelectedChannelKey(c *gin.Context, channel *model.Channel, modelName string, keyIndex int) *types.NewAPIError {
+	return setupContextForSelectedChannel(c, channel, modelName, &keyIndex)
+}
+
+func setupContextForSelectedChannel(c *gin.Context, channel *model.Channel, modelName string, keyIndex *int) *types.NewAPIError {
 	c.Set("original_model", modelName) // for retry
 	expectedPlugin := c.GetString("expected_task_plugin_key")
 	if channel == nil {
@@ -655,9 +665,21 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelModelMapping, channel.GetModelMapping())
 	common.SetContextKey(c, constant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
 
-	key, index, newAPIError := channel.GetNextEnabledKey()
-	if newAPIError != nil {
-		return newAPIError
+	key := ""
+	index := 0
+	if keyIndex == nil {
+		var newAPIError *types.NewAPIError
+		key, index, newAPIError = channel.GetNextEnabledKey()
+		if newAPIError != nil {
+			return newAPIError
+		}
+	} else {
+		keys := channel.GetKeys()
+		if !channel.ChannelInfo.IsMultiKey || *keyIndex < 0 || *keyIndex >= len(keys) {
+			return types.NewError(errors.New("invalid channel key index"), types.ErrorCodeChannelNoAvailableKey)
+		}
+		key = keys[*keyIndex]
+		index = *keyIndex
 	}
 	if channel.ChannelInfo.IsMultiKey {
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)

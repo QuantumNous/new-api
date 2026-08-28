@@ -342,6 +342,43 @@ func TestSelectChannelsForAutomaticTestAutoBanOnlyUsesEligibleChannels(t *testin
 	require.Equal(t, 3, selected[1].Id)
 }
 
+func TestMultiKeyRecoveryIndexesSkipsManuallyDisabledKeys(t *testing.T) {
+	channel := &model.Channel{
+		Status: common.ChannelStatusAutoDisabled,
+		Key:    "key-a\nkey-b\nkey-c",
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:           true,
+			MultiKeyAutoRecovery: true,
+			MultiKeyStatusList: map[int]int{
+				0: common.ChannelStatusAutoDisabled,
+				1: common.ChannelStatusManuallyDisabled,
+			},
+		},
+	}
+
+	indexes := multiKeyRecoveryIndexes(channel)
+
+	assert.Equal(t, []int{0}, indexes)
+}
+
+func TestAutoDisabledMultiKeyRecoveryRequiresChannelOption(t *testing.T) {
+	channel := &model.Channel{
+		Status: common.ChannelStatusAutoDisabled,
+		Key:    "key-a\nkey-b",
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey: true,
+			MultiKeyStatusList: map[int]int{
+				0: common.ChannelStatusAutoDisabled,
+				1: common.ChannelStatusAutoDisabled,
+			},
+		},
+	}
+
+	assert.Empty(t, multiKeyRecoveryIndexes(channel))
+	channel.ChannelInfo.MultiKeyAutoRecovery = true
+	assert.Equal(t, []int{0, 1}, multiKeyRecoveryIndexes(channel))
+}
+
 func TestRunChannelTestWorkersHonorsConfiguredConcurrency(t *testing.T) {
 	originalInterval := common.RequestInterval
 	common.RequestInterval = 0

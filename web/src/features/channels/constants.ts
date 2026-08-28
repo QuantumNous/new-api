@@ -393,6 +393,8 @@ export const FIELD_DESCRIPTIONS = {
   PARAM_OVERRIDE: 'Override request parameters (JSON format)',
   HEADER_OVERRIDE: 'Override request headers (JSON format)',
   MULTI_KEY_MODE: 'How to select keys: random or sequential polling',
+  MULTI_KEY_AUTO_RECOVERY:
+    'After the channel is auto-disabled, channel tests probe each auto-disabled key and restore the keys that are available again. Manually disabled keys are not tested. One check may make multiple upstream requests.',
   BATCH_ADD: 'Create multiple channels from multiple keys',
   OPENAI_ORG: 'OpenAI Organization ID (optional)',
 } as const

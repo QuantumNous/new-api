@@ -5537,6 +5537,8 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Multi-Key Auto Recovery": "Tự động khôi phục nhiều khóa",
+    "After the channel is auto-disabled, channel tests probe each auto-disabled key and restore the keys that are available again. Manually disabled keys are not tested. One check may make multiple upstream requests.": "Sau khi kênh bị tự động vô hiệu hóa, kiểm tra kênh sẽ lần lượt thử từng khóa bị tự động vô hiệu hóa và khôi phục các khóa đã hoạt động trở lại. Khóa bị vô hiệu hóa thủ công sẽ không được kiểm tra. Một lần kiểm tra có thể tạo nhiều yêu cầu đến upstream."
   }
 }

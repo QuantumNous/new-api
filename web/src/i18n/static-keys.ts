@@ -538,6 +538,10 @@ export const STATIC_I18N_KEYS = [
   'OpenAI Models upstream path must not contain {model}',
   'OpenAI Models route is required to enable upstream model checks',
 
+  // Multi-key channel recovery
+  'Multi-Key Auto Recovery',
+  'After the channel is auto-disabled, channel tests probe each auto-disabled key and restore the keys that are available again. Manually disabled keys are not tested. One check may make multiple upstream requests.',
+
   // Dashboard flow stages (labels/descriptions passed to t at runtime)
   'User',
   'Node',

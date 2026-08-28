@@ -589,6 +589,7 @@ func RefreshCodexChannelCredential(c *gin.Context) {
 type AddChannelRequest struct {
 	Mode                      string                `json:"mode"`
 	MultiKeyMode              constant.MultiKeyMode `json:"multi_key_mode"`
+	MultiKeyAutoRecovery      bool                  `json:"multi_key_auto_recovery"`
 	BatchAddSetKeyPrefix2Name bool                  `json:"batch_add_set_key_prefix_2_name"`
 	Channel                   *model.Channel        `json:"channel"`
 }
@@ -657,6 +658,7 @@ func AddChannel(c *gin.Context) {
 	case "multi_to_single":
 		addChannelRequest.Channel.ChannelInfo.IsMultiKey = true
 		addChannelRequest.Channel.ChannelInfo.MultiKeyMode = addChannelRequest.MultiKeyMode
+		addChannelRequest.Channel.ChannelInfo.MultiKeyAutoRecovery = addChannelRequest.MultiKeyAutoRecovery
 		if addChannelRequest.Channel.Type == constant.ChannelTypeVertexAi && addChannelRequest.Channel.GetOtherSettings().VertexKeyType != dto.VertexKeyTypeAPIKey {
 			array, err := getVertexArrayKeys(addChannelRequest.Channel.Key)
 			if err != nil {
@@ -954,8 +956,9 @@ func DeleteChannelBatch(c *gin.Context) {
 
 type PatchChannel struct {
 	model.Channel
-	MultiKeyMode *string `json:"multi_key_mode"`
-	KeyMode      *string `json:"key_mode"` // 多key模式下密钥覆盖或者追加
+	MultiKeyMode         *string `json:"multi_key_mode"`
+	MultiKeyAutoRecovery *bool   `json:"multi_key_auto_recovery"`
+	KeyMode              *string `json:"key_mode"` // 多key模式下密钥覆盖或者追加
 }
 
 type ChannelStatusRequest struct {
@@ -1035,6 +1038,9 @@ func UpdateChannel(c *gin.Context) {
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
 	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
 		channel.ChannelInfo.MultiKeyMode = constant.MultiKeyMode(*channel.MultiKeyMode)
+	}
+	if channel.MultiKeyAutoRecovery != nil && channel.ChannelInfo.IsMultiKey {
+		channel.ChannelInfo.MultiKeyAutoRecovery = *channel.MultiKeyAutoRecovery
 	}
 
 	// 处理多key模式下的密钥追加/覆盖逻辑

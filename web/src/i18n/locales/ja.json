@@ -5537,6 +5537,8 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Multi-Key Auto Recovery": "複数キーの自動復旧",
+    "After the channel is auto-disabled, channel tests probe each auto-disabled key and restore the keys that are available again. Manually disabled keys are not tested. One check may make multiple upstream requests.": "チャネルが自動無効化された後、チャネルテストは自動無効化された各キーを検査し、再び利用可能になったキーを復旧します。手動で無効化されたキーはテストされません。1回のチェックで複数のアップストリームリクエストが発生する場合があります。"
   }
 }

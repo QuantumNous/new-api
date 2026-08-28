@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
@@ -172,4 +173,45 @@ func TestNoAvailableChannelMessageNamesClaimingTaskPlugin(t *testing.T) {
 	generic := noAvailableChannelMessage(plain, "default", "gpt-4o")
 	assert.NotContains(t, generic, "task plugin")
 	assert.Contains(t, generic, "gpt-4o")
+}
+
+func TestSetupContextForSelectedChannelKeyCanSelectAutoDisabledKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	channel := &model.Channel{
+		Key: "key-a\nkey-b",
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey: true,
+			MultiKeyStatusList: map[int]int{
+				0: common.ChannelStatusAutoDisabled,
+				1: common.ChannelStatusAutoDisabled,
+			},
+		},
+	}
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	err := SetupContextForSelectedChannelKey(ctx, channel, "gpt-test", 1)
+
+	require.Nil(t, err)
+	assert.Equal(t, "key-b", common.GetContextKeyString(ctx, constant.ContextKeyChannelKey))
+	assert.Equal(t, 1, common.GetContextKeyInt(ctx, constant.ContextKeyChannelMultiKeyIndex))
+}
+
+func TestSetupContextForSelectedChannelStillRejectsAllDisabledKeys(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	channel := &model.Channel{
+		Key: "key-a\nkey-b",
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey: true,
+			MultiKeyStatusList: map[int]int{
+				0: common.ChannelStatusAutoDisabled,
+				1: common.ChannelStatusAutoDisabled,
+			},
+		},
+	}
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	err := SetupContextForSelectedChannel(ctx, channel, "gpt-test")
+
+	require.NotNil(t, err)
+	assert.Contains(t, err.Error(), "no enabled keys")
 }

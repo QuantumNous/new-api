@@ -51,6 +51,46 @@ func TestUpdateChannelStatusPersistsMultiKeyState(t *testing.T) {
 	assert.Equal(t, 1, stored.ChannelInfo.MultiKeyPollingIndex)
 }
 
+func TestUpdateChannelStatusEnablesRemainingKeyAfterChannelRecovery(t *testing.T) {
+	setupChannelStatusTest(t)
+
+	channel := Channel{
+		Name:   "multi-key-recovery",
+		Key:    "key-a\nkey-b",
+		Status: common.ChannelStatusAutoDisabled,
+		Group:  "default",
+		Models: "gpt-test",
+		ChannelInfo: ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+			MultiKeyStatusList: map[int]int{
+				0: common.ChannelStatusAutoDisabled,
+				1: common.ChannelStatusAutoDisabled,
+			},
+		},
+	}
+	require.NoError(t, DB.Create(&channel).Error)
+	require.NoError(t, DB.Create(&Ability{
+		Group:     "default",
+		Model:     "gpt-test",
+		ChannelId: channel.Id,
+		Enabled:   false,
+	}).Error)
+
+	common.MemoryCacheEnabled = true
+	InitChannelCache()
+	assert.NotContains(t, group2model2channels["default"]["gpt-test"], channel.Id)
+
+	require.True(t, UpdateChannelStatus(channel.Id, "key-a", common.ChannelStatusEnabled, ""))
+	assert.Contains(t, group2model2channels["default"]["gpt-test"], channel.Id)
+	require.True(t, UpdateChannelStatus(channel.Id, "key-b", common.ChannelStatusEnabled, ""))
+
+	var stored Channel
+	require.NoError(t, DB.First(&stored, channel.Id).Error)
+	assert.Equal(t, common.ChannelStatusEnabled, stored.Status)
+	assert.Empty(t, stored.ChannelInfo.MultiKeyStatusList)
+}
+
 func TestSaveStatusStateFromSingleKeySnapshotPreservesUnownedColumns(t *testing.T) {
 	setupChannelStatusTest(t)
 

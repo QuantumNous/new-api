@@ -331,7 +331,10 @@ function hasConfiguredOverrideValue(value: unknown): boolean {
   return true
 }
 
-function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
+function hasAdvancedSettingsValues(
+  values: ChannelFormValues,
+  isMultiKeyChannel: boolean = false
+): boolean {
   return Boolean(
     hasConfiguredOverrideValue(values.param_override) ||
     hasConfiguredOverrideValue(values.header_override) ||
@@ -341,6 +344,8 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     values.remark?.trim() ||
     values.priority ||
     values.weight ||
+    ((isMultiKeyChannel || values.multi_key_mode === 'multi_to_single') &&
+      values.multi_key_auto_recovery) ||
     values.proxy?.trim() ||
     values.system_prompt?.trim() ||
     values.force_format ||
@@ -749,6 +754,7 @@ export function ChannelMutateDrawer({
   const currentWeight = form.watch('weight')
   const currentTestModel = form.watch('test_model')
   const currentAutoBan = form.watch('auto_ban')
+  const currentMultiKeyAutoRecovery = form.watch('multi_key_auto_recovery')
   const currentTag = form.watch('tag')
   const currentRemark = form.watch('remark')
   const currentStatusCodeMapping = form.watch('status_code_mapping')
@@ -778,6 +784,8 @@ export function ChannelMutateDrawer({
   const currentUpstreamModelUpdateIgnoredModels = form.watch(
     'upstream_model_update_ignored_models'
   )
+  const showMultiKeyAutoRecovery =
+    isMultiKeyChannel || (!isEditing && multiKeyMode === 'multi_to_single')
   const shouldPreviewUnsavedModels =
     !isEditing ||
     (currentType === CHANNEL_TYPE_ADVANCED_CUSTOM && canEditSensitive)
@@ -1022,7 +1030,8 @@ export function ChannelMutateDrawer({
     currentPriority ||
     currentWeight ||
     currentTestModel?.trim() ||
-    (currentAutoBan ?? 1) !== 1
+    (currentAutoBan ?? 1) !== 1 ||
+    (showMultiKeyAutoRecovery && currentMultiKeyAutoRecovery)
   )
   const internalNotesConfigured = Boolean(
     currentTag?.trim() || currentRemark?.trim()
@@ -1269,7 +1278,11 @@ export function ChannelMutateDrawer({
       const defaults = transformChannelToFormDefaults(channelData.data)
       form.reset(defaults)
       setAdvancedSettingsOpen(
-        readAdvancedSettingsPreference() || hasAdvancedSettingsValues(defaults)
+        readAdvancedSettingsPreference() ||
+          hasAdvancedSettingsValues(
+            defaults,
+            channelData.data.channel_info.is_multi_key
+          )
       )
       // Store initial values for comparison
       initialModelsRef.current = parseModelsString(
@@ -3832,6 +3845,33 @@ export function ChannelMutateDrawer({
                                 </FormItem>
                               )}
                             />
+
+                            {showMultiKeyAutoRecovery && (
+                              <FormField
+                                control={form.control}
+                                name='multi_key_auto_recovery'
+                                render={({ field }) => (
+                                  <FormItem className='flex items-center justify-between'>
+                                    <div className='space-y-0.5'>
+                                      <FormLabel>
+                                        {t('Multi-Key Auto Recovery')}
+                                      </FormLabel>
+                                      <FormDescription>
+                                        {t(
+                                          FIELD_DESCRIPTIONS.MULTI_KEY_AUTO_RECOVERY
+                                        )}
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <Switch
+                                        checked={field.value || false}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                            )}
                           </div>
 
                           <div
