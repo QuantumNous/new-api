@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"sync"
@@ -257,6 +258,7 @@ func updatePricing() {
 			Icon:        v.Icon,
 		})
 	}
+	slices.SortFunc(vendorsList, func(a, b PricingVendor) int { return a.ID - b.ID })
 
 	modelGroupsMap := make(map[string]*types.Set[string])
 
