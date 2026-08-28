@@ -21,12 +21,13 @@ func SetApiRouter(router *gin.Engine) {
 	authRefreshRoute.Use(middleware.BodyStorageCleanup())
 	authRefreshRoute.POST("/user/auth/refresh", middleware.SessionCookieOriginGuard(), middleware.AuthRefreshRateLimit(), middleware.DisableCache(), controller.RefreshAuth)
 
+	anonymousRequestBodyLimit := middleware.AnonymousRequestBodyLimit()
+
 	apiRouter := router.Group("/api")
 	apiRouter.Use(middleware.RouteTag("api"))
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	apiRouter.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
-	anonymousRequestBodyLimit := middleware.AnonymousRequestBodyLimit()
 	{
 		apiRouter.GET("/setup", controller.GetSetup)
 		apiRouter.POST("/setup", anonymousRequestBodyLimit, controller.PostSetup)
@@ -69,12 +70,6 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/oauth/telegram/login", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.TelegramLogin)
 		apiRouter.POST("/oauth/telegram/bind/start", middleware.UserAuth(), middleware.CriticalRateLimit(), middleware.DisableCache(), controller.TelegramBindStart)
 		apiRouter.GET("/oauth/telegram/bind/:flow_token", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.TelegramBind)
-		// OAuth Provider endpoints (new-api acts as authorization server)
-		apiRouter.GET("/oauth/authorize", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.OAuthProviderAuthorize)
-		apiRouter.POST("/oauth/authorize", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.OAuthProviderAuthorizePost)
-		apiRouter.POST("/oauth/token", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.OAuthProviderToken)
-		apiRouter.GET("/oauth/userinfo", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.OAuthProviderUserInfo)
-		apiRouter.GET("/.well-known/openid-configuration", middleware.CriticalRateLimit(), controller.OAuthProviderWellKnown)
 		// Standard OAuth providers (GitHub, Discord, OIDC, LinuxDO) - unified route
 		apiRouter.GET("/oauth/:provider", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.TryUserAuth(), controller.HandleOAuth)
 		apiRouter.GET("/ratio_config", middleware.CriticalRateLimit(), controller.GetRatioConfig)
@@ -420,5 +415,19 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.POST("/:id/extend", controller.ExtendDeployment)
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
+	}
+}
+
+// registerOAuthProviderRoutes registers OAuth Provider endpoints on the root router.
+// This is called AFTER SetWebRouter so these routes take precedence over the static file server.
+func registerOAuthProviderRoutes(router *gin.Engine) {
+	oauthRoute := router.Group("/")
+	oauthRoute.Use(middleware.CriticalRateLimit())
+	{
+		oauthRoute.GET("/oauth/authorize", middleware.DisableCache(), controller.OAuthProviderAuthorize)
+		oauthRoute.POST("/oauth/authorize", middleware.DisableCache(), controller.OAuthProviderAuthorizePost)
+		oauthRoute.POST("/oauth/token", middleware.DisableCache(), controller.OAuthProviderToken)
+		oauthRoute.GET("/oauth/userinfo", middleware.DisableCache(), controller.OAuthProviderUserInfo)
+		oauthRoute.GET("/.well-known/openid-configuration", controller.OAuthProviderWellKnown)
 	}
 }
