@@ -19,10 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { CherryStudio } from '@lobehub/icons'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, BookOpen } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { useStatus } from '@/hooks/use-status'
+import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
 
 import { HeroTerminalDemo } from '../hero-terminal-demo'
 
@@ -51,7 +53,17 @@ export function Hero(props: HeroProps) {
   const docsUrl =
     (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
 
+  // Reuse the header navigation "docs" toggle to control the banner Docs button
+  const docsEnabled = useMemo(
+    () =>
+      parseHeaderNavModulesFromStatus(
+        status as Record<string, unknown> | null
+      ).docs !== false,
+    [status]
+  )
+
   const renderDocsButton = () => {
+    if (!docsEnabled) return null
     const isExternal = docsUrl.startsWith('http')
     if (isExternal) {
       return (
