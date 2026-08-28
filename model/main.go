@@ -352,6 +352,7 @@ func migrateDBFast() error {
 		{&ImageAutoBillingJournal{}, "ImageAutoBillingJournal"},
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
+		{&OAuthClient{}, "OAuthClient"},
 		{&PerfMetric{}, "PerfMetric"},
 		{&SystemInstance{}, "SystemInstance"},
 		{&SystemTask{}, "SystemTask"},

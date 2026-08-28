@@ -69,6 +69,12 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/oauth/telegram/login", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.TelegramLogin)
 		apiRouter.POST("/oauth/telegram/bind/start", middleware.UserAuth(), middleware.CriticalRateLimit(), middleware.DisableCache(), controller.TelegramBindStart)
 		apiRouter.GET("/oauth/telegram/bind/:flow_token", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.TelegramBind)
+		// OAuth Provider endpoints (new-api acts as authorization server)
+		apiRouter.GET("/oauth/authorize", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.OAuthProviderAuthorize)
+		apiRouter.POST("/oauth/authorize", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.OAuthProviderAuthorizePost)
+		apiRouter.POST("/oauth/token", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.OAuthProviderToken)
+		apiRouter.GET("/oauth/userinfo", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.OAuthProviderUserInfo)
+		apiRouter.GET("/.well-known/openid-configuration", middleware.CriticalRateLimit(), controller.OAuthProviderWellKnown)
 		// Standard OAuth providers (GitHub, Discord, OIDC, LinuxDO) - unified route
 		apiRouter.GET("/oauth/:provider", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.TryUserAuth(), controller.HandleOAuth)
 		apiRouter.GET("/ratio_config", middleware.CriticalRateLimit(), controller.GetRatioConfig)
@@ -144,6 +150,13 @@ func SetApiRouter(router *gin.Engine) {
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)
+
+				// OAuth Client management (user registers external apps to use new-api as OAuth Provider)
+				selfRoute.GET("/oauth/clients", controller.ListOAuthClients)
+				selfRoute.POST("/oauth/clients", controller.CreateOAuthClient)
+				selfRoute.GET("/oauth/clients/:id", controller.GetOAuthClient)
+				selfRoute.PUT("/oauth/clients/:id", controller.UpdateOAuthClient)
+				selfRoute.DELETE("/oauth/clients/:id", controller.DeleteOAuthClient)
 			}
 
 			adminRoute := userRoute.Group("/")
