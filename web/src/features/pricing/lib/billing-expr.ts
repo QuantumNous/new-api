@@ -372,25 +372,44 @@ function parseExprLiteral(raw: string): string | null {
   }
 }
 
+// Time function value domains. Values outside these ranges are invalid for
+// the corresponding time function (e.g. hour() is 0-23) and would otherwise
+// produce always-true conditions like hour >= -1 || hour < -5.
+const TIME_FUNC_RANGES: Record<TimeFunc, [number, number]> = {
+  hour: [0, 23],
+  minute: [0, 59],
+  weekday: [0, 6],
+  month: [1, 12],
+  day: [1, 31],
+}
+
+function isTimeValueInRange(timeFunc: TimeFunc, text: string): boolean {
+  if (!NUMERIC_LITERAL_REGEX.test(text)) return false
+  const value = Number(text)
+  if (!Number.isInteger(value)) return false
+  const [min, max] = TIME_FUNC_RANGES[timeFunc]
+  return value >= min && value <= max
+}
+
 function tryParseTimeCondition(expr: string): RequestCondition | null {
   let m = expr.match(
     /^(hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) (?:&&|\|\|) \1\("\2"\) < ([\d.eE+-]+)$/
   )
-  if (m) {
-    return {
-      source: 'time',
-      timeFunc: m[1] as TimeFunc,
-      timezone: m[2],
-      mode: MATCH_RANGE,
-      value: '',
-      rangeStart: m[3],
-      rangeEnd: m[4],
-    }
+  if (!m) {
+    m = expr.match(
+      /^\((hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) (?:&&|\|\|) \1\("\2"\) < ([\d.eE+-]+)\)$/
+    )
   }
-  m = expr.match(
-    /^\((hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) (?:&&|\|\|) \1\("\2"\) < ([\d.eE+-]+)\)$/
-  )
   if (m) {
+    // Reject invalid bounds at parse time too: an unparseable rule keeps the
+    // editor in raw mode, while a leniently parsed one would be silently
+    // dropped when the visual editor rebuilds the expression.
+    if (
+      !isTimeValueInRange(m[1] as TimeFunc, m[3]) ||
+      !isTimeValueInRange(m[1] as TimeFunc, m[4])
+    ) {
+      return null
+    }
     return {
       source: 'time',
       timeFunc: m[1] as TimeFunc,
@@ -405,6 +424,7 @@ function tryParseTimeCondition(expr: string): RequestCondition | null {
     /^(hour|minute|weekday|month|day)\("([^"]+)"\) (==|>=|<) ([\d.eE+-]+)$/
   )
   if (m) {
+    if (!isTimeValueInRange(m[1] as TimeFunc, m[4])) return null
     const opMap: Record<string, string> = {
       '==': MATCH_EQ,
       '>=': MATCH_GTE,
@@ -759,25 +779,6 @@ function buildExprLiteral(mode: string, value: string): string {
   if (text === 'true' || text === 'false') return text
   if (NUMERIC_LITERAL_REGEX.test(text)) return text
   return JSON.stringify(text)
-}
-
-// Time function value domains. Values outside these ranges are invalid for
-// the corresponding time function (e.g. hour() is 0-23) and would otherwise
-// produce always-true conditions like hour >= -1 || hour < -5.
-const TIME_FUNC_RANGES: Record<TimeFunc, [number, number]> = {
-  hour: [0, 23],
-  minute: [0, 59],
-  weekday: [0, 6],
-  month: [1, 12],
-  day: [1, 31],
-}
-
-function isTimeValueInRange(timeFunc: TimeFunc, text: string): boolean {
-  if (!NUMERIC_LITERAL_REGEX.test(text)) return false
-  const value = Number(text)
-  if (!Number.isInteger(value)) return false
-  const [min, max] = TIME_FUNC_RANGES[timeFunc]
-  return value >= min && value <= max
 }
 
 function buildTimeConditionExpr(cond: TimeCondition): string {
