@@ -30,15 +30,27 @@ import { generateAffiliateLink } from '../lib'
 // Affiliate Hook
 // ============================================================================
 
-export function useAffiliate() {
+interface UseAffiliateOptions {
+  enabled?: boolean
+}
+
+export function useAffiliate(options: UseAffiliateOptions = {}) {
+  const { enabled = true } = options
   const [affiliateCode, setAffiliateCode] = useState<string>('')
   const [affiliateLink, setAffiliateLink] = useState<string>('')
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(enabled)
   const [transferring, setTransferring] = useState(false)
   const { copyToClipboard } = useCopyToClipboard()
 
   // Fetch affiliate code
   const fetchAffiliateCode = useCallback(async () => {
+    if (!enabled) {
+      setAffiliateCode('')
+      setAffiliateLink('')
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       const response = await getAffiliateCode()
@@ -54,7 +66,7 @@ export function useAffiliate() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [enabled])
 
   // Copy affiliate link
   const copyAffiliateLink = useCallback(() => {
@@ -84,8 +96,15 @@ export function useAffiliate() {
   }, [])
 
   useEffect(() => {
-    fetchAffiliateCode()
-  }, [fetchAffiliateCode])
+    if (enabled) {
+      fetchAffiliateCode()
+      return
+    }
+
+    setAffiliateCode('')
+    setAffiliateLink('')
+    setLoading(false)
+  }, [enabled, fetchAffiliateCode])
 
   return {
     affiliateCode,

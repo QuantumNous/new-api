@@ -54,6 +54,22 @@ func GetEnabledModels() []string {
 	return models
 }
 
+func IsModelInAnyAbility(modelName string) bool {
+	if !common.MemoryCacheEnabled {
+		var count int64
+		DB.Model(&Ability{}).Where("model = ? and enabled = ?", modelName, true).Limit(1).Count(&count)
+		return count > 0
+	}
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+	for _, modelMap := range group2model2channels {
+		if channels, ok := modelMap[modelName]; ok && len(channels) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func GetAllEnableAbilities() []Ability {
 	var abilities []Ability
 	DB.Find(&abilities, "enabled = ?", true)
