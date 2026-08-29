@@ -31,6 +31,9 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import { PasswordInput } from '@/components/password-input'
+import { PasswordStrength } from '@/components/password-strength'
+import { getPasswordValidationMessageKey } from '@/components/password-strength-utils'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -89,7 +92,7 @@ import {
   transformFormDataToPayload,
   transformUserToFormDefaults,
 } from '../lib'
-import { type User } from '../types'
+import type { User } from '../types'
 import { UserQuotaDialog } from './user-quota-dialog'
 import { useUsers } from './users-provider'
 
@@ -118,7 +121,7 @@ export function UsersMutateDrawer({
     staleTime: 5 * 60 * 1000,
   })
 
-  const groups = groupsData?.data || []
+  const groups = groupsData?.data ?? []
 
   // Permission catalog is owned by the backend; fetched once and reused.
   const { data: permissionCatalog = EMPTY_PERMISSION_CATALOG } = useQuery({
@@ -136,11 +139,13 @@ export function UsersMutateDrawer({
   useEffect(() => {
     if (open && isUpdate && currentRow) {
       // For update, fetch fresh data
-      getUser(currentRow.id).then((result) => {
-        if (result.success && result.data) {
-          form.reset(transformUserToFormDefaults(result.data))
-        }
-      })
+      getUser(currentRow.id)
+        .then((result) => {
+          if (result.success && result.data) {
+            form.reset(transformUserToFormDefaults(result.data))
+          }
+        })
+        .catch(() => undefined)
     } else if (open && !isUpdate) {
       // For create, reset to defaults
       form.reset(USER_FORM_DEFAULT_VALUES)
@@ -157,15 +162,15 @@ export function UsersMutateDrawer({
   const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
 
   const onSubmit = async (data: UserFormValues) => {
-    if (!isUpdate) {
-      const passwordLength = data.password?.length || 0
-      if (passwordLength < 8 || passwordLength > 20) {
-        form.setError('password', {
-          type: 'manual',
-          message: t('Password must be between 8 and 20 characters'),
-        })
-        return
-      }
+    const password = data.password ?? ''
+    const shouldValidatePassword = !isUpdate || password.length > 0
+    const passwordMessage = getPasswordValidationMessageKey(password)
+    if (shouldValidatePassword && passwordMessage) {
+      form.setError('password', {
+        type: 'manual',
+        message: t(passwordMessage),
+      })
+      return
     }
 
     setIsSubmitting(true)
@@ -195,7 +200,7 @@ export function UsersMutateDrawer({
               : t(ERROR_MESSAGES.CREATE_FAILED))
         )
       }
-    } catch (_error) {
+    } catch {
       toast.error(t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsSubmitting(false)
@@ -278,7 +283,8 @@ export function UsersMutateDrawer({
                             { value: '10', label: t('Admin') },
                           ]}
                           onValueChange={(value) =>
-                            value !== null && field.onChange(parseInt(value))
+                            value !== null &&
+                            field.onChange(Number.parseInt(value))
                           }
                           value={String(field.value)}
                         >
@@ -331,10 +337,15 @@ export function UsersMutateDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Password')}</FormLabel>
-                      <FormControl>
-                        <Input
+                      <FormControl
+                        describedBy={
+                          field.value ? 'user-password-strength' : undefined
+                        }
+                      >
+                        <PasswordInput
                           {...field}
-                          type='password'
+                          value={field.value ?? ''}
+                          autoComplete='new-password'
                           placeholder={
                             isUpdate
                               ? t('Leave empty to keep unchanged')
@@ -342,6 +353,11 @@ export function UsersMutateDrawer({
                           }
                         />
                       </FormControl>
+                      <PasswordStrength
+                        id='user-password-strength'
+                        value={field.value ?? ''}
+                        quietWhenEmpty={isUpdate}
+                      />
                       <FormMessage />
                     </FormItem>
                   )}
@@ -360,12 +376,10 @@ export function UsersMutateDrawer({
                       <FormItem>
                         <FormLabel>{t('Group')}</FormLabel>
                         <Select
-                          items={[
-                            ...groups.map((group) => ({
-                              value: group,
-                              label: group,
-                            })),
-                          ]}
+                          items={groups.map((group) => ({
+                            value: group,
+                            label: group,
+                          }))}
                           onValueChange={field.onChange}
                           value={field.value}
                         >
