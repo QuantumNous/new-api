@@ -149,3 +149,37 @@ func GetLogsSelfStat(c *gin.Context) {
 	})
 	return
 }
+
+// GetExternalBillingStat returns per-user external-channel usage for all users (admin).
+func GetExternalBillingStat(c *gin.Context) {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	username := c.Query("username")
+	rows, err := model.SumExternalByUser(startTimestamp, endTimestamp, username)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if rows == nil {
+		rows = []model.ExternalBillingRow{}
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": rows})
+	return
+}
+
+// GetExternalBillingSelfStat returns the caller's own external-channel usage.
+func GetExternalBillingSelfStat(c *gin.Context) {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	username := c.GetString("username")
+	rows, err := model.SumExternalByUser(startTimestamp, endTimestamp, username)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if rows == nil {
+		rows = []model.ExternalBillingRow{}
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": rows})
+	return
+}
