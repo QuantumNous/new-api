@@ -34,9 +34,10 @@
 # ============================================
 # GitHub Linguist - Language Detection
 # ============================================
+# Keep frontend TypeScript logic visible while excluding the TSX view layer,
+# whose markup-heavy files otherwise outweigh the primary Go service by bytes.
+web/**/*.tsx -linguist-detectable
 electron/** linguist-vendored
-web/** linguist-vendored
 
-# Un-vendor core frontend source to keep JavaScript visible in language stats
-web/src/components/** linguist-vendored=false
-web/src/pages/** linguist-vendored=false
+# TanStack Router regenerates this manifest from the route source files.
+web/src/routeTree.gen.ts linguist-generated

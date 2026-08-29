@@ -10,11 +10,11 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	constant2 "github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -140,11 +140,11 @@ func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, strea
 			if imageTokens > 1536 {
 				imageTokens = 1536
 			}
-			return int(math.Round(float64(imageTokens) * multiplier)), nil
+			return common.QuotaRound(float64(imageTokens) * multiplier), nil
 		}
 		// below cap
 		imageTokens := rawPatches
-		return int(math.Round(float64(imageTokens) * multiplier)), nil
+		return common.QuotaRound(float64(imageTokens) * multiplier), nil
 	}
 
 	// Tile-based calculation for 4o/4.1/4.5/o1/o3/etc.

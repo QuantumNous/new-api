@@ -8,30 +8,52 @@ import (
 )
 
 // Quota conversions are centralized here so every billing path shares one
-// saturation + logging policy. Quota columns (user/token/log) are 32-bit
-// integers in the database, so an oversized product must clamp to the int32
-// range instead of wrapping around and turning a charge into a credit.
+// saturation + logging policy. Single-request charges stay bounded to int32;
+// top-ups and wallet-priced purchases use a JavaScript-safe 64-bit domain.
 const (
-	MaxQuota = math.MaxInt32
-	MinQuota = math.MinInt32
+	MaxQuota       = math.MaxInt32
+	MinQuota       = math.MinInt32
+	MaxWalletQuota = 1<<53 - 1
 )
+
+// ValidateWalletQuota enforces the upper bound shared by wallet mutations.
+// Negative balances remain valid because billing can temporarily overdraw a
+// wallet; callers that accept credits must apply their own positive check.
+func ValidateWalletQuota(quota int) error {
+	if quota > MaxWalletQuota {
+		return fmt.Errorf("wallet quota exceeds %d", MaxWalletQuota)
+	}
+	return nil
+}
+
+// QuotaClampKind identifies why a quota conversion had to be saturated.
+type QuotaClampKind string
 
 // Clamp kinds reported by QuotaClamp.Kind.
 const (
-	QuotaClampOverflow  = "overflow"
-	QuotaClampUnderflow = "underflow"
-	QuotaClampNaN       = "nan"
+	QuotaClampOverflow  QuotaClampKind = "overflow"
+	QuotaClampUnderflow QuotaClampKind = "underflow"
+	QuotaClampNaN       QuotaClampKind = "nan"
 )
 
 // QuotaClamp describes a single saturation event: a quota conversion whose
-// input fell outside the representable int32 range (or was NaN) and was
+// input fell outside its supported range (or was NaN) and was
 // therefore clamped. It is surfaced to billing callers so the event can be
 // recorded on the related consume/task log for admin auditing.
 type QuotaClamp struct {
-	Op       string  `json:"op"`       // "QuotaFromFloat" | "QuotaRound" | "QuotaFromDecimal"
-	Kind     string  `json:"kind"`     // "overflow" | "underflow" | "nan"
-	Original float64 `json:"original"` // best-effort pre-clamp value (decimal -> float64 approx)
-	Clamped  int     `json:"clamped"`  // the saturated result actually used
+	Op       string         `json:"op"`       // "QuotaFromFloat" | "QuotaRound" | "QuotaFromDecimal" | "WalletQuotaFromDecimal"
+	Kind     QuotaClampKind `json:"kind"`     // "overflow" | "underflow" | "nan"
+	Original float64        `json:"original"` // best-effort pre-clamp value (decimal -> float64 approx)
+	Clamped  int            `json:"clamped"`  // the saturated result actually used
+}
+
+// Error lets the same typed value serve both as the settlement audit marker
+// and as the fail-fast error returned by strict pre-consume conversions.
+func (c *QuotaClamp) Error() string {
+	if c == nil {
+		return ""
+	}
+	return fmt.Sprintf("quota conversion (%s) %s: original=%g, clamped=%d", c.Op, c.Kind, c.Original, c.Clamped)
 }
 
 // AuditMap renders the clamp as the marker stored under a log's
@@ -49,28 +71,39 @@ func (c *QuotaClamp) AuditMap() map[string]interface{} {
 	}
 }
 
-// saturateQuota converts an already-rounded quota value to int, clamping to
-// the int32 range. Whenever clamping (what would otherwise be an integer
-// wraparound) or a NaN fallback is triggered it logs a warning, because in
+// saturateQuota converts an already-rounded single-request quota to int.
+// Whenever clamping (what would otherwise be an integer wraparound) or a NaN
+// fallback is triggered it logs a warning, because in
 // normal operation a single request never approaches these bounds — hitting
 // them signals a bug or an abusive request. `op` names the caller. When a
 // clamp occurs it returns a non-nil *QuotaClamp so callers can additionally
 // record the event (e.g. on the consume log); the returned pointer is nil for
 // in-range values.
 func saturateQuota(value float64, op string) (int, *QuotaClamp) {
+	return saturateQuotaBounded(value, op, MaxQuota, MinQuota)
+}
+
+func saturateQuotaBounded(value float64, op string, maxQuota int, minQuota int) (int, *QuotaClamp) {
+	var clamp *QuotaClamp
 	switch {
 	case math.IsNaN(value):
-		SysError(fmt.Sprintf("quota conversion (%s) received NaN, falling back to 0", op))
-		return 0, &QuotaClamp{Op: op, Kind: QuotaClampNaN, Original: value, Clamped: 0}
-	case value >= MaxQuota:
-		SysError(fmt.Sprintf("quota conversion (%s) overflow: %g exceeds max quota, clamped to %d", op, value, MaxQuota))
-		return MaxQuota, &QuotaClamp{Op: op, Kind: QuotaClampOverflow, Original: value, Clamped: MaxQuota}
-	case value <= MinQuota:
-		SysError(fmt.Sprintf("quota conversion (%s) underflow: %g below min quota, clamped to %d", op, value, MinQuota))
-		return MinQuota, &QuotaClamp{Op: op, Kind: QuotaClampUnderflow, Original: value, Clamped: MinQuota}
+		clamp = &QuotaClamp{Op: op, Kind: QuotaClampNaN, Original: value, Clamped: 0}
+	case value > float64(maxQuota):
+		clamp = &QuotaClamp{Op: op, Kind: QuotaClampOverflow, Original: value, Clamped: maxQuota}
+	case value < float64(minQuota):
+		clamp = &QuotaClamp{Op: op, Kind: QuotaClampUnderflow, Original: value, Clamped: minQuota}
 	default:
 		return int(value), nil
 	}
+	SysError(clamp.Error())
+	return clamp.Clamped, clamp
+}
+
+func strictQuota(quota int, clamp *QuotaClamp) (int, error) {
+	if clamp != nil {
+		return 0, clamp
+	}
+	return quota, nil
 }
 
 // QuotaFromFloat converts a computed quota value to int, truncating toward
@@ -85,6 +118,12 @@ func QuotaFromFloat(value float64) int {
 // *QuotaClamp when the value was clamped, so billing callers can audit it.
 func QuotaFromFloatChecked(value float64) (int, *QuotaClamp) {
 	return saturateQuota(value, "QuotaFromFloat")
+}
+
+// QuotaFromFloatStrict converts an in-range value and returns a typed
+// *QuotaClamp error instead of allowing a saturated result to reach billing.
+func QuotaFromFloatStrict(value float64) (int, error) {
+	return strictQuota(QuotaFromFloatChecked(value))
 }
 
 // QuotaRound converts a float64 quota value to int using half-away-from-zero
@@ -102,6 +141,12 @@ func QuotaRoundChecked(value float64) (int, *QuotaClamp) {
 	return saturateQuota(math.Round(value), "QuotaRound")
 }
 
+// QuotaRoundStrict rounds an in-range value and returns a typed *QuotaClamp
+// error instead of allowing a saturated result to reach billing.
+func QuotaRoundStrict(value float64) (int, error) {
+	return strictQuota(QuotaRoundChecked(value))
+}
+
 // QuotaFromDecimal converts a computed quota decimal to int with saturation.
 // The decimal is rounded (half away from zero) before conversion.
 func QuotaFromDecimal(d decimal.Decimal) int {
@@ -114,4 +159,17 @@ func QuotaFromDecimal(d decimal.Decimal) int {
 func QuotaFromDecimalChecked(d decimal.Decimal) (int, *QuotaClamp) {
 	f, _ := d.Round(0).Float64()
 	return saturateQuota(f, "QuotaFromDecimal")
+}
+
+// QuotaFromDecimalStrict converts an in-range single-request quota and rejects
+// a value that would otherwise be saturated at the int32 boundary.
+func QuotaFromDecimalStrict(d decimal.Decimal) (int, error) {
+	return strictQuota(QuotaFromDecimalChecked(d))
+}
+
+// WalletQuotaFromDecimalStrict converts wallet and top-up values within the
+// JavaScript-safe integer range, which is also exactly representable by float64.
+func WalletQuotaFromDecimalStrict(d decimal.Decimal) (int, error) {
+	f, _ := d.Round(0).Float64()
+	return strictQuota(saturateQuotaBounded(f, "WalletQuotaFromDecimal", MaxWalletQuota, -MaxWalletQuota))
 }

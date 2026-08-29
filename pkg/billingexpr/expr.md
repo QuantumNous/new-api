@@ -116,7 +116,110 @@ Request-conditional multipliers are appended to the expression after a `|||` sep
 tier("base", p * 5 + c * 25)|||when(header("anthropic-beta") has "fast-mode") * 6
 ```
 
-These are parsed and applied separately by the request rule system.
+These factors are stored as ordinary multiplication in the final expression (for example, `(tier(...)) * (condition ? 6 : 1)`) and run in the same billing program.
+
+### Request Rule Tracing
+
+At compile time, the engine instruments ternary factors with this exact shape:
+
+```
+<request-probe condition> ? <numeric literal> : 1
+```
+
+The condition must reference at least one request probe (`param`, `header`, `hour`, `minute`, `weekday`, `month`, or `day`). Both branches must be numeric literals and the fallback must equal `1`. Other conditionals, including `(condition ? 2 : 1.5)`, are evaluated normally but are not traced. Integer-only factors use an integer-preserving trace callback, so instrumentation does not change expressions that require an integer operand (for example, `%`). The internal trace callback names are reserved and cannot be used in stored expressions.
+
+The compiled cache stores the canonical condition and multiplier for every instrumented node. Each run starts with the full detected rule list marked as unmatched; callbacks mark rules that actually evaluate true. Rules skipped by normal expression short-circuiting remain unmatched. This keeps the expression's numeric result unchanged and avoids reparsing it on each request.
+
+Settlement copies the actual run's traces into the consume log as:
+
+```json
+{
+  "request_rules": [
+    { "cond": "param(\"service_tier\") == \"fast\"", "multiplier": 2, "matched": true }
+  ]
+}
+```
+
+The usage-log UI treats `request_rules` as the authoritative rule list and renders directly from it. It parses `cond` only to produce a friendly label and falls back to the canonical condition text when that parser does not recognize the condition. Pricing pages without log context continue to parse the stored expression for display.
+
+---
+
+## Task Usage Expressions
+
+Task plugins can expose validated, provider-specific billing facts through
+`meta.usageSchema`. Expressions read those facts with `u("key")`. A literal key
+must be declared by the plugin schema before the expression can be saved.
+Numeric facts are finite, non-negative values in the declared canonical unit
+(`second`, `count`, `token`, or `credit`); enum facts are exact strings from the
+declared value list. The schema description is display-only metadata and never
+affects evaluation. `token` is the host unit for upstream billing tokens (for
+example doubao `usage.completion_tokens`). `credit` is the host unit for vendor
+resource-pack units (for example kling `final_unit_deduction`). Both share the
+int32 quota bound, not the 3600-second / 128-count limits.
+
+Task usage billing has a deliberately different conversion rule from token
+billing:
+
+```
+task quota = expression output in USD * QuotaPerUnit * groupRatio
+token quota = expression output in $/1M tokens / 1,000,000 * QuotaPerUnit * groupRatio
+```
+
+In other words, a task expression already returns the request's dollar cost.
+For example, `u("seconds") * 0.4` means $0.40 per second. Engine semantics do
+not divide task output by one million.
+
+The visual editor generates, and public pricing displays recognize, exactly
+these canonical task shapes. Expressions outside these shapes remain valid in
+raw mode but fall back to the special-expression display:
+
+```
+# Flat unit pricing
+tier("base", u("seconds") * 0.4)
+
+# Enum tiers (conditions may combine enum comparisons with &&)
+u("mode") == "pro"
+  ? tier("pro", u("seconds") * 0.8)
+  : tier("std", u("seconds") * 0.4)
+
+# Optional constant plus multiple numeric usage terms
+tier("base", 0.1 + u("seconds") * 0.4 + u("clips") * 0.05)
+
+# Upstream token overlay (doubao Seedance tokens)
+# The editor takes a $/1M token input and emits the / 1000000 literal.
+# Engine semantics are unchanged: the expression still returns USD.
+tier("base", u("tokens") * 9.8 / 1000000)
+
+# Vendor credit overlay (kling resource-pack units)
+# The coefficient is the real $/credit price; no /1M scale.
+tier("base", u("units") * 0.14)
+```
+
+The tier body is an optional non-negative constant plus one or more
+`u("<number field>") * <unit price>` terms. Token-unit fields use the
+canonical scaled shape `u("<field>") * <dollars per 1M tokens> / 1000000`.
+Credit, second, and count fields keep the bare `u("<field>") * <unit price>`
+shape. Tier conditions are equality checks
+between declared enum fields and values, optionally joined by `&&`, with
+chained ternaries following the same ordering rules as token tiers. Numeric
+range tiers are not part of the current canonical shape. Request rules after
+`|||` remain orthogonal and use the same syntax as token expressions.
+
+Before saving, the host compiles every expression, rejects literal `u()` keys
+that the selected task plugin did not declare, and smoke-tests usage vectors.
+Every numeric field is exercised at 0, 1, and its host-owned unit ceiling
+(`second` 3600, `count` 128, `token`/`credit` int32 max). Enum values are exercised as a
+Cartesian product. Smoke vectors are capped at
+64, reducing oversized enum dimensions to their first and last values. Every
+evaluated result must be finite and non-negative.
+
+Submission evaluates the expression with request-derived usage facts and
+freezes both the expression and those facts in the billing snapshot. On
+completion, the host overlays completion facts on the frozen submission facts
+key by key, so measured values replace estimates while facts omitted by the
+completion hook retain their submission values. The same expression is then
+evaluated again; a changed fact can therefore produce a settlement delta and a
+different matched tier. Evaluation failure keeps the pre-consumed charge.
 
 ---
 
@@ -159,7 +262,7 @@ When a request arrives and the model uses `tiered_expr` billing:
 2. Builds `RequestInput` (headers + body) for `param()` / `header()` functions
 3. Runs expression with estimated tokens: `RunExprWithRequest(expr, {P, C}, requestInput)`
 4. Converts output to quota: `rawCost / 1,000,000 * QuotaPerUnit`
-5. Creates `BillingSnapshot` (frozen state for settlement) and stores on `RelayInfo`
+5. Creates `BillingSnapshot` and stores it on `RelayInfo`. Expression and request state stay frozen for settlement. An auto-group retry refreshes group-dependent fields from the selected group before the next upstream attempt. If a free initial group skipped pre-consume and the retry selects a paid group, the billing session is created before that attempt. If an existing session moves to a more expensive group, its reservation is raised to that group's estimate before sending; cheaper groups are refunded only after actual usage is settled.
 
 ### 4. Settlement (Actual Billing)
 
@@ -173,7 +276,7 @@ After the upstream response returns with actual token usage:
    - For Claude-format APIs (input_tokens is text-only): no adjustment needed
 
 2. `TryTieredSettle(relayInfo, params)`:
-   - Uses the frozen `BillingSnapshot` from pre-consume
+   - Uses the captured `BillingSnapshot`, whose group-dependent fields have been refreshed from the final selected group
    - Re-runs the expression with actual token counts
    - Converts via `quotaConversion()` (version-dispatched)
    - Returns actual quota
@@ -182,9 +285,9 @@ After the upstream response returns with actual token usage:
 
 **Files**: `service/log_info_generate.go`, `web/src/helpers/render.jsx`
 
-Backend: `InjectTieredBillingInfo()` adds `billing_mode`, `expr_b64` (base64 expression), and `matched_tier` to the log's `other` JSON.
+Backend: `InjectTieredBillingInfo()` adds `billing_mode`, `expr_b64` (base64 expression), `matched_tier`, and the structured `request_rules` trace list to the log's `other` JSON.
 
-Frontend: Detects `billing_mode === "tiered_expr"`, decodes `expr_b64`, parses tiers via shared `parseTiersFromExpr()`, and renders pricing breakdown.
+Frontend: Detects `billing_mode === "tiered_expr"`, decodes `expr_b64`, parses tiers via shared `parseTiersFromExpr()`, and renders request multipliers from `request_rules` when present. Without log traces, it falls back to parsing the stored expression.
 
 ---
 

@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -30,6 +30,11 @@ var paramOverrideSensitivePathPrefixes = []string{
 	"model",
 	"original_model",
 	"upstream_model",
+	"reasoning",
+	"reasoning_effort",
+	"output_config",
+	"generationConfig.thinkingConfig",
+	"generation_config.thinking_config",
 	"service_tier",
 	"inference_geo",
 	"speed",
@@ -191,6 +196,7 @@ func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, 
 	if err != nil {
 		return nil, err
 	}
+	syncReasoningEffortAfterParamOverride(info, jsonData, result)
 	syncRuntimeHeaderOverrideFromContext(info, overrideCtx)
 	if info != nil {
 		if recorder != nil {
@@ -200,6 +206,51 @@ func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, 
 		}
 	}
 	return result, nil
+}
+
+func syncReasoningEffortAfterParamOverride(info *RelayInfo, before, after []byte) {
+	if info == nil {
+		return
+	}
+	_, existedBefore := extractReasoningEffortFromJSON(info.GetFinalRequestRelayFormat(), before)
+	effort, existsAfter := extractReasoningEffortFromJSON(info.GetFinalRequestRelayFormat(), after)
+	if existsAfter {
+		info.SetReasoningEffort(effort)
+		return
+	}
+	if existedBefore {
+		info.SetReasoningEffort("")
+	}
+}
+
+func extractReasoningEffortFromJSON(format types.RelayFormat, data []byte) (string, bool) {
+	var paths []string
+	switch format {
+	case types.RelayFormatOpenAI:
+		paths = []string{"reasoning_effort", "reasoning.effort"}
+	case types.RelayFormatOpenAIResponses:
+		paths = []string{"reasoning.effort"}
+	case types.RelayFormatClaude:
+		paths = []string{"output_config.effort"}
+	case types.RelayFormatGemini:
+		paths = []string{
+			"generationConfig.thinkingConfig.thinkingLevel",
+			"generation_config.thinking_config.thinking_level",
+		}
+	default:
+		return "", false
+	}
+	for _, path := range paths {
+		value := gjson.GetBytes(data, path)
+		if !value.Exists() {
+			continue
+		}
+		if value.Type != gjson.String {
+			return "", true
+		}
+		return strings.TrimSpace(value.String()), true
+	}
+	return "", false
 }
 
 func shouldEnableParamOverrideAudit(paramOverride map[string]interface{}) bool {
@@ -2043,6 +2094,10 @@ func mergeObjects(data []byte, path string, value interface{}, keepOrigin bool) 
 // 目前内置以下字段：
 //   - upstream_model/model：始终为通道映射后的上游模型名。
 //   - original_model：请求最初指定的模型名。
+//   - user_id：已认证用户 ID。
+//   - user_group：用户所属分组。
+//   - token_group：令牌指定的分组；未指定时回退为用户分组。
+//   - using_group：当前实际使用的分组，自动跨分组重试时可能变化。
 //   - request_path：请求路径
 //   - is_channel_test：是否为渠道测试请求（同 is_test）。
 func BuildParamOverrideContext(info *RelayInfo) map[string]interface{} {
@@ -2051,6 +2106,10 @@ func BuildParamOverrideContext(info *RelayInfo) map[string]interface{} {
 	}
 
 	ctx := make(map[string]interface{})
+	ctx["user_id"] = info.UserId
+	ctx["user_group"] = info.UserGroup
+	ctx["token_group"] = info.TokenGroup
+	ctx["using_group"] = info.UsingGroup
 	if info.ChannelMeta != nil && info.ChannelMeta.UpstreamModelName != "" {
 		ctx["model"] = info.ChannelMeta.UpstreamModelName
 		ctx["upstream_model"] = info.ChannelMeta.UpstreamModelName
