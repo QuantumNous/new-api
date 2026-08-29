@@ -80,6 +80,7 @@ export type TaskPluginListItem = {
   runtime_status:
     | 'registered'
     | 'compile_failed'
+    | 'disabled'
     | 'disabled_fallback'
     | 'not_registered'
   runtime_error?: string

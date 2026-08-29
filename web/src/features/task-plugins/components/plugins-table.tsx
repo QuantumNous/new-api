@@ -210,9 +210,7 @@ export function PluginsTable(props: PluginsTableProps) {
               key: row.original.meta.key,
             })}
             checked={row.original.enabled}
-            disabled={
-              row.original.source === 'factory' || statusMutation.isPending
-            }
+            disabled={statusMutation.isPending}
             onCheckedChange={(checked) => {
               setStatusTarget(row.original)
               statusMutation.mutate({
@@ -237,6 +235,9 @@ export function PluginsTable(props: PluginsTableProps) {
                 {t('Compilation failed')}
               </Badge>
             )
+          }
+          if (status === 'disabled') {
+            return <Badge variant='secondary'>{t('Disabled')}</Badge>
           }
           if (status === 'disabled_fallback') {
             return (

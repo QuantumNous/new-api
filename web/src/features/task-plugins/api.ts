@@ -169,22 +169,22 @@ export async function deleteTaskPluginVersion(
   requireSuccess(response.data)
 }
 
-export async function getTaskPluginOverrideEnabledOption() {
+export async function getTaskPluginEnabledOption() {
   const response =
     await api.get<ApiResponse<Array<{ key: string; value: string }>>>(
       '/api/option/'
     )
   const options = requireSuccess(response.data)
   return (
-    options.find((option) => option.key === 'TaskPluginOverrideEnabled')
+    options.find((option) => option.key === 'TaskPluginEnabled')
       ?.value === 'true'
   )
 }
 
-export async function setTaskPluginOverrideEnabledOption(enabled: boolean) {
+export async function setTaskPluginEnabledOption(enabled: boolean) {
   const response = await api.put<ApiResponse<null>>(
     '/api/option/',
-    { key: 'TaskPluginOverrideEnabled', value: String(enabled) },
+    { key: 'TaskPluginEnabled', value: String(enabled) },
     mutationConfig
   )
   requireSuccess(response.data)

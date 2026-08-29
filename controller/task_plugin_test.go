@@ -117,6 +117,158 @@ func TestDisableThirdPartyPluginSupportsCascadeAndForce(t *testing.T) {
 	assert.Equal(t, common.ChannelStatusManuallyDisabled, updated.Status)
 }
 
+func setupTaskPluginFactoryDisableTest(t *testing.T) {
+	t.Helper()
+	setupTaskPluginControllerTest(t)
+	originalMap := common.OptionMap
+	common.OptionMapRWMutex.Lock()
+	common.OptionMap = map[string]string{}
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		jsplugin.DefaultRegistry.SetDisabledFactoryKeys(nil)
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = originalMap
+		common.OptionMapRWMutex.Unlock()
+	})
+}
+
+func postTaskPluginStatus(t *testing.T, key, query, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Params = gin.Params{{Key: "key", Value: key}}
+	path := "/api/plugin/task/" + key + "/status"
+	if query != "" {
+		path += "?" + query
+	}
+	context.Request = httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	context.Request.Header.Set("Content-Type", "application/json")
+	SetTaskPluginStatus(context)
+	return recorder
+}
+
+func listTaskPluginItem(t *testing.T, key string) taskPluginListItem {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodGet, "/api/plugin/task", nil)
+	ListTaskPlugins(context)
+	var response struct {
+		Success bool                 `json:"success"`
+		Data    []taskPluginListItem `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	for _, item := range response.Data {
+		if item.Meta.Key == key {
+			return item
+		}
+	}
+	t.Fatalf("task plugin %q not found", key)
+	return taskPluginListItem{}
+}
+
+func taskPluginOptionsHasKey(t *testing.T, key string) bool {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodGet, "/api/task_plugin_options", nil)
+	GetTaskPluginOptions(context)
+	var response struct {
+		Success bool `json:"success"`
+		Data    []struct {
+			Key string `json:"key"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	for _, option := range response.Data {
+		if option.Key == key {
+			return true
+		}
+	}
+	return false
+}
+
+func TestDisableFactoryPluginPersistsOptionAndHidesFromBindOptions(t *testing.T) {
+	setupTaskPluginFactoryDisableTest(t)
+	const key = "kling"
+
+	recorder := postTaskPluginStatus(t, key, "", `{"enabled":false}`)
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	assert.Equal(t, []string{key}, setting.GetTaskPluginDisabledFactoryKeys())
+	var stored model.Option
+	require.NoError(t, model.DB.Where("key = ?", setting.TaskPluginDisabledFactoryKeysKey).First(&stored).Error)
+	assert.Equal(t, `["kling"]`, stored.Value)
+
+	item := listTaskPluginItem(t, key)
+	assert.Equal(t, "factory", item.Source)
+	assert.False(t, item.Enabled)
+	assert.Equal(t, "disabled", item.RuntimeStatus)
+	assert.False(t, taskPluginOptionsHasKey(t, key))
+	_, ok := jsplugin.DefaultRegistry.Get(key)
+	assert.False(t, ok)
+
+	recorder = postTaskPluginStatus(t, key, "", `{"enabled":true}`)
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	assert.Empty(t, setting.GetTaskPluginDisabledFactoryKeys())
+	item = listTaskPluginItem(t, key)
+	assert.True(t, item.Enabled)
+	assert.Equal(t, "registered", item.RuntimeStatus)
+	assert.True(t, taskPluginOptionsHasKey(t, key))
+	_, ok = jsplugin.DefaultRegistry.Get(key)
+	assert.True(t, ok)
+}
+
+func TestDisableFactoryPluginRespectsInUseGuard(t *testing.T) {
+	setupTaskPluginFactoryDisableTest(t)
+	const key = "kling"
+	baseURL := "https://example.com"
+	channelSetting := `{"task_plugin_key":"kling"}`
+	channel := model.Channel{Type: constant.ChannelTypeTaskPlugin, Status: common.ChannelStatusEnabled, Name: "linked-factory", Models: "doc", Group: "default", BaseURL: &baseURL, Setting: &channelSetting}
+	require.NoError(t, channel.Insert())
+
+	recorder := postTaskPluginStatus(t, key, "", `{"enabled":false}`)
+	assert.Contains(t, recorder.Body.String(), `"success":false`)
+	assert.Contains(t, recorder.Body.String(), "task plugin is still in use")
+	assert.Empty(t, setting.GetTaskPluginDisabledFactoryKeys())
+	_, ok := jsplugin.DefaultRegistry.Get(key)
+	assert.True(t, ok)
+}
+
+func TestDisableFactoryOverrideRowKeepsEnabledFlagPath(t *testing.T) {
+	setupTaskPluginFactoryDisableTest(t)
+	factorySource, err := plugins.Source("kling")
+	require.NoError(t, err)
+	overrideSource := strings.Replace(factorySource, `version: "1.0.0"`, `version: "1.0.0-test-factory-status"`, 1)
+	loaded, err := jsplugin.DefaultRegistry.Register(overrideSource, jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("kling") })
+	plugin := model.TaskPlugin{
+		Key: "kling", APIVersion: loaded.Meta.APIVersion, Version: loaded.Meta.Version,
+		Source: overrideSource, SourceHash: "test-hash", Enabled: true,
+	}
+	require.NoError(t, model.SaveTaskPlugin(&plugin))
+	require.NoError(t, syncTaskPluginsOnce())
+
+	recorder := postTaskPluginStatus(t, "kling", "", `{"enabled":false}`)
+	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	assert.Empty(t, setting.GetTaskPluginDisabledFactoryKeys())
+
+	row, err := model.GetTaskPluginVersion("kling", "")
+	require.NoError(t, err)
+	assert.False(t, row.Enabled)
+
+	item := listTaskPluginItem(t, "kling")
+	assert.Equal(t, "override_over_factory", item.Source)
+	assert.False(t, item.Enabled)
+	assert.Equal(t, "disabled_fallback", item.RuntimeStatus)
+	assert.True(t, taskPluginOptionsHasKey(t, "kling"))
+	got, ok := jsplugin.DefaultRegistry.Get("kling")
+	require.True(t, ok)
+	assert.Equal(t, "1.0.0", got.Meta.Version)
+}
+
 func TestListTaskPluginsIncludesFactoryWithoutDatabaseRows(t *testing.T) {
 	setupTaskPluginControllerTest(t)
 	recorder := httptest.NewRecorder()
@@ -142,6 +294,21 @@ func TestListTaskPluginsIncludesFactoryWithoutDatabaseRows(t *testing.T) {
 	assert.Equal(t, "factory", factoryItem.Source)
 	assert.Equal(t, "registered", factoryItem.RuntimeStatus)
 	assert.NotEmpty(t, factoryItem.SourceHash)
+}
+
+func TestMasterSwitchEmptiesOptionsAndKeepsList(t *testing.T) {
+	setupTaskPluginControllerTest(t)
+	originalEnabled := constant.TaskPluginEnabled
+	jsplugin.DefaultRegistry.SetEnabled(false)
+	t.Cleanup(func() {
+		constant.TaskPluginEnabled = originalEnabled
+		jsplugin.DefaultRegistry.SetEnabled(originalEnabled)
+	})
+
+	assert.False(t, taskPluginOptionsHasKey(t, "kling"))
+	item := listTaskPluginItem(t, "kling")
+	assert.Equal(t, "factory", item.Source)
+	assert.Equal(t, "kling", item.Meta.Key)
 }
 
 func TestGetTaskPluginOptionsIncludesUsageSchema(t *testing.T) {

@@ -35,9 +35,9 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import {
-  getTaskPluginOverrideEnabledOption,
+  getTaskPluginEnabledOption,
   listTaskPlugins,
-  setTaskPluginOverrideEnabledOption,
+  setTaskPluginEnabledOption,
 } from './api'
 import { MarketplacePanel } from './components/marketplace-panel'
 import { PluginDetailSheet } from './components/plugin-detail-sheet'
@@ -54,18 +54,18 @@ export function TaskPlugins() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [confirmDisable, setConfirmDisable] = useState(false)
   const enabledQuery = useQuery({
-    queryKey: ['task-plugin-override-enabled'],
-    queryFn: getTaskPluginOverrideEnabledOption,
+    queryKey: ['task-plugin-enabled'],
+    queryFn: getTaskPluginEnabledOption,
   })
   const pluginsQuery = useQuery({
     queryKey: ['task-plugins'],
     queryFn: listTaskPlugins,
   })
   const enabledMutation = useMutation({
-    mutationFn: setTaskPluginOverrideEnabledOption,
+    mutationFn: setTaskPluginEnabledOption,
     onSuccess: (_, enabled) => {
-      queryClient.setQueryData(['task-plugin-override-enabled'], enabled)
-      toast.success(t('Custom task plugin setting updated'))
+      queryClient.setQueryData(['task-plugin-enabled'], enabled)
+      toast.success(t('Task plugin setting updated'))
     },
     onError: (error) => toast.error(error.message),
   })
@@ -80,7 +80,7 @@ export function TaskPlugins() {
         <SectionPageLayout.Actions>
           <div className='flex items-center gap-2'>
             <Switch
-              id='task-plugin-override-switch'
+              id='task-plugin-enabled-switch'
               checked={enabledQuery.data ?? false}
               disabled={enabledQuery.isLoading || enabledMutation.isPending}
               onCheckedChange={(checked) => {
@@ -89,10 +89,10 @@ export function TaskPlugins() {
               }}
             />
             <Label
-              htmlFor='task-plugin-override-switch'
+              htmlFor='task-plugin-enabled-switch'
               className='hidden text-sm font-normal sm:inline'
             >
-              {t('Enable custom task plugins')}
+              {t('Enable task plugins')}
             </Label>
             <Popover>
               <PopoverTrigger
@@ -109,11 +109,11 @@ export function TaskPlugins() {
               <PopoverContent align='end' className='w-80'>
                 <div className='space-y-2 text-sm'>
                   <p className='font-medium'>
-                    {t('Enable custom task plugins')}
+                    {t('Enable task plugins')}
                   </p>
                   <p className='text-muted-foreground'>
                     {t(
-                      'When disabled, all uploaded custom plugins are ignored and every platform falls back to its built-in factory plugin.'
+                      'When disabled, the entire task plugin system stops serving, including factory and custom plugins.'
                     )}
                   </p>
                   <p className='font-medium'>
@@ -172,12 +172,12 @@ export function TaskPlugins() {
       <ConfirmDialog
         open={confirmDisable}
         onOpenChange={setConfirmDisable}
-        title={t('Disable custom task plugins?')}
+        title={t('Disable task plugins?')}
         desc={
           <div className='space-y-2'>
             <p>
               {t(
-                'Third-party-only plugins become unavailable immediately. In-flight tasks will be handled by timeout cleanup.'
+                'Factory and custom plugins all stop serving immediately. In-flight tasks will be handled by timeout cleanup.'
               )}
             </p>
             <ul className='list-disc pl-5'>

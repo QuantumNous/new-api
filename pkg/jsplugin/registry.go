@@ -137,8 +137,9 @@ type LoadedPlugin struct {
 // RegistrySnapshot is a read-only copy of the metadata currently stored in
 // each registry layer.
 type RegistrySnapshot struct {
-	Factory  []Meta
-	Override []Meta
+	Factory         []Meta
+	Override        []Meta
+	DisabledFactory []string
 }
 
 type PreparedRoutingGeneration struct {
@@ -166,6 +167,8 @@ type Registry struct {
 	factory         map[string]*LoadedPlugin
 	override        map[string]*LoadedPlugin
 	activeOverride  map[string]*LoadedPlugin
+	disabledFactory map[string]struct{}
+	masterEnabled   atomic.Bool
 	overrideEnabled atomic.Bool
 	generation      atomic.Pointer[RoutingGeneration]
 	preparer        RoutingGenerationPreparer
@@ -181,6 +184,7 @@ func NewRegistry() *Registry {
 		activeOverride: make(map[string]*LoadedPlugin),
 		routingErrors:  make(map[string]string),
 	}
+	registry.masterEnabled.Store(true)
 	registry.overrideEnabled.Store(true)
 	generation, _ := buildRoutingGeneration(registry.factory, registry.override, true, 0)
 	registry.generation.Store(generation)
@@ -218,7 +222,7 @@ func (r *Registry) register(source string, options Options, factory bool) (*Load
 		overridePlugins[plugin.Meta.Key] = plugin
 	}
 	enabled := r.overrideEnabled.Load()
-	generation, routingErrors, err := r.prepareGeneration(factoryPlugins, overridePlugins, enabled, false, nil)
+	generation, routingErrors, err := r.prepareGeneration(filterDisabledFactory(factoryPlugins, r.disabledFactory), overridePlugins, enabled, false, nil)
 	if err != nil {
 		r.recordRebuildFailure(err)
 		return nil, err
@@ -442,6 +446,34 @@ func (r *Registry) GetByChannelType(channelType int) (*LoadedPlugin, bool) {
 	return r.Generation().GetByChannelType(channelType)
 }
 
+// Enabled reports the master switch position. When false the published
+// routing generation contains no plugins regardless of the other layers.
+func (r *Registry) Enabled() bool {
+	return r.masterEnabled.Load()
+}
+
+func (r *Registry) SetEnabled(enabled bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.masterEnabled.Load() == enabled {
+		return
+	}
+	previous := r.masterEnabled.Load()
+	r.masterEnabled.Store(enabled)
+	overrideEnabled := r.overrideEnabled.Load()
+	var retainCurrent map[string]struct{}
+	if enabled && overrideEnabled {
+		retainCurrent = pluginMapKeys(r.override)
+	}
+	generation, routingErrors, err := r.prepareGeneration(filterDisabledFactory(r.factory, r.disabledFactory), r.override, overrideEnabled, true, retainCurrent)
+	if err != nil {
+		r.masterEnabled.Store(previous)
+		r.recordRebuildFailure(err)
+		return
+	}
+	r.publishGeneration(generation, routingErrors, r.resolveActiveOverrides(generation, r.override, overrideEnabled))
+}
+
 func (r *Registry) SetOverrideEnabled(enabled bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -452,12 +484,51 @@ func (r *Registry) SetOverrideEnabled(enabled bool) {
 	if enabled {
 		retainCurrent = pluginMapKeys(r.override)
 	}
-	generation, routingErrors, err := r.prepareGeneration(r.factory, r.override, enabled, true, retainCurrent)
+	generation, routingErrors, err := r.prepareGeneration(filterDisabledFactory(r.factory, r.disabledFactory), r.override, enabled, true, retainCurrent)
 	if err != nil {
 		r.recordRebuildFailure(err)
 		return
 	}
 	r.overrideEnabled.Store(enabled)
+	r.publishGeneration(generation, routingErrors, r.resolveActiveOverrides(generation, r.override, enabled))
+}
+
+func (r *Registry) SetDisabledFactoryKeys(keys []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	next := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		next[key] = struct{}{}
+	}
+	if len(next) == len(r.disabledFactory) {
+		same := true
+		for key := range next {
+			if _, ok := r.disabledFactory[key]; !ok {
+				same = false
+				break
+			}
+		}
+		if same {
+			return
+		}
+	}
+
+	enabled := r.overrideEnabled.Load()
+	var retainCurrent map[string]struct{}
+	if enabled {
+		retainCurrent = pluginMapKeys(r.override)
+	}
+	generation, routingErrors, err := r.prepareGeneration(filterDisabledFactory(r.factory, next), r.override, enabled, true, retainCurrent)
+	if err != nil {
+		r.recordRebuildFailure(err)
+		return
+	}
+	r.disabledFactory = next
 	r.publishGeneration(generation, routingErrors, r.resolveActiveOverrides(generation, r.override, enabled))
 }
 
@@ -474,7 +545,7 @@ func (r *Registry) Unregister(key string) error {
 	if enabled {
 		retainCurrent = pluginMapKeys(overridePlugins)
 	}
-	generation, routingErrors, err := r.prepareGeneration(r.factory, overridePlugins, enabled, true, retainCurrent)
+	generation, routingErrors, err := r.prepareGeneration(filterDisabledFactory(r.factory, r.disabledFactory), overridePlugins, enabled, true, retainCurrent)
 	if err != nil {
 		r.recordRebuildFailure(err)
 		return err
@@ -507,7 +578,7 @@ func (r *Registry) ReplaceOverrides(plugins []*LoadedPlugin) error {
 	if enabled {
 		retainCurrent = pluginMapKeys(overridePlugins)
 	}
-	generation, routingErrors, err := r.prepareGeneration(r.factory, overridePlugins, enabled, true, retainCurrent)
+	generation, routingErrors, err := r.prepareGeneration(filterDisabledFactory(r.factory, r.disabledFactory), overridePlugins, enabled, true, retainCurrent)
 	if err != nil {
 		r.recordRebuildFailure(err)
 		return err
@@ -544,7 +615,7 @@ func (r *Registry) SetGenerationPreparer(preparer RoutingGenerationPreparer) err
 	if enabled {
 		retainCurrent = pluginMapKeys(r.override)
 	}
-	generation, routingErrors, err := r.prepareGeneration(r.factory, r.override, enabled, true, retainCurrent)
+	generation, routingErrors, err := r.prepareGeneration(filterDisabledFactory(r.factory, r.disabledFactory), r.override, enabled, true, retainCurrent)
 	if err != nil {
 		r.preparer = previous
 		r.recordRebuildFailure(err)
@@ -591,6 +662,10 @@ func (r *Registry) prepareGeneration(
 	enabled, tolerateConflicts bool,
 	retainCurrent map[string]struct{},
 ) (*RoutingGeneration, map[string]string, error) {
+	if !r.masterEnabled.Load() {
+		factory = map[string]*LoadedPlugin{}
+		override = map[string]*LoadedPlugin{}
+	}
 	current := r.generation.Load()
 	number := uint64(1)
 	if current != nil {
@@ -734,8 +809,9 @@ func (r *Registry) Snapshot() RegistrySnapshot {
 	defer r.mu.RUnlock()
 
 	snapshot := RegistrySnapshot{
-		Factory:  make([]Meta, 0, len(r.factory)),
-		Override: make([]Meta, 0, len(r.override)),
+		Factory:         make([]Meta, 0, len(r.factory)),
+		Override:        make([]Meta, 0, len(r.override)),
+		DisabledFactory: make([]string, 0, len(r.disabledFactory)),
 	}
 	for _, plugin := range r.factory {
 		snapshot.Factory = append(snapshot.Factory, cloneMeta(plugin.Meta))
@@ -743,8 +819,12 @@ func (r *Registry) Snapshot() RegistrySnapshot {
 	for _, plugin := range r.override {
 		snapshot.Override = append(snapshot.Override, cloneMeta(plugin.Meta))
 	}
+	for key := range r.disabledFactory {
+		snapshot.DisabledFactory = append(snapshot.DisabledFactory, key)
+	}
 	sort.Slice(snapshot.Factory, func(i, j int) bool { return snapshot.Factory[i].Key < snapshot.Factory[j].Key })
 	sort.Slice(snapshot.Override, func(i, j int) bool { return snapshot.Override[i].Key < snapshot.Override[j].Key })
+	sort.Strings(snapshot.DisabledFactory)
 	return snapshot
 }
 
@@ -796,6 +876,20 @@ func cloneUsageExamples(examples []UsageExample) []UsageExample {
 		cloned[index].Facts = facts
 	}
 	return cloned
+}
+
+func filterDisabledFactory(factory map[string]*LoadedPlugin, disabled map[string]struct{}) map[string]*LoadedPlugin {
+	if len(disabled) == 0 {
+		return factory
+	}
+	filtered := make(map[string]*LoadedPlugin, len(factory))
+	for key, plugin := range factory {
+		if _, skip := disabled[key]; skip {
+			continue
+		}
+		filtered[key] = plugin
+	}
+	return filtered
 }
 
 func clonePluginMap(source map[string]*LoadedPlugin) map[string]*LoadedPlugin {

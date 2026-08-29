@@ -1,13 +1,15 @@
 package setting
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 )
 
 const (
-	TaskPluginMarketplaceSourcesKey = "TaskPluginMarketplaceSources"
+	TaskPluginMarketplaceSourcesKey  = "TaskPluginMarketplaceSources"
+	TaskPluginDisabledFactoryKeysKey = "TaskPluginDisabledFactoryKeys"
 
 	officialTaskPluginMarketplaceIndexURL = "https://www.newapi.ai/api/v1/plugins/index.json"
 	githubTaskPluginMarketplaceIndexURL   = "https://raw.githubusercontent.com/QuantumNous/new-api-plugins/main/index.json"
@@ -53,4 +55,66 @@ func TaskPluginMarketplaceSources2JsonString() string {
 		return "[]"
 	}
 	return string(encoded)
+}
+
+func ParseTaskPluginDisabledFactoryKeys(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []string{}
+	}
+	var keys []string
+	if err := common.Unmarshal([]byte(raw), &keys); err != nil {
+		return []string{}
+	}
+	if keys == nil {
+		return []string{}
+	}
+	return keys
+}
+
+func GetTaskPluginDisabledFactoryKeys() []string {
+	common.OptionMapRWMutex.RLock()
+	raw := ""
+	if common.OptionMap != nil {
+		raw = common.OptionMap[TaskPluginDisabledFactoryKeysKey]
+	}
+	common.OptionMapRWMutex.RUnlock()
+	return ParseTaskPluginDisabledFactoryKeys(raw)
+}
+
+func SetTaskPluginDisabledFactoryKeysOption(keys []string) error {
+	normalized := make([]string, 0, len(keys))
+	seen := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, key)
+	}
+	sort.Strings(normalized)
+	encoded, err := common.Marshal(normalized)
+	if err != nil {
+		return err
+	}
+	common.OptionMapRWMutex.Lock()
+	if common.OptionMap == nil {
+		common.OptionMap = make(map[string]string)
+	}
+	common.OptionMap[TaskPluginDisabledFactoryKeysKey] = string(encoded)
+	common.OptionMapRWMutex.Unlock()
+	return nil
+}
+
+func IsTaskPluginFactoryDisabled(key string) bool {
+	for _, item := range GetTaskPluginDisabledFactoryKeys() {
+		if item == key {
+			return true
+		}
+	}
+	return false
 }

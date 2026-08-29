@@ -196,11 +196,14 @@ func ListTaskPlugins(c *gin.Context) {
 		} else {
 			item.Source = "factory"
 			item.Meta = factoryMeta
+			item.Enabled = !setting.IsTaskPluginFactoryDisabled(key)
 			source, sourceErr := plugins.Source(key)
 			if sourceErr == nil {
 				item.SourceHash = fmt.Sprintf("%x", sha256.Sum256([]byte(source)))
 			}
-			if message := runtimeErrors[key]; message != "" {
+			if !item.Enabled {
+				item.RuntimeStatus = "disabled"
+			} else if message := runtimeErrors[key]; message != "" {
 				item.RuntimeStatus = "compile_failed"
 				item.RuntimeError = message
 			}
@@ -444,7 +447,7 @@ func SetTaskPluginStatus(c *gin.Context) {
 	}
 	key := c.Param("key")
 	disabledChannels := 0
-	if !*request.Enabled && !taskPluginHasFactory(key) {
+	if !*request.Enabled {
 		channels, inFlight, usageErr := model.GetTaskPluginUsage(key)
 		if usageErr != nil {
 			common.ApiError(c, usageErr)
@@ -463,6 +466,43 @@ func SetTaskPluginStatus(c *gin.Context) {
 				}
 			}
 		}
+	}
+	_, lookupErr := model.GetTaskPluginVersion(key, "")
+	hasActiveOverride := lookupErr == nil
+	if lookupErr != nil && !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
+		common.ApiError(c, lookupErr)
+		return
+	}
+	// The disabled set suppresses only the factory fallback layer. An enabled
+	// override for the same key keeps serving and is toggled independently.
+	if taskPluginHasFactory(key) && !hasActiveOverride {
+		keys := setting.GetTaskPluginDisabledFactoryKeys()
+		if *request.Enabled {
+			next := make([]string, 0, len(keys))
+			for _, item := range keys {
+				if item != key {
+					next = append(next, item)
+				}
+			}
+			keys = next
+		} else {
+			keys = append(append([]string{}, keys...), key)
+		}
+		if err := setting.SetTaskPluginDisabledFactoryKeysOption(keys); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		encoded, err := common.Marshal(setting.GetTaskPluginDisabledFactoryKeys())
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if err = model.UpdateOption(setting.TaskPluginDisabledFactoryKeysKey, string(encoded)); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		common.ApiSuccess(c, gin.H{"plugin_enabled": *request.Enabled, "disabled_channels": disabledChannels})
+		return
 	}
 	if err := model.SetTaskPluginEnabled(key, *request.Enabled); err != nil {
 		common.ApiError(c, err)
@@ -528,9 +568,18 @@ func GetTaskPluginOptions(c *gin.Context) {
 	snapshot := jsplugin.DefaultRegistry.Snapshot()
 	seen := make(map[string]bool)
 	options := make([]gin.H, 0, len(snapshot.Factory)+len(snapshot.Override))
-	for _, metas := range [][]jsplugin.Meta{snapshot.Override, snapshot.Factory} {
+	for layer, metas := range [][]jsplugin.Meta{snapshot.Override, snapshot.Factory} {
 		for _, meta := range metas {
 			if seen[meta.Key] {
+				continue
+			}
+			// Disabled factory keys are omitted from bind options. The disabled
+			// set suppresses only the factory fallback; an enabled override for
+			// the same key is listed in the override pass and still appears.
+			if layer == 1 && setting.IsTaskPluginFactoryDisabled(meta.Key) {
+				continue
+			}
+			if _, ok := jsplugin.DefaultRegistry.Get(meta.Key); !ok {
 				continue
 			}
 			seen[meta.Key] = true
