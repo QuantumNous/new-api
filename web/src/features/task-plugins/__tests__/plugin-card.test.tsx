@@ -78,22 +78,23 @@ function PluginCardHarness({ item }: { item: TaskPluginListItem }) {
 }
 
 describe('PluginCard layout', () => {
-  test('given a plugin, the scalar fields share one wrapping inline stats row', () => {
+  test('given a plugin, the versions read as pills beside the source and runtime badges', () => {
     render(<PluginCardHarness item={makeItem()} />)
 
-    const versionStat = screen.getByText('Active version').parentElement
-    const modelsStat = screen.getByText('Models').parentElement
-    expect(versionStat).not.toBeNull()
-    expect(versionStat?.parentElement).toBe(modelsStat?.parentElement)
-    expect(versionStat?.parentElement).toHaveClass('flex-wrap')
+    const version = screen.getByText('v1.2.3')
+    const apiVersion = screen.getByText('API v1')
+    const badgeRow = version.parentElement
+    expect(badgeRow).toBe(apiVersion.parentElement)
+    expect(badgeRow).toHaveClass('flex-wrap')
+    expect(badgeRow?.textContent).toContain('source-badge')
+    expect(badgeRow?.textContent).toContain('runtime-badge')
   })
 
-  test('given a plugin, the API version renders with the v prefix like the table view', () => {
+  test('given a plugin, the version pills carry labelled accessible names', () => {
     render(<PluginCardHarness item={makeItem()} />)
 
-    expect(screen.getByText('v1')).toBeInTheDocument()
-    expect(screen.getByText('1.2.3')).toBeInTheDocument()
-    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(screen.getByLabelText('Active version 1.2.3')).toBeInTheDocument()
+    expect(screen.getByLabelText('API version v1')).toBeInTheDocument()
   })
 
   test('given a description, it is clamped to two lines', () => {
@@ -104,20 +105,50 @@ describe('PluginCard layout', () => {
     )
   })
 
-  test('given a usage schema, billing parameters render as the compact list without a table', () => {
-    const { container } = render(<PluginCardHarness item={makeItem()} />)
+  test('given a plugin, the bound models render as named chips rather than a count', () => {
+    render(<PluginCardHarness item={makeItem()} />)
 
-    expect(screen.getByText('Billing parameters')).toBeInTheDocument()
-    expect(screen.getByText('duration')).toBeInTheDocument()
-    expect(container.querySelector('table')).toBeNull()
+    expect(screen.getByText('Models')).toBeInTheDocument()
+    expect(screen.getByText('kling-v1')).toBeInTheDocument()
+    expect(screen.getByText('kling-v2')).toBeInTheDocument()
   })
 
-  test('given no usage schema, the billing parameters section is omitted', () => {
-    const item = makeItem()
-    delete item.meta.usageSchema
-    render(<PluginCardHarness item={item} />)
+  test('given more than four models, only four chips render plus an overflow count', () => {
+    render(
+      <PluginCardHarness
+        item={makeItem({
+          meta: {
+            ...makeItem().meta,
+            models: ['a', 'b', 'c', 'd', 'e', 'f'],
+          },
+        })}
+      />
+    )
+
+    for (const model of ['a', 'b', 'c', 'd']) {
+      expect(screen.getByText(model)).toBeInTheDocument()
+    }
+    expect(screen.queryByText('e')).toBeNull()
+    expect(screen.queryByText('f')).toBeNull()
+    expect(screen.getByText('+2')).toHaveAttribute('title', 'e, f')
+  })
+
+  test('given no models, the models section is omitted', () => {
+    render(
+      <PluginCardHarness
+        item={makeItem({ meta: { ...makeItem().meta, models: [] } })}
+      />
+    )
+
+    expect(screen.queryByText('Models')).toBeNull()
+  })
+
+  test('given a usage schema, billing parameters stay out of the card', () => {
+    const { container } = render(<PluginCardHarness item={makeItem()} />)
 
     expect(screen.queryByText('Billing parameters')).toBeNull()
+    expect(screen.queryByText('duration')).toBeNull()
+    expect(container.querySelector('table')).toBeNull()
   })
 
   test('given a plugin, the footer pins the enabled toggle at the card bottom', () => {

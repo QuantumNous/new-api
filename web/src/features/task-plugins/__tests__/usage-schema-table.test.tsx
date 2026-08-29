@@ -35,72 +35,8 @@ const schema: BillingUsageSchema = {
   },
 }
 
-describe('UsageSchemaTable compact layout', () => {
-  test('given compact mode, fields render as a stacked list without a table element', () => {
-    const { container } = render(
-      <UsageSchemaTable schema={schema} compact />
-    )
-
-    expect(container.querySelector('table')).toBeNull()
-    expect(screen.getByText('duration')).toBeInTheDocument()
-    expect(screen.getByText('resolution')).toBeInTheDocument()
-  })
-
-  test('given compact mode, field names keep the prominent mono style', () => {
-    render(<UsageSchemaTable schema={schema} compact />)
-
-    const name = screen.getByText('duration')
-    expect(name).toHaveClass('font-mono')
-    expect(name).toHaveClass('font-medium')
-  })
-
-  test('given compact mode, type and unit merge into a single badge', () => {
-    render(<UsageSchemaTable schema={schema} compact />)
-
-    expect(screen.getByText('Number · Second')).toBeInTheDocument()
-    expect(screen.getByText('Enum')).toBeInTheDocument()
-  })
-
-  test('given compact mode and long enum values, the line truncates with the full list in title', () => {
-    render(<UsageSchemaTable schema={schema} compact />)
-
-    const enumLine = screen.getByText('480p, 720p, 1080p, 4k')
-    expect(enumLine).toHaveClass('truncate')
-    expect(enumLine).toHaveAttribute('title', '480p, 720p, 1080p, 4k')
-  })
-
-  test('given compact mode, descriptions render in full with wrapping enabled', () => {
-    render(<UsageSchemaTable schema={schema} compact />)
-
-    const description = screen.getByText('Video duration in seconds.')
-    expect(description).toHaveClass('break-words')
-    expect(description).not.toHaveClass('truncate')
-  })
-
-  test('given compact mode, the list is height-capped with its own vertical scroll', () => {
-    const { container } = render(
-      <UsageSchemaTable schema={schema} compact />
-    )
-
-    const region = container.firstElementChild
-    expect(region).toHaveClass('max-h-56')
-    expect(region).toHaveClass('overflow-y-auto')
-  })
-
-  test('given a description without an English entry, the available locale text still renders', () => {
-    render(
-      <UsageSchemaTable
-        schema={{ note: { description: { zh: '仅中文说明。' } } }}
-        compact
-      />
-    )
-
-    expect(screen.getByText('仅中文说明。')).toBeInTheDocument()
-  })
-})
-
-describe('UsageSchemaTable full layout', () => {
-  test('given non-compact mode, the five-column table is preserved for the detail sheet', () => {
+describe('UsageSchemaTable layout', () => {
+  test('given a usage schema, every declaration renders as a five-column table row', () => {
     render(<UsageSchemaTable schema={schema} />)
 
     for (const header of [
@@ -120,5 +56,27 @@ describe('UsageSchemaTable full layout', () => {
     expect(
       screen.getByRole('cell', { name: '480p, 720p, 1080p, 4k' })
     ).toBeInTheDocument()
+  })
+
+  test('given a description without an English entry, the available locale text still renders', () => {
+    render(
+      <UsageSchemaTable
+        schema={{ note: { description: { zh: '仅中文说明。' } } }}
+      />
+    )
+
+    expect(
+      screen.getByRole('cell', { name: '仅中文说明。' })
+    ).toBeInTheDocument()
+  })
+
+  test('given a field without a unit, the unit cell falls back to an em dash', () => {
+    render(<UsageSchemaTable schema={schema} />)
+
+    const resolutionRow = screen.getByRole('cell', {
+      name: 'resolution',
+    }).parentElement
+    expect(resolutionRow).not.toBeNull()
+    expect(resolutionRow?.textContent).toContain('—')
   })
 })

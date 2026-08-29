@@ -20,17 +20,30 @@ import { flexRender, type Row } from '@tanstack/react-table'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
-import { PluginIcon } from './plugin-icon'
 import type { TaskPluginListItem } from '../types'
-import { UsageSchemaTable } from './usage-schema-table'
+import { PluginIcon } from './plugin-icon'
+
+/**
+ * A card is one grid cell, so the model list has to stay a fixed number of
+ * lines regardless of how many models a plugin binds. The overflow count keeps
+ * the remaining names reachable through its tooltip.
+ */
+const MAX_VISIBLE_MODELS = 4
 
 /**
  * Bespoke task-plugin card for the card view. Reuses the column cell renderers
  * via `flexRender` so the table and card views share one implementation of the
  * source/runtime badges, the enable switch (with its usage-guard mutation),
  * and the actions menu.
+ *
+ * The card answers "which plugin is this and is it live" — identity, source,
+ * runtime state, the versions, the models it binds, and the enable toggle.
+ * Manifest detail (billing parameters, endpoints, source) belongs to the detail
+ * sheet: rendering it here made every card a different height and buried the
+ * plugin's own description under its parameter descriptions.
  */
 function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
   const { t, i18n } = useTranslation()
@@ -39,6 +52,8 @@ function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
     row.original.meta.description,
     i18n.language
   )
+  const models = row.original.meta.models ?? []
+  const hiddenModels = models.slice(MAX_VISIBLE_MODELS)
 
   const renderCell = (id: string) => {
     const cell = cells.find((c) => c.column.id === id)
@@ -72,41 +87,61 @@ function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
         </div>
       </div>
 
+      {/* Row 2: source + runtime badges next to the version pills, all wrapping
+        freely. The versions read as pills rather than labelled stats because
+        `v1.2.3` and `API v1` already name themselves. */}
+      <div className='flex flex-wrap items-center gap-1.5'>
+        {renderCell('source')}
+        {renderCell('runtime')}
+        <Badge
+          variant='secondary'
+          className='font-mono font-normal'
+          aria-label={`${t('Active version')} ${row.original.meta.version}`}
+        >
+          {row.original.meta.version ? `v${row.original.meta.version}` : '—'}
+        </Badge>
+        <Badge
+          variant='secondary'
+          className='font-mono font-normal'
+          aria-label={`${t('API version')} v${row.original.meta.apiVersion}`}
+        >
+          API v{row.original.meta.apiVersion}
+        </Badge>
+      </div>
+
       {description ? (
         <p className='text-muted-foreground line-clamp-2 text-xs'>
           {description}
         </p>
       ) : null}
 
-      {/* Row 2: source + runtime badges wrap freely */}
-      <div className='flex flex-wrap items-center gap-1.5'>
-        {renderCell('source')}
-        {renderCell('runtime')}
-      </div>
-
-      {/* Row 3: scalar fields as one inline stats row that wraps as needed */}
-      <div className='flex flex-wrap items-center gap-x-3 gap-y-1 text-xs'>
-        <span className='flex items-baseline gap-1'>
-          <span className={labelClass}>{t('Active version')}</span>
-          <span className='font-mono'>{row.original.meta.version || '-'}</span>
-        </span>
-        <span className='flex items-baseline gap-1'>
-          <span className={labelClass}>{t('API version')}</span>
-          <span className='font-mono'>v{row.original.meta.apiVersion}</span>
-        </span>
-        <span className='flex items-baseline gap-1'>
-          <span className={labelClass}>{t('Models')}</span>
-          <span>{row.original.meta.models?.length ?? 0}</span>
-        </span>
-      </div>
-
-      {row.original.meta.usageSchema &&
-        Object.keys(row.original.meta.usageSchema).length > 0 && (
-          <div className='space-y-1.5 border-t pt-2'>
-            <div className={labelClass}>{t('Billing parameters')}</div>
-            <UsageSchemaTable schema={row.original.meta.usageSchema} compact />
+      {/* Row 3: the bound models, named rather than counted */}
+      {models.length > 0 ? (
+        <div className='space-y-1.5'>
+          <div className={labelClass}>{t('Models')}</div>
+          <div className='flex flex-wrap gap-1'>
+            {models.slice(0, MAX_VISIBLE_MODELS).map((model) => (
+              <Badge
+                key={model}
+                variant='outline'
+                className='max-w-full font-mono font-normal'
+                title={model}
+              >
+                <span className='min-w-0 truncate'>{model}</span>
+              </Badge>
+            ))}
+            {hiddenModels.length > 0 ? (
+              <Badge
+                variant='secondary'
+                className='font-normal'
+                title={hiddenModels.join(', ')}
+              >
+                +{hiddenModels.length}
+              </Badge>
+            ) : null}
           </div>
-        )}
+        </div>
+      ) : null}
 
       {/* Footer: enabled toggle pinned to the card bottom */}
       <div className='mt-auto flex items-center justify-between gap-2 border-t pt-2'>
