@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
-import { GitBranch, Sparkles, KeyRound } from 'lucide-react'
+import { CircleHelp, GitBranch, Sparkles, KeyRound } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -44,6 +44,7 @@ import { LOG_TYPE_ALL_VALUE } from '../../constants'
 import type { UsageLog } from '../../data/schema'
 import {
   formatModelName,
+  getUsageTokenBreakdown,
   getTieredBillingSummary,
   hasAnyCacheTokens,
   parseLogOther,
@@ -644,43 +645,53 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
     },
     {
       accessorKey: 'prompt_tokens',
-      header: 'Tokens',
+      header: () => (
+        <TooltipProvider delay={300}>
+          <Tooltip>
+            <TooltipTrigger
+              render={<span className='inline-flex items-center gap-1' />}
+            >
+              {t('Tokens')}
+              <CircleHelp
+                className='text-muted-foreground size-3.5'
+                aria-hidden='true'
+              />
+            </TooltipTrigger>
+            <TooltipContent side='top' className='max-w-xs'>
+              {t(
+                'For Claude-compatible requests, input tokens exclude cache reads and cache writes. Cache tokens are shown separately.'
+              )}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ),
       cell: ({ row }) => {
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
 
         const other = parseLogOther(log.other)
-
-        const promptTokens = log.prompt_tokens || 0
-        const completionTokens = log.completion_tokens || 0
-        if (promptTokens === 0 && completionTokens === 0) {
+        const tokenUsage = getUsageTokenBreakdown(log, other)
+        if (!tokenUsage.hasTokens) {
           return <span className='text-muted-foreground text-xs'>-</span>
         }
-
-        const cacheReadTokens = other?.cache_tokens || 0
-        const cacheWrite5m = other?.cache_creation_tokens_5m || 0
-        const cacheWrite1h = other?.cache_creation_tokens_1h || 0
-        const hasSplitCache = cacheWrite5m > 0 || cacheWrite1h > 0
-        const cacheWriteTokens = hasSplitCache
-          ? cacheWrite5m + cacheWrite1h
-          : other?.cache_creation_tokens || 0
 
         return (
           <div className='flex flex-col gap-0.5'>
             <span className='font-mono text-xs font-medium tabular-nums'>
-              {promptTokens.toLocaleString()} /{' '}
-              {completionTokens.toLocaleString()}
+              {tokenUsage.promptTokens.toLocaleString()} /{' '}
+              {tokenUsage.completionTokens.toLocaleString()}
             </span>
-            {(cacheReadTokens > 0 || cacheWriteTokens > 0) && (
+            {(tokenUsage.cacheReadTokens > 0 ||
+              tokenUsage.cacheWriteTokens > 0) && (
               <div className='flex items-center gap-1 text-[11px]'>
-                {cacheReadTokens > 0 && (
+                {tokenUsage.cacheReadTokens > 0 && (
                   <span className='text-muted-foreground/60'>
-                    {t('Cache')}↓ {cacheReadTokens.toLocaleString()}
+                    {t('Cache')}↓ {tokenUsage.cacheReadTokens.toLocaleString()}
                   </span>
                 )}
-                {cacheWriteTokens > 0 && (
+                {tokenUsage.cacheWriteTokens > 0 && (
                   <span className='text-muted-foreground/60'>
-                    ↑ {cacheWriteTokens.toLocaleString()}
+                    ↑ {tokenUsage.cacheWriteTokens.toLocaleString()}
                   </span>
                 )}
               </div>

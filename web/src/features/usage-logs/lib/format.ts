@@ -96,6 +96,69 @@ function isPositiveFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
 }
 
+export interface UsageTokenBreakdown {
+  promptTokens: number
+  completionTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  cacheWrite5mTokens: number
+  cacheWrite1hTokens: number
+  hasTokens: boolean
+  usesClaudeSemantics: boolean
+}
+
+function tokenCount(value: unknown): number {
+  return isPositiveFiniteNumber(value) ? value : 0
+}
+
+export function getUsageTokenBreakdown(
+  log: UsageLog,
+  other: LogOtherData | null | undefined
+): UsageTokenBreakdown {
+  const promptTokens = tokenCount(log.prompt_tokens)
+  const completionTokens = tokenCount(log.completion_tokens)
+  const cacheReadTokens = tokenCount(other?.cache_tokens)
+  const imageOutputTokens =
+    other?.image === true ? tokenCount(other.image_output) : 0
+  const rawCacheWrite5mTokens = tokenCount(other?.cache_creation_tokens_5m)
+  const rawCacheWrite1hTokens = tokenCount(other?.cache_creation_tokens_1h)
+  const splitCacheWriteTokens = rawCacheWrite5mTokens + rawCacheWrite1hTokens
+  const normalizedCacheWriteTokens = tokenCount(other?.cache_write_tokens)
+  const legacyCacheWriteTokens = tokenCount(other?.cache_creation_tokens)
+  const cacheWriteTokens =
+    normalizedCacheWriteTokens ||
+    splitCacheWriteTokens ||
+    legacyCacheWriteTokens
+  const hasConsistentSplitCacheWrite =
+    splitCacheWriteTokens > 0 &&
+    (normalizedCacheWriteTokens === 0 ||
+      normalizedCacheWriteTokens === splitCacheWriteTokens)
+  const cacheWrite5mTokens = hasConsistentSplitCacheWrite
+    ? rawCacheWrite5mTokens
+    : 0
+  const cacheWrite1hTokens = hasConsistentSplitCacheWrite
+    ? rawCacheWrite1hTokens
+    : 0
+  const usesClaudeSemantics =
+    other?.claude === true || other?.usage_semantic === 'anthropic'
+
+  return {
+    promptTokens,
+    completionTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    cacheWrite5mTokens,
+    cacheWrite1hTokens,
+    hasTokens:
+      promptTokens > 0 ||
+      completionTokens > 0 ||
+      cacheReadTokens > 0 ||
+      cacheWriteTokens > 0 ||
+      imageOutputTokens > 0,
+    usesClaudeSemantics,
+  }
+}
+
 function hasLegacySearchSurcharge(
   enabled: boolean | undefined,
   count: number | undefined,
