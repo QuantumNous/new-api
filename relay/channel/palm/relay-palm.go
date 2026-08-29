@@ -73,7 +73,7 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 		}
 		fullTextResponse := streamResponsePaLM2OpenAI(&palmResponse)
 		fullTextResponse.Id = responseId
-		fullTextResponse.Created = createdTime
+		fullTextResponse.Created = dto.UnixTimeRaw(createdTime)
 		if len(palmResponse.Candidates) > 0 {
 			responseText = palmResponse.Candidates[0].Content
 		}

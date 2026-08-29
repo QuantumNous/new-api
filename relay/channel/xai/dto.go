@@ -1,12 +1,14 @@
 package xai
 
-import "github.com/QuantumNous/new-api/relaykit/dto"
+import (
+	"github.com/QuantumNous/new-api/relaykit/dto"
+)
 
 // ChatCompletionResponse represents the response from XAI chat completion API
 type ChatCompletionResponse struct {
 	Id                string                         `json:"id"`
 	Object            string                         `json:"object"`
-	Created           int64                          `json:"created"`
+	Created           dto.UnixTime                   `json:"created"`
 	Model             string                         `json:"model"`
 	Choices           []dto.OpenAITextResponseChoice `json:"choices"`
 	Usage             *dto.Usage                     `json:"usage"`

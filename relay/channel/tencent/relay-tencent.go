@@ -52,7 +52,7 @@ func responseTencent2OpenAI(response *TencentChatResponse) *dto.OpenAITextRespon
 	fullTextResponse := dto.OpenAITextResponse{
 		Id:      response.Id,
 		Object:  "chat.completion",
-		Created: common.GetTimestamp(),
+		Created: dto.UnixTimeRaw(common.GetTimestamp()),
 		Usage: dto.Usage{
 			PromptTokens:     response.Usage.PromptTokens,
 			CompletionTokens: response.Usage.CompletionTokens,
@@ -76,7 +76,7 @@ func responseTencent2OpenAI(response *TencentChatResponse) *dto.OpenAITextRespon
 func streamResponseTencent2OpenAI(TencentResponse *TencentChatResponse) *dto.ChatCompletionsStreamResponse {
 	response := dto.ChatCompletionsStreamResponse{
 		Object:  "chat.completion.chunk",
-		Created: common.GetTimestamp(),
+		Created: dto.UnixTimeRaw(common.GetTimestamp()),
 		Model:   "tencent-hunyuan",
 	}
 	if len(TencentResponse.Choices) > 0 {

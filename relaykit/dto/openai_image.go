@@ -182,7 +182,7 @@ func (i *ImageRequest) SetModelName(modelName string) {
 
 type ImageResponse struct {
 	Data     []ImageData     `json:"data"`
-	Created  int64           `json:"created"`
+	Created  UnixTime        `json:"created"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
 type ImageData struct {

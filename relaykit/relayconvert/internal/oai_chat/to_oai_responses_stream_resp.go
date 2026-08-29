@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 )
@@ -17,7 +16,7 @@ type ChatToResponsesStreamEvent struct {
 type ChatToResponsesStreamState struct {
 	ID      string
 	Model   string
-	Created int64
+	Created dto.UnixTime
 	Usage   *dto.Usage
 
 	status            string
@@ -55,7 +54,6 @@ func NewChatToResponsesStreamState(id string, model string) *ChatToResponsesStre
 	return &ChatToResponsesStreamState{
 		ID:              id,
 		Model:           model,
-		Created:         time.Now().Unix(),
 		Usage:           &dto.Usage{},
 		status:          "completed",
 		textOutputIndex: -1,
@@ -74,7 +72,7 @@ func ChatCompletionsStreamChunkToResponsesEvents(chunk *dto.ChatCompletionsStrea
 	if state.Model == "" {
 		state.Model = chunk.Model
 	}
-	if state.Created == 0 {
+	if !dto.UnixTimeEmpty(chunk.Created) {
 		state.Created = chunk.Created
 	}
 	if chunk.Usage != nil {
@@ -320,7 +318,7 @@ func (s *ChatToResponsesStreamState) finalResponse() *dto.OpenAIResponsesRespons
 	return &dto.OpenAIResponsesResponse{
 		ID:                s.ID,
 		Object:            "response",
-		CreatedAt:         int(s.Created),
+		CreatedAt:         s.Created,
 		Status:            []byte(fmt.Sprintf("%q", s.status)),
 		IncompleteDetails: s.incompleteDetails,
 		Model:             s.Model,
@@ -333,7 +331,7 @@ func (s *ChatToResponsesStreamState) createdResponse() *dto.OpenAIResponsesRespo
 	return &dto.OpenAIResponsesResponse{
 		ID:        s.ID,
 		Object:    "response",
-		CreatedAt: int(s.Created),
+		CreatedAt: s.Created,
 		Status:    []byte(`"in_progress"`),
 		Model:     s.Model,
 		Output:    []dto.ResponsesOutput{},

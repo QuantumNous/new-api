@@ -85,7 +85,7 @@ func TestGeminiToOpenAIStatefulStreamTerminal(t *testing.T) {
 			require.NotNil(t, finish.Choices[0].FinishReason)
 			assert.Equal(t, tt.wantFinishReason, *finish.Choices[0].FinishReason)
 			assert.Equal(t, "chatcmpl-fixed", finish.Id)
-			assert.Equal(t, int64(1700000000), finish.Created)
+			assert.Equal(t, "1700000000", string(finish.Created))
 			assert.Equal(t, "upstream-model", finish.Model)
 			require.NotNil(t, finish.Usage)
 			assert.Equal(t, 4, finish.Usage.PromptTokens)
@@ -314,7 +314,7 @@ func TestConvertStreamResponseKeepsStatelessCompatibility(t *testing.T) {
 			&dto.ChatCompletionsStreamResponse{
 				Id:      "chatcmpl-fixed",
 				Object:  "chat.completion.chunk",
-				Created: 1700000000,
+				Created: dto.UnixTimeRaw(1700000000),
 				Model:   "upstream-model",
 				Choices: []dto.ChatCompletionsStreamResponseChoice{
 					{

@@ -24,7 +24,7 @@ type zhipuImageRequest struct {
 }
 
 type zhipuImageResponse struct {
-	Created       *int64            `json:"created,omitempty"`
+	Created       dto.UnixTime      `json:"created,omitempty"`
 	Data          []zhipuImageData  `json:"data,omitempty"`
 	ContentFilter any               `json:"content_filter,omitempty"`
 	Usage         *dto.Usage        `json:"usage,omitempty"`
@@ -46,7 +46,7 @@ type zhipuImageData struct {
 }
 
 type openAIImagePayload struct {
-	Created int64             `json:"created"`
+	Created dto.UnixTime      `json:"created"`
 	Data    []openAIImageData `json:"data"`
 }
 
@@ -75,10 +75,10 @@ func zhipu4vImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 	}
 
 	payload := openAIImagePayload{}
-	if zhipuResp.Created != nil && *zhipuResp.Created != 0 {
-		payload.Created = *zhipuResp.Created
+	if !dto.UnixTimeEmpty(zhipuResp.Created) {
+		payload.Created = zhipuResp.Created
 	} else {
-		payload.Created = info.StartTime.Unix()
+		payload.Created = dto.UnixTimeRaw(info.StartTime.Unix())
 	}
 	for _, data := range zhipuResp.Data {
 		url := data.Url

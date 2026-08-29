@@ -111,7 +111,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 	model := info.UpstreamModelName
 	var responseId string
-	var createAt int64 = 0
+	var createAt dto.UnixTime
 	var systemFingerprint string
 	var containStreamUsage bool
 	var responseTextBuilder strings.Builder

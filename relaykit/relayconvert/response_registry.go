@@ -823,7 +823,7 @@ func newOAIChatToOAIResponsesStreamState(options ResponseStreamOptions) any {
 	}
 	state := NewChatToResponsesStreamState(id, strings.TrimSpace(options.Model))
 	if options.Created != 0 {
-		state.Created = options.Created
+		state.Created = dto.UnixTimeRaw(options.Created)
 	}
 	return state
 }
@@ -857,7 +857,7 @@ func newOAIResponsesToOAIChatStreamState(options ResponseStreamOptions) any {
 	state := NewResponsesToChatStreamState(strings.TrimSpace(options.Model), options.IncludeUsage)
 	state.ID = strings.TrimSpace(options.ID)
 	if options.Created != 0 {
-		state.Created = options.Created
+		state.Created = dto.UnixTimeRaw(options.Created)
 	}
 	return state
 }
@@ -1014,7 +1014,7 @@ func convertGeminiChatStreamResponseToOAIChat(_ context.Context, info convmeta.M
 	usage := UsageFromGeminiMetadata(geminiResponse.GetUsageMetadata(), fallbackPromptTokens(info))
 	if openAIResponse != nil {
 		openAIResponse.Id = fmt.Sprintf("chatcmpl-%s", kitutil.GetUUID())
-		openAIResponse.Created = kitutil.GetTimestamp()
+		openAIResponse.Created = dto.UnixTimeRaw(kitutil.GetTimestamp())
 		if info != nil && info.HasChannelMeta() {
 			openAIResponse.Model = info.GetUpstreamModelName()
 		}

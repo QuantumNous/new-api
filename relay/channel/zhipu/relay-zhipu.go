@@ -108,7 +108,7 @@ func responseZhipu2OpenAI(response *ZhipuResponse) *dto.OpenAITextResponse {
 	fullTextResponse := dto.OpenAITextResponse{
 		Id:      response.Data.TaskId,
 		Object:  "chat.completion",
-		Created: common.GetTimestamp(),
+		Created: dto.UnixTimeRaw(common.GetTimestamp()),
 		Choices: make([]dto.OpenAITextResponseChoice, 0, len(response.Data.Choices)),
 		Usage:   response.Data.Usage,
 	}
@@ -134,7 +134,7 @@ func streamResponseZhipu2OpenAI(zhipuResponse string) *dto.ChatCompletionsStream
 	choice.Delta.SetContentString(zhipuResponse)
 	response := dto.ChatCompletionsStreamResponse{
 		Object:  "chat.completion.chunk",
-		Created: common.GetTimestamp(),
+		Created: dto.UnixTimeRaw(common.GetTimestamp()),
 		Model:   "chatglm",
 		Choices: []dto.ChatCompletionsStreamResponseChoice{choice},
 	}
@@ -148,7 +148,7 @@ func streamMetaResponseZhipu2OpenAI(zhipuResponse *ZhipuStreamMetaResponse) (*dt
 	response := dto.ChatCompletionsStreamResponse{
 		Id:      zhipuResponse.RequestId,
 		Object:  "chat.completion.chunk",
-		Created: common.GetTimestamp(),
+		Created: dto.UnixTimeRaw(common.GetTimestamp()),
 		Model:   "chatglm",
 		Choices: []dto.ChatCompletionsStreamResponseChoice{choice},
 	}

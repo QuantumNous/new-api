@@ -31,7 +31,7 @@ type ImageResponse struct {
 
 func responseJimeng2OpenAIImage(_ *gin.Context, response *ImageResponse, info *relaycommon.RelayInfo) *dto.ImageResponse {
 	imageResponse := dto.ImageResponse{
-		Created: info.StartTime.Unix(),
+		Created: dto.UnixTimeRaw(info.StartTime.Unix()),
 	}
 
 	for _, base64Data := range response.Data.BinaryDataBase64 {

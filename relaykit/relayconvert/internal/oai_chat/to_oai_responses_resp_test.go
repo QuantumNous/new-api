@@ -13,7 +13,7 @@ func TestChatCompletionsResponseToResponsesPreservesTextToolCallsAndUsage(t *tes
 	chat := &dto.OpenAITextResponse{
 		Id:      "chatcmpl_1",
 		Model:   "gpt-test",
-		Created: 456,
+		Created: dto.UnixTimeRaw(456),
 		Choices: []dto.OpenAITextResponseChoice{
 			{
 				Message:      assistantMessageWithTool("I will call.", "call_1", "lookup", `{"q":"x"}`),
@@ -39,6 +39,15 @@ func TestChatCompletionsResponseToResponsesPreservesTextToolCallsAndUsage(t *tes
 	assert.Equal(t, "call_1", resp.Output[1].CallId)
 	assert.Equal(t, "lookup", resp.Output[1].Name)
 	assert.Equal(t, `"{\"q\":\"x\"}"`, string(resp.Output[1].Arguments))
+}
+
+func TestChatCompletionsResponseToResponsesKeepsFloatCreatedAt(t *testing.T) {
+	chat := &dto.OpenAITextResponse{
+		Created: dto.UnixTime("1786588600.0"),
+	}
+	resp, _, err := ChatCompletionsResponseToResponsesResponse(chat, "resp_1")
+	require.NoError(t, err)
+	assert.Equal(t, "1786588600.0", string(resp.CreatedAt))
 }
 
 func TestChatCompletionsResponseToResponsesMapsIncompleteFinishReasons(t *testing.T) {
@@ -74,16 +83,29 @@ func TestChatCompletionsResponseToResponsesMapsIncompleteFinishReasons(t *testin
 	}
 }
 
+func TestChatCompletionsStreamUsesChunkCreatedOverPrefill(t *testing.T) {
+	state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+	state.Created = dto.UnixTimeRaw(111)
+	events := mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
+		Created: dto.UnixTime("1786588600.0"),
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Role: "assistant"}},
+		},
+	})
+	require.NotEmpty(t, events)
+	assert.Equal(t, "1786588600.0", string(events[0].Payload.Response.CreatedAt))
+}
+
 func TestChatCompletionsStreamToResponsesEventsAggregatesUsageAndToolArgs(t *testing.T) {
 	state := NewChatToResponsesStreamState("resp_1", "gpt-test")
-	state.Created = 123
+	state.Created = dto.UnixTimeRaw(123)
 	toolIndex := 0
 
 	var events []ChatToResponsesStreamEvent
 	events = append(events, mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
 		Id:      "chatcmpl_1",
 		Model:   "gpt-test",
-		Created: 123,
+		Created: dto.UnixTimeRaw(123),
 		Choices: []dto.ChatCompletionsStreamResponseChoice{
 			{Index: 0, Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Role: "assistant"}},
 		},

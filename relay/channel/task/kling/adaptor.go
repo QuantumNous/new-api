@@ -102,9 +102,9 @@ type responsePayload struct {
 				WatermarkUrl string `json:"watermark_url"`
 			} `json:"images"`
 		} `json:"task_result"`
-		CreatedAt          int64  `json:"created_at"`
-		UpdatedAt          int64  `json:"updated_at"`
-		FinalUnitDeduction string `json:"final_unit_deduction"`
+		CreatedAt          dto.UnixTime `json:"created_at"`
+		UpdatedAt          dto.UnixTime `json:"updated_at"`
+		FinalUnitDeduction string       `json:"final_unit_deduction"`
 	} `json:"data"`
 }
 
@@ -209,7 +209,7 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	ov := dto.NewOpenAIVideo()
 	ov.ID = info.PublicTaskID
 	ov.TaskID = info.PublicTaskID
-	ov.CreatedAt = time.Now().Unix()
+	ov.CreatedAt = dto.UnixTimeRaw(time.Now().Unix())
 	ov.Model = info.OriginModelName
 	c.JSON(http.StatusOK, ov)
 	return kResp.Data.TaskId, responseBody, nil
@@ -389,6 +389,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(originTask *model.Task) ([]byte, erro
 	openAIVideo.Status = originTask.Status.ToVideoStatus()
 	openAIVideo.SetProgressStr(originTask.Progress)
 	openAIVideo.CreatedAt = klingResp.Data.CreatedAt
+	openAIVideo.UpdatedAt = klingResp.Data.UpdatedAt
 	openAIVideo.CompletedAt = klingResp.Data.UpdatedAt
 
 	if len(klingResp.Data.TaskResult.Videos) > 0 {
