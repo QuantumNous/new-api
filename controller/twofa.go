@@ -6,9 +6,10 @@ import (
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,7 +20,12 @@ type Setup2FARequest struct {
 
 // Verify2FARequest 验证2FA请求结构
 type Verify2FARequest struct {
-	Code string `json:"code" binding:"required"`
+	Code      string `json:"code" binding:"required"`
+	FlowToken string `json:"flow_token,omitempty"`
+}
+
+type twoFALoginFlowPayload struct {
+	AuthVersion int64 `json:"auth_version"`
 }
 
 // Setup2FAResponse 设置2FA响应结构
@@ -49,7 +55,7 @@ func Setup2FA(c *gin.Context) {
 
 	// 如果存在已禁用的2FA记录，先删除它
 	if existing != nil && !existing.IsEnabled {
-		if err := existing.Delete(); err != nil {
+		if err := existing.DeletePendingTwoFASetup(); err != nil {
 			common.ApiError(c, err)
 			return
 		}
@@ -95,22 +101,13 @@ func Setup2FA(c *gin.Context) {
 		IsEnabled: false,
 	}
 
-	if existing != nil {
-		// 更新现有记录
-		twoFA.Id = existing.Id
-		err = twoFA.Update()
-	} else {
-		// 创建新记录
-		err = twoFA.Create()
-	}
-
-	if err != nil {
+	if err := twoFA.CreatePendingTwoFASetup(); err != nil {
 		common.ApiError(c, err)
 		return
 	}
 
 	// 创建备用码记录
-	if err := model.CreateBackupCodes(userId, backupCodes); err != nil {
+	if err := model.CreatePendingTwoFASetupBackupCodes(userId, backupCodes); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "保存备用码失败",
@@ -185,8 +182,18 @@ func Enable2FA(c *gin.Context) {
 		return
 	}
 
-	// 启用2FA
-	if err := twoFA.Enable(); err != nil {
+	identity, ok := middleware.GetSessionAuthIdentity(c)
+	if !ok {
+		common.ApiError(c, errors.New("当前认证方式不支持安全验证"))
+		return
+	}
+	// 启用2FA并原子推进用户鉴权版本
+	if err := twoFA.EnableWithAuthVersion(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	bundle, err := service.AdvanceCurrentSessionToUserVersion(identity, "twofa_enabled")
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -197,6 +204,7 @@ func Enable2FA(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "两步验证启用成功",
+		"data":    authRotationData(bundle),
 	})
 }
 
@@ -257,8 +265,18 @@ func Disable2FA(c *gin.Context) {
 		return
 	}
 
-	// 禁用2FA
-	if err := model.DisableTwoFA(userId); err != nil {
+	identity, ok := middleware.GetSessionAuthIdentity(c)
+	if !ok {
+		common.ApiError(c, errors.New("当前认证方式不支持安全验证"))
+		return
+	}
+	// 禁用2FA并原子推进用户鉴权版本
+	if err := model.DisableTwoFAWithAuthVersion(userId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	bundle, err := service.AdvanceCurrentSessionToUserVersion(identity, "twofa_disabled")
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -269,6 +287,7 @@ func Disable2FA(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "两步验证已禁用",
+		"data":    authRotationData(bundle),
 	})
 }
 
@@ -372,8 +391,13 @@ func RegenerateBackupCodes(c *gin.Context) {
 		return
 	}
 
-	// 保存新的备用码
-	if err := model.CreateBackupCodes(userId, backupCodes); err != nil {
+	identity, ok := middleware.GetSessionAuthIdentity(c)
+	if !ok {
+		common.ApiError(c, errors.New("当前认证方式不支持安全验证"))
+		return
+	}
+	// 保存新的备用码并原子推进用户鉴权版本
+	if err := model.ReplaceBackupCodesWithAuthVersion(userId, backupCodes); err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "保存备用码失败",
@@ -381,16 +405,21 @@ func RegenerateBackupCodes(c *gin.Context) {
 		common.SysLog("保存备用码失败: " + err.Error())
 		return
 	}
+	bundle, err := service.AdvanceCurrentSessionToUserVersion(identity, "twofa_backup_codes_regenerated")
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	// 记录操作日志
 	model.RecordLog(userId, model.LogTypeSystem, "重新生成两步验证备用码")
 
+	data := authRotationData(bundle)
+	data["backup_codes"] = backupCodes
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "备用码重新生成成功",
-		"data": map[string]interface{}{
-			"backup_codes": backupCodes,
-		},
+		"data":    data,
 	})
 }
 
@@ -405,30 +434,35 @@ func Verify2FALogin(c *gin.Context) {
 		return
 	}
 
-	// 从会话中获取pending用户信息
-	session := sessions.Default(c)
-	pendingUserId := session.Get("pending_user_id")
-	if pendingUserId == nil {
+	flow, err := model.GetAuthFlow(req.FlowToken, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeTwoFALogin})
+	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "会话已过期，请重新登录",
 		})
 		return
 	}
-	userId, ok := pendingUserId.(int)
-	if !ok {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "会话数据无效，请重新登录",
-		})
-		return
-	}
 	// 获取用户信息
-	user, err := model.GetUserById(userId, false)
+	user, err := model.GetUserById(flow.UserId, false)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "用户不存在",
+		})
+		return
+	}
+	if user.Status != common.UserStatusEnabled {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "用户已被禁用",
+		})
+		return
+	}
+	var flowPayload twoFALoginFlowPayload
+	if err := common.UnmarshalJsonStr(flow.Payload, &flowPayload); err != nil || flowPayload.AuthVersion <= 0 || flowPayload.AuthVersion != user.AuthVersion {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "会话已过期，请重新登录",
 		})
 		return
 	}
@@ -477,12 +511,18 @@ func Verify2FALogin(c *gin.Context) {
 		return
 	}
 
-	// 2FA验证成功，清理pending会话信息并完成登录
-	session.Delete("pending_username")
-	session.Delete("pending_user_id")
-	session.Save()
+	if _, err := model.ConsumeAuthFlow(req.FlowToken, model.AuthFlowMatch{
+		Purpose: model.AuthFlowPurposeTwoFALogin,
+		UserId:  user.Id,
+	}); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "会话已过期，请重新登录",
+		})
+		return
+	}
 
-	setupLogin(user, c)
+	setupLoginAtAuthVersion(user, flowPayload.AuthVersion, c)
 }
 
 // Admin2FAStats 管理员获取2FA统计信息
@@ -529,7 +569,7 @@ func AdminDisable2FA(c *gin.Context) {
 	}
 
 	// 禁用2FA
-	if err := model.DisableTwoFA(userId); err != nil {
+	if err := model.DisableTwoFAWithAuthVersion(userId); err != nil {
 		if errors.Is(err, model.ErrTwoFANotEnabled) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
@@ -537,6 +577,10 @@ func AdminDisable2FA(c *gin.Context) {
 			})
 			return
 		}
+		common.ApiError(c, err)
+		return
+	}
+	if _, err := model.RevokeAllUserSessions(userId, "admin_twofa_disabled"); err != nil {
 		common.ApiError(c, err)
 		return
 	}
