@@ -743,6 +743,7 @@ export function ChannelMutateDrawer({
   const currentAutoBan = form.watch('auto_ban')
   const currentTag = form.watch('tag')
   const currentRemark = form.watch('remark')
+  const modelsLocked = currentType === 61
   const currentStatusCodeMapping = form.watch('status_code_mapping')
   const currentParamOverride = form.watch('param_override')
   const currentHeaderOverride = form.watch('header_override')
@@ -891,6 +892,7 @@ export function ChannelMutateDrawer({
 
   // Get basic models for the current channel type
   const basicModels = useMemo(() => {
+    if (currentType === 61) return ['MiniMax-H3']
     if (!allModelsList.length) return []
     // Filter models based on common patterns for specific types
     if (currentType === 1) {
@@ -1148,12 +1150,15 @@ export function ChannelMutateDrawer({
 
   // Transform models to multi-select options
   const modelOptions = useMemo(() => {
+    if (currentType === 61) {
+      return [{ value: 'MiniMax-H3', label: 'MiniMax-H3' }]
+    }
     const allModels = new Set([...allModelsList, ...currentModelsArray])
     return [...allModels].map((model) => ({
       value: model,
       label: model,
     }))
-  }, [allModelsList, currentModelsArray])
+  }, [allModelsList, currentModelsArray, currentType])
 
   const modelMappingGuardrail = useMemo<ModelMappingGuardrail>(() => {
     if (!currentModelMapping?.trim()) {
@@ -1271,6 +1276,14 @@ export function ChannelMutateDrawer({
       initialStatusCodeMappingRef.current = ''
     }
   }, [isEditing, channelData, form])
+
+  useEffect(() => {
+    if (currentType !== 61 || currentModels === 'MiniMax-H3') return
+    form.setValue('models', 'MiniMax-H3', {
+      shouldDirty: true,
+      shouldValidate: true,
+    })
+  }, [currentModels, currentType, form])
 
   // Handle type change - set default values for specific types
   useEffect(() => {
@@ -1422,13 +1435,14 @@ export function ChannelMutateDrawer({
   // Unified function to update models
   const updateModels = useCallback(
     (newModels: string[], merge: boolean = false) => {
+      if (modelsLocked) return 0
       const finalModels = merge
         ? formatModelsArray([...currentModelsArray, ...newModels])
         : formatModelsArray(newModels)
       form.setValue('models', finalModels)
       return newModels.length
     },
-    [currentModelsArray, form]
+    [currentModelsArray, form, modelsLocked]
   )
 
   // Handle fetching models from upstream
@@ -1506,9 +1520,10 @@ export function ChannelMutateDrawer({
   }, [allModelsList, updateModels, t])
 
   const handleClearModels = useCallback(() => {
+    if (modelsLocked) return
     form.setValue('models', '')
     toast.success(t('Cleared all models'))
-  }, [form, t])
+  }, [form, modelsLocked, t])
 
   const handleCopyModels = useCallback(async () => {
     const models = form.getValues('models')
@@ -1548,9 +1563,10 @@ export function ChannelMutateDrawer({
   // Handle model selection change from MultiSelect
   const handleModelsChange = useCallback(
     (selected: string[]) => {
+      if (modelsLocked) return
       form.setValue('models', selected.join(','))
     },
-    [form]
+    [form, modelsLocked]
   )
 
   // Handle successful submission
@@ -3283,7 +3299,8 @@ export function ChannelMutateDrawer({
                                       placeholder={t(
                                         'Select models or add custom ones'
                                       )}
-                                      allowCreate
+                                      allowCreate={currentType !== 61}
+                                      disabled={currentType === 61}
                                       createLabel='Add custom model "{{value}}"'
                                       maxVisibleChips={8}
                                       copyChipOnClick
@@ -3306,6 +3323,7 @@ export function ChannelMutateDrawer({
                                           type='button'
                                           variant='outline'
                                           size='sm'
+                                          disabled={modelsLocked}
                                           onClick={() => {
                                             const hiddenTargets = new Set(
                                               modelMappingGuardrail.exposedTargetModels
@@ -3347,7 +3365,7 @@ export function ChannelMutateDrawer({
                                   variant='outline'
                                   size='sm'
                                   onClick={handleFillRelatedModels}
-                                  disabled={!basicModels.length}
+                                  disabled={modelsLocked || !basicModels.length}
                                 >
                                   <FileText
                                     className='mr-2 h-4 w-4'
@@ -3360,7 +3378,9 @@ export function ChannelMutateDrawer({
                                   variant='outline'
                                   size='sm'
                                   onClick={handleFillAllModels}
-                                  disabled={!allModelsList.length}
+                                  disabled={
+                                    modelsLocked || !allModelsList.length
+                                  }
                                 >
                                   <Plus
                                     className='mr-2 h-4 w-4'
@@ -3410,7 +3430,10 @@ export function ChannelMutateDrawer({
                                   variant='ghost'
                                   size='sm'
                                   onClick={handleClearModels}
-                                  disabled={currentModelsArray.length === 0}
+                                  disabled={
+                                    modelsLocked ||
+                                    currentModelsArray.length === 0
+                                  }
                                 >
                                   <Eraser
                                     className='mr-2 h-4 w-4'
@@ -3430,6 +3453,7 @@ export function ChannelMutateDrawer({
                                       type='button'
                                       variant='secondary'
                                       size='sm'
+                                      disabled={modelsLocked}
                                       onClick={() =>
                                         handleAddPrefillGroup(group)
                                       }
@@ -3563,6 +3587,7 @@ export function ChannelMutateDrawer({
                                           type='button'
                                           variant='outline'
                                           size='sm'
+                                          disabled={modelsLocked}
                                           onClick={() => {
                                             updateModels([
                                               ...currentModelsArray,
@@ -4824,6 +4849,7 @@ export function ChannelMutateDrawer({
         open={fetchModelsDialogOpen}
         onOpenChange={setFetchModelsDialogOpen}
         onModelsSelected={(models) => {
+          if (modelsLocked) return
           form.setValue('models', formatModelsArray(models))
         }}
         redirectModels={redirectModelList}

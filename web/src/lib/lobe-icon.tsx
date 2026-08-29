@@ -28,9 +28,11 @@ For commercial licensing, please contact support@quantumnous.com
 import * as LobeIcons from '@lobehub/icons'
 import type React from 'react'
 
+import { IconSiftQ } from '@/assets/custom/icon-siftq'
 import { IconSub2api } from '@/assets/custom/icon-sub2api'
 
 const CUSTOM_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
+  SiftQ: IconSiftQ,
   Sub2API: IconSub2api,
 }
 
