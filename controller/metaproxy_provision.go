@@ -11,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,6 +39,8 @@ type metaproxyProvisionOptionsRequest struct {
 	ModelRatio       string `json:"model_ratio"`
 	CompletionRatio  string `json:"completion_ratio"`
 	CacheRatio       string `json:"cache_ratio"`
+	ModelBillingMode string `json:"model_billing_mode"`
+	ModelBillingExpr string `json:"model_billing_expr"`
 	GroupRatio       string `json:"group_ratio"`
 	UserUsableGroups string `json:"user_usable_groups"`
 }
@@ -73,6 +76,22 @@ func parseUserUsableGroups(raw string) (map[string]string, error) {
 	for group, label := range values {
 		if strings.TrimSpace(group) == "" || strings.TrimSpace(label) == "" {
 			return nil, fmt.Errorf("UserUsableGroups contains an empty group or label")
+		}
+	}
+	return values, nil
+}
+
+func parseStringMap(name, raw string) (map[string]string, error) {
+	values := make(map[string]string)
+	if strings.TrimSpace(raw) == "" {
+		return values, nil
+	}
+	if err := common.Unmarshal([]byte(raw), &values); err != nil {
+		return nil, fmt.Errorf("%s must be a JSON object of strings: %w", name, err)
+	}
+	for key, value := range values {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			return nil, fmt.Errorf("%s contains an empty model or value", name)
 		}
 	}
 	return values, nil
@@ -152,6 +171,31 @@ func validateMetaproxyProvisionRequest(
 	if _, err := parseRatioMap("CacheRatio", request.Options.CacheRatio, true); err != nil {
 		return err
 	}
+	billingModes, err := parseStringMap("ModelBillingMode", request.Options.ModelBillingMode)
+	if err != nil {
+		return err
+	}
+	billingExprs, err := parseStringMap("ModelBillingExpr", request.Options.ModelBillingExpr)
+	if err != nil {
+		return err
+	}
+	for modelName, mode := range billingModes {
+		if mode != billing_setting.BillingModeTieredExpr {
+			return fmt.Errorf("ModelBillingMode contains unsupported mode %q for %q", mode, modelName)
+		}
+		expr, ok := billingExprs[modelName]
+		if !ok {
+			return fmt.Errorf("model %q uses tiered_expr but is missing from ModelBillingExpr", modelName)
+		}
+		if err := billing_setting.SmokeTestExpr(expr); err != nil {
+			return fmt.Errorf("ModelBillingExpr for %q is invalid: %w", modelName, err)
+		}
+	}
+	for modelName := range billingExprs {
+		if _, ok := billingModes[modelName]; !ok {
+			return fmt.Errorf("model %q has ModelBillingExpr but is missing from ModelBillingMode", modelName)
+		}
+	}
 	groupRatios, err := parseRatioMap("GroupRatio", request.Options.GroupRatio, false)
 	if err != nil {
 		return err
@@ -220,10 +264,11 @@ func validateMetaproxyProvisionRequest(
 		}
 		for _, modelName := range models {
 			ratio, priced := modelRatios[modelName]
-			if !priced {
-				return fmt.Errorf("enabled model %q in an offered group is missing from ModelRatio", modelName)
+			_, expressionPriced := billingModes[modelName]
+			if !priced && !expressionPriced {
+				return fmt.Errorf("enabled model %q in an offered group is missing from ModelRatio and ModelBillingMode", modelName)
 			}
-			if ratio == 0 {
+			if priced && ratio == 0 && !expressionPriced {
 				return fmt.Errorf("enabled model %q in an offered group must have a positive ModelRatio", modelName)
 			}
 		}
@@ -232,6 +277,12 @@ func validateMetaproxyProvisionRequest(
 }
 
 func toMetaproxyProvisionConfig(request metaproxyProvisionRequest) model.MetaproxyProvisionConfig {
+	if strings.TrimSpace(request.Options.ModelBillingMode) == "" {
+		request.Options.ModelBillingMode = "{}"
+	}
+	if strings.TrimSpace(request.Options.ModelBillingExpr) == "" {
+		request.Options.ModelBillingExpr = "{}"
+	}
 	channels := make([]model.MetaproxyProvisionChannel, 0, len(request.Channels))
 	for _, channel := range request.Channels {
 		models, _ := commaValues(channel.Models)
@@ -259,6 +310,8 @@ func toMetaproxyProvisionConfig(request metaproxyProvisionRequest) model.Metapro
 			ModelRatio:       request.Options.ModelRatio,
 			CompletionRatio:  request.Options.CompletionRatio,
 			CacheRatio:       request.Options.CacheRatio,
+			ModelBillingMode: request.Options.ModelBillingMode,
+			ModelBillingExpr: request.Options.ModelBillingExpr,
 			GroupRatio:       request.Options.GroupRatio,
 			UserUsableGroups: request.Options.UserUsableGroups,
 		},

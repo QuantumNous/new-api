@@ -34,15 +34,54 @@ func validMetaproxyProvisionRequest() metaproxyProvisionRequest {
 			ModelRatio:       `{"model-one":1}`,
 			CompletionRatio:  `{"model-one":2}`,
 			CacheRatio:       `{"model-one":0.1}`,
+			ModelBillingMode: `{}`,
+			ModelBillingExpr: `{}`,
 			GroupRatio:       `{"standard":1}`,
 			UserUsableGroups: `{"standard":"Standard"}`,
 		},
 	}
 }
 
+func TestValidateMetaproxyProvisionRequestAcceptsExpressionPricedModel(t *testing.T) {
+	request := validMetaproxyProvisionRequest()
+	request.Options.ModelRatio = `{}`
+	request.Options.ModelBillingMode = `{"model-one":"tiered_expr"}`
+	request.Options.ModelBillingExpr = `{"model-one":"(param(\"n\") == nil ? 1 : param(\"n\")) * (param(\"resolution\") == \"1k\" ? tier(\"1k\", 200000) : tier(\"2k\", 300000))"}`
+	require.NoError(t, validateMetaproxyProvisionRequest(request, request.Digest, "none"))
+}
+
+func TestValidateMetaproxyProvisionRequestRejectsInvalidBillingExpression(t *testing.T) {
+	request := validMetaproxyProvisionRequest()
+	request.Options.ModelRatio = `{}`
+	request.Options.ModelBillingMode = `{"model-one":"tiered_expr"}`
+	request.Options.ModelBillingExpr = `{"model-one":"tier(\"broken\", -1"}`
+	err := validateMetaproxyProvisionRequest(request, request.Digest, "none")
+	require.ErrorContains(t, err, "ModelBillingExpr")
+}
+
+func TestValidateMetaproxyProvisionRequestRejectsExpressionModeWithoutExpression(t *testing.T) {
+	request := validMetaproxyProvisionRequest()
+	request.Options.ModelRatio = `{}`
+	request.Options.ModelBillingMode = `{"model-one":"tiered_expr"}`
+	err := validateMetaproxyProvisionRequest(request, request.Digest, "none")
+	require.ErrorContains(t, err, "model-one")
+	require.ErrorContains(t, err, "ModelBillingExpr")
+}
+
 func TestValidateMetaproxyProvisionRequestAcceptsCompleteConfig(t *testing.T) {
 	request := validMetaproxyProvisionRequest()
 	require.NoError(t, validateMetaproxyProvisionRequest(request, request.Digest, "none"))
+}
+
+func TestValidateMetaproxyProvisionRequestAcceptsLegacyRequestWithoutBillingExpressions(t *testing.T) {
+	request := validMetaproxyProvisionRequest()
+	request.Options.ModelBillingMode = ""
+	request.Options.ModelBillingExpr = ""
+	require.NoError(t, validateMetaproxyProvisionRequest(request, request.Digest, "none"))
+
+	config := toMetaproxyProvisionConfig(request)
+	require.Equal(t, "{}", config.Options.ModelBillingMode)
+	require.Equal(t, "{}", config.Options.ModelBillingExpr)
 }
 
 func TestValidateMetaproxyProvisionRequestRejectsMismatchedIdempotencyKey(t *testing.T) {
@@ -120,6 +159,17 @@ func TestToMetaproxyProvisionConfigStoresNormalizedLists(t *testing.T) {
 	config := toMetaproxyProvisionConfig(request)
 	require.Equal(t, "model-one,model-two", config.Channels[0].Models)
 	require.Equal(t, "standard,archive", config.Channels[0].Group)
+}
+
+func TestToMetaproxyProvisionConfigNormalizesWhitespaceBillingOptions(t *testing.T) {
+	request := validMetaproxyProvisionRequest()
+	request.Options.ModelBillingMode = " \t\n"
+	request.Options.ModelBillingExpr = "\r\n"
+
+	config := toMetaproxyProvisionConfig(request)
+
+	require.Equal(t, "{}", config.Options.ModelBillingMode)
+	require.Equal(t, "{}", config.Options.ModelBillingExpr)
 }
 
 func TestApplyMetaproxyProvisionRequiresMemoryCache(t *testing.T) {
