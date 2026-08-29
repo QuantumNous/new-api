@@ -5321,6 +5321,22 @@
     "External (third-party paid) channel usage per account. Models without a configured price are excluded.": "External (third-party paid) channel usage per account. Models without a configured price are excluded.",
     "External Billing": "External Billing",
     "My External Usage": "My External Usage",
-    "Click to toggle external/internal": "Click to toggle external/internal"
+    "Click to toggle external/internal": "Click to toggle external/internal",
+    "Usage Summary": "Usage Summary",
+    "All time": "All time",
+    "Last 30 days": "Last 30 days",
+    "Last 7 days": "Last 7 days",
+    "Filter username…": "Filter username…",
+    "Accounts": "Accounts",
+    "Total external tokens": "Total external tokens",
+    "Total external spend": "Total external spend (USD)",
+    "Account": "Account",
+    "External tokens": "External tokens",
+    "Spend (USD)": "Spend (USD)",
+    "External models": "External models",
+    "No external usage in this range": "No external usage in this range",
+    "External": "External",
+    "Internal": "Internal",
+    "Loading…": "Loading…"
   }
 }
