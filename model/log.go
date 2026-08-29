@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
@@ -690,6 +691,52 @@ func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	}
 	tx.Where("type = ?", LogTypeConsume).Scan(&token)
 	return token
+}
+
+// ExternalBillingRow per-user external (third-party) channel usage aggregation.
+type ExternalBillingRow struct {
+	Username         string `json:"username"`
+	PromptTokens     int64  `json:"prompt_tokens"`
+	CompletionTokens int64  `json:"completion_tokens"`
+	TotalTokens      int64  `json:"total_tokens"`
+	Quota            int64  `json:"quota"`
+	ModelCount       int64  `json:"model_count"`
+}
+
+// SumExternalByUser aggregates, per user, consumption on external channels
+// (channels.tag = 'external') restricted to models that have an explicit
+// configured price. startTimestamp/endTimestamp are unix seconds (0 = open).
+func SumExternalByUser(startTimestamp int64, endTimestamp int64, username string) ([]ExternalBillingRow, error) {
+	priceKeys := ratio_setting.GetModelPriceMap()
+	if len(priceKeys) == 0 {
+		return nil, nil
+	}
+	priceList := make([]string, 0, len(priceKeys))
+	for k := range priceKeys {
+		priceList = append(priceList, k)
+	}
+	tx := LOG_DB.Table("logs").
+		Select("username, COALESCE(sum(prompt_tokens),0) prompt_tokens, COALESCE(sum(completion_tokens),0) completion_tokens, COALESCE(sum(prompt_tokens),0)+COALESCE(sum(completion_tokens),0) total_tokens, COALESCE(sum(quota),0) quota, count(DISTINCT model_name) model_count").
+		Joins("JOIN channels ON channels.id = logs.channel_id").
+		Where("channels.tag = ?", "external").
+		Where("logs.model_name IN ?", priceList).
+		Where("logs.type = ?", LogTypeConsume)
+	if startTimestamp != 0 {
+		tx = tx.Where("logs.created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("logs.created_at <= ?", endTimestamp)
+	}
+	if username != "" {
+		tx = tx.Where("logs.username = ?", username)
+	}
+	tx = tx.Group("logs.username")
+	var rows []ExternalBillingRow
+	if err := tx.Scan(&rows).Error; err != nil {
+		common.SysError("failed to query external billing stat: " + err.Error())
+		return nil, errors.New("查询外部渠道统计数据失败")
+	}
+	return rows, nil
 }
 
 func CountOldLog(ctx context.Context, targetTimestamp int64) (int64, error) {
