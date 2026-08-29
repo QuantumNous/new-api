@@ -169,16 +169,25 @@ func VideoProxy(c *gin.Context) {
 		return
 	}
 
-	for key, values := range resp.Header {
-		for _, value := range values {
-			c.Writer.Header().Add(key, value)
-		}
-	}
+	copyVideoProxyResponseHeaders(c.Writer.Header(), resp.Header)
 
 	c.Writer.Header().Set("Cache-Control", "public, max-age=86400")
 	c.Writer.WriteHeader(resp.StatusCode)
 	if _, err = io.Copy(c.Writer, resp.Body); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to stream video content: %s", err.Error()))
+	}
+}
+
+func copyVideoProxyResponseHeaders(dst, src http.Header) {
+	for key, values := range src {
+		// CORS headers are managed by the current NewAPI instance. Copying them
+		// from an upstream proxy can produce duplicate headers rejected by browsers.
+		if strings.HasPrefix(strings.ToLower(key), "access-control-") {
+			continue
+		}
+		for _, value := range values {
+			dst.Add(key, value)
+		}
 	}
 }
 
