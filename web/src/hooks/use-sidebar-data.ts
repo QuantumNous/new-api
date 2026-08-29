@@ -27,6 +27,7 @@ import {
   ListTodo,
   MessageSquare,
   Radio,
+  Receipt,
   ServerCog,
   Settings,
   Ticket,
@@ -109,6 +110,11 @@ export function useSidebarData(): SidebarData {
             icon: Wallet,
           },
           {
+            title: t('My External Usage'),
+            url: '/external-billing',
+            icon: Receipt,
+          },
+          {
             title: t('Profile'),
             url: '/profile',
             icon: User,
@@ -123,6 +129,11 @@ export function useSidebarData(): SidebarData {
             title: t('Channels'),
             url: '/channels',
             icon: Radio,
+          },
+          {
+            title: t('External Billing'),
+            url: '/external-billing',
+            icon: Receipt,
           },
           {
             title: t('Models'),
