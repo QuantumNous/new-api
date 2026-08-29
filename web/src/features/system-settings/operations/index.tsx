@@ -42,6 +42,7 @@ const defaultOperationsSettings: OperationsSettings = {
   SMTPForceAuthLogin: false,
   WorkerUrl: '',
   WorkerValidKey: '',
+  UserOutboundRequestsEnabled: false,
   WorkerAllowHttpImageRequestEnabled: false,
   LogConsumeEnabled: false,
   'performance_setting.disk_cache_enabled': false,

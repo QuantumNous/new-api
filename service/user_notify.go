@@ -84,14 +84,14 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 
 		// 获取 webhook secret
 		webhookSecret := userSetting.WebhookSecret
-		return SendWebhookNotify(webhookURLStr, webhookSecret, data)
+		return SendWebhookNotify(userId, webhookURLStr, webhookSecret, data)
 	case dto.NotifyTypeBark:
 		barkURL := userSetting.BarkUrl
 		if barkURL == "" {
 			common.SysLog(fmt.Sprintf("user %d has no bark url, skip sending bark", userId))
 			return nil
 		}
-		return sendBarkNotify(barkURL, data)
+		return sendBarkNotify(userId, barkURL, data)
 	case dto.NotifyTypeGotify:
 		gotifyUrl := userSetting.GotifyUrl
 		gotifyToken := userSetting.GotifyToken
@@ -99,7 +99,7 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 			common.SysLog(fmt.Sprintf("user %d has no gotify url or token, skip sending gotify", userId))
 			return nil
 		}
-		return sendGotifyNotify(gotifyUrl, gotifyToken, userSetting.GotifyPriority, data)
+		return sendGotifyNotify(userId, gotifyUrl, gotifyToken, userSetting.GotifyPriority, data)
 	}
 	return nil
 }
@@ -114,7 +114,7 @@ func sendEmailNotify(userEmail string, data dto.Notify) error {
 	return common.SendEmail(data.Title, userEmail, content)
 }
 
-func sendBarkNotify(barkURL string, data dto.Notify) error {
+func sendBarkNotify(userID int, barkURL string, data dto.Notify) error {
 	// 处理占位符
 	content := data.Content
 	for _, value := range data.Values {
@@ -124,6 +124,9 @@ func sendBarkNotify(barkURL string, data dto.Notify) error {
 	// 替换模板变量
 	finalURL := strings.ReplaceAll(barkURL, "{{title}}", url.QueryEscape(data.Title))
 	finalURL = strings.ReplaceAll(finalURL, "{{content}}", url.QueryEscape(content))
+	if err := ValidateUserOutboundRequest(userID, 0, finalURL); err != nil {
+		return err
+	}
 
 	// 发送GET请求到Bark
 	var req *http.Request
@@ -183,7 +186,7 @@ func sendBarkNotify(barkURL string, data dto.Notify) error {
 	return nil
 }
 
-func sendGotifyNotify(gotifyUrl string, gotifyToken string, priority int, data dto.Notify) error {
+func sendGotifyNotify(userID int, gotifyUrl string, gotifyToken string, priority int, data dto.Notify) error {
 	// 处理占位符
 	content := data.Content
 	for _, value := range data.Values {
@@ -193,6 +196,9 @@ func sendGotifyNotify(gotifyUrl string, gotifyToken string, priority int, data d
 	// 构建完整的 Gotify API URL
 	// 确保 URL 以 /message 结尾
 	finalURL := strings.TrimSuffix(gotifyUrl, "/") + "/message?token=" + url.QueryEscape(gotifyToken)
+	if err := ValidateUserOutboundRequest(userID, 0, finalURL); err != nil {
+		return err
+	}
 
 	// Gotify优先级范围0-10，如果超出范围则使用默认值5
 	if priority < 0 || priority > 10 {

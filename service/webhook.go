@@ -31,7 +31,11 @@ func generateSignature(secret string, payload []byte) string {
 }
 
 // SendWebhookNotify 发送 webhook 通知
-func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error {
+func SendWebhookNotify(userID int, webhookURL string, secret string, data dto.Notify) error {
+	if err := ValidateUserOutboundRequest(userID, 0, webhookURL); err != nil {
+		return err
+	}
+
 	// 处理占位符
 	content := data.Content
 	for _, value := range data.Values {

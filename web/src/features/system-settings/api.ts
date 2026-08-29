@@ -29,6 +29,8 @@ import type {
   UpdateOptionResponse,
   UpstreamChannelsResponse,
   UpstreamRatiosResponse,
+  WorkerTestRequest,
+  WorkerTestResponse,
 } from './types'
 
 export async function getSystemOptions() {
@@ -38,6 +40,14 @@ export async function getSystemOptions() {
 
 export async function updateSystemOption(request: UpdateOptionRequest) {
   const res = await api.put<UpdateOptionResponse>('/api/option/', request)
+  return res.data
+}
+
+export async function testWorkerProxy(request: WorkerTestRequest) {
+  const res = await api.post<WorkerTestResponse>(
+    '/api/option/worker/test',
+    request
+  )
   return res.data
 }
 

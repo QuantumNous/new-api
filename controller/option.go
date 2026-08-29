@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -119,6 +120,32 @@ func GetOptions(c *gin.Context) {
 type OptionUpdateRequest struct {
 	Key   string `json:"key"`
 	Value any    `json:"value"`
+}
+
+type WorkerTestRequest struct {
+	WorkerURL      string `json:"worker_url"`
+	WorkerValidKey string `json:"worker_valid_key"`
+}
+
+func TestWorkerProxy(c *gin.Context) {
+	var request WorkerTestRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		common.ApiErrorMsg(c, "无效的参数")
+		return
+	}
+
+	workerURL := strings.TrimSpace(request.WorkerURL)
+	workerValidKey := strings.TrimSpace(request.WorkerValidKey)
+	if workerValidKey == "" {
+		workerValidKey = system_setting.WorkerValidKey
+	}
+
+	ip, err := service.TestWorkerProxy(workerURL, workerValidKey)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"ip": ip})
 }
 
 func UpdateOption(c *gin.Context) {
