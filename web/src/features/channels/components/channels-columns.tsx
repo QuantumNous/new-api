@@ -55,7 +55,7 @@ import {
 import { formatTimestampToDate } from '@/lib/format'
 import { truncateText } from '@/lib/utils'
 
-import { getCodexUsage, updateChannelBalance } from '../api'
+import { getCodexUsage, updateChannelBalance, updateChannel } from '../api'
 import { CHANNEL_STATUS_CONFIG, MODEL_FETCHABLE_TYPES } from '../constants'
 import {
   formatRelativeTime,
@@ -584,6 +584,33 @@ export function BalanceCell({ channel }: { channel: Channel }) {
 /**
  * Generate channels columns configuration
  */
+/**
+ * Clickable external/internal classifier for a channel (persisted into channels.tag).
+ */
+function ExternalTagToggle({ channel, tag }: { channel: Channel; tag: string }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const next = tag === 'external' ? 'internal' : 'external'
+  return (
+    <button
+      type='button'
+      onClick={async () => {
+        await updateChannel(channel.id, { tag: next })
+        queryClient.invalidateQueries({ queryKey: ['channels'] })
+      }}
+      title={t('Click to toggle external/internal')}
+      className='cursor-pointer'
+    >
+      <StatusBadge
+        label={tag === 'external' ? t('External') : t('Internal')}
+        variant={tag === 'external' ? 'warning' : 'success'}
+        size='sm'
+        className='-ml-1.5'
+      />
+    </button>
+  )
+}
+
 export function useChannelsColumns(
   options: {
     enableSelection?: boolean
@@ -1096,7 +1123,10 @@ export function useChannelsColumns(
           if (!tag) {
             return <span className='text-muted-foreground text-xs'>-</span>
           }
-
+          const orig = row.original as Channel
+          if (orig?.id && (tag === 'external' || tag === 'internal')) {
+            return <ExternalTagToggle channel={orig} tag={tag} />
+          }
           return (
             <StatusBadge
               label={tag}
