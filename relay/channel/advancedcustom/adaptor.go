@@ -9,16 +9,16 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/service/relayconvert"
-	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
@@ -194,6 +194,14 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 }
 
 func (a *Adaptor) BuildModelListRequest(info *relaycommon.RelayInfo) (string, http.Header, error) {
+	return a.buildManagementRequest(info, dto.AdvancedCustomModelListPath)
+}
+
+func (a *Adaptor) BuildBalanceRequest(info *relaycommon.RelayInfo) (string, http.Header, error) {
+	return a.buildManagementRequest(info, dto.AdvancedCustomBalancePath)
+}
+
+func (a *Adaptor) buildManagementRequest(info *relaycommon.RelayInfo, managementPath string) (string, http.Header, error) {
 	if info == nil {
 		return "", nil, errors.New("missing relay info")
 	}
@@ -204,16 +212,25 @@ func (a *Adaptor) BuildModelListRequest(info *relaycommon.RelayInfo) (string, ht
 	if err := config.Validate(); err != nil {
 		return "", nil, err
 	}
-	route, ok := config.ModelListRoute()
+	var route dto.AdvancedCustomRoute
+	var ok bool
+	switch managementPath {
+	case dto.AdvancedCustomModelListPath:
+		route, ok = config.ModelListRoute()
+	case dto.AdvancedCustomBalancePath:
+		route, ok = config.BalanceRoute()
+	default:
+		return "", nil, fmt.Errorf("unsupported advanced custom management path: %s", managementPath)
+	}
 	if !ok {
-		return "", nil, errors.New("advanced custom channel does not configure a /v1/models route")
+		return "", nil, fmt.Errorf("advanced custom channel does not configure a %s route", managementPath)
 	}
 	converter := strings.TrimSpace(route.Converter)
 	if converter == "" {
 		converter = relayconvert.ConverterNone
 	}
 	if converter != relayconvert.ConverterNone {
-		return "", nil, fmt.Errorf("converter %q does not support model list requests", converter)
+		return "", nil, fmt.Errorf("converter %q does not support %s requests", converter, managementPath)
 	}
 
 	requestURL, err := buildRouteURL(route, converter, info)

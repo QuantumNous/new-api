@@ -1,0 +1,94 @@
+{
+  "contents": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "What is in this image?"
+        },
+        {
+          "inlineData": {
+            "mimeType": "image/png",
+            "data": "aGVsbG8="
+          }
+        }
+      ]
+    },
+    {
+      "role": "model",
+      "parts": [
+        {
+          "functionCall": {
+            "name": "get_weather",
+            "args": {
+              "city": "Paris"
+            }
+          },
+          "thoughtSignature": "context_engineering_is_the_way_to_go"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "functionResponse": {
+            "name": "get_weather",
+            "response": {
+              "content": "15 degrees"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "safetySettings": [
+    {
+      "category": "HARM_CATEGORY_HARASSMENT",
+      "threshold": "OFF"
+    },
+    {
+      "category": "HARM_CATEGORY_HATE_SPEECH",
+      "threshold": "OFF"
+    },
+    {
+      "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+      "threshold": "OFF"
+    },
+    {
+      "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+      "threshold": "OFF"
+    }
+  ],
+  "generationConfig": {
+    "maxOutputTokens": 1024
+  },
+  "tools": [
+    {
+      "functionDeclarations": [
+        {
+          "description": "Get weather by city",
+          "name": "get_weather",
+          "parameters": {
+            "properties": {
+              "city": {
+                "type": "STRING"
+              }
+            },
+            "required": [
+              "city"
+            ],
+            "type": "OBJECT"
+          }
+        }
+      ]
+    }
+  ],
+  "systemInstruction": {
+    "parts": [
+      {
+        "text": "You are a helpful assistant."
+      }
+    ]
+  }
+}
