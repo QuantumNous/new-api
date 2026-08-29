@@ -85,6 +85,8 @@ func seedProvisionState(t *testing.T, db *gorm.DB) Channel {
 		{Key: "ModelRatio", Value: `{"old-model":1}`},
 		{Key: "CompletionRatio", Value: `{"old-model":2}`},
 		{Key: "CacheRatio", Value: `{}`},
+		{Key: "billing_setting.billing_mode", Value: `{}`},
+		{Key: "billing_setting.billing_expr", Value: `{}`},
 		{Key: "GroupRatio", Value: `{"standard":1}`},
 		{Key: "UserUsableGroups", Value: `{"default":"standard"}`},
 	}).Error)
@@ -102,6 +104,8 @@ func desiredProvisionConfig() MetaproxyProvisionConfig {
 			ModelRatio:       `{"new-model":1.5}`,
 			CompletionRatio:  `{"new-model":3}`,
 			CacheRatio:       `{"new-model":0.1}`,
+			ModelBillingMode: `{"image-model":"tiered_expr"}`,
+			ModelBillingExpr: `{"image-model":"tier(\"base\", 200000)"}`,
 			GroupRatio:       `{"standard":1}`,
 			UserUsableGroups: `{"default":"standard"}`,
 		},
@@ -140,6 +144,8 @@ func TestApplyMetaproxyProvisionReplacesManagedStateAtomically(t *testing.T) {
 	require.Equal(t, desiredProvisionConfig().Digest, got[MetaproxyProvisionDigestOption])
 	require.Equal(t, desiredProvisionConfig().Revision, got[MetaproxyProvisionRevisionOption])
 	require.Equal(t, `{"new-model":1.5}`, got["ModelRatio"])
+	require.Equal(t, `{"image-model":"tiered_expr"}`, got["billing_setting.billing_mode"])
+	require.Equal(t, `{"image-model":"tier(\"base\", 200000)"}`, got["billing_setting.billing_expr"])
 
 	common.OptionMapRWMutex.RLock()
 	require.Equal(t, "old-digest", common.OptionMap[MetaproxyProvisionDigestOption])

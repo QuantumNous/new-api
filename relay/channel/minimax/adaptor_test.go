@@ -84,6 +84,22 @@ func TestConvertImageRequest(t *testing.T) {
 	}
 }
 
+func TestConvertImageRequestPreservesExplicitAspectRatio(t *testing.T) {
+	t.Parallel()
+
+	request := dto.ImageRequest{
+		Model:       "image-01",
+		Prompt:      "a red fox in snowfall",
+		Size:        "1536x1024",
+		AspectRatio: "16:9",
+	}
+
+	got := oaiImage2MiniMaxImageRequest(request)
+	if got.AspectRatio != "16:9" {
+		t.Fatalf("aspect_ratio = %q, want %q", got.AspectRatio, "16:9")
+	}
+}
+
 func TestDoResponseForImageGeneration(t *testing.T) {
 	t.Parallel()
 

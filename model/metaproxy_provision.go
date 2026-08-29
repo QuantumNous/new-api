@@ -45,6 +45,8 @@ type MetaproxyProvisionOptions struct {
 	ModelRatio       string `json:"model_ratio"`
 	CompletionRatio  string `json:"completion_ratio"`
 	CacheRatio       string `json:"cache_ratio"`
+	ModelBillingMode string `json:"model_billing_mode"`
+	ModelBillingExpr string `json:"model_billing_expr"`
 	GroupRatio       string `json:"group_ratio"`
 	UserUsableGroups string `json:"user_usable_groups"`
 }
@@ -54,6 +56,8 @@ func (options MetaproxyProvisionOptions) orderedValues() []Option {
 		{Key: "ModelRatio", Value: options.ModelRatio},
 		{Key: "CompletionRatio", Value: options.CompletionRatio},
 		{Key: "CacheRatio", Value: options.CacheRatio},
+		{Key: "billing_setting.billing_mode", Value: options.ModelBillingMode},
+		{Key: "billing_setting.billing_expr", Value: options.ModelBillingExpr},
 		{Key: "GroupRatio", Value: options.GroupRatio},
 		{Key: "UserUsableGroups", Value: options.UserUsableGroups},
 	}
