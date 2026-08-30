@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, RefreshCw, Trash2, Power, PowerOff } from 'lucide-react'
+import { Loader2, RefreshCw, Trash2, Power, PowerOff, CheckCircle2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -51,6 +51,7 @@ import {
   enableAllMultiKeys,
   disableAllMultiKeys,
   deleteDisabledMultiKeys,
+  testChannelAllKeys,
 } from '../../api'
 import { MULTI_KEY_FILTER_OPTIONS } from '../../constants'
 import {
@@ -100,6 +101,7 @@ export function MultiKeyManageDialog({
   const [confirmAction, setConfirmAction] =
     useState<MultiKeyConfirmAction | null>(null)
   const [isPerformingAction, setIsPerformingAction] = useState(false)
+  const [isTestingAllKeys, setIsTestingAllKeys] = useState(false)
 
   // Reset and load data when dialog opens
   useEffect(() => {
@@ -158,6 +160,32 @@ export function MultiKeyManageDialog({
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage)
     loadKeyStatus(newPage, pageSize)
+  }
+
+  const handleTestAllKeys = async () => {
+    if (!currentRow) return
+
+    setIsTestingAllKeys(true)
+    try {
+      const response = await testChannelAllKeys(currentRow.id)
+      if (response.success) {
+        const summary = response.tested
+          ? ` ${response.tested} keys tested: ${response.succeeded} succeeded, ${response.failed} failed`
+          : ''
+        toast.success(t('All keys test completed') + summary)
+        // Reload key status to reflect any changes
+        loadKeyStatus(currentPage, pageSize)
+        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+      } else {
+        toast.error(response.message || t('Test failed'))
+      }
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Test failed')
+      )
+    } finally {
+      setIsTestingAllKeys(false)
+    }
   }
 
   const performAction = async () => {
@@ -325,6 +353,20 @@ export function MultiKeyManageDialog({
                 disabled={isLoading}
               >
                 <RefreshCw className='h-4 w-4' />
+              </Button>
+
+              <Button
+                variant='default'
+                size='sm'
+                onClick={handleTestAllKeys}
+                disabled={isLoading || isTestingAllKeys}
+              >
+                {isTestingAllKeys ? (
+                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                ) : (
+                  <CheckCircle2 className='mr-2 h-4 w-4' />
+                )}
+                {t('Test All Keys')}
               </Button>
 
               {manualDisabledCount + autoDisabledCount > 0 && (

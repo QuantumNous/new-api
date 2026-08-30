@@ -35,7 +35,7 @@ export function positiveIntegerSchema(message: string) {
  * react-hook-form internals (e.g. `disabled`) that need overriding per call.
  */
 export type SafeNumberFieldProps = {
-  value: number | ''
+  value: number | string
   onChange: (event: ChangeEvent<HTMLInputElement>) => void
   onBlur: () => void
   name: string
@@ -88,9 +88,9 @@ export function safeNumberFieldProps<
       if (Number.isFinite(next)) {
         ;(field.onChange as (value: number) => void)(next)
       } else if (event.target.value === '') {
-        // Allow clearing the input — set to undefined so react-hook-form
+        // Allow clearing the input — set to empty string so react-hook-form
         // knows the field is empty and the user can re-enter a value.
-        ;(field.onChange as (value: undefined) => void)(undefined)
+        ;(field.onChange as (value: string) => void)('')
       }
     },
     onBlur: field.onBlur,

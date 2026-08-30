@@ -849,14 +849,10 @@ func TestChannel(c *gin.Context) {
 			return
 		}
 	}
-	//defer func() {
-	//	if channel.ChannelInfo.IsMultiKey {
-	//		go func() { _ = channel.SaveChannelInfo() }()
-	//	}
-	//}()
 	testModel := c.Query("model")
 	endpointType := c.Query("endpoint_type")
 	isStream, _ := strconv.ParseBool(c.Query("stream"))
+	testAllKeys, _ := strconv.ParseBool(c.Query("all_keys"))
 	testUserID, err := resolveChannelTestUserID(c)
 	if err != nil {
 		common.ApiError(c, err)
@@ -867,6 +863,42 @@ func TestChannel(c *gin.Context) {
 	if c.Request != nil {
 		requestCtx = c.Request.Context()
 	}
+
+	// Test all keys in a multi-key channel
+	if testAllKeys && channel.ChannelInfo.IsMultiKey {
+		disableThreshold := int64(common.ChannelDisableThreshold * 1000)
+		summary := testChannelAllKeysForHealthCheck(requestCtx, channel, testUserID, false, disableThreshold)
+		tok := time.Now()
+		milliseconds := tok.Sub(tik).Milliseconds()
+		consumedTime := float64(milliseconds) / 1000.0
+
+		if summary.Tested == 0 {
+			c.JSON(http.StatusOK, gin.H{
+				"success":  false,
+				"message":  "no keys available",
+				"time":     consumedTime,
+				"tested":   0,
+				"succeeded": 0,
+				"failed":   0,
+			})
+			return
+		}
+
+		allSucceeded := summary.Succeeded > 0 && summary.Failed == 0
+		c.JSON(http.StatusOK, gin.H{
+			"success":   allSucceeded,
+			"message":   "",
+			"time":      consumedTime,
+			"tested":    summary.Tested,
+			"succeeded": summary.Succeeded,
+			"failed":    summary.Failed,
+			"disabled":  summary.Disabled,
+			"enabled":   summary.Enabled,
+		})
+		return
+	}
+
+	// Single key test (original behavior)
 	result := testChannel(requestCtx, channel, testUserID, testModel, endpointType, isStream)
 	if result.localErr != nil {
 		resp := gin.H{

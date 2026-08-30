@@ -190,6 +190,12 @@ export interface ChannelTestResponse {
     response_time?: number
     error?: string
   }
+  // Multi-key test summary (when all_keys=true)
+  tested?: number
+  succeeded?: number
+  failed?: number
+  disabled?: number
+  enabled?: number
 }
 
 export interface ChannelBalanceResponse {
