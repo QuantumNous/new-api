@@ -60,6 +60,7 @@ export const STATIC_I18N_KEYS = [
   'All Models',
   'Token-based',
   'Per Request',
+  'Task billing',
   'All Types',
   'Chat',
   'Response',

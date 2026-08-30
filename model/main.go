@@ -27,6 +27,19 @@ var commonFalseVal string
 var logKeyCol string
 var logGroupCol string
 
+// jsonScanBytes 归一化 json 列的驱动返回值:不同驱动/协议模式下同一列可能
+// 以 []byte 或 string 返回,静默丢弃 string 会导致字段被清零而不报错。
+func jsonScanBytes(value interface{}) []byte {
+	switch v := value.(type) {
+	case []byte:
+		return v
+	case string:
+		return []byte(v)
+	default:
+		return nil
+	}
+}
+
 func initCol() {
 	// init common column names
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
@@ -138,10 +151,12 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, common.DatabaseType, error)
 		if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
 			// Use PostgreSQL
 			common.SysLog("using PostgreSQL as database")
+			// 同时关闭 pgx 隐式与 GORM 显式预处理语句:命名 prepared statement 与
+			// 事务池代理(PgBouncer/Neon/Supabase)不兼容,会触发 FATAL 08P01/42P05。
 			db, err := gorm.Open(postgres.New(postgres.Config{
 				DSN:                  dsn,
-				PreferSimpleProtocol: true, // disables implicit prepared statement usage
-			}), newGormConfig(true))
+				PreferSimpleProtocol: true,
+			}), newGormConfig(false))
 			return db, common.DatabaseTypePostgreSQL, err
 		}
 		if strings.HasPrefix(dsn, "local") {
@@ -316,6 +331,7 @@ func migrateDB() error {
 		&ExternalIdentityClaim{},
 		&PasskeyCredential{},
 		&Option{},
+		&LoginEncryptionKey{},
 		&Redemption{},
 		&Ability{},
 		&Log{},
@@ -323,6 +339,7 @@ func migrateDB() error {
 		&TopUp{},
 		&QuotaData{},
 		&Task{},
+		&TaskPlugin{},
 		&Model{},
 		&Vendor{},
 		&PrefillGroup{},
@@ -379,6 +396,7 @@ func migrateDBFast() error {
 		{&ExternalIdentityClaim{}, "ExternalIdentityClaim"},
 		{&PasskeyCredential{}, "PasskeyCredential"},
 		{&Option{}, "Option"},
+		{&LoginEncryptionKey{}, "LoginEncryptionKey"},
 		{&Redemption{}, "Redemption"},
 		{&Ability{}, "Ability"},
 		{&Log{}, "Log"},

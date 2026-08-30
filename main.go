@@ -23,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
@@ -53,6 +54,10 @@ func main() {
 			os.Exit(1)
 		}
 		return
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "plugin" {
+		os.Exit(jsplugin.RunCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
 
 	startTime := time.Now()
@@ -116,6 +121,7 @@ func main() {
 
 	// 热更新配置
 	go model.SyncOptions(common.SyncFrequency)
+	go controller.SyncTaskPlugins()
 
 	// 周期性重载授权策略，保证多节点/多 master 部署下权限变更能传播到每个实例
 	go authz.StartPolicySync(common.SyncFrequency)
@@ -321,6 +327,12 @@ func InitResources() error {
 	if err = authz.Init(model.DB); err != nil {
 		common.FatalLog("failed to initialize authorization: " + err.Error())
 		return err
+	}
+	if common.PasswordLoginEncryptionEnabled {
+		if err = model.InitPasswordEncryption(); err != nil {
+			common.FatalLog("failed to initialize password encryption: " + err.Error())
+			return err
+		}
 	}
 
 	model.CheckSetup()
