@@ -20,6 +20,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 
 import { SignUp } from '@/features/auth/sign-up'
 import { useAuthStore } from '@/stores/auth-store'
+import { useStatus } from '@/hooks/use-status'
 
 export const Route = createFileRoute('/(auth)/sign-up')({
   component: SignUp,
@@ -29,6 +30,12 @@ export const Route = createFileRoute('/(auth)/sign-up')({
     // 如果已经有用户信息，说明已登录，注册页对其无意义，跳转到 dashboard
     if (auth.user) {
       throw redirect({ to: '/dashboard' })
+    }
+
+    // 如果注册被禁用，跳转到登录页
+    const { status } = useStatus.getState()
+    if (status?.register_enabled === false) {
+      throw redirect({ to: '/sign-in' })
     }
   },
 })
