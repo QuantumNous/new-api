@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -53,6 +54,17 @@ func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Reque
 		}
 		if info.IsModelMapped {
 			info.UpstreamModelName = currentModel
+		}
+	}
+
+	// Apply per-channel model prefix
+	if info.ChannelMeta != nil && info.ChannelMeta.ChannelOtherSettings.ModelPrefix != "" {
+		prefix := info.ChannelMeta.ChannelOtherSettings.ModelPrefix
+		model := info.UpstreamModelName
+		// Only add prefix if the model doesn't already have it
+		if !strings.HasPrefix(model, prefix+"/") {
+			info.UpstreamModelName = prefix + "/" + model
+			info.IsModelMapped = true
 		}
 	}
 

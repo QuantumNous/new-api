@@ -3678,6 +3678,85 @@ export function ChannelMutateDrawer({
                           <div className='border-border/60 rounded-lg border p-4'>
                             <FormField
                               control={form.control}
+                              name='model_prefix'
+                              render={({ field }) => (
+                                <FormItem className='space-y-3'>
+                                  <div className='space-y-1'>
+                                    <div className='flex items-center gap-2'>
+                                      <FormLabel className='mb-0'>
+                                        {t('Model Prefix')}
+                                      </FormLabel>
+                                      <Tooltip>
+                                        <TooltipTrigger
+                                          render={
+                                            <Button
+                                              type='button'
+                                              variant='ghost'
+                                              size='icon-sm'
+                                              className='text-muted-foreground hover:text-foreground size-auto p-0'
+                                              aria-label={t(
+                                                'How model prefix works'
+                                              )}
+                                            />
+                                          }
+                                        >
+                                          <HelpCircle
+                                            className='h-4 w-4'
+                                            aria-hidden='true'
+                                          />
+                                        </TooltipTrigger>
+                                        <TooltipContent
+                                          side='top'
+                                          align='start'
+                                          className='max-w-xs space-y-2 text-left'
+                                        >
+                                          <p className='text-xs font-semibold tracking-wide uppercase'>
+                                            {t('Request flow')}
+                                          </p>
+                                          <div className='space-y-1 font-mono text-xs'>
+                                            <div className='flex items-center gap-1'>
+                                              <span>gpt-4</span>
+                                              <ArrowRight
+                                                className='h-3.5 w-3.5 opacity-70'
+                                                aria-hidden='true'
+                                              />
+                                              <span>
+                                                {field.value
+                                                  ? `${field.value}/gpt-4`
+                                                  : 'gpt-4'}
+                                              </span>
+                                            </div>
+                                          </div>
+                                          <p className='text-[11px] leading-relaxed opacity-80'>
+                                            {t(
+                                              'Prefix is added to the beginning of the model name when sending to upstream. For example, prefix "openai" transforms "gpt-4" to "openai/gpt-4".'
+                                            )}
+                                          </p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                    <FormDescription>
+                                      {t(
+                                        'Optional prefix added to model names before sending to upstream. Leave empty for no prefix.'
+                                      )}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Input
+                                      placeholder={t('e.g. openai')}
+                                      {...field}
+                                      disabled={isSubmitting}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          <div className='border-border/60 rounded-lg border p-4'>
+                            <FormField
+                              control={form.control}
                               name='group'
                               render={({ field }) => (
                                 <FormItem className='space-y-3'>

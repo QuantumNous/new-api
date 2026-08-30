@@ -284,6 +284,8 @@ export const channelFormSchema = z
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
     upstream_model_update_ignored_models: z.string().optional(),
+    // Per-channel model prefix (stored in settings JSON)
+    model_prefix: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (
@@ -465,6 +467,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
   advanced_custom: '',
+  model_prefix: '',
 }
 
 // ============================================================================
@@ -531,6 +534,7 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
   let advancedCustom = ''
+  let modelPrefix = ''
 
   if (channel.settings) {
     try {
@@ -559,6 +563,7 @@ export function transformChannelToFormDefaults(
       if (parsed.advanced_custom) {
         advancedCustom = stringifyAdvancedCustomConfig(parsed.advanced_custom)
       }
+      modelPrefix = parsed.model_prefix || ''
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to parse channel settings:', error)
@@ -610,6 +615,7 @@ export function transformChannelToFormDefaults(
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
     advanced_custom: advancedCustom,
+    model_prefix: modelPrefix,
   }
 }
 
@@ -778,6 +784,14 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     }
   } else if ('advanced_custom' in settingsObj) {
     delete settingsObj.advanced_custom
+  }
+
+  // Per-channel model prefix
+  const modelPrefix = (formData.model_prefix || '').trim()
+  if (modelPrefix) {
+    settingsObj.model_prefix = modelPrefix
+  } else if ('model_prefix' in settingsObj) {
+    delete settingsObj.model_prefix
   }
 
   return JSON.stringify(settingsObj)
