@@ -21,6 +21,7 @@ import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { useStatus } from '@/hooks/use-status'
 
 interface HeroButtonsProps {
   isAuthenticated: boolean
@@ -31,6 +32,9 @@ interface HeroButtonsProps {
  */
 export function HeroButtons({ isAuthenticated }: HeroButtonsProps) {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const registerEnabled = status?.register_enabled !== false
+
   if (isAuthenticated) {
     return (
       <Button size='lg' render={<Link to='/dashboard' />}>
@@ -41,13 +45,15 @@ export function HeroButtons({ isAuthenticated }: HeroButtonsProps) {
 
   return (
     <>
-      <Button size='lg' render={<Link to='/sign-up' />}>
-        {t('Get Started')}
+      <Button size='lg' render={<Link to={registerEnabled ? '/sign-up' : '/sign-in'} />}>
+        {t(registerEnabled ? 'Get Started' : 'Sign In')}
         <ArrowRight className='ml-2 h-5 w-5' />
       </Button>
-      <Button size='lg' variant='outline' render={<Link to='/sign-in' />}>
-        {t('Sign In')}
-      </Button>
+      {registerEnabled && (
+        <Button size='lg' variant='outline' render={<Link to='/sign-in' />}>
+          {t('Sign In')}
+        </Button>
+      )}
     </>
   )
 }

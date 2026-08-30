@@ -152,9 +152,9 @@ export function Hero(props: HeroProps) {
               <>
                 <Button
                   className='group h-11 rounded-lg px-5 text-sm font-medium'
-                  render={<Link to='/sign-up' />}
+                  render={<Link to={status?.register_enabled !== false ? '/sign-up' : '/sign-in'} />}
                 >
-                  {t('Get Started')}
+                  {t(status?.register_enabled !== false ? 'Get Started' : 'Sign In')}
                   <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
                 </Button>
                 <Button
