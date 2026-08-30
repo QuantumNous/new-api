@@ -570,15 +570,50 @@ export function transformChannelToFormDefaults(
     }
   }
 
+  // Strip model prefix from models for display
+  let modelsForDisplay = channel.models || ''
+  let modelMappingForDisplay = channel.model_mapping || ''
+  if (modelPrefix && modelsForDisplay) {
+    const modelsArray = modelsForDisplay
+      .split(',')
+      .map((m) => m.trim())
+      .filter(Boolean)
+    const strippedModels = modelsArray.map((model) => {
+      if (model.startsWith(modelPrefix + '/')) {
+        return model.substring(modelPrefix.length + 1)
+      }
+      return model
+    })
+    modelsForDisplay = strippedModels.join(',')
+
+    // Also strip prefix from model_mapping source models
+    if (modelMappingForDisplay) {
+      try {
+        const modelMap = JSON.parse(modelMappingForDisplay)
+        const strippedModelMap: Record<string, string> = {}
+        for (const [key, value] of Object.entries(modelMap)) {
+          // Strip prefix from source model if present
+          const strippedKey = key.startsWith(modelPrefix + '/')
+            ? key.substring(modelPrefix.length + 1)
+            : key
+          strippedModelMap[strippedKey] = value as string
+        }
+        modelMappingForDisplay = JSON.stringify(strippedModelMap)
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }
+
   return {
     name: channel.name || '',
     type: channel.type,
     base_url: channel.base_url || '',
     key: '', // Never populate key from backend for security
     openai_organization: channel.openai_organization || '',
-    models: channel.models || '',
+    models: modelsForDisplay,
     group: parseGroups(channel.group || 'default'),
-    model_mapping: channel.model_mapping || '',
+    model_mapping: modelMappingForDisplay,
     priority: channel.priority || 0,
     weight: channel.weight || 0,
     test_model: channel.test_model || '',

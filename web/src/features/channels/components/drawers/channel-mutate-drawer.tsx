@@ -1707,7 +1707,40 @@ export function ChannelMutateDrawer({
       }
 
       // Normalize models array
-      const normalizedModels = parseModelsString(data.models || '')
+      let normalizedModels = parseModelsString(data.models || '')
+
+      // Apply model prefix to model names if prefix is set
+      const modelPrefix = (data.model_prefix || '').trim()
+      if (modelPrefix) {
+        normalizedModels = normalizedModels.map((model) => {
+          // Only add prefix if the model doesn't already have it
+          if (!model.startsWith(modelPrefix + '/')) {
+            return `${modelPrefix}/${model}`
+          }
+          return model
+        })
+        data.models = formatModelsArray(normalizedModels)
+        form.setValue('models', data.models)
+
+        // Also apply prefix to model_mapping source models
+        if (hasModelMapping && modelMappingValue) {
+          try {
+            const modelMap = JSON.parse(modelMappingValue)
+            const updatedModelMap: Record<string, string> = {}
+            for (const [key, value] of Object.entries(modelMap)) {
+              // Apply prefix to source model if not already prefixed
+              const prefixedKey = key.startsWith(modelPrefix + '/')
+                ? key
+                : `${modelPrefix}/${key}`
+              updatedModelMap[prefixedKey] = value as string
+            }
+            data.model_mapping = JSON.stringify(updatedModelMap)
+            form.setValue('model_mapping', data.model_mapping)
+          } catch {
+            // Ignore parse errors, will be caught by validation later
+          }
+        }
+      }
 
       // Check for missing models in model_mapping
       if (hasModelMapping) {
