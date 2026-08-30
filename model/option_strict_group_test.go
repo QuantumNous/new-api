@@ -109,12 +109,16 @@ func TestUpdateOptionMapsPublishesStrictGroupSettingsAtomically(t *testing.T) {
 func TestConcurrentStrictGroupOptionUpdatesValidateSerially(t *testing.T) {
 	originalRatios := ratio_setting.GroupRatio2JSONString()
 	originalStrictGroups := setting.StrictGroupIsolationGroups2JsonString()
-	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"team-a":1,"team-b":1}`))
-	require.NoError(t, setting.UpdateStrictGroupIsolationGroupsByJsonString(`["team-a"]`))
+	require.NoError(t, UpdateOptionsBulk(map[string]string{
+		"GroupRatio":                 `{"default":1,"team-a":1,"team-b":1}`,
+		"StrictGroupIsolationGroups": `["team-a"]`,
+	}))
 	t.Cleanup(func() {
 		strictGroupOptionValidatedHook = nil
-		require.NoError(t, setting.UpdateStrictGroupIsolationGroupsByJsonString(originalStrictGroups))
-		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalRatios))
+		require.NoError(t, UpdateOptionsBulk(map[string]string{
+			"GroupRatio":                 originalRatios,
+			"StrictGroupIsolationGroups": originalStrictGroups,
+		}))
 	})
 
 	firstValidated := make(chan struct{})

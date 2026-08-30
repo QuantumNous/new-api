@@ -37,6 +37,7 @@ func TestMain(m *testing.M) {
 	sqlDB.SetMaxOpenConns(1)
 
 	if err := db.AutoMigrate(
+		&Option{},
 		&Task{},
 		&User{},
 		&UserSession{},

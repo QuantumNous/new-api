@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Option struct {
@@ -306,12 +307,10 @@ func UpdateOption(key string, value string) error {
 	if isStrictGroupIsolationOption(key) {
 		strictGroupOptionUpdateMutex.Lock()
 		defer strictGroupOptionUpdateMutex.Unlock()
+		return updateOptionValuesInTransaction(map[string]string{key: value})
 	}
 	if err := validateOptionValues(map[string]string{key: value}); err != nil {
 		return err
-	}
-	if isStrictGroupIsolationOption(key) && strictGroupOptionValidatedHook != nil {
-		strictGroupOptionValidatedHook()
 	}
 	// Save to database first
 	option := Option{
@@ -341,29 +340,83 @@ func UpdateOptionsBulk(values map[string]string) error {
 		strictGroupOptionUpdateMutex.Lock()
 		defer strictGroupOptionUpdateMutex.Unlock()
 	}
-	if err := validateOptionValues(values); err != nil {
-		return err
-	}
-	if updatesStrictGroupIsolationOptions(values) && strictGroupOptionValidatedHook != nil {
-		strictGroupOptionValidatedHook()
+	return updateOptionValuesInTransaction(values)
+}
+
+const strictGroupOptionLockKey = "StrictGroupIsolationGroups"
+
+func updateOptionValuesInTransaction(values map[string]string) error {
+	if updatesStrictGroupIsolationOptions(values) {
+		lockOption := Option{
+			Key:   strictGroupOptionLockKey,
+			Value: setting.StrictGroupIsolationGroups2JsonString(),
+		}
+		if err := DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&lockOption).Error; err != nil {
+			return err
+		}
 	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		for k, v := range values {
-			option := Option{Key: k}
-			if err := tx.FirstOrCreate(&option, Option{Key: k}).Error; err != nil {
-				return err
-			}
-			option.Value = v
-			if err := tx.Save(&option).Error; err != nil {
+		if updatesStrictGroupIsolationOptions(values) {
+			var lockOption Option
+			if err := lockForUpdate(tx).Where("key = ?", strictGroupOptionLockKey).First(&lockOption).Error; err != nil {
 				return err
 			}
 		}
-		return nil
+		persist := func(tx *gorm.DB) error {
+			validationValues := values
+			if updatesStrictGroupIsolationOptions(values) {
+				var err error
+				validationValues, err = strictGroupOptionValidationValues(tx, values)
+				if err != nil {
+					return err
+				}
+			}
+			if err := validateOptionValues(validationValues); err != nil {
+				return err
+			}
+			if updatesStrictGroupIsolationOptions(values) && strictGroupOptionValidatedHook != nil {
+				strictGroupOptionValidatedHook()
+			}
+			return persistOptionValues(tx, values)
+		}
+		return persist(tx)
 	})
 	if err != nil {
 		return err
 	}
 	return updateOptionMaps(values)
+}
+
+func strictGroupOptionValidationValues(tx *gorm.DB, updates map[string]string) (map[string]string, error) {
+	values := map[string]string{
+		"GroupRatio":                 ratio_setting.GroupRatio2JSONString(),
+		"StrictGroupIsolationGroups": setting.StrictGroupIsolationGroups2JsonString(),
+	}
+	var options []Option
+	if err := tx.Where("key IN ?", []string{"GroupRatio", "StrictGroupIsolationGroups"}).Find(&options).Error; err != nil {
+		return nil, err
+	}
+	for _, option := range options {
+		values[option.Key] = option.Value
+	}
+	for key, value := range updates {
+		values[key] = value
+	}
+	return values, nil
+}
+
+func persistOptionValues(tx *gorm.DB, values map[string]string) error {
+	for key, value := range values {
+		option := Option{Key: key}
+		if err := tx.FirstOrCreate(&option, Option{Key: key}).Error; err != nil {
+			return err
+		}
+		option.Value = value
+		if err := tx.Save(&option).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 var strictGroupSnapshotPublishHook func()
