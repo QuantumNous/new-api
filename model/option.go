@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -24,6 +25,9 @@ type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
 	Value string `json:"value"`
 }
+
+var strictGroupOptionUpdateMutex sync.Mutex
+var strictGroupOptionValidatedHook func()
 
 func AllOption() ([]*Option, error) {
 	var options []*Option
@@ -202,6 +206,8 @@ func InitOptionMap() {
 }
 
 func loadOptionsFromDatabase() {
+	strictGroupOptionUpdateMutex.Lock()
+	defer strictGroupOptionUpdateMutex.Unlock()
 	options, _ := AllOption()
 	values := make(map[string]string, len(options))
 	for _, option := range options {
@@ -297,8 +303,15 @@ func validateStrictGroupIsolationOptions(values map[string]string) error {
 }
 
 func UpdateOption(key string, value string) error {
+	if isStrictGroupIsolationOption(key) {
+		strictGroupOptionUpdateMutex.Lock()
+		defer strictGroupOptionUpdateMutex.Unlock()
+	}
 	if err := validateOptionValues(map[string]string{key: value}); err != nil {
 		return err
+	}
+	if isStrictGroupIsolationOption(key) && strictGroupOptionValidatedHook != nil {
+		strictGroupOptionValidatedHook()
 	}
 	// Save to database first
 	option := Option{
@@ -324,8 +337,15 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
 	}
+	if updatesStrictGroupIsolationOptions(values) {
+		strictGroupOptionUpdateMutex.Lock()
+		defer strictGroupOptionUpdateMutex.Unlock()
+	}
 	if err := validateOptionValues(values); err != nil {
 		return err
+	}
+	if updatesStrictGroupIsolationOptions(values) && strictGroupOptionValidatedHook != nil {
+		strictGroupOptionValidatedHook()
 	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
@@ -347,6 +367,16 @@ func UpdateOptionsBulk(values map[string]string) error {
 }
 
 var strictGroupSnapshotPublishHook func()
+
+func isStrictGroupIsolationOption(key string) bool {
+	return key == "GroupRatio" || key == "StrictGroupIsolationGroups"
+}
+
+func updatesStrictGroupIsolationOptions(values map[string]string) bool {
+	_, updatesGroupRatio := values["GroupRatio"]
+	_, updatesStrictGroups := values["StrictGroupIsolationGroups"]
+	return updatesGroupRatio || updatesStrictGroups
+}
 
 func updateOptionMaps(values map[string]string) error {
 	groupRatio, updatesGroupRatio := values["GroupRatio"]

@@ -105,3 +105,50 @@ func TestUpdateOptionMapsPublishesStrictGroupSettingsAtomically(t *testing.T) {
 		t.Fatal("reader remained blocked after the snapshot was published")
 	}
 }
+
+func TestConcurrentStrictGroupOptionUpdatesValidateSerially(t *testing.T) {
+	originalRatios := ratio_setting.GroupRatio2JSONString()
+	originalStrictGroups := setting.StrictGroupIsolationGroups2JsonString()
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"team-a":1,"team-b":1}`))
+	require.NoError(t, setting.UpdateStrictGroupIsolationGroupsByJsonString(`["team-a"]`))
+	t.Cleanup(func() {
+		strictGroupOptionValidatedHook = nil
+		require.NoError(t, setting.UpdateStrictGroupIsolationGroupsByJsonString(originalStrictGroups))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalRatios))
+	})
+
+	firstValidated := make(chan struct{})
+	continueFirst := make(chan struct{})
+	var hookCalls int
+	strictGroupOptionValidatedHook = func() {
+		hookCalls++
+		if hookCalls == 1 {
+			close(firstValidated)
+			<-continueFirst
+		}
+	}
+
+	firstDone := make(chan error, 1)
+	go func() {
+		firstDone <- UpdateOption("StrictGroupIsolationGroups", `["team-b"]`)
+	}()
+	<-firstValidated
+
+	secondDone := make(chan error, 1)
+	go func() {
+		secondDone <- UpdateOption("GroupRatio", `{"default":1,"team-a":1}`)
+	}()
+	select {
+	case <-secondDone:
+		t.Fatal("concurrent update bypassed strict-group option serialization")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	close(continueFirst)
+	require.NoError(t, <-firstDone)
+	err := <-secondDone
+	require.Error(t, err)
+	assert.Equal(t, "strict isolation groups are not configured in GroupRatio: team-b", err.Error())
+	assert.True(t, ratio_setting.ContainsGroupRatio("team-b"))
+	assert.True(t, setting.IsStrictGroupIsolationEnabled("team-b"))
+}
