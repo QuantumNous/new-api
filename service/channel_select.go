@@ -6,10 +6,35 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/gin-gonic/gin"
 )
+
+func GetChannelConstraints(c *gin.Context) *dto.ChannelConstraints {
+	if c == nil {
+		return &dto.ChannelConstraints{}
+	}
+	if existing, ok := common.GetContextKeyType[*dto.ChannelConstraints](c, constant.ContextKeyChannelConstraints); ok && existing != nil {
+		return existing
+	}
+	constraints := &dto.ChannelConstraints{}
+	common.SetContextKey(c, constant.ContextKeyChannelConstraints, constraints)
+	return constraints
+}
+
+func AppendTaskPluginIdentityFilter(c *gin.Context, pluginKey string) {
+	if c == nil {
+		return
+	}
+	GetChannelConstraints(c).AddFilter(dto.ChannelFilter{
+		Kind:                   dto.FilterTaskPluginIdentity,
+		TaskPluginKey:          pluginKey,
+		TaskPluginChannelTypes: pinnedTaskPluginChannelTypes(c, pluginKey),
+	})
+}
 
 type RetryParam struct {
 	Ctx                *gin.Context
@@ -59,21 +84,36 @@ func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
 }
 
-func selectChannelWithCircuitBreaker(group string, modelName string, retry int, requestPath string, excludedIDs []int) (*model.Channel, error) {
-	channel, err := model.GetRandomSatisfiedChannelWithExcluded(group, modelName, retry, requestPath, excludedIDs)
-	if err != nil || channel == nil {
-		return channel, err
-	}
-	// If the chosen channel is currently in circuit breaker cooldown, attempt to pick an alternate available channel
-	if !GlobalCircuitBreaker.IsAvailable(channel.Id) {
-		combinedExcluded := append([]int{channel.Id}, excludedIDs...)
-		altChannel, altErr := model.GetRandomSatisfiedChannelWithExcluded(group, modelName, retry, requestPath, combinedExcluded)
-		if altChannel != nil && altErr == nil {
-			logger.LogInfo(nil, fmt.Sprintf("[Auto-Fallback] 渠道 #%d 处于熔断冷却中，自动切换至健康备用渠道 #%d", channel.Id, altChannel.Id))
-			return altChannel, nil
+func selectChannelWithCircuitBreaker(group string, modelName string, retry int, filters []dto.ChannelFilter, excludedIDs []int) (*model.Channel, error) {
+	excluded := append([]int(nil), excludedIDs...)
+	firstUnavailableID := 0
+
+	for {
+		selectionFilters := filters
+		if len(excluded) > 0 {
+			selectionFilters = make([]dto.ChannelFilter, len(filters), len(filters)+1)
+			copy(selectionFilters, filters)
+			selectionFilters = append(selectionFilters, dto.ChannelFilter{
+				Kind:               dto.FilterExcludedChannelIDs,
+				ExcludedChannelIDs: excluded,
+			})
 		}
+
+		channel, err := model.GetRandomSatisfiedChannel(group, modelName, retry, selectionFilters)
+		if err != nil || channel == nil {
+			return channel, err
+		}
+		if GlobalCircuitBreaker.IsAvailable(channel.Id) {
+			if firstUnavailableID > 0 {
+				logger.LogInfo(nil, fmt.Sprintf("[Auto-Fallback] 渠道 #%d 处于熔断冷却中，自动切换至健康备用渠道 #%d", firstUnavailableID, channel.Id))
+			}
+			return channel, nil
+		}
+		if firstUnavailableID == 0 {
+			firstUnavailableID = channel.Id
+		}
+		excluded = append(excluded, channel.Id)
 	}
-	return channel, nil
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -96,11 +136,27 @@ func selectChannelWithCircuitBreaker(group string, modelName string, retry int, 
 //
 //   - When GetRandomSatisfiedChannel returns nil (priorities exhausted), moves to next group.
 //     当 GetRandomSatisfiedChannel 返回 nil（优先级用完）时，切换到下一个分组。
+//
+// Example flow (2 groups, each with 2 priorities, RetryTimes=3):
+// 示例流程（2个分组，每个有2个优先级，RetryTimes=3）：
+//
+//	Retry=0: GroupA, priority0 (startRetryIndex=0, priorityRetry=0)
+//	         分组A, 优先级0
+//
+//	Retry=1: GroupA, priority1 (startRetryIndex=0, priorityRetry=1)
+//	         分组A, 优先级1
+//
+//	Retry=2: GroupA exhausted → GroupB, priority0 (startRetryIndex=2, priorityRetry=0)
+//	         分组A用完 → 分组B, 优先级0
+//
+//	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
+//	         分组B, 优先级1
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
 	var channel *model.Channel
 	var err error
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
+	filters := GetChannelConstraints(param.Ctx).Filters
 
 	if param.TokenGroup == "auto" {
 		autoGroups := GetRequestAutoGroups(param.Ctx, userGroup)
@@ -131,7 +187,13 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = selectChannelWithCircuitBreaker(autoGroup, param.ModelName, priorityRetry, param.RequestPath, param.ExcludedChannelIDs)
+			channel, _ = selectChannelWithCircuitBreaker(
+				autoGroup,
+				param.ModelName,
+				priorityRetry,
+				filters,
+				param.ExcludedChannelIDs,
+			)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -169,10 +231,69 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = selectChannelWithCircuitBreaker(param.TokenGroup, param.ModelName, param.GetRetry(), param.RequestPath, param.ExcludedChannelIDs)
+		channel, err = selectChannelWithCircuitBreaker(
+			param.TokenGroup,
+			param.ModelName,
+			param.GetRetry(),
+			filters,
+			param.ExcludedChannelIDs,
+		)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
 	}
 	return channel, selectGroup, nil
+}
+
+func pinnedTaskPluginChannelTypes(c *gin.Context, expected string) []int {
+	if c == nil || expected == "" {
+		return nil
+	}
+	if value, exists := c.Get(jsplugin.ContextKeyPinnedEndpoint); exists {
+		pinned, ok := value.(jsplugin.PinnedEndpoint)
+		if ok && pinned.Generation != nil && len(pinned.Candidates) > 1 {
+			expectedFound := false
+			channelTypes := make([]int, 0, len(pinned.Candidates))
+			seen := make(map[int]struct{}, len(pinned.Candidates))
+			for _, candidate := range pinned.Candidates {
+				if candidate.Plugin == nil {
+					continue
+				}
+				if candidate.Plugin.Meta.Key == expected {
+					expectedFound = true
+				}
+				for _, channelType := range candidate.Plugin.Meta.ChannelTypes {
+					if channelType == 0 || channelType == constant.ChannelTypeTaskPlugin {
+						continue
+					}
+					if _, duplicate := seen[channelType]; duplicate {
+						continue
+					}
+					if plugin, indexed := pinned.Generation.GetByChannelType(channelType); indexed && plugin == candidate.Plugin {
+						seen[channelType] = struct{}{}
+						channelTypes = append(channelTypes, channelType)
+					}
+				}
+			}
+			if expectedFound {
+				return channelTypes
+			}
+		}
+	}
+	value, exists := c.Get(jsplugin.ContextKeyPinnedPlugin)
+	pinned, ok := value.(jsplugin.PinnedPlugin)
+	if !exists || !ok || pinned.Generation == nil || pinned.Plugin == nil || pinned.Plugin.Meta.Key != expected {
+		return nil
+	}
+	channelTypes := make([]int, 0, len(pinned.Plugin.Meta.ChannelTypes))
+	for _, channelType := range pinned.Plugin.Meta.ChannelTypes {
+		if channelType == 0 || channelType == constant.ChannelTypeTaskPlugin {
+			continue
+		}
+		channelTypes = append(channelTypes, channelType)
+	}
+	if len(channelTypes) == 0 {
+		return nil
+	}
+	return channelTypes
 }

@@ -2,6 +2,8 @@ package service
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestRetryParam_AddExcludedChannel(t *testing.T) {
@@ -13,11 +15,5 @@ func TestRetryParam_AddExcludedChannel(t *testing.T) {
 	param.AddExcludedChannel(0)  // invalid, should be ignored
 	param.AddExcludedChannel(-1) // invalid, should be ignored
 
-	if len(param.ExcludedChannelIDs) != 2 {
-		t.Fatalf("expected 2 excluded channels, got %d (%v)", len(param.ExcludedChannelIDs), param.ExcludedChannelIDs)
-	}
-
-	if param.ExcludedChannelIDs[0] != 10 || param.ExcludedChannelIDs[1] != 20 {
-		t.Fatalf("expected [10, 20], got %v", param.ExcludedChannelIDs)
-	}
+	require.Equal(t, []int{10, 20}, param.ExcludedChannelIDs)
 }
