@@ -3638,6 +3638,7 @@
     "Pre-consumed": "Предоплата",
     "Pre-Consumed Quota": "Предварительно потребленная квота",
     "Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.": "Настройка сохранена как {{pref}}, но нет активной подписки. Кошелёк будет использоваться автоматически.",
+    "Preference saved as {{pref}}, but no active subscription. Requests will be rejected.": "Настройка сохранена как {{pref}}, но нет активной подписки. Запросы будут отклонены.",
     "Preferences": "Настройки",
     "Prefill Group Management": "Управление группами автозаполнения",
     "Prefill Groups": "Группы автозаполнения",

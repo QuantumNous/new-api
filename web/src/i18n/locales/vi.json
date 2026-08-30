@@ -3638,6 +3638,7 @@
     "Pre-consumed": "Khấu trừ trước",
     "Pre-Consumed Quota": "Hạn mức đã tiêu thụ trước",
     "Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.": "Tùy chọn đã lưu là {{pref}}, nhưng không có gói đăng ký đang hoạt động. Ví sẽ được sử dụng tự động.",
+    "Preference saved as {{pref}}, but no active subscription. Requests will be rejected.": "Tùy chọn đã lưu là {{pref}}, nhưng không có gói đăng ký đang hoạt động. Các yêu cầu sẽ bị từ chối.",
     "Preferences": "Tùy chọn",
     "Prefill Group Management": "Quản lý Nhóm Điền sẵn",
     "Prefill Groups": "Điền sẵn các nhóm",

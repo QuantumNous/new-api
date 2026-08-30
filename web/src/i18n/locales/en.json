@@ -3638,6 +3638,7 @@
     "Pre-consumed": "Pre-consumed",
     "Pre-Consumed Quota": "Pre-Consumed Quota",
     "Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.": "Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.",
+    "Preference saved as {{pref}}, but no active subscription. Requests will be rejected.": "Preference saved as {{pref}}, but no active subscription. Requests will be rejected.",
     "Preferences": "Preferences",
     "Prefill Group Management": "Prefill Group Management",
     "Prefill Groups": "Prefill Groups",

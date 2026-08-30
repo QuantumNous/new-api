@@ -3638,6 +3638,7 @@
     "Pre-consumed": "Pré-consommé",
     "Pre-Consumed Quota": "Quota pré-consommé",
     "Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.": "Préférence enregistrée comme {{pref}}, mais aucun abonnement actif. Le portefeuille sera utilisé automatiquement.",
+    "Preference saved as {{pref}}, but no active subscription. Requests will be rejected.": "Préférence enregistrée comme {{pref}}, mais aucun abonnement actif. Les demandes seront rejetées.",
     "Preferences": "Préférences",
     "Prefill Group Management": "Gestion des groupes de préremplissage",
     "Prefill Groups": "Groupes de préremplissage",

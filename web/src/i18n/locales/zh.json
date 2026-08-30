@@ -3638,6 +3638,7 @@
     "Pre-consumed": "预扣费",
     "Pre-Consumed Quota": "预消耗配额",
     "Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.": "已保存偏好为{{pref}}，当前无生效订阅，将自动使用钱包",
+    "Preference saved as {{pref}}, but no active subscription. Requests will be rejected.": "已保存偏好为{{pref}}，当前无生效订阅，请求将被拒绝",
     "Preferences": "偏好设置",
     "Prefill Group Management": "预填充分组管理",
     "Prefill Groups": "预填充分组",

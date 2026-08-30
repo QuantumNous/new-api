@@ -3638,6 +3638,7 @@
     "Pre-consumed": "事前消費",
     "Pre-Consumed Quota": "事前消費クォータ",
     "Preference saved as {{pref}}, but no active subscription. Wallet will be used automatically.": "設定は{{pref}}として保存されましたが、アクティブなサブスクリプションがありません。ウォレットが自動的に使用されます。",
+    "Preference saved as {{pref}}, but no active subscription. Requests will be rejected.": "設定は{{pref}}として保存されましたが、アクティブなサブスクリプションがありません。リクエストは拒否されます。",
     "Preferences": "環境設定",
     "Prefill Group Management": "プリフィルグループ管理",
     "Prefill Groups": "プリフィルグループ",
