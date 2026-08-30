@@ -1,6 +1,8 @@
 package helper
 
 import (
+	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -30,6 +32,14 @@ func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.Re
 	if err != nil {
 		return billingexpr.RequestInput{}, err
 	}
+	if info != nil {
+		if imageRequest, ok := info.Request.(*dto.ImageRequest); ok {
+			bodyBytes, err = mergeValidatedImageBillingFields(bodyBytes, imageRequest)
+			if err != nil {
+				return billingexpr.RequestInput{}, err
+			}
+		}
+	}
 	input.Body = bodyBytes
 	return input, nil
 }
@@ -46,8 +56,39 @@ func BuildBillingExprRequestInputFromRequest(request dto.Request, headers map[st
 	if err != nil {
 		return billingexpr.RequestInput{}, err
 	}
+	if imageRequest, ok := request.(*dto.ImageRequest); ok {
+		bodyBytes, err = mergeValidatedImageBillingFields(bodyBytes, imageRequest)
+		if err != nil {
+			return billingexpr.RequestInput{}, err
+		}
+	}
 	input.Body = bodyBytes
 	return input, nil
+}
+
+func mergeValidatedImageBillingFields(body []byte, request *dto.ImageRequest) ([]byte, error) {
+	fields := make(map[string]json.RawMessage)
+	if len(body) > 0 {
+		if err := common.Unmarshal(body, &fields); err != nil {
+			return nil, err
+		}
+		if fields == nil {
+			return nil, errors.New("image billing request body must be a JSON object")
+		}
+	}
+	for key, value := range request.Extra {
+		if _, exists := fields[key]; !exists {
+			fields[key] = value
+		}
+	}
+
+	imageN := uint(1)
+	if request.N != nil && *request.N > 0 {
+		imageN = *request.N
+	}
+	fields["n"], _ = common.Marshal(imageN)
+	fields["resolution"], _ = common.Marshal(request.BillingResolution())
+	return common.Marshal(fields)
 }
 
 func readIncomingBillingExprBody(c *gin.Context) ([]byte, error) {

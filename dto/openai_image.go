@@ -3,6 +3,7 @@ package dto
 import (
 	"encoding/json"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -171,6 +172,56 @@ func (i *ImageRequest) GetTokenCountMeta() *types.TokenCountMeta {
 		ImagePriceRatio: sizeRatio * qualityRatio,
 		BillingRatios:   map[string]float64{"n": float64(imageN)},
 	}
+}
+
+// BillingResolution returns the same 1K/2K/4K bucket used by sub2api image
+// settlement. Unknown and automatic sizes default to 2K.
+func (i *ImageRequest) BillingResolution() string {
+	switch strings.ToUpper(strings.TrimSpace(i.Resolution)) {
+	case "1K":
+		return "1K"
+	case "2K":
+		return "2K"
+	case "4K":
+		return "4K"
+	}
+
+	parts := strings.Split(strings.ToLower(strings.TrimSpace(i.Size)), "x")
+	if len(parts) != 2 {
+		return "2K"
+	}
+	width, widthOK := imageBillingDimension(strings.TrimSpace(parts[0]))
+	height, heightOK := imageBillingDimension(strings.TrimSpace(parts[1]))
+	if !widthOK || !heightOK {
+		return "2K"
+	}
+	maxEdge := max(width, height)
+	switch {
+	case maxEdge <= 1024:
+		return "1K"
+	case maxEdge <= 2048:
+		return "2K"
+	default:
+		return "4K"
+	}
+}
+
+func imageBillingDimension(value string) (int, bool) {
+	value = strings.TrimPrefix(value, "+")
+	value = strings.TrimLeft(value, "0")
+	if value == "" {
+		return 0, false
+	}
+	for _, char := range value {
+		if char < '0' || char > '9' {
+			return 0, false
+		}
+	}
+	if len(value) > 4 {
+		return 2049, true
+	}
+	dimension, err := strconv.Atoi(value)
+	return dimension, err == nil && dimension > 0
 }
 
 func (i *ImageRequest) IsStream(c *gin.Context) bool {
