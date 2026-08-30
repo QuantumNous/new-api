@@ -218,7 +218,7 @@ func TestKlingNativeRouteSubmitPollSettleAndQuery(t *testing.T) {
 	assert.Equal(t, int32(1), queryCalls.Load())
 	var settledUser model.User
 	require.NoError(t, database.First(&settledUser, 7).Error)
-	assert.Equal(t, 999_999, settledUser.Quota)
+	assert.Equal(t, int64(999_999), settledUser.Quota)
 
 	queryBinding, found := generation.LookupDeclaredRoute(http.MethodGet, "/kling/v1/videos/text2video/:task_id")
 	require.True(t, found)

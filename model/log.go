@@ -819,7 +819,8 @@ func SumUsedQuotaWithModelNameMode(logType int, startTimestamp int64, endTimesta
 	rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
 
 	// 执行查询
-	if err := tx.Scan(&stat).Error; err != nil {
+	var quotaStat Stat
+	if err := tx.Scan(&quotaStat).Error; err != nil {
 		common.SysError("failed to query log stat: " + err.Error())
 		return stat, errors.New("查询统计数据失败")
 	}
@@ -827,6 +828,7 @@ func SumUsedQuotaWithModelNameMode(logType int, startTimestamp int64, endTimesta
 		common.SysError("failed to query rpm/tpm stat: " + err.Error())
 		return stat, errors.New("查询统计数据失败")
 	}
+	stat.Quota = quotaStat.Quota
 
 	return stat, nil
 }
