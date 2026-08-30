@@ -201,7 +201,7 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 	if tool == nil {
 		tool = &chatToResponsesStreamTool{
 			ChatIndex:   chatIndex,
-			OutputIndex: s.nextIndex("tool", chatIndex),
+			OutputIndex: -1,
 			ID:          strings.TrimSpace(toolCall.ID),
 			Name:        strings.TrimSpace(toolCall.Function.Name),
 		}
@@ -209,6 +209,23 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 			tool.ID = fmt.Sprintf("%s_call_%d", s.ID, chatIndex)
 		}
 		s.toolsByIndex[chatIndex] = tool
+	}
+	if strings.TrimSpace(toolCall.ID) != "" {
+		tool.ID = strings.TrimSpace(toolCall.ID)
+	}
+	if strings.TrimSpace(toolCall.Function.Name) != "" {
+		tool.Name = strings.TrimSpace(toolCall.Function.Name)
+	}
+	argsDelta := toolCall.Function.Arguments
+	if argsDelta != "" {
+		tool.Arguments.WriteString(argsDelta)
+	}
+
+	// Some upstreams send the function name in a later delta. Keep those
+	// deltas buffered until the name is known so no invalid Responses event is
+	// emitted and later tools retain output indexes matching finalResponse.
+	if tool.OutputIndex < 0 && strings.TrimSpace(tool.Name) != "" {
+		tool.OutputIndex = s.nextIndex("tool", chatIndex)
 		events = append(events, responsesStreamEvent(responsesEventOutputItemAdded, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemAdded,
 			OutputIndex: intPtr(tool.OutputIndex),
@@ -222,20 +239,20 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 				Arguments: []byte(`""`),
 			},
 		}))
-	}
-	if strings.TrimSpace(toolCall.ID) != "" {
-		tool.ID = strings.TrimSpace(toolCall.ID)
-	}
-	if strings.TrimSpace(toolCall.Function.Name) != "" {
-		tool.Name = strings.TrimSpace(toolCall.Function.Name)
-	}
-	if toolCall.Function.Arguments != "" {
-		tool.Arguments.WriteString(toolCall.Function.Arguments)
+		if tool.Arguments.Len() > 0 {
+			events = append(events, responsesStreamEvent(responsesEventFunctionArgsDelta, dto.ResponsesStreamResponse{
+				Type:        responsesEventFunctionArgsDelta,
+				OutputIndex: intPtr(tool.OutputIndex),
+				ItemID:      tool.ID,
+				Delta:       tool.Arguments.String(),
+			}))
+		}
+	} else if tool.OutputIndex >= 0 && argsDelta != "" {
 		events = append(events, responsesStreamEvent(responsesEventFunctionArgsDelta, dto.ResponsesStreamResponse{
 			Type:        responsesEventFunctionArgsDelta,
 			OutputIndex: intPtr(tool.OutputIndex),
 			ItemID:      tool.ID,
-			Delta:       toolCall.Function.Arguments,
+			Delta:       argsDelta,
 		}))
 	}
 	return events, nil

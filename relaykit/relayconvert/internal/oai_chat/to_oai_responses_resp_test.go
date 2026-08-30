@@ -176,6 +176,79 @@ func TestChatCompletionsStreamToResponsesEventsAggregatesUsageAndToolArgs(t *tes
 	assert.Equal(t, `"{\"q\":\"x\"}"`, string(events[9].Payload.Response.Output[1].Arguments))
 }
 
+func TestChatCompletionsStreamToResponsesSkipsEmptyToolBeforeValidTool(t *testing.T) {
+	state := NewChatToResponsesStreamState("resp_mixed", "gpt-test")
+	emptyIndex := 0
+	validIndex := 1
+
+	events, err := ChatCompletionsStreamChunkToResponsesEvents(&dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+			ToolCalls: []dto.ToolCallResponse{{
+				Index: &emptyIndex,
+				Type:  "function",
+				Function: dto.FunctionResponse{
+					Arguments: `{"ignored":true}`,
+				},
+			}},
+		}}},
+	}, state)
+	require.NoError(t, err)
+
+	// The invalid tool is buffered and must not produce an event with an empty name.
+	validEvents, err := ChatCompletionsStreamChunkToResponsesEvents(&dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+			ToolCalls: []dto.ToolCallResponse{{
+				Index: &validIndex,
+				Type:  "function",
+				Function: dto.FunctionResponse{
+					Name:      "lookup",
+					Arguments: `{"q":"x"}`,
+				},
+			}},
+		}}},
+	}, state)
+	require.NoError(t, err)
+	events = append(events, validEvents...)
+
+	finishReason := "tool_calls"
+	finishEvents, err := ChatCompletionsStreamChunkToResponsesEvents(&dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{FinishReason: &finishReason}},
+	}, state)
+	require.NoError(t, err)
+	events = append(events, finishEvents...)
+	finalEvents := FinalizeChatCompletionsStreamToResponses(state)
+
+	for _, event := range append(events, finalEvents...) {
+		if event.Payload.Item != nil && event.Payload.Item.Type == responsesOutputTypeFunctionCall {
+			assert.NotEmpty(t, event.Payload.Item.Name)
+		}
+	}
+
+	var completed *dto.OpenAIResponsesResponse
+	for _, event := range finalEvents {
+		if event.Type == responsesEventCompleted {
+			completed = event.Payload.Response
+			break
+		}
+	}
+	require.NotNil(t, completed)
+	require.Len(t, completed.Output, 1)
+	assert.Equal(t, responsesOutputTypeFunctionCall, completed.Output[0].Type)
+	assert.Equal(t, "lookup", completed.Output[0].Name)
+	outputIndex := findOutputIndex(append(events, finalEvents...), responsesEventOutputItemDone)
+	require.NotNil(t, outputIndex)
+	assert.Equal(t, 0, *outputIndex)
+}
+
+func findOutputIndex(events []ChatToResponsesStreamEvent, eventType string) *int {
+	for _, event := range events {
+		if event.Type == eventType && event.Payload.Item != nil && event.Payload.Item.Type == responsesOutputTypeFunctionCall {
+			return event.Payload.OutputIndex
+		}
+	}
+	return nil
+}
+
 func mustResponsesEventsFromChatChunk(t *testing.T, state *ChatToResponsesStreamState, chunk *dto.ChatCompletionsStreamResponse) []ChatToResponsesStreamEvent {
 	t.Helper()
 	events, err := ChatCompletionsStreamChunkToResponsesEvents(chunk, state)
