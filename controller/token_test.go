@@ -48,21 +48,21 @@ type sqliteColumnInfo struct {
 }
 
 type legacyToken struct {
-	Id                 int            `gorm:"primaryKey"`
-	UserId             int            `gorm:"index"`
-	Key                string         `gorm:"column:key;type:char(48);uniqueIndex"`
-	Status             int            `gorm:"default:1"`
-	Name               string         `gorm:"index"`
-	CreatedTime        int64          `gorm:"bigint"`
-	AccessedTime       int64          `gorm:"bigint"`
-	ExpiredTime        int64          `gorm:"bigint;default:-1"`
-	RemainQuota        int            `gorm:"default:0"`
+	Id                 int    `gorm:"primaryKey"`
+	UserId             int    `gorm:"index"`
+	Key                string `gorm:"column:key;type:char(48);uniqueIndex"`
+	Status             int    `gorm:"default:1"`
+	Name               string `gorm:"index"`
+	CreatedTime        int64  `gorm:"bigint"`
+	AccessedTime       int64  `gorm:"bigint"`
+	ExpiredTime        int64  `gorm:"bigint;default:-1"`
+	RemainQuota        int    `gorm:"default:0"`
 	UnlimitedQuota     bool
 	ModelLimitsEnabled bool
-	ModelLimits        string         `gorm:"type:text"`
-	AllowIps           *string        `gorm:"default:''"`
-	UsedQuota          int            `gorm:"default:0"`
-	Group              string         `gorm:"column:group;default:''"`
+	ModelLimits        string  `gorm:"type:text"`
+	AllowIps           *string `gorm:"default:''"`
+	UsedQuota          int     `gorm:"default:0"`
+	Group              string  `gorm:"column:group;default:''"`
 	CrossGroupRetry    bool
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
@@ -75,9 +75,7 @@ func openTokenControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
-	common.UsingSQLite = true
-	common.UsingMySQL = false
-	common.UsingPostgreSQL = false
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
@@ -119,22 +117,23 @@ func openTokenControllerExternalDB(t *testing.T, dialect string, dsn string) (*g
 
 	gin.SetMode(gin.TestMode)
 	common.RedisEnabled = false
-	common.UsingSQLite = false
-	common.UsingMySQL = dialect == "mysql"
-	common.UsingPostgreSQL = dialect == "postgres"
 
 	var (
-		db  *gorm.DB
-		err error
+		db     *gorm.DB
+		dbType common.DatabaseType
+		err    error
 	)
 	switch dialect {
 	case "mysql":
+		dbType = common.DatabaseTypeMySQL
 		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	case "postgres":
+		dbType = common.DatabaseTypePostgreSQL
 		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	default:
 		t.Fatalf("unsupported dialect %q", dialect)
 	}
+	common.SetDatabaseTypes(dbType, dbType)
 	if err != nil {
 		t.Fatalf("failed to open %s db: %v", dialect, err)
 	}
@@ -274,6 +273,34 @@ func getTokenKeyColumnType(t *testing.T, db *gorm.DB, dialect string) string {
 	}
 }
 
+func getTokenAutoGroupsColumnType(t *testing.T, db *gorm.DB, dialect string) string {
+	t.Helper()
+
+	switch dialect {
+	case "sqlite":
+		return getSQLiteColumnType(t, db, "tokens", "auto_groups")
+	case "mysql":
+		var columnType string
+		if err := db.Raw(`SELECT DATA_TYPE FROM information_schema.columns
+			WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+			"tokens", "auto_groups").Scan(&columnType).Error; err != nil {
+			t.Fatalf("failed to inspect mysql token auto_groups column: %v", err)
+		}
+		return strings.ToLower(columnType)
+	case "postgres":
+		var dataType string
+		if err := db.Raw(`SELECT data_type FROM information_schema.columns
+			WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?`,
+			"tokens", "auto_groups").Scan(&dataType).Error; err != nil {
+			t.Fatalf("failed to inspect postgres token auto_groups column: %v", err)
+		}
+		return strings.ToLower(dataType)
+	default:
+		t.Fatalf("unsupported dialect %q", dialect)
+		return ""
+	}
+}
+
 func runTokenMigrationCompatibilityTest(t *testing.T, db *gorm.DB, dialect string, managedTokensTable *bool) {
 	t.Helper()
 
@@ -315,6 +342,12 @@ func runTokenMigrationCompatibilityTest(t *testing.T, db *gorm.DB, dialect strin
 	if got := getTokenKeyColumnType(t, db, dialect); got != "varchar(128)" {
 		t.Fatalf("expected migrated key column type varchar(128), got %q", got)
 	}
+	if !db.Migrator().HasColumn(&model.Token{}, "auto_groups") {
+		t.Fatal("expected migration to add auto_groups column")
+	}
+	if got := getTokenAutoGroupsColumnType(t, db, dialect); got != "text" {
+		t.Fatalf("expected migrated auto_groups column type text, got %q", got)
+	}
 
 	var migratedToken model.Token
 	if err := db.First(&migratedToken, "name = ?", "legacy-token").Error; err != nil {
@@ -325,6 +358,9 @@ func runTokenMigrationCompatibilityTest(t *testing.T, db *gorm.DB, dialect strin
 	}
 	if migratedToken.Name != "legacy-token" {
 		t.Fatalf("expected migrated token name to be preserved, got %q", migratedToken.Name)
+	}
+	if migratedToken.AutoGroups != "" {
+		t.Fatalf("expected legacy token to inherit global Auto groups, got %q", migratedToken.AutoGroups)
 	}
 
 	inserted := model.Token{
@@ -362,6 +398,9 @@ func TestTokenAutoMigrateUsesVarchar128KeyColumn(t *testing.T) {
 
 	if got := getTokenKeyColumnType(t, db, "sqlite"); got != "varchar(128)" {
 		t.Fatalf("expected key column type varchar(128), got %q", got)
+	}
+	if got := getSQLiteColumnType(t, db, "tokens", "auto_groups"); got != "text" {
+		t.Fatalf("expected auto_groups column type text, got %q", got)
 	}
 }
 

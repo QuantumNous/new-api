@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"sync"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +24,7 @@ func TestMain(m *testing.M) {
 	DB = db
 	LOG_DB = db
 
-	common.UsingSQLite = true
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 	common.BatchUpdateEnabled = false
 	common.LogConsumeEnabled = true
@@ -37,15 +39,26 @@ func TestMain(m *testing.M) {
 	if err := db.AutoMigrate(
 		&Task{},
 		&User{},
+		&UserSession{},
+		&AuthFlow{},
+		&ExternalIdentityClaim{},
 		&Token{},
+		&PasskeyCredential{},
+		&TwoFA{},
+		&TwoFABackupCode{},
 		&Log{},
 		&Channel{},
+		&QuotaData{},
 		&Ability{},
 		&TopUp{},
 		&SubscriptionPlan{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
+		&UserOAuthBinding{},
 		&PerfMetric{},
+		&SystemInstance{},
+		&SystemTask{},
+		&SystemTaskLock{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}
@@ -57,16 +70,27 @@ func truncateTables(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
 		DB.Exec("DELETE FROM tasks")
-		DB.Exec("DELETE FROM users")
+		DB.Exec("DELETE FROM auth_flows")
+		DB.Exec("DELETE FROM external_identity_claims")
+		DB.Exec("DELETE FROM user_sessions")
+		DB.Exec("DELETE FROM passkey_credentials")
+		DB.Exec("DELETE FROM two_fa_backup_codes")
+		DB.Exec("DELETE FROM two_fas")
 		DB.Exec("DELETE FROM tokens")
+		DB.Exec("DELETE FROM user_oauth_bindings")
+		DB.Exec("DELETE FROM users")
 		DB.Exec("DELETE FROM logs")
 		DB.Exec("DELETE FROM channels")
+		DB.Exec("DELETE FROM quota_data")
 		DB.Exec("DELETE FROM abilities")
 		DB.Exec("DELETE FROM top_ups")
 		DB.Exec("DELETE FROM subscription_orders")
 		DB.Exec("DELETE FROM subscription_plans")
 		DB.Exec("DELETE FROM user_subscriptions")
 		DB.Exec("DELETE FROM perf_metrics")
+		DB.Exec("DELETE FROM system_instances")
+		DB.Exec("DELETE FROM system_task_locks")
+		DB.Exec("DELETE FROM system_tasks")
 	})
 }
 
@@ -75,6 +99,40 @@ func insertTask(t *testing.T, task *Task) {
 	task.CreatedAt = time.Now().Unix()
 	task.UpdatedAt = time.Now().Unix()
 	require.NoError(t, DB.Create(task).Error)
+}
+
+func TestGetTaskForProtocolObservationScopesOwnerAndPlatform(t *testing.T) {
+	truncateTables(t)
+	task := &Task{
+		TaskID:   "task_protocol_scope",
+		UserId:   7,
+		Platform: "plugin-a",
+		Status:   TaskStatusInProgress,
+	}
+	insertTask(t, task)
+
+	got, exists, err := GetTaskForProtocolObservation(context.Background(), 7, "plugin-a", task.TaskID)
+	require.NoError(t, err)
+	require.True(t, exists)
+	assert.Equal(t, task.ID, got.ID)
+
+	for _, query := range []struct {
+		userID   int
+		platform string
+	}{
+		{userID: 8, platform: "plugin-a"},
+		{userID: 7, platform: "plugin-b"},
+	} {
+		got, exists, err = GetTaskForProtocolObservation(context.Background(), query.userID, constant.TaskPlatform(query.platform), task.TaskID)
+		require.NoError(t, err)
+		assert.False(t, exists)
+		assert.Nil(t, got)
+	}
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, _, err = GetTaskForProtocolObservation(cancelled, 7, "plugin-a", task.TaskID)
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 // ---------------------------------------------------------------------------

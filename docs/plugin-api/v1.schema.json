@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/QuantumNous/new-api/docs/plugin-api/v1.schema.json",
+  "title": "new-api Task Plugin v1 manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "key", "name", "version", "author", "models", "fetchMode"],
+  "properties": {
+    "apiVersion": {"const": 1}, "key": {"type": "string"}, "name": {"type": "string"}, "icon": {"type": "string", "maxLength": 128}, "description": {"$ref": "#/$defs/localizedText"}, "version": {"type": "string"},
+    "author": {"type": "object", "required": ["name"], "additionalProperties": false, "properties": {"name": {"type": "string"}, "url": {"type": "string", "format": "uri"}}},
+    "channelTypes": {"type": "array", "uniqueItems": true, "items": {"type": "integer", "minimum": 1}}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "fetchMode": {"enum": ["per_task", "batch"]}, "allowedHosts": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "protocols": {"type": "array", "uniqueItems": true, "items": {"oneOf": [
+      {"enum": ["openai_video"]},
+      {"type": "object", "additionalProperties": false, "required": ["name", "supports"], "properties": {"name": {"const": "openai_responses"}, "supports": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["stream", "sync", "background"]}}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}},
+      {"type": "object", "additionalProperties": false, "required": ["name"], "properties": {"name": {"const": "openai_video"}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}}
+    ]}},
+    "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}}, "usageSchema": {"type": "object", "additionalProperties": {"type": "object", "properties": {"description": {"$ref": "#/$defs/localizedText"}}}}, "usageExamples": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "facts"], "properties": {"label": {"type": "string"}, "facts": {"type": "object"}}}}, "auth": {}
+  },
+  "$defs": {
+    "localizedText": {
+      "oneOf": [
+        {"type": "string", "minLength": 1},
+        {
+          "type": "object",
+          "required": ["en"],
+          "maxProperties": 16,
+          "propertyNames": {"pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$"},
+          "additionalProperties": {"type": "string", "minLength": 1}
+        }
+      ]
+    },
+    "filePlaceholder": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["__fileRef", "encoding"],
+      "properties": {
+        "__fileRef": {"type": "string", "minLength": 1},
+        "encoding": {"enum": ["base64", "dataUrl"]},
+        "mimeType": {"type": "string", "minLength": 1},
+        "maxBytes": {"type": "integer", "exclusiveMinimum": 0}
+      }
+    },
+    "route": {"type": "object", "additionalProperties": false, "required": ["method", "path", "type", "render"], "properties": {"method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]}, "path": {"type": "string", "pattern": "^/"}, "type": {"enum": ["submit", "query", "dynamic"]}, "action": {"type": "string"}, "taskIdParam": {"type": "string"}, "decode": {"type": "string"}, "render": {"type": "string"}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}, "allOf": [{"if": {"properties": {"type": {"const": "query"}}}, "then": {"allOf": [{"not": {"required": ["decode"]}}, {"not": {"required": ["models"]}}]}}, {"if": {"properties": {"type": {"enum": ["submit", "dynamic"]}}}, "then": {"required": ["decode"]}}]}
+  }
+}

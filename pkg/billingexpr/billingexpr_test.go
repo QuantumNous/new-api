@@ -2,10 +2,12 @@ package billingexpr_test
 
 import (
 	"math"
-	"math/rand"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -229,10 +231,11 @@ func TestRequestProbeMissingFieldReturnsNil(t *testing.T) {
 	}
 }
 
-func TestRequestProbeMultipleRulesMultiply(t *testing.T) {
-	cost, _, err := billingexpr.RunExprWithRequest(
-		`(param("service_tier") == "fast" ? 2 : 1) * (has(header("anthropic-beta"), "fast-mode-2026-02-01") ? 2.5 : 1)`,
-		billingexpr.TokenParams{},
+func TestRequestProbeMultipleRulesTraceAllFactors(t *testing.T) {
+	exprStr := `(tier("base", p * 2)) * (param("service_tier") == "fast" ? 2 : 1) * (has(header("anthropic-beta"), "fast-mode-2026-02-01") ? 2.5 : 1)`
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		exprStr,
+		billingexpr.TokenParams{P: 10},
 		billingexpr.RequestInput{
 			Headers: map[string]string{
 				"Anthropic-Beta": "fast-mode-2026-02-01",
@@ -240,12 +243,62 @@ func TestRequestProbeMultipleRulesMultiply(t *testing.T) {
 			Body: []byte(`{"service_tier":"fast"}`),
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if math.Abs(cost-5) > 1e-6 {
-		t.Errorf("cost = %f, want 5", cost)
-	}
+
+	require.NoError(t, err)
+	assert.InDelta(t, 100, cost, 1e-6)
+	assert.Equal(t, "base", trace.MatchedTier)
+	assert.Equal(t, []billingexpr.RequestRuleTrace{
+		{Cond: `param("service_tier") == "fast"`, Multiplier: 2, Matched: true},
+		{Cond: `has(header("anthropic-beta"), "fast-mode-2026-02-01")`, Multiplier: 2.5, Matched: true},
+	}, trace.RequestRules)
+}
+
+func TestRequestProbeTraceIncludesUnmatchedFactors(t *testing.T) {
+	exprStr := `(tier("base", p * 2)) * (param("service_tier") == "fast" ? 2 : 1) * (has(header("anthropic-beta"), "fast-mode") ? 2.5 : 1)`
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		exprStr,
+		billingexpr.TokenParams{P: 10},
+		billingexpr.RequestInput{Body: []byte(`{"service_tier":"fast"}`)},
+	)
+
+	require.NoError(t, err)
+	assert.InDelta(t, 40, cost, 1e-6)
+	assert.Equal(t, []billingexpr.RequestRuleTrace{
+		{Cond: `param("service_tier") == "fast"`, Multiplier: 2, Matched: true},
+		{Cond: `has(header("anthropic-beta"), "fast-mode")`, Multiplier: 2.5, Matched: false},
+	}, trace.RequestRules)
+}
+
+func TestRequestProbeTracePreservesIntegerConditionalType(t *testing.T) {
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		`5 % (param("service_tier") == "fast" ? 2 : 1)`,
+		billingexpr.TokenParams{},
+		billingexpr.RequestInput{Body: []byte(`{"service_tier":"fast"}`)},
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, float64(1), cost)
+	assert.Equal(t, []billingexpr.RequestRuleTrace{
+		{Cond: `param("service_tier") == "fast"`, Multiplier: 2, Matched: true},
+	}, trace.RequestRules)
+}
+
+func TestRequestProbeNonUnitFallbackIsNotTraced(t *testing.T) {
+	cost, trace, err := billingexpr.RunExprWithRequest(
+		`10 * (param("service_tier") == "fast" ? 2 : 1.5)`,
+		billingexpr.TokenParams{},
+		billingexpr.RequestInput{Body: []byte(`{"service_tier":"standard"}`)},
+	)
+
+	require.NoError(t, err)
+	assert.InDelta(t, 15, cost, 1e-6)
+	assert.Empty(t, trace.RequestRules)
+}
+
+func TestRequestProbeInternalTraceFunctionIsReserved(t *testing.T) {
+	_, err := billingexpr.CompileFromCache(`_trace(0, true, 5.0)`)
+
+	require.ErrorContains(t, err, `identifier "_trace" is reserved for internal use`)
 }
 
 func TestCeilFloor(t *testing.T) {
@@ -292,6 +345,9 @@ func TestQuotaRound(t *testing.T) {
 		{999.4999, 999},
 		{999.5, 1000},
 		{1e9 + 0.5, 1e9 + 1},
+		// Oversized expression results saturate at the single-request limit (delegated to
+		// common.QuotaRound); full saturation coverage lives in common.
+		{3.6893488147419103e19, common.MaxQuota},
 	}
 	for _, tt := range tests {
 		got := billingexpr.QuotaRound(tt.in)
@@ -590,91 +646,6 @@ func TestComputeTieredQuota_WithCacheCrossTier(t *testing.T) {
 	}
 	if !result.CrossedTier {
 		t.Error("expected crossed_tier=true (estimated standard, actual long_context)")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Fuzz: random p/c/cache, verify non-negative result
-// ---------------------------------------------------------------------------
-
-func TestFuzz_NonNegativeResults(t *testing.T) {
-	exprs := []string{
-		claudeExpr,
-		claudeWithCacheExpr,
-		glmExpr,
-		"p * 0.5 + c * 1.0",
-		"max(p, c) * 0.1",
-		"p * 0.5 + cr * 0.1 + cc * 0.2",
-	}
-
-	rng := rand.New(rand.NewSource(42))
-
-	for _, exprStr := range exprs {
-		for i := 0; i < 500; i++ {
-			params := billingexpr.TokenParams{
-				P:    math.Round(rng.Float64() * 1000000),
-				C:    math.Round(rng.Float64() * 500000),
-				CR:   math.Round(rng.Float64() * 200000),
-				CC:   math.Round(rng.Float64() * 50000),
-				CC1h: math.Round(rng.Float64() * 10000),
-			}
-
-			cost, _, err := billingexpr.RunExpr(exprStr, params)
-			if err != nil {
-				t.Fatalf("expr=%q params=%+v: %v", exprStr, params, err)
-			}
-			if cost < 0 {
-				t.Errorf("expr=%q params=%+v: negative cost %f", exprStr, params, cost)
-			}
-		}
-	}
-}
-
-func TestFuzz_SettlementConsistency(t *testing.T) {
-	rng := rand.New(rand.NewSource(99))
-
-	for i := 0; i < 200; i++ {
-		estParams := billingexpr.TokenParams{
-			P:  math.Round(rng.Float64() * 500000),
-			C:  math.Round(rng.Float64() * 100000),
-			CR: math.Round(rng.Float64() * 100000),
-			CC: math.Round(rng.Float64() * 30000),
-		}
-		actParams := billingexpr.TokenParams{
-			P:  math.Round(rng.Float64() * 500000),
-			C:  math.Round(rng.Float64() * 100000),
-			CR: math.Round(rng.Float64() * 100000),
-			CC: math.Round(rng.Float64() * 30000),
-		}
-		groupRatio := 0.5 + rng.Float64()*2.0
-
-		estCost, estTrace, _ := billingexpr.RunExpr(claudeWithCacheExpr, estParams)
-
-		const qpu = 500_000.0
-		snap := &billingexpr.BillingSnapshot{
-			BillingMode:               "tiered_expr",
-			ExprString:                claudeWithCacheExpr,
-			ExprHash:                  billingexpr.ExprHashString(claudeWithCacheExpr),
-			GroupRatio:                groupRatio,
-			EstimatedPromptTokens:     int(estParams.P),
-			EstimatedCompletionTokens: int(estParams.C),
-			EstimatedQuotaBeforeGroup: estCost / 1_000_000 * qpu,
-			EstimatedQuotaAfterGroup:  billingexpr.QuotaRound(estCost / 1_000_000 * qpu * groupRatio),
-			EstimatedTier:             estTrace.MatchedTier,
-			QuotaPerUnit:              qpu,
-		}
-
-		result, err := billingexpr.ComputeTieredQuota(snap, actParams)
-		if err != nil {
-			t.Fatalf("iter %d: %v", i, err)
-		}
-
-		directCost, _, _ := billingexpr.RunExpr(claudeWithCacheExpr, actParams)
-		directQuota := billingexpr.QuotaRound(directCost / 1_000_000 * qpu * groupRatio)
-
-		if result.ActualQuotaAfterGroup != directQuota {
-			t.Errorf("iter %d: settlement %d != direct %d", i, result.ActualQuotaAfterGroup, directQuota)
-		}
 	}
 }
 

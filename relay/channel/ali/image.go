@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -54,6 +54,12 @@ func oaiImage2AliImageRequest(info *relaycommon.RelayInfo, request dto.ImageRequ
 		}
 	}
 
+	// Parameters may come from Extra["parameters"], bypassing the standard
+	// top-level n validation; enforce the same bound before it becomes a
+	// billing multiplier.
+	if imageRequest.Parameters.N < 0 || imageRequest.Parameters.N > dto.MaxImageN {
+		return nil, fmt.Errorf("parameters.n must be an integer between 1 and %d", dto.MaxImageN)
+	}
 	if imageRequest.Parameters.N != 0 {
 		info.PriceData.AddOtherRatio("n", float64(imageRequest.Parameters.N))
 	}
@@ -278,7 +284,10 @@ func responseAli2OpenAIImage(c *gin.Context, response *AliResponse, originBody [
 }
 
 func aliImageHandler(a *Adaptor, c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.Usage) {
-	responseFormat := c.GetString("response_format")
+	responseFormat := ""
+	if imageReq, ok := info.Request.(*dto.ImageRequest); ok {
+		responseFormat = imageReq.ResponseFormat
+	}
 
 	var aliTaskResponse AliResponse
 	responseBody, err := io.ReadAll(resp.Body)

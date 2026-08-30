@@ -3,11 +3,14 @@ package billingexpr
 import (
 	"crypto/sha256"
 	"fmt"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 type RequestInput struct {
 	Headers map[string]string
 	Body    []byte
+	Usage   map[string]any
 }
 
 // TokenParams holds all token dimensions passed into an Expr evaluation.
@@ -26,37 +29,53 @@ type TokenParams struct {
 	AO   float64 // audio output tokens
 }
 
-// TraceResult holds side-channel info captured by the tier() function
-// during Expr execution. This replaces the old Breakdown mechanism —
-// the Expr itself is the single source of truth for billing logic.
-type TraceResult struct {
-	MatchedTier string  `json:"matched_tier"`
-	Cost        float64 `json:"cost"`
+// RequestRuleTrace describes one request-dependent multiplier detected at compile time.
+type RequestRuleTrace struct {
+	Cond       string  `json:"cond"`
+	Multiplier float64 `json:"multiplier"`
+	Matched    bool    `json:"matched"`
 }
 
-// BillingSnapshot captures the billing rule state frozen at pre-consume time.
-// It is fully serializable and contains no compiled program pointers.
+// TraceResult holds side-channel info captured while an expression runs.
+type TraceResult struct {
+	MatchedTier  string             `json:"matched_tier"`
+	RequestRules []RequestRuleTrace `json:"request_rules,omitempty"`
+	Cost         float64            `json:"cost"`
+}
+
+// BillingSnapshot captures billing state at pre-consume time. Expression and
+// request fields stay frozen; group-dependent fields are refreshed before an
+// auto-group retry and settlement. It is fully serializable and contains no
+// compiled program pointers.
 type BillingSnapshot struct {
-	BillingMode               string  `json:"billing_mode"`
-	ModelName                 string  `json:"model_name"`
-	ExprString                string  `json:"expr_string"`
-	ExprHash                  string  `json:"expr_hash"`
-	GroupRatio                float64 `json:"group_ratio"`
-	EstimatedPromptTokens     int     `json:"estimated_prompt_tokens"`
-	EstimatedCompletionTokens int     `json:"estimated_completion_tokens"`
-	EstimatedQuotaBeforeGroup float64 `json:"estimated_quota_before_group"`
-	EstimatedQuotaAfterGroup  int     `json:"estimated_quota_after_group"`
-	EstimatedTier             string  `json:"estimated_tier"`
-	QuotaPerUnit              float64 `json:"quota_per_unit"`
-	ExprVersion               int     `json:"expr_version"`
+	BillingMode               string         `json:"billing_mode"`
+	ModelName                 string         `json:"model_name"`
+	ExprString                string         `json:"expr_string"`
+	ExprHash                  string         `json:"expr_hash"`
+	GroupRatio                float64        `json:"group_ratio"`
+	EstimatedPromptTokens     int            `json:"estimated_prompt_tokens"`
+	EstimatedCompletionTokens int            `json:"estimated_completion_tokens"`
+	EstimatedQuotaBeforeGroup float64        `json:"estimated_quota_before_group"`
+	EstimatedQuotaAfterGroup  int            `json:"estimated_quota_after_group"`
+	EstimatedTier             string         `json:"estimated_tier"`
+	QuotaPerUnit              float64        `json:"quota_per_unit"`
+	ExprVersion               int            `json:"expr_version"`
+	TaskUsageBilling          bool           `json:"task_usage_billing,omitempty"`
+	UsageFacts                map[string]any `json:"usage_facts,omitempty"`
 }
 
 // TieredResult holds everything needed after running tiered settlement.
 type TieredResult struct {
-	ActualQuotaBeforeGroup float64 `json:"actual_quota_before_group"`
-	ActualQuotaAfterGroup  int     `json:"actual_quota_after_group"`
-	MatchedTier            string  `json:"matched_tier"`
-	CrossedTier            bool    `json:"crossed_tier"`
+	ActualQuotaBeforeGroup float64            `json:"actual_quota_before_group"`
+	ActualQuotaAfterGroup  int                `json:"actual_quota_after_group"`
+	MatchedTier            string             `json:"matched_tier"`
+	RequestRules           []RequestRuleTrace `json:"request_rules,omitempty"`
+	CrossedTier            bool               `json:"crossed_tier"`
+	// Clamp records a single-request saturation event during quota conversion so the
+	// caller can surface it on the consume log for admin auditing. Nil when no
+	// clamping occurred. Not serialized: the marker is attached separately via
+	// the shared quota-saturation audit path.
+	Clamp *common.QuotaClamp `json:"-"`
 }
 
 // ExprHashString returns the SHA-256 hex digest of an expression string.

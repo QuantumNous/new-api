@@ -55,6 +55,9 @@ const (
 	MsgTokenExhausted            = "token.exhausted"
 	MsgTokenStatusUnavailable    = "token.status_unavailable"
 	MsgTokenDbError              = "token.db_error"
+	MsgTokenAutoGroupsTooMany    = "token.auto_groups_too_many"
+	MsgTokenAutoGroupsDuplicate  = "token.auto_groups_duplicate"
+	MsgTokenAutoGroupsInvalid    = "token.auto_groups_invalid"
 )
 
 // Redemption related messages
@@ -86,6 +89,9 @@ const (
 	MsgUserRequire2FA                = "user.require_2fa"
 	MsgUserEmailVerificationRequired = "user.email_verification_required"
 	MsgUserVerificationCodeError     = "user.verification_code_error"
+	MsgUserEmailAlreadyTaken         = "user.email_already_taken"
+	MsgUserPasswordUnset             = "user.password_unset"
+	MsgUserPasswordResetLinkInvalid  = "user.password_reset_link_invalid"
 	MsgUserInputInvalid              = "user.input_invalid"
 	MsgUserNoPermissionSameLevel     = "user.no_permission_same_level"
 	MsgUserNoPermissionHigherLevel   = "user.no_permission_higher_level"
