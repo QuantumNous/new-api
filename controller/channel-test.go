@@ -913,6 +913,13 @@ type channelTestSummary struct {
 func testChannelForHealthCheck(ctx context.Context, channel *model.Channel, testUserID int, allowDisable bool, disableThreshold int64) channelTestSummary {
 	summary := channelTestSummary{}
 	isChannelEnabled := channel.Status == common.ChannelStatusEnabled
+
+	// If channel has multiple keys, test all of them
+	if channel.ChannelInfo.IsMultiKey {
+		return testChannelAllKeysForHealthCheck(ctx, channel, testUserID, allowDisable, disableThreshold)
+	}
+
+	// Single key channel - test once
 	tik := time.Now()
 	result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
 	milliseconds := time.Since(tik).Milliseconds()
@@ -954,6 +961,237 @@ func testChannelForHealthCheck(ctx context.Context, channel *model.Channel, test
 
 	channel.UpdateResponseTime(milliseconds)
 	return summary
+}
+
+// testChannelAllKeysForHealthCheck tests all keys in a multi-key channel with concurrency
+func testChannelAllKeysForHealthCheck(ctx context.Context, channel *model.Channel, testUserID int, allowDisable bool, disableThreshold int64) channelTestSummary {
+	summary := channelTestSummary{}
+	isChannelEnabled := channel.Status == common.ChannelStatusEnabled
+	tik := time.Now()
+
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		// No keys available, treat as failed
+		summary.Tested++
+		summary.Failed++
+		if allowDisable && isChannelEnabled && channel.GetAutoBan() {
+			processChannelError(nil, *types.NewChannelError(channel.Id, channel.Type, channel.Name, true, "", channel.GetAutoBan()), types.NewError(fmt.Errorf("no keys available"), types.ErrorCodeChannelNoAvailableKey))
+			summary.Disabled++
+		}
+		return summary
+	}
+
+	// Get concurrency setting for multi-key testing
+	concurrency := operation_setting.GetMultiKeyTestConcurrency()
+	if concurrency < 1 {
+		concurrency = 1
+	}
+
+	// Use sequential testing if concurrency is 1 or only one key
+	if concurrency == 1 || len(keys) == 1 {
+		return testChannelAllKeysSequential(ctx, channel, keys, testUserID, allowDisable, disableThreshold, isChannelEnabled)
+	}
+
+	// Test keys concurrently with bounded concurrency
+	type keyJob struct {
+		index int
+	}
+	type keyResult struct {
+		index    int
+		result   channelKeyTestResult
+	}
+
+	jobs := make(chan keyJob, len(keys))
+	results := make(chan keyResult, len(keys))
+
+	// Start workers
+	var wg sync.WaitGroup
+	workerCount := min(concurrency, len(keys))
+	wg.Add(workerCount)
+	for w := 0; w < workerCount; w++ {
+		go func() {
+			defer wg.Done()
+			for job := range jobs {
+				if ctx.Err() != nil {
+					return
+				}
+				result := testChannelWithKeyIndex(ctx, channel, testUserID, job.index, shouldUseStreamForAutomaticChannelTest(channel))
+				results <- keyResult{index: job.index, result: result}
+			}
+		}()
+	}
+
+	// Send jobs
+	for i := range keys {
+		jobs <- keyJob{index: i}
+	}
+	close(jobs)
+
+	// Wait for workers to finish and close results channel
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Process results
+	for res := range results {
+		summary.Tested++
+
+		if ctx.Err() != nil {
+			return summary
+		}
+
+		shouldBanKey := false
+		newAPIError := res.result.newAPIError
+		if newAPIError != nil {
+			shouldBanKey = service.ShouldDisableChannel(res.result.newAPIError)
+		}
+
+		// Check response time threshold for this key
+		if common.AutomaticDisableChannelEnabled && !shouldBanKey {
+			if res.result.responseTime > disableThreshold {
+				err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(res.result.responseTime)/1000.0, float64(disableThreshold)/1000.0)
+				newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
+				shouldBanKey = true
+			}
+		}
+
+		if newAPIError == nil {
+			summary.Succeeded++
+		} else {
+			summary.Failed++
+		}
+
+		// Disable individual key if needed
+		if allowDisable && shouldBanKey && channel.GetAutoBan() {
+			processChannelError(res.result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, true, common.GetContextKeyString(res.result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+			summary.Disabled++
+		}
+
+		// Enable individual key if it was disabled and now works
+		if res.result.localErr == nil && newAPIError == nil && channel.ChannelInfo.IsMultiKey {
+			statusList := channel.ChannelInfo.MultiKeyStatusList
+			if statusList != nil {
+				if status, ok := statusList[res.index]; ok && status != common.ChannelStatusEnabled {
+					// Use the actual key value to enable it
+					if res.index < len(keys) {
+						service.EnableChannel(channel.Id, keys[res.index], channel.Name)
+						summary.Enabled++
+					}
+				}
+			}
+		}
+	}
+
+	milliseconds := time.Since(tik).Milliseconds()
+
+	// Update channel response time (average of all key test times)
+	if summary.Tested > 0 {
+		channel.UpdateResponseTime(milliseconds / int64(summary.Tested))
+	}
+
+	return summary
+}
+
+// testChannelAllKeysSequential tests all keys sequentially (used when concurrency is 1)
+func testChannelAllKeysSequential(ctx context.Context, channel *model.Channel, keys []string, testUserID int, allowDisable bool, disableThreshold int64, isChannelEnabled bool) channelTestSummary {
+	summary := channelTestSummary{}
+	tik := time.Now()
+
+	for i := range keys {
+		result := testChannelWithKeyIndex(ctx, channel, testUserID, i, shouldUseStreamForAutomaticChannelTest(channel))
+		summary.Tested++
+
+		if ctx.Err() != nil {
+			return summary
+		}
+
+		shouldBanKey := false
+		newAPIError := result.newAPIError
+		if newAPIError != nil {
+			shouldBanKey = service.ShouldDisableChannel(result.newAPIError)
+		}
+
+		// Check response time threshold for this key
+		if common.AutomaticDisableChannelEnabled && !shouldBanKey {
+			if result.responseTime > disableThreshold {
+				err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(result.responseTime)/1000.0, float64(disableThreshold)/1000.0)
+				newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
+				shouldBanKey = true
+			}
+		}
+
+		if newAPIError == nil {
+			summary.Succeeded++
+		} else {
+			summary.Failed++
+		}
+
+		// Disable individual key if needed
+		if allowDisable && shouldBanKey && channel.GetAutoBan() {
+			processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, true, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+			summary.Disabled++
+		}
+
+		// Enable individual key if it was disabled and now works
+		if result.localErr == nil && newAPIError == nil && channel.ChannelInfo.IsMultiKey {
+			statusList := channel.ChannelInfo.MultiKeyStatusList
+			if statusList != nil {
+				if status, ok := statusList[i]; ok && status != common.ChannelStatusEnabled {
+					// Use the actual key value to enable it
+					if i < len(keys) {
+						service.EnableChannel(channel.Id, keys[i], channel.Name)
+						summary.Enabled++
+					}
+				}
+			}
+		}
+	}
+
+	milliseconds := time.Since(tik).Milliseconds()
+
+	// Update channel response time (average of all key test times)
+	if summary.Tested > 0 {
+		channel.UpdateResponseTime(milliseconds / int64(summary.Tested))
+	}
+
+	return summary
+}
+
+// channelKeyTestResult extends testResult with additional info for multi-key testing
+type channelKeyTestResult struct {
+	testResult
+	responseTime int64 // in milliseconds
+	keyIndex     int
+}
+
+// testChannelWithKeyIndex tests a specific key in a multi-key channel
+func testChannelWithKeyIndex(ctx context.Context, channel *model.Channel, testUserID int, keyIndex int, isStream bool) channelKeyTestResult {
+	tik := time.Now()
+
+	// Create a copy of the channel with only the specific key for testing
+	channelCopy := *channel
+	keys := channel.GetKeys()
+	if keyIndex >= len(keys) {
+		return channelKeyTestResult{
+			testResult: testResult{
+				localErr: fmt.Errorf("key index %d out of range", keyIndex),
+			},
+			responseTime: 0,
+			keyIndex:     keyIndex,
+		}
+	}
+	channelCopy.Key = keys[keyIndex]
+	channelCopy.ChannelInfo.IsMultiKey = false // Test as single key
+
+	result := testChannel(ctx, &channelCopy, testUserID, "", "", isStream)
+	milliseconds := time.Since(tik).Milliseconds()
+
+	return channelKeyTestResult{
+		testResult:   result,
+		responseTime: milliseconds,
+		keyIndex:     keyIndex,
+	}
 }
 
 // runChannelTestWorkers executes independent channel tests with bounded

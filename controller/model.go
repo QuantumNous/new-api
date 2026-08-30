@@ -176,6 +176,12 @@ func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.Open
 		oaiModel.OwnedBy = owner
 	}
 	oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+	
+	// Apply model prefix if configured
+	if prefix := operation_setting.GetModelPrefix(); prefix != "" {
+		oaiModel.Id = prefix + "/" + oaiModel.Id
+	}
+	
 	return oaiModel
 }
 
