@@ -6,7 +6,15 @@
 
 🍥 **Next-Generation LLM Gateway and AI Asset Management System**
 
-**Secondary-Development Fork** — based on [New API by QuantumNous](https://github.com/QuantumNous/new-api)
+<p align="center">
+  <a href="./README.zh_CN.md">简体中文</a> |
+  <a href="./README.zh_TW.md">繁體中文</a> |
+  <strong>English</strong> |
+  <a href="./README.fr.md">Français</a> |
+  <a href="./README.ja.md">日本語</a>
+</p>
+
+**Secondary-Development Fork** by ChinaToyHunter — based on [New API by QuantumNous](https://github.com/QuantumNous/new-api)
 
 <p align="center">
   <a href="./LICENSE">
