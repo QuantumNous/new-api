@@ -60,6 +60,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useStatus } from '@/hooks/use-status'
@@ -258,6 +265,8 @@ export function ApiKeysMutateDrawer({
     isUpdate && currentRow ? `update:${currentRow.id}` : 'create'
   const isFormInitialized = initializedTarget === formTarget
   const selectedGroup = form.watch('group')
+  // 二选一：smartRouting=true 时按策略智能路由，否则走指定分组（group/auto_groups）
+  const smartRouting = form.watch('routing_priority') || ''
 
   // Correct group after groups load: if the form value is not in available groups, fall back
   useEffect(() => {
@@ -412,12 +421,76 @@ export function ApiKeysMutateDrawer({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name='group'
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('Group')}</FormLabel>
+              <div className={sideDrawerSwitchItemClassName()}>
+                <div className='flex flex-col gap-0.5'>
+                  <span className='text-sm font-medium'>{t('Smart routing')}</span>
+                  <span className='line-clamp-2 text-muted-foreground text-xs sm:line-clamp-none'>
+                    {t(
+                      'When enabled, the system picks the optimal channel across all usable groups by strategy, ignoring the specified group.'
+                    )}
+                  </span>
+                </div>
+                <Switch
+                  aria-label={t('Smart routing')}
+                  checked={!!smartRouting}
+                  onCheckedChange={(on) => {
+                    form.setValue('routing_priority', on ? 'auto' : '', {
+                      shouldDirty: true,
+                    })
+                    form.setValue('cross_group_retry', on, {
+                      shouldDirty: true,
+                    })
+                  }}
+                />
+              </div>
+
+              {!!smartRouting && (
+                <FormField
+                  control={form.control}
+                  name='routing_priority'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Routing strategy')}</FormLabel>
+                      <FormControl>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger className='w-full'>
+                            <SelectValue
+                              placeholder={t('Select a routing strategy')}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value='auto'>
+                              {t('Auto (price, speed, success rate)')}
+                            </SelectItem>
+                            <SelectItem value='price'>
+                              {t('Price first (lowest cost)')}
+                            </SelectItem>
+                            <SelectItem value='speed'>
+                              {t('Speed first (fastest response)')}
+                            </SelectItem>
+                            <SelectItem value='success_rate'>
+                              {t('Success rate first (most stable)')}
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {!smartRouting && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name='group'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Group')}</FormLabel>
                     <FormControl>
                       <ApiKeyGroupCombobox
                         options={groups}
@@ -508,6 +581,42 @@ export function ApiKeysMutateDrawer({
                     </FormItem>
                   )}
                 />
+              )}
+
+              {!smartRouting && selectedGroup !== 'auto' && (
+                <FormField
+                  control={form.control}
+                  name='group_order'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('Group priority order (openLUX group_ids)')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Optional. Requests fall back through these groups in order. When set, it overrides the single Group above.'
+                        )}
+                      </FormDescription>
+                      <FormControl>
+                        <AutoGroupOrderEditor
+                          value={field.value}
+                          mode='custom'
+                          options={groups}
+                          globalOptions={[]}
+                          maxCount={maxAutoGroups}
+                          onChange={(value) =>
+                            field.onChange(
+                              value.groups.slice(0, maxAutoGroups)
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+                </>
               )}
 
               <FormField

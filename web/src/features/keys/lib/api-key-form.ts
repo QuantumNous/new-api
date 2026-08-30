@@ -43,11 +43,15 @@ export function getApiKeyFormSchema(t: TFunction, maxAutoGroups = 5) {
       group: z.string().optional(),
       auto_groups_mode: z.enum(['inherit', 'custom']),
       auto_groups: z.array(z.string()),
+      // 有序分组列表（openLUX group_ids 对齐）：非智能路由且非 auto 分组时生效
+      group_order: z.array(z.string()),
       cross_group_retry: z.boolean().optional(),
+      routing_priority: z.string().optional(),
       tokenCount: z.number().min(1).optional(),
     })
     .superRefine((data, ctx) => {
-      if (data.group === 'auto') {
+      // 智能路由模式下忽略指定分组，不做 auto_groups 校验；quota 校验对所有模式生效
+      if (!data.routing_priority && data.group === 'auto') {
         if (
           data.auto_groups_mode === 'custom' &&
           data.auto_groups.length === 0
@@ -113,7 +117,9 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   group: DEFAULT_GROUP,
   auto_groups_mode: 'inherit',
   auto_groups: [],
+  group_order: [],
   cross_group_retry: true,
+  routing_priority: '',
   tokenCount: 1,
 }
 
@@ -126,6 +132,7 @@ export function getApiKeyFormDefaultValues(
     auto_groups_mode: 'inherit',
     auto_groups: [],
     cross_group_retry: defaultUseAutoGroup,
+    routing_priority: '',
   }
 }
 
@@ -139,6 +146,8 @@ export function getApiKeyFormDefaultValues(
 export function transformFormDataToPayload(
   data: ApiKeyFormValues
 ): ApiKeyFormData {
+  // 二选一：智能路由忽略指定分组，强制 group=auto + 跨分组重试
+  const isSmartRouting = !!data.routing_priority
   return {
     name: data.name,
     remain_quota: data.unlimited_quota
@@ -151,12 +160,25 @@ export function transformFormDataToPayload(
     model_limits_enabled: data.model_limits.length > 0,
     model_limits: data.model_limits.join(','),
     allow_ips: data.allow_ips || '',
-    group: data.group || '',
-    auto_groups:
-      data.group === 'auto' && data.auto_groups_mode === 'custom'
+    group: isSmartRouting ? 'auto' : data.group || '',
+    auto_groups: isSmartRouting
+      ? []
+      : data.group === 'auto' && data.auto_groups_mode === 'custom'
         ? data.auto_groups
         : [],
-    cross_group_retry: data.group === 'auto' ? !!data.cross_group_retry : false,
+    // 有序分组列表（openLUX group_ids）：非智能路由且非 auto 分组时生效
+    group_order:
+      isSmartRouting || data.group === 'auto'
+        ? ''
+        : (data.group_order || []).join(','),
+    cross_group_retry: isSmartRouting
+      ? true
+      : data.group === 'auto'
+        ? !!data.cross_group_retry
+        : false,
+    routing_priority: isSmartRouting ? data.routing_priority || '' : '',
+    // 开启智能路由时把原分组带给后端存为 manual_group，切回手动时恢复
+    manual_group: isSmartRouting ? data.group || '' : '',
   }
 }
 
@@ -189,10 +211,19 @@ export function transformApiKeyToFormDefaults(
       ? apiKey.model_limits.split(',').filter(Boolean)
       : [],
     allow_ips: apiKey.allow_ips || '',
-    group: apiKey.group || DEFAULT_GROUP,
+    // 智能路由令牌的 group 在库里是 "auto"，用 manual_group 恢复原分组显示，
+    // 这样关闭开关时表单提交的 group 就是原分组，不会丢失。
+    group:
+      apiKey.group === 'auto' && apiKey.manual_group
+        ? apiKey.manual_group
+        : apiKey.group || DEFAULT_GROUP,
     auto_groups_mode: autoGroupsMode,
     auto_groups: autoGroups,
+    group_order: apiKey.group_order
+      ? apiKey.group_order.split(',').filter(Boolean)
+      : [],
     cross_group_retry: !!apiKey.cross_group_retry,
+    routing_priority: apiKey.routing_priority || '',
     tokenCount: 1,
   }
 }

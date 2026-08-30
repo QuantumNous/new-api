@@ -5534,6 +5534,17 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Speed": "速度",
+    "Smart routing": "智能路由",
+    "Routing strategy": "路由策略",
+    "Select a routing strategy": "请选择路由策略",
+    "Auto (price, speed, success rate)": "综合最优（价格 / 速度 / 成功率）",
+    "Price first (lowest cost)": "价格优先（成本最低）",
+    "Speed first (fastest response)": "速度优先（响应最快）",
+    "Success rate first (most stable)": "成功率优先（近期最稳定）",
+    "When enabled, the system picks the optimal channel across all usable groups by strategy, ignoring the specified group.": "开启后，系统将按所选策略在所有可用分组中选择最优渠道，忽略指定分组。",
+    "Smart: {{strategy}}": "智能：{{strategy}}",
+    "Smart routing: the system picks the optimal channel across all usable groups by the selected strategy.": "智能路由：系统按所选策略在所有可用分组中选择最优渠道。"
   }
 }

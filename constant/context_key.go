@@ -21,6 +21,15 @@ const (
 	ContextKeyTokenModelLimit        ContextKey = "token_model_limit"
 	ContextKeyTokenCrossGroupRetry   ContextKey = "token_cross_group_retry"
 	ContextKeyTokenAutoGroups        ContextKey = "token_auto_groups"
+	// ContextKeyTokenRoutingPriority 令牌级智能路由策略：''=手动（指定分组/单一分组），
+	// auto/price/speed/success_rate = 系统按策略在所有可用分组中选择最优渠道。
+	ContextKeyTokenRoutingPriority ContextKey = "token_routing_priority"
+	// ContextKeyTokenGroupOrder 令牌级有序分组列表（openLUX group_ids 对齐），
+	// 值类型 []string，按优先级排列。设置后路由按列表逐组尝试，无渠道自动跳到下一组。
+	ContextKeyTokenGroupOrder ContextKey = "token_group_order"
+	// ContextKeyModelGroupOverride 请求级 model 后缀覆盖强制分组（openLUX 兼容，
+	// model 形如 "deepseek-chat@g2"）。值类型 string，优先级高于令牌级智能路由。
+	ContextKeyModelGroupOverride ContextKey = "model_group_override"
 
 	/* channel related keys */
 	ContextKeyChannelId                ContextKey = "channel_id"
@@ -42,7 +51,6 @@ const (
 
 	ContextKeyAutoGroup           ContextKey = "auto_group"
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"
-	ContextKeyAutoGroupRetryIndex ContextKey = "auto_group_retry_index"
 
 	/* user related keys */
 	ContextKeyUserId      ContextKey = "id"

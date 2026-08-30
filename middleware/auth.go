@@ -505,6 +505,10 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	}
 	common.SetContextKey(c, constant.ContextKeyTokenGroup, token.Group)
 	common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, token.CrossGroupRetry)
+	// 令牌级智能路由策略（''=手动指定分组/单一分组；auto/price/speed/success_rate=智能路由）
+	common.SetContextKey(c, constant.ContextKeyTokenRoutingPriority, token.RoutingPriority)
+	// 令牌级有序分组列表（openLUX group_ids 对齐）：值 []string，按优先级排列
+	common.SetContextKey(c, constant.ContextKeyTokenGroupOrder, token.GetGroupOrderList())
 	if token.AutoGroups != "" {
 		autoGroups, err := token.GetAutoGroups()
 		if err != nil {

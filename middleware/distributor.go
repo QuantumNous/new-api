@@ -31,6 +31,13 @@ type ModelRequest struct {
 	Group string `json:"group,omitempty"`
 }
 
+// isRequestModelGroupForced 报告当前请求是否通过 model@g2 后缀强制指定了路由分组。
+// 强制分组时跳过 affinity 选区，让 CacheGetRandomSatisfiedChannel 的强制分组分支接管。
+func isRequestModelGroupForced(c *gin.Context) bool {
+	_, ok := common.GetContextKey(c, constant.ContextKeyModelGroupOverride)
+	return ok
+}
+
 func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
@@ -45,6 +52,9 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		// openLUX 兼容：请求级 model 后缀覆盖路由分组，例如 "deepseek-chat@g2"。
+		// 后缀必须是用户可用分组才生效；剥离后的基础模型名用于上游调用、计费与重试。
+		modelRequest.Model = applyModelGroupSuffix(c, modelRequest.Model)
 		if pin, found, overridden := constraints.ResolvedPin(); found {
 			for _, lost := range overridden {
 				logger.LogWarn(c, fmt.Sprintf(
@@ -124,7 +134,7 @@ func Distribute() func(c *gin.Context) {
 					}
 				}
 
-				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
+				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found && !isRequestModelGroupForced(c) {
 					affinityUsable := false
 					preferred, err := model.CacheGetChannel(preferredChannelID)
 					affinitySatisfied := false
@@ -198,8 +208,12 @@ func Distribute() func(c *gin.Context) {
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
 		c.Next()
-		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
-			service.RecordChannelAffinity(c, channel.Id)
+		if channel != nil && c.Writer != nil {
+			// 智能路由 success_rate 数据源：按最终 HTTP 状态记录渠道请求成败。
+			model.CacheRecordChannelResult(channel.Id, c.Writer.Status() < http.StatusBadRequest)
+			if c.Writer.Status() < http.StatusBadRequest {
+				service.RecordChannelAffinity(c, channel.Id)
+			}
 		}
 	}
 }
@@ -230,6 +244,27 @@ func channelMatchesExpectedTaskPlugin(c *gin.Context, channel *model.Channel, ex
 	}
 	plugin, ok := pinned.Generation.GetByChannelType(channel.Type)
 	return ok && plugin == pinned.Plugin
+}
+
+// applyModelGroupSuffix 解析 "model@g2" 形式的模型后缀覆盖（openLUX 兼容）。
+// 仅当 @ 后的后缀是当前用户可用分组时生效：把强制分组写入上下文（ContextKeyModelGroupOverride），
+// 返回剥离后缀的基础模型名。否则原样返回模型名，不改变路由（避免误伤不含分组语义的模型名）。
+func applyModelGroupSuffix(c *gin.Context, modelName string) string {
+	if modelName == "" {
+		return modelName
+	}
+	idx := strings.LastIndex(modelName, "@")
+	if idx <= 0 || idx == len(modelName)-1 {
+		return modelName
+	}
+	base := modelName[:idx]
+	group := modelName[idx+1:]
+	userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+	if !service.GroupInUserUsableGroups(userGroup, group) {
+		return modelName
+	}
+	common.SetContextKey(c, constant.ContextKeyModelGroupOverride, group)
+	return base
 }
 
 func pinnedEndpointCandidateForChannel(c *gin.Context, channel *model.Channel, expected string) (jsplugin.ProtocolBinding, bool) {

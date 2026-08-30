@@ -37,11 +37,20 @@ type ApiKeyGroupCellProps = {
   crossGroupRetry: boolean
   group: string
   ratio?: GroupRatio
+  routingPriority?: string
   shouldReduceMotion: boolean
+}
+
+const SMART_ROUTING_LABELS: Record<string, string> = {
+  auto: 'Auto',
+  price: 'Price',
+  speed: 'Speed',
+  success_rate: 'Success rate',
 }
 
 export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
   const { t } = useTranslation()
+  const isSmart = !!props.routingPriority
 
   if (props.group !== 'auto') {
     const ratio = typeof props.ratio === 'number' ? props.ratio : undefined
@@ -56,21 +65,33 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
     )
   }
 
+  const strategyLabel = isSmart
+    ? t(SMART_ROUTING_LABELS[props.routingPriority!] ?? 'Auto')
+    : null
+
   return (
     <Tooltip>
       <TooltipTrigger
         render={
           <BadgeCell
-            data-api-key-group-cell='auto'
+            data-api-key-group-cell={isSmart ? 'smart' : 'auto'}
             className='gap-1.5 overflow-visible text-xs'
           />
         }
       >
-        <StatusBadge
-          label={t('Cross-group')}
-          variant='info'
-          copyable={false}
-        />
+        {isSmart ? (
+          <StatusBadge
+            label={t('Smart: {{strategy}}', { strategy: strategyLabel })}
+            variant='success'
+            copyable={false}
+          />
+        ) : (
+          <StatusBadge
+            label={t('Cross-group')}
+            variant='info'
+            copyable={false}
+          />
+        )}
         {/*<AutoGroupBadge shouldReduceMotion={props.shouldReduceMotion} />*/}
         <GroupRatioBadge
           ratio={props.ratio}
@@ -80,9 +101,13 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
       </TooltipTrigger>
       <TooltipContent>
         <span className='text-xs'>
-          {t(
-            'Automatically selects the best available group with circuit breaker mechanism'
-          )}
+          {isSmart
+            ? t(
+                'Smart routing: the system picks the optimal channel across all usable groups by the selected strategy.'
+              )
+            : t(
+                'Automatically selects the best available group with circuit breaker mechanism'
+              )}
         </span>
       </TooltipContent>
     </Tooltip>

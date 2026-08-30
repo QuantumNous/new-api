@@ -127,6 +127,57 @@ func setTokenAutoGroups(c *gin.Context, token *model.Token, groups []string) boo
 	return true
 }
 
+// setTokenGroupOrder 校验并保存令牌级有序分组列表（openLUX group_ids 对齐）。
+// validateGroupOrderRawDuplicate 校验原始 group_order 输入中的重复分组。
+// GetGroupOrderList 会先去重，若在此前不校验，重复输入将静默通过。
+func validateGroupOrderRawDuplicate(c *gin.Context, raw string) bool {
+	parts := strings.Split(raw, ",")
+	seen := make(map[string]struct{}, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if _, ok := seen[p]; ok {
+			common.ApiErrorI18n(c, i18n.MsgTokenAutoGroupsDuplicate, map[string]any{"Group": p})
+			return false
+		}
+		seen[p] = struct{}{}
+	}
+	return true
+}
+
+func setTokenGroupOrder(c *gin.Context, token *model.Token, groups []string) bool {
+	if len(groups) == 0 {
+		token.GroupOrder = ""
+		return true
+	}
+	maxCount := setting.GetMaxTokenAutoGroups()
+	if len(groups) > maxCount {
+		common.ApiErrorI18n(c, i18n.MsgTokenAutoGroupsTooMany, map[string]any{"Max": maxCount})
+		return false
+	}
+	userGroup, err := getTokenRequestUserGroup(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	seen := make(map[string]struct{}, len(groups))
+	for _, group := range groups {
+		if _, ok := seen[group]; ok {
+			common.ApiErrorI18n(c, i18n.MsgTokenAutoGroupsDuplicate, map[string]any{"Group": group})
+			return false
+		}
+		seen[group] = struct{}{}
+		if !service.IsUserSelectableGroup(userGroup, group) {
+			common.ApiErrorI18n(c, i18n.MsgTokenAutoGroupsInvalid, map[string]any{"Group": group})
+			return false
+		}
+	}
+	token.SetGroupOrderList(groups)
+	return true
+}
+
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetInt("id")
 	pageInfo := common.GetPageQuery(c)
@@ -310,13 +361,36 @@ func AddToken(c *gin.Context) {
 		})
 		return
 	}
-	if token.Group == "auto" {
+	// 二选一：智能路由 vs 指定分组（单分组 / 有序分组列表 / auto 分组）
+	if token.RoutingPriority != constant.RoutingPriorityNone {
+		// 智能路由：校验策略值，忽略指定分组，强制跨分组重试
+		if !constant.ValidRoutingPriority(token.RoutingPriority) {
+			common.ApiErrorI18n(c, i18n.MsgTokenRoutingPriorityInvalid)
+			return
+		}
+		token.Group = "auto"
+		token.CrossGroupRetry = true
+		_ = token.SetAutoGroups(nil)
+		token.GroupOrder = ""
+	} else if token.GroupOrder != "" {
+		// 有序分组列表（openLUX group_ids）：校验并按序保存
+		if !validateGroupOrderRawDuplicate(c, token.GroupOrder) {
+			return
+		}
+		if !setTokenGroupOrder(c, &token, token.GetGroupOrderList()) {
+			return
+		}
+		_ = token.SetAutoGroups(nil)
+		token.ManualGroup = ""
+	} else if token.Group == "auto" {
 		if !setTokenAutoGroups(c, &token, request.AutoGroups.Groups) {
 			return
 		}
+		token.ManualGroup = ""
 	} else {
 		token.CrossGroupRetry = false
 		_ = token.SetAutoGroups(nil)
+		token.ManualGroup = ""
 	}
 	key, err := common.GenerateKey()
 	if err != nil {
@@ -339,6 +413,9 @@ func AddToken(c *gin.Context) {
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
 		AutoGroups:         token.AutoGroups,
+		RoutingPriority:    token.RoutingPriority,
+		ManualGroup:        token.ManualGroup,
+		GroupOrder:         token.GroupOrder,
 	}
 	err = cleanToken.Insert()
 	if err != nil {
@@ -416,15 +493,60 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.ModelLimitsEnabled = token.ModelLimitsEnabled
 		cleanToken.ModelLimits = token.ModelLimits
 		cleanToken.AllowIps = token.AllowIps
-		cleanToken.Group = token.Group
-		cleanToken.CrossGroupRetry = token.CrossGroupRetry
-		if token.Group != "auto" {
-			cleanToken.CrossGroupRetry = false
-			_ = cleanToken.SetAutoGroups(nil)
-		} else if request.AutoGroups.Set {
-			if !setTokenAutoGroups(c, cleanToken, request.AutoGroups.Groups) {
+		// 二选一：智能路由 vs 指定分组（单分组 / 有序分组列表 / auto 分组）
+		if token.RoutingPriority != constant.RoutingPriorityNone {
+			// 智能路由：校验策略值，忽略指定分组，强制跨分组重试
+			if !constant.ValidRoutingPriority(token.RoutingPriority) {
+				common.ApiErrorI18n(c, i18n.MsgTokenRoutingPriorityInvalid)
 				return
 			}
+			cleanToken.RoutingPriority = token.RoutingPriority
+			// 切到智能路由前记住手动分组，供切回时恢复。
+			// 前端开启开关时提交 manual_group（原分组）；未带时回退到当前非 auto 分组。
+			if token.ManualGroup != "" {
+				cleanToken.ManualGroup = token.ManualGroup
+			} else if cleanToken.ManualGroup == "" && cleanToken.Group != "auto" {
+				cleanToken.ManualGroup = cleanToken.Group
+			}
+			cleanToken.Group = "auto"
+			cleanToken.CrossGroupRetry = true
+			_ = cleanToken.SetAutoGroups(nil)
+			cleanToken.GroupOrder = ""
+		} else if token.GroupOrder != "" {
+			// 有序分组列表（openLUX group_ids）：校验并按序保存
+			if !validateGroupOrderRawDuplicate(c, token.GroupOrder) {
+				return
+			}
+			if !setTokenGroupOrder(c, cleanToken, token.GetGroupOrderList()) {
+				return
+			}
+			cleanToken.RoutingPriority = ""
+			cleanToken.Group = token.Group
+			cleanToken.CrossGroupRetry = true
+			_ = cleanToken.SetAutoGroups(nil)
+			cleanToken.ManualGroup = ""
+		} else {
+			cleanToken.RoutingPriority = ""
+			cleanToken.GroupOrder = ""
+			cleanToken.Group = token.Group
+			// 从智能路由切回手动：前端应提交恢复后的原分组（group）；
+			// 兜底：若仍为 "auto"/空，则用此前记录的 manual_group 恢复。
+			if token.Group == "auto" || token.Group == "" {
+				if cleanToken.ManualGroup != "" {
+					cleanToken.Group = cleanToken.ManualGroup
+				}
+			}
+			cleanToken.CrossGroupRetry = token.CrossGroupRetry
+			if cleanToken.Group != "auto" {
+				cleanToken.CrossGroupRetry = false
+				_ = cleanToken.SetAutoGroups(nil)
+			} else if request.AutoGroups.Set {
+				if !setTokenAutoGroups(c, cleanToken, request.AutoGroups.Groups) {
+					return
+				}
+			}
+			// 已回到手动模式，清空保留的手动分组
+			cleanToken.ManualGroup = ""
 		}
 	}
 	err = cleanToken.Update()
