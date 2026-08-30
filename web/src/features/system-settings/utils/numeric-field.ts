@@ -87,6 +87,10 @@ export function safeNumberFieldProps<
       const next = event.target.valueAsNumber
       if (Number.isFinite(next)) {
         ;(field.onChange as (value: number) => void)(next)
+      } else if (event.target.value === '') {
+        // Allow clearing the input — set to undefined so react-hook-form
+        // knows the field is empty and the user can re-enter a value.
+        ;(field.onChange as (value: undefined) => void)(undefined)
       }
     },
     onBlur: field.onBlur,
