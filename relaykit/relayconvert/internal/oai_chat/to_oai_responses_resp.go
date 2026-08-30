@@ -91,6 +91,12 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id
 		if err != nil {
 			return nil, nil, err
 		}
+		// Skip tool calls with an empty function name (invalid upstream calls).
+		// Emitting them would write an empty function_call.name into the session
+		// history, which the downstream client rejects on replay.
+		if toolOutput.Type == "" && toolOutput.Name == "" {
+			continue
+		}
 		out.Output = append(out.Output, toolOutput)
 	}
 
@@ -175,6 +181,13 @@ func chatToolCallToResponsesOutput(toolCall dto.ToolCallRequest, responseID stri
 		callID = fmt.Sprintf("%s_call_%d", responseID, index)
 	}
 	if toolCall.Type == "" || toolCall.Type == "function" {
+		// Skip tool calls with an empty function name. Such calls are invalid
+		// (e.g. a bare {"ok":true} payload) and, if written into the session
+		// history, cause the downstream client (Codex) to reject replay on the
+		// next turn because input[i].name is empty.
+		if strings.TrimSpace(toolCall.Function.Name) == "" {
+			return dto.ResponsesOutput{}, nil
+		}
 		return dto.ResponsesOutput{
 			Type:      responsesOutputTypeFunctionCall,
 			ID:        callID,

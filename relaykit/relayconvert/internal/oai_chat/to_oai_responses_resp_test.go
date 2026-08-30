@@ -74,6 +74,50 @@ func TestChatCompletionsResponseToResponsesMapsIncompleteFinishReasons(t *testin
 	}
 }
 
+func TestChatCompletionsResponseToResponsesSkipsEmptyFunctionName(t *testing.T) {
+	chat := &dto.OpenAITextResponse{
+		Id:      "chatcmpl_2",
+		Model:   "gpt-test",
+		Created: 456,
+		Choices: []dto.OpenAITextResponseChoice{
+			{
+				Message: dto.Message{
+					Role:    "assistant",
+					Content: "I will do something.",
+				},
+				FinishReason: "tool_calls",
+			},
+		},
+		Usage: dto.Usage{PromptTokens: 3, CompletionTokens: 5, TotalTokens: 8},
+	}
+
+	// Simulate an invalid upstream tool call with an empty function name
+	// (e.g. a bare {"ok":true} payload). Such calls must not be written
+	// into the responses output history, or downstream clients reject replay.
+	var msg dto.Message
+	msg.Role = "assistant"
+	msg.Content = "I will do something."
+	msg.SetToolCalls([]dto.ToolCallRequest{
+		{ID: "call_empty", Type: "function", Function: dto.FunctionRequest{Name: "", Arguments: `{"ok":true}`}},
+		{ID: "call_valid", Type: "function", Function: dto.FunctionRequest{Name: "lookup", Arguments: `{"q":"x"}`}},
+	})
+	chat.Choices[0].Message = msg
+
+	resp, _, err := ChatCompletionsResponseToResponsesResponse(chat, "resp_2")
+	require.NoError(t, err)
+
+	// Only the valid tool call should be present; the empty-name one is dropped.
+	var functionCalls []dto.ResponsesOutput
+	for _, out := range resp.Output {
+		if out.Type == responsesOutputTypeFunctionCall {
+			functionCalls = append(functionCalls, out)
+		}
+	}
+	require.Len(t, functionCalls, 1)
+	assert.Equal(t, "lookup", functionCalls[0].Name)
+	assert.NotEqual(t, "", functionCalls[0].Name)
+}
+
 func TestChatCompletionsStreamToResponsesEventsAggregatesUsageAndToolArgs(t *testing.T) {
 	state := NewChatToResponsesStreamState("resp_1", "gpt-test")
 	state.Created = 123

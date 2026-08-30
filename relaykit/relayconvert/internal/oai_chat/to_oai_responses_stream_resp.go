@@ -281,6 +281,11 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 			continue
 		}
 		tool.Done = true
+		// Skip invalid function calls with an empty name so they never get
+		// written into the session history (downstream clients reject replay).
+		if strings.TrimSpace(tool.Name) == "" {
+			continue
+		}
 		events = append(events, responsesStreamEvent(responsesEventFunctionArgsDone, dto.ResponsesStreamResponse{
 			Type:        responsesEventFunctionArgsDone,
 			OutputIndex: intPtr(tool.OutputIndex),
@@ -313,6 +318,10 @@ func (s *ChatToResponsesStreamState) finalResponse() *dto.OpenAIResponsesRespons
 			output = append(output, *s.reasoningOutput(status))
 		case "tool":
 			if tool := s.toolsByIndex[ref.ToolIndex]; tool != nil {
+				// Skip invalid function calls with an empty name.
+				if strings.TrimSpace(tool.Name) == "" {
+					continue
+				}
 				output = append(output, *s.toolOutput(tool, status))
 			}
 		}
