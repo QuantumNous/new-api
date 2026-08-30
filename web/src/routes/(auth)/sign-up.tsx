@@ -33,16 +33,9 @@ export const Route = createFileRoute('/(auth)/sign-up')({
     }
 
     // 如果注册被禁用，跳转到登录页
-    try {
-      const status = await getStatus()
-      if (status?.register_enabled === false) {
-        throw redirect({ to: '/sign-in' })
-      }
-    } catch (err) {
-      // If redirect, re-throw; otherwise ignore status fetch failure
-      if (err && typeof err === 'object' && 'isRedirect' in err) {
-        throw err
-      }
+    const status = await getStatus()
+    if (status?.register_enabled === false) {
+      throw redirect({ to: '/sign-in' })
     }
   },
 })
