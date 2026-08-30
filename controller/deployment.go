@@ -668,10 +668,7 @@ func GetDeploymentLogs(c *gin.Context) {
 	var limit int = 100
 	if limitStr != "" {
 		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
-			limit = parsedLimit
-			if limit > 1000 {
-				limit = 1000
-			}
+			limit = min(parsedLimit, 1000)
 		}
 	}
 

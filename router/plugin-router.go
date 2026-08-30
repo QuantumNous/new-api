@@ -542,10 +542,7 @@ func routePatternsIntersect(leftPath, rightPath string) bool {
 func routesGinCompatible(leftPath, rightPath string) bool {
 	left := parseRoutePattern(leftPath)
 	right := parseRoutePattern(rightPath)
-	limit := len(left)
-	if len(right) < limit {
-		limit = len(right)
-	}
+	limit := min(len(right), len(left))
 	for index := 0; index < limit; index++ {
 		leftSegment := left[index]
 		rightSegment := right[index]
