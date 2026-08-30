@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/group_state"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -59,30 +60,48 @@ func GetGroupRatioSetting() *GroupRatioSetting {
 	return &groupRatioSetting
 }
 
+// GetGroupRatioCopy returns a copy of the published group ratios.
 func GetGroupRatioCopy() map[string]float64 {
-	return groupRatioMap.ReadAll()
+	return group_state.Read(groupRatioMap.ReadAll)
 }
 
+// ContainsGroupRatio reports whether a group has a configured ratio.
 func ContainsGroupRatio(name string) bool {
-	_, ok := groupRatioMap.Get(name)
-	return ok
+	return group_state.Read(func() bool {
+		_, ok := groupRatioMap.Get(name)
+		return ok
+	})
 }
 
+// GroupRatio2JSONString serializes the published group ratios as JSON.
 func GroupRatio2JSONString() string {
-	return groupRatioMap.MarshalJSONString()
+	return group_state.Read(groupRatioMap.MarshalJSONString)
 }
 
+// UpdateGroupRatioByJSONString validates and publishes a standalone group
+// ratio snapshot update.
 func UpdateGroupRatioByJSONString(jsonStr string) error {
+	return group_state.Write(func() error {
+		return ReplaceGroupRatioByJSONString(jsonStr)
+	})
+}
+
+// ReplaceGroupRatioByJSONString replaces group ratios inside an existing
+// group_state.Write callback.
+func ReplaceGroupRatioByJSONString(jsonStr string) error {
 	return types.LoadFromJsonString(groupRatioMap, jsonStr)
 }
 
+// GetGroupRatio returns the configured ratio or the compatibility default.
 func GetGroupRatio(name string) float64 {
-	ratio, ok := groupRatioMap.Get(name)
-	if !ok {
-		common.SysLog("group ratio not found: " + name)
-		return 1
-	}
-	return ratio
+	return group_state.Read(func() float64 {
+		ratio, ok := groupRatioMap.Get(name)
+		if !ok {
+			common.SysLog("group ratio not found: " + name)
+			return 1
+		}
+		return ratio
+	})
 }
 
 func GetGroupGroupRatio(userGroup, usingGroup string) (float64, bool) {

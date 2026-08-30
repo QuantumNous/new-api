@@ -55,6 +55,8 @@ func IsUserSelectableGroup(userGroup, groupName string) bool {
 	return GroupInUserUsableGroups(userGroup, groupName) && ratio_setting.ContainsGroupRatio(groupName)
 }
 
+// IsTokenGroupAllowed reports whether a token group respects the strict
+// isolation policy of its owning user group.
 func IsTokenGroupAllowed(userGroup, tokenGroup string) bool {
 	if !setting.IsStrictGroupIsolationEnabled(userGroup) {
 		return true

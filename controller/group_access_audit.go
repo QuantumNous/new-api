@@ -31,6 +31,8 @@ type tokenGroupAccessAudit struct {
 	BlockingReasons    []string `json:"blocking_reasons"`
 }
 
+// GetUserGroupAccessAudit reports a user's effective groups, models, channels,
+// and token-level blockers for administrators.
 func GetUserGroupAccessAudit(c *gin.Context) {
 	userID, err := strconv.Atoi(c.Param("id"))
 	if err != nil || userID <= 0 {

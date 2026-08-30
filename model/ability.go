@@ -35,6 +35,8 @@ type GroupAccessAbility struct {
 	ChannelName string `json:"channel_name"`
 }
 
+// GetGroupAccessAbilities returns enabled channel abilities for the requested
+// groups in a stable audit-friendly order.
 func GetGroupAccessAbilities(groups []string) ([]GroupAccessAbility, error) {
 	if len(groups) == 0 {
 		return []GroupAccessAbility{}, nil

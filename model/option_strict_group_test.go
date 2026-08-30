@@ -1,7 +1,9 @@
 package model
 
 import (
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -52,4 +54,54 @@ func TestValidateOptionValuesAcceptsAtomicStrictGroupReplacement(t *testing.T) {
 		"GroupRatio":                 `{"default":1,"team-b":1}`,
 		"StrictGroupIsolationGroups": `["team-b"]`,
 	}))
+}
+
+func TestUpdateOptionMapsPublishesStrictGroupSettingsAtomically(t *testing.T) {
+	originalRatios := ratio_setting.GroupRatio2JSONString()
+	originalStrictGroups := setting.StrictGroupIsolationGroups2JsonString()
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"team-a":1}`))
+	require.NoError(t, setting.UpdateStrictGroupIsolationGroupsByJsonString(`["team-a"]`))
+	t.Cleanup(func() {
+		strictGroupSnapshotPublishHook = nil
+		require.NoError(t, setting.UpdateStrictGroupIsolationGroupsByJsonString(originalStrictGroups))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalRatios))
+	})
+
+	publishPaused := make(chan struct{})
+	continuePublish := make(chan struct{})
+	strictGroupSnapshotPublishHook = func() {
+		close(publishPaused)
+		<-continuePublish
+	}
+
+	var writer sync.WaitGroup
+	writer.Add(1)
+	go func() {
+		defer writer.Done()
+		require.NoError(t, updateOptionMaps(map[string]string{
+			"GroupRatio":                 `{"default":1,"team-b":1}`,
+			"StrictGroupIsolationGroups": `["team-b"]`,
+		}))
+	}()
+	<-publishPaused
+
+	readerDone := make(chan struct{})
+	go func() {
+		defer close(readerDone)
+		assert.True(t, ratio_setting.ContainsGroupRatio("team-b"))
+		assert.True(t, setting.IsStrictGroupIsolationEnabled("team-b"))
+	}()
+
+	select {
+	case <-readerDone:
+		t.Fatal("reader observed the snapshot while it was only partially published")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(continuePublish)
+	writer.Wait()
+	select {
+	case <-readerDone:
+	case <-time.After(time.Second):
+		t.Fatal("reader remained blocked after the snapshot was published")
+	}
 }

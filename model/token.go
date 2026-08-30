@@ -110,6 +110,8 @@ func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
 	return tokens, err
 }
 
+// GetUserTokensForGroupAccessAudit returns a user's tokens without loading
+// their secret key material.
 func GetUserTokensForGroupAccessAudit(userId int) ([]*Token, error) {
 	var tokens []*Token
 	err := DB.Where("user_id = ?", userId).Order("id asc").Omit("key").Find(&tokens).Error

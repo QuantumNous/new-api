@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/group_state"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -202,11 +203,12 @@ func InitOptionMap() {
 
 func loadOptionsFromDatabase() {
 	options, _ := AllOption()
+	values := make(map[string]string, len(options))
 	for _, option := range options {
-		err := updateOptionMap(option.Key, option.Value)
-		if err != nil {
-			common.SysLog("failed to update option map: " + err.Error())
-		}
+		values[option.Key] = option.Value
+	}
+	if err := updateOptionMaps(values); err != nil {
+		common.SysLog("failed to update option map: " + err.Error())
 	}
 }
 
@@ -341,12 +343,56 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if err != nil {
 		return err
 	}
-	for k, v := range values {
-		if err := updateOptionMap(k, v); err != nil {
+	return updateOptionMaps(values)
+}
+
+var strictGroupSnapshotPublishHook func()
+
+func updateOptionMaps(values map[string]string) error {
+	groupRatio, updatesGroupRatio := values["GroupRatio"]
+	strictGroups, updatesStrictGroups := values["StrictGroupIsolationGroups"]
+	if updatesGroupRatio && updatesStrictGroups {
+		if err := updateStrictGroupIsolationSnapshot(groupRatio, strictGroups); err != nil {
+			return err
+		}
+	}
+	for key, value := range values {
+		if updatesGroupRatio && updatesStrictGroups && (key == "GroupRatio" || key == "StrictGroupIsolationGroups") {
+			continue
+		}
+		if err := updateOptionMap(key, value); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func updateStrictGroupIsolationSnapshot(groupRatio string, strictGroups string) error {
+	if err := validateStrictGroupIsolationOptions(map[string]string{
+		"GroupRatio":                 groupRatio,
+		"StrictGroupIsolationGroups": strictGroups,
+	}); err != nil {
+		return err
+	}
+	common.OptionMapRWMutex.Lock()
+	defer common.OptionMapRWMutex.Unlock()
+	return group_state.Write(func() error {
+		if err := ratio_setting.ReplaceGroupRatioByJSONString(groupRatio); err != nil {
+			return err
+		}
+		if strictGroupSnapshotPublishHook != nil {
+			strictGroupSnapshotPublishHook()
+		}
+		if err := setting.ReplaceStrictGroupIsolationGroupsByJsonString(strictGroups); err != nil {
+			return err
+		}
+		if common.OptionMap == nil {
+			common.OptionMap = make(map[string]string)
+		}
+		common.OptionMap["GroupRatio"] = groupRatio
+		common.OptionMap["StrictGroupIsolationGroups"] = strictGroups
+		return nil
+	})
 }
 
 func updateOptionMap(key string, value string) (err error) {
