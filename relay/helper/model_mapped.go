@@ -4,15 +4,41 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 )
 
+// stripPerChannelModelPrefix removes the per-channel model prefix from a model name if present.
+// This is used because the frontend prepends the channel's model_prefix when saving models
+// (e.g., "dashscope/gpt-4" when prefix is "dashscope" and model is "gpt-4"),
+// but the upstream API expects the model name without the prefix.
+func stripPerChannelModelPrefix(modelName string, prefix string) string {
+	if prefix == "" {
+		return modelName
+	}
+	prefixWithSlash := prefix + "/"
+	if strings.HasPrefix(modelName, prefixWithSlash) {
+		return modelName[len(prefixWithSlash):]
+	}
+	return modelName
+}
+
 func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Request) error {
 	if info.ChannelMeta == nil {
 		info.ChannelMeta = &common.ChannelMeta{}
+	}
+
+	// Strip per-channel model prefix from the upstream model name.
+	// The frontend prepends the channel's model_prefix when saving models,
+	// but the upstream API expects the model name without the prefix.
+	if info.ChannelMeta.ChannelOtherSettings.ModelPrefix != "" {
+		info.UpstreamModelName = stripPerChannelModelPrefix(
+			info.UpstreamModelName,
+			info.ChannelMeta.ChannelOtherSettings.ModelPrefix,
+		)
 	}
 
 	// map model name
@@ -52,6 +78,13 @@ func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Reque
 			}
 		}
 		if info.IsModelMapped {
+			// Also strip prefix from mapped model name
+			if info.ChannelMeta.ChannelOtherSettings.ModelPrefix != "" {
+				currentModel = stripPerChannelModelPrefix(
+					currentModel,
+					info.ChannelMeta.ChannelOtherSettings.ModelPrefix,
+				)
+			}
 			info.UpstreamModelName = currentModel
 		}
 	}
