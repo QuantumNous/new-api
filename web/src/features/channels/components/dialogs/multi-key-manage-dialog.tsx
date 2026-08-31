@@ -338,32 +338,33 @@ export function MultiKeyManageDialog({
           <Separator className='shrink-0' />
 
           {/* Toolbar */}
-          <div className='flex shrink-0 items-center justify-between'>
-            <Select
-              items={[
-                ...MULTI_KEY_FILTER_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: t(option.label),
-                })),
-              ]}
-              value={statusFilter === null ? 'all' : statusFilter.toString()}
-              onValueChange={(v) => v !== null && handleStatusFilterChange(v)}
-            >
-              <SelectTrigger className='w-40'>
-                <SelectValue placeholder={t('All Status')} />
-              </SelectTrigger>
-              <SelectContent alignItemWithTrigger={false}>
-                <SelectGroup>
-                  {MULTI_KEY_FILTER_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {t(option.label)}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+          <div className='flex shrink-0 flex-col gap-2'>
+            {/* Row 1: Status filter + Refresh */}
+            <div className='flex items-center justify-between'>
+              <Select
+                items={[
+                  ...MULTI_KEY_FILTER_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: t(option.label),
+                  })),
+                ]}
+                value={statusFilter === null ? 'all' : statusFilter.toString()}
+                onValueChange={(v) => v !== null && handleStatusFilterChange(v)}
+              >
+                <SelectTrigger className='w-40'>
+                  <SelectValue placeholder={t('All Status')} />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {MULTI_KEY_FILTER_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {t(option.label)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
 
-            <div className='flex items-center gap-2'>
               <Button
                 variant='outline'
                 size='sm'
@@ -372,7 +373,10 @@ export function MultiKeyManageDialog({
               >
                 <RefreshCw className='h-4 w-4' />
               </Button>
+            </div>
 
+            {/* Row 2: Action buttons */}
+            <div className='flex flex-wrap items-center gap-2'>
               <Button
                 variant='default'
                 size='sm'
