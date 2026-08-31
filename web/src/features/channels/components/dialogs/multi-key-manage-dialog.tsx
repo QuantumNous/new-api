@@ -177,7 +177,25 @@ export function MultiKeyManageDialog({
         loadKeyStatus(currentPage, pageSize)
         queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       } else {
-        toast.error(response.message || t('Test failed'))
+        // Build detailed error message
+        let errorMsg = response.message || t('Test failed')
+        // Add status code and error code for debugging
+        const details: string[] = []
+        if (response.status_code) {
+          details.push(`HTTP ${response.status_code}`)
+        }
+        if (response.error_code) {
+          details.push(response.error_code)
+        }
+        if (details.length > 0) {
+          errorMsg += ` [${details.join(', ')}]`
+        }
+        // Show summary if available (partial failures)
+        if (response.tested && response.tested > 0) {
+          const summary = ` ${response.tested} keys tested: ${response.succeeded} succeeded, ${response.failed} failed`
+          errorMsg += summary
+        }
+        toast.error(errorMsg)
       }
     } catch (error: unknown) {
       toast.error(

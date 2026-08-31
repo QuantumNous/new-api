@@ -452,7 +452,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			return testResult{
 				context:     c,
 				localErr:    err,
-				newAPIError: types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError),
+				newAPIError: types.NewOpenAIError(err, types.ErrorCodeBadResponse, httpResp.StatusCode),
 			}
 		}
 	}
@@ -865,7 +865,15 @@ func TestChannel(c *gin.Context) {
 	}
 
 	// Test all keys in a multi-key channel
-	if testAllKeys && channel.ChannelInfo.IsMultiKey {
+	if testAllKeys {
+		if !channel.ChannelInfo.IsMultiKey {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "channel is not a multi-key channel, cannot test all keys",
+				"time":    0.0,
+			})
+			return
+		}
 		disableThreshold := int64(common.ChannelDisableThreshold * 1000)
 		summary := testChannelAllKeysForHealthCheck(requestCtx, channel, testUserID, false, disableThreshold)
 		tok := time.Now()
@@ -908,6 +916,9 @@ func TestChannel(c *gin.Context) {
 		}
 		if result.newAPIError != nil {
 			resp["error_code"] = result.newAPIError.GetErrorCode()
+			if result.newAPIError.StatusCode > 0 {
+				resp["status_code"] = result.newAPIError.StatusCode
+			}
 		}
 		c.JSON(http.StatusOK, resp)
 		return
@@ -917,12 +928,16 @@ func TestChannel(c *gin.Context) {
 	go channel.UpdateResponseTime(milliseconds)
 	consumedTime := float64(milliseconds) / 1000.0
 	if result.newAPIError != nil {
-		c.JSON(http.StatusOK, gin.H{
+		resp := gin.H{
 			"success":    false,
 			"message":    result.newAPIError.Error(),
 			"time":       consumedTime,
 			"error_code": result.newAPIError.GetErrorCode(),
-		})
+		}
+		if result.newAPIError.StatusCode > 0 {
+			resp["status_code"] = result.newAPIError.StatusCode
+		}
+		c.JSON(http.StatusOK, resp)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
