@@ -1,19 +1,14 @@
-name: Manual Build Docker Image
+name: Manual Build and Deploy Docker Image
 
 on:
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Docker image tag"
-        required: true
-        default: "latest"
 
 permissions:
   contents: read
   packages: write
 
 env:
-  REGISTRY  : ghcr.io
+  REGISTRY: ghcr.io
   IMAGE_NAME: yeschoy/new-api
 
 jobs:
@@ -22,45 +17,72 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ===================================================
-      # 1. 拉取当前选择分支的代码
-      # ===================================================
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-
-      # ===================================================
-      # 2. 初始化 Docker Buildx
-      # ===================================================
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-
-      # ===================================================
-      # 3. 登录 GitHub Container Registry
-      # ===================================================
-      - name: Log in to GHCR
+      - name: Login to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-
-      # ===================================================
-      # 4. 构建并上传 Docker 镜像
-      # ===================================================
-      - name: Build and push
+      - name: Build and Push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-
           push: true
-
           tags: |
-            ghcr.io/yeschoy/new-api:${{ inputs.tag }}
-            ghcr.io/yeschoy/new-api:sha-${{ github.sha }}
-
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+
+  deploy:
+    name: Deploy to OVH
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          echo "${{ secrets.PROD_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy
+        run: |
+          ssh \
+            -i ~/.ssh/id_ed25519 \
+            -p "${{ secrets.PROD_SSH_PORT }}" \
+            "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" << 'EOF'
+
+              set -e
+
+              cd /home/ubuntu/new-api
+
+              echo "=== Pull new image ==="
+              docker compose pull new-api
+
+              echo "=== Deploy new-api ==="
+              docker compose up \
+                -d \
+                --no-deps \
+                --wait \
+                --wait-timeout 120 \
+                new-api
+
+              echo "=== Container status ==="
+              docker compose ps new-api
+
+          EOF

@@ -31,7 +31,7 @@ services:
 
     environment:
       # PostgreSQL
-      SQL_DSN: "postgresql://${POSTGRES_USER:-root}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-new-api}"
+      SQL_DSN: "postgresql://${POSTGRES_USER:-root}:${URL_POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-new-api}"
 # ⚠️ IMPORTANT: Change the password in production!
 #      - SQL_DSN=root:123456@tcp(mysql:3306)/new-api  # Point to the mysql service, uncomment if using MySQL
 #      - LOG_SQL_DSN=postgresql://root:123456@postgres:5432/new-api-log # OPTIONAL: If you want a separate database for logging, uncomment and set this
@@ -51,7 +51,7 @@ services:
 
       # 安全密钥
       SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET is required}"
-      CRYPTO_SECRET: "${CRYPTO_SECRET:?CRYPTO_SECRET is required}"
+      # CRYPTO_SECRET: "${CRYPTO_SECRET:?CRYPTO_SECRET is required}"
 
       # 可选配置
       # STREAMING_TIMEOUT: "${STREAMING_TIMEOUT:-300}"
