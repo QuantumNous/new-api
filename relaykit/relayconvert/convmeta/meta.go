@@ -57,9 +57,36 @@ type ClaudeConvertInfo struct {
 	Usage            *dto.Usage
 	FinishReason     string
 	Done             bool
+	MessageStarted   bool
 
+	// PendingToolCalls buffers one complete OpenAI tool-call segment before it
+	// is emitted as Claude content blocks. The map key is an internal stable key;
+	// explicit upstream indexes, ids and no-index positions resolve through the
+	// auxiliary maps so distinct parallel tools are never merged accidentally.
+	PendingToolCalls map[int]*ClaudeToolCallBuffer
+	PendingToolOrder []int
+	ToolCallByIndex  map[int]int
+	ToolCallByID     map[string]int
+	ToolCallByPos    map[int]int
+	NextToolCallKey  int
+	ToolBufferBytes  int
+
+	// Deprecated: retained for source compatibility with relaykit embedders.
+	// The buffered converter no longer derives downstream lifecycle/indexes from
+	// these upstream-offset fields.
 	ToolCallBaseIndex      int
 	ToolCallMaxIndexOffset int
+}
+
+// ClaudeToolCallBuffer is the protocol-level accumulator for one streamed
+// OpenAI tool call. Providers may send arguments before id/name, fragment
+// id/name, or replay cumulative fields; the converter merges those chunks and
+// emits the block only after it has enough metadata to form a valid tool_use.
+type ClaudeToolCallBuffer struct {
+	ID                string
+	Name              string
+	ArgumentFragments []string
+	UpstreamIndex     *int
 }
 
 const (
