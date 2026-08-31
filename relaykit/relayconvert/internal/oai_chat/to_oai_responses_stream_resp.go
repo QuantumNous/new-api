@@ -181,10 +181,10 @@ func (s *ChatToResponsesStreamState) appendReasoningDelta(delta string) []ChatTo
 		}))
 	}
 	s.reasoning.WriteString(delta)
-	events = append(events, responsesStreamEvent(responsesEventReasoningSummaryDelta, dto.ResponsesStreamResponse{
-		Type:         responsesEventReasoningSummaryDelta,
+	events = append(events, responsesStreamEvent(responsesEventReasoningTextDelta, dto.ResponsesStreamResponse{
+		Type:         responsesEventReasoningTextDelta,
 		OutputIndex:  intPtr(s.reasoningIndex),
-		SummaryIndex: intPtr(0),
+		ContentIndex: intPtr(0),
 		Delta:        delta,
 		ItemID:       s.reasoningID(),
 	}))
@@ -251,6 +251,7 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 			OutputIndex:  intPtr(s.textOutputIndex),
 			ContentIndex: intPtr(0),
 			ItemID:       s.messageID(),
+			Text:         s.text.String(),
 		}))
 		events = append(events, responsesStreamEvent(responsesEventOutputItemDone, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemDone,
@@ -260,15 +261,12 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 	}
 	if s.reasoningStarted && !s.reasoningDone {
 		s.reasoningDone = true
-		events = append(events, responsesStreamEvent(responsesEventReasoningSummaryDone, dto.ResponsesStreamResponse{
-			Type:         responsesEventReasoningSummaryDone,
+		events = append(events, responsesStreamEvent(responsesEventReasoningTextDone, dto.ResponsesStreamResponse{
+			Type:         responsesEventReasoningTextDone,
 			OutputIndex:  intPtr(s.reasoningIndex),
-			SummaryIndex: intPtr(0),
+			ContentIndex: intPtr(0),
 			ItemID:       s.reasoningID(),
-			Part: &dto.ResponsesReasoningSummaryPart{
-				Type: "summary_text",
-				Text: s.reasoning.String(),
-			},
+			Text:         s.reasoning.String(),
 		}))
 		events = append(events, responsesStreamEvent(responsesEventOutputItemDone, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemDone,
@@ -398,7 +396,7 @@ func (s *ChatToResponsesStreamState) reasoningOutput(status string) *dto.Respons
 		Status: status,
 		Content: []dto.ResponsesOutputContent{
 			{
-				Type: "summary_text",
+				Type: "reasoning_text",
 				Text: s.reasoning.String(),
 			},
 		},
