@@ -168,14 +168,14 @@ export function MultiKeyManageDialog({
     setIsTestingAllKeys(true)
     try {
       const response = await testChannelAllKeys(currentRow.id)
-      if (response.success) {
-        const summary = response.tested
+      // Build summary string for both success and partial failure cases
+      const summary =
+        response.tested && response.tested > 0
           ? ` ${response.tested} keys tested: ${response.succeeded} succeeded, ${response.failed} failed`
           : ''
+
+      if (response.success) {
         toast.success(t('All keys test completed') + summary)
-        // Reload key status to reflect any changes
-        loadKeyStatus(currentPage, pageSize)
-        queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       } else {
         // Build detailed error message
         let errorMsg = response.message || t('Test failed')
@@ -190,13 +190,13 @@ export function MultiKeyManageDialog({
         if (details.length > 0) {
           errorMsg += ` [${details.join(', ')}]`
         }
-        // Show summary if available (partial failures)
-        if (response.tested && response.tested > 0) {
-          const summary = ` ${response.tested} keys tested: ${response.succeeded} succeeded, ${response.failed} failed`
-          errorMsg += summary
-        }
+        errorMsg += summary
         toast.error(errorMsg)
       }
+
+      // Always refresh state after test (including partial failures that may auto-disable keys)
+      loadKeyStatus(currentPage, pageSize)
+      queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
     } catch (error: unknown) {
       toast.error(
         error instanceof Error ? error.message : t('Test failed')

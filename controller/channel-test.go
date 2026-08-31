@@ -875,6 +875,10 @@ func TestChannel(c *gin.Context) {
 			return
 		}
 		disableThreshold := int64(common.ChannelDisableThreshold * 1000)
+		// Normalize zero threshold to disabled value (same as scheduled testing)
+		if disableThreshold == 0 {
+			disableThreshold = 10000000
+		}
 		summary := testChannelAllKeysForHealthCheck(requestCtx, channel, testUserID, true, disableThreshold)
 		tok := time.Now()
 		milliseconds := tok.Sub(tik).Milliseconds()
@@ -1103,7 +1107,8 @@ func testChannelAllKeysForHealthCheck(ctx context.Context, channel *model.Channe
 			}
 		}
 
-		if newAPIError == nil {
+		// Count as failed if either localErr or newAPIError is non-nil
+		if res.result.localErr == nil && newAPIError == nil {
 			summary.Succeeded++
 		} else {
 			summary.Failed++
@@ -1168,7 +1173,8 @@ func testChannelAllKeysSequential(ctx context.Context, channel *model.Channel, k
 			}
 		}
 
-		if newAPIError == nil {
+		// Count as failed if either localErr or newAPIError is non-nil
+		if result.localErr == nil && newAPIError == nil {
 			summary.Succeeded++
 		} else {
 			summary.Failed++
