@@ -56,10 +56,15 @@ export function useStatus() {
           )
         }
       }
-      // Save to localStorage
+      // Save to localStorage (preserve _cachedAt from existing cache if present)
       try {
         if (typeof window !== 'undefined' && status) {
-          window.localStorage.setItem('status', JSON.stringify(status))
+          const existing = window.localStorage.getItem('status')
+          const existingParsed = existing ? JSON.parse(existing) : {}
+          window.localStorage.setItem(
+            'status',
+            JSON.stringify({ ...status, _cachedAt: existingParsed._cachedAt || Date.now() })
+          )
         }
       } catch {
         /* empty */

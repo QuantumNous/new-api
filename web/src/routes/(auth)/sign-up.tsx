@@ -27,8 +27,15 @@ function getCachedStatus(): Record<string, unknown> | null {
       const saved = window.localStorage.getItem('status')
       if (!saved) return null
       const parsed = JSON.parse(saved)
-      // Validate cache freshness - only use if less than 5 minutes old
-      if (parsed._cachedAt && Date.now() - parsed._cachedAt < 5 * 60 * 1000) {
+      // Validate _cachedAt is a finite number between 0 and 5 minutes old
+      const cachedAt = parsed._cachedAt
+      if (
+        typeof cachedAt === 'number' &&
+        Number.isFinite(cachedAt) &&
+        cachedAt > 0 &&
+        cachedAt <= Date.now() &&
+        Date.now() - cachedAt < 5 * 60 * 1000
+      ) {
         return parsed
       }
       return null

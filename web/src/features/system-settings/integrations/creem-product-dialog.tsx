@@ -49,8 +49,8 @@ import { safeNumberFieldProps } from '../utils/numeric-field'
 const creemProductDialogSchema = z.object({
   name: z.string().min(1, 'Product name is required'),
   productId: z.string().min(1, 'Product ID is required'),
-  price: z.number().min(0.01, 'Price must be greater than 0'),
-  quota: z.number().min(1, 'Quota must be at least 1'),
+  price: z.number().min(0.01, 'Price must be greater than 0').optional(),
+  quota: z.number().min(1, 'Quota must be at least 1').optional(),
   currency: z.enum(['USD', 'EUR']),
 })
 
@@ -106,8 +106,8 @@ export function CreemProductDialog({
     const data: CreemProduct = {
       name: values.name,
       productId: values.productId,
-      price: values.price,
-      quota: values.quota,
+      price: values.price ?? 0,
+      quota: values.quota ?? 1,
       currency: values.currency,
     }
     onSave(data)

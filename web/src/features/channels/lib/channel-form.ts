@@ -573,20 +573,23 @@ export function transformChannelToFormDefaults(
   // Strip model prefix from models for display
   let modelsForDisplay = channel.models || ''
   let modelMappingForDisplay = channel.model_mapping || ''
-  if (modelPrefix && modelsForDisplay) {
-    const modelsArray = modelsForDisplay
-      .split(',')
-      .map((m) => m.trim())
-      .filter(Boolean)
-    const strippedModels = modelsArray.map((model) => {
-      if (model.startsWith(modelPrefix + '/')) {
-        return model.substring(modelPrefix.length + 1)
-      }
-      return model
-    })
-    modelsForDisplay = strippedModels.join(',')
+  if (modelPrefix) {
+    // Strip prefix from models list
+    if (modelsForDisplay) {
+      const modelsArray = modelsForDisplay
+        .split(',')
+        .map((m) => m.trim())
+        .filter(Boolean)
+      const strippedModels = modelsArray.map((model) => {
+        if (model.startsWith(modelPrefix + '/')) {
+          return model.substring(modelPrefix.length + 1)
+        }
+        return model
+      })
+      modelsForDisplay = strippedModels.join(',')
+    }
 
-    // Also strip prefix from model_mapping source models
+    // Also strip prefix from model_mapping source models (even if models is empty)
     if (modelMappingForDisplay) {
       try {
         const modelMap = JSON.parse(modelMappingForDisplay)

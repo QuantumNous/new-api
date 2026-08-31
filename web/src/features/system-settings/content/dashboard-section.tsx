@@ -54,7 +54,7 @@ import { safeNumberFieldProps } from '../utils/numeric-field'
 
 const dataDashboardSchema = z.object({
   DataExportEnabled: z.boolean(),
-  DataExportInterval: z.number().int().min(1).max(1440),
+  DataExportInterval: z.number().int().min(1).max(1440).optional(),
   DataExportDefaultTime: z.enum(['hour', 'day', 'week']),
 })
 
