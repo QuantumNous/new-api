@@ -141,7 +141,8 @@ if (!rootElement) {
         if (s?.system_name) {
           apply(s.system_name as string)
           try {
-            localStorage.setItem('status', JSON.stringify(s))
+            // Add timestamp for cache freshness validation
+            localStorage.setItem('status', JSON.stringify({ ...s, _cachedAt: Date.now() }))
           } catch {
             /* empty */
           }

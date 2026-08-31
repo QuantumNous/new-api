@@ -25,7 +25,13 @@ function getCachedStatus(): Record<string, unknown> | null {
   try {
     if (typeof window !== 'undefined') {
       const saved = window.localStorage.getItem('status')
-      return saved ? JSON.parse(saved) : null
+      if (!saved) return null
+      const parsed = JSON.parse(saved)
+      // Validate cache freshness - only use if less than 5 minutes old
+      if (parsed._cachedAt && Date.now() - parsed._cachedAt < 5 * 60 * 1000) {
+        return parsed
+      }
+      return null
     }
   } catch {
     /* empty */
@@ -44,6 +50,7 @@ export const Route = createFileRoute('/(auth)/sign-up')({
     }
 
     // 如果注册被禁用，跳转到登录页 (读取 localStorage 缓存，无 API 调用)
+    // Only redirect if cache is fresh to avoid stale redirects
     const status = getCachedStatus()
     if (status?.register_enabled === false) {
       throw redirect({ to: '/sign-in' })

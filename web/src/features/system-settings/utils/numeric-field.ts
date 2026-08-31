@@ -88,9 +88,9 @@ export function safeNumberFieldProps<
       if (Number.isFinite(next)) {
         ;(field.onChange as (value: number) => void)(next)
       } else if (event.target.value === '') {
-        // Allow clearing the input — set to empty string so react-hook-form
-        // knows the field is empty and the user can re-enter a value.
-        ;(field.onChange as (value: string) => void)('')
+        // Allow clearing the input — set to undefined so z.number() optional fields
+        // accept the cleared state without validation errors.
+        ;(field.onChange as (value: undefined) => void)(undefined)
       }
     },
     onBlur: field.onBlur,
