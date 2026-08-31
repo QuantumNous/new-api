@@ -47,7 +47,7 @@ export function HeroButtons({ isAuthenticated }: HeroButtonsProps) {
     <>
       <Button size='lg' render={<Link to={registerEnabled ? '/sign-up' : '/sign-in'} />}>
         {t(registerEnabled ? 'Get Started' : 'Sign In')}
-        <ArrowRight className='ml-2 h-5 w-5' />
+        <ArrowRight className='ml-2 h-5 w-5' aria-hidden='true' />
       </Button>
       {registerEnabled && (
         <Button size='lg' variant='outline' render={<Link to='/sign-in' />}>

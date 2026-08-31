@@ -1732,7 +1732,11 @@ export function ChannelMutateDrawer({
               const prefixedKey = key.startsWith(modelPrefix + '/')
                 ? key
                 : `${modelPrefix}/${key}`
-              updatedModelMap[prefixedKey] = value as string
+              // Handle collision: if both gpt-4 and openai/gpt-4 exist,
+              // keep the explicitly prefixed one
+              if (!(prefixedKey in updatedModelMap)) {
+                updatedModelMap[prefixedKey] = value as string
+              }
             }
             data.model_mapping = JSON.stringify(updatedModelMap)
             form.setValue('model_mapping', data.model_mapping)
@@ -1742,10 +1746,10 @@ export function ChannelMutateDrawer({
         }
       }
 
-      // Check for missing models in model_mapping
+      // Check for missing models in model_mapping (use rewritten mapping with prefix)
       if (hasModelMapping) {
         const missingModels = findMissingModelsInMapping(
-          modelMappingValue,
+          data.model_mapping || modelMappingValue,
           normalizedModels
         )
 

@@ -573,30 +573,39 @@ export function transformChannelToFormDefaults(
   // Strip model prefix from models for display
   let modelsForDisplay = channel.models || ''
   let modelMappingForDisplay = channel.model_mapping || ''
-  if (modelPrefix && modelsForDisplay) {
-    const modelsArray = modelsForDisplay
-      .split(',')
-      .map((m) => m.trim())
-      .filter(Boolean)
-    const strippedModels = modelsArray.map((model) => {
-      if (model.startsWith(modelPrefix + '/')) {
-        return model.substring(modelPrefix.length + 1)
-      }
-      return model
-    })
-    modelsForDisplay = strippedModels.join(',')
+  if (modelPrefix) {
+    // Strip prefix from models list
+    if (modelsForDisplay) {
+      const modelsArray = modelsForDisplay
+        .split(',')
+        .map((m) => m.trim())
+        .filter(Boolean)
+      const strippedModels = modelsArray.map((model) => {
+        if (model.startsWith(modelPrefix + '/')) {
+          return model.substring(modelPrefix.length + 1)
+        }
+        return model
+      })
+      modelsForDisplay = strippedModels.join(',')
+    }
 
-    // Also strip prefix from model_mapping source models
+    // Also strip prefix from model_mapping source models (even if models is empty)
     if (modelMappingForDisplay) {
       try {
         const modelMap = JSON.parse(modelMappingForDisplay)
         const strippedModelMap: Record<string, string> = {}
-        for (const [key, value] of Object.entries(modelMap)) {
-          // Strip prefix from source model if present
-          const strippedKey = key.startsWith(modelPrefix + '/')
-            ? key.substring(modelPrefix.length + 1)
-            : key
-          strippedModelMap[strippedKey] = value as string
+        // Process non-prefixed keys first, then prefixed keys so prefixed
+        // entries win on collision (e.g. foo -> A, prefix/foo -> B => foo -> B).
+        const entries = Object.entries(modelMap)
+        for (const [key, value] of entries) {
+          if (!key.startsWith(modelPrefix + '/')) {
+            strippedModelMap[key] = value as string
+          }
+        }
+        for (const [key, value] of entries) {
+          if (key.startsWith(modelPrefix + '/')) {
+            strippedModelMap[key.substring(modelPrefix.length + 1)] = value as string
+          }
         }
         modelMappingForDisplay = JSON.stringify(strippedModelMap)
       } catch {
@@ -822,7 +831,8 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
   }
 
   // Per-channel model prefix
-  const modelPrefix = (formData.model_prefix || '').trim()
+  const rawPrefix = typeof formData.model_prefix === 'string' ? formData.model_prefix : ''
+  const modelPrefix = rawPrefix.trim()
   if (modelPrefix) {
     settingsObj.model_prefix = modelPrefix
   } else if ('model_prefix' in settingsObj) {

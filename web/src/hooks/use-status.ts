@@ -56,10 +56,13 @@ export function useStatus() {
           )
         }
       }
-      // Save to localStorage
+      // Save to localStorage (always stamp with fresh fetch time)
       try {
         if (typeof window !== 'undefined' && status) {
-          window.localStorage.setItem('status', JSON.stringify(status))
+          window.localStorage.setItem(
+            'status',
+            JSON.stringify({ ...status, _cachedAt: Date.now() })
+          )
         }
       } catch {
         /* empty */
