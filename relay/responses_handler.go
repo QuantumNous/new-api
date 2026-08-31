@@ -82,7 +82,20 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 		}
-		requestBody = common.NewReplayableBodyReader(storage)
+		if info.ChannelOtherSettings.ModelPrefix != "" {
+			rawBody, _ := storage.Bytes()
+			rawBody, err = helper.StripModelPrefixFromBody(rawBody, info.ChannelOtherSettings.ModelPrefix)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+			}
+			newStorage, err := common.CreateBodyStorage(rawBody)
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+			}
+			requestBody = common.NewReplayableBodyReader(newStorage)
+		} else {
+			requestBody = common.NewReplayableBodyReader(storage)
+		}
 	} else {
 		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 		if err != nil {

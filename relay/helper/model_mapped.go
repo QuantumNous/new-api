@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 )
@@ -26,9 +27,40 @@ func stripPerChannelModelPrefix(modelName string, prefix string) string {
 	return modelName
 }
 
-func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Request) error {
+// StripModelPrefixFromBody strips the per-channel model prefix from the "model"
+// field in a JSON request body. This is used in passthrough mode where the body
+// is forwarded raw — the "model" value still carries the prefix that the frontend
+// prepends (e.g. "dashscope/gpt-4") but upstream APIs expect the unprefixed name.
+//
+// Trade-off: the entire body is re-marshaled, so JSON field order and formatting
+// may change. This is acceptable because upstream parsers care about values, not
+// byte-level fidelity.
+func StripModelPrefixFromBody(body []byte, prefix string) ([]byte, error) {
+	if prefix == "" {
+		return body, nil
+	}
+
+	var parsed map[string]any
+	if err := common.Unmarshal(body, &parsed); err != nil {
+		return body, nil
+	}
+
+	modelVal, ok := parsed["model"]
+	if !ok {
+		return body, nil
+	}
+	modelStr, ok := modelVal.(string)
+	if !ok {
+		return body, nil
+	}
+
+	parsed["model"] = stripPerChannelModelPrefix(modelStr, prefix)
+	return common.Marshal(parsed)
+}
+
+func ModelMappedHelper(c *gin.Context, info *relaycommon.RelayInfo, request dto.Request) error {
 	if info.ChannelMeta == nil {
-		info.ChannelMeta = &common.ChannelMeta{}
+		info.ChannelMeta = &relaycommon.ChannelMeta{}
 	}
 
 	// Strip per-channel model prefix from the upstream model name.
