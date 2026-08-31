@@ -350,6 +350,147 @@ func TestResponsesRequestToChatCompletionsRequestRejectsMalformedPenalty(t *test
 	assert.Contains(t, err.Error(), "frequency_penalty")
 }
 
+func TestResponsesRequestToChatCompletionsRequest_PreservesReasoning(t *testing.T) {
+	t.Run("reasoning before function_call attaches reasoning_content", func(t *testing.T) {
+		got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+			Model: "deepseek-v4-flash-max",
+			Input: mustRawMessage(t, []map[string]any{
+				{
+					"type": "reasoning",
+					"id":   "rs_1",
+					"content": []map[string]any{
+						{"type": "output_text", "text": "thinking..."},
+					},
+				},
+				{
+					"type":      "function_call",
+					"id":        "fc_1",
+					"call_id":   "fc_1",
+					"name":      "get_weather",
+					"arguments": "{}",
+				},
+				{
+					"type":    "function_call_output",
+					"call_id": "fc_1",
+					"output":  "sunny",
+				},
+				{
+					"role":    "user",
+					"content": "What next?",
+				},
+			}),
+		})
+		require.NoError(t, err)
+
+		// Expect: system omitted, assistant with reasoning_content + tool_call, tool result, user
+		require.Len(t, got.Messages, 3)
+
+		// Assistant message must carry reasoning_content
+		assistant := got.Messages[0]
+		assert.Equal(t, "assistant", assistant.Role)
+		require.NotNil(t, assistant.ReasoningContent)
+		assert.Equal(t, "thinking...", *assistant.ReasoningContent)
+
+		// Must also have the tool call
+		toolCalls := assistant.ParseToolCalls()
+		require.Len(t, toolCalls, 1)
+		assert.Equal(t, "fc_1", toolCalls[0].ID)
+
+		// Tool result
+		assert.Equal(t, "tool", got.Messages[1].Role)
+		assert.Equal(t, "fc_1", got.Messages[1].ToolCallId)
+
+		// User follow-up
+		assert.Equal(t, "user", got.Messages[2].Role)
+	})
+
+	t.Run("reasoning before plain assistant message", func(t *testing.T) {
+		got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+			Model: "deepseek-v4-flash-max",
+			Input: mustRawMessage(t, []map[string]any{
+				{
+					"type": "reasoning",
+					"id":   "rs_1",
+					"content": []map[string]any{
+						{"type": "output_text", "text": "deep thoughts"},
+					},
+				},
+				{
+					"role":    "assistant",
+					"content": []map[string]any{
+						{"type": "output_text", "text": "The answer is 42."},
+					},
+				},
+				{
+					"role":    "user",
+					"content": "Thanks",
+				},
+			}),
+		})
+		require.NoError(t, err)
+
+		require.Len(t, got.Messages, 2)
+		assistant := got.Messages[0]
+		assert.Equal(t, "assistant", assistant.Role)
+		require.NotNil(t, assistant.ReasoningContent)
+		assert.Equal(t, "deep thoughts", *assistant.ReasoningContent)
+		assert.Equal(t, "The answer is 42.", assistant.StringContent())
+	})
+
+	t.Run("reasoning item without content or summary produces no reasoning_content", func(t *testing.T) {
+		got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+			Model: "deepseek-v4-flash-max",
+			Input: mustRawMessage(t, []map[string]any{
+				{
+					"type": "reasoning",
+					"id":   "rs_1",
+				},
+				{
+					"type":      "function_call",
+					"id":        "fc_1",
+					"call_id":   "fc_1",
+					"name":      "get_weather",
+					"arguments": "{}",
+				},
+			}),
+		})
+		require.NoError(t, err)
+
+		require.Len(t, got.Messages, 1)
+		assistant := got.Messages[0]
+		assert.Equal(t, "assistant", assistant.Role)
+		assert.Nil(t, assistant.ReasoningContent)
+	})
+
+	t.Run("reasoning with summary fallback", func(t *testing.T) {
+		got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+			Model: "deepseek-v4-flash-max",
+			Input: mustRawMessage(t, []map[string]any{
+				{
+					"type": "reasoning",
+					"id":   "rs_1",
+					"summary": []map[string]any{
+						{"type": "summary_text", "text": "from summary"},
+					},
+				},
+				{
+					"type":      "function_call",
+					"id":        "fc_1",
+					"call_id":   "fc_1",
+					"name":      "get_weather",
+					"arguments": "{}",
+				},
+			}),
+		})
+		require.NoError(t, err)
+
+		require.Len(t, got.Messages, 1)
+		assistant := got.Messages[0]
+		require.NotNil(t, assistant.ReasoningContent)
+		assert.Equal(t, "from summary", *assistant.ReasoningContent)
+	})
+}
+
 func mustRawMessage(t *testing.T, value any) []byte {
 	t.Helper()
 	raw, err := kitutil.Marshal(value)
