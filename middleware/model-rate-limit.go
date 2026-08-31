@@ -91,7 +91,7 @@ func redisRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) g
 			return
 		}
 		if !allowed {
-			abortWithOpenAiMessage(c, http.StatusTooManyRequests, fmt.Sprintf("您已达到请求数限制：%d分钟内最多请求%d次", setting.ModelRequestRateLimitDurationMinutes, successMaxCount))
+			abortRateLimited(c, userId, duration, fmt.Sprintf("您已达到请求数限制：%d分钟内最多请求%d次", setting.ModelRequestRateLimitDurationMinutes, successMaxCount))
 			return
 		}
 
@@ -115,9 +115,13 @@ func redisRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) g
 			}
 
 			if !allowed {
-				abortWithOpenAiMessage(c, http.StatusTooManyRequests, fmt.Sprintf("您已达到总请求数限制：%d分钟内最多请求%d次，包括失败次数，请检查您的请求是否正确", setting.ModelRequestRateLimitDurationMinutes, totalMaxCount))
+				abortRateLimited(c, userId, duration, fmt.Sprintf("您已达到总请求数限制：%d分钟内最多请求%d次，包括失败次数，请检查您的请求是否正确", setting.ModelRequestRateLimitDurationMinutes, totalMaxCount))
+				return
 			}
 		}
+
+		// 3. 请求通过限流，清除连续超限计数
+		penaltyClearStrikes(ctx, userId)
 
 		// 4. 处理请求
 		c.Next()
@@ -140,8 +144,7 @@ func memoryRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) 
 
 		// 1. 检查总请求数限制（当totalMaxCount为0时跳过）
 		if totalMaxCount > 0 && !inMemoryRateLimiter.Request(totalKey, totalMaxCount, duration) {
-			c.Status(http.StatusTooManyRequests)
-			c.Abort()
+			abortRateLimited(c, userId, duration, fmt.Sprintf("您已达到总请求数限制：%d分钟内最多请求%d次，包括失败次数，请检查您的请求是否正确", setting.ModelRequestRateLimitDurationMinutes, totalMaxCount))
 			return
 		}
 
@@ -149,10 +152,12 @@ func memoryRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) 
 		// 使用一个临时key来检查限制，这样可以避免实际记录
 		checkKey := successKey + "_check"
 		if !inMemoryRateLimiter.Request(checkKey, successMaxCount, duration) {
-			c.Status(http.StatusTooManyRequests)
-			c.Abort()
+			abortRateLimited(c, userId, duration, fmt.Sprintf("您已达到请求数限制：%d分钟内最多请求%d次", setting.ModelRequestRateLimitDurationMinutes, successMaxCount))
 			return
 		}
+
+		// 请求通过限流，清除连续超限计数
+		penaltyClearStrikes(context.Background(), userId)
 
 		// 3. 处理请求
 		c.Next()
@@ -189,6 +194,15 @@ func ModelRequestRateLimit() func(c *gin.Context) {
 		if found {
 			totalMaxCount = groupTotalCount
 			successMaxCount = groupSuccessCount
+		}
+
+		// 冷却期内直接拒绝，不再访问限流计数器
+		userId := strconv.Itoa(c.GetInt("id"))
+		if setting.ModelRequestRateLimitCooldownEnabled {
+			if remaining := penaltyCooldownRemaining(context.Background(), userId); remaining > 0 {
+				abortInCooldown(c, remaining, fmt.Sprintf("请求过于频繁，已进入冷却，请在%d秒后重试", remaining))
+				return
+			}
 		}
 
 		// 根据存储类型选择并执行限流处理器
