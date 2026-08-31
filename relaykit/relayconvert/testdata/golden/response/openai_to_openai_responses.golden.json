@@ -29,7 +29,7 @@
       "role": "",
       "content": [
         {
-          "type": "summary_text",
+          "type": "reasoning_text",
           "text": "Deep thought.",
           "annotations": null
         }
