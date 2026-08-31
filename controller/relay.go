@@ -232,11 +232,21 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 		if newAPIError == nil {
 			relayInfo.LastError = nil
+			service.GlobalCircuitBreaker.RecordSuccess(channel.Id)
+			useChannel := c.GetStringSlice("use_channel")
+			if len(useChannel) > 1 {
+				c.Header("X-New-API-Fallback-Count", fmt.Sprintf("%d", len(useChannel)-1))
+				logger.LogInfo(c, fmt.Sprintf("[Auto-Fallback] 自动无感降级重试成功: 路径 %s", strings.Trim(strings.Join(strings.Fields(fmt.Sprint(useChannel)), " -> "), "[]")))
+			}
 			return
 		}
 
 		newAPIError = service.NormalizeViolationFeeError(newAPIError)
 		relayInfo.LastError = newAPIError
+
+		// 记录失败至自适应熔断器，并将故障渠道加入本次请求的排除列表以实现无感自动降级
+		service.GlobalCircuitBreaker.RecordFailure(channel.Id, newAPIError.StatusCode)
+		retryParam.AddExcludedChannel(channel.Id)
 
 		processChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, common.GetContextKeyString(c, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
 

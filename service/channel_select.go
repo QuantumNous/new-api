@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -36,12 +37,25 @@ func AppendTaskPluginIdentityFilter(c *gin.Context, pluginKey string) {
 }
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	RequestPath  string
-	Retry        *int
-	resetNextTry bool
+	Ctx                *gin.Context
+	TokenGroup         string
+	ModelName          string
+	RequestPath        string
+	Retry              *int
+	ExcludedChannelIDs []int
+	resetNextTry       bool
+}
+
+func (p *RetryParam) AddExcludedChannel(channelID int) {
+	if channelID <= 0 {
+		return
+	}
+	for _, id := range p.ExcludedChannelIDs {
+		if id == channelID {
+			return
+		}
+	}
+	p.ExcludedChannelIDs = append(p.ExcludedChannelIDs, channelID)
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -68,6 +82,38 @@ func (p *RetryParam) IncreaseRetry() {
 
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
+}
+
+func selectChannelWithCircuitBreaker(group string, modelName string, retry int, filters []dto.ChannelFilter, excludedIDs []int) (*model.Channel, error) {
+	excluded := append([]int(nil), excludedIDs...)
+	firstUnavailableID := 0
+
+	for {
+		selectionFilters := filters
+		if len(excluded) > 0 {
+			selectionFilters = make([]dto.ChannelFilter, len(filters), len(filters)+1)
+			copy(selectionFilters, filters)
+			selectionFilters = append(selectionFilters, dto.ChannelFilter{
+				Kind:               dto.FilterExcludedChannelIDs,
+				ExcludedChannelIDs: excluded,
+			})
+		}
+
+		channel, err := model.GetRandomSatisfiedChannel(group, modelName, retry, selectionFilters)
+		if err != nil || channel == nil {
+			return channel, err
+		}
+		if GlobalCircuitBreaker.IsAvailable(channel.Id) {
+			if firstUnavailableID > 0 {
+				logger.LogInfo(nil, fmt.Sprintf("[Auto-Fallback] 渠道 #%d 处于熔断冷却中，自动切换至健康备用渠道 #%d", firstUnavailableID, channel.Id))
+			}
+			return channel, nil
+		}
+		if firstUnavailableID == 0 {
+			firstUnavailableID = channel.Id
+		}
+		excluded = append(excluded, channel.Id)
+	}
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -141,11 +187,12 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(
+			channel, _ = selectChannelWithCircuitBreaker(
 				autoGroup,
 				param.ModelName,
 				priorityRetry,
 				filters,
+				param.ExcludedChannelIDs,
 			)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
@@ -184,11 +231,12 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(
+		channel, err = selectChannelWithCircuitBreaker(
 			param.TokenGroup,
 			param.ModelName,
 			param.GetRetry(),
 			filters,
+			param.ExcludedChannelIDs,
 		)
 		if err != nil {
 			return nil, param.TokenGroup, err

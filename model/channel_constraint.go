@@ -8,13 +8,13 @@ import (
 )
 
 var filterEvalOrder = []dto.ChannelFilterKind{
+	dto.FilterExcludedChannelIDs,
 	dto.FilterRequestPath,
 	dto.FilterTaskPluginIdentity,
 }
 
 // ChannelSatisfiesFilters reports whether ch passes every filter.
-// On false, it returns the kind of the first violated filter (request_path
-// then task_plugin_identity) for error attribution.
+// On false, it returns the kind of the first violated filter for error attribution.
 func ChannelSatisfiesFilters(ch *Channel, modelName string, filters []dto.ChannelFilter) (bool, dto.ChannelFilterKind) {
 	if ch == nil {
 		return false, ""
@@ -34,8 +34,8 @@ func ChannelSatisfiesFilters(ch *Channel, modelName string, filters []dto.Channe
 
 // filterCandidateIDs applies filters to a cached candidate id list.
 // Caller must hold channelSyncLock (read lock). The input slice is never mutated.
-// A missing id in channelsIDM is kept for request_path (downstream consistency
-// error) and dropped for task_plugin_identity, matching the previous filters.
+// A missing id in channelsIDM is kept for exclusions and request_path
+// (downstream consistency error) and dropped for task_plugin_identity.
 func filterCandidateIDs(ids []int, modelName string, filters []dto.ChannelFilter) (kept []int, emptiedBy dto.ChannelFilterKind) {
 	if len(ids) == 0 {
 		return ids, ""
@@ -49,7 +49,7 @@ func filterCandidateIDs(ids []int, modelName string, filters []dto.ChannelFilter
 		next := make([]int, 0, len(kept))
 		for _, id := range kept {
 			channel, exists := channelsIDM[id]
-			if candidatePassesKindFilters(channel, exists, modelName, kind, kindFilters) {
+			if candidatePassesKindFilters(id, channel, exists, modelName, kind, kindFilters) {
 				next = append(next, id)
 			}
 		}
@@ -71,7 +71,15 @@ func filtersByKind(filters []dto.ChannelFilter, kind dto.ChannelFilterKind) []dt
 	return matched
 }
 
-func candidatePassesKindFilters(ch *Channel, exists bool, modelName string, kind dto.ChannelFilterKind, filters []dto.ChannelFilter) bool {
+func candidatePassesKindFilters(id int, ch *Channel, exists bool, modelName string, kind dto.ChannelFilterKind, filters []dto.ChannelFilter) bool {
+	if kind == dto.FilterExcludedChannelIDs {
+		for _, filter := range filters {
+			if slices.Contains(filter.ExcludedChannelIDs, id) {
+				return false
+			}
+		}
+		return true
+	}
 	if kind == dto.FilterRequestPath && !exists {
 		return true
 	}
@@ -88,6 +96,8 @@ func candidatePassesKindFilters(ch *Channel, exists bool, modelName string, kind
 
 func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilter) bool {
 	switch filter.Kind {
+	case dto.FilterExcludedChannelIDs:
+		return !slices.Contains(filter.ExcludedChannelIDs, ch.Id)
 	case dto.FilterRequestPath:
 		if filter.RequestPath == "" {
 			return true

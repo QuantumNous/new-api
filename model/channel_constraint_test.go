@@ -7,8 +7,10 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestFilterCandidateIDs(t *testing.T) {
@@ -40,6 +42,7 @@ func TestFilterCandidateIDs(t *testing.T) {
 
 	pathFilter := dto.ChannelFilter{Kind: dto.FilterRequestPath, RequestPath: "/v1/chat/completions"}
 	emptyPathFilter := dto.ChannelFilter{Kind: dto.FilterRequestPath, RequestPath: ""}
+	excludeOrdinary := dto.ChannelFilter{Kind: dto.FilterExcludedChannelIDs, ExcludedChannelIDs: []int{900003}}
 
 	tests := []struct {
 		name      string
@@ -49,6 +52,21 @@ func TestFilterCandidateIDs(t *testing.T) {
 		wantKept  []int
 		wantEmpty dto.ChannelFilterKind
 	}{
+		{
+			name:      "exclusion drops failed channels",
+			ids:       []int{900003, 900004},
+			modelName: "shared",
+			filters:   []dto.ChannelFilter{excludeOrdinary},
+			wantKept:  []int{900004},
+		},
+		{
+			name:      "exclusion reports an empty candidate set",
+			ids:       []int{900003},
+			modelName: "shared",
+			filters:   []dto.ChannelFilter{excludeOrdinary},
+			wantKept:  []int{},
+			wantEmpty: dto.FilterExcludedChannelIDs,
+		},
 		{
 			name:      "identity keeps matching type-59 key",
 			ids:       []int{900001, 900002},
@@ -203,6 +221,13 @@ func TestChannelSatisfiesFilters(t *testing.T) {
 	assert.Equal(t, dto.FilterTaskPluginIdentity, kind)
 
 	ok, kind = ChannelSatisfiesFilters(ordinary, "gpt-4", []dto.ChannelFilter{{
+		Kind:               dto.FilterExcludedChannelIDs,
+		ExcludedChannelIDs: []int{ordinary.Id},
+	}})
+	assert.False(t, ok)
+	assert.Equal(t, dto.FilterExcludedChannelIDs, kind)
+
+	ok, kind = ChannelSatisfiesFilters(ordinary, "gpt-4", []dto.ChannelFilter{{
 		Kind:        dto.FilterRequestPath,
 		RequestPath: "/v1/chat/completions",
 	}})
@@ -215,4 +240,58 @@ func TestChannelSatisfiesFilters(t *testing.T) {
 	}})
 	assert.False(t, ok)
 	assert.Equal(t, dto.FilterRequestPath, kind)
+}
+
+func TestGetChannelAppliesExcludedChannelFilter(t *testing.T) {
+	previousDB := DB
+	previousType := common.MainDatabaseType()
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
+	initCol()
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&Channel{}, &Ability{}))
+	DB = db
+	t.Cleanup(func() {
+		DB = previousDB
+		common.SetMainDatabaseType(previousType)
+		initCol()
+	})
+
+	priority := int64(0)
+	weight := uint(100)
+	const (
+		excludedID = 900101
+		selectedID = 900102
+		modelName  = "excluded-db-model"
+	)
+	for _, id := range []int{excludedID, selectedID} {
+		require.NoError(t, db.Create(&Channel{
+			Id:       id,
+			Type:     constant.ChannelTypeOpenAI,
+			Status:   common.ChannelStatusEnabled,
+			Name:     modelName,
+			Models:   modelName,
+			Group:    "default",
+			Priority: &priority,
+			Weight:   &weight,
+		}).Error)
+		require.NoError(t, db.Create(&Ability{
+			Group:     "default",
+			Model:     modelName,
+			ChannelId: id,
+			Enabled:   true,
+			Priority:  &priority,
+			Weight:    weight,
+		}).Error)
+	}
+
+	channel, err := GetChannel("default", modelName, 0, []dto.ChannelFilter{{
+		Kind:               dto.FilterExcludedChannelIDs,
+		ExcludedChannelIDs: []int{excludedID},
+	}})
+
+	require.NoError(t, err)
+	require.NotNil(t, channel)
+	assert.Equal(t, selectedID, channel.Id)
 }
