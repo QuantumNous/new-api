@@ -514,6 +514,7 @@ func TestCollectPendingUpstreamModelChangesFromModels_WithModelMapping(t *testin
 		map[string]string{
 			"alias-model": "mapped-target",
 		},
+		"",
 	)
 
 	require.Equal(t, []string{}, pendingAddModels)
@@ -526,10 +527,22 @@ func TestCollectPendingUpstreamModelChangesFromModels_WithIgnoredRegexPatterns(t
 		[]string{"gpt-4o", "claude-3-5-sonnet", "sora-video", "gpt-4.1"},
 		[]string{"regex:^sora-.*$", "gpt-4.1"},
 		nil,
+		"",
 	)
 
 	require.Equal(t, []string{"claude-3-5-sonnet"}, pendingAddModels)
 	require.Equal(t, []string{}, pendingRemoveModels)
+}
+
+func TestCollectPendingUpstreamModelChangesFromModels_Prefix(t *testing.T) {
+	// local models stored WITH prefix
+	local := []string{"dashscope/gpt-4", "dashscope/gpt-4o"}
+	// upstream returns WITHOUT prefix
+	upstream := []string{"gpt-4", "gpt-4o", "gpt-4o-mini"}
+	add, remove := collectPendingUpstreamModelChangesFromModels(local, upstream, nil, nil, "dashscope")
+	// gpt-4o-mini should be the only add; nothing should be removed
+	require.ElementsMatch(t, []string{"gpt-4o-mini"}, add)
+	require.Empty(t, remove)
 }
 
 func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *testing.T) {
