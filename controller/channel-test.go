@@ -875,7 +875,7 @@ func TestChannel(c *gin.Context) {
 			return
 		}
 		disableThreshold := int64(common.ChannelDisableThreshold * 1000)
-		summary := testChannelAllKeysForHealthCheck(requestCtx, channel, testUserID, false, disableThreshold)
+		summary := testChannelAllKeysForHealthCheck(requestCtx, channel, testUserID, true, disableThreshold)
 		tok := time.Now()
 		milliseconds := tok.Sub(tik).Milliseconds()
 		consumedTime := float64(milliseconds) / 1000.0
