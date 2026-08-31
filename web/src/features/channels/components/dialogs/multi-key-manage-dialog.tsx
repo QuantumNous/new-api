@@ -340,7 +340,7 @@ export function MultiKeyManageDialog({
           {/* Toolbar */}
           <div className='flex shrink-0 flex-col gap-2'>
             {/* Row 1: Status filter + Refresh */}
-            <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-2'>
               <Select
                 items={[
                   ...MULTI_KEY_FILTER_OPTIONS.map((option) => ({
