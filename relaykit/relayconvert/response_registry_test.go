@@ -1,6 +1,7 @@
 package relayconvert
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -487,6 +488,80 @@ func TestConvertStreamResponseStatefulDirectConverters(t *testing.T) {
 	assert.Equal(t, ConverterOpenAIResponsesToOpenAIChat, responsesResults[0].Converter)
 	assert.Equal(t, []ResponseStep{{Converter: ConverterOpenAIResponsesToOpenAIChat, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatOpenAI}}, responsesResults[0].Steps)
 	require.IsType(t, dto.ChatCompletionsStreamResponse{}, responsesResults[len(responsesResults)-1].Value)
+}
+
+func TestResponseStreamUsageTextSinkMatchesRetainedUsageText(t *testing.T) {
+	events := []*dto.ResponsesStreamResponse{
+		{Type: "response.reasoning_summary_text.delta", Delta: "Reasoning summary"},
+		{Type: "response.reasoning_summary_text.done"},
+		{Type: "response.reasoning_summary_text.delta", Delta: "second paragraph"},
+		{Type: "response.output_text.delta", Delta: " visible output"},
+		{
+			Type:        "response.output_item.added",
+			OutputIndex: respPtr(0),
+			Item: &dto.ResponsesOutput{
+				Type:      "function_call",
+				ID:        "fc_1",
+				CallId:    "call_1",
+				Name:      "lookup",
+				Arguments: []byte(`{"city":"Bei`),
+			},
+		},
+		{Type: "response.function_call_arguments.delta", OutputIndex: respPtr(0), ItemID: "fc_1", Delta: `jing"}`},
+	}
+	wantChunks := []string{
+		"Reasoning summary",
+		"\n\nsecond paragraph",
+		" visible output",
+		`{"city":"Bei`,
+		"lookup",
+		`jing"}`,
+	}
+
+	var gotChunks []string
+	sinkState, err := NewResponseStreamState(types.RelayFormatOpenAIResponses, types.RelayFormatOpenAI, ResponseStreamOptions{
+		Model: "gpt-test",
+		UsageTextSink: func(text string) {
+			gotChunks = append(gotChunks, text)
+		},
+	})
+	require.NoError(t, err)
+	for _, event := range events {
+		_, err = ConvertStreamResponseChunk(nil, nil, sinkState, event)
+		require.NoError(t, err)
+	}
+	assert.Equal(t, wantChunks, gotChunks)
+	assert.Empty(t, sinkState.UsageText())
+
+	retainedState, err := NewResponseStreamState(types.RelayFormatOpenAIResponses, types.RelayFormatOpenAI, ResponseStreamOptions{Model: "gpt-test"})
+	require.NoError(t, err)
+	for _, event := range events {
+		_, err = ConvertStreamResponseChunk(nil, nil, retainedState, event)
+		require.NoError(t, err)
+	}
+	assert.Equal(t, strings.Join(wantChunks, ""), retainedState.UsageText())
+}
+
+func TestResponseStreamUsageTextSinkRunsOnceInMultiHopRoute(t *testing.T) {
+	var got []string
+	state, err := NewResponseStreamState(types.RelayFormatOpenAIResponses, types.RelayFormatClaude, ResponseStreamOptions{
+		Model: "gpt-test",
+		UsageTextSink: func(text string) {
+			got = append(got, text)
+		},
+	})
+	require.NoError(t, err)
+	info := &convmeta.Values{
+		ClaudeConvertInfo: &convmeta.ClaudeConvertInfo{LastMessagesType: convmeta.LastMessageTypeNone},
+	}
+
+	_, err = ConvertStreamResponseChunk(nil, info, state, &dto.ResponsesStreamResponse{
+		Type:  "response.output_text.delta",
+		Delta: "hello",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"hello"}, got)
+	assert.Empty(t, state.UsageText())
 }
 
 func TestConvertStreamResponseStatefulMultiHopResponsesToClaude(t *testing.T) {

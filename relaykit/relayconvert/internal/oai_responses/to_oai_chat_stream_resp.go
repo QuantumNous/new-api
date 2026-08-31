@@ -32,6 +32,7 @@ type ResponsesToChatStreamState struct {
 	pendingArgsByOutputIndex   map[int]string
 	pendingArgsByItemID        map[string]string
 	usageText                  strings.Builder
+	usageTextSink              func(string)
 }
 
 type responsesStreamTool struct {
@@ -66,6 +67,24 @@ func (s *ResponsesToChatStreamState) UsageText() string {
 		return ""
 	}
 	return s.usageText.String()
+}
+
+func (s *ResponsesToChatStreamState) SetUsageTextSink(sink func(string)) {
+	if s == nil {
+		return
+	}
+	s.usageTextSink = sink
+}
+
+func (s *ResponsesToChatStreamState) recordUsageText(text string) {
+	if s == nil || text == "" {
+		return
+	}
+	if s.usageTextSink != nil {
+		s.usageTextSink(text)
+		return
+	}
+	s.usageText.WriteString(text)
 }
 
 func ResponsesStreamEventToChatChunks(event *dto.ResponsesStreamResponse, state *ResponsesToChatStreamState) ([]dto.ChatCompletionsStreamResponse, error) {
@@ -151,7 +170,7 @@ func (s *ResponsesToChatStreamState) textDelta(delta string) []dto.ChatCompletio
 	if delta == "" {
 		return nil
 	}
-	s.usageText.WriteString(delta)
+	s.recordUsageText(delta)
 	s.hasSentText = true
 	chunks := s.ensureStart()
 	chunks = append(chunks, s.makeChunk(dto.ChatCompletionsStreamResponseChoiceDelta{
@@ -207,7 +226,7 @@ func (s *ResponsesToChatStreamState) reasoningDelta(delta string) []dto.ChatComp
 			s.needsReasoningSummaryBreak = false
 		}
 	}
-	s.usageText.WriteString(delta)
+	s.recordUsageText(delta)
 	chunks := s.ensureStart()
 	chunks = append(chunks, s.makeChunk(dto.ChatCompletionsStreamResponseChoiceDelta{
 		ReasoningContent: &delta,
@@ -418,10 +437,10 @@ func (s *ResponsesToChatStreamState) toolDelta(tool *responsesStreamTool, explic
 	}
 	if argsDelta != "" {
 		tool.ArgsSentAt += len(argsDelta)
-		s.usageText.WriteString(argsDelta)
+		s.recordUsageText(argsDelta)
 	}
 	if responseTool.Function.Name != "" {
-		s.usageText.WriteString(responseTool.Function.Name)
+		s.recordUsageText(responseTool.Function.Name)
 	}
 
 	chunks = append(chunks, s.makeChunk(dto.ChatCompletionsStreamResponseChoiceDelta{

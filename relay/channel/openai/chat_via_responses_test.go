@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +19,9 @@ import (
 
 func newResponsesChatTestContext(t *testing.T, body string, isStream bool) (*gin.Context, *httptest.ResponseRecorder, *http.Response, *relaycommon.RelayInfo) {
 	t.Helper()
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -37,6 +41,101 @@ func newResponsesChatTestContext(t *testing.T, body string, isStream bool) (*gin
 		DisablePing:        true,
 	}
 	return c, recorder, resp, info
+}
+
+func responsesChatSSE(events ...string) string {
+	lines := make([]string, 0, len(events)+2)
+	for _, event := range events {
+		lines = append(lines, "data: "+event)
+	}
+	lines = append(lines, "data: [DONE]", "")
+	return strings.Join(lines, "\n")
+}
+
+func TestOaiResponsesToChatStreamFallbackUsageMatchesResponseText2Usage(t *testing.T) {
+	body := responsesChatSSE(
+		`{"type":"response.created","response":{"id":"resp_test","created_at":1710000000,"model":"gpt-test"}}`,
+		`{"type":"response.reasoning_summary_text.delta","delta":"Reasoning summary 123"}`,
+		`{"type":"response.reasoning_summary_text.done"}`,
+		`{"type":"response.reasoning_summary_text.delta","delta":"second paragraph"}`,
+		`{"type":"response.output_text.delta","delta":" Visible output 中文"}`,
+		`{"type":"response.completed","response":{"usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}}}`,
+	)
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	info.SetEstimatePromptTokens(37)
+	usage, err := OaiResponsesToChatStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+
+	expectedContext, _ := gin.CreateTestContext(httptest.NewRecorder())
+	expected := service.ResponseText2Usage(expectedContext, "Reasoning summary 123\n\nsecond paragraph Visible output 中文", info.UpstreamModelName, info.GetEstimatePromptTokens())
+	assert.Equal(t, expected, usage)
+	assert.True(t, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+	assert.Contains(t, recorder.Body.String(), `"usage":{"prompt_tokens":37`)
+}
+
+func TestOaiResponsesToChatStreamFallbackUsageCountsToolCalls(t *testing.T) {
+	body := responsesChatSSE(
+		`{"type":"response.created","response":{"id":"resp_test","created_at":1710000000,"model":"gpt-test"}}`,
+		`{"type":"response.output_item.added","output_index":0,"item":{"id":"fc_1","type":"function_call","call_id":"call_1","name":"lookup"}}`,
+		`{"type":"response.function_call_arguments.delta","output_index":0,"item_id":"fc_1","delta":"{\"city\":\"Beijing\"}"}`,
+		`{"type":"response.completed","response":{"usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}}}`,
+	)
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	info.SetEstimatePromptTokens(37)
+	usage, err := OaiResponsesToChatStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+
+	expectedContext, _ := gin.CreateTestContext(httptest.NewRecorder())
+	expected := service.ResponseText2Usage(expectedContext, `lookup{"city":"Beijing"}`, info.UpstreamModelName, info.GetEstimatePromptTokens())
+	assert.Equal(t, expected, usage)
+	assert.True(t, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+	assert.Contains(t, recorder.Body.String(), `"finish_reason":"tool_calls"`)
+}
+
+func TestOaiResponsesToChatStreamUsesUpstreamUsageWithoutLocalCountFlag(t *testing.T) {
+	body := responsesChatSSE(
+		`{"type":"response.created","response":{"id":"resp_test","created_at":1710000000,"model":"gpt-test"}}`,
+		`{"type":"response.output_text.delta","delta":"Visible output that must not be locally counted"}`,
+		`{"type":"response.completed","response":{"usage":{"input_tokens":11,"output_tokens":13,"total_tokens":24,"input_tokens_details":{"cached_tokens":7},"completion_tokens_details":{"reasoning_tokens":5}}}}`,
+	)
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	usage, err := OaiResponsesToChatStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+	assert.Equal(t, 11, usage.PromptTokens)
+	assert.Equal(t, 13, usage.CompletionTokens)
+	assert.Equal(t, 24, usage.TotalTokens)
+	assert.Equal(t, 11, usage.InputTokens)
+	assert.Equal(t, 13, usage.OutputTokens)
+	assert.Equal(t, 7, usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 5, usage.CompletionTokenDetails.ReasoningTokens)
+	assert.False(t, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+	assert.Contains(t, recorder.Body.String(), `"usage":{"prompt_tokens":11`)
+}
+
+func TestOaiResponsesToChatStreamCompletesUpstreamUsageTotalWithoutLocalCountFlag(t *testing.T) {
+	body := responsesChatSSE(
+		`{"type":"response.created","response":{"id":"resp_test","created_at":1710000000,"model":"gpt-test"}}`,
+		`{"type":"response.output_text.delta","delta":"Visible output with upstream input and output tokens"}`,
+		`{"type":"response.completed","response":{"usage":{"input_tokens":11,"output_tokens":13,"total_tokens":0}}}`,
+	)
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	usage, err := OaiResponsesToChatStreamHandler(c, info, resp)
+	require.Nil(t, err)
+	require.NotNil(t, usage)
+	assert.Equal(t, 11, usage.PromptTokens)
+	assert.Equal(t, 13, usage.CompletionTokens)
+	assert.Equal(t, 24, usage.TotalTokens)
+	assert.Equal(t, 11, usage.InputTokens)
+	assert.Equal(t, 13, usage.OutputTokens)
+	assert.False(t, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
+	assert.Contains(t, recorder.Body.String(), `"usage":{"prompt_tokens":11`)
 }
 
 func TestOaiResponsesToChatStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {

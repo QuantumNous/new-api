@@ -70,10 +70,11 @@ type responseConverterRoute struct {
 }
 
 type ResponseStreamOptions struct {
-	ID           string
-	Model        string
-	Created      int64
-	IncludeUsage bool
+	ID            string
+	Model         string
+	Created       int64
+	IncludeUsage  bool
+	UsageTextSink func(string)
 }
 
 type ResponseStreamState struct {
@@ -855,6 +856,7 @@ func finalizeOAIChatStreamResponseToOAIResponses(_ context.Context, _ convmeta.M
 
 func newOAIResponsesToOAIChatStreamState(options ResponseStreamOptions) any {
 	state := NewResponsesToChatStreamState(strings.TrimSpace(options.Model), options.IncludeUsage)
+	state.SetUsageTextSink(options.UsageTextSink)
 	state.ID = strings.TrimSpace(options.ID)
 	if options.Created != 0 {
 		state.Created = options.Created
