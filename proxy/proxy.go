@@ -63,13 +63,42 @@ func NewProxy(cfg *Config, store *Store, identity *IdentityResolver, redactor *R
 	}
 	proxy.reverse = &httputil.ReverseProxy{
 		Rewrite: func(request *httputil.ProxyRequest) {
+			// ReverseProxy strips every inbound X-Forwarded-* header from the
+			// outbound request before Rewrite runs, and SetXForwarded then rewrites
+			// them from the facts of THIS hop alone. For a sidecar that is wrong in
+			// both directions, and both failures surface as 429:
+			//
+			//   - X-Forwarded-For would arrive at new-api holding only this proxy's
+			//     peer — the Nginx in front of it — so every user in the deployment
+			//     collapses onto one c.ClientIP() and shares a single per-IP budget
+			//     (/api/user/login is 20 requests per 20 minutes by default).
+			//   - X-Forwarded-Proto would be downgraded to this hop's plain http,
+			//     and new-api derives the expected WebAuthn origin from it
+			//     (service/passkey), so passkey logins fail and their retries eat
+			//     that same login budget.
+			//
+			// So the inbound chain is captured here and restored below, which makes
+			// new-api see exactly what it saw before this hop existed. The values
+			// stay as trustworthy as the entry point: new-api decides what to
+			// believe through its own TRUSTED_PROXIES, and port 3001 is expected to
+			// be reachable only from the front door (see README).
+			forwardedFor := strings.Join(request.In.Header.Values("X-Forwarded-For"), ", ")
+			forwardedProto := request.In.Header.Get("X-Forwarded-Proto")
+			forwardedHost := request.In.Header.Get("X-Forwarded-Host")
+
 			request.SetURL(target)
 			// Keep the client's Host header: new-api derives absolute URLs from it.
 			request.Out.Host = request.In.Host
-			// Appends this hop to any existing X-Forwarded-For chain, so new-api
-			// still logs the real client IP (its default TRUSTED_PROXIES already
-			// trusts RFC 1918 addresses, which covers a compose bridge network).
 			request.SetXForwarded()
+			if forwardedFor != "" {
+				request.Out.Header.Set("X-Forwarded-For", forwardedFor+", "+request.Out.Header.Get("X-Forwarded-For"))
+			}
+			if forwardedProto != "" {
+				request.Out.Header.Set("X-Forwarded-Proto", forwardedProto)
+			}
+			if forwardedHost != "" {
+				request.Out.Header.Set("X-Forwarded-Host", forwardedHost)
+			}
 		},
 		// -1 forwards every write immediately, which is what SSE relay responses
 		// require; any positive interval would batch stream chunks.

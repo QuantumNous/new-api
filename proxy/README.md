@@ -211,6 +211,66 @@ Retries reset primary keys, so a batch that was partially committed before
 failing can produce duplicate rows. That is deliberate: for an audit trail a
 duplicate is recoverable and a missing row is not.
 
+## Client IP, TLS, and new-api's 429s
+
+Inserting a hop in front of new-api changes two things it is sensitive to, and
+both surface as **429** rather than as anything that names the real cause.
+
+`httputil.ReverseProxy` **strips** every inbound `X-Forwarded-*` header from the
+outbound request before the rewrite hook runs, and `SetXForwarded` then rebuilds
+them from this hop alone. Left at that, new-api receives an
+`X-Forwarded-For` holding only this proxy's peer — the Nginx in front of it —
+so `c.ClientIP()` resolves to that one address for **every** user, and these
+per-IP limiters become a single shared budget for the whole deployment
+(`common/init.go`):
+
+| Limiter | Routes | Default |
+|---|---|---|
+| `CriticalRateLimit` | `/api/user/login`, `/api/user/register`, `/api/user/auth/refresh`, `/api/user/auth/logout`, `/api/ratio_config`, `/api/oauth/*`, top-up | **20 / 20 min** |
+| `GlobalWebRateLimit` | web routes | 120 / 3 min |
+| `GlobalAPIRateLimit` | all of `/api/*` | 360 / 3 min |
+
+Twenty logins per twenty minutes for an entire company is reached quickly, which
+is why the symptom is "logins started returning 429 a while after the sidecar
+went in". The same strip downgrades `X-Forwarded-Proto` to this hop's plain
+`http`, and new-api derives the expected WebAuthn origin from that header
+(`service/passkey/service.go`), so passkey logins fail and their retries eat the
+same budget.
+
+The rewrite hook therefore restores the inbound `X-Forwarded-For` chain,
+`X-Forwarded-Proto` and `X-Forwarded-Host` after calling `SetXForwarded`, making
+new-api see exactly what it saw before this hop existed
+(`TestForwardedHeadersReachUpstream`). Those values are only as trustworthy as
+the entry point, which is why port 3001 must be reachable from the front door
+only.
+
+Two things still have to be right in **new-api's own** configuration:
+
+- `TRUSTED_PROXIES` must cover the address this proxy connects from, or gin
+  ignores `X-Forwarded-For` entirely and the collapse described above happens
+  anyway. Leaving it unset keeps new-api's RFC 1918 defaults, which cover a
+  private-network sidecar.
+- With `SESSION_COOKIE_SECURE=true`, `SessionCookieOriginGuard` on
+  `/api/user/auth/refresh` and `/api/user/auth/logout` compares the browser
+  `Origin` against `request.Host` with a scheme taken from `request.TLS`, which
+  is nil on this plain-HTTP hop. An HTTPS deployment must list its exact browser
+  origins in `SESSION_COOKIE_TRUSTED_URL`; otherwise refresh answers 403, the
+  frontend re-authenticates in a loop, and the loop exhausts the login budget.
+
+Verify attribution from new-api's own data — these must be browser and client
+addresses, not the proxy's or Nginx's:
+
+```sql
+SELECT ip, COUNT(*) FROM logs WHERE type = 7 GROUP BY ip ORDER BY 2 DESC LIMIT 10;
+```
+
+A 429 from the per-IP limiters has an **empty body** and a `Retry-After` header
+(`middleware/rate-limit.go`). The two 429s that carry a JSON body are different
+problems: the per-user model request limit (`您已达到请求数限制…`,
+`middleware/model-rate-limit.go`, disabled by default) and
+`AUTH_SESSION_ISSUANCE_LIMIT` (100 logins per user per 24 h,
+`service/auth_session.go`).
+
 ## Limitations
 
 - **Request side only.** Responses are not captured, which is what keeps SSE and
