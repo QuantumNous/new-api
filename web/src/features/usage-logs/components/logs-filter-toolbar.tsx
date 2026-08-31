@@ -79,6 +79,7 @@ export function LogsFilterInput(props: ComponentProps<typeof Input>) {
   return (
     <Input
       {...props}
+      autoComplete='off'
       className={cn('h-8 min-w-0 text-sm leading-5', props.className)}
     />
   )

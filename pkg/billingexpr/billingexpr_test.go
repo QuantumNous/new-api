@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -344,9 +345,9 @@ func TestQuotaRound(t *testing.T) {
 		{999.4999, 999},
 		{999.5, 1000},
 		{1e9 + 0.5, 1e9 + 1},
-		// Oversized expression results saturate at int32 (delegated to
+		// Oversized expression results saturate at the single-request limit (delegated to
 		// common.QuotaRound); full saturation coverage lives in common.
-		{3.6893488147419103e19, math.MaxInt32},
+		{3.6893488147419103e19, common.MaxQuota},
 	}
 	for _, tt := range tests {
 		got := billingexpr.QuotaRound(tt.in)

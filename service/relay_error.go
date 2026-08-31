@@ -36,6 +36,9 @@ func ShouldRetryRelayError(c *gin.Context, openaiErr *types.NewAPIError, retryTi
 	if retryTimes <= 0 {
 		return false
 	}
+	if GetChannelConstraints(c).SuppressesRetry() {
+		return false
+	}
 	code := openaiErr.StatusCode
 	if code >= 200 && code < 300 {
 		return false
@@ -86,6 +89,7 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		}
 		AppendChannelAffinityAdminInfo(c, adminInfo)
 		other["admin_info"] = adminInfo
+		AppendTaskPluginContextAuditInfo(c, other)
 		startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
 		if startTime.IsZero() {
 			startTime = time.Now()

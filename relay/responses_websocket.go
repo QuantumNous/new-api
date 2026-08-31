@@ -12,7 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/middleware"
 	appmodel "github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/wsmanager"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
@@ -60,9 +59,36 @@ type responsesWSCallState struct {
 	info       *relaycommon.RelayInfo
 	usage      *dto.Usage
 	outputText strings.Builder
-	commitRate middleware.ModelRequestRateLimitCommit
+	commitRate responsesWSRateLimitCommit
 	finishOnce sync.Once
 	images     relaycommon.ImageGenerationCallCounter
+}
+
+type ResponsesWebSocketRateLimitCommit func(success bool)
+
+type responsesWSRateLimitCommit = ResponsesWebSocketRateLimitCommit
+
+var (
+	responsesWSCheckRateLimit = func(*gin.Context) (responsesWSRateLimitCommit, *types.NewAPIError) {
+		return func(bool) {}, nil
+	}
+	responsesWSSetupContext = func(*gin.Context, *appmodel.Channel, string) *types.NewAPIError {
+		return types.NewError(errors.New("responses websocket dependencies are not configured"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	}
+)
+
+// ConfigureResponsesWebSocketDependencies wires the middleware-owned pieces
+// needed by the WebSocket relay without creating a package import cycle.
+func ConfigureResponsesWebSocketDependencies(
+	checkRateLimit func(*gin.Context) (ResponsesWebSocketRateLimitCommit, *types.NewAPIError),
+	setupContext func(*gin.Context, *appmodel.Channel, string) *types.NewAPIError,
+) {
+	if checkRateLimit != nil {
+		responsesWSCheckRateLimit = checkRateLimit
+	}
+	if setupContext != nil {
+		responsesWSSetupContext = setupContext
+	}
 }
 
 type responsesWSSession struct {
@@ -298,7 +324,7 @@ func (s *responsesWSSession) handleResponseCreate(create responsesWSCreateReques
 		)
 	}
 
-	commitRate, apiErr := middleware.CheckModelRequestRateLimit(s.c)
+	commitRate, apiErr := responsesWSCheckRateLimit(s.c)
 	if apiErr != nil {
 		return apiErr
 	}
@@ -346,7 +372,7 @@ func (s *responsesWSSession) handleTargetWriteFailureWithState(state *responsesW
 	return s.handleTargetWriteFailure(err)
 }
 
-func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest, commitRate middleware.ModelRequestRateLimitCommit) *types.NewAPIError {
+func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest, commitRate responsesWSRateLimitCommit) *types.NewAPIError {
 	req := create.Request
 	if err := checkResponsesWSModelAccess(s.c, req.Model); err != nil {
 		commitRate(false)
@@ -463,7 +489,7 @@ func (s *responsesWSSession) processChannelError(channel *appmodel.Channel, apiE
 	return apiErr, service.ShouldRetryRelayError(s.c, apiErr, common.RetryTimes-retryParam.GetRetry())
 }
 
-func (s *responsesWSSession) prepareCall(create responsesWSCreateRequest, commitRate middleware.ModelRequestRateLimitCommit) (*responsesWSCallState, []byte, *types.NewAPIError) {
+func (s *responsesWSSession) prepareCall(create responsesWSCreateRequest, commitRate responsesWSRateLimitCommit) (*responsesWSCallState, []byte, *types.NewAPIError) {
 	req := create.Request
 	common.SetContextKey(s.c, appconstant.ContextKeyRequestStartTime, time.Now())
 	relayInfo := relaycommon.GenRelayInfoResponses(s.c, &req)
@@ -996,7 +1022,7 @@ func selectResponsesWSChannel(c *gin.Context, modelName string, retryParam *serv
 				types.ErrOptionWithSkipRetry(),
 			)
 		}
-		if err := middleware.SetupContextForSelectedChannel(c, channel, modelName); err != nil {
+		if err := responsesWSSetupContext(c, channel, modelName); err != nil {
 			return nil, err
 		}
 		return channel, nil
@@ -1017,7 +1043,7 @@ func selectResponsesWSChannel(c *gin.Context, modelName string, retryParam *serv
 						if appmodel.IsChannelEnabledForGroupModel(g, modelName, preferred.Id) {
 							common.SetContextKey(c, appconstant.ContextKeyAutoGroup, g)
 							service.MarkChannelAffinityUsed(c, g, preferred.Id)
-							if err := middleware.SetupContextForSelectedChannel(c, preferred, modelName); err != nil {
+							if err := responsesWSSetupContext(c, preferred, modelName); err != nil {
 								return nil, err
 							}
 							return preferred, nil
@@ -1025,7 +1051,7 @@ func selectResponsesWSChannel(c *gin.Context, modelName string, retryParam *serv
 					}
 				} else if appmodel.IsChannelEnabledForGroupModel(usingGroup, modelName, preferred.Id) {
 					service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
-					if err := middleware.SetupContextForSelectedChannel(c, preferred, modelName); err != nil {
+					if err := responsesWSSetupContext(c, preferred, modelName); err != nil {
 						return nil, err
 					}
 					return preferred, nil
@@ -1041,7 +1067,7 @@ func selectResponsesWSChannel(c *gin.Context, modelName string, retryParam *serv
 	if channel == nil {
 		return nil, types.NewError(fmt.Errorf("分组 %s 下模型 %s 的可用渠道不存在（retry）", selectGroup, modelName), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 	}
-	if err := middleware.SetupContextForSelectedChannel(c, channel, modelName); err != nil {
+	if err := responsesWSSetupContext(c, channel, modelName); err != nil {
 		return nil, err
 	}
 	return channel, nil

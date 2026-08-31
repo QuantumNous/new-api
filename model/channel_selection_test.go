@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,9 +65,10 @@ func TestGetChannelFiltersAllowedTypesBeforePriority(t *testing.T) {
 		"default",
 		modelName,
 		0,
-		"",
-		constant.ChannelTypeOpenAI,
-		constant.ChannelTypeCodex,
+		[]dto.ChannelFilter{{
+			Kind:                   dto.FilterTaskPluginIdentity,
+			TaskPluginChannelTypes: []int{constant.ChannelTypeOpenAI, constant.ChannelTypeCodex},
+		}},
 	)
 
 	require.NoError(t, err)

@@ -12,7 +12,7 @@ import (
 func GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	baseUrl := info.ChannelBaseUrl
 	if baseUrl == "" {
-		baseUrl = channelconstant.ChannelBaseURLs[channelconstant.ChannelTypeMiniMax]
+		baseUrl = channelconstant.GetChannelBaseURL(channelconstant.ChannelTypeMiniMax)
 	}
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
