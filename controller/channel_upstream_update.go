@@ -177,14 +177,29 @@ func normalizeChannelModelMapping(channel *model.Channel) map[string]string {
 	return normalized
 }
 
+func stripModelPrefix(modelName, prefix string) string {
+	if prefix == "" {
+		return modelName
+	}
+	p := prefix + "/"
+	if strings.HasPrefix(modelName, p) {
+		return modelName[len(p):]
+	}
+	return modelName
+}
+
 func collectPendingUpstreamModelChangesFromModels(
 	localModels []string,
 	upstreamModels []string,
 	ignoredModels []string,
 	modelMapping map[string]string,
+	prefix string,
 ) (pendingAddModels []string, pendingRemoveModels []string) {
 	localSet := make(map[string]struct{})
 	localModels = normalizeModelNames(localModels)
+	for i, modelName := range localModels {
+		localModels[i] = stripModelPrefix(modelName, prefix)
+	}
 	upstreamModels = normalizeModelNames(upstreamModels)
 	for _, modelName := range localModels {
 		localSet[modelName] = struct{}{}
@@ -248,6 +263,7 @@ func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.Cha
 		upstreamModels,
 		settings.UpstreamModelUpdateIgnoredModels,
 		normalizeChannelModelMapping(channel),
+		settings.ModelPrefix,
 	)
 	return pendingAddModels, pendingRemoveModels, nil
 }
