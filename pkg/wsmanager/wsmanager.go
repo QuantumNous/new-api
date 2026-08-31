@@ -33,9 +33,10 @@ type closeEvent struct {
 }
 
 var (
-	mu       sync.Mutex
-	nextID   uint64
-	registry = map[int]map[uint64]*entry{}
+	mu             sync.Mutex
+	nextID         uint64
+	registry       = map[int]map[uint64]*entry{}
+	channelVersion = map[int]uint64{}
 
 	originOnce sync.Once
 	originID   string
@@ -44,8 +45,25 @@ var (
 )
 
 func Register(channelID int, kind string, close func(reason string)) func() {
+	unregister, _ := RegisterWithVersion(channelID, kind, close, ChannelVersion(channelID))
+	return unregister
+}
+
+// ChannelVersion returns the current registration version for a channel. A
+// caller that is about to establish a connection should retain this value and
+// pass it to RegisterWithVersion after the connection is ready.
+func ChannelVersion(channelID int) uint64 {
+	mu.Lock()
+	defer mu.Unlock()
+	return channelVersion[channelID]
+}
+
+// RegisterWithVersion registers a connection only if the channel has not been
+// closed since version was captured. A rejected registration is closed
+// immediately so a connection created during the close window cannot leak.
+func RegisterWithVersion(channelID int, kind string, close func(reason string), version uint64) (func(), bool) {
 	if channelID <= 0 || close == nil {
-		return func() {}
+		return func() {}, false
 	}
 	var closeOnce sync.Once
 	safeClose := func(reason string) {
@@ -62,6 +80,11 @@ func Register(channelID int, kind string, close func(reason string)) func() {
 	}
 
 	mu.Lock()
+	if channelVersion[channelID] != version {
+		mu.Unlock()
+		safeClose(defaultCloseReason)
+		return func() {}, false
+	}
 	if registry[channelID] == nil {
 		registry[channelID] = map[uint64]*entry{}
 	}
@@ -82,7 +105,7 @@ func Register(channelID int, kind string, close func(reason string)) func() {
 				delete(registry, channelID)
 			}
 		})
-	}
+	}, true
 }
 
 func CloseChannel(channelID int, reason string) int {
@@ -177,6 +200,7 @@ func takeEntries(channelIDs []int) []*entry {
 
 	var entries []*entry
 	for _, channelID := range ids {
+		channelVersion[channelID]++
 		for _, e := range registry[channelID] {
 			entries = append(entries, e)
 		}

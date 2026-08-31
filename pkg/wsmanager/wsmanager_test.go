@@ -14,6 +14,7 @@ func resetRegistryForTest() {
 	mu.Lock()
 	defer mu.Unlock()
 	registry = map[int]map[uint64]*entry{}
+	channelVersion = map[int]uint64{}
 	nextID = 0
 }
 
@@ -69,6 +70,35 @@ func TestUnregisterPreventsClose(t *testing.T) {
 
 	require.Equal(t, 0, CloseChannel(10, "test"), "unregistered connections should not be closed")
 	assert.Equal(t, 0, calls, "unregistered close callback should not run")
+}
+
+func TestRegisterWithVersionRejectsConnectionAfterClose(t *testing.T) {
+	resetRegistryForTest()
+
+	version := ChannelVersion(10)
+	requestReturned := make(chan struct{})
+	closeCompleted := make(chan struct{})
+	go func() {
+		<-requestReturned
+		CloseChannel(10, "channel disabled")
+		close(closeCompleted)
+	}()
+
+	// Model the gap between the upstream request returning and the connection
+	// being registered with the manager.
+	close(requestReturned)
+	<-closeCompleted
+
+	calls := 0
+	unregister, registered := RegisterWithVersion(10, KindRealtime, func(reason string) {
+		assert.Equal(t, "channel disabled or deleted", reason)
+		calls++
+	}, version)
+	unregister()
+
+	assert.False(t, registered, "a connection created before CloseChannel must not be registered afterward")
+	assert.Equal(t, 1, calls, "a rejected late connection should be closed immediately")
+	assert.Equal(t, 0, CloseChannel(10, "channel disabled"), "rejected connections must not remain registered")
 }
 
 func TestRegisteredCloseIsIdempotent(t *testing.T) {

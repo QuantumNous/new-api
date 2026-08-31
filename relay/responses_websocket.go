@@ -398,6 +398,7 @@ func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest
 			break
 		}
 		addResponsesWSUsedChannel(s.c, channel.Id)
+		connectionVersion := wsmanager.ChannelVersion(channel.Id)
 
 		state, payload, apiErr := s.prepareCall(create, commitRate)
 		if apiErr != nil {
@@ -450,7 +451,9 @@ func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest
 
 		s.lockedModel = req.Model
 		s.lockedChannel = channel
-		s.registerChannelClose(channel.Id)
+		if !s.registerChannelClose(channel.Id, connectionVersion) {
+			return types.NewError(errors.New("responses websocket channel was closed while connecting"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
 		service.RecordChannelAffinity(s.c, channel.Id)
 		s.startTargetReader()
 		return nil
@@ -949,16 +952,20 @@ func (s *responsesWSSession) closeTarget() {
 	}
 }
 
-func (s *responsesWSSession) registerChannelClose(channelID int) {
-	unregister := wsmanager.Register(channelID, wsmanager.KindResponses, func(reason string) {
+func (s *responsesWSSession) registerChannelClose(channelID int, version uint64) bool {
+	unregister, registered := wsmanager.RegisterWithVersion(channelID, wsmanager.KindResponses, func(reason string) {
 		s.closeForPolicy(reason)
-	})
+	}, version)
+	if !registered {
+		return false
+	}
 	s.targetWriteMu.Lock()
 	if s.unregister != nil {
 		s.unregister()
 	}
 	s.unregister = unregister
 	s.targetWriteMu.Unlock()
+	return true
 }
 
 func (s *responsesWSSession) closeForPolicy(reason string) {
