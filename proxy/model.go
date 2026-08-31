@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/glebarez/sqlite"
@@ -56,11 +57,30 @@ func (PromptAuditLog) TableName() string {
 	return "prompt_audit_logs"
 }
 
+// withParseTime adds parseTime=true to a MySQL DSN that omits it, the same way
+// new-api normalises its own SQL_DSN (model/main.go).
+//
+// Without it the driver hands DATETIME columns back as []byte, and identity
+// resolution fails on tokens.deleted_at, which GORM scans into a gorm.DeletedAt.
+// The failure mode is quiet and looks like a different bug: every audit row lands
+// with an empty user_id, username and token_name. The DSN people reach for is the
+// one already in their new-api configuration, which does not carry the parameter
+// because new-api appends it itself.
+func withParseTime(dsn string) string {
+	if dsn == "" || strings.Contains(dsn, "parseTime") {
+		return dsn
+	}
+	if strings.Contains(dsn, "?") {
+		return dsn + "&parseTime=true"
+	}
+	return dsn + "?parseTime=true"
+}
+
 func openDatabase(cfg DatabaseConfig) (*gorm.DB, error) {
 	var dialector gorm.Dialector
 	switch cfg.Driver {
 	case "mysql":
-		dialector = mysql.Open(cfg.DSN)
+		dialector = mysql.Open(withParseTime(cfg.DSN))
 	case "postgres":
 		dialector = postgres.Open(cfg.DSN)
 	case "sqlite":
