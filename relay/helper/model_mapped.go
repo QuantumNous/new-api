@@ -34,10 +34,11 @@ func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Reque
 	// Strip per-channel model prefix from the upstream model name.
 	// The frontend prepends the channel's model_prefix when saving models,
 	// but the upstream API expects the model name without the prefix.
-	if info.ChannelMeta.ChannelOtherSettings.ModelPrefix != "" {
+	prefix := info.ChannelOtherSettings.ModelPrefix
+	if prefix != "" {
 		info.UpstreamModelName = stripPerChannelModelPrefix(
 			info.UpstreamModelName,
-			info.ChannelMeta.ChannelOtherSettings.ModelPrefix,
+			prefix,
 		)
 	}
 
@@ -61,8 +62,10 @@ func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Reque
 				if visitedModels[mappedModel] {
 					if mappedModel == currentModel {
 						if currentModel == info.OriginModelName {
+							// Identity self-cycle: prefix was already stripped above,
+							// so just ensure request gets the normalized name.
 							info.IsModelMapped = false
-							return nil
+							break
 						} else {
 							info.IsModelMapped = true
 							break
@@ -79,11 +82,8 @@ func ModelMappedHelper(c *gin.Context, info *common.RelayInfo, request dto.Reque
 		}
 		if info.IsModelMapped {
 			// Also strip prefix from mapped model name
-			if info.ChannelMeta.ChannelOtherSettings.ModelPrefix != "" {
-				currentModel = stripPerChannelModelPrefix(
-					currentModel,
-					info.ChannelMeta.ChannelOtherSettings.ModelPrefix,
-				)
+			if prefix != "" {
+				currentModel = stripPerChannelModelPrefix(currentModel, prefix)
 			}
 			info.UpstreamModelName = currentModel
 		}

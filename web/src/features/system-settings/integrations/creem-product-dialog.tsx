@@ -82,8 +82,8 @@ export function CreemProductDialog({
     defaultValues: {
       name: '',
       productId: '',
-      price: 0,
-      quota: 0,
+      price: undefined,
+      quota: undefined,
       currency: 'USD',
     },
   })
@@ -95,8 +95,8 @@ export function CreemProductDialog({
       form.reset({
         name: '',
         productId: '',
-        price: 0,
-        quota: 0,
+        price: undefined,
+        quota: undefined,
         currency: 'USD',
       })
     }

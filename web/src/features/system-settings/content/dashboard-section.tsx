@@ -90,7 +90,13 @@ export function DashboardSection({ defaultValues }: DashboardSectionProps) {
     )
 
     for (const [key, value] of updates) {
-      await updateOption.mutateAsync({ key, value })
+      // Normalize undefined DataExportInterval to the default (5) so the
+      // backend never receives a cleared value that converts to zero.
+      const normalized =
+        key === 'DataExportInterval' && (value === undefined || value === null)
+          ? 5
+          : value
+      await updateOption.mutateAsync({ key, value: normalized })
     }
   }
 
