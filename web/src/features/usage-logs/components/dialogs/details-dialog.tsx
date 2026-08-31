@@ -299,16 +299,24 @@ function BillingBreakdown(props: {
         value: `${fmtPrice(baseInputUSD * other.cache_ratio)}/M`,
       })
     }
-    if (other.audio_cache_ratio != null && other.audio_cache_ratio !== 1) {
+    if (
+      other.audio_ratio != null &&
+      other.audio_cache_ratio != null &&
+      other.audio_cache_ratio !== 1
+    ) {
       rows.push({
         label: t('Cached audio input'),
-        value: `${fmtPrice(baseInputUSD * other.audio_cache_ratio)}/M`,
+        value: `${fmtPrice(baseInputUSD * other.audio_ratio * other.audio_cache_ratio)}/M`,
       })
     }
-    if (other.image_cache_ratio != null && other.image_cache_ratio !== 1) {
+    if (
+      other.image_ratio != null &&
+      other.image_cache_ratio != null &&
+      other.image_cache_ratio !== 1
+    ) {
       rows.push({
         label: t('Cached image input'),
-        value: `${fmtPrice(baseInputUSD * other.image_cache_ratio)}/M`,
+        value: `${fmtPrice(baseInputUSD * other.image_ratio * other.image_cache_ratio)}/M`,
       })
     }
     if (
