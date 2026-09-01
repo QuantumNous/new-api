@@ -1,6 +1,7 @@
 package oaichat
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -9,6 +10,12 @@ import (
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/samber/lo"
 )
+
+// maxToolCallBlockIndex bounds upstream-provided tool_call.index values so a
+// malicious or malformed huge index cannot drive a non-terminating stop scan
+// or pollute state.Index with an absurd content block index. Real tool_call
+// indexes are 0-based and small; this is a defensive ceiling only.
+const maxToolCallBlockIndex = 1024
 
 func generateStopBlock(index int) *dto.ClaudeResponse {
 	return &dto.ClaudeResponse{
@@ -25,9 +32,21 @@ func stopOpenBlocks(state *convmeta.ClaudeConvertInfo) []*dto.ClaudeResponse {
 	case convmeta.LastMessageTypeText, convmeta.LastMessageTypeThinking:
 		return []*dto.ClaudeResponse{generateStopBlock(state.Index)}
 	case convmeta.LastMessageTypeTools:
-		responses := make([]*dto.ClaudeResponse, 0, state.ToolCallMaxIndexOffset+1)
-		for offset := 0; offset <= state.ToolCallMaxIndexOffset; offset++ {
-			responses = append(responses, generateStopBlock(state.ToolCallBaseIndex+offset))
+		// Iterate the tracked open indexes directly rather than scanning
+		// 0..ToolCallMaxIndexOffset: O(active blocks) instead of O(max index),
+		// immune to sparse/huge indexes, and every started block is stopped
+		// (negative indexes that slipped past validation are still tracked here).
+		if len(state.ToolCallOpenIndexes) == 0 {
+			return nil
+		}
+		indexes := make([]int, 0, len(state.ToolCallOpenIndexes))
+		for idx := range state.ToolCallOpenIndexes {
+			indexes = append(indexes, idx)
+		}
+		sort.Ints(indexes)
+		responses := make([]*dto.ClaudeResponse, 0, len(indexes))
+		for _, idx := range indexes {
+			responses = append(responses, generateStopBlock(idx))
 		}
 		return responses
 	default:
@@ -125,6 +144,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			state.Index = state.ToolCallBaseIndex + state.ToolCallMaxIndexOffset + 1
 			state.ToolCallBaseIndex = 0
 			state.ToolCallMaxIndexOffset = 0
+			state.ToolCallOpenIndexes = nil
 		default:
 			state.Index++
 		}
@@ -153,39 +173,54 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			state.LastMessagesType = convmeta.LastMessageTypeTools
 			state.ToolCallBaseIndex = 0
 			state.ToolCallMaxIndexOffset = 0
-			var toolCall dto.ToolCallResponse
-			if len(openAIResponse.Choices) > 0 && len(openAIResponse.Choices[0].Delta.ToolCalls) > 0 {
-				toolCall = openAIResponse.Choices[0].Delta.ToolCalls[0]
-			} else {
-				first := openAIResponse.GetFirstToolCall()
-				if first != nil {
-					toolCall = *first
-				} else {
-					toolCall = dto.ToolCallResponse{}
+			state.ToolCallOpenIndexes = make(map[int]bool)
+			toolCalls := openAIResponse.Choices[0].Delta.ToolCalls
+			if len(toolCalls) == 0 {
+				if first := openAIResponse.GetFirstToolCall(); first != nil {
+					toolCalls = []dto.ToolCallResponse{*first}
 				}
 			}
-			resp := &dto.ClaudeResponse{
-				Type: "content_block_start",
-				ContentBlock: &dto.ClaudeMediaMessage{
-					Id:    toolCall.ID,
-					Type:  "tool_use",
-					Name:  toolCall.Function.Name,
-					Input: map[string]interface{}{},
-				},
-			}
-			resp.SetIndex(0)
-			claudeResponses = append(claudeResponses, resp)
-			// 首块包含工具 delta，则追加 input_json_delta
-			if toolCall.Function.Arguments != "" {
-				idx := 0
-				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-					Index: &idx,
-					Type:  "content_block_delta",
-					Delta: &dto.ClaudeMediaMessage{
-						Type:        "input_json_delta",
-						PartialJson: &toolCall.Function.Arguments,
-					},
-				})
+			for i, toolCall := range toolCalls {
+				offset := i
+				if toolCall.Index != nil {
+					offset = *toolCall.Index
+				}
+				if offset < 0 || offset > maxToolCallBlockIndex {
+					// reject malformed upstream indexes: a negative or huge index
+					// would emit an invalid Claude block index and, pre-fix, drove
+					// a non-terminating stop scan. Skip the tool call entirely.
+					continue
+				}
+				if offset > state.ToolCallMaxIndexOffset {
+					state.ToolCallMaxIndexOffset = offset
+				}
+				idx := offset
+				// start only when the block carries a name and is not already open,
+				// mirroring the later-chunk path; a replayed name must not emit a
+				// second content_block_start for an open index.
+				if toolCall.Function.Name != "" && !state.ToolCallOpenIndexes[idx] {
+					claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+						Index: &idx,
+						Type:  "content_block_start",
+						ContentBlock: &dto.ClaudeMediaMessage{
+							Id:    toolCall.ID,
+							Type:  "tool_use",
+							Name:  toolCall.Function.Name,
+							Input: map[string]interface{}{},
+						},
+					})
+					state.ToolCallOpenIndexes[idx] = true
+				}
+				if toolCall.Function.Arguments != "" && state.ToolCallOpenIndexes[idx] {
+					claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+						Index: &idx,
+						Type:  "content_block_delta",
+						Delta: &dto.ClaudeMediaMessage{
+							Type:        "input_json_delta",
+							PartialJson: &toolCall.Function.Arguments,
+						},
+					})
+				}
 			}
 		} else {
 
@@ -318,6 +353,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 				stopOpenBlocksAndAdvance()
 				state.ToolCallBaseIndex = state.Index
 				state.ToolCallMaxIndexOffset = 0
+				state.ToolCallOpenIndexes = make(map[int]bool)
 			}
 			state.LastMessagesType = convmeta.LastMessageTypeTools
 			base := state.ToolCallBaseIndex
@@ -330,13 +366,20 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 				} else {
 					offset = i
 				}
+				if offset < 0 || offset > maxToolCallBlockIndex {
+					// reject malformed upstream indexes (see maxToolCallBlockIndex).
+					continue
+				}
 				if offset > maxOffset {
 					maxOffset = offset
 				}
 				blockIndex := base + offset
 
 				idx := blockIndex
-				if toolCall.Function.Name != "" {
+				// start only when a name is present and the index is not already
+				// open; providers that echo the full tool_call each delta would
+				// otherwise emit a duplicate content_block_start.
+				if toolCall.Function.Name != "" && !state.ToolCallOpenIndexes[idx] {
 					claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 						Index: &idx,
 						Type:  "content_block_start",
@@ -347,9 +390,13 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 							Input: map[string]interface{}{},
 						},
 					})
+					state.ToolCallOpenIndexes[idx] = true
 				}
 
-				if len(toolCall.Function.Arguments) > 0 {
+				// guard the ghost delta: when args arrive packed in the final
+				// chunk (e.g. GLM-5.2) after a sibling block was stopped, a
+				// delta here targets a closed/never-started block (#4389)
+				if len(toolCall.Function.Arguments) > 0 && state.ToolCallOpenIndexes[idx] {
 					claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
 						Index: &idx,
 						Type:  "content_block_delta",
