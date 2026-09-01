@@ -20,7 +20,10 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useStatus } from '@/hooks/use-status'
-import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
+import {
+  parseHeaderNavModulesFromStatus,
+  type HeaderNavModules,
+} from '@/lib/nav-modules'
 import { useAuthStore } from '@/stores/auth-store'
 
 export type TopNavLink = {
@@ -29,6 +32,52 @@ export type TopNavLink = {
   disabled?: boolean
   requiresAuth?: boolean
   external?: boolean
+}
+
+type TopNavSurface = 'app' | 'public'
+
+type UseTopNavLinksOptions = {
+  surface?: TopNavSurface
+}
+
+type PublicTopNavOptions = {
+  modules: HeaderNavModules
+  docsLink?: string
+  isAuthed: boolean
+  translate: (key: string) => string
+}
+
+export function buildPublicTopNavLinks(
+  options: PublicTopNavOptions
+): TopNavLink[] {
+  const links: TopNavLink[] = []
+
+  if (options.isAuthed && options.modules.console) {
+    links.push({ title: options.translate('Console'), href: '/dashboard' })
+  }
+
+  if (options.modules.pricing.enabled) {
+    links.push({
+      title: options.translate('Model Price'),
+      href: '/pricing',
+      requiresAuth: options.modules.pricing.requireAuth && !options.isAuthed,
+    })
+  }
+
+  links.push({
+    title: options.translate('Beginner guide'),
+    href: '/guide',
+  })
+
+  if (options.modules.docs) {
+    links.push({
+      title: options.translate('API Access'),
+      href: options.docsLink || '/docs',
+      external: Boolean(options.docsLink),
+    })
+  }
+
+  return links
 }
 
 /**
@@ -43,7 +92,9 @@ export type TopNavLink = {
  *   about: true
  * }
  */
-export function useTopNavLinks(): TopNavLink[] {
+export function useTopNavLinks(
+  options: UseTopNavLinksOptions = {}
+): TopNavLink[] {
   const { t } = useTranslation()
   const { status } = useStatus()
   const { auth } = useAuthStore()
@@ -61,6 +112,15 @@ export function useTopNavLinks(): TopNavLink[] {
   const isAuthed = !!auth?.user
 
   const links: TopNavLink[] = []
+
+  if (options.surface === 'public') {
+    return buildPublicTopNavLinks({
+      modules,
+      docsLink,
+      isAuthed,
+      translate: t,
+    })
+  }
 
   // Home
   if (modules?.home !== false) {

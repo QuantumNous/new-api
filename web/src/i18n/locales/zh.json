@@ -408,7 +408,7 @@
     "Any Match (OR)": "任一满足（OR）",
     "Anyone can publish an index. A plugin installed from a third-party source has the same access as one you upload by hand: review its source before installing.": "任何人都可以发布索引。从第三方源安装的插件与你手动上传的插件拥有完全相同的权限，请在安装前审查其源码。",
     "API": "API",
-    "API Access": "API 访问",
+    "API Access": "API 接入",
     "API Addresses": "API 地址",
     "API Base URL (Important: Not Chat API) *": "API 基础 URL (重要：非聊天 API) *",
     "API Base URL *": "API 基础 URL *",

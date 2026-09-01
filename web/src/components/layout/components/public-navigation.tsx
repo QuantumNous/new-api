@@ -16,9 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useTranslation } from 'react-i18next'
-
 import { Link } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 import { cn } from '@/lib/utils'
@@ -48,7 +47,7 @@ export function PublicNavigation({
 }: PublicNavigationProps = {}) {
   const { t } = useTranslation()
   // Use the same logic as AppHeader: prioritize dynamic links from backend
-  const dynamicLinks = useTopNavLinks()
+  const dynamicLinks = useTopNavLinks({ surface: 'public' })
   const defaultLinks = providedLinks || defaultTopNavLinks
   const links = dynamicLinks.length > 0 ? dynamicLinks : defaultLinks
   // Always surface the beginner guide, regardless of backend nav config.
@@ -64,12 +63,13 @@ export function PublicNavigation({
           {t('Beginner guide')}
         </Link>
       )}
-      {links.map((link, index) => {
+      {links.map((link) => {
+        const linkKey = `${link.href}-${link.title}`
         // Handle external links
         if (link.external) {
           return (
             <a
-              key={index}
+              key={linkKey}
               href={link.href}
               target='_blank'
               rel='noopener noreferrer'
@@ -85,7 +85,7 @@ export function PublicNavigation({
         // Handle internal links
         return (
           <Link
-            key={index}
+            key={linkKey}
             to={link.href}
             className={cn(
               'text-muted-foreground hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground inline-flex h-9 w-max items-center justify-center rounded-md bg-transparent px-4 py-2 text-sm font-medium transition-colors focus:outline-none',
