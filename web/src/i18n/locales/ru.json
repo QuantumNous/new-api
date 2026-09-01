@@ -3405,6 +3405,8 @@
     "Parameter settings": "Параметры",
     "parameter.": "параметр.",
     "Parameters": "Параметры",
+    "PKCE (S256)": "PKCE（S256）",
+    "Require a proof key for authorization code exchanges": "Требовать ключ доказательства для обмена кодов авторизации",
     "Parsed {{count}} service account file(s)": "Проанализировано файлов сервисного аккаунта {{count}}",
     "Parsed plugin metadata": "Распознанные метаданные плагина",
     "Partial Submission": "Частичная отправка",

@@ -16,7 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { SystemStatus, OAuthProvider } from '../types'
+import type {
+  CustomOAuthProviderInfo,
+  SystemStatus,
+  OAuthProvider,
+} from '../types'
 
 export {
   buildGitHubOAuthUrl,
@@ -100,4 +104,30 @@ export function hasOAuthProviders(status: SystemStatus | null): boolean {
     status.telegram_oauth ||
     status.wechat_login
   )
+}
+
+export function buildCustomOAuthUrl(
+  provider: CustomOAuthProviderInfo,
+  redirectUri: string,
+  flow: {
+    flowToken: string
+    codeChallenge: string
+    codeChallengeMethod: 'S256'
+  }
+): string {
+  const url = new URL(provider.authorization_endpoint)
+  url.searchParams.set('client_id', provider.client_id)
+  url.searchParams.set('redirect_uri', redirectUri)
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('state', flow.flowToken)
+  url.searchParams.delete('code_challenge')
+  url.searchParams.delete('code_challenge_method')
+  if (provider.pkce_enabled) {
+    url.searchParams.set('code_challenge', flow.codeChallenge)
+    url.searchParams.set('code_challenge_method', flow.codeChallengeMethod)
+  }
+  if (provider.scopes) {
+    url.searchParams.set('scope', provider.scopes)
+  }
+  return url.toString()
 }

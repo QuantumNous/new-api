@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -85,10 +87,21 @@ func GenerateOAuthCode(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"flow_token": state,
-			"expires_at": expiresAt.Unix(),
+			"flow_token":            state,
+			"expires_at":            expiresAt.Unix(),
+			"code_challenge":        oauthPKCEChallenge(oauthPKCEVerifier(state)),
+			"code_challenge_method": "S256",
 		},
 	})
+}
+
+func oauthPKCEVerifier(flowToken string) string {
+	return common.GenerateHMACWithKey([]byte("oauth-pkce-v1:"+common.SessionSecret), flowToken)
+}
+
+func oauthPKCEChallenge(verifier string) string {
+	digest := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(digest[:])
 }
 
 // HandleOAuth handles OAuth callback for all standard OAuth providers
@@ -144,6 +157,7 @@ func HandleOAuth(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName()))
 		return
 	}
+	oauth.SetPKCEVerifier(c, oauthPKCEVerifier(state))
 
 	// 4. Handle error from provider
 	errorCode := c.Query("error")

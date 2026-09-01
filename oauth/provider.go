@@ -2,10 +2,26 @@ package oauth
 
 import (
 	"context"
+	"strings"
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
+
+const pkceVerifierContextKey = "oauth_pkce_verifier"
+
+func SetPKCEVerifier(c *gin.Context, verifier string) {
+	if c != nil && strings.TrimSpace(verifier) != "" {
+		c.Set(pkceVerifierContextKey, verifier)
+	}
+}
+
+func pkceVerifier(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	return c.GetString(pkceVerifierContextKey)
+}
 
 // Provider defines the interface for OAuth providers
 type Provider interface {
