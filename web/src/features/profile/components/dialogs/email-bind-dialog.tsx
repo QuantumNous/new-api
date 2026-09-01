@@ -17,14 +17,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Loader2 } from 'lucide-react'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
+import { Turnstile } from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import { useCountdown } from '@/hooks/use-countdown'
 
 import { sendEmailVerification, bindEmail } from '../../api'
@@ -51,6 +53,14 @@ export function EmailBindDialog({
   const [sendingCode, setSendingCode] = useState(false)
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
+  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
+  const {
+    isTurnstileEnabled,
+    turnstileSiteKey,
+    turnstileToken,
+    setTurnstileToken,
+    validateTurnstile,
+  } = useTurnstile()
   const {
     secondsLeft,
     isActive,
@@ -59,6 +69,15 @@ export function EmailBindDialog({
   } = useCountdown({
     initialSeconds: 60,
   })
+  const handleTurnstileExpire = useCallback(() => {
+    setTurnstileToken('')
+  }, [setTurnstileToken])
+  let sendButtonLabel = t('Send')
+  if (isActive) {
+    sendButtonLabel = `${secondsLeft}s`
+  } else if (sendingCode) {
+    sendButtonLabel = t('Sending...')
+  }
 
   const handleSendCode = async () => {
     if (!email || !email.includes('@')) {
@@ -66,9 +85,11 @@ export function EmailBindDialog({
       return
     }
 
+    if (!validateTurnstile()) return
+
     try {
       setSendingCode(true)
-      const response = await sendEmailVerification(email)
+      const response = await sendEmailVerification(email, turnstileToken)
 
       if (response.success) {
         toast.success(t('Verification code sent! Please check your email.'))
@@ -76,10 +97,14 @@ export function EmailBindDialog({
       } else {
         toast.error(response.message || t('Failed to send verification code'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to send verification code'))
     } finally {
       setSendingCode(false)
+      if (isTurnstileEnabled) {
+        setTurnstileToken('')
+        setTurnstileWidgetKey((current) => current + 1)
+      }
     }
   }
 
@@ -104,7 +129,7 @@ export function EmailBindDialog({
       } else {
         toast.error(response.message || t('Failed to bind email'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to bind email'))
     } finally {
       setLoading(false)
@@ -172,6 +197,17 @@ export function EmailBindDialog({
           />
         </div>
 
+        {isTurnstileEnabled && (
+          <div className='flex justify-center'>
+            <Turnstile
+              key={turnstileWidgetKey}
+              siteKey={turnstileSiteKey}
+              onVerify={setTurnstileToken}
+              onExpire={handleTurnstileExpire}
+            />
+          </div>
+        )}
+
         <div className='space-y-2'>
           <Label htmlFor='code'>{t('Verification Code')}</Label>
           <div className='flex gap-2'>
@@ -187,13 +223,9 @@ export function EmailBindDialog({
               type='button'
               variant='outline'
               onClick={handleSendCode}
-              disabled={sendingCode || isActive || !email}
+              disabled={sendingCode || isActive || !email || loading}
             >
-              {isActive
-                ? `${secondsLeft}s`
-                : sendingCode
-                  ? t('Sending...')
-                  : t('Send')}
+              {sendButtonLabel}
             </Button>
           </div>
         </div>
