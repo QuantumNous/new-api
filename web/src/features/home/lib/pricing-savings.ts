@@ -1,0 +1,325 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+import { getDisplayGroupRatio } from '@/features/pricing/lib/model-helpers'
+import type { PricingModel } from '@/features/pricing/types'
+
+export type ModelFamily =
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'deepseek'
+  | 'moonshot'
+  | 'qwen'
+  | 'other'
+
+export type SavingsUseCase = 'coding' | 'agents' | 'support' | 'research'
+
+export type SavingsModel = {
+  modelName: string
+  vendorName: string
+  family: ModelFamily
+  officialInputPrice: number
+  officialOutputPrice: number
+  siteInputPrice: number
+  siteOutputPrice: number
+  savingsPercent: number
+}
+
+export type SavingsEstimate = {
+  representativeModels: SavingsModel[]
+  officialMonthlyCost: number
+  siteMonthlyCost: number
+  monthlySavings: number
+  annualSavings: number
+}
+
+export const TOKEN_SLIDER_MIN_MILLIONS = 1
+export const TOKEN_SLIDER_MAX_MILLIONS = 200
+export const TOKEN_SLIDER_STEPS = 100
+export const DEFAULT_MONTHLY_TOKENS_MILLIONS = 20
+
+const MAX_COMPARISON_MODELS = 6
+
+const FAMILY_ORDER: ModelFamily[] = [
+  'openai',
+  'anthropic',
+  'deepseek',
+  'moonshot',
+  'google',
+  'qwen',
+]
+
+const USE_CASES: Record<
+  SavingsUseCase,
+  { families: ModelFamily[]; inputWeight: number; outputWeight: number }
+> = {
+  // Coding and agent workloads tend to produce more output than input.
+  coding: {
+    families: ['anthropic', 'openai', 'qwen'],
+    inputWeight: 1,
+    outputWeight: 3,
+  },
+  agents: {
+    families: ['openai', 'anthropic', 'google'],
+    inputWeight: 1,
+    outputWeight: 3,
+  },
+  support: {
+    families: ['deepseek', 'moonshot', 'qwen'],
+    inputWeight: 1,
+    outputWeight: 1,
+  },
+  research: {
+    families: ['google', 'qwen', 'moonshot'],
+    inputWeight: 1,
+    outputWeight: 1,
+  },
+}
+
+function getModelFamily(model: PricingModel): ModelFamily {
+  const haystack =
+    `${model.vendor_name ?? ''} ${model.model_name}`.toLowerCase()
+
+  if (/\b(openai|gpt[-_/ ]|chatgpt|o[134][-_])/i.test(haystack)) {
+    return 'openai'
+  }
+  if (/\b(anthropic|claude[-_/ ])/i.test(haystack)) {
+    return 'anthropic'
+  }
+  if (/\b(google|gemini[-_/ ])/i.test(haystack)) {
+    return 'google'
+  }
+  if (/\bdeepseek/i.test(haystack)) {
+    return 'deepseek'
+  }
+  if (/\b(moonshot|kimi[-_/ ])/i.test(haystack)) {
+    return 'moonshot'
+  }
+  if (/\b(qwen|tongyi|alibaba)/i.test(haystack)) {
+    return 'qwen'
+  }
+  return 'other'
+}
+
+function getFallbackVendorName(family: ModelFamily): string {
+  switch (family) {
+    case 'openai':
+      return 'OpenAI'
+    case 'anthropic':
+      return 'Anthropic'
+    case 'google':
+      return 'Google'
+    case 'deepseek':
+      return 'DeepSeek'
+    case 'moonshot':
+      return 'Moonshot'
+    case 'qwen':
+      return 'Qwen'
+    case 'other':
+      return 'AI'
+  }
+}
+
+function toSavingsModel(
+  model: PricingModel,
+  priceRate: number,
+  usdExchangeRate: number
+): SavingsModel {
+  const officialInputPrice = model.model_ratio * 2
+  const officialOutputPrice = officialInputPrice * model.completion_ratio
+  const displayGroupRatio = Math.max(getDisplayGroupRatio(model), 0)
+  const rechargeFactor =
+    Math.max(priceRate, 0.001) / Math.max(usdExchangeRate, 0.001)
+  const siteFactor = displayGroupRatio * rechargeFactor
+  const siteInputPrice = officialInputPrice * siteFactor
+  const siteOutputPrice = officialOutputPrice * siteFactor
+  const rawSavingsPercent = (1 - siteInputPrice / officialInputPrice) * 100
+  const savingsPercent = Math.floor(
+    Math.min(100, Math.max(0, rawSavingsPercent))
+  )
+  const family = getModelFamily(model)
+
+  return {
+    modelName: model.model_name,
+    vendorName: model.vendor_name?.trim() || getFallbackVendorName(family),
+    family,
+    officialInputPrice,
+    officialOutputPrice,
+    siteInputPrice,
+    siteOutputPrice,
+    savingsPercent,
+  }
+}
+
+export function buildSavingsModels(
+  models: PricingModel[],
+  priceRate: number,
+  usdExchangeRate: number
+): SavingsModel[] {
+  const rankedModels = models
+    .filter(
+      (model) =>
+        model.quota_type === 0 &&
+        Number.isFinite(model.model_ratio) &&
+        model.model_ratio > 0 &&
+        Number.isFinite(model.completion_ratio) &&
+        model.completion_ratio >= 0
+    )
+    .sort((a, b) => {
+      const ratioDifference = b.model_ratio - a.model_ratio
+      if (ratioDifference !== 0) return ratioDifference
+      return a.model_name.localeCompare(b.model_name)
+    })
+
+  const selectedModels: PricingModel[] = []
+  const selectedNames = new Set<string>()
+
+  for (const family of FAMILY_ORDER) {
+    const flagship = rankedModels.find(
+      (model) =>
+        !selectedNames.has(model.model_name) && getModelFamily(model) === family
+    )
+    if (!flagship) continue
+    selectedModels.push(flagship)
+    selectedNames.add(flagship.model_name)
+  }
+
+  for (const model of rankedModels) {
+    if (selectedModels.length >= MAX_COMPARISON_MODELS) break
+    if (selectedNames.has(model.model_name)) continue
+    selectedModels.push(model)
+    selectedNames.add(model.model_name)
+  }
+
+  return selectedModels
+    .slice(0, MAX_COMPARISON_MODELS)
+    .map((model) => toSavingsModel(model, priceRate, usdExchangeRate))
+}
+
+export function getMaximumSavingsPercent(models: SavingsModel[]): number {
+  return models.reduce(
+    (maximum, model) => Math.max(maximum, model.savingsPercent),
+    0
+  )
+}
+
+function getRepresentativeModels(
+  models: SavingsModel[],
+  useCase: SavingsUseCase
+): SavingsModel[] {
+  const representatives: SavingsModel[] = []
+  const selectedNames = new Set<string>()
+
+  for (const family of USE_CASES[useCase].families) {
+    const model = models.find(
+      (candidate) =>
+        candidate.family === family && !selectedNames.has(candidate.modelName)
+    )
+    if (!model) continue
+    representatives.push(model)
+    selectedNames.add(model.modelName)
+    if (representatives.length === 2) return representatives
+  }
+
+  for (const model of models) {
+    if (selectedNames.has(model.modelName)) continue
+    representatives.push(model)
+    selectedNames.add(model.modelName)
+    if (representatives.length === 2) break
+  }
+
+  return representatives
+}
+
+export function calculateSavingsEstimate(
+  models: SavingsModel[],
+  useCase: SavingsUseCase,
+  monthlyTokensMillions: number,
+  people: number
+): SavingsEstimate {
+  const representativeModels = getRepresentativeModels(models, useCase)
+  if (representativeModels.length === 0) {
+    return {
+      representativeModels: [],
+      officialMonthlyCost: 0,
+      siteMonthlyCost: 0,
+      monthlySavings: 0,
+      annualSavings: 0,
+    }
+  }
+
+  const config = USE_CASES[useCase]
+  const totalWeight = config.inputWeight + config.outputWeight
+  let officialPricePerMillion = 0
+  let sitePricePerMillion = 0
+
+  for (const model of representativeModels) {
+    officialPricePerMillion +=
+      (model.officialInputPrice * config.inputWeight +
+        model.officialOutputPrice * config.outputWeight) /
+      totalWeight
+    sitePricePerMillion +=
+      (model.siteInputPrice * config.inputWeight +
+        model.siteOutputPrice * config.outputWeight) /
+      totalWeight
+  }
+
+  officialPricePerMillion /= representativeModels.length
+  sitePricePerMillion /= representativeModels.length
+
+  const normalizedTokens = Math.max(monthlyTokensMillions, 0)
+  const normalizedPeople = Math.max(people, 0)
+  const officialMonthlyCost =
+    officialPricePerMillion * normalizedTokens * normalizedPeople
+  const siteMonthlyCost =
+    sitePricePerMillion * normalizedTokens * normalizedPeople
+  const monthlySavings = Math.max(officialMonthlyCost - siteMonthlyCost, 0)
+
+  return {
+    representativeModels,
+    officialMonthlyCost,
+    siteMonthlyCost,
+    monthlySavings,
+    annualSavings: monthlySavings * 12,
+  }
+}
+
+export function tokenSliderPositionToMillions(position: number): number {
+  const normalizedPosition = Math.min(TOKEN_SLIDER_STEPS, Math.max(0, position))
+  const progress = normalizedPosition / TOKEN_SLIDER_STEPS
+  const logarithmicValue =
+    Math.log(TOKEN_SLIDER_MIN_MILLIONS) +
+    progress *
+      (Math.log(TOKEN_SLIDER_MAX_MILLIONS) -
+        Math.log(TOKEN_SLIDER_MIN_MILLIONS))
+
+  return Math.round(Math.exp(logarithmicValue))
+}
+
+export function tokenMillionsToSliderPosition(tokensMillions: number): number {
+  const normalizedTokens = Math.min(
+    TOKEN_SLIDER_MAX_MILLIONS,
+    Math.max(TOKEN_SLIDER_MIN_MILLIONS, tokensMillions)
+  )
+  const progress =
+    (Math.log(normalizedTokens) - Math.log(TOKEN_SLIDER_MIN_MILLIONS)) /
+    (Math.log(TOKEN_SLIDER_MAX_MILLIONS) - Math.log(TOKEN_SLIDER_MIN_MILLIONS))
+
+  return Math.round(progress * TOKEN_SLIDER_STEPS)
+}
