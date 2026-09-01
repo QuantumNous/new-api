@@ -25,14 +25,31 @@ import { Button } from '@/components/ui/button'
 interface HeroProps {
   className?: string
   isAuthenticated?: boolean
+  maxSavingsPercent?: number
 }
 
 /** Floating candy-colored model chips around the demo card. */
 const modelChips = [
-  { name: 'GPT-5', className: 'dopa-float -top-4 -left-6', hue: 'var(--chart-4)' },
-  { name: 'Claude', className: 'dopa-float-alt top-16 -right-8', hue: 'var(--chart-2)' },
-  { name: 'Gemini', className: 'dopa-float bottom-24 -left-10', hue: 'var(--chart-3)' },
-  { name: 'DeepSeek', className: 'dopa-float-alt -bottom-4 right-6', hue: 'var(--chart-1)' },
+  {
+    name: 'GPT-5',
+    className: 'dopa-float -top-4 -left-6',
+    hue: 'var(--chart-4)',
+  },
+  {
+    name: 'Claude',
+    className: 'dopa-float-alt top-16 -right-8',
+    hue: 'var(--chart-2)',
+  },
+  {
+    name: 'Gemini',
+    className: 'dopa-float bottom-24 -left-10',
+    hue: 'var(--chart-3)',
+  },
+  {
+    name: 'DeepSeek',
+    className: 'dopa-float-alt -bottom-4 right-6',
+    hue: 'var(--chart-1)',
+  },
 ]
 
 /** A friendly fake chat that shows beginners what they actually get. */
@@ -58,7 +75,7 @@ function HeroChatDemo() {
           className={`${chip.className} dopa-candy-shadow absolute z-10 hidden items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold sm:inline-flex`}
           style={{
             backgroundColor: 'var(--card)',
-            borderColor: 'color-mix(in oklch, ' + chip.hue + ' 35%, transparent)',
+            borderColor: `color-mix(in oklch, ${chip.hue} 35%, transparent)`,
             color: chip.hue,
           }}
         >
@@ -135,14 +152,20 @@ export function Hero(props: HeroProps) {
           </div>
 
           <h1 className='dopa-fade-up dopa-delay-1 mt-6 text-[clamp(2.4rem,5vw,3.6rem)] leading-[1.12] font-extrabold tracking-tight text-balance'>
-            {t('One key to unlock')}
+            {t('One address for every leading model')}
             <br />
-            <span className='dopa-gradient-text'>{t('all the best AI models')}</span>
+            <span className='dopa-gradient-text'>
+              {props.maxSavingsPercent && props.maxSavingsPercent > 0
+                ? t('The same models, up to {{percent}}% less', {
+                    percent: props.maxSavingsPercent,
+                  })
+                : t('The same models, at a lower price')}
+            </span>
           </h1>
 
           <p className='dopa-fade-up dopa-delay-2 text-muted-foreground mt-6 max-w-xl text-base leading-relaxed text-pretty md:text-lg'>
             {t(
-              'No coding needed. Sign up, copy your key, paste it into the AI tool you already use — and chat with GPT, Claude, Gemini and more through one simple address.'
+              'No code changes. Sign up, copy your key, and paste it into the AI tool you already use. Pay only for what you use.'
             )}
           </p>
 

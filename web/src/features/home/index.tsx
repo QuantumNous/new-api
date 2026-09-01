@@ -16,18 +16,59 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
 import { RichContent } from '@/components/rich-content'
 import { useTheme } from '@/context/theme-provider'
+import { usePricingData } from '@/features/pricing/hooks'
 import { isLikelyHtml } from '@/lib/content-format'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { CTA, FAQ, Features, Hero, HowItWorks, Stats } from './components'
+import {
+  CTA,
+  FAQ,
+  Features,
+  Hero,
+  HowItWorks,
+  PriceSavings,
+  Stats,
+} from './components'
 import { useHomePageContent } from './hooks'
+import {
+  buildSavingsModels,
+  getMaximumSavingsPercent,
+} from './lib/pricing-savings'
+
+function DefaultHome(props: { isAuthenticated: boolean }) {
+  const { models, priceRate, usdExchangeRate } = usePricingData()
+  const savingsModels = useMemo(
+    () => buildSavingsModels(models, priceRate, usdExchangeRate),
+    [models, priceRate, usdExchangeRate]
+  )
+  const maxSavingsPercent = useMemo(
+    () => getMaximumSavingsPercent(savingsModels),
+    [savingsModels]
+  )
+
+  return (
+    <>
+      <Hero
+        isAuthenticated={props.isAuthenticated}
+        maxSavingsPercent={maxSavingsPercent}
+      />
+      <Stats />
+      <PriceSavings models={savingsModels} />
+      <HowItWorks />
+      <Features />
+      <FAQ />
+      <CTA isAuthenticated={props.isAuthenticated} />
+      <Footer />
+    </>
+  )
+}
 
 export function Home() {
   const { i18n, t } = useTranslation()
@@ -122,13 +163,7 @@ export function Home() {
 
   return (
     <PublicLayout showMainContainer={false}>
-      <Hero isAuthenticated={isAuthenticated} />
-      <Stats />
-      <HowItWorks />
-      <Features />
-      <FAQ />
-      <CTA isAuthenticated={isAuthenticated} />
-      <Footer />
+      <DefaultHome isAuthenticated={isAuthenticated} />
     </PublicLayout>
   )
 }
