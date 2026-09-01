@@ -193,6 +193,9 @@ func SetRelayRouter(router *gin.Engine) {
 }
 
 func registerMjRouterGroup(relayMjRouter *gin.RouterGroup) {
+	// GET /image/:id is registered before TokenAuth on purpose: the forwarded image
+	// URL is loaded by browsers as a plain <img> src with no auth header. Access is
+	// gated by the HMAC sig on the URL inside RelayMidjourneyImage instead. See #6610.
 	relayMjRouter.GET("/image/:id", relay.RelayMidjourneyImage)
 	relayMjRouter.Use(middleware.TokenAuth(), middleware.Distribute())
 	{
