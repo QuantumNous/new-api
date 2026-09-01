@@ -999,6 +999,14 @@ func (channel *Channel) ValidateSettings() error {
 			return err
 		}
 	}
+	if err := channelOtherSettings.ContentToReasoning.Validate(); err != nil {
+		return err
+	}
+	if channelOtherSettings.ContentToReasoning != nil &&
+		channelOtherSettings.ContentToReasoning.Enabled &&
+		channelParams.ThinkingToContent {
+		return fmt.Errorf("thinking_to_content and content_to_reasoning cannot both be enabled")
+	}
 	if channel.Type == constant.ChannelTypeAdvancedCustom && channelOtherSettings.UpstreamModelUpdateCheckEnabled {
 		if _, ok := channelOtherSettings.AdvancedCustom.ModelListRoute(); !ok {
 			return fmt.Errorf("advanced custom channels require a %s route when upstream model update checks are enabled", dto.AdvancedCustomModelListPath)
