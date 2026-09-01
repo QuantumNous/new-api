@@ -112,7 +112,7 @@ export function Guide() {
               </h2>
               <p className='text-muted-foreground mt-1 text-sm'>
                 {t(
-                  'Click any card for step-by-step setup. Addresses in the steps are already filled in with this site\u2019s real address.'
+                  'Click any card for step-by-step setup. Addresses in the steps are already filled in with the real address of this site.'
                 )}
               </p>
             </div>
