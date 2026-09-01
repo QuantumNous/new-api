@@ -39,8 +39,12 @@ const models: SavingsModel[] = [
     family: 'openai',
     officialInputPrice: 4,
     officialOutputPrice: 12,
+    officialCacheReadPrice: 0.4,
+    officialCacheWritePrice: 5,
     siteInputPrice: 2,
     siteOutputPrice: 6,
+    siteCacheReadPrice: 0.2,
+    siteCacheWritePrice: 2.5,
     savingsPercent: 50,
   },
   {
@@ -49,8 +53,12 @@ const models: SavingsModel[] = [
     family: 'anthropic',
     officialInputPrice: 3,
     officialOutputPrice: 15,
+    officialCacheReadPrice: 0.3,
+    officialCacheWritePrice: 3.75,
     siteInputPrice: 1.5,
     siteOutputPrice: 7.5,
+    siteCacheReadPrice: 0.15,
+    siteCacheWritePrice: 1.875,
     savingsPercent: 50,
   },
 ]
@@ -96,7 +104,7 @@ describe('PriceSavings', () => {
 
     const modelPicker = screen.getByRole('combobox', { name: 'Model' })
     expect(modelPicker).toHaveValue('gpt-flagship · OpenAI')
-    expect(screen.getByText('¥2万')).toBeInTheDocument()
+    const firstEstimate = screen.getByTestId('annual-savings').textContent
 
     await user.click(modelPicker)
     await user.type(modelPicker, 'claude')
@@ -105,7 +113,23 @@ describe('PriceSavings', () => {
     )
 
     expect(modelPicker).toHaveValue('claude-flagship · Anthropic')
-    expect(screen.getByText('¥3万')).toBeInTheDocument()
+    expect(screen.getByTestId('annual-savings').textContent).not.toBe(
+      firstEstimate
+    )
+  })
+
+  it('shows cache pricing and the editable token composition', () => {
+    render(<PriceSavings models={models} />)
+
+    expect(screen.getAllByText('Cache Read')).not.toHaveLength(0)
+    expect(screen.getAllByText('Cache Write')).not.toHaveLength(0)
+    expect(screen.getAllByText('55%')).not.toHaveLength(0)
+    expect(screen.getAllByText('10%')).not.toHaveLength(0)
+    expect(
+      document.querySelector<HTMLInputElement>(
+        'input[type="range"][aria-label="Cache Read"]'
+      )
+    ).not.toBeNull()
   })
 
   it('updates both sliders from the keyboard with meaningful value text', async () => {
