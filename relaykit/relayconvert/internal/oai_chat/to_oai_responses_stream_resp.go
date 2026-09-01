@@ -201,7 +201,7 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 	if tool == nil {
 		tool = &chatToResponsesStreamTool{
 			ChatIndex:   chatIndex,
-			OutputIndex: s.nextIndex("tool", chatIndex),
+			OutputIndex: -1,
 			ID:          strings.TrimSpace(toolCall.ID),
 			Name:        strings.TrimSpace(toolCall.Function.Name),
 		}
@@ -209,6 +209,21 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 			tool.ID = fmt.Sprintf("%s_call_%d", s.ID, chatIndex)
 		}
 		s.toolsByIndex[chatIndex] = tool
+	}
+	if strings.TrimSpace(toolCall.ID) != "" {
+		tool.ID = strings.TrimSpace(toolCall.ID)
+	}
+	if strings.TrimSpace(toolCall.Function.Name) != "" {
+		tool.Name = strings.TrimSpace(toolCall.Function.Name)
+	}
+	if toolCall.Function.Arguments != "" {
+		tool.Arguments.WriteString(toolCall.Function.Arguments)
+	}
+	if tool.OutputIndex < 0 {
+		if tool.Name == "" {
+			return events, nil
+		}
+		tool.OutputIndex = s.nextIndex("tool", chatIndex)
 		events = append(events, responsesStreamEvent(responsesEventOutputItemAdded, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemAdded,
 			OutputIndex: intPtr(tool.OutputIndex),
@@ -222,15 +237,17 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 				Arguments: []byte(`""`),
 			},
 		}))
-	}
-	if strings.TrimSpace(toolCall.ID) != "" {
-		tool.ID = strings.TrimSpace(toolCall.ID)
-	}
-	if strings.TrimSpace(toolCall.Function.Name) != "" {
-		tool.Name = strings.TrimSpace(toolCall.Function.Name)
+		if tool.Arguments.Len() != 0 {
+			events = append(events, responsesStreamEvent(responsesEventFunctionArgsDelta, dto.ResponsesStreamResponse{
+				Type:        responsesEventFunctionArgsDelta,
+				OutputIndex: intPtr(tool.OutputIndex),
+				ItemID:      tool.ID,
+				Delta:       tool.Arguments.String(),
+			}))
+		}
+		return events, nil
 	}
 	if toolCall.Function.Arguments != "" {
-		tool.Arguments.WriteString(toolCall.Function.Arguments)
 		events = append(events, responsesStreamEvent(responsesEventFunctionArgsDelta, dto.ResponsesStreamResponse{
 			Type:        responsesEventFunctionArgsDelta,
 			OutputIndex: intPtr(tool.OutputIndex),
@@ -277,7 +294,7 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 		}))
 	}
 	for _, tool := range s.sortedTools() {
-		if tool.Done {
+		if tool.Done || tool.OutputIndex < 0 {
 			continue
 		}
 		tool.Done = true
