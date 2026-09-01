@@ -95,6 +95,19 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			return
 		}
 		sendResponsesStreamData(c, streamResponse, data)
+
+		switch streamResponse.Type {
+		case "error", "response.error", "response.failed":
+			streamError := streamResponse.Error
+			if (len(streamError) == 0 || string(streamError) == "null") && streamResponse.Response != nil && streamResponse.Response.Error != nil {
+				if errorBytes, err := common.Marshal(streamResponse.Response.Error); err == nil {
+					streamError = errorBytes
+				}
+			}
+			if len(streamError) > 0 && string(streamError) != "null" {
+				sr.Error(fmt.Errorf("%s: %s", streamResponse.Type, streamError))
+			}
+		}
 		switch streamResponse.Type {
 		case "response.completed", "response.done":
 			if streamResponse.Response != nil {
