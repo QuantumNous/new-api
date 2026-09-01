@@ -268,6 +268,38 @@ export type EvalResult = {
   error: string | null
 }
 
+const ZONED_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+// Mirrors the backend timeInZone helper (pkg/billingexpr/run.go): an empty or
+// invalid timezone falls back to UTC instead of throwing.
+function zonedTimeParts(tz: string): Record<string, string> {
+  const options: Intl.DateTimeFormatOptions = {
+    hourCycle: 'h23',
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    weekday: 'short',
+  }
+  let formatter: Intl.DateTimeFormat
+  try {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      ...options,
+      timeZone: tz.trim() || 'UTC',
+    })
+  } catch {
+    formatter = new Intl.DateTimeFormat('en-US', {
+      ...options,
+      timeZone: 'UTC',
+    })
+  }
+  const parts: Record<string, string> = {}
+  for (const part of formatter.formatToParts(new Date())) {
+    parts[part.type] = part.value
+  }
+  return parts
+}
+
 export function evalExprLocally(
   exprStr: string,
   promptTokens: number,
@@ -298,6 +330,22 @@ export function evalExprLocally(
       abs: Math.abs,
       ceil: Math.ceil,
       floor: Math.floor,
+      // The estimator runs without a request context, so header()/param()
+      // resolve the same way the backend does for an absent header or body
+      // field (pkg/billingexpr/run.go): empty string / null.
+      header: () => '',
+      param: () => null,
+      has: (source: unknown, substr: string) =>
+        source !== null &&
+        source !== undefined &&
+        substr !== '' &&
+        String(source).includes(substr),
+      hour: (tz: string) => Number(zonedTimeParts(tz).hour),
+      minute: (tz: string) => Number(zonedTimeParts(tz).minute),
+      weekday: (tz: string) =>
+        Math.max(0, ZONED_WEEKDAYS.indexOf(zonedTimeParts(tz).weekday)),
+      month: (tz: string) => Number(zonedTimeParts(tz).month),
+      day: (tz: string) => Number(zonedTimeParts(tz).day),
     }
     for (const field of ESTIMATOR_VARS) {
       env[field.var] = extraTokenValues[field.stateKey] || 0
