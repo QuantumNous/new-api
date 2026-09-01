@@ -1,0 +1,28 @@
+{
+  "scenarioId": "DESKTOP-V2-AS-04",
+  "assertion": "Concurrent exchange of one approved code creates at most one session and later replay is rejected.",
+  "testSelector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_replay_and_race",
+  "acceptanceCommandId": "desktop-v2-replay",
+  "runId": "RU-DESKTOP-INTEGRATION-V2/WP-DESKTOP-INTEGRATION-V2@2026-09-01T11:56:25.496856+00:00",
+  "packageId": "WP-DESKTOP-INTEGRATION-V2",
+  "evidenceOwner": "govern-product-build/verifier",
+  "passed": true,
+  "runnerProof": {
+    "schemaVersion": 1,
+    "adapter": "pytest-json@1",
+    "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_replay_and_race",
+    "cwd": ".",
+    "executedPassingTests": 1,
+    "actualExitCode": 0,
+    "runnerMetadataSha256": "sha256:d83283be11b0f16979ab6eae504f242f451690c8e8a0f1d8839d3e0d5db00490",
+    "machineReportSha256": "sha256:cd6405f4036b0a57ace2d94df8f53bc277fc2d6b24fb99557cda35e11edd23fb",
+    "isolation": {
+      "adapter": "darwin-sandbox-exec-readonly-source@1",
+      "policySha256": "sha256:230a0ed305bd84e2136037f473a5a0731d90452af7c6748e3cf7ea57aaae0707",
+      "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+    }
+  },
+  "commandResultHash": "sha256:f914d7a8ec0c482d29311e63821a19da591552319fc43587fc732bc7f9cc17d8",
+  "releaseUnitId": "RU-DESKTOP-INTEGRATION-V2",
+  "releaseUnitHash": "sha256:17fac34dfadf4d7215fc5e093a44eebc5448744ec094872379694a98877a2fa7"
+}

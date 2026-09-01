@@ -1,0 +1,28 @@
+{
+  "scenarioId": "DESKTOP-V2-AS-03",
+  "assertion": "Missing Redis, malformed codes, pending, slow-down, denied and expired states never issue credentials.",
+  "testSelector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_failure_paths",
+  "acceptanceCommandId": "desktop-v2-failure",
+  "runId": "RU-DESKTOP-INTEGRATION-V2/WP-DESKTOP-INTEGRATION-V2@2026-09-01T11:56:25.496856+00:00",
+  "packageId": "WP-DESKTOP-INTEGRATION-V2",
+  "evidenceOwner": "govern-product-build/verifier",
+  "passed": true,
+  "runnerProof": {
+    "schemaVersion": 1,
+    "adapter": "pytest-json@1",
+    "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_failure_paths",
+    "cwd": ".",
+    "executedPassingTests": 1,
+    "actualExitCode": 0,
+    "runnerMetadataSha256": "sha256:87d023d57bf8fb11aaefab86cca4269c18a5a8b577bbd4c13740f679d6a8bfc5",
+    "machineReportSha256": "sha256:cfb413a0e8ec59b3a246ebadfd4494e0a6fbfbfe8aa3694fe5754e7a182965c6",
+    "isolation": {
+      "adapter": "darwin-sandbox-exec-readonly-source@1",
+      "policySha256": "sha256:fe2bbf3920806ef362acc43935055844e52566ddfc7b2569e0313a0ccc8ecac7",
+      "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+    }
+  },
+  "commandResultHash": "sha256:e629bf94a652a35e714f57543e4f93cce1f1142e0f9de7a2f72d892445fc2d09",
+  "releaseUnitId": "RU-DESKTOP-INTEGRATION-V2",
+  "releaseUnitHash": "sha256:17fac34dfadf4d7215fc5e093a44eebc5448744ec094872379694a98877a2fa7"
+}
