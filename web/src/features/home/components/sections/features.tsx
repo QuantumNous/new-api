@@ -25,8 +25,8 @@ import {
   MessageSquare,
   PiggyBank,
   ShieldCheck,
+  SlidersHorizontal,
   Smile,
-  Wand2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -39,22 +39,20 @@ interface FeaturesProps {
 
 /** Tool wall: friendly names + category, colored by the candy palette. */
 const toolWall = [
+  { name: 'WorkBuddy / CodeBuddy', tag: 'chat', hue: 'var(--chart-5)' },
   { name: 'Cherry Studio', tag: 'chat', hue: 'var(--chart-1)' },
-  { name: 'ChatBox', tag: 'chat', hue: 'var(--chart-3)' },
-  { name: 'LobeChat', tag: 'chat', hue: 'var(--chart-4)' },
-  { name: 'NextChat', tag: 'chat', hue: 'var(--chart-2)' },
-  { name: 'Open WebUI', tag: 'chat', hue: 'var(--chart-5)' },
-  { name: 'Claude Code', tag: 'code', hue: 'var(--chart-2)' },
-  { name: 'Cline', tag: 'code', hue: 'var(--chart-1)' },
-  { name: 'Cursor', tag: 'code', hue: 'var(--chart-4)' },
-  { name: 'Zed', tag: 'code', hue: 'var(--chart-3)' },
+  { name: 'Chatbox', tag: 'chat', hue: 'var(--chart-3)' },
   { name: '沉浸式翻译', tag: 'translate', hue: 'var(--chart-1)' },
-  { name: '欧路词典', tag: 'translate', hue: 'var(--chart-4)' },
+  { name: 'Claude Code', tag: 'code', hue: 'var(--chart-2)' },
+  { name: 'Codex CLI', tag: 'code', hue: 'var(--chart-4)' },
+  { name: 'DeepSeek Harness (DSH)', tag: 'code', hue: 'var(--chart-1)' },
+  { name: 'Cursor', tag: 'code', hue: 'var(--chart-4)' },
+  { name: 'Trae', tag: 'code', hue: 'var(--chart-3)' },
+  { name: 'Cline', tag: 'code', hue: 'var(--chart-1)' },
   { name: 'Dify', tag: 'agent', hue: 'var(--chart-3)' },
   { name: 'FastGPT', tag: 'agent', hue: 'var(--chart-2)' },
-  { name: 'n8n', tag: 'agent', hue: 'var(--chart-5)' },
-  { name: 'Obsidian', tag: 'notes', hue: 'var(--chart-4)' },
-  { name: 'uTools', tag: 'notes', hue: 'var(--chart-1)' },
+  { name: 'Cockpit Tools', tag: 'manager', hue: 'var(--chart-5)' },
+  { name: 'CC Switch', tag: 'manager', hue: 'var(--chart-4)' },
 ]
 
 export function Features(_props: FeaturesProps) {
@@ -66,7 +64,7 @@ export function Features(_props: FeaturesProps) {
     code: t('Coding'),
     translate: t('Translate'),
     agent: t('Automation'),
-    notes: t('Notes'),
+    manager: t('Configuration'),
   }
 
   const reasons = [
@@ -109,7 +107,7 @@ export function Features(_props: FeaturesProps) {
     code: <Code2 className='size-3' />,
     translate: <Globe className='size-3' />,
     agent: <Bot className='size-3' />,
-    notes: <Wand2 className='size-3' />,
+    manager: <SlidersHorizontal className='size-3' />,
   }
 
   return (
@@ -123,9 +121,9 @@ export function Features(_props: FeaturesProps) {
           <h2 className='text-3xl font-extrabold tracking-tight text-balance md:text-4xl'>
             {t('Your favorite apps, instantly smarter')}
           </h2>
-          <p className='text-muted-foreground mx-auto mt-4 max-w-lg text-base text-pretty'>
+          <p className='text-muted-foreground mx-auto mt-4 max-w-2xl text-base text-pretty'>
             {t(
-              'Paste one key into any of these — chat apps, coding assistants, translators and more.'
+              'Connect one key to the chat, coding, translation, and knowledge-base tools you already use.'
             )}
           </p>
         </div>

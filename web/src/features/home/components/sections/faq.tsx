@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ExternalLink, MessageCircleHeart } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -88,6 +89,47 @@ export function FAQ() {
               </AccordionItem>
             ))}
           </Accordion>
+        </div>
+
+        <div className='dopa-reveal border-border bg-card mt-6 grid overflow-hidden rounded-3xl border md:grid-cols-[1fr_260px]'>
+          <div className='flex flex-col justify-center px-7 py-8 md:px-9'>
+            <span className='bg-primary/10 text-primary flex size-12 items-center justify-center rounded-2xl'>
+              <MessageCircleHeart className='size-6' />
+            </span>
+            <p className='text-primary mt-5 text-sm font-bold'>
+              {t('After-sales support community')}
+            </p>
+            <h3 className='mt-2 text-2xl font-extrabold tracking-tight'>
+              {t('Need help? Join our QQ group')}
+            </h3>
+            <p className='text-muted-foreground mt-3 text-sm leading-relaxed'>
+              {t(
+                'Scan the QR code to join the ds relay after-sales group for setup help, troubleshooting, and usage questions.'
+              )}
+            </p>
+            <p className='mt-4 text-sm font-bold'>
+              {t('QQ group: 1065665694')}
+            </p>
+          </div>
+
+          <div className='bg-muted/50 flex items-center justify-center p-5'>
+            <a
+              href='/qq-community.jpg'
+              target='_blank'
+              rel='noreferrer'
+              className='group relative block aspect-[4/5] w-full max-w-[220px] overflow-hidden rounded-2xl bg-white shadow-sm'
+              aria-label={t('Open the full QQ group QR code')}
+            >
+              <img
+                src='/qq-community.jpg'
+                alt={t('QQ after-sales group QR code')}
+                className='absolute inset-0 size-full scale-[1.34] object-cover object-[50%_45%] transition-transform duration-300 group-hover:scale-[1.38]'
+              />
+              <span className='absolute right-2 bottom-2 flex size-8 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow-sm backdrop-blur'>
+                <ExternalLink className='size-4' />
+              </span>
+            </a>
+          </div>
         </div>
       </div>
     </section>
