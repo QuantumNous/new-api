@@ -40,7 +40,8 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 		openAIRequest.Stream = kitutil.GetPointer(*claudeRequest.Stream)
 	}
 
-	isOpenRouter := convmeta.OptionsOf(info).OpenRouterDialect
+	opts := convmeta.OptionsOf(info)
+	isOpenRouter := opts.OpenRouterDialect
 	if isOpenRouter {
 		if effort := claudeRequest.GetEfforts(); effort != "" {
 			effortBytes, _ := kitutil.Marshal(effort)
@@ -146,7 +147,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 			}
 			var toolCalls []dto.ToolCallRequest
 			mediaMessages := make([]dto.MediaContent, 0, len(content))
-
+			var reasoning strings.Builder
 			for _, mediaMsg := range content {
 				switch mediaMsg.Type {
 				case "text", "input_text":
@@ -156,6 +157,12 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 						CacheControl: mediaMsg.CacheControl,
 					}
 					mediaMessages = append(mediaMessages, message)
+				case "thinking":
+					if opts.PreserveReasoningContent && claudeMessage.Role == "assistant" && mediaMsg.Thinking != nil {
+						reasoning.WriteString(*mediaMsg.Thinking)
+					}
+				case "redacted_thinking":
+					// The encrypted payload cannot be represented by reasoning_content.
 				case "image":
 					imageData := fmt.Sprintf("data:%s;base64,%s", mediaMsg.Source.MediaType, mediaMsg.Source.Data)
 					mediaMessage := dto.MediaContent{
@@ -200,8 +207,12 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 			if len(mediaMessages) > 0 && len(toolCalls) == 0 {
 				openAIMessage.SetMediaContent(mediaMessages)
 			}
+			if reasoning.Len() > 0 {
+				reasoningContent := reasoning.String()
+				openAIMessage.ReasoningContent = &reasoningContent
+			}
 		}
-		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 {
+		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 || openAIMessage.GetReasoningContent() != "" {
 			openAIMessages = append(openAIMessages, openAIMessage)
 		}
 	}

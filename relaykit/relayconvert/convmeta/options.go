@@ -18,6 +18,11 @@ type Options struct {
 	// suffix must be kept on the outgoing model name (host blacklist lookup).
 	// Nil means "never preserve".
 	PreserveThinkingSuffix func(modelName string) bool
+
+	// PreserveReasoningContent maps assistant reasoning between reasoning_content
+	// and each target protocol's equivalent request field. It is opt-in because
+	// reasoning_content is non-standard and is not accepted by every upstream model.
+	PreserveReasoningContent bool
 }
 
 type ClaudeOptions struct {
