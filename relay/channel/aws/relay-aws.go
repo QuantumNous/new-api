@@ -60,6 +60,19 @@ func newAwsInvokeError(requestContext context.Context, err error, operation stri
 	)
 }
 
+func recordAwsStreamContextEnd(info *relaycommon.RelayInfo, requestContext, invokeContext context.Context) {
+	if info == nil || info.StreamStatus == nil {
+		return
+	}
+	if err := requestContext.Err(); err != nil {
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, err)
+		return
+	}
+	if err := invokeContext.Err(); err != nil {
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, err)
+	}
+}
+
 func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.Client, error) {
 	httpClient, err := service.GetHttpClientWithProxySettings(info.ChannelSetting.Proxy, info.ChannelSetting)
 	if err != nil {
@@ -261,9 +274,15 @@ func awsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (
 	requestContext := c.Request.Context()
 	ctx, cancel := newAwsInvokeContext(requestContext)
 	defer cancel()
+	info.StreamStatus = relaycommon.NewStreamStatus()
 
 	awsResp, err := a.AwsClient.InvokeModelWithResponseStream(ctx, a.AwsReq.(*bedrockruntime.InvokeModelWithResponseStreamInput))
 	if err != nil {
+		recordAwsStreamContextEnd(info, requestContext, ctx)
+		if info.StreamStatus.EndReason == relaycommon.StreamEndReasonNone {
+			info.StreamStatus.RecordError(err.Error())
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonHandlerStop, err)
+		}
 		return newAwsInvokeError(requestContext, err, "InvokeModelWithResponseStream"), nil
 	}
 	stream := awsResp.GetStream()
@@ -282,12 +301,19 @@ streamLoop:
 	for {
 		select {
 		case <-ctx.Done():
+			recordAwsStreamContextEnd(info, requestContext, ctx)
 			break streamLoop
 		case event, ok := <-events:
 			if !ok {
+				if claudeInfo.Done {
+					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+				} else {
+					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
+				}
 				break streamLoop
 			}
 			if ctx.Err() != nil {
+				recordAwsStreamContextEnd(info, requestContext, ctx)
 				break streamLoop
 			}
 
@@ -296,15 +322,27 @@ streamLoop:
 				info.SetFirstResponseTime()
 				respErr := claude.HandleStreamResponseData(c, info, claudeInfo, string(v.Value.Bytes))
 				if respErr != nil {
+					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonHandlerStop, respErr)
 					return respErr, nil
 				}
 			case *bedrockruntimeTypes.UnknownUnionMember:
 				fmt.Println("unknown tag:", v.Tag)
-				return types.NewError(errors.New("unknown response type"), types.ErrorCodeInvalidRequest), nil
+				err := types.NewError(errors.New("unknown response type"), types.ErrorCodeInvalidRequest)
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonHandlerStop, err)
+				return err, nil
 			default:
 				fmt.Println("union is nil or unknown type")
-				return types.NewError(errors.New("nil or unknown response type"), types.ErrorCodeInvalidRequest), nil
+				err := types.NewError(errors.New("nil or unknown response type"), types.ErrorCodeInvalidRequest)
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonHandlerStop, err)
+				return err, nil
 			}
+		}
+	}
+	if info.StreamStatus.EndReason == relaycommon.StreamEndReasonNone {
+		if claudeInfo.Done {
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+		} else {
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
 		}
 	}
 
