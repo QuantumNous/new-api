@@ -88,6 +88,7 @@ type DashboardActionPath =
   | '/channels'
   | '/usage-logs'
   | '/pricing'
+  | '/guide'
 
 interface StartStep {
   title: string
@@ -501,21 +502,28 @@ export function OverviewDashboard() {
     () => [
       {
         title: t('Create API Key'),
-        description: t('Create a key for your app or service'),
+        description: t('One tap — this is the password your AI tool needs'),
         to: '/keys',
         icon: KeyRound,
         completed: Boolean(preferredKey),
       },
       {
         title: t('Add credits'),
-        description: t('Keep enough balance before production traffic'),
+        description: t('Credits are your AI budget; top up when running low'),
         to: '/wallet',
         icon: CreditCard,
         completed: remainQuota > 0 || usedQuota > 0,
       },
       {
+        title: t('Plug it into your tool'),
+        description: t('Follow the beginner guide for your favorite app'),
+        to: '/guide',
+        icon: BookOpen,
+        completed: requestCount > 0,
+      },
+      {
         title: t('Send a request'),
-        description: t('Verify routing with Playground or your client'),
+        description: t('Try a hello message in the Playground to confirm'),
         to: '/playground',
         icon: TerminalSquare,
         completed: requestCount > 0,
@@ -546,9 +554,9 @@ export function OverviewDashboard() {
         icon: FileText,
       },
       {
-        title: t('Pricing'),
-        description: t('Review model rates before scaling traffic'),
-        to: '/pricing',
+        title: t('Beginner guide'),
+        description: t('Step-by-step setup for 30+ popular AI tools'),
+        to: '/guide',
         icon: BookOpen,
       },
     ],

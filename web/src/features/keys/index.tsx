@@ -16,9 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { BookOpen, Lightbulb } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { Link } from '@tanstack/react-router'
+
 import { SectionPageLayout } from '@/components/layout'
+import { Button } from '@/components/ui/button'
 
 import { ApiKeysDialogs } from './components/api-keys-dialogs'
 import { ApiKeysPrimaryButtons } from './components/api-keys-primary-buttons'
@@ -35,7 +39,28 @@ export function ApiKeys() {
           <ApiKeysPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <ApiKeysTable />
+          <div className='flex h-full flex-col gap-3'>
+            <div className='border-primary/25 bg-primary/8 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border px-4 py-3'>
+              <Lightbulb className='text-primary size-4 shrink-0' />
+              <p className='text-foreground/85 min-w-0 flex-1 text-sm text-pretty'>
+                {t(
+                  'A key is like a house key for AI: paste it into a tool such as Cherry Studio, and the tool can chat on your behalf. Never share it publicly.'
+                )}
+              </p>
+              <Button
+                variant='outline'
+                size='sm'
+                className='dopa-spring shrink-0 rounded-full'
+                render={<Link to='/guide' />}
+              >
+                <BookOpen className='size-3.5' />
+                {t('How do I use it?')}
+              </Button>
+            </div>
+            <div className='min-h-0 flex-1'>
+              <ApiKeysTable />
+            </div>
+          </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
 

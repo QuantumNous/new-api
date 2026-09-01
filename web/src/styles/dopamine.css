@@ -201,6 +201,18 @@ For commercial licensing, please contact support@quantumnous.com
 .dopa-float-alt {
   animation: dopa-float-alt 11s ease-in-out infinite;
 }
+.dopa-float-delayed {
+  animation: dopa-float 10s ease-in-out 2.5s infinite;
+}
+
+/* Soft organic blob decoration — blurred candy-colored orb used behind
+ * hero/guide headers. Pair with a bg-* utility for the tint. */
+.dopa-blob {
+  border-radius: 50%;
+  filter: blur(64px);
+  opacity: 0.45;
+  pointer-events: none;
+}
 .dopa-glow-pulse {
   animation: dopa-glow-pulse 5s ease-in-out infinite;
 }
@@ -289,6 +301,19 @@ For commercial licensing, please contact support@quantumnous.com
   animation: dopa-wiggle 0.5s ease-in-out;
 }
 
+/* Tactile press feedback for primary buttons. */
+.dopa-press {
+  transition:
+    transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.18s ease;
+}
+.dopa-press:hover {
+  transform: translateY(-2px);
+}
+.dopa-press:active {
+  transform: translateY(1px) scale(0.98);
+}
+
 /* ── Celebration confetti (pure CSS) ──────────────────────────────────── */
 /* Container: position relative; children `.dopa-confetti-piece` fall once. */
 .dopa-confetti-piece {
@@ -316,12 +341,20 @@ For commercial licensing, please contact support@quantumnous.com
   .dopa-pop-in,
   .dopa-float,
   .dopa-float-alt,
+  .dopa-float-delayed,
   .dopa-glow-pulse,
   .dopa-bounce-soft,
   .dopa-gradient-text,
   .dopa-gradient-surface,
   .dopa-confetti-piece {
     animation: none;
+  }
+  .dopa-press {
+    transition: none;
+  }
+  .dopa-press:hover,
+  .dopa-press:active {
+    transform: none;
   }
   .dopa-fade-up,
   .dopa-fade-in,

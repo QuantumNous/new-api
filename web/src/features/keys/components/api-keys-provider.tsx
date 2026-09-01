@@ -41,6 +41,9 @@ type ApiKeysContextType = {
   loadingKeys: Record<number, boolean>
   copiedKeyId: number | null
   markKeyCopied: (id: number) => void
+  /** Full key (sk-...) of a just-created token; drives the success dialog. */
+  createdKey: string | null
+  setCreatedKey: React.Dispatch<React.SetStateAction<string | null>>
 }
 
 const ApiKeysContext = React.createContext<ApiKeysContextType | null>(null)
@@ -58,6 +61,7 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
 
   const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null)
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const [createdKey, setCreatedKey] = useState<string | null>(null)
 
   useEffect(() => {
     return () => clearTimeout(copiedTimerRef.current)
@@ -171,6 +175,8 @@ export function ApiKeysProvider({ children }: { children: React.ReactNode }) {
         loadingKeys,
         copiedKeyId,
         markKeyCopied,
+        createdKey,
+        setCreatedKey,
       }}
     >
       {children}
