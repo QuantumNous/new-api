@@ -206,6 +206,7 @@ export interface LogOtherData {
   reasoning_effort?: string
   image?: boolean
   image_ratio?: number
+  image_input?: number
   image_output?: number
   web_search?: boolean
   web_search_call_count?: number
