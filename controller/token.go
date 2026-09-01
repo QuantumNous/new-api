@@ -345,9 +345,14 @@ func AddToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	// Return the created key so the UI can show a one-time setup dialog.
+	// The caller owns this token; GET /api/token/:id exposes the same value.
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data": gin.H{
+			"key": cleanToken.Key,
+		},
 	})
 }
 

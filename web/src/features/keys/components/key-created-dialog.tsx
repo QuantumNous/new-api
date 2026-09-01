@@ -78,7 +78,7 @@ function CopyRow({
   }
 
   return (
-    <div className='border-border bg-muted/50 flex items-center gap-2 rounded-2xl border px-3 py-2.5'>
+    <div className='border-border bg-muted/50 flex min-w-0 items-center gap-2 rounded-2xl border px-3 py-2.5'>
       <span className='text-primary shrink-0'>{icon}</span>
       <div className='min-w-0 flex-1'>
         <p className='text-muted-foreground text-[11px] font-medium'>{label}</p>
@@ -155,7 +155,7 @@ export function KeyCreatedDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className='flex flex-col gap-2.5'>
+        <div className='flex min-w-0 flex-col gap-2.5'>
           <CopyRow
             label={t('Your new API key')}
             value={createdKey}

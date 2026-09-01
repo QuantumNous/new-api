@@ -310,6 +310,9 @@ export function ApiKeysMutateDrawer({
           })
           if (result.success) {
             successCount++
+            console.log('[v0] create result:', JSON.stringify(result))
+            // The create endpoint echoes the new secret back once so the UI
+            // can walk beginners through tool setup immediately.
             if (!firstCreatedKey && result.data?.key) {
               firstCreatedKey = `sk-${result.data.key}`
             }
@@ -327,7 +330,6 @@ export function ApiKeysMutateDrawer({
           )
           onOpenChange(false)
           triggerRefresh()
-          // Beginner-friendly follow-up: celebrate and walk through setup.
           if (firstCreatedKey) {
             setCreatedKey(firstCreatedKey)
           }
