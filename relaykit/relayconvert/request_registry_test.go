@@ -42,10 +42,6 @@ func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 			from:      types.RelayFormatClaude,
 			to:        types.RelayFormatOpenAIResponses,
 			quality:   RequestConverterQualityFair,
-			stepConverters: []string{
-				ConverterClaudeMessagesToOpenAIChat,
-				ConverterOpenAIChatToOpenAIResponses,
-			},
 		},
 		{
 			converter: requestConverterGeminiToClaude,
@@ -133,7 +129,7 @@ func TestConvertRequestToTargetRecordsConversionChain(t *testing.T) {
 	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses}, info.ConversionChain)
 }
 
-func TestConvertRequestPlansMultiHopPath(t *testing.T) {
+func TestConvertRequestClaudeToResponsesUsesDirectPath(t *testing.T) {
 	info := &convmeta.Values{
 		ConversionChain: []types.RelayFormat{types.RelayFormatClaude},
 	}
@@ -154,17 +150,131 @@ func TestConvertRequestPlansMultiHopPath(t *testing.T) {
 	assert.Equal(t, RequestConverterQualityFair, result.Quality)
 	assert.Equal(t, []RequestStep{
 		{
-			Converter: ConverterClaudeMessagesToOpenAIChat,
+			Converter: requestConverterClaudeToResponses,
 			From:      types.RelayFormatClaude,
-			To:        types.RelayFormatOpenAI,
-		},
-		{
-			Converter: ConverterOpenAIChatToOpenAIResponses,
-			From:      types.RelayFormatOpenAI,
 			To:        types.RelayFormatOpenAIResponses,
 		},
 	}, result.Steps)
-	assert.Equal(t, []types.RelayFormat{types.RelayFormatClaude, types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses}, info.ConversionChain)
+	assert.Equal(t, []types.RelayFormat{types.RelayFormatClaude, types.RelayFormatOpenAIResponses}, info.ConversionChain)
+}
+
+func TestConvertRequestClaudeToResponsesPreservesMixedBlockOrder(t *testing.T) {
+	info := &convmeta.Values{ConversionChain: []types.RelayFormat{types.RelayFormatClaude}}
+	stream := true
+	strict := true
+	maxTokens := uint(4096)
+	req := &dto.ClaudeRequest{
+		Model:     "gpt-test",
+		System:    []dto.ClaudeMediaMessage{{Type: "text", Text: kitutil.GetPointer("system ")}, {Type: "text", Text: kitutil.GetPointer("rules")}},
+		MaxTokens: &maxTokens,
+		Stream:    &stream,
+		Tools: []dto.Tool{{
+			Name:        "lookup",
+			Description: "Look up a value",
+			InputSchema: map[string]any{"type": "object", "properties": map[string]any{"q": map[string]any{"type": "string"}}},
+			Strict:      &strict,
+		}},
+		ToolChoice: dto.ClaudeToolChoice{Type: "tool", Name: "lookup", DisableParallelToolUse: true},
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: []dto.ClaudeMediaMessage{{Type: "text", Text: kitutil.GetPointer("question")}}},
+			{Role: "assistant", Content: []dto.ClaudeMediaMessage{
+				{Type: "text", Text: kitutil.GetPointer("before")},
+				{Type: "tool_use", Id: "call_1", Name: "lookup", Input: map[string]any{"q": "x"}},
+				{Type: "text", Text: kitutil.GetPointer("after")},
+			}},
+			{Role: "user", Content: []dto.ClaudeMediaMessage{
+				{Type: "tool_result", ToolUseId: "call_1", Content: "result"},
+				{Type: "text", Text: kitutil.GetPointer("continue")},
+			}},
+		},
+	}
+
+	result, err := ConvertRequest(nil, info, types.RelayFormatOpenAIResponses, req)
+	require.NoError(t, err)
+	responsesReq := result.Value.(*dto.OpenAIResponsesRequest)
+	assert.Equal(t, "gpt-test", responsesReq.Model)
+	assert.Equal(t, maxTokens, *responsesReq.MaxOutputTokens)
+	assert.True(t, *responsesReq.Stream)
+	assert.JSONEq(t, `"system rules"`, string(responsesReq.Instructions))
+	assert.JSONEq(t, `[{"type":"function","name":"lookup","description":"Look up a value","parameters":{"type":"object","properties":{"q":{"type":"string"}}},"strict":true}]`, string(responsesReq.Tools))
+	assert.JSONEq(t, `{"type":"function","name":"lookup"}`, string(responsesReq.ToolChoice))
+	assert.JSONEq(t, `false`, string(responsesReq.ParallelToolCalls))
+
+	var input []map[string]any
+	require.NoError(t, kitutil.Unmarshal(responsesReq.Input, &input))
+	require.Len(t, input, 6)
+	assert.Equal(t, "user", input[0]["role"])
+	assert.Equal(t, "question", inputContentText(t, input[0]))
+	assert.Equal(t, "assistant", input[1]["role"])
+	assert.Equal(t, "before", inputContentText(t, input[1]))
+	assert.Equal(t, "function_call", input[2]["type"])
+	assert.Equal(t, "call_1", input[2]["call_id"])
+	assert.Equal(t, "lookup", input[2]["name"])
+	assert.JSONEq(t, `{"q":"x"}`, input[2]["arguments"].(string))
+	assert.Equal(t, "assistant", input[3]["role"])
+	assert.Equal(t, "after", inputContentText(t, input[3]))
+	assert.Equal(t, "function_call_output", input[4]["type"])
+	assert.Equal(t, "result", input[4]["output"])
+	assert.Equal(t, "user", input[5]["role"])
+	assert.Equal(t, "continue", inputContentText(t, input[5]))
+}
+
+func TestConvertRequestClaudeToResponsesDropsIncompatibleContextManagement(t *testing.T) {
+	req := &dto.ClaudeRequest{
+		Model: "gpt-test",
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: "hello"},
+		},
+		ContextManagement: mustRawMessage(t, map[string]any{
+			"edits": []map[string]any{{"type": "clear_tool_uses_20250919"}},
+		}),
+	}
+
+	result, err := ConvertRequest(nil, nil, types.RelayFormatOpenAIResponses, req)
+
+	require.NoError(t, err)
+	responsesReq, ok := result.Value.(*dto.OpenAIResponsesRequest)
+	require.True(t, ok)
+	assert.Empty(t, responsesReq.ContextManagement)
+}
+
+func TestConvertRequestClaudeAdaptiveThinkingPreservesEffort(t *testing.T) {
+	tests := []struct {
+		name         string
+		outputConfig []byte
+		wantEffort   string
+	}{
+		{name: "adaptive default", wantEffort: "high"},
+		{name: "explicit low", outputConfig: mustRawMessage(t, map[string]any{"effort": "low"}), wantEffort: "low"},
+		{name: "explicit xhigh", outputConfig: mustRawMessage(t, map[string]any{"effort": "xhigh"}), wantEffort: "xhigh"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := &convmeta.Values{
+				OriginModelName: "gpt-5.6-sol",
+				ConversionChain: []types.RelayFormat{types.RelayFormatClaude},
+			}
+			req := &dto.ClaudeRequest{
+				Model:        "gpt-5.6-sol",
+				OutputConfig: tt.outputConfig,
+				Thinking:     &dto.Thinking{Type: "adaptive", Display: "summarized"},
+				Messages: []dto.ClaudeMessage{
+					{Role: "user", Content: "hello"},
+				},
+			}
+
+			result, err := ConvertRequest(nil, info, types.RelayFormatOpenAIResponses, req)
+
+			require.NoError(t, err)
+			responsesReq, ok := result.Value.(*dto.OpenAIResponsesRequest)
+			require.True(t, ok)
+			require.NotNil(t, responsesReq.Reasoning)
+			assert.Equal(t, tt.wantEffort, responsesReq.Reasoning.Effort)
+			assert.Equal(t, "detailed", responsesReq.Reasoning.Summary)
+			assert.Equal(t, tt.wantEffort, info.GetReasoningEffort())
+		})
+	}
 }
 
 func TestConvertRequestViaExecutesExplicitPath(t *testing.T) {
@@ -466,115 +576,6 @@ func TestConvertRequestOpenAIChatToGeminiAddsThoughtSignatureForAdvancedCustom(t
 	assert.Equal(t, sharedgemini.ThoughtSignatureBypassValue, thoughtSignature)
 }
 
-func TestConvertRequestResponsesToClaudeUsesDirectConverter(t *testing.T) {
-	info := &convmeta.Values{
-		ConversionChain: []types.RelayFormat{types.RelayFormatOpenAIResponses},
-	}
-	stream := true
-	parallelToolCalls := false
-	maxOutputTokens := uint(512)
-	req := &dto.OpenAIResponsesRequest{
-		Model:             "claude-test",
-		Instructions:      mustRawMessage(t, "system rules"),
-		Stream:            &stream,
-		MaxOutputTokens:   &maxOutputTokens,
-		ParallelToolCalls: mustRawMessage(t, parallelToolCalls),
-		Reasoning:         &dto.Reasoning{Effort: "medium"},
-		Input: mustRawMessage(t, []map[string]any{
-			{
-				"role":    "user",
-				"content": "question",
-			},
-			{
-				"role": "assistant",
-				"content": []map[string]any{
-					{"type": "output_text", "text": "I will call."},
-				},
-			},
-			{
-				"type":      "function_call",
-				"call_id":   "call_1",
-				"name":      "lookup",
-				"arguments": map[string]any{"q": "x"},
-			},
-			{
-				"type":    "function_call_output",
-				"call_id": "call_1",
-				"output":  map[string]any{"ok": true},
-			},
-		}),
-		Tools: mustRawMessage(t, []map[string]any{
-			{
-				"type":        "function",
-				"name":        "lookup",
-				"description": "Lookup data",
-				"parameters": map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"q": map[string]any{"type": "string"},
-					},
-				},
-			},
-		}),
-	}
-
-	result, err := ConvertRequest(nil, info, types.RelayFormatClaude, req)
-
-	require.NoError(t, err)
-	claudeReq, ok := result.Value.(*dto.ClaudeRequest)
-	require.True(t, ok)
-	assert.Equal(t, requestConverterResponsesToClaude, result.Converter)
-	assert.Equal(t, []RequestStep{
-		{
-			Converter: requestConverterResponsesToClaude,
-			From:      types.RelayFormatOpenAIResponses,
-			To:        types.RelayFormatClaude,
-		},
-	}, result.Steps)
-	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAIResponses, types.RelayFormatClaude}, info.ConversionChain)
-
-	system, err := kitutil.Any2Type[[]dto.ClaudeMediaMessage](claudeReq.System)
-	require.NoError(t, err)
-	require.Len(t, system, 1)
-	assert.Equal(t, "system rules", system[0].GetText())
-	require.NotNil(t, claudeReq.Stream)
-	assert.True(t, *claudeReq.Stream)
-	assert.Equal(t, maxOutputTokens, *claudeReq.MaxTokens)
-	require.NotNil(t, claudeReq.Thinking)
-	assert.Equal(t, "enabled", claudeReq.Thinking.Type)
-	assert.Equal(t, 2048, claudeReq.Thinking.GetBudgetTokens())
-
-	tools, err := kitutil.Any2Type[[]*dto.Tool](claudeReq.Tools)
-	require.NoError(t, err)
-	require.Len(t, tools, 1)
-	assert.Equal(t, "lookup", tools[0].Name)
-
-	require.Len(t, claudeReq.Messages, 3)
-	assert.Equal(t, "user", claudeReq.Messages[0].Role)
-	userParts, err := claudeReq.Messages[0].ParseContent()
-	require.NoError(t, err)
-	require.Len(t, userParts, 1)
-	assert.Equal(t, "question", userParts[0].GetText())
-
-	assert.Equal(t, "assistant", claudeReq.Messages[1].Role)
-	assistantParts, err := claudeReq.Messages[1].ParseContent()
-	require.NoError(t, err)
-	require.Len(t, assistantParts, 2)
-	assert.Equal(t, "I will call.", assistantParts[0].GetText())
-	assert.Equal(t, "tool_use", assistantParts[1].Type)
-	assert.Equal(t, "call_1", assistantParts[1].Id)
-	assert.Equal(t, "lookup", assistantParts[1].Name)
-	assert.Equal(t, map[string]any{"q": "x"}, assistantParts[1].Input)
-
-	assert.Equal(t, "user", claudeReq.Messages[2].Role)
-	toolResultParts, err := claudeReq.Messages[2].ParseContent()
-	require.NoError(t, err)
-	require.Len(t, toolResultParts, 1)
-	assert.Equal(t, "tool_result", toolResultParts[0].Type)
-	assert.Equal(t, "call_1", toolResultParts[0].ToolUseId)
-	assert.Equal(t, map[string]any{"ok": true}, toolResultParts[0].Content)
-}
-
 func TestConvertRequestViaResponsesToGeminiStillUsesDirectSteps(t *testing.T) {
 	info := &convmeta.Values{
 		ConversionChain:     []types.RelayFormat{types.RelayFormatOpenAIResponses},
@@ -629,7 +630,7 @@ func TestConvertRequestByIDDeduplicatesConversionChain(t *testing.T) {
 	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses}, info.ConversionChain)
 }
 
-func TestConvertRequestByIDExecutesMultiHopConverter(t *testing.T) {
+func TestConvertRequestByIDExecutesDirectClaudeToResponsesConverter(t *testing.T) {
 	info := &convmeta.Values{
 		ConversionChain: []types.RelayFormat{types.RelayFormatClaude},
 	}
@@ -648,17 +649,12 @@ func TestConvertRequestByIDExecutesMultiHopConverter(t *testing.T) {
 	assert.Equal(t, RequestConverterQualityFair, result.Quality)
 	assert.Equal(t, []RequestStep{
 		{
-			Converter: ConverterClaudeMessagesToOpenAIChat,
+			Converter: requestConverterClaudeToResponses,
 			From:      types.RelayFormatClaude,
-			To:        types.RelayFormatOpenAI,
-		},
-		{
-			Converter: ConverterOpenAIChatToOpenAIResponses,
-			From:      types.RelayFormatOpenAI,
 			To:        types.RelayFormatOpenAIResponses,
 		},
 	}, result.Steps)
-	assert.Equal(t, []types.RelayFormat{types.RelayFormatClaude, types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses}, info.ConversionChain)
+	assert.Equal(t, []types.RelayFormat{types.RelayFormatClaude, types.RelayFormatOpenAIResponses}, info.ConversionChain)
 }
 
 func TestConvertRequestRejectsUnsupportedConverterAndNilRequest(t *testing.T) {
@@ -700,4 +696,16 @@ func mustRawMessage(t *testing.T, value any) []byte {
 	raw, err := kitutil.Marshal(value)
 	require.NoError(t, err)
 	return raw
+}
+
+func inputContentText(t *testing.T, item map[string]any) string {
+	t.Helper()
+	content, ok := item["content"].([]any)
+	require.True(t, ok)
+	require.Len(t, content, 1)
+	part, ok := content[0].(map[string]any)
+	require.True(t, ok)
+	text, ok := part["text"].(string)
+	require.True(t, ok)
+	return text
 }

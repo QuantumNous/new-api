@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
 
 const (
@@ -85,8 +86,10 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 		return nil, fmt.Errorf("invalid presence_penalty: %w", err)
 	}
 
-	if req.Reasoning != nil {
-		out.ReasoningEffort = req.Reasoning.Effort
+	if reasoningIntent, err := reasoning.FromOpenAIResponses(req); err != nil {
+		return nil, reasoning.AsClientError(err)
+	} else if err := reasoning.ApplyToOpenAIChat(out, reasoningIntent); err != nil {
+		return nil, reasoning.AsClientError(err)
 	}
 	if req.ServiceTier != "" {
 		out.ServiceTier, _ = kitutil.Marshal(req.ServiceTier)
