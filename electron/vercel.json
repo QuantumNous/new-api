@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm install --prefix ../web",
+  "buildCommand": "npm run build --prefix ../web && rm -rf dist && mkdir -p dist && cp -R ../web/dist/. dist/",
+  "outputDirectory": "dist",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
