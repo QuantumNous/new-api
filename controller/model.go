@@ -176,13 +176,51 @@ func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.Open
 		oaiModel.OwnedBy = owner
 	}
 	oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
-	
-	// Apply model prefix if configured
-	if prefix := operation_setting.GetModelPrefix(); prefix != "" {
-		oaiModel.Id = prefix + "/" + oaiModel.Id
-	}
-	
+
 	return oaiModel
+}
+
+// dedupePrefixedModels removes any bare model name X from the list when a
+// per-channel prefixed variant P/X (for any non-empty prefix P) is also present.
+// This hides the original model once a channel exposes it under a prefix, so
+// clients only see the prefixed form (e.g. "deepseek/deepseek-v4-flash" instead
+// of "deepseek-v4-flash"). The split happens at the first "/" so a prefix is a
+// single path segment; a model name that legitimately contains "/" is treated as
+// a prefixed variant of its suffix (a deliberate, documented limitation).
+func dedupePrefixedModels(models []string) []string {
+	if len(models) < 2 {
+		return models
+	}
+
+	// Build the set of bare models that have a prefixed variant present.
+	remove := make(map[string]struct{}, len(models))
+	present := make(map[string]struct{}, len(models))
+	for _, m := range models {
+		present[m] = struct{}{}
+	}
+	for _, m := range models {
+		idx := strings.IndexByte(m, '/')
+		if idx <= 0 || idx == len(m)-1 {
+			continue
+		}
+		base := m[idx+1:]
+		if _, ok := present[base]; ok {
+			remove[base] = struct{}{}
+		}
+	}
+
+	if len(remove) == 0 {
+		return models
+	}
+
+	filtered := make([]string, 0, len(models))
+	for _, m := range models {
+		if _, ok := remove[m]; ok {
+			continue
+		}
+		filtered = append(filtered, m)
+	}
+	return filtered
 }
 
 type modelListGroups struct {
@@ -267,6 +305,12 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 		userModelNames = append(userModelNames, modelName)
 	}
+
+	// When a model has a per-channel prefixed variant (e.g. "deepseek/deepseek-v4-flash"),
+	// hide the bare original (e.g. "deepseek-v4-flash") from the model list so clients
+	// only see the prefixed form. This runs after the billing/model-limit filter so a
+	// prefixed variant that is not actually displayed never removes a displayed original.
+	userModelNames = dedupePrefixedModels(userModelNames)
 
 	ownerByModel := map[string]string{}
 	if len(ownerGroups) > 0 {

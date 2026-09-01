@@ -518,6 +518,70 @@ func TestCheckUpdatePasswordRequiresCurrentPassword(t *testing.T) {
 	assert.True(t, updatePassword)
 }
 
+func TestListModelsDedupsPrefixedModels(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1004,
+		Username: "prefixed-model-list-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "deepseek-v4-flash", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "deepseek/deepseek-v4-flash", ChannelId: 2, Enabled: true},
+		{Group: "default", Model: "gpt-4", ChannelId: 3, Enabled: true},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	ctx.Set("id", 1004)
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "deepseek/deepseek-v4-flash")
+	require.NotContains(t, ids, "deepseek-v4-flash")
+	require.Contains(t, ids, "gpt-4")
+}
+
+func TestListModelsKeepsOriginalWhenPrefixedVariantNotDisplayed(t *testing.T) {
+	withSelfUseModeDisabled(t)
+	withTieredBillingConfig(t, map[string]string{
+		"zz-prefix-base-model": "tiered_expr",
+	}, map[string]string{
+		"zz-prefix-base-model": `tier("base", p * 1 + c * 2)`,
+	})
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1005,
+		Username: "prefixed-billing-model-list-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	// The prefixed variant "deepseek/zz-prefix-base-model" has NO billing config,
+	// so it is filtered out by the billing loop and never displayed. The bare
+	// original must therefore be kept.
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "zz-prefix-base-model", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "deepseek/zz-prefix-base-model", ChannelId: 2, Enabled: true},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	ctx.Set("id", 1005)
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "zz-prefix-base-model")
+	require.NotContains(t, ids, "deepseek/zz-prefix-base-model")
+}
+
 func TestCheckUpdatePasswordRejectsHistoricalEmptyPassword(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	user := &model.User{

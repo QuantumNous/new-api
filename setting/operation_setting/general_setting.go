@@ -1,8 +1,6 @@
 package operation_setting
 
 import (
-	"strings"
-
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
@@ -24,8 +22,6 @@ type GeneralSetting struct {
 	CustomCurrencySymbol string `json:"custom_currency_symbol"`
 	// 自定义货币与美元汇率（1 USD = X Custom）
 	CustomCurrencyExchangeRate float64 `json:"custom_currency_exchange_rate"`
-	// Model ID prefix for /v1/models endpoint
-	ModelPrefix string `json:"model_prefix"`
 }
 
 // 默认配置
@@ -45,30 +41,6 @@ func init() {
 
 func GetGeneralSetting() *GeneralSetting {
 	return &generalSetting
-}
-
-// GetModelPrefix returns the configured model prefix
-func GetModelPrefix() string {
-	return generalSetting.ModelPrefix
-}
-
-// ModelPrefixEnabled returns true if a model prefix is configured
-func ModelPrefixEnabled() bool {
-	return generalSetting.ModelPrefix != ""
-}
-
-// StripModelPrefix removes the configured prefix from a model name if present
-func StripModelPrefix(modelName string) string {
-	prefix := generalSetting.ModelPrefix
-	if prefix == "" {
-		return modelName
-	}
-	// Check if model name starts with prefix + "/"
-	prefixWithSlash := prefix + "/"
-	if strings.HasPrefix(modelName, prefixWithSlash) {
-		return modelName[len(prefixWithSlash):]
-	}
-	return modelName
 }
 
 // IsCurrencyDisplay 是否以货币形式展示（美元或人民币）
