@@ -31,7 +31,13 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   const { systemName, logo, loading } = useSystemConfig()
 
   return (
-    <div className='relative grid h-svh max-w-none'>
+    <div className='relative grid h-svh max-w-none overflow-hidden'>
+      {/* Ambient dopamine decoration */}
+      <div aria-hidden='true' className='pointer-events-none absolute inset-0'>
+        <div className='dopa-blob dopa-float bg-primary/30 absolute -top-16 -left-16 size-64' />
+        <div className='dopa-blob dopa-float-alt bg-chart-3/25 absolute right-[-4rem] bottom-[-4rem] size-72' />
+        <div className='dopa-blob dopa-float-delayed bg-chart-4/20 absolute top-1/3 right-1/4 size-40' />
+      </div>
       <Link
         to='/'
         className='absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'
@@ -53,8 +59,8 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           <h1 className='text-xl font-medium'>{systemName}</h1>
         )}
       </Link>
-      <div className='container flex items-center pt-16 sm:pt-0'>
-        <div className='mx-auto flex w-full flex-col justify-center space-y-2 px-4 py-8 sm:w-[480px] sm:p-8'>
+      <div className='container relative flex items-center pt-16 sm:pt-0'>
+        <div className='dopa-fade-up border-border/60 bg-card/85 mx-auto flex w-full flex-col justify-center space-y-2 rounded-3xl border px-4 py-8 shadow-lg backdrop-blur-sm sm:w-[480px] sm:p-8'>
           {children}
         </div>
       </div>

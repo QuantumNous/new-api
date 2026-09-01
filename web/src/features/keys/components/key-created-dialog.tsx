@@ -124,7 +124,10 @@ export function KeyCreatedDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='overflow-hidden rounded-3xl sm:max-w-md'>
+      {/* grid-cols-[minmax(0,1fr)] keeps the single grid track clamped to the
+          panel width so the long mono key truncates instead of stretching
+          the track past max-w and clipping content on both sides. */}
+      <DialogContent className='grid-cols-[minmax(0,1fr)] overflow-hidden rounded-3xl sm:max-w-md'>
         {/* Celebration confetti */}
         <div aria-hidden='true' className='pointer-events-none absolute inset-x-0 top-0 h-36'>
           {CONFETTI_PIECES.map((p, i) => (
@@ -141,7 +144,9 @@ export function KeyCreatedDialog({
           ))}
         </div>
 
-        <DialogHeader className='items-center text-center'>
+        {/* min-w-0 on grid items: without it the no-wrap button text sets the
+         * column's min-content wider than the panel and clips the dialog. */}
+        <DialogHeader className='min-w-0 items-center text-center'>
           <div className='bg-primary/12 text-primary dopa-pop-in mx-auto flex size-14 items-center justify-center rounded-full'>
             <PartyPopper className='size-7' />
           </div>
@@ -168,10 +173,10 @@ export function KeyCreatedDialog({
           />
         </div>
 
-        <div className='flex flex-col gap-2'>
+        <div className='flex min-w-0 flex-col gap-2'>
           <Button
             size='lg'
-            className='dopa-press w-full rounded-full font-bold'
+            className='dopa-press w-full min-w-0 rounded-full font-bold'
             render={<Link to='/guide' />}
           >
             <BookOpen className='size-4' />
