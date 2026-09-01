@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -241,4 +242,77 @@ func sendResponsesStreamData(c *gin.Context, streamResponse dto.ResponsesStreamR
 		return
 	}
 	_ = helper.ResponseChunkData(c, streamResponse, data)
+}
+
+// isOpenAITextStreamErrorChunk detects whether an SSE data payload represents a
+// terminal error from the upstream (e.g. rate_limit_exceeded embedded in a
+// streaming response with HTTP 200). Such chunks are not valid message content
+// and, when detected before any data has been sent to the client, should abort
+// the stream so the retry loop can try another channel.
+//
+// Detection logic (in order):
+//  1. A top-level "error" field containing a JSON object with a non-empty message.
+//  2. A "code" field whose value matches a known upstream failure code
+//     (rate_limit_exceeded, server_error, etc.).
+//  3. A "type" field of "error" or "upstream_error".
+func isOpenAITextStreamErrorChunk(data string) (bool, string) {
+	if data == "" {
+		return false, ""
+	}
+
+	var payload struct {
+		Error   json.RawMessage `json:"error"`
+		Code    string          `json:"code"`
+		Type    string          `json:"type"`
+		Message string          `json:"message"`
+	}
+	if err := common.UnmarshalJsonStr(data, &payload); err != nil {
+		return false, ""
+	}
+
+	// 1. Standard OpenAI error envelope: {"error": {"message": "...", ...}}
+	if len(payload.Error) > 0 {
+		var oaiErr types.OpenAIError
+		if err := common.Unmarshal(payload.Error, &oaiErr); err == nil && oaiErr.Message != "" {
+			return true, oaiErr.Message
+		}
+	}
+
+	// 2. Known failure codes embedded in SSE data chunks
+	if isKnownUpstreamErrorCode(payload.Code) {
+		msg := payload.Message
+		if msg == "" {
+			msg = fmt.Sprintf("upstream error code: %s", payload.Code)
+		}
+		return true, msg
+	}
+
+	// 3. Explicit error/upstream_error type
+	payloadType := strings.ToLower(strings.TrimSpace(payload.Type))
+	if payloadType == "error" || payloadType == "upstream_error" {
+		msg := payload.Message
+		if msg == "" {
+			msg = "upstream stream returned error event"
+		}
+		return true, msg
+	}
+
+	return false, ""
+}
+
+// knownUpstreamErrorCodes lists SSE payload "code" values that represent a
+// terminal upstream failure (not deliverable content).
+var knownUpstreamErrorCodes = map[string]bool{
+	"rate_limit_exceeded": true,
+	"rate_limit_reached":  true,
+	"server_error":        true,
+	"internal_error":      true,
+	"upstream_error":      true,
+}
+
+func isKnownUpstreamErrorCode(code string) bool {
+	if code == "" {
+		return false
+	}
+	return knownUpstreamErrorCodes[code]
 }
