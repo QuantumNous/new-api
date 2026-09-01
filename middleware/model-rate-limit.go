@@ -146,22 +146,33 @@ func memoryRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) 
 			return
 		}
 
-		// 2. 检查成功请求数限制
-		// 使用一个临时key来检查限制，这样可以避免实际记录
-		checkKey := successKey + "_check"
-		if !inMemoryRateLimiter.Request(checkKey, successMaxCount, duration) {
+		// 2. 原子预占成功请求名额，避免高并发请求同时通过检查
+		reservationID, allowed := inMemoryRateLimiter.Reserve(successKey, successMaxCount, duration)
+		if !allowed {
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()
 			return
 		}
+		settled := false
+		defer func() {
+			if !settled {
+				// 请求链发生 panic 或提前返回时，释放未完成的成功名额。
+				inMemoryRateLimiter.Release(successKey, reservationID)
+			}
+		}()
 
 		// 3. 处理请求
 		c.Next()
 
-		// 4. 如果请求成功，记录到实际的成功请求计数中
+		// 4. 成功提交名额，失败释放名额；总请求数仍已在入口处计数
 		if c.Writer.Status() < 400 {
-			inMemoryRateLimiter.Request(successKey, successMaxCount, duration)
+			if !inMemoryRateLimiter.Commit(successKey, reservationID, duration) {
+				fmt.Println("提交成功请求限流名额失败")
+			}
+		} else {
+			inMemoryRateLimiter.Release(successKey, reservationID)
 		}
+		settled = true
 	}
 }
 
