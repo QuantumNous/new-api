@@ -1,0 +1,14 @@
+{
+  "scenarioId": "DESKTOP-V2-AS-05",
+  "assertion": "Desktop refresh rotates the secret and logout revokes only the current session while a failed refresh remains recoverable under existing semantics.",
+  "testSelector": "tests/work_packages/desktop_v2/test_acceptance.py::test_refresh_revoke_and_recovery",
+  "acceptanceCommandId": "desktop-v2-refresh",
+  "runId": "RU-DESKTOP-INTEGRATION-V2/WP-DESKTOP-INTEGRATION-V2@2026-09-01T11:52:39.693965+00:00",
+  "packageId": "WP-DESKTOP-INTEGRATION-V2",
+  "evidenceOwner": "govern-product-build/verifier",
+  "passed": false,
+  "runnerProof": null,
+  "commandResultHash": "sha256:f640fd6c10ec9dc51fde72a8ac9d48033f11d42d8b91893ffc460d789ab55a5f",
+  "releaseUnitId": "RU-DESKTOP-INTEGRATION-V2",
+  "releaseUnitHash": "sha256:17fac34dfadf4d7215fc5e093a44eebc5448744ec094872379694a98877a2fa7"
+}

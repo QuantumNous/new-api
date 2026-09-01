@@ -1,0 +1,14 @@
+{
+  "scenarioId": "DESKTOP-V2-AS-01",
+  "assertion": "V1 stays exact while v2 advertises only implemented existing routes, fixed 6.75 and live Redis availability.",
+  "testSelector": "tests/work_packages/desktop_v2/test_acceptance.py::test_contract_and_v1_compatibility",
+  "acceptanceCommandId": "desktop-v2-contract",
+  "runId": "RU-DESKTOP-INTEGRATION-V2/WP-DESKTOP-INTEGRATION-V2@2026-09-01T11:52:39.693965+00:00",
+  "packageId": "WP-DESKTOP-INTEGRATION-V2",
+  "evidenceOwner": "govern-product-build/verifier",
+  "passed": false,
+  "runnerProof": null,
+  "commandResultHash": "sha256:59dcdfa23bccee87878d9ff84b7d564d69f8ee90395fd889668506662c54ac2b",
+  "releaseUnitId": "RU-DESKTOP-INTEGRATION-V2",
+  "releaseUnitHash": "sha256:17fac34dfadf4d7215fc5e093a44eebc5448744ec094872379694a98877a2fa7"
+}

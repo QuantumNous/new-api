@@ -1,0 +1,14 @@
+{
+  "scenarioId": "DESKTOP-V2-AS-03",
+  "assertion": "Missing Redis, malformed codes, pending, slow-down, denied and expired states never issue credentials.",
+  "testSelector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_failure_paths",
+  "acceptanceCommandId": "desktop-v2-failure",
+  "runId": "RU-DESKTOP-INTEGRATION-V2/WP-DESKTOP-INTEGRATION-V2@2026-09-01T11:52:39.693965+00:00",
+  "packageId": "WP-DESKTOP-INTEGRATION-V2",
+  "evidenceOwner": "govern-product-build/verifier",
+  "passed": false,
+  "runnerProof": null,
+  "commandResultHash": "sha256:93cd2980194f5d378a4df875d65672245b2f16e9189db431af526bab0eb0ba25",
+  "releaseUnitId": "RU-DESKTOP-INTEGRATION-V2",
+  "releaseUnitHash": "sha256:17fac34dfadf4d7215fc5e093a44eebc5448744ec094872379694a98877a2fa7"
+}
