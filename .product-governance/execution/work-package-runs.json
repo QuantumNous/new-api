@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "runs": [
+    {
+      "id": "RU-DESKTOP-BOOTSTRAP-V1/WP-DESKTOP-BOOTSTRAP-V1@2026-09-01T10:39:44.514019+00:00",
+      "packageId": "WP-DESKTOP-BOOTSTRAP-V1",
+      "baselineCommit": "33926b6c2b59dc8a7b8ad26618832e154d4cace5",
+      "baselineTreeHash": "sha256:fe4e93b11d6ccdc1a66bea694f2c337e46ca542d8db80854b55a3e6aaddbd7ed",
+      "baselineSnapshotPath": "execution/baselines/029fa8ea8b43230e.e6082863c1f7b11a1e18.json",
+      "baselineSnapshotSha256": "sha256:5722f1a80e892dcbe376b44b283c3ed4ec0b51d291d9e5cc87c53553e5a77ccd",
+      "assignedTo": "/root",
+      "status": "completed",
+      "startedAt": "2026-09-01T10:39:44.514019+00:00",
+      "finishedAt": "2026-09-01T10:47:51.556074+00:00",
+      "reportPath": "execution/reports/029fa8ea8b43230e.e6082863c1f7b11a1e18.json",
+      "reportSha256": "sha256:bd469a5d66bd64541698fab4fbd0f00a92fd0a162d60857a5325aea5cd803318",
+      "releaseUnitId": "RU-DESKTOP-BOOTSTRAP-V1",
+      "releaseUnitHash": "sha256:9e766b68a98a58ef945fbce9c30bcfe344dbda0f3bd374b9d033451f3e446dc4"
+    }
+  ]
+}

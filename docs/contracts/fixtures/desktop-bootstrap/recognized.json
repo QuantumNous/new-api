@@ -1,0 +1,17 @@
+{
+  "success": true,
+  "data": {
+    "schema_version": 1,
+    "service": "yeschoy-desktop",
+    "contract_id": "desktop-bootstrap-v1",
+    "minimum_client_version": "0.1.0",
+    "capabilities": {
+      "device_authorization": false,
+      "account_read": false,
+      "usage_read": false,
+      "models_read": false,
+      "pricing_read": false,
+      "tool_keys_manage": false
+    }
+  }
+}

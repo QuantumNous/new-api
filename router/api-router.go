@@ -20,6 +20,7 @@ func SetApiRouter(router *gin.Engine) {
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
 	anonymousRequestBodyLimit := middleware.AnonymousRequestBodyLimit()
 	{
+		registerDesktopRoutes(apiRouter)
 		apiRouter.GET("/setup", controller.GetSetup)
 		apiRouter.POST("/setup", anonymousRequestBodyLimit, controller.PostSetup)
 		apiRouter.GET("/status", controller.GetStatus)
@@ -401,4 +402,9 @@ func SetApiRouter(router *gin.Engine) {
 			deploymentsRoute.DELETE("/:id", controller.DeleteDeployment)
 		}
 	}
+}
+
+func registerDesktopRoutes(apiRouter *gin.RouterGroup) {
+	desktopRoute := apiRouter.Group("/desktop/v1")
+	desktopRoute.GET("/bootstrap", controller.GetDesktopBootstrap)
 }

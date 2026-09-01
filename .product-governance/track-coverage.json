@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "capabilities": [
+    {
+      "capability": "evidence",
+      "tracks": {
+        "desktop-api": {
+          "status": "unknown",
+          "producer": null,
+          "consumers": [],
+          "contract": null,
+          "evidenceRefs": [],
+          "decisionRef": null
+        }
+      }
+    },
+    {
+      "capability": "attempt",
+      "tracks": {
+        "desktop-api": {
+          "status": "unknown",
+          "producer": null,
+          "consumers": [],
+          "contract": null,
+          "evidenceRefs": [],
+          "decisionRef": null
+        }
+      }
+    },
+    {
+      "capability": "reflection",
+      "tracks": {
+        "desktop-api": {
+          "status": "unknown",
+          "producer": null,
+          "consumers": [],
+          "contract": null,
+          "evidenceRefs": [],
+          "decisionRef": null
+        }
+      }
+    },
+    {
+      "capability": "mastery",
+      "tracks": {
+        "desktop-api": {
+          "status": "unknown",
+          "producer": null,
+          "consumers": [],
+          "contract": null,
+          "evidenceRefs": [],
+          "decisionRef": null
+        }
+      }
+    },
+    {
+      "capability": "ability_estimate",
+      "tracks": {
+        "desktop-api": {
+          "status": "unknown",
+          "producer": null,
+          "consumers": [],
+          "contract": null,
+          "evidenceRefs": [],
+          "decisionRef": null
+        }
+      }
+    },
+    {
+      "capability": "planning",
+      "tracks": {
+        "desktop-api": {
+          "status": "unknown",
+          "producer": null,
+          "consumers": [],
+          "contract": null,
+          "evidenceRefs": [],
+          "decisionRef": null
+        }
+      }
+    },
+    {
+      "capability": "report",
+      "tracks": {
+        "desktop-api": {
+          "status": "unknown",
+          "producer": null,
+          "consumers": [],
+          "contract": null,
+          "evidenceRefs": [],
+          "decisionRef": null
+        }
+      }
+    },
+    {
+      "capability": "global_ask",
+      "tracks": {
+        "desktop-api": {
+          "status": "unknown",
+          "producer": null,
+          "consumers": [],
+          "contract": null,
+          "evidenceRefs": [],
+          "decisionRef": null
+        }
+      }
+    }
+  ]
+}

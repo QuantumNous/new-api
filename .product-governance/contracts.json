@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "contracts": [
+    {
+      "id": "desktop-bootstrap@v1",
+      "kind": "query",
+      "owner": "desktop-integration",
+      "consumers": ["desktop-client"],
+      "schemaLocator": "inline://contracts.json#/contracts/desktop-bootstrap@v1",
+      "authorization": "Anonymous read-only GET. It grants no session, credential, configuration, payment or account authority.",
+      "idempotency": "The query is read-only and returns an equivalent static declaration for repeated and concurrent requests.",
+      "compatibility": "Version 1 is a closed response. New fields, capability names or schema versions require a new versioned contract before server and client changes.",
+      "inputSchema": {
+        "type": "object",
+        "description": "No request body or query fields are accepted by the bootstrap declaration.",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Closed desktop bootstrap recognition response v1.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Indicates that the static bootstrap declaration was returned successfully.",
+            "enum": [true]
+          },
+          "data": {
+            "type": "object",
+            "description": "The complete closed desktop bootstrap declaration for contract version 1.",
+            "properties": {
+              "schema_version": {
+                "type": "integer",
+                "description": "The closed response schema version understood by the desktop client.",
+                "enum": [1]
+              },
+              "service": {
+                "type": "string",
+                "description": "Stable service identifier used only for desktop bootstrap recognition.",
+                "enum": ["yeschoy-desktop"]
+              },
+              "contract_id": {
+                "type": "string",
+                "description": "Stable identifier for this exact bootstrap contract.",
+                "enum": ["desktop-bootstrap-v1"]
+              },
+              "minimum_client_version": {
+                "type": "string",
+                "description": "Minimum desktop client version allowed to recognize this contract, expressed as strict three-part semantic versioning.",
+                "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+                "maxLength": 100
+              },
+              "capabilities": {
+                "type": "object",
+                "description": "Explicit capability declarations; every future integration remains disabled in this release unit.",
+                "properties": {
+                  "device_authorization": {
+                    "type": "boolean",
+                    "description": "Whether a governed device authorization flow is available.",
+                    "enum": [false]
+                  },
+                  "account_read": {
+                    "type": "boolean",
+                    "description": "Whether authenticated account projection is available.",
+                    "enum": [false]
+                  },
+                  "usage_read": {
+                    "type": "boolean",
+                    "description": "Whether account usage projection is available.",
+                    "enum": [false]
+                  },
+                  "models_read": {
+                    "type": "boolean",
+                    "description": "Whether the desktop model catalog contract is available.",
+                    "enum": [false]
+                  },
+                  "pricing_read": {
+                    "type": "boolean",
+                    "description": "Whether authoritative desktop pricing projection is available.",
+                    "enum": [false]
+                  },
+                  "tool_keys_manage": {
+                    "type": "boolean",
+                    "description": "Whether desktop tool-key management is available.",
+                    "enum": [false]
+                  }
+                },
+                "required": [
+                  "device_authorization",
+                  "account_read",
+                  "usage_read",
+                  "models_read",
+                  "pricing_read",
+                  "tool_keys_manage"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "schema_version",
+              "service",
+              "contract_id",
+              "minimum_client_version",
+              "capabilities"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["success", "data"],
+        "additionalProperties": false
+      },
+      "dataClasses": ["public"],
+      "observability": {
+        "correlation": "No user or request correlation is emitted because this static anonymous query creates no operation.",
+        "audit": "No persistent audit record is created; normal HTTP access logging may record only the route and transport metadata under existing server policy.",
+        "metrics": "Existing generic route metrics may count requests; the contract exposes no customer or capability-use metric."
+      },
+      "errorSemantics": [
+        "Unsupported methods are not accepted and never change state.",
+        "The handler returns no secrets, account data, raw configuration or capability URLs.",
+        "Every future capability remains false until a separately governed implementation exists."
+      ],
+      "requirementRefs": ["REQ-001"],
+      "evidenceRefs": ["E-USER-001", "E-CLIENT-001", "E-CODE-001"],
+      "status": "specified"
+    }
+  ]
+}

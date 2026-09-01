@@ -1,0 +1,28 @@
+{
+  "scenarioId": "BOOTSTRAP-AS-04",
+  "assertion": "Schema version, contract ID and minimum client version remain pinned to the closed v1 contract.",
+  "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed",
+  "acceptanceCommandId": "bootstrap-stale-version",
+  "runId": "RU-DESKTOP-BOOTSTRAP-V1/WP-DESKTOP-BOOTSTRAP-V1@2026-09-01T10:39:44.514019+00:00",
+  "packageId": "WP-DESKTOP-BOOTSTRAP-V1",
+  "evidenceOwner": "govern-product-build/verifier",
+  "passed": true,
+  "runnerProof": {
+    "schemaVersion": 1,
+    "adapter": "pytest-json@1",
+    "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed",
+    "cwd": ".",
+    "executedPassingTests": 1,
+    "actualExitCode": 0,
+    "runnerMetadataSha256": "sha256:f43db6eea467b13c7eb6ccfcbaf180969c2f2dfb07c5e0f7ac7cd1a14fee77c3",
+    "machineReportSha256": "sha256:96d5e5b40d57b35a653116ff0e2e9907fd5f30a114bc38274af51d0729b76673",
+    "isolation": {
+      "adapter": "darwin-sandbox-exec-readonly-source@1",
+      "policySha256": "sha256:23de9aa6a4b00ab2e61bf44cb6786dccdb4452dec96993187df0150ecf7b3c7f",
+      "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+    }
+  },
+  "commandResultHash": "sha256:18849987a8b69e8313c848f86101671414ad359329ffc201715684500ce9a7fc",
+  "releaseUnitId": "RU-DESKTOP-BOOTSTRAP-V1",
+  "releaseUnitHash": "sha256:9e766b68a98a58ef945fbce9c30bcfe344dbda0f3bd374b9d033451f3e446dc4"
+}

@@ -1,0 +1,28 @@
+{
+  "scenarioId": "BOOTSTRAP-AS-01",
+  "assertion": "Anonymous GET returns the exact closed v1 JSON response and content type.",
+  "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path",
+  "acceptanceCommandId": "bootstrap-happy",
+  "runId": "RU-DESKTOP-BOOTSTRAP-V1/WP-DESKTOP-BOOTSTRAP-V1@2026-09-01T10:39:44.514019+00:00",
+  "packageId": "WP-DESKTOP-BOOTSTRAP-V1",
+  "evidenceOwner": "govern-product-build/verifier",
+  "passed": true,
+  "runnerProof": {
+    "schemaVersion": 1,
+    "adapter": "pytest-json@1",
+    "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path",
+    "cwd": ".",
+    "executedPassingTests": 1,
+    "actualExitCode": 0,
+    "runnerMetadataSha256": "sha256:9d34f50c8153c1cb24c17e0a86348205946b4d2c128f5799a87df7d10b2d97d4",
+    "machineReportSha256": "sha256:fa5a6c75ae436264596130c8f6d201a6923d3a4af7914ca1733f51bfd2f88655",
+    "isolation": {
+      "adapter": "darwin-sandbox-exec-readonly-source@1",
+      "policySha256": "sha256:fbb4462f89fc21818809162f347dcc7d24b3469b64374182211f8dc518124d24",
+      "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+    }
+  },
+  "commandResultHash": "sha256:720e95e89ff9e6a69832757bb88cf03f95d99420d6680dd1280a41f281751807",
+  "releaseUnitId": "RU-DESKTOP-BOOTSTRAP-V1",
+  "releaseUnitHash": "sha256:9e766b68a98a58ef945fbce9c30bcfe344dbda0f3bd374b9d033451f3e446dc4"
+}

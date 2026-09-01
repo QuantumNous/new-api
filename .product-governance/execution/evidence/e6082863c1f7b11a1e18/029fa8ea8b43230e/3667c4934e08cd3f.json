@@ -1,0 +1,28 @@
+{
+  "scenarioId": "BOOTSTRAP-AS-02",
+  "assertion": "An unsupported method does not expose the handshake or mutate state.",
+  "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method",
+  "acceptanceCommandId": "bootstrap-failure",
+  "runId": "RU-DESKTOP-BOOTSTRAP-V1/WP-DESKTOP-BOOTSTRAP-V1@2026-09-01T10:39:44.514019+00:00",
+  "packageId": "WP-DESKTOP-BOOTSTRAP-V1",
+  "evidenceOwner": "govern-product-build/verifier",
+  "passed": true,
+  "runnerProof": {
+    "schemaVersion": 1,
+    "adapter": "pytest-json@1",
+    "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method",
+    "cwd": ".",
+    "executedPassingTests": 1,
+    "actualExitCode": 0,
+    "runnerMetadataSha256": "sha256:00c158e5aec3810220eca0f9a1ec4ef8d0b472238ecd16179595349e303c6310",
+    "machineReportSha256": "sha256:abd2ca40baee27fcc5854005b27e97c73ed66110cdf18c8eb4a84766ae50c30c",
+    "isolation": {
+      "adapter": "darwin-sandbox-exec-readonly-source@1",
+      "policySha256": "sha256:57707f0e59b24c60c728cb11316abd9a499ab06068c72e508e193c20cba0d462",
+      "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+    }
+  },
+  "commandResultHash": "sha256:2612582c4cba827875c43a31345b3d14e46cc12de0b810e852ce657476121e0e",
+  "releaseUnitId": "RU-DESKTOP-BOOTSTRAP-V1",
+  "releaseUnitHash": "sha256:9e766b68a98a58ef945fbce9c30bcfe344dbda0f3bd374b9d033451f3e446dc4"
+}

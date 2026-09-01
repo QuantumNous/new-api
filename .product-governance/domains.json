@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "domains": [
+    {
+      "id": "desktop-integration",
+      "owner": "backend-api",
+      "owns": ["desktop-bootstrap-declaration"],
+      "trackScope": ["desktop-api"],
+      "invariants": [
+        "Bootstrap recognition grants no account session, credential access, configuration write, pricing truth or tool compatibility authority.",
+        "A capability is true only after a separate frozen contract and verified implementation release unit exists."
+      ],
+      "commands": [],
+      "queries": ["desktop-bootstrap@v1"],
+      "emits": [],
+      "consumes": []
+    },
+    {
+      "id": "desktop-client",
+      "owner": "external-desktop-client",
+      "owns": ["desktop-bootstrap-consumption-policy"],
+      "trackScope": ["desktop-api"],
+      "invariants": [
+        "The client treats bootstrap recognition as format compatibility only and does not infer authentication or activate false capabilities."
+      ],
+      "commands": [],
+      "queries": [],
+      "emits": [],
+      "consumes": []
+    }
+  ]
+}

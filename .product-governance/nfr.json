@@ -1,0 +1,291 @@
+{
+  "schemaVersion": 1,
+  "requirements": [
+    {
+      "id": "NFR-security",
+      "category": "security",
+      "statement": "Define and verify the security commercial requirement.",
+      "scope": "target",
+      "impact": "high",
+      "state": "unknown",
+      "owner": null,
+      "evidenceRefs": [],
+      "acceptance": [],
+      "targetDimensions": ["anonymous route exposure", "secret-free response"],
+      "blockingDecisionRef": "DEC-001",
+      "proposedVerification": {
+        "condition": "The bootstrap response exposes no secret, account, session, credential, configuration or write authority.",
+        "method": "Closed-schema contract tests and route authentication review.",
+        "environment": "Go HTTP test router using the production route registration.",
+        "dataVolume": "Happy, unsupported-method, replay, closed-version, concurrent-read and recovery scenarios.",
+        "evidenceArtifact": ".product-governance/evidence/nfr-security.json",
+        "reviewCadence": "Before enabling any capability or changing the bootstrap contract.",
+        "minimumEvidenceLevel": 5
+      }
+    },
+    {
+      "id": "NFR-privacy",
+      "category": "privacy",
+      "statement": "Define and verify the privacy commercial requirement.",
+      "scope": "target",
+      "impact": "high",
+      "state": "unknown",
+      "owner": null,
+      "evidenceRefs": [],
+      "acceptance": [],
+      "targetDimensions": ["data minimization", "absence of customer data"],
+      "blockingDecisionRef": "DEC-001",
+      "proposedVerification": {
+        "condition": "The static declaration contains no personal, account, usage, billing or device data.",
+        "method": "Exact fixture comparison and output-schema review.",
+        "environment": "Go HTTP test router.",
+        "dataVolume": "Every field in the closed v1 response.",
+        "evidenceArtifact": ".product-governance/evidence/nfr-privacy.json",
+        "reviewCadence": "On every contract revision.",
+        "minimumEvidenceLevel": 5
+      }
+    },
+    {
+      "id": "NFR-reliability",
+      "category": "reliability",
+      "statement": "Define and verify the reliability commercial requirement.",
+      "scope": "target",
+      "impact": "high",
+      "state": "unknown",
+      "owner": null,
+      "evidenceRefs": [],
+      "acceptance": [],
+      "targetDimensions": ["deterministic response", "stateless recovery"],
+      "blockingDecisionRef": "DEC-001",
+      "proposedVerification": {
+        "condition": "Repeated, concurrent and post-error reads return the same declaration without state mutation.",
+        "method": "Replay, concurrent-read and recovery contract tests.",
+        "environment": "Go HTTP test router.",
+        "dataVolume": "Repeated and concurrent bootstrap requests plus unsupported methods.",
+        "evidenceArtifact": ".product-governance/evidence/nfr-reliability.json",
+        "reviewCadence": "On handler or router changes.",
+        "minimumEvidenceLevel": 4
+      }
+    },
+    {
+      "id": "NFR-observability",
+      "category": "observability",
+      "statement": "Define and verify the observability commercial requirement.",
+      "scope": "target",
+      "impact": "high",
+      "state": "unknown",
+      "owner": null,
+      "evidenceRefs": [],
+      "acceptance": [],
+      "targetDimensions": ["existing access logs", "absence of sensitive telemetry"],
+      "blockingDecisionRef": "DEC-001",
+      "proposedVerification": {
+        "condition": "The route uses existing transport observability and emits no user or secret-bearing custom event.",
+        "method": "Handler and route review.",
+        "environment": "Existing server middleware stack.",
+        "dataVolume": "One static anonymous query route.",
+        "evidenceArtifact": ".product-governance/evidence/nfr-observability.json",
+        "reviewCadence": "On observability or contract changes.",
+        "minimumEvidenceLevel": 4
+      }
+    },
+    {
+      "id": "NFR-performance",
+      "category": "performance",
+      "statement": "Define and verify the performance commercial requirement.",
+      "scope": "target",
+      "impact": "high",
+      "state": "unknown",
+      "owner": null,
+      "evidenceRefs": [],
+      "acceptance": [],
+      "targetDimensions": ["constant-time response construction", "no external dependency"],
+      "blockingDecisionRef": "DEC-001",
+      "proposedVerification": {
+        "condition": "The handler performs no database, network or filesystem operation.",
+        "method": "Static review and concurrent-read test.",
+        "environment": "Go HTTP test router.",
+        "dataVolume": "Static response across concurrent requests.",
+        "evidenceArtifact": ".product-governance/evidence/nfr-performance.json",
+        "reviewCadence": "Before adding any dynamic dependency.",
+        "minimumEvidenceLevel": 5
+      }
+    },
+    {
+      "id": "NFR-capacity",
+      "category": "capacity",
+      "statement": "Define and verify the capacity commercial requirement.",
+      "scope": "target",
+      "impact": "high",
+      "state": "unknown",
+      "owner": null,
+      "evidenceRefs": [],
+      "acceptance": [],
+      "targetDimensions": ["stateless concurrency", "bounded response size"],
+      "blockingDecisionRef": "DEC-001",
+      "proposedVerification": {
+        "condition": "Concurrent reads remain independent and the response stays bounded by the closed schema.",
+        "method": "Concurrent-read contract test and exact fixture comparison.",
+        "environment": "Go HTTP test router.",
+        "dataVolume": "A bounded concurrent request set.",
+        "evidenceArtifact": ".product-governance/evidence/nfr-capacity.json",
+        "reviewCadence": "On response-shape or state-dependency changes.",
+        "minimumEvidenceLevel": 5
+      }
+    },
+    {
+      "id": "NFR-accessibility",
+      "category": "accessibility",
+      "statement": "Define and verify the accessibility commercial requirement.",
+      "scope": "target",
+      "impact": "high",
+      "state": "unknown",
+      "owner": null,
+      "evidenceRefs": [],
+      "acceptance": [],
+      "targetDimensions": ["machine-readable JSON", "plain capability naming"],
+      "blockingDecisionRef": "DEC-001",
+      "proposedVerification": {
+        "condition": "The response remains deterministic JSON with explicit capability names and booleans.",
+        "method": "JSON schema validation and documentation review.",
+        "environment": "Desktop client contract consumer.",
+        "dataVolume": "Every v1 response field.",
+        "evidenceArtifact": ".product-governance/evidence/nfr-accessibility.json",
+        "reviewCadence": "On contract changes.",
+        "minimumEvidenceLevel": 5
+      }
+    },
+    {
+      "id": "NFR-ai_quality",
+      "category": "ai_quality",
+      "statement": "Define and verify the ai_quality commercial requirement.",
+      "scope": "target",
+      "impact": "high",
+      "state": "unknown",
+      "owner": null,
+      "evidenceRefs": [],
+      "acceptance": [],
+      "targetDimensions": ["no AI inference", "no unsupported compatibility claim"],
+      "blockingDecisionRef": "DEC-001",
+      "proposedVerification": {
+        "condition": "The route makes no AI-generated recommendation and false capabilities cannot be interpreted as support.",
+        "method": "Closed-schema and documentation review.",
+        "environment": "Server and desktop contract artifacts.",
+        "dataVolume": "All six capability fields.",
+        "evidenceArtifact": ".product-governance/evidence/nfr-ai-quality.json",
+        "reviewCadence": "Before adding recommendation behavior.",
+        "minimumEvidenceLevel": 5
+      }
+    },
+    {
+      "id": "NFR-ai_cost",
+      "category": "ai_cost",
+      "statement": "Define and verify the ai_cost commercial requirement.",
+      "scope": "target",
+      "impact": "high",
+      "state": "unknown",
+      "owner": null,
+      "evidenceRefs": [],
+      "acceptance": [],
+      "targetDimensions": ["zero model calls", "zero billable inference"],
+      "blockingDecisionRef": "DEC-001",
+      "proposedVerification": {
+        "condition": "The bootstrap query invokes no model and creates no billable usage.",
+        "method": "Static handler review.",
+        "environment": "Production route code.",
+        "dataVolume": "One anonymous static query path.",
+        "evidenceArtifact": ".product-governance/evidence/nfr-ai-cost.json",
+        "reviewCadence": "Before adding model-backed behavior.",
+        "minimumEvidenceLevel": 4
+      }
+    },
+    {
+      "id": "NFR-commerce",
+      "category": "commerce",
+      "statement": "Define and verify the commerce commercial requirement.",
+      "scope": "target",
+      "impact": "high",
+      "state": "unknown",
+      "owner": null,
+      "evidenceRefs": [],
+      "acceptance": [],
+      "targetDimensions": ["no price projection", "no payment authority"],
+      "blockingDecisionRef": "DEC-001",
+      "proposedVerification": {
+        "condition": "The response includes no price, balance, wallet, payment or billing field.",
+        "method": "Closed-schema contract test.",
+        "environment": "Go HTTP test router.",
+        "dataVolume": "Every v1 response field.",
+        "evidenceArtifact": ".product-governance/evidence/nfr-commerce.json",
+        "reviewCadence": "Before enabling pricing or account capabilities.",
+        "minimumEvidenceLevel": 4
+      }
+    },
+    {
+      "id": "NFR-migration",
+      "category": "migration",
+      "statement": "Define and verify the migration commercial requirement.",
+      "scope": "target",
+      "impact": "high",
+      "state": "unknown",
+      "owner": null,
+      "evidenceRefs": [],
+      "acceptance": [],
+      "targetDimensions": ["closed version recognition", "explicit minimum client version"],
+      "blockingDecisionRef": "DEC-001",
+      "proposedVerification": {
+        "condition": "Clients can distinguish exact v1 compatibility and reject unknown fields or versions.",
+        "method": "Closed-version and fixture contract tests.",
+        "environment": "Server contract fixtures and desktop JSON schema.",
+        "dataVolume": "Recognized v1 and incompatible response variants.",
+        "evidenceArtifact": ".product-governance/evidence/nfr-migration.json",
+        "reviewCadence": "On every contract-version change.",
+        "minimumEvidenceLevel": 3
+      }
+    },
+    {
+      "id": "NFR-backup_restore",
+      "category": "backup_restore",
+      "statement": "Define and verify the backup_restore commercial requirement.",
+      "scope": "target",
+      "impact": "high",
+      "state": "unknown",
+      "owner": null,
+      "evidenceRefs": [],
+      "acceptance": [],
+      "targetDimensions": ["no persistent state", "no restoration dependency"],
+      "blockingDecisionRef": "DEC-001",
+      "proposedVerification": {
+        "condition": "The bootstrap query creates no state requiring backup or restoration.",
+        "method": "Handler dependency review.",
+        "environment": "Production route code.",
+        "dataVolume": "One static query path.",
+        "evidenceArtifact": ".product-governance/evidence/nfr-backup-restore.json",
+        "reviewCadence": "Before adding persistence.",
+        "minimumEvidenceLevel": 6
+      }
+    },
+    {
+      "id": "NFR-operations",
+      "category": "operations",
+      "statement": "Define and verify the operations commercial requirement.",
+      "scope": "target",
+      "impact": "high",
+      "state": "unknown",
+      "owner": null,
+      "evidenceRefs": [],
+      "acceptance": [],
+      "targetDimensions": ["backward-compatible route", "documented client handoff"],
+      "blockingDecisionRef": "DEC-001",
+      "proposedVerification": {
+        "condition": "The route, schema, fixtures and handoff documentation ship together and can be rolled back as one commit.",
+        "method": "Release-unit verification and Git diff review.",
+        "environment": "Repository branch and CI-compatible Go test environment.",
+        "dataVolume": "One contract, one route, fixtures, tests and documentation.",
+        "evidenceArtifact": ".product-governance/evidence/nfr-operations.json",
+        "reviewCadence": "For every desktop API release unit.",
+        "minimumEvidenceLevel": 6
+      }
+    }
+  ]
+}
