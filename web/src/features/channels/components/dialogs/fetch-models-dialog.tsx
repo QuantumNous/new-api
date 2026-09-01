@@ -48,6 +48,7 @@ import {
   normalizeModelName,
   parseModelsString,
   stripModelPrefix,
+  stripModelPrefixList,
 } from '../../lib'
 import { useChannels } from '../channels-provider'
 
@@ -157,16 +158,20 @@ export function FetchModelsDialog({
 
     setIsFetching(true)
     try {
+      // Normalize the fetched list to the same (bare) form as existingModels so
+      // the add/remove classification compares like-for-like. In form-filling
+      // mode modelPrefix is '' (no active channel), so this is a no-op. The
+      // prefix is re-applied on save, keeping the stored models prefixed.
       if (customFetcher) {
         const list = await customFetcher()
-        setFetchedModels(list)
+        setFetchedModels(stripModelPrefixList(list, modelPrefix))
         setSelectedModels(existingModels)
         toast.success(t('Fetched {{count}} models', { count: list.length }))
       } else if (activeChannel) {
         const response = await fetchUpstreamModels(activeChannel.id)
         if (response.success) {
           const list = Array.isArray(response.data) ? response.data : []
-          setFetchedModels(list)
+          setFetchedModels(stripModelPrefixList(list, modelPrefix))
           setSelectedModels(existingModels)
           toast.success(t('Fetched {{count}} models', { count: list.length }))
         } else {

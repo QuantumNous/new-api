@@ -545,6 +545,29 @@ func TestCollectPendingUpstreamModelChangesFromModels_Prefix(t *testing.T) {
 	require.Empty(t, remove)
 }
 
+func TestCollectPendingUpstreamModelChangesFromModels_PrefixOnUpstream(t *testing.T) {
+	// Both the local models and the upstream listing carry the per-channel
+	// prefix (e.g. when the upstream is itself a prefixed gateway). The
+	// comparison must strip the prefix from both sides so prefixed and bare
+	// forms compare equal, and the add/remove lists must keep the original
+	// (prefixed) form so they match the stored channel models.
+	local := []string{"openrouter/auto-beta", "openrouter/fusion"}
+	upstream := []string{"openrouter/auto-beta", "openrouter/fusion", "openrouter/pareto-code"}
+	add, remove := collectPendingUpstreamModelChangesFromModels(local, upstream, nil, nil, "openrouter")
+	require.ElementsMatch(t, []string{"openrouter/pareto-code"}, add)
+	require.Empty(t, remove)
+}
+
+func TestCollectPendingUpstreamModelChangesFromModels_PrefixRemoveKeepsStoredForm(t *testing.T) {
+	// A genuinely stale local model must be reported for removal using its
+	// stored (prefixed) form so the removal matches the channel models entry.
+	local := []string{"openrouter/auto-beta", "openrouter/stale-model"}
+	upstream := []string{"openrouter/auto-beta"}
+	add, remove := collectPendingUpstreamModelChangesFromModels(local, upstream, nil, nil, "openrouter")
+	require.Empty(t, add)
+	require.ElementsMatch(t, []string{"openrouter/stale-model"}, remove)
+}
+
 func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *testing.T) {
 	channelSummaries := make([]upstreamModelUpdateChannelSummary, 0, 12)
 	for i := 0; i < 12; i++ {

@@ -19,7 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, test } from 'vitest'
 
 import type { Channel } from '../../types'
-import { getChannelModelPrefix, stripModelPrefix } from '../channel-utils'
+import {
+  getChannelModelPrefix,
+  stripModelPrefix,
+  stripModelPrefixList,
+} from '../channel-utils'
 
 describe('stripModelPrefix', () => {
   test('returns the model unchanged when no prefix is set', () => {
@@ -41,6 +45,28 @@ describe('stripModelPrefix', () => {
     expect(stripModelPrefix('openrouterx/auto-beta', 'openrouter')).toBe(
       'openrouterx/auto-beta'
     )
+  })
+})
+
+describe('stripModelPrefixList', () => {
+  test('returns the list unchanged when no prefix is set', () => {
+    const models = ['auto-beta', 'fusion']
+    expect(stripModelPrefixList(models, '')).toBe(models)
+  })
+
+  test('strips the prefix from every prefixed model in the list', () => {
+    expect(
+      stripModelPrefixList(
+        ['openrouter/auto-beta', 'openrouter/fusion', 'gpt-4o'],
+        'openrouter'
+      )
+    ).toEqual(['auto-beta', 'fusion', 'gpt-4o'])
+  })
+
+  test('leaves already-bare models untouched', () => {
+    expect(
+      stripModelPrefixList(['auto-beta', 'fusion'], 'openrouter')
+    ).toEqual(['auto-beta', 'fusion'])
   })
 })
 

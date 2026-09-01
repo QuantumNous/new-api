@@ -195,18 +195,20 @@ func collectPendingUpstreamModelChangesFromModels(
 	modelMapping map[string]string,
 	prefix string,
 ) (pendingAddModels []string, pendingRemoveModels []string) {
-	localSet := make(map[string]struct{})
 	localModels = normalizeModelNames(localModels)
-	for i, modelName := range localModels {
-		localModels[i] = stripModelPrefix(modelName, prefix)
-	}
 	upstreamModels = normalizeModelNames(upstreamModels)
+
+	// Strip the per-channel prefix from both sides so prefixed and bare forms
+	// compare equal (the upstream listing may or may not carry the prefix). The
+	// original (possibly prefixed) names are kept for the add/remove lists so
+	// they match the stored channel models form.
+	localSet := make(map[string]struct{}, len(localModels))
 	for _, modelName := range localModels {
-		localSet[modelName] = struct{}{}
+		localSet[stripModelPrefix(modelName, prefix)] = struct{}{}
 	}
 	upstreamSet := make(map[string]struct{}, len(upstreamModels))
 	for _, modelName := range upstreamModels {
-		upstreamSet[modelName] = struct{}{}
+		upstreamSet[stripModelPrefix(modelName, prefix)] = struct{}{}
 	}
 
 	normalizedIgnoredModels := normalizeModelNames(ignoredModels)
@@ -226,9 +228,9 @@ func collectPendingUpstreamModelChangesFromModels(
 		coveredUpstreamSet[modelName] = struct{}{}
 	}
 
-	pendingAdd := lo.Filter(upstreamModels, func(modelName string, _ int) bool {
-		if _, ok := coveredUpstreamSet[modelName]; ok {
-			return false
+	pendingAdd := lo.FilterMap(upstreamModels, func(modelName string, _ int) (string, bool) {
+		if _, ok := coveredUpstreamSet[stripModelPrefix(modelName, prefix)]; ok {
+			return "", false
 		}
 		if lo.ContainsBy(normalizedIgnoredModels, func(ignoredModel string) bool {
 			if regexBody, ok := strings.CutPrefix(ignoredModel, "regex:"); ok {
@@ -237,18 +239,22 @@ func collectPendingUpstreamModelChangesFromModels(
 			}
 			return ignoredModel == modelName
 		}) {
-			return false
+			return "", false
 		}
-		return true
+		return modelName, true
 	})
-	pendingRemove := lo.Filter(localModels, func(modelName string, _ int) bool {
+	pendingRemove := lo.FilterMap(localModels, func(modelName string, _ int) (string, bool) {
+		stripped := stripModelPrefix(modelName, prefix)
 		// Redirect source models are virtual aliases and should not be removed
 		// only because they are absent from upstream model list.
-		if _, ok := redirectSourceSet[modelName]; ok {
-			return false
+		if _, ok := redirectSourceSet[stripped]; ok {
+			return "", false
 		}
-		_, ok := upstreamSet[modelName]
-		return !ok
+		_, ok := upstreamSet[stripped]
+		if ok {
+			return "", false
+		}
+		return modelName, true
 	})
 	return normalizeModelNames(pendingAdd), normalizeModelNames(pendingRemove)
 }

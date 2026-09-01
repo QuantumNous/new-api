@@ -293,6 +293,25 @@ export function getChannelModelPrefix(channel: Pick<Channel, 'settings'>): strin
   return (otherSettings.model_prefix || '').trim()
 }
 
+/**
+ * Strip the per-channel model prefix from every model in a list.
+ * Models without the `<prefix>/` form are left unchanged.
+ *
+ * Used to normalize both the channel's existing models and the upstream-fetched
+ * models to the same (bare) form so they can be compared for add/remove
+ * classification. The prefix is re-applied on save, so the stored models keep
+ * the canonical prefixed form.
+ */
+export function stripModelPrefixList(
+  models: string[],
+  prefix: string
+): string[] {
+  if (!prefix) {
+    return models
+  }
+  return models.map((m) => stripModelPrefix(m, prefix))
+}
+
 // ============================================================================
 // Settings Parsing
 // ============================================================================
