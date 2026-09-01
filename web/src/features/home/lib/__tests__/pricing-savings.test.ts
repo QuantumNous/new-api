@@ -54,8 +54,12 @@ function makeSavingsModel(
   prices: {
     officialInput: number
     officialOutput: number
+    officialCacheRead?: number | null
+    officialCacheWrite?: number | null
     siteInput: number
     siteOutput: number
+    siteCacheRead?: number | null
+    siteCacheWrite?: number | null
   }
 ): SavingsModel {
   return {
@@ -64,8 +68,12 @@ function makeSavingsModel(
     family,
     officialInputPrice: prices.officialInput,
     officialOutputPrice: prices.officialOutput,
+    officialCacheReadPrice: prices.officialCacheRead ?? null,
+    officialCacheWritePrice: prices.officialCacheWrite ?? null,
     siteInputPrice: prices.siteInput,
     siteOutputPrice: prices.siteOutput,
+    siteCacheReadPrice: prices.siteCacheRead ?? null,
+    siteCacheWritePrice: prices.siteCacheWrite ?? null,
     savingsPercent: 50,
   }
 }
@@ -114,6 +122,32 @@ describe('buildSavingsModels', () => {
     expect(models[0].siteOutputPrice).toBeCloseTo(48)
   })
 
+  it('derives live cache read and write prices from the pricing ratios', () => {
+    const [model] = buildSavingsCatalog(
+      [
+        makePricingModel('cached-model', 1, {
+          completion_ratio: 4,
+          cache_ratio: 0.1,
+          create_cache_ratio: 1.25,
+          group_ratio: { default: 0.5 },
+        }),
+      ],
+      4,
+      7
+    )
+
+    expect(model).toMatchObject({
+      officialInputPrice: 14,
+      officialOutputPrice: 56,
+      officialCacheWritePrice: 17.5,
+      siteInputPrice: 4,
+      siteOutputPrice: 16,
+      siteCacheReadPrice: 0.4,
+      siteCacheWritePrice: 5,
+    })
+    expect(model.officialCacheReadPrice).toBeCloseTo(1.4)
+  })
+
   it('returns no comparison rows when pricing has no valid token model', () => {
     expect(
       buildSavingsModels(
@@ -148,7 +182,7 @@ describe('localized display values', () => {
 })
 
 describe('calculateSavingsEstimate', () => {
-  it('calculates coding savings from a one-to-three input-output mix', () => {
+  it('uses the visible coding token mix and bills unsupported cache as normal input', () => {
     const estimate = calculateSavingsEstimate(
       [
         makeSavingsModel('claude-flagship', 'anthropic', {
@@ -170,10 +204,40 @@ describe('calculateSavingsEstimate', () => {
     )
 
     expect(estimate.representativeModels).toHaveLength(2)
-    expect(estimate.officialMonthlyCost).toBe(240)
-    expect(estimate.siteMonthlyCost).toBe(120)
-    expect(estimate.monthlySavings).toBe(120)
-    expect(estimate.annualSavings).toBe(1440)
+    expect(estimate.tokenMix).toEqual({
+      inputPercent: 15,
+      cacheReadPercent: 55,
+      cacheWritePercent: 10,
+      outputPercent: 20,
+    })
+    expect(estimate.officialMonthlyCost).toBe(152)
+    expect(estimate.siteMonthlyCost).toBe(76)
+    expect(estimate.monthlySavings).toBe(76)
+    expect(estimate.annualSavings).toBe(912)
+  })
+
+  it('prices cache reads and writes independently for cache-heavy coding', () => {
+    const estimate = calculateSavingsEstimate(
+      [
+        makeSavingsModel('cached-coding-model', 'anthropic', {
+          officialInput: 14,
+          officialOutput: 56,
+          officialCacheRead: 1.4,
+          officialCacheWrite: 17.5,
+          siteInput: 4,
+          siteOutput: 16,
+          siteCacheRead: 0.4,
+          siteCacheWrite: 5,
+        }),
+      ],
+      'coding',
+      10,
+      1
+    )
+
+    expect(estimate.officialMonthlyCost).toBeCloseTo(158.2)
+    expect(estimate.siteMonthlyCost).toBeCloseTo(45.2)
+    expect(estimate.monthlySavings).toBeCloseTo(113)
   })
 
   it('never presents a negative saving when the site price is higher', () => {

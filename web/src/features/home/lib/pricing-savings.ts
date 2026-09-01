@@ -36,13 +36,25 @@ export type SavingsModel = {
   family: ModelFamily
   officialInputPrice: number
   officialOutputPrice: number
+  officialCacheReadPrice: number | null
+  officialCacheWritePrice: number | null
   siteInputPrice: number
   siteOutputPrice: number
+  siteCacheReadPrice: number | null
+  siteCacheWritePrice: number | null
   savingsPercent: number
+}
+
+export type SavingsTokenMix = {
+  inputPercent: number
+  cacheReadPercent: number
+  cacheWritePercent: number
+  outputPercent: number
 }
 
 export type SavingsEstimate = {
   representativeModels: SavingsModel[]
+  tokenMix: SavingsTokenMix
   officialMonthlyCost: number
   siteMonthlyCost: number
   monthlySavings: number
@@ -72,29 +84,102 @@ const FAMILY_ORDER: ModelFamily[] = [
 
 const USE_CASES: Record<
   SavingsUseCase,
-  { families: ModelFamily[]; inputWeight: number; outputWeight: number }
+  { families: ModelFamily[]; tokenMix: SavingsTokenMix }
 > = {
-  // Coding and agent workloads tend to produce more output than input.
+  // These are editable scenario presets, not claims about every workload.
   coding: {
     families: ['anthropic', 'openai', 'qwen'],
-    inputWeight: 1,
-    outputWeight: 3,
+    tokenMix: {
+      inputPercent: 15,
+      cacheReadPercent: 55,
+      cacheWritePercent: 10,
+      outputPercent: 20,
+    },
   },
   agents: {
     families: ['openai', 'anthropic', 'google'],
-    inputWeight: 1,
-    outputWeight: 3,
+    tokenMix: {
+      inputPercent: 25,
+      cacheReadPercent: 40,
+      cacheWritePercent: 10,
+      outputPercent: 25,
+    },
   },
   support: {
     families: ['deepseek', 'moonshot', 'qwen'],
-    inputWeight: 1,
-    outputWeight: 1,
+    tokenMix: {
+      inputPercent: 50,
+      cacheReadPercent: 15,
+      cacheWritePercent: 5,
+      outputPercent: 30,
+    },
   },
   research: {
     families: ['google', 'qwen', 'moonshot'],
-    inputWeight: 1,
-    outputWeight: 1,
+    tokenMix: {
+      inputPercent: 45,
+      cacheReadPercent: 20,
+      cacheWritePercent: 5,
+      outputPercent: 30,
+    },
   },
+}
+
+export function getDefaultSavingsTokenMix(
+  useCase: SavingsUseCase
+): SavingsTokenMix {
+  return { ...USE_CASES[useCase].tokenMix }
+}
+
+export function getBillableSavingsTokenMix(
+  tokenMix: SavingsTokenMix,
+  model?: SavingsModel
+): SavingsTokenMix {
+  const normalizedMix = normalizeTokenMix(tokenMix)
+  if (!model) return normalizedMix
+
+  const cacheReadPercent =
+    model.siteCacheReadPrice == null ? 0 : normalizedMix.cacheReadPercent
+  const cacheWritePercent =
+    model.siteCacheWritePrice == null ? 0 : normalizedMix.cacheWritePercent
+
+  return {
+    inputPercent:
+      normalizedMix.inputPercent +
+      (normalizedMix.cacheReadPercent - cacheReadPercent) +
+      (normalizedMix.cacheWritePercent - cacheWritePercent),
+    cacheReadPercent,
+    cacheWritePercent,
+    outputPercent: normalizedMix.outputPercent,
+  }
+}
+
+function normalizeTokenMix(tokenMix: SavingsTokenMix): SavingsTokenMix {
+  const parts = [
+    tokenMix.inputPercent,
+    tokenMix.cacheReadPercent,
+    tokenMix.cacheWritePercent,
+    tokenMix.outputPercent,
+  ].map((value) =>
+    Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0
+  )
+  const total = parts.reduce((sum, value) => sum + value, 0)
+  if (total <= 0) {
+    return {
+      inputPercent: 100,
+      cacheReadPercent: 0,
+      cacheWritePercent: 0,
+      outputPercent: 0,
+    }
+  }
+
+  const scale = 100 / total
+  return {
+    inputPercent: parts[0] * scale,
+    cacheReadPercent: parts[1] * scale,
+    cacheWritePercent: parts[2] * scale,
+    outputPercent: parts[3] * scale,
+  }
 }
 
 function getModelFamily(model: PricingModel): ModelFamily {
@@ -213,6 +298,8 @@ function toSavingsModel(
   const siteInputPrice =
     model.model_ratio * 2 * displayGroupRatio * Math.max(priceRate, 0.001)
   const siteOutputPrice = siteInputPrice * model.completion_ratio
+  const cacheRatio = getOptionalRatio(model.cache_ratio)
+  const cacheWriteRatio = getOptionalRatio(model.create_cache_ratio)
   const rawSavingsPercent = (1 - siteInputPrice / officialInputPrice) * 100
   const savingsPercent = Math.floor(
     Math.min(100, Math.max(0, rawSavingsPercent))
@@ -225,10 +312,22 @@ function toSavingsModel(
     family,
     officialInputPrice,
     officialOutputPrice,
+    officialCacheReadPrice:
+      cacheRatio == null ? null : officialInputPrice * cacheRatio,
+    officialCacheWritePrice:
+      cacheWriteRatio == null ? null : officialInputPrice * cacheWriteRatio,
     siteInputPrice,
     siteOutputPrice,
+    siteCacheReadPrice: cacheRatio == null ? null : siteInputPrice * cacheRatio,
+    siteCacheWritePrice:
+      cacheWriteRatio == null ? null : siteInputPrice * cacheWriteRatio,
     savingsPercent,
   }
+}
+
+function getOptionalRatio(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(Number(value))) return null
+  return Math.max(Number(value), 0)
 }
 
 export function buildSavingsModels(
@@ -366,12 +465,15 @@ export function calculateSavingsEstimate(
   models: SavingsModel[],
   useCase: SavingsUseCase,
   monthlyTokensMillions: number,
-  people: number
+  people: number,
+  tokenMix: SavingsTokenMix = getDefaultSavingsTokenMix(useCase)
 ): SavingsEstimate {
   const representativeModels = getRepresentativeModels(models, useCase)
+  const normalizedTokenMix = normalizeTokenMix(tokenMix)
   if (representativeModels.length === 0) {
     return {
       representativeModels: [],
+      tokenMix: normalizedTokenMix,
       officialMonthlyCost: 0,
       siteMonthlyCost: 0,
       monthlySavings: 0,
@@ -379,20 +481,30 @@ export function calculateSavingsEstimate(
     }
   }
 
-  const config = USE_CASES[useCase]
-  const totalWeight = config.inputWeight + config.outputWeight
   let officialPricePerMillion = 0
   let sitePricePerMillion = 0
 
   for (const model of representativeModels) {
+    const officialCacheReadPrice =
+      model.officialCacheReadPrice ?? model.officialInputPrice
+    const officialCacheWritePrice =
+      model.officialCacheWritePrice ?? model.officialInputPrice
+    const siteCacheReadPrice = model.siteCacheReadPrice ?? model.siteInputPrice
+    const siteCacheWritePrice =
+      model.siteCacheWritePrice ?? model.siteInputPrice
+
     officialPricePerMillion +=
-      (model.officialInputPrice * config.inputWeight +
-        model.officialOutputPrice * config.outputWeight) /
-      totalWeight
+      (model.officialInputPrice * normalizedTokenMix.inputPercent +
+        officialCacheReadPrice * normalizedTokenMix.cacheReadPercent +
+        officialCacheWritePrice * normalizedTokenMix.cacheWritePercent +
+        model.officialOutputPrice * normalizedTokenMix.outputPercent) /
+      100
     sitePricePerMillion +=
-      (model.siteInputPrice * config.inputWeight +
-        model.siteOutputPrice * config.outputWeight) /
-      totalWeight
+      (model.siteInputPrice * normalizedTokenMix.inputPercent +
+        siteCacheReadPrice * normalizedTokenMix.cacheReadPercent +
+        siteCacheWritePrice * normalizedTokenMix.cacheWritePercent +
+        model.siteOutputPrice * normalizedTokenMix.outputPercent) /
+      100
   }
 
   officialPricePerMillion /= representativeModels.length
@@ -408,6 +520,7 @@ export function calculateSavingsEstimate(
 
   return {
     representativeModels,
+    tokenMix: normalizedTokenMix,
     officialMonthlyCost,
     siteMonthlyCost,
     monthlySavings,
