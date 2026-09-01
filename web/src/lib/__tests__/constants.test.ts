@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, it } from 'vitest'
 
-import { DEFAULT_SYSTEM_NAME, resolveSystemName } from '../constants'
+import {
+  DEFAULT_LOGO,
+  DEFAULT_SYSTEM_NAME,
+  resolveLogoUrl,
+  resolveSystemName,
+} from '../constants'
 
 describe('resolveSystemName', () => {
   it.each([undefined, null, '', '  ', 'New API'])(
@@ -30,5 +35,20 @@ describe('resolveSystemName', () => {
 
   it('preserves an operator-defined system name', () => {
     expect(resolveSystemName('  Custom API  ')).toBe('Custom API')
+  })
+})
+
+describe('resolveLogoUrl', () => {
+  it.each([undefined, null, '', '  ', '/logo.png', 'logo.png'])(
+    'uses the 野菜API logo for legacy or empty value %s',
+    (value) => {
+      expect(resolveLogoUrl(value)).toBe(DEFAULT_LOGO)
+    }
+  )
+
+  it('preserves an operator-defined logo URL', () => {
+    expect(resolveLogoUrl(' https://example.com/custom.svg ')).toBe(
+      'https://example.com/custom.svg'
+    )
   })
 })
