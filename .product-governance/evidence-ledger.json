@@ -33,6 +33,39 @@
       "status": "active",
       "verificationLevel": 1,
       "basisRefs": []
+    },
+    {
+      "id": "E-USER-002",
+      "claim": "The product owner authorized directly completing the NewAPI desktop interfaces after reviewing the newly submitted repository, while preserving the prior boundary that production deployment is separate.",
+      "class": "user_confirmed",
+      "locator": "conversation:2026-09-01:direct-newapi-desktop-interface-implementation",
+      "observedAt": "2026-09-01T11:05:00Z",
+      "scope": "target",
+      "status": "active",
+      "verificationLevel": 0,
+      "basisRefs": []
+    },
+    {
+      "id": "E-CLIENT-002",
+      "claim": "The desktop handoff requires first-party browser authorization, account and usage reads, account-scoped models and pricing, a billing comparison using fixed USD/CNY 6.75, and a first-party wallet URL; it explicitly forbids fabricated values and direct payment handling in the client.",
+      "class": "code_observed",
+      "locator": "/Users/zxg/Documents/Codex/2026-08-29/xiaobai-ai-desktop/outputs/野菜API-跨平台内测构建与后端边界记录.md:37-60",
+      "observedAt": "2026-09-01T11:05:00Z",
+      "scope": "target",
+      "status": "active",
+      "verificationLevel": 1,
+      "basisRefs": []
+    },
+    {
+      "id": "E-CODE-002",
+      "claim": "The current fork already provides revocable rotating user_sessions, bearer dashboard authentication, safe self-user projection, user log queries, account-scoped model queries, pricing data, and a first-party wallet route; pending device authorization state is not present.",
+      "class": "code_observed",
+      "locator": "service/auth_session.go;model/user_session.go;middleware/auth.go;controller/user.go:511-575;controller/log.go;controller/pricing.go;web/src/routes/_authenticated/wallet/index.tsx",
+      "observedAt": "2026-09-01T11:05:00Z",
+      "scope": "current",
+      "status": "active",
+      "verificationLevel": 1,
+      "basisRefs": []
     }
   ]
 }

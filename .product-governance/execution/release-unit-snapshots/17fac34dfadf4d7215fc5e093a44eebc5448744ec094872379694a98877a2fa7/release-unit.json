@@ -1,0 +1,1591 @@
+{
+  "schemaVersion": 1,
+  "releaseUnitId": "RU-DESKTOP-INTEGRATION-V2",
+  "releaseUnitHash": "sha256:17fac34dfadf4d7215fc5e093a44eebc5448744ec094872379694a98877a2fa7",
+  "decisionId": "DEC-002",
+  "objective": "Authorize only the additive desktop v2 bootstrap, Redis-only first-party device authorization, existing user_sessions JSON adapters and browser approval surface without database or deployment changes.",
+  "dependsOnReleaseUnits": [
+    "RU-DESKTOP-BOOTSTRAP-V1"
+  ],
+  "supersedesReleaseUnits": [
+    "RU-DESKTOP-BOOTSTRAP-V1"
+  ],
+  "roots": {
+    "workPackages": [
+      "WP-DESKTOP-INTEGRATION-V2"
+    ],
+    "requirements": [
+      "REQ-002"
+    ],
+    "nonFunctionalRequirements": [],
+    "domains": [
+      "desktop-integration"
+    ],
+    "contracts": [
+      "desktop-bootstrap@v2",
+      "desktop-device-authorization-create@v2",
+      "desktop-device-authorization-decision@v2",
+      "desktop-device-authorization-exchange@v2",
+      "desktop-session-refresh@v2",
+      "desktop-session-revoke@v2"
+    ],
+    "stateMachines": [],
+    "pages": [],
+    "journeys": [],
+    "dataLifecycleResources": [],
+    "aiScenarios": [],
+    "entitlements": [],
+    "trackCoverage": []
+  },
+  "commit": "764f19c70c246462186ff18cc34d51dfd660be28",
+  "frozenAt": "2026-09-01T11:23:08.443931+00:00",
+  "catalogManifest": {
+    "schemaVersion": 1,
+    "product": {
+      "name": "野菜API",
+      "createdAt": "2026-09-01T10:33:18.214020+00:00"
+    },
+    "authority": {
+      "bundleRoot": ".product-governance",
+      "precedence": [
+        "user_confirmed",
+        "applicable_policy",
+        "frozen_decision",
+        "code_observed",
+        "existing_document",
+        "inferred",
+        "proposed"
+      ]
+    },
+    "tracks": [
+      "desktop-api"
+    ],
+    "trackDecisionRefs": {
+      "desktop-api": "DEC-001"
+    },
+    "requiredPageStates": [
+      "default",
+      "loading",
+      "empty",
+      "partial",
+      "error",
+      "expired",
+      "conflict",
+      "recovery",
+      "processing"
+    ],
+    "dualTrackCapabilities": [
+      "evidence",
+      "attempt",
+      "reflection",
+      "mastery",
+      "ability_estimate",
+      "planning",
+      "report",
+      "global_ask"
+    ],
+    "requiredNfrCategories": [
+      "security",
+      "privacy",
+      "reliability",
+      "observability",
+      "performance",
+      "capacity",
+      "accessibility",
+      "ai_quality",
+      "ai_cost",
+      "commerce",
+      "migration",
+      "backup_restore",
+      "operations"
+    ]
+  },
+  "closure": {
+    "workPackages": [
+      "WP-DESKTOP-INTEGRATION-V2"
+    ],
+    "requirements": [
+      "REQ-001",
+      "REQ-002"
+    ],
+    "nonFunctionalRequirements": [],
+    "domains": [
+      "desktop-integration"
+    ],
+    "contracts": [
+      "desktop-bootstrap@v1",
+      "desktop-bootstrap@v2",
+      "desktop-device-authorization-create@v2",
+      "desktop-device-authorization-decision@v2",
+      "desktop-device-authorization-exchange@v2",
+      "desktop-session-refresh@v2",
+      "desktop-session-revoke@v2"
+    ],
+    "stateMachines": [],
+    "pages": [],
+    "pageStateProfiles": [],
+    "journeys": [],
+    "actors": [],
+    "dataLifecycleResources": [],
+    "aiScenarios": [],
+    "entitlements": [],
+    "trackCoverage": [],
+    "evidence": [
+      "E-CLIENT-001",
+      "E-CLIENT-002",
+      "E-CODE-001",
+      "E-CODE-002",
+      "E-USER-001",
+      "E-USER-002"
+    ],
+    "decisions": [
+      "DEC-001",
+      "DEC-002"
+    ],
+    "conflicts": [],
+    "glossaryTerms": [],
+    "resources": [
+      "desktop-bootstrap-declaration",
+      "desktop-device-authorization"
+    ],
+    "tracks": [
+      "desktop-api"
+    ]
+  },
+  "deferredSnapshot": {
+    "schemaVersion": 1,
+    "catalogHash": "sha256:3d9558c619d74ae2ca09b5adf92e63c8291543026182789e288944cbb8038772",
+    "items": [
+      {
+        "subjectKind": "actors",
+        "subjectId": "*",
+        "message": "No product actors are defined"
+      },
+      {
+        "subjectKind": "aiScenarios",
+        "subjectId": "*",
+        "message": "No AI scenarios are defined"
+      },
+      {
+        "subjectKind": "dataLifecycleResources",
+        "subjectId": "*",
+        "message": "No data lifecycle resources are defined"
+      },
+      {
+        "subjectKind": "entitlements",
+        "subjectId": "*",
+        "message": "No entitlement capabilities are defined"
+      },
+      {
+        "subjectKind": "glossaryTerms",
+        "subjectId": "*",
+        "message": "No canonical glossary terms are defined"
+      },
+      {
+        "subjectKind": "journeys",
+        "subjectId": "*",
+        "message": "No end-to-end journeys are defined"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-accessibility",
+        "message": "High-impact non-functional requirement is unresolved: NFR-accessibility (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-ai_cost",
+        "message": "High-impact non-functional requirement is unresolved: NFR-ai_cost (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-ai_quality",
+        "message": "High-impact non-functional requirement is unresolved: NFR-ai_quality (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-backup_restore",
+        "message": "High-impact non-functional requirement is unresolved: NFR-backup_restore (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-capacity",
+        "message": "High-impact non-functional requirement is unresolved: NFR-capacity (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-commerce",
+        "message": "High-impact non-functional requirement is unresolved: NFR-commerce (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-migration",
+        "message": "High-impact non-functional requirement is unresolved: NFR-migration (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-observability",
+        "message": "High-impact non-functional requirement is unresolved: NFR-observability (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-operations",
+        "message": "High-impact non-functional requirement is unresolved: NFR-operations (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-performance",
+        "message": "High-impact non-functional requirement is unresolved: NFR-performance (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-privacy",
+        "message": "High-impact non-functional requirement is unresolved: NFR-privacy (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-reliability",
+        "message": "High-impact non-functional requirement is unresolved: NFR-reliability (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-security",
+        "message": "High-impact non-functional requirement is unresolved: NFR-security (unknown)"
+      },
+      {
+        "subjectKind": "pages",
+        "subjectId": "*",
+        "message": "No pages are defined"
+      },
+      {
+        "subjectKind": "stateMachines",
+        "subjectId": "*",
+        "message": "No canonical state machines are defined"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "ability_estimate::desktop-api",
+        "message": "Capability ability_estimate/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "attempt::desktop-api",
+        "message": "Capability attempt/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "evidence::desktop-api",
+        "message": "Capability evidence/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "global_ask::desktop-api",
+        "message": "Capability global_ask/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "mastery::desktop-api",
+        "message": "Capability mastery/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "planning::desktop-api",
+        "message": "Capability planning/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "reflection::desktop-api",
+        "message": "Capability reflection/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "report::desktop-api",
+        "message": "Capability report/desktop-api remains unknown"
+      }
+    ]
+  },
+  "artifacts": {
+    "evidenceLedger": {
+      "schemaVersion": 1,
+      "entries": [
+        {
+          "id": "E-CLIENT-001",
+          "claim": "The desktop client owns a closed draft-2020-12 schema and recognized fixture for GET /api/desktop/v1/bootstrap with schema version 1, minimum client version 0.1.0 and six false capability declarations.",
+          "class": "code_observed",
+          "locator": "/Users/zxg/Documents/Codex/2026-08-29/xiaobai-ai-desktop/contracts/desktop-bootstrap.v1.schema.json;/Users/zxg/Documents/Codex/2026-08-29/xiaobai-ai-desktop/contracts/fixtures/desktop-bootstrap/recognized.json",
+          "observedAt": "2026-09-01T10:32:00Z",
+          "scope": "current",
+          "status": "active",
+          "verificationLevel": 1,
+          "basisRefs": []
+        },
+        {
+          "id": "E-CLIENT-002",
+          "claim": "The desktop handoff requires first-party browser authorization, account and usage reads, account-scoped models and pricing, a billing comparison using fixed USD/CNY 6.75, and a first-party wallet URL; it explicitly forbids fabricated values and direct payment handling in the client.",
+          "class": "code_observed",
+          "locator": "/Users/zxg/Documents/Codex/2026-08-29/xiaobai-ai-desktop/outputs/野菜API-跨平台内测构建与后端边界记录.md:37-60",
+          "observedAt": "2026-09-01T11:05:00Z",
+          "scope": "target",
+          "status": "active",
+          "verificationLevel": 1,
+          "basisRefs": []
+        },
+        {
+          "id": "E-CODE-001",
+          "claim": "At baseline commit 33926b6c, the Gin API router has anonymous status and pricing routes but no /api/desktop/v1/bootstrap route.",
+          "class": "code_observed",
+          "locator": "router/api-router.go:20-45;git:33926b6c2b59dc8a7b8ad26618832e154d4cace5",
+          "observedAt": "2026-09-01T10:32:00Z",
+          "scope": "current",
+          "status": "active",
+          "verificationLevel": 1,
+          "basisRefs": []
+        },
+        {
+          "id": "E-CODE-002",
+          "claim": "The current fork already provides revocable rotating user_sessions, bearer dashboard authentication, safe self-user projection, user log queries, account-scoped model queries, pricing data, and a first-party wallet route; pending device authorization state is not present.",
+          "class": "code_observed",
+          "locator": "service/auth_session.go;model/user_session.go;middleware/auth.go;controller/user.go:511-575;controller/log.go;controller/pricing.go;web/src/routes/_authenticated/wallet/index.tsx",
+          "observedAt": "2026-09-01T11:05:00Z",
+          "scope": "current",
+          "status": "active",
+          "verificationLevel": 1,
+          "basisRefs": []
+        },
+        {
+          "id": "E-USER-001",
+          "claim": "The product owner authorized submitting the minimal desktop bootstrap handshake now, while keeping account authorization, balances, usage and tool-key management out of this change.",
+          "class": "user_confirmed",
+          "locator": "conversation:2026-09-01:minimal-desktop-bootstrap-submit",
+          "observedAt": "2026-09-01T10:36:00Z",
+          "scope": "target",
+          "status": "active",
+          "verificationLevel": 0,
+          "basisRefs": []
+        },
+        {
+          "id": "E-USER-002",
+          "claim": "The product owner authorized directly completing the NewAPI desktop interfaces after reviewing the newly submitted repository, while preserving the prior boundary that production deployment is separate.",
+          "class": "user_confirmed",
+          "locator": "conversation:2026-09-01:direct-newapi-desktop-interface-implementation",
+          "observedAt": "2026-09-01T11:05:00Z",
+          "scope": "target",
+          "status": "active",
+          "verificationLevel": 0,
+          "basisRefs": []
+        }
+      ]
+    },
+    "conflictRegister": {
+      "schemaVersion": 1,
+      "conflicts": []
+    },
+    "decisionRegister": {
+      "schemaVersion": 1,
+      "decisions": [
+        {
+          "id": "DEC-001",
+          "question": "What server capability may be implemented for the desktop client in this release unit?",
+          "choice": "Implement only the anonymous, read-only GET /api/desktop/v1/bootstrap v1 handshake and its closed contract documentation. Return every future capability as false. Do not add authentication, account, usage, pricing projection, tool-key management, database, migration, payment or deployment behavior.",
+          "status": "accepted",
+          "decidedBy": "product owner",
+          "decidedAt": "2026-09-01T10:36:00Z",
+          "evidenceRefs": [
+            "E-USER-001",
+            "E-CLIENT-001",
+            "E-CODE-001"
+          ],
+          "affects": {
+            "requirementRefs": [
+              "REQ-001"
+            ],
+            "pageRefs": [],
+            "domainRefs": [
+              "desktop-integration"
+            ]
+          }
+        },
+        {
+          "id": "DEC-002",
+          "question": "What server capability may supersede the recognition-only desktop bootstrap release unit?",
+          "choice": "Add a versioned desktop v2 API with Redis-backed five-minute first-party device authorization, existing user_sessions for desktop access and refresh tokens, authenticated account/usage/models/pricing/billing-comparison projections, and a first-party wallet URL. Keep desktop tool-key management disabled, add no database schema or migration, do not process payment in the desktop API, and do not deploy from this release unit.",
+          "status": "accepted",
+          "decidedBy": "product owner",
+          "decidedAt": "2026-09-01T11:05:00Z",
+          "evidenceRefs": [
+            "E-USER-002",
+            "E-CLIENT-002",
+            "E-CODE-002"
+          ],
+          "affects": {
+            "requirementRefs": [
+              "REQ-002"
+            ],
+            "pageRefs": [],
+            "domainRefs": [
+              "desktop-integration"
+            ]
+          }
+        }
+      ]
+    },
+    "glossary": {
+      "schemaVersion": 1,
+      "terms": []
+    },
+    "requirements": {
+      "schemaVersion": 1,
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "statement": "The server exposes one anonymous, read-only desktop bootstrap v1 response that exactly matches the frozen client schema and declares every not-yet-implemented capability as false.",
+          "scope": "target",
+          "impact": "high",
+          "state": "confirmed",
+          "owner": "desktop-integration",
+          "evidenceRefs": [
+            "E-USER-001",
+            "E-CLIENT-001",
+            "E-CODE-001"
+          ],
+          "acceptance": [
+            "GET /api/desktop/v1/bootstrap returns HTTP 200, application/json and the exact closed v1 response without authentication.",
+            "The response contains no account, credential, cookie, device code, refresh token, price, wallet URL or backend configuration.",
+            "All six future capability flags remain false and repeated or concurrent reads remain equivalent.",
+            "Unsupported methods do not mutate state and a subsequent valid GET still returns the recognized response.",
+            "No database schema, migration, payment, deployment or existing API behavior changes in this release unit."
+          ]
+        },
+        {
+          "id": "REQ-002",
+          "statement": "The server exposes a versioned desktop v2 integration that lets a desktop client obtain a dedicated revocable session through explicit first-party browser approval and then read truthful account, usage, available-model, pricing, billing-comparison and wallet-link projections without adding database schema or handling payment inside the desktop API.",
+          "scope": "target",
+          "impact": "critical",
+          "state": "confirmed",
+          "owner": "desktop-integration",
+          "evidenceRefs": [
+            "E-USER-002",
+            "E-CLIENT-002",
+            "E-CODE-002"
+          ],
+          "acceptance": [
+            "The immutable v1 bootstrap remains unchanged while /api/desktop/v2/bootstrap advertises only implemented v2 capabilities and keeps tool_keys_manage false.",
+            "A device code is stored only in Redis for five minutes, must be approved by a live browser session, is polling-rate limited and can issue at most one desktop session.",
+            "Desktop refresh-token rotation and logout reuse existing user_sessions; refresh secrets are returned only to the desktop exchange/refresh caller and are never placed in a URL or log.",
+            "Authenticated read endpoints derive account, usage, models and pricing from the same existing owners used by the web dashboard and expose no prompt or response content.",
+            "Billing comparison uses the same consume-log cohort for site and reconstructed official cost, fixed USD/CNY 6.75, excludes non-comparable subscription records, and reports coverage instead of fabricating savings.",
+            "The wallet endpoint returns only the first-party /wallet/ URL and the desktop API does not accept payment details or payment callbacks.",
+            "No model, migration, database schema, deployment, Nginx or production configuration file changes belong to this release unit."
+          ]
+        }
+      ]
+    },
+    "journeys": {
+      "schemaVersion": 1,
+      "actors": [],
+      "journeys": []
+    },
+    "domains": {
+      "schemaVersion": 1,
+      "domains": [
+        {
+          "id": "desktop-integration",
+          "owner": "backend-api",
+          "owns": [
+            "desktop-bootstrap-declaration",
+            "desktop-device-authorization"
+          ],
+          "trackScope": [
+            "desktop-api"
+          ],
+          "invariants": [
+            "Bootstrap recognition grants no account session, credential access, configuration write, pricing truth or tool compatibility authority.",
+            "A capability is true only after a separate frozen contract and verified implementation release unit exists.",
+            "Desktop v2 device authorization is five-minute Redis-only state; approval requires a live browser session and successful exchange creates an ordinary revocable user_session with login_method desktop_device.",
+            "The v2 bootstrap maps account, usage, model, pricing and tool-key capabilities to existing authenticated NewAPI owners rather than creating duplicate desktop tables."
+          ],
+          "commands": [],
+          "queries": [
+            "desktop-bootstrap@v1",
+            "desktop-bootstrap@v2"
+          ],
+          "emits": [],
+          "consumes": []
+        }
+      ]
+    },
+    "stateMachines": {
+      "schemaVersion": 1,
+      "machines": []
+    },
+    "contracts": {
+      "schemaVersion": 1,
+      "contracts": [
+        {
+          "id": "desktop-bootstrap@v1",
+          "kind": "query",
+          "owner": "desktop-integration",
+          "consumers": [
+            "desktop-client"
+          ],
+          "schemaLocator": "inline://contracts.json#/contracts/desktop-bootstrap@v1",
+          "authorization": "Anonymous read-only GET. It grants no session, credential, configuration, payment or account authority.",
+          "idempotency": "The query is read-only and returns an equivalent static declaration for repeated and concurrent requests.",
+          "compatibility": "Version 1 is a closed response. New fields, capability names or schema versions require a new versioned contract before server and client changes.",
+          "inputSchema": {
+            "type": "object",
+            "description": "No request body or query fields are accepted by the bootstrap declaration.",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object",
+            "description": "Closed desktop bootstrap recognition response v1.",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "Indicates that the static bootstrap declaration was returned successfully.",
+                "enum": [
+                  true
+                ]
+              },
+              "data": {
+                "type": "object",
+                "description": "The complete closed desktop bootstrap declaration for contract version 1.",
+                "properties": {
+                  "schema_version": {
+                    "type": "integer",
+                    "description": "The closed response schema version understood by the desktop client.",
+                    "enum": [
+                      1
+                    ]
+                  },
+                  "service": {
+                    "type": "string",
+                    "description": "Stable service identifier used only for desktop bootstrap recognition.",
+                    "enum": [
+                      "yeschoy-desktop"
+                    ]
+                  },
+                  "contract_id": {
+                    "type": "string",
+                    "description": "Stable identifier for this exact bootstrap contract.",
+                    "enum": [
+                      "desktop-bootstrap-v1"
+                    ]
+                  },
+                  "minimum_client_version": {
+                    "type": "string",
+                    "description": "Minimum desktop client version allowed to recognize this contract, expressed as strict three-part semantic versioning.",
+                    "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+                    "maxLength": 100
+                  },
+                  "capabilities": {
+                    "type": "object",
+                    "description": "Explicit capability declarations; every future integration remains disabled in this release unit.",
+                    "properties": {
+                      "device_authorization": {
+                        "type": "boolean",
+                        "description": "Whether a governed device authorization flow is available.",
+                        "enum": [
+                          false
+                        ]
+                      },
+                      "account_read": {
+                        "type": "boolean",
+                        "description": "Whether authenticated account projection is available.",
+                        "enum": [
+                          false
+                        ]
+                      },
+                      "usage_read": {
+                        "type": "boolean",
+                        "description": "Whether account usage projection is available.",
+                        "enum": [
+                          false
+                        ]
+                      },
+                      "models_read": {
+                        "type": "boolean",
+                        "description": "Whether the desktop model catalog contract is available.",
+                        "enum": [
+                          false
+                        ]
+                      },
+                      "pricing_read": {
+                        "type": "boolean",
+                        "description": "Whether authoritative desktop pricing projection is available.",
+                        "enum": [
+                          false
+                        ]
+                      },
+                      "tool_keys_manage": {
+                        "type": "boolean",
+                        "description": "Whether desktop tool-key management is available.",
+                        "enum": [
+                          false
+                        ]
+                      }
+                    },
+                    "required": [
+                      "device_authorization",
+                      "account_read",
+                      "usage_read",
+                      "models_read",
+                      "pricing_read",
+                      "tool_keys_manage"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "schema_version",
+                  "service",
+                  "contract_id",
+                  "minimum_client_version",
+                  "capabilities"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          "dataClasses": [
+            "public"
+          ],
+          "observability": {
+            "correlation": "No user or request correlation is emitted because this static anonymous query creates no operation.",
+            "audit": "No persistent audit record is created; normal HTTP access logging may record only the route and transport metadata under existing server policy.",
+            "metrics": "Existing generic route metrics may count requests; the contract exposes no customer or capability-use metric."
+          },
+          "errorSemantics": [
+            "Unsupported methods are not accepted and never change state.",
+            "The handler returns no secrets, account data, raw configuration or capability URLs.",
+            "Every future capability remains false until a separately governed implementation exists."
+          ],
+          "requirementRefs": [
+            "REQ-001"
+          ],
+          "evidenceRefs": [
+            "E-USER-001",
+            "E-CLIENT-001",
+            "E-CODE-001"
+          ],
+          "status": "specified"
+        },
+        {
+          "id": "desktop-bootstrap@v2",
+          "kind": "query",
+          "owner": "desktop-integration",
+          "consumers": [
+            "desktop-client"
+          ],
+          "schemaLocator": "inline://contracts.json#/contracts/desktop-bootstrap@v2",
+          "authorization": "Anonymous read-only GET. It grants no credential; it only advertises implemented routes and current Redis-dependent availability.",
+          "idempotency": "Read-only; equivalent requests return an equivalent capability and route declaration for the same server configuration.",
+          "compatibility": "V2 is additive beside immutable v1. Clients below minimum_client_version must not activate it.",
+          "inputSchema": {
+            "type": "object",
+            "description": "No body or query parameters are accepted.",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object",
+            "description": "Desktop v2 capability and route declaration.",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "Successful declaration.",
+                "const": true
+              },
+              "data": {
+                "type": "object",
+                "description": "Versioned desktop integration declaration.",
+                "properties": {
+                  "schema_version": {
+                    "type": "integer",
+                    "description": "Schema version.",
+                    "const": 2
+                  },
+                  "service": {
+                    "type": "string",
+                    "description": "Service identifier.",
+                    "const": "yeschoy-desktop"
+                  },
+                  "contract_id": {
+                    "type": "string",
+                    "description": "Contract identifier.",
+                    "const": "desktop-integration-v2"
+                  },
+                  "minimum_client_version": {
+                    "type": "string",
+                    "description": "Minimum compatible desktop version.",
+                    "const": "0.2.0"
+                  },
+                  "device_authorization_available": {
+                    "type": "boolean",
+                    "description": "Whether Redis-backed device authorization is currently available."
+                  },
+                  "account_read": {
+                    "type": "boolean",
+                    "description": "Existing authenticated account projection is available.",
+                    "const": true
+                  },
+                  "usage_read": {
+                    "type": "boolean",
+                    "description": "Existing authenticated usage projections are available.",
+                    "const": true
+                  },
+                  "models_read": {
+                    "type": "boolean",
+                    "description": "Existing account-scoped model projection is available.",
+                    "const": true
+                  },
+                  "pricing_read": {
+                    "type": "boolean",
+                    "description": "Existing pricing projection is available.",
+                    "const": true
+                  },
+                  "tool_keys_manage": {
+                    "type": "boolean",
+                    "description": "Existing authenticated token management is available.",
+                    "const": true
+                  },
+                  "official_usd_cny_rate": {
+                    "type": "number",
+                    "description": "Fixed comparison exchange rate confirmed by the product owner.",
+                    "const": 6.75
+                  },
+                  "authorization_start_path": {
+                    "type": "string",
+                    "description": "Device authorization start path.",
+                    "const": "/api/desktop/v2/device-authorizations"
+                  },
+                  "authorization_token_path": {
+                    "type": "string",
+                    "description": "Device authorization exchange path.",
+                    "const": "/api/desktop/v2/device-authorizations/token"
+                  },
+                  "session_refresh_path": {
+                    "type": "string",
+                    "description": "Desktop refresh path.",
+                    "const": "/api/desktop/v2/sessions/refresh"
+                  },
+                  "session_logout_path": {
+                    "type": "string",
+                    "description": "Current desktop session revocation path.",
+                    "const": "/api/desktop/v2/sessions/current"
+                  },
+                  "account_path": {
+                    "type": "string",
+                    "description": "Existing safe self-account path.",
+                    "const": "/api/user/self"
+                  },
+                  "usage_summary_path": {
+                    "type": "string",
+                    "description": "Existing usage summary path.",
+                    "const": "/api/log/self/stat"
+                  },
+                  "usage_records_path": {
+                    "type": "string",
+                    "description": "Existing usage record path.",
+                    "const": "/api/log/self"
+                  },
+                  "models_path": {
+                    "type": "string",
+                    "description": "Existing account-scoped model path.",
+                    "const": "/api/user/models"
+                  },
+                  "pricing_path": {
+                    "type": "string",
+                    "description": "Existing pricing path.",
+                    "const": "/api/pricing"
+                  },
+                  "tool_keys_path": {
+                    "type": "string",
+                    "description": "Existing tool-key management path.",
+                    "const": "/api/token/"
+                  },
+                  "wallet_url": {
+                    "type": "string",
+                    "description": "First-party browser wallet URL.",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  }
+                },
+                "required": [
+                  "schema_version",
+                  "service",
+                  "contract_id",
+                  "minimum_client_version",
+                  "device_authorization_available",
+                  "account_read",
+                  "usage_read",
+                  "models_read",
+                  "pricing_read",
+                  "tool_keys_manage",
+                  "official_usd_cny_rate",
+                  "authorization_start_path",
+                  "authorization_token_path",
+                  "session_refresh_path",
+                  "session_logout_path",
+                  "account_path",
+                  "usage_summary_path",
+                  "usage_records_path",
+                  "models_path",
+                  "pricing_path",
+                  "tool_keys_path",
+                  "wallet_url"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          "dataClasses": [
+            "public"
+          ],
+          "observability": {
+            "correlation": "Existing HTTP request correlation applies; the response contains no user identifier.",
+            "audit": "No persistent audit record is created by this read-only declaration.",
+            "metrics": "Existing route metrics may count calls without recording secrets."
+          },
+          "errorSemantics": [
+            "The route remains available when Redis is unavailable and declares device_authorization_available false.",
+            "The v1 response is never mutated."
+          ],
+          "requirementRefs": [
+            "REQ-002"
+          ],
+          "evidenceRefs": [
+            "E-USER-002",
+            "E-CLIENT-002",
+            "E-CODE-002"
+          ],
+          "status": "specified"
+        },
+        {
+          "id": "desktop-device-authorization-create@v2",
+          "kind": "api",
+          "owner": "desktop-integration",
+          "consumers": [
+            "desktop-client"
+          ],
+          "schemaLocator": "inline://contracts.json#/contracts/desktop-device-authorization-create@v2",
+          "authorization": "Anonymous POST with the existing anonymous body-size and rate-limit middleware; unavailable unless Redis is configured.",
+          "idempotency": "Each successful call creates a distinct five-minute authorization; retries create a new code and do not reuse prior codes.",
+          "compatibility": "V2 only; values are opaque and clients must honor expires_in and interval.",
+          "inputSchema": {
+            "type": "object",
+            "description": "Optional bounded desktop client display name.",
+            "properties": {
+              "client_name": {
+                "type": "string",
+                "description": "Display name shown on the approval page.",
+                "maxLength": 80
+              }
+            },
+            "required": [],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object",
+            "description": "New device authorization challenge.",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "Successful creation.",
+                "const": true
+              },
+              "data": {
+                "type": "object",
+                "description": "Opaque device code and human verification data.",
+                "properties": {
+                  "device_code": {
+                    "type": "string",
+                    "description": "High-entropy one-time device secret.",
+                    "minLength": 32,
+                    "maxLength": 128
+                  },
+                  "user_code": {
+                    "type": "string",
+                    "description": "Human verification code.",
+                    "pattern": "^[A-Z0-9]{4}-[A-Z0-9]{4}$"
+                  },
+                  "verification_uri": {
+                    "type": "string",
+                    "description": "First-party approval page.",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "verification_uri_complete": {
+                    "type": "string",
+                    "description": "First-party approval page with user code only.",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  "expires_in": {
+                    "type": "integer",
+                    "description": "Lifetime in seconds.",
+                    "const": 300
+                  },
+                  "interval": {
+                    "type": "integer",
+                    "description": "Minimum initial polling interval in seconds.",
+                    "const": 5
+                  }
+                },
+                "required": [
+                  "device_code",
+                  "user_code",
+                  "verification_uri",
+                  "verification_uri_complete",
+                  "expires_in",
+                  "interval"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          "dataClasses": [
+            "sensitive"
+          ],
+          "observability": {
+            "correlation": "Request correlation excludes device_code and user_code.",
+            "audit": "No database audit row; approval is represented by Redis state and the eventual user_session.",
+            "metrics": "Count outcome codes only, never authorization values."
+          },
+          "errorSemantics": [
+            "Redis absence or failure returns service_unavailable without a code.",
+            "Generation failure leaves no partial Redis key pair."
+          ],
+          "requirementRefs": [
+            "REQ-002"
+          ],
+          "evidenceRefs": [
+            "E-USER-002",
+            "E-CLIENT-002",
+            "E-CODE-002"
+          ],
+          "status": "specified"
+        },
+        {
+          "id": "desktop-device-authorization-decision@v2",
+          "kind": "api",
+          "owner": "desktop-integration",
+          "consumers": [
+            "desktop-approval-page"
+          ],
+          "schemaLocator": "inline://contracts.json#/contracts/desktop-device-authorization-decision@v2",
+          "authorization": "Authenticated live browser user_session only; PAT credentials cannot approve a desktop device.",
+          "idempotency": "A repeated identical decision returns the existing status; a conflicting later decision is rejected.",
+          "compatibility": "V2 only; decision is a closed approve or deny enum.",
+          "inputSchema": {
+            "type": "object",
+            "description": "Human code and explicit browser decision.",
+            "properties": {
+              "user_code": {
+                "type": "string",
+                "description": "Human verification code.",
+                "pattern": "^[A-Za-z0-9-]{8,9}$"
+              },
+              "decision": {
+                "type": "string",
+                "description": "Explicit user decision.",
+                "enum": [
+                  "approve",
+                  "deny"
+                ]
+              }
+            },
+            "required": [
+              "user_code",
+              "decision"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object",
+            "description": "Recorded device authorization decision.",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "Decision recorded.",
+                "const": true
+              },
+              "data": {
+                "type": "object",
+                "description": "Non-secret decision status.",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "description": "Current authorization status.",
+                    "enum": [
+                      "approved",
+                      "denied"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          "dataClasses": [
+            "personal",
+            "sensitive"
+          ],
+          "observability": {
+            "correlation": "Existing authenticated request correlation applies without logging user_code.",
+            "audit": "The eventual user_session records desktop_device; denied and expired codes leave no database row.",
+            "metrics": "Count approved, denied and expired outcomes only."
+          },
+          "errorSemantics": [
+            "Unknown or expired codes return a closed error and do not create a session.",
+            "Conflicting decisions are rejected.",
+            "PAT-authenticated callers are forbidden."
+          ],
+          "requirementRefs": [
+            "REQ-002"
+          ],
+          "evidenceRefs": [
+            "E-USER-002",
+            "E-CLIENT-002",
+            "E-CODE-002"
+          ],
+          "status": "specified"
+        },
+        {
+          "id": "desktop-device-authorization-exchange@v2",
+          "kind": "api",
+          "owner": "desktop-integration",
+          "consumers": [
+            "desktop-client"
+          ],
+          "schemaLocator": "inline://contracts.json#/contracts/desktop-device-authorization-exchange@v2",
+          "authorization": "Anonymous POST authenticated by the high-entropy device_code; pending exchange is rate limited and successful exchange is one-time.",
+          "idempotency": "Pending polls are safe; one approved code can create at most one user_session. A lost successful response requires a new authorization rather than replaying a refresh secret.",
+          "compatibility": "V2 only; clients handle authorization_pending, slow_down, access_denied, expired_token and already_used codes.",
+          "inputSchema": {
+            "type": "object",
+            "description": "Opaque device code exchange.",
+            "properties": {
+              "device_code": {
+                "type": "string",
+                "description": "High-entropy device secret.",
+                "minLength": 32,
+                "maxLength": 128
+              }
+            },
+            "required": [
+              "device_code"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object",
+            "description": "Dedicated desktop access and refresh credentials.",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "Successful exchange.",
+                "const": true
+              },
+              "data": {
+                "type": "object",
+                "description": "One-time desktop credential response.",
+                "properties": {
+                  "access_token": {
+                    "type": "string",
+                    "description": "Short-lived bearer access token.",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "token_type": {
+                    "type": "string",
+                    "description": "Bearer token type.",
+                    "const": "Bearer"
+                  },
+                  "access_expires_at": {
+                    "type": "integer",
+                    "description": "Access expiry Unix seconds.",
+                    "minimum": 1
+                  },
+                  "refresh_token": {
+                    "type": "string",
+                    "description": "Rotating refresh secret stored only by the desktop credential vault.",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "refresh_expires_at": {
+                    "type": "integer",
+                    "description": "Absolute session expiry Unix seconds.",
+                    "minimum": 1
+                  },
+                  "session_id": {
+                    "type": "string",
+                    "description": "Revocable session identifier.",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "access_token",
+                  "token_type",
+                  "access_expires_at",
+                  "refresh_token",
+                  "refresh_expires_at",
+                  "session_id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          "dataClasses": [
+            "sensitive"
+          ],
+          "observability": {
+            "correlation": "Existing request correlation applies; credential values are excluded from logs.",
+            "audit": "Successful exchange creates the existing user_sessions row with login_method desktop_device.",
+            "metrics": "Count pending, slow-down, denied, expired, used and issued outcomes without values."
+          },
+          "errorSemantics": [
+            "Polling before approval returns authorization_pending.",
+            "Polling too quickly returns slow_down and a retry interval.",
+            "Denied, expired and consumed codes never issue credentials."
+          ],
+          "requirementRefs": [
+            "REQ-002"
+          ],
+          "evidenceRefs": [
+            "E-USER-002",
+            "E-CLIENT-002",
+            "E-CODE-002"
+          ],
+          "status": "specified"
+        },
+        {
+          "id": "desktop-session-refresh@v2",
+          "kind": "api",
+          "owner": "desktop-integration",
+          "consumers": [
+            "desktop-client"
+          ],
+          "schemaLocator": "inline://contracts.json#/contracts/desktop-session-refresh@v2",
+          "authorization": "Possession of the rotating desktop refresh token and matching session_id.",
+          "idempotency": "Existing user_sessions refresh rotation and bounded replay window apply.",
+          "compatibility": "V2 JSON transport reuses existing session semantics without cookies.",
+          "inputSchema": {
+            "type": "object",
+            "description": "Desktop refresh token rotation request.",
+            "properties": {
+              "refresh_token": {
+                "type": "string",
+                "description": "Current refresh token.",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "session_id": {
+                "type": "string",
+                "description": "Expected session identifier.",
+                "minLength": 1,
+                "maxLength": 128
+              }
+            },
+            "required": [
+              "refresh_token",
+              "session_id"
+            ],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object",
+            "description": "Rotated desktop credentials.",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "Successful rotation.",
+                "const": true
+              },
+              "data": {
+                "type": "object",
+                "description": "Replacement access and refresh credentials.",
+                "properties": {
+                  "access_token": {
+                    "type": "string",
+                    "description": "Replacement access token.",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "token_type": {
+                    "type": "string",
+                    "description": "Bearer token type.",
+                    "const": "Bearer"
+                  },
+                  "access_expires_at": {
+                    "type": "integer",
+                    "description": "Access expiry Unix seconds.",
+                    "minimum": 1
+                  },
+                  "refresh_token": {
+                    "type": "string",
+                    "description": "Replacement refresh token.",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "refresh_expires_at": {
+                    "type": "integer",
+                    "description": "Absolute session expiry Unix seconds.",
+                    "minimum": 1
+                  },
+                  "session_id": {
+                    "type": "string",
+                    "description": "Unchanged session identifier.",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "access_token",
+                  "token_type",
+                  "access_expires_at",
+                  "refresh_token",
+                  "refresh_expires_at",
+                  "session_id"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          "dataClasses": [
+            "sensitive"
+          ],
+          "observability": {
+            "correlation": "Existing authentication correlation applies without token logging.",
+            "audit": "Existing user_sessions last-active and rotation state remain authoritative.",
+            "metrics": "Existing auth outcome metrics apply without token values."
+          },
+          "errorSemantics": [
+            "Invalid, expired, revoked, mismatched or reused refresh tokens return the existing closed authentication error codes.",
+            "A failed rotation does not expose a replacement secret."
+          ],
+          "requirementRefs": [
+            "REQ-002"
+          ],
+          "evidenceRefs": [
+            "E-USER-002",
+            "E-CLIENT-002",
+            "E-CODE-002"
+          ],
+          "status": "specified"
+        },
+        {
+          "id": "desktop-session-revoke@v2",
+          "kind": "api",
+          "owner": "desktop-integration",
+          "consumers": [
+            "desktop-client"
+          ],
+          "schemaLocator": "inline://contracts.json#/contracts/desktop-session-revoke@v2",
+          "authorization": "A live desktop bearer access token backed by user_sessions; PAT credentials are rejected.",
+          "idempotency": "A session can be revoked once; later access is unauthorized.",
+          "compatibility": "V2 route reuses existing session revocation semantics and does not delete API tool keys.",
+          "inputSchema": {
+            "type": "object",
+            "description": "No request body.",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object",
+            "description": "Current desktop session revocation receipt.",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "Successful revocation.",
+                "const": true
+              },
+              "data": {
+                "type": "object",
+                "description": "Revoked session identifier.",
+                "properties": {
+                  "revoked_sid": {
+                    "type": "string",
+                    "description": "Revoked session identifier.",
+                    "minLength": 1,
+                    "maxLength": 128
+                  }
+                },
+                "required": [
+                  "revoked_sid"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          "dataClasses": [
+            "sensitive"
+          ],
+          "observability": {
+            "correlation": "Existing authenticated request correlation applies.",
+            "audit": "The existing user_sessions row records revoked state and reason desktop_logout.",
+            "metrics": "Existing auth outcome metrics apply."
+          },
+          "errorSemantics": [
+            "PAT or missing session credentials are forbidden.",
+            "Revocation never deletes or changes tool keys."
+          ],
+          "requirementRefs": [
+            "REQ-002"
+          ],
+          "evidenceRefs": [
+            "E-USER-002",
+            "E-CLIENT-002",
+            "E-CODE-002"
+          ],
+          "status": "specified"
+        }
+      ]
+    },
+    "pageMatrix": {
+      "schemaVersion": 1,
+      "stateProfiles": [],
+      "pages": []
+    },
+    "trackCoverage": {
+      "schemaVersion": 1,
+      "capabilities": []
+    },
+    "dataLifecycle": {
+      "schemaVersion": 1,
+      "resources": []
+    },
+    "aiScenarios": {
+      "schemaVersion": 1,
+      "scenarios": []
+    },
+    "entitlements": {
+      "schemaVersion": 1,
+      "capabilities": []
+    },
+    "nonFunctionalRequirements": {
+      "schemaVersion": 1,
+      "requirements": []
+    },
+    "workPackages": {
+      "schemaVersion": 1,
+      "packages": [
+        {
+          "id": "WP-DESKTOP-INTEGRATION-V2",
+          "wave": "producer",
+          "owner": "backend-api",
+          "riskClass": "high",
+          "objective": "Implement the versioned desktop v2 bootstrap, Redis-only browser-approved device authorization, JSON desktop refresh/logout adapters, and the authenticated browser approval surface while mapping all read and tool-key capabilities to existing NewAPI APIs.",
+          "deliverables": [
+            "Immutable v1 plus a closed v2 bootstrap with exact existing route mappings and fixed comparison rate 6.75.",
+            "Five-minute Redis-only device authorization with explicit live-browser approval, bounded polling and single session issuance.",
+            "Desktop JSON refresh and current-session revocation backed by existing user_sessions.",
+            "Authenticated browser approval page that displays the user code and client name and requires explicit approve or deny.",
+            "Contract, route, concurrency, replay, expiry, refresh, revocation and browser behavior tests."
+          ],
+          "requirementRefs": [
+            "REQ-002"
+          ],
+          "decisionRefs": [
+            "DEC-002"
+          ],
+          "blockingDecisionRefs": [],
+          "nonGoals": [
+            "No database schema, migration, duplicate account table, duplicate billing data, payment processing, deployment, Nginx or production configuration change.",
+            "No new tool-key table or desktop-specific read projections; v2 advertises the existing authenticated owners.",
+            "No client repository change in this server release unit."
+          ],
+          "dependsOn": [
+            "WP-DESKTOP-BOOTSTRAP-V1"
+          ],
+          "allowedPaths": [
+            "controller/desktop.go",
+            "controller/desktop_v2_test.go",
+            "service/desktop_device_authorization.go",
+            "service/desktop_device_authorization_test.go",
+            "router/api-router.go",
+            "router/desktop_v2_router_test.go",
+            "web/src/features/desktop-authorization/**",
+            "web/src/routes/_authenticated/desktop-authorize/**",
+            "web/src/routeTree.gen.ts",
+            "web/src/i18n/locales/**",
+            "docs/desktop-api-v2.md",
+            "docs/contracts/desktop-integration.v2.schema.json",
+            "tests/work_packages/desktop_v2/**"
+          ],
+          "forbiddenPaths": [
+            ".product-governance/**",
+            "model/**",
+            "bin/**",
+            "docker-compose.yml",
+            ".github/**",
+            "middleware/**",
+            "web/src/features/wallet/**"
+          ],
+          "migrationPolicy": {
+            "mode": "none",
+            "ownedPaths": [],
+            "dataBackfill": "No schema or customer-data migration. Pending authorization exists only in Redis for five minutes; successful sessions use the existing user_sessions table.",
+            "rollback": "Remove v2 routes and approval UI. Existing v1 and user_sessions remain valid; pending Redis keys expire naturally."
+          },
+          "compatibilityPolicy": {
+            "strategy": "Keep desktop bootstrap v1 byte-for-byte compatible and add an independent v2 contract with minimum desktop version 0.2.0.",
+            "supportedVersions": "desktop-bootstrap@v1 remains recognition-only; desktop integration v2 adds device authorization and session adapters while reusing existing authenticated APIs.",
+            "removalGate": "V1 removal or v2 semantic change requires a successor version and frozen release unit."
+          },
+          "inputContracts": [
+            "desktop-bootstrap@v1"
+          ],
+          "outputContracts": [
+            "desktop-bootstrap@v2",
+            "desktop-device-authorization-create@v2",
+            "desktop-device-authorization-decision@v2",
+            "desktop-device-authorization-exchange@v2",
+            "desktop-session-refresh@v2",
+            "desktop-session-revoke@v2"
+          ],
+          "acceptanceCommands": [
+            {
+              "id": "desktop-v2-contract",
+              "kind": "scenario_test",
+              "adapter": "pytest-json@1",
+              "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_contract_and_v1_compatibility",
+              "cwd": ".",
+              "timeoutSeconds": 600
+            },
+            {
+              "id": "desktop-v2-happy",
+              "kind": "scenario_test",
+              "adapter": "pytest-json@1",
+              "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_happy_path",
+              "cwd": ".",
+              "timeoutSeconds": 600
+            },
+            {
+              "id": "desktop-v2-failure",
+              "kind": "scenario_test",
+              "adapter": "pytest-json@1",
+              "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_failure_paths",
+              "cwd": ".",
+              "timeoutSeconds": 600
+            },
+            {
+              "id": "desktop-v2-replay",
+              "kind": "scenario_test",
+              "adapter": "pytest-json@1",
+              "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_replay_and_race",
+              "cwd": ".",
+              "timeoutSeconds": 600
+            },
+            {
+              "id": "desktop-v2-refresh",
+              "kind": "scenario_test",
+              "adapter": "pytest-json@1",
+              "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_refresh_revoke_and_recovery",
+              "cwd": ".",
+              "timeoutSeconds": 600
+            },
+            {
+              "id": "desktop-v2-web",
+              "kind": "scenario_test",
+              "adapter": "pytest-json@1",
+              "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_browser_approval_surface",
+              "cwd": ".",
+              "timeoutSeconds": 900
+            }
+          ],
+          "requiredAcceptanceScenarios": [
+            {
+              "id": "DESKTOP-V2-AS-01",
+              "assertion": "V1 stays exact while v2 advertises only implemented existing routes, fixed 6.75 and live Redis availability.",
+              "testSelector": "tests/work_packages/desktop_v2/test_acceptance.py::test_contract_and_v1_compatibility",
+              "acceptanceCommandId": "desktop-v2-contract"
+            },
+            {
+              "id": "DESKTOP-V2-AS-02",
+              "assertion": "A browser-approved unexpired device code issues one dedicated desktop user_session and no new table.",
+              "testSelector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_happy_path",
+              "acceptanceCommandId": "desktop-v2-happy"
+            },
+            {
+              "id": "DESKTOP-V2-AS-03",
+              "assertion": "Missing Redis, malformed codes, pending, slow-down, denied and expired states never issue credentials.",
+              "testSelector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_failure_paths",
+              "acceptanceCommandId": "desktop-v2-failure"
+            },
+            {
+              "id": "DESKTOP-V2-AS-04",
+              "assertion": "Concurrent exchange of one approved code creates at most one session and later replay is rejected.",
+              "testSelector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_replay_and_race",
+              "acceptanceCommandId": "desktop-v2-replay"
+            },
+            {
+              "id": "DESKTOP-V2-AS-05",
+              "assertion": "Desktop refresh rotates the secret and logout revokes only the current session while a failed refresh remains recoverable under existing semantics.",
+              "testSelector": "tests/work_packages/desktop_v2/test_acceptance.py::test_refresh_revoke_and_recovery",
+              "acceptanceCommandId": "desktop-v2-refresh"
+            },
+            {
+              "id": "DESKTOP-V2-AS-06",
+              "assertion": "The authenticated approval page shows code and client identity, requires explicit action and handles success, denial, expiry and API failure without exposing device_code.",
+              "testSelector": "tests/work_packages/desktop_v2/test_acceptance.py::test_browser_approval_surface",
+              "acceptanceCommandId": "desktop-v2-web"
+            }
+          ],
+          "verificationOnly": false,
+          "stopConditions": [
+            "Any implementation requires a database schema or migration.",
+            "Any credential would be placed in a URL, browser storage, log or response other than the one-time desktop exchange/refresh body.",
+            "A read or tool-key capability cannot be mapped to an existing authenticated API owner.",
+            "V1 compatibility changes or the approval flow can create more than one session per device code.",
+            "Deployment or production configuration becomes necessary."
+          ],
+          "status": "planned"
+        }
+      ]
+    }
+  }
+}

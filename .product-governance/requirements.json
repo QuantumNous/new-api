@@ -16,6 +16,24 @@
         "Unsupported methods do not mutate state and a subsequent valid GET still returns the recognized response.",
         "No database schema, migration, payment, deployment or existing API behavior changes in this release unit."
       ]
+    },
+    {
+      "id": "REQ-002",
+      "statement": "The server exposes a versioned desktop v2 integration that lets a desktop client obtain a dedicated revocable session through explicit first-party browser approval and then read truthful account, usage, available-model, pricing, billing-comparison and wallet-link projections without adding database schema or handling payment inside the desktop API.",
+      "scope": "target",
+      "impact": "critical",
+      "state": "confirmed",
+      "owner": "desktop-integration",
+      "evidenceRefs": ["E-USER-002", "E-CLIENT-002", "E-CODE-002"],
+      "acceptance": [
+        "The immutable v1 bootstrap remains unchanged while /api/desktop/v2/bootstrap advertises only implemented v2 capabilities and keeps tool_keys_manage false.",
+        "A device code is stored only in Redis for five minutes, must be approved by a live browser session, is polling-rate limited and can issue at most one desktop session.",
+        "Desktop refresh-token rotation and logout reuse existing user_sessions; refresh secrets are returned only to the desktop exchange/refresh caller and are never placed in a URL or log.",
+        "Authenticated read endpoints derive account, usage, models and pricing from the same existing owners used by the web dashboard and expose no prompt or response content.",
+        "Billing comparison uses the same consume-log cohort for site and reconstructed official cost, fixed USD/CNY 6.75, excludes non-comparable subscription records, and reports coverage instead of fabricating savings.",
+        "The wallet endpoint returns only the first-party /wallet/ URL and the desktop API does not accept payment details or payment callbacks.",
+        "No model, migration, database schema, deployment, Nginx or production configuration file changes belong to this release unit."
+      ]
     }
   ]
 }

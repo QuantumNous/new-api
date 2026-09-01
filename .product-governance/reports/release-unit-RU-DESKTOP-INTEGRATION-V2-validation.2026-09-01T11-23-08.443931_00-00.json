@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "validatedAt": "2026-09-01T11:23:08.493820+00:00",
+  "mode": "release_unit_freeze",
+  "valid": true,
+  "errorCount": 0,
+  "warningCount": 0,
+  "errors": [],
+  "warnings": [],
+  "decisionId": "DEC-002",
+  "baselineCommit": "764f19c70c246462186ff18cc34d51dfd660be28",
+  "releaseUnitId": "RU-DESKTOP-INTEGRATION-V2",
+  "releaseUnitHash": "sha256:17fac34dfadf4d7215fc5e093a44eebc5448744ec094872379694a98877a2fa7",
+  "deferredSnapshot": {
+    "schemaVersion": 1,
+    "catalogHash": "sha256:3d9558c619d74ae2ca09b5adf92e63c8291543026182789e288944cbb8038772",
+    "items": [
+      {
+        "subjectKind": "actors",
+        "subjectId": "*",
+        "message": "No product actors are defined"
+      },
+      {
+        "subjectKind": "aiScenarios",
+        "subjectId": "*",
+        "message": "No AI scenarios are defined"
+      },
+      {
+        "subjectKind": "dataLifecycleResources",
+        "subjectId": "*",
+        "message": "No data lifecycle resources are defined"
+      },
+      {
+        "subjectKind": "entitlements",
+        "subjectId": "*",
+        "message": "No entitlement capabilities are defined"
+      },
+      {
+        "subjectKind": "glossaryTerms",
+        "subjectId": "*",
+        "message": "No canonical glossary terms are defined"
+      },
+      {
+        "subjectKind": "journeys",
+        "subjectId": "*",
+        "message": "No end-to-end journeys are defined"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-accessibility",
+        "message": "High-impact non-functional requirement is unresolved: NFR-accessibility (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-ai_cost",
+        "message": "High-impact non-functional requirement is unresolved: NFR-ai_cost (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-ai_quality",
+        "message": "High-impact non-functional requirement is unresolved: NFR-ai_quality (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-backup_restore",
+        "message": "High-impact non-functional requirement is unresolved: NFR-backup_restore (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-capacity",
+        "message": "High-impact non-functional requirement is unresolved: NFR-capacity (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-commerce",
+        "message": "High-impact non-functional requirement is unresolved: NFR-commerce (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-migration",
+        "message": "High-impact non-functional requirement is unresolved: NFR-migration (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-observability",
+        "message": "High-impact non-functional requirement is unresolved: NFR-observability (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-operations",
+        "message": "High-impact non-functional requirement is unresolved: NFR-operations (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-performance",
+        "message": "High-impact non-functional requirement is unresolved: NFR-performance (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-privacy",
+        "message": "High-impact non-functional requirement is unresolved: NFR-privacy (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-reliability",
+        "message": "High-impact non-functional requirement is unresolved: NFR-reliability (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-security",
+        "message": "High-impact non-functional requirement is unresolved: NFR-security (unknown)"
+      },
+      {
+        "subjectKind": "pages",
+        "subjectId": "*",
+        "message": "No pages are defined"
+      },
+      {
+        "subjectKind": "stateMachines",
+        "subjectId": "*",
+        "message": "No canonical state machines are defined"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "ability_estimate::desktop-api",
+        "message": "Capability ability_estimate/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "attempt::desktop-api",
+        "message": "Capability attempt/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "evidence::desktop-api",
+        "message": "Capability evidence/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "global_ask::desktop-api",
+        "message": "Capability global_ask/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "mastery::desktop-api",
+        "message": "Capability mastery/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "planning::desktop-api",
+        "message": "Capability planning/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "reflection::desktop-api",
+        "message": "Capability reflection/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "report::desktop-api",
+        "message": "Capability report/desktop-api remains unknown"
+      }
+    ]
+  }
+}

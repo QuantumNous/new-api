@@ -124,6 +124,288 @@
       "requirementRefs": ["REQ-001"],
       "evidenceRefs": ["E-USER-001", "E-CLIENT-001", "E-CODE-001"],
       "status": "specified"
+    },
+    {
+      "id": "desktop-bootstrap@v2",
+      "kind": "query",
+      "owner": "desktop-integration",
+      "consumers": ["desktop-client"],
+      "schemaLocator": "inline://contracts.json#/contracts/desktop-bootstrap@v2",
+      "authorization": "Anonymous read-only GET. It grants no credential; it only advertises implemented routes and current Redis-dependent availability.",
+      "idempotency": "Read-only; equivalent requests return an equivalent capability and route declaration for the same server configuration.",
+      "compatibility": "V2 is additive beside immutable v1. Clients below minimum_client_version must not activate it.",
+      "inputSchema": {
+        "type": "object",
+        "description": "No body or query parameters are accepted.",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Desktop v2 capability and route declaration.",
+        "properties": {
+          "success": {"type": "boolean", "description": "Successful declaration.", "const": true},
+          "data": {
+            "type": "object",
+            "description": "Versioned desktop integration declaration.",
+            "properties": {
+              "schema_version": {"type": "integer", "description": "Schema version.", "const": 2},
+              "service": {"type": "string", "description": "Service identifier.", "const": "yeschoy-desktop"},
+              "contract_id": {"type": "string", "description": "Contract identifier.", "const": "desktop-integration-v2"},
+              "minimum_client_version": {"type": "string", "description": "Minimum compatible desktop version.", "const": "0.2.0"},
+              "device_authorization_available": {"type": "boolean", "description": "Whether Redis-backed device authorization is currently available."},
+              "account_read": {"type": "boolean", "description": "Existing authenticated account projection is available.", "const": true},
+              "usage_read": {"type": "boolean", "description": "Existing authenticated usage projections are available.", "const": true},
+              "models_read": {"type": "boolean", "description": "Existing account-scoped model projection is available.", "const": true},
+              "pricing_read": {"type": "boolean", "description": "Existing pricing projection is available.", "const": true},
+              "tool_keys_manage": {"type": "boolean", "description": "Existing authenticated token management is available.", "const": true},
+              "official_usd_cny_rate": {"type": "number", "description": "Fixed comparison exchange rate confirmed by the product owner.", "const": 6.75},
+              "authorization_start_path": {"type": "string", "description": "Device authorization start path.", "const": "/api/desktop/v2/device-authorizations"},
+              "authorization_token_path": {"type": "string", "description": "Device authorization exchange path.", "const": "/api/desktop/v2/device-authorizations/token"},
+              "session_refresh_path": {"type": "string", "description": "Desktop refresh path.", "const": "/api/desktop/v2/sessions/refresh"},
+              "session_logout_path": {"type": "string", "description": "Current desktop session revocation path.", "const": "/api/desktop/v2/sessions/current"},
+              "account_path": {"type": "string", "description": "Existing safe self-account path.", "const": "/api/user/self"},
+              "usage_summary_path": {"type": "string", "description": "Existing usage summary path.", "const": "/api/log/self/stat"},
+              "usage_records_path": {"type": "string", "description": "Existing usage record path.", "const": "/api/log/self"},
+              "models_path": {"type": "string", "description": "Existing account-scoped model path.", "const": "/api/user/models"},
+              "pricing_path": {"type": "string", "description": "Existing pricing path.", "const": "/api/pricing"},
+              "tool_keys_path": {"type": "string", "description": "Existing tool-key management path.", "const": "/api/token/"},
+              "wallet_url": {"type": "string", "description": "First-party browser wallet URL.", "minLength": 1, "maxLength": 2048}
+            },
+            "required": ["schema_version", "service", "contract_id", "minimum_client_version", "device_authorization_available", "account_read", "usage_read", "models_read", "pricing_read", "tool_keys_manage", "official_usd_cny_rate", "authorization_start_path", "authorization_token_path", "session_refresh_path", "session_logout_path", "account_path", "usage_summary_path", "usage_records_path", "models_path", "pricing_path", "tool_keys_path", "wallet_url"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["success", "data"],
+        "additionalProperties": false
+      },
+      "dataClasses": ["public"],
+      "observability": {
+        "correlation": "Existing HTTP request correlation applies; the response contains no user identifier.",
+        "audit": "No persistent audit record is created by this read-only declaration.",
+        "metrics": "Existing route metrics may count calls without recording secrets."
+      },
+      "errorSemantics": ["The route remains available when Redis is unavailable and declares device_authorization_available false.", "The v1 response is never mutated."],
+      "requirementRefs": ["REQ-002"],
+      "evidenceRefs": ["E-USER-002", "E-CLIENT-002", "E-CODE-002"],
+      "status": "specified"
+    },
+    {
+      "id": "desktop-device-authorization-create@v2",
+      "kind": "api",
+      "owner": "desktop-integration",
+      "consumers": ["desktop-client"],
+      "schemaLocator": "inline://contracts.json#/contracts/desktop-device-authorization-create@v2",
+      "authorization": "Anonymous POST with the existing anonymous body-size and rate-limit middleware; unavailable unless Redis is configured.",
+      "idempotency": "Each successful call creates a distinct five-minute authorization; retries create a new code and do not reuse prior codes.",
+      "compatibility": "V2 only; values are opaque and clients must honor expires_in and interval.",
+      "inputSchema": {
+        "type": "object",
+        "description": "Optional bounded desktop client display name.",
+        "properties": {"client_name": {"type": "string", "description": "Display name shown on the approval page.", "maxLength": 80}},
+        "required": [],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "New device authorization challenge.",
+        "properties": {
+          "success": {"type": "boolean", "description": "Successful creation.", "const": true},
+          "data": {
+            "type": "object",
+            "description": "Opaque device code and human verification data.",
+            "properties": {
+              "device_code": {"type": "string", "description": "High-entropy one-time device secret.", "minLength": 32, "maxLength": 128},
+              "user_code": {"type": "string", "description": "Human verification code.", "pattern": "^[A-Z0-9]{4}-[A-Z0-9]{4}$"},
+              "verification_uri": {"type": "string", "description": "First-party approval page.", "minLength": 1, "maxLength": 2048},
+              "verification_uri_complete": {"type": "string", "description": "First-party approval page with user code only.", "minLength": 1, "maxLength": 2048},
+              "expires_in": {"type": "integer", "description": "Lifetime in seconds.", "const": 300},
+              "interval": {"type": "integer", "description": "Minimum initial polling interval in seconds.", "const": 5}
+            },
+            "required": ["device_code", "user_code", "verification_uri", "verification_uri_complete", "expires_in", "interval"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["success", "data"],
+        "additionalProperties": false
+      },
+      "dataClasses": ["sensitive"],
+      "observability": {"correlation": "Request correlation excludes device_code and user_code.", "audit": "No database audit row; approval is represented by Redis state and the eventual user_session.", "metrics": "Count outcome codes only, never authorization values."},
+      "errorSemantics": ["Redis absence or failure returns service_unavailable without a code.", "Generation failure leaves no partial Redis key pair."],
+      "requirementRefs": ["REQ-002"],
+      "evidenceRefs": ["E-USER-002", "E-CLIENT-002", "E-CODE-002"],
+      "status": "specified"
+    },
+    {
+      "id": "desktop-device-authorization-decision@v2",
+      "kind": "api",
+      "owner": "desktop-integration",
+      "consumers": ["desktop-approval-page"],
+      "schemaLocator": "inline://contracts.json#/contracts/desktop-device-authorization-decision@v2",
+      "authorization": "Authenticated live browser user_session only; PAT credentials cannot approve a desktop device.",
+      "idempotency": "A repeated identical decision returns the existing status; a conflicting later decision is rejected.",
+      "compatibility": "V2 only; decision is a closed approve or deny enum.",
+      "inputSchema": {
+        "type": "object",
+        "description": "Human code and explicit browser decision.",
+        "properties": {
+          "user_code": {"type": "string", "description": "Human verification code.", "pattern": "^[A-Za-z0-9-]{8,9}$"},
+          "decision": {"type": "string", "description": "Explicit user decision.", "enum": ["approve", "deny"]}
+        },
+        "required": ["user_code", "decision"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Recorded device authorization decision.",
+        "properties": {
+          "success": {"type": "boolean", "description": "Decision recorded.", "const": true},
+          "data": {
+            "type": "object",
+            "description": "Non-secret decision status.",
+            "properties": {"status": {"type": "string", "description": "Current authorization status.", "enum": ["approved", "denied"]}},
+            "required": ["status"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["success", "data"],
+        "additionalProperties": false
+      },
+      "dataClasses": ["personal", "sensitive"],
+      "observability": {"correlation": "Existing authenticated request correlation applies without logging user_code.", "audit": "The eventual user_session records desktop_device; denied and expired codes leave no database row.", "metrics": "Count approved, denied and expired outcomes only."},
+      "errorSemantics": ["Unknown or expired codes return a closed error and do not create a session.", "Conflicting decisions are rejected.", "PAT-authenticated callers are forbidden."],
+      "requirementRefs": ["REQ-002"],
+      "evidenceRefs": ["E-USER-002", "E-CLIENT-002", "E-CODE-002"],
+      "status": "specified"
+    },
+    {
+      "id": "desktop-device-authorization-exchange@v2",
+      "kind": "api",
+      "owner": "desktop-integration",
+      "consumers": ["desktop-client"],
+      "schemaLocator": "inline://contracts.json#/contracts/desktop-device-authorization-exchange@v2",
+      "authorization": "Anonymous POST authenticated by the high-entropy device_code; pending exchange is rate limited and successful exchange is one-time.",
+      "idempotency": "Pending polls are safe; one approved code can create at most one user_session. A lost successful response requires a new authorization rather than replaying a refresh secret.",
+      "compatibility": "V2 only; clients handle authorization_pending, slow_down, access_denied, expired_token and already_used codes.",
+      "inputSchema": {
+        "type": "object",
+        "description": "Opaque device code exchange.",
+        "properties": {"device_code": {"type": "string", "description": "High-entropy device secret.", "minLength": 32, "maxLength": 128}},
+        "required": ["device_code"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Dedicated desktop access and refresh credentials.",
+        "properties": {
+          "success": {"type": "boolean", "description": "Successful exchange.", "const": true},
+          "data": {
+            "type": "object",
+            "description": "One-time desktop credential response.",
+            "properties": {
+              "access_token": {"type": "string", "description": "Short-lived bearer access token.", "minLength": 1, "maxLength": 4096},
+              "token_type": {"type": "string", "description": "Bearer token type.", "const": "Bearer"},
+              "access_expires_at": {"type": "integer", "description": "Access expiry Unix seconds.", "minimum": 1},
+              "refresh_token": {"type": "string", "description": "Rotating refresh secret stored only by the desktop credential vault.", "minLength": 1, "maxLength": 4096},
+              "refresh_expires_at": {"type": "integer", "description": "Absolute session expiry Unix seconds.", "minimum": 1},
+              "session_id": {"type": "string", "description": "Revocable session identifier.", "minLength": 1, "maxLength": 128}
+            },
+            "required": ["access_token", "token_type", "access_expires_at", "refresh_token", "refresh_expires_at", "session_id"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["success", "data"],
+        "additionalProperties": false
+      },
+      "dataClasses": ["sensitive"],
+      "observability": {"correlation": "Existing request correlation applies; credential values are excluded from logs.", "audit": "Successful exchange creates the existing user_sessions row with login_method desktop_device.", "metrics": "Count pending, slow-down, denied, expired, used and issued outcomes without values."},
+      "errorSemantics": ["Polling before approval returns authorization_pending.", "Polling too quickly returns slow_down and a retry interval.", "Denied, expired and consumed codes never issue credentials."],
+      "requirementRefs": ["REQ-002"],
+      "evidenceRefs": ["E-USER-002", "E-CLIENT-002", "E-CODE-002"],
+      "status": "specified"
+    },
+    {
+      "id": "desktop-session-refresh@v2",
+      "kind": "api",
+      "owner": "desktop-integration",
+      "consumers": ["desktop-client"],
+      "schemaLocator": "inline://contracts.json#/contracts/desktop-session-refresh@v2",
+      "authorization": "Possession of the rotating desktop refresh token and matching session_id.",
+      "idempotency": "Existing user_sessions refresh rotation and bounded replay window apply.",
+      "compatibility": "V2 JSON transport reuses existing session semantics without cookies.",
+      "inputSchema": {
+        "type": "object",
+        "description": "Desktop refresh token rotation request.",
+        "properties": {
+          "refresh_token": {"type": "string", "description": "Current refresh token.", "minLength": 1, "maxLength": 4096},
+          "session_id": {"type": "string", "description": "Expected session identifier.", "minLength": 1, "maxLength": 128}
+        },
+        "required": ["refresh_token", "session_id"],
+        "additionalProperties": false
+      },
+      "outputSchema": {
+        "type": "object",
+        "description": "Rotated desktop credentials.",
+        "properties": {
+          "success": {"type": "boolean", "description": "Successful rotation.", "const": true},
+          "data": {
+            "type": "object",
+            "description": "Replacement access and refresh credentials.",
+            "properties": {
+              "access_token": {"type": "string", "description": "Replacement access token.", "minLength": 1, "maxLength": 4096},
+              "token_type": {"type": "string", "description": "Bearer token type.", "const": "Bearer"},
+              "access_expires_at": {"type": "integer", "description": "Access expiry Unix seconds.", "minimum": 1},
+              "refresh_token": {"type": "string", "description": "Replacement refresh token.", "minLength": 1, "maxLength": 4096},
+              "refresh_expires_at": {"type": "integer", "description": "Absolute session expiry Unix seconds.", "minimum": 1},
+              "session_id": {"type": "string", "description": "Unchanged session identifier.", "minLength": 1, "maxLength": 128}
+            },
+            "required": ["access_token", "token_type", "access_expires_at", "refresh_token", "refresh_expires_at", "session_id"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["success", "data"],
+        "additionalProperties": false
+      },
+      "dataClasses": ["sensitive"],
+      "observability": {"correlation": "Existing authentication correlation applies without token logging.", "audit": "Existing user_sessions last-active and rotation state remain authoritative.", "metrics": "Existing auth outcome metrics apply without token values."},
+      "errorSemantics": ["Invalid, expired, revoked, mismatched or reused refresh tokens return the existing closed authentication error codes.", "A failed rotation does not expose a replacement secret."],
+      "requirementRefs": ["REQ-002"],
+      "evidenceRefs": ["E-USER-002", "E-CLIENT-002", "E-CODE-002"],
+      "status": "specified"
+    },
+    {
+      "id": "desktop-session-revoke@v2",
+      "kind": "api",
+      "owner": "desktop-integration",
+      "consumers": ["desktop-client"],
+      "schemaLocator": "inline://contracts.json#/contracts/desktop-session-revoke@v2",
+      "authorization": "A live desktop bearer access token backed by user_sessions; PAT credentials are rejected.",
+      "idempotency": "A session can be revoked once; later access is unauthorized.",
+      "compatibility": "V2 route reuses existing session revocation semantics and does not delete API tool keys.",
+      "inputSchema": {"type": "object", "description": "No request body.", "properties": {}, "required": [], "additionalProperties": false},
+      "outputSchema": {
+        "type": "object",
+        "description": "Current desktop session revocation receipt.",
+        "properties": {
+          "success": {"type": "boolean", "description": "Successful revocation.", "const": true},
+          "data": {
+            "type": "object",
+            "description": "Revoked session identifier.",
+            "properties": {"revoked_sid": {"type": "string", "description": "Revoked session identifier.", "minLength": 1, "maxLength": 128}},
+            "required": ["revoked_sid"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["success", "data"],
+        "additionalProperties": false
+      },
+      "dataClasses": ["sensitive"],
+      "observability": {"correlation": "Existing authenticated request correlation applies.", "audit": "The existing user_sessions row records revoked state and reason desktop_logout.", "metrics": "Existing auth outcome metrics apply."},
+      "errorSemantics": ["PAT or missing session credentials are forbidden.", "Revocation never deletes or changes tool keys."],
+      "requirementRefs": ["REQ-002"],
+      "evidenceRefs": ["E-USER-002", "E-CLIENT-002", "E-CODE-002"],
+      "status": "specified"
     }
   ]
 }
