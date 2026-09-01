@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "packages": [
+    {
+      "id": "WP-DESKTOP-BOOTSTRAP-V1",
+      "wave": "producer",
+      "owner": "backend-api",
+      "riskClass": "medium",
+      "objective": "Implement and document the anonymous desktop bootstrap v1 handshake without adding any future desktop capability or database behavior.",
+      "deliverables": [
+        "Exact anonymous GET response matching desktop-bootstrap@v1.",
+        "Closed JSON Schema, recognized fixture and integration handoff documentation.",
+        "Deterministic route tests for exact response, unsupported method, replay, version pinning, concurrency and recovery."
+      ],
+      "requirementRefs": ["REQ-001"],
+      "decisionRefs": ["DEC-001"],
+      "blockingDecisionRefs": [],
+      "nonGoals": [
+        "No device authorization, account, balance, usage, pricing projection, tool-key, payment, database, migration, deployment or client-source change."
+      ],
+      "dependsOn": [],
+      "allowedPaths": [
+        "controller/desktop.go",
+        "router/api-router.go",
+        "router/desktop_router_test.go",
+        "docs/desktop-api-v1.md",
+        "docs/contracts/desktop-bootstrap.v1.schema.json",
+        "docs/contracts/fixtures/desktop-bootstrap/**",
+        "tests/work_packages/desktop_bootstrap/**"
+      ],
+      "forbiddenPaths": [
+        ".product-governance/**",
+        "model/**",
+        "service/**",
+        "middleware/**",
+        "web/**",
+        "bin/**",
+        "docker-compose.yml"
+      ],
+      "migrationPolicy": {
+        "mode": "none",
+        "ownedPaths": [],
+        "dataBackfill": "No schema, database or customer-data migration belongs to this package.",
+        "rollback": "Revert only the owned route, handler, tests and documentation; no data recovery is required."
+      },
+      "compatibilityPolicy": {
+        "strategy": "Add one versioned anonymous route without changing existing routes. Keep v1 closed and capability flags false.",
+        "supportedVersions": "desktop-bootstrap@v1 with minimum client version 0.1.0 only.",
+        "removalGate": "Removal or semantic expansion requires a superseding decision, versioned contract and new frozen release unit."
+      },
+      "inputContracts": [],
+      "outputContracts": ["desktop-bootstrap@v1"],
+      "acceptanceCommands": [
+        {"id": "bootstrap-happy", "kind": "scenario_test", "adapter": "pytest-json@1", "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path", "cwd": ".", "timeoutSeconds": 300},
+        {"id": "bootstrap-failure", "kind": "scenario_test", "adapter": "pytest-json@1", "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method", "cwd": ".", "timeoutSeconds": 300},
+        {"id": "bootstrap-replay", "kind": "scenario_test", "adapter": "pytest-json@1", "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay", "cwd": ".", "timeoutSeconds": 300},
+        {"id": "bootstrap-stale-version", "kind": "scenario_test", "adapter": "pytest-json@1", "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed", "cwd": ".", "timeoutSeconds": 300},
+        {"id": "bootstrap-race", "kind": "scenario_test", "adapter": "pytest-json@1", "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads", "cwd": ".", "timeoutSeconds": 300},
+        {"id": "bootstrap-recovery", "kind": "scenario_test", "adapter": "pytest-json@1", "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method", "cwd": ".", "timeoutSeconds": 300}
+      ],
+      "requiredAcceptanceScenarios": [
+        {"id": "BOOTSTRAP-AS-01", "assertion": "Anonymous GET returns the exact closed v1 JSON response and content type.", "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path", "acceptanceCommandId": "bootstrap-happy"},
+        {"id": "BOOTSTRAP-AS-02", "assertion": "An unsupported method does not expose the handshake or mutate state.", "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method", "acceptanceCommandId": "bootstrap-failure"},
+        {"id": "BOOTSTRAP-AS-03", "assertion": "Repeated reads return an equivalent declaration with every capability false.", "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay", "acceptanceCommandId": "bootstrap-replay"},
+        {"id": "BOOTSTRAP-AS-04", "assertion": "Schema version, contract ID and minimum client version remain pinned to the closed v1 contract.", "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed", "acceptanceCommandId": "bootstrap-stale-version"},
+        {"id": "BOOTSTRAP-AS-05", "assertion": "Concurrent anonymous reads remain equivalent and side-effect free.", "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads", "acceptanceCommandId": "bootstrap-race"},
+        {"id": "BOOTSTRAP-AS-06", "assertion": "A valid GET succeeds after an unsupported method without manual recovery or state repair.", "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method", "acceptanceCommandId": "bootstrap-recovery"}
+      ],
+      "verificationOnly": false,
+      "stopConditions": [
+        "The client schema differs from the frozen observed contract.",
+        "Any capability would need to become true.",
+        "Any change requires authentication, database, migration, payment, deployment or a path outside allowedPaths."
+      ],
+      "status": "planned"
+    }
+  ]
+}

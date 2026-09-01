@@ -1,0 +1,28 @@
+{
+  "scenarioId": "BOOTSTRAP-AS-03",
+  "assertion": "Repeated reads return an equivalent declaration with every capability false.",
+  "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay",
+  "acceptanceCommandId": "bootstrap-replay",
+  "runId": "RU-DESKTOP-BOOTSTRAP-V1/WP-DESKTOP-BOOTSTRAP-V1@2026-09-01T10:39:44.514019+00:00",
+  "packageId": "WP-DESKTOP-BOOTSTRAP-V1",
+  "evidenceOwner": "govern-product-build/verifier",
+  "passed": true,
+  "runnerProof": {
+    "schemaVersion": 1,
+    "adapter": "pytest-json@1",
+    "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay",
+    "cwd": ".",
+    "executedPassingTests": 1,
+    "actualExitCode": 0,
+    "runnerMetadataSha256": "sha256:61614151f174148bab5ac9e1949d44fde1868421566b9b3ea25bb68f1423b1b3",
+    "machineReportSha256": "sha256:05593c14167e977d858f081219efbc708f84e53a286b29f99dcc3ee93aa579a1",
+    "isolation": {
+      "adapter": "darwin-sandbox-exec-readonly-source@1",
+      "policySha256": "sha256:ba223843b9a3d3904c14c600263136925c85023df1273bcafce7176029731836",
+      "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+    }
+  },
+  "commandResultHash": "sha256:6509e6604737ee0078118fecb2a282f333b02df3c4a11809c7d238fc4dffed0e",
+  "releaseUnitId": "RU-DESKTOP-BOOTSTRAP-V1",
+  "releaseUnitHash": "sha256:9e766b68a98a58ef945fbce9c30bcfe344dbda0f3bd374b9d033451f3e446dc4"
+}

@@ -1,0 +1,853 @@
+{
+  "schemaVersion": 3,
+  "runId": "RU-DESKTOP-BOOTSTRAP-V1/WP-DESKTOP-BOOTSTRAP-V1@2026-09-01T10:39:44.514019+00:00",
+  "packageId": "WP-DESKTOP-BOOTSTRAP-V1",
+  "baselineCommit": "33926b6c2b59dc8a7b8ad26618832e154d4cace5",
+  "baselineTreeHash": "sha256:fe4e93b11d6ccdc1a66bea694f2c337e46ca542d8db80854b55a3e6aaddbd7ed",
+  "testedTreeHash": "sha256:ae0106fceb43e015fb63820cb5a76a55c48b762952c4433a1340ff6e5fde3fbc",
+  "testedSnapshotPath": "execution/tested-snapshots/029fa8ea8b43230e.e6082863c1f7b11a1e18.json",
+  "testedSnapshotSha256": "sha256:4f3772be9a0243a7d266ad1548a527f33b4e203fea081e55fc755511fc149c7a",
+  "sourceDiff": {
+    "controller/desktop.go": "sha256:2a4d300f2e03688147a8c64efd66b3439eea52e8ed5351b220037f90fa0db398",
+    "docs/contracts/desktop-bootstrap.v1.schema.json": "sha256:7bd7308d113ab7c0cae904798b00bc699655bc67bc11b6322f655cc1ddd70fbe",
+    "docs/contracts/fixtures/desktop-bootstrap/incompatible.json": "sha256:101d8cee9993247c30cf6540ebc78e56986aa094f81990d6584641cd252e7625",
+    "docs/contracts/fixtures/desktop-bootstrap/recognized.json": "sha256:8850a70562f6ae3a66bbceab246749a954a3736e209e0022077ba3f037948a04",
+    "docs/desktop-api-v1.md": "sha256:6b79759b70984d10f728718a4a119184f9267f2d26be4f10cd84634795b7fed6",
+    "router/api-router.go": "sha256:4b3cad3103e9ab8fcdd4cef2a46e0676e2fe639ef52b6fdd737871fc7bf0446f",
+    "router/desktop_router_test.go": "sha256:60eebba4c51327b2dc9314667e7862b6f2afd5f02c958a02a0804ee393ccee90",
+    "tests/work_packages/desktop_bootstrap/test_acceptance.py": "sha256:55bb5ff8dababbec84aaf999f7ebaeedf0ae05f2de9c4d657c445078a085b6d2"
+  },
+  "ownedResultHashes": {
+    "controller/desktop.go": "sha256:2a4d300f2e03688147a8c64efd66b3439eea52e8ed5351b220037f90fa0db398",
+    "docs/contracts/desktop-bootstrap.v1.schema.json": "sha256:7bd7308d113ab7c0cae904798b00bc699655bc67bc11b6322f655cc1ddd70fbe",
+    "docs/contracts/fixtures/desktop-bootstrap/incompatible.json": "sha256:101d8cee9993247c30cf6540ebc78e56986aa094f81990d6584641cd252e7625",
+    "docs/contracts/fixtures/desktop-bootstrap/recognized.json": "sha256:8850a70562f6ae3a66bbceab246749a954a3736e209e0022077ba3f037948a04",
+    "docs/desktop-api-v1.md": "sha256:6b79759b70984d10f728718a4a119184f9267f2d26be4f10cd84634795b7fed6",
+    "router/api-router.go": "sha256:4b3cad3103e9ab8fcdd4cef2a46e0676e2fe639ef52b6fdd737871fc7bf0446f",
+    "router/desktop_router_test.go": "sha256:60eebba4c51327b2dc9314667e7862b6f2afd5f02c958a02a0804ee393ccee90",
+    "tests/work_packages/desktop_bootstrap/test_acceptance.py": "sha256:55bb5ff8dababbec84aaf999f7ebaeedf0ae05f2de9c4d657c445078a085b6d2"
+  },
+  "testedOwnedState": {
+    "schemaVersion": 1,
+    "selectionPolicy": "allowed-source-files-and-symlinks@1",
+    "allowedPaths": [
+      "controller/desktop.go",
+      "router/api-router.go",
+      "router/desktop_router_test.go",
+      "docs/desktop-api-v1.md",
+      "docs/contracts/desktop-bootstrap.v1.schema.json",
+      "docs/contracts/fixtures/desktop-bootstrap/**",
+      "tests/work_packages/desktop_bootstrap/**"
+    ],
+    "excludedClasses": [
+      "governance_execution_runtime",
+      "directories_and_git_submodules",
+      "devices_sockets_and_fifos",
+      "transient_missing_entries"
+    ],
+    "pathHashes": {
+      "controller/desktop.go": "sha256:2a4d300f2e03688147a8c64efd66b3439eea52e8ed5351b220037f90fa0db398",
+      "docs/contracts/desktop-bootstrap.v1.schema.json": "sha256:7bd7308d113ab7c0cae904798b00bc699655bc67bc11b6322f655cc1ddd70fbe",
+      "docs/contracts/fixtures/desktop-bootstrap/incompatible.json": "sha256:101d8cee9993247c30cf6540ebc78e56986aa094f81990d6584641cd252e7625",
+      "docs/contracts/fixtures/desktop-bootstrap/recognized.json": "sha256:8850a70562f6ae3a66bbceab246749a954a3736e209e0022077ba3f037948a04",
+      "docs/desktop-api-v1.md": "sha256:6b79759b70984d10f728718a4a119184f9267f2d26be4f10cd84634795b7fed6",
+      "router/api-router.go": "sha256:4b3cad3103e9ab8fcdd4cef2a46e0676e2fe639ef52b6fdd737871fc7bf0446f",
+      "router/desktop_router_test.go": "sha256:60eebba4c51327b2dc9314667e7862b6f2afd5f02c958a02a0804ee393ccee90",
+      "tests/work_packages/desktop_bootstrap/test_acceptance.py": "sha256:55bb5ff8dababbec84aaf999f7ebaeedf0ae05f2de9c4d657c445078a085b6d2"
+    }
+  },
+  "testedOwnedStateSha256": "sha256:54647f0aeea64bbc62f00cbee8ea7b195c0fca4b185670ae1a5baa70e5a66f53",
+  "sourceScopeFailures": [],
+  "integrityFailures": [],
+  "assignedTo": "/root",
+  "startedAt": "2026-09-01T10:39:44.514019+00:00",
+  "finishedAt": "2026-09-01T10:47:51.556074+00:00",
+  "passed": true,
+  "commands": [
+    {
+      "schemaVersion": 1,
+      "declaredCommand": {
+        "id": "bootstrap-happy",
+        "kind": "scenario_test",
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path",
+        "cwd": ".",
+        "timeoutSeconds": 300
+      },
+      "runnerMetadata": {
+        "adapter": "pytest-json@1",
+        "declaredCwd": ".",
+        "cwd": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path",
+        "selectorRealpath": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/tests/work_packages/desktop_bootstrap/test_acceptance.py",
+        "runnerArgv": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path",
+          "--report",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-icj_z30y/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-icj_z30y/pytest-basetemp"
+        ],
+        "sandboxedArgv": [
+          "/usr/bin/sandbox-exec",
+          "-p",
+          "(version 1)\n(allow default)\n(deny file-write*\n  (require-not\n    (require-any\n      (subpath \"/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-icj_z30y\")\n      (literal \"/dev/null\"))))\n",
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path",
+          "--report",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-icj_z30y/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-icj_z30y/pytest-basetemp"
+        ],
+        "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "pythonRealpath": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+        "pythonExecutableSha256": "sha256:6b24be8ba00c4abc8b3e7e2620bd710e2cf7a4312d00c147f8f05fbb6f3d297a",
+        "pytestVersion": "8.4.2",
+        "pytestDistributionVersion": "8.4.2",
+        "pytestModulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+        "pytestModuleSha256": "sha256:66993a5e3905005e0981159b4794d10b1adacf341a58a44d696ad2c4442dcdc6",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "executable": "/usr/bin/sandbox-exec",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea",
+          "policySha256": "sha256:fbb4462f89fc21818809162f347dcc7d24b3469b64374182211f8dc518124d24",
+          "projectRoot": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+          "writableRoot": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-icj_z30y",
+          "policyVersion": 1
+        }
+      },
+      "machineReport": {
+        "adapter": "pytest-json@1",
+        "collectedNodeIds": [
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path"
+        ],
+        "collectionErrors": [],
+        "deselectedNodeIds": [],
+        "pytestExitCode": 0,
+        "pytestRootPath": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+        "runner": {
+          "distributionVersion": "8.4.2",
+          "modulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+          "moduleVersion": "8.4.2",
+          "name": "pytest",
+          "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "pythonVersion": "3.9.6"
+        },
+        "schemaVersion": 1,
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path",
+        "tests": [
+          {
+            "nodeId": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path",
+            "phases": {
+              "call": {
+                "outcome": "passed"
+              },
+              "setup": {
+                "outcome": "passed"
+              },
+              "teardown": {
+                "outcome": "passed"
+              }
+            }
+          }
+        ]
+      },
+      "process": {
+        "actualExitCode": 0,
+        "timedOut": false,
+        "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0\nrootdir: /Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71\nplugins: anyio-4.12.1\ncollected 1 item\n\ntests/work_packages/desktop_bootstrap/test_acceptance.py .               [100%]\n\n============================== 1 passed in 5.16s ===============================\n",
+        "stderr": ""
+      },
+      "validationErrors": [],
+      "runnerProof": {
+        "schemaVersion": 1,
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path",
+        "cwd": ".",
+        "executedPassingTests": 1,
+        "actualExitCode": 0,
+        "runnerMetadataSha256": "sha256:9d34f50c8153c1cb24c17e0a86348205946b4d2c128f5799a87df7d10b2d97d4",
+        "machineReportSha256": "sha256:fa5a6c75ae436264596130c8f6d201a6923d3a4af7914ca1733f51bfd2f88655",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "policySha256": "sha256:fbb4462f89fc21818809162f347dcc7d24b3469b64374182211f8dc518124d24",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+        }
+      },
+      "passed": true,
+      "id": "bootstrap-happy",
+      "kind": "scenario_test",
+      "actualExitCode": 0,
+      "timedOut": false,
+      "scenarioId": "BOOTSTRAP-AS-01"
+    },
+    {
+      "schemaVersion": 1,
+      "declaredCommand": {
+        "id": "bootstrap-failure",
+        "kind": "scenario_test",
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method",
+        "cwd": ".",
+        "timeoutSeconds": 300
+      },
+      "runnerMetadata": {
+        "adapter": "pytest-json@1",
+        "declaredCwd": ".",
+        "cwd": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method",
+        "selectorRealpath": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/tests/work_packages/desktop_bootstrap/test_acceptance.py",
+        "runnerArgv": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method",
+          "--report",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-cjhme5mx/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-cjhme5mx/pytest-basetemp"
+        ],
+        "sandboxedArgv": [
+          "/usr/bin/sandbox-exec",
+          "-p",
+          "(version 1)\n(allow default)\n(deny file-write*\n  (require-not\n    (require-any\n      (subpath \"/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-cjhme5mx\")\n      (literal \"/dev/null\"))))\n",
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method",
+          "--report",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-cjhme5mx/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-cjhme5mx/pytest-basetemp"
+        ],
+        "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "pythonRealpath": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+        "pythonExecutableSha256": "sha256:6b24be8ba00c4abc8b3e7e2620bd710e2cf7a4312d00c147f8f05fbb6f3d297a",
+        "pytestVersion": "8.4.2",
+        "pytestDistributionVersion": "8.4.2",
+        "pytestModulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+        "pytestModuleSha256": "sha256:66993a5e3905005e0981159b4794d10b1adacf341a58a44d696ad2c4442dcdc6",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "executable": "/usr/bin/sandbox-exec",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea",
+          "policySha256": "sha256:57707f0e59b24c60c728cb11316abd9a499ab06068c72e508e193c20cba0d462",
+          "projectRoot": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+          "writableRoot": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-cjhme5mx",
+          "policyVersion": 1
+        }
+      },
+      "machineReport": {
+        "adapter": "pytest-json@1",
+        "collectedNodeIds": [
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method"
+        ],
+        "collectionErrors": [],
+        "deselectedNodeIds": [],
+        "pytestExitCode": 0,
+        "pytestRootPath": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+        "runner": {
+          "distributionVersion": "8.4.2",
+          "modulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+          "moduleVersion": "8.4.2",
+          "name": "pytest",
+          "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "pythonVersion": "3.9.6"
+        },
+        "schemaVersion": 1,
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method",
+        "tests": [
+          {
+            "nodeId": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method",
+            "phases": {
+              "call": {
+                "outcome": "passed"
+              },
+              "setup": {
+                "outcome": "passed"
+              },
+              "teardown": {
+                "outcome": "passed"
+              }
+            }
+          }
+        ]
+      },
+      "process": {
+        "actualExitCode": 0,
+        "timedOut": false,
+        "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0\nrootdir: /Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71\nplugins: anyio-4.12.1\ncollected 1 item\n\ntests/work_packages/desktop_bootstrap/test_acceptance.py .               [100%]\n\n============================== 1 passed in 5.13s ===============================\n",
+        "stderr": ""
+      },
+      "validationErrors": [],
+      "runnerProof": {
+        "schemaVersion": 1,
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method",
+        "cwd": ".",
+        "executedPassingTests": 1,
+        "actualExitCode": 0,
+        "runnerMetadataSha256": "sha256:00c158e5aec3810220eca0f9a1ec4ef8d0b472238ecd16179595349e303c6310",
+        "machineReportSha256": "sha256:abd2ca40baee27fcc5854005b27e97c73ed66110cdf18c8eb4a84766ae50c30c",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "policySha256": "sha256:57707f0e59b24c60c728cb11316abd9a499ab06068c72e508e193c20cba0d462",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+        }
+      },
+      "passed": true,
+      "id": "bootstrap-failure",
+      "kind": "scenario_test",
+      "actualExitCode": 0,
+      "timedOut": false,
+      "scenarioId": "BOOTSTRAP-AS-02"
+    },
+    {
+      "schemaVersion": 1,
+      "declaredCommand": {
+        "id": "bootstrap-replay",
+        "kind": "scenario_test",
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay",
+        "cwd": ".",
+        "timeoutSeconds": 300
+      },
+      "runnerMetadata": {
+        "adapter": "pytest-json@1",
+        "declaredCwd": ".",
+        "cwd": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay",
+        "selectorRealpath": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/tests/work_packages/desktop_bootstrap/test_acceptance.py",
+        "runnerArgv": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay",
+          "--report",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-s3wsroob/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-s3wsroob/pytest-basetemp"
+        ],
+        "sandboxedArgv": [
+          "/usr/bin/sandbox-exec",
+          "-p",
+          "(version 1)\n(allow default)\n(deny file-write*\n  (require-not\n    (require-any\n      (subpath \"/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-s3wsroob\")\n      (literal \"/dev/null\"))))\n",
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay",
+          "--report",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-s3wsroob/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-s3wsroob/pytest-basetemp"
+        ],
+        "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "pythonRealpath": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+        "pythonExecutableSha256": "sha256:6b24be8ba00c4abc8b3e7e2620bd710e2cf7a4312d00c147f8f05fbb6f3d297a",
+        "pytestVersion": "8.4.2",
+        "pytestDistributionVersion": "8.4.2",
+        "pytestModulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+        "pytestModuleSha256": "sha256:66993a5e3905005e0981159b4794d10b1adacf341a58a44d696ad2c4442dcdc6",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "executable": "/usr/bin/sandbox-exec",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea",
+          "policySha256": "sha256:ba223843b9a3d3904c14c600263136925c85023df1273bcafce7176029731836",
+          "projectRoot": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+          "writableRoot": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-s3wsroob",
+          "policyVersion": 1
+        }
+      },
+      "machineReport": {
+        "adapter": "pytest-json@1",
+        "collectedNodeIds": [
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay"
+        ],
+        "collectionErrors": [],
+        "deselectedNodeIds": [],
+        "pytestExitCode": 0,
+        "pytestRootPath": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+        "runner": {
+          "distributionVersion": "8.4.2",
+          "modulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+          "moduleVersion": "8.4.2",
+          "name": "pytest",
+          "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "pythonVersion": "3.9.6"
+        },
+        "schemaVersion": 1,
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay",
+        "tests": [
+          {
+            "nodeId": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay",
+            "phases": {
+              "call": {
+                "outcome": "passed"
+              },
+              "setup": {
+                "outcome": "passed"
+              },
+              "teardown": {
+                "outcome": "passed"
+              }
+            }
+          }
+        ]
+      },
+      "process": {
+        "actualExitCode": 0,
+        "timedOut": false,
+        "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0\nrootdir: /Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71\nplugins: anyio-4.12.1\ncollected 1 item\n\ntests/work_packages/desktop_bootstrap/test_acceptance.py .               [100%]\n\n============================== 1 passed in 5.15s ===============================\n",
+        "stderr": ""
+      },
+      "validationErrors": [],
+      "runnerProof": {
+        "schemaVersion": 1,
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay",
+        "cwd": ".",
+        "executedPassingTests": 1,
+        "actualExitCode": 0,
+        "runnerMetadataSha256": "sha256:61614151f174148bab5ac9e1949d44fde1868421566b9b3ea25bb68f1423b1b3",
+        "machineReportSha256": "sha256:05593c14167e977d858f081219efbc708f84e53a286b29f99dcc3ee93aa579a1",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "policySha256": "sha256:ba223843b9a3d3904c14c600263136925c85023df1273bcafce7176029731836",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+        }
+      },
+      "passed": true,
+      "id": "bootstrap-replay",
+      "kind": "scenario_test",
+      "actualExitCode": 0,
+      "timedOut": false,
+      "scenarioId": "BOOTSTRAP-AS-03"
+    },
+    {
+      "schemaVersion": 1,
+      "declaredCommand": {
+        "id": "bootstrap-stale-version",
+        "kind": "scenario_test",
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed",
+        "cwd": ".",
+        "timeoutSeconds": 300
+      },
+      "runnerMetadata": {
+        "adapter": "pytest-json@1",
+        "declaredCwd": ".",
+        "cwd": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed",
+        "selectorRealpath": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/tests/work_packages/desktop_bootstrap/test_acceptance.py",
+        "runnerArgv": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed",
+          "--report",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-abeio9od/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-abeio9od/pytest-basetemp"
+        ],
+        "sandboxedArgv": [
+          "/usr/bin/sandbox-exec",
+          "-p",
+          "(version 1)\n(allow default)\n(deny file-write*\n  (require-not\n    (require-any\n      (subpath \"/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-abeio9od\")\n      (literal \"/dev/null\"))))\n",
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed",
+          "--report",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-abeio9od/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-abeio9od/pytest-basetemp"
+        ],
+        "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "pythonRealpath": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+        "pythonExecutableSha256": "sha256:6b24be8ba00c4abc8b3e7e2620bd710e2cf7a4312d00c147f8f05fbb6f3d297a",
+        "pytestVersion": "8.4.2",
+        "pytestDistributionVersion": "8.4.2",
+        "pytestModulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+        "pytestModuleSha256": "sha256:66993a5e3905005e0981159b4794d10b1adacf341a58a44d696ad2c4442dcdc6",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "executable": "/usr/bin/sandbox-exec",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea",
+          "policySha256": "sha256:23de9aa6a4b00ab2e61bf44cb6786dccdb4452dec96993187df0150ecf7b3c7f",
+          "projectRoot": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+          "writableRoot": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-abeio9od",
+          "policyVersion": 1
+        }
+      },
+      "machineReport": {
+        "adapter": "pytest-json@1",
+        "collectedNodeIds": [
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed"
+        ],
+        "collectionErrors": [],
+        "deselectedNodeIds": [],
+        "pytestExitCode": 0,
+        "pytestRootPath": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+        "runner": {
+          "distributionVersion": "8.4.2",
+          "modulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+          "moduleVersion": "8.4.2",
+          "name": "pytest",
+          "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "pythonVersion": "3.9.6"
+        },
+        "schemaVersion": 1,
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed",
+        "tests": [
+          {
+            "nodeId": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed",
+            "phases": {
+              "call": {
+                "outcome": "passed"
+              },
+              "setup": {
+                "outcome": "passed"
+              },
+              "teardown": {
+                "outcome": "passed"
+              }
+            }
+          }
+        ]
+      },
+      "process": {
+        "actualExitCode": 0,
+        "timedOut": false,
+        "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0\nrootdir: /Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71\nplugins: anyio-4.12.1\ncollected 1 item\n\ntests/work_packages/desktop_bootstrap/test_acceptance.py .               [100%]\n\n============================== 1 passed in 5.21s ===============================\n",
+        "stderr": ""
+      },
+      "validationErrors": [],
+      "runnerProof": {
+        "schemaVersion": 1,
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed",
+        "cwd": ".",
+        "executedPassingTests": 1,
+        "actualExitCode": 0,
+        "runnerMetadataSha256": "sha256:f43db6eea467b13c7eb6ccfcbaf180969c2f2dfb07c5e0f7ac7cd1a14fee77c3",
+        "machineReportSha256": "sha256:96d5e5b40d57b35a653116ff0e2e9907fd5f30a114bc38274af51d0729b76673",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "policySha256": "sha256:23de9aa6a4b00ab2e61bf44cb6786dccdb4452dec96993187df0150ecf7b3c7f",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+        }
+      },
+      "passed": true,
+      "id": "bootstrap-stale-version",
+      "kind": "scenario_test",
+      "actualExitCode": 0,
+      "timedOut": false,
+      "scenarioId": "BOOTSTRAP-AS-04"
+    },
+    {
+      "schemaVersion": 1,
+      "declaredCommand": {
+        "id": "bootstrap-race",
+        "kind": "scenario_test",
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads",
+        "cwd": ".",
+        "timeoutSeconds": 300
+      },
+      "runnerMetadata": {
+        "adapter": "pytest-json@1",
+        "declaredCwd": ".",
+        "cwd": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads",
+        "selectorRealpath": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/tests/work_packages/desktop_bootstrap/test_acceptance.py",
+        "runnerArgv": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads",
+          "--report",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-ru0hh0yf/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-ru0hh0yf/pytest-basetemp"
+        ],
+        "sandboxedArgv": [
+          "/usr/bin/sandbox-exec",
+          "-p",
+          "(version 1)\n(allow default)\n(deny file-write*\n  (require-not\n    (require-any\n      (subpath \"/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-ru0hh0yf\")\n      (literal \"/dev/null\"))))\n",
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads",
+          "--report",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-ru0hh0yf/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-ru0hh0yf/pytest-basetemp"
+        ],
+        "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "pythonRealpath": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+        "pythonExecutableSha256": "sha256:6b24be8ba00c4abc8b3e7e2620bd710e2cf7a4312d00c147f8f05fbb6f3d297a",
+        "pytestVersion": "8.4.2",
+        "pytestDistributionVersion": "8.4.2",
+        "pytestModulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+        "pytestModuleSha256": "sha256:66993a5e3905005e0981159b4794d10b1adacf341a58a44d696ad2c4442dcdc6",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "executable": "/usr/bin/sandbox-exec",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea",
+          "policySha256": "sha256:13ee4ef87128d1f0bd6229296ece99d19d140c48fc26b089de6daa03ed354fc9",
+          "projectRoot": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+          "writableRoot": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-ru0hh0yf",
+          "policyVersion": 1
+        }
+      },
+      "machineReport": {
+        "adapter": "pytest-json@1",
+        "collectedNodeIds": [
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads"
+        ],
+        "collectionErrors": [],
+        "deselectedNodeIds": [],
+        "pytestExitCode": 0,
+        "pytestRootPath": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+        "runner": {
+          "distributionVersion": "8.4.2",
+          "modulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+          "moduleVersion": "8.4.2",
+          "name": "pytest",
+          "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "pythonVersion": "3.9.6"
+        },
+        "schemaVersion": 1,
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads",
+        "tests": [
+          {
+            "nodeId": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads",
+            "phases": {
+              "call": {
+                "outcome": "passed"
+              },
+              "setup": {
+                "outcome": "passed"
+              },
+              "teardown": {
+                "outcome": "passed"
+              }
+            }
+          }
+        ]
+      },
+      "process": {
+        "actualExitCode": 0,
+        "timedOut": false,
+        "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0\nrootdir: /Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71\nplugins: anyio-4.12.1\ncollected 1 item\n\ntests/work_packages/desktop_bootstrap/test_acceptance.py .               [100%]\n\n============================== 1 passed in 5.15s ===============================\n",
+        "stderr": ""
+      },
+      "validationErrors": [],
+      "runnerProof": {
+        "schemaVersion": 1,
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads",
+        "cwd": ".",
+        "executedPassingTests": 1,
+        "actualExitCode": 0,
+        "runnerMetadataSha256": "sha256:14df0cb19aaadb9ebbcf65ad504b8c4ebec1de6d7cfe0da82edc3b6ba36f55cb",
+        "machineReportSha256": "sha256:a05ecad070d56f1b3d8b4943d4305daf910844415019727fa3daf81a42c65c75",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "policySha256": "sha256:13ee4ef87128d1f0bd6229296ece99d19d140c48fc26b089de6daa03ed354fc9",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+        }
+      },
+      "passed": true,
+      "id": "bootstrap-race",
+      "kind": "scenario_test",
+      "actualExitCode": 0,
+      "timedOut": false,
+      "scenarioId": "BOOTSTRAP-AS-05"
+    },
+    {
+      "schemaVersion": 1,
+      "declaredCommand": {
+        "id": "bootstrap-recovery",
+        "kind": "scenario_test",
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method",
+        "cwd": ".",
+        "timeoutSeconds": 300
+      },
+      "runnerMetadata": {
+        "adapter": "pytest-json@1",
+        "declaredCwd": ".",
+        "cwd": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method",
+        "selectorRealpath": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/tests/work_packages/desktop_bootstrap/test_acceptance.py",
+        "runnerArgv": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method",
+          "--report",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-4r8h11km/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-4r8h11km/pytest-basetemp"
+        ],
+        "sandboxedArgv": [
+          "/usr/bin/sandbox-exec",
+          "-p",
+          "(version 1)\n(allow default)\n(deny file-write*\n  (require-not\n    (require-any\n      (subpath \"/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-4r8h11km\")\n      (literal \"/dev/null\"))))\n",
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method",
+          "--report",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-4r8h11km/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-4r8h11km/pytest-basetemp"
+        ],
+        "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "pythonRealpath": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+        "pythonExecutableSha256": "sha256:6b24be8ba00c4abc8b3e7e2620bd710e2cf7a4312d00c147f8f05fbb6f3d297a",
+        "pytestVersion": "8.4.2",
+        "pytestDistributionVersion": "8.4.2",
+        "pytestModulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+        "pytestModuleSha256": "sha256:66993a5e3905005e0981159b4794d10b1adacf341a58a44d696ad2c4442dcdc6",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "executable": "/usr/bin/sandbox-exec",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea",
+          "policySha256": "sha256:de1ec22cbd62b009424844585e1ae54d85e3dd9f83d4a0012aeebd957f59aa49",
+          "projectRoot": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+          "writableRoot": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71/.product-governance/execution/tmp/scenario-4r8h11km",
+          "policyVersion": 1
+        }
+      },
+      "machineReport": {
+        "adapter": "pytest-json@1",
+        "collectedNodeIds": [
+          "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method"
+        ],
+        "collectionErrors": [],
+        "deselectedNodeIds": [],
+        "pytestExitCode": 0,
+        "pytestRootPath": "/Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71",
+        "runner": {
+          "distributionVersion": "8.4.2",
+          "modulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+          "moduleVersion": "8.4.2",
+          "name": "pytest",
+          "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "pythonVersion": "3.9.6"
+        },
+        "schemaVersion": 1,
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method",
+        "tests": [
+          {
+            "nodeId": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method",
+            "phases": {
+              "call": {
+                "outcome": "passed"
+              },
+              "setup": {
+                "outcome": "passed"
+              },
+              "teardown": {
+                "outcome": "passed"
+              }
+            }
+          }
+        ]
+      },
+      "process": {
+        "actualExitCode": 0,
+        "timedOut": false,
+        "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0\nrootdir: /Users/zxg/Documents/ChatGPT/codex/new-api-project-05199d71\nplugins: anyio-4.12.1\ncollected 1 item\n\ntests/work_packages/desktop_bootstrap/test_acceptance.py .               [100%]\n\n============================== 1 passed in 5.16s ===============================\n",
+        "stderr": ""
+      },
+      "validationErrors": [],
+      "runnerProof": {
+        "schemaVersion": 1,
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method",
+        "cwd": ".",
+        "executedPassingTests": 1,
+        "actualExitCode": 0,
+        "runnerMetadataSha256": "sha256:9eb203a7e7d1c9dc75f0300848e973961b09efc4bdbecdddcdb26e1af287b4a9",
+        "machineReportSha256": "sha256:51d81f874277a011e584ff4b9888704024a286d52ee8cead66442f9fba04927c",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "policySha256": "sha256:de1ec22cbd62b009424844585e1ae54d85e3dd9f83d4a0012aeebd957f59aa49",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+        }
+      },
+      "passed": true,
+      "id": "bootstrap-recovery",
+      "kind": "scenario_test",
+      "actualExitCode": 0,
+      "timedOut": false,
+      "scenarioId": "BOOTSTRAP-AS-06"
+    }
+  ],
+  "scenarioEvidence": [
+    {
+      "scenarioId": "BOOTSTRAP-AS-01",
+      "path": "execution/evidence/e6082863c1f7b11a1e18/029fa8ea8b43230e/3d971553499911b4.json",
+      "sha256": "sha256:e11a141523b55b3dc929792aea43c4a73585d468ce5ca4d8d14ea0d10edd8d9e"
+    },
+    {
+      "scenarioId": "BOOTSTRAP-AS-02",
+      "path": "execution/evidence/e6082863c1f7b11a1e18/029fa8ea8b43230e/3667c4934e08cd3f.json",
+      "sha256": "sha256:f26a8073c820a090f713e882cb5c6b772f9bd7ee80e1d40505cfc9bdc063f90c"
+    },
+    {
+      "scenarioId": "BOOTSTRAP-AS-03",
+      "path": "execution/evidence/e6082863c1f7b11a1e18/029fa8ea8b43230e/ab58aaf1a314a796.json",
+      "sha256": "sha256:116f778e6db0853fab034c31100329037a564ea82d6ddfc2d18bce8281e1a84c"
+    },
+    {
+      "scenarioId": "BOOTSTRAP-AS-04",
+      "path": "execution/evidence/e6082863c1f7b11a1e18/029fa8ea8b43230e/d7c3bf97cbd16f4a.json",
+      "sha256": "sha256:ac26849a67ad0b0553c6159203d873083dd7833a47402fc8820f98274689878a"
+    },
+    {
+      "scenarioId": "BOOTSTRAP-AS-05",
+      "path": "execution/evidence/e6082863c1f7b11a1e18/029fa8ea8b43230e/765892cd6b9420db.json",
+      "sha256": "sha256:a35f4eac0aaa167b9b9a1a02f4d3cbaac908e1bd956ec803f6a3825093709758"
+    },
+    {
+      "scenarioId": "BOOTSTRAP-AS-06",
+      "path": "execution/evidence/e6082863c1f7b11a1e18/029fa8ea8b43230e/7633697feccddd26.json",
+      "sha256": "sha256:dfd051ca327113bdb456904c9b9465b25e603417a5fc77bfa9d0cb222d5f94e8"
+    }
+  ],
+  "scenarioEvidenceFailures": [],
+  "releaseUnitId": "RU-DESKTOP-BOOTSTRAP-V1",
+  "releaseUnitHash": "sha256:9e766b68a98a58ef945fbce9c30bcfe344dbda0f3bd374b9d033451f3e446dc4"
+}

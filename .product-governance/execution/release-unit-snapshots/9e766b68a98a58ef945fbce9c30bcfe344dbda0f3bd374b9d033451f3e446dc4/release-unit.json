@@ -1,0 +1,762 @@
+{
+  "schemaVersion": 1,
+  "releaseUnitId": "RU-DESKTOP-BOOTSTRAP-V1",
+  "releaseUnitHash": "sha256:9e766b68a98a58ef945fbce9c30bcfe344dbda0f3bd374b9d033451f3e446dc4",
+  "decisionId": "DEC-001",
+  "objective": "Authorize only the anonymous desktop bootstrap v1 handshake, closed contract documentation and deterministic acceptance tests.",
+  "dependsOnReleaseUnits": [],
+  "supersedesReleaseUnits": [],
+  "roots": {
+    "workPackages": [
+      "WP-DESKTOP-BOOTSTRAP-V1"
+    ],
+    "requirements": [
+      "REQ-001"
+    ],
+    "nonFunctionalRequirements": [],
+    "domains": [
+      "desktop-integration"
+    ],
+    "contracts": [
+      "desktop-bootstrap@v1"
+    ],
+    "stateMachines": [],
+    "pages": [],
+    "journeys": [],
+    "dataLifecycleResources": [],
+    "aiScenarios": [],
+    "entitlements": [],
+    "trackCoverage": []
+  },
+  "commit": "33926b6c2b59dc8a7b8ad26618832e154d4cace5",
+  "frozenAt": "2026-09-01T10:39:30.496337+00:00",
+  "catalogManifest": {
+    "schemaVersion": 1,
+    "product": {
+      "name": "野菜API",
+      "createdAt": "2026-09-01T10:33:18.214020+00:00"
+    },
+    "authority": {
+      "bundleRoot": ".product-governance",
+      "precedence": [
+        "user_confirmed",
+        "applicable_policy",
+        "frozen_decision",
+        "code_observed",
+        "existing_document",
+        "inferred",
+        "proposed"
+      ]
+    },
+    "tracks": [
+      "desktop-api"
+    ],
+    "trackDecisionRefs": {
+      "desktop-api": "DEC-001"
+    },
+    "requiredPageStates": [
+      "default",
+      "loading",
+      "empty",
+      "partial",
+      "error",
+      "expired",
+      "conflict",
+      "recovery",
+      "processing"
+    ],
+    "dualTrackCapabilities": [
+      "evidence",
+      "attempt",
+      "reflection",
+      "mastery",
+      "ability_estimate",
+      "planning",
+      "report",
+      "global_ask"
+    ],
+    "requiredNfrCategories": [
+      "security",
+      "privacy",
+      "reliability",
+      "observability",
+      "performance",
+      "capacity",
+      "accessibility",
+      "ai_quality",
+      "ai_cost",
+      "commerce",
+      "migration",
+      "backup_restore",
+      "operations"
+    ]
+  },
+  "closure": {
+    "workPackages": [
+      "WP-DESKTOP-BOOTSTRAP-V1"
+    ],
+    "requirements": [
+      "REQ-001"
+    ],
+    "nonFunctionalRequirements": [],
+    "domains": [
+      "desktop-integration"
+    ],
+    "contracts": [
+      "desktop-bootstrap@v1"
+    ],
+    "stateMachines": [],
+    "pages": [],
+    "pageStateProfiles": [],
+    "journeys": [],
+    "actors": [],
+    "dataLifecycleResources": [],
+    "aiScenarios": [],
+    "entitlements": [],
+    "trackCoverage": [],
+    "evidence": [
+      "E-CLIENT-001",
+      "E-CODE-001",
+      "E-USER-001"
+    ],
+    "decisions": [
+      "DEC-001"
+    ],
+    "conflicts": [],
+    "glossaryTerms": [],
+    "resources": [
+      "desktop-bootstrap-declaration"
+    ],
+    "tracks": [
+      "desktop-api"
+    ]
+  },
+  "deferredSnapshot": {
+    "schemaVersion": 1,
+    "catalogHash": "sha256:560e519d1e013625a10a5847dac55f8c8ed74579c546e265c12b3d3e6ec60635",
+    "items": [
+      {
+        "subjectKind": "actors",
+        "subjectId": "*",
+        "message": "No product actors are defined"
+      },
+      {
+        "subjectKind": "aiScenarios",
+        "subjectId": "*",
+        "message": "No AI scenarios are defined"
+      },
+      {
+        "subjectKind": "dataLifecycleResources",
+        "subjectId": "*",
+        "message": "No data lifecycle resources are defined"
+      },
+      {
+        "subjectKind": "entitlements",
+        "subjectId": "*",
+        "message": "No entitlement capabilities are defined"
+      },
+      {
+        "subjectKind": "glossaryTerms",
+        "subjectId": "*",
+        "message": "No canonical glossary terms are defined"
+      },
+      {
+        "subjectKind": "journeys",
+        "subjectId": "*",
+        "message": "No end-to-end journeys are defined"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-accessibility",
+        "message": "High-impact non-functional requirement is unresolved: NFR-accessibility (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-ai_cost",
+        "message": "High-impact non-functional requirement is unresolved: NFR-ai_cost (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-ai_quality",
+        "message": "High-impact non-functional requirement is unresolved: NFR-ai_quality (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-backup_restore",
+        "message": "High-impact non-functional requirement is unresolved: NFR-backup_restore (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-capacity",
+        "message": "High-impact non-functional requirement is unresolved: NFR-capacity (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-commerce",
+        "message": "High-impact non-functional requirement is unresolved: NFR-commerce (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-migration",
+        "message": "High-impact non-functional requirement is unresolved: NFR-migration (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-observability",
+        "message": "High-impact non-functional requirement is unresolved: NFR-observability (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-operations",
+        "message": "High-impact non-functional requirement is unresolved: NFR-operations (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-performance",
+        "message": "High-impact non-functional requirement is unresolved: NFR-performance (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-privacy",
+        "message": "High-impact non-functional requirement is unresolved: NFR-privacy (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-reliability",
+        "message": "High-impact non-functional requirement is unresolved: NFR-reliability (unknown)"
+      },
+      {
+        "subjectKind": "nonFunctionalRequirements",
+        "subjectId": "NFR-security",
+        "message": "High-impact non-functional requirement is unresolved: NFR-security (unknown)"
+      },
+      {
+        "subjectKind": "pages",
+        "subjectId": "*",
+        "message": "No pages are defined"
+      },
+      {
+        "subjectKind": "stateMachines",
+        "subjectId": "*",
+        "message": "No canonical state machines are defined"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "ability_estimate::desktop-api",
+        "message": "Capability ability_estimate/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "attempt::desktop-api",
+        "message": "Capability attempt/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "evidence::desktop-api",
+        "message": "Capability evidence/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "global_ask::desktop-api",
+        "message": "Capability global_ask/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "mastery::desktop-api",
+        "message": "Capability mastery/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "planning::desktop-api",
+        "message": "Capability planning/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "reflection::desktop-api",
+        "message": "Capability reflection/desktop-api remains unknown"
+      },
+      {
+        "subjectKind": "trackCoverage",
+        "subjectId": "report::desktop-api",
+        "message": "Capability report/desktop-api remains unknown"
+      }
+    ]
+  },
+  "artifacts": {
+    "evidenceLedger": {
+      "schemaVersion": 1,
+      "entries": [
+        {
+          "id": "E-CLIENT-001",
+          "claim": "The desktop client owns a closed draft-2020-12 schema and recognized fixture for GET /api/desktop/v1/bootstrap with schema version 1, minimum client version 0.1.0 and six false capability declarations.",
+          "class": "code_observed",
+          "locator": "/Users/zxg/Documents/Codex/2026-08-29/xiaobai-ai-desktop/contracts/desktop-bootstrap.v1.schema.json;/Users/zxg/Documents/Codex/2026-08-29/xiaobai-ai-desktop/contracts/fixtures/desktop-bootstrap/recognized.json",
+          "observedAt": "2026-09-01T10:32:00Z",
+          "scope": "current",
+          "status": "active",
+          "verificationLevel": 1,
+          "basisRefs": []
+        },
+        {
+          "id": "E-CODE-001",
+          "claim": "At baseline commit 33926b6c, the Gin API router has anonymous status and pricing routes but no /api/desktop/v1/bootstrap route.",
+          "class": "code_observed",
+          "locator": "router/api-router.go:20-45;git:33926b6c2b59dc8a7b8ad26618832e154d4cace5",
+          "observedAt": "2026-09-01T10:32:00Z",
+          "scope": "current",
+          "status": "active",
+          "verificationLevel": 1,
+          "basisRefs": []
+        },
+        {
+          "id": "E-USER-001",
+          "claim": "The product owner authorized submitting the minimal desktop bootstrap handshake now, while keeping account authorization, balances, usage and tool-key management out of this change.",
+          "class": "user_confirmed",
+          "locator": "conversation:2026-09-01:minimal-desktop-bootstrap-submit",
+          "observedAt": "2026-09-01T10:36:00Z",
+          "scope": "target",
+          "status": "active",
+          "verificationLevel": 0,
+          "basisRefs": []
+        }
+      ]
+    },
+    "conflictRegister": {
+      "schemaVersion": 1,
+      "conflicts": []
+    },
+    "decisionRegister": {
+      "schemaVersion": 1,
+      "decisions": [
+        {
+          "id": "DEC-001",
+          "question": "What server capability may be implemented for the desktop client in this release unit?",
+          "choice": "Implement only the anonymous, read-only GET /api/desktop/v1/bootstrap v1 handshake and its closed contract documentation. Return every future capability as false. Do not add authentication, account, usage, pricing projection, tool-key management, database, migration, payment or deployment behavior.",
+          "status": "accepted",
+          "decidedBy": "product owner",
+          "decidedAt": "2026-09-01T10:36:00Z",
+          "evidenceRefs": [
+            "E-USER-001",
+            "E-CLIENT-001",
+            "E-CODE-001"
+          ],
+          "affects": {
+            "requirementRefs": [
+              "REQ-001"
+            ],
+            "pageRefs": [],
+            "domainRefs": [
+              "desktop-integration"
+            ]
+          }
+        }
+      ]
+    },
+    "glossary": {
+      "schemaVersion": 1,
+      "terms": []
+    },
+    "requirements": {
+      "schemaVersion": 1,
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "statement": "The server exposes one anonymous, read-only desktop bootstrap v1 response that exactly matches the frozen client schema and declares every not-yet-implemented capability as false.",
+          "scope": "target",
+          "impact": "high",
+          "state": "confirmed",
+          "owner": "desktop-integration",
+          "evidenceRefs": [
+            "E-USER-001",
+            "E-CLIENT-001",
+            "E-CODE-001"
+          ],
+          "acceptance": [
+            "GET /api/desktop/v1/bootstrap returns HTTP 200, application/json and the exact closed v1 response without authentication.",
+            "The response contains no account, credential, cookie, device code, refresh token, price, wallet URL or backend configuration.",
+            "All six future capability flags remain false and repeated or concurrent reads remain equivalent.",
+            "Unsupported methods do not mutate state and a subsequent valid GET still returns the recognized response.",
+            "No database schema, migration, payment, deployment or existing API behavior changes in this release unit."
+          ]
+        }
+      ]
+    },
+    "journeys": {
+      "schemaVersion": 1,
+      "actors": [],
+      "journeys": []
+    },
+    "domains": {
+      "schemaVersion": 1,
+      "domains": [
+        {
+          "id": "desktop-integration",
+          "owner": "backend-api",
+          "owns": [
+            "desktop-bootstrap-declaration"
+          ],
+          "trackScope": [
+            "desktop-api"
+          ],
+          "invariants": [
+            "Bootstrap recognition grants no account session, credential access, configuration write, pricing truth or tool compatibility authority.",
+            "A capability is true only after a separate frozen contract and verified implementation release unit exists."
+          ],
+          "commands": [],
+          "queries": [
+            "desktop-bootstrap@v1"
+          ],
+          "emits": [],
+          "consumes": []
+        }
+      ]
+    },
+    "stateMachines": {
+      "schemaVersion": 1,
+      "machines": []
+    },
+    "contracts": {
+      "schemaVersion": 1,
+      "contracts": [
+        {
+          "id": "desktop-bootstrap@v1",
+          "kind": "query",
+          "owner": "desktop-integration",
+          "consumers": [
+            "desktop-client"
+          ],
+          "schemaLocator": "inline://contracts.json#/contracts/desktop-bootstrap@v1",
+          "authorization": "Anonymous read-only GET. It grants no session, credential, configuration, payment or account authority.",
+          "idempotency": "The query is read-only and returns an equivalent static declaration for repeated and concurrent requests.",
+          "compatibility": "Version 1 is a closed response. New fields, capability names or schema versions require a new versioned contract before server and client changes.",
+          "inputSchema": {
+            "type": "object",
+            "description": "No request body or query fields are accepted by the bootstrap declaration.",
+            "properties": {},
+            "required": [],
+            "additionalProperties": false
+          },
+          "outputSchema": {
+            "type": "object",
+            "description": "Closed desktop bootstrap recognition response v1.",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "Indicates that the static bootstrap declaration was returned successfully.",
+                "enum": [
+                  true
+                ]
+              },
+              "data": {
+                "type": "object",
+                "description": "The complete closed desktop bootstrap declaration for contract version 1.",
+                "properties": {
+                  "schema_version": {
+                    "type": "integer",
+                    "description": "The closed response schema version understood by the desktop client.",
+                    "enum": [
+                      1
+                    ]
+                  },
+                  "service": {
+                    "type": "string",
+                    "description": "Stable service identifier used only for desktop bootstrap recognition.",
+                    "enum": [
+                      "yeschoy-desktop"
+                    ]
+                  },
+                  "contract_id": {
+                    "type": "string",
+                    "description": "Stable identifier for this exact bootstrap contract.",
+                    "enum": [
+                      "desktop-bootstrap-v1"
+                    ]
+                  },
+                  "minimum_client_version": {
+                    "type": "string",
+                    "description": "Minimum desktop client version allowed to recognize this contract, expressed as strict three-part semantic versioning.",
+                    "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+                    "maxLength": 100
+                  },
+                  "capabilities": {
+                    "type": "object",
+                    "description": "Explicit capability declarations; every future integration remains disabled in this release unit.",
+                    "properties": {
+                      "device_authorization": {
+                        "type": "boolean",
+                        "description": "Whether a governed device authorization flow is available.",
+                        "enum": [
+                          false
+                        ]
+                      },
+                      "account_read": {
+                        "type": "boolean",
+                        "description": "Whether authenticated account projection is available.",
+                        "enum": [
+                          false
+                        ]
+                      },
+                      "usage_read": {
+                        "type": "boolean",
+                        "description": "Whether account usage projection is available.",
+                        "enum": [
+                          false
+                        ]
+                      },
+                      "models_read": {
+                        "type": "boolean",
+                        "description": "Whether the desktop model catalog contract is available.",
+                        "enum": [
+                          false
+                        ]
+                      },
+                      "pricing_read": {
+                        "type": "boolean",
+                        "description": "Whether authoritative desktop pricing projection is available.",
+                        "enum": [
+                          false
+                        ]
+                      },
+                      "tool_keys_manage": {
+                        "type": "boolean",
+                        "description": "Whether desktop tool-key management is available.",
+                        "enum": [
+                          false
+                        ]
+                      }
+                    },
+                    "required": [
+                      "device_authorization",
+                      "account_read",
+                      "usage_read",
+                      "models_read",
+                      "pricing_read",
+                      "tool_keys_manage"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "schema_version",
+                  "service",
+                  "contract_id",
+                  "minimum_client_version",
+                  "capabilities"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "success",
+              "data"
+            ],
+            "additionalProperties": false
+          },
+          "dataClasses": [
+            "public"
+          ],
+          "observability": {
+            "correlation": "No user or request correlation is emitted because this static anonymous query creates no operation.",
+            "audit": "No persistent audit record is created; normal HTTP access logging may record only the route and transport metadata under existing server policy.",
+            "metrics": "Existing generic route metrics may count requests; the contract exposes no customer or capability-use metric."
+          },
+          "errorSemantics": [
+            "Unsupported methods are not accepted and never change state.",
+            "The handler returns no secrets, account data, raw configuration or capability URLs.",
+            "Every future capability remains false until a separately governed implementation exists."
+          ],
+          "requirementRefs": [
+            "REQ-001"
+          ],
+          "evidenceRefs": [
+            "E-USER-001",
+            "E-CLIENT-001",
+            "E-CODE-001"
+          ],
+          "status": "specified"
+        }
+      ]
+    },
+    "pageMatrix": {
+      "schemaVersion": 1,
+      "stateProfiles": [],
+      "pages": []
+    },
+    "trackCoverage": {
+      "schemaVersion": 1,
+      "capabilities": []
+    },
+    "dataLifecycle": {
+      "schemaVersion": 1,
+      "resources": []
+    },
+    "aiScenarios": {
+      "schemaVersion": 1,
+      "scenarios": []
+    },
+    "entitlements": {
+      "schemaVersion": 1,
+      "capabilities": []
+    },
+    "nonFunctionalRequirements": {
+      "schemaVersion": 1,
+      "requirements": []
+    },
+    "workPackages": {
+      "schemaVersion": 1,
+      "packages": [
+        {
+          "id": "WP-DESKTOP-BOOTSTRAP-V1",
+          "wave": "producer",
+          "owner": "backend-api",
+          "riskClass": "medium",
+          "objective": "Implement and document the anonymous desktop bootstrap v1 handshake without adding any future desktop capability or database behavior.",
+          "deliverables": [
+            "Exact anonymous GET response matching desktop-bootstrap@v1.",
+            "Closed JSON Schema, recognized fixture and integration handoff documentation.",
+            "Deterministic route tests for exact response, unsupported method, replay, version pinning, concurrency and recovery."
+          ],
+          "requirementRefs": [
+            "REQ-001"
+          ],
+          "decisionRefs": [
+            "DEC-001"
+          ],
+          "blockingDecisionRefs": [],
+          "nonGoals": [
+            "No device authorization, account, balance, usage, pricing projection, tool-key, payment, database, migration, deployment or client-source change."
+          ],
+          "dependsOn": [],
+          "allowedPaths": [
+            "controller/desktop.go",
+            "router/api-router.go",
+            "router/desktop_router_test.go",
+            "docs/desktop-api-v1.md",
+            "docs/contracts/desktop-bootstrap.v1.schema.json",
+            "docs/contracts/fixtures/desktop-bootstrap/**",
+            "tests/work_packages/desktop_bootstrap/**"
+          ],
+          "forbiddenPaths": [
+            ".product-governance/**",
+            "model/**",
+            "service/**",
+            "middleware/**",
+            "web/**",
+            "bin/**",
+            "docker-compose.yml"
+          ],
+          "migrationPolicy": {
+            "mode": "none",
+            "ownedPaths": [],
+            "dataBackfill": "No schema, database or customer-data migration belongs to this package.",
+            "rollback": "Revert only the owned route, handler, tests and documentation; no data recovery is required."
+          },
+          "compatibilityPolicy": {
+            "strategy": "Add one versioned anonymous route without changing existing routes. Keep v1 closed and capability flags false.",
+            "supportedVersions": "desktop-bootstrap@v1 with minimum client version 0.1.0 only.",
+            "removalGate": "Removal or semantic expansion requires a superseding decision, versioned contract and new frozen release unit."
+          },
+          "inputContracts": [],
+          "outputContracts": [
+            "desktop-bootstrap@v1"
+          ],
+          "acceptanceCommands": [
+            {
+              "id": "bootstrap-happy",
+              "kind": "scenario_test",
+              "adapter": "pytest-json@1",
+              "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path",
+              "cwd": ".",
+              "timeoutSeconds": 300
+            },
+            {
+              "id": "bootstrap-failure",
+              "kind": "scenario_test",
+              "adapter": "pytest-json@1",
+              "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method",
+              "cwd": ".",
+              "timeoutSeconds": 300
+            },
+            {
+              "id": "bootstrap-replay",
+              "kind": "scenario_test",
+              "adapter": "pytest-json@1",
+              "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay",
+              "cwd": ".",
+              "timeoutSeconds": 300
+            },
+            {
+              "id": "bootstrap-stale-version",
+              "kind": "scenario_test",
+              "adapter": "pytest-json@1",
+              "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed",
+              "cwd": ".",
+              "timeoutSeconds": 300
+            },
+            {
+              "id": "bootstrap-race",
+              "kind": "scenario_test",
+              "adapter": "pytest-json@1",
+              "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads",
+              "cwd": ".",
+              "timeoutSeconds": 300
+            },
+            {
+              "id": "bootstrap-recovery",
+              "kind": "scenario_test",
+              "adapter": "pytest-json@1",
+              "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method",
+              "cwd": ".",
+              "timeoutSeconds": 300
+            }
+          ],
+          "requiredAcceptanceScenarios": [
+            {
+              "id": "BOOTSTRAP-AS-01",
+              "assertion": "Anonymous GET returns the exact closed v1 JSON response and content type.",
+              "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_happy_path",
+              "acceptanceCommandId": "bootstrap-happy"
+            },
+            {
+              "id": "BOOTSTRAP-AS-02",
+              "assertion": "An unsupported method does not expose the handshake or mutate state.",
+              "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_unsupported_method",
+              "acceptanceCommandId": "bootstrap-failure"
+            },
+            {
+              "id": "BOOTSTRAP-AS-03",
+              "assertion": "Repeated reads return an equivalent declaration with every capability false.",
+              "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_replay",
+              "acceptanceCommandId": "bootstrap-replay"
+            },
+            {
+              "id": "BOOTSTRAP-AS-04",
+              "assertion": "Schema version, contract ID and minimum client version remain pinned to the closed v1 contract.",
+              "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_version_is_closed",
+              "acceptanceCommandId": "bootstrap-stale-version"
+            },
+            {
+              "id": "BOOTSTRAP-AS-05",
+              "assertion": "Concurrent anonymous reads remain equivalent and side-effect free.",
+              "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads",
+              "acceptanceCommandId": "bootstrap-race"
+            },
+            {
+              "id": "BOOTSTRAP-AS-06",
+              "assertion": "A valid GET succeeds after an unsupported method without manual recovery or state repair.",
+              "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method",
+              "acceptanceCommandId": "bootstrap-recovery"
+            }
+          ],
+          "verificationOnly": false,
+          "stopConditions": [
+            "The client schema differs from the frozen observed contract.",
+            "Any capability would need to become true.",
+            "Any change requires authentication, database, migration, payment, deployment or a path outside allowedPaths."
+          ],
+          "status": "planned"
+        }
+      ]
+    }
+  }
+}

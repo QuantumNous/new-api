@@ -1,0 +1,28 @@
+{
+  "scenarioId": "BOOTSTRAP-AS-06",
+  "assertion": "A valid GET succeeds after an unsupported method without manual recovery or state repair.",
+  "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method",
+  "acceptanceCommandId": "bootstrap-recovery",
+  "runId": "RU-DESKTOP-BOOTSTRAP-V1/WP-DESKTOP-BOOTSTRAP-V1@2026-09-01T10:39:44.514019+00:00",
+  "packageId": "WP-DESKTOP-BOOTSTRAP-V1",
+  "evidenceOwner": "govern-product-build/verifier",
+  "passed": true,
+  "runnerProof": {
+    "schemaVersion": 1,
+    "adapter": "pytest-json@1",
+    "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_recovery_after_bad_method",
+    "cwd": ".",
+    "executedPassingTests": 1,
+    "actualExitCode": 0,
+    "runnerMetadataSha256": "sha256:9eb203a7e7d1c9dc75f0300848e973961b09efc4bdbecdddcdb26e1af287b4a9",
+    "machineReportSha256": "sha256:51d81f874277a011e584ff4b9888704024a286d52ee8cead66442f9fba04927c",
+    "isolation": {
+      "adapter": "darwin-sandbox-exec-readonly-source@1",
+      "policySha256": "sha256:de1ec22cbd62b009424844585e1ae54d85e3dd9f83d4a0012aeebd957f59aa49",
+      "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+    }
+  },
+  "commandResultHash": "sha256:48ab39e2e1843494f025ae6f41ac07eade23e0d157920d24f4234d2a92ef28fb",
+  "releaseUnitId": "RU-DESKTOP-BOOTSTRAP-V1",
+  "releaseUnitHash": "sha256:9e766b68a98a58ef945fbce9c30bcfe344dbda0f3bd374b9d033451f3e446dc4"
+}

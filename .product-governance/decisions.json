@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "decisions": [
+    {
+      "id": "DEC-001",
+      "question": "What server capability may be implemented for the desktop client in this release unit?",
+      "choice": "Implement only the anonymous, read-only GET /api/desktop/v1/bootstrap v1 handshake and its closed contract documentation. Return every future capability as false. Do not add authentication, account, usage, pricing projection, tool-key management, database, migration, payment or deployment behavior.",
+      "status": "accepted",
+      "decidedBy": "product owner",
+      "decidedAt": "2026-09-01T10:36:00Z",
+      "evidenceRefs": ["E-USER-001", "E-CLIENT-001", "E-CODE-001"],
+      "affects": {
+        "requirementRefs": ["REQ-001"],
+        "pageRefs": [],
+        "domainRefs": ["desktop-integration"]
+      }
+    }
+  ]
+}

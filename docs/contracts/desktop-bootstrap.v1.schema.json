@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yeschoy.com/contracts/desktop-bootstrap.v1.schema.json",
+  "title": "Future desktop bootstrap recognition v1 (not authentication)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["success", "data"],
+  "properties": {
+    "success": {
+      "const": true
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "service",
+        "contract_id",
+        "minimum_client_version",
+        "capabilities"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "service": {
+          "const": "yeschoy-desktop"
+        },
+        "contract_id": {
+          "const": "desktop-bootstrap-v1"
+        },
+        "minimum_client_version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "maxLength": 100
+        },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "device_authorization",
+            "account_read",
+            "usage_read",
+            "models_read",
+            "pricing_read",
+            "tool_keys_manage"
+          ],
+          "properties": {
+            "device_authorization": {
+              "type": "boolean"
+            },
+            "account_read": {
+              "type": "boolean"
+            },
+            "usage_read": {
+              "type": "boolean"
+            },
+            "models_read": {
+              "type": "boolean"
+            },
+            "pricing_read": {
+              "type": "boolean"
+            },
+            "tool_keys_manage": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  }
+}

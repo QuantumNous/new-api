@@ -1,0 +1,28 @@
+{
+  "scenarioId": "BOOTSTRAP-AS-05",
+  "assertion": "Concurrent anonymous reads remain equivalent and side-effect free.",
+  "testSelector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads",
+  "acceptanceCommandId": "bootstrap-race",
+  "runId": "RU-DESKTOP-BOOTSTRAP-V1/WP-DESKTOP-BOOTSTRAP-V1@2026-09-01T10:39:44.514019+00:00",
+  "packageId": "WP-DESKTOP-BOOTSTRAP-V1",
+  "evidenceOwner": "govern-product-build/verifier",
+  "passed": true,
+  "runnerProof": {
+    "schemaVersion": 1,
+    "adapter": "pytest-json@1",
+    "selector": "tests/work_packages/desktop_bootstrap/test_acceptance.py::test_concurrent_reads",
+    "cwd": ".",
+    "executedPassingTests": 1,
+    "actualExitCode": 0,
+    "runnerMetadataSha256": "sha256:14df0cb19aaadb9ebbcf65ad504b8c4ebec1de6d7cfe0da82edc3b6ba36f55cb",
+    "machineReportSha256": "sha256:a05ecad070d56f1b3d8b4943d4305daf910844415019727fa3daf81a42c65c75",
+    "isolation": {
+      "adapter": "darwin-sandbox-exec-readonly-source@1",
+      "policySha256": "sha256:13ee4ef87128d1f0bd6229296ece99d19d140c48fc26b089de6daa03ed354fc9",
+      "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+    }
+  },
+  "commandResultHash": "sha256:c1807ac294d9670ae8b5ac5672ac5c911f4937623977f130084f6af73d67e057",
+  "releaseUnitId": "RU-DESKTOP-BOOTSTRAP-V1",
+  "releaseUnitHash": "sha256:9e766b68a98a58ef945fbce9c30bcfe344dbda0f3bd374b9d033451f3e446dc4"
+}

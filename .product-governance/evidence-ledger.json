@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "E-USER-001",
+      "claim": "The product owner authorized submitting the minimal desktop bootstrap handshake now, while keeping account authorization, balances, usage and tool-key management out of this change.",
+      "class": "user_confirmed",
+      "locator": "conversation:2026-09-01:minimal-desktop-bootstrap-submit",
+      "observedAt": "2026-09-01T10:36:00Z",
+      "scope": "target",
+      "status": "active",
+      "verificationLevel": 0,
+      "basisRefs": []
+    },
+    {
+      "id": "E-CLIENT-001",
+      "claim": "The desktop client owns a closed draft-2020-12 schema and recognized fixture for GET /api/desktop/v1/bootstrap with schema version 1, minimum client version 0.1.0 and six false capability declarations.",
+      "class": "code_observed",
+      "locator": "/Users/zxg/Documents/Codex/2026-08-29/xiaobai-ai-desktop/contracts/desktop-bootstrap.v1.schema.json;/Users/zxg/Documents/Codex/2026-08-29/xiaobai-ai-desktop/contracts/fixtures/desktop-bootstrap/recognized.json",
+      "observedAt": "2026-09-01T10:32:00Z",
+      "scope": "current",
+      "status": "active",
+      "verificationLevel": 1,
+      "basisRefs": []
+    },
+    {
+      "id": "E-CODE-001",
+      "claim": "At baseline commit 33926b6c, the Gin API router has anonymous status and pricing routes but no /api/desktop/v1/bootstrap route.",
+      "class": "code_observed",
+      "locator": "router/api-router.go:20-45;git:33926b6c2b59dc8a7b8ad26618832e154d4cace5",
+      "observedAt": "2026-09-01T10:32:00Z",
+      "scope": "current",
+      "status": "active",
+      "verificationLevel": 1,
+      "basisRefs": []
+    }
+  ]
+}

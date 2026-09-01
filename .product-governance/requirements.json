@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "statement": "The server exposes one anonymous, read-only desktop bootstrap v1 response that exactly matches the frozen client schema and declares every not-yet-implemented capability as false.",
+      "scope": "target",
+      "impact": "high",
+      "state": "confirmed",
+      "owner": "desktop-integration",
+      "evidenceRefs": ["E-USER-001", "E-CLIENT-001", "E-CODE-001"],
+      "acceptance": [
+        "GET /api/desktop/v1/bootstrap returns HTTP 200, application/json and the exact closed v1 response without authentication.",
+        "The response contains no account, credential, cookie, device code, refresh token, price, wallet URL or backend configuration.",
+        "All six future capability flags remain false and repeated or concurrent reads remain equivalent.",
+        "Unsupported methods do not mutate state and a subsequent valid GET still returns the recognized response.",
+        "No database schema, migration, payment, deployment or existing API behavior changes in this release unit."
+      ]
+    }
+  ]
+}
