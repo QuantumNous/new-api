@@ -75,6 +75,28 @@ func TestRefreshDesktopSessionReturnsRotatedJSONBundle(t *testing.T) {
 	assert.Equal(t, bundle.Session.SID, response.Data.SessionID)
 }
 
+func TestRefreshDesktopSessionRejectsBrowserSessionWithoutRotation(t *testing.T) {
+	_, user, _ := setupDesktopV2ControllerTest(t)
+	browserBundle, err := service.CreateLoginSession(user.Id, "password", "127.0.0.1", "browser-test")
+	require.NoError(t, err)
+	body, err := common.Marshal(map[string]string{
+		"refresh_token": browserBundle.RefreshToken,
+		"session_id":    browserBundle.Session.SID,
+	})
+	require.NoError(t, err)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/desktop/v2/sessions/refresh", bytes.NewReader(body))
+	RefreshDesktopSession(c)
+
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "desktop_session_required")
+	_, _, err = service.RefreshLoginSession(browserBundle.RefreshToken, browserBundle.Session.SID, "127.0.0.2", "browser-test")
+	require.NoError(t, err, "desktop endpoint rejection must not consume the browser refresh token")
+}
+
 func TestRevokeCurrentDesktopSessionRevokesLiveSession(t *testing.T) {
 	_, user, bundle := setupDesktopV2ControllerTest(t)
 
@@ -86,6 +108,7 @@ func TestRevokeCurrentDesktopSessionRevokesLiveSession(t *testing.T) {
 	c.Set("session_id", bundle.Session.SID)
 	c.Set("auth_version", int64(1))
 	c.Set("session_version", int64(1))
+	c.Set("login_method", service.DesktopLoginMethod)
 	RevokeCurrentDesktopSession(c)
 
 	assert.Equal(t, http.StatusOK, recorder.Code)
@@ -93,6 +116,46 @@ func TestRevokeCurrentDesktopSessionRevokesLiveSession(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, model.UserSessionStatusRevoked, stored.Status)
 	assert.Equal(t, "desktop_logout", stored.RevokedReason)
+}
+
+func TestRevokeCurrentDesktopSessionRejectsBrowserSession(t *testing.T) {
+	_, user, _ := setupDesktopV2ControllerTest(t)
+	browserBundle, err := service.CreateLoginSession(user.Id, "password", "127.0.0.1", "browser-test")
+	require.NoError(t, err)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodDelete, "/api/desktop/v2/sessions/current", nil)
+	c.Set("id", user.Id)
+	c.Set("session_id", browserBundle.Session.SID)
+	c.Set("auth_version", int64(1))
+	c.Set("session_version", int64(1))
+	c.Set("login_method", "password")
+	RevokeCurrentDesktopSession(c)
+
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+	stored, err := model.GetUserSessionBySID(browserBundle.Session.SID)
+	require.NoError(t, err)
+	assert.Equal(t, model.UserSessionStatusActive, stored.Status)
+}
+
+func TestDecideDesktopDeviceAuthorizationRejectsDesktopSession(t *testing.T) {
+	_, user, bundle := setupDesktopV2ControllerTest(t)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/desktop/v2/device-authorizations/decision", bytes.NewBufferString(`{"user_code":"ABCD-EFGH","decision":"approve"}`))
+	c.Set("id", user.Id)
+	c.Set("session_id", bundle.Session.SID)
+	c.Set("auth_version", int64(1))
+	c.Set("session_version", int64(1))
+	c.Set("login_method", service.DesktopLoginMethod)
+	DecideDesktopDeviceAuthorization(c)
+
+	assert.Equal(t, http.StatusForbidden, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "browser_session_required")
 }
 
 func TestRevokeCurrentDesktopSessionRejectsPATIdentity(t *testing.T) {

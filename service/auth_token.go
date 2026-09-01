@@ -39,6 +39,7 @@ type AuthIdentity struct {
 	SessionID       string
 	UserAuthVersion int64
 	SessionVersion  int64
+	LoginMethod     string
 }
 
 type authClaims struct {

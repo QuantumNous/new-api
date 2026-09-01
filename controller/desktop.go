@@ -144,7 +144,7 @@ func CreateDesktopDeviceAuthorization(c *gin.Context) {
 
 func DecideDesktopDeviceAuthorization(c *gin.Context) {
 	setAuthNoStore(c)
-	identity, ok := middleware.GetSessionAuthIdentity(c)
+	identity, ok := middleware.GetBrowserSessionAuthIdentity(c)
 	if !ok {
 		c.JSON(http.StatusForbidden, gin.H{"success": false, "code": "browser_session_required", "message": "a live browser session is required"})
 		return
@@ -184,8 +184,12 @@ func RefreshDesktopSession(c *gin.Context) {
 		writeDesktopAuthorizationError(c, &service.DesktopDeviceAuthorizationError{Code: "invalid_request"})
 		return
 	}
-	bundle, _, err := service.RefreshLoginSession(request.RefreshToken, request.SessionID, c.ClientIP(), c.Request.UserAgent())
+	bundle, _, err := service.RefreshLoginSessionForMethod(request.RefreshToken, request.SessionID, service.DesktopLoginMethod, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
+		if errors.Is(err, service.ErrLoginSessionMethod) {
+			writeDesktopSessionRequired(c)
+			return
+		}
 		writeAuthSessionError(c, err)
 		return
 	}
@@ -194,9 +198,9 @@ func RefreshDesktopSession(c *gin.Context) {
 
 func RevokeCurrentDesktopSession(c *gin.Context) {
 	setAuthNoStore(c)
-	identity, ok := middleware.GetSessionAuthIdentity(c)
+	identity, ok := middleware.GetDesktopSessionAuthIdentity(c)
 	if !ok {
-		c.JSON(http.StatusForbidden, gin.H{"success": false, "code": "desktop_session_required", "message": "a desktop session is required"})
+		writeDesktopSessionRequired(c)
 		return
 	}
 	revoked, err := model.RevokeUserSession(identity.UserID, identity.SessionID, "desktop_logout")
@@ -209,6 +213,10 @@ func RevokeCurrentDesktopSession(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"revoked_sid": identity.SessionID}})
+}
+
+func writeDesktopSessionRequired(c *gin.Context) {
+	c.JSON(http.StatusForbidden, gin.H{"success": false, "code": "desktop_session_required", "message": "a desktop session is required"})
 }
 
 func desktopAuthBundleData(bundle *service.AuthBundle) gin.H {

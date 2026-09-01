@@ -25,6 +25,8 @@ import (
 
 const authIdentityContextKey = "auth_identity"
 
+var errDesktopSessionScope = errors.New("desktop session is not allowed to access this route")
+
 type dashboardCredentialKind int
 
 const (
@@ -130,9 +132,31 @@ func GetSessionAuthIdentity(c *gin.Context) (service.AuthIdentity, bool) {
 			SessionID:       c.GetString("session_id"),
 			UserAuthVersion: c.GetInt64("auth_version"),
 			SessionVersion:  c.GetInt64("session_version"),
+			LoginMethod:     c.GetString("login_method"),
 		}
 	}
 	if identity.UserID <= 0 || identity.SessionID == "" || identity.UserAuthVersion <= 0 || identity.SessionVersion <= 0 {
+		return service.AuthIdentity{}, false
+	}
+	return identity, true
+}
+
+// GetBrowserSessionAuthIdentity accepts a live dashboard session but rejects
+// PATs and desktop-device sessions. It is intended for browser approval and
+// other operations that require the user to be present on the website.
+func GetBrowserSessionAuthIdentity(c *gin.Context) (service.AuthIdentity, bool) {
+	identity, ok := GetSessionAuthIdentity(c)
+	if !ok || strings.TrimSpace(identity.LoginMethod) == "" || identity.LoginMethod == service.DesktopLoginMethod {
+		return service.AuthIdentity{}, false
+	}
+	return identity, true
+}
+
+// GetDesktopSessionAuthIdentity accepts only sessions minted through the
+// desktop device-authorization exchange.
+func GetDesktopSessionAuthIdentity(c *gin.Context) (service.AuthIdentity, bool) {
+	identity, ok := GetSessionAuthIdentity(c)
+	if !ok || identity.LoginMethod != service.DesktopLoginMethod {
 		return service.AuthIdentity{}, false
 	}
 	return identity, true
@@ -159,9 +183,13 @@ func classifyDashboardCredential(c *gin.Context) (*model.UserBase, service.AuthI
 		if err != nil {
 			return nil, service.AuthIdentity{}, dashboardCredentialInternal, err
 		}
-		_, user, err := service.ValidateLoginSession(identity)
+		session, user, err := service.ValidateLoginSession(identity)
 		if err != nil {
 			return nil, service.AuthIdentity{}, dashboardCredentialInternal, err
+		}
+		identity.LoginMethod = strings.TrimSpace(session.LoginMethod)
+		if !dashboardSessionRouteAllowed(c, identity) {
+			return nil, service.AuthIdentity{}, dashboardCredentialInternal, errDesktopSessionScope
 		}
 		return user, identity, dashboardCredentialInternal, nil
 	}
@@ -204,11 +232,16 @@ func setDashboardAuthContext(c *gin.Context, user *model.UserBase, identity serv
 	c.Set("session_id", identity.SessionID)
 	c.Set("auth_version", identity.UserAuthVersion)
 	c.Set("session_version", identity.SessionVersion)
+	c.Set("login_method", identity.LoginMethod)
 	c.Set(authIdentityContextKey, identity)
 	user.WriteContext(c)
 }
 
 func writeDashboardAuthError(c *gin.Context, err error) {
+	if errors.Is(err, errDesktopSessionScope) {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"success": false, "code": "AUTH_DESKTOP_SCOPE_DENIED", "message": common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege)})
+		return
+	}
 	if errors.Is(err, service.ErrAuthTokenExpired) {
 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "code": "AUTH_TOKEN_EXPIRED", "message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn)})
 		return
@@ -223,6 +256,46 @@ func writeDashboardAuthError(c *gin.Context, err error) {
 	}
 	common.SysLog("dashboard authentication error: " + err.Error())
 	c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"success": false, "code": "AUTH_INTERNAL_ERROR", "message": common.TranslateMessage(c, i18n.MsgDatabaseError)})
+}
+
+// dashboardSessionRouteAllowed is deliberately closed: a desktop session can
+// only reach capabilities advertised by desktop bootstrap v2. Adding a new
+// desktop capability requires an explicit route entry and a security test.
+func dashboardSessionRouteAllowed(c *gin.Context, identity service.AuthIdentity) bool {
+	if identity.LoginMethod != service.DesktopLoginMethod {
+		return true
+	}
+
+	method := c.Request.Method
+	route := c.FullPath()
+	switch method {
+	case http.MethodGet:
+		switch route {
+		case "/api/user/self",
+			"/api/user/models",
+			"/api/log/self/stat",
+			"/api/log/self",
+			"/api/pricing",
+			"/api/token/",
+			"/api/token/search",
+			"/api/token/auto-groups",
+			"/api/token/:id":
+			return true
+		}
+	case http.MethodPost:
+		switch route {
+		case "/api/token/",
+			"/api/token/:id/key",
+			"/api/token/batch",
+			"/api/token/batch/keys":
+			return true
+		}
+	case http.MethodPut:
+		return route == "/api/token/"
+	case http.MethodDelete:
+		return route == "/api/token/:id" || route == "/api/desktop/v2/sessions/current"
+	}
+	return false
 }
 
 func RequirePermission(permission authz.Permission) func(c *gin.Context) {
@@ -260,9 +333,14 @@ func TokenOrUserAuth() func(c *gin.Context) {
 				writeDashboardAuthError(c, err)
 				return
 			}
-			_, user, err := service.ValidateLoginSession(identity)
+			session, user, err := service.ValidateLoginSession(identity)
 			if err != nil {
 				writeDashboardAuthError(c, err)
+				return
+			}
+			identity.LoginMethod = strings.TrimSpace(session.LoginMethod)
+			if !dashboardSessionRouteAllowed(c, identity) {
+				writeDashboardAuthError(c, errDesktopSessionScope)
 				return
 			}
 			setDashboardAuthContext(c, user, identity, false)

@@ -84,6 +84,14 @@ func createMiddlewarePATUser(t *testing.T, username, token string) *model.User {
 	return user
 }
 
+func createMiddlewareSessionToken(t *testing.T, username, loginMethod string) (*model.User, string) {
+	t.Helper()
+	user := createMiddlewarePATUser(t, username, "pat-"+username)
+	bundle, err := service.CreateLoginSession(user.Id, loginMethod, "127.0.0.1", "middleware-test")
+	require.NoError(t, err)
+	return user, bundle.AccessToken
+}
+
 func TestUserAuthAllowsOpaqueDottedPAT(t *testing.T) {
 	setupDashboardAuthMiddlewareTest(t)
 	user := createMiddlewarePATUser(t, "dotted-pat-user", "opaque.key.with-dots")
@@ -124,6 +132,55 @@ func TestUserAuthNeverFallsBackForRecognizedInvalidInternalJWT(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, response.Code)
 	assert.Contains(t, response.Body.String(), "AUTH_UNAUTHORIZED")
+}
+
+func TestDesktopSessionUsesClosedDashboardRouteScope(t *testing.T) {
+	setupDashboardAuthMiddlewareTest(t)
+	gin.SetMode(gin.TestMode)
+	_, desktopToken := createMiddlewareSessionToken(t, "desktop-scope-user", service.DesktopLoginMethod)
+	_, browserToken := createMiddlewareSessionToken(t, "browser-scope-user", "password")
+
+	router := gin.New()
+	accepted := func(c *gin.Context) { c.Status(http.StatusNoContent) }
+	router.GET("/api/user/self", UserAuth(), accepted)
+	router.GET("/api/pricing", TryUserAuth(), accepted)
+	router.GET("/api/token/:id", UserAuth(), accepted)
+	router.DELETE("/api/desktop/v2/sessions/current", UserAuth(), accepted)
+	router.DELETE("/api/user/self", UserAuth(), accepted)
+	router.POST("/api/desktop/v2/device-authorizations/decision", UserAuth(), accepted)
+	router.GET("/api/status", TryUserAuth(), accepted)
+	router.GET("/api/token-or-user", TokenOrUserAuth(), accepted)
+
+	tests := []struct {
+		name       string
+		method     string
+		path       string
+		token      string
+		wantStatus int
+	}{
+		{name: "account read is allowed", method: http.MethodGet, path: "/api/user/self", token: desktopToken, wantStatus: http.StatusNoContent},
+		{name: "pricing read is allowed", method: http.MethodGet, path: "/api/pricing", token: desktopToken, wantStatus: http.StatusNoContent},
+		{name: "tool key management is allowed", method: http.MethodGet, path: "/api/token/7", token: desktopToken, wantStatus: http.StatusNoContent},
+		{name: "desktop logout is allowed", method: http.MethodDelete, path: "/api/desktop/v2/sessions/current", token: desktopToken, wantStatus: http.StatusNoContent},
+		{name: "account deletion is denied", method: http.MethodDelete, path: "/api/user/self", token: desktopToken, wantStatus: http.StatusForbidden},
+		{name: "device approval is denied", method: http.MethodPost, path: "/api/desktop/v2/device-authorizations/decision", token: desktopToken, wantStatus: http.StatusForbidden},
+		{name: "optional auth cannot bypass scope", method: http.MethodGet, path: "/api/status", token: desktopToken, wantStatus: http.StatusForbidden},
+		{name: "token or user auth cannot bypass scope", method: http.MethodGet, path: "/api/token-or-user", token: desktopToken, wantStatus: http.StatusForbidden},
+		{name: "browser session keeps normal access", method: http.MethodPost, path: "/api/desktop/v2/device-authorizations/decision", token: browserToken, wantStatus: http.StatusNoContent},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(test.method, test.path, nil)
+			request.Header.Set("Authorization", "Bearer "+test.token)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			assert.Equal(t, test.wantStatus, response.Code)
+			if test.wantStatus == http.StatusForbidden {
+				assert.Contains(t, response.Body.String(), "AUTH_DESKTOP_SCOPE_DENIED")
+			}
+		})
+	}
 }
 
 func TestTryUserAuthCredentialClassification(t *testing.T) {
