@@ -63,6 +63,14 @@ func mokaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *htt
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
+	// F-54: fallback to the prompt estimate when the upstream omits usage so
+	// embedding requests are not billed as zero (F-26 residual for mokaai).
+	if baiduResponse.Usage.TotalTokens == 0 &&
+		baiduResponse.Usage.PromptTokens == 0 &&
+		baiduResponse.Usage.CompletionTokens == 0 {
+		baiduResponse.Usage.PromptTokens = info.GetEstimatePromptTokens()
+		baiduResponse.Usage.TotalTokens = baiduResponse.Usage.PromptTokens
+	}
 	// if baiduResponse.ErrorMsg != "" {
 	// 	return &dto.OpenAIErrorWithStatusCode{
 	// 		Error: dto.OpenAIError{

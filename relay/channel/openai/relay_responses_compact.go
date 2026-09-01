@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -39,6 +40,13 @@ func OaiResponsesCompactionHandler(c *gin.Context, resp *http.Response) (*dto.Us
 			usage.PromptTokensDetails.CachedTokens = compactResp.Usage.InputTokensDetails.CachedTokens
 			usage.PromptTokensDetails.CacheWriteTokens = compactResp.Usage.InputTokensDetails.CacheWriteTokens
 		}
+	}
+	// F-26 family: when the upstream compaction response omits usage, fall
+	// back to the local request estimate so the pre-consume is not fully
+	// refunded (free compaction).
+	if usage.TotalTokens == 0 {
+		usage.PromptTokens = common.GetContextKeyInt(c, constant.ContextKeyEstimatedTokens)
+		usage.TotalTokens = usage.PromptTokens
 	}
 
 	return &usage, nil

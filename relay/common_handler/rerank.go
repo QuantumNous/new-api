@@ -65,6 +65,14 @@ func RerankHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		if err != nil {
 			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 		}
+		// F-26: upstreams like Jina v1 / OpenAI-compatible rerank endpoints may
+		// omit usage entirely. Without a fallback the settle charges 0 and the
+		// pre-consume is fully refunded -> unlimited free rerank. Fall back to
+		// the local request estimate whenever upstream usage is missing.
+		if jinaResp.Usage.TotalTokens == 0 && jinaResp.Usage.PromptTokens == 0 && jinaResp.Usage.CompletionTokens == 0 {
+			jinaResp.Usage.PromptTokens = info.GetEstimatePromptTokens()
+			jinaResp.Usage.TotalTokens = jinaResp.Usage.PromptTokens
+		}
 		jinaResp.Usage.PromptTokens = jinaResp.Usage.TotalTokens
 	}
 

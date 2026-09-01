@@ -325,6 +325,12 @@ func ollamaEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		data = append(data, dto.OpenAIEmbeddingResponseItem{Index: i, Object: "embedding", Embedding: emb})
 	}
 	usage := &dto.Usage{PromptTokens: oResp.PromptEvalCount, CompletionTokens: 0, TotalTokens: oResp.PromptEvalCount}
+	// F-54: fallback to the prompt estimate when the upstream omits prompt
+	// eval count so embedding requests are not billed as zero.
+	if usage.TotalTokens == 0 && usage.PromptTokens == 0 {
+		usage.PromptTokens = info.GetEstimatePromptTokens()
+		usage.TotalTokens = usage.PromptTokens
+	}
 	embResp := &dto.OpenAIEmbeddingResponse{Object: "list", Data: data, Model: info.UpstreamModelName, Usage: *usage}
 	out, _ := common.Marshal(embResp)
 	service.IOCopyBytesGracefully(c, resp, out)
