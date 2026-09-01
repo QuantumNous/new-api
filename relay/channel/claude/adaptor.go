@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -80,6 +81,24 @@ func CommonClaudeHeadersOperation(c *gin.Context, req *http.Header, info *relayc
 	model_setting.GetClaudeSettings().WriteHeaders(info.OriginModelName, req)
 }
 
+// ForwardAnthropicWorkspaceIDHeader applies the configured workspace ID, falling
+// back to the incoming request header. Generic header overrides are applied later.
+func ForwardAnthropicWorkspaceIDHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) {
+	workspaceID := ""
+	if c != nil && c.Request != nil {
+		workspaceID = strings.TrimSpace(c.Request.Header.Get(AnthropicWorkspaceIDHeader))
+	}
+	if info != nil {
+		configuredWorkspaceID := strings.TrimSpace(info.ChannelOtherSettings.AnthropicWorkspaceID)
+		if configuredWorkspaceID != "" {
+			workspaceID = configuredWorkspaceID
+		}
+	}
+	if workspaceID != "" {
+		req.Set(AnthropicWorkspaceIDHeader, workspaceID)
+	}
+}
+
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, req)
 	req.Set("x-api-key", info.ApiKey)
@@ -89,6 +108,7 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	}
 	req.Set("anthropic-version", anthropicVersion)
 	CommonClaudeHeadersOperation(c, req, info)
+	ForwardAnthropicWorkspaceIDHeader(c, req, info)
 	return nil
 }
 

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/relay/channel/claude"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
@@ -141,6 +142,34 @@ func newAwsStreamResponse(request *http.Request, body io.ReadCloser) *http.Respo
 	}
 }
 
+func TestAPIKeySetupRequestHeaderForwardsWorkspaceID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	ctx.Request.Header.Set(claude.AnthropicWorkspaceIDHeader, "wrkspc_client")
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "claude-3-5-sonnet-20240620",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:            "bedrock-api-key|us-east-1",
+			UpstreamModelName: "claude-3-5-sonnet-20240620",
+			ChannelOtherSettings: dto.ChannelOtherSettings{
+				AwsKeyType:           dto.AwsKeyTypeApiKey,
+				AnthropicWorkspaceID: "  proj_configured  ",
+			},
+		},
+	}
+
+	adaptor := &Adaptor{}
+	_, err := adaptor.GetRequestURL(info)
+	require.NoError(t, err)
+	require.Equal(t, ClientModeApiKey, adaptor.ClientMode)
+
+	header := http.Header{}
+	require.NoError(t, adaptor.SetupRequestHeader(ctx, &header, info))
+	require.Equal(t, "proj_configured", header.Get(claude.AnthropicWorkspaceIDHeader))
+}
+
 func TestDoAwsClientRequest_AppliesRuntimeHeaderOverrideToAnthropicBeta(t *testing.T) {
 	t.Parallel()
 
@@ -180,6 +209,112 @@ func TestDoAwsClientRequest_AppliesRuntimeHeaderOverrideToAnthropicBeta(t *testi
 	values, ok := anthropicBeta.([]any)
 	require.True(t, ok)
 	require.Equal(t, []any{"computer-use-2025-01-24"}, values)
+}
+
+func TestDoAwsClientRequest_AppliesWorkspaceIDHeaderOverride(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	ctx.Request.Header.Set(claude.AnthropicWorkspaceIDHeader, "wrkspc_client")
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName:           "claude-3-5-sonnet-20240620",
+		UseRuntimeHeadersOverride: true,
+		RuntimeHeadersOverride: map[string]any{
+			claude.AnthropicWorkspaceIDHeader: "wrkspc_admin",
+		},
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:            "access-key|secret-key|us-east-1",
+			UpstreamModelName: "claude-3-5-sonnet-20240620",
+			ChannelOtherSettings: dto.ChannelOtherSettings{
+				AnthropicWorkspaceID: "proj_configured",
+			},
+		},
+	}
+
+	requestBody := bytes.NewBufferString(`{"messages":[{"role":"user","content":"hello"}],"max_tokens":128}`)
+	adaptor := &Adaptor{}
+
+	_, err := doAwsClientRequest(ctx, info, adaptor, requestBody)
+	require.NoError(t, err)
+	require.Equal(t, "wrkspc_admin", adaptor.anthropicWorkspaceID)
+}
+
+func TestDoAwsClientRequest_UsesConfiguredWorkspaceID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	ctx.Request.Header.Set(claude.AnthropicWorkspaceIDHeader, "wrkspc_client")
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "claude-3-5-sonnet-20240620",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:            "access-key|secret-key|us-east-1",
+			UpstreamModelName: "claude-3-5-sonnet-20240620",
+			ChannelOtherSettings: dto.ChannelOtherSettings{
+				AnthropicWorkspaceID: "  proj_configured  ",
+			},
+		},
+	}
+
+	requestBody := bytes.NewBufferString(`{"messages":[{"role":"user","content":"hello"}],"max_tokens":128}`)
+	adaptor := &Adaptor{}
+
+	_, err := doAwsClientRequest(ctx, info, adaptor, requestBody)
+	require.NoError(t, err)
+	require.Equal(t, "proj_configured", adaptor.anthropicWorkspaceID)
+}
+
+func TestAwsInvokeOptionsSendSignedWorkspaceID(t *testing.T) {
+	const workspaceID = "proj_abc123"
+
+	tests := []struct {
+		name   string
+		invoke func(*bedrockruntime.Client, ...func(*bedrockruntime.Options)) error
+	}{
+		{
+			name: "invoke model",
+			invoke: func(client *bedrockruntime.Client, options ...func(*bedrockruntime.Options)) error {
+				_, err := client.InvokeModel(context.Background(), newAwsInvokeModelInput(), options...)
+				return err
+			},
+		},
+		{
+			name: "invoke model with response stream",
+			invoke: func(client *bedrockruntime.Client, options ...func(*bedrockruntime.Options)) error {
+				response, err := client.InvokeModelWithResponseStream(context.Background(), newAwsStreamInput(), options...)
+				if err != nil {
+					return err
+				}
+				return response.GetStream().Close()
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := newAwsTestClient(awsHTTPClientFunc(func(request *http.Request) (*http.Response, error) {
+				require.Equal(t, workspaceID, request.Header.Get(claude.AnthropicWorkspaceIDHeader))
+				require.Contains(t, request.Header.Get("Authorization"), claude.AnthropicWorkspaceIDHeader)
+
+				if request.Header.Get("Accept") == "application/vnd.amazon.eventstream" {
+					return newAwsStreamResponse(request, io.NopCloser(bytes.NewReader(nil))), nil
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Status:     "200 OK",
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(bytes.NewBufferString(`{}`)),
+					Request:    request,
+				}, nil
+			}))
+			adaptor := &Adaptor{anthropicWorkspaceID: workspaceID}
+
+			require.NoError(t, test.invoke(client, adaptor.invokeOptions()...))
+		})
+	}
 }
 
 func TestNewAwsInvokeContextInheritsParent(t *testing.T) {
