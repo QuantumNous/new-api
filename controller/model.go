@@ -181,13 +181,16 @@ func buildOpenAIModel(modelName string, ownerByModel map[string]string) dto.Open
 }
 
 // dedupePrefixedModels removes any bare model name X from the list when a
-// per-channel prefixed variant P/X (for any non-empty prefix P) is also present.
-// This hides the original model once a channel exposes it under a prefix, so
-// clients only see the prefixed form (e.g. "deepseek/deepseek-v4-flash" instead
-// of "deepseek-v4-flash"). The split happens at the first "/" so a prefix is a
-// single path segment; a model name that legitimately contains "/" is treated as
-// a prefixed variant of its suffix (a deliberate, documented limitation).
-func dedupePrefixedModels(models []string) []string {
+// per-channel prefixed variant P/X (for any non-empty prefix P) is also present,
+// UNLESS X is provided by at least one channel without a prefix (tracked in
+// bareModelsFromNonPrefixedChannels). This hides the original model once every
+// channel that provides it uses a prefix, so clients only see the prefixed form
+// (e.g. "deepseek/deepseek-v4-flash" instead of "deepseek-v4-flash"), while a
+// model served by a non-prefixed channel stays visible. The split happens at the
+// first "/" so a prefix is a single path segment; a model name that legitimately
+// contains "/" is treated as a prefixed variant of its suffix (a deliberate,
+// documented limitation).
+func dedupePrefixedModels(models []string, bareModelsFromNonPrefixedChannels map[string]struct{}) []string {
 	if len(models) < 2 {
 		return models
 	}
@@ -216,6 +219,10 @@ func dedupePrefixedModels(models []string) []string {
 	filtered := make([]string, 0, len(models))
 	for _, m := range models {
 		if _, ok := remove[m]; ok {
+			// Keep the bare model if any non-prefixed channel provides it.
+			if _, kept := bareModelsFromNonPrefixedChannels[m]; kept {
+				filtered = append(filtered, m)
+			}
 			continue
 		}
 		filtered = append(filtered, m)
@@ -310,7 +317,14 @@ func ListModels(c *gin.Context, modelType int) {
 	// hide the bare original (e.g. "deepseek-v4-flash") from the model list so clients
 	// only see the prefixed form. This runs after the billing/model-limit filter so a
 	// prefixed variant that is not actually displayed never removes a displayed original.
-	userModelNames = dedupePrefixedModels(userModelNames)
+	// A bare model is only hidden when EVERY channel providing it uses a prefix; if any
+	// non-prefixed channel provides it, the bare model stays visible.
+	bareModelsFromNonPrefixedChannels, err := model.GetBareModelsFromNonPrefixedChannels(ownerGroups)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to get bare models from non-prefixed channels: %v", err))
+		bareModelsFromNonPrefixedChannels = map[string]struct{}{}
+	}
+	userModelNames = dedupePrefixedModels(userModelNames, bareModelsFromNonPrefixedChannels)
 
 	ownerByModel := map[string]string{}
 	if len(ownerGroups) > 0 {

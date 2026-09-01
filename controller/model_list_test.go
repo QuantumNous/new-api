@@ -528,6 +528,13 @@ func TestListModelsDedupsPrefixedModels(t *testing.T) {
 		Group:    "default",
 		Status:   common.UserStatusEnabled,
 	}).Error)
+	// Channel 1 provides the bare model but has a prefix configured, channel 2
+	// provides the prefixed variant, channel 3 has no prefix and provides gpt-4.
+	require.NoError(t, db.Create(&[]model.Channel{
+		{Id: 1, Name: "deepseek-prefixed", Type: constant.ChannelTypeOpenAI, OtherSettings: `{"model_prefix":"deepseek"}`},
+		{Id: 2, Name: "deepseek-prefixed-2", Type: constant.ChannelTypeOpenAI, OtherSettings: `{"model_prefix":"deepseek"}`},
+		{Id: 3, Name: "no-prefix", Type: constant.ChannelTypeOpenAI},
+	}).Error)
 	require.NoError(t, db.Create(&[]model.Ability{
 		{Group: "default", Model: "deepseek-v4-flash", ChannelId: 1, Enabled: true},
 		{Group: "default", Model: "deepseek/deepseek-v4-flash", ChannelId: 2, Enabled: true},
@@ -545,6 +552,40 @@ func TestListModelsDedupsPrefixedModels(t *testing.T) {
 	require.Contains(t, ids, "deepseek/deepseek-v4-flash")
 	require.NotContains(t, ids, "deepseek-v4-flash")
 	require.Contains(t, ids, "gpt-4")
+}
+
+func TestListModelsKeepsBareModelWhenNonPrefixedChannelProvidesIt(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1006,
+		Username: "mixed-prefix-model-list-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	// Channel 1 (prefixed) provides deepseek/deepseek-v4-flash; channel 2 has NO
+	// prefix and provides deepseek-v4-flash bare. Because a non-prefixed channel
+	// provides the bare model, it must stay visible alongside the prefixed form.
+	require.NoError(t, db.Create(&[]model.Channel{
+		{Id: 1, Name: "deepseek-prefixed", Type: constant.ChannelTypeOpenAI, OtherSettings: `{"model_prefix":"deepseek"}`},
+		{Id: 2, Name: "no-prefix", Type: constant.ChannelTypeOpenAI},
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "deepseek/deepseek-v4-flash", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "deepseek-v4-flash", ChannelId: 2, Enabled: true},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	ctx.Set("id", 1006)
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "deepseek/deepseek-v4-flash")
+	require.Contains(t, ids, "deepseek-v4-flash")
 }
 
 func TestListModelsKeepsOriginalWhenPrefixedVariantNotDisplayed(t *testing.T) {
