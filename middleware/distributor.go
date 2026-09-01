@@ -46,6 +46,16 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
+		// Per-channel model prefix limits routing: when the requested model name
+		// carries a prefix (e.g. "deepseek/deepseek-v4-flash"), only channels
+		// whose own ModelPrefix matches that prefix are candidates. Models
+		// without a "/" prefix are left unfiltered (existing behavior).
+		if prefix, _, hasPrefix := strings.Cut(modelRequest.Model, "/"); hasPrefix {
+			constraints.AddFilter(taskdto.ChannelFilter{
+				Kind:        taskdto.FilterModelPrefix,
+				ModelPrefix: prefix,
+			})
+		}
 		if pin, found, overridden := constraints.ResolvedPin(); found {
 			for _, lost := range overridden {
 				logger.LogWarn(c, fmt.Sprintf(

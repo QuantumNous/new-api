@@ -216,3 +216,80 @@ func TestChannelSatisfiesFilters(t *testing.T) {
 	assert.False(t, ok)
 	assert.Equal(t, dto.FilterRequestPath, kind)
 }
+
+func TestFilterModelPrefix(t *testing.T) {
+	deepseek := &Channel{Id: 910001, Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled}
+	deepseek.SetOtherSettings(kitdto.ChannelOtherSettings{ModelPrefix: "deepseek"})
+	openrouter := &Channel{Id: 910002, Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled}
+	openrouter.SetOtherSettings(kitdto.ChannelOtherSettings{ModelPrefix: "openrouter"})
+	noPrefix := &Channel{Id: 910003, Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled}
+
+	channelSyncLock.Lock()
+	previous := channelsIDM
+	channelsIDM = map[int]*Channel{
+		910001: deepseek,
+		910002: openrouter,
+		910003: noPrefix,
+	}
+	t.Cleanup(func() {
+		channelsIDM = previous
+		channelSyncLock.Unlock()
+	})
+
+	t.Run("filterCandidateIDs keeps only matching prefix", func(t *testing.T) {
+		kept, emptiedBy := filterCandidateIDs(
+			[]int{910001, 910002, 910003},
+			"deepseek/deepseek-v4-flash",
+			[]dto.ChannelFilter{{Kind: dto.FilterModelPrefix, ModelPrefix: "deepseek"}},
+		)
+		// deepseek (910001) matches; openrouter (910002) excluded; noPrefix (910003) kept.
+		assert.Equal(t, []int{910001, 910003}, kept)
+		assert.Equal(t, dto.ChannelFilterKind(""), emptiedBy)
+	})
+
+	t.Run("filterCandidateIDs excludes all prefixed mismatches", func(t *testing.T) {
+		kept, emptiedBy := filterCandidateIDs(
+			[]int{910001, 910002},
+			"openrouter/deepseek-v4-flash",
+			[]dto.ChannelFilter{{Kind: dto.FilterModelPrefix, ModelPrefix: "openrouter"}},
+		)
+		assert.Equal(t, []int{910002}, kept)
+		assert.Equal(t, dto.ChannelFilterKind(""), emptiedBy)
+	})
+
+	t.Run("empty filter prefix does not filter", func(t *testing.T) {
+		kept, _ := filterCandidateIDs(
+			[]int{910001, 910002, 910003},
+			"deepseek/deepseek-v4-flash",
+			[]dto.ChannelFilter{{Kind: dto.FilterModelPrefix, ModelPrefix: ""}},
+		)
+		assert.Equal(t, []int{910001, 910002, 910003}, kept)
+	})
+
+	t.Run("ChannelSatisfiesFilters matching prefix", func(t *testing.T) {
+		ok, kind := ChannelSatisfiesFilters(deepseek, "deepseek/deepseek-v4-flash", []dto.ChannelFilter{{
+			Kind:        dto.FilterModelPrefix,
+			ModelPrefix: "deepseek",
+		}})
+		require.True(t, ok)
+		assert.Equal(t, dto.ChannelFilterKind(""), kind)
+	})
+
+	t.Run("ChannelSatisfiesFilters mismatched prefix", func(t *testing.T) {
+		ok, kind := ChannelSatisfiesFilters(openrouter, "deepseek/deepseek-v4-flash", []dto.ChannelFilter{{
+			Kind:        dto.FilterModelPrefix,
+			ModelPrefix: "deepseek",
+		}})
+		assert.False(t, ok)
+		assert.Equal(t, dto.FilterModelPrefix, kind)
+	})
+
+	t.Run("ChannelSatisfiesFilters channel without prefix kept", func(t *testing.T) {
+		ok, kind := ChannelSatisfiesFilters(noPrefix, "deepseek/deepseek-v4-flash", []dto.ChannelFilter{{
+			Kind:        dto.FilterModelPrefix,
+			ModelPrefix: "deepseek",
+		}})
+		require.True(t, ok)
+		assert.Equal(t, dto.ChannelFilterKind(""), kind)
+	})
+}

@@ -10,11 +10,12 @@ import (
 var filterEvalOrder = []dto.ChannelFilterKind{
 	dto.FilterRequestPath,
 	dto.FilterTaskPluginIdentity,
+	dto.FilterModelPrefix,
 }
 
 // ChannelSatisfiesFilters reports whether ch passes every filter.
-// On false, it returns the kind of the first violated filter (request_path
-// then task_plugin_identity) for error attribution.
+// On false, it returns the kind of the first violated filter (in filterEvalOrder
+// order: request_path, task_plugin_identity, model_prefix) for error attribution.
 func ChannelSatisfiesFilters(ch *Channel, modelName string, filters []dto.ChannelFilter) (bool, dto.ChannelFilterKind) {
 	if ch == nil {
 		return false, ""
@@ -35,7 +36,8 @@ func ChannelSatisfiesFilters(ch *Channel, modelName string, filters []dto.Channe
 // filterCandidateIDs applies filters to a cached candidate id list.
 // Caller must hold channelSyncLock (read lock). The input slice is never mutated.
 // A missing id in channelsIDM is kept for request_path (downstream consistency
-// error) and dropped for task_plugin_identity, matching the previous filters.
+// error) and dropped for task_plugin_identity and model_prefix, matching the
+// previous filters.
 func filterCandidateIDs(ids []int, modelName string, filters []dto.ChannelFilter) (kept []int, emptiedBy dto.ChannelFilterKind) {
 	if len(ids) == 0 {
 		return ids, ""
@@ -102,6 +104,18 @@ func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilte
 			return filter.TaskPluginKey != "" && ch.GetSetting().TaskPluginKey == filter.TaskPluginKey
 		}
 		return filter.TaskPluginKey == "" || slices.Contains(filter.TaskPluginChannelTypes, ch.Type)
+	case dto.FilterModelPrefix:
+		// Per-channel model prefix limits routing: a channel only serves a
+		// model whose prefix matches the channel's own ModelPrefix. Channels
+		// without a ModelPrefix are never filtered (keeps existing behavior).
+		if filter.ModelPrefix == "" {
+			return true
+		}
+		channelPrefix := ch.GetOtherSettings().ModelPrefix
+		if channelPrefix == "" {
+			return true
+		}
+		return channelPrefix == filter.ModelPrefix
 	default:
 		return true
 	}
