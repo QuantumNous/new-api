@@ -44,8 +44,10 @@ import {
   categorizeModels,
   categorizeModelsWithRedirect,
   channelsQueryKeys,
+  getChannelModelPrefix,
   normalizeModelName,
   parseModelsString,
+  stripModelPrefix,
 } from '../../lib'
 import { useChannels } from '../channels-provider'
 
@@ -94,12 +96,23 @@ export function FetchModelsDialog({
   const [selectedModels, setSelectedModels] = useState<string[]>([])
   const [searchKeyword, setSearchKeyword] = useState('')
 
-  // Parse existing models
-  const existingModels = useMemo(
-    () =>
-      existingModelsOverride ?? parseModelsString(activeChannel?.models || ''),
-    [existingModelsOverride, activeChannel?.models]
+  // Per-channel model prefix (standalone mode reads it from the channel's
+  // settings JSON). In form-filling mode existingModelsOverride is already
+  // prefix-stripped by the drawer, so stripping again is a no-op.
+  const modelPrefix = useMemo(
+    () => (activeChannel ? getChannelModelPrefix(activeChannel) : ''),
+    [activeChannel]
   )
+
+  // Parse existing models. Strip the per-channel prefix so prefixed local
+  // models (e.g. `openrouter/auto-beta`) compare correctly against fetched
+  // upstream models (e.g. `auto-beta`) instead of being misreported as removed.
+  const existingModels = useMemo(() => {
+    const models =
+      existingModelsOverride ?? parseModelsString(activeChannel?.models || '')
+    if (!modelPrefix) return models
+    return models.map((m) => stripModelPrefix(m, modelPrefix))
+  }, [existingModelsOverride, activeChannel?.models, modelPrefix])
 
   // Categorize models with redirect models
   const modelCategories = useMemo(
@@ -184,7 +197,15 @@ export function FetchModelsDialog({
     if (!activeChannel) return
     setIsSaving(true)
     try {
-      const modelsString = selectedModels.join(',')
+      // Re-apply the per-channel prefix before saving, since updateChannel
+      // writes the models list verbatim (the drawer applies the prefix at
+      // submit time; standalone mode must do it here).
+      const modelsToSave = modelPrefix
+        ? selectedModels.map((m) =>
+            m.startsWith(`${modelPrefix}/`) ? m : `${modelPrefix}/${m}`
+          )
+        : selectedModels
+      const modelsString = modelsToSave.join(',')
       const response = await updateChannel(activeChannel.id, {
         models: modelsString,
       })
@@ -258,6 +279,15 @@ export function FetchModelsDialog({
     setSelectedModels((prev) =>
       prev.includes(model) ? prev.filter((m) => m !== model) : [...prev, model]
     )
+  }
+
+  // Add every fetched model to the selection (respects the search filter).
+  const handleAddAllModels = () => {
+    setSelectedModels((prev) => {
+      const next = new Set(prev)
+      filteredModels.forEach((model) => next.add(model))
+      return [...next]
+    })
   }
 
   const toggleCategory = (categoryModels: string[], isChecked: boolean) => {
@@ -492,6 +522,13 @@ export function FetchModelsDialog({
           <>
             <Button variant='outline' onClick={handleClose} disabled={isSaving}>
               {t('Cancel')}
+            </Button>
+            <Button
+              variant='outline'
+              onClick={handleAddAllModels}
+              disabled={isSaving || fetchedModels.length === 0}
+            >
+              {t('Add All Models')}
             </Button>
             <Button onClick={handleSave} disabled={isSaving}>
               {isSaving && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}

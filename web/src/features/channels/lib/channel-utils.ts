@@ -268,6 +268,31 @@ export function formatGroupsString(groups: string[]): string {
   return groups.join(',')
 }
 
+/**
+ * Strip the per-channel model prefix from a model name.
+ * Mirrors the backend `stripModelPrefix` in controller/channel_upstream_update.go:
+ * only strips when the model starts with `<prefix>/`, otherwise returns unchanged.
+ */
+export function stripModelPrefix(modelName: string, prefix: string): string {
+  if (!prefix) {
+    return modelName
+  }
+  const p = `${prefix}/`
+  if (modelName.startsWith(p)) {
+    return modelName.slice(p.length)
+  }
+  return modelName
+}
+
+/**
+ * Read the per-channel model prefix from a channel's `settings` JSON.
+ * Returns the trimmed prefix, or '' when unset/unparseable.
+ */
+export function getChannelModelPrefix(channel: Pick<Channel, 'settings'>): string {
+  const otherSettings = parseChannelOtherSettings(channel?.settings)
+  return (otherSettings.model_prefix || '').trim()
+}
+
 // ============================================================================
 // Settings Parsing
 // ============================================================================
