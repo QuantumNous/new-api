@@ -292,6 +292,9 @@ func updateOptionMap(key string, value string) (err error) {
 		common.OptionMapRWMutex.Unlock()
 		return nil
 	}
+	if key == "SystemName" && strings.TrimSpace(value) == "New API" {
+		value = common.DefaultSystemName
+	}
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
 	common.OptionMap[key] = value
