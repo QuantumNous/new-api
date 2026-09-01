@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ExternalLink, MessageCircleHeart } from 'lucide-react'
+import { MessageCircleHeart } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -113,22 +113,13 @@ export function FAQ() {
           </div>
 
           <div className='bg-muted/50 flex items-center justify-center p-5'>
-            <a
-              href='/qq-community.jpg'
-              target='_blank'
-              rel='noreferrer'
-              className='group relative block aspect-[4/5] w-full max-w-[220px] overflow-hidden rounded-2xl bg-white shadow-sm'
-              aria-label={t('Open the full QQ group QR code')}
-            >
-              <img
-                src='/qq-community.jpg'
-                alt={t('QQ after-sales group QR code')}
-                className='absolute inset-0 size-full scale-[1.34] object-cover object-[50%_45%] transition-transform duration-300 group-hover:scale-[1.38]'
-              />
-              <span className='absolute right-2 bottom-2 flex size-8 items-center justify-center rounded-full bg-white/90 text-slate-900 shadow-sm backdrop-blur'>
-                <ExternalLink className='size-4' />
-              </span>
-            </a>
+            <img
+              src='/qq-community-qr.png'
+              alt={t('QQ after-sales group QR code')}
+              width={860}
+              height={860}
+              className='aspect-square w-full max-w-[220px] rounded-2xl bg-white shadow-sm'
+            />
           </div>
         </div>
       </div>

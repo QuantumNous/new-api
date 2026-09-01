@@ -18,8 +18,25 @@ For commercial licensing, please contact support@quantumnous.com
 */
 @custom-variant dark (&:is(.dark *));
 
+/* Maple Mono is maintained in the operator's font repository and bundled
+ * locally so the interface never depends on a third-party font CDN. Its web
+ * build covers Latin glyphs, numbers, and symbols; the following CJK stack
+ * keeps Chinese copy complete and legible without shipping a 100+ MB font. */
+@font-face {
+  font-family: 'Maple Mono';
+  src: url('../assets/fonts/maple-mono-variable.woff2') format('woff2');
+  font-weight: 100 1000;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
-  --font-sans: 'Public Sans', sans-serif;
+  --font-sans:
+    'Maple Mono', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI',
+    'Microsoft YaHei', 'Noto Sans CJK SC', 'Source Han Sans SC', system-ui,
+    sans-serif;
+  --font-mono:
+    'Maple Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   /* Editorial serif token — the body face used by the `serif` font axis
    * and by presets that opt in (currently Anthropic). Lora carries only
    * Latin glyphs, so the stack walks through CJK serifs (Noto / Source Han
