@@ -65,6 +65,12 @@ describe('easy dashboard overview', () => {
         usedQuota={0}
         requestCount={0}
         hasApiKey={false}
+        savings={{
+          officialCost: 0,
+          siteCost: 0,
+          savings: 0,
+          comparableRequests: 0,
+        }}
       />
     )
 
@@ -78,5 +84,29 @@ describe('easy dashboard overview', () => {
     expect(screen.queryByText('First API request')).not.toBeInTheDocument()
     expect(screen.queryByText(/curl http/i)).not.toBeInTheDocument()
     expect(screen.queryByText('Route active')).not.toBeInTheDocument()
+  })
+
+  it('keeps manual setup available and shows the savings receipt before first use', () => {
+    render(
+      <EasyOverviewDashboardView
+        remainQuota={10_000_000}
+        usedQuota={0}
+        requestCount={0}
+        hasApiKey
+        savings={{
+          officialCost: 0,
+          siteCost: 0,
+          savings: 0,
+          comparableRequests: 0,
+        }}
+      />
+    )
+
+    expect(
+      screen.getByRole('link', { name: /Start manual setup/i })
+    ).toHaveAttribute('href', '/guide')
+    expect(screen.getByTestId('easy-savings-receipt')).toBeVisible()
+    expect(screen.getByText('Estimated savings')).toBeVisible()
+    expect(screen.getAllByText('¥0').length).toBeGreaterThan(0)
   })
 })
