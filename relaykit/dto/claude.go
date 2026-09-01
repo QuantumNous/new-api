@@ -14,6 +14,12 @@ type ClaudeMetadata struct {
 	UserId string `json:"user_id"`
 }
 
+type ClaudeStopDetails struct {
+	Type        string  `json:"type"`
+	Category    *string `json:"category"`
+	Explanation *string `json:"explanation"`
+}
+
 type ClaudeMediaMessage struct {
 	Type         string               `json:"type,omitempty"`
 	Text         *string              `json:"text,omitempty"`
@@ -21,6 +27,7 @@ type ClaudeMediaMessage struct {
 	Source       *ClaudeMessageSource `json:"source,omitempty"`
 	Usage        *ClaudeUsage         `json:"usage,omitempty"`
 	StopReason   *string              `json:"stop_reason,omitempty"`
+	StopDetails  *ClaudeStopDetails   `json:"stop_details,omitempty"`
 	PartialJson  *string              `json:"partial_json,omitempty"`
 	Role         string               `json:"role,omitempty"`
 	Thinking     *string              `json:"thinking,omitempty"`
@@ -495,6 +502,7 @@ type ClaudeResponse struct {
 	Content      []ClaudeMediaMessage `json:"content,omitempty"`
 	Completion   string               `json:"completion,omitempty"`
 	StopReason   string               `json:"stop_reason,omitempty"`
+	StopDetails  *ClaudeStopDetails   `json:"stop_details,omitempty"`
 	Model        string               `json:"model,omitempty"`
 	Error        any                  `json:"error,omitempty"`
 	Usage        *ClaudeUsage         `json:"usage,omitempty"`

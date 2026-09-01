@@ -36,6 +36,9 @@ func OaiResponsesToChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	if err := common.Unmarshal(body, &responsesResp); err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	if hasResponsesFailedStatus(responsesResp.Status) {
+		return nil, newResponsesFailedError(c, &responsesResp, resp.StatusCode)
+	}
 
 	if oaiError := responsesResp.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
@@ -121,7 +124,9 @@ func OaiResponsesToChatBufferedStreamHandler(c *gin.Context, info *relaycommon.R
 					finalResponse.Status = []byte(`"incomplete"`)
 				}
 			}
-		case "response.failed", "response.error":
+		case "response.failed":
+			streamErr = newResponsesFailedError(c, streamResp.Response, resp.StatusCode)
+		case "response.error":
 			if streamResp.Response != nil {
 				if oaiErr := streamResp.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
 					streamErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
@@ -280,7 +285,18 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			return
 		}
 
-		if streamResp.Type == "response.error" || streamResp.Type == "response.failed" {
+		if streamResp.Type == "response.failed" {
+			streamErr = newResponsesFailedError(c, streamResp.Response, resp.StatusCode)
+			if info.RelayFormat == types.RelayFormatOpenAI {
+				if err := helper.ObjectData(c, gin.H{"error": streamErr.ToOpenAIError()}); err != nil {
+					sr.Error(err)
+				}
+				helper.Done(c)
+			}
+			sr.Stop(streamErr)
+			return
+		}
+		if streamResp.Type == "response.error" {
 			if streamResp.Response != nil {
 				if oaiErr := streamResp.Response.GetOpenAIError(); oaiErr != nil && oaiErr.Type != "" {
 					streamErr = types.WithOpenAIError(*oaiErr, http.StatusInternalServerError)
