@@ -23,9 +23,10 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
+import { useConsoleModeStore } from '@/stores/console-mode-store'
 
 import { defaultTopNavLinks } from '../config/top-nav.config'
-import { type TopNavLink } from '../types'
+import type { TopNavLink } from '../types'
 import { Header } from './header'
 import { SystemBrand } from './system-brand'
 import { TopNav } from './top-nav'
@@ -93,6 +94,30 @@ type AppHeaderProps = {
   showProfileDropdown?: boolean
 }
 
+function AppHeaderTopNav(props: { navLinks: TopNavLink[] }) {
+  const dynamicLinks = useTopNavLinks()
+  const links = dynamicLinks.length > 0 ? dynamicLinks : props.navLinks
+
+  return <TopNav links={links} />
+}
+
+function AppHeaderNotifications() {
+  const notifications = useNotifications()
+
+  return (
+    <NotificationPopover
+      open={notifications.popoverOpen}
+      onOpenChange={notifications.setPopoverOpen}
+      unreadCount={notifications.unreadCount}
+      activeTab={notifications.activeTab}
+      onTabChange={notifications.setActiveTab}
+      notice={notifications.notice}
+      announcements={notifications.announcements}
+      loading={notifications.loading}
+    />
+  )
+}
+
 export function AppHeader({
   navLinks = defaultTopNavLinks,
   showTopNav = true,
@@ -103,48 +128,31 @@ export function AppHeader({
   showConfigDrawer = true,
   showProfileDropdown = true,
 }: AppHeaderProps) {
-  // Prioritize dynamically generated links from backend
-  const dynamicLinks = useTopNavLinks()
-  const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
-
-  // Notifications hook
-  const notifications = useNotifications()
+  const mode = useConsoleModeStore((state) => state.mode)
+  const isEasyMode = mode === 'easy'
 
   return (
-    <>
-      <Header>
-        <SystemBrand variant='inline' />
+    <Header>
+      <SystemBrand variant='inline' />
 
-        {leftContent ? (
-          <div className='ms-2 flex items-center'>{leftContent}</div>
-        ) : null}
+      {leftContent ? (
+        <div className='ms-2 flex items-center'>{leftContent}</div>
+      ) : null}
 
-        {rightContent ?? (
-          <div className='ms-auto flex items-center gap-1 sm:gap-2'>
-            {showTopNav && (
-              <div className='me-1 hidden lg:block'>
-                <TopNav links={links} />
-              </div>
-            )}
-            {showSearch && <Search />}
-            {showNotifications && (
-              <NotificationPopover
-                open={notifications.popoverOpen}
-                onOpenChange={notifications.setPopoverOpen}
-                unreadCount={notifications.unreadCount}
-                activeTab={notifications.activeTab}
-                onTabChange={notifications.setActiveTab}
-                notice={notifications.notice}
-                announcements={notifications.announcements}
-                loading={notifications.loading}
-              />
-            )}
-            <LanguageSwitcher />
-            {showConfigDrawer && <ConfigDrawer />}
-            {showProfileDropdown && <ProfileDropdown />}
-          </div>
-        )}
-      </Header>
-    </>
+      {rightContent ?? (
+        <div className='ms-auto flex items-center gap-1 sm:gap-2'>
+          {showTopNav && !isEasyMode && (
+            <div className='me-1 hidden lg:block'>
+              <AppHeaderTopNav navLinks={navLinks} />
+            </div>
+          )}
+          {showSearch && !isEasyMode && <Search />}
+          {showNotifications && !isEasyMode && <AppHeaderNotifications />}
+          <LanguageSwitcher />
+          {showConfigDrawer && <ConfigDrawer />}
+          {showProfileDropdown && <ProfileDropdown />}
+        </div>
+      )}
+    </Header>
   )
 }
