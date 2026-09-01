@@ -16,6 +16,22 @@
       "reportSha256": "sha256:bd469a5d66bd64541698fab4fbd0f00a92fd0a162d60857a5325aea5cd803318",
       "releaseUnitId": "RU-DESKTOP-BOOTSTRAP-V1",
       "releaseUnitHash": "sha256:9e766b68a98a58ef945fbce9c30bcfe344dbda0f3bd374b9d033451f3e446dc4"
+    },
+    {
+      "id": "RU-DESKTOP-INTEGRATION-V2/WP-DESKTOP-INTEGRATION-V2@2026-09-01T11:23:28.044024+00:00",
+      "packageId": "WP-DESKTOP-INTEGRATION-V2",
+      "baselineCommit": "5644ebf1d291ba52a5054df5119cda01c79a1ec5",
+      "baselineTreeHash": "sha256:f4a2eae7e8abcffb4b280d9964b0e643c59064256b640482783964727cc85a81",
+      "baselineSnapshotPath": "execution/baselines/e06882fe31d1e4f4.5456e263d891c6556901.json",
+      "baselineSnapshotSha256": "sha256:9ace642a9bfc6055f7ebcc8b7b932766796896fe74cf9f9f01bcb76e8b26f8e8",
+      "assignedTo": "codex-primary",
+      "status": "failed",
+      "startedAt": "2026-09-01T11:23:28.044024+00:00",
+      "finishedAt": "2026-09-01T11:49:47.046077+00:00",
+      "reportPath": "execution/reports/e06882fe31d1e4f4.5456e263d891c6556901.json",
+      "reportSha256": "sha256:89cc92f3a49eb49486169777a0c42dbc9d53d71c0cb87c54507fba5abc7b062b",
+      "releaseUnitId": "RU-DESKTOP-INTEGRATION-V2",
+      "releaseUnitHash": "sha256:17fac34dfadf4d7215fc5e093a44eebc5448744ec094872379694a98877a2fa7"
     }
   ]
 }

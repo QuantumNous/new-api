@@ -1,0 +1,886 @@
+{
+  "schemaVersion": 3,
+  "runId": "RU-DESKTOP-INTEGRATION-V2/WP-DESKTOP-INTEGRATION-V2@2026-09-01T11:23:28.044024+00:00",
+  "packageId": "WP-DESKTOP-INTEGRATION-V2",
+  "baselineCommit": "5644ebf1d291ba52a5054df5119cda01c79a1ec5",
+  "baselineTreeHash": "sha256:f4a2eae7e8abcffb4b280d9964b0e643c59064256b640482783964727cc85a81",
+  "testedTreeHash": "sha256:1d5a39932f9fc10f3f1436640fac5d3004065f2b6a2acf0d12af466973d06a08",
+  "testedSnapshotPath": "execution/tested-snapshots/e06882fe31d1e4f4.5456e263d891c6556901.json",
+  "testedSnapshotSha256": "sha256:ae1bc0e4cb85363f5098e1d361d2363d363e8aeb979f2f136e9361a1d5a47bed",
+  "sourceDiff": {
+    "controller/desktop.go": "sha256:5bc1cbf5b54427fb9d1f9e70ddaf6b97ce015be62e78ce35e5e7ef4a9640912b",
+    "controller/desktop_v2_test.go": "sha256:56de2df9ee782588c6475a4f769b48b45f79097fbc80eb114879f6a2ea90fb94",
+    "docs/contracts/desktop-integration.v2.schema.json": "sha256:d49b727a01b6840b25695b60dd2b5dc3f1862da34eb0857eb04db57b20510411",
+    "docs/desktop-api-v2.md": "sha256:ae1f96d61e7075953f34e6b78e1919cba4ffa9c258d25c61851dad606a47a34d",
+    "router/api-router.go": "sha256:51a5a0d8553178b25604b5115d85fbc58eefad22b9f578fd642b754c6198e43a",
+    "router/desktop_v2_router_test.go": "sha256:592bf8d35f765bbc5d4314cf472a0dcc70b43e32250b8324a9978bb2bed05309",
+    "service/desktop_device_authorization.go": "sha256:27e333240d82f152a408f35a47b15f0041d439f42c505defbf9e4784e32cd78f",
+    "service/desktop_device_authorization_test.go": "sha256:6c906fd9cc17d16c736560305f2d424366015e7f3cb7d5a9a1833646ff6d0d93",
+    "tests/work_packages/desktop_v2/test_acceptance.py": "sha256:5aa3ed4352adb59360a9ed64441bc5ee14e868130d99d83d74bf8a8b326ac0fb",
+    "web/src/features/desktop-authorization/__tests__/authorization.test.tsx": "sha256:367db6858398aba1415f0a5ada123a369b64d64e5bc6a102cd741248d420b903",
+    "web/src/features/desktop-authorization/api.ts": "sha256:fb1c24d1f56b69c9753d1631e8a664e87eed61aee8219a7bf10373fb6c9ae95d",
+    "web/src/features/desktop-authorization/index.tsx": "sha256:a8193e09107f3c1e080bf75dfe19077f23c8bffa98e73fbd43695e1406fdaa7c",
+    "web/src/i18n/locales/en.json": "sha256:640d76ec5b665da9a3b7a84e0fcec1fa807ed5a220e357d1c8cbae314cdf5ac4",
+    "web/src/i18n/locales/fr.json": "sha256:2a784b08e5598bcf89ab3825d23c460bdefcbd2b3b6bb778e7270c3902434328",
+    "web/src/i18n/locales/ja.json": "sha256:2448d166a7b9161dda009ebd77d48afcbc8503a90e2b1a53e03a3b0e16c489ce",
+    "web/src/i18n/locales/ru.json": "sha256:707c7d61a4cf288db90598122f2326a9283714af6f52b74c4c20bdb9fc281971",
+    "web/src/i18n/locales/vi.json": "sha256:11a798d2839838e409c8d539a8ab6e86828bd85e8c12c6161f5a4ca7f8f0cbcf",
+    "web/src/i18n/locales/zh-TW.json": "sha256:9c04c79ddde349eaa77eff45fc2738daaa9d4982b3fe532ec28593adc789cfaf",
+    "web/src/i18n/locales/zh.json": "sha256:151b17914478becc64bbf31fef1c1717fa10df1226e987207e5e11905fb6b732",
+    "web/src/routeTree.gen.ts": "sha256:decfa6954b85450f17f65a4c75217a0e2f8e3a3600bf6ff102e41d9969ab6120",
+    "web/src/routes/_authenticated/desktop-authorize/index.tsx": "sha256:63b8053e4d6ef9a5c9685fb05d65170033ef030b5229f4fa110f41ec38e8143d"
+  },
+  "ownedResultHashes": {
+    "controller/desktop.go": "sha256:5bc1cbf5b54427fb9d1f9e70ddaf6b97ce015be62e78ce35e5e7ef4a9640912b",
+    "controller/desktop_v2_test.go": "sha256:56de2df9ee782588c6475a4f769b48b45f79097fbc80eb114879f6a2ea90fb94",
+    "docs/contracts/desktop-integration.v2.schema.json": "sha256:d49b727a01b6840b25695b60dd2b5dc3f1862da34eb0857eb04db57b20510411",
+    "docs/desktop-api-v2.md": "sha256:ae1f96d61e7075953f34e6b78e1919cba4ffa9c258d25c61851dad606a47a34d",
+    "router/api-router.go": "sha256:51a5a0d8553178b25604b5115d85fbc58eefad22b9f578fd642b754c6198e43a",
+    "router/desktop_v2_router_test.go": "sha256:592bf8d35f765bbc5d4314cf472a0dcc70b43e32250b8324a9978bb2bed05309",
+    "service/desktop_device_authorization.go": "sha256:27e333240d82f152a408f35a47b15f0041d439f42c505defbf9e4784e32cd78f",
+    "service/desktop_device_authorization_test.go": "sha256:6c906fd9cc17d16c736560305f2d424366015e7f3cb7d5a9a1833646ff6d0d93",
+    "tests/work_packages/desktop_v2/test_acceptance.py": "sha256:5aa3ed4352adb59360a9ed64441bc5ee14e868130d99d83d74bf8a8b326ac0fb",
+    "web/src/features/desktop-authorization/__tests__/authorization.test.tsx": "sha256:367db6858398aba1415f0a5ada123a369b64d64e5bc6a102cd741248d420b903",
+    "web/src/features/desktop-authorization/api.ts": "sha256:fb1c24d1f56b69c9753d1631e8a664e87eed61aee8219a7bf10373fb6c9ae95d",
+    "web/src/features/desktop-authorization/index.tsx": "sha256:a8193e09107f3c1e080bf75dfe19077f23c8bffa98e73fbd43695e1406fdaa7c",
+    "web/src/i18n/locales/en.json": "sha256:640d76ec5b665da9a3b7a84e0fcec1fa807ed5a220e357d1c8cbae314cdf5ac4",
+    "web/src/i18n/locales/fr.json": "sha256:2a784b08e5598bcf89ab3825d23c460bdefcbd2b3b6bb778e7270c3902434328",
+    "web/src/i18n/locales/ja.json": "sha256:2448d166a7b9161dda009ebd77d48afcbc8503a90e2b1a53e03a3b0e16c489ce",
+    "web/src/i18n/locales/ru.json": "sha256:707c7d61a4cf288db90598122f2326a9283714af6f52b74c4c20bdb9fc281971",
+    "web/src/i18n/locales/vi.json": "sha256:11a798d2839838e409c8d539a8ab6e86828bd85e8c12c6161f5a4ca7f8f0cbcf",
+    "web/src/i18n/locales/zh-TW.json": "sha256:9c04c79ddde349eaa77eff45fc2738daaa9d4982b3fe532ec28593adc789cfaf",
+    "web/src/i18n/locales/zh.json": "sha256:151b17914478becc64bbf31fef1c1717fa10df1226e987207e5e11905fb6b732",
+    "web/src/routeTree.gen.ts": "sha256:decfa6954b85450f17f65a4c75217a0e2f8e3a3600bf6ff102e41d9969ab6120",
+    "web/src/routes/_authenticated/desktop-authorize/index.tsx": "sha256:63b8053e4d6ef9a5c9685fb05d65170033ef030b5229f4fa110f41ec38e8143d"
+  },
+  "testedOwnedState": {
+    "schemaVersion": 1,
+    "selectionPolicy": "allowed-source-files-and-symlinks@1",
+    "allowedPaths": [
+      "controller/desktop.go",
+      "controller/desktop_v2_test.go",
+      "service/desktop_device_authorization.go",
+      "service/desktop_device_authorization_test.go",
+      "router/api-router.go",
+      "router/desktop_v2_router_test.go",
+      "web/src/features/desktop-authorization/**",
+      "web/src/routes/_authenticated/desktop-authorize/**",
+      "web/src/routeTree.gen.ts",
+      "web/src/i18n/locales/**",
+      "docs/desktop-api-v2.md",
+      "docs/contracts/desktop-integration.v2.schema.json",
+      "tests/work_packages/desktop_v2/**"
+    ],
+    "excludedClasses": [
+      "governance_execution_runtime",
+      "directories_and_git_submodules",
+      "devices_sockets_and_fifos",
+      "transient_missing_entries"
+    ],
+    "pathHashes": {
+      "controller/desktop.go": "sha256:5bc1cbf5b54427fb9d1f9e70ddaf6b97ce015be62e78ce35e5e7ef4a9640912b",
+      "controller/desktop_v2_test.go": "sha256:56de2df9ee782588c6475a4f769b48b45f79097fbc80eb114879f6a2ea90fb94",
+      "docs/contracts/desktop-integration.v2.schema.json": "sha256:d49b727a01b6840b25695b60dd2b5dc3f1862da34eb0857eb04db57b20510411",
+      "docs/desktop-api-v2.md": "sha256:ae1f96d61e7075953f34e6b78e1919cba4ffa9c258d25c61851dad606a47a34d",
+      "router/api-router.go": "sha256:51a5a0d8553178b25604b5115d85fbc58eefad22b9f578fd642b754c6198e43a",
+      "router/desktop_v2_router_test.go": "sha256:592bf8d35f765bbc5d4314cf472a0dcc70b43e32250b8324a9978bb2bed05309",
+      "service/desktop_device_authorization.go": "sha256:27e333240d82f152a408f35a47b15f0041d439f42c505defbf9e4784e32cd78f",
+      "service/desktop_device_authorization_test.go": "sha256:6c906fd9cc17d16c736560305f2d424366015e7f3cb7d5a9a1833646ff6d0d93",
+      "tests/work_packages/desktop_v2/test_acceptance.py": "sha256:5aa3ed4352adb59360a9ed64441bc5ee14e868130d99d83d74bf8a8b326ac0fb",
+      "web/src/features/desktop-authorization/__tests__/authorization.test.tsx": "sha256:367db6858398aba1415f0a5ada123a369b64d64e5bc6a102cd741248d420b903",
+      "web/src/features/desktop-authorization/api.ts": "sha256:fb1c24d1f56b69c9753d1631e8a664e87eed61aee8219a7bf10373fb6c9ae95d",
+      "web/src/features/desktop-authorization/index.tsx": "sha256:a8193e09107f3c1e080bf75dfe19077f23c8bffa98e73fbd43695e1406fdaa7c",
+      "web/src/i18n/locales/en.json": "sha256:640d76ec5b665da9a3b7a84e0fcec1fa807ed5a220e357d1c8cbae314cdf5ac4",
+      "web/src/i18n/locales/fr.json": "sha256:2a784b08e5598bcf89ab3825d23c460bdefcbd2b3b6bb778e7270c3902434328",
+      "web/src/i18n/locales/ja.json": "sha256:2448d166a7b9161dda009ebd77d48afcbc8503a90e2b1a53e03a3b0e16c489ce",
+      "web/src/i18n/locales/ru.json": "sha256:707c7d61a4cf288db90598122f2326a9283714af6f52b74c4c20bdb9fc281971",
+      "web/src/i18n/locales/vi.json": "sha256:11a798d2839838e409c8d539a8ab6e86828bd85e8c12c6161f5a4ca7f8f0cbcf",
+      "web/src/i18n/locales/zh-TW.json": "sha256:9c04c79ddde349eaa77eff45fc2738daaa9d4982b3fe532ec28593adc789cfaf",
+      "web/src/i18n/locales/zh.json": "sha256:151b17914478becc64bbf31fef1c1717fa10df1226e987207e5e11905fb6b732",
+      "web/src/routeTree.gen.ts": "sha256:decfa6954b85450f17f65a4c75217a0e2f8e3a3600bf6ff102e41d9969ab6120",
+      "web/src/routes/_authenticated/desktop-authorize/index.tsx": "sha256:63b8053e4d6ef9a5c9685fb05d65170033ef030b5229f4fa110f41ec38e8143d"
+    }
+  },
+  "testedOwnedStateSha256": "sha256:08c64cda2787924a7aebdd19d32bed1c0e744e972fc04c72feb8411e42522481",
+  "sourceScopeFailures": [],
+  "integrityFailures": [],
+  "assignedTo": "codex-primary",
+  "startedAt": "2026-09-01T11:23:28.044024+00:00",
+  "finishedAt": "2026-09-01T11:49:47.046077+00:00",
+  "passed": false,
+  "commands": [
+    {
+      "schemaVersion": 1,
+      "declaredCommand": {
+        "id": "desktop-v2-contract",
+        "kind": "scenario_test",
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_contract_and_v1_compatibility",
+        "cwd": ".",
+        "timeoutSeconds": 600
+      },
+      "runnerMetadata": {
+        "adapter": "pytest-json@1",
+        "declaredCwd": ".",
+        "cwd": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_contract_and_v1_compatibility",
+        "selectorRealpath": "/Users/zxg/Documents/Codex/2026-08-29/new-api/tests/work_packages/desktop_v2/test_acceptance.py",
+        "runnerArgv": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_contract_and_v1_compatibility",
+          "--report",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-ey0jkek8/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-ey0jkek8/pytest-basetemp"
+        ],
+        "sandboxedArgv": [
+          "/usr/bin/sandbox-exec",
+          "-p",
+          "(version 1)\n(allow default)\n(deny file-write*\n  (require-not\n    (require-any\n      (subpath \"/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-ey0jkek8\")\n      (literal \"/dev/null\"))))\n",
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_contract_and_v1_compatibility",
+          "--report",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-ey0jkek8/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-ey0jkek8/pytest-basetemp"
+        ],
+        "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "pythonRealpath": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+        "pythonExecutableSha256": "sha256:6b24be8ba00c4abc8b3e7e2620bd710e2cf7a4312d00c147f8f05fbb6f3d297a",
+        "pytestVersion": "8.4.2",
+        "pytestDistributionVersion": "8.4.2",
+        "pytestModulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+        "pytestModuleSha256": "sha256:66993a5e3905005e0981159b4794d10b1adacf341a58a44d696ad2c4442dcdc6",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "executable": "/usr/bin/sandbox-exec",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea",
+          "policySha256": "sha256:4becdfb41a13a71fc65186cbab8b1fa8d6071ea02ea9ef0617df7a58325910a6",
+          "projectRoot": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+          "writableRoot": "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-ey0jkek8",
+          "policyVersion": 1
+        }
+      },
+      "machineReport": {
+        "adapter": "pytest-json@1",
+        "collectedNodeIds": [
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_contract_and_v1_compatibility"
+        ],
+        "collectionErrors": [],
+        "deselectedNodeIds": [],
+        "pytestExitCode": 0,
+        "pytestRootPath": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+        "runner": {
+          "distributionVersion": "8.4.2",
+          "modulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+          "moduleVersion": "8.4.2",
+          "name": "pytest",
+          "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "pythonVersion": "3.9.6"
+        },
+        "schemaVersion": 1,
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_contract_and_v1_compatibility",
+        "tests": [
+          {
+            "nodeId": "tests/work_packages/desktop_v2/test_acceptance.py::test_contract_and_v1_compatibility",
+            "phases": {
+              "call": {
+                "outcome": "passed"
+              },
+              "setup": {
+                "outcome": "passed"
+              },
+              "teardown": {
+                "outcome": "passed"
+              }
+            }
+          }
+        ]
+      },
+      "process": {
+        "actualExitCode": 0,
+        "timedOut": false,
+        "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0\nrootdir: /Users/zxg/Documents/Codex/2026-08-29/new-api\nplugins: anyio-4.12.1\ncollected 1 item\n\ntests/work_packages/desktop_v2/test_acceptance.py .                      [100%]\n\n============================== 1 passed in 7.27s ===============================\n",
+        "stderr": ""
+      },
+      "validationErrors": [],
+      "runnerProof": {
+        "schemaVersion": 1,
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_contract_and_v1_compatibility",
+        "cwd": ".",
+        "executedPassingTests": 1,
+        "actualExitCode": 0,
+        "runnerMetadataSha256": "sha256:6c95e52244ecca38e44db8df7c761d063e055dc99cdf09051ce25af1aa285e3f",
+        "machineReportSha256": "sha256:2055d055c78e94ddf2a9f628245454ca6651ddac504f921cb40af23518ff3a28",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "policySha256": "sha256:4becdfb41a13a71fc65186cbab8b1fa8d6071ea02ea9ef0617df7a58325910a6",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+        }
+      },
+      "passed": true,
+      "id": "desktop-v2-contract",
+      "kind": "scenario_test",
+      "actualExitCode": 0,
+      "timedOut": false,
+      "scenarioId": "DESKTOP-V2-AS-01"
+    },
+    {
+      "schemaVersion": 1,
+      "declaredCommand": {
+        "id": "desktop-v2-happy",
+        "kind": "scenario_test",
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_happy_path",
+        "cwd": ".",
+        "timeoutSeconds": 600
+      },
+      "runnerMetadata": {
+        "adapter": "pytest-json@1",
+        "declaredCwd": ".",
+        "cwd": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_happy_path",
+        "selectorRealpath": "/Users/zxg/Documents/Codex/2026-08-29/new-api/tests/work_packages/desktop_v2/test_acceptance.py",
+        "runnerArgv": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_happy_path",
+          "--report",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-z891hupe/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-z891hupe/pytest-basetemp"
+        ],
+        "sandboxedArgv": [
+          "/usr/bin/sandbox-exec",
+          "-p",
+          "(version 1)\n(allow default)\n(deny file-write*\n  (require-not\n    (require-any\n      (subpath \"/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-z891hupe\")\n      (literal \"/dev/null\"))))\n",
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_happy_path",
+          "--report",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-z891hupe/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-z891hupe/pytest-basetemp"
+        ],
+        "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "pythonRealpath": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+        "pythonExecutableSha256": "sha256:6b24be8ba00c4abc8b3e7e2620bd710e2cf7a4312d00c147f8f05fbb6f3d297a",
+        "pytestVersion": "8.4.2",
+        "pytestDistributionVersion": "8.4.2",
+        "pytestModulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+        "pytestModuleSha256": "sha256:66993a5e3905005e0981159b4794d10b1adacf341a58a44d696ad2c4442dcdc6",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "executable": "/usr/bin/sandbox-exec",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea",
+          "policySha256": "sha256:1e94332159a14782dce16e872124f3759da3a27ecb7fd522521466ad3ed2887d",
+          "projectRoot": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+          "writableRoot": "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-z891hupe",
+          "policyVersion": 1
+        }
+      },
+      "machineReport": {
+        "adapter": "pytest-json@1",
+        "collectedNodeIds": [
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_happy_path"
+        ],
+        "collectionErrors": [],
+        "deselectedNodeIds": [],
+        "pytestExitCode": 0,
+        "pytestRootPath": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+        "runner": {
+          "distributionVersion": "8.4.2",
+          "modulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+          "moduleVersion": "8.4.2",
+          "name": "pytest",
+          "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "pythonVersion": "3.9.6"
+        },
+        "schemaVersion": 1,
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_happy_path",
+        "tests": [
+          {
+            "nodeId": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_happy_path",
+            "phases": {
+              "call": {
+                "outcome": "passed"
+              },
+              "setup": {
+                "outcome": "passed"
+              },
+              "teardown": {
+                "outcome": "passed"
+              }
+            }
+          }
+        ]
+      },
+      "process": {
+        "actualExitCode": 0,
+        "timedOut": false,
+        "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0\nrootdir: /Users/zxg/Documents/Codex/2026-08-29/new-api\nplugins: anyio-4.12.1\ncollected 1 item\n\ntests/work_packages/desktop_v2/test_acceptance.py .                      [100%]\n\n============================== 1 passed in 4.52s ===============================\n",
+        "stderr": ""
+      },
+      "validationErrors": [],
+      "runnerProof": {
+        "schemaVersion": 1,
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_happy_path",
+        "cwd": ".",
+        "executedPassingTests": 1,
+        "actualExitCode": 0,
+        "runnerMetadataSha256": "sha256:86d893d91a8efa76cfb448c4c2ab812052617acbc18cb8715204c6b38fca0957",
+        "machineReportSha256": "sha256:bdd9bf7baa6ab2f137e95954c2e333b44200b101769e1b1b829acd95431e3825",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "policySha256": "sha256:1e94332159a14782dce16e872124f3759da3a27ecb7fd522521466ad3ed2887d",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+        }
+      },
+      "passed": true,
+      "id": "desktop-v2-happy",
+      "kind": "scenario_test",
+      "actualExitCode": 0,
+      "timedOut": false,
+      "scenarioId": "DESKTOP-V2-AS-02"
+    },
+    {
+      "schemaVersion": 1,
+      "declaredCommand": {
+        "id": "desktop-v2-failure",
+        "kind": "scenario_test",
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_failure_paths",
+        "cwd": ".",
+        "timeoutSeconds": 600
+      },
+      "runnerMetadata": {
+        "adapter": "pytest-json@1",
+        "declaredCwd": ".",
+        "cwd": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_failure_paths",
+        "selectorRealpath": "/Users/zxg/Documents/Codex/2026-08-29/new-api/tests/work_packages/desktop_v2/test_acceptance.py",
+        "runnerArgv": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_failure_paths",
+          "--report",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-78nosy_k/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-78nosy_k/pytest-basetemp"
+        ],
+        "sandboxedArgv": [
+          "/usr/bin/sandbox-exec",
+          "-p",
+          "(version 1)\n(allow default)\n(deny file-write*\n  (require-not\n    (require-any\n      (subpath \"/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-78nosy_k\")\n      (literal \"/dev/null\"))))\n",
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_failure_paths",
+          "--report",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-78nosy_k/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-78nosy_k/pytest-basetemp"
+        ],
+        "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "pythonRealpath": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+        "pythonExecutableSha256": "sha256:6b24be8ba00c4abc8b3e7e2620bd710e2cf7a4312d00c147f8f05fbb6f3d297a",
+        "pytestVersion": "8.4.2",
+        "pytestDistributionVersion": "8.4.2",
+        "pytestModulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+        "pytestModuleSha256": "sha256:66993a5e3905005e0981159b4794d10b1adacf341a58a44d696ad2c4442dcdc6",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "executable": "/usr/bin/sandbox-exec",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea",
+          "policySha256": "sha256:388a84c05fbd7514125fda035b18934839b3d72197d1ad5ccdb33e0dca752a8c",
+          "projectRoot": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+          "writableRoot": "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-78nosy_k",
+          "policyVersion": 1
+        }
+      },
+      "machineReport": {
+        "adapter": "pytest-json@1",
+        "collectedNodeIds": [
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_failure_paths"
+        ],
+        "collectionErrors": [],
+        "deselectedNodeIds": [],
+        "pytestExitCode": 0,
+        "pytestRootPath": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+        "runner": {
+          "distributionVersion": "8.4.2",
+          "modulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+          "moduleVersion": "8.4.2",
+          "name": "pytest",
+          "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "pythonVersion": "3.9.6"
+        },
+        "schemaVersion": 1,
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_failure_paths",
+        "tests": [
+          {
+            "nodeId": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_failure_paths",
+            "phases": {
+              "call": {
+                "outcome": "passed"
+              },
+              "setup": {
+                "outcome": "passed"
+              },
+              "teardown": {
+                "outcome": "passed"
+              }
+            }
+          }
+        ]
+      },
+      "process": {
+        "actualExitCode": 0,
+        "timedOut": false,
+        "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0\nrootdir: /Users/zxg/Documents/Codex/2026-08-29/new-api\nplugins: anyio-4.12.1\ncollected 1 item\n\ntests/work_packages/desktop_v2/test_acceptance.py .                      [100%]\n\n============================== 1 passed in 9.94s ===============================\n",
+        "stderr": ""
+      },
+      "validationErrors": [],
+      "runnerProof": {
+        "schemaVersion": 1,
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_failure_paths",
+        "cwd": ".",
+        "executedPassingTests": 1,
+        "actualExitCode": 0,
+        "runnerMetadataSha256": "sha256:0da0cc4cdbc26c681283eae9be9eb14e7f0dba565588840674bf6fe66504a82f",
+        "machineReportSha256": "sha256:cfb413a0e8ec59b3a246ebadfd4494e0a6fbfbfe8aa3694fe5754e7a182965c6",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "policySha256": "sha256:388a84c05fbd7514125fda035b18934839b3d72197d1ad5ccdb33e0dca752a8c",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+        }
+      },
+      "passed": true,
+      "id": "desktop-v2-failure",
+      "kind": "scenario_test",
+      "actualExitCode": 0,
+      "timedOut": false,
+      "scenarioId": "DESKTOP-V2-AS-03"
+    },
+    {
+      "schemaVersion": 1,
+      "declaredCommand": {
+        "id": "desktop-v2-replay",
+        "kind": "scenario_test",
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_replay_and_race",
+        "cwd": ".",
+        "timeoutSeconds": 600
+      },
+      "runnerMetadata": {
+        "adapter": "pytest-json@1",
+        "declaredCwd": ".",
+        "cwd": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_replay_and_race",
+        "selectorRealpath": "/Users/zxg/Documents/Codex/2026-08-29/new-api/tests/work_packages/desktop_v2/test_acceptance.py",
+        "runnerArgv": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_replay_and_race",
+          "--report",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-60l70o41/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-60l70o41/pytest-basetemp"
+        ],
+        "sandboxedArgv": [
+          "/usr/bin/sandbox-exec",
+          "-p",
+          "(version 1)\n(allow default)\n(deny file-write*\n  (require-not\n    (require-any\n      (subpath \"/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-60l70o41\")\n      (literal \"/dev/null\"))))\n",
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_replay_and_race",
+          "--report",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-60l70o41/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-60l70o41/pytest-basetemp"
+        ],
+        "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "pythonRealpath": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+        "pythonExecutableSha256": "sha256:6b24be8ba00c4abc8b3e7e2620bd710e2cf7a4312d00c147f8f05fbb6f3d297a",
+        "pytestVersion": "8.4.2",
+        "pytestDistributionVersion": "8.4.2",
+        "pytestModulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+        "pytestModuleSha256": "sha256:66993a5e3905005e0981159b4794d10b1adacf341a58a44d696ad2c4442dcdc6",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "executable": "/usr/bin/sandbox-exec",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea",
+          "policySha256": "sha256:3775ff1a34e394c6c683900443383f873f59c8dc505b45967b09e191a3194f8e",
+          "projectRoot": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+          "writableRoot": "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-60l70o41",
+          "policyVersion": 1
+        }
+      },
+      "machineReport": {
+        "adapter": "pytest-json@1",
+        "collectedNodeIds": [
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_replay_and_race"
+        ],
+        "collectionErrors": [],
+        "deselectedNodeIds": [],
+        "pytestExitCode": 0,
+        "pytestRootPath": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+        "runner": {
+          "distributionVersion": "8.4.2",
+          "modulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+          "moduleVersion": "8.4.2",
+          "name": "pytest",
+          "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "pythonVersion": "3.9.6"
+        },
+        "schemaVersion": 1,
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_replay_and_race",
+        "tests": [
+          {
+            "nodeId": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_replay_and_race",
+            "phases": {
+              "call": {
+                "outcome": "passed"
+              },
+              "setup": {
+                "outcome": "passed"
+              },
+              "teardown": {
+                "outcome": "passed"
+              }
+            }
+          }
+        ]
+      },
+      "process": {
+        "actualExitCode": 0,
+        "timedOut": false,
+        "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0\nrootdir: /Users/zxg/Documents/Codex/2026-08-29/new-api\nplugins: anyio-4.12.1\ncollected 1 item\n\ntests/work_packages/desktop_v2/test_acceptance.py .                      [100%]\n\n============================== 1 passed in 4.31s ===============================\n",
+        "stderr": ""
+      },
+      "validationErrors": [],
+      "runnerProof": {
+        "schemaVersion": 1,
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_device_authorization_replay_and_race",
+        "cwd": ".",
+        "executedPassingTests": 1,
+        "actualExitCode": 0,
+        "runnerMetadataSha256": "sha256:7a476cdca8e4802f164c8b968c7c930abd4d82a57d078594533a73c8e5912e49",
+        "machineReportSha256": "sha256:cd6405f4036b0a57ace2d94df8f53bc277fc2d6b24fb99557cda35e11edd23fb",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "policySha256": "sha256:3775ff1a34e394c6c683900443383f873f59c8dc505b45967b09e191a3194f8e",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+        }
+      },
+      "passed": true,
+      "id": "desktop-v2-replay",
+      "kind": "scenario_test",
+      "actualExitCode": 0,
+      "timedOut": false,
+      "scenarioId": "DESKTOP-V2-AS-04"
+    },
+    {
+      "schemaVersion": 1,
+      "declaredCommand": {
+        "id": "desktop-v2-refresh",
+        "kind": "scenario_test",
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_refresh_revoke_and_recovery",
+        "cwd": ".",
+        "timeoutSeconds": 600
+      },
+      "runnerMetadata": {
+        "adapter": "pytest-json@1",
+        "declaredCwd": ".",
+        "cwd": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_refresh_revoke_and_recovery",
+        "selectorRealpath": "/Users/zxg/Documents/Codex/2026-08-29/new-api/tests/work_packages/desktop_v2/test_acceptance.py",
+        "runnerArgv": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_refresh_revoke_and_recovery",
+          "--report",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-s00cx0c_/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-s00cx0c_/pytest-basetemp"
+        ],
+        "sandboxedArgv": [
+          "/usr/bin/sandbox-exec",
+          "-p",
+          "(version 1)\n(allow default)\n(deny file-write*\n  (require-not\n    (require-any\n      (subpath \"/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-s00cx0c_\")\n      (literal \"/dev/null\"))))\n",
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_refresh_revoke_and_recovery",
+          "--report",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-s00cx0c_/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-s00cx0c_/pytest-basetemp"
+        ],
+        "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "pythonRealpath": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+        "pythonExecutableSha256": "sha256:6b24be8ba00c4abc8b3e7e2620bd710e2cf7a4312d00c147f8f05fbb6f3d297a",
+        "pytestVersion": "8.4.2",
+        "pytestDistributionVersion": "8.4.2",
+        "pytestModulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+        "pytestModuleSha256": "sha256:66993a5e3905005e0981159b4794d10b1adacf341a58a44d696ad2c4442dcdc6",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "executable": "/usr/bin/sandbox-exec",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea",
+          "policySha256": "sha256:eddef69144b987b7a5dd7753b2e42f13585d4cac7564ae93edbacb2017741ebe",
+          "projectRoot": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+          "writableRoot": "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-s00cx0c_",
+          "policyVersion": 1
+        }
+      },
+      "machineReport": {
+        "adapter": "pytest-json@1",
+        "collectedNodeIds": [
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_refresh_revoke_and_recovery"
+        ],
+        "collectionErrors": [],
+        "deselectedNodeIds": [],
+        "pytestExitCode": 0,
+        "pytestRootPath": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+        "runner": {
+          "distributionVersion": "8.4.2",
+          "modulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+          "moduleVersion": "8.4.2",
+          "name": "pytest",
+          "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "pythonVersion": "3.9.6"
+        },
+        "schemaVersion": 1,
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_refresh_revoke_and_recovery",
+        "tests": [
+          {
+            "nodeId": "tests/work_packages/desktop_v2/test_acceptance.py::test_refresh_revoke_and_recovery",
+            "phases": {
+              "call": {
+                "outcome": "passed"
+              },
+              "setup": {
+                "outcome": "passed"
+              },
+              "teardown": {
+                "outcome": "passed"
+              }
+            }
+          }
+        ]
+      },
+      "process": {
+        "actualExitCode": 0,
+        "timedOut": false,
+        "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0\nrootdir: /Users/zxg/Documents/Codex/2026-08-29/new-api\nplugins: anyio-4.12.1\ncollected 1 item\n\ntests/work_packages/desktop_v2/test_acceptance.py .                      [100%]\n\n============================== 1 passed in 10.20s ==============================\n",
+        "stderr": ""
+      },
+      "validationErrors": [],
+      "runnerProof": {
+        "schemaVersion": 1,
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_refresh_revoke_and_recovery",
+        "cwd": ".",
+        "executedPassingTests": 1,
+        "actualExitCode": 0,
+        "runnerMetadataSha256": "sha256:008c5d394729303a0ec309d10d44aa1022c1535f5cc478b987c97a01066f5fbd",
+        "machineReportSha256": "sha256:c732122685b2f8a0822cb89f43e2f6c416a960da223c7680dec51d8ae91a6e12",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "policySha256": "sha256:eddef69144b987b7a5dd7753b2e42f13585d4cac7564ae93edbacb2017741ebe",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+        }
+      },
+      "passed": true,
+      "id": "desktop-v2-refresh",
+      "kind": "scenario_test",
+      "actualExitCode": 0,
+      "timedOut": false,
+      "scenarioId": "DESKTOP-V2-AS-05"
+    },
+    {
+      "schemaVersion": 1,
+      "declaredCommand": {
+        "id": "desktop-v2-web",
+        "kind": "scenario_test",
+        "adapter": "pytest-json@1",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_browser_approval_surface",
+        "cwd": ".",
+        "timeoutSeconds": 900
+      },
+      "runnerMetadata": {
+        "adapter": "pytest-json@1",
+        "declaredCwd": ".",
+        "cwd": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_browser_approval_surface",
+        "selectorRealpath": "/Users/zxg/Documents/Codex/2026-08-29/new-api/tests/work_packages/desktop_v2/test_acceptance.py",
+        "runnerArgv": [
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_browser_approval_surface",
+          "--report",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-u288ktqa/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-u288ktqa/pytest-basetemp"
+        ],
+        "sandboxedArgv": [
+          "/usr/bin/sandbox-exec",
+          "-p",
+          "(version 1)\n(allow default)\n(deny file-write*\n  (require-not\n    (require-any\n      (subpath \"/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-u288ktqa\")\n      (literal \"/dev/null\"))))\n",
+          "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "-B",
+          "/Users/zxg/.codex/skills/govern-product-build/scripts/runner_adapters.py",
+          "__pytest_child",
+          "--selector",
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_browser_approval_surface",
+          "--report",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-u288ktqa/pytest-machine-report.json",
+          "--basetemp",
+          "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-u288ktqa/pytest-basetemp"
+        ],
+        "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+        "pythonRealpath": "/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+        "pythonExecutableSha256": "sha256:6b24be8ba00c4abc8b3e7e2620bd710e2cf7a4312d00c147f8f05fbb6f3d297a",
+        "pytestVersion": "8.4.2",
+        "pytestDistributionVersion": "8.4.2",
+        "pytestModulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+        "pytestModuleSha256": "sha256:66993a5e3905005e0981159b4794d10b1adacf341a58a44d696ad2c4442dcdc6",
+        "isolation": {
+          "adapter": "darwin-sandbox-exec-readonly-source@1",
+          "executable": "/usr/bin/sandbox-exec",
+          "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea",
+          "policySha256": "sha256:9535cc004cb3a66a55f887c3653320ce2d2090bbf8c6d662a559ed3ce618c0c2",
+          "projectRoot": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+          "writableRoot": "/Users/zxg/Documents/Codex/2026-08-29/new-api/.product-governance/execution/tmp/scenario-u288ktqa",
+          "policyVersion": 1
+        }
+      },
+      "machineReport": {
+        "adapter": "pytest-json@1",
+        "collectedNodeIds": [
+          "tests/work_packages/desktop_v2/test_acceptance.py::test_browser_approval_surface"
+        ],
+        "collectionErrors": [],
+        "deselectedNodeIds": [],
+        "pytestExitCode": 1,
+        "pytestRootPath": "/Users/zxg/Documents/Codex/2026-08-29/new-api",
+        "runner": {
+          "distributionVersion": "8.4.2",
+          "modulePath": "/Users/zxg/Library/Python/3.9/lib/python/site-packages/pytest/__init__.py",
+          "moduleVersion": "8.4.2",
+          "name": "pytest",
+          "pythonExecutable": "/Applications/Xcode.app/Contents/Developer/usr/bin/python3",
+          "pythonVersion": "3.9.6"
+        },
+        "schemaVersion": 1,
+        "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_browser_approval_surface",
+        "tests": [
+          {
+            "nodeId": "tests/work_packages/desktop_v2/test_acceptance.py::test_browser_approval_surface",
+            "phases": {
+              "call": {
+                "outcome": "failed"
+              },
+              "setup": {
+                "outcome": "passed"
+              },
+              "teardown": {
+                "outcome": "passed"
+              }
+            }
+          }
+        ]
+      },
+      "process": {
+        "actualExitCode": 1,
+        "timedOut": false,
+        "stdout": "============================= test session starts ==============================\nplatform darwin -- Python 3.9.6, pytest-8.4.2, pluggy-1.6.0\nrootdir: /Users/zxg/Documents/Codex/2026-08-29/new-api\nplugins: anyio-4.12.1\ncollected 1 item\n\ntests/work_packages/desktop_v2/test_acceptance.py F                      [100%]\n\n=================================== FAILURES ===================================\n________________________ test_browser_approval_surface _________________________\n\n    def test_browser_approval_surface() -> None:\n>       run(\n            [\n                \"bun\",\n                \"run\",\n                \"test\",\n                \"src/features/desktop-authorization/__tests__/authorization.test.tsx\",\n            ],\n            cwd=ROOT / \"web\",\n        )\n\ntests/work_packages/desktop_v2/test_acceptance.py:70: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \ntests/work_packages/desktop_v2/test_acceptance.py:16: in run\n    subprocess.run(\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\ninput = None, capture_output = False, timeout = None, check = True\npopenargs = (['/tmp/yeschoy-bun-npm/node_modules/.bin/bun', 'run', 'test', 'src/features/desktop-authorization/__tests__/authorization.test.tsx'],)\nkwargs = {'cwd': PosixPath('/Users/zxg/Documents/Codex/2026-08-29/new-api/web'), 'env': {'CI': '1', 'CODEX_APP_TOOLS_PIPE_PATH'...cc-b1e7-9c55a0373e23.sock', 'CODEX_CI': '1', 'CODEX_INTERNAL_ORIGINATOR_OVERRIDE': 'Codex Desktop', ...}, 'text': True}\nprocess = <Popen: returncode: 1 args: ['/tmp/yeschoy-bun-npm/node_modules/.bin/bun', '...>\nstdout = None, stderr = None, retcode = 1\n\n    def run(*popenargs,\n            input=None, capture_output=False, timeout=None, check=False, **kwargs):\n        \"\"\"Run command with arguments and return a CompletedProcess instance.\n    \n        The returned instance will have attributes args, returncode, stdout and\n        stderr. By default, stdout and stderr are not captured, and those attributes\n        will be None. Pass stdout=PIPE and/or stderr=PIPE in order to capture them.\n    \n        If check is True and the exit code was non-zero, it raises a\n        CalledProcessError. The CalledProcessError object will have the return code\n        in the returncode attribute, and output & stderr attributes if those streams\n        were captured.\n    \n        If timeout is given, and the process takes too long, a TimeoutExpired\n        exception will be raised.\n    \n        There is an optional argument \"input\", allowing you to\n        pass bytes or a string to the subprocess's stdin.  If you use this argument\n        you may not also use the Popen constructor's \"stdin\" argument, as\n        it will be used internally.\n    \n        By default, all communication is in bytes, and therefore any \"input\" should\n        be bytes, and the stdout and stderr will be bytes. If in text mode, any\n        \"input\" should be a string, and stdout and stderr will be strings decoded\n        according to locale encoding, or by \"encoding\" if set. Text mode is\n        triggered by setting any of text, encoding, errors or universal_newlines.\n    \n        The other arguments are the same as for the Popen constructor.\n        \"\"\"\n        if input is not None:\n            if kwargs.get('stdin') is not None:\n                raise ValueError('stdin and input arguments may not both be used.')\n            kwargs['stdin'] = PIPE\n    \n        if capture_output:\n            if kwargs.get('stdout') is not None or kwargs.get('stderr') is not None:\n                raise ValueError('stdout and stderr arguments may not be used '\n                                 'with capture_output.')\n            kwargs['stdout'] = PIPE\n            kwargs['stderr'] = PIPE\n    \n        with Popen(*popenargs, **kwargs) as process:\n            try:\n                stdout, stderr = process.communicate(input, timeout=timeout)\n            except TimeoutExpired as exc:\n                process.kill()\n                if _mswindows:\n                    # Windows accumulates the output in a single blocking\n                    # read() call run on child threads, with the timeout\n                    # being done in a join() on those threads.  communicate()\n                    # _after_ kill() is required to collect that and add it\n                    # to the exception.\n                    exc.stdout, exc.stderr = process.communicate()\n                else:\n                    # POSIX _communicate already populated the output so\n                    # far into the TimeoutExpired exception.\n                    process.wait()\n                raise\n            except:  # Including KeyboardInterrupt, communicate handled that.\n                process.kill()\n                # We don't call process.wait() as .__exit__ does that for us.\n                raise\n            retcode = process.poll()\n            if check and retcode:\n>               raise CalledProcessError(retcode, process.args,\n                                         output=stdout, stderr=stderr)\nE               subprocess.CalledProcessError: Command '['/tmp/yeschoy-bun-npm/node_modules/.bin/bun', 'run', 'test', 'src/features/desktop-authorization/__tests__/authorization.test.tsx']' returned non-zero exit status 1.\n\n/Applications/Xcode.app/Contents/Developer/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/subprocess.py:528: CalledProcessError\n----------------------------- Captured stderr call -----------------------------\n$ vitest run src/features/desktop-authorization/__tests__/authorization.test.tsx\nfailed to load config from /Users/zxg/Documents/Codex/2026-08-29/new-api/web/vitest.config.ts\n\n⎯⎯⎯⎯⎯⎯⎯ Startup Error ⎯⎯⎯⎯⎯⎯⎯⎯\nError: EPERM: operation not permitted, open '/Users/zxg/Documents/Codex/2026-08-29/new-api/web/node_modules/.vite-temp/vitest.config.ts.timestamp-1788263386278-c3c1d4ee19217.mjs'\n    at async open (node:internal/fs/promises:640:25)\n    at async Object.writeFile (node:internal/fs/promises:1257:14)\n    at async loadConfigFromBundledFile (file:///Users/zxg/Documents/Codex/2026-08-29/new-api/web/node_modules/vite/dist/node/chunks/node.js:36178:3)\n    at async bundleAndLoadConfigFile (file:///Users/zxg/Documents/Codex/2026-08-29/new-api/web/node_modules/vite/dist/node/chunks/node.js:36042:17)\n    at async loadConfigFromFile (file:///Users/zxg/Documents/Codex/2026-08-29/new-api/web/node_modules/vite/dist/node/chunks/node.js:36001:42)\n    at async resolveConfig (file:///Users/zxg/Documents/Codex/2026-08-29/new-api/web/node_modules/vite/dist/node/chunks/node.js:35617:22)\n    at async _createServer (file:///Users/zxg/Documents/Codex/2026-08-29/new-api/web/node_modules/vite/dist/node/chunks/node.js:25777:65)\n    at async createViteServer (file:///Users/zxg/Documents/Codex/2026-08-29/new-api/web/node_modules/vitest/dist/chunks/cli-api.BK8pd4xc.js:8835:17)\n    at async createVitest (file:///Users/zxg/Documents/Codex/2026-08-29/new-api/web/node_modules/vitest/dist/chunks/cli-api.BK8pd4xc.js:14221:18)\n    at async prepareVitest (file:///Users/zxg/Documents/Codex/2026-08-29/new-api/web/node_modules/vitest/dist/chunks/cli-api.BK8pd4xc.js:14588:14) {\n  errno: -1,\n  code: 'EPERM',\n  syscall: 'open',\n  path: '/Users/zxg/Documents/Codex/2026-08-29/new-api/web/node_modules/.vite-temp/vitest.config.ts.timestamp-1788263386278-c3c1d4ee19217.mjs'\n}\n\n\n\nerror: script \"test\" exited with code 1\n=========================== short test summary info ============================\nFAILED tests/work_packages/desktop_v2/test_acceptance.py::test_browser_approval_surface - subprocess.CalledProcessError: Command '['/tmp/yeschoy-bun-npm/node_modules/.bin/bun', 'run', 'test', 'src/features/desktop-authorization/__tests__/authorization.test.tsx']' returned non-zero exit status 1.\n============================== 1 failed in 0.88s ===============================\n",
+        "stderr": ""
+      },
+      "validationErrors": [],
+      "runnerProof": null,
+      "passed": false,
+      "id": "desktop-v2-web",
+      "kind": "scenario_test",
+      "actualExitCode": 1,
+      "timedOut": false,
+      "scenarioId": "DESKTOP-V2-AS-06"
+    }
+  ],
+  "scenarioEvidence": [
+    {
+      "scenarioId": "DESKTOP-V2-AS-01",
+      "path": "execution/evidence/5456e263d891c6556901/e06882fe31d1e4f4/a455e31ea82e76b8.json",
+      "sha256": "sha256:32774a90b683078bc4cd895de65e7527da0bbd84e9187c0448d1c842e28ce1a2"
+    },
+    {
+      "scenarioId": "DESKTOP-V2-AS-02",
+      "path": "execution/evidence/5456e263d891c6556901/e06882fe31d1e4f4/316750dfbd6c4bda.json",
+      "sha256": "sha256:e261a0b371e481f6a01a19be08d473777f9d12500f546158442cd69797334549"
+    },
+    {
+      "scenarioId": "DESKTOP-V2-AS-03",
+      "path": "execution/evidence/5456e263d891c6556901/e06882fe31d1e4f4/f9a3bb1c8a806bfa.json",
+      "sha256": "sha256:1f010fdb0e738680cd9dbf98b89fd7297b82a891b5e62104651deeca8ad75822"
+    },
+    {
+      "scenarioId": "DESKTOP-V2-AS-04",
+      "path": "execution/evidence/5456e263d891c6556901/e06882fe31d1e4f4/4adf23b01a41406c.json",
+      "sha256": "sha256:fd8f2d9b45a6fcb8262069ef42802d2b4eb0e90c8c2ae3cb2a1884c2158aaa07"
+    },
+    {
+      "scenarioId": "DESKTOP-V2-AS-05",
+      "path": "execution/evidence/5456e263d891c6556901/e06882fe31d1e4f4/569fb7ddace8935d.json",
+      "sha256": "sha256:00b6095fff77bbdc0d12ba4ba2f1c5e932436f346f13394db6707d1b7f86fe26"
+    },
+    {
+      "scenarioId": "DESKTOP-V2-AS-06",
+      "path": "execution/evidence/5456e263d891c6556901/e06882fe31d1e4f4/eaee02d2275e119b.json",
+      "sha256": "sha256:0e01a0cd0819691ca5e1f0033a7a442d19bd423479f6ca0b64c8aebb70ca2f2b"
+    }
+  ],
+  "scenarioEvidenceFailures": [
+    "DESKTOP-V2-AS-06: registered runner proof is invalid"
+  ],
+  "releaseUnitId": "RU-DESKTOP-INTEGRATION-V2",
+  "releaseUnitHash": "sha256:17fac34dfadf4d7215fc5e093a44eebc5448744ec094872379694a98877a2fa7"
+}

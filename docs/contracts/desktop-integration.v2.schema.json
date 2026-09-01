@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yeschoy.com/contracts/desktop-integration.v2.schema.json",
+  "title": "野菜API desktop integration bootstrap v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["success", "data"],
+  "properties": {
+    "success": {
+      "const": true
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "service",
+        "contract_id",
+        "minimum_client_version",
+        "device_authorization_available",
+        "account_read",
+        "usage_read",
+        "models_read",
+        "pricing_read",
+        "tool_keys_manage",
+        "official_usd_cny_rate",
+        "authorization_start_path",
+        "authorization_token_path",
+        "session_refresh_path",
+        "session_logout_path",
+        "account_path",
+        "usage_summary_path",
+        "usage_records_path",
+        "models_path",
+        "pricing_path",
+        "tool_keys_path",
+        "wallet_url"
+      ],
+      "properties": {
+        "schema_version": { "const": 2 },
+        "service": { "const": "yeschoy-desktop" },
+        "contract_id": { "const": "desktop-integration-v2" },
+        "minimum_client_version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+        },
+        "device_authorization_available": { "type": "boolean" },
+        "account_read": { "const": true },
+        "usage_read": { "const": true },
+        "models_read": { "const": true },
+        "pricing_read": { "const": true },
+        "tool_keys_manage": { "const": true },
+        "official_usd_cny_rate": { "const": 6.75 },
+        "authorization_start_path": {
+          "const": "/api/desktop/v2/device-authorizations"
+        },
+        "authorization_token_path": {
+          "const": "/api/desktop/v2/device-authorizations/token"
+        },
+        "session_refresh_path": {
+          "const": "/api/desktop/v2/sessions/refresh"
+        },
+        "session_logout_path": {
+          "const": "/api/desktop/v2/sessions/current"
+        },
+        "account_path": { "const": "/api/user/self" },
+        "usage_summary_path": { "const": "/api/log/self/stat" },
+        "usage_records_path": { "const": "/api/log/self" },
+        "models_path": { "const": "/api/user/models" },
+        "pricing_path": { "const": "/api/pricing" },
+        "tool_keys_path": { "const": "/api/token/" },
+        "wallet_url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        }
+      }
+    }
+  }
+}
