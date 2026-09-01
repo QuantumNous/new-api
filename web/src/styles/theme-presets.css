@@ -426,10 +426,14 @@ For commercial licensing, please contact support@quantumnous.com
  *   - `anthropic`: warm cream surfaces are a brand choice, NOT a primary-mix
  *     derivation (the Anthropic system deliberately uses warm neutrals for
  *     cards/borders rather than tinting them with the clay accent).
- *   - `simple-large`: keeps intentionally neutral, high-contrast surfaces. */
+ *   - `simple-large`: keeps intentionally neutral, high-contrast surfaces.
+ *   - `dopamine`: candy surfaces are bespoke (mint canvas + multi-hue
+ *     accents), not a single primary-mix derivation. */
 [data-theme-preset]:not([data-theme-preset='default']):not(
   [data-theme-preset='anthropic']
-):not([data-theme-preset='simple-large']) {
+):not([data-theme-preset='simple-large']):not(
+  [data-theme-preset='dopamine']
+) {
   --card: color-mix(in oklch, var(--primary) 3%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 5%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 7%, var(--background));
@@ -454,7 +458,9 @@ For commercial licensing, please contact support@quantumnous.com
 .dark
   [data-theme-preset]:not([data-theme-preset='default']):not(
     [data-theme-preset='anthropic']
-  ):not([data-theme-preset='simple-large']) {
+  ):not([data-theme-preset='simple-large']):not(
+    [data-theme-preset='dopamine']
+  ) {
   --card: color-mix(in oklch, var(--primary) 8%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 12%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 12%, var(--background));
@@ -610,6 +616,136 @@ For commercial licensing, please contact support@quantumnous.com
 
   --skeleton-base: oklch(0.305 0.004 60);
   --skeleton-highlight: oklch(0.41 0.004 60);
+}
+
+/* ── Dopamine (野菜 AI) ───────────────────────────────────────────────────
+ * The default brand preset: a bright, joyful "dopamine" palette built for
+ * absolute beginners. Vivid vegetable green is the hero, supported by a
+ * candy set — mango orange (warning/chart), sakura pink (chart), sky blue
+ * (info/chart) and lemon (chart). Surfaces sit on a barely-mint canvas with
+ * soft green-tinted borders; radii are large and friendly.
+ *
+ * Opted out of the semantic surface bridge: surfaces here are bespoke
+ * candy derivations, not a single primary-mix. */
+[data-theme-preset='dopamine'] {
+  /* Canvas + ink — fresh mint-white paper with deep leaf ink. */
+  --background: oklch(0.988 0.008 140);
+  --foreground: oklch(0.245 0.035 150);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.245 0.035 150);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.245 0.035 150);
+
+  /* Hero green — vivid but readable vegetable green. */
+  --primary: oklch(0.62 0.17 145);
+  --primary-foreground: oklch(1 0 0);
+
+  /* Sakura pink as the secondary voice. */
+  --secondary: oklch(0.9 0.055 350);
+  --secondary-foreground: oklch(0.38 0.09 350);
+
+  --muted: oklch(0.955 0.015 140);
+  --muted-foreground: oklch(0.48 0.03 150);
+  --accent: oklch(0.93 0.045 145);
+  --accent-foreground: oklch(0.32 0.06 150);
+
+  --destructive: oklch(0.6 0.21 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.62 0.17 145);
+  --success-foreground: oklch(1 0 0);
+  /* Mango orange. */
+  --warning: oklch(0.74 0.15 65);
+  --warning-foreground: oklch(0.26 0.05 60);
+  /* Sky blue. */
+  --info: oklch(0.62 0.14 235);
+  --info-foreground: oklch(1 0 0);
+  --neutral: oklch(0.55 0.02 150);
+  --neutral-foreground: oklch(0.245 0.035 150);
+
+  --border: oklch(0.9 0.03 145);
+  --input: oklch(0.89 0.035 145);
+  --ring: oklch(0.62 0.17 145);
+
+  /* Candy chart palette: green, mango, sakura, sky, lemon. */
+  --chart-1: oklch(0.65 0.18 145);
+  --chart-2: oklch(0.76 0.15 65);
+  --chart-3: oklch(0.72 0.16 350);
+  --chart-4: oklch(0.65 0.14 235);
+  --chart-5: oklch(0.85 0.15 95);
+  --overview-accent-1: oklch(0.65 0.18 145);
+  --overview-accent-2: oklch(0.76 0.15 65);
+  --overview-accent-3: oklch(0.72 0.16 350);
+
+  --sidebar: oklch(0.972 0.012 140);
+  --sidebar-foreground: oklch(0.245 0.035 150);
+  --sidebar-primary: oklch(0.62 0.17 145);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.92 0.05 145);
+  --sidebar-accent-foreground: oklch(0.3 0.07 150);
+  --sidebar-border: oklch(0.91 0.025 145);
+  --sidebar-ring: oklch(0.62 0.17 145);
+
+  --skeleton-base: oklch(0.95 0.015 140);
+  --skeleton-highlight: oklch(0.98 0.008 140);
+
+  /* Big friendly corners. */
+  --radius: 1.25rem;
+}
+.dark [data-theme-preset='dopamine'] {
+  /* Deep forest charcoal — keeps the green soul without being murky. */
+  --background: oklch(0.225 0.02 155);
+  --foreground: oklch(0.96 0.01 140);
+  --card: oklch(0.27 0.025 155);
+  --card-foreground: oklch(0.96 0.01 140);
+  --popover: oklch(0.29 0.025 155);
+  --popover-foreground: oklch(0.96 0.01 140);
+
+  --primary: oklch(0.72 0.17 148);
+  --primary-foreground: oklch(0.18 0.03 150);
+  --secondary: oklch(0.42 0.06 350);
+  --secondary-foreground: oklch(0.93 0.03 350);
+
+  --muted: oklch(0.3 0.025 155);
+  --muted-foreground: oklch(0.78 0.02 145);
+  --accent: oklch(0.34 0.04 150);
+  --accent-foreground: oklch(0.97 0.01 140);
+
+  --destructive: oklch(0.7 0.19 22);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.72 0.17 148);
+  --success-foreground: oklch(0.18 0.03 150);
+  --warning: oklch(0.8 0.14 70);
+  --warning-foreground: oklch(0.2 0.04 60);
+  --info: oklch(0.72 0.13 235);
+  --info-foreground: oklch(0.16 0.03 235);
+  --neutral: oklch(0.76 0.015 145);
+  --neutral-foreground: oklch(0.18 0.03 150);
+
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.72 0.17 148);
+
+  --chart-1: oklch(0.74 0.17 148);
+  --chart-2: oklch(0.8 0.14 70);
+  --chart-3: oklch(0.78 0.13 350);
+  --chart-4: oklch(0.72 0.13 235);
+  --chart-5: oklch(0.86 0.14 95);
+  --overview-accent-1: oklch(0.74 0.17 148);
+  --overview-accent-2: oklch(0.8 0.14 70);
+  --overview-accent-3: oklch(0.78 0.13 350);
+
+  --sidebar: oklch(0.21 0.02 155);
+  --sidebar-foreground: oklch(0.95 0.01 140);
+  --sidebar-primary: oklch(0.72 0.17 148);
+  --sidebar-primary-foreground: oklch(0.18 0.03 150);
+  --sidebar-accent: oklch(0.33 0.04 150);
+  --sidebar-accent-foreground: oklch(0.97 0.01 140);
+  --sidebar-border: oklch(1 0 0 / 12%);
+  --sidebar-ring: oklch(0.72 0.17 148);
+
+  --skeleton-base: oklch(0.32 0.025 155);
+  --skeleton-highlight: oklch(0.42 0.025 155);
 }
 
 /* ── Font axis ────────────────────────────────────────────────────────────

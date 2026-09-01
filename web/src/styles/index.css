@@ -29,6 +29,9 @@ For commercial licensing, please contact support@quantumnous.com
 
 @import './theme.css';
 @import './theme-presets.css';
+/* Dopamine motion + decoration utilities (`dopa-*` classes) used by the
+ * redesigned public pages and beginner-friendly console touches. */
+@import './dopamine.css';
 
 /* Shiki dual themes: token colors follow dark theme (pre background stays `bg-background` on the block) */
 @layer components {

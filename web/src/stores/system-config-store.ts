@@ -78,7 +78,9 @@ export const useSystemConfigStore = create<SystemConfigState>()(
         currency: { ...DEFAULT_CURRENCY_CONFIG },
       },
       loading: true,
-      loadedLogoUrl: DEFAULT_LOGO,
+      // Start empty so the preload effect runs once on boot and applies the
+      // default logo to the favicon even when no custom logo is configured.
+      loadedLogoUrl: '',
       setConfig: (newConfig) =>
         set((state) => ({
           config: {

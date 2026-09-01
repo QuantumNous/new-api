@@ -25,6 +25,13 @@ For commercial licensing, please contact support@quantumnous.com
 
 export const THEME_PRESETS = [
   {
+    // 野菜 AI dopamine theme: vivid vegetable green paired with candy
+    // accents (mango, sakura, sky, lemon). Big radii + playful surfaces.
+    value: 'dopamine',
+    name: 'Dopamine',
+    swatches: ['oklch(0.67 0.19 145)', 'oklch(0.78 0.15 65)'],
+  },
+  {
     value: 'default',
     name: 'Default',
     swatches: ['oklch(0.72 0.18 250)', 'oklch(0.7 0.12 280)'],
@@ -116,7 +123,7 @@ export type ThemeCustomization = {
 }
 
 export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
-  preset: 'default',
+  preset: 'dopamine',
   font: 'default',
   radius: 'default',
   scale: 'default',
@@ -176,6 +183,7 @@ export const THEME_COOKIE_KEYS = {
 export const PRESET_DEFAULT_FONT: Partial<
   Record<ThemePreset, ResolvedThemeFont>
 > = {
+  dopamine: 'sans',
   default: 'sans',
   anthropic: 'serif',
 }

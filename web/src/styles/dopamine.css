@@ -1,0 +1,355 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+/*
+ * Dopamine motion + decoration utilities.
+ *
+ * A small, dependency-free set of CSS utilities used by the redesigned
+ * public pages (home, guide, auth) and the beginner-friendly console
+ * touches. Everything respects `prefers-reduced-motion`.
+ *
+ * Naming: all classes are prefixed `dopa-` so they never collide with
+ * Tailwind utilities or component styles.
+ */
+
+/* ── Keyframes ────────────────────────────────────────────────────────── */
+@keyframes dopa-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dopa-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dopa-pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes dopa-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  33% {
+    transform: translate3d(12px, -18px, 0);
+  }
+  66% {
+    transform: translate3d(-10px, 10px, 0);
+  }
+}
+
+@keyframes dopa-float-alt {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-14px, 16px, 0) scale(1.06);
+  }
+}
+
+@keyframes dopa-gradient-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes dopa-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+@keyframes dopa-wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-6deg);
+  }
+  75% {
+    transform: rotate(6deg);
+  }
+}
+
+@keyframes dopa-shine {
+  from {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(240%) skewX(-18deg);
+  }
+}
+
+@keyframes dopa-confetti-fall {
+  0% {
+    opacity: 1;
+    transform: translateY(-10px) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(140px) rotate(540deg);
+  }
+}
+
+@keyframes dopa-bounce-soft {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* ── Entrance utilities ───────────────────────────────────────────────── */
+.dopa-fade-up {
+  animation: dopa-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.dopa-fade-in {
+  animation: dopa-fade-in 0.8s ease both;
+}
+.dopa-pop-in {
+  animation: dopa-pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Stagger helpers — apply to siblings for a cascading entrance. */
+.dopa-delay-1 {
+  animation-delay: 0.08s;
+}
+.dopa-delay-2 {
+  animation-delay: 0.16s;
+}
+.dopa-delay-3 {
+  animation-delay: 0.24s;
+}
+.dopa-delay-4 {
+  animation-delay: 0.32s;
+}
+.dopa-delay-5 {
+  animation-delay: 0.4s;
+}
+.dopa-delay-6 {
+  animation-delay: 0.48s;
+}
+
+/* Scroll-triggered reveal: pair with the `useRevealOnScroll` hook, which
+ * flips `data-revealed` when the element enters the viewport. */
+.dopa-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.dopa-reveal[data-revealed='true'] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Ambient / decoration ─────────────────────────────────────────────── */
+.dopa-float {
+  animation: dopa-float 9s ease-in-out infinite;
+}
+.dopa-float-alt {
+  animation: dopa-float-alt 11s ease-in-out infinite;
+}
+.dopa-glow-pulse {
+  animation: dopa-glow-pulse 5s ease-in-out infinite;
+}
+.dopa-bounce-soft {
+  animation: dopa-bounce-soft 2.6s ease-in-out infinite;
+}
+
+/* Flowing gradient text. Uses the candy palette from the active theme. */
+.dopa-gradient-text {
+  background-image: linear-gradient(
+    100deg,
+    var(--chart-1),
+    var(--chart-4) 30%,
+    var(--chart-3) 55%,
+    var(--chart-2) 80%,
+    var(--chart-1)
+  );
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: dopa-gradient-shift 7s ease-in-out infinite;
+}
+
+/* Candy gradient surface (for CTA banners / hero buttons). */
+.dopa-gradient-surface {
+  background-image: linear-gradient(
+    120deg,
+    var(--chart-1),
+    var(--chart-4) 45%,
+    var(--chart-3) 90%
+  );
+  background-size: 180% 180%;
+  animation: dopa-gradient-shift 9s ease-in-out infinite;
+}
+
+/* ── Interactive ──────────────────────────────────────────────────────── */
+/* Springy lift on hover — for cards and tiles. */
+.dopa-lift {
+  transition:
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.35s ease;
+}
+.dopa-lift:hover {
+  transform: translateY(-6px) scale(1.015);
+  box-shadow:
+    0 12px 32px -8px color-mix(in oklch, var(--primary) 28%, transparent),
+    0 4px 12px -4px color-mix(in oklch, var(--foreground) 10%, transparent);
+}
+
+/* Springy scale for buttons / small chips. */
+.dopa-spring {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.dopa-spring:hover {
+  transform: scale(1.045);
+}
+.dopa-spring:active {
+  transform: scale(0.97);
+}
+
+/* Shine sweep on hover — pair with `overflow-hidden relative`. */
+.dopa-shine {
+  position: relative;
+  overflow: hidden;
+}
+.dopa-shine::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inline-size: 40%;
+  transform: translateX(-120%) skewX(-18deg);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklch, white 45%, transparent),
+    transparent
+  );
+  pointer-events: none;
+}
+.dopa-shine:hover::after {
+  animation: dopa-shine 0.9s ease;
+}
+
+.dopa-wiggle-hover:hover {
+  animation: dopa-wiggle 0.5s ease-in-out;
+}
+
+/* ── Celebration confetti (pure CSS) ──────────────────────────────────── */
+/* Container: position relative; children `.dopa-confetti-piece` fall once. */
+.dopa-confetti-piece {
+  position: absolute;
+  top: 0;
+  inline-size: 8px;
+  block-size: 12px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: dopa-confetti-fall 1.4s ease-in both;
+  pointer-events: none;
+}
+
+/* ── Soft candy shadow for hero cards ─────────────────────────────────── */
+.dopa-candy-shadow {
+  box-shadow:
+    0 8px 30px -6px color-mix(in oklch, var(--chart-1) 22%, transparent),
+    0 2px 10px -2px color-mix(in oklch, var(--chart-3) 14%, transparent);
+}
+
+/* ── Reduced motion: switch everything off ────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .dopa-fade-up,
+  .dopa-fade-in,
+  .dopa-pop-in,
+  .dopa-float,
+  .dopa-float-alt,
+  .dopa-glow-pulse,
+  .dopa-bounce-soft,
+  .dopa-gradient-text,
+  .dopa-gradient-surface,
+  .dopa-confetti-piece {
+    animation: none;
+  }
+  .dopa-fade-up,
+  .dopa-fade-in,
+  .dopa-pop-in {
+    opacity: 1;
+    transform: none;
+  }
+  .dopa-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .dopa-lift,
+  .dopa-spring {
+    transition: none;
+  }
+  .dopa-lift:hover,
+  .dopa-spring:hover,
+  .dopa-spring:active {
+    transform: none;
+  }
+  .dopa-shine:hover::after {
+    animation: none;
+  }
+  .dopa-wiggle-hover:hover {
+    animation: none;
+  }
+  .dopa-confetti-piece {
+    display: none;
+  }
+}
