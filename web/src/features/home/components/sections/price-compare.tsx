@@ -20,10 +20,9 @@ import { Link } from '@tanstack/react-router'
 import { ArrowUpRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { formatCurrencyFromUSD } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 
-import type { SavingsModel } from '../../lib/pricing-savings'
+import { formatCnyAmount, type SavingsModel } from '../../lib/pricing-savings'
 
 interface PriceCompareProps {
   models: SavingsModel[]
@@ -54,13 +53,23 @@ function PricePair(props: PricePairProps) {
     >
       <span>
         <span className='font-sans font-normal no-underline'>{t('Input')}</span>{' '}
-        {formatCurrencyFromUSD(props.input, formatOptions)}
+        {formatCnyAmount(props.input, {
+          maximumFractionDigits:
+            props.input >= 1
+              ? formatOptions.digitsLarge
+              : formatOptions.digitsSmall,
+        })}
       </span>
       <span>
         <span className='font-sans font-normal no-underline'>
           {t('Output')}
         </span>{' '}
-        {formatCurrencyFromUSD(props.output, formatOptions)}
+        {formatCnyAmount(props.output, {
+          maximumFractionDigits:
+            props.output >= 1
+              ? formatOptions.digitsLarge
+              : formatOptions.digitsSmall,
+        })}
       </span>
     </div>
   )
@@ -85,10 +94,10 @@ export function PriceCompare(props: PriceCompareProps) {
       <div className='border-border flex items-end justify-between gap-4 border-b px-5 py-5 sm:px-7'>
         <div>
           <h3 className='text-lg font-extrabold'>
-            {t('Flagship model price check')}
+            {t('Latest model price check')}
           </h3>
           <p className='text-muted-foreground mt-1 text-xs'>
-            {t('Per 1M tokens')}
+            {t('CNY / 1 million tokens')}
           </p>
         </div>
         <span className='bg-success/12 text-success rounded-full px-3 py-1 text-xs font-bold'>

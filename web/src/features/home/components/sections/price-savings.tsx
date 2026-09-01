@@ -58,7 +58,7 @@ export function PriceSavings(props: PriceSavingsProps) {
           </p>
         </div>
 
-        <div className='mt-12 grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-stretch'>
+        <div className='mt-12 grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-start'>
           <PriceCompare models={props.models} />
           <SavingsCalculator models={props.models} />
         </div>

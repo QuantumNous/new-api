@@ -23,6 +23,8 @@ import type { PricingModel } from '@/features/pricing/types'
 import {
   buildSavingsModels,
   calculateSavingsEstimate,
+  formatCnyAmount,
+  formatTokenMillions,
   tokenMillionsToSliderPosition,
   tokenSliderPositionToMillions,
   type SavingsModel,
@@ -68,24 +70,23 @@ function makeSavingsModel(
 }
 
 describe('buildSavingsModels', () => {
-  it('selects the highest-ratio flagship in each recognized family', () => {
+  it('selects the newest available model in each family instead of the most expensive one', () => {
     const models = buildSavingsModels(
       [
-        makePricingModel('gpt-4o', 2),
-        makePricingModel('gpt-5', 4),
-        makePricingModel('claude-sonnet', 3),
-        makePricingModel('gemini-pro', 2.5),
+        makePricingModel('gpt-5.2', 8),
+        makePricingModel('gpt-5.6', 4),
+        makePricingModel('deepseek-v3.2', 3),
+        makePricingModel('deepseek-v4', 2),
       ],
-      1,
-      1
+      4,
+      7
     )
 
-    expect(models.map((model) => model.modelName)).toEqual([
-      'gpt-5',
-      'claude-sonnet',
-      'gemini-pro',
-      'gpt-4o',
+    expect(models.slice(0, 2).map((model) => model.modelName)).toEqual([
+      'gpt-5.6',
+      'deepseek-v4',
     ])
+    expect(models).toHaveLength(2)
   })
 
   it('uses live group and recharge ratios while excluding request pricing', () => {
@@ -104,12 +105,12 @@ describe('buildSavingsModels', () => {
 
     expect(models).toHaveLength(1)
     expect(models[0]).toMatchObject({
-      officialInputPrice: 8,
-      officialOutputPrice: 24,
-      siteInputPrice: 3.2,
+      officialInputPrice: 40,
+      officialOutputPrice: 120,
+      siteInputPrice: 16,
       savingsPercent: 60,
     })
-    expect(models[0].siteOutputPrice).toBeCloseTo(9.6)
+    expect(models[0].siteOutputPrice).toBeCloseTo(48)
   })
 
   it('returns no comparison rows when pricing has no valid token model', () => {
@@ -120,6 +121,19 @@ describe('buildSavingsModels', () => {
         1
       )
     ).toEqual([])
+  })
+})
+
+describe('localized display values', () => {
+  it('formats all savings as Chinese yuan', () => {
+    expect(formatCnyAmount(110_000, { compact: true })).toBe('¥11万')
+    expect(formatCnyAmount(6_100)).toBe('¥6,100')
+  })
+
+  it('spells out Chinese token quantities for non-technical readers', () => {
+    expect(formatTokenMillions(1, 'zh-CN')).toBe('100万')
+    expect(formatTokenMillions(200, 'zh-CN')).toBe('2亿')
+    expect(formatTokenMillions(20, 'zhCN')).toBe('2000万')
   })
 })
 
