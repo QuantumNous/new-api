@@ -14,6 +14,20 @@
         "pageRefs": [],
         "domainRefs": ["desktop-integration"]
       }
+    },
+    {
+      "id": "DEC-002",
+      "question": "What server capability may supersede the recognition-only desktop bootstrap release unit?",
+      "choice": "Add a versioned desktop v2 API with Redis-backed five-minute first-party device authorization, existing user_sessions for desktop access and refresh tokens, authenticated account/usage/models/pricing/billing-comparison projections, and a first-party wallet URL. Keep desktop tool-key management disabled, add no database schema or migration, do not process payment in the desktop API, and do not deploy from this release unit.",
+      "status": "accepted",
+      "decidedBy": "product owner",
+      "decidedAt": "2026-09-01T11:05:00Z",
+      "evidenceRefs": ["E-USER-002", "E-CLIENT-002", "E-CODE-002"],
+      "affects": {
+        "requirementRefs": ["REQ-002"],
+        "pageRefs": [],
+        "domainRefs": ["desktop-integration"]
+      }
     }
   ]
 }

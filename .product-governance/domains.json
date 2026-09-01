@@ -4,14 +4,16 @@
     {
       "id": "desktop-integration",
       "owner": "backend-api",
-      "owns": ["desktop-bootstrap-declaration"],
+      "owns": ["desktop-bootstrap-declaration", "desktop-device-authorization"],
       "trackScope": ["desktop-api"],
       "invariants": [
         "Bootstrap recognition grants no account session, credential access, configuration write, pricing truth or tool compatibility authority.",
-        "A capability is true only after a separate frozen contract and verified implementation release unit exists."
+        "A capability is true only after a separate frozen contract and verified implementation release unit exists.",
+        "Desktop v2 device authorization is five-minute Redis-only state; approval requires a live browser session and successful exchange creates an ordinary revocable user_session with login_method desktop_device.",
+        "The v2 bootstrap maps account, usage, model, pricing and tool-key capabilities to existing authenticated NewAPI owners rather than creating duplicate desktop tables."
       ],
       "commands": [],
-      "queries": ["desktop-bootstrap@v1"],
+      "queries": ["desktop-bootstrap@v1", "desktop-bootstrap@v2"],
       "emits": [],
       "consumes": []
     },
