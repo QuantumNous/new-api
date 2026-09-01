@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+import argparse
+import contextlib
+import json
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+RETRY_HTTP_CODES = {500, 502, 503, 504}
+HOP_BY_HOP_HEADERS = {
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailers",
+    "transfer-encoding",
+    "upgrade",
+}
+
+
+class ProxyConfig:
+    upstream = "http://127.0.0.1:3000"
+    attempts = 4
+    timeout = 240
+    backoff = 0.8
+    upstream_slots = threading.BoundedSemaphore(3)
+
+
+def is_response_failed(body: bytes) -> bool:
+    for raw_line in body.splitlines():
+        line = raw_line.strip()
+        if not line.startswith(b"data:"):
+            continue
+        payload = line[5:].strip()
+        if not payload or payload == b"[DONE]":
+            continue
+        try:
+            event = json.loads(payload.decode("utf-8", "replace"))
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") == "response.failed" or event.get("error"):
+            return True
+    return False
+
+
+def copy_headers(handler: BaseHTTPRequestHandler) -> dict:
+    headers = {}
+    for key, value in handler.headers.items():
+        if key.lower() in HOP_BY_HOP_HEADERS or key.lower() in {"host", "content-length"}:
+            continue
+        headers[key] = value
+    return headers
+
+
+class RetryProxyHandler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, fmt, *args):
+        sys.stderr.write("%s - %s\n" % (self.log_date_time_string(), fmt % args))
+
+    def do_GET(self):
+        self.handle_forwarding_request()
+
+    def do_POST(self):
+        self.handle_forwarding_request()
+
+    def do_PUT(self):
+        self.handle_forwarding_request()
+
+    def do_PATCH(self):
+        self.handle_forwarding_request()
+
+    def do_DELETE(self):
+        self.handle_forwarding_request()
+
+    def do_OPTIONS(self):
+        self.handle_forwarding_request()
+
+    def do_HEAD(self):
+        self.handle_forwarding_request()
+
+    def handle_forwarding_request(self):
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        body = self.rfile.read(length) if length else b""
+        if self.command == "POST" and self.path.startswith("/v1/responses"):
+            self.forward_with_retry(body)
+        else:
+            self.forward_once(body)
+
+    def forward_once(self, body: bytes | None = None):
+        status, headers, response_body = self.request_upstream(body)
+        self.send_upstream_response(status, headers, response_body)
+
+    def forward_with_retry(self, body: bytes):
+        last = None
+        for attempt in range(1, ProxyConfig.attempts + 1):
+            status, headers, response_body = self.request_upstream(body)
+            failed_event = status == 200 and is_response_failed(response_body)
+            retriable_status = status in RETRY_HTTP_CODES
+            last = (status, headers, response_body)
+            if not failed_event and not retriable_status:
+                break
+            self.log_message(
+                "retryable responses failure attempt=%s status=%s failed_event=%s",
+                attempt,
+                status,
+                failed_event,
+            )
+            if attempt < ProxyConfig.attempts:
+                time.sleep(ProxyConfig.backoff * attempt)
+        status, headers, response_body = last
+        self.send_upstream_response(status, headers, response_body)
+
+    def request_upstream(self, body: bytes | None):
+        return self.request_upstream_path(self.path, body)
+
+    def request_upstream_path(self, path: str, body: bytes | None):
+        url = ProxyConfig.upstream + path
+        method = self.command
+        if path != self.path:
+            method = "POST"
+        headers = copy_headers(self)
+        if path != self.path:
+            headers["Content-Type"] = "application/json"
+        data = body if body is not None else None
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
+        slot = (
+            ProxyConfig.upstream_slots
+            if method == "POST" and path.startswith("/v1/responses")
+            else contextlib.nullcontext()
+        )
+        with slot:
+            try:
+                with urllib.request.urlopen(req, timeout=ProxyConfig.timeout) as resp:
+                    response_body = resp.read()
+                    return resp.status, dict(resp.headers.items()), response_body
+            except urllib.error.HTTPError as err:
+                return err.code, dict(err.headers.items()), err.read()
+            except Exception as exc:
+                payload = json.dumps(
+                    {
+                        "error": {
+                            "message": f"retry proxy upstream request failed: {exc}",
+                            "type": "retry_proxy_error",
+                            "code": "upstream_request_failed",
+                        }
+                    }
+                ).encode("utf-8")
+                return 502, {"Content-Type": "application/json"}, payload
+
+    def send_upstream_response(self, status: int, headers: dict, body: bytes):
+        self.send_response(status)
+        for key, value in headers.items():
+            lower = key.lower()
+            if lower in HOP_BY_HOP_HEADERS or lower == "content-length":
+                continue
+            self.send_header(key, value)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--listen", default="0.0.0.0:3010")
+    parser.add_argument("--upstream", default=ProxyConfig.upstream)
+    parser.add_argument("--attempts", type=int, default=ProxyConfig.attempts)
+    parser.add_argument("--timeout", type=int, default=ProxyConfig.timeout)
+    parser.add_argument("--upstream-concurrency", type=int, default=3)
+    args = parser.parse_args()
+
+    host, port_text = args.listen.rsplit(":", 1)
+    ProxyConfig.upstream = args.upstream.rstrip("/")
+    ProxyConfig.attempts = args.attempts
+    ProxyConfig.timeout = args.timeout
+    ProxyConfig.upstream_slots = threading.BoundedSemaphore(args.upstream_concurrency)
+    server = ThreadingHTTPServer((host, int(port_text)), RetryProxyHandler)
+    print(
+        f"retry proxy listening on {host}:{port_text}, upstream={ProxyConfig.upstream}, attempts={ProxyConfig.attempts}, upstream_concurrency={args.upstream_concurrency}",
+        flush=True,
+    )
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()
