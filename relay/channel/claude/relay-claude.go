@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -18,6 +19,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+const claudeToChatStreamStateKey = "relaykit.claude_to_chat_stream_state"
 
 func stopReasonClaude2OpenAI(reason string) string {
 	return relayconvert.StopReasonClaudeToOpenAI(reason)
@@ -117,7 +120,14 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		countClaudeStreamBillableTools(c, info, &claudeResponse)
 		helper.ClaudeChunkData(c, claudeResponse, data)
 	} else if info.RelayFormat == types.RelayFormatOpenAI {
-		response := StreamResponseClaude2OpenAI(&claudeResponse)
+		state, err := claudeToChatStreamState(c)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
+		response, err := state.ConvertChunk(&claudeResponse)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
 
 		if !FormatClaudeResponseInfo(&claudeResponse, response, claudeInfo) {
 			return nil
@@ -125,12 +135,29 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 
 		countClaudeStreamBillableTools(c, info, &claudeResponse)
 
+		if response == nil {
+			return nil
+		}
 		err = helper.ObjectData(c, response)
 		if err != nil {
 			logger.LogError(c, "send_stream_response_failed: "+err.Error())
 		}
 	}
 	return nil
+}
+
+func claudeToChatStreamState(c *gin.Context) (*relayconvert.ClaudeToChatStreamState, error) {
+	if value, ok := c.Get(claudeToChatStreamStateKey); ok {
+		state, ok := value.(*relayconvert.ClaudeToChatStreamState)
+		if !ok || state == nil {
+			return nil, fmt.Errorf("invalid Claude-to-Chat stream state %T", value)
+		}
+		return state, nil
+	}
+
+	state := relayconvert.NewClaudeToChatStreamState()
+	c.Set(claudeToChatStreamStateKey, state)
+	return state, nil
 }
 
 func countClaudeStreamBillableTools(c *gin.Context, info *relaycommon.RelayInfo, claudeResponse *dto.ClaudeResponse) {
@@ -172,9 +199,7 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 	if claudeInfo.Usage != nil {
 		claudeInfo.Usage.UsageSemantic = "anthropic"
 	}
-	if claudeInfo.Usage != nil && claudeInfo.Usage.BillingUsage == nil {
-		claudeInfo.Usage.BillingUsage = dto.NewClaudeMessagesBillingUsage(buildMessageDeltaPatchUsage(nil, claudeInfo))
-	}
+	relayconvert.FinalizeClaudeStreamBillingUsage(claudeInfo)
 
 	if info.RelayFormat == types.RelayFormatClaude {
 		//
@@ -232,7 +257,10 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
 		claudeInfo.Usage.TotalTokens = claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens
 		claudeInfo.Usage.UsageSemantic = "anthropic"
-		claudeInfo.Usage.BillingUsage = dto.NewClaudeMessagesBillingUsage(claudeResponse.Usage)
+		claudeInfo.Usage.BillingUsage = dto.CloneBillingUsage(claudeResponse.Usage.BillingUsage)
+		if claudeInfo.Usage.BillingUsage == nil {
+			claudeInfo.Usage.BillingUsage = dto.NewClaudeMessagesBillingUsage(claudeResponse.Usage)
+		}
 		claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Usage.CacheReadInputTokens
 		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
@@ -244,6 +272,22 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		openaiResponse := ResponseClaude2OpenAI(&claudeResponse)
 		openaiResponse.Usage = buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
 		responseData, err = common.Marshal(openaiResponse)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
+	case types.RelayFormatOpenAIResponses:
+		convertResult, err := service.ConvertResponse(c, info, types.RelayFormatOpenAIResponses, &claudeResponse)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
+		responsesResponse, ok := convertResult.Value.(*dto.OpenAIResponsesResponse)
+		if !ok {
+			return types.NewError(fmt.Errorf("expected OpenAI Responses response, got %T", convertResult.Value), types.ErrorCodeBadResponseBody)
+		}
+		if responseID := helper.GetResponseID(c); responseID != "" {
+			responsesResponse.ID = responseID
+		}
+		responseData, err = common.Marshal(responsesResponse)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
