@@ -43,6 +43,54 @@ func TestChatCompletionsResponseToResponsesPreservesTextToolCallsAndUsage(t *tes
 	assert.Equal(t, `"{\"q\":\"x\"}"`, string(resp.Output[1].Arguments))
 }
 
+func TestChatCompletionsResponseToResponsesDropsEmptyNameToolCalls(t *testing.T) {
+	usage := dto.Usage{PromptTokens: 20, CompletionTokens: 5, TotalTokens: 25}
+	usage.PromptTokensDetails.CachedTokens = 7
+	usage.BillingUsage = dto.NewOpenAIChatBillingUsage(&usage)
+	message := dto.Message{Role: "assistant"}
+	message.SetToolCalls([]dto.ToolCallRequest{
+		{
+			ID:   "call_invalid",
+			Type: "function",
+			Function: dto.FunctionRequest{
+				Arguments: `{"ok":true}`,
+			},
+		},
+		{
+			ID:       "call_whitespace",
+			Function: dto.FunctionRequest{Name: " \t\n", Arguments: `{}`},
+		},
+		{
+			ID:   "call_valid",
+			Type: "function",
+			Function: dto.FunctionRequest{
+				Name:      "lookup",
+				Arguments: `{"q":"x"}`,
+			},
+		},
+	})
+
+	resp, convertedUsage, err := ChatCompletionsResponseToResponsesResponse(&dto.OpenAITextResponse{
+		Usage: usage,
+		Choices: []dto.OpenAITextResponseChoice{{
+			Message:      message,
+			FinishReason: "tool_calls",
+		}},
+	}, "resp_1")
+	require.NoError(t, err)
+
+	require.Len(t, resp.Output, 1)
+	assert.Equal(t, "call_valid", resp.Output[0].CallId)
+	assert.Equal(t, "lookup", resp.Output[0].Name)
+	assert.Equal(t, `"{\"q\":\"x\"}"`, string(resp.Output[0].Arguments))
+	assert.Equal(t, 20, convertedUsage.InputTokens)
+	assert.Equal(t, 5, convertedUsage.OutputTokens)
+	assert.Equal(t, 25, convertedUsage.TotalTokens)
+	require.NotNil(t, convertedUsage.InputTokensDetails)
+	assert.Equal(t, 7, convertedUsage.InputTokensDetails.CachedTokens)
+	assert.Equal(t, usage.BillingUsage, convertedUsage.BillingUsage)
+}
+
 func TestChatCompletionsResponseToResponsesEmitsReasoningSummaryBeforeText(t *testing.T) {
 	message := dto.Message{Role: "assistant", Content: "final answer"}
 	message.ReasoningContent = lo.ToPtr("thinking summary")
