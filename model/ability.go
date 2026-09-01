@@ -25,6 +25,17 @@ type Ability struct {
 	Tag       *string `json:"tag" gorm:"index"`
 }
 
+// channelModelClientName returns the client-facing model name for a channel:
+// the bare model name prefixed with the channel's model prefix. Stored model
+// names may already carry the prefix (legacy data), so the prefix is stripped
+// before re-applying to keep the result idempotent.
+func channelModelClientName(modelName, prefix string) string {
+	if prefix == "" {
+		return modelName
+	}
+	return prefix + "/" + strings.TrimPrefix(modelName, prefix+"/")
+}
+
 type AbilityWithChannel struct {
 	Ability
 	ChannelType int `json:"channel_type"`
@@ -216,18 +227,20 @@ func identityFilterRequiresKey(filters []dto.ChannelFilter) bool {
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 	models_ := strings.Split(channel.Models, ",")
 	groups_ := strings.Split(channel.Group, ",")
+	prefix := channel.GetOtherSettings().ModelPrefix
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))
 	for _, model := range models_ {
+		clientModel := channelModelClientName(model, prefix)
 		for _, group := range groups_ {
-			key := group + "|" + model
+			key := group + "|" + clientModel
 			if _, exists := abilitySet[key]; exists {
 				continue
 			}
 			abilitySet[key] = struct{}{}
 			ability := Ability{
 				Group:     group,
-				Model:     model,
+				Model:     clientModel,
 				ChannelId: channel.Id,
 				Enabled:   channel.Status == common.ChannelStatusEnabled,
 				Priority:  channel.Priority,
@@ -288,18 +301,20 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 	// Then add new abilities
 	models_ := strings.Split(channel.Models, ",")
 	groups_ := strings.Split(channel.Group, ",")
+	prefix := channel.GetOtherSettings().ModelPrefix
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))
 	for _, model := range models_ {
+		clientModel := channelModelClientName(model, prefix)
 		for _, group := range groups_ {
-			key := group + "|" + model
+			key := group + "|" + clientModel
 			if _, exists := abilitySet[key]; exists {
 				continue
 			}
 			abilitySet[key] = struct{}{}
 			ability := Ability{
 				Group:     group,
-				Model:     model,
+				Model:     clientModel,
 				ChannelId: channel.Id,
 				Enabled:   channel.Status == common.ChannelStatusEnabled,
 				Priority:  channel.Priority,
@@ -408,55 +423,4 @@ func FixAbility() (int, int, error) {
 	}
 	InitChannelCache()
 	return successCount, failCount, nil
-}
-
-// channelOtherSettingsPrefix is a minimal projection of the per-channel
-// settings JSON that only carries the model_prefix field. Defined locally to
-// avoid a second "dto" import (model/ability.go already imports the root dto).
-type channelOtherSettingsPrefix struct {
-	ModelPrefix string `json:"model_prefix"`
-}
-
-// GetBareModelsFromNonPrefixedChannels returns the set of bare model names
-// (without a per-channel prefix) that are provided by at least one channel that
-// has NO model_prefix configured, within the given groups.
-//
-// This is used by /v1/models to decide whether a bare model name must stay
-// visible: a bare model X is only hidden when every channel providing X uses a
-// prefix. If any channel without a prefix provides X, X must remain visible so
-// that channel's capability is not masked.
-func GetBareModelsFromNonPrefixedChannels(groups []string) (map[string]struct{}, error) {
-	result := make(map[string]struct{})
-	if len(groups) == 0 {
-		return result, nil
-	}
-
-	var rows []struct {
-		Model         string
-		OtherSettings string
-	}
-	err := DB.Table("abilities").
-		Select("abilities.model, channels.settings as other_settings").
-		Joins("left join channels on abilities.channel_id = channels.id").
-		Where("abilities.enabled = ? AND abilities."+commonGroupCol+" IN ?", true, groups).
-		Scan(&rows).Error
-	if err != nil {
-		return nil, err
-	}
-
-	for _, r := range rows {
-		var s channelOtherSettingsPrefix
-		if r.OtherSettings != "" {
-			if err := common.UnmarshalJsonStr(r.OtherSettings, &s); err != nil {
-				// Malformed settings: treat the channel as having no prefix so its
-				// models stay visible rather than being wrongly hidden.
-				result[r.Model] = struct{}{}
-				continue
-			}
-		}
-		if s.ModelPrefix == "" {
-			result[r.Model] = struct{}{}
-		}
-	}
-	return result, nil
 }
