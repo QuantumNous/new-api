@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest'
 import type { PricingModel } from '@/features/pricing/types'
 
 import {
+  buildSavingsCatalog,
   buildSavingsModels,
   calculateSavingsEstimate,
   formatCnyAmount,
@@ -121,6 +122,15 @@ describe('buildSavingsModels', () => {
         1
       )
     ).toEqual([])
+  })
+
+  it('keeps the complete live token catalog available to the calculator', () => {
+    const sourceModels = Array.from({ length: 8 }, (_, index) =>
+      makePricingModel(`custom-model-${index + 1}`, index + 1)
+    )
+
+    expect(buildSavingsModels(sourceModels, 4, 7)).toHaveLength(1)
+    expect(buildSavingsCatalog(sourceModels, 4, 7)).toHaveLength(8)
   })
 })
 
