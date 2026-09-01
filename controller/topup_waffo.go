@@ -63,7 +63,7 @@ func getWaffoCurrency() string {
 func buildWaffoTopUpGoodsInfo(amount int64) *order.GoodsInfo {
 	appName := strings.TrimSpace(common.SystemName)
 	if appName == "" {
-		appName = "New API"
+		appName = common.DefaultSystemName
 	}
 	return &order.GoodsInfo{
 		GoodsName: fmt.Sprintf("Recharge %d credits", amount),

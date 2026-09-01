@@ -23,8 +23,21 @@ For commercial licensing, please contact support@quantumnous.com
 // System Configuration Defaults
 // Display-layer defaults only: operators can override both via the system
 // settings (system_name / logo). Powered by New API (QuantumNous).
-export const DEFAULT_SYSTEM_NAME = '野菜 AI'
+export const DEFAULT_SYSTEM_NAME = '野菜API'
 export const DEFAULT_LOGO = '/yecai-logo.svg'
+
+/**
+ * Preserve operator-defined names while migrating the upstream default brand.
+ */
+export function resolveSystemName(name?: string | null): string {
+  const normalized = name?.trim()
+
+  if (!normalized || normalized === 'New API') {
+    return DEFAULT_SYSTEM_NAME
+  }
+
+  return normalized
+}
 
 // LocalStorage Keys
 export const STORAGE_KEYS = {
