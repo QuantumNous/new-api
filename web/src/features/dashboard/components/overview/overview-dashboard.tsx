@@ -55,6 +55,7 @@ import { MOTION_TRANSITION } from '@/lib/motion'
 import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
+import { useConsoleModeStore } from '@/stores/console-mode-store'
 
 import {
   useApiInfo,
@@ -62,6 +63,7 @@ import {
 } from '../../hooks/use-status-data'
 import { AnnouncementsPanel } from './announcements-panel'
 import { ApiInfoPanel } from './api-info-panel'
+import { EasyOverviewDashboard } from './easy-overview-dashboard'
 import { FAQPanel } from './faq-panel'
 import { PerformanceHealthPanel } from './performance-health-panel'
 import { SummaryCards } from './summary-cards'
@@ -456,7 +458,7 @@ function CompactQuickAction(props: { action: QuickAction }) {
   )
 }
 
-export function OverviewDashboard() {
+function DeveloperOverviewDashboard() {
   const { t } = useTranslation()
   const user = useAuthStore((state) => state.auth.user)
   const { items: apiInfoItems } = useApiInfo()
@@ -806,5 +808,15 @@ export function OverviewDashboard() {
         </CardStaggerContainer>
       )}
     </div>
+  )
+}
+
+export function OverviewDashboard() {
+  const mode = useConsoleModeStore((state) => state.mode)
+
+  return mode === 'easy' ? (
+    <EasyOverviewDashboard />
+  ) : (
+    <DeveloperOverviewDashboard />
   )
 }
