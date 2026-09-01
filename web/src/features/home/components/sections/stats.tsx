@@ -92,31 +92,55 @@ interface StatItem {
   suffix: string
   label: string
   decimals?: number
+  hue: string
 }
 
 export function Stats(_props: StatsProps) {
   const { t } = useTranslation()
 
   const stats: StatItem[] = [
-    { end: 50, suffix: '+', label: t('upstream services integrated') },
-    { end: 100, suffix: '+', label: t('model billing support') },
-    { end: 50, suffix: '+', label: t('compatible API routes') },
-    { end: 10, suffix: '+', label: t('scheduling controls') },
+    {
+      end: 100,
+      suffix: '+',
+      label: t('AI models to choose from'),
+      hue: 'var(--chart-1)',
+    },
+    {
+      end: 30,
+      suffix: '+',
+      label: t('popular tools supported'),
+      hue: 'var(--chart-2)',
+    },
+    {
+      end: 3,
+      suffix: ` ${t('min')}`,
+      label: t('from sign-up to first chat'),
+      hue: 'var(--chart-3)',
+    },
+    {
+      end: 1,
+      suffix: '',
+      label: t('key is all you need'),
+      hue: 'var(--chart-4)',
+    },
   ]
 
   return (
-    <div className='border-border/40 bg-muted/10 relative z-10 border-y'>
-      <div className='mx-auto max-w-6xl px-6 py-10 md:py-12'>
-        <div className='grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12'>
+    <div className='relative z-10 px-6'>
+      <div className='mx-auto max-w-6xl'>
+        <div className='grid grid-cols-2 gap-4 md:grid-cols-4'>
           {stats.map((s) => (
             <div
               key={s.label}
-              className='flex flex-col items-center text-center'
+              className='dopa-lift border-border bg-card flex flex-col items-center rounded-3xl border px-4 py-7 text-center'
             >
-              <span className='text-2xl font-bold tracking-tight md:text-3xl'>
+              <span
+                className='text-3xl font-extrabold tracking-tight md:text-4xl'
+                style={{ color: s.hue }}
+              >
                 <Counter end={s.end} suffix={s.suffix} decimals={s.decimals} />
               </span>
-              <span className='text-muted-foreground mt-1.5 text-xs'>
+              <span className='text-muted-foreground mt-2 text-sm font-medium'>
                 {s.label}
               </span>
             </div>
