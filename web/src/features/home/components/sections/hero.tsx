@@ -178,15 +178,11 @@ export function Hero(props: HeroProps) {
           <div className='dopa-fade-up dopa-delay-4 text-muted-foreground mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm'>
             <span className='inline-flex items-center gap-1.5'>
               <Check className='text-success size-4' />
-              {t('No credit card required')}
+              {t('Pay as you go, savings you can see')}
             </span>
             <span className='inline-flex items-center gap-1.5'>
               <Check className='text-success size-4' />
               {t('Works with 30+ popular tools')}
-            </span>
-            <span className='inline-flex items-center gap-1.5'>
-              <Check className='text-success size-4' />
-              {t('Pay only for what you use')}
             </span>
           </div>
         </div>
