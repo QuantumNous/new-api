@@ -106,7 +106,7 @@ describe('PriceSavings', () => {
     tokens?.focus()
     await user.keyboard('{End}')
     expect(tokens).toHaveAttribute('aria-valuetext', '200M tokens')
-    expect(screen.getByText('200M tokens')).toBeInTheDocument()
+    expect(screen.getAllByText('200M tokens')).toHaveLength(2)
 
     people?.focus()
     await user.keyboard('{Home}')

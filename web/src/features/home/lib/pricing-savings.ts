@@ -56,6 +56,11 @@ export const DEFAULT_MONTHLY_TOKENS_MILLIONS = 20
 
 const MAX_COMPARISON_MODELS = 6
 
+const ECONOMY_MODEL_PATTERN =
+  /(?:^|[-_./ ])(?:flash|haiku|instant|lite|mini|nano|small|tiny)(?:$|[-_./ ])/i
+const FLAGSHIP_MODEL_PATTERN =
+  /(?:^|[-_./ ])(?:max|opus|pro|ultra)(?:$|[-_./ ])/i
+
 const FAMILY_ORDER: ModelFamily[] = [
   'openai',
   'anthropic',
@@ -96,7 +101,7 @@ function getModelFamily(model: PricingModel): ModelFamily {
   const haystack =
     `${model.vendor_name ?? ''} ${model.model_name}`.toLowerCase()
 
-  if (/\b(openai|gpt[-_/ ]|chatgpt|o[134][-_])/i.test(haystack)) {
+  if (/\b(openai|gpt[-_/ ]|chatgpt|o\d+(?:[-_/ ]|$))/i.test(haystack)) {
     return 'openai'
   }
   if (/\b(anthropic|claude[-_/ ])/i.test(haystack)) {
@@ -136,19 +141,78 @@ function getFallbackVendorName(family: ModelFamily): string {
   }
 }
 
+function getVendorKey(model: PricingModel): string {
+  if (model.vendor_id) return `id:${model.vendor_id}`
+  if (model.vendor_name?.trim()) {
+    return `name:${model.vendor_name.trim().toLowerCase()}`
+  }
+  return `family:${getModelFamily(model)}`
+}
+
+function getModelVersion(model: PricingModel): number[] {
+  const name = model.model_name.toLowerCase()
+  const family = getModelFamily(model)
+  const familyPattern: Record<ModelFamily, RegExp> = {
+    openai: /(?:gpt|chatgpt|^o)[-_/ ]*v?(\d+)(?:[._-](\d+))?/i,
+    anthropic: /claude.*?v?(\d+)(?:[._-](\d+))?/i,
+    google: /gemini.*?v?(\d+)(?:[._-](\d+))?/i,
+    deepseek: /deepseek.*?v?(\d+)(?:[._-](\d+))?/i,
+    moonshot: /(?:moonshot|kimi).*?[vk]?(\d+)(?:[._-](\d+))?/i,
+    qwen: /qwen.*?v?(\d+)(?:[._-](\d+))?/i,
+    other: /(?:^|[-_/ ])v?(\d+)(?:[._-](\d+))?/i,
+  }
+  const match = name.match(familyPattern[family])
+  if (!match) return []
+
+  const major = Number(match[1])
+  const minor = match[2] && match[2].length <= 2 ? Number(match[2]) : 0
+  return [major, minor]
+}
+
+function compareVersion(left: number[], right: number[]): number {
+  const length = Math.max(left.length, right.length)
+  for (let index = 0; index < length; index += 1) {
+    const difference = (right[index] ?? 0) - (left[index] ?? 0)
+    if (difference !== 0) return difference
+  }
+  return 0
+}
+
+function compareLatestModel(left: PricingModel, right: PricingModel): number {
+  const versionDifference = compareVersion(
+    getModelVersion(left),
+    getModelVersion(right)
+  )
+  if (versionDifference !== 0) return versionDifference
+
+  const leftEconomy = ECONOMY_MODEL_PATTERN.test(left.model_name) ? 1 : 0
+  const rightEconomy = ECONOMY_MODEL_PATTERN.test(right.model_name) ? 1 : 0
+  if (leftEconomy !== rightEconomy) return leftEconomy - rightEconomy
+
+  const leftFlagship = FLAGSHIP_MODEL_PATTERN.test(left.model_name) ? 1 : 0
+  const rightFlagship = FLAGSHIP_MODEL_PATTERN.test(right.model_name) ? 1 : 0
+  if (leftFlagship !== rightFlagship) return rightFlagship - leftFlagship
+
+  const ratioDifference = right.model_ratio - left.model_ratio
+  if (ratioDifference !== 0) return ratioDifference
+
+  return right.model_name.localeCompare(left.model_name, undefined, {
+    numeric: true,
+  })
+}
+
 function toSavingsModel(
   model: PricingModel,
   priceRate: number,
   usdExchangeRate: number
 ): SavingsModel {
-  const officialInputPrice = model.model_ratio * 2
+  const officialInputPrice =
+    model.model_ratio * 2 * Math.max(usdExchangeRate, 0.001)
   const officialOutputPrice = officialInputPrice * model.completion_ratio
   const displayGroupRatio = Math.max(getDisplayGroupRatio(model), 0)
-  const rechargeFactor =
-    Math.max(priceRate, 0.001) / Math.max(usdExchangeRate, 0.001)
-  const siteFactor = displayGroupRatio * rechargeFactor
-  const siteInputPrice = officialInputPrice * siteFactor
-  const siteOutputPrice = officialOutputPrice * siteFactor
+  const siteInputPrice =
+    model.model_ratio * 2 * displayGroupRatio * Math.max(priceRate, 0.001)
+  const siteOutputPrice = siteInputPrice * model.completion_ratio
   const rawSavingsPercent = (1 - siteInputPrice / officialInputPrice) * 100
   const savingsPercent = Math.floor(
     Math.min(100, Math.max(0, rawSavingsPercent))
@@ -181,14 +245,11 @@ export function buildSavingsModels(
         Number.isFinite(model.completion_ratio) &&
         model.completion_ratio >= 0
     )
-    .sort((a, b) => {
-      const ratioDifference = b.model_ratio - a.model_ratio
-      if (ratioDifference !== 0) return ratioDifference
-      return a.model_name.localeCompare(b.model_name)
-    })
+    .sort(compareLatestModel)
 
   const selectedModels: PricingModel[] = []
   const selectedNames = new Set<string>()
+  const selectedVendors = new Set<string>()
 
   for (const family of FAMILY_ORDER) {
     const flagship = rankedModels.find(
@@ -198,18 +259,57 @@ export function buildSavingsModels(
     if (!flagship) continue
     selectedModels.push(flagship)
     selectedNames.add(flagship.model_name)
+    selectedVendors.add(getVendorKey(flagship))
   }
 
   for (const model of rankedModels) {
     if (selectedModels.length >= MAX_COMPARISON_MODELS) break
     if (selectedNames.has(model.model_name)) continue
+    if (selectedVendors.has(getVendorKey(model))) continue
     selectedModels.push(model)
     selectedNames.add(model.model_name)
+    selectedVendors.add(getVendorKey(model))
   }
 
   return selectedModels
     .slice(0, MAX_COMPARISON_MODELS)
     .map((model) => toSavingsModel(model, priceRate, usdExchangeRate))
+}
+
+export function formatCnyAmount(
+  amount: number,
+  options: { compact?: boolean; maximumFractionDigits?: number } = {}
+): string {
+  const normalizedAmount = Number.isFinite(amount) ? amount : 0
+  const maximumFractionDigits =
+    options.maximumFractionDigits ?? (Math.abs(normalizedAmount) < 1 ? 4 : 2)
+
+  return new Intl.NumberFormat('zh-CN', {
+    style: 'currency',
+    currency: 'CNY',
+    currencyDisplay: 'narrowSymbol',
+    notation: options.compact ? 'compact' : 'standard',
+    minimumFractionDigits: 0,
+    maximumFractionDigits,
+  }).format(normalizedAmount)
+}
+
+export function formatTokenMillions(
+  millions: number,
+  locale = 'zh-CN'
+): string {
+  const tokens = Math.max(0, millions) * 1_000_000
+  const localeAliases: Record<string, string> = {
+    zhcn: 'zh-CN',
+    zhtw: 'zh-TW',
+  }
+  const compactLocale = locale.replaceAll(/[-_]/g, '').toLowerCase()
+  const normalizedLocale = localeAliases[compactLocale] ?? locale
+
+  return new Intl.NumberFormat(normalizedLocale, {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(tokens)
 }
 
 export function getMaximumSavingsPercent(models: SavingsModel[]): number {

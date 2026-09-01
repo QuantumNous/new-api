@@ -21,12 +21,13 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Slider } from '@/components/ui/slider'
-import { formatCurrencyFromUSD } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 
 import {
   calculateSavingsEstimate,
   DEFAULT_MONTHLY_TOKENS_MILLIONS,
+  formatCnyAmount,
+  formatTokenMillions,
   tokenMillionsToSliderPosition,
   tokenSliderPositionToMillions,
   TOKEN_SLIDER_MAX_MILLIONS,
@@ -52,13 +53,11 @@ const useCaseOptions: Array<{
 
 const totalFormatOptions = {
   digitsLarge: 0,
-  digitsSmall: 2,
-  abbreviate: false,
   compact: true,
 }
 
 export function SavingsCalculator(props: SavingsCalculatorProps) {
-  const { t } = useTranslation()
+  const { i18n, t } = useTranslation()
   const [useCase, setUseCase] = useState<SavingsUseCase>('coding')
   const [tokenSliderPosition, setTokenSliderPosition] = useState(() =>
     tokenMillionsToSliderPosition(DEFAULT_MONTHLY_TOKENS_MILLIONS)
@@ -66,6 +65,13 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
   const [people, setPeople] = useState(20)
   const monthlyTokensMillions =
     tokenSliderPositionToMillions(tokenSliderPosition)
+  const formatTokenUsage = (millions: number) =>
+    t('{{count}} tokens', {
+      count: formatTokenMillions(
+        millions,
+        i18n.resolvedLanguage || i18n.language
+      ),
+    })
   const estimate = useMemo(
     () =>
       calculateSavingsEstimate(
@@ -146,7 +152,7 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
                 {t('Monthly tokens')}
               </label>
               <output className='bg-chart-4/15 text-foreground rounded-full px-3 py-1 font-mono text-xs font-bold tabular-nums'>
-                {t('{{count}}M tokens', { count: monthlyTokensMillions })}
+                {formatTokenUsage(monthlyTokensMillions)}
               </output>
             </div>
             <Slider
@@ -157,9 +163,7 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
               value={[tokenSliderPosition]}
               getAriaLabel={() => t('Monthly tokens')}
               getAriaValueText={(_, value) =>
-                t('{{count}}M tokens', {
-                  count: tokenSliderPositionToMillions(value),
-                })
+                formatTokenUsage(tokenSliderPositionToMillions(value))
               }
               onValueChange={(value) => {
                 const nextValue = Array.isArray(value) ? value[0] : value
@@ -167,8 +171,8 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
               }}
             />
             <div className='text-muted-foreground mt-2 flex justify-between font-mono text-[10px]'>
-              <span>{TOKEN_SLIDER_MIN_MILLIONS}M</span>
-              <span>{TOKEN_SLIDER_MAX_MILLIONS}M</span>
+              <span>{formatTokenUsage(TOKEN_SLIDER_MIN_MILLIONS)}</span>
+              <span>{formatTokenUsage(TOKEN_SLIDER_MAX_MILLIONS)}</span>
             </div>
           </div>
 
@@ -203,54 +207,52 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
           </div>
         </div>
 
-        <div className='dopa-gradient-surface relative mt-7 overflow-hidden rounded-3xl p-[1px]'>
-          <div className='bg-card/95 rounded-[calc(1.5rem-1px)] px-5 py-5'>
-            <div className='text-muted-foreground text-xs font-semibold'>
-              {t('Estimated savings in one year')}
-            </div>
-            <div
-              aria-live='polite'
-              className='dopa-gradient-text mt-1 font-mono text-[clamp(2rem,6vw,3.2rem)] leading-none font-black tracking-tight tabular-nums'
-            >
-              {formatCurrencyFromUSD(
-                estimate.annualSavings,
-                totalFormatOptions
-              )}
-            </div>
+        <div className='border-primary/30 bg-card ring-background/70 relative mt-7 overflow-hidden rounded-3xl border-2 px-5 py-5 ring-1 ring-inset'>
+          <div className='text-muted-foreground text-xs font-semibold'>
+            {t('Estimated savings in one year')}
+          </div>
+          <div
+            aria-live='polite'
+            className='dopa-gradient-text mt-1 font-mono text-[clamp(2rem,6vw,3.2rem)] leading-none font-black tracking-tight tabular-nums'
+          >
+            {formatCnyAmount(estimate.annualSavings, {
+              compact: totalFormatOptions.compact,
+              maximumFractionDigits: totalFormatOptions.digitsLarge,
+            })}
+          </div>
 
-            <div className='border-border mt-5 grid grid-cols-2 gap-4 border-t pt-4'>
-              <div>
-                <div className='text-muted-foreground text-[10px] font-semibold tracking-wide uppercase'>
-                  {t('Official API estimate')}
-                </div>
-                <div className='mt-1 font-mono text-sm font-bold tabular-nums'>
-                  {formatCurrencyFromUSD(
-                    estimate.officialMonthlyCost,
-                    totalFormatOptions
-                  )}
-                </div>
+          <div className='border-border mt-5 grid grid-cols-2 gap-4 border-t pt-4'>
+            <div>
+              <div className='text-muted-foreground text-[10px] font-semibold tracking-wide uppercase'>
+                {t('Official API estimate')}
               </div>
-              <div>
-                <div className='text-muted-foreground text-[10px] font-semibold tracking-wide uppercase'>
-                  {t('Your estimated cost')}
-                </div>
-                <div className='text-primary mt-1 font-mono text-sm font-bold tabular-nums'>
-                  {formatCurrencyFromUSD(
-                    estimate.siteMonthlyCost,
-                    totalFormatOptions
-                  )}
-                </div>
+              <div className='mt-1 font-mono text-sm font-bold tabular-nums'>
+                {formatCnyAmount(estimate.officialMonthlyCost, {
+                  compact: totalFormatOptions.compact,
+                  maximumFractionDigits: totalFormatOptions.digitsLarge,
+                })}
               </div>
             </div>
-
-            <div className='bg-success/10 text-success mt-4 rounded-2xl px-3 py-2 text-xs font-bold'>
-              {t('Save {{amount}} per month', {
-                amount: formatCurrencyFromUSD(
-                  estimate.monthlySavings,
-                  totalFormatOptions
-                ),
-              })}
+            <div>
+              <div className='text-muted-foreground text-[10px] font-semibold tracking-wide uppercase'>
+                {t('Your estimated cost')}
+              </div>
+              <div className='text-primary mt-1 font-mono text-sm font-bold tabular-nums'>
+                {formatCnyAmount(estimate.siteMonthlyCost, {
+                  compact: totalFormatOptions.compact,
+                  maximumFractionDigits: totalFormatOptions.digitsLarge,
+                })}
+              </div>
             </div>
+          </div>
+
+          <div className='bg-success/10 text-success mt-4 rounded-2xl px-3 py-2 text-xs font-bold'>
+            {t('Save {{amount}} per month', {
+              amount: formatCnyAmount(estimate.monthlySavings, {
+                compact: totalFormatOptions.compact,
+                maximumFractionDigits: totalFormatOptions.digitsLarge,
+              }),
+            })}
           </div>
         </div>
 
