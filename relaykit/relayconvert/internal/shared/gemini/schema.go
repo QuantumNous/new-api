@@ -8,6 +8,7 @@ import (
 
 var geminiOpenAPISchemaAllowedFields = map[string]struct{}{
 	"anyOf":            {},
+	"const":            {},
 	"default":          {},
 	"description":      {},
 	"enum":             {},
@@ -80,6 +81,10 @@ func cleanGeminiFunctionParametersWithDepth(params interface{}, depth int) inter
 			cleanedMap["anyOf"] = cleanedNested
 		}
 
+		normalizeGeminiSchemaConst(cleanedMap)
+		normalizeGeminiSchemaAnyOf(cleanedMap)
+		delete(cleanedMap, "const")
+
 		return cleanedMap
 	case []interface{}:
 		cleanedArray := make([]interface{}, len(v))
@@ -102,15 +107,125 @@ func cleanGeminiFunctionParametersShallow(params interface{}) interface{} {
 			}
 		}
 		normalizeGeminiSchemaTypeAndNullable(cleanedMap)
+		normalizeGeminiSchemaConst(cleanedMap)
 		delete(cleanedMap, "properties")
 		delete(cleanedMap, "items")
 		delete(cleanedMap, "anyOf")
+		delete(cleanedMap, "const")
 		return cleanedMap
 	case []interface{}:
 		return []interface{}{}
 	default:
 		return params
 	}
+}
+
+func normalizeGeminiSchemaConst(schema map[string]interface{}) {
+	constValue, ok := schema["const"]
+	if !ok {
+		return
+	}
+	if _, hasEnum := schema["enum"]; !hasEnum {
+		schema["enum"] = []interface{}{constValue}
+	}
+}
+
+func normalizeGeminiSchemaAnyOf(schema map[string]interface{}) {
+	branches, ok := schema["anyOf"].([]interface{})
+	if !ok || len(branches) == 0 {
+		return
+	}
+
+	concreteBranches := make([]map[string]interface{}, 0, len(branches))
+	nullable := false
+	for _, branch := range branches {
+		branchSchema, ok := branch.(map[string]interface{})
+		if !ok {
+			return
+		}
+		if isGeminiNullSchema(branchSchema) {
+			nullable = true
+			continue
+		}
+		concreteBranches = append(concreteBranches, branchSchema)
+	}
+
+	if len(concreteBranches) == 1 && nullable {
+		mergeGeminiSchema(schema, concreteBranches[0])
+		schema["nullable"] = true
+		delete(schema, "anyOf")
+		return
+	}
+
+	commonType, sameType := commonGeminiSchemaType(concreteBranches)
+	if sameType {
+		if _, hasType := schema["type"]; !hasType {
+			schema["type"] = commonType
+		}
+	}
+	if nullable {
+		schema["nullable"] = true
+	}
+
+	values, enumOnly := geminiEnumUnionValues(concreteBranches)
+	if sameType && enumOnly {
+		schema["enum"] = values
+		delete(schema, "anyOf")
+	}
+}
+
+func isGeminiNullSchema(schema map[string]interface{}) bool {
+	if nullable, ok := schema["nullable"].(bool); !ok || !nullable {
+		return false
+	}
+	for key := range schema {
+		if key != "nullable" {
+			return false
+		}
+	}
+	return true
+}
+
+func mergeGeminiSchema(target map[string]interface{}, source map[string]interface{}) {
+	for key, value := range source {
+		if _, exists := target[key]; !exists {
+			target[key] = value
+		}
+	}
+}
+
+func commonGeminiSchemaType(branches []map[string]interface{}) (string, bool) {
+	if len(branches) == 0 {
+		return "", false
+	}
+	commonType, ok := branches[0]["type"].(string)
+	if !ok || commonType == "" {
+		return "", false
+	}
+	for _, branch := range branches[1:] {
+		branchType, ok := branch["type"].(string)
+		if !ok || branchType != commonType {
+			return "", false
+		}
+	}
+	return commonType, true
+}
+
+func geminiEnumUnionValues(branches []map[string]interface{}) ([]interface{}, bool) {
+	values := make([]interface{}, 0, len(branches))
+	for _, branch := range branches {
+		for key := range branch {
+			if key != "type" && key != "enum" {
+				return nil, false
+			}
+		}
+		branchValues, ok := branch["enum"].([]interface{})
+		if !ok || len(branchValues) == 0 {
+			return nil, false
+		}
+		values = append(values, branchValues...)
+	}
+	return values, true
 }
 
 func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
