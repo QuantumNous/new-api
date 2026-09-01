@@ -355,6 +355,26 @@ func TestLoginSessionCreateRefreshAndRevoke(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrLoginSessionRevoked))
 }
 
+func TestRefreshLoginSessionForMethodRejectsBeforeRotation(t *testing.T) {
+	useTestSessionSecret(t)
+	user := setupAuthSessionTestDB(t)
+
+	browserBundle, err := CreateLoginSession(user.Id, "password", "127.0.0.1", "browser")
+	require.NoError(t, err)
+	_, _, err = RefreshLoginSessionForMethod(browserBundle.RefreshToken, browserBundle.Session.SID, DesktopLoginMethod, "127.0.0.2", "desktop")
+	assert.ErrorIs(t, err, ErrLoginSessionMethod)
+
+	refreshedBrowser, _, err := RefreshLoginSession(browserBundle.RefreshToken, browserBundle.Session.SID, "127.0.0.2", "browser")
+	require.NoError(t, err, "method rejection must not consume the browser refresh token")
+	assert.NotEqual(t, browserBundle.RefreshToken, refreshedBrowser.RefreshToken)
+
+	desktopBundle, err := CreateLoginSession(user.Id, DesktopLoginMethod, "127.0.0.1", "desktop")
+	require.NoError(t, err)
+	refreshedDesktop, _, err := RefreshLoginSessionForMethod(desktopBundle.RefreshToken, desktopBundle.Session.SID, DesktopLoginMethod, "127.0.0.2", "desktop")
+	require.NoError(t, err)
+	assert.Equal(t, DesktopLoginMethod, refreshedDesktop.Session.LoginMethod)
+}
+
 func TestIndependentRedisSessionRevokeConvergesAfterCacheTTL(t *testing.T) {
 	useTestSessionSecret(t)
 	user := setupAuthSessionTestDB(t)

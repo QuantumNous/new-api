@@ -295,7 +295,7 @@ func ExchangeDesktopDeviceAuthorization(deviceCode string, ip string, userAgent 
 	if claimed.UserID <= 0 || claimed.UserAuthVersion <= 0 {
 		return nil, desktopAuthorizationError("invalid_device_code", 0, nil)
 	}
-	bundle, err := CreateLoginSessionAtAuthVersion(claimed.UserID, claimed.UserAuthVersion, "desktop_device", ip, userAgent)
+	bundle, err := CreateLoginSessionAtAuthVersion(claimed.UserID, claimed.UserAuthVersion, DesktopLoginMethod, ip, userAgent)
 	if err != nil {
 		rollbackDesktopAuthorizationClaim(deviceKey)
 		return nil, desktopAuthorizationError("server_error", 0, err)
