@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"math"
 	"strings"
 
 	"github.com/QuantumNous/new-api/setting"
@@ -26,6 +27,29 @@ func isStripeWebhookConfigured() bool {
 
 func isStripeWebhookEnabled() bool {
 	return isStripeTopUpEnabled()
+}
+
+func isDodoTopUpEnabled() bool {
+	if !isPaymentComplianceConfirmed() {
+		return false
+	}
+	environment := strings.TrimSpace(setting.DodoEnvironment)
+	return strings.TrimSpace(setting.DodoAPIKey) != "" &&
+		(environment == setting.DodoEnvironmentTestMode || environment == setting.DodoEnvironmentLiveMode) &&
+		strings.TrimSpace(setting.DodoWebhookSecret) != "" &&
+		strings.TrimSpace(setting.DodoProductID) != "" &&
+		setting.DodoUnitPrice > 0 &&
+		!math.IsNaN(setting.DodoUnitPrice) &&
+		!math.IsInf(setting.DodoUnitPrice, 0) &&
+		setting.DodoMinTopUp > 0
+}
+
+func isDodoWebhookConfigured() bool {
+	return strings.TrimSpace(setting.DodoWebhookSecret) != ""
+}
+
+func isDodoWebhookEnabled() bool {
+	return isDodoTopUpEnabled()
 }
 
 func isCreemTopUpEnabled() bool {

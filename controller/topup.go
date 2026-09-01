@@ -26,7 +26,7 @@ func GetTopUpInfo(c *gin.Context) {
 	complianceConfirmed := operation_setting.IsPaymentComplianceConfirmed()
 
 	// 获取支付方式
-	payMethods := operation_setting.PayMethods
+	payMethods := append([]map[string]string(nil), operation_setting.PayMethods...)
 	if !complianceConfirmed {
 		payMethods = []map[string]string{}
 	}
@@ -50,6 +50,24 @@ func GetTopUpInfo(c *gin.Context) {
 				"min_topup": strconv.Itoa(setting.StripeMinTopUp),
 			}
 			payMethods = append(payMethods, stripeMethod)
+		}
+	}
+
+	if isDodoTopUpEnabled() {
+		hasDodo := false
+		for _, method := range payMethods {
+			if method["type"] == model.PaymentMethodDodo {
+				hasDodo = true
+				break
+			}
+		}
+		if !hasDodo {
+			payMethods = append(payMethods, map[string]string{
+				"name":      "Dodo Payments",
+				"type":      model.PaymentMethodDodo,
+				"color":     "#5B5BD6",
+				"min_topup": strconv.FormatInt(getDodoMinTopUp(), 10),
+			})
 		}
 	}
 
@@ -99,6 +117,7 @@ func GetTopUpInfo(c *gin.Context) {
 	data := gin.H{
 		"enable_online_topup":              isEpayTopUpEnabled(),
 		"enable_stripe_topup":              isStripeTopUpEnabled(),
+		"enable_dodo_topup":                isDodoTopUpEnabled(),
 		"enable_creem_topup":               isCreemTopUpEnabled(),
 		"enable_waffo_topup":               enableWaffo,
 		"enable_waffo_pancake_topup":       enableWaffoPancake,
@@ -115,6 +134,7 @@ func GetTopUpInfo(c *gin.Context) {
 		"pay_methods":             payMethods,
 		"min_topup":               operation_setting.MinTopUp,
 		"stripe_min_topup":        setting.StripeMinTopUp,
+		"dodo_min_topup":          getDodoMinTopUp(),
 		"waffo_min_topup":         setting.WaffoMinTopUp,
 		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,

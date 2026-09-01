@@ -19,6 +19,9 @@ type TopUp struct {
 	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string  `json:"payment_method" gorm:"type:varchar(50)"`
 	PaymentProvider string  `json:"payment_provider" gorm:"type:varchar(50);default:''"`
+	ExpectedAmount  int64   `json:"-"`
+	CreditedQuota   int     `json:"-"`
+	ProviderOrderID string  `json:"-" gorm:"type:varchar(255);default:''"`
 	CreateTime      int64   `json:"create_time"`
 	CompleteTime    int64   `json:"complete_time"`
 	Status          string  `json:"status"`
@@ -26,6 +29,7 @@ type TopUp struct {
 
 const (
 	PaymentMethodStripe       = "stripe"
+	PaymentMethodDodo         = "dodo"
 	PaymentMethodCreem        = "creem"
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
@@ -35,6 +39,7 @@ const (
 const (
 	PaymentProviderEpay         = "epay"
 	PaymentProviderStripe       = "stripe"
+	PaymentProviderDodo         = "dodo"
 	PaymentProviderCreem        = "creem"
 	PaymentProviderWaffo        = "waffo"
 	PaymentProviderWaffoPancake = "waffo_pancake"
@@ -289,6 +294,63 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 	return nil
 }
 
+// RechargeDodo atomically completes a Dodo order and credits the quota captured
+// when the checkout session was created. Repeated successful webhooks are safe.
+func RechargeDodo(tradeNo string, providerOrderID string, callerIp string) (alreadyDone bool, err error) {
+	if tradeNo == "" || providerOrderID == "" {
+		return false, errors.New("未提供支付单号")
+	}
+
+	refCol := "`trade_no`"
+	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+		refCol = `"trade_no"`
+	}
+
+	var quotaToAdd int
+	topUp := &TopUp{}
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(topUp).Error; err != nil {
+			return ErrTopUpNotFound
+		}
+		if topUp.PaymentProvider != PaymentProviderDodo {
+			return ErrPaymentMethodMismatch
+		}
+		if topUp.Status == common.TopUpStatusSuccess {
+			alreadyDone = true
+			return nil
+		}
+		if topUp.Status != common.TopUpStatusPending {
+			return ErrTopUpStatusInvalid
+		}
+		if topUp.CreditedQuota <= 0 || topUp.CreditedQuota > common.MaxWalletQuota {
+			return ErrInvalidTopUpQuota
+		}
+
+		quotaToAdd = topUp.CreditedQuota
+		topUp.ProviderOrderID = providerOrderID
+		topUp.CompleteTime = common.GetTimestamp()
+		topUp.Status = common.TopUpStatusSuccess
+		if err := tx.Save(topUp).Error; err != nil {
+			return err
+		}
+		return creditTopUpQuota(tx, topUp.UserId, quotaToAdd, nil)
+	})
+	if err != nil {
+		if !errors.Is(err, ErrTopUpNotFound) && !errors.Is(err, ErrPaymentMethodMismatch) && !errors.Is(err, ErrTopUpStatusInvalid) {
+			common.SysError("dodo topup failed: " + err.Error())
+		}
+		return false, err
+	}
+	if alreadyDone {
+		return true, nil
+	}
+
+	syncCreditUserQuotaCache(topUp.UserId, quotaToAdd, "dodo topup")
+	common.SysLog(fmt.Sprintf("Dodo 充值成功 trade_no=%s payment_id=%s user_id=%d quota_to_add=%d money=%.2f", topUp.TradeNo, providerOrderID, topUp.UserId, quotaToAdd, topUp.Money))
+	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用 Dodo 充值成功，充值金额: %v，支付金额：%.2f USD", logger.LogQuota(quotaToAdd), topUp.Money), callerIp, PaymentMethodDodo, PaymentProviderDodo)
+	return false, nil
+}
+
 // topUpQueryWindowSeconds 限制充值记录查询的时间窗口（秒）。
 const topUpQueryWindowSeconds int64 = 30 * 24 * 60 * 60
 
@@ -479,10 +541,16 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 		}
 
 		// 计算应充值额度：
+		// - Dodo 订单：使用创建 Checkout 时固化的 CreditedQuota
 		// - Stripe 订单：Money 代表经分组倍率换算后的美元数量，直接 * QuotaPerUnit
 		// - 其他订单（如易支付）：Amount 为美元数量，* QuotaPerUnit
 		var quotaErr error
-		if topUp.PaymentProvider == PaymentProviderStripe {
+		if topUp.PaymentProvider == PaymentProviderDodo {
+			quotaToAdd = topUp.CreditedQuota
+			if quotaToAdd <= 0 || quotaToAdd > common.MaxWalletQuota {
+				quotaErr = ErrInvalidTopUpQuota
+			}
+		} else if topUp.PaymentProvider == PaymentProviderStripe {
 			quotaToAdd, quotaErr = common.WalletQuotaFromDecimalStrict(
 				decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.QuotaPerUnit)),
 			)

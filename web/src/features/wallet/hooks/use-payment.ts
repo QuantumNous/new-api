@@ -23,14 +23,17 @@ import { toast } from 'sonner'
 import {
   calculateAmount,
   calculateStripeAmount,
+  calculateDodoAmount,
   calculateWaffoAmount,
   calculateWaffoPancakeAmount,
   requestPayment,
   requestStripePayment,
+  requestDodoPayment,
   isApiSuccess,
 } from '../api'
 import {
   isStripePayment,
+  isDodoPayment,
   isWaffoPayment,
   isWaffoPancakePayment,
   submitPaymentForm,
@@ -46,6 +49,7 @@ type AmountCalculator = (request: AmountRequest) => Promise<AmountResponse>
 export interface PaymentAmountCalculators {
   regular: AmountCalculator
   stripe: AmountCalculator
+  dodo: AmountCalculator
   waffo: AmountCalculator
   waffoPancake: AmountCalculator
 }
@@ -53,6 +57,7 @@ export interface PaymentAmountCalculators {
 const defaultPaymentAmountCalculators: PaymentAmountCalculators = {
   regular: calculateAmount,
   stripe: calculateStripeAmount,
+  dodo: calculateDodoAmount,
   waffo: calculateWaffoAmount,
   waffoPancake: calculateWaffoPancakeAmount,
 }
@@ -65,6 +70,8 @@ export async function requestPaymentAmount(
   let calculator = calculators.regular
   if (isStripePayment(paymentType)) {
     calculator = calculators.stripe
+  } else if (isDodoPayment(paymentType)) {
+    calculator = calculators.dodo
   } else if (isWaffoPayment(paymentType)) {
     calculator = calculators.waffo
   } else if (isWaffoPancakePayment(paymentType)) {
@@ -112,32 +119,41 @@ export function usePayment() {
         setProcessing(true)
 
         const isStripe = isStripePayment(paymentType)
+        const isDodo = isDodoPayment(paymentType)
         const amount = Math.floor(topupAmount)
 
-        const response = isStripe
-          ? await requestStripePayment({
-              amount,
-              payment_method: 'stripe',
-            })
-          : await requestPayment({
-              amount,
-              payment_method: paymentType,
-            })
+        let response
+        if (isStripe) {
+          response = await requestStripePayment({
+            amount,
+            payment_method: 'stripe',
+          })
+        } else if (isDodo) {
+          response = await requestDodoPayment({
+            amount,
+            payment_method: 'dodo',
+          })
+        } else {
+          response = await requestPayment({
+            amount,
+            payment_method: paymentType,
+          })
+        }
 
         if (!isApiSuccess(response)) {
           toast.error(response.message || i18next.t('Payment request failed'))
           return false
         }
 
-        // Handle Stripe payment
-        if (isStripe && response.data?.pay_link) {
+        // Handle hosted checkout payments
+        if ((isStripe || isDodo) && response.data?.pay_link) {
           window.open(response.data.pay_link as string, '_blank')
           toast.success(i18next.t('Redirecting to payment page...'))
           return true
         }
 
         // Handle non-Stripe payment
-        if (!isStripe && response.data) {
+        if (!isStripe && !isDodo && response.data) {
           const url = (response as unknown as { url?: string }).url
           if (url) {
             submitPaymentForm(url, response.data)

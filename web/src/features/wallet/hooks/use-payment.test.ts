@@ -33,6 +33,10 @@ describe('payment amount routing', () => {
         calls.push('stripe')
         return { success: true, data: '2' }
       },
+      dodo: async () => {
+        calls.push('dodo')
+        return { success: true, data: '3' }
+      },
       waffo: async (request) => {
         calls.push(`waffo:${request.amount}`)
         return { success: true, data: '18.75' }
@@ -45,5 +49,22 @@ describe('payment amount routing', () => {
 
     expect(amount).toBe(18.75)
     expect(calls).toEqual(['waffo:120'])
+  })
+
+  test('uses the dedicated Dodo amount calculator', async () => {
+    const calls: string[] = []
+    const amount = await requestPaymentAmount(25, PAYMENT_TYPES.DODO, {
+      regular: async () => ({ success: true, data: '1' }),
+      stripe: async () => ({ success: true, data: '2' }),
+      dodo: async (request) => {
+        calls.push(`dodo:${request.amount}`)
+        return { success: true, data: '24.50' }
+      },
+      waffo: async () => ({ success: true, data: '4' }),
+      waffoPancake: async () => ({ success: true, data: '5' }),
+    })
+
+    expect(amount).toBe(24.5)
+    expect(calls).toEqual(['dodo:25'])
   })
 })

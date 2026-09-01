@@ -61,6 +61,7 @@ import { safeNumberFieldProps } from '../utils/numeric-field'
 import { AmountDiscountVisualEditor } from './amount-discount-visual-editor'
 import { AmountOptionsVisualEditor } from './amount-options-visual-editor'
 import { CreemProductsVisualEditor } from './creem-products-visual-editor'
+import { DodoEnvironmentSelect } from './dodo-environment-select'
 import { PaymentMethodsVisualEditor } from './payment-methods-visual-editor'
 import {
   formatJsonForEditor,
@@ -147,6 +148,12 @@ const paymentSchema = z.object({
   StripeUnitPrice: z.coerce.number().min(0),
   StripeMinTopUp: z.coerce.number().min(0),
   StripePromotionCodesEnabled: z.boolean(),
+  DodoAPIKey: z.string(),
+  DodoEnvironment: z.enum(['test_mode', 'live_mode']),
+  DodoWebhookSecret: z.string(),
+  DodoProductID: z.string(),
+  DodoUnitPrice: z.coerce.number().positive(),
+  DodoMinTopUp: z.coerce.number().int().min(1),
   CreemApiKey: z.string(),
   CreemWebhookSecret: z.string(),
   CreemTestMode: z.boolean(),
@@ -433,6 +440,12 @@ export function PaymentSettingsSection({
       StripeUnitPrice: values.StripeUnitPrice,
       StripeMinTopUp: values.StripeMinTopUp,
       StripePromotionCodesEnabled: values.StripePromotionCodesEnabled,
+      DodoAPIKey: values.DodoAPIKey.trim(),
+      DodoEnvironment: values.DodoEnvironment,
+      DodoWebhookSecret: values.DodoWebhookSecret.trim(),
+      DodoProductID: values.DodoProductID.trim(),
+      DodoUnitPrice: values.DodoUnitPrice,
+      DodoMinTopUp: values.DodoMinTopUp,
       CreemApiKey: values.CreemApiKey.trim(),
       CreemWebhookSecret: values.CreemWebhookSecret.trim(),
       CreemTestMode: values.CreemTestMode,
@@ -478,6 +491,12 @@ export function PaymentSettingsSection({
       StripeMinTopUp: initialRef.current.StripeMinTopUp,
       StripePromotionCodesEnabled:
         initialRef.current.StripePromotionCodesEnabled,
+      DodoAPIKey: initialRef.current.DodoAPIKey.trim(),
+      DodoEnvironment: initialRef.current.DodoEnvironment,
+      DodoWebhookSecret: initialRef.current.DodoWebhookSecret.trim(),
+      DodoProductID: initialRef.current.DodoProductID.trim(),
+      DodoUnitPrice: initialRef.current.DodoUnitPrice,
+      DodoMinTopUp: initialRef.current.DodoMinTopUp,
       CreemApiKey: initialRef.current.CreemApiKey.trim(),
       CreemWebhookSecret: initialRef.current.CreemWebhookSecret.trim(),
       CreemTestMode: initialRef.current.CreemTestMode,
@@ -599,6 +618,36 @@ export function PaymentSettingsSection({
         key: 'StripePromotionCodesEnabled',
         value: sanitized.StripePromotionCodesEnabled,
       })
+    }
+
+    if (sanitized.DodoAPIKey && sanitized.DodoAPIKey !== initial.DodoAPIKey) {
+      updates.push({ key: 'DodoAPIKey', value: sanitized.DodoAPIKey })
+    }
+
+    if (sanitized.DodoEnvironment !== initial.DodoEnvironment) {
+      updates.push({ key: 'DodoEnvironment', value: sanitized.DodoEnvironment })
+    }
+
+    if (
+      sanitized.DodoWebhookSecret &&
+      sanitized.DodoWebhookSecret !== initial.DodoWebhookSecret
+    ) {
+      updates.push({
+        key: 'DodoWebhookSecret',
+        value: sanitized.DodoWebhookSecret,
+      })
+    }
+
+    if (sanitized.DodoProductID !== initial.DodoProductID) {
+      updates.push({ key: 'DodoProductID', value: sanitized.DodoProductID })
+    }
+
+    if (sanitized.DodoUnitPrice !== initial.DodoUnitPrice) {
+      updates.push({ key: 'DodoUnitPrice', value: sanitized.DodoUnitPrice })
+    }
+
+    if (sanitized.DodoMinTopUp !== initial.DodoMinTopUp) {
+      updates.push({ key: 'DodoMinTopUp', value: sanitized.DodoMinTopUp })
     }
 
     if (
@@ -881,6 +930,7 @@ export function PaymentSettingsSection({
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
                 <TabsTrigger value='epay'>Epay</TabsTrigger>
                 <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
+                <TabsTrigger value='dodo'>{t('Dodo')}</TabsTrigger>
                 <TabsTrigger value='creem'>Creem</TabsTrigger>
                 <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>
                 <TabsTrigger value='waffo'>Waffo</TabsTrigger>
@@ -1380,9 +1430,7 @@ export function PaymentSettingsSection({
                     name='StripeUnitPrice'
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>
-                          {t('Unit price (local currency / USD)')}
-                        </FormLabel>
+                        <FormLabel>{t('USD per top-up unit')}</FormLabel>
                         <FormControl>
                           <Input
                             type='number'
@@ -1392,7 +1440,9 @@ export function PaymentSettingsSection({
                           />
                         </FormControl>
                         <FormDescription>
-                          {t('e.g., 8 means 8 local currency per USD')}
+                          {t(
+                            'e.g., 1 means each top-up unit costs 1 USD before discounts'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1439,6 +1489,209 @@ export function PaymentSettingsSection({
                           />
                         </FormControl>
                       </SettingsSwitchItem>
+                    )}
+                  />
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value='dodo' className={paymentTabContentClassName}>
+              <div className='space-y-4'>
+                <div>
+                  <h3 className='text-lg font-medium'>
+                    {t('Dodo Payments Gateway')}
+                  </h3>
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Configuration for Dodo Payments integration')}
+                  </p>
+                </div>
+
+                <div className='rounded-md bg-blue-50 p-4 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100'>
+                  <p className='mb-2 font-medium'>
+                    {t('Webhook Configuration:')}
+                  </p>
+                  <ul className='list-inside list-disc space-y-1'>
+                    <li>
+                      {t('Webhook URL:')}{' '}
+                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                        {'<ServerAddress>/api/dodo/webhook'}
+                      </code>
+                    </li>
+                    <li>
+                      {t('Required events:')}{' '}
+                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                        payment.succeeded
+                      </code>
+                      {', '}
+                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                        payment.failed
+                      </code>
+                      {', '}
+                      <code className='rounded bg-blue-100 px-1 py-0.5 text-xs dark:bg-blue-900'>
+                        payment.cancelled
+                      </code>
+                    </li>
+                    <li>
+                      {t(
+                        'Create a one-time Pay What You Want product with USD as its base currency.'
+                      )}
+                    </li>
+                  </ul>
+                </div>
+
+                <Alert>
+                  <ShieldAlert className='h-4 w-4' />
+                  <AlertTitle>{t('Dodo environment')}</AlertTitle>
+                  <AlertDescription>
+                    {t(
+                      'Select the Dodo API environment explicitly. API keys do not encode the environment; test and live products and webhook secrets are separate.'
+                    )}
+                  </AlertDescription>
+                </Alert>
+
+                <div className='grid gap-6 md:grid-cols-2 xl:grid-cols-4'>
+                  <FormField
+                    control={form.control}
+                    name='DodoEnvironment'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Dodo environment')}</FormLabel>
+                        <DodoEnvironmentSelect
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        />
+                        <FormDescription>
+                          {t(
+                            'Choose the environment that matches your API key, product, and webhook.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='DodoAPIKey'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('API key')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            placeholder={t('Enter Dodo Payments API key')}
+                            autoComplete='new-password'
+                            {...field}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Dodo Payments API key (leave blank unless updating)'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='DodoWebhookSecret'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Webhook secret')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='password'
+                            placeholder={t('whsec_xxx')}
+                            autoComplete='new-password'
+                            {...field}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Webhook signing secret (leave blank unless updating)'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='DodoProductID'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Product ID')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t('pdt_xxx')}
+                            {...field}
+                            onChange={(event) =>
+                              field.onChange(event.target.value)
+                            }
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Dodo Pay What You Want product ID')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='DodoUnitPrice'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {t('Unit price (local currency / USD)')}
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min={0.01}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('e.g., 8 means 8 local currency per USD')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='DodoMinTopUp'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Minimum top-up (USD)')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='1'
+                            min={1}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t('Minimum recharge quantity for Dodo Payments')}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
                     )}
                   />
                 </div>

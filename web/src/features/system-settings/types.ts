@@ -251,6 +251,8 @@ export type ModelSettings = {
   'model_deployment.ionet.enabled': boolean
 }
 
+export type DodoEnvironment = 'test_mode' | 'live_mode'
+
 export type BillingSettings = {
   QuotaForNewUser: number
   PreConsumedQuota: number
@@ -306,6 +308,12 @@ export type BillingSettings = {
   StripeUnitPrice: number
   StripeMinTopUp: number
   StripePromotionCodesEnabled: boolean
+  DodoAPIKey: string
+  DodoEnvironment: DodoEnvironment
+  DodoWebhookSecret: string
+  DodoProductID: string
+  DodoUnitPrice: number
+  DodoMinTopUp: number
   CreemApiKey: string
   CreemWebhookSecret: string
   CreemTestMode: boolean

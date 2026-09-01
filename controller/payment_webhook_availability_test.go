@@ -44,6 +44,43 @@ func TestStripeWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	require.False(t, isStripeWebhookEnabled())
 }
 
+func TestDodoWebhookEnabledUsesExplicitEnvironment(t *testing.T) {
+	confirmPaymentComplianceForTest(t)
+	originalAPIKey := setting.DodoAPIKey
+	originalEnvironment := setting.DodoEnvironment
+	originalWebhookSecret := setting.DodoWebhookSecret
+	originalProductID := setting.DodoProductID
+	originalUnitPrice := setting.DodoUnitPrice
+	originalMinTopUp := setting.DodoMinTopUp
+	t.Cleanup(func() {
+		setting.DodoAPIKey = originalAPIKey
+		setting.DodoEnvironment = originalEnvironment
+		setting.DodoWebhookSecret = originalWebhookSecret
+		setting.DodoProductID = originalProductID
+		setting.DodoUnitPrice = originalUnitPrice
+		setting.DodoMinTopUp = originalMinTopUp
+	})
+
+	setting.DodoWebhookSecret = "whsec_test"
+	setting.DodoProductID = "pdt_test"
+	setting.DodoUnitPrice = 1
+	setting.DodoMinTopUp = 1
+
+	setting.DodoAPIKey = "opaque_dashboard_generated_key"
+	setting.DodoEnvironment = setting.DodoEnvironmentTestMode
+	require.True(t, isDodoWebhookEnabled())
+
+	setting.DodoEnvironment = setting.DodoEnvironmentLiveMode
+	require.True(t, isDodoWebhookEnabled())
+
+	setting.DodoEnvironment = "staging"
+	require.False(t, isDodoWebhookEnabled())
+
+	setting.DodoEnvironment = setting.DodoEnvironmentTestMode
+	setting.DodoProductID = ""
+	require.False(t, isDodoWebhookEnabled())
+}
+
 func TestCreemWebhookEnabledRequiresTopUpAndWebhookConfig(t *testing.T) {
 	confirmPaymentComplianceForTest(t)
 	originalAPIKey := setting.CreemApiKey

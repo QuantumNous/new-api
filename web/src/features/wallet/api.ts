@@ -29,6 +29,7 @@ import type {
   AmountResponse,
   PaymentResponse,
   StripePaymentResponse,
+  DodoPaymentResponse,
   AffiliateCodeResponse,
   AffiliateTransferResponse,
   BillingHistoryResponse,
@@ -95,6 +96,18 @@ export async function calculateStripeAmount(
 }
 
 /**
+ * Calculate payment amount for Dodo Payments
+ */
+export async function calculateDodoAmount(
+  request: AmountRequest
+): Promise<AmountResponse> {
+  const res = await api.post('/api/user/dodo/amount', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
  * Calculate payment amount for Waffo payment
  */
 export async function calculateWaffoAmount(
@@ -128,6 +141,18 @@ export async function requestStripePayment(
   request: PaymentRequest
 ): Promise<StripePaymentResponse> {
   const res = await api.post('/api/user/stripe/pay', request, {
+    skipBusinessError: true,
+  } as Record<string, unknown>)
+  return res.data
+}
+
+/**
+ * Request a Dodo Payments checkout session
+ */
+export async function requestDodoPayment(
+  request: PaymentRequest
+): Promise<DodoPaymentResponse> {
+  const res = await api.post('/api/user/dodo/pay', request, {
     skipBusinessError: true,
   } as Record<string, unknown>)
   return res.data
