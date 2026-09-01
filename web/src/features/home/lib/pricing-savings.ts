@@ -236,16 +236,7 @@ export function buildSavingsModels(
   priceRate: number,
   usdExchangeRate: number
 ): SavingsModel[] {
-  const rankedModels = models
-    .filter(
-      (model) =>
-        model.quota_type === 0 &&
-        Number.isFinite(model.model_ratio) &&
-        model.model_ratio > 0 &&
-        Number.isFinite(model.completion_ratio) &&
-        model.completion_ratio >= 0
-    )
-    .sort(compareLatestModel)
+  const rankedModels = getRankedPricingModels(models)
 
   const selectedModels: PricingModel[] = []
   const selectedNames = new Set<string>()
@@ -274,6 +265,30 @@ export function buildSavingsModels(
   return selectedModels
     .slice(0, MAX_COMPARISON_MODELS)
     .map((model) => toSavingsModel(model, priceRate, usdExchangeRate))
+}
+
+function getRankedPricingModels(models: PricingModel[]): PricingModel[] {
+  return models
+    .filter(
+      (model) =>
+        model.quota_type === 0 &&
+        Number.isFinite(model.model_ratio) &&
+        model.model_ratio > 0 &&
+        Number.isFinite(model.completion_ratio) &&
+        model.completion_ratio >= 0
+    )
+    .sort(compareLatestModel)
+}
+
+/** Build the complete live token-priced catalog used by the calculator. */
+export function buildSavingsCatalog(
+  models: PricingModel[],
+  priceRate: number,
+  usdExchangeRate: number
+): SavingsModel[] {
+  return getRankedPricingModels(models).map((model) =>
+    toSavingsModel(model, priceRate, usdExchangeRate)
+  )
 }
 
 export function formatCnyAmount(

@@ -90,6 +90,24 @@ describe('PriceSavings', () => {
     expect(support).toHaveAttribute('aria-checked', 'true')
   })
 
+  it('selects a model from the live calculator catalog', async () => {
+    const user = userEvent.setup()
+    render(<PriceSavings models={[models[0]]} calculatorModels={models} />)
+
+    const modelPicker = screen.getByRole('combobox', { name: 'Model' })
+    expect(modelPicker).toHaveValue('gpt-flagship · OpenAI')
+    expect(screen.getByText('¥2万')).toBeInTheDocument()
+
+    await user.click(modelPicker)
+    await user.type(modelPicker, 'claude')
+    await user.click(
+      screen.getByRole('option', { name: /claude-flagship · Anthropic/i })
+    )
+
+    expect(modelPicker).toHaveValue('claude-flagship · Anthropic')
+    expect(screen.getByText('¥3万')).toBeInTheDocument()
+  })
+
   it('updates both sliders from the keyboard with meaningful value text', async () => {
     const user = userEvent.setup()
     render(<PriceSavings models={models} />)

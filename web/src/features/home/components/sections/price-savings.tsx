@@ -25,6 +25,7 @@ import { SavingsCalculator } from './savings-calculator'
 
 interface PriceSavingsProps {
   models: SavingsModel[]
+  calculatorModels?: SavingsModel[]
 }
 
 export function PriceSavings(props: PriceSavingsProps) {
@@ -60,7 +61,7 @@ export function PriceSavings(props: PriceSavingsProps) {
 
         <div className='mt-12 grid gap-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-start'>
           <PriceCompare models={props.models} />
-          <SavingsCalculator models={props.models} />
+          <SavingsCalculator models={props.calculatorModels ?? props.models} />
         </div>
       </div>
     </section>

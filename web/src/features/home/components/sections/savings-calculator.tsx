@@ -20,6 +20,7 @@ import { Bot, Code2, Headphones, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Combobox } from '@/components/ui/combobox'
 import { Slider } from '@/components/ui/slider'
 import { cn } from '@/lib/utils'
 
@@ -63,8 +64,22 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
     tokenMillionsToSliderPosition(DEFAULT_MONTHLY_TOKENS_MILLIONS)
   )
   const [people, setPeople] = useState(20)
+  const [selectedModelName, setSelectedModelName] = useState(
+    () => props.models[0]?.modelName ?? ''
+  )
   const monthlyTokensMillions =
     tokenSliderPositionToMillions(tokenSliderPosition)
+  const selectedModel =
+    props.models.find((model) => model.modelName === selectedModelName) ??
+    props.models[0]
+  const modelOptions = useMemo(
+    () =>
+      props.models.map((model) => ({
+        value: model.modelName,
+        label: `${model.modelName} · ${model.vendorName}`,
+      })),
+    [props.models]
+  )
   const formatTokenUsage = (millions: number) =>
     t('{{count}} tokens', {
       count: formatTokenMillions(
@@ -75,12 +90,12 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
   const estimate = useMemo(
     () =>
       calculateSavingsEstimate(
-        props.models,
+        selectedModel ? [selectedModel] : [],
         useCase,
         monthlyTokensMillions,
         people
       ),
-    [monthlyTokensMillions, people, props.models, useCase]
+    [monthlyTokensMillions, people, selectedModel, useCase]
   )
   const useCaseLabels: Record<SavingsUseCase, string> = {
     coding: t('AI coding'),
@@ -103,7 +118,35 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
       </div>
 
       <div className='flex flex-1 flex-col px-5 py-6 sm:px-7'>
-        <fieldset>
+        <div>
+          <label htmlFor='savings-model-picker' className='text-xs font-bold'>
+            {t('Model')}
+          </label>
+          <Combobox
+            id='savings-model-picker'
+            options={modelOptions}
+            value={selectedModel?.modelName ?? ''}
+            onValueChange={(value) => setSelectedModelName(value ?? '')}
+            placeholder={t('Search models...')}
+            emptyText={t('No models found')}
+            className='bg-background mt-3 h-11 rounded-xl font-mono text-xs font-semibold'
+          />
+          {selectedModel && (
+            <div className='text-muted-foreground mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px]'>
+              <span className='font-semibold'>{selectedModel.vendorName}</span>
+              <span aria-hidden='true'>·</span>
+              <span>
+                {t('Our price')}: {t('Input')}{' '}
+                {formatCnyAmount(selectedModel.siteInputPrice)} · {t('Output')}{' '}
+                {formatCnyAmount(selectedModel.siteOutputPrice)}
+              </span>
+              <span aria-hidden='true'>·</span>
+              <span>{t('CNY / 1 million tokens')}</span>
+            </div>
+          )}
+        </div>
+
+        <fieldset className='mt-6'>
           <legend className='mb-3 text-xs font-bold'>{t('Use case')}</legend>
           <div
             className='grid grid-cols-2 gap-2'
@@ -257,11 +300,7 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
         </div>
 
         <p className='text-muted-foreground mt-4 text-[11px] leading-relaxed'>
-          {t('Representative models: {{models}}', {
-            models: estimate.representativeModels
-              .map((model) => model.modelName)
-              .join(' + '),
-          })}{' '}
+          {t('Model')}: {selectedModel?.modelName ?? ''}.{' '}
           {t('The estimate uses live pricing and is for reference only.')}
         </p>
       </div>
