@@ -1,0 +1,28 @@
+{
+  "scenarioId": "DESKTOP-V2-AS-01",
+  "assertion": "V1 stays exact while v2 advertises only implemented existing routes, fixed 6.75 and live Redis availability.",
+  "testSelector": "tests/work_packages/desktop_v2/test_acceptance.py::test_contract_and_v1_compatibility",
+  "acceptanceCommandId": "desktop-v2-contract",
+  "runId": "RU-DESKTOP-INTEGRATION-V2/WP-DESKTOP-INTEGRATION-V2@2026-09-01T11:23:28.044024+00:00",
+  "packageId": "WP-DESKTOP-INTEGRATION-V2",
+  "evidenceOwner": "govern-product-build/verifier",
+  "passed": true,
+  "runnerProof": {
+    "schemaVersion": 1,
+    "adapter": "pytest-json@1",
+    "selector": "tests/work_packages/desktop_v2/test_acceptance.py::test_contract_and_v1_compatibility",
+    "cwd": ".",
+    "executedPassingTests": 1,
+    "actualExitCode": 0,
+    "runnerMetadataSha256": "sha256:6c95e52244ecca38e44db8df7c761d063e055dc99cdf09051ce25af1aa285e3f",
+    "machineReportSha256": "sha256:2055d055c78e94ddf2a9f628245454ca6651ddac504f921cb40af23518ff3a28",
+    "isolation": {
+      "adapter": "darwin-sandbox-exec-readonly-source@1",
+      "policySha256": "sha256:4becdfb41a13a71fc65186cbab8b1fa8d6071ea02ea9ef0617df7a58325910a6",
+      "executableSha256": "sha256:2ff75194b3e5689debee061c69f27f873ca21ff8fc54b7d49cbf5f2fb673f6ea"
+    }
+  },
+  "commandResultHash": "sha256:d9b2f28e3c15d08b82cb27ae0c58afdca9394b2203ab5b36b58ee4bd9994fcaa",
+  "releaseUnitId": "RU-DESKTOP-INTEGRATION-V2",
+  "releaseUnitHash": "sha256:17fac34dfadf4d7215fc5e093a44eebc5448744ec094872379694a98877a2fa7"
+}

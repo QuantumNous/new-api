@@ -1,0 +1,14 @@
+{
+  "scenarioId": "DESKTOP-V2-AS-06",
+  "assertion": "The authenticated approval page shows code and client identity, requires explicit action and handles success, denial, expiry and API failure without exposing device_code.",
+  "testSelector": "tests/work_packages/desktop_v2/test_acceptance.py::test_browser_approval_surface",
+  "acceptanceCommandId": "desktop-v2-web",
+  "runId": "RU-DESKTOP-INTEGRATION-V2/WP-DESKTOP-INTEGRATION-V2@2026-09-01T11:23:28.044024+00:00",
+  "packageId": "WP-DESKTOP-INTEGRATION-V2",
+  "evidenceOwner": "govern-product-build/verifier",
+  "passed": false,
+  "runnerProof": null,
+  "commandResultHash": "sha256:ebb42bc7ec43598cc73892b1e8e89ddcd5ab4f8628c1943e6da752a011fe812b",
+  "releaseUnitId": "RU-DESKTOP-INTEGRATION-V2",
+  "releaseUnitHash": "sha256:17fac34dfadf4d7215fc5e093a44eebc5448744ec094872379694a98877a2fa7"
+}
