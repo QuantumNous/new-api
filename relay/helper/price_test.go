@@ -8,11 +8,15 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -271,4 +275,98 @@ func TestModelPriceHelperRequestBillingRatiosOnlyApplyToFixedPrice(t *testing.T)
 	require.Equal(t, "QuotaFromFloat", clamp.Op)
 	require.Equal(t, common.QuotaClampOverflow, clamp.Kind)
 	require.Nil(t, info.Billing)
+}
+
+// Pricing at controller/relay.go runs before ApplyReasoningModelSuffix.
+// Identity is GetBillingModelName() → OriginModelName (the suffixed client
+// name), matching main's info.OriginModelName lookup. Wildcard entries such
+// as gemini-2.5-flash-thinking-* depend on that unstripped origin form.
+func TestModelPriceHelperUsesSuffixedOriginLikeMain(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	savedRatios := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+	})
+	ratios := ratio_setting.GetModelRatioCopy()
+	ratios["gemini-2.5-flash"] = 0.15
+	ratios["gemini-2.5-flash-thinking-*"] = 0.075
+	ratioJSON, err := common.Marshal(ratios)
+	require.NoError(t, err)
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(string(ratioJSON)))
+
+	oldSelfUse := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() { operation_setting.SelfUseModeEnabled = oldSelfUse })
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+
+	suffixed := &relaycommon.RelayInfo{
+		OriginModelName: "gemini-2.5-flash-thinking-8192",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+	}
+	suffixedPrice, err := ModelPriceHelper(ctx, suffixed, 1000, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	assert.Empty(t, suffixed.BillingModelName)
+	assert.Equal(t, "gemini-2.5-flash-thinking-8192", suffixed.GetBillingModelName())
+	assert.Equal(t, 0.075, suffixedPrice.ModelRatio)
+
+	base := &relaycommon.RelayInfo{
+		OriginModelName: "gemini-2.5-flash",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+	}
+	basePrice, err := ModelPriceHelper(ctx, base, 1000, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	assert.Empty(t, base.BillingModelName)
+	assert.Equal(t, "gemini-2.5-flash", base.GetBillingModelName())
+	assert.Equal(t, 0.15, basePrice.ModelRatio)
+}
+
+func TestModelPriceHelperNativeGeminiNoThinkingDoesNotAliasBillingModel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	savedRatios := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+	})
+	ratios := ratio_setting.GetModelRatioCopy()
+	ratios["gemini-3-pro"] = 1.25
+	ratioJSON, err := common.Marshal(ratios)
+	require.NoError(t, err)
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(string(ratioJSON)))
+
+	oldSelfUse := operation_setting.SelfUseModeEnabled
+	operation_setting.SelfUseModeEnabled = true
+	t.Cleanup(func() { operation_setting.SelfUseModeEnabled = oldSelfUse })
+
+	geminiSettings := model_setting.GetGeminiSettings()
+	oldThinking := geminiSettings.ThinkingAdapterEnabled
+	geminiSettings.ThinkingAdapterEnabled = true
+	t.Cleanup(func() { geminiSettings.ThinkingAdapterEnabled = oldThinking })
+
+	budget := 0
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gemini-3-pro",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+		Request: &dto.GeminiChatRequest{
+			GenerationConfig: dto.GeminiChatGenerationConfig{
+				ThinkingConfig: &dto.GeminiThinkingConfig{
+					ThinkingBudget: &budget,
+				},
+			},
+		},
+	}
+
+	priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	assert.Empty(t, info.BillingModelName)
+	assert.Equal(t, "gemini-3-pro", info.GetBillingModelName())
+	assert.Equal(t, 1.25, priceData.ModelRatio)
+	assert.NotEqual(t, 37.5, priceData.ModelRatio)
 }
