@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="22 14 212 226" role="img" aria-labelledby="title desc">
+  <title id="title">野菜 AI 白菜标志</title>
+  <desc id="desc">一颗由绿叶和浅色菜梗组成的简洁矢量白菜</desc>
+  <defs>
+    <linearGradient id="leaf-center" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a8df67"/>
+      <stop offset="1" stop-color="#68bd4b"/>
+    </linearGradient>
+    <linearGradient id="leaf-side" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7fce56"/>
+      <stop offset="1" stop-color="#43a34d"/>
+    </linearGradient>
+    <linearGradient id="stem" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8ffe9"/>
+      <stop offset="1" stop-color="#dff1bf"/>
+    </linearGradient>
+  </defs>
+
+  <path d="M91 70C66 52 37 68 32 94c-5 27 10 45 30 52-13 19-5 46 18 55 16 6 32-1 43-15L91 70Z" fill="url(#leaf-side)" stroke="#337c42" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M165 69c25-18 54-2 59 24 5 27-10 46-30 53 13 19 5 45-18 54-16 6-32 0-43-14l32-117Z" fill="url(#leaf-side)" stroke="#337c42" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M128 20c-31 0-55 21-55 51 0 10-9 15-11 28-3 19 8 31 23 40 1 14 6 24 16 33h54c10-9 15-19 16-33 15-9 26-21 23-40-2-13-11-18-11-28 0-30-24-51-55-51Z" fill="url(#leaf-center)" stroke="#337c42" stroke-width="7" stroke-linejoin="round"/>
+
+  <path d="M78 116c9 19 13 36 11 56-1 12-7 25-3 37 5 16 20 24 42 24V135c-25-6-37-12-50-19Z" fill="url(#stem)" stroke="#337c42" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M178 116c-9 19-13 36-11 56 1 12 7 25 3 37-5 16-20 24-42 24v-98c25-6 37-12 50-19Z" fill="url(#stem)" stroke="#337c42" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M128 61v173M101 73c4 20 14 31 27 39m27-39c-4 20-14 31-27 39M54 101c9 10 19 17 31 21m117-21c-9 10-19 17-31 21" fill="none" stroke="#439d49" stroke-width="6" stroke-linecap="round"/>
+  <path d="M94 155c10 21 18 41 34 78m34-78c-10 21-18 41-34 78" fill="none" stroke="#cce8a7" stroke-width="6" stroke-linecap="round"/>
+  <path d="M95 45c8-10 18-15 29-16" fill="none" stroke="#d0ee91" stroke-width="7" stroke-linecap="round" opacity=".8"/>
+</svg>
