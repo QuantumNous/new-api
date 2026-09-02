@@ -18,6 +18,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -363,7 +364,7 @@ func (s *responsesWSSession) handleControlEventWriteFailure(err error) *types.Ne
 func (s *responsesWSSession) handleTargetWriteFailure(err error) *types.NewAPIError {
 	s.closeTarget()
 	apiErr := types.NewError(err, types.ErrorCodeBadResponse)
-	apiErr, _ = s.processChannelError(s.lockedChannel, apiErr, nil)
+	apiErr, _ = s.processChannelError(s.lockedChannel, apiErr, nil, nil)
 	return apiErr
 }
 
@@ -411,7 +412,7 @@ func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest
 			state.refund(s.c)
 			apiErr = types.NewError(fmt.Errorf("invalid api type: %d", state.info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 			var shouldRetry bool
-			lastErr, shouldRetry = s.processChannelError(channel, apiErr, retryParam)
+			lastErr, shouldRetry = s.processChannelError(channel, apiErr, retryParam, state.info)
 			if !shouldRetry {
 				break
 			}
@@ -422,7 +423,7 @@ func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest
 		if apiErr != nil {
 			state.refund(s.c)
 			var shouldRetry bool
-			lastErr, shouldRetry = s.processChannelError(channel, apiErr, retryParam)
+			lastErr, shouldRetry = s.processChannelError(channel, apiErr, retryParam, state.info)
 			if !shouldRetry {
 				break
 			}
@@ -442,7 +443,7 @@ func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest
 			s.closeTarget()
 			apiErr = types.NewError(err, types.ErrorCodeBadResponse)
 			var shouldRetry bool
-			lastErr, shouldRetry = s.processChannelError(channel, apiErr, retryParam)
+			lastErr, shouldRetry = s.processChannelError(channel, apiErr, retryParam, state.info)
 			if !shouldRetry {
 				break
 			}
@@ -466,7 +467,7 @@ func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest
 	return lastErr
 }
 
-func (s *responsesWSSession) processChannelError(channel *appmodel.Channel, apiErr *types.NewAPIError, retryParam *service.RetryParam) (*types.NewAPIError, bool) {
+func (s *responsesWSSession) processChannelError(channel *appmodel.Channel, apiErr *types.NewAPIError, retryParam *service.RetryParam, relayInfo *relaycommon.RelayInfo) (*types.NewAPIError, bool) {
 	if apiErr == nil {
 		return nil, false
 	}
@@ -484,7 +485,7 @@ func (s *responsesWSSession) processChannelError(channel *appmodel.Channel, apiE
 			channel.ChannelInfo.IsMultiKey,
 			common.GetContextKeyString(s.c, appconstant.ContextKeyChannelKey),
 			channel.GetAutoBan(),
-		), apiErr)
+		), apiErr, relayInfo)
 	}
 	if retryParam == nil {
 		return apiErr, false
@@ -771,7 +772,7 @@ func (s *responsesWSSession) applyTerminalResponseUsage(state *responsesWSCallSt
 		return
 	}
 	if response.Usage != nil {
-		service.ApplyResponsesUsage(state.usage, response.Usage)
+		state.usage = dto.MergeUsageNonZero(state.usage, relayconvert.NormalizeResponsesUsage(response.Usage))
 	}
 	if relaycommon.IsNonBillableResponsesStatus(response.Status) {
 		state.images.Reset()

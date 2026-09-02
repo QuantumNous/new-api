@@ -56,6 +56,7 @@ func TestRelayInfoMetaTypedNilReceiver(t *testing.T) {
 	assert.Zero(t, meta.GetChannelType())
 	assert.False(t, meta.GetIsStream())
 	assert.Empty(t, meta.GetReasoningEffort())
+	assert.Nil(t, meta.ReasoningState())
 	assert.Zero(t, meta.GetEstimatePromptTokens())
 	assert.Zero(t, meta.GetSendResponseCount())
 
@@ -81,6 +82,7 @@ func TestRelayInfoMetaTypedNilReceiver(t *testing.T) {
 	assert.NotNil(t, firstOptions.Gemini.SupportsImagine)
 	assert.NotNil(t, firstOptions.Gemini.SafetySetting)
 	assert.NotNil(t, firstOptions.PreserveThinkingSuffix)
+	assert.NotNil(t, firstOptions.PreserveEffortTail)
 }
 
 func TestGenRelayInfoCapturesRequestReasoningEffort(t *testing.T) {
