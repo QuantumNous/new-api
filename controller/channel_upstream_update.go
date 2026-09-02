@@ -199,9 +199,9 @@ func collectPendingUpstreamModelChangesFromModels(
 	upstreamModels = normalizeModelNames(upstreamModels)
 
 	// Strip the per-channel prefix from both sides so prefixed and bare forms
-	// compare equal (the upstream listing may or may not carry the prefix). The
-	// original (possibly prefixed) names are kept for the add/remove lists so
-	// they match the stored channel models form.
+	// compare equal (the upstream listing may or may not carry the prefix).
+	// Add/remove lists report the BARE form, matching the new bare storage
+	// convention.
 	localSet := make(map[string]struct{}, len(localModels))
 	for _, modelName := range localModels {
 		localSet[stripModelPrefix(modelName, prefix)] = struct{}{}
@@ -241,7 +241,7 @@ func collectPendingUpstreamModelChangesFromModels(
 		}) {
 			return "", false
 		}
-		return modelName, true
+		return stripModelPrefix(modelName, prefix), true
 	})
 	pendingRemove := lo.FilterMap(localModels, func(modelName string, _ int) (string, bool) {
 		stripped := stripModelPrefix(modelName, prefix)
@@ -254,7 +254,7 @@ func collectPendingUpstreamModelChangesFromModels(
 		if ok {
 			return "", false
 		}
-		return modelName, true
+		return stripModelPrefix(modelName, prefix), true
 	})
 	return normalizeModelNames(pendingAdd), normalizeModelNames(pendingRemove)
 }
@@ -995,7 +995,9 @@ func applyChannelUpstreamModelUpdates(
 	removeModels := intersectModelNames(removeModelsInput, pendingRemoveModels)
 	removeModels = subtractModelNames(removeModels, addModels)
 
-	originModels := normalizeModelNames(channel.GetModels())
+	originModels := normalizeModelNames(lo.Map(channel.GetModels(), func(m string, _ int) string {
+		return stripModelPrefix(m, settings.ModelPrefix)
+	}))
 	nextModels := applySelectedModelChanges(originModels, addModels, removeModels)
 	modelsChanged = !slices.Equal(originModels, nextModels)
 	if modelsChanged {
