@@ -71,9 +71,10 @@ func (s *BillingSession) Settle(actualQuota int) error {
 				s.relayInfo.UserId, s.relayInfo.TokenId, delta, tokenErr.Error()))
 		}
 	}
-	// 3) 更新 relayInfo 上的订阅 PostDelta（用于日志）
-	if s.funding.Source() == BillingSourceSubscription {
-		s.relayInfo.SubscriptionPostDelta += int64(delta)
+	// 3) 更新 relayInfo 上的订阅/钱包实际结算拆分（用于日志）
+	if subscriptionFunding, ok := s.funding.(*SubscriptionFunding); ok {
+		s.relayInfo.SubscriptionPostDelta += subscriptionFunding.settledSubscriptionDelta
+		s.relayInfo.WalletQuotaDeducted += subscriptionFunding.settledWalletDelta
 	}
 	s.settled = true
 	return tokenErr
@@ -339,6 +340,7 @@ func (s *BillingSession) syncRelayInfo() {
 		info.SubscriptionId = sub.subscriptionId
 		info.SubscriptionPreConsumed = sub.preConsumed + int64(s.extraReserved)
 		info.SubscriptionPostDelta = 0
+		info.WalletQuotaDeducted = 0
 		info.SubscriptionAmountTotal = sub.AmountTotal
 		info.SubscriptionAmountUsedAfterPreConsume = sub.AmountUsedAfter + int64(s.extraReserved)
 		info.SubscriptionPlanId = sub.PlanId
@@ -346,6 +348,7 @@ func (s *BillingSession) syncRelayInfo() {
 	} else {
 		info.SubscriptionId = 0
 		info.SubscriptionPreConsumed = 0
+		info.WalletQuotaDeducted = 0
 	}
 }
 

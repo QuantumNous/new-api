@@ -1482,6 +1482,11 @@ type SubscriptionPlanInfo struct {
 	PlanTitle string
 }
 
+type SubscriptionSettlementResult struct {
+	SubscriptionDelta int64
+	WalletDelta       int64
+}
+
 func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*SubscriptionPlanInfo, error) {
 	if userSubscriptionId <= 0 {
 		return nil, errors.New("invalid userSubscriptionId")
@@ -1531,4 +1536,73 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 		sub.AmountUsed = newUsed
 		return tx.Save(&sub).Error
 	})
+}
+
+// SettleUserSubscriptionDelta applies a final subscription adjustment. When a
+// positive delta exceeds the subscription's remaining quota and wallet
+// overflow is enabled, the subscription is filled to its limit and the rest
+// is deducted from the user's wallet in the same database transaction.
+func SettleUserSubscriptionDelta(userSubscriptionId int, userId int, delta int64) (SubscriptionSettlementResult, error) {
+	result := SubscriptionSettlementResult{}
+	if userSubscriptionId <= 0 {
+		return result, errors.New("invalid userSubscriptionId")
+	}
+	if userId <= 0 {
+		return result, errors.New("invalid userId")
+	}
+	if delta == 0 {
+		return result, nil
+	}
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var sub UserSubscription
+		if err := lockForUpdate(tx).
+			Where("id = ? AND user_id = ?", userSubscriptionId, userId).
+			First(&sub).Error; err != nil {
+			return err
+		}
+
+		newUsed := sub.AmountUsed + delta
+		if newUsed < 0 {
+			newUsed = 0
+		}
+		if delta < 0 || sub.AmountTotal <= 0 || newUsed <= sub.AmountTotal {
+			result.SubscriptionDelta = newUsed - sub.AmountUsed
+			sub.AmountUsed = newUsed
+			return tx.Save(&sub).Error
+		}
+		if !sub.AllowWalletOverflow {
+			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
+		}
+
+		remaining := sub.AmountTotal - sub.AmountUsed
+		if remaining < 0 {
+			remaining = 0
+		}
+		result.SubscriptionDelta = remaining
+		result.WalletDelta = delta - remaining
+		sub.AmountUsed = sub.AmountTotal
+		if err := tx.Save(&sub).Error; err != nil {
+			return err
+		}
+		walletUpdate := tx.Model(&User{}).
+			Where("id = ?", userId).
+			Update("quota", gorm.Expr("quota - ?", result.WalletDelta))
+		if walletUpdate.Error != nil {
+			return walletUpdate.Error
+		}
+		if walletUpdate.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
+	if err != nil {
+		return SubscriptionSettlementResult{}, err
+	}
+	if result.WalletDelta > 0 {
+		if err := cacheDecrUserQuota(userId, result.WalletDelta); err != nil {
+			common.SysLog("failed to decrease user quota cache after subscription overflow settlement: " + err.Error())
+		}
+	}
+	return result, nil
 }
