@@ -29,6 +29,7 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import {
   CTA,
+  CinematicPromise,
   FAQ,
   Features,
   Hero,
@@ -63,6 +64,7 @@ function DefaultHome(props: { isAuthenticated: boolean }) {
         isAuthenticated={props.isAuthenticated}
         maxSavingsPercent={maxSavingsPercent}
       />
+      <CinematicPromise />
       <PriceSavings models={savingsModels} calculatorModels={savingsCatalog} />
       <HowItWorks />
       <Features />

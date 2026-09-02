@@ -134,6 +134,16 @@ describe('PriceSavings', () => {
         'input[type="range"][aria-label="Cache Read"]'
       )
     ).not.toBeNull()
+    expect(
+      document.querySelector<HTMLInputElement>(
+        'input[type="range"][aria-label="Regular input"]'
+      )
+    ).not.toBeNull()
+    expect(
+      document.querySelector<HTMLInputElement>(
+        'input[type="range"][aria-label="Output"]'
+      )
+    ).not.toBeNull()
   })
 
   it('updates both sliders from the keyboard with meaningful value text', async () => {
@@ -141,7 +151,7 @@ describe('PriceSavings', () => {
     render(<PriceSavings models={models} />)
 
     const tokens = document.querySelector<HTMLInputElement>(
-      'input[type="range"][aria-label="Monthly tokens"]'
+      'input[type="range"][aria-label="Monthly tokens per person"]'
     )
     const people = document.querySelector<HTMLInputElement>(
       'input[type="range"][aria-label="People"]'
@@ -151,8 +161,8 @@ describe('PriceSavings', () => {
 
     tokens?.focus()
     await user.keyboard('{End}')
-    expect(tokens).toHaveAttribute('aria-valuetext', '200M tokens')
-    expect(screen.getAllByText('200M tokens')).toHaveLength(2)
+    expect(tokens).toHaveAttribute('aria-valuetext', '10B tokens')
+    expect(screen.getAllByText('10B tokens').length).toBeGreaterThanOrEqual(2)
 
     people?.focus()
     await user.keyboard('{Home}')

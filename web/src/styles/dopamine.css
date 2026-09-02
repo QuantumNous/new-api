@@ -227,6 +227,47 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
+@keyframes dopa-market-token-hop {
+  0%,
+  12% {
+    opacity: 0;
+    transform: translate3d(-1rem, 2.5rem, 0) scale(0.55);
+  }
+  28%,
+  72% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(8.5rem, -8rem, 0) scale(1.08);
+  }
+}
+
+@keyframes dopa-market-ticket-breathe {
+  0%,
+  100% {
+    box-shadow:
+      0 1.4rem 3.2rem -2rem
+        color-mix(in oklch, var(--dopa-model) 42%, transparent),
+      inset 0 1px 0 color-mix(in oklch, white 76%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 1.8rem 4rem -1.8rem
+        color-mix(in oklch, var(--dopa-model) 58%, transparent),
+      inset 0 1px 0 color-mix(in oklch, white 82%, transparent);
+  }
+}
+
+@keyframes dopa-cinematic-orbit {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg) scale(0.94);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg) scale(1.04);
+  }
+}
+
 /* ── Entrance utilities ───────────────────────────────────────────────── */
 .dopa-fade-up {
   animation: dopa-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -1063,32 +1104,1155 @@ For commercial licensing, please contact support@quantumnous.com
   background: color-mix(in oklch, var(--dopa-leaf) 9%, var(--background));
 }
 
-.dopa-hero-saving-stamp {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-block-start: 0.65rem;
-  padding: 1rem 1.1rem;
-  border: 1px dashed var(--dopa-rule);
-  border-radius: var(--dopa-radius-panel);
-  background: color-mix(in oklch, var(--background) 74%, transparent);
+.dopa-hero-savings-proof {
+  color: var(--foreground);
+  background:
+    radial-gradient(
+      ellipse at 95% 4%,
+      color-mix(in oklch, var(--dopa-model) 20%, transparent),
+      transparent 45%
+    ),
+    radial-gradient(
+      ellipse at 0% 96%,
+      color-mix(in oklch, var(--dopa-leaf) 14%, transparent),
+      transparent 48%
+    ),
+    color-mix(in oklch, var(--card) 97%, var(--background));
 }
 
-.dopa-hero-saving-stamp span {
-  color: var(--muted-foreground);
-  font-size: 0.72rem;
-  font-weight: 750;
+.dopa-hero-savings-proof__score {
+  padding-block: 0.2rem;
 }
 
-.dopa-hero-saving-stamp strong {
-  color: var(--success);
+.dopa-hero-savings-proof__score > span {
+  color: color-mix(in oklch, var(--foreground) 82%, var(--dopa-leaf));
+  font-size: 0.78rem;
+  font-weight: 860;
+  letter-spacing: 0.08em;
+}
+
+.dopa-hero-savings-proof__score > strong {
+  display: block;
+  margin-block-start: 0.55rem;
+  color: var(--dopa-leaf);
   font-family: var(--font-mono);
-  font-size: clamp(1.65rem, 5vw, 2.55rem);
+  font-size: clamp(4.6rem, 11vw, 7rem);
   font-weight: 950;
-  letter-spacing: -0.06em;
+  letter-spacing: -0.09em;
+  line-height: 0.82;
+  text-shadow: 0 0.08em 0
+    color-mix(in oklch, var(--dopa-model) 18%, transparent);
+}
+
+.dopa-hero-savings-proof__score > strong small {
+  margin-inline-start: 0.08em;
+  font-size: 0.42em;
+  letter-spacing: -0.04em;
+}
+
+.dopa-hero-savings-proof__score > p {
+  max-inline-size: 28rem;
+  margin-block-start: 1rem;
+  color: color-mix(in oklch, var(--foreground) 74%, var(--background));
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.dopa-hero-savings-proof__index {
+  display: grid;
+  gap: 1rem;
+  padding: 1.1rem;
+  border: 1px solid color-mix(in oklch, var(--dopa-rule) 82%, transparent);
+  border-radius: var(--dopa-radius-panel);
+  background: color-mix(in oklch, var(--background) 72%, transparent);
+}
+
+.dopa-hero-savings-proof__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.35rem 1rem;
+  color: color-mix(in oklch, var(--foreground) 88%, var(--background));
+  font-size: 0.72rem;
+  font-weight: 780;
+}
+
+.dopa-hero-savings-proof__row > strong {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.dopa-hero-savings-proof__row > i {
+  grid-column: 1 / -1;
+  display: block;
+  block-size: 0.52rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--foreground) 10%, transparent);
+}
+
+.dopa-hero-savings-proof__row > i > b {
+  display: block;
+  min-inline-size: 0.35rem;
+  block-size: 100%;
+  border-radius: inherit;
+  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dopa-hero-savings-proof__row[data-source='official'] > i > b {
+  inline-size: 100%;
+  background: linear-gradient(90deg, var(--dopa-money), var(--dopa-model));
+}
+
+.dopa-hero-savings-proof__row[data-source='yecai'] {
+  color: color-mix(in oklch, var(--dopa-leaf) 78%, var(--foreground));
+}
+
+.dopa-hero-savings-proof__row[data-source='yecai'] > i > b {
+  background: linear-gradient(90deg, var(--dopa-leaf), var(--dopa-signal));
+}
+
+.dark .dopa-hero-savings-proof__score > strong {
+  color: oklch(0.83 0.17 150);
+}
+
+/* Homepage signature scene: a living produce-market price board, not a
+   generic dashboard card. Pointer values are written by the component and
+   only drive small spatial shifts; all business values still come from the
+   live pricing catalog. */
+.dopa-home-hero {
+  min-block-size: min(58rem, calc(100svh + 4rem));
+}
+
+.dopa-home-hero__copy {
+  position: relative;
+  z-index: 3;
+}
+
+.dopa-market-stage {
+  --market-pointer-x: 0;
+  --market-pointer-y: 0;
+  position: relative;
+  inline-size: min(100%, 37rem);
+  aspect-ratio: 0.92;
+  perspective: 100rem;
+  touch-action: pan-y;
+}
+
+.dopa-market-stage__halo {
+  position: absolute;
+  z-index: -1;
+  inset: 10% -6% -2% 4%;
+  border-radius: 44% 56% 45% 55% / 56% 42% 58% 44%;
+  background:
+    radial-gradient(
+      circle at 30% 44%,
+      color-mix(in oklch, var(--dopa-leaf) 30%, transparent),
+      transparent 48%
+    ),
+    radial-gradient(
+      circle at 75% 25%,
+      color-mix(in oklch, var(--dopa-model) 34%, transparent),
+      transparent 52%
+    ),
+    radial-gradient(
+      circle at 72% 78%,
+      color-mix(in oklch, var(--dopa-money) 28%, transparent),
+      transparent 48%
+    );
+  filter: blur(2.4rem);
+  opacity: 0.72;
+}
+
+.dopa-market-stage__scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--dopa-rule) 56%, transparent);
+  border-radius: 4.8rem 2.5rem 5.5rem 3rem;
+  background:
+    radial-gradient(
+      circle at 86% 14%,
+      color-mix(in oklch, var(--dopa-model) 24%, transparent),
+      transparent 36%
+    ),
+    radial-gradient(
+      circle at 12% 82%,
+      color-mix(in oklch, var(--dopa-signal) 22%, transparent),
+      transparent 42%
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in oklch, var(--card) 94%, var(--dopa-leaf)),
+      color-mix(in oklch, var(--card) 91%, var(--dopa-money))
+    );
+  box-shadow:
+    0 2.7rem 6rem -4.3rem
+      color-mix(in oklch, var(--foreground) 44%, transparent),
+    inset 0 1px 0 color-mix(in oklch, white 72%, transparent);
+  transform: rotateX(calc(var(--market-pointer-y) * -3deg))
+    rotateY(calc(var(--market-pointer-x) * 4deg));
+  transform-style: preserve-3d;
+  transition: transform 180ms ease-out;
+}
+
+.dopa-market-stage__scene::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in oklch, var(--dopa-model) 28%, transparent) 0 1px,
+    transparent 1.4px
+  );
+  background-size: 1.45rem 1.45rem;
+  mask-image: linear-gradient(145deg, black, transparent 72%);
+  opacity: 0.62;
+}
+
+.dopa-market-stage__scene::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: auto -10% -10% -8%;
+  block-size: 32%;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--dopa-leaf) 12%, var(--card));
+  filter: blur(0.2rem);
+}
+
+.dopa-market-stage__masthead {
+  position: absolute;
+  z-index: 7;
+  inset-block-start: 1.8rem;
+  inset-inline-start: 2rem;
+  display: grid;
+  gap: 0.3rem;
+  color: color-mix(in oklch, var(--foreground) 88%, var(--dopa-leaf));
+}
+
+.dopa-market-stage__masthead > span {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+}
+
+.dopa-market-stage__masthead svg {
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+}
+
+.dopa-market-stage__masthead > strong {
+  font-size: 1.15rem;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+}
+
+.dopa-market-stage__watermark {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 8%;
+  inset-inline-start: 5%;
+  color: color-mix(in oklch, var(--dopa-model) 12%, transparent);
+  font-family: var(--font-mono);
+  font-size: clamp(8rem, 20vw, 13rem);
+  font-weight: 1000;
+  letter-spacing: -0.13em;
   line-height: 1;
+  transform: translate3d(
+    calc(var(--market-pointer-x) * -0.9rem),
+    calc(var(--market-pointer-y) * -0.7rem),
+    0
+  );
+  transition: transform 180ms ease-out;
+  user-select: none;
+}
+
+.dopa-market-stage__guide {
+  position: absolute;
+  z-index: 5;
+  inset-block-end: -2.5%;
+  inset-inline-start: -17%;
+  inline-size: 82%;
+  margin: 0;
+  transform: translate3d(
+    calc(var(--market-pointer-x) * 0.75rem),
+    calc(var(--market-pointer-y) * 0.5rem),
+    2.5rem
+  );
+  transform-origin: 52% 78%;
+  transition: transform 180ms ease-out;
+  pointer-events: none;
+}
+
+.dopa-market-stage__guide img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  filter: drop-shadow(
+    0 1.6rem 1.6rem color-mix(in oklch, var(--foreground) 18%, transparent)
+  );
+}
+
+.dopa-market-ticket {
+  position: absolute;
+  z-index: 4;
+  inset-block-start: 23%;
+  inset-inline-end: 3.2%;
+  display: grid;
+  inline-size: 47%;
+  padding: 1.2rem;
+  border: 1px solid color-mix(in oklch, var(--dopa-model) 36%, var(--dopa-rule));
+  border-radius: 2.5rem 1.25rem 2.8rem 1.6rem;
+  color: var(--foreground);
+  background: color-mix(in oklch, var(--card) 94%, var(--dopa-model));
+  animation: dopa-market-ticket-breathe 5.2s ease-in-out infinite;
+  transform: translate3d(
+    calc(var(--market-pointer-x) * -0.9rem),
+    calc(var(--market-pointer-y) * -0.65rem),
+    1.2rem
+  );
+  transition: transform 180ms ease-out;
+}
+
+.dopa-market-ticket__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  inline-size: fit-content;
+  margin-inline-start: auto;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  color: color-mix(in oklch, var(--dopa-leaf) 78%, var(--foreground));
+  background: color-mix(in oklch, var(--dopa-leaf) 12%, var(--card));
+  font-size: 0.64rem;
+  font-weight: 850;
+}
+
+.dopa-market-ticket__live > span {
+  inline-size: 0.44rem;
+  block-size: 0.44rem;
+  border-radius: 50%;
+  background: var(--dopa-leaf);
+  box-shadow: 0 0 0 0.2rem
+    color-mix(in oklch, var(--dopa-leaf) 12%, transparent);
+}
+
+.dopa-market-ticket__eyebrow {
+  margin-block-start: 1.2rem;
+  color: color-mix(in oklch, var(--foreground) 76%, var(--dopa-leaf));
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.dopa-market-ticket > strong {
+  display: block;
+  margin-block-start: 0.45rem;
+  color: color-mix(in oklch, var(--dopa-leaf) 82%, var(--foreground));
+  font-family: var(--font-mono);
+  font-size: clamp(3.65rem, 7.2vw, 5.2rem);
+  font-weight: 1000;
+  letter-spacing: -0.11em;
+  line-height: 0.88;
+}
+
+.dopa-market-ticket > strong small {
+  margin-inline-start: 0.08em;
+  font-size: 0.38em;
+  letter-spacing: -0.04em;
+}
+
+.dopa-market-ticket > p {
+  margin-block-start: 0.7rem;
+  color: color-mix(in oklch, var(--foreground) 72%, var(--background));
+  font-size: 0.7rem;
+  font-weight: 680;
+  line-height: 1.5;
+}
+
+.dopa-market-ticket__index {
+  display: grid;
+  gap: 0.52rem;
+  margin: 1rem 0 0;
+  padding-block-start: 0.85rem;
+  border-block-start: 1px dashed
+    color-mix(in oklch, var(--dopa-rule) 78%, transparent);
+}
+
+.dopa-market-ticket__index > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: end;
+  color: color-mix(in oklch, var(--foreground) 74%, var(--background));
+}
+
+.dopa-market-ticket__index > div[data-source='yecai'] {
+  color: color-mix(in oklch, var(--dopa-leaf) 78%, var(--foreground));
+}
+
+.dopa-market-ticket__index dt,
+.dopa-market-ticket__index dd {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 820;
+}
+
+.dopa-market-ticket__index dd {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  font-weight: 950;
+}
+
+.dopa-market-stage__token-trail {
+  position: absolute;
+  z-index: 6;
+  inset-inline-start: 16%;
+  inset-block-end: 22%;
+  inline-size: 10rem;
+  block-size: 9rem;
+  pointer-events: none;
+}
+
+.dopa-market-stage__token-trail > i {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-end: 0;
+  inline-size: 0.72rem;
+  block-size: 0.72rem;
+  border: 2px solid color-mix(in oklch, white 68%, transparent);
+  border-radius: 50%;
+  background: var(--dopa-model);
+  box-shadow: 0 0 1rem color-mix(in oklch, var(--dopa-model) 66%, transparent);
+  animation: dopa-market-token-hop 3.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.dopa-market-stage__token-trail > i:nth-child(2) {
+  background: var(--dopa-signal);
+  animation-delay: 0.72s;
+}
+
+.dopa-market-stage__token-trail > i:nth-child(3) {
+  background: var(--dopa-money);
+  animation-delay: 1.44s;
+}
+
+.dopa-market-stage__token-trail > i:nth-child(4) {
+  background: var(--dopa-leaf);
+  animation-delay: 2.16s;
+}
+
+.dopa-market-stage__badge {
+  position: absolute;
+  z-index: 6;
+  inset-inline-start: 1.4rem;
+  inset-block-end: 1.55rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid color-mix(in oklch, var(--dopa-money) 26%, var(--dopa-rule));
+  border-radius: 999px;
+  color: color-mix(in oklch, var(--foreground) 80%, var(--dopa-money));
+  background: color-mix(in oklch, var(--card) 88%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  backdrop-filter: blur(0.8rem);
+}
+
+.dopa-market-stage__badge svg {
+  inline-size: 0.8rem;
+  block-size: 0.8rem;
+  color: var(--dopa-money);
+}
+
+.dopa-market-stage__action {
+  position: absolute;
+  z-index: 8;
+  inset-inline-end: 1.4rem;
+  inset-block-end: 1.35rem;
+  inline-size: 48%;
+  justify-content: flex-start;
+  border-color: color-mix(in oklch, var(--dopa-leaf) 38%, var(--dopa-rule));
+  background: color-mix(in oklch, var(--card) 90%, var(--dopa-leaf));
+  box-shadow: 0 1rem 2rem -1.6rem
+    color-mix(in oklch, var(--dopa-leaf) 65%, transparent);
+  backdrop-filter: blur(0.8rem);
+}
+
+.dopa-market-stage__action svg {
+  inline-size: 0.95rem;
+  block-size: 0.95rem;
+}
+
+.dopa-market-stage__action > span {
+  font-size: 0.69rem;
+  font-weight: 850;
+}
+
+.dopa-market-stage__action > svg:last-child {
+  margin-inline-start: auto;
+}
+
+.dark .dopa-market-stage__scene {
+  border-color: color-mix(in oklch, var(--dopa-leaf) 24%, var(--dopa-rule));
+  background:
+    radial-gradient(
+      circle at 86% 14%,
+      color-mix(in oklch, var(--dopa-model) 22%, transparent),
+      transparent 36%
+    ),
+    radial-gradient(
+      circle at 12% 82%,
+      color-mix(in oklch, var(--dopa-signal) 17%, transparent),
+      transparent 42%
+    ),
+    linear-gradient(
+      145deg,
+      color-mix(in oklch, var(--card) 95%, black),
+      color-mix(in oklch, var(--card) 90%, var(--dopa-model))
+    );
+}
+
+.dark .dopa-market-ticket {
+  border-color: color-mix(in oklch, var(--dopa-model) 34%, var(--dopa-rule));
+  background: color-mix(in oklch, var(--card) 95%, var(--dopa-model));
+}
+
+.dark .dopa-market-ticket > strong {
+  color: oklch(0.83 0.17 150);
+}
+
+@media (max-width: 40rem) {
+  .dopa-home-hero {
+    min-block-size: auto;
+  }
+
+  .dopa-market-stage {
+    min-block-size: 32rem;
+    aspect-ratio: auto;
+  }
+
+  .dopa-market-stage__scene {
+    border-radius: 3.5rem 1.8rem 4.25rem 2.2rem;
+  }
+
+  .dopa-market-stage__masthead {
+    inset-block-start: 1.35rem;
+    inset-inline-start: 1.4rem;
+  }
+
+  .dopa-market-stage__guide {
+    inset-inline-start: -29%;
+    inline-size: 99%;
+  }
+
+  .dopa-market-stage__watermark {
+    inset-block-start: 14%;
+    font-size: 8rem;
+  }
+
+  .dopa-market-ticket {
+    inset-block-start: 19%;
+    inset-inline-end: 0.85rem;
+    inline-size: 58%;
+    padding: 0.95rem;
+    border-radius: 2rem 1rem 2.2rem 1.25rem;
+  }
+
+  .dopa-market-ticket__eyebrow {
+    margin-block-start: 0.8rem;
+  }
+
+  .dopa-market-ticket > strong {
+    font-size: 3.65rem;
+  }
+
+  .dopa-market-stage__badge {
+    display: none;
+  }
+
+  .dopa-market-stage__action {
+    inset-inline: 1rem;
+    inline-size: auto;
+  }
+}
+
+/* Full-viewport composition. These rules deliberately release the market
+   scene from the legacy two-column shell: copy, character, live price and
+   token motion now share one uninterrupted brand canvas. */
+.dopa-home-hero {
+  position: relative;
+  z-index: 10;
+  min-block-size: max(48rem, 100svh);
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 68% 34%,
+      color-mix(in oklch, var(--dopa-leaf) 18%, transparent),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 91% 16%,
+      color-mix(in oklch, var(--dopa-model) 19%, transparent),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 78% 92%,
+      color-mix(in oklch, var(--dopa-money) 17%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(
+      118deg,
+      color-mix(in oklch, var(--dopa-canvas) 98%, white),
+      var(--dopa-canvas)
+    );
+  isolation: isolate;
+}
+
+.dopa-home-hero::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background-image: radial-gradient(
+    circle,
+    color-mix(in oklch, var(--dopa-model) 30%, transparent) 0 1px,
+    transparent 1.4px
+  );
+  background-size: 1.7rem 1.7rem;
+  mask-image: linear-gradient(90deg, transparent 7%, black 46%, black 100%);
+  opacity: 0.5;
+}
+
+.dopa-home-hero::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: auto -8% -29% 34%;
+  block-size: 58%;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--dopa-leaf) 8%, var(--card));
+  transform: rotate(-6deg);
+  filter: blur(0.2rem);
+}
+
+.dopa-home-hero__world {
+  position: relative;
+  min-block-size: max(48rem, 100svh);
+  display: flex;
+  align-items: flex-end;
+  padding: clamp(7.5rem, 13vh, 10rem) clamp(1.5rem, 6vw, 7rem) 5.5rem;
+}
+
+.dopa-home-hero__copy {
+  z-index: 12;
+  inline-size: min(36vw, 35rem);
+  text-shadow: 0 1px 0 color-mix(in oklch, var(--background) 72%, transparent);
+}
+
+.dopa-market-stage {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  inline-size: auto;
+  aspect-ratio: auto;
+  perspective: 100rem;
+}
+
+.dopa-market-stage__halo {
+  inset: 8% -4% -10% 39%;
+  border-radius: 48% 52% 44% 56% / 52% 40% 60% 48%;
+  filter: blur(3.2rem);
+  opacity: 0.82;
+}
+
+.dopa-market-stage__scene {
+  inset: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dopa-market-stage__scene::before {
+  inset: 0 0 0 38%;
+  background-size: 1.7rem 1.7rem;
+  mask-image: radial-gradient(circle at 62% 44%, black, transparent 70%);
+  opacity: 0.42;
+}
+
+.dopa-market-stage__scene::after {
+  inset: auto -5% -17% 39%;
+  block-size: 42%;
+  background: linear-gradient(
+    110deg,
+    color-mix(in oklch, var(--dopa-signal) 10%, var(--card)),
+    color-mix(in oklch, var(--dopa-leaf) 12%, var(--card))
+  );
+  opacity: 0.64;
+}
+
+.dopa-market-stage__masthead {
+  inset-block-start: 15%;
+  inset-inline-start: 51%;
+}
+
+.dopa-market-stage__watermark {
+  inset-block-start: 33%;
+  inset-inline-start: 5%;
+  color: transparent;
+  background: radial-gradient(
+    circle at 58% 46%,
+    color-mix(in oklch, var(--dopa-model) 5%, transparent),
+    color-mix(in oklch, var(--dopa-model) 18%, transparent) 72%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  font-size: clamp(11rem, 21vw, 22rem);
+  letter-spacing: -0.16em;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.dopa-market-stage__guide {
+  inset-block-end: -8%;
+  inset-inline-start: 29%;
+  inline-size: min(44vw, 44rem);
+}
+
+.dopa-market-ticket {
+  z-index: 7;
+  inset-block-start: auto;
+  inset-block-end: 9.5rem;
+  inset-inline-end: clamp(1.5rem, 5vw, 6rem);
+  inline-size: min(27vw, 24rem);
+  min-inline-size: 19rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  animation: none;
+  backdrop-filter: none;
+  text-align: end;
+  text-shadow: 0 1px 0 color-mix(in oklch, var(--background) 72%, transparent);
+}
+
+.dopa-market-ticket__live,
+.dopa-market-ticket__eyebrow {
+  margin-inline-start: auto;
+}
+
+.dopa-market-ticket > strong {
+  margin-block-start: 0.65rem;
+  color: var(--foreground);
+  font-size: clamp(3.7rem, 6.3vw, 6.8rem);
+  font-weight: 820;
+  line-height: 0.9;
+}
+
+.dopa-market-ticket > p {
+  max-inline-size: 19rem;
+  margin-inline-start: auto;
+  font-size: 0.78rem;
+}
+
+.dopa-market-ticket__index {
+  max-inline-size: 20rem;
+  margin-inline-start: auto;
+  text-align: start;
+}
+
+.dopa-market-stage__token-trail {
+  inset-inline-start: 37%;
+  inset-block-end: 19%;
+  inline-size: 13rem;
+  block-size: 12rem;
+  transform: rotate(-5deg);
+}
+
+.dopa-market-stage__badge {
+  inset-inline-start: 51%;
+  inset-block-end: 7.5%;
+}
+
+.dopa-market-stage__action {
+  inset-inline-end: clamp(1.5rem, 5vw, 6rem);
+  inset-block-end: 4.3rem;
+  inline-size: min(27vw, 24rem);
+  min-inline-size: 19rem;
+}
+
+.dopa-home-hero__ticker {
+  position: absolute;
+  z-index: 14;
+  inset-inline: clamp(1.5rem, 6vw, 7rem);
+  inset-block-end: 1.35rem;
+  display: flex;
+  align-items: center;
+  gap: clamp(0.8rem, 2vw, 2.2rem);
+  color: color-mix(in oklch, var(--foreground) 54%, var(--background));
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.dopa-home-hero__ticker::after {
+  content: '';
+  flex: 1;
+  block-size: 1px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--dopa-leaf) 62%, transparent),
+    color-mix(in oklch, var(--dopa-model) 42%, transparent),
+    transparent
+  );
+}
+
+.dopa-home-hero__ticker > i {
+  inline-size: 0.35rem;
+  block-size: 0.35rem;
+  border-radius: 50%;
+  background: var(--dopa-model);
+}
+
+.dark .dopa-home-hero {
+  background:
+    radial-gradient(
+      circle at 68% 34%,
+      color-mix(in oklch, var(--dopa-leaf) 14%, transparent),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 91% 16%,
+      color-mix(in oklch, var(--dopa-model) 15%, transparent),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 78% 92%,
+      color-mix(in oklch, var(--dopa-money) 12%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(
+      118deg,
+      color-mix(in oklch, var(--background) 96%, black),
+      var(--dopa-canvas)
+    );
+}
+
+.dark .dopa-market-stage__scene {
+  border: 0;
+  background: transparent;
+}
+
+@media (max-width: 75rem) {
+  .dopa-home-hero__world {
+    padding-inline: clamp(1.5rem, 4.5vw, 4rem);
+  }
+
+  .dopa-home-hero__copy {
+    inline-size: min(39vw, 34rem);
+  }
+
+  .dopa-market-stage__guide {
+    inset-inline-start: 28%;
+    inline-size: min(48vw, 41rem);
+  }
+
+  .dopa-market-ticket {
+    inset-inline-end: 2.5rem;
+    inline-size: min(29vw, 22rem);
+  }
+
+  .dopa-market-stage__action {
+    inset-inline-end: 2.5rem;
+  }
+}
+
+@media (max-width: 64rem) {
+  .dopa-home-hero,
+  .dopa-home-hero__world {
+    min-block-size: auto;
+  }
+
+  .dopa-home-hero__world {
+    display: block;
+    padding-block: 7.5rem 5.5rem;
+  }
+
+  .dopa-home-hero__copy {
+    inline-size: min(100%, 43rem);
+  }
+
+  .dopa-market-stage {
+    position: relative;
+    inset: auto;
+    min-block-size: 43rem;
+    margin-block-start: 2rem;
+  }
+
+  .dopa-market-stage__scene {
+    overflow: hidden;
+  }
+
+  .dopa-market-stage__halo {
+    inset: 10% -8% -5% 8%;
+  }
+
+  .dopa-market-stage__masthead {
+    inset-block-start: 9%;
+    inset-inline-start: 7%;
+  }
+
+  .dopa-market-stage__watermark {
+    inset-block-start: 8%;
+    inset-inline-start: 2%;
+    font-size: clamp(10rem, 35vw, 17rem);
+  }
+
+  .dopa-market-stage__guide {
+    inset-block-end: -15%;
+    inset-inline-start: 3%;
+    inline-size: min(75vw, 38rem);
+  }
+
+  .dopa-market-ticket {
+    inset-block-start: 19%;
+    inset-block-end: auto;
+    inset-inline-end: 3%;
+    inline-size: min(42vw, 20rem);
+    min-inline-size: 17.5rem;
+  }
+
+  .dopa-market-stage__token-trail {
+    inset-inline-start: 24%;
+  }
+
+  .dopa-market-stage__badge {
+    inset-inline-start: 4%;
+    inset-block-end: 4%;
+  }
+
+  .dopa-market-stage__action {
+    inset-inline-end: 3%;
+    inset-block-end: 4%;
+    inline-size: min(42vw, 19rem);
+  }
+}
+
+@media (max-width: 40rem) {
+  .dopa-home-hero__world {
+    padding-inline: 1.25rem;
+    padding-block-end: 4.5rem;
+  }
+
+  .dopa-market-stage {
+    min-block-size: 35rem;
+  }
+
+  .dopa-market-stage__guide {
+    inset-block-end: -8%;
+    inset-inline-start: -27%;
+    inline-size: 105%;
+  }
+
+  .dopa-market-ticket {
+    inset-block-start: 17%;
+    inset-inline-end: 0;
+    inline-size: 59%;
+    min-inline-size: 0;
+  }
+
+  .dopa-market-ticket > strong {
+    font-size: 3.8rem;
+  }
+
+  .dopa-market-stage__action {
+    inset-inline: 0;
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+
+  .dopa-home-hero__ticker {
+    inset-inline: 1.25rem;
+  }
+
+  .dopa-home-hero__ticker > span:nth-of-type(n + 3),
+  .dopa-home-hero__ticker > i:nth-of-type(n + 3) {
+    display: none;
+  }
+}
+
+.dopa-cinematic-promise {
+  position: relative;
+  z-index: 11;
+  min-block-size: 100svh;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 8rem clamp(1.5rem, 6vw, 7rem);
+  color: oklch(0.97 0.015 155);
+  background:
+    radial-gradient(
+      circle at 50% 48%,
+      oklch(0.63 0.14 151 / 24%),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 14% 78%,
+      oklch(0.67 0.17 320 / 18%),
+      transparent 31%
+    ),
+    radial-gradient(
+      circle at 88% 16%,
+      oklch(0.68 0.14 245 / 20%),
+      transparent 32%
+    ),
+    oklch(0.18 0.035 158);
+  perspective: 25rem;
+  isolation: isolate;
+}
+
+.dopa-cinematic-promise::before {
+  content: 'PAY · TOKEN · SAVE ·';
+  position: absolute;
+  z-index: -1;
+  inset-inline-start: 50%;
+  inset-block-start: 50%;
+  color: transparent;
+  background: radial-gradient(circle, transparent, oklch(0.83 0.13 155 / 18%));
+  background-clip: text;
+  -webkit-background-clip: text;
+  font-family: var(--font-mono);
+  font-size: clamp(7rem, 18vw, 19rem);
+  font-weight: 1000;
+  letter-spacing: -0.1em;
+  line-height: 0.78;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+}
+
+.dopa-cinematic-promise__veil {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    circle,
+    oklch(0.94 0.025 155 / 14%) 0 1px,
+    transparent 1.25px
+  );
+  background-size: 1.5rem 1.5rem;
+  mask-image: radial-gradient(circle at 50% 50%, black, transparent 78%);
+  opacity: 0.36;
+}
+
+.dopa-cinematic-promise__orbit {
+  position: absolute;
+  z-index: -1;
+  inset-inline-start: 50%;
+  inset-block-start: 50%;
+  inline-size: min(72vw, 68rem);
+  aspect-ratio: 1;
+  border: 1px solid oklch(0.76 0.13 155 / 20%);
+  border-radius: 50%;
+  animation: dopa-cinematic-orbit 28s linear infinite;
+}
+
+.dopa-cinematic-promise__orbit > i {
+  position: absolute;
+  inline-size: 1rem;
+  block-size: 1rem;
+  border: 2px solid oklch(0.98 0.02 155 / 70%);
+  border-radius: 50%;
+  background: oklch(0.72 0.17 151);
+  box-shadow: 0 0 2rem oklch(0.72 0.17 151 / 72%);
+}
+
+.dopa-cinematic-promise__orbit > i:nth-child(1) {
+  inset-block-start: 10%;
+  inset-inline-start: 18%;
+}
+
+.dopa-cinematic-promise__orbit > i:nth-child(2) {
+  inset-block-start: 48%;
+  inset-inline-end: -0.5rem;
+  background: oklch(0.72 0.16 320);
+  box-shadow: 0 0 2rem oklch(0.72 0.16 320 / 72%);
+}
+
+.dopa-cinematic-promise__orbit > i:nth-child(3) {
+  inset-block-end: 8%;
+  inset-inline-start: 28%;
+  background: oklch(0.73 0.14 245);
+  box-shadow: 0 0 2rem oklch(0.73 0.14 245 / 72%);
+}
+
+.dopa-cinematic-promise__copy {
+  position: relative;
+  z-index: 2;
+  max-inline-size: 70rem;
+  transform-style: preserve-3d;
+  text-align: center;
+  will-change: transform, opacity;
+}
+
+.dopa-cinematic-promise__copy > span {
+  display: block;
+  margin-block-end: 2rem;
+  color: oklch(0.84 0.12 151);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.dopa-cinematic-promise__copy > p {
+  margin: 0;
+  font-size: clamp(2rem, 4.2vw, 4.5rem);
+  font-weight: 650;
+  letter-spacing: -0.055em;
+  line-height: 1.28;
+  text-wrap: balance;
+}
+
+.dopa-cinematic-promise__facts {
+  position: absolute;
+  z-index: 3;
+  inset-inline: clamp(1.5rem, 6vw, 7rem);
+  inset-block-end: 2.2rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 2rem;
+  color: oklch(0.92 0.02 155 / 62%);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+@media (max-width: 40rem) {
+  .dopa-cinematic-promise {
+    min-block-size: 90svh;
+    padding-inline: 1.25rem;
+  }
+
+  .dopa-cinematic-promise__copy > p {
+    font-size: clamp(1.75rem, 8vw, 2.65rem);
+  }
+
+  .dopa-cinematic-promise__facts {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
 }
 
 .dopa-price-stage::before {
@@ -1114,6 +2278,42 @@ For commercial licensing, please contact support@quantumnous.com
   background: color-mix(in oklch, var(--card) 88%, transparent);
   box-shadow: 0 24px 55px -44px
     color-mix(in oklch, var(--dopa-leaf) 62%, transparent);
+}
+
+.dopa-team-token-total {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.25rem 1rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid color-mix(in oklch, var(--dopa-model) 30%, var(--dopa-rule));
+  border-radius: var(--dopa-radius-panel);
+  background: linear-gradient(
+    120deg,
+    color-mix(in oklch, var(--dopa-model) 9%, var(--background)),
+    color-mix(in oklch, var(--dopa-leaf) 7%, var(--background))
+  );
+}
+
+.dopa-team-token-total > span {
+  color: color-mix(in oklch, var(--foreground) 78%, var(--background));
+  font-size: 0.72rem;
+  font-weight: 780;
+}
+
+.dopa-team-token-total > strong {
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+}
+
+.dopa-team-token-total > small {
+  grid-column: 1 / -1;
+  color: var(--muted-foreground);
+  font-size: 0.66rem;
+  font-weight: 650;
 }
 
 .dopa-calculator-price-flow,
@@ -1333,6 +2533,10 @@ For commercial licensing, please contact support@quantumnous.com
   box-shadow:
     inset 0 1px 0 color-mix(in oklch, white 64%, transparent),
     0 28px 72px -54px color-mix(in oklch, var(--dopa-model) 42%, transparent);
+}
+
+.dopa-pricing-shell {
+  inline-size: min(100%, 96rem);
 }
 
 .dopa-catalog-hero::after {
@@ -3035,8 +4239,17 @@ For commercial licensing, please contact support@quantumnous.com
   .dopa-price-beam::after,
   .dopa-signal-scan::after,
   .dopa-guide-journey::after,
-  .dopa-guide-address-flow::after {
+  .dopa-guide-address-flow::after,
+  .dopa-cinematic-promise__orbit {
     animation: none;
+  }
+
+  .dopa-market-stage__scene,
+  .dopa-market-stage__watermark,
+  .dopa-market-stage__guide,
+  .dopa-market-ticket {
+    transform: none;
+    transition: none;
   }
   .dopa-press {
     transition: none;

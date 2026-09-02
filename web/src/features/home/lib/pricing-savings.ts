@@ -1,3 +1,8 @@
+import {
+  getDynamicPricingTiers,
+  isDynamicPricingModel,
+  isTaskUsagePricingModel,
+} from '@/features/pricing/lib/dynamic-price'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -62,9 +67,9 @@ export type SavingsEstimate = {
 }
 
 export const TOKEN_SLIDER_MIN_MILLIONS = 1
-export const TOKEN_SLIDER_MAX_MILLIONS = 200
-export const TOKEN_SLIDER_STEPS = 100
-export const DEFAULT_MONTHLY_TOKENS_MILLIONS = 20
+export const TOKEN_SLIDER_MAX_MILLIONS = 10_000
+export const TOKEN_SLIDER_STEPS = 200
+export const DEFAULT_MONTHLY_TOKENS_MILLIONS = 100
 
 const MAX_COMPARISON_MODELS = 6
 
@@ -152,6 +157,41 @@ export function getBillableSavingsTokenMix(
     cacheWritePercent,
     outputPercent: normalizedMix.outputPercent,
   }
+}
+
+export function rebalanceSavingsTokenMix(
+  tokenMix: SavingsTokenMix,
+  key: keyof SavingsTokenMix,
+  value: number
+): SavingsTokenMix {
+  const normalizedMix = normalizeTokenMix(tokenMix)
+  const nextValue = Math.min(100, Math.max(0, Math.round(value)))
+  const remaining = 100 - nextValue
+  const otherKeys = (
+    Object.keys(normalizedMix) as Array<keyof SavingsTokenMix>
+  ).filter((candidate) => candidate !== key)
+  const otherTotal = otherKeys.reduce(
+    (sum, candidate) => sum + normalizedMix[candidate],
+    0
+  )
+  const next = { ...normalizedMix, [key]: nextValue }
+  let allocated = 0
+
+  otherKeys.forEach((candidate, index) => {
+    if (index === otherKeys.length - 1) {
+      next[candidate] = remaining - allocated
+      return
+    }
+
+    const share =
+      otherTotal > 0
+        ? Math.round((normalizedMix[candidate] / otherTotal) * remaining)
+        : Math.round(remaining / otherKeys.length)
+    next[candidate] = Math.min(remaining - allocated, Math.max(0, share))
+    allocated += next[candidate]
+  })
+
+  return next
 }
 
 function normalizeTokenMix(tokenMix: SavingsTokenMix): SavingsTokenMix {
@@ -291,15 +331,16 @@ function toSavingsModel(
   priceRate: number,
   usdExchangeRate: number
 ): SavingsModel {
+  const sourcePrices = getSavingsSourcePrices(model)
   const officialInputPrice =
-    model.model_ratio * 2 * Math.max(usdExchangeRate, 0.001)
-  const officialOutputPrice = officialInputPrice * model.completion_ratio
+    sourcePrices.input * Math.max(usdExchangeRate, 0.001)
+  const officialOutputPrice =
+    sourcePrices.output * Math.max(usdExchangeRate, 0.001)
   const displayGroupRatio = Math.max(getDisplayGroupRatio(model), 0)
   const siteInputPrice =
-    model.model_ratio * 2 * displayGroupRatio * Math.max(priceRate, 0.001)
-  const siteOutputPrice = siteInputPrice * model.completion_ratio
-  const cacheRatio = getOptionalRatio(model.cache_ratio)
-  const cacheWriteRatio = getOptionalRatio(model.create_cache_ratio)
+    sourcePrices.input * displayGroupRatio * Math.max(priceRate, 0.001)
+  const siteOutputPrice =
+    sourcePrices.output * displayGroupRatio * Math.max(priceRate, 0.001)
   const rawSavingsPercent = (1 - siteInputPrice / officialInputPrice) * 100
   const savingsPercent = Math.floor(
     Math.min(100, Math.max(0, rawSavingsPercent))
@@ -313,15 +354,77 @@ function toSavingsModel(
     officialInputPrice,
     officialOutputPrice,
     officialCacheReadPrice:
-      cacheRatio == null ? null : officialInputPrice * cacheRatio,
+      sourcePrices.cacheRead == null
+        ? null
+        : sourcePrices.cacheRead * Math.max(usdExchangeRate, 0.001),
     officialCacheWritePrice:
-      cacheWriteRatio == null ? null : officialInputPrice * cacheWriteRatio,
+      sourcePrices.cacheWrite == null
+        ? null
+        : sourcePrices.cacheWrite * Math.max(usdExchangeRate, 0.001),
     siteInputPrice,
     siteOutputPrice,
-    siteCacheReadPrice: cacheRatio == null ? null : siteInputPrice * cacheRatio,
+    siteCacheReadPrice:
+      sourcePrices.cacheRead == null
+        ? null
+        : sourcePrices.cacheRead *
+          displayGroupRatio *
+          Math.max(priceRate, 0.001),
     siteCacheWritePrice:
-      cacheWriteRatio == null ? null : siteInputPrice * cacheWriteRatio,
+      sourcePrices.cacheWrite == null
+        ? null
+        : sourcePrices.cacheWrite *
+          displayGroupRatio *
+          Math.max(priceRate, 0.001),
     savingsPercent,
+  }
+}
+
+type SavingsSourcePrices = {
+  input: number
+  output: number
+  cacheRead: number | null
+  cacheWrite: number | null
+}
+
+function getDynamicTierPrice(
+  model: PricingModel,
+  expressionVariable: string,
+  field: string
+): number | null {
+  if (!isDynamicPricingModel(model) || isTaskUsagePricingModel(model)) {
+    return null
+  }
+  const expression = model.billing_expr || ''
+  const variablePattern = new RegExp(`\\b${expressionVariable}\\s*\\*`)
+  if (!variablePattern.test(expression)) return null
+
+  const tier = getDynamicPricingTiers(model)[0]
+  const price = Number((tier as Record<string, unknown> | undefined)?.[field])
+  return Number.isFinite(price) && price >= 0 ? price : null
+}
+
+function getSavingsSourcePrices(model: PricingModel): SavingsSourcePrices {
+  const legacyInput = Math.max(Number(model.model_ratio) * 2, 0)
+  const dynamicInput = getDynamicTierPrice(model, 'p', 'inputPrice')
+  const input = dynamicInput ?? legacyInput
+  const dynamicOutput = getDynamicTierPrice(model, 'c', 'outputPrice')
+  const output =
+    dynamicOutput ?? input * Math.max(Number(model.completion_ratio), 0)
+  const dynamicCacheRead = getDynamicTierPrice(model, 'cr', 'cacheReadPrice')
+  const dynamicCacheWrite =
+    getDynamicTierPrice(model, 'cc', 'cacheCreatePrice') ??
+    getDynamicTierPrice(model, 'cc1h', 'cacheCreate1hPrice')
+  const cacheRatio = getOptionalRatio(model.cache_ratio)
+  const cacheWriteRatio = getOptionalRatio(model.create_cache_ratio)
+
+  return {
+    input,
+    output,
+    cacheRead:
+      dynamicCacheRead ?? (cacheRatio == null ? null : input * cacheRatio),
+    cacheWrite:
+      dynamicCacheWrite ??
+      (cacheWriteRatio == null ? null : input * cacheWriteRatio),
   }
 }
 
@@ -368,14 +471,16 @@ export function buildSavingsModels(
 
 function getRankedPricingModels(models: PricingModel[]): PricingModel[] {
   return models
-    .filter(
-      (model) =>
-        model.quota_type === 0 &&
-        Number.isFinite(model.model_ratio) &&
-        model.model_ratio > 0 &&
-        Number.isFinite(model.completion_ratio) &&
-        model.completion_ratio >= 0
-    )
+    .filter((model) => {
+      if (model.quota_type !== 0) return false
+      const prices = getSavingsSourcePrices(model)
+      return (
+        Number.isFinite(prices.input) &&
+        prices.input > 0 &&
+        Number.isFinite(prices.output) &&
+        prices.output >= 0
+      )
+    })
     .sort(compareLatestModel)
 }
 
