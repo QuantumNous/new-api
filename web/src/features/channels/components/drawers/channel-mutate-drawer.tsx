@@ -1914,6 +1914,27 @@ export function ChannelMutateDrawer({
           </FormItem>
         )}
       />
+
+      <FormField
+        control={form.control}
+        name='active_probe'
+        render={({ field }) => (
+          <FormItem className='flex items-center justify-between'>
+            <div className='space-y-0.5'>
+              <FormLabel>{t('Active probe')}</FormLabel>
+              <FormDescription>
+                {t(FIELD_DESCRIPTIONS.ACTIVE_PROBE)}
+              </FormDescription>
+            </div>
+            <FormControl>
+              <Switch
+                checked={field.value === 1}
+                onCheckedChange={(checked) => field.onChange(checked ? 1 : 0)}
+              />
+            </FormControl>
+          </FormItem>
+        )}
+      />
     </div>
   )
 
