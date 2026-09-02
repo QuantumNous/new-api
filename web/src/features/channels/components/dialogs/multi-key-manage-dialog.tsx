@@ -171,7 +171,10 @@ export function MultiKeyManageDialog({
       // Build summary string for both success and partial failure cases
       const summary =
         response.tested && response.tested > 0
-          ? ` ${response.tested} keys tested: ${response.succeeded} succeeded, ${response.failed} failed`
+          ? ` ${t('{{success}} succeeded, {{failed}} failed', {
+              success: response.succeeded,
+              failed: response.failed,
+            })}`
           : ''
 
       if (response.success) {
