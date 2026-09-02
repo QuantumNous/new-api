@@ -1,12 +1,15 @@
 package model
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestNormalizeCustomDomainLabelAcceptsOneDNSLabelAndRejectsReservedOrMalformedValues(t *testing.T) {
@@ -70,4 +73,17 @@ func TestCustomDomainLifecycleKeepsTombstoneOwnerAndAllowsOnlyOneActiveDomain(t 
 	persisted, err := GetCustomDomainByLabel("ALPHA")
 	require.NoError(t, err)
 	assert.Equal(t, ownerA.Id, persisted.OwnerUserID)
+}
+
+func TestCustomDomainDuplicateKeyDetectionUsesTheCurrentDatabaseDialect(t *testing.T) {
+	truncateTables(t)
+	owner := User{Username: "duplicate-domain-owner", AffCode: "duplicate-domain-aff", Status: common.UserStatusEnabled}
+	require.NoError(t, DB.Create(&owner).Error)
+	require.NoError(t, DB.Create(&CustomDomain{Label: "duplicate", OwnerUserID: owner.Id}).Error)
+	err := DB.Create(&CustomDomain{Label: "duplicate", OwnerUserID: owner.Id}).Error
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, gorm.ErrDuplicatedKey), "the test database intentionally leaves global GORM translation disabled")
+	assert.True(t, isDatabaseDuplicatedKey(DB, err))
+	assert.True(t, isDatabaseDuplicatedKey(DB, &mysql.MySQLError{Number: 1062, Message: "duplicate"}))
+	assert.False(t, isDatabaseDuplicatedKey(DB, errors.New("database unavailable")))
 }

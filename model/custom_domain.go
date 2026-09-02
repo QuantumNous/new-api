@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/go-sql-driver/mysql"
 
 	"gorm.io/gorm"
 )
@@ -77,7 +78,7 @@ func CreateCustomDomain(rawLabel string, ownerUserID int) (*CustomDomain, error)
 			return err
 		}
 		if err := tx.Create(domain).Error; err != nil {
-			if errors.Is(err, gorm.ErrDuplicatedKey) {
+			if isDatabaseDuplicatedKey(tx, err) {
 				return ErrCustomDomainAlreadyAssigned
 			}
 			return err
@@ -167,7 +168,7 @@ func EnableCustomDomain(rawLabel string) (*CustomDomain, error) {
 			"active_owner_id": ownerID,
 			"disabled_at":     nil,
 		}).Error; err != nil {
-			if errors.Is(err, gorm.ErrDuplicatedKey) {
+			if isDatabaseDuplicatedKey(tx, err) {
 				return ErrCustomDomainOwnerAlreadyActive
 			}
 			return err
@@ -178,6 +179,25 @@ func EnableCustomDomain(rawLabel string) (*CustomDomain, error) {
 		return nil, err
 	}
 	return domain, nil
+}
+
+func isDatabaseDuplicatedKey(db *gorm.DB, err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	var mysqlError *mysql.MySQLError
+	if errors.As(err, &mysqlError) && mysqlError.Number == 1062 {
+		return true
+	}
+	if db != nil {
+		if translator, ok := db.Dialector.(gorm.ErrorTranslator); ok {
+			return errors.Is(translator.Translate(err), gorm.ErrDuplicatedKey)
+		}
+	}
+	return false
 }
 
 func DisableCustomDomain(rawLabel string) (*CustomDomain, error) {

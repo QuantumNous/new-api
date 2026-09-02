@@ -53,3 +53,41 @@ func TestRunCustomDomainCLIAssignsTransitionsAndListsDomains(t *testing.T) {
 	assert.Equal(t, 2, RunCustomDomainCLI([]string{"assign", "www", "--owner-user-id", strconv.Itoa(owner.Id)}, &stdout, &stderr))
 	assert.Contains(t, stderr.String(), "reserved")
 }
+
+func TestRunCustomDomainCLIShowsAndDisablesAnAssignedLabelThatBecomesReserved(t *testing.T) {
+	previousDB := model.DB
+	previousDatabaseType := common.MainDatabaseType()
+	previousReservedLabels := common.CustomDomainReservedLabels
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.CustomDomain{}))
+	model.DB = db
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
+	common.CustomDomainReservedLabels = map[string]struct{}{"alpha": {}}
+	t.Cleanup(func() {
+		model.DB = previousDB
+		common.SetMainDatabaseType(previousDatabaseType)
+		common.CustomDomainReservedLabels = previousReservedLabels
+	})
+
+	owner := model.User{Username: "reserved-domain-cli-owner", AffCode: "reserved-domain-cli-aff", Status: common.UserStatusEnabled}
+	require.NoError(t, db.Create(&owner).Error)
+	domain, err := model.CreateCustomDomain("alpha", owner.Id)
+	require.NoError(t, err)
+	_, err = model.EnableCustomDomain(domain.Label)
+	require.NoError(t, err)
+
+	var stdout, stderr bytes.Buffer
+	assert.Equal(t, 0, RunCustomDomainCLI([]string{"show", "alpha"}, &stdout, &stderr))
+	assert.Contains(t, stdout.String(), `"label":"alpha"`)
+
+	stdout.Reset()
+	stderr.Reset()
+	assert.Equal(t, 0, RunCustomDomainCLI([]string{"disable", "alpha"}, &stdout, &stderr))
+	assert.Contains(t, stdout.String(), `"enabled":false`)
+
+	stdout.Reset()
+	stderr.Reset()
+	assert.Equal(t, 2, RunCustomDomainCLI([]string{"enable", "alpha"}, &stdout, &stderr))
+	assert.Contains(t, stderr.String(), "reserved")
+}

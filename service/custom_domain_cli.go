@@ -1,7 +1,6 @@
 package service
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -55,7 +54,7 @@ func runCustomDomainAssign(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "domain assign:", err)
 		return 1
 	}
-	return writeCustomDomainCLIResult(stdout, domain)
+	return writeCustomDomainCLIResult(stdout, stderr, domain)
 }
 
 func runCustomDomainToggle(args []string, enabled bool, stdout, stderr io.Writer) int {
@@ -63,7 +62,11 @@ func runCustomDomainToggle(args []string, enabled bool, stdout, stderr io.Writer
 		fmt.Fprintln(stderr, "usage: new-api domain enable|disable <label>")
 		return 2
 	}
-	label, err := model.NormalizeCustomDomainLabel(args[0], common.CustomDomainReservedLabels)
+	var reservedLabels map[string]struct{}
+	if enabled {
+		reservedLabels = common.CustomDomainReservedLabels
+	}
+	label, err := model.NormalizeCustomDomainLabel(args[0], reservedLabels)
 	if err != nil {
 		fmt.Fprintln(stderr, "domain update:", err)
 		return 2
@@ -78,7 +81,7 @@ func runCustomDomainToggle(args []string, enabled bool, stdout, stderr io.Writer
 		fmt.Fprintln(stderr, "domain update:", err)
 		return 1
 	}
-	return writeCustomDomainCLIResult(stdout, domain)
+	return writeCustomDomainCLIResult(stdout, stderr, domain)
 }
 
 func runCustomDomainShow(args []string, stdout, stderr io.Writer) int {
@@ -86,7 +89,7 @@ func runCustomDomainShow(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "usage: new-api domain show <label>")
 		return 2
 	}
-	label, err := model.NormalizeCustomDomainLabel(args[0], common.CustomDomainReservedLabels)
+	label, err := model.NormalizeCustomDomainLabel(args[0], nil)
 	if err != nil {
 		fmt.Fprintln(stderr, "domain show:", err)
 		return 2
@@ -96,7 +99,7 @@ func runCustomDomainShow(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "domain show:", err)
 		return 1
 	}
-	return writeCustomDomainCLIResult(stdout, domain)
+	return writeCustomDomainCLIResult(stdout, stderr, domain)
 }
 
 func runCustomDomainList(args []string, stdout, stderr io.Writer) int {
@@ -122,12 +125,17 @@ func runCustomDomainList(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "domain list:", err)
 		return 1
 	}
-	return writeCustomDomainCLIResult(stdout, domains)
+	return writeCustomDomainCLIResult(stdout, stderr, domains)
 }
 
-func writeCustomDomainCLIResult(stdout io.Writer, value any) int {
-	if err := json.NewEncoder(stdout).Encode(value); err != nil {
-		fmt.Fprintln(stdout, "failed to encode domain result:", err)
+func writeCustomDomainCLIResult(stdout, stderr io.Writer, value any) int {
+	payload, err := common.Marshal(value)
+	if err != nil {
+		fmt.Fprintln(stderr, "failed to encode domain result:", err)
+		return 1
+	}
+	if _, err := fmt.Fprintln(stdout, string(payload)); err != nil {
+		fmt.Fprintln(stderr, "failed to write domain result:", err)
 		return 1
 	}
 	return 0

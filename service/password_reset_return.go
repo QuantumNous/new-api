@@ -3,7 +3,6 @@ package service
 import (
 	"crypto/subtle"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -43,7 +42,7 @@ func CreatePasswordResetReturnContext(domainID int64, host, email, token string,
 		return "", ErrPasswordResetReturnInvalid
 	}
 
-	payloadBytes, err := json.Marshal(passwordResetReturnPayload{
+	payloadBytes, err := common.Marshal(passwordResetReturnPayload{
 		DomainID:  domain.Id,
 		Host:      expectedHost,
 		ExpiresAt: expiresAt.Unix(),
@@ -81,7 +80,7 @@ func ResolvePasswordResetReturnContext(raw, email, token string, now time.Time) 
 		return "", false, ErrPasswordResetReturnInvalid
 	}
 	var payload passwordResetReturnPayload
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil || payload.DomainID <= 0 || payload.Host == "" || payload.ExpiresAt <= 0 {
+	if err := common.Unmarshal(payloadBytes, &payload); err != nil || payload.DomainID <= 0 || payload.Host == "" || payload.ExpiresAt <= 0 {
 		return "", false, ErrPasswordResetReturnInvalid
 	}
 	if !time.Unix(payload.ExpiresAt, 0).After(now) {
