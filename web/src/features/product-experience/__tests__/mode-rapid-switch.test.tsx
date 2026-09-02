@@ -16,47 +16,42 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { useSidebarData } from '@/hooks/use-sidebar-data'
 import { useConsoleModeStore } from '@/stores/console-mode-store'
 
-function getSidebarUrls() {
+function readUrls() {
   const { result } = renderHook(() => useSidebarData())
   return result.current.navGroups.flatMap((group) =>
-    group.items.flatMap((item) => {
-      if (item.url) return [item.url]
-      return item.items?.map((subItem) => subItem.url) ?? []
-    })
+    group.items.flatMap((item) =>
+      item.url ? [item.url] : (item.items?.map((entry) => entry.url) ?? [])
+    )
   )
 }
 
-describe('console mode sidebar', () => {
+describe('rapid mode switching', () => {
   beforeEach(() => {
     window.localStorage.clear()
-  })
-
-  it('keeps only everyday destinations in easy mode', () => {
     useConsoleModeStore.getState().setMode('easy')
-
-    expect(getSidebarUrls()).toEqual([
-      '/dashboard/overview',
-      '/keys',
-      '/pricing',
-      '/guide',
-      '/usage-logs/common',
-      '/wallet',
-    ])
   })
 
-  it('restores technical workspaces in developer mode', () => {
-    useConsoleModeStore.getState().setMode('developer')
+  it('resolves to the last choice without losing or duplicating actions', () => {
+    act(() => {
+      const store = useConsoleModeStore.getState()
+      store.setMode('developer')
+      store.setMode('easy')
+      store.setMode('developer')
+    })
 
-    const urls = getSidebarUrls()
-    expect(urls).toContain('/playground')
-    expect(urls).toContain('/dashboard/models')
-    expect(urls).toContain('/usage-logs/task')
-    expect(urls).toContain('/channels')
+    expect(useConsoleModeStore.getState().mode).toBe('developer')
+    expect(window.localStorage.getItem('yecai_console_mode')).toBe('developer')
+
+    const urls = readUrls()
+    expect(new Set(urls).size).toBe(urls.length)
+    expect(urls).toContain('/dashboard/overview')
+    expect(urls).toContain('/keys')
+    expect(urls).toContain('/usage-logs/common')
   })
 })

@@ -23,7 +23,6 @@ import { useLayout } from '@/context/layout-provider'
 import { useSidebarView } from '@/hooks/use-sidebar-view'
 import { MOTION_TRANSITION, MOTION_VARIANTS } from '@/lib/motion'
 
-import { ConsoleModeSwitcher } from './console-mode-switcher'
 import { NavGroup } from './nav-group'
 import { SidebarViewHeader } from './sidebar-view-header'
 
@@ -71,8 +70,6 @@ export function AppSidebar() {
           </motion.div>
         </AnimatePresence>
       </SidebarContent>
-
-      <ConsoleModeSwitcher />
 
       <SidebarRail />
     </Sidebar>

@@ -158,8 +158,8 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
   }
 
   return (
-    <article className='border-border bg-card dopa-candy-shadow flex flex-col overflow-hidden rounded-3xl border'>
-      <div className='border-border border-b px-5 py-5 sm:px-7'>
+    <article className='dopa-paper dopa-cut-corner flex flex-col overflow-hidden'>
+      <div className='px-5 pt-6 pb-3 sm:px-7'>
         <h3 className='text-lg font-extrabold'>
           {t('Plan your yearly savings')}
         </h3>
@@ -422,53 +422,70 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
           </div>
         </div>
 
-        <div className='border-primary/30 bg-card ring-background/70 relative mt-7 overflow-hidden rounded-3xl border-2 px-5 py-5 ring-1 ring-inset'>
-          <div className='text-muted-foreground text-xs font-semibold'>
-            {t('Estimated savings in one year')}
-          </div>
-          <div
-            aria-live='polite'
-            data-testid='annual-savings'
-            className='dopa-gradient-text mt-1 font-mono text-[clamp(2rem,6vw,3.2rem)] leading-none font-black tracking-tight tabular-nums'
-          >
-            {formatCnyAmount(estimate.annualSavings, {
-              compact: totalFormatOptions.compact,
-              maximumFractionDigits: totalFormatOptions.digitsLarge,
-            })}
+        <div className='dopa-savings-result dopa-token-grid relative mt-7 overflow-hidden'>
+          <div className='relative z-10 flex items-center justify-between gap-3'>
+            <span className='text-muted-foreground text-[10px] font-black tracking-[0.13em] uppercase'>
+              {t('Live pricing')}
+            </span>
+            <span className='bg-success/10 text-success inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold'>
+              <span className='bg-success size-1.5 rounded-full' />
+              {t('Updates automatically')}
+            </span>
           </div>
 
-          <div className='border-border mt-5 grid grid-cols-2 gap-4 border-t pt-4'>
-            <div>
-              <div className='text-muted-foreground text-[10px] font-semibold tracking-wide uppercase'>
-                {t('Official API estimate')}
-              </div>
-              <div className='mt-1 font-mono text-sm font-bold tabular-nums'>
+          <div className='dopa-calculator-price-flow relative z-10 mt-4'>
+            <div className='dopa-flow-value' data-tone='official'>
+              <span>{t('Official API estimate')}</span>
+              <strong className='line-through decoration-1'>
                 {formatCnyAmount(estimate.officialMonthlyCost, {
                   compact: totalFormatOptions.compact,
                   maximumFractionDigits: totalFormatOptions.digitsLarge,
                 })}
-              </div>
+              </strong>
             </div>
-            <div>
-              <div className='text-muted-foreground text-[10px] font-semibold tracking-wide uppercase'>
-                {t('Your estimated cost')}
-              </div>
-              <div className='text-primary mt-1 font-mono text-sm font-bold tabular-nums'>
+
+            <div className='dopa-price-beam' aria-hidden='true'>
+              <span />
+            </div>
+
+            <div className='dopa-flow-value' data-tone='yecai'>
+              <span>{t('Your estimated cost')}</span>
+              <strong>
                 {formatCnyAmount(estimate.siteMonthlyCost, {
                   compact: totalFormatOptions.compact,
                   maximumFractionDigits: totalFormatOptions.digitsLarge,
                 })}
-              </div>
+              </strong>
             </div>
           </div>
 
-          <div className='bg-success/10 text-success mt-4 rounded-2xl px-3 py-2 text-xs font-bold'>
-            {t('Save {{amount}} per month', {
-              amount: formatCnyAmount(estimate.monthlySavings, {
-                compact: totalFormatOptions.compact,
-                maximumFractionDigits: totalFormatOptions.digitsLarge,
-              }),
-            })}
+          <div className='dopa-savings-total relative z-10 mt-5'>
+            <div className='text-muted-foreground text-xs font-semibold'>
+              {t('Estimated savings in one year')}
+            </div>
+            <div
+              aria-live='polite'
+              data-testid='annual-savings'
+              className='dopa-gradient-text mt-1 font-mono text-[clamp(2.25rem,6vw,3.5rem)] leading-none font-black tracking-tight tabular-nums'
+            >
+              <span
+                key={estimate.annualSavings}
+                className='dopa-number-change inline-block'
+              >
+                {formatCnyAmount(estimate.annualSavings, {
+                  compact: totalFormatOptions.compact,
+                  maximumFractionDigits: totalFormatOptions.digitsLarge,
+                })}
+              </span>
+            </div>
+            <div className='text-success mt-3 text-xs font-bold'>
+              {t('Save {{amount}} per month', {
+                amount: formatCnyAmount(estimate.monthlySavings, {
+                  compact: totalFormatOptions.compact,
+                  maximumFractionDigits: totalFormatOptions.digitsLarge,
+                }),
+              })}
+            </div>
           </div>
         </div>
 

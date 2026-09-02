@@ -49,7 +49,7 @@ export function UseCasePicker() {
             {t('Not sure which tool? Start from what you want to do')}
           </h2>
           <p className='text-muted-foreground text-sm'>
-            {t('Pick the row that sounds like you, then open its tool card above')}
+            {t('Pick your tool, follow the steps')}
           </p>
         </div>
       </div>

@@ -126,27 +126,38 @@ export function Stats(_props: StatsProps) {
   ]
 
   return (
-    <div className='relative z-10 px-6'>
-      <div className='mx-auto max-w-6xl'>
-        <div className='grid grid-cols-2 gap-4 md:grid-cols-4'>
+    <section className='relative z-10 px-6 py-10 md:py-14'>
+      <div className='dopa-section-shell' data-section='PROOF'>
+        <div className='mb-5 flex items-end justify-between gap-4'>
+          <div>
+            <p className='dopa-section-kicker'>{t('Why people love it')}</p>
+            <h2 className='mt-3 text-2xl font-black tracking-tight md:text-3xl'>
+              {t('AI without the headaches')}
+            </h2>
+          </div>
+          <span className='text-muted-foreground hidden font-mono text-[10px] tracking-[0.18em] uppercase md:block'>
+            Yecai / live
+          </span>
+        </div>
+        <div className='dopa-data-rail dopa-number-strip grid grid-cols-2 md:grid-cols-4'>
           {stats.map((s) => (
             <div
               key={s.label}
-              className='dopa-lift border-border bg-card flex flex-col items-center rounded-3xl border px-4 py-7 text-center'
+              className='flex min-h-28 flex-col justify-between border-r border-[var(--dopa-rule)] px-4 py-5 last:border-r-0 even:border-r-0 md:min-h-32 md:px-6 md:py-6 md:even:border-r'
             >
               <span
-                className='text-3xl font-extrabold tracking-tight md:text-4xl'
+                className='font-mono text-3xl font-black tracking-[-0.07em] md:text-4xl'
                 style={{ color: s.hue }}
               >
                 <Counter end={s.end} suffix={s.suffix} decimals={s.decimals} />
               </span>
-              <span className='text-muted-foreground mt-2 text-sm font-medium'>
+              <span className='text-muted-foreground mt-4 max-w-32 text-xs leading-relaxed font-semibold'>
                 {s.label}
               </span>
             </div>
           ))}
         </div>
       </div>
-    </div>
+    </section>
   )
 }

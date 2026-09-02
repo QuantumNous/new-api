@@ -34,7 +34,6 @@ import {
   Hero,
   HowItWorks,
   PriceSavings,
-  Stats,
 } from './components'
 import { useHomePageContent } from './hooks'
 import {
@@ -64,7 +63,6 @@ function DefaultHome(props: { isAuthenticated: boolean }) {
         isAuthenticated={props.isAuthenticated}
         maxSavingsPercent={maxSavingsPercent}
       />
-      <Stats />
       <PriceSavings models={savingsModels} calculatorModels={savingsCatalog} />
       <HowItWorks />
       <Features />

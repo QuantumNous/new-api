@@ -64,10 +64,14 @@ const models: SavingsModel[] = [
 ]
 
 describe('PriceSavings', () => {
-  it('hides the complete section when live pricing has no usable models', () => {
-    const { container } = render(<PriceSavings models={[]} />)
+  it('keeps a useful recovery state when live pricing has no usable models', () => {
+    render(<PriceSavings models={[]} />)
 
-    expect(container).toBeEmptyDOMElement()
+    expect(screen.getByTestId('savings-unavailable')).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Model prices' })).toHaveAttribute(
+      'href',
+      '/pricing'
+    )
   })
 
   it('provides dedicated desktop table and mobile card layouts', () => {

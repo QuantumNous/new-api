@@ -37,9 +37,9 @@ export function CTA(props: CTAProps) {
   }
 
   return (
-    <section ref={sectionRef} className='relative z-10 px-6 py-24 md:py-28'>
-      <div className='dopa-reveal mx-auto max-w-5xl'>
-        <div className='dopa-gradient-surface dopa-candy-shadow relative overflow-hidden rounded-[2.5rem] px-8 py-16 text-center md:px-16 md:py-20'>
+    <section ref={sectionRef} className='relative z-10 px-6 py-16 md:py-20'>
+      <div className='dopa-reveal dopa-section-shell' data-section='GO'>
+        <div className='dopa-gradient-surface dopa-ribbon-surface dopa-candy-shadow dopa-cut-corner relative overflow-hidden px-8 py-14 text-left md:px-14 md:py-16'>
           {/* Soft white glow on top of the gradient for readability */}
           <div
             aria-hidden
@@ -49,16 +49,18 @@ export function CTA(props: CTAProps) {
                 'radial-gradient(ellipse 70% 60% at 50% 0%, white 0%, transparent 70%)',
             }}
           />
-          <div className='relative'>
-            <h2 className='text-3xl font-extrabold tracking-tight text-balance text-white md:text-4xl'>
-              {t('Ready to meet your new AI sidekick?')}
-            </h2>
-            <p className='mx-auto mt-4 max-w-md text-base leading-relaxed text-pretty text-white/85'>
-              {t(
-                'Free to sign up. Three minutes to set up. A hundred models to play with.'
-              )}
-            </p>
-            <div className='mt-9 flex flex-wrap items-center justify-center gap-3'>
+          <div className='relative grid items-end gap-8 lg:grid-cols-[1fr_auto]'>
+            <div>
+              <h2 className='max-w-2xl text-3xl font-black tracking-[-0.055em] text-balance text-white md:text-5xl'>
+                {t('Ready to meet your new AI sidekick?')}
+              </h2>
+              <p className='mt-4 max-w-xl text-base leading-relaxed text-pretty text-white/85'>
+                {t(
+                  'Free to sign up. Three minutes to set up. A hundred models to play with.'
+                )}
+              </p>
+            </div>
+            <div className='flex flex-wrap items-center gap-3 lg:justify-end'>
               <Button
                 className='dopa-spring dopa-shine text-foreground h-12 rounded-full bg-white px-7 text-base font-bold hover:bg-white/90'
                 render={<Link to='/sign-up' />}

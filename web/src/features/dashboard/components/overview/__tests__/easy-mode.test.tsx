@@ -21,7 +21,6 @@ import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { EasyOverviewDashboardView } from '../easy-overview-dashboard'
-import { getEasySetupStage } from '../easy-overview-state'
 
 vi.mock('@tanstack/react-router', () => ({
   Link: (props: { children: ReactNode; className?: string; to: string }) => (
@@ -31,40 +30,17 @@ vi.mock('@tanstack/react-router', () => ({
   ),
 }))
 
-describe('easy dashboard setup stage', () => {
-  it.each([
-    {
-      input: { remainQuota: 0, hasApiKey: false, requestCount: 0 },
-      expected: 'wallet',
-    },
-    {
-      input: { remainQuota: 1, hasApiKey: false, requestCount: 0 },
-      expected: 'key',
-    },
-    {
-      input: { remainQuota: 1, hasApiKey: true, requestCount: 0 },
-      expected: 'guide',
-    },
-    {
-      input: { remainQuota: 1, hasApiKey: true, requestCount: 1 },
-      expected: 'complete',
-    },
-  ])(
-    'selects $expected as the next meaningful action',
-    ({ input, expected }) => {
-      expect(getEasySetupStage(input)).toBe(expected)
-    }
-  )
-})
-
 describe('easy dashboard overview', () => {
-  it('shows one plain-language next step without developer request details', () => {
+  it('keeps the inline connection flow in focus without developer request details', () => {
     render(
       <EasyOverviewDashboardView
         remainQuota={0}
         usedQuota={0}
-        requestCount={0}
-        hasApiKey={false}
+        connectPanel={
+          <section data-testid='connect-panel'>
+            <h2>Choose a model</h2>
+          </section>
+        }
         savings={{
           officialCost: 0,
           siteCost: 0,
@@ -75,24 +51,21 @@ describe('easy dashboard overview', () => {
     )
 
     expect(screen.getByTestId('easy-overview')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Add credits' })).toBeVisible()
+    expect(screen.getByTestId('connect-panel')).toBeVisible()
     expect(
-      screen
-        .getAllByRole('link', { name: /Top up/i })
-        .some((link) => link.getAttribute('href') === '/wallet')
-    ).toBe(true)
+      screen.getByRole('heading', { name: 'Choose a model' })
+    ).toBeVisible()
     expect(screen.queryByText('First API request')).not.toBeInTheDocument()
     expect(screen.queryByText(/curl http/i)).not.toBeInTheDocument()
     expect(screen.queryByText('Route active')).not.toBeInTheDocument()
   })
 
-  it('keeps manual setup available and shows the savings receipt before first use', () => {
+  it('shows the savings receipt beside the inline connection flow before first use', () => {
     render(
       <EasyOverviewDashboardView
         remainQuota={10_000_000}
         usedQuota={0}
-        requestCount={0}
-        hasApiKey
+        connectPanel={<div data-testid='connect-panel' />}
         savings={{
           officialCost: 0,
           siteCost: 0,
@@ -102,9 +75,7 @@ describe('easy dashboard overview', () => {
       />
     )
 
-    expect(
-      screen.getByRole('link', { name: /Start manual setup/i })
-    ).toHaveAttribute('href', '/guide')
+    expect(screen.getByTestId('connect-panel')).toBeVisible()
     expect(screen.getByTestId('easy-savings-receipt')).toBeVisible()
     expect(screen.getByText('Estimated savings')).toBeVisible()
     expect(screen.getAllByText('¥0').length).toBeGreaterThan(0)

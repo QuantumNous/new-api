@@ -42,4 +42,17 @@ describe('guide tool catalog', () => {
     expect(cockpit?.steps.join('\n')).toContain('{{BASE_URL}}')
     expect(cockpit?.steps.join('\n')).toContain('Codex API Service')
   })
+
+  it('recommends locally familiar entry points without promoting Cherry Studio', () => {
+    expect(
+      guideTools.find((tool) => tool.id === 'immersive-translate')
+    ).toHaveProperty('recommended', true)
+    expect(guideTools.find((tool) => tool.id === 'trae')).toHaveProperty(
+      'recommended',
+      true
+    )
+    expect(
+      guideTools.find((tool) => tool.id === 'cherry-studio')
+    ).not.toHaveProperty('recommended', true)
+  })
 })

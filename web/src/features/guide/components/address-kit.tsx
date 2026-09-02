@@ -73,14 +73,15 @@ export function AddressKit({ address }: AddressKitProps) {
   ]
 
   return (
-    <div className='grid gap-4 md:grid-cols-3'>
-      {items.map((item) => {
+    <div className='dopa-guide-address-flow grid gap-4 md:grid-cols-3'>
+      {items.map((item, index) => {
         const Icon = item.icon
         const copied = copiedText === item.value
         return (
           <div
             key={item.title}
-            className='dopa-lift border-border bg-card flex flex-col gap-3 rounded-3xl border p-5'
+            className='dopa-guide-address-node dopa-lift border-border bg-card relative flex flex-col gap-3 rounded-3xl border p-5'
+            data-step={index + 1}
           >
             <div className='flex items-center gap-3'>
               <span

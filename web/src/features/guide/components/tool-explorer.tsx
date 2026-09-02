@@ -1,3 +1,4 @@
+import { Check, Copy, Sparkles } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,7 +18,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo, useState } from 'react'
-import { Check, Copy, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -43,15 +43,13 @@ const CATEGORIES: { value: ToolCategory | 'all'; label: string }[] = [
   { value: 'platform', label: '自建平台' },
 ]
 
-const STATUS_META: Record<
-  GuideTool['status'],
-  { label: string; hue: string }
-> = {
-  green: { label: '直接可用', hue: 'var(--success)' },
-  yellow: { label: '需要配置文件', hue: 'var(--warning)' },
-  blue: { label: '专用协议', hue: 'var(--info)' },
-  gray: { label: '暂不支持', hue: 'var(--neutral)' },
-}
+const STATUS_META: Record<GuideTool['status'], { label: string; hue: string }> =
+  {
+    green: { label: '直接可用', hue: 'var(--success)' },
+    yellow: { label: '需要配置文件', hue: 'var(--warning)' },
+    blue: { label: '专用协议', hue: 'var(--info)' },
+    gray: { label: '暂不支持', hue: 'var(--neutral)' },
+  }
 
 interface ToolExplorerProps {
   address: GuideAddress
@@ -64,19 +62,22 @@ export function ToolExplorer({ address }: ToolExplorerProps) {
   const [active, setActive] = useState<GuideTool | null>(null)
   const { copiedText, copyToClipboard } = useCopyToClipboard()
 
-  const tools = useMemo(
-    () =>
+  const tools = useMemo(() => {
+    const visibleTools =
       category === 'all'
-        ? guideTools
-        : guideTools.filter((tool) => tool.category === category),
-    [category]
-  )
+        ? [...guideTools]
+        : guideTools.filter((tool) => tool.category === category)
+
+    return visibleTools.sort(
+      (a, b) => Number(Boolean(b.recommended)) - Number(Boolean(a.recommended))
+    )
+  }, [category])
 
   return (
     <div className='flex flex-col gap-6'>
       {/* Category pills */}
       <div
-        className='flex flex-wrap items-center gap-2'
+        className='dopa-tab-strip flex flex-wrap items-center gap-2'
         role='tablist'
         aria-label={t('Tool categories')}
       >
@@ -85,10 +86,11 @@ export function ToolExplorer({ address }: ToolExplorerProps) {
           return (
             <button
               key={c.value}
+              type='button'
               role='tab'
               aria-selected={selected}
               onClick={() => setCategory(c.value)}
-              className={`dopa-press rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+              className={`dopa-tab-pill dopa-press rounded-full px-4 py-2 text-sm font-semibold transition-all ${
                 selected
                   ? 'bg-primary text-primary-foreground shadow-md'
                   : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
@@ -114,14 +116,16 @@ export function ToolExplorer({ address }: ToolExplorerProps) {
       </div>
 
       {/* Tool cards */}
-      <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+      <div className='dopa-bento-tools grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
         {tools.map((tool, i) => {
           const meta = STATUS_META[tool.status]
           return (
             <button
               key={tool.id}
+              type='button'
               onClick={() => setActive(tool)}
-              className='dopa-lift dopa-fade-up border-border bg-card group flex flex-col gap-2.5 rounded-3xl border p-5 text-left'
+              className='dopa-tool-tile dopa-lift dopa-fade-up border-border bg-card group flex flex-col gap-2.5 rounded-3xl border p-5 text-left'
+              data-recommended={tool.recommended ? 'true' : undefined}
               style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
             >
               <div className='flex items-center justify-between gap-2'>
@@ -130,7 +134,7 @@ export function ToolExplorer({ address }: ToolExplorerProps) {
                   {tool.recommended && (
                     <Badge className='bg-secondary text-secondary-foreground gap-1 border-transparent'>
                       <Sparkles className='size-3' />
-                      {t('Beginner pick')}
+                      {t('Recommended')}
                     </Badge>
                   )}
                   <span
@@ -180,7 +184,7 @@ export function ToolExplorer({ address }: ToolExplorerProps) {
                 {active.steps.map((step, i) => {
                   const filled = address.fill(step)
                   return (
-                    <li key={i} className='flex items-start gap-3'>
+                    <li key={step} className='flex items-start gap-3'>
                       <span className='bg-primary/10 text-primary flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold'>
                         {i + 1}
                       </span>
@@ -196,8 +200,8 @@ export function ToolExplorer({ address }: ToolExplorerProps) {
                 <div className='border-warning/40 bg-warning/10 mt-5 rounded-2xl border p-4'>
                   <p className='text-sm font-bold'>{t('Heads up')}</p>
                   <ul className='mt-1.5 flex list-disc flex-col gap-1 pl-4'>
-                    {active.tips.map((tip, i) => (
-                      <li key={i} className='text-xs leading-relaxed'>
+                    {active.tips.map((tip) => (
+                      <li key={tip} className='text-xs leading-relaxed'>
                         {address.fill(tip)}
                       </li>
                     ))}
@@ -214,7 +218,9 @@ export function ToolExplorer({ address }: ToolExplorerProps) {
                       size='sm'
                       className='h-7 gap-1.5 rounded-full text-xs'
                       onClick={() =>
-                        copyToClipboard(address.fill(active.snippet!.code))
+                        copyToClipboard(
+                          address.fill(active.snippet?.code ?? '')
+                        )
                       }
                     >
                       {copiedText === address.fill(active.snippet.code) ? (

@@ -17,7 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, ClipboardCopy, KeyRound, MessageCircleHeart } from 'lucide-react'
+import {
+  ArrowRight,
+  ClipboardCopy,
+  KeyRound,
+  MessageCircleHeart,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -41,7 +46,7 @@ export function HowItWorks() {
       num: '2',
       title: t('Paste it into your tool'),
       desc: t(
-        'Open Cherry Studio or any tool you like, paste the address and key. Done.'
+        'Paste one key into any of these — chat apps, coding assistants, translators and more.'
       ),
       icon: <ClipboardCopy className='size-7' strokeWidth={2} />,
       hue: 'var(--chart-2)',
@@ -49,80 +54,70 @@ export function HowItWorks() {
     {
       num: '3',
       title: t('Start chatting'),
-      desc: t(
-        'Pick a model and go. Every model, one bill, no extra accounts.'
-      ),
+      desc: t('Pick a model and go. Every model, one bill, no extra accounts.'),
       icon: <MessageCircleHeart className='size-7' strokeWidth={2} />,
       hue: 'var(--chart-3)',
     },
   ]
 
   return (
-    <section
-      ref={sectionRef}
-      className='relative z-10 px-6 py-24 md:py-32'
-    >
-      <div className='mx-auto max-w-6xl'>
-        <div className='dopa-reveal mb-16 text-center'>
-          <p className='text-primary mb-3 text-sm font-bold tracking-widest uppercase'>
-            {t('How It Works')}
-          </p>
-          <h2 className='text-3xl font-extrabold tracking-tight text-balance md:text-4xl'>
+    <section ref={sectionRef} className='relative z-10 px-6 py-16 md:py-24'>
+      <div
+        className='dopa-section-shell grid gap-10 lg:grid-cols-[0.72fr_1.28fr] lg:gap-16'
+        data-section='SETUP'
+      >
+        <div className='dopa-reveal lg:sticky lg:top-24 lg:self-start'>
+          <p className='dopa-section-kicker'>{t('How It Works')}</p>
+          <h2 className='mt-4 text-3xl font-black tracking-[-0.055em] text-balance md:text-5xl'>
             {t('Up and running in 3 easy steps')}
           </h2>
-          <p className='text-muted-foreground mx-auto mt-4 max-w-md text-base text-pretty'>
+          <p className='text-muted-foreground mt-4 max-w-md text-base leading-relaxed text-pretty'>
             {t('If you can copy and paste, you can do this.')}
           </p>
-        </div>
-
-        <div className='relative grid gap-6 md:grid-cols-3 md:gap-8'>
-          {/* Dotted connector (desktop) */}
-          <div
-            aria-hidden
-            className='border-border absolute top-14 right-[16%] left-[16%] hidden border-t-2 border-dashed md:block'
-          />
-
-          {steps.map((step, i) => (
-            <div
-              key={step.num}
-              className='dopa-reveal dopa-lift border-border bg-card relative flex flex-col items-center rounded-3xl border px-6 py-10 text-center'
-              style={{ transitionDelay: `${i * 120}ms` }}
-            >
-              <div className='relative mb-6'>
-                <div
-                  className='flex size-20 items-center justify-center rounded-2xl'
-                  style={{
-                    backgroundColor: `color-mix(in oklch, ${step.hue} 14%, transparent)`,
-                    color: step.hue,
-                  }}
-                >
-                  {step.icon}
-                </div>
-                <div
-                  className='absolute -top-2.5 -right-2.5 flex size-8 items-center justify-center rounded-full text-sm font-extrabold text-white'
-                  style={{ backgroundColor: step.hue }}
-                >
-                  {step.num}
-                </div>
-              </div>
-              <h3 className='mb-2.5 text-lg font-bold'>{step.title}</h3>
-              <p className='text-muted-foreground max-w-[260px] text-sm leading-relaxed'>
-                {step.desc}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        <div className='dopa-reveal mt-12 text-center' style={{ transitionDelay: '360ms' }}>
           <Button
             variant='outline'
-            className='dopa-spring h-11 rounded-full px-6 font-semibold'
+            className='dopa-spring mt-7 h-11 rounded-full px-6 font-semibold'
             render={<Link to='/guide' />}
           >
             {t('See the full beginner guide')}
             <ArrowRight className='ml-1.5 size-4' />
           </Button>
         </div>
+
+        <ol className='dopa-paper dopa-setup-trace overflow-hidden rounded-[1.75rem]'>
+          {steps.map((step, i) => (
+            <li
+              key={step.num}
+              className='dopa-setup-step dopa-reveal group grid grid-cols-[3.75rem_1fr_auto] items-center gap-4 border-b border-[var(--dopa-rule)] px-4 py-6 last:border-b-0 sm:grid-cols-[5rem_1fr_auto] sm:px-7 sm:py-8'
+              data-step={step.num}
+              style={{ transitionDelay: `${i * 100}ms` }}
+            >
+              <span
+                className='font-mono text-4xl font-black tracking-[-0.1em] sm:text-5xl'
+                style={{ color: step.hue }}
+              >
+                0{step.num}
+              </span>
+              <div className='min-w-0'>
+                <h3 className='text-base font-extrabold sm:text-lg'>
+                  {step.title}
+                </h3>
+                <p className='text-muted-foreground mt-1 text-sm leading-relaxed'>
+                  {step.desc}
+                </p>
+              </div>
+              <span
+                className='hidden size-12 items-center justify-center rounded-2xl sm:flex'
+                style={{
+                  backgroundColor: `color-mix(in oklch, ${step.hue} 14%, transparent)`,
+                  color: step.hue,
+                }}
+              >
+                {step.icon}
+              </span>
+            </li>
+          ))}
+        </ol>
       </div>
     </section>
   )

@@ -149,6 +149,84 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
+@keyframes dopa-number-change {
+  from {
+    opacity: 0.2;
+    filter: blur(5px);
+    transform: translateY(0.32em) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes dopa-beam-flow {
+  0% {
+    opacity: 0;
+    inset-inline-start: 0.1rem;
+    transform: scale(0.65);
+  }
+  14%,
+  82% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    inset-inline-start: calc(100% - 0.78rem);
+    transform: scale(1);
+  }
+}
+
+@keyframes dopa-border-trace {
+  0%,
+  12% {
+    opacity: 0;
+    transform: translateX(-120%);
+  }
+  25%,
+  76% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(560%);
+  }
+}
+
+@keyframes dopa-signal-scan {
+  0%,
+  15% {
+    opacity: 0;
+    transform: translateX(-130%);
+  }
+  28%,
+  74% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(720%);
+  }
+}
+
+@keyframes dopa-journey-trace {
+  0%,
+  10% {
+    opacity: 0;
+    transform: translateY(-8rem);
+  }
+  24%,
+  76% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(52rem);
+  }
+}
+
 /* ── Entrance utilities ───────────────────────────────────────────────── */
 .dopa-fade-up {
   animation: dopa-fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -334,8 +412,2614 @@ For commercial licensing, please contact support@quantumnous.com
     0 2px 10px -2px color-mix(in oklch, var(--chart-3) 14%, transparent);
 }
 
+/* ── Semantic product system ─────────────────────────────────────────── */
+:root {
+  --dopa-leaf: var(--primary);
+  --dopa-model: var(--chart-4);
+  --dopa-money: var(--chart-3);
+  --dopa-signal: var(--chart-2);
+  --dopa-ink: color-mix(in oklch, var(--foreground) 92%, var(--primary));
+  --dopa-canvas: color-mix(in oklch, var(--primary) 3.5%, var(--background));
+  --dopa-rule: color-mix(in oklch, var(--primary) 19%, var(--border));
+  --dopa-radius-shell: clamp(2rem, 3.2vw, 2.75rem);
+  --dopa-radius-card: 1.75rem;
+  --dopa-radius-panel: 1.25rem;
+  --dopa-radius-control: 0.9rem;
+  --dopa-sidebar-surface: oklch(0.24 0.055 164);
+  --dopa-sidebar-surface-hover: oklch(0.3 0.06 164);
+  --dopa-sidebar-ink: oklch(0.96 0.015 150);
+  --dopa-sidebar-muted: oklch(0.8 0.025 160);
+  --dopa-sidebar-label: oklch(0.82 0.11 326);
+  --dopa-sidebar-active: oklch(0.88 0.095 145);
+  --dopa-sidebar-active-ink: oklch(0.22 0.05 164);
+  --dopa-runway-surface: oklch(0.23 0.045 220);
+  --dopa-runway-surface-raised: oklch(0.29 0.05 220);
+  --dopa-runway-ink: oklch(0.97 0.012 220);
+  --dopa-runway-muted: oklch(0.79 0.025 220);
+}
+
+.dark {
+  --dopa-sidebar-surface: oklch(0.18 0.04 164);
+  --dopa-sidebar-surface-hover: oklch(0.25 0.05 164);
+  --dopa-sidebar-ink: oklch(0.96 0.015 150);
+  --dopa-sidebar-muted: oklch(0.79 0.025 160);
+  --dopa-sidebar-label: oklch(0.84 0.11 326);
+  --dopa-sidebar-active: oklch(0.82 0.09 145);
+  --dopa-sidebar-active-ink: oklch(0.18 0.045 164);
+  --dopa-runway-surface: oklch(0.2 0.035 220);
+  --dopa-runway-surface-raised: oklch(0.26 0.045 220);
+  --dopa-runway-ink: oklch(0.97 0.012 220);
+  --dopa-runway-muted: oklch(0.8 0.025 220);
+}
+
+/* ── Yecai component language ────────────────────────────────────────── */
+.yecai-panel,
+.yecai-action,
+.yecai-bento-item,
+.yecai-metric,
+.yecai-price-flow {
+  --yecai-accent: var(--dopa-leaf);
+  --yecai-tint: color-mix(in oklch, var(--dopa-leaf) 9%, var(--background));
+}
+
+:is(
+  .yecai-panel,
+  .yecai-action,
+  .yecai-bento-item,
+  .yecai-metric
+)[data-tone='model'] {
+  --yecai-accent: var(--dopa-model);
+  --yecai-tint: color-mix(in oklch, var(--dopa-model) 10%, var(--background));
+}
+
+:is(
+  .yecai-panel,
+  .yecai-action,
+  .yecai-bento-item,
+  .yecai-metric
+)[data-tone='money'] {
+  --yecai-accent: var(--dopa-money);
+  --yecai-tint: color-mix(in oklch, var(--dopa-money) 11%, var(--background));
+}
+
+:is(
+  .yecai-panel,
+  .yecai-action,
+  .yecai-bento-item,
+  .yecai-metric
+)[data-tone='signal'] {
+  --yecai-accent: var(--dopa-signal);
+  --yecai-tint: color-mix(in oklch, var(--dopa-signal) 10%, var(--background));
+}
+
+:is(
+  .yecai-panel,
+  .yecai-action,
+  .yecai-bento-item,
+  .yecai-metric
+)[data-tone='neutral'] {
+  --yecai-accent: color-mix(in oklch, var(--foreground) 70%, var(--dopa-leaf));
+  --yecai-tint: color-mix(in oklch, var(--muted) 55%, var(--background));
+}
+
+.yecai-panel {
+  border: 1px solid color-mix(in oklch, var(--yecai-accent) 11%, transparent);
+  border-radius: var(--dopa-radius-card);
+  background:
+    radial-gradient(
+      ellipse at 104% -8%,
+      color-mix(in oklch, var(--yecai-accent) 16%, transparent),
+      transparent 45%
+    ),
+    color-mix(in oklch, var(--card) 94%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 64%, transparent);
+}
+
+.yecai-panel[data-layer='raised'] {
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 68%, transparent),
+    0 22px 52px -38px color-mix(in oklch, var(--yecai-accent) 36%, transparent),
+    0 12px 28px -26px color-mix(in oklch, var(--foreground) 24%, transparent);
+}
+
+.yecai-panel[data-layer='hero'] {
+  border-radius: var(--dopa-radius-shell);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 72%, transparent),
+    0 34px 82px -58px color-mix(in oklch, var(--yecai-accent) 42%, transparent),
+    0 18px 40px -34px color-mix(in oklch, var(--foreground) 28%, transparent);
+}
+
+.yecai-bento-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.yecai-bento-grid[data-density='compact'] {
+  gap: 0.5rem;
+}
+
+.yecai-bento-item {
+  min-inline-size: 0;
+  border-radius: var(--dopa-radius-card);
+  background: var(--yecai-tint);
+}
+
+.yecai-action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-block-size: 2.5rem;
+  padding-inline: 1.1rem;
+  border: 1px solid color-mix(in oklch, var(--yecai-accent) 34%, transparent);
+  border-radius: 999px;
+  outline: none;
+  color: white;
+  background: linear-gradient(
+    125deg,
+    color-mix(in oklch, var(--yecai-accent) 86%, black),
+    var(--yecai-accent)
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 30%, transparent),
+    0 12px 24px -18px color-mix(in oklch, var(--yecai-accent) 74%, transparent);
+  font-size: 0.82rem;
+  font-weight: 820;
+  white-space: nowrap;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.yecai-action:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 34%, transparent),
+    0 16px 30px -18px color-mix(in oklch, var(--yecai-accent) 82%, transparent);
+}
+
+.yecai-action:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.yecai-action:focus-visible {
+  box-shadow:
+    0 0 0 3px var(--background),
+    0 0 0 5px color-mix(in oklch, var(--yecai-accent) 56%, transparent);
+}
+
+.yecai-action:disabled,
+.yecai-action[aria-disabled='true'] {
+  pointer-events: none;
+  opacity: 0.48;
+}
+
+.yecai-action[data-appearance='soft'] {
+  color: color-mix(in oklch, var(--foreground) 84%, var(--yecai-accent));
+  background: var(--yecai-tint);
+}
+
+.yecai-action[data-appearance='outline'] {
+  color: var(--foreground);
+  background: color-mix(in oklch, var(--background) 78%, transparent);
+}
+
+.yecai-action[data-yecai-size='sm'] {
+  min-block-size: 2rem;
+  padding-inline: 0.8rem;
+  font-size: 0.74rem;
+}
+
+.yecai-action[data-yecai-size='lg'] {
+  min-block-size: 3rem;
+  padding-inline: 1.45rem;
+  font-size: 0.96rem;
+}
+
+.yecai-action[data-yecai-size='tile'] {
+  min-block-size: 4.25rem;
+  justify-content: flex-start;
+  border-radius: var(--dopa-radius-panel);
+  padding: 0.75rem;
+  text-align: start;
+  white-space: normal;
+}
+
+.yecai-action svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: 0 0 auto;
+}
+
+.yecai-metric {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  min-inline-size: 0;
+  padding: 0.72rem;
+  border: 1px solid
+    color-mix(in oklch, var(--yecai-accent) 24%, var(--dopa-rule));
+  border-radius: var(--dopa-radius-panel);
+  background: var(--yecai-tint);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 58%, transparent);
+}
+
+.yecai-metric__icon {
+  display: inline-flex;
+  inline-size: 2rem;
+  block-size: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--yecai-accent);
+  background: color-mix(in oklch, var(--background) 74%, transparent);
+}
+
+.yecai-metric__icon svg {
+  inline-size: 0.95rem;
+  block-size: 0.95rem;
+}
+
+.yecai-metric__copy {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.08rem;
+}
+
+.yecai-metric__label,
+.yecai-metric__detail {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 0.64rem;
+  font-weight: 720;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.yecai-metric__value {
+  overflow: hidden;
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+  font-weight: 860;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.yecai-price-flow {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(6.8rem, 1fr) minmax(4.2rem, 0.75fr) minmax(
+      6.8rem,
+      1fr
+    );
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.yecai-price-flow__node {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 1px solid var(--dopa-rule);
+  border-radius: var(--dopa-radius-panel);
+  background: color-mix(in oklch, var(--background) 76%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 64%, transparent),
+    0 14px 28px -26px color-mix(in oklch, var(--foreground) 28%, transparent);
+}
+
+.yecai-price-flow__node[data-side='official'] {
+  color: var(--dopa-money);
+}
+
+.yecai-price-flow__node[data-side='site'] {
+  color: var(--dopa-leaf);
+}
+
+.yecai-price-flow__icon {
+  display: inline-flex;
+  inline-size: 2rem;
+  block-size: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.yecai-price-flow__icon svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+  color: var(--background);
+}
+
+.yecai-price-flow__node > span:not(.yecai-price-flow__icon) {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 0.64rem;
+  font-weight: 760;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.yecai-price-flow__node > strong {
+  overflow: hidden;
+  color: currentColor;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 850;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.yecai-price-flow__curve {
+  inline-size: 100%;
+  block-size: 4.4rem;
+  overflow: visible;
+  fill: none;
+  stroke: color-mix(in oklch, var(--dopa-model) 62%, var(--dopa-leaf));
+  stroke-width: 1.5;
+  stroke-dasharray: 5 5;
+  filter: drop-shadow(
+    0 0 0.3rem color-mix(in oklch, var(--dopa-model) 45%, transparent)
+  );
+}
+
+.yecai-price-flow__traveler {
+  fill: var(--dopa-model);
+  stroke: white;
+  stroke-width: 1.5;
+}
+
+.yecai-price-flow__saving {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-start: 0.5rem;
+  padding: 0.8rem 1rem;
+  border: 1px dashed color-mix(in oklch, var(--dopa-leaf) 30%, var(--dopa-rule));
+  border-radius: var(--dopa-radius-panel);
+  background: color-mix(in oklch, var(--dopa-leaf) 7%, var(--background));
+}
+
+.yecai-price-flow__saving span {
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+  font-weight: 760;
+}
+
+.yecai-price-flow__saving strong {
+  color: var(--success);
+  font-family: var(--font-mono);
+  font-size: clamp(1.4rem, 4vw, 2.35rem);
+  font-weight: 920;
+  letter-spacing: -0.06em;
+}
+
+.yecai-price-flow[data-size='compact'] {
+  grid-template-columns: minmax(0, 1fr) minmax(3.2rem, 0.55fr) minmax(0, 1fr);
+}
+
+.yecai-price-flow[data-size='compact'] .yecai-price-flow__node {
+  padding: 0.75rem;
+}
+
+.yecai-price-flow[data-size='compact'] .yecai-price-flow__curve {
+  block-size: 3.2rem;
+}
+
+.dopa-page-canvas {
+  background:
+    radial-gradient(
+        circle,
+        color-mix(in oklch, var(--dopa-rule) 42%, transparent) 0 0.8px,
+        transparent 1.1px
+      )
+      0 0 / 1.75rem 1.75rem,
+    radial-gradient(
+      ellipse at 6% 8%,
+      color-mix(in oklch, var(--dopa-money) 18%, transparent),
+      transparent 31rem
+    ),
+    radial-gradient(
+      ellipse at 96% 18%,
+      color-mix(in oklch, var(--dopa-model) 15%, transparent),
+      transparent 34rem
+    ),
+    radial-gradient(
+      ellipse at 54% 86%,
+      color-mix(in oklch, var(--dopa-leaf) 8%, transparent),
+      transparent 30rem
+    ),
+    var(--dopa-canvas);
+}
+
+/* Auth is a full-bleed split screen, so the public-page editorial guide is
+   intentionally removed here instead of slicing through the brand panel. */
+.dopa-page-canvas.dopa-auth-canvas {
+  background:
+    radial-gradient(
+      circle at 12% 7%,
+      color-mix(in oklch, var(--dopa-money) 12%, transparent),
+      transparent 26rem
+    ),
+    radial-gradient(
+      circle at 92% 22%,
+      color-mix(in oklch, var(--dopa-model) 10%, transparent),
+      transparent 28rem
+    ),
+    var(--dopa-canvas);
+}
+
+.dopa-section-shell {
+  position: relative;
+  margin-inline: auto;
+  inline-size: min(100%, 72rem);
+}
+
+.dopa-section-shell::before {
+  display: none;
+}
+
+.dopa-section-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  inline-size: fit-content;
+  color: var(--dopa-leaf);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dopa-section-kicker::before {
+  content: '';
+  inline-size: 0.58rem;
+  block-size: 0.58rem;
+  border: 0.14rem solid color-mix(in oklch, var(--dopa-leaf) 18%, transparent);
+  border-radius: 50%;
+  background: var(--dopa-leaf);
+  box-shadow: 0 0 0 0.22rem
+    color-mix(in oklch, var(--dopa-leaf) 8%, transparent);
+}
+
+.dopa-paper {
+  border: 1px solid color-mix(in oklch, var(--dopa-rule) 38%, transparent);
+  border-radius: var(--dopa-radius-card);
+  background: color-mix(in oklch, var(--card) 92%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 62%, transparent),
+    0 24px 62px -44px color-mix(in oklch, var(--dopa-model) 25%, transparent),
+    0 12px 30px -26px color-mix(in oklch, var(--foreground) 26%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+/* Product-specific interpretation of Inspira-style grids, beams and number
+   feedback. The motion always explains price, progress or live state. */
+.dopa-token-grid {
+  position: relative;
+  isolation: isolate;
+}
+
+.dopa-token-grid::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background-image:
+    radial-gradient(
+      circle,
+      color-mix(in oklch, var(--dopa-model) 28%, transparent) 0 1px,
+      transparent 1.35px
+    ),
+    radial-gradient(
+      circle at 82% 18%,
+      color-mix(in oklch, var(--dopa-model) 18%, transparent),
+      transparent 42%
+    );
+  background-size:
+    1.35rem 1.35rem,
+    100% 100%;
+  mask-image: radial-gradient(circle at 70% 20%, black, transparent 78%);
+  opacity: 0.66;
+  pointer-events: none;
+}
+
+.dopa-token-grid > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dopa-number-change {
+  animation: dopa-number-change 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.dopa-price-beam {
+  position: relative;
+  min-inline-size: 2.8rem;
+  min-block-size: 2.8rem;
+}
+
+.dopa-price-beam::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0.25rem;
+  inset-block-start: 50%;
+  block-size: 1px;
+  transform: translateY(-50%);
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--dopa-money) 55%, var(--dopa-rule)),
+    var(--dopa-model),
+    color-mix(in oklch, var(--dopa-leaf) 70%, var(--dopa-rule))
+  );
+}
+
+.dopa-price-beam::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0.1rem;
+  inset-block-start: calc(50% - 0.34rem);
+  inline-size: 0.68rem;
+  block-size: 0.68rem;
+  border: 2px solid color-mix(in oklch, white 72%, transparent);
+  border-radius: 50%;
+  background: var(--dopa-model);
+  box-shadow:
+    0 0 0 0.24rem color-mix(in oklch, var(--dopa-model) 16%, transparent),
+    0 0 0.85rem color-mix(in oklch, var(--dopa-model) 54%, transparent);
+  animation: dopa-beam-flow 3.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.dopa-price-beam > span {
+  position: absolute;
+  inset-inline-end: 0.18rem;
+  inset-block-start: calc(50% - 0.25rem);
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  transform: rotate(45deg);
+  border-block-start: 1px solid var(--dopa-leaf);
+  border-inline-end: 1px solid var(--dopa-leaf);
+}
+
+.dopa-signal-scan {
+  position: relative;
+  isolation: isolate;
+}
+
+.dopa-signal-scan::after {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 18%;
+  border-radius: 50%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklch, var(--dopa-signal) 8%, transparent),
+    color-mix(in oklch, var(--dopa-model) 12%, transparent),
+    transparent
+  );
+  filter: blur(1.2rem);
+  animation: dopa-signal-scan 12s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.dopa-hero-price-flow {
+  display: grid;
+  grid-template-columns:
+    minmax(7.5rem, 1fr) minmax(3rem, 0.72fr)
+    minmax(7.5rem, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.dopa-price-node {
+  display: grid;
+  min-block-size: 7.6rem;
+  align-content: center;
+  justify-items: start;
+  gap: 0.45rem;
+  padding: 1rem;
+  border: 1px solid var(--dopa-rule);
+  border-radius: var(--dopa-radius-panel);
+  background: color-mix(in oklch, var(--background) 82%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 66%, transparent),
+    0 16px 30px -26px color-mix(in oklch, var(--foreground) 32%, transparent);
+}
+
+.dopa-price-node > span {
+  color: var(--muted-foreground);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dopa-price-node > strong {
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.dopa-price-node[data-tone='official'] {
+  color: var(--dopa-money);
+  background: color-mix(in oklch, var(--dopa-money) 9%, var(--background));
+}
+
+.dopa-price-node[data-tone='yecai'] {
+  color: var(--dopa-leaf);
+  background: color-mix(in oklch, var(--dopa-leaf) 9%, var(--background));
+}
+
+.dopa-hero-saving-stamp {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-start: 0.65rem;
+  padding: 1rem 1.1rem;
+  border: 1px dashed var(--dopa-rule);
+  border-radius: var(--dopa-radius-panel);
+  background: color-mix(in oklch, var(--background) 74%, transparent);
+}
+
+.dopa-hero-saving-stamp span {
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.dopa-hero-saving-stamp strong {
+  color: var(--success);
+  font-family: var(--font-mono);
+  font-size: clamp(1.65rem, 5vw, 2.55rem);
+  font-weight: 950;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+
+.dopa-price-stage::before {
+  content: '';
+  position: absolute;
+  inset: 8% 12% auto;
+  block-size: 12rem;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse,
+    color-mix(in oklch, var(--dopa-model) 12%, transparent),
+    color-mix(in oklch, var(--dopa-money) 6%, transparent) 45%,
+    transparent 72%
+  );
+  filter: blur(1rem);
+  opacity: 0.78;
+}
+
+.dopa-savings-result {
+  padding: 1.2rem;
+  border: 1px solid color-mix(in oklch, var(--dopa-leaf) 38%, var(--dopa-rule));
+  border-radius: var(--dopa-radius-card);
+  background: color-mix(in oklch, var(--card) 88%, transparent);
+  box-shadow: 0 24px 55px -44px
+    color-mix(in oklch, var(--dopa-leaf) 62%, transparent);
+}
+
+.dopa-calculator-price-flow,
+.dopa-easy-price-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(3rem, 0.55fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.dopa-flow-value {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.25rem;
+}
+
+.dopa-flow-value > span,
+.dopa-flow-value > dt {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 0.62rem;
+  font-weight: 720;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dopa-flow-value > strong,
+.dopa-flow-value > dd {
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 850;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dopa-flow-value[data-tone='official'] {
+  color: var(--dopa-money);
+}
+
+.dopa-flow-value[data-tone='yecai'] {
+  color: var(--success);
+  text-align: end;
+}
+
+.dopa-savings-total {
+  padding-block-start: 1rem;
+  border-block-start: 1px dashed var(--dopa-rule);
+}
+
+.dopa-guide-journey::before,
+.dopa-guide-journey::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0.65rem;
+  inline-size: 2px;
+  pointer-events: none;
+}
+
+.dopa-guide-journey::before {
+  inset-block: 10rem 7rem;
+  inline-size: 4px;
+  background: radial-gradient(
+      circle,
+      color-mix(in oklch, var(--dopa-model) 42%, transparent) 0 1.5px,
+      transparent 1.8px
+    )
+    50% 0 / 4px 0.95rem repeat-y;
+}
+
+.dopa-guide-journey::after {
+  inset-block-start: 10rem;
+  block-size: 8rem;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    var(--dopa-model),
+    var(--dopa-leaf),
+    transparent
+  );
+  filter: drop-shadow(0 0 0.35rem var(--dopa-model));
+  animation: dopa-journey-trace 8s ease-in-out infinite;
+}
+
+.dopa-guide-hero {
+  overflow: hidden;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid color-mix(in oklch, var(--dopa-model) 24%, var(--dopa-rule));
+  border-radius: var(--dopa-radius-shell);
+  background: linear-gradient(
+    108deg,
+    color-mix(in oklch, var(--dopa-leaf) 11%, var(--background)),
+    color-mix(in oklch, var(--dopa-model) 10%, var(--background)) 62%,
+    color-mix(in oklch, var(--dopa-money) 8%, var(--background))
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 68%, transparent),
+    0 28px 70px -52px color-mix(in oklch, var(--dopa-model) 44%, transparent);
+}
+
+.dopa-guide-address-flow {
+  position: relative;
+}
+
+.dopa-guide-address-flow::before,
+.dopa-guide-address-flow::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset-inline: 14%;
+  inset-block-start: 2.25rem;
+  block-size: 2px;
+  pointer-events: none;
+}
+
+.dopa-guide-address-flow::before {
+  background: color-mix(in oklch, var(--dopa-rule) 75%, transparent);
+}
+
+.dopa-guide-address-flow::after {
+  inline-size: 18%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--dopa-model),
+    var(--dopa-money),
+    transparent
+  );
+  filter: drop-shadow(0 0 0.35rem var(--dopa-model));
+  animation: dopa-border-trace 5.4s ease-in-out infinite;
+}
+
+.dopa-guide-address-node {
+  z-index: 1;
+  isolation: isolate;
+}
+
+.dopa-guide-address-node::after {
+  content: '0' attr(data-step);
+  position: absolute;
+  z-index: -1;
+  inset-inline-end: 0.8rem;
+  inset-block-end: 0.35rem;
+  color: color-mix(in oklch, var(--dopa-model) 8%, transparent);
+  font-family: var(--font-mono);
+  font-size: 3.75rem;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: -0.1em;
+}
+
+.dopa-tab-strip {
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  padding: 0.3rem;
+  border: 1px solid var(--dopa-rule);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--background) 78%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, white 28%, transparent);
+}
+
+.dopa-tab-pill[aria-selected='true'] {
+  box-shadow:
+    0 0.3rem 0.8rem -0.45rem
+      color-mix(in oklch, var(--primary) 70%, transparent),
+    inset 0 0 0 1px color-mix(in oklch, white 22%, transparent);
+}
+
+.dopa-tool-tile {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.dopa-tool-tile::before {
+  content: '';
+  position: absolute;
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+  inset-inline-end: -1.6rem;
+  inset-block-start: -1.7rem;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--dopa-model) 13%, transparent);
+  transform: scale(0.82);
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dopa-tool-tile:hover::before,
+.dopa-tool-tile:focus-visible::before,
+.dopa-tool-tile[data-recommended='true']::before {
+  transform: scale(1.15);
+}
+
+.dopa-tool-tile[data-recommended='true'] {
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklch, var(--dopa-leaf) 9%, transparent),
+      color-mix(in oklch, var(--dopa-model) 7%, transparent)
+    ),
+    var(--card);
+}
+
+.dopa-catalog-hero {
+  overflow: hidden;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid var(--dopa-rule);
+  border-radius: var(--dopa-radius-shell);
+  background:
+    radial-gradient(
+      ellipse at 92% 12%,
+      color-mix(in oklch, var(--dopa-model) 16%, transparent),
+      transparent 48%
+    ),
+    color-mix(in oklch, var(--card) 92%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 64%, transparent),
+    0 28px 72px -54px color-mix(in oklch, var(--dopa-model) 42%, transparent);
+}
+
+.dopa-catalog-hero::after {
+  display: none;
+}
+
+.dopa-model-tile {
+  border-radius: var(--dopa-radius-card);
+  background:
+    radial-gradient(
+      ellipse at 100% 0%,
+      color-mix(in oklch, var(--dopa-model) 9%, transparent),
+      transparent 48%
+    ),
+    color-mix(in oklch, var(--card) 93%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 60%, transparent),
+    0 16px 38px -34px color-mix(in oklch, var(--foreground) 32%, transparent);
+  transition:
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 240ms ease,
+    box-shadow 240ms ease,
+    background-color 240ms ease;
+}
+
+.dopa-model-tile:hover,
+.dopa-model-tile:focus-within {
+  transform: translateY(-3px);
+  border-color: color-mix(in oklch, var(--dopa-model) 42%, var(--dopa-rule));
+  box-shadow: 0 20px 38px -32px
+    color-mix(in oklch, var(--dopa-model) 58%, transparent);
+}
+
+.dopa-scale-texture::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  inset: auto -12% -44% 34%;
+  block-size: 74%;
+  transform: rotate(-6deg);
+  background: radial-gradient(
+      circle,
+      color-mix(in oklch, var(--dopa-model) 16%, transparent) 0 0.16rem,
+      transparent 0.19rem
+    )
+    0 0 / 1rem 1rem;
+  mask-image: linear-gradient(90deg, transparent, black);
+  pointer-events: none;
+}
+
+.dopa-model-tile > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dopa-data-surface {
+  position: relative;
+  isolation: isolate;
+}
+
+.dopa-data-surface::before {
+  display: none;
+}
+
+.dopa-data-surface tbody tr {
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.dopa-data-surface tbody tr:hover {
+  background: color-mix(in oklch, var(--dopa-model) 5%, var(--table-row));
+  box-shadow: inset 0.2rem 0 0 var(--dopa-model);
+}
+
+.dopa-section-page__header {
+  position: relative;
+  border-block-end: 0;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--dopa-leaf) 5%, transparent),
+    transparent 44%
+  );
+}
+
+.dopa-section-page__header::after {
+  display: none;
+}
+
+.dopa-public-surface :is(input, textarea, select):focus-visible,
+.dopa-section-page :is(input, textarea, select):focus-visible {
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px color-mix(in oklch, var(--dopa-model) 45%, transparent),
+    0 0 1rem color-mix(in oklch, var(--dopa-model) 18%, transparent);
+}
+
+.dopa-auth-lamp::before {
+  content: '';
+  position: absolute;
+  inset-inline: 8% 34%;
+  inset-block-start: -42%;
+  block-size: 76%;
+  transform: perspective(40rem) rotateX(58deg);
+  background: conic-gradient(
+    from 210deg at 50% 0%,
+    transparent 0 35%,
+    color-mix(in oklch, var(--dopa-model) 30%, transparent) 43%,
+    color-mix(in oklch, var(--dopa-leaf) 26%, transparent) 50%,
+    color-mix(in oklch, var(--dopa-money) 24%, transparent) 57%,
+    transparent 65% 100%
+  );
+  filter: blur(1.25rem);
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.dopa-setup-trace {
+  position: relative;
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.75rem;
+}
+
+.dopa-setup-trace::before {
+  display: none;
+}
+
+.dopa-setup-step {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--dopa-rule);
+  border-radius: var(--dopa-radius-panel);
+  background: color-mix(in oklch, var(--background) 74%, transparent);
+  isolation: isolate;
+}
+
+.dopa-setup-step::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset-inline-start: 0;
+  inset-block: 0;
+  inline-size: 0;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--dopa-model) 8%, transparent),
+    transparent 72%
+  );
+  transition: inline-size 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dopa-setup-step:hover::before {
+  inline-size: 100%;
+}
+
+.dopa-bento-grid > * {
+  isolation: isolate;
+}
+
+.dopa-number-strip {
+  position: relative;
+  overflow: hidden;
+  gap: 0.7rem;
+  padding: 0.75rem;
+  background: transparent;
+}
+
+.dopa-number-strip > * {
+  border: 0;
+  border-radius: var(--dopa-radius-panel);
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      color-mix(in oklch, var(--dopa-model) 9%, transparent),
+      transparent 58%
+    ),
+    color-mix(in oklch, var(--background) 78%, transparent);
+}
+
+.dopa-progressive-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.dopa-progressive-panel::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  inset-inline: 0;
+  inset-block-end: 0;
+  block-size: 3.25rem;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in oklch, var(--background) 74%, transparent)
+  );
+  backdrop-filter: blur(1px);
+  mask-image: linear-gradient(transparent, black);
+  pointer-events: none;
+}
+
+.dopa-ribbon-surface::before,
+.dopa-ribbon-surface::after {
+  content: '';
+  position: absolute;
+  inline-size: 58%;
+  block-size: 42%;
+  border: 1px solid color-mix(in oklch, white 32%, transparent);
+  border-radius: 50%;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.dopa-ribbon-surface::before {
+  inset-inline-end: -12%;
+  inset-block-start: -21%;
+  transform: rotate(-12deg);
+}
+
+.dopa-ribbon-surface::after {
+  inset-inline-start: -18%;
+  inset-block-end: -29%;
+  transform: rotate(9deg);
+}
+
+.dopa-cut-corner {
+  border-radius: var(--dopa-radius-shell);
+  clip-path: none;
+}
+
+.dopa-data-rail {
+  border: 1px solid color-mix(in oklch, var(--dopa-rule) 76%, transparent);
+  border-radius: var(--dopa-radius-card);
+  background: color-mix(in oklch, var(--background) 78%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 58%, transparent),
+    0 18px 40px -34px color-mix(in oklch, var(--foreground) 26%, transparent);
+}
+
+.dopa-console {
+  --app-header-height: 3.5rem;
+  background:
+    radial-gradient(
+      circle at 10% 0%,
+      color-mix(in oklch, var(--dopa-money) 7%, transparent),
+      transparent 24rem
+    ),
+    radial-gradient(
+      circle at 96% 7%,
+      color-mix(in oklch, var(--dopa-model) 6%, transparent),
+      transparent 26rem
+    ),
+    var(--dopa-canvas);
+}
+
+.dopa-console--easy {
+  --app-header-height: 3.75rem;
+  background:
+    radial-gradient(
+        circle,
+        color-mix(in oklch, var(--dopa-rule) 36%, transparent) 0 0.8px,
+        transparent 1.1px
+      )
+      0 0 / 1.8rem 1.8rem,
+    radial-gradient(
+      ellipse at 6% 4%,
+      color-mix(in oklch, var(--dopa-money) 16%, transparent),
+      transparent 29rem
+    ),
+    radial-gradient(
+      ellipse at 94% 16%,
+      color-mix(in oklch, var(--dopa-model) 13%, transparent),
+      transparent 32rem
+    ),
+    var(--dopa-canvas);
+}
+
+.dopa-console--developer {
+  --app-header-height: 3.25rem;
+  background:
+    radial-gradient(
+        circle,
+        color-mix(in oklch, var(--dopa-rule) 46%, transparent) 0 0.8px,
+        transparent 1.1px
+      )
+      0 0 / 1.7rem 1.7rem,
+    radial-gradient(
+      ellipse at 86% 6%,
+      color-mix(in oklch, var(--dopa-model) 10%, transparent),
+      transparent 30rem
+    ),
+    var(--dopa-canvas);
+}
+
+.dopa-console > header {
+  border-block-end: 1px solid var(--dopa-rule);
+  background: color-mix(in oklch, var(--background) 82%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.dopa-easy-header > div {
+  margin-inline: auto;
+  inline-size: min(100%, 96rem);
+  gap: 0.75rem;
+  padding-inline: clamp(0.75rem, 2vw, 1.75rem);
+}
+
+.dopa-easy-header a[aria-label],
+.dopa-developer-header a[aria-label] {
+  border: 0;
+  background: transparent;
+  padding-inline: 0;
+}
+
+.dopa-developer-header {
+  box-shadow: 0 12px 28px -28px
+    color-mix(in oklch, var(--dopa-model) 36%, transparent);
+}
+
+.dopa-mode-control {
+  border-color: var(--dopa-rule);
+  background: color-mix(in oklch, var(--background) 76%, var(--primary));
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 60%, transparent),
+    0 10px 24px -20px color-mix(in oklch, var(--foreground) 35%, transparent);
+}
+
+.dopa-mode-control button {
+  border-radius: 999px;
+}
+
+.dopa-mode-control--compact {
+  border-radius: 999px;
+  clip-path: none;
+}
+
+.dopa-easy-task-dock {
+  display: flex;
+  min-inline-size: 0;
+  flex: 1 1 auto;
+  align-items: stretch;
+  align-self: stretch;
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    black 0.75rem,
+    black calc(100% - 0.75rem),
+    transparent
+  );
+}
+
+.dopa-easy-task-dock::-webkit-scrollbar {
+  display: none;
+}
+
+.dopa-easy-task-link {
+  position: relative;
+  display: inline-flex;
+  min-inline-size: max-content;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: center;
+  min-block-size: 2.35rem;
+  margin-block: 0.35rem;
+  padding-inline: clamp(0.65rem, 1.1vw, 1rem);
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  font-weight: 750;
+  transition:
+    color 180ms ease,
+    background-color 180ms ease;
+}
+
+.dopa-easy-task-link::after {
+  display: none;
+}
+
+.dopa-easy-task-link[data-tone='model']::after {
+  background: var(--dopa-model);
+}
+
+.dopa-easy-task-link[data-tone='money']::after {
+  background: var(--dopa-money);
+}
+
+.dopa-easy-task-link[data-tone='signal']::after {
+  background: var(--dopa-signal);
+}
+
+.dopa-easy-task-link:hover,
+.dopa-easy-task-link[data-status='active'] {
+  color: var(--foreground);
+  background: color-mix(in oklch, var(--primary) 11%, var(--background));
+  box-shadow: inset 0 0 0 1px
+    color-mix(in oklch, var(--primary) 18%, transparent);
+}
+
+.dopa-easy-task-link[data-status='active']::after {
+  transform: scaleX(1);
+}
+
+.dopa-console [data-slot='sidebar-inner'] {
+  border-inline-end-color: var(--dopa-rule);
+  background: color-mix(in oklch, var(--sidebar) 93%, var(--primary));
+}
+
+.dopa-console [data-sidebar='menu-button'][data-active='true'] {
+  color: var(--foreground);
+  background: color-mix(in oklch, var(--primary) 14%, var(--sidebar));
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.dopa-console--developer [data-slot='sidebar-inner'] {
+  overflow: hidden;
+  border: 1px solid
+    color-mix(in oklch, var(--dopa-sidebar-ink) 16%, transparent);
+  border-radius: var(--dopa-radius-card);
+  background:
+    radial-gradient(
+      circle at 10% 4%,
+      color-mix(in oklch, var(--dopa-leaf) 26%, transparent),
+      transparent 10rem
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, white 5%, transparent),
+      transparent 12rem
+    ),
+    var(--dopa-sidebar-surface);
+  color: var(--dopa-sidebar-ink);
+  color-scheme: dark;
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 12%, transparent),
+    0 24px 46px -32px color-mix(in oklch, black 70%, transparent);
+}
+
+.dopa-console--developer [data-slot='sidebar-container'] {
+  padding: 0.65rem 0.45rem 0.65rem 0.65rem;
+  border: 0;
+}
+
+.dopa-console--developer [data-slot='sidebar-gap'] {
+  inline-size: calc(var(--sidebar-width) + 0.2rem);
+}
+
+.dopa-console--developer [data-sidebar='group-label'] {
+  color: var(--dopa-sidebar-label);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 850;
+  letter-spacing: 0.16em;
+}
+
+.dopa-console--developer [data-slot='sidebar-group'] {
+  padding-inline: 0.65rem;
+}
+
+.dopa-console--developer [data-slot='sidebar-menu'] {
+  gap: 0.2rem;
+}
+
+.dopa-console--developer [data-sidebar='menu-button'] {
+  min-block-size: 2.45rem;
+  border-radius: 999px;
+  color: var(--dopa-sidebar-ink);
+}
+
+.dopa-console--developer [data-sidebar='menu-button']:hover {
+  color: var(--dopa-sidebar-ink);
+  background: var(--dopa-sidebar-surface-hover);
+}
+
+.dopa-console--developer [data-sidebar='menu-button'][data-active='true'] {
+  color: var(--dopa-sidebar-active-ink);
+  background: var(--dopa-sidebar-active);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 32%, transparent),
+    0 10px 20px -16px color-mix(in oklch, var(--dopa-leaf) 90%, transparent);
+}
+
+.dopa-console--developer [data-sidebar='header'] {
+  border-color: color-mix(in oklch, var(--dopa-sidebar-ink) 16%, transparent);
+}
+
+.dopa-console--developer [data-sidebar='header'] [data-sidebar='menu-button'] {
+  color: var(--dopa-sidebar-ink);
+  background: color-mix(in oklch, var(--dopa-sidebar-ink) 10%, transparent);
+}
+
+.dopa-console--developer [data-sidebar='menu-sub'] {
+  border-inline-start-color: color-mix(
+    in oklch,
+    var(--dopa-sidebar-ink) 24%,
+    transparent
+  );
+}
+
+.dopa-console--developer [data-sidebar='menu-sub-button'] {
+  min-block-size: 2rem;
+  border-radius: 999px;
+  color: var(--dopa-sidebar-muted);
+}
+
+.dopa-console--developer [data-sidebar='menu-sub-button'] svg {
+  color: currentColor;
+}
+
+.dopa-console--developer [data-sidebar='menu-sub-button']:hover {
+  color: var(--dopa-sidebar-ink);
+  background: var(--dopa-sidebar-surface-hover);
+}
+
+.dopa-console--developer [data-sidebar='menu-sub-button'][data-active='true'] {
+  color: var(--dopa-sidebar-active-ink);
+  background: var(--dopa-sidebar-active);
+  font-weight: 800;
+}
+
+.dopa-console-page {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklch, var(--primary) 3%, transparent),
+      transparent 12rem
+    ),
+    transparent;
+}
+
+.dopa-console--easy .dopa-console-page {
+  background: transparent;
+}
+
+.dopa-console--easy [data-slot='data-table-view'] {
+  border-radius: var(--dopa-radius-card);
+  clip-path: none;
+}
+
+.dopa-key-guidance {
+  border-radius: var(--dopa-radius-card);
+  border-color: color-mix(in oklch, var(--dopa-signal) 30%, var(--dopa-rule));
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklch, var(--dopa-signal) 13%, transparent),
+      transparent 62%
+    ),
+    color-mix(in oklch, var(--background) 78%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 60%, transparent),
+    0 18px 42px -34px color-mix(in oklch, var(--dopa-signal) 44%, transparent);
+}
+
+.dopa-easy-overview {
+  inline-size: min(100%, 96rem);
+  margin-inline: auto;
+}
+
+.dopa-easy-workbench {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--dopa-rule) 44%, transparent);
+  border-radius: var(--dopa-radius-shell);
+  background:
+    radial-gradient(
+      ellipse at -5% 30%,
+      color-mix(in oklch, var(--dopa-leaf) 12%, transparent),
+      transparent 38%
+    ),
+    radial-gradient(
+      ellipse at 105% 10%,
+      color-mix(in oklch, var(--dopa-model) 12%, transparent),
+      transparent 34%
+    ),
+    color-mix(in oklch, var(--card) 95%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 68%, transparent),
+    0 34px 82px -58px color-mix(in oklch, var(--dopa-model) 34%, transparent),
+    0 18px 42px -36px color-mix(in oklch, var(--foreground) 30%, transparent);
+}
+
+.dopa-easy-workbench__header {
+  display: flex;
+  min-block-size: 4.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem clamp(1rem, 2.5vw, 2rem) 0.75rem;
+  background: transparent;
+}
+
+.dopa-easy-balance-strip {
+  display: flex;
+  gap: 0.45rem;
+  align-items: stretch;
+}
+
+.dopa-easy-balance-strip > .yecai-metric {
+  min-inline-size: 8.8rem;
+  padding: 0.5rem 0.65rem;
+}
+
+.dopa-easy-balance-strip .yecai-metric__icon {
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+}
+
+.dopa-easy-balance-strip .yecai-metric__value {
+  font-size: 0.96rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.dopa-easy-workbench__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(19rem, 0.7fr);
+  gap: 0.75rem;
+  min-block-size: 24rem;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.dopa-easy-connect {
+  position: relative;
+  min-inline-size: 0;
+  overflow: hidden;
+  padding: clamp(1.25rem, 2.6vw, 2rem);
+  border: 0;
+  border-radius: var(--dopa-radius-card);
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      color-mix(in oklch, var(--dopa-model) 14%, transparent),
+      transparent 18rem
+    ),
+    color-mix(in oklch, var(--background) 76%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 62%, transparent);
+}
+
+.dopa-easy-connect::before {
+  content: '';
+  position: absolute;
+  inline-size: 13rem;
+  block-size: 13rem;
+  inset-inline-end: -7rem;
+  inset-block-start: -8rem;
+  border: 1.5rem solid color-mix(in oklch, var(--dopa-model) 8%, transparent);
+  border-radius: 45% 55% 62% 38%;
+  transform: rotate(18deg);
+  pointer-events: none;
+}
+
+.dopa-easy-connect__header {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.dopa-easy-connect__header h2 {
+  max-inline-size: 38rem;
+  margin-block-start: 0.7rem;
+  font-size: clamp(1.65rem, 3.2vw, 2.65rem);
+  font-weight: 950;
+  line-height: 1.02;
+  letter-spacing: -0.065em;
+  text-wrap: balance;
+}
+
+.dopa-easy-connect__header p {
+  max-inline-size: 38rem;
+  margin-block-start: 0.75rem;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  line-height: 1.65;
+}
+
+.dopa-easy-connect__ready {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid color-mix(in oklch, var(--dopa-leaf) 22%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--dopa-leaf) 9%, var(--background));
+  color: var(--primary);
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+.dopa-easy-connect__ready svg {
+  inline-size: 0.8rem;
+  block-size: 0.8rem;
+}
+
+.dopa-easy-connect__choices {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 0.7rem;
+  margin-block-start: 1.35rem;
+}
+
+.dopa-easy-connect__step {
+  min-inline-size: 0;
+  padding: 0.9rem;
+  border: 1px solid color-mix(in oklch, var(--dopa-model) 18%, var(--dopa-rule));
+  border-radius: var(--dopa-radius-panel);
+  background: color-mix(in oklch, var(--dopa-model) 7%, var(--background));
+}
+
+.dopa-easy-connect__step[data-tone='money'] {
+  border-color: color-mix(in oklch, var(--dopa-money) 21%, var(--dopa-rule));
+  background: color-mix(in oklch, var(--dopa-money) 7%, var(--background));
+}
+
+.dopa-easy-connect__step-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-block-end: 0.8rem;
+}
+
+.dopa-easy-connect__step-heading > span,
+.dopa-easy-pass__intro > span {
+  display: inline-flex;
+  inline-size: 1.8rem;
+  block-size: 1.8rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--dopa-model);
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.dopa-easy-connect__step[data-tone='money']
+  .dopa-easy-connect__step-heading
+  > span {
+  background: var(--dopa-money);
+}
+
+.dopa-easy-connect__step-heading h3,
+.dopa-easy-pass__intro h3 {
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.dopa-easy-connect__step-heading p,
+.dopa-easy-pass__intro p {
+  margin-block-start: 0.15rem;
+  color: var(--muted-foreground);
+  font-size: 0.64rem;
+  line-height: 1.45;
+}
+
+.dopa-easy-connect__model-picker {
+  position: relative;
+  border: 1px solid color-mix(in oklch, var(--dopa-model) 22%, var(--dopa-rule));
+  border-radius: var(--dopa-radius-panel);
+  background: color-mix(in oklch, var(--background) 86%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 54%, transparent);
+}
+
+.dopa-easy-connect__model-picker > svg {
+  position: absolute;
+  z-index: 2;
+  inline-size: 1rem;
+  block-size: 1rem;
+  inset-inline-start: 0.9rem;
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  color: var(--dopa-model);
+  pointer-events: none;
+}
+
+.dopa-easy-connect__groups {
+  display: grid;
+  max-block-size: 11rem;
+  gap: 0.45rem;
+  overflow-y: auto;
+  padding-inline-end: 0.15rem;
+  scrollbar-width: thin;
+}
+
+.dopa-easy-connect__group {
+  display: flex;
+  inline-size: 100%;
+  min-inline-size: 0;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.7rem;
+  border: 1px solid color-mix(in oklch, var(--dopa-money) 16%, var(--dopa-rule));
+  border-radius: 1rem;
+  background: color-mix(in oklch, var(--background) 84%, transparent);
+  text-align: start;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.dopa-easy-connect__group:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklch, var(--dopa-money) 42%, var(--dopa-rule));
+}
+
+.dopa-easy-connect__group.is-selected {
+  border-color: color-mix(in oklch, var(--dopa-leaf) 55%, var(--dopa-rule));
+  background: color-mix(in oklch, var(--dopa-leaf) 10%, var(--background));
+  box-shadow: inset 0 0 0 1px
+    color-mix(in oklch, var(--dopa-leaf) 14%, transparent);
+}
+
+.dopa-easy-connect__group-check {
+  display: grid;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--dopa-rule);
+  border-radius: 50%;
+  color: var(--primary-foreground);
+}
+
+.dopa-easy-connect__group.is-selected .dopa-easy-connect__group-check {
+  border-color: var(--dopa-leaf);
+  background: var(--dopa-leaf);
+}
+
+.dopa-easy-connect__group-check svg {
+  inline-size: 0.72rem;
+  block-size: 0.72rem;
+}
+
+.dopa-easy-connect__group > span:last-child {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.2rem;
+}
+
+.dopa-easy-connect__group b {
+  overflow: hidden;
+  font-size: 0.72rem;
+  font-weight: 850;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dopa-easy-connect__group small {
+  display: grid;
+  gap: 0.1rem;
+  font-size: 0.6rem;
+  line-height: 1.4;
+}
+
+.dopa-easy-connect__group small strong {
+  color: var(--foreground);
+  font-weight: 780;
+}
+
+.dopa-easy-connect__group small span {
+  color: var(--muted-foreground);
+}
+
+.dopa-easy-connect__empty {
+  margin-block-start: 0.55rem;
+  color: var(--destructive);
+  font-size: 0.64rem;
+  line-height: 1.45;
+}
+
+.dopa-easy-pass {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.72fr) minmax(12rem, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem;
+  margin-block-start: 0.75rem;
+  padding: 0.95rem;
+  border: 1px solid color-mix(in oklch, var(--dopa-runway-ink) 16%, transparent);
+  border-radius: calc(var(--dopa-radius-panel) + 0.35rem);
+  background:
+    radial-gradient(
+      circle at 0% 100%,
+      color-mix(in oklch, var(--dopa-model) 28%, transparent),
+      transparent 16rem
+    ),
+    linear-gradient(
+      120deg,
+      var(--dopa-runway-surface-raised),
+      var(--dopa-runway-surface) 72%
+    );
+  color: var(--dopa-runway-ink);
+  box-shadow: 0 18px 32px -28px color-mix(in oklch, black 72%, transparent);
+}
+
+.dopa-easy-pass::after {
+  content: '';
+  position: absolute;
+  inset-block: 0.75rem;
+  inset-inline-end: 8.8rem;
+  border-inline-end: 1px dashed
+    color-mix(in oklch, var(--dopa-runway-ink) 17%, transparent);
+  pointer-events: none;
+}
+
+.dopa-easy-pass__intro {
+  display: flex;
+  min-inline-size: 0;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.dopa-easy-pass__intro > span {
+  background: linear-gradient(145deg, var(--dopa-leaf), var(--dopa-model));
+}
+
+.dopa-easy-pass__intro p {
+  color: var(--dopa-runway-muted);
+}
+
+.dopa-easy-pass__summary {
+  display: flex;
+  min-inline-size: 0;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.dopa-easy-pass__summary > span {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.15rem;
+}
+
+.dopa-easy-pass__summary small,
+.dopa-easy-pass__value small {
+  color: var(--dopa-runway-muted);
+  font-size: 0.58rem;
+  font-weight: 700;
+}
+
+.dopa-easy-pass__summary strong,
+.dopa-easy-pass__value strong {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 850;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dopa-easy-pass__summary > svg {
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+  flex: 0 0 auto;
+  color: var(--dopa-model);
+}
+
+.dopa-easy-pass__details {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.35rem;
+}
+
+.dopa-easy-pass__value {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dopa-easy-pass__value > span:first-child {
+  display: grid;
+  inline-size: 1.65rem;
+  block-size: 1.65rem;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in oklch, var(--dopa-runway-ink) 9%, transparent);
+  color: var(--dopa-model);
+}
+
+.dopa-easy-pass__value svg {
+  inline-size: 0.78rem;
+  block-size: 0.78rem;
+}
+
+.dopa-easy-pass__value > span:last-child {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.dopa-easy-pass__actions {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: stretch;
+  gap: 0.45rem;
+  padding-inline-start: 0.85rem;
+}
+
+.dopa-easy-pass__primary {
+  min-inline-size: 8.5rem;
+  white-space: nowrap;
+}
+
+.dopa-easy-pass__help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  color: var(--dopa-runway-muted);
+  font-size: 0.56rem;
+  font-weight: 720;
+}
+
+.dopa-easy-pass__help:hover {
+  color: var(--dopa-runway-ink);
+}
+
+.dopa-easy-pass__help svg {
+  inline-size: 0.7rem;
+  block-size: 0.7rem;
+}
+
+.dopa-easy-savings-ledger {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+  border: 0;
+  border-radius: var(--dopa-radius-card);
+  background:
+    radial-gradient(
+      circle at 110% -10%,
+      color-mix(in oklch, var(--dopa-money) 30%, transparent),
+      transparent 17rem
+    ),
+    color-mix(in oklch, var(--dopa-money) 8%, var(--background));
+}
+
+.dopa-easy-savings-ledger::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: -0.35rem;
+  inline-size: 0.7rem;
+  background: radial-gradient(
+    circle,
+    var(--background) 0 0.18rem,
+    transparent 0.2rem
+  );
+  background-size: 0.7rem 1rem;
+}
+
+.dopa-developer-workbench {
+  inline-size: min(100%, 96rem);
+  margin-inline: auto;
+}
+
+.dopa-dev-command-deck {
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--dopa-rule) 42%, transparent);
+  border-radius: var(--dopa-radius-shell);
+  background:
+    radial-gradient(
+        circle,
+        color-mix(in oklch, var(--dopa-rule) 48%, transparent) 0 0.8px,
+        transparent 1.1px
+      )
+      0 0 / 1.55rem 1.55rem,
+    radial-gradient(
+      ellipse at 100% 0%,
+      color-mix(in oklch, var(--dopa-model) 12%, transparent),
+      transparent 36%
+    ),
+    color-mix(in oklch, var(--card) 95%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 58%, transparent),
+    0 28px 72px -52px color-mix(in oklch, var(--dopa-model) 30%, transparent),
+    0 14px 34px -30px color-mix(in oklch, var(--foreground) 32%, transparent);
+}
+
+.dopa-dev-command-deck__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem 0.7rem;
+  background: transparent;
+}
+
+.dopa-dev-signal-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem 0.75rem 0.55rem;
+}
+
+.dopa-dev-signal-grid > .yecai-metric {
+  flex: 1 1 12rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.6rem 0.85rem;
+  border-color: color-mix(in oklch, var(--yecai-accent) 18%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--yecai-accent) 8%, var(--background));
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 58%, transparent),
+    0 12px 26px -24px color-mix(in oklch, var(--foreground) 32%, transparent);
+}
+
+.dopa-dev-signal-grid > .yecai-metric::after {
+  display: none;
+}
+
+.dopa-dev-signal-grid .yecai-metric__label {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 0.66rem;
+  font-weight: 750;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dopa-dev-signal-grid .yecai-metric__value {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 800;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dopa-dev-bento {
+  position: relative;
+  overflow: hidden;
+  padding: 0.75rem;
+  background:
+    radial-gradient(
+      ellipse at 2% 100%,
+      color-mix(in oklch, var(--dopa-leaf) 12%, transparent),
+      transparent 30rem
+    ),
+    radial-gradient(
+      ellipse at 100% 0%,
+      color-mix(in oklch, var(--dopa-money) 14%, transparent),
+      transparent 26rem
+    ),
+    color-mix(in oklch, var(--card) 93%, transparent);
+}
+
+.dopa-dev-bento::before {
+  content: '';
+  position: absolute;
+  inline-size: 18rem;
+  block-size: 18rem;
+  inset-inline-end: -10rem;
+  inset-block-start: -12rem;
+  border: 1px dashed color-mix(in oklch, var(--dopa-model) 28%, transparent);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.dopa-dev-bento__header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.75rem 1rem;
+}
+
+.dopa-dev-bento__header span:first-child {
+  color: var(--foreground);
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.dopa-dev-bento__header h3 {
+  margin-block-start: 0.2rem;
+  color: var(--muted-foreground);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.dopa-dev-bento__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--dopa-leaf) 10%, var(--background));
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.dopa-dev-bento__live i {
+  inline-size: 0.45rem;
+  block-size: 0.45rem;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 0.25rem color-mix(in oklch, var(--success) 12%, transparent);
+}
+
+.dopa-dev-bento__grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 0.36fr);
+  gap: 0.7rem;
+}
+
+.dopa-dev-bento__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.dopa-dev-bento__metric {
+  --dopa-bento-tone: var(--dopa-leaf);
+  position: relative;
+  display: grid;
+  min-inline-size: 0;
+  min-block-size: 11rem;
+  align-content: start;
+  gap: 0.2rem;
+  overflow: hidden;
+  padding: 1.1rem;
+  border: 0;
+  border-radius: var(--dopa-radius-card);
+  background: linear-gradient(
+    150deg,
+    color-mix(in oklch, var(--dopa-bento-tone) 11%, var(--background)),
+    color-mix(in oklch, var(--background) 84%, transparent) 62%
+  );
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 58%, transparent);
+}
+
+.dopa-dev-bento__metric[data-tone='money'] {
+  --dopa-bento-tone: var(--dopa-money);
+  transform: translateY(0.85rem);
+}
+
+.dopa-dev-bento__metric[data-tone='model'] {
+  --dopa-bento-tone: var(--dopa-model);
+}
+
+.dopa-dev-bento__metric-icon {
+  display: grid;
+  inline-size: 2.2rem;
+  block-size: 2.2rem;
+  place-items: center;
+  margin-block-end: 0.55rem;
+  border-radius: 50%;
+  background: color-mix(
+    in oklch,
+    var(--dopa-bento-tone) 16%,
+    var(--background)
+  );
+  color: var(--dopa-bento-tone);
+}
+
+.dopa-dev-bento__metric-icon svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.dopa-dev-bento__metric > span:not(.dopa-dev-bento__metric-icon),
+.dopa-dev-bento__metric > small {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 0.64rem;
+  font-weight: 720;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dopa-dev-bento__metric > strong {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: clamp(1.2rem, 2.6vw, 2rem);
+  font-weight: 940;
+  letter-spacing: -0.06em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dopa-dev-bento__metric > small {
+  opacity: 0.76;
+}
+
+.dopa-dev-bento__sparkline {
+  position: absolute;
+  inline-size: 100%;
+  block-size: 3.5rem;
+  inset-inline: 0;
+  inset-block-end: 0;
+  fill: none;
+  stroke: var(--dopa-bento-tone);
+  stroke-width: 1.8;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.6;
+  filter: drop-shadow(
+    0 0 0.35rem color-mix(in oklch, var(--dopa-bento-tone) 30%, transparent)
+  );
+}
+
+.dopa-dev-bento__runway {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-inline-size: 0;
+  padding: 1.1rem;
+  border: 1px solid color-mix(in oklch, var(--dopa-runway-ink) 15%, transparent);
+  border-radius: var(--dopa-radius-card);
+  background:
+    radial-gradient(
+      circle at 12% 0%,
+      color-mix(in oklch, var(--dopa-signal) 20%, transparent),
+      transparent 12rem
+    ),
+    linear-gradient(
+      145deg,
+      var(--dopa-runway-surface-raised),
+      var(--dopa-runway-surface) 70%
+    );
+  color: var(--dopa-runway-ink);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 13%, transparent),
+    0 18px 34px -28px color-mix(in oklch, black 72%, transparent);
+}
+
+.dopa-dev-bento__runway-copy {
+  display: grid;
+  min-inline-size: 0;
+  gap: 0.25rem;
+}
+
+.dopa-dev-bento__runway-copy > span:first-child,
+.dopa-dev-bento__orbit > span,
+.dopa-dev-bento__runway-foot span {
+  color: var(--dopa-runway-muted);
+  font-size: 0.62rem;
+  font-weight: 720;
+}
+
+.dopa-dev-bento__runway-copy > strong {
+  font-family: var(--font-mono);
+  font-size: clamp(1.4rem, 3vw, 2.3rem);
+  font-weight: 940;
+  letter-spacing: -0.06em;
+}
+
+.dopa-dev-bento__health {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-block-start: 0.2rem;
+}
+
+.dopa-dev-bento__health i {
+  inline-size: 0.42rem;
+  block-size: 0.42rem;
+  border-radius: 50%;
+}
+
+.dopa-dev-bento__orbit {
+  display: grid;
+  inline-size: 7.3rem;
+  aspect-ratio: 1;
+  place-items: center;
+  align-content: center;
+  gap: 0.1rem;
+  padding: 0.8rem;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, var(--dopa-runway-surface) 56%, transparent 58%),
+    conic-gradient(
+      var(--dopa-money) var(--dopa-runway-angle),
+      color-mix(in oklch, var(--dopa-runway-ink) 15%, transparent) 0
+    );
+  text-align: center;
+}
+
+.dopa-dev-bento__orbit svg {
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+  color: var(--dopa-money);
+}
+
+.dopa-dev-bento__orbit strong {
+  max-inline-size: 5.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.dopa-dev-bento__runway-foot {
+  display: flex;
+  min-inline-size: 0;
+  grid-column: 1 / -1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-block-start: 0.75rem;
+  border-block-start: 1px dashed
+    color-mix(in oklch, var(--dopa-runway-ink) 18%, transparent);
+}
+
+.dopa-dev-bento__runway-foot span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dopa-dev-bento__runway-foot svg {
+  inline-size: 0.8rem;
+  block-size: 0.8rem;
+}
+
+.dopa-dev-bento__runway-foot strong {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.dopa-dev-bento__wallet {
+  grid-column: 1 / -1;
+  justify-content: space-between;
+  color: var(--dopa-runway-ink) !important;
+  background: color-mix(
+    in oklch,
+    var(--dopa-runway-ink) 9%,
+    transparent
+  ) !important;
+  border-color: color-mix(
+    in oklch,
+    var(--dopa-runway-ink) 20%,
+    transparent
+  ) !important;
+  box-shadow: none;
+}
+
+.dopa-dev-bento__wallet:hover {
+  background: color-mix(
+    in oklch,
+    var(--dopa-runway-ink) 15%,
+    transparent
+  ) !important;
+}
+
+.dopa-console-title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.dopa-console-title::before {
+  content: '';
+  inline-size: 0.42rem;
+  block-size: 1.15rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--dopa-model), var(--dopa-leaf));
+}
+
+.dopa-cost-stack {
+  display: grid;
+  gap: 0.15rem;
+  min-inline-size: 7.25rem;
+}
+
+.dopa-cost-stack__official {
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.dopa-cost-stack__actual {
+  color: var(--foreground);
+  font-size: 0.8rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.dopa-cost-stack__saved {
+  color: var(--success);
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+@media (max-width: 79rem) {
+  .dopa-page-canvas {
+    background:
+      radial-gradient(
+        circle at 12% 7%,
+        color-mix(in oklch, var(--dopa-money) 12%, transparent),
+        transparent 26rem
+      ),
+      radial-gradient(
+        circle at 92% 22%,
+        color-mix(in oklch, var(--dopa-model) 10%, transparent),
+        transparent 28rem
+      ),
+      var(--dopa-canvas);
+  }
+
+  .dopa-section-shell::before {
+    display: none;
+  }
+}
+
+@media (max-width: 74rem) {
+  .dopa-easy-task-link span {
+    display: none;
+  }
+
+  .dopa-easy-task-link {
+    min-inline-size: 2.55rem;
+    justify-content: center;
+    padding-inline: 0.65rem;
+  }
+}
+
+@media (max-width: 58rem) {
+  .dopa-console--easy {
+    --app-header-height: 3.5rem;
+    background: var(--dopa-canvas);
+  }
+
+  .dopa-easy-header > div {
+    gap: 0.4rem;
+    padding-inline: 0.6rem;
+  }
+
+  .dopa-easy-workbench__main {
+    grid-template-columns: 1fr;
+  }
+
+  .dopa-easy-savings-ledger::before {
+    display: none;
+  }
+
+  .dopa-dev-signal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dopa-dev-bento__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dopa-dev-bento__runway {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .dopa-guide-address-flow::before,
+  .dopa-guide-address-flow::after {
+    display: none;
+  }
+}
+
+@media (max-width: 42rem) {
+  .dopa-easy-header [data-slot='button']:has(svg.lucide-languages) {
+    display: none;
+  }
+
+  .dopa-easy-balance-strip > .yecai-metric {
+    min-inline-size: 5.6rem;
+    grid-template-columns: 1fr;
+    padding-inline: 0.55rem;
+  }
+
+  .dopa-easy-balance-strip .yecai-metric__icon {
+    display: none;
+  }
+
+  .dopa-easy-connect__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dopa-easy-connect__ready {
+    align-self: flex-start;
+  }
+
+  .dopa-easy-connect__choices,
+  .dopa-easy-pass {
+    grid-template-columns: 1fr;
+  }
+
+  .dopa-easy-pass::after {
+    display: none;
+  }
+
+  .dopa-easy-pass__actions {
+    padding-block-start: 0.75rem;
+    padding-inline-start: 0;
+    border-block-start: 1px dashed
+      color-mix(in oklch, var(--dopa-runway-ink) 17%, transparent);
+  }
+
+  .dopa-dev-bento__metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .dopa-dev-bento__metric {
+    min-block-size: 8.5rem;
+  }
+
+  .dopa-dev-bento__metric[data-tone='money'] {
+    transform: none;
+  }
+
+  .dopa-dev-bento__runway {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .dopa-dev-bento__runway-foot,
+  .dopa-dev-bento__wallet {
+    grid-column: 1 / -1;
+  }
+
+  .dopa-hero-price-flow {
+    grid-template-columns:
+      minmax(5.4rem, 1fr) minmax(1.9rem, 0.35fr)
+      minmax(5.4rem, 1fr);
+    gap: 0.35rem;
+  }
+
+  .dopa-price-node {
+    min-block-size: 6.8rem;
+    padding: 0.7rem;
+  }
+
+  .dopa-price-node > strong {
+    font-size: 0.66rem;
+  }
+
+  .dopa-calculator-price-flow,
+  .dopa-easy-price-flow {
+    grid-template-columns:
+      minmax(0, 1fr) minmax(2rem, 0.35fr)
+      minmax(0, 1fr);
+    gap: 0.3rem;
+  }
+
+  .yecai-price-flow,
+  .yecai-price-flow[data-size='compact'] {
+    grid-template-columns: minmax(0, 1fr) 2.2rem minmax(0, 1fr);
+    gap: 0.2rem;
+  }
+
+  .yecai-price-flow__node,
+  .yecai-price-flow[data-size='compact'] .yecai-price-flow__node {
+    padding: 0.65rem;
+  }
+
+  .yecai-price-flow__curve,
+  .yecai-price-flow[data-size='compact'] .yecai-price-flow__curve {
+    block-size: 3rem;
+  }
+
+  .dopa-tab-strip {
+    border-radius: 1.25rem;
+  }
+
+  .dopa-guide-journey::before,
+  .dopa-guide-journey::after {
+    display: none;
+  }
+}
+
 /* ── Reduced motion: switch everything off ────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
+  .yecai-price-flow__traveler {
+    display: none;
+  }
+
   .dopa-fade-up,
   .dopa-fade-in,
   .dopa-pop-in,
@@ -346,7 +3030,12 @@ For commercial licensing, please contact support@quantumnous.com
   .dopa-bounce-soft,
   .dopa-gradient-text,
   .dopa-gradient-surface,
-  .dopa-confetti-piece {
+  .dopa-confetti-piece,
+  .dopa-number-change,
+  .dopa-price-beam::after,
+  .dopa-signal-scan::after,
+  .dopa-guide-journey::after,
+  .dopa-guide-address-flow::after {
     animation: none;
   }
   .dopa-press {

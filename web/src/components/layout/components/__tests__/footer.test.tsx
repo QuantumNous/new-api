@@ -16,15 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type EasySetupStage = 'wallet' | 'key' | 'guide' | 'complete'
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
 
-export function getEasySetupStage(args: {
-  remainQuota: number
-  hasApiKey: boolean
-  requestCount: number
-}): EasySetupStage {
-  if (args.remainQuota <= 0) return 'wallet'
-  if (!args.hasApiKey) return 'key'
-  if (args.requestCount <= 0) return 'guide'
-  return 'complete'
-}
+import { Footer } from '../footer'
+
+describe('Footer', () => {
+  it('shows one concise upstream copyright attribution', () => {
+    render(<Footer />)
+
+    const projectLink = screen.getByRole('link', { name: 'New API' })
+    expect(projectLink).toHaveAttribute(
+      'href',
+      'https://github.com/QuantumNous/new-api'
+    )
+    expect(screen.getAllByText('New API')).toHaveLength(1)
+    expect(projectLink.closest('footer')).toHaveTextContent(
+      String(new Date().getFullYear())
+    )
+    expect(screen.queryByText('野菜API')).not.toBeInTheDocument()
+  })
+})

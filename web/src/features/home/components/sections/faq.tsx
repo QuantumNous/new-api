@@ -65,33 +65,36 @@ export function FAQ() {
   ]
 
   return (
-    <section ref={sectionRef} className='relative z-10 px-6 py-24 md:py-28'>
-      <div className='mx-auto max-w-3xl'>
-        <div className='dopa-reveal mb-12 text-center'>
-          <p className='text-primary mb-3 text-sm font-bold tracking-widest uppercase'>
-            {t('FAQ')}
-          </p>
-          <h2 className='text-3xl font-extrabold tracking-tight text-balance md:text-4xl'>
-            {t('Questions? We got you')}
-          </h2>
+    <section ref={sectionRef} className='relative z-10 px-6 py-16 md:py-24'>
+      <div className='dopa-section-shell' data-section='HELP'>
+        <div className='grid gap-9 lg:grid-cols-[0.7fr_1.3fr] lg:gap-14'>
+          <div className='dopa-reveal'>
+            <p className='dopa-section-kicker'>{t('FAQ')}</p>
+            <h2 className='mt-4 text-3xl font-black tracking-[-0.055em] text-balance md:text-5xl'>
+              {t('Questions? We got you')}
+            </h2>
+            <p className='text-muted-foreground mt-4 max-w-sm text-sm leading-relaxed'>
+              {t('If you can copy and paste, you can do this.')}
+            </p>
+          </div>
+
+          <div className='dopa-progressive-panel dopa-reveal dopa-paper rounded-[1.75rem] px-6 py-2 md:px-8'>
+            <Accordion>
+              {faqs.map((item) => (
+                <AccordionItem key={item.q} value={item.q}>
+                  <AccordionTrigger className='py-5 text-base font-semibold hover:no-underline'>
+                    {item.q}
+                  </AccordionTrigger>
+                  <AccordionContent className='text-muted-foreground pb-5 text-sm leading-relaxed'>
+                    {item.a}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </div>
         </div>
 
-        <div className='dopa-reveal border-border bg-card rounded-3xl border px-6 py-2 md:px-8'>
-          <Accordion>
-            {faqs.map((item) => (
-              <AccordionItem key={item.q} value={item.q}>
-                <AccordionTrigger className='py-5 text-base font-semibold hover:no-underline'>
-                  {item.q}
-                </AccordionTrigger>
-                <AccordionContent className='text-muted-foreground pb-5 text-sm leading-relaxed'>
-                  {item.a}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </div>
-
-        <div className='dopa-reveal border-border bg-card mt-6 grid overflow-hidden rounded-3xl border md:grid-cols-[1fr_260px]'>
+        <div className='dopa-reveal dopa-paper mt-7 grid overflow-hidden rounded-[1.75rem] md:grid-cols-[1fr_240px]'>
           <div className='flex flex-col justify-center px-7 py-8 md:px-9'>
             <span className='bg-primary/10 text-primary flex size-12 items-center justify-center rounded-2xl'>
               <MessageCircleHeart className='size-6' />
@@ -112,13 +115,13 @@ export function FAQ() {
             </p>
           </div>
 
-          <div className='bg-muted/50 flex items-center justify-center p-5'>
+          <div className='bg-primary/6 flex items-center justify-center border-t border-[var(--dopa-rule)] p-5 md:border-t-0 md:border-l'>
             <img
               src='/qq-community-qr.png'
               alt={t('QQ after-sales group QR code')}
               width={860}
               height={860}
-              className='aspect-square w-full max-w-[220px] rounded-2xl bg-white shadow-sm'
+              className='aspect-square w-full max-w-[200px] bg-white'
             />
           </div>
         </div>

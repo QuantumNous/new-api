@@ -51,17 +51,14 @@ vi.mock('@/hooks/use-notifications', () => ({
     loading: false,
   }),
 }))
-vi.mock('@/hooks/use-top-nav-links', () => ({
-  useTopNavLinks: () => [],
-}))
 vi.mock('../header', () => ({
   Header: (props: { children: ReactNode }) => <header>{props.children}</header>,
 }))
+vi.mock('../easy-task-dock', () => ({
+  EasyTaskDock: () => <nav>Easy task dock</nav>,
+}))
 vi.mock('../system-brand', () => ({
   SystemBrand: () => <span>野菜API</span>,
-}))
-vi.mock('../top-nav', () => ({
-  TopNav: () => <nav>Top navigation</nav>,
 }))
 
 describe('application header console mode', () => {
@@ -73,7 +70,7 @@ describe('application header console mode', () => {
     useConsoleModeStore.getState().setMode('easy')
     render(<AppHeader />)
 
-    expect(screen.queryByText('Top navigation')).not.toBeInTheDocument()
+    expect(screen.getByText('Easy task dock')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Search' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Notifications' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Language' })).toBeVisible()
@@ -81,11 +78,11 @@ describe('application header console mode', () => {
     expect(screen.getByRole('button', { name: 'Profile' })).toBeVisible()
   })
 
-  it('restores the full header in developer mode', () => {
+  it('restores developer search and notifications without public site links', () => {
     useConsoleModeStore.getState().setMode('developer')
     render(<AppHeader />)
 
-    expect(screen.getByText('Top navigation')).toBeVisible()
+    expect(screen.queryByText('Easy task dock')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Search' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Notifications' })).toBeVisible()
   })

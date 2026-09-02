@@ -88,8 +88,7 @@ export const guideTools: GuideTool[] = [
     name: 'Cherry Studio',
     category: 'chat',
     status: 'green',
-    recommended: true,
-    summary: '桌面聊天客户端,新手首选,配置最简单',
+    summary: '桌面聊天客户端,支持 OpenAI 兼容接口',
     steps: [
       '打开 Cherry Studio,点击左下角「设置」',
       '进入「模型服务」,点击「添加」,类型选择「OpenAI」或「OpenAI Compatible」',
@@ -109,7 +108,6 @@ export const guideTools: GuideTool[] = [
     name: 'Chatbox',
     category: 'chat',
     status: 'green',
-    recommended: true,
     summary: '轻量聊天客户端,手机电脑都能用',
     steps: [
       '打开 Chatbox,点击侧边栏「设置」',
@@ -218,7 +216,6 @@ export const guideTools: GuideTool[] = [
     name: 'Claude Code',
     category: 'coding',
     status: 'blue',
-    recommended: true,
     summary: '使用 Anthropic 协议,需专用地址',
     steps: [
       'Claude Code 使用 Anthropic Messages 协议,不能直接把 OpenAI 地址填进 ANTHROPIC_BASE_URL',
@@ -235,7 +232,6 @@ export const guideTools: GuideTool[] = [
     name: 'Codex CLI',
     category: 'coding',
     status: 'blue',
-    recommended: true,
     summary: '仅支持 Responses API 兼容的模型',
     steps: [
       'Codex 的自定义提供商使用 Responses API,不能把只支持 Chat Completions 的模型硬套进去',
@@ -282,7 +278,6 @@ wire_api = "responses"`,
     name: 'Pi Coding Agent',
     category: 'coding',
     status: 'yellow',
-    recommended: true,
     summary: '轻量可扩展的终端 Agent',
     steps: [
       '安装:npm install -g @mariozechner/pi-coding-agent',
@@ -311,7 +306,6 @@ wire_api = "responses"`,
     name: 'Cline',
     category: 'coding',
     status: 'green',
-    recommended: true,
     summary: 'VS Code 里的 AI 编程助手,新手编程首选',
     steps: [
       '在 VS Code 中安装 Cline,打开面板点击齿轮',
@@ -454,6 +448,7 @@ aider --model openai/请替换为模型ID`,
     name: 'Trae / TraeCode CLI',
     category: 'coding',
     status: 'green',
+    recommended: true,
     summary: '国产编程工具,支持自定义 OpenAI 模型',
     steps: [
       '进入「设置」→「模型」→「添加模型」',
@@ -711,13 +706,18 @@ export const useCaseRows: UseCaseRow[] = [
     difficulty: '简单',
   },
   {
-    useCase: '普通聊天、写作、看文件',
-    tools: 'Cherry Studio、Chatbox',
+    useCase: '网页、PDF、字幕翻译',
+    tools: '沉浸式翻译、流畅阅读',
     difficulty: '简单',
   },
   {
-    useCase: '网页、PDF、字幕翻译',
-    tools: '沉浸式翻译、流畅阅读',
+    useCase: '用 DeepSeek 官方 Agent 执行任务',
+    tools: 'DeepSeek Harness (DSH)',
+    difficulty: '中等',
+  },
+  {
+    useCase: '用国产工具辅助编程',
+    tools: 'Trae / TraeCode CLI',
     difficulty: '简单',
   },
   {

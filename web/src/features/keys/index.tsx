@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -19,8 +20,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { BookOpen, Lightbulb } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Link } from '@tanstack/react-router'
-
 import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 
@@ -40,12 +39,10 @@ export function ApiKeys() {
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <div className='flex h-full flex-col gap-3'>
-            <div className='border-primary/25 bg-primary/8 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border px-4 py-3'>
+            <div className='dopa-key-guidance flex flex-wrap items-center gap-x-3 gap-y-2 border px-4 py-3'>
               <Lightbulb className='text-primary size-4 shrink-0' />
               <p className='text-foreground/85 min-w-0 flex-1 text-sm text-pretty'>
-                {t(
-                  'A key is like a house key for AI: paste it into a tool such as Cherry Studio, and the tool can chat on your behalf. Never share it publicly.'
-                )}
+                {t('One tap — this is the password your AI tool needs')}
               </p>
               <Button
                 variant='outline'

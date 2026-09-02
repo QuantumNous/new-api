@@ -53,20 +53,23 @@ export function Guide() {
           style={{ backgroundColor: 'var(--chart-2)' }}
         />
 
-        <div className='relative mx-auto flex max-w-6xl flex-col gap-16 px-6 py-14 md:gap-20 md:py-20'>
+        <div className='dopa-guide-journey relative mx-auto flex max-w-6xl flex-col gap-14 px-6 pt-28 pb-16 md:gap-18 md:pt-36 md:pb-24'>
           {/* Header */}
-          <header className='dopa-fade-up flex max-w-3xl flex-col gap-4'>
-            <span className='bg-accent text-accent-foreground inline-flex w-fit items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold'>
+          <header
+            className='dopa-fade-up dopa-section-shell dopa-token-grid dopa-guide-hero flex max-w-none flex-col gap-4'
+            data-section='GUIDE'
+          >
+            <span className='dopa-section-kicker'>
               <BookOpen className='size-4' />
               {t('Beginner guide')}
             </span>
-            <h1 className='text-4xl font-extrabold tracking-tight text-balance md:text-5xl'>
+            <h1 className='max-w-4xl text-4xl font-black tracking-[-0.06em] text-balance md:text-6xl'>
               {t('Plug AI into your favorite tools,')}{' '}
               <span className='dopa-gradient-text'>
                 {t('no tech background needed')}
               </span>
             </h1>
-            <p className='text-muted-foreground text-lg leading-relaxed text-pretty'>
+            <p className='text-muted-foreground max-w-3xl text-base leading-relaxed text-pretty md:text-lg'>
               {t(
                 'Every tool only ever asks you for three things. Grab them below, pick your tool, and follow the steps — done in about three minutes.'
               )}
@@ -85,7 +88,8 @@ export function Guide() {
 
           {/* The three essentials */}
           <section
-            className='dopa-fade-up flex flex-col gap-5'
+            className='dopa-fade-up dopa-section-shell flex flex-col gap-5'
+            data-section='01'
             style={{ animationDelay: '120ms' }}
             aria-labelledby='guide-essentials'
           >
@@ -98,9 +102,12 @@ export function Guide() {
             <AddressKit address={address} />
           </section>
 
+          <UseCasePicker />
+
           {/* Tool wall */}
           <section
-            className='flex flex-col gap-5'
+            className='dopa-section-shell flex flex-col gap-5'
+            data-section='02'
             aria-labelledby='guide-tools'
           >
             <div>
@@ -118,8 +125,6 @@ export function Guide() {
             </div>
             <ToolExplorer address={address} />
           </section>
-
-          <UseCasePicker />
 
           <Troubleshoot />
         </div>

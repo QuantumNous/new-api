@@ -21,11 +21,11 @@ import {
   ArrowRight,
   Bot,
   Code2,
+  FileText,
   Globe,
-  MessageSquare,
+  Languages,
   PiggyBank,
   ShieldCheck,
-  SlidersHorizontal,
   Smile,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -37,35 +37,40 @@ interface FeaturesProps {
   className?: string
 }
 
-/** Tool wall: friendly names + category, colored by the candy palette. */
-const toolWall = [
-  { name: 'WorkBuddy / CodeBuddy', tag: 'chat', hue: 'var(--chart-5)' },
-  { name: 'Cherry Studio', tag: 'chat', hue: 'var(--chart-1)' },
-  { name: 'Chatbox', tag: 'chat', hue: 'var(--chart-3)' },
-  { name: '沉浸式翻译', tag: 'translate', hue: 'var(--chart-1)' },
-  { name: 'Claude Code', tag: 'code', hue: 'var(--chart-2)' },
-  { name: 'Codex CLI', tag: 'code', hue: 'var(--chart-4)' },
-  { name: 'DeepSeek Harness (DSH)', tag: 'code', hue: 'var(--chart-1)' },
-  { name: 'Cursor', tag: 'code', hue: 'var(--chart-4)' },
-  { name: 'Trae', tag: 'code', hue: 'var(--chart-3)' },
-  { name: 'Cline', tag: 'code', hue: 'var(--chart-1)' },
-  { name: 'Dify', tag: 'agent', hue: 'var(--chart-3)' },
-  { name: 'FastGPT', tag: 'agent', hue: 'var(--chart-2)' },
-  { name: 'Cockpit Tools', tag: 'manager', hue: 'var(--chart-5)' },
-  { name: 'CC Switch', tag: 'manager', hue: 'var(--chart-4)' },
-]
-
 export function Features(_props: FeaturesProps) {
   const { t } = useTranslation()
   const sectionRef = useRevealOnScroll<HTMLElement>()
 
-  const tagLabel: Record<string, string> = {
-    chat: t('Chat'),
-    code: t('Coding'),
-    translate: t('Translate'),
-    agent: t('Automation'),
-    manager: t('Configuration'),
-  }
+  const useCases = [
+    {
+      number: '01',
+      icon: FileText,
+      title: t('Research and content'),
+      desc: t('Copywriting, ad creative, SEO'),
+      hue: 'var(--chart-3)',
+    },
+    {
+      number: '02',
+      icon: Languages,
+      title: t('Translation'),
+      desc: t('Multilingual translation and localisation'),
+      hue: 'var(--chart-1)',
+    },
+    {
+      number: '03',
+      icon: Code2,
+      title: t('AI coding'),
+      desc: t('Code generation, refactoring, autocomplete'),
+      hue: 'var(--chart-4)',
+    },
+    {
+      number: '04',
+      icon: Bot,
+      title: t('Customer support and operations'),
+      desc: t('Automation'),
+      hue: 'var(--chart-2)',
+    },
+  ]
 
   const reasons = [
     {
@@ -102,78 +107,101 @@ export function Features(_props: FeaturesProps) {
     },
   ]
 
-  const tagIcon: Record<string, React.ReactNode> = {
-    chat: <MessageSquare className='size-3' />,
-    code: <Code2 className='size-3' />,
-    translate: <Globe className='size-3' />,
-    agent: <Bot className='size-3' />,
-    manager: <SlidersHorizontal className='size-3' />,
-  }
-
   return (
-    <section ref={sectionRef} className='relative z-10 px-6 py-24 md:py-32'>
-      <div className='mx-auto max-w-6xl'>
-        {/* Tool wall */}
-        <div className='dopa-reveal mb-14 text-center'>
-          <p className='text-primary mb-3 text-sm font-bold tracking-widest uppercase'>
-            {t('Works with your tools')}
-          </p>
-          <h2 className='text-3xl font-extrabold tracking-tight text-balance md:text-4xl'>
-            {t('Your favorite apps, instantly smarter')}
-          </h2>
-          <p className='text-muted-foreground mx-auto mt-4 max-w-2xl text-base text-pretty'>
+    <section ref={sectionRef} className='relative z-10 px-6 py-16 md:py-24'>
+      <div className='dopa-section-shell' data-section='TOOLS'>
+        {/* Use-case first: people choose a job, not an API client. */}
+        <div className='dopa-reveal grid items-end gap-5 md:grid-cols-[0.9fr_1.1fr]'>
+          <div>
+            <p className='dopa-section-kicker'>{t('Use case')}</p>
+            <h2 className='mt-4 text-3xl font-black tracking-[-0.055em] text-balance md:text-5xl'>
+              {t('AI without the headaches')}
+            </h2>
+          </div>
+          <p className='text-muted-foreground text-base leading-relaxed text-pretty'>
             {t(
-              'Connect one key to the chat, coding, translation, and knowledge-base tools you already use.'
+              "No complicated setup and no expensive subscription barrier. Configure once, pay only as you go, and put the latest productivity within everyone's reach."
             )}
           </p>
         </div>
 
-        <div className='dopa-reveal flex flex-wrap justify-center gap-3'>
-          {toolWall.map((tool, i) => (
-            <span
-              key={tool.name}
-              className='dopa-spring border-border bg-card inline-flex cursor-default items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold'
-              style={{ transitionDelay: `${Math.min(i * 30, 300)}ms` }}
-            >
-              <span
-                className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold'
-                style={{
-                  backgroundColor: `color-mix(in oklch, ${tool.hue} 15%, transparent)`,
-                  color: tool.hue,
-                }}
+        <div className='dopa-bento-grid mt-9 grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>
+          {useCases.map((item, i) => {
+            const Icon = item.icon
+
+            return (
+              <article
+                key={item.number}
+                className='dopa-tool-tile dopa-reveal dopa-lift dopa-paper group relative min-h-60 overflow-hidden rounded-[1.75rem] p-5'
+                style={{ transitionDelay: `${i * 70}ms` }}
               >
-                {tagIcon[tool.tag]}
-                {tagLabel[tool.tag]}
-              </span>
-              {tool.name}
-            </span>
-          ))}
+                <span
+                  className='absolute top-5 right-5 font-mono text-xs font-black'
+                  style={{ color: item.hue }}
+                >
+                  {item.number}
+                </span>
+                <div
+                  className='flex size-12 items-center justify-center rounded-2xl'
+                  style={{
+                    backgroundColor: `color-mix(in oklch, ${item.hue} 15%, transparent)`,
+                    color: item.hue,
+                  }}
+                >
+                  <Icon className='size-5' aria-hidden='true' />
+                </div>
+                <h3 className='mt-10 text-lg font-black tracking-[-0.035em]'>
+                  {item.title}
+                </h3>
+                <p className='text-muted-foreground mt-2 text-xs leading-relaxed'>
+                  {item.desc}
+                </p>
+                <ArrowRight
+                  className='text-muted-foreground absolute right-5 bottom-5 size-4 transition-transform duration-200 group-hover:translate-x-1'
+                  aria-hidden='true'
+                />
+              </article>
+            )
+          })}
+        </div>
+
+        <div className='dopa-reveal dopa-data-rail mt-4 flex flex-wrap items-center gap-3 rounded-[1.5rem] px-5 py-4'>
+          <div className='min-w-0 flex-1'>
+            <p className='text-sm font-extrabold'>
+              {t('Works with your tools')}
+            </p>
+            <p className='text-muted-foreground mt-0.5 text-xs'>
+              {t(
+                'Connect one key to the chat, coding, translation, and knowledge-base tools you already use.'
+              )}
+            </p>
+          </div>
           <Button
             variant='ghost'
-            className='dopa-spring text-primary h-auto rounded-full px-4 py-2.5 text-sm font-bold'
+            className='dopa-spring text-primary h-auto shrink-0 rounded-full px-4 py-2.5 text-sm font-bold'
             render={<Link to='/guide' />}
           >
-            {t('See all 30+ tools')}
+            {t('How do I connect it?')}
             <ArrowRight className='ml-1 size-3.5' />
           </Button>
         </div>
 
         {/* Why us */}
-        <div className='mt-28'>
-          <div className='dopa-reveal mb-14 text-center'>
-            <p className='text-primary mb-3 text-sm font-bold tracking-widest uppercase'>
-              {t('Why people love it')}
-            </p>
-            <h2 className='text-3xl font-extrabold tracking-tight text-balance md:text-4xl'>
+        <div className='mt-16 md:mt-20'>
+          <div className='dopa-reveal mb-8 flex flex-wrap items-end justify-between gap-4'>
+            <p className='dopa-section-kicker'>{t('Why people love it')}</p>
+            <h2 className='max-w-xl text-2xl font-black tracking-[-0.04em] text-balance md:text-3xl'>
               {t('AI without the headaches')}
             </h2>
           </div>
 
-          <div className='grid gap-6 sm:grid-cols-2 lg:grid-cols-4'>
+          <div className='dopa-bento-grid grid gap-4 md:grid-cols-12'>
             {reasons.map((r, i) => (
               <div
                 key={r.title}
-                className='dopa-reveal dopa-lift border-border bg-card flex flex-col rounded-3xl border p-7'
+                className={`dopa-tool-tile dopa-reveal dopa-lift dopa-paper flex min-h-48 flex-col rounded-[1.6rem] p-6 ${
+                  i === 0 || i === 3 ? 'md:col-span-7' : 'md:col-span-5'
+                }`}
                 style={{ transitionDelay: `${i * 100}ms` }}
               >
                 <div
