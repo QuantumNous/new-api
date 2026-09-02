@@ -102,8 +102,10 @@ const paymentSchema = z.object({
   }, 'Provide a valid callback URL starting with http:// or https://'),
   EpayId: z.string(),
   EpayKey: z.string(),
-  Price: z.coerce.number().min(0),
-  MinTopUp: z.coerce.number().min(0),
+  Price: z.coerce.number().finite().min(0),
+  MinTopUp: z.coerce.number().finite().min(0),
+  EpayFeePercent: z.coerce.number().finite().min(0),
+  EpayFeeFixed: z.coerce.number().finite().min(0),
   CustomCallbackAddress: z
     .string()
     .refine(
@@ -144,12 +146,16 @@ const paymentSchema = z.object({
   StripeApiSecret: z.string(),
   StripeWebhookSecret: z.string(),
   StripePriceId: z.string(),
-  StripeUnitPrice: z.coerce.number().min(0),
-  StripeMinTopUp: z.coerce.number().min(0),
+  StripeUnitPrice: z.coerce.number().finite().min(0),
+  StripeMinTopUp: z.coerce.number().finite().min(0),
+  StripeFeePercent: z.coerce.number().finite().min(0),
+  StripeFeeFixed: z.coerce.number().finite().min(0),
   StripePromotionCodesEnabled: z.boolean(),
   CreemApiKey: z.string(),
   CreemWebhookSecret: z.string(),
   CreemTestMode: z.boolean(),
+  CreemFeePercent: z.coerce.number().finite().min(0),
+  CreemFeeFixed: z.coerce.number().finite().min(0),
   CreemProducts: z.string().superRefine((value, ctx) => {
     const error = getJsonError(value, (parsed) => Array.isArray(parsed))
     if (error) {
@@ -169,16 +175,20 @@ const paymentSchema = z.object({
   WaffoSandbox: z.boolean(),
   WaffoMerchantId: z.string(),
   WaffoCurrency: z.string(),
-  WaffoUnitPrice: z.coerce.number().min(0),
-  WaffoMinTopUp: z.coerce.number().min(1),
+  WaffoUnitPrice: z.coerce.number().finite().min(0),
+  WaffoMinTopUp: z.coerce.number().finite().min(1),
+  WaffoFeePercent: z.coerce.number().finite().min(0),
+  WaffoFeeFixed: z.coerce.number().finite().min(0),
   WaffoNotifyUrl: z.string(),
   WaffoReturnUrl: z.string(),
   WaffoPancakeMerchantID: z.string(),
   WaffoPancakePrivateKey: z.string(),
   WaffoPancakeReturnURL: z.string(),
   WaffoPancakeCurrency: z.string(),
-  WaffoPancakeUnitPrice: z.coerce.number().positive(),
-  WaffoPancakeMinTopUp: z.coerce.number().min(1),
+  WaffoPancakeUnitPrice: z.coerce.number().finite().positive(),
+  WaffoPancakeMinTopUp: z.coerce.number().finite().min(1),
+  WaffoPancakeFeePercent: z.coerce.number().finite().min(0),
+  WaffoPancakeFeeFixed: z.coerce.number().finite().min(0),
 })
 
 type PaymentFormValues = z.infer<typeof paymentSchema>
@@ -426,6 +436,8 @@ export function PaymentSettingsSection({
       EpayKey: values.EpayKey.trim(),
       Price: values.Price,
       MinTopUp: values.MinTopUp,
+      EpayFeePercent: values.EpayFeePercent,
+      EpayFeeFixed: values.EpayFeeFixed,
       CustomCallbackAddress: removeTrailingSlash(values.CustomCallbackAddress),
       PayMethods: values.PayMethods.trim(),
       AmountOptions: values.AmountOptions.trim(),
@@ -435,10 +447,14 @@ export function PaymentSettingsSection({
       StripePriceId: values.StripePriceId.trim(),
       StripeUnitPrice: values.StripeUnitPrice,
       StripeMinTopUp: values.StripeMinTopUp,
+      StripeFeePercent: values.StripeFeePercent,
+      StripeFeeFixed: values.StripeFeeFixed,
       StripePromotionCodesEnabled: values.StripePromotionCodesEnabled,
       CreemApiKey: values.CreemApiKey.trim(),
       CreemWebhookSecret: values.CreemWebhookSecret.trim(),
       CreemTestMode: values.CreemTestMode,
+      CreemFeePercent: values.CreemFeePercent,
+      CreemFeeFixed: values.CreemFeeFixed,
       CreemProducts: values.CreemProducts.trim(),
       WaffoEnabled: values.WaffoEnabled,
       WaffoSandbox: values.WaffoSandbox,
@@ -446,6 +462,8 @@ export function PaymentSettingsSection({
       WaffoCurrency: values.WaffoCurrency.trim() || 'USD',
       WaffoUnitPrice: values.WaffoUnitPrice,
       WaffoMinTopUp: values.WaffoMinTopUp,
+      WaffoFeePercent: values.WaffoFeePercent,
+      WaffoFeeFixed: values.WaffoFeeFixed,
       WaffoNotifyUrl: values.WaffoNotifyUrl.trim(),
       WaffoReturnUrl: values.WaffoReturnUrl.trim(),
       WaffoPublicCert: values.WaffoPublicCert.trim(),
@@ -463,6 +481,8 @@ export function PaymentSettingsSection({
       WaffoPancakeCurrency: values.WaffoPancakeCurrency.trim().toUpperCase(),
       WaffoPancakeUnitPrice: values.WaffoPancakeUnitPrice,
       WaffoPancakeMinTopUp: values.WaffoPancakeMinTopUp,
+      WaffoPancakeFeePercent: values.WaffoPancakeFeePercent,
+      WaffoPancakeFeeFixed: values.WaffoPancakeFeeFixed,
     }
 
     const initial = {
@@ -471,6 +491,8 @@ export function PaymentSettingsSection({
       EpayKey: initialRef.current.EpayKey.trim(),
       Price: initialRef.current.Price,
       MinTopUp: initialRef.current.MinTopUp,
+      EpayFeePercent: initialRef.current.EpayFeePercent,
+      EpayFeeFixed: initialRef.current.EpayFeeFixed,
       CustomCallbackAddress: removeTrailingSlash(
         initialRef.current.CustomCallbackAddress
       ),
@@ -482,11 +504,15 @@ export function PaymentSettingsSection({
       StripePriceId: initialRef.current.StripePriceId.trim(),
       StripeUnitPrice: initialRef.current.StripeUnitPrice,
       StripeMinTopUp: initialRef.current.StripeMinTopUp,
+      StripeFeePercent: initialRef.current.StripeFeePercent,
+      StripeFeeFixed: initialRef.current.StripeFeeFixed,
       StripePromotionCodesEnabled:
         initialRef.current.StripePromotionCodesEnabled,
       CreemApiKey: initialRef.current.CreemApiKey.trim(),
       CreemWebhookSecret: initialRef.current.CreemWebhookSecret.trim(),
       CreemTestMode: initialRef.current.CreemTestMode,
+      CreemFeePercent: initialRef.current.CreemFeePercent,
+      CreemFeeFixed: initialRef.current.CreemFeeFixed,
       CreemProducts: initialRef.current.CreemProducts.trim(),
       WaffoEnabled: initialRef.current.WaffoEnabled,
       WaffoSandbox: initialRef.current.WaffoSandbox,
@@ -494,6 +520,8 @@ export function PaymentSettingsSection({
       WaffoCurrency: initialRef.current.WaffoCurrency.trim() || 'USD',
       WaffoUnitPrice: initialRef.current.WaffoUnitPrice,
       WaffoMinTopUp: initialRef.current.WaffoMinTopUp,
+      WaffoFeePercent: initialRef.current.WaffoFeePercent,
+      WaffoFeeFixed: initialRef.current.WaffoFeeFixed,
       WaffoNotifyUrl: initialRef.current.WaffoNotifyUrl.trim(),
       WaffoReturnUrl: initialRef.current.WaffoReturnUrl.trim(),
       WaffoPublicCert: initialRef.current.WaffoPublicCert.trim(),
@@ -514,6 +542,8 @@ export function PaymentSettingsSection({
         initialRef.current.WaffoPancakeCurrency.trim().toUpperCase(),
       WaffoPancakeUnitPrice: initialRef.current.WaffoPancakeUnitPrice,
       WaffoPancakeMinTopUp: initialRef.current.WaffoPancakeMinTopUp,
+      WaffoPancakeFeePercent: initialRef.current.WaffoPancakeFeePercent,
+      WaffoPancakeFeeFixed: initialRef.current.WaffoPancakeFeeFixed,
     }
 
     const updates: Array<{ key: string; value: string | number | boolean }> = []
@@ -536,6 +566,20 @@ export function PaymentSettingsSection({
 
     if (sanitized.MinTopUp !== initial.MinTopUp) {
       updates.push({ key: 'MinTopUp', value: sanitized.MinTopUp })
+    }
+
+    if (sanitized.EpayFeePercent !== initial.EpayFeePercent) {
+      updates.push({
+        key: 'payment_setting.epay_fee_percent',
+        value: sanitized.EpayFeePercent,
+      })
+    }
+
+    if (sanitized.EpayFeeFixed !== initial.EpayFeeFixed) {
+      updates.push({
+        key: 'payment_setting.epay_fee_fixed',
+        value: sanitized.EpayFeeFixed,
+      })
     }
 
     if (sanitized.CustomCallbackAddress !== initial.CustomCallbackAddress) {
@@ -601,6 +645,20 @@ export function PaymentSettingsSection({
       updates.push({ key: 'StripeMinTopUp', value: sanitized.StripeMinTopUp })
     }
 
+    if (sanitized.StripeFeePercent !== initial.StripeFeePercent) {
+      updates.push({
+        key: 'payment_setting.stripe_fee_percent',
+        value: sanitized.StripeFeePercent,
+      })
+    }
+
+    if (sanitized.StripeFeeFixed !== initial.StripeFeeFixed) {
+      updates.push({
+        key: 'payment_setting.stripe_fee_fixed',
+        value: sanitized.StripeFeeFixed,
+      })
+    }
+
     if (
       sanitized.StripePromotionCodesEnabled !==
       initial.StripePromotionCodesEnabled
@@ -632,6 +690,20 @@ export function PaymentSettingsSection({
       updates.push({ key: 'CreemTestMode', value: sanitized.CreemTestMode })
     }
 
+    if (sanitized.CreemFeePercent !== initial.CreemFeePercent) {
+      updates.push({
+        key: 'payment_setting.creem_fee_percent',
+        value: sanitized.CreemFeePercent,
+      })
+    }
+
+    if (sanitized.CreemFeeFixed !== initial.CreemFeeFixed) {
+      updates.push({
+        key: 'payment_setting.creem_fee_fixed',
+        value: sanitized.CreemFeeFixed,
+      })
+    }
+
     if (
       normalizeJsonForComparison(sanitized.CreemProducts) !==
       normalizeJsonForComparison(initial.CreemProducts)
@@ -661,6 +733,20 @@ export function PaymentSettingsSection({
 
     if (sanitized.WaffoMinTopUp !== initial.WaffoMinTopUp) {
       updates.push({ key: 'WaffoMinTopUp', value: sanitized.WaffoMinTopUp })
+    }
+
+    if (sanitized.WaffoFeePercent !== initial.WaffoFeePercent) {
+      updates.push({
+        key: 'payment_setting.waffo_fee_percent',
+        value: sanitized.WaffoFeePercent,
+      })
+    }
+
+    if (sanitized.WaffoFeeFixed !== initial.WaffoFeeFixed) {
+      updates.push({
+        key: 'payment_setting.waffo_fee_fixed',
+        value: sanitized.WaffoFeeFixed,
+      })
     }
 
     if (sanitized.WaffoNotifyUrl !== initial.WaffoNotifyUrl) {
@@ -718,6 +804,8 @@ export function PaymentSettingsSection({
       sanitized.WaffoPancakeCurrency !== initial.WaffoPancakeCurrency ||
       sanitized.WaffoPancakeUnitPrice !== initial.WaffoPancakeUnitPrice ||
       sanitized.WaffoPancakeMinTopUp !== initial.WaffoPancakeMinTopUp ||
+      sanitized.WaffoPancakeFeePercent !== initial.WaffoPancakeFeePercent ||
+      sanitized.WaffoPancakeFeeFixed !== initial.WaffoPancakeFeeFixed ||
       waffoPancakeSelection.storeID !== waffoPancakeSavedBinding.storeID ||
       waffoPancakeSelection.productID !== waffoPancakeSavedBinding.productID
 
@@ -759,6 +847,8 @@ export function PaymentSettingsSection({
         currency: sanitized.WaffoPancakeCurrency,
         unitPrice: sanitized.WaffoPancakeUnitPrice,
         minTopup: sanitized.WaffoPancakeMinTopUp,
+        feePercent: sanitized.WaffoPancakeFeePercent,
+        feeFixed: sanitized.WaffoPancakeFeeFixed,
       })
 
       if (
@@ -807,6 +897,8 @@ export function PaymentSettingsSection({
     WaffoCurrency: currentFormValues.WaffoCurrency,
     WaffoUnitPrice: currentFormValues.WaffoUnitPrice,
     WaffoMinTopUp: currentFormValues.WaffoMinTopUp,
+    WaffoFeePercent: currentFormValues.WaffoFeePercent,
+    WaffoFeeFixed: currentFormValues.WaffoFeeFixed,
     WaffoNotifyUrl: currentFormValues.WaffoNotifyUrl,
     WaffoReturnUrl: currentFormValues.WaffoReturnUrl,
     WaffoPayMethods: JSON.stringify(waffoPayMethods),
@@ -818,6 +910,8 @@ export function PaymentSettingsSection({
     WaffoPancakeCurrency: currentFormValues.WaffoPancakeCurrency,
     WaffoPancakeUnitPrice: currentFormValues.WaffoPancakeUnitPrice,
     WaffoPancakeMinTopUp: currentFormValues.WaffoPancakeMinTopUp,
+    WaffoPancakeFeePercent: currentFormValues.WaffoPancakeFeePercent,
+    WaffoPancakeFeeFixed: currentFormValues.WaffoPancakeFeeFixed,
   }
 
   return (
@@ -1276,6 +1370,55 @@ export function PaymentSettingsSection({
                     )}
                   />
                 </div>
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='EpayFeePercent'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Wallet fee percentage')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min={0}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Applied after unit price, group ratio, and amount discount.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='EpayFeeFixed'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Wallet fixed fee')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min={0}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Added in the Epay checkout currency after the percentage fee. Wallet credit is unchanged.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
             </TabsContent>
 
@@ -1468,6 +1611,56 @@ export function PaymentSettingsSection({
                     )}
                   />
                 </div>
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='StripeFeePercent'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Wallet fee percentage')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min={0}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Applied after unit price, group ratio, and amount discount.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='StripeFeeFixed'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Wallet fixed fee (USD)')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min={0}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Added after the percentage fee. Wallet credit is unchanged.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
             </TabsContent>
 
@@ -1549,6 +1742,18 @@ export function PaymentSettingsSection({
                   />
                 </div>
 
+                <Alert>
+                  <ShieldAlert className='h-4 w-4' />
+                  <AlertTitle>
+                    {t('Creem product prices already include fees')}
+                  </AlertTitle>
+                  <AlertDescription>
+                    {t(
+                      'Creem checkout uses the price configured for each product in the Creem dashboard. These fee fields are informational only and do not change the checkout price, so include the intended fees in the product price itself.'
+                    )}
+                  </AlertDescription>
+                </Alert>
+
                 <FormField
                   control={form.control}
                   name='CreemTestMode'
@@ -1569,6 +1774,56 @@ export function PaymentSettingsSection({
                     </SettingsSwitchItem>
                   )}
                 />
+
+                <div className='grid gap-6 md:grid-cols-2'>
+                  <FormField
+                    control={form.control}
+                    name='CreemFeePercent'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Recorded fee percentage')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min={0}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'For reference only. Include this fee in the Creem dashboard product price.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='CreemFeeFixed'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Recorded fixed fee')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            min={0}
+                            {...safeNumberFieldProps(field)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'For reference only, in the configured product currency. It is not added at checkout.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
                 <FormField
                   control={form.control}

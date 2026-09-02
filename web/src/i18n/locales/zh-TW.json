@@ -5553,6 +5553,21 @@
     "Model Status": "模型監控",
     "Optional": "可選",
     "Registration invitation code": "註冊邀請碼",
-    "Select invitation mode": "選擇邀請碼模式"
+    "Select invitation mode": "選擇邀請碼模式",
+    "Wallet fee percentage": "錢包手續費百分比",
+    "Wallet fixed fee": "錢包固定手續費",
+    "Wallet fixed fee (USD)": "錢包固定手續費（USD）",
+    "Wallet fixed fee ({{currency}})": "錢包固定手續費（{{currency}}）",
+    "Applied after unit price, group ratio, and amount discount.": "在單價、群組倍率和金額折扣之後計算。",
+    "Added in the Epay checkout currency after the percentage fee. Wallet credit is unchanged.": "百分比手續費計算後，再按易支付結帳幣種加收固定費用。錢包入帳額度不變。",
+    "Added after the percentage fee. Wallet credit is unchanged.": "在百分比手續費之後加收。錢包入帳額度不變。",
+    "Creem product prices already include fees": "Creem 商品價格已包含手續費",
+    "Creem checkout uses the price configured for each product in the Creem dashboard. These fee fields are informational only and do not change the checkout price, so include the intended fees in the product price itself.": "Creem 結帳使用 Creem 控制台中為各商品設定的價格。這些手續費欄位僅供記錄，不會改變結帳價格，因此請將預期手續費計入商品價格。",
+    "Recorded fee percentage": "記錄的手續費百分比",
+    "Recorded fixed fee": "記錄的固定手續費",
+    "For reference only. Include this fee in the Creem dashboard product price.": "僅供記錄。請將此手續費計入 Creem 控制台中的商品價格。",
+    "For reference only, in the configured product currency. It is not added at checkout.": "僅供記錄，幣種為商品設定幣種；結帳時不會動態加收。",
+    "Pancake exchange rate ({{currency}} per wallet USD)": "Pancake 匯率（每錢包 USD 對應 {{currency}}）",
+    "Selected Pancake currency charged per one wallet USD, before group ratios, amount discounts, and wallet fees. For example, if 1 USD = 7.3 CNY, enter 7.3. This setting is independent from the Epay Price field.": "每 1 錢包 USD 需支付的 Pancake 所選幣種金額，尚未套用群組倍率、金額折扣和錢包手續費。例如 1 USD = 7.3 CNY 時填寫 7.3。此設定與易支付 Price 欄位相互獨立。"
   }
 }

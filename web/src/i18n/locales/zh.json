@@ -5575,6 +5575,21 @@
     "Update completed. Please restart the service manually.": "更新完成，请手动重启服务。",
     "Update completed. Restarting...": "更新完成，正在重启...",
     "Update from {{from}} to {{to}} ({{mode}})?": "将从 {{from}} 更新到 {{to}}（模式：{{mode}}）？",
-    "Waiting for service to come back...": "等待服务恢复..."
+    "Waiting for service to come back...": "等待服务恢复...",
+    "Wallet fee percentage": "钱包手续费百分比",
+    "Wallet fixed fee": "钱包固定手续费",
+    "Wallet fixed fee (USD)": "钱包固定手续费（USD）",
+    "Wallet fixed fee ({{currency}})": "钱包固定手续费（{{currency}}）",
+    "Applied after unit price, group ratio, and amount discount.": "在单价、分组倍率和金额折扣之后计算。",
+    "Added in the Epay checkout currency after the percentage fee. Wallet credit is unchanged.": "百分比手续费计算后，再按易支付结账币种加收固定费用。钱包到账额度不变。",
+    "Added after the percentage fee. Wallet credit is unchanged.": "在百分比手续费之后加收。钱包到账额度不变。",
+    "Creem product prices already include fees": "Creem 商品价格已包含手续费",
+    "Creem checkout uses the price configured for each product in the Creem dashboard. These fee fields are informational only and do not change the checkout price, so include the intended fees in the product price itself.": "Creem 结账使用 Creem 控制台中为各商品配置的价格。这些手续费字段仅供记录，不会改变结账价格，因此请将预期手续费计入商品价格。",
+    "Recorded fee percentage": "记录的手续费百分比",
+    "Recorded fixed fee": "记录的固定手续费",
+    "For reference only. Include this fee in the Creem dashboard product price.": "仅供记录。请将此手续费计入 Creem 控制台中的商品价格。",
+    "For reference only, in the configured product currency. It is not added at checkout.": "仅供记录，币种为商品配置币种；结账时不会动态加收。",
+    "Pancake exchange rate ({{currency}} per wallet USD)": "Pancake 汇率（每钱包 USD 对应 {{currency}}）",
+    "Selected Pancake currency charged per one wallet USD, before group ratios, amount discounts, and wallet fees. For example, if 1 USD = 7.3 CNY, enter 7.3. This setting is independent from the Epay Price field.": "每 1 钱包 USD 需支付的 Pancake 所选币种金额，尚未应用分组倍率、金额折扣和钱包手续费。例如 1 USD = 7.3 CNY 时填写 7.3。此设置与易支付 Price 字段相互独立。"
   }
 }

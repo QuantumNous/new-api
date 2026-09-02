@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/thanhpk/randstr"
 	waffo "github.com/waffo-com/waffo-go"
 	"github.com/waffo-com/waffo-go/config"
@@ -86,7 +87,7 @@ func formatWaffoAmount(amount float64, currency string) string {
 // getWaffoPayMoney converts the user-facing amount to USD for Waffo payment.
 // Waffo only accepts USD, so this function handles the conversion from different
 // display types (USD/CNY/TOKENS) to the actual USD amount to charge.
-func getWaffoPayMoney(amount float64, group string) float64 {
+func getWaffoPayMoney(amount float64, group string) (float64, bool) {
 	originalAmount := amount
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
 		amount = amount / common.QuotaPerUnit
@@ -101,7 +102,19 @@ func getWaffoPayMoney(amount float64, group string) float64 {
 			discount = ds
 		}
 	}
-	return amount * setting.WaffoUnitPrice * topupGroupRatio * discount
+	baseAmount := decimal.NewFromFloat(amount).
+		Mul(decimal.NewFromFloat(setting.WaffoUnitPrice)).
+		Mul(decimal.NewFromFloat(topupGroupRatio)).
+		Mul(decimal.NewFromFloat(discount))
+	payMoney, ok := operation_setting.ApplyPaymentFee(
+		baseAmount,
+		operation_setting.GetPaymentSetting().WaffoFeePercent,
+		operation_setting.GetPaymentSetting().WaffoFeeFixed,
+	)
+	if !ok {
+		return 0, false
+	}
+	return payMoney.InexactFloat64(), true
 }
 
 type WaffoPayRequest struct {
@@ -134,7 +147,18 @@ func RequestWaffoAmount(c *gin.Context) {
 		return
 	}
 
-	payMoney := getWaffoPayMoney(float64(req.Amount), group)
+	payMoney, ok := getWaffoPayMoney(float64(req.Amount), group)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo 手续费配置无效，请联系管理员"})
+		return
+	}
+	currency := getWaffoCurrency()
+	formattedAmount := formatWaffoAmount(payMoney, currency)
+	payMoney, err = strconv.ParseFloat(formattedAmount, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo 充值金额格式无效"})
+		return
+	}
 	if payMoney <= 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
@@ -204,7 +228,18 @@ func RequestWaffoPay(c *gin.Context) {
 	// resolvedPayMethodType/Name 为空时，Waffo 自动选择支付方式
 
 	group, _ := model.GetUserGroup(id, true)
-	payMoney := getWaffoPayMoney(float64(req.Amount), group)
+	payMoney, ok := getWaffoPayMoney(float64(req.Amount), group)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo 手续费配置无效，请联系管理员"})
+		return
+	}
+	currency := getWaffoCurrency()
+	formattedAmount := formatWaffoAmount(payMoney, currency)
+	payMoney, err = strconv.ParseFloat(formattedAmount, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo 充值金额格式无效"})
+		return
+	}
 	if payMoney < 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
@@ -259,12 +294,11 @@ func RequestWaffoPay(c *gin.Context) {
 		returnUrl = setting.WaffoReturnUrl
 	}
 
-	currency := getWaffoCurrency()
 	goodsInfo := buildWaffoTopUpGoodsInfo(req.Amount)
 	createParams := &order.CreateOrderParams{
 		PaymentRequestID: paymentRequestId,
 		MerchantOrderID:  merchantOrderId,
-		OrderAmount:      formatWaffoAmount(payMoney, currency),
+		OrderAmount:      formattedAmount,
 		OrderCurrency:    currency,
 		OrderDescription: goodsInfo.GoodsName,
 		OrderRequestedAt: time.Now().UTC().Format("2006-01-02T15:04:05.000Z"),

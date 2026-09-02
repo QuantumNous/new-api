@@ -18,7 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 
-import { createWaffoPancakePair } from '../waffo-pancake-api'
+import {
+  createWaffoPancakePair,
+  saveWaffoPancakeConfig,
+} from '../waffo-pancake-api'
 
 const { post } = vi.hoisted(() => ({
   post: vi.fn(),
@@ -46,6 +49,34 @@ describe('Waffo Pancake pair API currency', () => {
       private_key: 'private-test',
       return_url: 'https://example.com/wallet',
       currency: 'CNY',
+    })
+  })
+
+  test('sends wallet fees with the atomic Pancake configuration save', async () => {
+    await saveWaffoPancakeConfig({
+      merchantID: 'merchant-test',
+      privateKey: '',
+      returnURL: 'https://example.com/wallet',
+      storeID: 'store-test',
+      productID: 'product-test',
+      currency: 'CNY',
+      unitPrice: 7.3,
+      minTopup: 10,
+      feePercent: 2.9,
+      feeFixed: 0.6,
+    })
+
+    expect(post).toHaveBeenCalledWith('/api/option/waffo-pancake/save', {
+      merchant_id: 'merchant-test',
+      private_key: '',
+      return_url: 'https://example.com/wallet',
+      store_id: 'store-test',
+      product_id: 'product-test',
+      currency: 'CNY',
+      unit_price: 7.3,
+      min_topup: 10,
+      fee_percent: 2.9,
+      fee_fixed: 0.6,
     })
   })
 

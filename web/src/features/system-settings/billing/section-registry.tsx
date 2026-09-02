@@ -143,16 +143,22 @@ const BILLING_SECTIONS = [
           PayMethods: settings.PayMethods,
           AmountOptions: settings['payment_setting.amount_options'],
           AmountDiscount: settings['payment_setting.amount_discount'],
+          EpayFeePercent: settings['payment_setting.epay_fee_percent'] ?? 0,
+          EpayFeeFixed: settings['payment_setting.epay_fee_fixed'] ?? 0,
           StripeApiSecret: settings.StripeApiSecret,
           StripeWebhookSecret: settings.StripeWebhookSecret,
           StripePriceId: settings.StripePriceId,
           StripeUnitPrice: settings.StripeUnitPrice,
           StripeMinTopUp: settings.StripeMinTopUp,
+          StripeFeePercent: settings['payment_setting.stripe_fee_percent'] ?? 0,
+          StripeFeeFixed: settings['payment_setting.stripe_fee_fixed'] ?? 0,
           StripePromotionCodesEnabled: settings.StripePromotionCodesEnabled,
           CreemApiKey: settings.CreemApiKey,
           CreemWebhookSecret: settings.CreemWebhookSecret,
           CreemTestMode: settings.CreemTestMode,
           CreemProducts: settings.CreemProducts,
+          CreemFeePercent: settings['payment_setting.creem_fee_percent'] ?? 0,
+          CreemFeeFixed: settings['payment_setting.creem_fee_fixed'] ?? 0,
         }}
         waffoDefaultValues={{
           WaffoEnabled: settings.WaffoEnabled ?? false,
@@ -167,6 +173,8 @@ const BILLING_SECTIONS = [
           WaffoCurrency: settings.WaffoCurrency ?? 'USD',
           WaffoUnitPrice: settings.WaffoUnitPrice ?? 1,
           WaffoMinTopUp: settings.WaffoMinTopUp ?? 1,
+          WaffoFeePercent: settings['payment_setting.waffo_fee_percent'] ?? 0,
+          WaffoFeeFixed: settings['payment_setting.waffo_fee_fixed'] ?? 0,
           WaffoNotifyUrl: settings.WaffoNotifyUrl ?? '',
           WaffoReturnUrl: settings.WaffoReturnUrl ?? '',
           WaffoPayMethods: settings.WaffoPayMethods ?? '[]',
@@ -178,6 +186,10 @@ const BILLING_SECTIONS = [
           WaffoPancakeCurrency: settings.WaffoPancakeCurrency ?? '',
           WaffoPancakeUnitPrice: settings.WaffoPancakeUnitPrice ?? 1,
           WaffoPancakeMinTopUp: settings.WaffoPancakeMinTopUp ?? 1,
+          WaffoPancakeFeePercent:
+            settings['payment_setting.waffo_pancake_fee_percent'] ?? 0,
+          WaffoPancakeFeeFixed:
+            settings['payment_setting.waffo_pancake_fee_fixed'] ?? 0,
         }}
         waffoPancakeProvisionedStoreID={settings.WaffoPancakeStoreID ?? ''}
         waffoPancakeProvisionedProductID={settings.WaffoPancakeProductID ?? ''}

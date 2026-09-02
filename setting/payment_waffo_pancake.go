@@ -2,11 +2,11 @@ package setting
 
 import "math"
 
-// WaffoPancakeMinUnitPrice is the smallest wallet-USD-per-provider-currency
+// WaffoPancakeMinUnitPrice is the smallest provider-currency-per-wallet-USD
 // rate accepted by the Pancake wallet flow.
 const WaffoPancakeMinUnitPrice = 0.0001
 
-// IsValidWaffoPancakeUnitPrice reports whether the reciprocal quote rate can be
+// IsValidWaffoPancakeUnitPrice reports whether the forward quote rate can be
 // used safely by configuration, availability, and payment calculation paths.
 func IsValidWaffoPancakeUnitPrice(unitPrice float64) bool {
 	return !math.IsNaN(unitPrice) &&
@@ -22,9 +22,9 @@ var (
 	WaffoPancakeMerchantID string
 	WaffoPancakePrivateKey string
 	WaffoPancakeReturnURL  string
-	// WaffoPancakeUnitPrice is wallet USD credited per one unit of the
-	// configured Pancake currency. Quote group ratios and amount discounts
-	// are applied after the currency conversion.
+	// WaffoPancakeUnitPrice is the configured Pancake currency charged per
+	// one wallet USD. Quote group ratios and amount discounts are applied
+	// before the configured wallet checkout fees.
 	WaffoPancakeUnitPrice float64 = 1.0
 	WaffoPancakeMinTopUp  int     = 1
 	WaffoPancakeStoreID   string

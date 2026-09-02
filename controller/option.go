@@ -283,6 +283,17 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	default:
+		if operation_setting.IsPaymentFeeOptionKey(option.Key) {
+			err = operation_setting.ValidatePaymentFeeOption(option.Key, option.Value.(string))
+			if err != nil {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
+		}
 	case "ImageRatio":
 		err = ratio_setting.UpdateImageRatioByJSONString(option.Value.(string))
 		if err != nil {

@@ -5575,6 +5575,21 @@
     "Update completed. Please restart the service manually.": "Update completed. Please restart the service manually.",
     "Update completed. Restarting...": "Update completed. Restarting...",
     "Update from {{from}} to {{to}} ({{mode}})?": "Update from {{from}} to {{to}} ({{mode}})?",
-    "Waiting for service to come back...": "Waiting for service to come back..."
+    "Waiting for service to come back...": "Waiting for service to come back...",
+    "Wallet fee percentage": "Wallet fee percentage",
+    "Wallet fixed fee": "Wallet fixed fee",
+    "Wallet fixed fee (USD)": "Wallet fixed fee (USD)",
+    "Wallet fixed fee ({{currency}})": "Wallet fixed fee ({{currency}})",
+    "Applied after unit price, group ratio, and amount discount.": "Applied after unit price, group ratio, and amount discount.",
+    "Added in the Epay checkout currency after the percentage fee. Wallet credit is unchanged.": "Added in the Epay checkout currency after the percentage fee. Wallet credit is unchanged.",
+    "Added after the percentage fee. Wallet credit is unchanged.": "Added after the percentage fee. Wallet credit is unchanged.",
+    "Creem product prices already include fees": "Creem product prices already include fees",
+    "Creem checkout uses the price configured for each product in the Creem dashboard. These fee fields are informational only and do not change the checkout price, so include the intended fees in the product price itself.": "Creem checkout uses the price configured for each product in the Creem dashboard. These fee fields are informational only and do not change the checkout price, so include the intended fees in the product price itself.",
+    "Recorded fee percentage": "Recorded fee percentage",
+    "Recorded fixed fee": "Recorded fixed fee",
+    "For reference only. Include this fee in the Creem dashboard product price.": "For reference only. Include this fee in the Creem dashboard product price.",
+    "For reference only, in the configured product currency. It is not added at checkout.": "For reference only, in the configured product currency. It is not added at checkout.",
+    "Pancake exchange rate ({{currency}} per wallet USD)": "Pancake exchange rate ({{currency}} per wallet USD)",
+    "Selected Pancake currency charged per one wallet USD, before group ratios, amount discounts, and wallet fees. For example, if 1 USD = 7.3 CNY, enter 7.3. This setting is independent from the Epay Price field.": "Selected Pancake currency charged per one wallet USD, before group ratios, amount discounts, and wallet fees. For example, if 1 USD = 7.3 CNY, enter 7.3. This setting is independent from the Epay Price field."
   }
 }

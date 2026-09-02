@@ -18,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -37,6 +38,8 @@ func setupWaffoPancakeControllerTest(t *testing.T) *gorm.DB {
 	previousCurrency := setting.WaffoPancakeCurrency
 	previousUnitPrice := setting.WaffoPancakeUnitPrice
 	previousMinTopUp := setting.WaffoPancakeMinTopUp
+	previousFeePercent := operation_setting.GetPaymentSetting().WaffoPancakeFeePercent
+	previousFeeFixed := operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed
 	previousCommonPrice := operation_setting.Price
 	previousResolveConfigured := resolveConfiguredWaffoPancakeProduct
 	previousResolveProduct := resolveWaffoPancakeProduct
@@ -65,7 +68,9 @@ func setupWaffoPancakeControllerTest(t *testing.T) *gorm.DB {
 	setting.WaffoPancakeStoreID = "store-test"
 	setting.WaffoPancakeProductID = "product-test"
 	setting.WaffoPancakeCurrency = "USD"
-	setting.WaffoPancakeUnitPrice = 1 / 0.15
+	setting.WaffoPancakeUnitPrice = 0.15
+	operation_setting.GetPaymentSetting().WaffoPancakeFeePercent = 0
+	operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed = 0
 	setting.WaffoPancakeMinTopUp = 10
 	confirmPaymentComplianceForTest(t)
 
@@ -81,6 +86,8 @@ func setupWaffoPancakeControllerTest(t *testing.T) *gorm.DB {
 		setting.WaffoPancakeCurrency = previousCurrency
 		setting.WaffoPancakeUnitPrice = previousUnitPrice
 		setting.WaffoPancakeMinTopUp = previousMinTopUp
+		operation_setting.GetPaymentSetting().WaffoPancakeFeePercent = previousFeePercent
+		operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed = previousFeeFixed
 		operation_setting.Price = previousCommonPrice
 		resolveConfiguredWaffoPancakeProduct = previousResolveConfigured
 		resolveWaffoPancakeProduct = previousResolveProduct
@@ -320,6 +327,8 @@ func TestRequestWaffoPancakePay_CNYUsesIndependentRateAndSnapshotsCurrency(t *te
 	insertWaffoPancakeControllerUser(t, db, userID)
 	setting.WaffoPancakeCurrency = "CNY"
 	setting.WaffoPancakeUnitPrice = 0.14
+	operation_setting.GetPaymentSetting().WaffoPancakeFeePercent = 0
+	operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed = 0
 	operation_setting.Price = 1
 	getWaffoPancakeUserGroup = func(int, bool) (string, error) { return "default", nil }
 	resolveConfiguredWaffoPancakeProduct = func(context.Context) (waffoPancakeResolvedProduct, error) {
@@ -338,11 +347,11 @@ func TestRequestWaffoPancakePay_CNYUsesIndependentRateAndSnapshotsCurrency(t *te
 	require.NotNil(t, checkoutParams)
 	require.Equal(t, "CNY", checkoutParams.Currency)
 	require.NotNil(t, checkoutParams.PriceSnapshot)
-	require.Equal(t, "71.43", checkoutParams.PriceSnapshot.Amount)
+	require.Equal(t, "1.40", checkoutParams.PriceSnapshot.Amount)
 	var topUps []model.TopUp
 	require.NoError(t, db.Find(&topUps).Error)
 	require.Len(t, topUps, 1)
-	require.InDelta(t, 71.43, topUps[0].ExpectedAmount, 0.000001)
+	require.InDelta(t, 1.4, topUps[0].ExpectedAmount, 0.000001)
 	require.Equal(t, "CNY", topUps[0].ExpectedCurrency)
 }
 
@@ -475,11 +484,60 @@ func TestGetWaffoPancakePayMoney_RejectsInvalidRate(t *testing.T) {
 	setting.WaffoPancakeUnitPrice = setting.WaffoPancakeMinUnitPrice
 	payMoney, ok := getWaffoPancakePayAmount(10, "default")
 	require.True(t, ok)
-	require.True(t, payMoney.Equal(decimal.NewFromInt(100000)))
+	require.True(t, payMoney.Equal(decimal.NewFromFloat(0.001)))
+}
+
+func TestGetWaffoPancakePayMoney_AppliesFeesAfterForwardRate(t *testing.T) {
+	originalUnitPrice := setting.WaffoPancakeUnitPrice
+	originalFeePercent := operation_setting.GetPaymentSetting().WaffoPancakeFeePercent
+	originalFeeFixed := operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed
+	originalQuotaDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
+	originalDiscounts := operation_setting.GetPaymentSetting().AmountDiscount
+	originalTopupGroupRatio := common.TopupGroupRatio2JSONString()
+	t.Cleanup(func() {
+		setting.WaffoPancakeUnitPrice = originalUnitPrice
+		operation_setting.GetPaymentSetting().WaffoPancakeFeePercent = originalFeePercent
+		operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed = originalFeeFixed
+		operation_setting.GetGeneralSetting().QuotaDisplayType = originalQuotaDisplayType
+		operation_setting.GetPaymentSetting().AmountDiscount = originalDiscounts
+		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(originalTopupGroupRatio))
+	})
+
+	setting.WaffoPancakeUnitPrice = 7.3
+	operation_setting.GetPaymentSetting().WaffoPancakeFeePercent = 3
+	operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed = 0.5
+	operation_setting.GetPaymentSetting().AmountDiscount = map[int]float64{10: 0.9}
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"default":1,"vip":1.2}`))
+
+	payMoney, ok := getWaffoPancakePayAmount(10, "vip")
+	require.True(t, ok)
+	assert.InDelta(t, 81.7052, payMoney.InexactFloat64(), 0.0000001)
+	assert.Equal(t, "81.71", formatWaffoPancakeAmount(normalizeWaffoPancakePayAmount(payMoney)))
+}
+
+func TestGetWaffoPancakePayMoney_RejectsInvalidFees(t *testing.T) {
+	originalUnitPrice := setting.WaffoPancakeUnitPrice
+	originalFeePercent := operation_setting.GetPaymentSetting().WaffoPancakeFeePercent
+	originalFeeFixed := operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed
+	t.Cleanup(func() {
+		setting.WaffoPancakeUnitPrice = originalUnitPrice
+		operation_setting.GetPaymentSetting().WaffoPancakeFeePercent = originalFeePercent
+		operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed = originalFeeFixed
+	})
+
+	setting.WaffoPancakeUnitPrice = 1
+	operation_setting.GetPaymentSetting().WaffoPancakeFeePercent = math.Inf(1)
+	operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed = 0
+
+	_, ok := getWaffoPancakePayAmount(10, "default")
+	assert.False(t, ok)
 }
 
 func TestGetWaffoPancakePayMoney(t *testing.T) {
 	originalUnitPrice := setting.WaffoPancakeUnitPrice
+	originalFeePercent := operation_setting.GetPaymentSetting().WaffoPancakeFeePercent
+	originalFeeFixed := operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed
 	originalCommonPrice := operation_setting.Price
 	originalQuotaDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
 	originalDiscounts := make(map[int]float64, len(operation_setting.GetPaymentSetting().AmountDiscount))
@@ -490,6 +548,8 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 
 	t.Cleanup(func() {
 		setting.WaffoPancakeUnitPrice = originalUnitPrice
+		operation_setting.GetPaymentSetting().WaffoPancakeFeePercent = originalFeePercent
+		operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed = originalFeeFixed
 		operation_setting.Price = originalCommonPrice
 		operation_setting.GetGeneralSetting().QuotaDisplayType = originalQuotaDisplayType
 		operation_setting.GetPaymentSetting().AmountDiscount = originalDiscounts
@@ -497,6 +557,8 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 	})
 
 	setting.WaffoPancakeUnitPrice = 0.4
+	operation_setting.GetPaymentSetting().WaffoPancakeFeePercent = 0
+	operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed = 0
 	operation_setting.Price = 99
 	operation_setting.GetPaymentSetting().AmountDiscount = map[int]float64{
 		10:                           0.8,
@@ -517,21 +579,21 @@ func TestGetWaffoPancakePayMoney(t *testing.T) {
 			amount:           10,
 			group:            "vip",
 			quotaDisplayType: operation_setting.QuotaDisplayTypeUSD,
-			expected:         24,
+			expected:         3.84,
 		},
 		{
 			name:             "tokens display converts quota to display units before pricing",
 			amount:           int64(common.QuotaPerUnit * 3),
 			group:            "vip",
 			quotaDisplayType: operation_setting.QuotaDisplayTypeTokens,
-			expected:         4.5,
+			expected:         0.72,
 		},
 		{
 			name:             "non-positive discount falls back to no discount",
 			amount:           20,
 			group:            "default",
 			quotaDisplayType: operation_setting.QuotaDisplayTypeUSD,
-			expected:         50,
+			expected:         8,
 		},
 	}
 
