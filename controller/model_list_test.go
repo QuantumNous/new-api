@@ -518,7 +518,7 @@ func TestCheckUpdatePasswordRequiresCurrentPassword(t *testing.T) {
 	assert.True(t, updatePassword)
 }
 
-func TestListModelsDedupsPrefixedModels(t *testing.T) {
+func TestListModelsShowsPrefixedVariantsFromDifferentChannels(t *testing.T) {
 	withSelfUseModeEnabled(t)
 	db := setupModelListControllerTestDB(t)
 	require.NoError(t, db.Create(&model.User{
@@ -528,17 +528,17 @@ func TestListModelsDedupsPrefixedModels(t *testing.T) {
 		Group:    "default",
 		Status:   common.UserStatusEnabled,
 	}).Error)
-	// Channel 1 provides the bare model but has a prefix configured, channel 2
-	// provides the prefixed variant, channel 3 has no prefix and provides gpt-4.
+	// Channel 1 (prefix "openrouter") provides deepseek/deepseek-v4-flash — a
+	// model name that itself contains a slash. Channel 2 (prefix "deepseek")
+	// provides deepseek-v4-flash. Both client-facing variants must be listed;
+	// the old first-slash dedup wrongly hid deepseek/deepseek-v4-flash.
 	require.NoError(t, db.Create(&[]model.Channel{
-		{Id: 1, Name: "deepseek-prefixed", Type: constant.ChannelTypeOpenAI, OtherSettings: `{"model_prefix":"deepseek"}`},
-		{Id: 2, Name: "deepseek-prefixed-2", Type: constant.ChannelTypeOpenAI, OtherSettings: `{"model_prefix":"deepseek"}`},
-		{Id: 3, Name: "no-prefix", Type: constant.ChannelTypeOpenAI},
+		{Id: 1, Name: "openrouter-prefixed", Type: constant.ChannelTypeOpenAI, OtherSettings: `{"model_prefix":"openrouter"}`},
+		{Id: 2, Name: "deepseek-prefixed", Type: constant.ChannelTypeOpenAI, OtherSettings: `{"model_prefix":"deepseek"}`},
 	}).Error)
 	require.NoError(t, db.Create(&[]model.Ability{
-		{Group: "default", Model: "deepseek-v4-flash", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "openrouter/deepseek/deepseek-v4-flash", ChannelId: 1, Enabled: true},
 		{Group: "default", Model: "deepseek/deepseek-v4-flash", ChannelId: 2, Enabled: true},
-		{Group: "default", Model: "gpt-4", ChannelId: 3, Enabled: true},
 	}).Error)
 
 	recorder := httptest.NewRecorder()
@@ -549,9 +549,8 @@ func TestListModelsDedupsPrefixedModels(t *testing.T) {
 	ListModels(ctx, constant.ChannelTypeOpenAI)
 
 	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "openrouter/deepseek/deepseek-v4-flash")
 	require.Contains(t, ids, "deepseek/deepseek-v4-flash")
-	require.NotContains(t, ids, "deepseek-v4-flash")
-	require.Contains(t, ids, "gpt-4")
 }
 
 func TestListModelsKeepsBareModelWhenNonPrefixedChannelProvidesIt(t *testing.T) {
@@ -605,7 +604,10 @@ func TestListModelsKeepsOriginalWhenPrefixedVariantNotDisplayed(t *testing.T) {
 	}).Error)
 	// The prefixed variant "deepseek/zz-prefix-base-model" has NO billing config,
 	// so it is filtered out by the billing loop and never displayed. The bare
-	// original must therefore be kept.
+	// original must therefore be kept. This scenario now only arises from
+	// directly-seeded abilities — AddAbilities always writes client-facing
+	// (prefixed) names, so a prefixed variant without billing config cannot be
+	// produced through the normal channel-save path.
 	require.NoError(t, db.Create(&[]model.Ability{
 		{Group: "default", Model: "zz-prefix-base-model", ChannelId: 1, Enabled: true},
 		{Group: "default", Model: "deepseek/zz-prefix-base-model", ChannelId: 2, Enabled: true},
