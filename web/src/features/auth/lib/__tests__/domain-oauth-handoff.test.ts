@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildDomainBindReturnURL,
   buildDomainLoginHandoffURL,
   buildDomainBindHandoffURL,
   buildDomainOAuthReturnURL,
   parseDomainBindHandoff,
+  parseDomainBindReturn,
   parseDomainLoginHandoff,
   parseDomainOAuthReturn,
   readDomainLoginHandoffTicket,
@@ -72,5 +74,25 @@ describe('domain OAuth handoff contract', () => {
     expect(url.searchParams.get('provider')).toBe('github')
     expect(url.searchParams.has('ticket')).toBe(false)
     expect(readDomainLoginHandoffTicket(url.hash)).toBe('bind-ticket')
+  })
+
+  it('returns a failed bind to its opener without putting the result in the query', () => {
+    const bindReturn = parseDomainBindReturn({
+      action: 'domain_bind_return',
+      target_origin: 'https://alpha.yeschoy.io',
+      provider: 'github',
+      result: 'target_unavailable',
+    })
+    expect(bindReturn).not.toBeNull()
+    if (!bindReturn) throw new Error('expected bind return')
+    const url = new URL(buildDomainBindReturnURL(bindReturn))
+    expect(url.origin).toBe('https://alpha.yeschoy.io')
+    expect(url.pathname).toBe('/oauth/handoff')
+    expect(url.searchParams.get('mode')).toBe('bind-return')
+    expect(url.searchParams.get('provider')).toBe('github')
+    expect(url.searchParams.has('result')).toBe(false)
+    expect(new URLSearchParams(url.hash.slice(1)).get('result')).toBe(
+      'target_unavailable'
+    )
   })
 })

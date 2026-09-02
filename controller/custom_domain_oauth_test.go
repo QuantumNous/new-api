@@ -95,6 +95,38 @@ func TestGenerateOAuthCodeStoresTheTrustedCustomDomainID(t *testing.T) {
 	assert.Equal(t, domainOAuthBindingCookieMaxAge, bindingCookie.MaxAge)
 }
 
+func TestEnsureDomainOAuthBrowserBindingRenewsAnExistingCookie(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const binding = "existing-browser-binding-with-at-least-thirty-two-characters"
+	router := gin.New()
+	router.GET("/binding", func(c *gin.Context) {
+		hash, err := ensureDomainOAuthBrowserBinding(c)
+		require.NoError(t, err)
+		assert.Equal(t, domainOAuthBindingHash(binding), hash)
+		c.Status(http.StatusNoContent)
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "https://alpha.yeschoy.io/binding", nil)
+	request.AddCookie(&http.Cookie{Name: domainOAuthBindingCookieName, Value: binding})
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(t, http.StatusNoContent, response.Code)
+
+	var renewed *http.Cookie
+	for _, cookie := range response.Result().Cookies() {
+		if cookie.Name == domainOAuthBindingCookieName {
+			renewed = cookie
+			break
+		}
+	}
+	require.NotNil(t, renewed)
+	assert.Equal(t, binding, renewed.Value)
+	assert.Equal(t, domainOAuthBindingCookieMaxAge, renewed.MaxAge)
+	assert.True(t, renewed.Secure)
+	assert.True(t, renewed.HttpOnly)
+	assert.Equal(t, http.SameSiteStrictMode, renewed.SameSite)
+}
+
 func TestFindOrCreateOAuthUserPersistsCustomDomainDefaultInviter(t *testing.T) {
 	setupAuthFlowControllerTest(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.User{}, &model.CustomDomain{}))
@@ -210,18 +242,21 @@ func TestHandleOAuthReturnsDomainHandoffInsteadOfCreatingAMainSession(t *testing
 func TestDomainLoginHandoffConsumesTheBoundTicketOnceAndWritesOnlyACustomHostCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	previousDB := model.DB
+	previousLogDB := model.LOG_DB
 	previousDatabaseType := common.MainDatabaseType()
 	previousRedisEnabled := common.RedisEnabled
 	previousSecure := common.SessionCookieSecure
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuthFlow{}, &model.CustomDomain{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuthFlow{}, &model.CustomDomain{}, &model.Log{}))
 	model.DB = db
+	model.LOG_DB = db
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 	common.SessionCookieSecure = true
 	t.Cleanup(func() {
 		model.DB = previousDB
+		model.LOG_DB = previousLogDB
 		common.SetMainDatabaseType(previousDatabaseType)
 		common.RedisEnabled = previousRedisEnabled
 		common.SessionCookieSecure = previousSecure
@@ -285,10 +320,17 @@ func TestDomainLoginHandoffConsumesTheBoundTicketOnceAndWritesOnlyACustomHostCoo
 	var sessionCount int64
 	require.NoError(t, db.Model(&model.UserSession{}).Count(&sessionCount).Error)
 	assert.EqualValues(t, 1, sessionCount)
+	var loginLog model.Log
+	require.NoError(t, db.Where("user_id = ? AND type = ?", user.Id, model.LogTypeLogin).First(&loginLog).Error)
+	assert.Equal(t, user.Username, loginLog.Username)
+	assert.Contains(t, loginLog.Other, `"login_method":"oauth:github"`)
 	response = requestHandoff(ticket, binding)
 	assert.Equal(t, http.StatusForbidden, response.Code)
 	require.NoError(t, db.Model(&model.UserSession{}).Count(&sessionCount).Error)
 	assert.EqualValues(t, 1, sessionCount)
+	var loginLogCount int64
+	require.NoError(t, db.Model(&model.Log{}).Where("user_id = ? AND type = ?", user.Id, model.LogTypeLogin).Count(&loginLogCount).Error)
+	assert.EqualValues(t, 1, loginLogCount)
 }
 
 func TestHandleOAuthProviderErrorConsumesStateAndReturnsTheTrustedCustomOrigin(t *testing.T) {
@@ -339,6 +381,183 @@ func TestHandleOAuthProviderErrorConsumesStateAndReturnsTheTrustedCustomOrigin(t
 	assert.ErrorIs(t, err, model.ErrAuthFlowConsumed)
 }
 
+func TestHandleOAuthBindProviderErrorConsumesStateAndReturnsToTheCustomOpener(t *testing.T) {
+	provider := setupAuthFlowControllerTest(t)
+	require.NoError(t, appI18n.Init())
+	require.NoError(t, model.DB.AutoMigrate(&model.User{}, &model.UserSession{}, &model.CustomDomain{}))
+	previousRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() { common.RedisEnabled = previousRedisEnabled })
+
+	owner := model.User{Username: "oauth-bind-error-owner", AffCode: "oauth-bind-error-owner-aff", Status: common.UserStatusEnabled}
+	user := model.User{Username: "oauth-bind-error-user", AffCode: "oauth-bind-error-user-aff", Status: common.UserStatusEnabled, AuthVersion: 1}
+	require.NoError(t, model.DB.Create(&owner).Error)
+	require.NoError(t, model.DB.Create(&user).Error)
+	require.NoError(t, model.DB.Create(&model.UserSession{
+		SID: "bind-error-session", UserID: user.Id, Version: 1, UserAuthVersion: user.AuthVersion,
+		Status: model.UserSessionStatusActive, RefreshHash: "bind-error-refresh", LoginMethod: "password",
+		CreatedAt: time.Now().Unix(), LastActiveAt: time.Now().Unix(), ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}).Error)
+	domain, err := model.CreateCustomDomain("alpha", owner.Id)
+	require.NoError(t, err)
+	domain, err = model.EnableCustomDomain(domain.Label)
+	require.NoError(t, err)
+	payloadBytes, err := common.Marshal(oauthFlowPayload{
+		DomainID: domain.Id, OriginHost: "alpha.yeschoy.io", BrowserBindingHash: domainOAuthBindingHash("browser-binding"),
+		ExpectedAuthVersion: user.AuthVersion, ExpectedSessionVersion: 1,
+	})
+	require.NoError(t, err)
+	state, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+		Purpose: model.AuthFlowPurposeOAuth, Provider: "auth-flow-test", Intent: model.AuthFlowIntentBind,
+		UserId: user.Id, SessionId: "bind-error-session", Payload: string(payloadBytes), ExpiresAt: time.Now().Add(time.Minute),
+	})
+	require.NoError(t, err)
+
+	request := httptest.NewRequest(http.MethodGet, "/api/oauth/auth-flow-test?error=access_denied&state="+state, nil)
+	request.Host = "yeschoy.com"
+	router := gin.New()
+	router.GET("/api/oauth/:provider", HandleOAuth)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code)
+
+	var body struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Action       string `json:"action"`
+			TargetOrigin string `json:"target_origin"`
+			Provider     string `json:"provider"`
+			Result       string `json:"result"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+	assert.False(t, body.Success)
+	assert.Equal(t, "domain_bind_return", body.Data.Action)
+	assert.Equal(t, "https://alpha.yeschoy.io", body.Data.TargetOrigin)
+	assert.Equal(t, "auth-flow-test", body.Data.Provider)
+	assert.Equal(t, "cancelled", body.Data.Result)
+	assert.Zero(t, provider.exchangeCalls)
+	_, err = model.GetAuthFlow(state, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeOAuth})
+	assert.ErrorIs(t, err, model.ErrAuthFlowConsumed)
+}
+
+func TestHandleOAuthBindForDisabledDomainConsumesStateAndReturnsUnavailable(t *testing.T) {
+	provider := setupAuthFlowControllerTest(t)
+	require.NoError(t, appI18n.Init())
+	require.NoError(t, model.DB.AutoMigrate(&model.User{}, &model.UserSession{}, &model.CustomDomain{}))
+	previousRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() { common.RedisEnabled = previousRedisEnabled })
+
+	owner := model.User{Username: "oauth-disabled-bind-owner", AffCode: "oauth-disabled-bind-owner-aff", Status: common.UserStatusEnabled}
+	user := model.User{Username: "oauth-disabled-bind-user", AffCode: "oauth-disabled-bind-user-aff", Status: common.UserStatusEnabled, AuthVersion: 1}
+	require.NoError(t, model.DB.Create(&owner).Error)
+	require.NoError(t, model.DB.Create(&user).Error)
+	require.NoError(t, model.DB.Create(&model.UserSession{
+		SID: "disabled-bind-session", UserID: user.Id, Version: 1, UserAuthVersion: user.AuthVersion,
+		Status: model.UserSessionStatusActive, RefreshHash: "disabled-bind-refresh", LoginMethod: "password",
+		CreatedAt: time.Now().Unix(), LastActiveAt: time.Now().Unix(), ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}).Error)
+	domain, err := model.CreateCustomDomain("alpha", owner.Id)
+	require.NoError(t, err)
+	domain, err = model.EnableCustomDomain(domain.Label)
+	require.NoError(t, err)
+	payloadBytes, err := common.Marshal(oauthFlowPayload{
+		DomainID: domain.Id, OriginHost: "alpha.yeschoy.io", BrowserBindingHash: domainOAuthBindingHash("browser-binding"),
+		ExpectedAuthVersion: user.AuthVersion, ExpectedSessionVersion: 1,
+	})
+	require.NoError(t, err)
+	state, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+		Purpose: model.AuthFlowPurposeOAuth, Provider: "auth-flow-test", Intent: model.AuthFlowIntentBind,
+		UserId: user.Id, SessionId: "disabled-bind-session", Payload: string(payloadBytes), ExpiresAt: time.Now().Add(time.Minute),
+	})
+	require.NoError(t, err)
+	_, err = model.DisableCustomDomain(domain.Label)
+	require.NoError(t, err)
+
+	router := gin.New()
+	router.GET("/api/oauth/:provider", HandleOAuth)
+	request := httptest.NewRequest(http.MethodGet, "/api/oauth/auth-flow-test?code=unused&state="+state, nil)
+	request.Host = "yeschoy.com"
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code)
+
+	var body struct {
+		Data struct {
+			Action       string `json:"action"`
+			TargetOrigin string `json:"target_origin"`
+			Result       string `json:"result"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+	assert.Equal(t, "domain_bind_return", body.Data.Action)
+	assert.Equal(t, "https://alpha.yeschoy.io", body.Data.TargetOrigin)
+	assert.Equal(t, "target_unavailable", body.Data.Result)
+	assert.Zero(t, provider.exchangeCalls)
+	_, err = model.GetAuthFlow(state, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeOAuth})
+	assert.ErrorIs(t, err, model.ErrAuthFlowConsumed)
+}
+
+func TestHandleOAuthBindWithRevokedSessionConsumesStateAndReturnsFailed(t *testing.T) {
+	provider := setupAuthFlowControllerTest(t)
+	require.NoError(t, appI18n.Init())
+	require.NoError(t, model.DB.AutoMigrate(&model.User{}, &model.UserSession{}, &model.CustomDomain{}))
+	previousRedisEnabled := common.RedisEnabled
+	common.RedisEnabled = false
+	t.Cleanup(func() { common.RedisEnabled = previousRedisEnabled })
+
+	owner := model.User{Username: "oauth-revoked-bind-owner", AffCode: "oauth-revoked-bind-owner-aff", Status: common.UserStatusEnabled}
+	user := model.User{Username: "oauth-revoked-bind-user", AffCode: "oauth-revoked-bind-user-aff", Status: common.UserStatusEnabled, AuthVersion: 1}
+	require.NoError(t, model.DB.Create(&owner).Error)
+	require.NoError(t, model.DB.Create(&user).Error)
+	require.NoError(t, model.DB.Create(&model.UserSession{
+		SID: "revoked-bind-session", UserID: user.Id, Version: 1, UserAuthVersion: user.AuthVersion,
+		Status: model.UserSessionStatusActive, RefreshHash: "revoked-bind-refresh", LoginMethod: "password",
+		CreatedAt: time.Now().Unix(), LastActiveAt: time.Now().Unix(), ExpiresAt: time.Now().Add(time.Hour).Unix(),
+	}).Error)
+	domain, err := model.CreateCustomDomain("alpha", owner.Id)
+	require.NoError(t, err)
+	domain, err = model.EnableCustomDomain(domain.Label)
+	require.NoError(t, err)
+	payloadBytes, err := common.Marshal(oauthFlowPayload{
+		DomainID: domain.Id, OriginHost: "alpha.yeschoy.io", BrowserBindingHash: domainOAuthBindingHash("browser-binding"),
+		ExpectedAuthVersion: user.AuthVersion, ExpectedSessionVersion: 1,
+	})
+	require.NoError(t, err)
+	state, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
+		Purpose: model.AuthFlowPurposeOAuth, Provider: "auth-flow-test", Intent: model.AuthFlowIntentBind,
+		UserId: user.Id, SessionId: "revoked-bind-session", Payload: string(payloadBytes), ExpiresAt: time.Now().Add(time.Minute),
+	})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.UserSession{}).
+		Where("sid = ?", "revoked-bind-session").
+		Updates(map[string]any{"status": model.UserSessionStatusRevoked, "revoked_at": time.Now().Unix()}).Error)
+
+	router := gin.New()
+	router.GET("/api/oauth/:provider", HandleOAuth)
+	request := httptest.NewRequest(http.MethodGet, "/api/oauth/auth-flow-test?code=unused&state="+state, nil)
+	request.Host = "yeschoy.com"
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code)
+
+	var body struct {
+		Data struct {
+			Action       string `json:"action"`
+			TargetOrigin string `json:"target_origin"`
+			Result       string `json:"result"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
+	assert.Equal(t, "domain_bind_return", body.Data.Action)
+	assert.Equal(t, "https://alpha.yeschoy.io", body.Data.TargetOrigin)
+	assert.Equal(t, "failed", body.Data.Result)
+	assert.Zero(t, provider.exchangeCalls)
+	_, err = model.GetAuthFlow(state, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeOAuth})
+	assert.ErrorIs(t, err, model.ErrAuthFlowConsumed)
+}
+
 func TestHandleOAuthBindOnMainIssuesATicketWithoutChangingTheUserBinding(t *testing.T) {
 	setupAuthFlowControllerTest(t)
 	require.NoError(t, appI18n.Init())
@@ -359,6 +578,10 @@ func TestHandleOAuthBindOnMainIssuesATicketWithoutChangingTheUserBinding(t *test
 		Status: model.UserSessionStatusActive, RefreshHash: "refresh-hash", LoginMethod: "password",
 		CreatedAt: time.Now().Unix(), LastActiveAt: time.Now().Unix(), ExpiresAt: time.Now().Add(time.Hour).Unix(),
 	}).Error)
+	accessToken, _, err := service.IssueAccessToken(service.AuthIdentity{
+		UserID: user.Id, SessionID: "session-a", UserAuthVersion: user.AuthVersion, SessionVersion: 1,
+	})
+	require.NoError(t, err)
 	domain, err := model.CreateCustomDomain("alpha", owner.Id)
 	require.NoError(t, err)
 	domain, err = model.EnableCustomDomain(domain.Label)
@@ -384,9 +607,10 @@ func TestHandleOAuthBindOnMainIssuesATicketWithoutChangingTheUserBinding(t *test
 
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.GET("/api/oauth/:provider", HandleOAuth)
+	router.GET("/api/oauth/:provider", middleware.TryUserAuth(), HandleOAuth)
 	request := httptest.NewRequest(http.MethodGet, "/api/oauth/domain-bind-test?code=provider-code&state="+state, nil)
 	request.Host = "yeschoy.com"
+	request.Header.Set("Authorization", "Bearer "+accessToken)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	require.Equal(t, http.StatusOK, response.Code)
@@ -499,6 +723,7 @@ func TestDomainBindHandoffRequiresTheOriginalSessionAndUpdatesTheBindingOnce(t *
 func TestDisabledDomainLoginHandoffExchangesTheBoundTicketForAMainFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	previousDB := model.DB
+	previousLogDB := model.LOG_DB
 	previousDatabaseType := common.MainDatabaseType()
 	previousRedisEnabled := common.RedisEnabled
 	previousSecure := common.SessionCookieSecure
@@ -506,8 +731,9 @@ func TestDisabledDomainLoginHandoffExchangesTheBoundTicketForAMainFallback(t *te
 	previousSuffix := common.CustomDomainSuffix
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuthFlow{}, &model.CustomDomain{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.AuthFlow{}, &model.CustomDomain{}, &model.Log{}))
 	model.DB = db
+	model.LOG_DB = db
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
 	common.SessionCookieSecure = true
@@ -515,6 +741,7 @@ func TestDisabledDomainLoginHandoffExchangesTheBoundTicketForAMainFallback(t *te
 	common.CustomDomainSuffix = "yeschoy.io"
 	t.Cleanup(func() {
 		model.DB = previousDB
+		model.LOG_DB = previousLogDB
 		common.SetMainDatabaseType(previousDatabaseType)
 		common.RedisEnabled = previousRedisEnabled
 		common.SessionCookieSecure = previousSecure
@@ -592,6 +819,13 @@ func TestDisabledDomainLoginHandoffExchangesTheBoundTicketForAMainFallback(t *te
 	assert.Contains(t, response.Header().Get("Set-Cookie"), service.RefreshCookieName+"=")
 	require.NoError(t, db.Model(&model.UserSession{}).Count(&sessionCount).Error)
 	assert.EqualValues(t, 1, sessionCount)
+	var loginLog model.Log
+	require.NoError(t, db.Where("user_id = ? AND type = ?", user.Id, model.LogTypeLogin).First(&loginLog).Error)
+	assert.Equal(t, user.Username, loginLog.Username)
+	assert.Contains(t, loginLog.Other, `"login_method":"oauth:github"`)
 	response = requestFallback()
 	assert.Equal(t, http.StatusForbidden, response.Code)
+	var loginLogCount int64
+	require.NoError(t, db.Model(&model.Log{}).Where("user_id = ? AND type = ?", user.Id, model.LogTypeLogin).Count(&loginLogCount).Error)
+	assert.EqualValues(t, 1, loginLogCount)
 }

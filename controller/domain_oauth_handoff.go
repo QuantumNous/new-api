@@ -107,10 +107,24 @@ func resolveCustomOAuthTarget(statePayload oauthFlowPayload) (string, bool, erro
 		return "", false, err
 	}
 	expectedHost := strings.ToLower(domain.Label + "." + common.CustomDomainSuffix)
-	if !domain.Enabled || subtle.ConstantTimeCompare([]byte(statePayload.OriginHost), []byte(expectedHost)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(statePayload.OriginHost), []byte(expectedHost)) != 1 {
 		return "", false, nil
 	}
-	return expectedHost, true, nil
+	return expectedHost, domain.Enabled, nil
+}
+
+func writeDomainBindReturn(c *gin.Context, targetHost, provider, result, message string) {
+	setDomainHandoffNoStore(c)
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": message,
+		"data": gin.H{
+			"action":        "domain_bind_return",
+			"target_origin": "https://" + targetHost,
+			"provider":      provider,
+			"result":        result,
+		},
+	})
 }
 
 func issueDomainBindHandoff(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser, pendingFlow *model.AuthFlow, statePayload oauthFlowPayload) error {
@@ -275,6 +289,7 @@ func ConsumeDomainLoginHandoff(c *gin.Context) {
 	}
 	model.UpdateUserLastLoginAt(flow.UserId)
 	service.WriteRefreshCookie(c, bundle.RefreshToken)
+	recordLoginAuditByUserID(flow.UserId, payload.LoginMethod, c)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -392,6 +407,7 @@ func ConsumeDomainLoginFallback(c *gin.Context) {
 	}
 	model.UpdateUserLastLoginAt(flow.UserId)
 	service.WriteRefreshCookie(c, bundle.RefreshToken)
+	recordLoginAuditByUserID(flow.UserId, payload.LoginMethod, c)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

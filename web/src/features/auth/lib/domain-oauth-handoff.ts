@@ -16,7 +16,33 @@ export interface DomainBindHandoff {
   ticket: string
 }
 
+export type DomainBindReturnResult =
+  | 'cancelled'
+  | 'failed'
+  | 'target_unavailable'
+
+export interface DomainBindReturn {
+  action: 'domain_bind_return'
+  targetOrigin: string
+  provider: string
+  result: DomainBindReturnResult
+}
+
 const providerPattern = /^[a-z0-9][a-z0-9_-]{0,63}$/
+const domainBindReturnResults = new Set<DomainBindReturnResult>([
+  'cancelled',
+  'failed',
+  'target_unavailable',
+])
+
+export function isDomainBindReturnResult(
+  value: unknown
+): value is DomainBindReturnResult {
+  return (
+    typeof value === 'string' &&
+    domainBindReturnResults.has(value as DomainBindReturnResult)
+  )
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object'
@@ -99,6 +125,34 @@ export function buildDomainBindHandoffURL(handoff: DomainBindHandoff): string {
   url.searchParams.set('mode', 'bind')
   url.searchParams.set('provider', handoff.provider)
   url.hash = new URLSearchParams({ ticket: handoff.ticket }).toString()
+  return url.toString()
+}
+
+export function parseDomainBindReturn(value: unknown): DomainBindReturn | null {
+  if (
+    !isRecord(value) ||
+    value.action !== 'domain_bind_return' ||
+    typeof value.provider !== 'string' ||
+    !providerPattern.test(value.provider) ||
+    !isDomainBindReturnResult(value.result)
+  ) {
+    return null
+  }
+  const targetOrigin = parseHTTPSOrigin(value.target_origin)
+  if (!targetOrigin) return null
+  return {
+    action: 'domain_bind_return',
+    targetOrigin,
+    provider: value.provider,
+    result: value.result,
+  }
+}
+
+export function buildDomainBindReturnURL(bindReturn: DomainBindReturn): string {
+  const url = new URL('/oauth/handoff', bindReturn.targetOrigin)
+  url.searchParams.set('mode', 'bind-return')
+  url.searchParams.set('provider', bindReturn.provider)
+  url.hash = new URLSearchParams({ result: bindReturn.result }).toString()
   return url.toString()
 }
 

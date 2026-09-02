@@ -132,16 +132,16 @@ func ensureDomainOAuthBrowserBinding(c *gin.Context) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		http.SetCookie(c.Writer, &http.Cookie{
-			Name:     domainOAuthBindingCookieName,
-			Value:    binding,
-			Path:     "/",
-			MaxAge:   domainOAuthBindingCookieMaxAge,
-			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteStrictMode,
-		})
 	}
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     domainOAuthBindingCookieName,
+		Value:    binding,
+		Path:     "/",
+		MaxAge:   domainOAuthBindingCookieMaxAge,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
 	return domainOAuthBindingHash(binding), nil
 }
 
@@ -188,25 +188,19 @@ func HandleOAuth(c *gin.Context) {
 	// 2. Bind flows are bound to the live dashboard Session that created them.
 	if pendingFlow.Intent == model.AuthFlowIntentBind {
 		identity, ok := middleware.GetSessionAuthIdentity(c)
-		if !ok || identity.UserID != pendingFlow.UserId || identity.SessionID != pendingFlow.SessionId {
-			_, active, targetErr := resolveCustomOAuthTarget(pendingPayload)
+		callbackOnOrigin := false
+		if domainContext, found := middleware.GetCustomDomainContext(c); found {
+			callbackOnOrigin = domainContext.Kind == service.CustomDomainKindCustom &&
+				domainContext.DomainID == pendingPayload.DomainID &&
+				domainContext.Host == pendingPayload.OriginHost
+		}
+		if pendingPayload.DomainID > 0 && !callbackOnOrigin {
+			targetHost, active, targetErr := resolveCustomOAuthTarget(pendingPayload)
 			if targetErr != nil {
 				common.ApiError(c, targetErr)
 				return
 			}
-			if !active || pendingPayload.BrowserBindingHash == "" || pendingPayload.ExpectedAuthVersion <= 0 || pendingPayload.ExpectedSessionVersion <= 0 {
-				c.JSON(http.StatusForbidden, gin.H{
-					"success": false,
-					"message": i18n.T(c, i18n.MsgOAuthStateInvalid),
-				})
-				return
-			}
-			if _, _, err := service.ValidateLoginSession(service.AuthIdentity{
-				UserID:          pendingFlow.UserId,
-				SessionID:       pendingFlow.SessionId,
-				UserAuthVersion: pendingPayload.ExpectedAuthVersion,
-				SessionVersion:  pendingPayload.ExpectedSessionVersion,
-			}); err != nil {
+			if targetHost == "" || pendingPayload.BrowserBindingHash == "" || pendingPayload.ExpectedAuthVersion <= 0 || pendingPayload.ExpectedSessionVersion <= 0 {
 				c.JSON(http.StatusForbidden, gin.H{
 					"success": false,
 					"message": i18n.T(c, i18n.MsgOAuthStateInvalid),
@@ -215,8 +209,36 @@ func HandleOAuth(c *gin.Context) {
 			}
 			consumeMatch.UserId = pendingFlow.UserId
 			consumeMatch.SessionId = pendingFlow.SessionId
+			if !active {
+				if _, err := model.ConsumeAuthFlow(state, consumeMatch); err != nil {
+					c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+					return
+				}
+				writeDomainBindReturn(c, targetHost, providerName, "target_unavailable", i18n.T(c, i18n.MsgOAuthStateInvalid))
+				return
+			}
+			if _, _, err := service.ValidateLoginSession(service.AuthIdentity{
+				UserID:          pendingFlow.UserId,
+				SessionID:       pendingFlow.SessionId,
+				UserAuthVersion: pendingPayload.ExpectedAuthVersion,
+				SessionVersion:  pendingPayload.ExpectedSessionVersion,
+			}); err != nil {
+				if _, consumeErr := model.ConsumeAuthFlow(state, consumeMatch); consumeErr != nil {
+					c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+					return
+				}
+				writeDomainBindReturn(c, targetHost, providerName, "failed", i18n.T(c, i18n.MsgOAuthStateInvalid))
+				return
+			}
 			deferDomainBind = true
 		} else {
+			if !ok || identity.UserID != pendingFlow.UserId || identity.SessionID != pendingFlow.SessionId {
+				c.JSON(http.StatusForbidden, gin.H{
+					"success": false,
+					"message": i18n.T(c, i18n.MsgOAuthStateInvalid),
+				})
+				return
+			}
 			consumeMatch.UserId = identity.UserID
 			consumeMatch.SessionId = identity.SessionID
 		}
@@ -249,6 +271,14 @@ func HandleOAuth(c *gin.Context) {
 				targetHost, active, targetErr := resolveCustomOAuthTarget(payload)
 				if targetErr != nil {
 					common.ApiError(c, targetErr)
+					return
+				}
+				if flow.Intent == model.AuthFlowIntentBind && targetHost != "" {
+					result := "failed"
+					if errorCode == "access_denied" {
+						result = "cancelled"
+					}
+					writeDomainBindReturn(c, targetHost, providerName, result, errorDescription)
 					return
 				}
 				if active {

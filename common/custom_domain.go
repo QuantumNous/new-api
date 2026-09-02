@@ -107,6 +107,28 @@ func InitCustomDomainSettings() error {
 	return nil
 }
 
+func ValidateCustomDomainHTTPSettings() error {
+	return validateCustomDomainSessionSettings(CustomDomainSettings{
+		Enabled:    CustomDomainEnabled,
+		MainOrigin: CustomDomainMainOrigin,
+	}, SessionCookieSecure, SessionCookieTrustedURLs)
+}
+
+func validateCustomDomainSessionSettings(settings CustomDomainSettings, secure bool, trustedOrigins []string) error {
+	if !settings.Enabled {
+		return nil
+	}
+	if !secure {
+		return fmt.Errorf("CUSTOM_DOMAIN_ENABLED=true requires SESSION_COOKIE_SECURE=true")
+	}
+	for _, trustedOrigin := range trustedOrigins {
+		if trustedOrigin == settings.MainOrigin {
+			return nil
+		}
+	}
+	return fmt.Errorf("CUSTOM_DOMAIN_MAIN_ORIGIN must be included in SESSION_COOKIE_TRUSTED_URL")
+}
+
 func defaultCustomDomainReservedLabelSet() map[string]struct{} {
 	labels := make(map[string]struct{}, len(defaultCustomDomainReservedLabels))
 	for _, label := range defaultCustomDomainReservedLabels {

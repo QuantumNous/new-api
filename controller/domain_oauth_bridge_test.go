@@ -59,6 +59,7 @@ func TestDomainOAuthHandoffBridgeIsCustomOnlyNoStoreAndSelfContained(t *testing.
 	assert.Contains(t, response.Body.String(), "/api/oauth/domain-handoff-fallback")
 	assert.Contains(t, response.Body.String(), "domain_login_fallback")
 	assert.Contains(t, response.Body.String(), "oauth:binding:handoff")
+	assert.Contains(t, response.Body.String(), "oauth:binding:return")
 	assert.Contains(t, response.Body.String(), "searchParams.get('mode')")
 	assert.NotContains(t, response.Body.String(), "<script src=")
 	assert.NotContains(t, response.Body.String(), "analytics")
