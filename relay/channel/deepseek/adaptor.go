@@ -89,8 +89,26 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if err := applyDeepSeekV4OpenAIThinkingSuffix(info, request); err != nil {
 		return nil, err
 	}
-
+	ensureToolCallReasoningContent(request)
 	return request, nil
+}
+
+// ensureToolCallReasoningContent 保证所有携带 tool_calls 的 assistant 消息都带
+// reasoning_content 字段。DeepSeek 在开启思考模式时，如果历史消息里的工具调用轮次
+// 缺少 reasoning_content（例如客户端或中间路由裁剪上下文时丢弃了该字段），上游会
+// 直接返回 400 "reasoning_content must be passed back to the API"。空字符串即可
+// 通过该校验，已有的非空值则原样保留。
+func ensureToolCallReasoningContent(request *dto.GeneralOpenAIRequest) {
+	emptyReasoning := ""
+	for i := range request.Messages {
+		msg := &request.Messages[i]
+		if msg.Role != "assistant" || len(msg.ToolCalls) == 0 {
+			continue
+		}
+		if msg.ReasoningContent == nil {
+			msg.ReasoningContent = &emptyReasoning
+		}
+	}
 }
 
 func applyDeepSeekV4OpenAIThinkingSuffix(info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) error {
