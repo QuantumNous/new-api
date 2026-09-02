@@ -16,12 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { DrawingResult } from '../drawing-result'
 
 describe('AI drawing result panel', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
   it('shows a ready state before generation starts', () => {
     render(<DrawingResult resultUrl='' isLoading={false} />)
 
@@ -46,9 +52,39 @@ describe('AI drawing result panel', () => {
     expect(
       screen.getByRole('img', { name: 'Generated image' })
     ).toHaveAttribute('src', 'https://example.com/generated.png')
-    expect(screen.getByRole('button', { name: 'Download' })).toHaveAttribute(
-      'href',
-      'https://example.com/generated.png'
+    expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled()
+  })
+
+  it('downloads the generated image as a local blob', async () => {
+    const user = userEvent.setup()
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined)
+    const createObjectUrl = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:download')
+    const revokeObjectUrl = vi
+      .spyOn(URL, 'revokeObjectURL')
+      .mockImplementation(() => undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        blob: async () => new Blob(['image'], { type: 'image/png' }),
+      })
     )
+    render(
+      <DrawingResult
+        resultUrl='https://example.com/generated.png'
+        isLoading={false}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Download' }))
+
+    await waitFor(() => expect(clickSpy).toHaveBeenCalledOnce())
+    expect(createObjectUrl).toHaveBeenCalledOnce()
+    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:download')
   })
 })

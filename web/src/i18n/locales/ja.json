@@ -5336,6 +5336,7 @@
     "Portrait": "縦向き",
     "Square": "正方形",
     "Aspect ratio": "アスペクト比",
-    "Drop image here or click to select": "画像をここにドロップするか、クリックして選択"
+    "Drop image here or click to select": "画像をここにドロップするか、クリックして選択",
+    "Download failed": "ダウンロードに失敗しました"
   }
 }

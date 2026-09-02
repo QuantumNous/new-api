@@ -71,3 +71,21 @@ export function getDrawingResultUrl(
   if (image?.b64_json) return `data:image/png;base64,${image.b64_json}`
   return null
 }
+
+export async function downloadDrawingImage(url: string): Promise<void> {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`image download failed with status ${response.status}`)
+  }
+
+  const blob = await response.blob()
+  const extension = blob.type === 'image/jpeg' ? 'jpg' : 'png'
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = `ai-drawing.${extension}`
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(objectUrl)
+}

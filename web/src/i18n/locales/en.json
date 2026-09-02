@@ -5336,6 +5336,7 @@
     "Portrait": "Portrait",
     "Square": "Square",
     "Aspect ratio": "Aspect ratio",
-    "Drop image here or click to select": "Drop image here or click to select"
+    "Drop image here or click to select": "Drop image here or click to select",
+    "Download failed": "Download failed"
   }
 }

@@ -5336,6 +5336,7 @@
     "Portrait": "Портретная",
     "Square": "Квадрат",
     "Aspect ratio": "Соотношение сторон",
-    "Drop image here or click to select": "Перетащите изображение сюда или нажмите для выбора"
+    "Drop image here or click to select": "Перетащите изображение сюда или нажмите для выбора",
+    "Download failed": "Не удалось скачать"
   }
 }

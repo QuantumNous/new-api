@@ -5336,6 +5336,7 @@
     "Portrait": "竖向",
     "Square": "正方形",
     "Aspect ratio": "图片比例",
-    "Drop image here or click to select": "将图片拖放到这里，或点击选择"
+    "Drop image here or click to select": "将图片拖放到这里，或点击选择",
+    "Download failed": "下载失败"
   }
 }

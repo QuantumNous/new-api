@@ -17,10 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Download, ImageIcon, LoaderCircle, WandSparkles } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+
+import { downloadDrawingImage } from '../lib/drawing'
 
 type DrawingResultProps = {
   resultUrl: string
@@ -29,6 +33,20 @@ type DrawingResultProps = {
 
 export function DrawingResult(props: DrawingResultProps) {
   const { t } = useTranslation()
+  const [isDownloading, setIsDownloading] = useState(false)
+
+  const handleDownload = async () => {
+    if (!props.resultUrl || isDownloading) return
+    setIsDownloading(true)
+    try {
+      await downloadDrawingImage(props.resultUrl)
+    } catch {
+      toast.error(t('Download failed'))
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
   let resultContent = (
     <div className='text-muted-foreground grid justify-items-center gap-2 text-sm'>
       <ImageIcon className='size-9' aria-hidden='true' />
@@ -64,16 +82,14 @@ export function DrawingResult(props: DrawingResultProps) {
           <Button
             size='sm'
             variant='outline'
-            render={
-              <a
-                href={props.resultUrl}
-                download='ai-drawing.png'
-                target='_blank'
-                rel='noreferrer'
-              />
-            }
+            disabled={isDownloading}
+            onClick={handleDownload}
           >
-            <Download aria-hidden='true' />
+            {isDownloading ? (
+              <LoaderCircle className='animate-spin' aria-hidden='true' />
+            ) : (
+              <Download aria-hidden='true' />
+            )}
             {t('Download')}
           </Button>
         )}
