@@ -4,38 +4,49 @@ import (
 	"strings"
 )
 
-// 简化的供应商映射规则
-var defaultVendorRules = map[string]string{
-	"gpt":      "OpenAI",
-	"dall-e":   "OpenAI",
-	"whisper":  "OpenAI",
-	"o1":       "OpenAI",
-	"o3":       "OpenAI",
-	"claude":   "Anthropic",
-	"gemini":   "Google",
-	"moonshot": "Moonshot",
-	"kimi":     "Moonshot",
-	"chatglm":  "智谱",
-	"glm-":     "智谱",
-	"qwen":     "阿里巴巴",
-	"deepseek": "DeepSeek",
-	"abab":     "MiniMax",
-	"minimax":  "MiniMax",
-	"ernie":    "百度",
-	"spark":    "讯飞",
-	"hunyuan":  "腾讯",
-	"command":  "Cohere",
-	"@cf/":     "Cloudflare",
-	"360":      "360",
-	"yi":       "零一万物",
-	"jina":     "Jina",
-	"mistral":  "Mistral",
-	"grok":     "xAI",
-	"llama":    "Meta",
-	"doubao":   "字节跳动",
-	"kling":    "快手",
-	"jimeng":   "即梦",
-	"vidu":     "Vidu",
+// 简化的供应商映射规则。
+// 规则顺序有意固定：模型名可能同时命中多个关键词，先命中的规则优先。
+type defaultVendorRule struct {
+	pattern    string
+	vendorName string
+}
+
+var defaultVendorRules = []defaultVendorRule{
+	{pattern: "gpt", vendorName: "OpenAI"},
+	{pattern: "dall-e", vendorName: "OpenAI"},
+	{pattern: "whisper", vendorName: "OpenAI"},
+	{pattern: "o1", vendorName: "OpenAI"},
+	{pattern: "o3", vendorName: "OpenAI"},
+	{pattern: "codex", vendorName: "OpenAI"},
+	{pattern: "claude", vendorName: "Anthropic"},
+	{pattern: "gemini", vendorName: "Google"},
+	{pattern: "moonshot", vendorName: "Moonshot"},
+	{pattern: "kimi", vendorName: "Moonshot"},
+	{pattern: "chatglm", vendorName: "智谱"},
+	{pattern: "glm-", vendorName: "智谱"},
+	{pattern: "qwen", vendorName: "阿里巴巴"},
+	{pattern: "deepseek", vendorName: "DeepSeek"},
+	{pattern: "abab", vendorName: "MiniMax"},
+	{pattern: "minimax", vendorName: "MiniMax"},
+	{pattern: "ernie", vendorName: "百度"},
+	{pattern: "command", vendorName: "Cohere"},
+	{pattern: "@cf/", vendorName: "Cloudflare"},
+	{pattern: "360", vendorName: "360"},
+	{pattern: "yi", vendorName: "零一万物"},
+	{pattern: "jina", vendorName: "Jina"},
+	{pattern: "mistral", vendorName: "Mistral"},
+	{pattern: "grok", vendorName: "xAI"},
+	{pattern: "llama", vendorName: "Meta"},
+	{pattern: "muse", vendorName: "Meta"},
+	{pattern: "meta-", vendorName: "Meta"},
+	{pattern: "spark-", vendorName: "讯飞"},
+	{pattern: "xspark", vendorName: "讯飞"},
+	{pattern: "hunyuan", vendorName: "腾讯"},
+	{pattern: "hy", vendorName: "腾讯"},
+	{pattern: "doubao", vendorName: "字节跳动"},
+	{pattern: "kling", vendorName: "快手"},
+	{pattern: "jimeng", vendorName: "即梦"},
+	{pattern: "vidu", vendorName: "Vidu"},
 }
 
 // 供应商默认图标映射
@@ -58,7 +69,7 @@ var defaultVendorIcons = map[string]string{
 	"Jina":       "Jina",
 	"Mistral":    "Mistral.Color",
 	"xAI":        "XAI",
-	"Meta":       "Ollama",
+	"Meta":       "Meta.Color",
 	"字节跳动":       "Doubao.Color",
 	"快手":         "Kling.Color",
 	"即梦":         "Jimeng.Color",
@@ -79,9 +90,9 @@ func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[int]*Vend
 		// 匹配供应商
 		vendorID := 0
 		modelLower := strings.ToLower(modelName)
-		for pattern, vendorName := range defaultVendorRules {
-			if strings.Contains(modelLower, pattern) {
-				vendorID = getOrCreateVendor(vendorName, vendorMap)
+		for _, rule := range defaultVendorRules {
+			if strings.Contains(modelLower, rule.pattern) {
+				vendorID = getOrCreateVendor(rule.vendorName, vendorMap)
 				break
 			}
 		}
