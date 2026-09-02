@@ -63,6 +63,7 @@ import {
   sideDrawerSectionClassName,
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
+import { ErrorState } from '@/components/error-state'
 import { JsonCodeEditor } from '@/components/json-code-editor'
 import { JsonEditor } from '@/components/json-editor'
 import { MultiSelect } from '@/components/multi-select'
@@ -669,11 +670,19 @@ export function ChannelMutateDrawer({
   const sensitiveLocked = isEditing && !canEditSensitive
 
   // Fetch channel details if editing
-  const { data: channelData, isLoading: isChannelLoading } = useQuery({
+  const channelQuery = useQuery({
     queryKey: channelsQueryKeys.detail(channelId || 0),
-    queryFn: () => getChannel(channelId || 0),
+    queryFn: async () => {
+      const response = await getChannel(channelId || 0)
+      if (!response.success || !response.data) {
+        throw new Error(response.message || t('Request failed'))
+      }
+      return response
+    },
     enabled: isEditing && Boolean(channelId),
   })
+  const channelData = channelQuery.data
+  const isChannelLoading = channelQuery.isLoading
 
   // Fetch available groups
   const { data: groupsData, isLoading: isLoadingGroups } = useQuery({
@@ -864,6 +873,7 @@ export function ChannelMutateDrawer({
   const isBatchMode =
     multiKeyMode === 'batch' || multiKeyMode === 'multi_to_single'
   const isChannelDetailLoading = isEditing && isChannelLoading
+  const isChannelDetailError = isEditing && channelQuery.isError
   const supportsMultiKeyAddMode =
     currentType !== 57 && !(currentType === 41 && vertexKeyType === 'api_key')
   const addModeOptions = useMemo(
@@ -1965,9 +1975,15 @@ export function ChannelMutateDrawer({
               onSubmit={form.handleSubmit(onSubmit, onInvalid)}
               className={sideDrawerFormClassName('gap-5')}
             >
-              {isChannelDetailLoading ? (
-                <ChannelEditorLoadingState />
-              ) : (
+              {isChannelDetailLoading && <ChannelEditorLoadingState />}
+              {isChannelDetailError && (
+                <ErrorState
+                  error={channelQuery.error}
+                  onRetry={() => void channelQuery.refetch()}
+                  className='min-h-[320px]'
+                />
+              )}
+              {!isChannelDetailLoading && !isChannelDetailError && (
                 <div className='grid gap-5 lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start'>
                   <ChannelEditorNav
                     providerLogo={
@@ -4875,7 +4891,13 @@ export function ChannelMutateDrawer({
             >
               {t('Cancel')}
             </SheetClose>
-            <Button form='channel-form' type='submit' disabled={isSubmitting}>
+            <Button
+              form='channel-form'
+              type='submit'
+              disabled={
+                isSubmitting || isChannelDetailLoading || isChannelDetailError
+              }
+            >
               {isSubmitting && (
                 <Loader2 className='mr-2 h-4 w-4 animate-spin' />
               )}

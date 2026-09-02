@@ -21,7 +21,6 @@ import { getRouteApi } from '@tanstack/react-router'
 import type { OnChangeFn, SortingState } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import {
   DISABLED_ROW_DESKTOP,
@@ -34,6 +33,7 @@ import { useTableUrlState } from '@/hooks/use-table-url-state'
 
 import { getUsers, searchUsers } from '../api'
 import {
+  ERROR_MESSAGES,
   USER_STATUS,
   getUserStatusOptions,
   getUserRoleOptions,
@@ -120,7 +120,7 @@ export function UsersTable() {
   }
 
   // Fetch data with React Query
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, error, isError, isLoading, isFetching, refetch } = useQuery({
     queryKey: [
       'users',
       pagination.pageIndex + 1,
@@ -154,10 +154,14 @@ export function UsersTable() {
           : await getUsers(params)
 
       if (!result.success) {
-        toast.error(
-          result.message || `Failed to ${hasFilter ? 'search' : 'load'} users`
+        throw new Error(
+          result.message ||
+            t(
+              hasFilter || hasColumnFilter
+                ? ERROR_MESSAGES.SEARCH_FAILED
+                : ERROR_MESSAGES.LOAD_FAILED
+            )
         )
-        return { items: [], total: 0 }
       }
 
       return {
@@ -208,6 +212,8 @@ export function UsersTable() {
       columns={columns}
       isLoading={isLoading}
       isFetching={isFetching}
+      error={isError && data === undefined ? error : undefined}
+      onRetry={() => void refetch()}
       emptyTitle={t('No Users Found')}
       emptyDescription={t(
         'No users available. Try adjusting your search or filters.'
@@ -232,13 +238,10 @@ export function UsersTable() {
           },
         ],
       }}
-      getRowClassName={(row, { isMobile }) =>
-        isDisabledUserRow(row.original)
-          ? isMobile
-            ? DISABLED_ROW_MOBILE
-            : DISABLED_ROW_DESKTOP
-          : undefined
-      }
+      getRowClassName={(row, { isMobile }) => {
+        if (!isDisabledUserRow(row.original)) return undefined
+        return isMobile ? DISABLED_ROW_MOBILE : DISABLED_ROW_DESKTOP
+      }}
       bulkActions={<DataTableBulkActions table={table} />}
     />
   )

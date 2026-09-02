@@ -114,7 +114,7 @@ export function DeploymentsTable() {
   const [deleteTarget, setDeleteTarget] = useState<Deployment | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, error, isError, isLoading, isFetching, refetch } = useQuery({
     queryKey: deploymentsQueryKeys.list({
       keyword,
       status: activeStatus,
@@ -122,19 +122,23 @@ export function DeploymentsTable() {
       page_size: pagination.pageSize,
     }),
     queryFn: async () => {
-      if (keyword.trim()) {
-        return searchDeployments({
-          keyword,
-          status: activeStatus,
-          p: pagination.pageIndex + 1,
-          page_size: pagination.pageSize,
-        })
+      const result = keyword.trim()
+        ? await searchDeployments({
+            keyword,
+            status: activeStatus,
+            p: pagination.pageIndex + 1,
+            page_size: pagination.pageSize,
+          })
+        : await listDeployments({
+            status: activeStatus,
+            p: pagination.pageIndex + 1,
+            page_size: pagination.pageSize,
+          })
+
+      if (!result.success) {
+        throw new Error(result.message || t('Request failed'))
       }
-      return listDeployments({
-        status: activeStatus,
-        p: pagination.pageIndex + 1,
-        page_size: pagination.pageSize,
-      })
+      return result
     },
     placeholderData: (prev) => prev,
   })
@@ -222,6 +226,8 @@ export function DeploymentsTable() {
         columns={columns}
         isLoading={isLoading}
         isFetching={isFetching}
+        error={isError && data === undefined ? error : undefined}
+        onRetry={() => void refetch()}
         emptyTitle={t('No Deployments Found')}
         emptyDescription={t(
           'No deployments available. Create one to get started.'

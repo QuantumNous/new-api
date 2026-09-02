@@ -22,7 +22,6 @@ import type { Table as TanstackTable } from '@tanstack/react-table'
 import { Database } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import {
   DISABLED_ROW_DESKTOP,
@@ -232,7 +231,7 @@ export function ApiKeysTable() {
 
   // Fetch data with React Query
   // eslint-disable-next-line @tanstack/query/exhaustive-deps
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, error, isError, isLoading, isFetching, refetch } = useQuery({
     queryKey: [
       'keys',
       pagination.pageIndex + 1,
@@ -255,7 +254,7 @@ export function ApiKeysTable() {
           })
 
       if (!result.success) {
-        toast.error(
+        throw new Error(
           result.message ||
             t(
               shouldSearch
@@ -263,7 +262,6 @@ export function ApiKeysTable() {
                 : ERROR_MESSAGES.LOAD_FAILED
             )
         )
-        return { items: [], total: 0 }
       }
 
       return {
@@ -299,6 +297,8 @@ export function ApiKeysTable() {
       columns={columns}
       isLoading={isLoading}
       isFetching={isFetching}
+      error={isError && data === undefined ? error : undefined}
+      onRetry={() => void refetch()}
       emptyTitle={t('No API Keys Found')}
       emptyDescription={t(
         'No API keys available. Create your first API key to get started.'

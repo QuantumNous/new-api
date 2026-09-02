@@ -478,7 +478,10 @@ export function OverviewDashboard() {
     queryKey: ['dashboard', 'overview', 'api-keys'],
     queryFn: async () => {
       const result = await getApiKeys({ p: 1, size: 10 })
-      return result.success ? (result.data?.items ?? []) : []
+      if (!result.success || !Array.isArray(result.data?.items)) {
+        throw new Error(result.message || t('Request failed'))
+      }
+      return result.data.items
     },
     staleTime: 60 * 1000,
   })
@@ -487,7 +490,10 @@ export function OverviewDashboard() {
     queryKey: ['dashboard', 'overview', 'user-models'],
     queryFn: async () => {
       const result = await getUserModels()
-      return result.success ? (result.data ?? []) : []
+      if (!result.success || !Array.isArray(result.data)) {
+        throw new Error(result.message || t('Request failed'))
+      }
+      return result.data
     },
     staleTime: 5 * 60 * 1000,
   })

@@ -36,11 +36,16 @@ export type PerformanceGroup = {
 export type PerformanceMetricsData = {
   success: boolean
   message?: string
-  data: {
+  data?: {
     model_name: string
     series_schema?: string
     groups: PerformanceGroup[]
   }
+}
+
+export type SuccessfulPerformanceMetricsData = PerformanceMetricsData & {
+  success: true
+  data: NonNullable<PerformanceMetricsData['data']>
 }
 
 export type PerfModelSummary = {
@@ -55,7 +60,12 @@ export type PerfModelSummary = {
 export type PerfSummaryAllData = {
   success: boolean
   message?: string
-  data: {
+  data?: {
     models: PerfModelSummary[]
   }
+}
+
+export type SuccessfulPerfSummaryData = PerfSummaryAllData & {
+  success: true
+  data: NonNullable<PerfSummaryAllData['data']>
 }

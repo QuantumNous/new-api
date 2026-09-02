@@ -20,6 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 import { FileWarning } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { ErrorState } from '@/components/error-state'
 import { PublicLayout } from '@/components/layout'
 import { RichContent } from '@/components/rich-content'
 import { Button } from '@/components/ui/button'
@@ -43,7 +44,7 @@ export function LegalDocument({
   emptyMessage,
 }: LegalDocumentProps) {
   const { t } = useTranslation()
-  const { data, isLoading } = useQuery({
+  const { data, error, isError, isLoading, refetch } = useQuery({
     queryKey: [queryKey],
     queryFn: fetchDocument,
     staleTime: 10 * 60 * 1000,
@@ -64,6 +65,18 @@ export function LegalDocument({
           <Skeleton className='h-4 w-[90%]' />
           <Skeleton className='h-4 w-[80%]' />
         </div>
+      </PublicLayout>
+    )
+  }
+
+  if (isError && data === undefined) {
+    return (
+      <PublicLayout>
+        <ErrorState
+          error={error}
+          description={t('Please try again later.')}
+          onRetry={() => void refetch()}
+        />
       </PublicLayout>
     )
   }

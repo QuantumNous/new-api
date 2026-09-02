@@ -16,16 +16,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { t } from 'i18next'
+import axios from 'axios'
 
-import { api } from '@/lib/api'
+const MAX_TRANSIENT_RETRIES = 2
 
-import type { AboutResponse } from './types'
-
-export async function getAboutContent() {
-  const res = await api.get<AboutResponse>('/api/about')
-  if (!res.data.success) {
-    throw new Error(res.data.message || t('Request failed') || 'Request failed')
+function getHttpStatus(error: unknown): number | undefined {
+  if (axios.isAxiosError(error)) return error.response?.status
+  if (!error || typeof error !== 'object' || !('status' in error)) {
+    return undefined
   }
-  return res.data
+
+  const status = Number(error.status)
+  return Number.isInteger(status) ? status : undefined
+}
+
+export function shouldRetryQuery(
+  failureCount: number,
+  error: unknown
+): boolean {
+  const status = getHttpStatus(error)
+  if (status !== undefined && status >= 400 && status < 500) {
+    return false
+  }
+
+  return failureCount < MAX_TRANSIENT_RETRIES
 }

@@ -20,6 +20,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
+import { ErrorState } from '@/components/error-state'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 import { SettingsSection } from '../../components/settings-section'
@@ -35,7 +36,9 @@ type CustomOAuthSectionProps = {
 
 export function CustomOAuthSection(props: CustomOAuthSectionProps) {
   const { t } = useTranslation()
-  const { data: providers = [], isLoading } = useCustomOAuthProviders()
+  const providersQuery = useCustomOAuthProviders()
+  const providers = providersQuery.data ?? []
+  const isLoading = providersQuery.isLoading
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingProvider, setEditingProvider] =
     useState<CustomOAuthProvider | null>(null)
@@ -68,6 +71,18 @@ export function CustomOAuthSection(props: CustomOAuthSectionProps) {
         <div className='text-muted-foreground py-8 text-center text-sm'>
           {t('Loading...')}
         </div>
+      </SettingsSection>
+    )
+  }
+
+  if (providersQuery.isError) {
+    return (
+      <SettingsSection title={t('Custom OAuth Providers')}>
+        <ErrorState
+          error={providersQuery.error}
+          onRetry={() => void providersQuery.refetch()}
+          className='min-h-[220px]'
+        />
       </SettingsSection>
     )
   }

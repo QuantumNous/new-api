@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { t } from 'i18next'
+
 import { api } from '@/lib/http-client'
 
 export {
@@ -67,9 +69,20 @@ export async function getUserGroups(): Promise<{
 // System APIs
 // ============================================================================
 
-export async function getStatus() {
+export async function getStatus(): Promise<Record<string, unknown>> {
   const res = await api.get('/api/status')
-  return res.data?.data as Record<string, unknown>
+  const data = res.data?.data
+  if (
+    res.data?.success !== true ||
+    !data ||
+    typeof data !== 'object' ||
+    Array.isArray(data)
+  ) {
+    throw new Error(
+      res.data?.message || t('Request failed') || 'Request failed'
+    )
+  }
+  return data as Record<string, unknown>
 }
 
 export async function getNotice(): Promise<{

@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { t } from 'i18next'
+
 import { api } from '@/lib/api'
 
 import type { RankingPeriod, RankingsSnapshot } from './types'
@@ -23,12 +25,22 @@ import type { RankingPeriod, RankingsSnapshot } from './types'
 type RankingsResponse = {
   success: boolean
   message?: string
+  data?: RankingsSnapshot
+}
+
+type SuccessfulRankingsResponse = RankingsResponse & {
+  success: true
   data: RankingsSnapshot
 }
 
 export async function getRankings(
   period: RankingPeriod
-): Promise<RankingsResponse> {
-  const res = await api.get('/api/rankings', { params: { period } })
-  return res.data
+): Promise<SuccessfulRankingsResponse> {
+  const res = await api.get<RankingsResponse>('/api/rankings', {
+    params: { period },
+  })
+  if (!res.data.success || !res.data.data) {
+    throw new Error(res.data.message || t('Request failed') || 'Request failed')
+  }
+  return res.data as SuccessfulRankingsResponse
 }

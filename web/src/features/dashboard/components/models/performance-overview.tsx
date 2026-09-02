@@ -21,6 +21,7 @@ import { Gauge, HeartPulse, Timer } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
 import { IconBadge, type IconBadgeTone } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getPerfMetricsSummary } from '@/features/performance-metrics/api'
@@ -93,13 +94,29 @@ export function PerformanceOverview() {
   })
 
   const models = useMemo(
-    () => metricsQuery.data?.data.models ?? [],
+    () => metricsQuery.data?.data?.models ?? [],
     [metricsQuery.data]
   )
   const summary = useMemo(() => buildPerformanceSummary(models), [models])
   const topModels = useMemo(() => models.slice(0, TOP_MODEL_LIMIT), [models])
   const loading = metricsQuery.isLoading
   const hasData = models.length > 0
+
+  if (metricsQuery.isError && metricsQuery.data === undefined) {
+    return (
+      <div className='text-muted-foreground flex items-center justify-center gap-2 overflow-hidden rounded-lg border px-4 py-3 text-xs'>
+        <span>{t('Please try again later.')}</span>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          onClick={() => void metricsQuery.refetch()}
+        >
+          {t('Retry')}
+        </Button>
+      </div>
+    )
+  }
 
   if (!loading && !hasData) {
     return (

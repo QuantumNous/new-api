@@ -20,6 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Construction } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { ErrorState } from '@/components/error-state'
 import { PublicLayout } from '@/components/layout'
 import { RichContent } from '@/components/rich-content'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -114,7 +115,7 @@ function EmptyAboutState() {
 
 export function About() {
   const { t } = useTranslation()
-  const { data, isLoading } = useQuery({
+  const { data, error, isError, isLoading, refetch } = useQuery({
     queryKey: ['about-content'],
     queryFn: getAboutContent,
   })
@@ -133,6 +134,18 @@ export function About() {
           <Skeleton className='h-4 w-[90%]' />
           <Skeleton className='h-4 w-[80%]' />
         </div>
+      </PublicLayout>
+    )
+  }
+
+  if (isError && data === undefined) {
+    return (
+      <PublicLayout>
+        <ErrorState
+          error={error}
+          description={t('Please try again later.')}
+          onRetry={() => void refetch()}
+        />
       </PublicLayout>
     )
   }

@@ -22,6 +22,7 @@ import { Users, Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ErrorState } from '@/components/error-state'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -136,12 +137,19 @@ export function UserCharts(props: UserChartsProps) {
     updateTheme()
   }, [resolvedTheme])
 
-  const { data: userData, isLoading } = useQuery({
+  const userQuery = useQuery({
     queryKey: ['dashboard', 'user-quota', timeRange],
-    queryFn: () => getUserQuotaDataByUsers(timeRange),
-    select: (res) => (res.success ? res.data : []),
+    queryFn: async () => {
+      const result = await getUserQuotaDataByUsers(timeRange)
+      if (!result.success || !Array.isArray(result.data)) {
+        throw new Error(t('Request failed'))
+      }
+      return result.data
+    },
     staleTime: 60_000,
   })
+  const userData = userQuery.data
+  const isLoading = userQuery.isLoading
 
   const chartData = useMemo(
     () =>
@@ -153,6 +161,16 @@ export function UserCharts(props: UserChartsProps) {
       ),
     [userData, isLoading, timeGranularity, t, topUserLimit]
   )
+
+  if (userQuery.isError && userData === undefined) {
+    return (
+      <ErrorState
+        error={userQuery.error}
+        description={t('Please try again later.')}
+        onRetry={() => void userQuery.refetch()}
+      />
+    )
+  }
 
   return (
     <div className='space-y-3'>

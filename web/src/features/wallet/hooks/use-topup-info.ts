@@ -166,6 +166,7 @@ function parseDiscountMap(data: unknown): Record<number, number> {
 export function useTopupInfo() {
   const [topupInfo, setTopupInfo] = useState<TopupInfo | null>(null)
   const [presetAmounts, setPresetAmounts] = useState<PresetAmount[]>([])
+  const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
 
   const fetchTopupInfo = useCallback(async () => {
@@ -175,9 +176,7 @@ export function useTopupInfo() {
       const response = await getTopupInfo()
 
       if (!response.success || !response.data) {
-        // eslint-disable-next-line no-console
-        console.error('Failed to fetch topup info:', response.message)
-        return
+        throw new Error(response.message || 'Request failed')
       }
 
       const processedData: TopupInfo = {
@@ -195,6 +194,7 @@ export function useTopupInfo() {
       }
 
       setTopupInfo(processedData)
+      setError(null)
 
       if (processedData.amount_options.length > 0) {
         const customPresets = mergePresetAmounts(
@@ -207,9 +207,10 @@ export function useTopupInfo() {
         const defaultPresets = generatePresetAmounts(minTopup)
         setPresetAmounts(defaultPresets)
       }
-    } catch (err) {
+    } catch (fetchError) {
       // eslint-disable-next-line no-console
-      console.error('Failed to fetch topup info:', err)
+      console.error('Failed to fetch topup info:', fetchError)
+      setError(fetchError)
     } finally {
       setLoading(false)
     }
@@ -230,6 +231,7 @@ export function useTopupInfo() {
   return {
     topupInfo,
     presetAmounts,
+    error,
     loading,
     refetch: fetchTopupInfo,
   }
