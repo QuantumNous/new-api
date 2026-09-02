@@ -79,6 +79,25 @@ func TestResponseOpenAI2ClaudeUsageCarriesOpenAIBillingUsage(t *testing.T) {
 	assert.Nil(t, resp.Usage.BillingUsage.OpenAIUsage.BillingUsage)
 }
 
+func TestResponseOpenAI2ClaudePreservesReasoningBeforeText(t *testing.T) {
+	message := dto.Message{Role: "assistant", Content: "final answer"}
+	message.ReasoningContent = ptr("considering the request")
+	resp := ResponseOpenAI2Claude(&dto.OpenAITextResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.OpenAITextResponseChoice{
+			{Message: message, FinishReason: "stop"},
+		},
+	}, nil)
+
+	require.Len(t, resp.Content, 2)
+	assert.Equal(t, "thinking", resp.Content[0].Type)
+	require.NotNil(t, resp.Content[0].Thinking)
+	assert.Equal(t, "considering the request", *resp.Content[0].Thinking)
+	assert.Equal(t, "text", resp.Content[1].Type)
+	assert.Equal(t, "final answer", resp.Content[1].GetText())
+}
+
 func TestBuildClaudeUsageFromOpenAICacheWriteUsage(t *testing.T) {
 	usage := buildClaudeUsageFromOpenAIUsage(&dto.Usage{
 		PromptTokens:     3619,
