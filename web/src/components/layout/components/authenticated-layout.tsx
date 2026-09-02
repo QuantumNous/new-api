@@ -23,6 +23,7 @@ import { LayoutProvider } from '@/context/layout-provider'
 import { SearchProvider } from '@/context/search-provider'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
+import { useConsoleModeStore } from '@/stores/console-mode-store'
 
 import { AppHeader } from './app-header'
 import { AppSidebar } from './app-sidebar'
@@ -33,18 +34,27 @@ type AuthenticatedLayoutProps = {
 
 export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
   const defaultOpen = getCookie('sidebar_state') !== 'false'
+  const mode = useConsoleModeStore((state) => state.mode)
+  const isEasyMode = mode === 'easy'
 
   return (
     <LayoutProvider>
       <SearchProvider>
-        <SidebarProvider defaultOpen={defaultOpen} className='flex-col'>
+        <SidebarProvider
+          defaultOpen={defaultOpen}
+          className={cn(
+            'dopa-console flex-col',
+            isEasyMode ? 'dopa-console--easy' : 'dopa-console--developer'
+          )}
+          data-console-mode={mode}
+        >
           <SkipToMain />
           <AppHeader />
           <div className='flex min-h-0 w-full flex-1'>
-            <AppSidebar />
+            {!isEasyMode && <AppSidebar />}
             <SidebarInset
               className={cn(
-                '@container/content',
+                '@container/content dopa-console-page',
                 'h-[calc(100svh-var(--app-header-height,0px))]',
                 'min-h-0 overflow-hidden',
                 'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'

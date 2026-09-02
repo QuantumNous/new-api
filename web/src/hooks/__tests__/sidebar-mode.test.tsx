@@ -43,6 +43,7 @@ describe('console mode sidebar', () => {
     expect(getSidebarUrls()).toEqual([
       '/dashboard/overview',
       '/keys',
+      '/pricing',
       '/guide',
       '/usage-logs/common',
       '/wallet',

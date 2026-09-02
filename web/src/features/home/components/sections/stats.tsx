@@ -92,37 +92,72 @@ interface StatItem {
   suffix: string
   label: string
   decimals?: number
+  hue: string
 }
 
 export function Stats(_props: StatsProps) {
   const { t } = useTranslation()
 
   const stats: StatItem[] = [
-    { end: 50, suffix: '+', label: t('upstream services integrated') },
-    { end: 100, suffix: '+', label: t('model billing support') },
-    { end: 50, suffix: '+', label: t('compatible API routes') },
-    { end: 10, suffix: '+', label: t('scheduling controls') },
+    {
+      end: 100,
+      suffix: '+',
+      label: t('AI models to choose from'),
+      hue: 'var(--chart-1)',
+    },
+    {
+      end: 30,
+      suffix: '+',
+      label: t('popular tools supported'),
+      hue: 'var(--chart-2)',
+    },
+    {
+      end: 3,
+      suffix: ` ${t('min')}`,
+      label: t('from sign-up to first chat'),
+      hue: 'var(--chart-3)',
+    },
+    {
+      end: 1,
+      suffix: '',
+      label: t('key is all you need'),
+      hue: 'var(--chart-4)',
+    },
   ]
 
   return (
-    <div className='border-border/40 bg-muted/10 relative z-10 border-y'>
-      <div className='mx-auto max-w-6xl px-6 py-10 md:py-12'>
-        <div className='grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-12'>
+    <section className='relative z-10 px-6 py-10 md:py-14'>
+      <div className='dopa-section-shell' data-section='PROOF'>
+        <div className='mb-5 flex items-end justify-between gap-4'>
+          <div>
+            <p className='dopa-section-kicker'>{t('Why people love it')}</p>
+            <h2 className='mt-3 text-2xl font-black tracking-tight md:text-3xl'>
+              {t('AI without the headaches')}
+            </h2>
+          </div>
+          <span className='text-muted-foreground hidden font-mono text-[10px] tracking-[0.18em] uppercase md:block'>
+            Yecai / live
+          </span>
+        </div>
+        <div className='dopa-data-rail dopa-number-strip grid grid-cols-2 md:grid-cols-4'>
           {stats.map((s) => (
             <div
               key={s.label}
-              className='flex flex-col items-center text-center'
+              className='flex min-h-28 flex-col justify-between border-r border-[var(--dopa-rule)] px-4 py-5 last:border-r-0 even:border-r-0 md:min-h-32 md:px-6 md:py-6 md:even:border-r'
             >
-              <span className='text-2xl font-bold tracking-tight md:text-3xl'>
+              <span
+                className='font-mono text-3xl font-black tracking-[-0.07em] md:text-4xl'
+                style={{ color: s.hue }}
+              >
                 <Counter end={s.end} suffix={s.suffix} decimals={s.decimals} />
               </span>
-              <span className='text-muted-foreground mt-1.5 text-xs'>
+              <span className='text-muted-foreground mt-4 max-w-32 text-xs leading-relaxed font-semibold'>
                 {s.label}
               </span>
             </div>
           ))}
         </div>
       </div>
-    </div>
+    </section>
   )
 }

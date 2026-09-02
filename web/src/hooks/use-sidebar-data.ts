@@ -69,6 +69,11 @@ export function useSidebarData(): SidebarData {
               icon: Key,
             },
             {
+              title: t('Model prices'),
+              url: '/pricing',
+              icon: CreditCard,
+            },
+            {
               title: t('Beginner guide'),
               url: '/guide',
               icon: BookOpen,

@@ -28,8 +28,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { formatEasySavingsCny } from '@/features/dashboard/components/overview/easy-savings'
+import { useStatus } from '@/hooks/use-status'
 import { formatLogQuota } from '@/lib/format'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
+import { getLogCostComparison } from '../lib/cost-comparison'
 import { hasToolSurcharge } from '../lib/format'
 import type { LogOtherData } from '../types'
 
@@ -118,15 +122,44 @@ function SubscriptionBadge(props: { quota: number }) {
 }
 
 export function LogCostDisplay(props: LogCostDisplayProps) {
+  const { t } = useTranslation()
+  const { status } = useStatus()
+  const quotaPerUnit = useSystemConfigStore(
+    (state) => state.config.currency.quotaPerUnit
+  )
   const isSubscription = props.other?.billing_source === 'subscription'
   const showToolSurcharge = hasToolSurcharge(props.other)
+  const comparison = getLogCostComparison(props.quota, props.other, {
+    priceRate: Math.max(Number(status?.price ?? 1), 0.001),
+    usdExchangeRate: Math.max(
+      Number(status?.usd_exchange_rate ?? status?.price ?? 1),
+      0.001
+    ),
+    quotaPerUnit,
+  })
+  const costContent = comparison ? (
+    <div
+      className='dopa-cost-stack'
+      data-testid='log-savings-comparison'
+      aria-label={`${t('Estimated savings')} ${formatEasySavingsCny(comparison.savings)}`}
+    >
+      <span className='dopa-cost-stack__official'>
+        {t('Official equivalent')}{' '}
+        {formatEasySavingsCny(comparison.officialCost)}
+      </span>
+      <span className='dopa-cost-stack__actual'>
+        {t('Yecai billing')} {formatEasySavingsCny(comparison.siteCost)}
+      </span>
+      <span className='dopa-cost-stack__saved'>
+        {t('Estimated savings')} {formatEasySavingsCny(comparison.savings)}
+      </span>
+    </div>
+  ) : (
+    <QuotaBadge quota={props.quota} />
+  )
 
   if (!isSubscription && !showToolSurcharge) {
-    return (
-      <div className='flex flex-col gap-0.5'>
-        <QuotaBadge quota={props.quota} />
-      </div>
-    )
+    return <div className='flex flex-col gap-0.5'>{costContent}</div>
   }
 
   return (
@@ -135,7 +168,7 @@ export function LogCostDisplay(props: LogCostDisplayProps) {
         {isSubscription ? (
           <SubscriptionBadge quota={props.quota} />
         ) : (
-          <QuotaBadge quota={props.quota} />
+          costContent
         )}
         {showToolSurcharge ? <ToolSurchargeMarker /> : null}
       </div>

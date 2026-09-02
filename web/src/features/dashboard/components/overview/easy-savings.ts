@@ -33,6 +33,7 @@ type EasySavingsRates = {
 
 type LogBillingData = {
   group_ratio?: unknown
+  user_group_ratio?: unknown
   fee_quota?: unknown
 }
 
@@ -78,7 +79,11 @@ export function estimateEasySavings(
     if (log.type !== 2) continue
 
     const billing = readLogBillingData(log.other)
-    const groupRatio = Number(billing?.group_ratio)
+    const userGroupRatio = Number(billing?.user_group_ratio)
+    const groupRatio =
+      Number.isFinite(userGroupRatio) && userGroupRatio > 0
+        ? userGroupRatio
+        : Number(billing?.group_ratio)
     if (!Number.isFinite(groupRatio) || groupRatio <= 0) continue
 
     const feeQuota = Number(billing?.fee_quota)

@@ -19,11 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, Flame, ShieldCheck, TrendingDown } from 'lucide-react'
-import { useMemo } from 'react'
+import { type CSSProperties, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { StaggerContainer, StaggerItem } from '@/components/page-transition'
-import { Button } from '@/components/ui/button'
+import {
+  YecaiAction,
+  YecaiBentoGrid,
+  YecaiBentoItem,
+  YecaiPanel,
+  type YecaiTone,
+} from '@/components/yecai'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
@@ -31,10 +36,7 @@ import { useStatus } from '@/hooks/use-status'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
-import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
-
-import { StatCard } from '../ui/stat-card'
 
 const SUMMARY_SPARKLINE_BUCKETS = 12
 
@@ -110,6 +112,31 @@ function getRunwayDays(
 }
 
 type HealthLevel = 'healthy' | 'caution' | 'critical'
+
+function SummarySparkline(props: { data?: number[]; tone: YecaiTone }) {
+  const values = props.data?.length ? props.data : [0, 0, 0, 0]
+  const max = Math.max(...values, 1)
+  const denominator = Math.max(values.length - 1, 1)
+  const points = values
+    .map((value, index) => {
+      const x = (index / denominator) * 100
+      const y = 30 - (value / max) * 24
+      return `${x},${y}`
+    })
+    .join(' ')
+
+  return (
+    <svg
+      aria-hidden='true'
+      className='dopa-dev-bento__sparkline'
+      data-tone={props.tone}
+      viewBox='0 0 100 32'
+      preserveAspectRatio='none'
+    >
+      <polyline points={points} />
+    </svg>
+  )
+}
 
 function getHealthLevel(remainQuota: number, recentUsage: number): HealthLevel {
   if (remainQuota <= 0) return 'critical'
@@ -232,7 +259,7 @@ export function SummaryCards() {
     currencyEnabled,
     currencyLabel,
   }).map((config, index) => {
-    const tones = ['accent-1', 'accent-2', 'accent-3'] as const
+    const tones: YecaiTone[] = ['leaf', 'money', 'model']
 
     return {
       key: config.key,
@@ -240,116 +267,108 @@ export function SummaryCards() {
       value: config.value,
       desc: config.description,
       icon: config.icon,
-      tone: tones[index] ?? 'accent-3',
+      tone: tones[index] ?? 'model',
       sparkline:
         config.key === 'todayUsage'
           ? sparklineData.usage
           : getSummarySparkline(config.key, sparklineData),
-      sparklineVariant: 'line' as const,
     }
   })
 
+  const runwayProgress = Math.min(1, Math.max(0, (runwayDays ?? 0) / 30))
+  const runwayStyle = {
+    '--dopa-runway-angle': `${Math.max(36, runwayProgress * 360)}deg`,
+  } as CSSProperties
+
   return (
-    <div className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
-      <div className='grid xl:grid-cols-[minmax(0,1fr)_19rem]'>
-        <div className='flex flex-col gap-2.5 p-3 sm:gap-3 sm:p-5'>
-          <div className='flex flex-wrap items-start justify-between gap-3'>
-            <div className='flex flex-col gap-1'>
-              <h3 className='text-sm font-semibold sm:text-base'>
-                {t('Usage at a glance')}
-              </h3>
-              <p className='text-muted-foreground text-xs sm:text-sm'>
-                {t('Monitor balance, usage, and request volume')}
-              </p>
-            </div>
-          </div>
-          <StaggerContainer className='grid grid-cols-3 gap-1.5 sm:gap-3'>
-            {items.map((it) => (
-              <StaggerItem
-                key={it.key}
-                className='bg-background/60 rounded-lg border px-2 py-1.5 sm:rounded-xl sm:p-3'
+    <YecaiPanel
+      as='section'
+      className='dopa-dev-bento'
+      layer='raised'
+      tone='signal'
+    >
+      <header className='dopa-dev-bento__header'>
+        <div>
+          <span>{t('Usage at a glance')}</span>
+          <h3>{t('Monitor balance, usage, and request volume')}</h3>
+        </div>
+        <span className='dopa-dev-bento__live'>
+          <i aria-hidden='true' />
+          {loading ? t('Loading') : t('Live')}
+        </span>
+      </header>
+
+      <YecaiBentoGrid className='dopa-dev-bento__grid'>
+        <div className='dopa-dev-bento__metrics'>
+          {items.map((item) => {
+            const Icon = item.icon
+
+            return (
+              <YecaiBentoItem
+                className='dopa-dev-bento__metric'
+                key={item.key}
+                tone={item.tone}
               >
-                <StatCard
-                  title={it.title}
-                  value={it.value}
-                  description={it.desc}
-                  icon={it.icon}
-                  tone={it.tone}
-                  sparkline={it.sparkline}
-                  sparklineVariant={it.sparklineVariant}
-                  loading={loading}
-                  compactMobile
-                />
-              </StaggerItem>
-            ))}
-          </StaggerContainer>
+                <span className='dopa-dev-bento__metric-icon'>
+                  <Icon aria-hidden='true' />
+                </span>
+                <span>{item.title}</span>
+                <strong>{loading ? '—' : item.value}</strong>
+                <small>{item.desc}</small>
+                <SummarySparkline data={item.sparkline} tone={item.tone} />
+              </YecaiBentoItem>
+            )
+          })}
         </div>
 
-        <div className='flex flex-col justify-between gap-3 border-t bg-[linear-gradient(135deg,color-mix(in_oklch,var(--overview-accent-2)_12%,var(--background))_0%,color-mix(in_oklch,oklch(0.82_0.04_155)_8%,var(--background))_48%,color-mix(in_oklch,var(--overview-accent-1)_7%,var(--background))_100%)] p-3 sm:gap-4 sm:p-5 xl:border-t-0 xl:border-l'>
-          <div className='flex flex-col gap-2 sm:gap-3'>
-            <div className='flex items-center justify-between'>
-              <span className='text-muted-foreground text-xs font-medium'>
-                {t('Credit remaining')}
-              </span>
-              <span className='flex items-center gap-1.5'>
-                <span
-                  className={cn('size-1.5 rounded-full', healthCfg.dotClass)}
-                  aria-hidden='true'
-                />
-                <span className='text-muted-foreground text-[11px] font-medium'>
-                  {t(healthCfg.labelKey)}
-                </span>
-              </span>
-            </div>
-
-            <div className='font-mono text-xl font-semibold tracking-tight sm:text-2xl'>
-              {formatQuota(remainQuota)}
-            </div>
-
-            <div className='grid grid-cols-2 gap-2'>
-              <div className='bg-background/60 rounded-lg px-2.5 py-2'>
-                <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
-                  <Flame className='size-3 shrink-0' aria-hidden='true' />
-                  <span className='truncate'>{t('Last 24h usage')}</span>
-                </div>
-                <div className='text-foreground mt-1.5 truncate text-xs font-semibold tabular-nums'>
-                  {formatQuota(recentUsage)}
-                </div>
-              </div>
-              <div className='bg-background/60 rounded-lg px-2.5 py-2'>
-                <div className='text-muted-foreground flex items-center gap-1 text-[11px] leading-none font-medium'>
-                  {runwayDays !== null && runwayDays < 3 ? (
-                    <TrendingDown
-                      className='size-3 shrink-0'
-                      aria-hidden='true'
-                    />
-                  ) : (
-                    <ShieldCheck
-                      className='size-3 shrink-0'
-                      aria-hidden='true'
-                    />
-                  )}
-                  <span className='truncate'>{t('Runway')}</span>
-                </div>
-                <div
-                  className={cn(
-                    'mt-1.5 truncate text-xs font-semibold tabular-nums',
-                    healthLevel === 'critical' && 'text-destructive',
-                    healthLevel === 'caution' && 'text-warning'
-                  )}
-                >
-                  {runwayDisplay}
-                </div>
-              </div>
-            </div>
+        <YecaiBentoItem
+          as='aside'
+          className='dopa-dev-bento__runway'
+          data-health={healthLevel}
+          tone='signal'
+        >
+          <div className='dopa-dev-bento__runway-copy'>
+            <span>{t('Credit remaining')}</span>
+            <strong>{formatQuota(remainQuota)}</strong>
+            <span className='dopa-dev-bento__health'>
+              <i className={healthCfg.dotClass} aria-hidden='true' />
+              {t(healthCfg.labelKey)}
+            </span>
           </div>
 
-          <Button className='justify-between' render={<Link to='/wallet' />}>
+          <div
+            aria-label={`${t('Runway')}: ${runwayDisplay}`}
+            className='dopa-dev-bento__orbit'
+            style={runwayStyle}
+          >
+            {runwayDays !== null && runwayDays < 3 ? (
+              <TrendingDown aria-hidden='true' />
+            ) : (
+              <ShieldCheck aria-hidden='true' />
+            )}
+            <strong>{runwayDisplay}</strong>
+            <span>{t('Runway')}</span>
+          </div>
+
+          <div className='dopa-dev-bento__runway-foot'>
+            <span>
+              <Flame aria-hidden='true' />
+              {t('Last 24h usage')}
+            </span>
+            <strong>{formatQuota(recentUsage)}</strong>
+          </div>
+
+          <YecaiAction
+            appearance='soft'
+            className='dopa-dev-bento__wallet'
+            render={<Link to='/wallet' />}
+            tone='money'
+          >
             <span>{t('Wallet')}</span>
             <ArrowRight data-icon='inline-end' />
-          </Button>
-        </div>
-      </div>
-    </div>
+          </YecaiAction>
+        </YecaiBentoItem>
+      </YecaiBentoGrid>
+    </YecaiPanel>
   )
 }

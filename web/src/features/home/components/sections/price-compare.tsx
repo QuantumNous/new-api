@@ -90,8 +90,8 @@ export function PriceCompare(props: PriceCompareProps) {
   const { t } = useTranslation()
 
   return (
-    <article className='border-border bg-card dopa-candy-shadow overflow-hidden rounded-3xl border'>
-      <div className='border-border flex items-end justify-between gap-4 border-b px-5 py-5 sm:px-7'>
+    <article className='dopa-paper dopa-cut-corner overflow-hidden'>
+      <div className='flex items-end justify-between gap-4 px-5 pt-6 pb-3 sm:px-7'>
         <div>
           <h3 className='text-lg font-extrabold'>
             {t('Latest model price check')}

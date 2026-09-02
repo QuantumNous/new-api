@@ -19,11 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 import { render, screen } from '@testing-library/react'
 import i18next from 'i18next'
 import type React from 'react'
-import { beforeAll, describe, expect, test } from 'vitest'
+import { beforeAll, describe, expect, test, vi } from 'vitest'
 
 import { formatLogQuota } from '@/lib/format'
 
 import { LogCostDisplay } from '../log-cost-display'
+
+vi.mock('@/hooks/use-status', () => ({
+  useStatus: () => ({
+    status: { price: 1, usd_exchange_rate: 7.2 },
+  }),
+}))
 
 function renderCost(
   props: React.ComponentProps<typeof LogCostDisplay>

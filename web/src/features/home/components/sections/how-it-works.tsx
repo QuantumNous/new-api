@@ -16,74 +16,108 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Settings, Zap, BarChart3 } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import {
+  ArrowRight,
+  ClipboardCopy,
+  KeyRound,
+  MessageCircleHeart,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { AnimateInView } from '@/components/animate-in-view'
+import { Button } from '@/components/ui/button'
+import { useRevealOnScroll } from '@/hooks/use-reveal-on-scroll'
 
 export function HowItWorks() {
   const { t } = useTranslation()
+  const sectionRef = useRevealOnScroll<HTMLElement>()
 
   const steps = [
     {
       num: '1',
-      title: t('Configure'),
+      title: t('Create your key'),
       desc: t(
-        'Add your API keys, set up channels and configure access permissions'
+        'Sign up and tap "Create Key" — think of it as your personal AI pass.'
       ),
-      icon: <Settings className='size-6' strokeWidth={1.5} />,
+      icon: <KeyRound className='size-7' strokeWidth={2} />,
+      hue: 'var(--chart-1)',
     },
     {
       num: '2',
-      title: t('Connect'),
+      title: t('Paste it into your tool'),
       desc: t(
-        'Connect through OpenAI, Claude, Gemini, and other compatible API routes'
+        'Paste one key into any of these — chat apps, coding assistants, translators and more.'
       ),
-      icon: <Zap className='size-6' strokeWidth={1.5} />,
+      icon: <ClipboardCopy className='size-7' strokeWidth={2} />,
+      hue: 'var(--chart-2)',
     },
     {
       num: '3',
-      title: t('Monitor'),
-      desc: t('Track usage, costs and performance with real-time analytics'),
-      icon: <BarChart3 className='size-6' strokeWidth={1.5} />,
+      title: t('Start chatting'),
+      desc: t('Pick a model and go. Every model, one bill, no extra accounts.'),
+      icon: <MessageCircleHeart className='size-7' strokeWidth={2} />,
+      hue: 'var(--chart-3)',
     },
   ]
 
   return (
-    <section className='border-border/40 relative z-10 border-t px-6 py-24 md:py-32'>
-      <div className='mx-auto max-w-6xl'>
-        <AnimateInView className='mb-16 text-center md:mb-20'>
-          <p className='text-muted-foreground mb-3 text-xs font-medium tracking-widest uppercase'>
-            {t('How It Works')}
-          </p>
-          <h2 className='text-2xl font-bold tracking-tight md:text-3xl'>
-            {t('Three steps to get started')}
+    <section ref={sectionRef} className='relative z-10 px-6 py-16 md:py-24'>
+      <div
+        className='dopa-section-shell grid gap-10 lg:grid-cols-[0.72fr_1.28fr] lg:gap-16'
+        data-section='SETUP'
+      >
+        <div className='dopa-reveal lg:sticky lg:top-24 lg:self-start'>
+          <p className='dopa-section-kicker'>{t('How It Works')}</p>
+          <h2 className='mt-4 text-3xl font-black tracking-[-0.055em] text-balance md:text-5xl'>
+            {t('Up and running in 3 easy steps')}
           </h2>
-        </AnimateInView>
-
-        <div className='grid gap-8 md:grid-cols-3 md:gap-12'>
-          {steps.map((step, i) => (
-            <AnimateInView
-              key={step.num}
-              delay={i * 150}
-              animation='fade-up'
-              className='relative flex flex-col items-center text-center'
-            >
-              <div className='relative mb-6'>
-                <div className='text-muted-foreground border-border/50 bg-muted/30 flex size-16 items-center justify-center rounded-2xl border transition-colors'>
-                  {step.icon}
-                </div>
-                <div className='bg-foreground text-background absolute -top-2 -right-2 flex size-6 items-center justify-center rounded-full text-xs font-bold'>
-                  {step.num}
-                </div>
-              </div>
-              <h3 className='mb-2 text-base font-semibold'>{step.title}</h3>
-              <p className='text-muted-foreground max-w-[240px] text-sm leading-relaxed'>
-                {step.desc}
-              </p>
-            </AnimateInView>
-          ))}
+          <p className='text-muted-foreground mt-4 max-w-md text-base leading-relaxed text-pretty'>
+            {t('If you can copy and paste, you can do this.')}
+          </p>
+          <Button
+            variant='outline'
+            className='dopa-spring mt-7 h-11 rounded-full px-6 font-semibold'
+            render={<Link to='/guide' />}
+          >
+            {t('See the full beginner guide')}
+            <ArrowRight className='ml-1.5 size-4' />
+          </Button>
         </div>
+
+        <ol className='dopa-paper dopa-setup-trace overflow-hidden rounded-[1.75rem]'>
+          {steps.map((step, i) => (
+            <li
+              key={step.num}
+              className='dopa-setup-step dopa-reveal group grid grid-cols-[3.75rem_1fr_auto] items-center gap-4 border-b border-[var(--dopa-rule)] px-4 py-6 last:border-b-0 sm:grid-cols-[5rem_1fr_auto] sm:px-7 sm:py-8'
+              data-step={step.num}
+              style={{ transitionDelay: `${i * 100}ms` }}
+            >
+              <span
+                className='font-mono text-4xl font-black tracking-[-0.1em] sm:text-5xl'
+                style={{ color: step.hue }}
+              >
+                0{step.num}
+              </span>
+              <div className='min-w-0'>
+                <h3 className='text-base font-extrabold sm:text-lg'>
+                  {step.title}
+                </h3>
+                <p className='text-muted-foreground mt-1 text-sm leading-relaxed'>
+                  {step.desc}
+                </p>
+              </div>
+              <span
+                className='hidden size-12 items-center justify-center rounded-2xl sm:flex'
+                style={{
+                  backgroundColor: `color-mix(in oklch, ${step.hue} 14%, transparent)`,
+                  color: step.hue,
+                }}
+              >
+                {step.icon}
+              </span>
+            </li>
+          ))}
+        </ol>
       </div>
     </section>
   )

@@ -27,6 +27,7 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { YecaiAction } from '@/components/yecai'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
@@ -158,13 +159,9 @@ export function PublicHeader(props: PublicHeaderProps) {
   }
 
   let desktopAuthContent: React.ReactNode = (
-    <Button
-      size='sm'
-      className='h-8 rounded-lg px-3.5 text-xs font-medium'
-      render={<Link to='/sign-in' />}
-    >
+    <YecaiAction size='sm' render={<Link to='/sign-in' />}>
       {t('Sign in')}
-    </Button>
+    </YecaiAction>
   )
   if (loading) {
     desktopAuthContent = <Skeleton className='h-8 w-20 rounded-lg' />
@@ -205,19 +202,18 @@ export function PublicHeader(props: PublicHeaderProps) {
 
   return (
     <>
-      <header className='pointer-events-none fixed inset-x-0 top-0 z-50'>
-        <div
-          className={cn(
-            'pointer-events-auto mx-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
-            scrolled ? 'max-w-[52rem] px-3 pt-3' : 'max-w-7xl px-4 pt-0 md:px-6'
-          )}
-        >
+      <header
+        className={cn(
+          'pointer-events-none fixed inset-x-0 top-0 z-50 transition-[background-color,box-shadow,backdrop-filter] duration-500',
+          scrolled &&
+            'bg-background/80 shadow-[0_16px_38px_-36px_color-mix(in_oklch,var(--foreground)_35%,transparent)] backdrop-blur-2xl'
+        )}
+      >
+        <div className='pointer-events-auto mx-auto max-w-7xl px-4 md:px-6'>
           <nav
             className={cn(
-              'flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
-              scrolled
-                ? 'bg-background/60 ring-border/50 h-12 rounded-2xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
-                : 'h-16 px-2'
+              'flex items-center justify-between px-1 transition-[height] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
+              scrolled ? 'h-14' : 'h-16'
             )}
           >
             {/* Logo */}
@@ -266,8 +262,8 @@ export function PublicHeader(props: PublicHeaderProps) {
                     className={cn(
                       'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-200',
                       isActive
-                        ? 'text-foreground'
-                        : 'text-muted-foreground hover:text-foreground',
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-background/70 hover:text-foreground',
                       link.disabled && 'pointer-events-none opacity-50'
                     )}
                   >
@@ -412,13 +408,19 @@ export function PublicHeader(props: PublicHeaderProps) {
             style={{ transitionDelay: mobileOpen ? '250ms' : '0ms' }}
           >
             {showAuthButtons && (
-              <Link
-                to={isAuthenticated ? '/dashboard' : '/sign-in'}
-                onClick={() => setMobileOpen(false)}
-                className='bg-foreground text-background inline-flex h-10 items-center justify-center rounded-lg text-sm font-medium transition-opacity hover:opacity-90 active:opacity-80'
+              <YecaiAction
+                tone='leaf'
+                size='lg'
+                className='w-full'
+                render={
+                  <Link
+                    to={isAuthenticated ? '/dashboard' : '/sign-in'}
+                    onClick={() => setMobileOpen(false)}
+                  />
+                }
               >
                 {isAuthenticated ? t('Go to Dashboard') : t('Sign in')}
-              </Link>
+              </YecaiAction>
             )}
           </div>
         </div>

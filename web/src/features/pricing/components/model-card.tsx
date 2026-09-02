@@ -20,6 +20,7 @@ import { ChevronRight, Copy } from 'lucide-react'
 import { memo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { YecaiAction, YecaiPanel } from '@/components/yecai'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
@@ -32,10 +33,10 @@ import {
   getDynamicPricingSummary,
   isUnconfiguredTaskUsageModel,
 } from '../lib/dynamic-price'
-import { getTaskNumberFields } from '../lib/task-expr'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
 import { formatPrice, formatRequestPrice } from '../lib/price'
+import { getTaskNumberFields } from '../lib/task-expr'
 import type { PricingModel, TokenUnit } from '../types'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPerfBadge, type ModelPerfBadgeData } from './model-perf-badge'
@@ -84,10 +85,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const dynamicSummary = isDynamicPricing
     ? getDynamicPricingSummary(props.model, dynamicPriceOptions)
     : null
-  const cardExamplePrice = getCardExamplePrice(
-    props.model,
-    dynamicPriceOptions
-  )
+  const cardExamplePrice = getCardExamplePrice(props.model, dynamicPriceOptions)
   const showTaskFieldLabels =
     getTaskNumberFields(props.model.billing_usage_schema).length > 1
 
@@ -147,7 +145,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
             )
           })}
           {cardExamplePrice && (
-            <span className='text-muted-foreground/70 min-w-0 max-w-full truncate text-xs'>
+            <span className='text-muted-foreground/70 max-w-full min-w-0 truncate text-xs'>
               {cardExamplePrice.label} ≈ {cardExamplePrice.formatted}
             </span>
           )}
@@ -242,9 +240,12 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   }
 
   return (
-    <div
+    <YecaiPanel
+      as='article'
+      tone='model'
+      layer='raised'
       className={cn(
-        'group relative flex flex-col rounded-xl border p-3 transition-colors sm:p-5',
+        'dopa-model-tile dopa-scale-texture group relative flex flex-col overflow-hidden rounded-3xl border p-3 transition-colors sm:p-5',
         'hover:bg-muted/20'
       )}
     >
@@ -269,22 +270,25 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
         </div>
 
         <div className='flex shrink-0 items-center gap-1.5'>
-          <button
-            type='button'
+          <YecaiAction
+            appearance='soft'
+            tone='model'
+            size='sm'
             onClick={props.onClick}
-            className='text-muted-foreground hover:text-foreground hover:bg-muted inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs transition-colors sm:px-2.5 sm:py-1.5'
           >
             {t('Details')}
             <ChevronRight className='size-3.5' />
-          </button>
-          <button
-            type='button'
+          </YecaiAction>
+          <YecaiAction
+            appearance='outline'
+            tone='neutral'
+            size='sm'
+            aria-label={t('Copy')}
             onClick={handleCopy}
-            className='text-muted-foreground hover:text-foreground hover:bg-muted rounded-md border p-1.5 transition-colors'
             title={t('Copy')}
           >
             <Copy className='size-3.5' />
-          </button>
+          </YecaiAction>
         </div>
       </div>
 
@@ -323,6 +327,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           )}
         </div>
       </div>
-    </div>
+    </YecaiPanel>
   )
 })

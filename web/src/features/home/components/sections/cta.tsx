@@ -17,11 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, BookOpen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { AnimateInView } from '@/components/animate-in-view'
 import { Button } from '@/components/ui/button'
+import { useRevealOnScroll } from '@/hooks/use-reveal-on-scroll'
 
 interface CTAProps {
   className?: string
@@ -30,55 +30,56 @@ interface CTAProps {
 
 export function CTA(props: CTAProps) {
   const { t } = useTranslation()
+  const sectionRef = useRevealOnScroll<HTMLElement>()
 
   if (props.isAuthenticated) {
     return null
   }
 
   return (
-    <section className='relative z-10 overflow-hidden px-6 py-24 md:py-32'>
-      {/* Gradient mesh background */}
-      <div
-        aria-hidden
-        className='absolute inset-0 -z-10 opacity-20 dark:opacity-[0.08]'
-        style={{
-          background: [
-            'radial-gradient(ellipse 50% 50% at 30% 50%, oklch(0.7 0.15 250 / 70%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 40% at 70% 40%, oklch(0.65 0.12 200 / 50%) 0%, transparent 70%)',
-          ].join(', '),
-        }}
-      />
-
-      <AnimateInView
-        className='mx-auto max-w-2xl text-center'
-        animation='scale-in'
-      >
-        <h2 className='text-2xl leading-tight font-bold tracking-tight md:text-4xl'>
-          {t('Ready to simplify')}
-          <br />
-          <span className='bg-gradient-to-r from-blue-400 via-violet-400 to-purple-500 bg-clip-text text-transparent'>
-            {t('your AI integration?')}
-          </span>
-        </h2>
-        <p className='text-muted-foreground/80 mx-auto mt-5 max-w-md text-sm leading-relaxed md:text-base'>
-          {t(
-            'Deploy your own gateway and start routing requests through your configured upstream services.'
-          )}
-        </p>
-        <div className='mt-8 flex items-center justify-center gap-3'>
-          <Button className='group rounded-lg' render={<Link to='/sign-up' />}>
-            {t('Get Started')}
-            <ArrowRight className='ml-1 size-3.5 transition-transform duration-200 group-hover:translate-x-0.5' />
-          </Button>
-          <Button
-            variant='outline'
-            className='border-border/50 hover:border-border hover:bg-muted/50 rounded-lg'
-            render={<Link to='/pricing' />}
-          >
-            {t('View Pricing')}
-          </Button>
+    <section ref={sectionRef} className='relative z-10 px-6 py-16 md:py-20'>
+      <div className='dopa-reveal dopa-section-shell' data-section='GO'>
+        <div className='dopa-gradient-surface dopa-ribbon-surface dopa-candy-shadow dopa-cut-corner relative overflow-hidden px-8 py-14 text-left md:px-14 md:py-16'>
+          {/* Soft white glow on top of the gradient for readability */}
+          <div
+            aria-hidden
+            className='absolute inset-0 opacity-15'
+            style={{
+              background:
+                'radial-gradient(ellipse 70% 60% at 50% 0%, white 0%, transparent 70%)',
+            }}
+          />
+          <div className='relative grid items-end gap-8 lg:grid-cols-[1fr_auto]'>
+            <div>
+              <h2 className='max-w-2xl text-3xl font-black tracking-[-0.055em] text-balance text-white md:text-5xl'>
+                {t('Ready to meet your new AI sidekick?')}
+              </h2>
+              <p className='mt-4 max-w-xl text-base leading-relaxed text-pretty text-white/85'>
+                {t(
+                  'Free to sign up. Three minutes to set up. A hundred models to play with.'
+                )}
+              </p>
+            </div>
+            <div className='flex flex-wrap items-center gap-3 lg:justify-end'>
+              <Button
+                className='dopa-spring dopa-shine text-foreground h-12 rounded-full bg-white px-7 text-base font-bold hover:bg-white/90'
+                render={<Link to='/sign-up' />}
+              >
+                {t('Start for free')}
+                <ArrowRight className='ml-1.5 size-4' />
+              </Button>
+              <Button
+                variant='outline'
+                className='dopa-spring h-12 rounded-full border-white/40 bg-transparent px-6 text-base font-semibold text-white hover:bg-white/10 hover:text-white'
+                render={<Link to='/guide' />}
+              >
+                <BookOpen className='mr-1.5 size-4' />
+                {t('Read the guide first')}
+              </Button>
+            </div>
+          </div>
         </div>
-      </AnimateInView>
+      </div>
     </section>
   )
 }
