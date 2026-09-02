@@ -29,8 +29,8 @@ import {
   DEFAULT_MONTHLY_TOKENS_MILLIONS,
   formatCnyAmount,
   formatTokenMillions,
+  getBillableSavingsTokenMix,
   getDefaultSavingsTokenMix,
-  rebalanceSavingsTokenMix,
   tokenMillionsToSliderPosition,
   tokenSliderPositionToMillions,
   TOKEN_SLIDER_MAX_MILLIONS,
@@ -78,9 +78,10 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
   const selectedModel =
     props.models.find((model) => model.modelName === selectedModelName) ??
     props.models[0]
-  const supportsCacheRead = selectedModel?.siteCacheReadPrice != null
-  const supportsCacheWrite = selectedModel?.siteCacheWritePrice != null
-  const supportsCachePricing = supportsCacheRead && supportsCacheWrite
+  const billableTokenMix = getBillableSavingsTokenMix(tokenMix, selectedModel)
+  const supportsCachePricing =
+    selectedModel?.siteCacheReadPrice != null ||
+    selectedModel?.siteCacheWritePrice != null
   const modelOptions = useMemo(
     () =>
       props.models.map((model) => ({
@@ -116,27 +117,44 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
   const tokenMixItems = [
     {
       label: t('Regular input'),
-      value: tokenMix.inputPercent,
+      value: billableTokenMix.inputPercent,
       className: 'bg-chart-4/12',
     },
     {
       label: t('Cache Read'),
-      value: tokenMix.cacheReadPercent,
+      value: billableTokenMix.cacheReadPercent,
       className: 'bg-success/12',
     },
     {
       label: t('Cache Write'),
-      value: tokenMix.cacheWritePercent,
+      value: billableTokenMix.cacheWritePercent,
       className: 'bg-chart-3/12',
     },
     {
       label: t('Output'),
-      value: tokenMix.outputPercent,
+      value: billableTokenMix.outputPercent,
       className: 'bg-chart-1/12',
     },
   ]
-  const updateTokenMix = (key: keyof SavingsTokenMix, value: number) => {
-    setTokenMix((current) => rebalanceSavingsTokenMix(current, key, value))
+  const updateTokenMix = (
+    key: 'cacheReadPercent' | 'cacheWritePercent' | 'outputPercent',
+    value: number
+  ) => {
+    setTokenMix((current) => {
+      const next = getBillableSavingsTokenMix(current, selectedModel)
+      const otherPercent =
+        next.cacheReadPercent +
+        next.cacheWritePercent +
+        next.outputPercent -
+        next[key]
+      next[key] = Math.min(Math.max(Math.round(value), 0), 100 - otherPercent)
+      next.inputPercent =
+        100 -
+        next.cacheReadPercent -
+        next.cacheWritePercent -
+        next.outputPercent
+      return next
+    })
   }
 
   return (
@@ -255,7 +273,7 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
                       'Scenario preset. Adjust it to match your actual usage; cache tokens are priced separately.'
                     )
                   : t(
-                      'Any cache item without a separate price is estimated at the regular input price.'
+                      'This model has no separate cache price; cache tokens are estimated as regular input.'
                     )}
               </p>
             </div>
@@ -289,48 +307,54 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
             ))}
           </div>
 
-          <div className='border-border mt-4 border-t pt-4'>
-            <div className='mb-4 flex items-center justify-between gap-3'>
-              <span className='text-primary text-[11px] font-bold'>
-                {t('Drag to adjust all four parts')}
-              </span>
-              <span className='text-muted-foreground text-[10px] font-semibold'>
-                {t('Always totals 100%')}
-              </span>
-            </div>
-            <div className='grid gap-x-5 gap-y-5 sm:grid-cols-2'>
-              <TokenMixSlider
-                id='input-percent-slider'
-                label={t('Regular input')}
-                value={tokenMix.inputPercent}
-                onChange={(value) => updateTokenMix('inputPercent', value)}
-              />
-              <TokenMixSlider
-                id='cache-read-percent-slider'
-                label={t('Cache Read')}
-                value={tokenMix.cacheReadPercent}
-                pricingNote={
-                  supportsCacheRead ? undefined : t('Billed as regular input')
-                }
-                onChange={(value) => updateTokenMix('cacheReadPercent', value)}
-              />
-              <TokenMixSlider
-                id='cache-write-percent-slider'
-                label={t('Cache Write')}
-                value={tokenMix.cacheWritePercent}
-                pricingNote={
-                  supportsCacheWrite ? undefined : t('Billed as regular input')
-                }
-                onChange={(value) => updateTokenMix('cacheWritePercent', value)}
-              />
+          <details className='group mt-3'>
+            <summary className='text-primary cursor-pointer list-none text-[11px] font-bold select-none'>
+              {t('Adjust token mix')}
+            </summary>
+            <div className='mt-4 space-y-5'>
+              {selectedModel?.siteCacheReadPrice != null && (
+                <TokenMixSlider
+                  id='cache-read-percent-slider'
+                  label={t('Cache Read')}
+                  value={billableTokenMix.cacheReadPercent}
+                  max={
+                    100 -
+                    billableTokenMix.cacheWritePercent -
+                    billableTokenMix.outputPercent
+                  }
+                  onChange={(value) =>
+                    updateTokenMix('cacheReadPercent', value)
+                  }
+                />
+              )}
+              {selectedModel?.siteCacheWritePrice != null && (
+                <TokenMixSlider
+                  id='cache-write-percent-slider'
+                  label={t('Cache Write')}
+                  value={billableTokenMix.cacheWritePercent}
+                  max={
+                    100 -
+                    billableTokenMix.cacheReadPercent -
+                    billableTokenMix.outputPercent
+                  }
+                  onChange={(value) =>
+                    updateTokenMix('cacheWritePercent', value)
+                  }
+                />
+              )}
               <TokenMixSlider
                 id='output-percent-slider'
                 label={t('Output')}
-                value={tokenMix.outputPercent}
+                value={billableTokenMix.outputPercent}
+                max={
+                  100 -
+                  billableTokenMix.cacheReadPercent -
+                  billableTokenMix.cacheWritePercent
+                }
                 onChange={(value) => updateTokenMix('outputPercent', value)}
               />
             </div>
-          </div>
+          </details>
         </div>
 
         <div className='mt-7 space-y-7'>
@@ -340,7 +364,7 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
                 htmlFor='monthly-token-slider'
                 className='text-xs font-bold'
               >
-                {t('Monthly tokens per person')}
+                {t('Monthly tokens')}
               </label>
               <output className='bg-chart-4/15 text-foreground rounded-full px-3 py-1 font-mono text-xs font-bold tabular-nums'>
                 {formatTokenUsage(monthlyTokensMillions)}
@@ -352,7 +376,7 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
               max={TOKEN_SLIDER_STEPS}
               step={1}
               value={[tokenSliderPosition]}
-              getAriaLabel={() => t('Monthly tokens per person')}
+              getAriaLabel={() => t('Monthly tokens')}
               getAriaValueText={(_, value) =>
                 formatTokenUsage(tokenSliderPositionToMillions(value))
               }
@@ -396,17 +420,6 @@ export function SavingsCalculator(props: SavingsCalculatorProps) {
               <span>100</span>
             </div>
           </div>
-        </div>
-
-        <div className='dopa-team-token-total mt-6'>
-          <span>{t('Estimated team total per month')}</span>
-          <strong>{formatTokenUsage(monthlyTokensMillions * people)}</strong>
-          <small>
-            {t('{{people}} people × {{tokens}} per person', {
-              people,
-              tokens: formatTokenUsage(monthlyTokensMillions),
-            })}
-          </small>
         </div>
 
         <div className='dopa-savings-result dopa-token-grid relative mt-7 overflow-hidden'>
@@ -502,22 +515,15 @@ function TokenMixSlider(props: {
   id: string
   label: string
   value: number
-  pricingNote?: string
+  max: number
   onChange: (value: number) => void
 }) {
   return (
     <div>
       <div className='mb-2 flex items-center justify-between gap-3'>
-        <span className='min-w-0'>
-          <label htmlFor={props.id} className='text-[10px] font-semibold'>
-            {props.label}
-          </label>
-          {props.pricingNote ? (
-            <small className='text-muted-foreground ml-1.5 text-[9px]'>
-              · {props.pricingNote}
-            </small>
-          ) : null}
-        </span>
+        <label htmlFor={props.id} className='text-[10px] font-semibold'>
+          {props.label}
+        </label>
         <output className='font-mono text-[10px] font-black tabular-nums'>
           {Math.round(props.value)}%
         </output>
@@ -525,7 +531,7 @@ function TokenMixSlider(props: {
       <Slider
         id={props.id}
         min={0}
-        max={100}
+        max={Math.max(props.max, 0)}
         step={5}
         value={[props.value]}
         getAriaLabel={() => props.label}
