@@ -26,13 +26,15 @@ func stopReasonClaude2OpenAI(reason string) string {
 	return relayconvert.StopReasonClaudeToOpenAI(reason)
 }
 
-func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
-	if c == nil {
+// maybeMarkClaudeRefusal records a safety-classifier refusal for the admin log
+// and for settlement. Anthropic returns a refusal as a normal HTTP 200 response,
+// so nothing else in the relay path treats it as a failure.
+func maybeMarkClaudeRefusal(c *gin.Context, claudeResponse *dto.ClaudeResponse) {
+	if c == nil || !claudeResponse.IsRefusal() {
 		return
 	}
-	if strings.EqualFold(stopReason, "refusal") {
-		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
-	}
+	common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
+	common.SetContextKey(c, constant.ContextKeyUpstreamRefusal, true)
 }
 
 func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCompletionsStreamResponse {
@@ -96,12 +98,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
 		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
 	}
-	if claudeResponse.StopReason != "" {
-		maybeMarkClaudeRefusal(c, claudeResponse.StopReason)
-	}
-	if claudeResponse.Delta != nil && claudeResponse.Delta.StopReason != nil {
-		maybeMarkClaudeRefusal(c, *claudeResponse.Delta.StopReason)
-	}
+	maybeMarkClaudeRefusal(c, &claudeResponse)
 	if info.RelayFormat == types.RelayFormatClaude {
 		FormatClaudeResponseInfo(&claudeResponse, nil, claudeInfo)
 
@@ -177,11 +174,26 @@ func countClaudeStreamBillableTools(c *gin.Context, info *relaycommon.RelayInfo,
 	}
 }
 
+// needsLocalUsageFallback reports whether the stream ended without usable
+// upstream usage and must be back-filled from a local token estimate. A stream
+// that completed its message_delta and produced no text is already accurate —
+// a refusal reports output_tokens 0 by design — so estimating there would only
+// mislabel the usage as locally counted.
+func needsLocalUsageFallback(claudeInfo *ClaudeResponseInfo) bool {
+	if !claudeInfo.Done || claudeInfo.Usage.PromptTokens == 0 {
+		return true
+	}
+	if claudeInfo.Usage.CompletionTokens > 0 {
+		return false
+	}
+	return claudeInfo.ResponseText.Len() > 0
+}
+
 func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo) {
 	if claudeInfo.Usage.PromptTokens == 0 {
 		//上游出错
 	}
-	if claudeInfo.Usage.CompletionTokens == 0 || !claudeInfo.Done {
+	if needsLocalUsageFallback(claudeInfo) {
 		if common.DebugEnabled {
 			common.SysLog("claude response usage is not complete, maybe upstream error")
 		}
@@ -194,9 +206,9 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 		if claudeInfo.Usage.PromptTokens == 0 {
 			claudeInfo.Usage.PromptTokens = fallback.PromptTokens
 		}
-		claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 	}
 	if claudeInfo.Usage != nil {
+		claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 		claudeInfo.Usage.UsageSemantic = "anthropic"
 	}
 	relayconvert.FinalizeClaudeStreamBillingUsage(claudeInfo)
@@ -248,7 +260,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
 		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
 	}
-	maybeMarkClaudeRefusal(c, claudeResponse.StopReason)
+	maybeMarkClaudeRefusal(c, &claudeResponse)
 	if claudeInfo.Usage == nil {
 		claudeInfo.Usage = &dto.Usage{}
 	}

@@ -34,7 +34,7 @@ func modelPriceNotConfiguredError(modelName string, userId int) error {
 }
 
 // https://docs.claude.com/en/docs/build-with-claude/prompt-caching#1-hour-cache-duration
-const claudeCacheCreation1hMultiplier = 6 / 3.75
+const claudeCacheCreation1hMultiplier = ratio_setting.ClaudeCacheCreation1hMultiplier
 
 // defaultTieredPreConsumeMaxTokens is the fallback completion-token estimate
 // used for tiered expression pre-consume when the client omits max_tokens, so

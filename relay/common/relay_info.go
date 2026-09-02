@@ -1031,6 +1031,7 @@ func FailTaskInfo(reason string) *TaskInfo {
 // service_tier: 服务层级字段，可能导致额外计费（OpenAI、Claude、Responses API 支持）
 // inference_geo: Claude 数据驻留推理区域字段（仅 Claude 支持，默认过滤）
 // speed: Claude 推理速度模式字段（仅 Claude 支持，默认过滤）
+// fallbacks: Claude 服务端拒绝回退字段（仅 Claude 支持，默认过滤，开启后被拒绝的请求会改由其他模型作答并计费）
 // store: 数据存储授权字段，涉及用户隐私（仅 OpenAI、Responses API 支持，默认允许透传，禁用后可能导致 Codex 无法使用）
 // safety_identifier: 安全标识符，用于向 OpenAI 报告违规用户（仅 OpenAI 支持，涉及用户隐私）
 // stream_options.include_obfuscation: 响应流混淆控制字段（仅 OpenAI Responses API 支持）
@@ -1066,6 +1067,13 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 	if !channelOtherSettings.AllowSpeed {
 		if _, exists := data["speed"]; exists {
 			delete(data, "speed")
+		}
+	}
+
+	// 默认移除 fallbacks，除非明确允许（服务端回退会让被拒绝的请求改由其他模型作答并计费）
+	if !channelOtherSettings.AllowFallbacks {
+		if _, exists := data["fallbacks"]; exists {
+			delete(data, "fallbacks")
 		}
 	}
 
@@ -1116,6 +1124,7 @@ func hasRemovableDisabledField(jsonData []byte, channelOtherSettings dto.Channel
 		"store",
 		"safety_identifier",
 		"stream_options.include_obfuscation",
+		"fallbacks",
 	)
 
 	return (!channelOtherSettings.AllowServiceTier && values[0].Exists()) ||
@@ -1123,7 +1132,8 @@ func hasRemovableDisabledField(jsonData []byte, channelOtherSettings dto.Channel
 		(!channelOtherSettings.AllowSpeed && values[2].Exists()) ||
 		(channelOtherSettings.DisableStore && values[3].Exists()) ||
 		(!channelOtherSettings.AllowSafetyIdentifier && values[4].Exists()) ||
-		(!channelOtherSettings.AllowIncludeObfuscation && values[5].Exists())
+		(!channelOtherSettings.AllowIncludeObfuscation && values[5].Exists()) ||
+		(!channelOtherSettings.AllowFallbacks && values[6].Exists())
 }
 
 // RemoveGeminiDisabledFields removes disabled fields from Gemini request JSON data

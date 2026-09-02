@@ -21,6 +21,7 @@ type ClaudeMediaMessage struct {
 	Source       *ClaudeMessageSource `json:"source,omitempty"`
 	Usage        *ClaudeUsage         `json:"usage,omitempty"`
 	StopReason   *string              `json:"stop_reason,omitempty"`
+	StopDetails  json.RawMessage      `json:"stop_details,omitempty"`
 	PartialJson  *string              `json:"partial_json,omitempty"`
 	Role         string               `json:"role,omitempty"`
 	Thinking     *string              `json:"thinking,omitempty"`
@@ -252,6 +253,10 @@ type ClaudeRequest struct {
 	// ServiceTier specifies upstream service level and may affect billing.
 	// This field is filtered by default and can be enabled via channel setting allow_service_tier.
 	ServiceTier string `json:"service_tier,omitempty"`
+	// Fallbacks requests server-side refusal fallback, which lets another model
+	// serve a refused request and therefore changes which model is billed.
+	// This field is filtered by default and can be enabled via channel setting allow_fallbacks.
+	Fallbacks json.RawMessage `json:"fallbacks,omitempty"`
 }
 
 // OutputConfigForEffort just for extract effort
@@ -508,19 +513,36 @@ type ClaudeErrorWithStatusCode struct {
 }
 
 type ClaudeResponse struct {
-	Id           string               `json:"id,omitempty"`
-	Type         string               `json:"type"`
-	Role         string               `json:"role,omitempty"`
-	Content      []ClaudeMediaMessage `json:"content,omitempty"`
-	Completion   string               `json:"completion,omitempty"`
-	StopReason   string               `json:"stop_reason,omitempty"`
-	Model        string               `json:"model,omitempty"`
-	Error        any                  `json:"error,omitempty"`
-	Usage        *ClaudeUsage         `json:"usage,omitempty"`
-	Index        *int                 `json:"index,omitempty"`
-	ContentBlock *ClaudeMediaMessage  `json:"content_block,omitempty"`
-	Delta        *ClaudeMediaMessage  `json:"delta,omitempty"`
-	Message      *ClaudeMediaMessage  `json:"message,omitempty"`
+	Id         string               `json:"id,omitempty"`
+	Type       string               `json:"type"`
+	Role       string               `json:"role,omitempty"`
+	Content    []ClaudeMediaMessage `json:"content,omitempty"`
+	Completion string               `json:"completion,omitempty"`
+	StopReason string               `json:"stop_reason,omitempty"`
+	// StopDetails is populated only when StopReason is "refusal" and carries the
+	// policy category and explanation. Kept raw so rebuilt responses preserve
+	// fields Anthropic adds later.
+	StopDetails  json.RawMessage     `json:"stop_details,omitempty"`
+	Model        string              `json:"model,omitempty"`
+	Error        any                 `json:"error,omitempty"`
+	Usage        *ClaudeUsage        `json:"usage,omitempty"`
+	Index        *int                `json:"index,omitempty"`
+	ContentBlock *ClaudeMediaMessage `json:"content_block,omitempty"`
+	Delta        *ClaudeMediaMessage `json:"delta,omitempty"`
+	Message      *ClaudeMediaMessage `json:"message,omitempty"`
+}
+
+// IsRefusal reports whether this response (or streaming delta) carries the
+// safety-classifier refusal stop reason.
+func (c *ClaudeResponse) IsRefusal() bool {
+	if c == nil {
+		return false
+	}
+	if strings.EqualFold(c.StopReason, ClaudeStopReasonRefusal) {
+		return true
+	}
+	return c.Delta != nil && c.Delta.StopReason != nil &&
+		strings.EqualFold(*c.Delta.StopReason, ClaudeStopReasonRefusal)
 }
 
 // set index
@@ -572,6 +594,10 @@ func (c *ClaudeResponse) GetClaudeError() *types.ClaudeError {
 	}
 }
 
+// ClaudeStopReasonRefusal is returned when a safety classifier declines the
+// request. It arrives as a normal HTTP 200 response, not an error.
+const ClaudeStopReasonRefusal = "refusal"
+
 type ClaudeUsage struct {
 	InputTokens              int                       `json:"input_tokens"`
 	CacheCreationInputTokens int                       `json:"cache_creation_input_tokens"`
@@ -582,7 +608,63 @@ type ClaudeUsage struct {
 	ClaudeCacheCreation5mTokens int                  `json:"claude_cache_creation_5_m_tokens"`
 	ClaudeCacheCreation1hTokens int                  `json:"claude_cache_creation_1_h_tokens"`
 	ServerToolUse               *ClaudeServerToolUse `json:"server_tool_use,omitempty"`
-	BillingUsage                *BillingUsage        `json:"billing_usage,omitempty"`
+	// Iterations records one entry per attempt when server-side refusal fallback
+	// runs more than one model. The top-level counts describe only the attempt
+	// that produced the returned message, so settlement must read this array to
+	// charge every attempt that emitted output.
+	Iterations   []ClaudeUsageIteration `json:"iterations,omitempty"`
+	BillingUsage *BillingUsage          `json:"billing_usage,omitempty"`
+}
+
+// ClaudeUsageIteration is one model attempt inside a server-side fallback
+// response. Anthropic bills each attempt that produced output at the rate of
+// the model that ran it, and does not bill an attempt refused before any output.
+type ClaudeUsageIteration struct {
+	// Type is "message" for an attempt that refused and "fallback_message" for
+	// the attempt that served the response.
+	Type                     string                    `json:"type,omitempty"`
+	Model                    string                    `json:"model,omitempty"`
+	InputTokens              int                       `json:"input_tokens"`
+	CacheCreationInputTokens int                       `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     int                       `json:"cache_read_input_tokens"`
+	OutputTokens             int                       `json:"output_tokens"`
+	CacheCreation            *ClaudeCacheCreationUsage `json:"cache_creation,omitempty"`
+}
+
+// IsBillable reports whether this attempt produced output. An attempt refused
+// before emitting any output reports its token counts but is not charged.
+func (i ClaudeUsageIteration) IsBillable() bool {
+	return i.OutputTokens > 0
+}
+
+func (i ClaudeUsageIteration) GetCacheCreation5mTokens() int {
+	if i.CacheCreation == nil {
+		return 0
+	}
+	return i.CacheCreation.Ephemeral5mInputTokens
+}
+
+func (i ClaudeUsageIteration) GetCacheCreation1hTokens() int {
+	if i.CacheCreation == nil {
+		return 0
+	}
+	return i.CacheCreation.Ephemeral1hInputTokens
+}
+
+// BillableIterations returns the attempts that must be charged. It returns nil
+// when the response carries no per-attempt breakdown, which keeps single-attempt
+// responses on the ordinary top-level usage path.
+func (u *ClaudeUsage) BillableIterations() []ClaudeUsageIteration {
+	if u == nil || len(u.Iterations) == 0 {
+		return nil
+	}
+	billable := make([]ClaudeUsageIteration, 0, len(u.Iterations))
+	for _, iteration := range u.Iterations {
+		if iteration.IsBillable() {
+			billable = append(billable, iteration)
+		}
+	}
+	return billable
 }
 
 type ClaudeCacheCreationUsage struct {

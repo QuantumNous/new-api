@@ -2208,6 +2208,36 @@ func TestRemoveDisabledFieldsAllowSpeed(t *testing.T) {
 	assertJSONEqual(t, `{"speed":"fast","store":true}`, string(out))
 }
 
+func TestRemoveDisabledFieldsStripsFallbacksByDefault(t *testing.T) {
+	input := `{
+		"model":"claude-opus-5",
+		"fallbacks":[{"model":"claude-opus-4-8"}],
+		"store":true
+	}`
+
+	out, err := RemoveDisabledFields([]byte(input), dto.ChannelOtherSettings{}, false)
+	if err != nil {
+		t.Fatalf("RemoveDisabledFields returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"model":"claude-opus-5","store":true}`, string(out))
+}
+
+func TestRemoveDisabledFieldsAllowFallbacks(t *testing.T) {
+	input := `{
+		"model":"claude-opus-5",
+		"fallbacks":"default"
+	}`
+	settings := dto.ChannelOtherSettings{
+		AllowFallbacks: true,
+	}
+
+	out, err := RemoveDisabledFields([]byte(input), settings, false)
+	if err != nil {
+		t.Fatalf("RemoveDisabledFields returned error: %v", err)
+	}
+	assertJSONEqual(t, `{"model":"claude-opus-5","fallbacks":"default"}`, string(out))
+}
+
 func TestApplyParamOverrideWithRelayInfoRecordsOperationAuditInDebugMode(t *testing.T) {
 	originalDebugEnabled := common2.DebugEnabled
 	common2.DebugEnabled = true
