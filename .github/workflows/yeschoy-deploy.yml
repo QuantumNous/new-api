@@ -127,9 +127,9 @@ jobs:
           ssh \
             -p "${{ secrets.PROD_SSH_PORT }}" \
             "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" \
-            "cd /opt/new-api && \
-             IMAGE_TAG=${IMAGE_TAG} docker compose pull new-api && \
-             IMAGE_TAG=${IMAGE_TAG} docker compose up -d --no-deps new-api"
+            "cd /home/ubuntu/new-api && \
+             NEW_API_IMAGE=ghcr.io/yeschoy/new-api:${IMAGE_TAG} docker compose pull new-api && \
+             NEW_API_IMAGE=ghcr.io/yeschoy/new-api:${IMAGE_TAG} docker compose up -d --no-deps new-api"
 
 
       # --------------------------------------------------------
