@@ -42,7 +42,6 @@ type UseTopNavLinksOptions = {
 
 type PublicTopNavOptions = {
   modules: HeaderNavModules
-  docsLink?: string
   isAuthed: boolean
   translate: (key: string) => string
 }
@@ -68,14 +67,6 @@ export function buildPublicTopNavLinks(
     title: options.translate('Beginner guide'),
     href: '/guide',
   })
-
-  if (options.modules.docs) {
-    links.push({
-      title: options.translate('API Access'),
-      href: options.docsLink || '/docs',
-      external: Boolean(options.docsLink),
-    })
-  }
 
   return links
 }
@@ -116,7 +107,6 @@ export function useTopNavLinks(
   if (options.surface === 'public') {
     return buildPublicTopNavLinks({
       modules,
-      docsLink,
       isAuthed,
       translate: t,
     })

@@ -24,7 +24,7 @@ import { parseHeaderNavModules } from '@/lib/nav-modules'
 const translate = (key: string) => key
 
 describe('public top navigation', () => {
-  it('keeps the signed-out header focused on pricing, onboarding, and API access', () => {
+  it('keeps the signed-out header focused on pricing and onboarding', () => {
     const links = buildPublicTopNavLinks({
       modules: parseHeaderNavModules(null),
       isAuthed: false,
@@ -34,13 +34,8 @@ describe('public top navigation', () => {
     expect(links.map((link) => link.title)).toEqual([
       'Model Price',
       'Beginner guide',
-      'API Access',
     ])
-    expect(links.map((link) => link.href)).toEqual([
-      '/pricing',
-      '/guide',
-      '/docs',
-    ])
+    expect(links.map((link) => link.href)).toEqual(['/pricing', '/guide'])
   })
 
   it('adds the console for signed-in users without restoring secondary links', () => {
@@ -54,7 +49,6 @@ describe('public top navigation', () => {
       'Console',
       'Model Price',
       'Beginner guide',
-      'API Access',
     ])
     expect(links).not.toEqual(
       expect.arrayContaining([
@@ -79,12 +73,11 @@ describe('public top navigation', () => {
     expect(links).toEqual([{ title: 'Beginner guide', href: '/guide' }])
   })
 
-  it('preserves protected pricing and external API documentation behavior', () => {
+  it('preserves protected pricing without exposing documentation in the public header', () => {
     const links = buildPublicTopNavLinks({
       modules: parseHeaderNavModules({
         pricing: { enabled: true, requireAuth: true },
       }),
-      docsLink: 'https://docs.example.com',
       isAuthed: false,
       translate,
     })
@@ -94,10 +87,10 @@ describe('public top navigation', () => {
       href: '/pricing',
       requiresAuth: true,
     })
-    expect(links).toContainEqual({
-      title: 'API Access',
-      href: 'https://docs.example.com',
-      external: true,
-    })
+    expect(links).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'API Access' }),
+      ])
+    )
   })
 })
