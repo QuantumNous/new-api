@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func refreshResponseCookie(t *testing.T, rec *httptest.ResponseRecorder, name string) *http.Cookie {
+func responseCookie(t *testing.T, rec *httptest.ResponseRecorder, name string) *http.Cookie {
 	t.Helper()
 	for _, cookie := range (&http.Response{Header: rec.Header()}).Cookies() {
 		if cookie.Name == name {
@@ -40,7 +40,7 @@ func TestRefreshAuthWithoutCredentialErasesStaleSessionHint(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 
-	hint := refreshResponseCookie(t, rec, service.SessionHintCookieName)
+	hint := responseCookie(t, rec, service.SessionHintCookieName)
 	require.NotNil(t, hint, "a rejected refresh must expire the session hint")
 	assert.Equal(t, -1, hint.MaxAge)
 	assert.Equal(t, "", hint.Value)
@@ -48,7 +48,7 @@ func TestRefreshAuthWithoutCredentialErasesStaleSessionHint(t *testing.T) {
 
 	// The credential cookie is cleared in the same response, so the two cannot
 	// drift apart.
-	refresh := refreshResponseCookie(t, rec, service.RefreshCookieName)
+	refresh := responseCookie(t, rec, service.RefreshCookieName)
 	require.NotNil(t, refresh)
 	assert.Equal(t, -1, refresh.MaxAge)
 }
