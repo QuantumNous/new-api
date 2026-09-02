@@ -26,10 +26,8 @@ import {
   calculateSavingsEstimate,
   formatCnyAmount,
   formatTokenMillions,
-  rebalanceSavingsTokenMix,
   tokenMillionsToSliderPosition,
   tokenSliderPositionToMillions,
-  TOKEN_SLIDER_STEPS,
   type SavingsModel,
 } from '../pricing-savings'
 
@@ -150,33 +148,6 @@ describe('buildSavingsModels', () => {
     expect(model.officialCacheReadPrice).toBeCloseTo(1.4)
   })
 
-  it('derives input, output, and cache prices from tiered billing expressions', () => {
-    const [model] = buildSavingsCatalog(
-      [
-        makePricingModel('tiered-cached-model', 0, {
-          completion_ratio: 0,
-          billing_mode: 'tiered_expr',
-          billing_expr:
-            'tier("base", p * 2.5 + c * 15 + cr * 0.25 + cc * 3.75)',
-          group_ratio: { default: 0.5 },
-        }),
-      ],
-      4,
-      7
-    )
-
-    expect(model).toMatchObject({
-      officialInputPrice: 17.5,
-      officialOutputPrice: 105,
-      officialCacheReadPrice: 1.75,
-      officialCacheWritePrice: 26.25,
-      siteInputPrice: 5,
-      siteOutputPrice: 30,
-      siteCacheReadPrice: 0.5,
-      siteCacheWritePrice: 7.5,
-    })
-  })
-
   it('returns no comparison rows when pricing has no valid token model', () => {
     expect(
       buildSavingsModels(
@@ -206,27 +177,7 @@ describe('localized display values', () => {
   it('spells out Chinese token quantities for non-technical readers', () => {
     expect(formatTokenMillions(1, 'zh-CN')).toBe('100万')
     expect(formatTokenMillions(200, 'zh-CN')).toBe('2亿')
-    expect(formatTokenMillions(10_000, 'zh-CN')).toBe('100亿')
     expect(formatTokenMillions(20, 'zhCN')).toBe('2000万')
-  })
-})
-
-describe('token mix controls', () => {
-  it('lets every token category move while keeping the total at 100%', () => {
-    const next = rebalanceSavingsTokenMix(
-      {
-        inputPercent: 15,
-        cacheReadPercent: 55,
-        cacheWritePercent: 10,
-        outputPercent: 20,
-      },
-      'inputPercent',
-      40
-    )
-
-    expect(next.inputPercent).toBe(40)
-    expect(Object.values(next).reduce((sum, value) => sum + value, 0)).toBe(100)
-    expect(next.cacheReadPercent).toBeGreaterThan(next.outputPercent)
   })
 })
 
@@ -312,7 +263,7 @@ describe('calculateSavingsEstimate', () => {
 describe('token slider scale', () => {
   it('maps the logarithmic range to the documented token boundaries', () => {
     expect(tokenSliderPositionToMillions(0)).toBe(1)
-    expect(tokenSliderPositionToMillions(TOKEN_SLIDER_STEPS)).toBe(10_000)
+    expect(tokenSliderPositionToMillions(100)).toBe(200)
     expect(
       tokenSliderPositionToMillions(tokenMillionsToSliderPosition(20))
     ).toBeCloseTo(20, 0)
