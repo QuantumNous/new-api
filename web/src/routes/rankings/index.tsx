@@ -32,8 +32,8 @@ const rankingsSearchSchema = z.object({
 
 export const Route = createFileRoute('/rankings/')({
   validateSearch: rankingsSearchSchema,
-  beforeLoad: async ({ location }) => {
-    const access = await getFreshModuleAccess('rankings')
+  beforeLoad: async ({ context, location }) => {
+    const access = await getFreshModuleAccess(context.queryClient, 'rankings')
     if (!access.enabled) {
       throw redirect({ to: '/' })
     }
