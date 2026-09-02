@@ -1208,3 +1208,51 @@ func TestTaskAdaptorBuildSubmitReceivesMappedUpstreamModel(t *testing.T) {
 	assert.Equal(t, "declared-model", decoded["upstreamModel"])
 	assert.Equal(t, "declared-model", decoded["model"])
 }
+
+// Polling has no relay info, so query hooks can only branch on the model when
+// the host forwards the persisted task identities from the fetch body.
+func TestTaskAdaptorFetchTaskExposesModelIdentities(t *testing.T) {
+	service.InitHttpClient()
+	var requested string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requested = r.URL.RequestURI()
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	source := `
+export const meta = {apiVersion:1,key:"query-model",name:"Query Model",version:"1.0.0",author:{name:"Test"},models:["alias"],fetchMode:"per_task"};
+export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/submit"}}
+export function parseSubmitResponse(){return {taskId:"1"}}
+export function buildQueryRequest(ctx){return {url:ctx.baseUrl+"/tasks/"+ctx.model+"/"+ctx.upstreamModel+"/"+ctx.taskId,method:"GET"}}
+export function parseTaskResult(){return {status:"SUCCESS"}}
+`
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+
+	testCases := []struct {
+		name string
+		body map[string]any
+		want string
+	}{
+		{
+			name: "mapped model",
+			body: map[string]any{"task_id": "t1", "model": "alias", "upstream_model": "declared-model"},
+			want: "/tasks/alias/declared-model/t1",
+		},
+		{
+			name: "unmapped model falls back to the origin name",
+			body: map[string]any{"task_id": "t1", "model": "alias"},
+			want: "/tasks/alias/alias/t1",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			resp, fetchErr := adaptor.FetchTask(server.URL, "secret", testCase.body, "")
+			require.NoError(t, fetchErr)
+			require.NoError(t, resp.Body.Close())
+			assert.Equal(t, testCase.want, requested)
+		})
+	}
+}

@@ -4,13 +4,14 @@ export const meta = {
   name: "Hailuo Video",
   icon: "Hailuo.Color",
   description: {
-    en: "MiniMax Hailuo video generation (text-to-video and image-to-video)",
-    zh: "MiniMax 海螺视频生成（文生视频、图生视频）",
+    en: "MiniMax Hailuo video generation (text-to-video, image-to-video, and MiniMax-H3 multimodal reference)",
+    zh: "MiniMax 海螺视频生成（文生视频、图生视频、MiniMax-H3 多模态参考生视频）",
   },
-  version: "1.0.0",
+  version: "1.1.0",
   author: { name: "QuantumNous" },
   channelTypes: [35],
   models: [
+    "MiniMax-H3",
     "MiniMax-Hailuo-2.3",
     "MiniMax-Hailuo-2.3-Fast",
     "MiniMax-Hailuo-02",
@@ -27,12 +28,12 @@ export const meta = {
       type: "number",
       unit: "second",
       description: {
-        en: "Requested video duration in seconds. Hailuo 2.3/02/2.3-Fast allow 6 or 10; 01-series allow 6.",
-        zh: "请求的视频时长，单位为秒。Hailuo 2.3/02/2.3-Fast 允许 6 或 10；01 系列允许 6。",
+        en: "Requested video duration in seconds. MiniMax-H3 allows 4 to 15; Hailuo 2.3/02/2.3-Fast allow 6 or 10; 01-series allow 6.",
+        zh: "请求的视频时长，单位为秒。MiniMax-H3 允许 4 到 15；Hailuo 2.3/02/2.3-Fast 允许 6 或 10；01 系列允许 6。",
       },
     },
     resolution: {
-      enum: ["512P", "768P", "720P", "1080P"],
+      enum: ["512P", "768P", "720P", "1080P", "2K"],
       description: { en: "Requested output video resolution.", zh: "请求的输出视频分辨率。" },
     },
   },
@@ -43,6 +44,8 @@ export const meta = {
     { label: "02 512P 6s", facts: { seconds: 6, resolution: "512P" } },
     { label: "02 512P 10s", facts: { seconds: 10, resolution: "512P" } },
     { label: "01-series 720P 6s", facts: { seconds: 6, resolution: "720P" } },
+    { label: "H3 768P 5s", facts: { seconds: 5, resolution: "768P" } },
+    { label: "H3 2K 5s", facts: { seconds: 5, resolution: "2K" } },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };
@@ -96,9 +99,138 @@ function hasHailuoImage(req, hasInputReferenceFile) {
   );
 }
 
+const H3_MODEL = "MiniMax-H3";
+const H3_MIN_DURATION = 4;
+const H3_MAX_DURATION = 15;
+const H3_DEFAULT_DURATION = 5;
+const H3_MAX_FRAME_IMAGES = 2;
+const H3_MAX_REFERENCE_IMAGES = 9;
+const H3_MAX_REFERENCE_VIDEOS = 3;
+const H3_MAX_REFERENCE_AUDIOS = 3;
+const H3_RATIOS = ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"];
+
+// MiniMax-H3 speaks the /v2 video generation contract: a multimodal `content`
+// array instead of flat frame fields, an explicit `ratio`, 768P/2K resolutions,
+// a task id path parameter on query, and a `{task: {...}}` query envelope.
+function isH3(model) {
+  return model === H3_MODEL;
+}
+
+function h3Duration(req) {
+  const raw = req.duration;
+  if (raw === undefined || raw === null || raw === "") return H3_DEFAULT_DURATION;
+  const seconds = Number(raw);
+  if (!Number.isInteger(seconds) || seconds < H3_MIN_DURATION || seconds > H3_MAX_DURATION) {
+    throw new Error(H3_MODEL + " duration must be an integer between " + H3_MIN_DURATION + " and " + H3_MAX_DURATION + " seconds");
+  }
+  return seconds;
+}
+
+function h3Resolution(req) {
+  const metadata = req.metadata || {};
+  const raw = trimmed(metadata.resolution) || trimmed(req.resolution) || trimmed(req.size);
+  if (!raw) return "768P";
+  const value = raw.toUpperCase();
+  if (value.includes("2K")) return "2K";
+  if (value.includes("768")) return "768P";
+  throw new Error(H3_MODEL + " resolution must be 768P or 2K");
+}
+
+function h3MediaItem(type, url, role) {
+  const item = { type: type, role: role };
+  item[type] = { url: url };
+  return item;
+}
+
+// Accepts a single value or an array; file placeholders stay objects and are
+// resolved by the host after the body is built.
+function h3MediaList(source, key) {
+  const raw = source[key];
+  if (raw === undefined || raw === null) return [];
+  const values = Array.isArray(raw) ? raw : [raw];
+  return values.filter(function (value) {
+    return value && typeof value === "object" ? true : Boolean(trimmed(value));
+  });
+}
+
+function h3FrameImages(req) {
+  const metadata = req.metadata || {};
+  const images = h3MediaList(req, "images");
+  if (images.length > H3_MAX_FRAME_IMAGES) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_FRAME_IMAGES + " frame images");
+  const frames = [];
+  if (metadata.first_frame_image) frames.push(h3MediaItem("image_url", metadata.first_frame_image, "first_frame"));
+  if (metadata.last_frame_image) frames.push(h3MediaItem("image_url", metadata.last_frame_image, "last_frame"));
+  if (frames.length) return frames;
+  return images.map(function (url, index) {
+    return h3MediaItem("image_url", url, index === 0 ? "first_frame" : "last_frame");
+  });
+}
+
+function h3PassthroughContent(items) {
+  if (!Array.isArray(items)) throw new Error("metadata.content must be an array");
+  const counts = { image_url: 0, video_url: 0, audio_url: 0 };
+  for (const item of items) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    if (counts[item.type] !== undefined) counts[item.type] += 1;
+  }
+  if (counts.image_url > H3_MAX_REFERENCE_IMAGES) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_IMAGES + " reference images");
+  if (counts.video_url > H3_MAX_REFERENCE_VIDEOS) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_VIDEOS + " reference videos");
+  if (counts.audio_url > H3_MAX_REFERENCE_AUDIOS) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_AUDIOS + " reference audios");
+  return items;
+}
+
+// metadata.content is the full multimodal passthrough; otherwise the content
+// array is assembled from prompt, frame images, and reference media.
+function h3Content(req) {
+  const metadata = req.metadata || {};
+  const prompt = trimmed(req.prompt);
+  if (metadata.content !== undefined && metadata.content !== null) {
+    const items = h3PassthroughContent(metadata.content);
+    const hasText = items.some(function (item) {
+      return item && item.type === "text" && trimmed(item.text);
+    });
+    if (hasText) return items;
+    if (!prompt) throw new Error(H3_MODEL + " metadata.content requires a text item or a prompt");
+    return [{ type: "text", text: prompt }].concat(items);
+  }
+  const content = prompt ? [{ type: "text", text: prompt }] : [];
+  for (const frame of h3FrameImages(req)) content.push(frame);
+  const videos = h3MediaList(metadata, "reference_video");
+  if (videos.length > H3_MAX_REFERENCE_VIDEOS) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_VIDEOS + " reference videos");
+  for (const video of videos) content.push(h3MediaItem("video_url", video, "reference_video"));
+  const audios = h3MediaList(metadata, "reference_audio");
+  if (audios.length > H3_MAX_REFERENCE_AUDIOS) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_AUDIOS + " reference audios");
+  for (const audio of audios) content.push(h3MediaItem("audio_url", audio, "reference_audio"));
+  if (!content.length) throw new Error(H3_MODEL + " requires a prompt or a media input");
+  return content;
+}
+
+function h3HasVisualContent(content) {
+  return content.some(function (item) {
+    return item && (item.type === "image_url" || item.type === "video_url");
+  });
+}
+
+// ratio is mandatory upstream and `adaptive` is only meaningful when the
+// aspect ratio can be inherited from a visual input.
+function h3Ratio(req, content) {
+  const metadata = req.metadata || {};
+  const ratio = trimmed(metadata.ratio);
+  if (!ratio) return h3HasVisualContent(content) ? "adaptive" : "16:9";
+  if (!H3_RATIOS.includes(ratio)) throw new Error(H3_MODEL + " ratio must be one of " + H3_RATIOS.join(", "));
+  if (ratio === "adaptive" && !h3HasVisualContent(content)) throw new Error(H3_MODEL + " ratio adaptive requires an image or video input");
+  return ratio;
+}
+
+function h3QueryTask(body) {
+  const task = body && typeof body === "object" && !Array.isArray(body) ? body.task : null;
+  return task && typeof task === "object" && !Array.isArray(task) ? task : null;
+}
+
 // Older T2V-01*/I2V-01*/S2V-01 official tables disagree on 1080P support (research: 未验证).
 // Keep those models permissive: duration 6 only, resolution optional.
 function validateHailuoCombo(model, duration, resolution, hasImage) {
+  if (isH3(model)) return;
   if (model === "MiniMax-Hailuo-2.3-Fast" && !hasImage) {
     throw new Error("MiniMax-Hailuo-2.3-Fast supports image-to-video only");
   }
@@ -170,6 +302,26 @@ export function buildSubmitRequest(ctx) {
   const req = ctx.requestBody || {};
   const model = ctx.upstreamModel;
   const metadata = req.metadata || {};
+  if (isH3(model)) {
+    const content = h3Content(req);
+    const h3Body = {
+      model: model,
+      content: content,
+      resolution: h3Resolution(req),
+      duration: h3Duration(req),
+      ratio: h3Ratio(req, content),
+    };
+    ["callback_url", "aigc_watermark"].forEach(function (key) {
+      if (metadata[key] !== undefined && metadata[key] !== null) h3Body[key] = metadata[key];
+    });
+    return {
+      url: ctx.baseUrl + "/v2/video_generation",
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
+      body: h3Body,
+      action: h3HasVisualContent(content) ? "image_to_video" : "text_to_video",
+    };
+  }
   const body = {
     model: model,
     prompt: req.prompt || undefined,
@@ -192,8 +344,14 @@ export function buildSubmitRequest(ctx) {
 
 export function parseSubmitResponse(ctx, resp) {
   const body = resp.body || {};
-  const base = body.base_resp || {};
-  if (base.status_code !== 0) throw new Error(base.status_msg || "hailuo submit failed");
+  const base = body.base_resp;
+  // /v1 always wraps the create response in a base_resp envelope; /v2 returns a
+  // bare task_id and only adds base_resp when the call is rejected.
+  if (base) {
+    if (base.status_code !== 0) throw new Error(base.status_msg || "hailuo submit failed");
+  } else if (!isH3(ctx.upstreamModel)) {
+    throw new Error("hailuo submit failed");
+  }
   if (!body.task_id) throw new Error("missing task_id");
   return { taskId: body.task_id, taskData: body };
 }
@@ -202,18 +360,40 @@ export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const req = ctx.requestBody || {};
   const model = ctx.upstreamModel || req.model;
+  if (isH3(model)) return { seconds: h3Duration(req), resolution: h3Resolution(req) };
   return { seconds: outboundDuration(req), resolution: outboundResolution(req, model) };
 }
 
 export function buildQueryRequest(ctx) {
+  // Polling carries no relay info; the host fills these identities from the
+  // persisted task properties.
+  const path = isH3(ctx.upstreamModel || ctx.model)
+    ? "/v2/query/video_generation/" + encodeURIComponent(ctx.taskId)
+    : "/v1/query/video_generation?task_id=" + encodeURIComponent(ctx.taskId);
   return {
-    url: ctx.baseUrl + "/v1/query/video_generation?task_id=" + encodeURIComponent(ctx.taskId),
+    url: ctx.baseUrl + path,
     method: "GET",
     headers: { Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
   };
 }
 
 export function parseTaskResult(ctx, body) {
+  // The host calls this hook with an empty context, so the response envelope is
+  // the only way to tell a /v2 result from a /v1 one.
+  const h3Task = h3QueryTask(body);
+  if (h3Task) {
+    const h3Statuses = { queued: "QUEUED", running: "IN_PROGRESS", succeeded: "SUCCESS", failed: "FAILURE", cancelled: "FAILURE" };
+    const h3Status = h3Statuses[h3Task.status] || "IN_PROGRESS";
+    const h3Result = { code: 0, status: h3Status, progress: h3Status === "QUEUED" ? "30%" : h3Status === "IN_PROGRESS" ? "50%" : "100%" };
+    if (h3Status === "SUCCESS") {
+      const url = trimmed(h3Task.content && h3Task.content.url);
+      if (url) h3Result.url = url;
+    }
+    if (h3Status === "FAILURE") {
+      h3Result.reason = trimmed(h3Task.error && h3Task.error.message) || "task " + trimmed(h3Task.status);
+    }
+    return h3Result;
+  }
   const base = body.base_resp || {};
   const statuses = { Preparing: "IN_PROGRESS", Queueing: "IN_PROGRESS", Processing: "IN_PROGRESS", Success: "SUCCESS", Fail: "FAILURE" };
   const status = statuses[body.status] || "IN_PROGRESS";
@@ -232,14 +412,25 @@ function artifactFileID(ctx) {
   return trimmed(artifactData(ctx).file_id);
 }
 
+// /v2 tasks expose a public CDN URL instead of a downloadable file id.
+function h3ArtifactURL(ctx) {
+  const task = h3QueryTask(artifactData(ctx));
+  return task ? trimmed(task.content && task.content.url) : "";
+}
+
 export function listArtifacts(task) {
-  return task.status === "SUCCESS" && artifactFileID(task) ? [{ key: "video", type: "video", mimeType: "video/mp4" }] : [];
+  if (task.status !== "SUCCESS") return [];
+  return artifactFileID(task) || h3ArtifactURL(task) ? [{ key: "video", type: "video", mimeType: "video/mp4" }] : [];
 }
 
 export function buildContentRequest(ctx) {
   if (ctx.artifactKey !== "video") throw new Error("artifact_not_found");
   const fileID = artifactFileID(ctx);
-  if (!fileID) throw new Error("artifact_not_found");
+  if (!fileID) {
+    const url = h3ArtifactURL(ctx);
+    if (!url) throw new Error("artifact_not_found");
+    return { url: url, method: ctx.clientRequest.method, credentialless: true };
+  }
   return {
     url: ctx.baseUrl + "/v1/files/download?file_id=" + encodeURIComponent(fileID),
     method: ctx.clientRequest.method,
@@ -248,6 +439,11 @@ export function buildContentRequest(ctx) {
 }
 
 export function extractUsageOnComplete(_task, _taskResult, body) {
+  const h3Task = h3QueryTask(body);
+  if (h3Task) {
+    const resolution = trimmed(h3Task.resolution).toUpperCase();
+    return resolution === "2K" || resolution === "768P" ? { resolution: resolution } : null;
+  }
   const width = Number((body || {}).video_width || 0);
   const height = Number((body || {}).video_height || 0);
   if (!(width > 0) || !(height > 0)) return null;

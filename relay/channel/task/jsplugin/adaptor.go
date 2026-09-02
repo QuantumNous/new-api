@@ -528,6 +528,16 @@ func (a *TaskAdaptor) FetchBatchTasks(baseURL, key string, taskIDs []string, pro
 
 func (a *TaskAdaptor) FetchTask(baseURL, key string, body map[string]any, proxy string) (*http.Response, error) {
 	ctx := map[string]any{"taskId": body["task_id"], "action": body["action"], "requestBody": body, "baseUrl": baseURL}
+	// Query hooks are driver hooks and must see the same model identities as
+	// submit hooks. Polling has no relay info, so they arrive with the
+	// persisted task properties the caller puts in the fetch body.
+	originModel, _ := body["model"].(string)
+	upstreamModel, _ := body["upstream_model"].(string)
+	if upstreamModel == "" {
+		upstreamModel = originModel
+	}
+	ctx["model"] = originModel
+	ctx["upstreamModel"] = upstreamModel
 	auth, err := resolveAuth(a.plugin.Meta.Auth, key, proxy)
 	if err != nil {
 		return nil, err
