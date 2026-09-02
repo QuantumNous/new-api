@@ -17,15 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ImagePlus, LoaderCircle, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { ImagePlus, LoaderCircle } from 'lucide-react'
+import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { ModelGroupSelector } from '@/components/model-group-selector'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -38,10 +37,13 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import type { GroupOption, ModelOption } from '@/features/playground/types'
 
-import { drawingSchema, type DrawingFormValues } from '../lib/drawing'
-import type { DrawingRequest, ImageSize } from '../types'
-
-const IMAGE_SIZES: ImageSize[] = ['1024x1024', '1024x1792', '1792x1024']
+import {
+  drawingSchema,
+  IMAGE_RATIO_OPTIONS,
+  type DrawingFormValues,
+} from '../lib/drawing'
+import type { DrawingRequest } from '../types'
+import { SourceImageField } from './source-image-field'
 
 type DrawingFormProps = {
   models: ModelOption[]
@@ -58,21 +60,10 @@ type DrawingFormProps = {
 export function DrawingForm(props: DrawingFormProps) {
   const { t } = useTranslation()
   const [image, setImage] = useState<File>()
-  const [previewUrl, setPreviewUrl] = useState('')
   const form = useForm<DrawingFormValues>({
     resolver: zodResolver(drawingSchema),
     defaultValues: { prompt: '', size: '1024x1024' },
   })
-
-  useEffect(() => {
-    if (!image) {
-      setPreviewUrl('')
-      return
-    }
-    const url = URL.createObjectURL(image)
-    setPreviewUrl(url)
-    return () => URL.revokeObjectURL(url)
-  }, [image])
 
   const handleSubmit = (values: DrawingFormValues) => {
     if (!props.model || !props.group) return
@@ -111,6 +102,7 @@ export function DrawingForm(props: DrawingFormProps) {
               placeholder={t(
                 'Describe the scene, subject, composition, and style'
               )}
+              autoFocus
               disabled={props.isSubmitting}
               {...form.register('prompt')}
             />
@@ -121,66 +113,45 @@ export function DrawingForm(props: DrawingFormProps) {
             )}
           </div>
 
-          <div className='grid gap-2'>
-            <Label htmlFor='drawing-source-image'>
-              {t('Source image (optional)')}
-            </Label>
-            <Input
-              id='drawing-source-image'
-              type='file'
-              accept='image/*'
-              disabled={props.isSubmitting}
-              onChange={(event) => setImage(event.target.files?.[0])}
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t('Upload an image to switch to image editing')}
-            </p>
-            {previewUrl && (
-              <div className='relative overflow-hidden rounded-lg border'>
-                <img
-                  src={previewUrl}
-                  alt={t('Source image preview')}
-                  className='aspect-video w-full object-contain'
-                />
-                <Button
-                  type='button'
-                  size='icon-sm'
-                  variant='secondary'
-                  className='absolute top-2 right-2'
-                  aria-label={t('Remove image')}
-                  disabled={props.isSubmitting}
-                  onClick={() => setImage(undefined)}
-                >
-                  <Trash2 aria-hidden='true' />
-                </Button>
-              </div>
-            )}
-          </div>
+          <SourceImageField
+            image={image}
+            disabled={props.isSubmitting}
+            onImageChange={setImage}
+          />
 
           <div className='grid gap-2'>
-            <Label>{t('Image size')}</Label>
+            <Label>{t('Aspect ratio')}</Label>
             <Controller
               control={form.control}
               name='size'
-              render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger
-                    className='w-full'
-                    disabled={props.isSubmitting}
-                  >
-                    <SelectValue>{field.value}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    <SelectGroup>
-                      {IMAGE_SIZES.map((size) => (
-                        <SelectItem key={size} value={size}>
-                          {size}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              )}
+              render={({ field }) => {
+                const selected = IMAGE_RATIO_OPTIONS.find(
+                  (option) => option.size === field.value
+                )
+                return (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger
+                      className='w-full'
+                      disabled={props.isSubmitting}
+                    >
+                      <SelectValue>
+                        {selected
+                          ? `${selected.ratio} · ${t(selected.labelKey)}`
+                          : field.value}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        {IMAGE_RATIO_OPTIONS.map((option) => (
+                          <SelectItem key={option.size} value={option.size}>
+                            {option.ratio} · {t(option.labelKey)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                )
+              }}
             />
           </div>
 

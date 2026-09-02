@@ -5331,6 +5331,11 @@
     "Edit image": "Chỉnh sửa ảnh",
     "Generate image": "Tạo ảnh",
     "Generating image": "Đang tạo ảnh",
-    "Empty image response": "Kết quả ảnh trống"
+    "Empty image response": "Kết quả ảnh trống",
+    "Landscape": "Ngang",
+    "Portrait": "Dọc",
+    "Square": "Vuông",
+    "Aspect ratio": "Tỷ lệ khung hình",
+    "Drop image here or click to select": "Kéo ảnh vào đây hoặc nhấp để chọn"
   }
 }

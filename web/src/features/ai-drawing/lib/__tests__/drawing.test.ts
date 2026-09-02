@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, it } from 'vitest'
 
-import { filterImageModels, getDrawingResultUrl } from '../drawing'
+import {
+  filterImageModels,
+  getDefaultImageModel,
+  getDrawingResultUrl,
+  IMAGE_RATIO_OPTIONS,
+} from '../drawing'
 
 describe('AI drawing model filtering', () => {
   it('keeps image models when the group also contains chat models', () => {
@@ -34,6 +39,23 @@ describe('AI drawing model filtering', () => {
     const models = [{ label: 'Custom Art', value: 'custom-art-v1' }]
 
     expect(filterImageModels(models)).toEqual(models)
+  })
+
+  it('prefers gpt-image-2 regardless of model list order', () => {
+    const models = [
+      { label: 'DALL-E', value: 'dall-e-3' },
+      { label: 'GPT Image', value: 'gpt-image-2' },
+    ]
+
+    expect(getDefaultImageModel(models)).toBe('gpt-image-2')
+  })
+
+  it('maps friendly ratios to provider-supported pixel sizes', () => {
+    expect(IMAGE_RATIO_OPTIONS).toEqual([
+      { size: '1792x1024', ratio: '16:9', labelKey: 'Landscape' },
+      { size: '1024x1792', ratio: '9:16', labelKey: 'Portrait' },
+      { size: '1024x1024', ratio: '1:1', labelKey: 'Square' },
+    ])
   })
 })
 

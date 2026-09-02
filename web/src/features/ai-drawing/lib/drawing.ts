@@ -22,6 +22,12 @@ import type { ModelOption } from '@/features/playground/types'
 
 import type { ImageGenerationResponse } from '../types'
 
+export const IMAGE_RATIO_OPTIONS = [
+  { size: '1792x1024', ratio: '16:9', labelKey: 'Landscape' },
+  { size: '1024x1792', ratio: '9:16', labelKey: 'Portrait' },
+  { size: '1024x1024', ratio: '1:1', labelKey: 'Square' },
+] as const
+
 const IMAGE_MODEL_HINTS = [
   'gpt-image',
   'dall-e',
@@ -46,6 +52,15 @@ export function filterImageModels(models: ModelOption[]): ModelOption[] {
     return IMAGE_MODEL_HINTS.some((hint) => value.includes(hint))
   })
   return matched.length > 0 ? matched : models
+}
+
+export function getDefaultImageModel(models: ModelOption[]): string {
+  return (
+    models.find((model) => model.value.toLowerCase() === 'gpt-image-2')
+      ?.value ??
+    models[0]?.value ??
+    ''
+  )
 }
 
 export function getDrawingResultUrl(

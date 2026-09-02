@@ -26,7 +26,11 @@ import { getUserGroups, getUserModels } from '@/features/playground/api'
 import { createDrawing } from './api'
 import { DrawingForm } from './components/drawing-form'
 import { DrawingResult } from './components/drawing-result'
-import { filterImageModels, getDrawingResultUrl } from './lib/drawing'
+import {
+  filterImageModels,
+  getDefaultImageModel,
+  getDrawingResultUrl,
+} from './lib/drawing'
 import type { DrawingRequest } from './types'
 
 function getRequestErrorMessage(error: unknown, fallback: string): string {
@@ -75,7 +79,7 @@ export function AiDrawing() {
       return
     }
     if (models.some((option) => option.value === model)) return
-    setModel(models[0].value)
+    setModel(getDefaultImageModel(models))
   }, [model, models])
 
   useEffect(() => {
@@ -105,15 +109,7 @@ export function AiDrawing() {
   })
 
   return (
-    <div className='mx-auto flex size-full min-h-0 max-w-[100rem] flex-col gap-5'>
-      <header>
-        <h1 className='text-2xl font-semibold tracking-tight'>
-          {t('AI Drawing')}
-        </h1>
-        <p className='text-muted-foreground mt-1 text-sm'>
-          {t('Create images from text or upload an image to edit')}
-        </p>
-      </header>
+    <div className='mx-auto flex size-full min-h-0 max-w-[100rem] flex-col'>
       <div className='grid min-h-0 flex-1 gap-5 md:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]'>
         <DrawingForm
           models={models}

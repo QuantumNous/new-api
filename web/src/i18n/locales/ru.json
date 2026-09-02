@@ -5331,6 +5331,11 @@
     "Edit image": "Редактировать изображение",
     "Generate image": "Создать изображение",
     "Generating image": "Создание изображения",
-    "Empty image response": "Пустой ответ изображения"
+    "Empty image response": "Пустой ответ изображения",
+    "Landscape": "Альбомная",
+    "Portrait": "Портретная",
+    "Square": "Квадрат",
+    "Aspect ratio": "Соотношение сторон",
+    "Drop image here or click to select": "Перетащите изображение сюда или нажмите для выбора"
   }
 }

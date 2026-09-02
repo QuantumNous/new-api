@@ -5331,6 +5331,11 @@
     "Edit image": "Edit image",
     "Generate image": "Generate image",
     "Generating image": "Generating image",
-    "Empty image response": "Empty image response"
+    "Empty image response": "Empty image response",
+    "Landscape": "Landscape",
+    "Portrait": "Portrait",
+    "Square": "Square",
+    "Aspect ratio": "Aspect ratio",
+    "Drop image here or click to select": "Drop image here or click to select"
   }
 }

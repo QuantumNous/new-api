@@ -5331,6 +5331,11 @@
     "Edit image": "画像を編集",
     "Generate image": "画像を生成",
     "Generating image": "画像を生成中",
-    "Empty image response": "画像の結果が空です"
+    "Empty image response": "画像の結果が空です",
+    "Landscape": "横向き",
+    "Portrait": "縦向き",
+    "Square": "正方形",
+    "Aspect ratio": "アスペクト比",
+    "Drop image here or click to select": "画像をここにドロップするか、クリックして選択"
   }
 }

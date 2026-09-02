@@ -5331,6 +5331,11 @@
     "Edit image": "生成修改圖",
     "Generate image": "生成圖片",
     "Generating image": "正在生成圖片",
-    "Empty image response": "圖片結果為空"
+    "Empty image response": "圖片結果為空",
+    "Landscape": "橫向",
+    "Portrait": "直向",
+    "Square": "正方形",
+    "Aspect ratio": "圖片比例",
+    "Drop image here or click to select": "將圖片拖放到這裡，或點擊選擇"
   }
 }

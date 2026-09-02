@@ -5331,6 +5331,11 @@
     "Edit image": "Modifier l’image",
     "Generate image": "Générer l’image",
     "Generating image": "Génération de l’image",
-    "Empty image response": "Réponse d’image vide"
+    "Empty image response": "Réponse d’image vide",
+    "Landscape": "Paysage",
+    "Portrait": "Portrait",
+    "Square": "Carré",
+    "Aspect ratio": "Rapport largeur/hauteur",
+    "Drop image here or click to select": "Déposez une image ici ou cliquez pour la sélectionner"
   }
 }
