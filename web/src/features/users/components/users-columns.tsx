@@ -184,9 +184,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
         )
       },
       filterFn: (row, id, value) => {
-        const group = String(row.getValue(id) || t('User Group')).toLowerCase()
-        const searchValue = String(value).toLowerCase()
-        return group.includes(searchValue)
+        return value.includes(String(row.getValue(id)))
       },
       size: 140,
       meta: { mobileOrder: 30 },
