@@ -52,8 +52,9 @@ func TestGetNoticeServesRevalidationHeaders(t *testing.T) {
 	// contribute a Vary value, and only the presence of Accept-Encoding is the
 	// contract here.
 	assert.Contains(t, response.Header().Get("Vary"), "Accept-Encoding")
-	// Strong validator: quoted hex, no W/ prefix.
-	assert.Regexp(t, `^"[0-9a-f]{64}"$`, response.Header().Get("ETag"))
+	// Weak validator: /api is compressed after this handler runs, so the served
+	// hash cannot claim byte-for-byte equality across encodings.
+	assert.Regexp(t, `^W/"[0-9a-f]{64}"$`, response.Header().Get("ETag"))
 }
 
 func TestGetNoticeReturnsNotModifiedForMatchingETag(t *testing.T) {
@@ -189,7 +190,7 @@ func TestPublicDocumentEndpointsRevalidate(t *testing.T) {
 			assert.Contains(t, first.Header().Get("Vary"), "Accept-Encoding")
 			etag := first.Header().Get("ETag")
 			require.NotEmpty(t, etag)
-			assert.Regexp(t, `^"[0-9a-f]{64}"$`, etag)
+			assert.Regexp(t, `^W/"[0-9a-f]{64}"$`, etag)
 
 			second := serveOptionRequest(t, testCase.handler, testCase.path, etag)
 			assert.Equal(t, http.StatusNotModified, second.Code)
@@ -268,20 +269,27 @@ func TestRevalidationThroughGzipMiddleware(t *testing.T) {
 	assert.Equal(t, etag, secondResponse.Header.Get("ETag"))
 }
 
+// The served validator is weak, so that is what this table feeds in as the
+// second operand. Weak comparison must ignore W/ on both sides: an earlier
+// version stripped it only from the client's value, which made a weak served
+// validator match nothing and silently disabled every 304.
 func TestETagMatches(t *testing.T) {
-	const etag = `"abc123"`
+	const etag = `W/"abc123"`
 	cases := []struct {
 		name        string
 		ifNoneMatch string
 		want        bool
 	}{
 		{name: "empty header", ifNoneMatch: "", want: false},
-		{name: "exact match", ifNoneMatch: `"abc123"`, want: true},
 		{name: "wildcard", ifNoneMatch: "*", want: true},
-		{name: "weak prefix is ignored", ifNoneMatch: `W/"abc123"`, want: true},
-		{name: "match inside list", ifNoneMatch: `"other", "abc123"`, want: true},
-		{name: "surrounding whitespace", ifNoneMatch: `  "abc123"  `, want: true},
-		{name: "different tag", ifNoneMatch: `"def456"`, want: false},
+		{name: "weak candidate against weak etag", ifNoneMatch: `W/"abc123"`, want: true},
+		// A cache or proxy may drop the W/ prefix in transit; weak comparison
+		// still has to match, or revalidation breaks behind that hop.
+		{name: "strong candidate against weak etag", ifNoneMatch: `"abc123"`, want: true},
+		{name: "match inside list", ifNoneMatch: `"other", W/"abc123"`, want: true},
+		{name: "mixed strength inside list", ifNoneMatch: `W/"other", "abc123"`, want: true},
+		{name: "surrounding whitespace", ifNoneMatch: `  W/"abc123"  `, want: true},
+		{name: "different tag", ifNoneMatch: `W/"def456"`, want: false},
 		{name: "unquoted value", ifNoneMatch: "abc123", want: false},
 		{name: "list without match", ifNoneMatch: `"def456", W/"ghi789"`, want: false},
 	}
