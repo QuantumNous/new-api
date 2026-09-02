@@ -17,11 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { getUserGroups, getUserModels } from '@/features/playground/api'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { createDrawing } from './api'
 import { DrawingForm } from './components/drawing-form'
@@ -31,6 +32,10 @@ import {
   getDefaultImageModel,
   getDrawingResultUrl,
 } from './lib/drawing'
+import {
+  loadCachedDrawingResult,
+  saveCachedDrawingResult,
+} from './lib/drawing-cache'
 import type { DrawingRequest } from './types'
 
 function getRequestErrorMessage(error: unknown, fallback: string): string {
@@ -52,6 +57,8 @@ export function AiDrawing() {
   const [group, setGroup] = useState('default')
   const [model, setModel] = useState('')
   const [resultUrl, setResultUrl] = useState('')
+  const hasStartedGeneration = useRef(false)
+  const userId = useAuthStore((state) => state.auth.user?.id)
   const groupsQuery = useQuery({
     queryKey: ['ai-drawing-groups'],
     queryFn: getUserGroups,
@@ -66,6 +73,21 @@ export function AiDrawing() {
     () => filterImageModels(modelsQuery.data ?? []),
     [modelsQuery.data]
   )
+
+  useEffect(() => {
+    if (!userId) return
+    let cancelled = false
+    loadCachedDrawingResult(`latest:${userId}`)
+      .then((cachedUrl) => {
+        if (!cancelled && !hasStartedGeneration.current && cachedUrl) {
+          setResultUrl(cachedUrl)
+        }
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
 
   useEffect(() => {
     if (groups.length === 0) return
@@ -101,8 +123,18 @@ export function AiDrawing() {
       }
       return url
     },
-    onMutate: () => setResultUrl(''),
-    onSuccess: setResultUrl,
+    onMutate: () => {
+      hasStartedGeneration.current = true
+      setResultUrl('')
+    },
+    onSuccess: (url) => {
+      setResultUrl(url)
+      if (userId) {
+        void saveCachedDrawingResult(`latest:${userId}`, url).catch(
+          () => undefined
+        )
+      }
+    },
     onError: (error) => {
       toast.error(getRequestErrorMessage(error, t('Request failed')))
     },
