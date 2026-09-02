@@ -34,9 +34,7 @@ export const Route = createFileRoute('/(auth)/sign-in')({
   beforeLoad: async ({ search }) => {
     // 根 guard 可能因为没有会话提示而跳过了 refresh。此处必须回源确认，
     // 否则持有有效 Refresh Cookie 的用户会被要求重新输入密码。
-    if (!useAuthStore.getState().auth.user) {
-      await resolveAuthentication()
-    }
+    await resolveAuthentication()
 
     const { auth } = useAuthStore.getState()
 

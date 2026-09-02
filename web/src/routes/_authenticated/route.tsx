@@ -28,9 +28,7 @@ export const Route = createFileRoute('/_authenticated')({
     // present. That skip is an optimization for public pages and must not
     // decide a protected route, so resolve against the server before
     // redirecting. An in-memory session returns without a request.
-    if (!useAuthStore.getState().auth.user) {
-      await resolveAuthentication()
-    }
+    await resolveAuthentication()
 
     const { auth } = useAuthStore.getState()
 
