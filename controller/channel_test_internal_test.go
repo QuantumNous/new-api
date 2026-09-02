@@ -324,22 +324,69 @@ func TestSelectChannelsForAutomaticTestScheduledSkipsManualDisabled(t *testing.T
 	require.Equal(t, 2, selected[1].Id)
 }
 
+func TestSelectChannelsForAutomaticTestScheduledAllIgnoresActiveProbe(t *testing.T) {
+	activeProbeDisabled := 0
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusEnabled, ActiveProbe: &activeProbeDisabled},
+		{Id: 2, Status: common.ChannelStatusAutoDisabled, ActiveProbe: &activeProbeDisabled},
+	}
+
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeScheduledAll)
+
+	require.Len(t, selected, 2)
+}
+
+func TestSelectChannelsForAutomaticTestPassiveRecoveryIgnoresActiveProbe(t *testing.T) {
+	activeProbeDisabled := 0
+	channels := []*model.Channel{
+		{Id: 1, Status: common.ChannelStatusAutoDisabled, ActiveProbe: &activeProbeDisabled},
+	}
+
+	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModePassiveRecovery)
+
+	require.Len(t, selected, 1)
+}
+
 func TestSelectChannelsForAutomaticTestAutoBanOnlyUsesEligibleChannels(t *testing.T) {
 	autoBanEnabled := 1
 	autoBanDisabled := 0
+	activeProbeDisabled := 0
 	channels := []*model.Channel{
 		{Id: 1, Status: common.ChannelStatusEnabled, AutoBan: &autoBanEnabled},
 		{Id: 2, Status: common.ChannelStatusEnabled, AutoBan: &autoBanDisabled},
 		{Id: 3, Status: common.ChannelStatusAutoDisabled, AutoBan: &autoBanEnabled},
 		{Id: 4, Status: common.ChannelStatusManuallyDisabled, AutoBan: &autoBanEnabled},
 		{Id: 5, Status: common.ChannelStatusEnabled},
+		{
+			Id:          6,
+			Status:      common.ChannelStatusEnabled,
+			AutoBan:     &autoBanEnabled,
+			ActiveProbe: &activeProbeDisabled,
+		},
+		{
+			Id:          7,
+			Status:      common.ChannelStatusAutoDisabled,
+			AutoBan:     &autoBanEnabled,
+			ActiveProbe: &activeProbeDisabled,
+		},
 	}
 
 	selected := selectChannelsForAutomaticTest(channels, operation_setting.ChannelTestModeAutoBanOnly)
 
-	require.Len(t, selected, 2)
+	require.Len(t, selected, 3)
 	require.Equal(t, 1, selected[0].Id)
 	require.Equal(t, 3, selected[1].Id)
+	require.Equal(t, 7, selected[2].Id)
+}
+
+func TestGetActiveProbeDefaultsToEnabledForLegacyChannels(t *testing.T) {
+	channel := &model.Channel{}
+
+	require.True(t, channel.GetActiveProbe())
+
+	disabled := 0
+	channel.ActiveProbe = &disabled
+	require.False(t, channel.GetActiveProbe())
 }
 
 func TestRunChannelTestWorkersHonorsConfiguredConcurrency(t *testing.T) {

@@ -5537,6 +5537,9 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
+    "Active probe": "Sonde active",
+    "Checks auto-disable-enabled channels with active probing enabled; auto-disabled channels are always checked for recovery.": "Vérifie les canaux avec désactivation automatique et sonde active ; les canaux désactivés automatiquement sont toujours vérifiés pour récupération.",
+    "In auto-disable-only mode, probe this channel while enabled; auto-disabled channels are still checked for recovery.": "En mode de désactivation automatique uniquement, sonder ce canal lorsqu'il est activé ; les canaux désactivés automatiquement sont toujours vérifiés pour récupération.",
     "Zoom": "Zoom"
   }
 }

@@ -5537,6 +5537,9 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
+    "Active probe": "Thăm dò chủ động",
+    "Checks auto-disable-enabled channels with active probing enabled; auto-disabled channels are always checked for recovery.": "Kiểm tra các kênh đã bật tự động vô hiệu hóa và thăm dò chủ động; các kênh bị vô hiệu hóa tự động luôn được kiểm tra để khôi phục.",
+    "In auto-disable-only mode, probe this channel while enabled; auto-disabled channels are still checked for recovery.": "Ở chế độ chỉ tự động vô hiệu hóa, kiểm tra kênh này khi đang bật; các kênh bị vô hiệu hóa tự động vẫn được kiểm tra để khôi phục.",
     "Zoom": "Zoom"
   }
 }

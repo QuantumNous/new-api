@@ -5537,6 +5537,9 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
+    "Active probe": "主动探测",
+    "Checks auto-disable-enabled channels with active probing enabled; auto-disabled channels are always checked for recovery.": "检查已开启自动禁用且启用主动探测的渠道；自动禁用的渠道始终会检查恢复。",
+    "In auto-disable-only mode, probe this channel while enabled; auto-disabled channels are still checked for recovery.": "在“仅检查自动禁用渠道”模式下，渠道启用时探测此渠道；自动禁用的渠道仍会检查恢复。",
     "Zoom": "缩放"
   }
 }

@@ -5537,6 +5537,9 @@
     "Zero retention": "零數據保留",
     "Zhipu": "智譜",
     "Zhipu V4": "智譜 V4",
+    "Active probe": "主動探測",
+    "Checks auto-disable-enabled channels with active probing enabled; auto-disabled channels are always checked for recovery.": "檢查已啟用自動停用且開啟主動探測的渠道；自動停用的渠道始終會檢查恢復。",
+    "In auto-disable-only mode, probe this channel while enabled; auto-disabled channels are still checked for recovery.": "在「僅檢查自動停用渠道」模式下，渠道啟用時探測此渠道；自動停用的渠道仍會檢查恢復。",
     "Zoom": "縮放"
   }
 }
