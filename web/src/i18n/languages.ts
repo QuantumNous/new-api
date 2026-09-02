@@ -17,14 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export const INTERFACE_LANGUAGE_OPTIONS = [
-  { code: 'zhCN', label: '简体中文' },
-  { code: 'en', label: 'English' },
-  { code: 'ptBR', label: 'Português (Brasil)' },
-  { code: 'fr', label: 'Français' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'ja', label: '日本語' },
-  { code: 'vi', label: 'Tiếng Việt' },
-  { code: 'zhTW', label: '繁體中文' },
+  { code: 'zhCN', label: 'zhCN' },
+  { code: 'en', label: 'en' },
+  { code: 'ptBR', label: 'ptBR' },
+  { code: 'fr', label: 'fr' },
+  { code: 'ru', label: 'ru' },
+  { code: 'ja', label: 'ja' },
+  { code: 'vi', label: 'vi' },
+  { code: 'zhTW', label: 'zhTW' },
 ] as const
 
 export type InterfaceLanguageCode =
@@ -45,7 +45,7 @@ export function normalizeInterfaceLanguage(value?: string | null): string {
   if (value === 'zh-CN' || value === 'zh-Hans' || value === 'zhCN') {
     normalized = 'zhCN'
   }
-  if (value === 'pt-BR' || value === 'pt-BR' || value === 'ptBR') {
+  if (normalized === 'pt-br' || normalized === 'ptbr' || normalized === 'pt') {
     normalized = 'ptBR'
   }
 
