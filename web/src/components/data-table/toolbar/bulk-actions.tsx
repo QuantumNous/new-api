@@ -53,7 +53,10 @@ export function DataTableBulkActions<TData>({
   children,
 }: DataTableBulkActionsProps<TData>): React.ReactNode | null {
   const { t } = useTranslation()
-  const selectedRows = table.getFilteredSelectedRowModel().rows
+  // Use flatRows instead of rows: rows only contains selected *top-level*
+  // rows, so in tree tables (e.g. the channels table in tag mode, where only
+  // subRows are selectable) the count would always be 0. See issue #6885.
+  const selectedRows = table.getFilteredSelectedRowModel().flatRows
   const selectedCount = selectedRows.length
   const toolbarRef = useRef<HTMLDivElement>(null)
   const buttonsRef = useRef<NodeListOf<HTMLButtonElement> | null>(null)
