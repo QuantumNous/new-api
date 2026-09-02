@@ -172,6 +172,7 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
   hasAdvancedSettingsErrors,
+  stripModelPrefix,
 } from '../../lib'
 import {
   collectInvalidStatusCodeEntries,
@@ -1271,10 +1272,10 @@ export function ChannelMutateDrawer({
       setAdvancedSettingsOpen(
         readAdvancedSettingsPreference() || hasAdvancedSettingsValues(defaults)
       )
-      // Store initial values for comparison
-      initialModelsRef.current = parseModelsString(
-        channelData.data.models || ''
-      )
+      // Store initial values for comparison. `defaults` comes from
+      // transformChannelToFormDefaults, which strips the per-channel prefix for
+      // display, so change detection compares bare vs bare.
+      initialModelsRef.current = parseModelsString(defaults.models || '')
       initialModelMappingRef.current = channelData.data.model_mapping || ''
       initialStatusCodeMappingRef.current =
         channelData.data.status_code_mapping || ''
@@ -1706,51 +1707,49 @@ export function ChannelMutateDrawer({
         }
       }
 
-      // Normalize models array
-      let normalizedModels = parseModelsString(data.models || '')
+      // Normalize models array (bare names are stored in DB; the backend applies
+      // the per-channel prefix when exposing /v1/models and routing)
+      const normalizedModels = parseModelsString(data.models || '')
 
-      // Apply model prefix to model names if prefix is set
+      // Apply model prefix to model_mapping source models. Source keys must stay
+      // client-facing (prefixed) so ModelMappedHelper can match OriginModelName.
       const modelPrefix = (data.model_prefix || '').trim()
-      if (modelPrefix) {
-        normalizedModels = normalizedModels.map((model) => {
-          // Only add prefix if the model doesn't already have it
-          if (!model.startsWith(modelPrefix + '/')) {
-            return `${modelPrefix}/${model}`
-          }
-          return model
-        })
-        data.models = formatModelsArray(normalizedModels)
-        form.setValue('models', data.models)
-
-        // Also apply prefix to model_mapping source models
-        if (hasModelMapping && modelMappingValue) {
-          try {
-            const modelMap = JSON.parse(modelMappingValue)
-            const updatedModelMap: Record<string, string> = {}
-            for (const [key, value] of Object.entries(modelMap)) {
-              // Apply prefix to source model if not already prefixed
-              const prefixedKey = key.startsWith(modelPrefix + '/')
-                ? key
-                : `${modelPrefix}/${key}`
-              // Handle collision: if both gpt-4 and openai/gpt-4 exist,
-              // keep the explicitly prefixed one
-              if (!(prefixedKey in updatedModelMap)) {
-                updatedModelMap[prefixedKey] = value as string
-              }
+      if (modelPrefix && hasModelMapping && modelMappingValue) {
+        try {
+          const modelMap = JSON.parse(modelMappingValue)
+          const updatedModelMap: Record<string, string> = {}
+          for (const [key, value] of Object.entries(modelMap)) {
+            // Apply prefix to source model if not already prefixed
+            const prefixedKey = key.startsWith(modelPrefix + '/')
+              ? key
+              : `${modelPrefix}/${key}`
+            // Handle collision: if both gpt-4 and openai/gpt-4 exist,
+            // keep the explicitly prefixed one
+            if (!(prefixedKey in updatedModelMap)) {
+              updatedModelMap[prefixedKey] = value as string
             }
-            data.model_mapping = JSON.stringify(updatedModelMap)
-            form.setValue('model_mapping', data.model_mapping)
-          } catch {
-            // Ignore parse errors, will be caught by validation later
           }
+          data.model_mapping = JSON.stringify(updatedModelMap)
+          form.setValue('model_mapping', data.model_mapping)
+        } catch {
+          // Ignore parse errors, will be caught by validation later
         }
       }
 
-      // Check for missing models in model_mapping (use rewritten mapping with prefix)
+      // Check for missing models in model_mapping. Mapping source keys are stored
+      // client-facing (prefixed); compare them against the prefixed forms of the
+      // bare models list so the check runs in the same name space.
       if (hasModelMapping) {
+        const prefixedModels = modelPrefix
+          ? normalizedModels.map((model) =>
+              model.startsWith(`${modelPrefix}/`)
+                ? model
+                : `${modelPrefix}/${model}`
+            )
+          : normalizedModels
         const missingModels = findMissingModelsInMapping(
           data.model_mapping || modelMappingValue,
-          normalizedModels
+          prefixedModels
         )
 
         const shouldPromptMissing =
@@ -1769,7 +1768,12 @@ export function ChannelMutateDrawer({
           }
           if (confirmAction === 'add') {
             const updatedModels = [
-              ...new Set([...normalizedModels, ...missingModels]),
+              ...new Set([
+                ...normalizedModels,
+                ...missingModels.map((model) =>
+                  modelPrefix ? stripModelPrefix(model, modelPrefix) : model
+                ),
+              ]),
             ]
             data.models = formatModelsArray(updatedModels)
             form.setValue('models', data.models)

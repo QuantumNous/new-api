@@ -202,15 +202,7 @@ export function FetchModelsDialog({
     if (!activeChannel) return
     setIsSaving(true)
     try {
-      // Re-apply the per-channel prefix before saving, since updateChannel
-      // writes the models list verbatim (the drawer applies the prefix at
-      // submit time; standalone mode must do it here).
-      const modelsToSave = modelPrefix
-        ? selectedModels.map((m) =>
-            m.startsWith(`${modelPrefix}/`) ? m : `${modelPrefix}/${m}`
-          )
-        : selectedModels
-      const modelsString = modelsToSave.join(',')
+      const modelsString = selectedModels.join(',')
       const response = await updateChannel(activeChannel.id, {
         models: modelsString,
       })
