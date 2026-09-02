@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Calcium-Ion/go-epay/epay"
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -83,13 +84,20 @@ func stripeCheckoutReturnURLs(referenceID, originHost, successURL, cancelURL str
 	}
 	returnURL := func(result string) string {
 		query := url.Values{"result": {result}, "trade_no": {referenceID}}
-		return paymentReturnPath("/api/stripe/return?") + query.Encode()
+		return fixedPaymentReturnPath("/api/stripe/return?") + query.Encode()
 	}
 	return returnURL("success"), returnURL("cancel")
 }
 
 func epayBrowserReturnURL() string {
-	return paymentReturnPath("/api/user/epay/return")
+	return fixedPaymentReturnPath("/api/user/epay/return")
+}
+
+func epayNotifyURL() string {
+	if common.CustomDomainEnabled {
+		return fixedPaymentReturnPath("/api/user/epay/notify")
+	}
+	return strings.TrimRight(service.GetCallbackAddress(), "/") + "/api/user/epay/notify"
 }
 
 func isMainDomainCallback(c *gin.Context) bool {

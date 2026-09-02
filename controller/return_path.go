@@ -16,9 +16,20 @@ func paymentReturnPath(suffix string) string {
 	return base + suffix
 }
 
-func paymentReturnURLForTopUp(topUp *model.TopUp, suffix string) string {
-	if topUp == nil || !common.CustomDomainEnabled || strings.TrimSpace(topUp.OriginHost) == "" {
+func fixedPaymentReturnPath(suffix string) string {
+	if !common.CustomDomainEnabled {
 		return paymentReturnPath(suffix)
+	}
+	base := strings.TrimRight(common.CustomDomainMainOrigin, "/")
+	return base + suffix
+}
+
+func paymentReturnURLForTopUp(topUp *model.TopUp, suffix string) string {
+	if !common.CustomDomainEnabled {
+		return paymentReturnPath(suffix)
+	}
+	if topUp == nil || strings.TrimSpace(topUp.OriginHost) == "" {
+		return fixedPaymentReturnPath(suffix)
 	}
 	resolver, err := service.NewCustomDomainResolver(common.CustomDomainSettings{
 		Enabled:         common.CustomDomainEnabled,
@@ -28,11 +39,11 @@ func paymentReturnURLForTopUp(topUp *model.TopUp, suffix string) string {
 		ReservedLabels:  common.CustomDomainReservedLabels,
 	})
 	if err != nil {
-		return paymentReturnPath(suffix)
+		return fixedPaymentReturnPath(suffix)
 	}
 	context, err := resolver.ResolveHost(topUp.OriginHost)
 	if err != nil || context.Kind != service.CustomDomainKindCustom {
-		return paymentReturnPath(suffix)
+		return fixedPaymentReturnPath(suffix)
 	}
 	return "https://" + context.Host + suffix
 }

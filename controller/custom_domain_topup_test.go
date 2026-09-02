@@ -35,7 +35,7 @@ func TestPaymentReturnURLUsesOnlyAStoredCurrentlyActiveCustomDomain(t *testing.T
 	common.CustomDomainEnabled = true
 	common.CustomDomainSuffix = "yeschoy.io"
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
-	system_setting.ServerAddress = "https://yeschoy.com"
+	system_setting.ServerAddress = "https://legacy-main.example.com"
 	t.Cleanup(func() {
 		model.DB = previousDB
 		common.SetMainDatabaseType(previousDatabaseType)
@@ -148,9 +148,20 @@ func TestStripeBrowserReturnNavigatesFromStoredOrderWithoutCrediting(t *testing.
 }
 
 func TestStripeCheckoutReturnURLsIgnoreClientTargetsForACustomDomain(t *testing.T) {
+	previousEnabled := common.CustomDomainEnabled
+	previousMainOrigin := common.CustomDomainMainOrigin
 	previousServerAddress := system_setting.ServerAddress
-	system_setting.ServerAddress = "https://yeschoy.com/"
-	t.Cleanup(func() { system_setting.ServerAddress = previousServerAddress })
+	previousCustomCallbackAddress := operation_setting.CustomCallbackAddress
+	common.CustomDomainEnabled = true
+	common.CustomDomainMainOrigin = "https://yeschoy.com/"
+	system_setting.ServerAddress = "https://legacy-main.example.com/"
+	operation_setting.CustomCallbackAddress = "https://legacy-callback.example.com"
+	t.Cleanup(func() {
+		common.CustomDomainEnabled = previousEnabled
+		common.CustomDomainMainOrigin = previousMainOrigin
+		system_setting.ServerAddress = previousServerAddress
+		operation_setting.CustomCallbackAddress = previousCustomCallbackAddress
+	})
 
 	successURL, cancelURL := stripeCheckoutReturnURLs(
 		"stripe-order",
@@ -165,6 +176,11 @@ func TestStripeCheckoutReturnURLsIgnoreClientTargetsForACustomDomain(t *testing.
 	assert.Equal(t, "https://trusted.example/success", successURL)
 	assert.Equal(t, "https://trusted.example/cancel", cancelURL)
 	assert.Equal(t, "https://yeschoy.com/api/user/epay/return", epayBrowserReturnURL())
+	assert.Equal(t, "https://yeschoy.com/api/user/epay/notify", epayNotifyURL())
+
+	common.CustomDomainEnabled = false
+	assert.Equal(t, "https://legacy-main.example.com/api/user/epay/return", epayBrowserReturnURL())
+	assert.Equal(t, "https://legacy-callback.example.com/api/user/epay/notify", epayNotifyURL())
 }
 
 func TestEpayBrowserReturnVerifiesSettlesOnceAndReturnsToTheStoredDomain(t *testing.T) {
