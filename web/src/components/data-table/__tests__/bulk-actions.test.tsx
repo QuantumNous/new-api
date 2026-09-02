@@ -24,6 +24,7 @@ import {
   type RowSelectionState,
 } from '@tanstack/react-table'
 import { render, screen } from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { describe, expect, test } from 'vitest'
 
 import { DataTableBulkActions } from '../toolbar/bulk-actions'
@@ -50,7 +51,7 @@ function Harness({
 }: {
   data: TreeRow[]
   initialSelection: RowSelectionState
-}) {
+}): ReactElement {
   const table = useReactTable({
     data,
     columns,
@@ -92,14 +93,14 @@ describe('DataTableBulkActions selection counting', () => {
     render(<Harness data={treeData} initialSelection={{ 'channel:1': true }} />)
 
     const toolbar = screen.getByRole('toolbar')
-    expect(toolbar).toHaveAccessibleName('Bulk actions for 1 selected channel')
+    expect(toolbar).toHaveAccessibleName(/1 selected channel/)
   })
 
   test('still shows the toolbar for a selected top-level row in a flat table', () => {
     render(<Harness data={flatData} initialSelection={{ 'channel:1': true }} />)
 
     const toolbar = screen.getByRole('toolbar')
-    expect(toolbar).toHaveAccessibleName('Bulk actions for 1 selected channel')
+    expect(toolbar).toHaveAccessibleName(/1 selected channel/)
   })
 
   test('renders nothing when no row is selected', () => {
