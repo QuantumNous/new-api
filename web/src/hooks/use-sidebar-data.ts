@@ -38,6 +38,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { useStatus } from '@/hooks/use-status'
 import type { SidebarData } from '@/components/layout/types'
 import { ROLE } from '@/lib/roles'
 
@@ -49,6 +50,11 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const shopUrl =
+    typeof status?.liandong_shop_url === 'string'
+      ? status.liandong_shop_url.trim()
+      : ''
 
   return {
     navGroups: [
@@ -115,11 +121,15 @@ export function useSidebarData(): SidebarData {
             url: '/profile',
             icon: User,
           },
-          {
-            title: t('Shop'),
-            url: '/shop',
-            icon: Store,
-          },
+          ...(shopUrl
+            ? [
+                {
+                  title: t('Shop'),
+                  url: '/shop',
+                  icon: Store,
+                },
+              ]
+            : []),
         ],
       },
       {
