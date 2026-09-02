@@ -178,7 +178,7 @@ export function Pricing() {
         />
         <PageTransition className='relative mx-auto w-full max-w-[1500px] px-3 pt-24 pb-8 sm:px-6 sm:pt-28 sm:pb-10 xl:px-8'>
           <header
-            className='dopa-section-shell dopa-catalog-hero dopa-token-grid mb-7 grid items-end gap-6 sm:mb-9 lg:grid-cols-[0.75fr_1.25fr]'
+            className='dopa-section-shell dopa-pricing-shell dopa-catalog-hero dopa-token-grid mb-7 grid items-end gap-6 sm:mb-9 lg:grid-cols-[0.75fr_1.25fr]'
             data-section='MODELS'
           >
             <div>
@@ -211,7 +211,7 @@ export function Pricing() {
           </header>
 
           <div
-            className='dopa-section-shell dopa-catalog-workbench grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]'
+            className='dopa-section-shell dopa-pricing-shell dopa-catalog-workbench grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)]'
             data-section='CATALOG'
           >
             <PricingSidebar
