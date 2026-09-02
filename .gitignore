@@ -43,6 +43,6 @@ go.work
 go.work.sum
 
 .trellis/
-.agents/
+.agents/skills/trellis-*/
 .opencode/
 .codex/
