@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,7 +23,7 @@ func SessionCookieOriginGuard() gin.HandlerFunc {
 			return
 		}
 		origin, ok := requestBrowserOrigin(c.Request)
-		if !ok || !isAllowedSessionOrigin(c.Request, origin) {
+		if !ok || !isAllowedSessionOrigin(c, origin) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"success": false,
 				"code":    "AUTH_ORIGIN_FORBIDDEN",
@@ -58,7 +59,13 @@ func requestBrowserOrigin(request *http.Request) (string, bool) {
 	return origin, err == nil
 }
 
-func isAllowedSessionOrigin(request *http.Request, origin string) bool {
+func isAllowedSessionOrigin(c *gin.Context, origin string) bool {
+	if domainContext, found := GetCustomDomainContext(c); found && domainContext.Kind == service.CustomDomainKindCustom {
+		expectedOrigin := "https://" + domainContext.Host
+		return subtle.ConstantTimeCompare([]byte(origin), []byte(expectedOrigin)) == 1
+	}
+
+	request := c.Request
 	requestScheme := "http"
 	if request.TLS != nil {
 		requestScheme = "https"

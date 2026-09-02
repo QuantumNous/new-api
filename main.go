@@ -50,6 +50,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "plugin" {
 		os.Exit(jsplugin.RunCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "domain" {
+		os.Exit(runCustomDomainCLI(os.Args[2:]))
+	}
 	startTime := time.Now()
 	kitutil.SetLogging(common.SysLog, func(message string) {
 		logger.LogError(nil, message)
@@ -193,6 +196,7 @@ func main() {
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
 	server.Use(middleware.RequestId())
+	server.Use(middleware.CustomDomainContext())
 	server.Use(middleware.Version())
 	server.Use(middleware.I18n())
 	middleware.SetUpLogger(server)
@@ -284,6 +288,20 @@ func InjectGoogleAnalytics() {
 	analyticsInject := []byte(analyticsInjectBuilder.String())
 	placeholder := []byte("<!--Google Analytics-->\n")
 	indexPage = bytes.ReplaceAll(indexPage, placeholder, analyticsInject)
+}
+
+func runCustomDomainCLI(args []string) int {
+	// The domain CLI intentionally initializes only the pieces needed to read
+	// and migrate the primary database. It must not start the HTTP server,
+	// Redis, scheduled jobs, or the normal application lifecycle.
+	_ = godotenv.Load(".env")
+	common.InitEnv()
+	logger.SetupLogger()
+	if err := model.InitDB(); err != nil {
+		fmt.Fprintln(os.Stderr, "initialize domain CLI database:", err)
+		return 1
+	}
+	return service.RunCustomDomainCLI(args, os.Stdout, os.Stderr)
 }
 
 func InitResources() error {
