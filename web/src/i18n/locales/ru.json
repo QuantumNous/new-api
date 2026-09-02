@@ -5316,6 +5316,21 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "AI Drawing": "Рисование с ИИ",
+    "Create images from text or upload an image to edit": "Создавайте изображения из текста или загрузите изображение для редактирования",
+    "Create and edit images with AI": "Создание и редактирование изображений с помощью ИИ",
+    "Creation settings": "Настройки создания",
+    "Prompt is required": "Введите запрос",
+    "Describe the scene, subject, composition, and style": "Опишите сцену, объект, композицию и стиль",
+    "Source image (optional)": "Исходное изображение (необязательно)",
+    "Upload an image to switch to image editing": "Загрузите изображение, чтобы перейти к редактированию",
+    "Source image preview": "Предпросмотр исходного изображения",
+    "Remove image": "Удалить изображение",
+    "Image size": "Размер изображения",
+    "Edit image": "Редактировать изображение",
+    "Generate image": "Создать изображение",
+    "Generating image": "Создание изображения",
+    "Empty image response": "Пустой ответ изображения"
   }
 }

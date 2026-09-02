@@ -5316,6 +5316,21 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "AI Drawing": "AI 绘图",
+    "Create images from text or upload an image to edit": "使用文字生成图片，也可以上传原图进行修改",
+    "Create and edit images with AI": "使用 AI 生成和编辑图片",
+    "Creation settings": "创作设置",
+    "Prompt is required": "请输入提示词",
+    "Describe the scene, subject, composition, and style": "描述画面、主体、构图和风格",
+    "Source image (optional)": "原图（可选）",
+    "Upload an image to switch to image editing": "上传原图后自动切换为图生图",
+    "Source image preview": "原图预览",
+    "Remove image": "移除原图",
+    "Image size": "图片尺寸",
+    "Edit image": "生成修改图",
+    "Generate image": "生成图片",
+    "Generating image": "正在生成图片",
+    "Empty image response": "图片结果为空"
   }
 }

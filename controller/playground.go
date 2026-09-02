@@ -7,12 +7,13 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
 )
 
-func Playground(c *gin.Context) {
+func relayPlayground(c *gin.Context, relayFormat types.RelayFormat, relayMode int) {
 	var newAPIError *types.NewAPIError
 
 	defer func() {
@@ -29,7 +30,8 @@ func Playground(c *gin.Context) {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatOpenAI, nil, nil)
+	c.Set("relay_mode", relayMode)
+	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, nil, nil)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
@@ -52,5 +54,17 @@ func Playground(c *gin.Context) {
 	}
 	_ = middleware.SetupContextForToken(c, tempToken)
 
-	Relay(c, types.RelayFormatOpenAI)
+	Relay(c, relayFormat)
+}
+
+func Playground(c *gin.Context) {
+	relayPlayground(c, types.RelayFormatOpenAI, relayconstant.RelayModeChatCompletions)
+}
+
+func PlaygroundImageGenerations(c *gin.Context) {
+	relayPlayground(c, types.RelayFormatOpenAIImage, relayconstant.RelayModeImagesGenerations)
+}
+
+func PlaygroundImageEdits(c *gin.Context) {
+	relayPlayground(c, types.RelayFormatOpenAIImage, relayconstant.RelayModeImagesEdits)
 }

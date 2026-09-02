@@ -5316,6 +5316,21 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "AI Drawing": "Vẽ bằng AI",
+    "Create images from text or upload an image to edit": "Tạo ảnh từ văn bản hoặc tải ảnh lên để chỉnh sửa",
+    "Create and edit images with AI": "Tạo và chỉnh sửa ảnh bằng AI",
+    "Creation settings": "Cài đặt sáng tạo",
+    "Prompt is required": "Vui lòng nhập lời nhắc",
+    "Describe the scene, subject, composition, and style": "Mô tả cảnh, chủ thể, bố cục và phong cách",
+    "Source image (optional)": "Ảnh gốc (không bắt buộc)",
+    "Upload an image to switch to image editing": "Tải ảnh lên để chuyển sang chỉnh sửa ảnh",
+    "Source image preview": "Xem trước ảnh gốc",
+    "Remove image": "Xóa ảnh",
+    "Image size": "Kích thước ảnh",
+    "Edit image": "Chỉnh sửa ảnh",
+    "Generate image": "Tạo ảnh",
+    "Generating image": "Đang tạo ảnh",
+    "Empty image response": "Kết quả ảnh trống"
   }
 }

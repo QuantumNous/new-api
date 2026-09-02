@@ -5316,6 +5316,21 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "AI Drawing": "AI 描画",
+    "Create images from text or upload an image to edit": "テキストから画像を生成するか、画像をアップロードして編集します",
+    "Create and edit images with AI": "AI で画像を生成・編集します",
+    "Creation settings": "作成設定",
+    "Prompt is required": "プロンプトは必須です",
+    "Describe the scene, subject, composition, and style": "シーン、被写体、構図、スタイルを説明してください",
+    "Source image (optional)": "元画像（任意）",
+    "Upload an image to switch to image editing": "画像をアップロードすると画像編集に切り替わります",
+    "Source image preview": "元画像のプレビュー",
+    "Remove image": "画像を削除",
+    "Image size": "画像サイズ",
+    "Edit image": "画像を編集",
+    "Generate image": "画像を生成",
+    "Generating image": "画像を生成中",
+    "Empty image response": "画像の結果が空です"
   }
 }

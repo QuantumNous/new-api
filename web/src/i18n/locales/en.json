@@ -5316,6 +5316,21 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "AI Drawing": "AI Drawing",
+    "Create images from text or upload an image to edit": "Create images from text or upload an image to edit",
+    "Create and edit images with AI": "Create and edit images with AI",
+    "Creation settings": "Creation settings",
+    "Prompt is required": "Prompt is required",
+    "Describe the scene, subject, composition, and style": "Describe the scene, subject, composition, and style",
+    "Source image (optional)": "Source image (optional)",
+    "Upload an image to switch to image editing": "Upload an image to switch to image editing",
+    "Source image preview": "Source image preview",
+    "Remove image": "Remove image",
+    "Image size": "Image size",
+    "Edit image": "Edit image",
+    "Generate image": "Generate image",
+    "Generating image": "Generating image",
+    "Empty image response": "Empty image response"
   }
 }
