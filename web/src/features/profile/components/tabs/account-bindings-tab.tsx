@@ -30,8 +30,14 @@ import { Separator } from '@/components/ui/separator'
 import { createOAuthFlow } from '@/features/auth/api'
 import {
   OAUTH_BIND_CALLBACK_MESSAGE,
+  OAUTH_BIND_HANDOFF_MESSAGE,
+  OAUTH_BIND_RETURN_MESSAGE,
   OAUTH_BIND_RESULT_MESSAGE,
 } from '@/features/auth/constants'
+import {
+  isDomainBindReturnResult,
+  type DomainBindReturnResult,
+} from '@/features/auth/lib/domain-oauth-handoff'
 import { watchOAuthPopupClosed } from '@/features/auth/lib/oauth-bind-window'
 import {
   getOAuthSessionStorage,
@@ -81,6 +87,18 @@ interface OAuthBindingCallback {
   code?: string
   error?: string
   errorDescription?: string
+}
+
+interface OAuthBindingHandoff {
+  type: typeof OAUTH_BIND_HANDOFF_MESSAGE
+  provider: string
+  ticket: string
+}
+
+interface OAuthBindingReturn {
+  type: typeof OAUTH_BIND_RETURN_MESSAGE
+  provider: string
+  result: DomainBindReturnResult
 }
 
 export function AccountBindingsTab({
@@ -220,6 +238,56 @@ export function AccountBindingsTab({
 
     const handleMessage = async (event: MessageEvent<unknown>) => {
       if (event.origin !== window.location.origin) return
+      const bindReturn = event.data as Partial<OAuthBindingReturn> | null
+      const bindReturnPending = pendingOAuthBinding.current
+      if (
+        bindReturn?.type === OAUTH_BIND_RETURN_MESSAGE &&
+        bindReturnPending &&
+        bindReturn.provider === bindReturnPending.provider &&
+        isDomainBindReturnResult(bindReturn.result) &&
+        event.source === bindReturnPending.popup
+      ) {
+        clearPendingOAuthBinding(bindReturnPending)
+        toast.error(t('OAuth failed'))
+        if (!bindReturnPending.popup.closed) bindReturnPending.popup.close()
+        return
+      }
+
+      const handoff = event.data as Partial<OAuthBindingHandoff> | null
+      const handoffPending = pendingOAuthBinding.current
+      if (
+        handoff?.type === OAUTH_BIND_HANDOFF_MESSAGE &&
+        handoffPending &&
+        handoff.provider === handoffPending.provider &&
+        typeof handoff.ticket === 'string' &&
+        handoff.ticket.length > 0 &&
+        event.source === handoffPending.popup
+      ) {
+        clearPendingOAuthBinding(handoffPending)
+        try {
+          const response = await api.post(
+            '/api/oauth/domain-bind-handoff',
+            { ticket: handoff.ticket },
+            { skipBusinessError: true, skipErrorHandler: true }
+          )
+          if (!response.data?.success) {
+            throw new Error(response.data?.message || t('OAuth failed'))
+          }
+          toast.success(t('Binding successful!'))
+          onUpdate()
+          await fetchCustomBindings()
+        } catch (error: unknown) {
+          const message =
+            (error as { response?: { data?: { message?: string } } }).response
+              ?.data?.message ||
+            (error instanceof Error ? error.message : t('OAuth failed'))
+          toast.error(message)
+        } finally {
+          if (!handoffPending.popup.closed) handoffPending.popup.close()
+        }
+        return
+      }
+
       const message = event.data as Partial<OAuthBindingCallback> | null
       const pending = pendingOAuthBinding.current
       if (

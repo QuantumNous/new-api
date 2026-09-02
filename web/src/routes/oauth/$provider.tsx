@@ -34,6 +34,16 @@ import {
 } from '@/features/auth/constants'
 import { sanitizeAuthRedirect } from '@/features/auth/lib/auth-redirect'
 import {
+  buildDomainBindHandoffURL,
+  buildDomainBindReturnURL,
+  buildDomainLoginHandoffURL,
+  buildDomainOAuthReturnURL,
+  parseDomainBindHandoff,
+  parseDomainBindReturn,
+  parseDomainLoginHandoff,
+  parseDomainOAuthReturn,
+} from '@/features/auth/lib/domain-oauth-handoff'
+import {
   parseTelegramBindCallback,
   postTelegramBindResult,
   startOAuthBindResponseDeadline,
@@ -198,6 +208,26 @@ function OAuthCallback() {
           skipBusinessError: true,
         }
         const response = await api.get(`/api/oauth/${provider}`, config)
+        const domainBindHandoff = parseDomainBindHandoff(response.data?.data)
+        if (response.data?.success && domainBindHandoff) {
+          window.location.replace(buildDomainBindHandoffURL(domainBindHandoff))
+          return
+        }
+        const domainBindReturn = parseDomainBindReturn(response.data?.data)
+        if (domainBindReturn) {
+          window.location.replace(buildDomainBindReturnURL(domainBindReturn))
+          return
+        }
+        const domainHandoff = parseDomainLoginHandoff(response.data?.data)
+        if (response.data?.success && domainHandoff) {
+          window.location.replace(buildDomainLoginHandoffURL(domainHandoff))
+          return
+        }
+        const domainReturn = parseDomainOAuthReturn(response.data?.data)
+        if (domainReturn) {
+          window.location.replace(buildDomainOAuthReturnURL(domainReturn))
+          return
+        }
         if (response.data?.success && isAuthBundle(response.data?.data)) {
           applyAuthBundle(response.data.data)
           safeNavigate(search.redirect)

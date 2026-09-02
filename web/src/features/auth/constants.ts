@@ -77,4 +77,6 @@ export const PASSWORD_RESET_COUNTDOWN = 30 // seconds
 
 export const OAUTH_BIND_CALLBACK_MESSAGE = 'oauth:binding:callback'
 export const OAUTH_BIND_RESULT_MESSAGE = 'oauth:binding:result'
+export const OAUTH_BIND_HANDOFF_MESSAGE = 'oauth:binding:handoff'
+export const OAUTH_BIND_RETURN_MESSAGE = 'oauth:binding:return'
 export const TELEGRAM_BIND_RESULT_MESSAGE = 'telegram:binding:result'
