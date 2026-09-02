@@ -37,6 +37,8 @@ const defaultValues: WaffoPancakeSettingsValues = {
   WaffoPancakeCurrency: 'USD',
   WaffoPancakeUnitPrice: 1,
   WaffoPancakeMinTopUp: 1,
+  WaffoPancakeFeePercent: 0,
+  WaffoPancakeFeeFixed: 0,
 }
 
 function SettingsHarness(props: { initialCurrency: string }) {
@@ -65,11 +67,11 @@ describe('Waffo Pancake wallet currency settings', () => {
 
     expect(screen.getByText('USD')).toBeInTheDocument()
     expect(
-      screen.getByText('Pancake exchange rate (wallet USD per USD)')
+      screen.getByText('Pancake exchange rate (USD per wallet USD)')
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Wallet USD credited per one unit of the selected Pancake currency, before group ratios and amount discounts. This setting is independent from the Epay Price field.'
+        'Selected Pancake currency charged per one wallet USD, before group ratios, amount discounts, and wallet fees. For example, if 1 USD = 7.3 CNY, enter 7.3. This setting is independent from the Epay Price field.'
       )
     ).toBeInTheDocument()
     expect(
@@ -77,6 +79,8 @@ describe('Waffo Pancake wallet currency settings', () => {
         'Smallest wallet balance amount a user can purchase through Pancake. This setting is independent from the Epay Minimum top-up field.'
       )
     ).toBeInTheDocument()
+    expect(screen.getByText('Wallet fee percentage')).toBeInTheDocument()
+    expect(screen.getByText('Wallet fixed fee (USD)')).toBeInTheDocument()
   })
 
   test('renders CNY wallet product creation and rate semantics independently', () => {
@@ -85,7 +89,7 @@ describe('Waffo Pancake wallet currency settings', () => {
     const currencyTrigger = screen.getAllByRole('combobox')[0]
     expect(currencyTrigger).toHaveTextContent('CNY')
     expect(
-      screen.getByText('Pancake exchange rate (wallet USD per CNY)')
+      screen.getByText('Pancake exchange rate (CNY per wallet USD)')
     ).toBeInTheDocument()
   })
 })

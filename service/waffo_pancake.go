@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/shopspring/decimal"
 	pancake "github.com/waffo-com/waffo-pancake-sdk-go"
 )
@@ -442,7 +443,7 @@ func CreateWaffoPancakePrimaryPair(ctx context.Context, merchantID, privateKey, 
 // SaveWaffoPancakeConfig validates the chosen store/product/currency against
 // Pancake, then persists all wallet settings through one DB transaction. A
 // blank privateKey retains the stored secret.
-func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnURL, storeID, productID, currency string, unitPrice float64, minTopUp int) error {
+func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnURL, storeID, productID, currency string, unitPrice float64, minTopUp int, feePercent, feeFixed float64) error {
 	merchantID = strings.TrimSpace(merchantID)
 	privateKey = strings.TrimSpace(privateKey)
 	storeID = strings.TrimSpace(storeID)
@@ -456,6 +457,9 @@ func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnU
 	if minTopUp < 1 {
 		return fmt.Errorf("minimum top-up must be at least one")
 	}
+	if !operation_setting.IsValidPaymentFee(feePercent) || !operation_setting.IsValidPaymentFee(feeFixed) {
+		return fmt.Errorf("payment fees must be finite non-negative numbers")
+	}
 
 	effectivePrivateKey := privateKey
 	if effectivePrivateKey == "" {
@@ -467,13 +471,15 @@ func SaveWaffoPancakeConfig(ctx context.Context, merchantID, privateKey, returnU
 	}
 
 	values := map[string]string{
-		"WaffoPancakeMerchantID": merchantID,
-		"WaffoPancakeReturnURL":  strings.TrimSpace(returnURL),
-		"WaffoPancakeStoreID":    storeID,
-		"WaffoPancakeProductID":  productID,
-		"WaffoPancakeCurrency":   resolved.Currency,
-		"WaffoPancakeUnitPrice":  strconv.FormatFloat(unitPrice, 'f', -1, 64),
-		"WaffoPancakeMinTopUp":   strconv.Itoa(minTopUp),
+		"WaffoPancakeMerchantID":                          merchantID,
+		"WaffoPancakeReturnURL":                           strings.TrimSpace(returnURL),
+		"WaffoPancakeStoreID":                             storeID,
+		"WaffoPancakeProductID":                           productID,
+		"WaffoPancakeCurrency":                            resolved.Currency,
+		"WaffoPancakeUnitPrice":                           strconv.FormatFloat(unitPrice, 'f', -1, 64),
+		"WaffoPancakeMinTopUp":                            strconv.Itoa(minTopUp),
+		operation_setting.WaffoPancakeFeePercentOptionKey: strconv.FormatFloat(feePercent, 'f', -1, 64),
+		operation_setting.WaffoPancakeFeeFixedOptionKey:   strconv.FormatFloat(feeFixed, 'f', -1, 64),
 	}
 	if privateKey != "" {
 		values["WaffoPancakePrivateKey"] = privateKey

@@ -49,6 +49,8 @@ export type WaffoPancakeSettingsValues = {
   WaffoPancakeCurrency: string
   WaffoPancakeUnitPrice: number
   WaffoPancakeMinTopUp: number
+  WaffoPancakeFeePercent: number
+  WaffoPancakeFeeFixed: number
 }
 
 export interface WaffoPancakeBinding {
@@ -492,7 +494,7 @@ export function WaffoPancakeSettingsSection({
 
         <div className='grid gap-1.5'>
           <Label>
-            {t('Pancake exchange rate (wallet USD per {{currency}})', {
+            {t('Pancake exchange rate ({{currency}} per wallet USD)', {
               currency: selectedCurrency || 'USD',
             })}
           </Label>
@@ -502,12 +504,15 @@ export function WaffoPancakeSettingsSection({
             min={0.0001}
             value={values.WaffoPancakeUnitPrice}
             onChange={(event) =>
-              onValueChange('WaffoPancakeUnitPrice', Number(event.target.value))
+              onValueChange(
+                'WaffoPancakeUnitPrice',
+                event.target.value === '' ? 0.0001 : event.target.valueAsNumber
+              )
             }
           />
           <p className='text-muted-foreground text-xs'>
             {t(
-              'Wallet USD credited per one unit of the selected Pancake currency, before group ratios and amount discounts. This setting is independent from the Epay Price field.'
+              'Selected Pancake currency charged per one wallet USD, before group ratios, amount discounts, and wallet fees. For example, if 1 USD = 7.3 CNY, enter 7.3. This setting is independent from the Epay Price field.'
             )}
           </p>
         </div>
@@ -520,13 +525,58 @@ export function WaffoPancakeSettingsSection({
             min={1}
             value={values.WaffoPancakeMinTopUp}
             onChange={(event) =>
-              onValueChange('WaffoPancakeMinTopUp', Number(event.target.value))
+              onValueChange(
+                'WaffoPancakeMinTopUp',
+                event.target.value === '' ? 1 : event.target.valueAsNumber
+              )
             }
           />
           <p className='text-muted-foreground text-xs'>
             {t(
               'Smallest wallet balance amount a user can purchase through Pancake. This setting is independent from the Epay Minimum top-up field.'
             )}
+          </p>
+        </div>
+
+        <div className='grid gap-1.5'>
+          <Label>{t('Wallet fee percentage')}</Label>
+          <Input
+            type='number'
+            step='0.01'
+            min={0}
+            value={values.WaffoPancakeFeePercent}
+            onChange={(event) =>
+              onValueChange(
+                'WaffoPancakeFeePercent',
+                event.target.value === '' ? 0 : event.target.valueAsNumber
+              )
+            }
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t('Applied after unit price, group ratio, and amount discount.')}
+          </p>
+        </div>
+
+        <div className='grid gap-1.5'>
+          <Label>
+            {t('Wallet fixed fee ({{currency}})', {
+              currency: selectedCurrency || 'USD',
+            })}
+          </Label>
+          <Input
+            type='number'
+            step='0.01'
+            min={0}
+            value={values.WaffoPancakeFeeFixed}
+            onChange={(event) =>
+              onValueChange(
+                'WaffoPancakeFeeFixed',
+                event.target.value === '' ? 0 : event.target.valueAsNumber
+              )
+            }
+          />
+          <p className='text-muted-foreground text-xs'>
+            {t('Added after the percentage fee. Wallet credit is unchanged.')}
           </p>
         </div>
 

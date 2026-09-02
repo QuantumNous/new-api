@@ -73,6 +73,8 @@ export type SaveResponse = BackendBody<{
   currency: string
   unit_price: number
   min_topup: number
+  fee_percent: number
+  fee_fixed: number
 }>
 
 export async function listWaffoPancakeCatalog(
@@ -110,6 +112,8 @@ export async function saveWaffoPancakeConfig(params: {
   currency: string
   unitPrice: number
   minTopup: number
+  feePercent: number
+  feeFixed: number
 }): Promise<SaveResponse> {
   const res = await api.post<SaveResponse>('/api/option/waffo-pancake/save', {
     merchant_id: params.merchantID,
@@ -120,6 +124,8 @@ export async function saveWaffoPancakeConfig(params: {
     currency: params.currency,
     unit_price: params.unitPrice,
     min_topup: params.minTopup,
+    fee_percent: params.feePercent,
+    fee_fixed: params.feeFixed,
   })
   return res.data
 }

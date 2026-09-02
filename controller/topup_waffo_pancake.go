@@ -78,7 +78,7 @@ func RequestWaffoPancakeAmount(c *gin.Context) {
 
 	payMoney, ok := getWaffoPancakePayAmount(req.Amount, group)
 	if !ok {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 汇率配置无效，请联系管理员"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 汇率或手续费配置无效，请联系管理员"})
 		return
 	}
 	payMoney = normalizeWaffoPancakePayAmount(payMoney)
@@ -132,10 +132,18 @@ func getWaffoPancakePayAmount(amount int64, group string) (decimal.Decimal, bool
 		discount = ds
 	}
 
-	payMoney := dAmount.
-		Div(decimal.NewFromFloat(setting.WaffoPancakeUnitPrice)).
+	baseAmount := dAmount.
+		Mul(decimal.NewFromFloat(setting.WaffoPancakeUnitPrice)).
 		Mul(decimal.NewFromFloat(topupGroupRatio)).
 		Mul(decimal.NewFromFloat(discount))
+	payMoney, ok := operation_setting.ApplyPaymentFee(
+		baseAmount,
+		operation_setting.GetPaymentSetting().WaffoPancakeFeePercent,
+		operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed,
+	)
+	if !ok {
+		return decimal.Zero, false
+	}
 
 	return payMoney, true
 }
@@ -182,6 +190,8 @@ type saveWaffoPancakeRequest struct {
 	Currency   string  `json:"currency"`
 	UnitPrice  float64 `json:"unit_price"`
 	MinTopUp   int     `json:"min_topup"`
+	FeePercent float64 `json:"fee_percent"`
+	FeeFixed   float64 `json:"fee_fixed"`
 }
 
 type waffoPancakeAdminCredentialsRequest struct {
@@ -196,7 +206,7 @@ type createWaffoPancakePairRequest struct {
 	Currency   string `json:"currency"`
 }
 
-// SaveWaffoPancake atomically persists all five operator-controlled fields.
+// SaveWaffoPancake atomically persists all operator-controlled wallet fields.
 // Catalog / pair endpoints are transient — only this one writes the OptionMap.
 func SaveWaffoPancake(c *gin.Context) {
 	var req saveWaffoPancakeRequest
@@ -214,6 +224,8 @@ func SaveWaffoPancake(c *gin.Context) {
 		req.Currency,
 		req.UnitPrice,
 		req.MinTopUp,
+		req.FeePercent,
+		req.FeeFixed,
 	); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf(
 			"Waffo Pancake 保存配置失败 store_id=%q product_id=%q error=%q",
@@ -225,11 +237,13 @@ func SaveWaffoPancake(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
 		"data": gin.H{
-			"product_id": setting.WaffoPancakeProductID,
-			"store_id":   setting.WaffoPancakeStoreID,
-			"currency":   setting.WaffoPancakeCurrency,
-			"unit_price": setting.WaffoPancakeUnitPrice,
-			"min_topup":  setting.WaffoPancakeMinTopUp,
+			"product_id":  setting.WaffoPancakeProductID,
+			"store_id":    setting.WaffoPancakeStoreID,
+			"currency":    setting.WaffoPancakeCurrency,
+			"unit_price":  setting.WaffoPancakeUnitPrice,
+			"min_topup":   setting.WaffoPancakeMinTopUp,
+			"fee_percent": operation_setting.GetPaymentSetting().WaffoPancakeFeePercent,
+			"fee_fixed":   operation_setting.GetPaymentSetting().WaffoPancakeFeeFixed,
 		},
 	})
 }
@@ -466,7 +480,7 @@ func RequestWaffoPancakePay(c *gin.Context) {
 
 	payMoney, ok := getWaffoPancakePayAmount(req.Amount, group)
 	if !ok {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 汇率配置无效，请联系管理员"})
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 汇率或手续费配置无效，请联系管理员"})
 		return
 	}
 	payMoney = normalizeWaffoPancakePayAmount(payMoney)

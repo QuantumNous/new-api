@@ -46,6 +46,8 @@ export interface WaffoSettingsValues {
   WaffoCurrency: string
   WaffoUnitPrice: number
   WaffoMinTopUp: number
+  WaffoFeePercent: number
+  WaffoFeeFixed: number
   WaffoNotifyUrl: string
   WaffoReturnUrl: string
   WaffoPayMethods: string
@@ -291,6 +293,47 @@ export function WaffoSettingsSection({
                 )
               }
             />
+          </div>
+        </div>
+
+        <div className='grid gap-4 sm:grid-cols-2'>
+          <div className='grid gap-1.5'>
+            <Label>{t('Wallet fee percentage')}</Label>
+            <Input
+              type='number'
+              step={0.01}
+              min={0}
+              value={values.WaffoFeePercent}
+              onChange={(event) =>
+                onValueChange(
+                  'WaffoFeePercent',
+                  event.target.value === '' ? 0 : event.target.valueAsNumber
+                )
+              }
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t('Applied after unit price, group ratio, and amount discount.')}
+            </p>
+          </div>
+          <div className='grid gap-1.5'>
+            <Label>
+              {t('Wallet fixed fee ({{currency}})', { currency: 'USD' })}
+            </Label>
+            <Input
+              type='number'
+              step={0.01}
+              min={0}
+              value={values.WaffoFeeFixed}
+              onChange={(event) =>
+                onValueChange(
+                  'WaffoFeeFixed',
+                  event.target.value === '' ? 0 : event.target.valueAsNumber
+                )
+              }
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t('Added after the percentage fee. Wallet credit is unchanged.')}
+            </p>
           </div>
         </div>
 

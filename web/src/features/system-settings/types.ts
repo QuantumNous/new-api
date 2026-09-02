@@ -297,6 +297,16 @@ export type BillingSettings = {
   PayMethods: string
   'payment_setting.amount_options': string
   'payment_setting.amount_discount': string
+  'payment_setting.epay_fee_percent': number
+  'payment_setting.epay_fee_fixed': number
+  'payment_setting.stripe_fee_percent': number
+  'payment_setting.stripe_fee_fixed': number
+  'payment_setting.creem_fee_percent': number
+  'payment_setting.creem_fee_fixed': number
+  'payment_setting.waffo_fee_percent': number
+  'payment_setting.waffo_fee_fixed': number
+  'payment_setting.waffo_pancake_fee_percent': number
+  'payment_setting.waffo_pancake_fee_fixed': number
   'payment_setting.compliance_confirmed': boolean
   'payment_setting.compliance_terms_version': string
   'payment_setting.compliance_confirmed_at': number

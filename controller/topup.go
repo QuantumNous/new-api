@@ -153,7 +153,7 @@ func GetEpayClient() *epay.Client {
 	return withUrl
 }
 
-func getPayMoney(amount int64, group string) float64 {
+func getPayMoney(amount int64, group string) (float64, bool) {
 	dAmount := decimal.NewFromInt(amount)
 	// 充值金额以“展示类型”为准：
 	// - USD/CNY: 前端传 amount 为金额单位；TOKENS: 前端传 tokens，需要换成 USD 金额
@@ -179,8 +179,17 @@ func getPayMoney(amount int64, group string) float64 {
 	dDiscount := decimal.NewFromFloat(discount)
 
 	payMoney := dAmount.Mul(dPrice).Mul(dTopupGroupRatio).Mul(dDiscount)
+	payMoney, ok := operation_setting.ApplyPaymentFee(
+		payMoney,
+		operation_setting.GetPaymentSetting().EpayFeePercent,
+		operation_setting.GetPaymentSetting().EpayFeeFixed,
+	)
+	if !ok {
+		return 0, false
+	}
 
-	return payMoney.InexactFloat64()
+	payMoney = payMoney.Round(2)
+	return payMoney.InexactFloat64(), true
 }
 
 func getMinTopup() int64 {
@@ -294,7 +303,11 @@ func RequestEpay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
 		return
 	}
-	payMoney := getPayMoney(req.Amount, group)
+	payMoney, ok := getPayMoney(req.Amount, group)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "易支付手续费配置无效，请联系管理员"})
+		return
+	}
 	if payMoney < 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
@@ -510,7 +523,11 @@ func RequestAmount(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "获取用户分组失败"})
 		return
 	}
-	payMoney := getPayMoney(req.Amount, group)
+	payMoney, ok := getPayMoney(req.Amount, group)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "易支付手续费配置无效，请联系管理员"})
+		return
+	}
 	if payMoney <= 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return

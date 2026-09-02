@@ -28,6 +28,8 @@ func withStripeWalletQuoteSettings(t *testing.T) {
 	t.Helper()
 
 	originalUnitPrice := setting.StripeUnitPrice
+	originalFeePercent := operation_setting.GetPaymentSetting().StripeFeePercent
+	originalFeeFixed := operation_setting.GetPaymentSetting().StripeFeeFixed
 	originalQuotaDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
 	originalDiscounts := make(map[int]float64, len(operation_setting.GetPaymentSetting().AmountDiscount))
 	for amount, discount := range operation_setting.GetPaymentSetting().AmountDiscount {
@@ -36,6 +38,8 @@ func withStripeWalletQuoteSettings(t *testing.T) {
 	originalTopupGroupRatio := common.TopupGroupRatio2JSONString()
 	t.Cleanup(func() {
 		setting.StripeUnitPrice = originalUnitPrice
+		operation_setting.GetPaymentSetting().StripeFeePercent = originalFeePercent
+		operation_setting.GetPaymentSetting().StripeFeeFixed = originalFeeFixed
 		operation_setting.GetGeneralSetting().QuotaDisplayType = originalQuotaDisplayType
 		operation_setting.GetPaymentSetting().AmountDiscount = originalDiscounts
 		require.NoError(t, common.UpdateTopupGroupRatioByJSONString(originalTopupGroupRatio))
@@ -141,7 +145,8 @@ func TestStripeTokensMinimumProducesValidQuote(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 500000, creditedQuota)
 
-	quote := getStripeWalletQuote(amount, "default")
+	quote, ok := getStripeWalletQuote(amount, "default")
+	require.True(t, ok)
 	assert.Equal(t, "1.00", quote.Amount.StringFixed(2))
 	assert.Equal(t, int64(100), quote.AmountUnit)
 	assert.Equal(t, stripeWalletCurrency, quote.Currency)
@@ -199,6 +204,8 @@ func TestGetStripeWalletQuote(t *testing.T) {
 	withStripeWalletQuoteSettings(t)
 
 	setting.StripeUnitPrice = 2.5
+	operation_setting.GetPaymentSetting().StripeFeePercent = 0
+	operation_setting.GetPaymentSetting().StripeFeeFixed = 0
 	operation_setting.GetPaymentSetting().AmountDiscount = map[int]float64{
 		10:                           0.8,
 		int(common.QuotaPerUnit * 3): 0.5,
@@ -251,7 +258,8 @@ func TestGetStripeWalletQuote(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			operation_setting.GetGeneralSetting().QuotaDisplayType = tc.quotaDisplayType
-			quote := getStripeWalletQuote(tc.amount, tc.group)
+			quote, ok := getStripeWalletQuote(tc.amount, tc.group)
+			require.True(t, ok)
 
 			assert.Equal(t, tc.expectedAmount, quote.Amount.StringFixed(2))
 			assert.Equal(t, tc.expectedUnit, quote.AmountUnit)
@@ -259,6 +267,38 @@ func TestGetStripeWalletQuote(t *testing.T) {
 			assert.Equal(t, quote.AmountUnit, quote.Amount.Mul(decimal.NewFromInt(stripeWalletCurrencyScale)).IntPart())
 		})
 	}
+}
+
+func TestGetStripeWalletQuoteAppliesFeesWithoutChangingCreditedQuota(t *testing.T) {
+	withStripeWalletQuoteSettings(t)
+
+	setting.StripeUnitPrice = 2
+	operation_setting.GetPaymentSetting().StripeFeePercent = 5
+	operation_setting.GetPaymentSetting().StripeFeeFixed = 0.5
+	operation_setting.GetPaymentSetting().AmountDiscount = map[int]float64{10: 0.8}
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+	require.NoError(t, common.UpdateTopupGroupRatioByJSONString(`{"default":1,"vip":1.25}`))
+
+	creditedBefore := getStripeCreditedQuota(10, "vip")
+	quote, ok := getStripeWalletQuote(10, "vip")
+	require.True(t, ok)
+
+	assert.Equal(t, "21.50", quote.Amount.StringFixed(2))
+	assert.Equal(t, int64(2150), quote.AmountUnit)
+	assert.True(t, creditedBefore.Equal(decimal.NewFromFloat(12.5).Mul(decimal.NewFromFloat(common.QuotaPerUnit))))
+}
+
+func TestGetStripeWalletQuoteRejectsInvalidFees(t *testing.T) {
+	withStripeWalletQuoteSettings(t)
+
+	setting.StripeUnitPrice = 1
+	operation_setting.GetPaymentSetting().StripeFeePercent = math.NaN()
+	operation_setting.GetPaymentSetting().StripeFeeFixed = 0
+
+	quote, ok := getStripeWalletQuote(10, "default")
+	assert.False(t, ok)
+	assert.True(t, quote.Amount.IsZero())
+	assert.Equal(t, stripeWalletCurrency, quote.Currency)
 }
 
 func TestGenStripeCheckoutSession_UsesNormalizedDynamicPrice(t *testing.T) {

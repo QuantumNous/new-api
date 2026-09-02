@@ -85,7 +85,11 @@ func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 
-	quote := getStripeWalletQuote(req.Amount, group)
+	quote, ok := getStripeWalletQuote(req.Amount, group)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Stripe 手续费配置无效，请联系管理员"})
+		return
+	}
 	if quote.Amount.LessThanOrEqual(decimal.NewFromFloat(0.01)) {
 
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
@@ -150,7 +154,11 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 
-	quote := getStripeWalletQuote(req.Amount, user.Group)
+	quote, ok := getStripeWalletQuote(req.Amount, user.Group)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Stripe 手续费配置无效，请联系管理员"})
+		return
+	}
 	if quote.Amount.LessThanOrEqual(decimal.NewFromFloat(0.01)) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 
@@ -518,7 +526,7 @@ func getStripeCreditedQuota(amount int64, group string) decimal.Decimal {
 	return quota
 }
 
-func getStripeWalletQuote(amount int64, group string) stripeWalletQuote {
+func getStripeWalletQuote(amount int64, group string) (stripeWalletQuote, bool) {
 	dAmount := decimal.NewFromInt(amount)
 
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
@@ -535,17 +543,25 @@ func getStripeWalletQuote(amount int64, group string) stripeWalletQuote {
 		discount = ds
 	}
 
-	normalizedAmount := dAmount.
+	baseAmount := dAmount.
 		Mul(decimal.NewFromFloat(setting.StripeUnitPrice)).
 		Mul(decimal.NewFromFloat(topupGroupRatio)).
-		Mul(decimal.NewFromFloat(discount)).
-		Round(2)
+		Mul(decimal.NewFromFloat(discount))
+	normalizedAmount, ok := operation_setting.ApplyPaymentFee(
+		baseAmount,
+		operation_setting.GetPaymentSetting().StripeFeePercent,
+		operation_setting.GetPaymentSetting().StripeFeeFixed,
+	)
+	if !ok {
+		return stripeWalletQuote{Currency: stripeWalletCurrency}, false
+	}
+	normalizedAmount = normalizedAmount.Round(2)
 
 	return stripeWalletQuote{
 		Amount:     normalizedAmount,
 		AmountUnit: normalizedAmount.Mul(decimal.NewFromInt(stripeWalletCurrencyScale)).IntPart(),
 		Currency:   stripeWalletCurrency,
-	}
+	}, true
 }
 
 func getStripeTopupBounds() (int64, int64, error) {
