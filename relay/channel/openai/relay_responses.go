@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -71,6 +72,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	}
 
 	defer service.CloseResponseBodyGracefully(resp)
+	common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, false)
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
@@ -86,10 +88,15 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sr.Error(err)
 			return
 		}
-		sendResponsesStreamData(c, streamResponse, data)
+		delivered := sendResponsesStreamData(c, streamResponse, data) == nil
 		switch streamResponse.Type {
 		case "response.completed", "response.done":
 			if streamResponse.Response != nil {
+				if relaycommon.IsNonBillableResponsesStatus(streamResponse.Response.Status) {
+					common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, false)
+				} else if delivered && len(streamResponse.Response.Output) > 0 {
+					common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
+				}
 				if streamResponse.Response.Usage != nil {
 					incomingUsage := relayconvert.NormalizeResponsesUsage(streamResponse.Response.Usage)
 					usage = dto.MergeUsageNonZero(usage, incomingUsage)
@@ -113,26 +120,40 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				imageCommitted = true
 			}
 		case "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
+			common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, false)
 			if !imageCommitted {
 				imageCounter.Reset()
 				imageCounter.Commit(info)
 				imageCommitted = true
 			}
-		case "response.output_text.delta":
-			// 处理输出文本
-			responseTextBuilder.WriteString(streamResponse.Delta)
+		case "response.output_text.delta", "response.function_call_arguments.delta",
+			"response.reasoning_summary_text.delta", "response.refusal.delta":
+			// Track billable deltas; visible text is also retained for token estimation.
+			if delivered && streamResponse.Delta != "" {
+				common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
+				if streamResponse.Type == "response.output_text.delta" {
+					responseTextBuilder.WriteString(streamResponse.Delta)
+				}
+			}
 		case dto.ResponsesOutputTypeItemDone:
-			if streamResponse.Item != nil {
+			if delivered && streamResponse.Item != nil {
 				switch streamResponse.Item.Type {
 				case dto.BuildInCallWebSearchCall:
+					common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
 					info.CountBillableToolCall(dto.BuildInCallWebSearchCall, "")
 				case dto.BuildInCallFileSearchCall:
+					common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
 					info.CountBillableToolCall(dto.BuildInCallFileSearchCall, "")
 				case dto.BuildInCallFunctionCall:
+					common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
 					info.CountBillableToolCall(dto.BuildInCallFunctionCall, streamResponse.Item.Name)
 				case dto.ResponsesOutputTypeImageGenerationCall:
 					if !imageCommitted {
+						before := imageCounter.Count()
 						imageCounter.Observe(streamResponse.Item, streamResponse.OutputIndex)
+						if imageCounter.Count() > before {
+							common.SetContextKey(c, constant.ContextKeyResponsesBillableStreamOutput, true)
+						}
 					}
 				}
 			}
