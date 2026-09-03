@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -14,13 +15,17 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestValidateChannelProxy(t *testing.T) {
@@ -463,4 +468,94 @@ func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {
 	require.Equal(t, http.StatusConflict, recorder.Code)
 	require.Contains(t, recorder.Body.String(), existing.TaskID)
 	require.Contains(t, recorder.Body.String(), "已有通道测试任务正在运行或等待中")
+}
+
+func TestChannelTestShouldPassThrough(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	originalGlobal := settings.PassThroughRequestEnabled
+	t.Cleanup(func() { settings.PassThroughRequestEnabled = originalGlobal })
+
+	chatInfo := func(channelPassThrough bool) *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{
+			RelayMode: relayconstant.RelayModeChatCompletions,
+			ChannelMeta: &relaycommon.ChannelMeta{
+				ChannelSetting: dto.ChannelSettings{PassThroughBodyEnabled: channelPassThrough},
+			},
+		}
+	}
+
+	settings.PassThroughRequestEnabled = false
+	assert.False(t, channelTestShouldPassThrough(nil))
+	assert.False(t, channelTestShouldPassThrough(&relaycommon.RelayInfo{}))
+	assert.False(t, channelTestShouldPassThrough(chatInfo(false)))
+	assert.True(t, channelTestShouldPassThrough(chatInfo(true)))
+
+	settings.PassThroughRequestEnabled = true
+	assert.True(t, channelTestShouldPassThrough(chatInfo(false)))
+	assert.True(t, channelTestShouldPassThrough(&relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeGemini,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}))
+	assert.False(t, channelTestShouldPassThrough(&relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeEmbeddings,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}))
+	assert.False(t, channelTestShouldPassThrough(&relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeAudioSpeech,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}))
+}
+
+func TestChannelTestPassThroughFollowsModelRedirectToggle(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	original := settings.PassThroughModelMappingEnabled
+	t.Cleanup(func() { settings.PassThroughModelMappingEnabled = original })
+
+	originJSON, err := common.Marshal(&dto.GeneralOpenAIRequest{
+		Model: "alias-model",
+		Messages: []dto.Message{
+			{Role: "user", Content: "hi"},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "alias-model", gjson.GetBytes(originJSON, "model").String())
+
+	mapped := &dto.GeneralOpenAIRequest{Model: "alias-model"}
+	mapped.SetModelName("upstream-model")
+	require.Equal(t, "upstream-model", mapped.Model)
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "alias-model",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "upstream-model",
+			IsModelMapped:     true,
+			ChannelSetting:    dto.ChannelSettings{PassThroughBodyEnabled: true},
+		},
+	}
+	require.True(t, channelTestShouldPassThrough(info))
+
+	readModel := func(t *testing.T) string {
+		t.Helper()
+		gin.SetMode(gin.TestMode)
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(originJSON))
+		c.Request.Header.Set("Content-Type", "application/json")
+		c.Request.ContentLength = int64(len(originJSON))
+		body, closer, err := helper.PassThroughRequestBody(c, info)
+		require.NoError(t, err)
+		if closer != nil {
+			t.Cleanup(func() { _ = closer.Close() })
+		}
+		t.Cleanup(func() { common.CleanupBodyStorage(c) })
+		got, err := io.ReadAll(body)
+		require.NoError(t, err)
+		return gjson.GetBytes(got, "model").String()
+	}
+
+	settings.PassThroughModelMappingEnabled = false
+	assert.Equal(t, "alias-model", readModel(t))
+
+	settings.PassThroughModelMappingEnabled = true
+	assert.Equal(t, "upstream-model", readModel(t))
 }
