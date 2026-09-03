@@ -20,7 +20,7 @@ import { api } from '@/lib/api'
 
 import type { AboutResponse } from './types'
 
-export async function getAboutContent() {
+export async function getAboutContent(): Promise<AboutResponse> {
   // See getNotice in @/lib/api: the global `Cache-Control: no-store` is dropped
   // so the browser can hold an ETag and revalidate, letting the server answer
   // 304. Server-side `no-cache` keeps admin edits immediate.
