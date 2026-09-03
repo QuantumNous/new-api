@@ -2,6 +2,8 @@ package geminichat
 
 import (
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -176,6 +178,7 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 		if isToolCall {
 			choice.FinishReason = types.FinishReasonToolCalls
 		}
+		choice.Message.Annotations = groundingAnnotationsToChat(candidate.GroundingMetadata, candidate.Content, choice.Message.StringContent())
 
 		fullTextResponse.Choices = append(fullTextResponse.Choices, choice)
 	}
@@ -272,6 +275,7 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 		if isTools {
 			choice.FinishReason = &types.FinishReasonToolCalls
 		}
+		choice.Delta.Annotations = groundingAnnotationsToChat(candidate.GroundingMetadata, candidate.Content, content.String())
 		choices = append(choices, choice)
 	}
 
@@ -288,7 +292,28 @@ type GeminiToChatStreamState struct {
 	sawToolCall   bool
 	finishEmitted bool
 	latestUsage   *dto.Usage
+	// Gemini generateContent streams complete function calls. Keep their
+	// occurrence indexes monotonic because chunk-local indexes restart at zero.
+	nextToolIndexByCandidate map[int64]int
+	toolIndexByCandidateID   map[int64]map[string]int
+	partialToolByCandidate   map[int64]*geminiPartialToolCall
+	groundingByCandidate     map[int64]*geminiGroundingStreamCandidate
+	sentGroundingAnnotations map[string]struct{}
 }
+
+type geminiPartialToolCall struct {
+	id        string
+	name      string
+	arguments map[string]interface{}
+}
+
+type geminiPartialArgPathSegment struct {
+	member  string
+	index   int
+	isIndex bool
+}
+
+const maxGeminiPartialArgArrayIndex = 4095
 
 func NewGeminiToChatStreamState(id string, created int64) *GeminiToChatStreamState {
 	id = strings.TrimSpace(id)
@@ -298,12 +323,40 @@ func NewGeminiToChatStreamState(id string, created int64) *GeminiToChatStreamSta
 	if created == 0 {
 		created = kitutil.GetTimestamp()
 	}
-	return &GeminiToChatStreamState{id: id, created: created}
+	return &GeminiToChatStreamState{
+		id:                       id,
+		created:                  created,
+		nextToolIndexByCandidate: make(map[int64]int),
+		toolIndexByCandidateID:   make(map[int64]map[string]int),
+		partialToolByCandidate:   make(map[int64]*geminiPartialToolCall),
+		groundingByCandidate:     make(map[int64]*geminiGroundingStreamCandidate),
+		sentGroundingAnnotations: make(map[string]struct{}),
+	}
 }
 
-func (s *GeminiToChatStreamState) ConvertChunk(geminiResponse *dto.GeminiChatResponse, model string, usage *dto.Usage) []*dto.ChatCompletionsStreamResponse {
+func (s *GeminiToChatStreamState) ConvertChunk(geminiResponse *dto.GeminiChatResponse, model string, usage *dto.Usage) ([]*dto.ChatCompletionsStreamResponse, error) {
 	if s == nil || geminiResponse == nil {
-		return nil
+		return nil, nil
+	}
+	if s.groundingByCandidate == nil {
+		s.groundingByCandidate = make(map[int64]*geminiGroundingStreamCandidate)
+	}
+	if s.sentGroundingAnnotations == nil {
+		s.sentGroundingAnnotations = make(map[string]struct{})
+	}
+	if s.nextToolIndexByCandidate == nil {
+		s.nextToolIndexByCandidate = make(map[int64]int)
+	}
+	if s.toolIndexByCandidateID == nil {
+		s.toolIndexByCandidateID = make(map[int64]map[string]int)
+	}
+	if s.partialToolByCandidate == nil {
+		s.partialToolByCandidate = make(map[int64]*geminiPartialToolCall)
+	}
+	var err error
+	geminiResponse, err = s.preparePartialFunctionCalls(geminiResponse)
+	if err != nil {
+		return nil, err
 	}
 	hasNonStopFinish := false
 	for _, candidate := range geminiResponse.Candidates {
@@ -314,12 +367,47 @@ func (s *GeminiToChatStreamState) ConvertChunk(geminiResponse *dto.GeminiChatRes
 	}
 	response, isStop := StreamResponseGeminiChat2OpenAI(geminiResponse)
 	if response == nil {
-		return nil
+		return nil, nil
 	}
 	response.Id = s.id
 	response.Created = s.created
 	response.Model = model
 	response.Usage = usage
+	for index := range geminiResponse.Candidates {
+		if index >= len(response.Choices) {
+			break
+		}
+		candidate := &geminiResponse.Candidates[index]
+		choice := &response.Choices[index]
+		for toolIndex := range choice.Delta.ToolCalls {
+			callID := strings.TrimSpace(choice.Delta.ToolCalls[toolIndex].ID)
+			indexesByID := s.toolIndexByCandidateID[candidate.Index]
+			if indexesByID == nil {
+				indexesByID = make(map[string]int)
+				s.toolIndexByCandidateID[candidate.Index] = indexesByID
+			}
+			stableIndex, exists := indexesByID[callID]
+			if callID == "" || !exists {
+				stableIndex = s.nextToolIndexByCandidate[candidate.Index]
+				s.nextToolIndexByCandidate[candidate.Index] = stableIndex + 1
+				if callID != "" {
+					indexesByID[callID] = stableIndex
+				}
+			}
+			choice.Delta.ToolCalls[toolIndex].SetIndex(stableIndex)
+		}
+		grounding := s.groundingByCandidate[candidate.Index]
+		if grounding == nil {
+			grounding = newGeminiGroundingStreamCandidate()
+			s.groundingByCandidate[candidate.Index] = grounding
+		}
+		grounding.appendContent(candidate.Content, response.Choices[index].Delta.GetContentString())
+		response.Choices[index].Delta.Annotations = grounding.groundingAnnotations(
+			candidate.GroundingMetadata,
+			candidate.Index,
+			s.sentGroundingAnnotations,
+		)
+	}
 
 	if response.IsToolCall() {
 		s.sawToolCall = true
@@ -345,14 +433,29 @@ func (s *GeminiToChatStreamState) ConvertChunk(geminiResponse *dto.GeminiChatRes
 	if isStop && !s.finishEmitted {
 		responses = append(responses, s.terminalChunk(model))
 	}
-	return responses
+	return responses, nil
 }
 
-func (s *GeminiToChatStreamState) Finalize(model string) []*dto.ChatCompletionsStreamResponse {
-	if s == nil || s.finishEmitted {
-		return nil
+func (s *GeminiToChatStreamState) Finalize(model string) ([]*dto.ChatCompletionsStreamResponse, error) {
+	if s == nil {
+		return nil, nil
 	}
-	return []*dto.ChatCompletionsStreamResponse{s.terminalChunk(model)}
+	if len(s.partialToolByCandidate) > 0 {
+		candidateIndexes := make([]int64, 0, len(s.partialToolByCandidate))
+		for candidateIndex := range s.partialToolByCandidate {
+			candidateIndexes = append(candidateIndexes, candidateIndex)
+		}
+		sort.Slice(candidateIndexes, func(i, j int) bool {
+			return candidateIndexes[i] < candidateIndexes[j]
+		})
+		candidateIndex := candidateIndexes[0]
+		partial := s.partialToolByCandidate[candidateIndex]
+		return nil, fmt.Errorf("Gemini stream ended with an incomplete function call for candidate %d (id %q, name %q)", candidateIndex, partial.id, partial.name)
+	}
+	if s.finishEmitted {
+		return nil, nil
+	}
+	return []*dto.ChatCompletionsStreamResponse{s.terminalChunk(model)}, nil
 }
 
 func (s *GeminiToChatStreamState) Usage() *dto.Usage {
@@ -360,6 +463,234 @@ func (s *GeminiToChatStreamState) Usage() *dto.Usage {
 		return nil
 	}
 	return s.latestUsage
+}
+
+func (s *GeminiToChatStreamState) preparePartialFunctionCalls(response *dto.GeminiChatResponse) (*dto.GeminiChatResponse, error) {
+	prepared := *response
+	prepared.Candidates = append([]dto.GeminiChatCandidate(nil), response.Candidates...)
+	for candidateIndex := range prepared.Candidates {
+		candidate := &prepared.Candidates[candidateIndex]
+		parts := make([]dto.GeminiPart, 0, len(candidate.Content.Parts))
+		for _, part := range candidate.Content.Parts {
+			call := part.FunctionCall
+			if call == nil || (s.partialToolByCandidate[candidate.Index] == nil && call.WillContinue == nil && len(call.PartialArgs) == 0) {
+				parts = append(parts, part)
+				continue
+			}
+			completed, ready, err := s.appendPartialFunctionCall(candidate.Index, call)
+			if err != nil {
+				return nil, fmt.Errorf("reconstruct Gemini streamed function arguments: %w", err)
+			}
+			if ready {
+				part.FunctionCall = completed
+				parts = append(parts, part)
+			}
+		}
+		candidate.Content.Parts = parts
+	}
+	return &prepared, nil
+}
+
+func (s *GeminiToChatStreamState) appendPartialFunctionCall(candidateIndex int64, call *dto.FunctionCall) (*dto.FunctionCall, bool, error) {
+	current := s.partialToolByCandidate[candidateIndex]
+	if current == nil {
+		current = &geminiPartialToolCall{arguments: make(map[string]interface{})}
+		s.partialToolByCandidate[candidateIndex] = current
+	}
+	if id := strings.TrimSpace(call.ID); id != "" {
+		if current.id != "" && current.id != id {
+			return nil, false, fmt.Errorf("candidate %d function call changed id from %q to %q", candidateIndex, current.id, id)
+		}
+		current.id = id
+	}
+	if name := strings.TrimSpace(call.FunctionName); name != "" {
+		if current.name != "" && current.name != name {
+			return nil, false, fmt.Errorf("candidate %d function call changed name from %q to %q", candidateIndex, current.name, name)
+		}
+		current.name = name
+	}
+	for _, partial := range call.PartialArgs {
+		path, err := parseGeminiPartialArgPath(partial.JSONPath)
+		if err != nil {
+			return nil, false, err
+		}
+		value, present := geminiPartialArgValue(partial)
+		if !present {
+			continue
+		}
+		updated, err := setGeminiPartialArgValue(current.arguments, path, value, partial.StringValue != nil)
+		if err != nil {
+			return nil, false, fmt.Errorf("set partial argument %q: %w", partial.JSONPath, err)
+		}
+		arguments, ok := updated.(map[string]interface{})
+		if !ok {
+			return nil, false, fmt.Errorf("partial argument path %q replaced the arguments object", partial.JSONPath)
+		}
+		current.arguments = arguments
+	}
+	if call.WillContinue != nil && *call.WillContinue {
+		return nil, false, nil
+	}
+	if current.name == "" {
+		return nil, false, fmt.Errorf("candidate %d completed a partial function call without a name", candidateIndex)
+	}
+	completed := &dto.FunctionCall{ID: current.id, FunctionName: current.name, Arguments: current.arguments}
+	delete(s.partialToolByCandidate, candidateIndex)
+	return completed, true, nil
+}
+
+func parseGeminiPartialArgPath(jsonPath string) ([]geminiPartialArgPathSegment, error) {
+	path := strings.TrimSpace(jsonPath)
+	if path == "" || path[0] != '$' {
+		return nil, fmt.Errorf("unsupported Gemini partial argument path %q", jsonPath)
+	}
+	segments := make([]geminiPartialArgPathSegment, 0)
+	for offset := 1; offset < len(path); {
+		switch path[offset] {
+		case '.':
+			offset++
+			start := offset
+			for offset < len(path) && path[offset] != '.' && path[offset] != '[' {
+				offset++
+			}
+			if start == offset {
+				return nil, fmt.Errorf("empty member in Gemini partial argument path %q", jsonPath)
+			}
+			member := path[start:offset]
+			if strings.ContainsAny(member, "]*?") {
+				return nil, fmt.Errorf("unsupported member %q in Gemini partial argument path", member)
+			}
+			segments = append(segments, geminiPartialArgPathSegment{member: member})
+		case '[':
+			offset++
+			if offset >= len(path) {
+				return nil, fmt.Errorf("unterminated selector in Gemini partial argument path %q", jsonPath)
+			}
+			if path[offset] == '\'' || path[offset] == '"' {
+				member, next, err := parseGeminiPartialArgMember(path, offset)
+				if err != nil {
+					return nil, fmt.Errorf("invalid Gemini partial argument path %q: %w", jsonPath, err)
+				}
+				offset = next
+				if offset >= len(path) || path[offset] != ']' {
+					return nil, fmt.Errorf("unterminated member selector in Gemini partial argument path %q", jsonPath)
+				}
+				offset++
+				segments = append(segments, geminiPartialArgPathSegment{member: member})
+				continue
+			}
+			start := offset
+			for offset < len(path) && path[offset] >= '0' && path[offset] <= '9' {
+				offset++
+			}
+			if start == offset || offset >= len(path) || path[offset] != ']' {
+				return nil, fmt.Errorf("unsupported selector in Gemini partial argument path %q", jsonPath)
+			}
+			index, err := strconv.Atoi(path[start:offset])
+			if err != nil {
+				return nil, fmt.Errorf("invalid array index in Gemini partial argument path %q: %w", jsonPath, err)
+			}
+			if index > maxGeminiPartialArgArrayIndex {
+				return nil, fmt.Errorf("array index %d exceeds Gemini partial argument materialization limit %d", index, maxGeminiPartialArgArrayIndex)
+			}
+			offset++
+			segments = append(segments, geminiPartialArgPathSegment{index: index, isIndex: true})
+		default:
+			return nil, fmt.Errorf("unsupported selector at offset %d in Gemini partial argument path %q", offset, jsonPath)
+		}
+	}
+	if len(segments) == 0 {
+		return nil, fmt.Errorf("Gemini partial argument path %q targets the arguments root", jsonPath)
+	}
+	return segments, nil
+}
+
+func geminiPartialArgValue(partial dto.GeminiPartialArg) (any, bool) {
+	switch {
+	case partial.StringValue != nil:
+		return *partial.StringValue, true
+	case partial.NumberValue != nil:
+		return *partial.NumberValue, true
+	case partial.BoolValue != nil:
+		return *partial.BoolValue, true
+	case partial.NullValue != nil:
+		return nil, true
+	default:
+		return nil, false
+	}
+}
+
+func parseGeminiPartialArgMember(path string, offset int) (string, int, error) {
+	quote := path[offset]
+	start := offset
+	offset++
+	for offset < len(path) {
+		if path[offset] == '\\' {
+			offset += 2
+			continue
+		}
+		if path[offset] == quote {
+			raw := path[start : offset+1]
+			if quote == '\'' {
+				raw = `"` + strings.ReplaceAll(strings.ReplaceAll(raw[1:len(raw)-1], `"`, `\"`), `\'`, `'`) + `"`
+			}
+			var member string
+			if err := kitutil.Unmarshal([]byte(raw), &member); err != nil {
+				return "", 0, err
+			}
+			return member, offset + 1, nil
+		}
+		offset++
+	}
+	return "", 0, fmt.Errorf("unterminated quoted member")
+}
+
+func setGeminiPartialArgValue(current any, path []geminiPartialArgPathSegment, value any, appendString bool) (any, error) {
+	if len(path) == 0 {
+		if appendString {
+			if existing, ok := current.(string); ok {
+				return existing + value.(string), nil
+			}
+		}
+		return value, nil
+	}
+	segment := path[0]
+	if segment.isIndex {
+		var array []interface{}
+		switch typed := current.(type) {
+		case nil:
+			array = make([]interface{}, segment.index+1)
+		case []interface{}:
+			array = typed
+			if len(array) <= segment.index {
+				array = append(array, make([]interface{}, segment.index-len(array)+1)...)
+			}
+		default:
+			return nil, fmt.Errorf("array index %d traverses %T", segment.index, current)
+		}
+		updated, err := setGeminiPartialArgValue(array[segment.index], path[1:], value, appendString)
+		if err != nil {
+			return nil, err
+		}
+		array[segment.index] = updated
+		return array, nil
+	}
+
+	var object map[string]interface{}
+	switch typed := current.(type) {
+	case nil:
+		object = make(map[string]interface{})
+	case map[string]interface{}:
+		object = typed
+	default:
+		return nil, fmt.Errorf("member %q traverses %T", segment.member, current)
+	}
+	updated, err := setGeminiPartialArgValue(object[segment.member], path[1:], value, appendString)
+	if err != nil {
+		return nil, err
+	}
+	object[segment.member] = updated
+	return object, nil
 }
 
 func (s *GeminiToChatStreamState) terminalChunk(model string) *dto.ChatCompletionsStreamResponse {
@@ -388,8 +719,12 @@ func geminiResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
 	if err != nil {
 		return nil
 	}
+	callID := strings.TrimSpace(item.FunctionCall.ID)
+	if callID == "" {
+		callID = fmt.Sprintf("call_%s", kitutil.GetUUID())
+	}
 	return &dto.ToolCallResponse{
-		ID:   fmt.Sprintf("call_%s", kitutil.GetUUID()),
+		ID:   callID,
 		Type: "function",
 		Function: dto.FunctionResponse{
 			Arguments: string(argsBytes),
