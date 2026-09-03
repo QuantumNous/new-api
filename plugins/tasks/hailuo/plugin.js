@@ -166,16 +166,54 @@ function h3FrameImages(req) {
   });
 }
 
-function h3PassthroughContent(items) {
-  if (!Array.isArray(items)) throw new Error("metadata.content must be an array");
-  const counts = { image_url: 0, video_url: 0, audio_url: 0 };
+function validateH3Content(items) {
+  let hasText = false;
+  let hasFrame = false;
+  let hasReference = false;
+  let firstFrames = 0;
+  let lastFrames = 0;
+  let referenceImages = 0;
+  let referenceVideos = 0;
+  let referenceAudios = 0;
   for (const item of items) {
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-    if (counts[item.type] !== undefined) counts[item.type] += 1;
+    const role = trimmed(item.role);
+    if (item.type === "text" && trimmed(item.text)) {
+      hasText = true;
+      continue;
+    }
+    if (item.type === "image_url") {
+      if (!role || role === "first_frame") {
+        firstFrames += 1;
+        hasFrame = true;
+      } else if (role === "last_frame") {
+        lastFrames += 1;
+        hasFrame = true;
+      } else if (role === "middle_frame") {
+        hasFrame = true;
+      } else if (role === "reference_image") {
+        referenceImages += 1;
+        hasReference = true;
+      }
+      continue;
+    }
+    if (item.type === "video_url") {
+      referenceVideos += 1;
+      hasReference = true;
+      continue;
+    }
+    if (item.type === "audio_url") {
+      referenceAudios += 1;
+      hasReference = true;
+    }
   }
-  if (counts.image_url > H3_MAX_REFERENCE_IMAGES) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_IMAGES + " reference images");
-  if (counts.video_url > H3_MAX_REFERENCE_VIDEOS) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_VIDEOS + " reference videos");
-  if (counts.audio_url > H3_MAX_REFERENCE_AUDIOS) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_AUDIOS + " reference audios");
+  if (!hasText) throw new Error(H3_MODEL + " requires a non-empty text item");
+  if (firstFrames > 1) throw new Error(H3_MODEL + " accepts at most one first_frame image");
+  if (lastFrames > 1) throw new Error(H3_MODEL + " accepts at most one last_frame image");
+  if (referenceImages > H3_MAX_REFERENCE_IMAGES) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_IMAGES + " reference images");
+  if (referenceVideos > H3_MAX_REFERENCE_VIDEOS) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_VIDEOS + " reference videos");
+  if (referenceAudios > H3_MAX_REFERENCE_AUDIOS) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_AUDIOS + " reference audios");
+  if (hasFrame && hasReference) throw new Error(H3_MODEL + " cannot mix frame images with reference media");
   return items;
 }
 
@@ -185,13 +223,14 @@ function h3Content(req) {
   const metadata = req.metadata || {};
   const prompt = trimmed(req.prompt);
   if (metadata.content !== undefined && metadata.content !== null) {
-    const items = h3PassthroughContent(metadata.content);
+    if (!Array.isArray(metadata.content)) throw new Error("metadata.content must be an array");
+    const items = metadata.content;
     const hasText = items.some(function (item) {
       return item && item.type === "text" && trimmed(item.text);
     });
-    if (hasText) return items;
+    if (hasText) return validateH3Content(items);
     if (!prompt) throw new Error(H3_MODEL + " metadata.content requires a text item or a prompt");
-    return [{ type: "text", text: prompt }].concat(items);
+    return validateH3Content([{ type: "text", text: prompt }].concat(items));
   }
   const content = prompt ? [{ type: "text", text: prompt }] : [];
   for (const frame of h3FrameImages(req)) content.push(frame);
@@ -202,7 +241,7 @@ function h3Content(req) {
   if (audios.length > H3_MAX_REFERENCE_AUDIOS) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_AUDIOS + " reference audios");
   for (const audio of audios) content.push(h3MediaItem("audio_url", audio, "reference_audio"));
   if (!content.length) throw new Error(H3_MODEL + " requires a prompt or a media input");
-  return content;
+  return validateH3Content(content);
 }
 
 function h3HasVisualContent(content) {
@@ -225,6 +264,15 @@ function h3Ratio(req, content) {
 function h3QueryTask(body) {
   const task = body && typeof body === "object" && !Array.isArray(body) ? body.task : null;
   return task && typeof task === "object" && !Array.isArray(task) ? task : null;
+}
+
+function h3APIError(body) {
+  const error = body && typeof body === "object" && !Array.isArray(body) ? body.error : null;
+  if (!error || typeof error !== "object" || Array.isArray(error)) return null;
+  const message = trimmed(error.message);
+  if (!message) return null;
+  const statusCode = Number(error.http_code || error.code || 0);
+  return { message: message, statusCode: Number.isInteger(statusCode) ? statusCode : 0 };
 }
 
 // Older T2V-01*/I2V-01*/S2V-01 official tables disagree on 1080P support (research: 未验证).
@@ -344,6 +392,8 @@ export function buildSubmitRequest(ctx) {
 
 export function parseSubmitResponse(ctx, resp) {
   const body = resp.body || {};
+  const apiError = isH3(ctx.upstreamModel) ? h3APIError(body) : null;
+  if (apiError) throw new Error(apiError.message);
   const base = body.base_resp;
   // /v1 always wraps the create response in a base_resp envelope; /v2 returns a
   // bare task_id and only adds base_resp when the call is rejected.
@@ -380,6 +430,11 @@ export function buildQueryRequest(ctx) {
 export function parseTaskResult(ctx, body) {
   // The host calls this hook with an empty context, so the response envelope is
   // the only way to tell a /v2 result from a /v1 one.
+  const apiError = h3APIError(body);
+  if (apiError) {
+    if (apiError.statusCode === 408 || apiError.statusCode === 429 || apiError.statusCode >= 500) throw new Error(apiError.message);
+    return { code: apiError.statusCode, status: "FAILURE", progress: "100%", reason: apiError.message };
+  }
   const h3Task = h3QueryTask(body);
   if (h3Task) {
     const h3Statuses = { queued: "QUEUED", running: "IN_PROGRESS", succeeded: "SUCCESS", failed: "FAILURE", cancelled: "FAILURE" };

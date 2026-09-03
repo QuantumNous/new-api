@@ -206,7 +206,9 @@ func TestHailuoH3RejectsOutOfContractRequests(t *testing.T) {
 	plugin := loadHailuoPlugin(t)
 	tenReferenceImages := make([]any, 0, 10)
 	for i := 0; i < 10; i++ {
-		tenReferenceImages = append(tenReferenceImages, map[string]any{"type": "image_url", "image_url": map[string]any{"url": "u"}})
+		tenReferenceImages = append(tenReferenceImages, map[string]any{
+			"type": "image_url", "role": "reference_image", "image_url": map[string]any{"url": "u"},
+		})
 	}
 	testCases := []struct {
 		name    string
@@ -220,7 +222,31 @@ func TestHailuoH3RejectsOutOfContractRequests(t *testing.T) {
 		{"unknown ratio", map[string]any{"prompt": "p", "metadata": map[string]any{"ratio": "16:10"}}, "ratio must be one of"},
 		{"adaptive ratio without a visual input", map[string]any{"prompt": "p", "metadata": map[string]any{"ratio": "adaptive"}}, "ratio adaptive requires an image or video input"},
 		{"too many frame images", map[string]any{"prompt": "p", "images": []any{"a.png", "b.png", "c.png"}}, "at most 2 frame images"},
+		{"media without text", map[string]any{"images": []any{"a.png"}}, "requires a non-empty text item"},
 		{"content is not an array", map[string]any{"prompt": "p", "metadata": map[string]any{"content": "nope"}}, "metadata.content must be an array"},
+		{
+			name: "multiple first frame roles",
+			request: map[string]any{"prompt": "p", "metadata": map[string]any{"content": []any{
+				map[string]any{"type": "image_url", "role": "first_frame", "image_url": map[string]any{"url": "u1"}},
+				map[string]any{"type": "image_url", "role": "first_frame", "image_url": map[string]any{"url": "u2"}},
+			}}},
+			wantErr: "at most one first_frame image",
+		},
+		{
+			name: "passthrough mixes frame and reference media",
+			request: map[string]any{"prompt": "p", "metadata": map[string]any{"content": []any{
+				map[string]any{"type": "image_url", "role": "first_frame", "image_url": map[string]any{"url": "frame"}},
+				map[string]any{"type": "image_url", "role": "reference_image", "image_url": map[string]any{"url": "reference"}},
+			}}},
+			wantErr: "cannot mix frame images with reference media",
+		},
+		{
+			name: "assembled content mixes frame and reference media",
+			request: map[string]any{"prompt": "p", "images": []any{"frame"}, "metadata": map[string]any{
+				"reference_video": "reference.mp4",
+			}},
+			wantErr: "cannot mix frame images with reference media",
+		},
 		{
 			name: "too many reference videos",
 			request: map[string]any{"prompt": "p", "metadata": map[string]any{"content": []any{
@@ -317,6 +343,7 @@ func TestHailuoParseTaskResult(t *testing.T) {
 		{"H3 succeeded", `{"task":{"id":"1","status":"succeeded","content":{"url":"https://cdn.example/h3.mp4"}}}`, "SUCCESS", "https://cdn.example/h3.mp4", ""},
 		{"H3 failed", `{"task":{"id":"1","status":"failed","error":{"code":"1026","message":"sensitive content"}}}`, "FAILURE", "", "sensitive content"},
 		{"H3 cancelled", `{"task":{"id":"1","status":"cancelled"}}`, "FAILURE", "", "task cancelled"},
+		{"H3 permanent query error", `{"type":"error","error":{"type":"authorized_error","message":"login failed","http_code":"401"}}`, "FAILURE", "", "login failed"},
 		{"legacy success", `{"task_id":"1","status":"Success","file_id":"f1","base_resp":{"status_code":0}}`, "SUCCESS", "", ""},
 		{"legacy processing", `{"task_id":"1","status":"Processing","base_resp":{"status_code":0}}`, "IN_PROGRESS", "", ""},
 	}
@@ -330,6 +357,13 @@ func TestHailuoParseTaskResult(t *testing.T) {
 			assert.Equal(t, testCase.wantReason, common.Interface2String(result["reason"]))
 		})
 	}
+	t.Run("H3 retryable query error", func(t *testing.T) {
+		var body any
+		require.NoError(t, common.UnmarshalJsonStr(
+			`{"type":"error","error":{"type":"rate_limit_error","message":"retry later","http_code":"429"}}`, &body))
+		_, err := plugin.Engine.Call(t.Context(), "parseTaskResult", map[string]any{}, body)
+		require.ErrorContains(t, err, "retry later")
+	})
 }
 
 func TestHailuoExtractUsageFacts(t *testing.T) {
@@ -399,6 +433,13 @@ func TestHailuoParseSubmitResponse(t *testing.T) {
 		_, err := plugin.Engine.Call(t.Context(), "parseSubmitResponse", map[string]any{"upstreamModel": "MiniMax-H3"},
 			map[string]any{"body": map[string]any{"base_resp": map[string]any{"status_code": 2013, "status_msg": "invalid params"}}})
 		require.ErrorContains(t, err, "invalid params")
+	})
+	t.Run("H3 rejection reports the v2 error message", func(t *testing.T) {
+		_, err := plugin.Engine.Call(t.Context(), "parseSubmitResponse", map[string]any{"upstreamModel": "MiniMax-H3"},
+			map[string]any{"body": map[string]any{"type": "error", "error": map[string]any{
+				"type": "bad_request_error", "message": "content requires text", "http_code": "400",
+			}}})
+		require.ErrorContains(t, err, "content requires text")
 	})
 	t.Run("legacy create", func(t *testing.T) {
 		parsed := callHailuoHook(t, plugin, "parseSubmitResponse", map[string]any{"upstreamModel": "MiniMax-Hailuo-2.3"},
