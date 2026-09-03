@@ -1641,11 +1641,15 @@ For commercial licensing, please contact support@quantumnous.com
   padding-inline: clamp(0.75rem, 2vw, 1.75rem);
 }
 
-.dopa-easy-header a[aria-label],
-.dopa-developer-header a[aria-label] {
+.dopa-easy-header .dopa-system-brand,
+.dopa-developer-header .dopa-system-brand {
   border: 0;
   background: transparent;
   padding-inline: 0;
+}
+
+.dopa-header-actions > * {
+  flex-shrink: 0;
 }
 
 .dopa-developer-header {
@@ -2903,11 +2907,13 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
-@media (max-width: 42rem) {
-  .dopa-easy-header [data-slot='button']:has(svg.lucide-languages) {
-    display: none;
+@media (max-width: 767px) {
+  .dopa-easy-header .dopa-header-actions {
+    margin-inline-start: 0;
   }
+}
 
+@media (max-width: 42rem) {
   .dopa-easy-balance-strip > .yecai-metric {
     min-inline-size: 5.6rem;
     grid-template-columns: 1fr;
