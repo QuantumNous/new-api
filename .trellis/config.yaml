@@ -1,0 +1,110 @@
+# Trellis Configuration
+# Project-level settings for the Trellis workflow system
+#
+# All values have sensible defaults. Only override what you need.
+
+#-------------------------------------------------------------------------------
+# Session Recording
+#-------------------------------------------------------------------------------
+
+# Commit message used when auto-committing journal/index changes
+# after running add_session.py
+session_commit_message: "chore: record journal"
+
+# Maximum lines per journal file before rotating to a new one
+max_journal_lines: 2000
+
+#-------------------------------------------------------------------------------
+# Session Auto-Commit
+#-------------------------------------------------------------------------------
+
+# Auto-commit behavior for session journal + task archive operations.
+# - true (default): scripts auto-stage and auto-commit journal / task changes
+#   after add_session.py / task.py archive runs.
+# - false: scripts do not touch git. Files (journal-*.md, task archive moves)
+#   are still written to disk; you decide whether to git add / commit.
+#
+# Use `false` if your project's .gitignore intentionally excludes `.trellis/`
+# and you want session data kept local-only, or if you prefer to review
+# staged changes manually before each commit.
+#
+# Accepts: true / false / yes / no / 1 / 0 / on / off (case-insensitive).
+#
+# session_auto_commit: true
+
+#-------------------------------------------------------------------------------
+# Task Lifecycle Hooks
+#-------------------------------------------------------------------------------
+
+# Shell commands to run after task lifecycle events.
+# Each hook receives TASK_JSON_PATH environment variable pointing to task.json.
+# Hook failures print a warning but do not block the main operation.
+#
+# hooks:
+#   after_create:
+#     - "echo 'Task created'"
+#   after_start:
+#     - "echo 'Task started'"
+#   after_finish:
+#     - "echo 'Task finished'"
+#   after_archive:
+#     - "echo 'Task archived'"
+
+#-------------------------------------------------------------------------------
+# Monorepo / Packages
+#-------------------------------------------------------------------------------
+
+# Declare packages for monorepo projects.
+# Trellis auto-detects workspaces during `trellis init`, but you can also
+# configure them manually here.
+#
+# packages:
+#   frontend:
+#     path: packages/frontend
+#   backend:
+#     path: packages/backend
+#   docs:
+#     path: docs-site
+#     type: submodule
+#   # For polyrepo / meta-repo layouts (independent .git in each subdir),
+#   # mark the package with `git: true`. The runtime treats it as an
+#   # independent repository for things like git-context display.
+#   webapp:
+#     path: ./webapp
+#     git: true
+
+# Default package used when --package is not specified.
+# default_package: frontend
+
+#-------------------------------------------------------------------------------
+# Channel worker OOM guard
+#-------------------------------------------------------------------------------
+# Default safeguards for `trellis channel spawn` workers. The guard runs
+# at spawn time (cleans expired idle workers, then enforces the live-worker
+# budget) and inside each supervisor (self-terminates a worker that stays
+# continuously idle past `idle_timeout`).
+#
+# Precedence: CLI flag > env var (TRELLIS_CHANNEL_WORKER_IDLE_TIMEOUT /
+# TRELLIS_CHANNEL_MAX_LIVE_WORKERS) > this config > built-in default.
+#
+# `idle_timeout: 0` disables idle cleanup (workers can sit idle forever
+# unless explicitly killed or given `--timeout`).
+# `max_live_workers: 0` disables the spawn-time budget check.
+#
+channel:
+  worker_guard:
+    idle_timeout: 5m
+    max_live_workers: 6
+
+#-------------------------------------------------------------------------------
+# Codex (dispatch behavior)
+#-------------------------------------------------------------------------------
+# Codex-only knob; other platforms ignore it. Default ("inline") makes the
+# main Codex agent edit code directly because Codex sub-agents run with
+# `fork_turns="none"` isolation and can't inherit the parent session's
+# task context. Set to "sub-agent" to opt into the legacy dispatch model
+# (main agent spawns trellis-implement / trellis-check / trellis-research
+# sub-agents).
+#
+# codex:
+#   dispatch_mode: inline  # or "sub-agent" to dispatch trellis-* sub-agents
