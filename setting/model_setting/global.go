@@ -35,6 +35,7 @@ func (p ChatCompletionsToResponsesPolicy) IsChannelEnabled(channelID int, channe
 type GlobalSettings struct {
 	PassThroughRequestEnabled        bool                             `json:"pass_through_request_enabled"`
 	ThinkingModelBlacklist           []string                         `json:"thinking_model_blacklist"`
+	EffortTailModelIDs               []string                         `json:"effort_tail_model_ids"`
 	ChatCompletionsToResponsesPolicy ChatCompletionsToResponsesPolicy `json:"chat_completions_to_responses_policy"`
 }
 
@@ -44,6 +45,13 @@ var defaultOpenaiSettings = GlobalSettings{
 	ThinkingModelBlacklist: []string{
 		"moonshotai/kimi-k2-thinking",
 		"kimi-k2-thinking",
+	},
+	EffortTailModelIDs: []string{
+		"gpt-5.1-codex-max",
+		"qwen-image-edit-max",
+		"qwen-max",
+		"stable-diffusion-3-medium",
+		"yi-medium",
 	},
 	ChatCompletionsToResponsesPolicy: ChatCompletionsToResponsesPolicy{
 		Enabled:     false,
@@ -72,6 +80,29 @@ func ShouldPreserveThinkingSuffix(modelName string) bool {
 
 	for _, entry := range globalSettings.ThinkingModelBlacklist {
 		if strings.TrimSpace(entry) == target {
+			return true
+		}
+	}
+	return false
+}
+
+// ShouldPreserveEffortTail reports model IDs whose names already end in an
+// effort-like token and must not be treated as reasoning aliases.
+func ShouldPreserveEffortTail(modelName string) bool {
+	target := strings.TrimSpace(modelName)
+	if target == "" {
+		return false
+	}
+	bare := target
+	if slash := strings.LastIndex(bare, "/"); slash >= 0 {
+		bare = bare[slash+1:]
+	}
+	for _, entry := range globalSettings.EffortTailModelIDs {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		if entry == target || entry == bare {
 			return true
 		}
 	}

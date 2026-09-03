@@ -19,14 +19,15 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/ai360"
 	"github.com/QuantumNous/new-api/relay/channel/lingyiwanwu"
+	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 
 	//"github.com/QuantumNous/new-api/relay/channel/minimax"
-	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	"github.com/QuantumNous/new-api/relay/channel/xinference"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/common_handler"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	kitreasoning "github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -249,80 +250,122 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		request.StreamOptions = nil
 	}
 	if info.ChannelType == constant.ChannelTypeOpenRouter {
+		initialIntent, err := kitreasoning.FromOpenAIChat(request)
+		if err != nil {
+			return nil, kitreasoning.AsClientError(err)
+		}
+		if request.THINKING != nil && strings.HasPrefix(info.UpstreamModelName, "anthropic") {
+			var thinking dto.Thinking
+			if err := common.Unmarshal(request.THINKING, &thinking); err != nil {
+				return nil, fmt.Errorf("error Unmarshal thinking: %w", err)
+			}
+			legacyIntent, err := kitreasoning.FromClaude(&dto.ClaudeRequest{Thinking: &thinking})
+			if err != nil {
+				return nil, kitreasoning.AsClientError(err)
+			}
+			initialIntent, err = kitreasoning.MergeExplicit(initialIntent, legacyIntent, request.Model)
+			if err != nil {
+				return nil, kitreasoning.AsClientError(err)
+			}
+			request.THINKING = nil
+		}
 		if len(request.Usage) == 0 {
 			request.Usage = json.RawMessage(`{"include":true}`)
 		}
 		// 适配 OpenRouter 的 thinking 后缀
-		if !model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) &&
-			strings.HasSuffix(info.UpstreamModelName, "-thinking") {
+		preserveSuffix := model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) || model_setting.ShouldPreserveThinkingSuffix(info.UpstreamModelName)
+		mergeEffortSuffix := func(modelName string) error {
+			rawEffort, _ := reasoning.ParseOpenAIReasoningEffortFromModelSuffix(modelName)
+			if rawEffort == "" {
+				return nil
+			}
+			effort, err := kitreasoning.ParseEffort(rawEffort)
+			if err != nil {
+				return err
+			}
+			mode := kitreasoning.ModeEnabled
+			if effort == kitreasoning.EffortNone {
+				mode = kitreasoning.ModeDisabled
+			}
+			initialIntent, err = kitreasoning.MergeExplicitAndSuffix(initialIntent, kitreasoning.Intent{Mode: mode, Effort: effort, Source: kitreasoning.SourceSuffix}, modelName)
+			return err
+		}
+		if !preserveSuffix {
+			if err := mergeEffortSuffix(info.UpstreamModelName); err != nil {
+				return nil, kitreasoning.AsClientError(err)
+			}
+			if _, baseModel := reasoning.ParseOpenAIReasoningEffortFromModelSuffix(info.UpstreamModelName); baseModel != info.UpstreamModelName {
+				info.UpstreamModelName = baseModel
+				request.Model = baseModel
+			}
+			if info.OriginModelName != info.UpstreamModelName {
+				if err := mergeEffortSuffix(info.OriginModelName); err != nil {
+					return nil, kitreasoning.AsClientError(err)
+				}
+			}
+		}
+		if !preserveSuffix && strings.HasSuffix(info.UpstreamModelName, "-thinking") {
+			initialIntent, err = kitreasoning.MergeExplicitAndSuffix(
+				initialIntent,
+				kitreasoning.Intent{Mode: kitreasoning.ModeEnabled},
+				info.UpstreamModelName,
+			)
+			if err != nil {
+				return nil, kitreasoning.AsClientError(err)
+			}
 			info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-thinking")
 			request.Model = info.UpstreamModelName
-			if len(request.Reasoning) == 0 {
-				reasoning := map[string]any{
-					"enabled": true,
-				}
-				if request.ReasoningEffort != "" && request.ReasoningEffort != "none" {
-					reasoning["effort"] = request.ReasoningEffort
-				}
-				marshal, err := common.Marshal(reasoning)
-				if err != nil {
-					return nil, fmt.Errorf("error marshalling reasoning: %w", err)
-				}
-				request.Reasoning = marshal
-			}
-			// 清空多余的ReasoningEffort
-			request.ReasoningEffort = ""
-		} else {
-			if len(request.Reasoning) == 0 {
-				// 适配 OpenAI 的 ReasoningEffort 格式
-				if request.ReasoningEffort != "" {
-					reasoning := map[string]any{
-						"enabled": true,
-					}
-					if request.ReasoningEffort != "none" {
-						reasoning["effort"] = request.ReasoningEffort
-						marshal, err := common.Marshal(reasoning)
-						if err != nil {
-							return nil, fmt.Errorf("error marshalling reasoning: %w", err)
-						}
-						request.Reasoning = marshal
-					}
-				}
-			}
-			request.ReasoningEffort = ""
 		}
-
-		// https://docs.anthropic.com/en/api/openai-sdk#extended-thinking-support
-		// 没有做排除3.5Haiku等，要出问题再加吧，最佳兼容性（不是
-		if request.THINKING != nil && strings.HasPrefix(info.UpstreamModelName, "anthropic") {
-			var thinking dto.Thinking // Claude标准Thinking格式
-			if err := json.Unmarshal(request.THINKING, &thinking); err != nil {
-				return nil, fmt.Errorf("error Unmarshal thinking: %w", err)
+		if !preserveSuffix && info.OriginModelName != info.UpstreamModelName && strings.HasSuffix(info.OriginModelName, "-thinking") {
+			initialIntent, err = kitreasoning.MergeExplicitAndSuffix(
+				initialIntent,
+				kitreasoning.Intent{Mode: kitreasoning.ModeEnabled},
+				info.OriginModelName,
+			)
+			if err != nil {
+				return nil, kitreasoning.AsClientError(err)
 			}
-
-			// 只有当 thinking.Type 是 "enabled" 时才处理
-			if thinking.Type == "enabled" {
-				// 检查 BudgetTokens 是否为 nil
-				if thinking.BudgetTokens == nil {
-					return nil, fmt.Errorf("BudgetTokens is nil when thinking is enabled")
-				}
-
-				reasoning := openrouter.RequestReasoning{
-					Enabled:   true,
-					MaxTokens: *thinking.BudgetTokens,
-				}
-
-				marshal, err := common.Marshal(reasoning)
-				if err != nil {
-					return nil, fmt.Errorf("error marshalling reasoning: %w", err)
-				}
-
-				request.Reasoning = marshal
-			}
-
-			// 清空 THINKING
-			request.THINKING = nil
 		}
+		if !initialIntent.IsEmpty() {
+			reasoningConfig := make(map[string]any)
+			if len(request.Reasoning) > 0 {
+				if err := common.Unmarshal(request.Reasoning, &reasoningConfig); err != nil {
+					return nil, fmt.Errorf("error unmarshalling reasoning: %w", err)
+				}
+				if reasoningConfig == nil {
+					reasoningConfig = make(map[string]any)
+				}
+			}
+			disabled := initialIntent.Mode == kitreasoning.ModeDisabled || initialIntent.Effort == kitreasoning.EffortNone
+			if initialIntent.HasStrength() {
+				reasoningConfig["enabled"] = !disabled
+				if disabled {
+					delete(reasoningConfig, "effort")
+					delete(reasoningConfig, "max_tokens")
+				}
+			}
+			if !disabled && initialIntent.BudgetTokens != nil {
+				reasoningConfig["max_tokens"] = *initialIntent.BudgetTokens
+				delete(reasoningConfig, "effort")
+			} else if !disabled && initialIntent.Effort != "" && initialIntent.Effort != kitreasoning.EffortNone {
+				reasoningConfig["effort"] = string(initialIntent.Effort)
+				delete(reasoningConfig, "max_tokens")
+			}
+			if initialIntent.IncludeThoughts != nil {
+				reasoningConfig["exclude"] = !*initialIntent.IncludeThoughts
+			}
+			marshal, err := common.Marshal(reasoningConfig)
+			if err != nil {
+				return nil, fmt.Errorf("error marshalling reasoning: %w", err)
+			}
+			request.Reasoning = marshal
+		}
+		request.ReasoningEffort = ""
+		effectiveEffort := kitreasoning.EffectiveEffort(initialIntent)
+		if initialIntent.BudgetTokens != nil {
+			effectiveEffort = kitreasoning.EffortFromBudget(*initialIntent.BudgetTokens)
+		}
+		info.SetReasoningEffort(string(effectiveEffort))
 
 	}
 	isOModel := dto.IsOpenAIReasoningOModel(info.UpstreamModelName)
@@ -344,22 +387,59 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 			request.LogProbs = nil
 		}
 
-		// 转换模型推理力度后缀
-		effort, originModel := reasoning.ParseOpenAIReasoningEffortFromModelSuffix(info.UpstreamModelName)
-		if effort != "" {
-			request.ReasoningEffort = effort
-			info.UpstreamModelName = originModel
-			request.Model = originModel
-		}
-
-		info.SetReasoningEffort(request.ReasoningEffort)
-
 		// o系列模型developer适配（o1-mini除外）
 		if !strings.HasPrefix(info.UpstreamModelName, "o1-mini") && !strings.HasPrefix(info.UpstreamModelName, "o1-preview") {
 			//修改第一个Message的内容，将system改为developer
 			if len(request.Messages) > 0 && request.Messages[0].Role == "system" {
 				request.Messages[0].Role = "developer"
 			}
+		}
+	}
+
+	if info.ChannelType != constant.ChannelTypeOpenRouter {
+		preserveSuffix := model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) || model_setting.ShouldPreserveThinkingSuffix(info.UpstreamModelName)
+		effort, baseModel := reasoning.ParseOpenAIReasoningEffortFromModelSuffix(info.UpstreamModelName)
+		if preserveSuffix {
+			effort = ""
+		}
+		currentIntent, err := kitreasoning.FromOpenAIChat(request)
+		if err != nil {
+			return nil, kitreasoning.AsClientError(err)
+		}
+		mergeSuffix := func(modelName, rawEffort string) error {
+			if rawEffort == "" {
+				return nil
+			}
+			suffixEffort, err := kitreasoning.ParseEffort(rawEffort)
+			if err != nil {
+				return err
+			}
+			mode := kitreasoning.ModeEnabled
+			if suffixEffort == kitreasoning.EffortNone {
+				mode = kitreasoning.ModeDisabled
+			}
+			currentIntent, err = kitreasoning.MergeExplicitAndSuffix(currentIntent, kitreasoning.Intent{Mode: mode, Effort: suffixEffort, Source: kitreasoning.SourceSuffix}, modelName)
+			return err
+		}
+		if err := mergeSuffix(info.UpstreamModelName, effort); err != nil {
+			return nil, kitreasoning.AsClientError(err)
+		}
+		if !preserveSuffix && info.OriginModelName != info.UpstreamModelName {
+			originEffort, _ := reasoning.ParseOpenAIReasoningEffortFromModelSuffix(info.OriginModelName)
+			if err := mergeSuffix(info.OriginModelName, originEffort); err != nil {
+				return nil, kitreasoning.AsClientError(err)
+			}
+		}
+		if effort != "" {
+			info.UpstreamModelName = baseModel
+			request.Model = baseModel
+		}
+		if canonicalEffort := kitreasoning.OpenAIEffort(kitreasoning.EffectiveEffort(currentIntent)); canonicalEffort != "" {
+			request.ReasoningEffort = string(canonicalEffort)
+			info.SetReasoningEffort(string(canonicalEffort))
+		}
+		if info.ChannelType == constant.ChannelTypeOpenAI || info.ChannelType == constant.ChannelTypeAzure {
+			request.Reasoning = nil
 		}
 	}
 
@@ -604,18 +684,52 @@ func detectImageMimeType(filename string) string {
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	//  转换模型推理力度后缀
 	effort, originModel := reasoning.ParseOpenAIReasoningEffortFromModelSuffix(request.Model)
-	if effort != "" {
-		if request.Reasoning == nil {
-			request.Reasoning = &dto.Reasoning{
-				Effort: effort,
-			}
-		} else {
-			request.Reasoning.Effort = effort
-		}
-		request.Model = originModel
+	preserveSuffix := model_setting.ShouldPreserveThinkingSuffix(request.Model) || (info != nil && model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName))
+	if preserveSuffix {
+		effort = ""
 	}
-	if info != nil && request.Reasoning != nil && request.Reasoning.Effort != "" {
-		info.SetReasoningEffort(request.Reasoning.Effort)
+	currentIntent, err := kitreasoning.FromOpenAIResponses(&request)
+	if err != nil {
+		return nil, kitreasoning.AsClientError(err)
+	}
+	mergeSuffix := func(modelName, rawEffort string) error {
+		if rawEffort == "" {
+			return nil
+		}
+		suffixEffort, err := kitreasoning.ParseEffort(rawEffort)
+		if err != nil {
+			return err
+		}
+		mode := kitreasoning.ModeEnabled
+		if suffixEffort == kitreasoning.EffortNone {
+			mode = kitreasoning.ModeDisabled
+		}
+		currentIntent, err = kitreasoning.MergeExplicitAndSuffix(currentIntent, kitreasoning.Intent{Mode: mode, Effort: suffixEffort, Source: kitreasoning.SourceSuffix}, modelName)
+		return err
+	}
+	if err := mergeSuffix(request.Model, effort); err != nil {
+		return nil, kitreasoning.AsClientError(err)
+	}
+	if !preserveSuffix && info != nil && info.OriginModelName != request.Model {
+		originEffort, _ := reasoning.ParseOpenAIReasoningEffortFromModelSuffix(info.OriginModelName)
+		if err := mergeSuffix(info.OriginModelName, originEffort); err != nil {
+			return nil, kitreasoning.AsClientError(err)
+		}
+	}
+	if effort != "" {
+		request.Model = originModel
+		if info != nil {
+			info.UpstreamModelName = originModel
+		}
+	}
+	if canonicalEffort := kitreasoning.OpenAIEffort(kitreasoning.EffectiveEffort(currentIntent)); canonicalEffort != "" {
+		if request.Reasoning == nil {
+			request.Reasoning = &dto.Reasoning{}
+		}
+		request.Reasoning.Effort = string(canonicalEffort)
+		if info != nil {
+			info.SetReasoningEffort(string(canonicalEffort))
+		}
 	}
 	return request, nil
 }

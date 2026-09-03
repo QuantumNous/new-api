@@ -56,9 +56,11 @@ var builtinTextConverters = []TextConverterSpec{
 			Convert: convertClaudeRequestToOpenAI,
 		},
 		Resp: TextResponseSide{
-			Convert:       convertClaudeMessagesResponseToOAIChat,
-			ConvertStream: convertClaudeMessagesStreamResponseToOAIChat,
-			Aliases:       []string{ResponseConverterClaudeMessagesToOAIChat},
+			Convert:            convertClaudeMessagesResponseToOAIChat,
+			ConvertStream:      convertClaudeMessagesStreamResponseToOAIChat,
+			NewStreamState:     newClaudeMessagesToOAIChatStreamState,
+			ConvertStreamChunk: convertClaudeMessagesStreamResponseChunkToOAIChat,
+			Aliases:            []string{ResponseConverterClaudeMessagesToOAIChat},
 		},
 	},
 	{
@@ -102,9 +104,12 @@ var builtinTextConverters = []TextConverterSpec{
 			Convert: convertOpenAIRequestToGemini,
 		},
 		Resp: TextResponseSide{
-			Convert:       convertOAIChatResponseToGeminiChat,
-			ConvertStream: convertOAIChatStreamResponseToGeminiChat,
-			Aliases:       []string{ResponseConverterOAIChatToGeminiChat},
+			Convert:            convertOAIChatResponseToGeminiChat,
+			ConvertStream:      convertOAIChatStreamResponseToGeminiChat,
+			NewStreamState:     newOAIChatToGeminiStreamState,
+			ConvertStreamChunk: convertOAIChatStreamResponseChunkToGeminiChat,
+			FinalizeStream:     finalizeOAIChatStreamResponseToGeminiChat,
+			Aliases:            []string{ResponseConverterOAIChatToGeminiChat},
 		},
 	},
 	{
@@ -164,10 +169,7 @@ var builtinTextConverters = []TextConverterSpec{
 		To:      types.RelayFormatOpenAIResponses,
 		Quality: TextConverterQualityFair,
 		Req: TextRequestSide{
-			StepConverters: []string{
-				ConverterClaudeMessagesToOpenAIChat,
-				ConverterOpenAIChatToOpenAIResponses,
-			},
+			Convert: convertClaudeRequestToOpenAIResponses,
 		},
 		Resp: TextResponseSide{
 			StepConverters: []string{
@@ -216,7 +218,7 @@ var builtinTextConverters = []TextConverterSpec{
 		},
 	},
 	{
-		ID:      requestConverterResponsesToClaude,
+		ID:      ConverterOpenAIResponsesToClaudeMessages,
 		From:    types.RelayFormatOpenAIResponses,
 		To:      types.RelayFormatClaude,
 		Quality: TextConverterQualityFair,
@@ -224,11 +226,11 @@ var builtinTextConverters = []TextConverterSpec{
 			Convert: convertOpenAIResponsesRequestToClaudeMessages,
 		},
 		Resp: TextResponseSide{
-			StepConverters: []string{
-				ConverterOpenAIResponsesToOpenAIChat,
-				ConverterOpenAIChatToClaudeMessages,
-			},
-			Aliases: []string{responseConverterResponsesToClaude},
+			Convert:            convertOAIResponsesResponseToClaudeMessages,
+			NewStreamState:     newOAIResponsesToClaudeMessagesStreamState,
+			ConvertStreamChunk: convertOAIResponsesStreamResponseToClaudeMessages,
+			FinalizeStream:     finalizeOAIResponsesStreamResponseToClaudeMessages,
+			Aliases:            []string{responseConverterResponsesToClaude},
 		},
 	},
 	{

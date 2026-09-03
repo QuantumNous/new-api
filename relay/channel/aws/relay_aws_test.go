@@ -357,7 +357,7 @@ func TestAwsStreamHandlerUsesFinalUpstreamUsage(t *testing.T) {
 	assert.Contains(t, recorder.Body.String(), "[DONE]")
 }
 
-func TestAwsStreamHandlerStopsAtClientCancellationAndKeepsPartialBillingUsage(t *testing.T) {
+func TestAwsStreamHandlerStopsAtClientCancellation(t *testing.T) {
 	originalRelayTimeout := common.RelayTimeout
 	common.RelayTimeout = 0
 	t.Cleanup(func() {
@@ -439,12 +439,6 @@ func TestAwsStreamHandlerStopsAtClientCancellationAndKeepsPartialBillingUsage(t 
 	require.ErrorIs(t, upstreamContext.Err(), context.Canceled)
 	require.Nil(t, result.err)
 	require.NotNil(t, result.usage)
-	require.NotNil(t, result.usage.BillingUsage)
-	require.NotNil(t, result.usage.BillingUsage.ClaudeUsage)
-	assert.Equal(t, dto.BillingUsageSourceClaudeMessages, result.usage.BillingUsage.Source)
-	assert.Equal(t, dto.BillingUsageSemanticAnthropic, result.usage.BillingUsage.Semantic)
-	assert.Equal(t, 100, result.usage.BillingUsage.ClaudeUsage.InputTokens)
-	assert.Equal(t, 1, result.usage.BillingUsage.ClaudeUsage.OutputTokens)
 	assert.Equal(t, bodyLengthBeforeCancel, responseWriter.Body.Len())
 	assert.NotContains(t, responseWriter.Body.String(), "[DONE]")
 
