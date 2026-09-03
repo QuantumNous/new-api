@@ -19,7 +19,16 @@ For commercial licensing, please contact support@quantumnous.com
 import { Code2, Leaf } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { SidebarFooter } from '@/components/ui/sidebar'
+import { useMediaQuery } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 import { useConsoleModeStore } from '@/stores/console-mode-store'
 
@@ -31,15 +40,59 @@ export function ConsoleModeControl(props: ConsoleModeControlProps) {
   const { t } = useTranslation()
   const mode = useConsoleModeStore((state) => state.mode)
   const setMode = useConsoleModeStore((state) => state.setMode)
+  const isMobile = useMediaQuery('(max-width: 767px)')
   const options = [
     { id: 'easy' as const, label: t('Easy mode'), icon: Leaf },
     { id: 'developer' as const, label: t('Developer mode'), icon: Code2 },
   ]
 
+  if (props.compact && isMobile) {
+    const CurrentIcon = mode === 'easy' ? Leaf : Code2
+    return (
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon'
+              className='dopa-mode-control text-primary size-10 shrink-0 rounded-full border'
+              aria-label={t('Mode')}
+            />
+          }
+        >
+          <CurrentIcon className='size-5 shrink-0' aria-hidden='true' />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end'>
+          <DropdownMenuRadioGroup
+            value={mode}
+            onValueChange={(next) => {
+              if (next === 'easy' || next === 'developer') setMode(next)
+            }}
+          >
+            {options.map((option) => {
+              const Icon = option.icon
+              return (
+                <DropdownMenuRadioItem
+                  key={option.id}
+                  value={option.id}
+                  closeOnClick
+                  className='min-h-10 gap-3'
+                >
+                  <Icon className='size-4 shrink-0' aria-hidden='true' />
+                  {option.label}
+                </DropdownMenuRadioItem>
+              )
+            })}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
   return (
     <div
       className={cn(
-        'dopa-mode-control grid grid-cols-2 gap-1 border p-1',
+        'dopa-mode-control grid shrink-0 grid-cols-2 gap-1 border p-1',
         props.compact ? 'dopa-mode-control--compact' : 'rounded-xl'
       )}
     >

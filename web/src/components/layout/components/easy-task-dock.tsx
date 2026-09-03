@@ -21,11 +21,21 @@ import {
   BookOpen,
   KeyRound,
   LayoutDashboard,
+  Menu,
   ReceiptText,
   Sparkles,
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useMediaQuery } from '@/hooks/use-media-query'
 
 const EASY_TASKS = [
   {
@@ -53,6 +63,43 @@ const EASY_TASKS = [
 
 export function EasyTaskDock() {
   const { t } = useTranslation()
+  const isMobile = useMediaQuery('(max-width: 767px)')
+
+  if (isMobile) {
+    return (
+      <nav className='ms-auto shrink-0' aria-label={t('Easy mode')}>
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='icon'
+                className='size-10 shrink-0'
+                aria-label={t('Toggle navigation menu')}
+              />
+            }
+          >
+            <Menu className='size-5' aria-hidden='true' />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align='end' className='w-56'>
+            {EASY_TASKS.map((item) => {
+              const Icon = item.icon
+              return (
+                <DropdownMenuItem
+                  key={item.to}
+                  className='min-h-10 gap-3'
+                  render={<Link to={item.to} />}
+                >
+                  <Icon className='size-4 shrink-0' aria-hidden='true' />
+                  {t(item.titleKey)}
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </nav>
+    )
+  }
 
   return (
     <nav className='dopa-easy-task-dock' aria-label={t('Easy mode')}>
@@ -63,6 +110,7 @@ export function EasyTaskDock() {
           <Link
             key={item.to}
             to={item.to}
+            aria-label={t(item.titleKey)}
             className='dopa-easy-task-link'
             data-tone={item.tone}
           >

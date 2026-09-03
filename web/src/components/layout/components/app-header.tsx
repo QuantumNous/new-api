@@ -122,7 +122,7 @@ export function AppHeader({
       ) : null}
 
       {rightContent ?? (
-        <div className='ms-auto flex items-center gap-0.5 sm:gap-1.5'>
+        <div className='dopa-header-actions ms-auto flex shrink-0 items-center gap-0.5 sm:gap-1.5'>
           {showSearch && !isEasyMode && <Search />}
           {showNotifications && !isEasyMode && <AppHeaderNotifications />}
           <ConsoleModeControl compact />

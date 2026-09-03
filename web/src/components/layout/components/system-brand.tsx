@@ -64,11 +64,11 @@ export function SystemBrand(props: SystemBrandProps) {
         to='/'
         aria-label={t('Go to home')}
         className={cn(
-          'text-foreground inline-flex h-8 items-center gap-2 rounded-xl border border-primary/10 bg-primary/6 px-2 text-sm font-bold transition-colors outline-none select-none',
+          'text-foreground dopa-system-brand inline-flex h-8 min-w-0 items-center gap-2 rounded-xl border border-primary/10 bg-primary/6 px-2 text-sm font-bold transition-colors outline-none select-none',
           'hover:bg-primary/10 focus-visible:ring-ring/40 focus-visible:ring-2'
         )}
       >
-        <div className='flex size-5 items-center justify-center overflow-hidden rounded-md'>
+        <div className='flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-md'>
           <img
             src={logo}
             alt={t('Logo')}

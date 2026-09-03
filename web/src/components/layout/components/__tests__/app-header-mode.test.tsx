@@ -76,6 +76,9 @@ describe('application header console mode', () => {
     expect(screen.getByRole('button', { name: 'Language' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Theme settings' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Profile' })).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Language' }).parentElement
+    ).toHaveClass('shrink-0')
   })
 
   it('restores developer search and notifications without public site links', () => {
