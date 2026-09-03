@@ -33,6 +33,12 @@ export interface ModelPerfBadgeProps extends React.HTMLAttributes<HTMLDivElement
   perf: ModelPerfBadgeData | undefined
 }
 
+const statusSlots = [
+  { id: 'oldest', height: 'h-2', emptyColor: 'bg-muted-foreground/10' },
+  { id: 'middle', height: 'h-2.5', emptyColor: 'bg-muted-foreground/15' },
+  { id: 'newest', height: 'h-3', emptyColor: 'bg-muted-foreground/15' },
+]
+
 function formatCompactNumber(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '—'
   return value > 1 ? String(Math.round(value)) : value.toFixed(1)
@@ -74,23 +80,23 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
   return (
     <div
       className={cn(
-        'hidden w-[132px] grid-cols-[38px_48px_30px] gap-x-2 text-right tabular-nums min-[460px]:grid',
+        'grid shrink-0 grid-cols-[auto_auto_auto] gap-x-3 text-left tabular-nums',
         props.className
       )}
     >
       <div title={t('Average latency')} className='min-w-0'>
-        <div className='text-muted-foreground/55 text-[10px] leading-4'>
+        <div className='text-muted-foreground text-[11px] leading-4'>
           {t('Latency short')}
         </div>
-        <div className='text-muted-foreground/80 font-mono text-xs leading-4 whitespace-nowrap'>
+        <div className='text-foreground font-mono text-xs leading-4 whitespace-nowrap'>
           {formatCompactLatency(avg_latency_ms)}
         </div>
       </div>
       <div title={t('Throughput')} className='min-w-0'>
-        <div className='text-muted-foreground/55 truncate text-[10px] leading-4'>
+        <div className='text-muted-foreground text-[11px] leading-4'>
           {t('Throughput short')}
         </div>
-        <div className='text-muted-foreground/80 font-mono text-xs leading-4 whitespace-nowrap'>
+        <div className='text-foreground font-mono text-xs leading-4 whitespace-nowrap'>
           {formatCompactThroughput(avg_tps)}
         </div>
       </div>
@@ -98,26 +104,23 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
         title={`${t('Success rate')}: ${success_rate.toFixed(1)}%`}
         className='min-w-0'
       >
-        <div className='text-muted-foreground/55 truncate text-[10px] leading-4'>
+        <div className='text-muted-foreground text-[11px] leading-4'>
           {t('Status short')}
         </div>
-        <div className='flex h-4 items-center justify-end gap-0.5'>
-          {statusBars.map((rate, index) => (
-            <span
-              key={`${index}-${rate ?? 'empty'}`}
-              className={cn(
-                'w-1 rounded-full',
-                index === 0 && 'h-2',
-                index === 1 && 'h-2.5',
-                index === 2 && 'h-3',
-                rate == null
-                  ? index === 0
-                    ? 'bg-muted-foreground/10'
-                    : 'bg-muted-foreground/15'
-                  : getSuccessRateDotClass(rate)
-              )}
-            />
-          ))}
+        <div className='flex h-4 items-center gap-0.5'>
+          {statusSlots.map((slot, index) => {
+            const rate = statusBars[index]
+            return (
+              <span
+                key={slot.id}
+                className={cn(
+                  'w-1 rounded-full',
+                  slot.height,
+                  rate == null ? slot.emptyColor : getSuccessRateDotClass(rate)
+                )}
+              />
+            )
+          })}
         </div>
       </div>
     </div>
