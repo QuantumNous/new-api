@@ -59,9 +59,29 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 
 func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, error) {
 	audioRequest := &dto.AudioRequest{}
-	err := common.UnmarshalBodyReusable(c, audioRequest)
-	if err != nil {
-		return nil, err
+	contentType := c.Request.Header.Get("Content-Type")
+	if strings.Contains(contentType, gin.MIMEMultipartPOSTForm) {
+		form, err := common.ParseMultipartFormReusable(c)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse audio form request: %w", err)
+		}
+		formData := url.Values(form.Value)
+		c.Request.MultipartForm = form
+		c.Request.PostForm = formData
+		audioRequest.Model = formData.Get("model")
+		audioRequest.ResponseFormat = formData.Get("response_format")
+		if streamValue := strings.TrimSpace(formData.Get("stream")); streamValue != "" {
+			stream, err := strconv.ParseBool(streamValue)
+			if err != nil {
+				return nil, fmt.Errorf("invalid stream value: %w", err)
+			}
+			audioRequest.Stream = &stream
+		}
+	} else {
+		err := common.UnmarshalBodyReusable(c, audioRequest)
+		if err != nil {
+			return nil, err
+		}
 	}
 	switch relayMode {
 	case relayconstant.RelayModeAudioSpeech:
