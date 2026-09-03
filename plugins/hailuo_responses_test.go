@@ -37,7 +37,7 @@ func TestHailuoResponsesProtocol(t *testing.T) {
 			"size":     "1920x1080",
 			"metadata": map[string]any{"first_frame_image": "https://cdn.example/frame.png"},
 		},
-		wantUsageKeys:  []string{"resolution", "seconds"},
+		wantUsageKeys:  []string{"input_images", "input_video_seconds", "resolution", "seconds"},
 		wantVendorName: "hailuo",
 	})
 }
@@ -368,15 +368,35 @@ func TestHailuoParseTaskResult(t *testing.T) {
 
 func TestHailuoExtractUsageFacts(t *testing.T) {
 	plugin := loadHailuoPlugin(t)
+	nineReferenceImages := make([]any, 0, 9)
+	for i := 0; i < 9; i++ {
+		nineReferenceImages = append(nineReferenceImages, map[string]any{
+			"type": "image_url", "role": "reference_image", "image_url": map[string]any{"url": "image"},
+		})
+	}
 	testCases := []struct {
 		name    string
 		model   string
 		request map[string]any
 		want    map[string]any
 	}{
-		{"H3 defaults", "MiniMax-H3", map[string]any{"prompt": "p"}, map[string]any{"seconds": float64(5), "resolution": "768P"}},
-		{"H3 2K", "MiniMax-H3", map[string]any{"prompt": "p", "duration": 12, "size": "2K"}, map[string]any{"seconds": float64(12), "resolution": "2K"}},
-		{"legacy model", "MiniMax-Hailuo-2.3", map[string]any{"prompt": "p", "duration": 10}, map[string]any{"seconds": float64(10), "resolution": "768P"}},
+		{"H3 defaults", "MiniMax-H3", map[string]any{"prompt": "p"}, map[string]any{
+			"seconds": float64(5), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0),
+		}},
+		{"H3 2K", "MiniMax-H3", map[string]any{"prompt": "p", "duration": 12, "size": "2K"}, map[string]any{
+			"seconds": float64(12), "resolution": "2K", "input_images": float64(0), "input_video_seconds": float64(0),
+		}},
+		{"H3 reference images", "MiniMax-H3", map[string]any{"prompt": "p", "metadata": map[string]any{"content": nineReferenceImages}}, map[string]any{
+			"seconds": float64(5), "resolution": "768P", "input_images": float64(9), "input_video_seconds": float64(0),
+		}},
+		{"H3 reference video reserves total duration limit", "MiniMax-H3", map[string]any{"prompt": "p", "metadata": map[string]any{
+			"reference_video": []any{"one.mp4", "two.mp4", "three.mp4"},
+		}}, map[string]any{
+			"seconds": float64(5), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(15),
+		}},
+		{"legacy model", "MiniMax-Hailuo-2.3", map[string]any{"prompt": "p", "duration": 10}, map[string]any{
+			"seconds": float64(10), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0),
+		}},
 	}
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -386,6 +406,59 @@ func TestHailuoExtractUsageFacts(t *testing.T) {
 			assert.Equal(t, testCase.want, callHailuoHook(t, plugin, "extractUsage", ctx))
 		})
 	}
+}
+
+func TestHailuoH3CompletionUsageFacts(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	testCases := []struct {
+		name string
+		body string
+		want map[string]any
+	}{
+		{
+			name: "actual usage replaces submission estimates",
+			body: `{"task":{"id":"1","status":"succeeded","resolution":"2K","usage":{"output_seconds":5,"input_seconds":7.5,"input_image_count":6}}}`,
+			want: map[string]any{"seconds": float64(5), "resolution": "2K", "input_images": float64(6), "input_video_seconds": float64(7.5)},
+		},
+		{
+			name: "zero actual usage is retained for settlement",
+			body: `{"task":{"id":"1","status":"succeeded","resolution":"768P","usage":{"output_seconds":4,"input_seconds":0,"input_image_count":0}}}`,
+			want: map[string]any{"seconds": float64(4), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0)},
+		},
+		{
+			name: "zero output cannot erase the submission reservation",
+			body: `{"task":{"id":"1","status":"succeeded","resolution":"768P","usage":{"output_seconds":0,"input_seconds":0,"input_image_count":0}}}`,
+			want: map[string]any{"resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0)},
+		},
+		{
+			name: "missing usage leaves submission estimates untouched",
+			body: `{"task":{"id":"1","status":"succeeded","resolution":"768P"}}`,
+			want: map[string]any{"resolution": "768P"},
+		},
+		{
+			name: "out of contract usage cannot become a billing multiplier",
+			body: `{"task":{"id":"1","status":"succeeded","resolution":"2K","usage":{"output_seconds":16,"input_seconds":16,"input_image_count":10}}}`,
+			want: map[string]any{"resolution": "2K"},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			var body any
+			require.NoError(t, common.UnmarshalJsonStr(testCase.body, &body))
+			assert.Equal(t, testCase.want, callHailuoHook(t, plugin, "extractUsageOnComplete", nil, nil, body))
+		})
+	}
+
+	t.Run("polling adaptor carries actual facts into task settlement", func(t *testing.T) {
+		adaptor := taskplugin.New(plugin)
+		result, err := adaptor.ParseTaskResult([]byte(
+			`{"task":{"id":"1","status":"succeeded","resolution":"2K","usage":{"output_seconds":5,"input_seconds":7.5,"input_image_count":6}}}`,
+		))
+		require.NoError(t, err)
+		assert.Equal(t, map[string]any{
+			"seconds": float64(5), "resolution": "2K", "input_images": float64(6), "input_video_seconds": float64(7.5),
+		}, result.UsageFacts)
+	})
 }
 
 // The /v2 result is a public CDN URL, so its artifact is proxied without

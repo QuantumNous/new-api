@@ -7,7 +7,7 @@ export const meta = {
     en: "MiniMax Hailuo video generation (text-to-video, image-to-video, and MiniMax-H3 multimodal reference)",
     zh: "MiniMax 海螺视频生成（文生视频、图生视频、MiniMax-H3 多模态参考生视频）",
   },
-  version: "1.1.0",
+  version: "1.1.1",
   author: { name: "QuantumNous" },
   channelTypes: [35],
   models: [
@@ -36,16 +36,33 @@ export const meta = {
       enum: ["512P", "768P", "720P", "1080P", "2K"],
       description: { en: "Requested output video resolution.", zh: "请求的输出视频分辨率。" },
     },
+    input_images: {
+      type: "number",
+      unit: "count",
+      description: {
+        en: "H3 input image count (estimated at submit, actual on completion).",
+        zh: "H3 输入图片数量（提交时预估，完成后按实际值）。",
+      },
+    },
+    input_video_seconds: {
+      type: "number",
+      unit: "second",
+      description: {
+        en: "H3 input video duration in seconds (reserved at the request maximum, actual on completion).",
+        zh: "H3 输入视频时长，单位为秒（提交时按请求上限预留，完成后按实际值）。",
+      },
+    },
   },
   usageExamples: [
-    { label: "2.3/02 768P 6s", facts: { seconds: 6, resolution: "768P" } },
-    { label: "2.3/02 768P 10s", facts: { seconds: 10, resolution: "768P" } },
-    { label: "2.3/02 1080P 6s", facts: { seconds: 6, resolution: "1080P" } },
-    { label: "02 512P 6s", facts: { seconds: 6, resolution: "512P" } },
-    { label: "02 512P 10s", facts: { seconds: 10, resolution: "512P" } },
-    { label: "01-series 720P 6s", facts: { seconds: 6, resolution: "720P" } },
-    { label: "H3 768P 5s", facts: { seconds: 5, resolution: "768P" } },
-    { label: "H3 2K 5s", facts: { seconds: 5, resolution: "2K" } },
+    { label: "2.3/02 768P 6s", facts: { seconds: 6, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
+    { label: "2.3/02 768P 10s", facts: { seconds: 10, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
+    { label: "2.3/02 1080P 6s", facts: { seconds: 6, resolution: "1080P", input_images: 0, input_video_seconds: 0 } },
+    { label: "02 512P 6s", facts: { seconds: 6, resolution: "512P", input_images: 0, input_video_seconds: 0 } },
+    { label: "02 512P 10s", facts: { seconds: 10, resolution: "512P", input_images: 0, input_video_seconds: 0 } },
+    { label: "01-series 720P 6s", facts: { seconds: 6, resolution: "720P", input_images: 0, input_video_seconds: 0 } },
+    { label: "H3 768P 5s", facts: { seconds: 5, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
+    { label: "H3 2K 5s · 9 images", facts: { seconds: 5, resolution: "2K", input_images: 9, input_video_seconds: 0 } },
+    { label: "H3 2K 5s · input video", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 15 } },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };
@@ -107,6 +124,7 @@ const H3_MAX_FRAME_IMAGES = 2;
 const H3_MAX_REFERENCE_IMAGES = 9;
 const H3_MAX_REFERENCE_VIDEOS = 3;
 const H3_MAX_REFERENCE_AUDIOS = 3;
+const H3_MAX_INPUT_VIDEO_SECONDS = 15;
 const H3_RATIOS = ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"];
 
 // MiniMax-H3 speaks the /v2 video generation contract: a multimodal `content`
@@ -175,6 +193,7 @@ function validateH3Content(items) {
   let referenceImages = 0;
   let referenceVideos = 0;
   let referenceAudios = 0;
+  let inputImages = 0;
   for (const item of items) {
     if (!item || typeof item !== "object" || Array.isArray(item)) continue;
     const role = trimmed(item.role);
@@ -183,6 +202,7 @@ function validateH3Content(items) {
       continue;
     }
     if (item.type === "image_url") {
+      inputImages += 1;
       if (!role || role === "first_frame") {
         firstFrames += 1;
         hasFrame = true;
@@ -211,6 +231,7 @@ function validateH3Content(items) {
   if (firstFrames > 1) throw new Error(H3_MODEL + " accepts at most one first_frame image");
   if (lastFrames > 1) throw new Error(H3_MODEL + " accepts at most one last_frame image");
   if (referenceImages > H3_MAX_REFERENCE_IMAGES) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_IMAGES + " reference images");
+  if (inputImages > H3_MAX_REFERENCE_IMAGES) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_IMAGES + " input images");
   if (referenceVideos > H3_MAX_REFERENCE_VIDEOS) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_VIDEOS + " reference videos");
   if (referenceAudios > H3_MAX_REFERENCE_AUDIOS) throw new Error(H3_MODEL + " accepts at most " + H3_MAX_REFERENCE_AUDIOS + " reference audios");
   if (hasFrame && hasReference) throw new Error(H3_MODEL + " cannot mix frame images with reference media");
@@ -410,8 +431,24 @@ export function extractUsage(ctx) {
   if (ctx.usagePurpose === "billing_ratios") return null;
   const req = ctx.requestBody || {};
   const model = ctx.upstreamModel || req.model;
-  if (isH3(model)) return { seconds: h3Duration(req), resolution: h3Resolution(req) };
-  return { seconds: outboundDuration(req), resolution: outboundResolution(req, model) };
+  if (isH3(model)) {
+    const content = h3Content(req);
+    return {
+      seconds: h3Duration(req),
+      resolution: h3Resolution(req),
+      input_images: content.filter(function (item) {
+        return item && item.type === "image_url";
+      }).length,
+      // Input URLs do not expose duration. Reserve the documented total limit;
+      // polling replaces it with usage.input_seconds after success.
+      input_video_seconds: content.some(function (item) {
+        return item && item.type === "video_url";
+      })
+        ? H3_MAX_INPUT_VIDEO_SECONDS
+        : 0,
+    };
+  }
+  return { seconds: outboundDuration(req), resolution: outboundResolution(req, model), input_images: 0, input_video_seconds: 0 };
 }
 
 export function buildQueryRequest(ctx) {
@@ -497,7 +534,23 @@ export function extractUsageOnComplete(_task, _taskResult, body) {
   const h3Task = h3QueryTask(body);
   if (h3Task) {
     const resolution = trimmed(h3Task.resolution).toUpperCase();
-    return resolution === "2K" || resolution === "768P" ? { resolution: resolution } : null;
+    const facts = {};
+    if (resolution === "2K" || resolution === "768P") facts.resolution = resolution;
+    const usage = h3Task.usage && typeof h3Task.usage === "object" && !Array.isArray(h3Task.usage) ? h3Task.usage : {};
+    const fields = [
+      { key: "seconds", value: usage.output_seconds, minimum: H3_MIN_DURATION, maximum: H3_MAX_DURATION, integer: false },
+      { key: "input_images", value: usage.input_image_count, minimum: 0, maximum: H3_MAX_REFERENCE_IMAGES, integer: true },
+      { key: "input_video_seconds", value: usage.input_seconds, minimum: 0, maximum: H3_MAX_INPUT_VIDEO_SECONDS, integer: false },
+    ];
+    // Omit malformed or out-of-contract upstream values so settlement keeps
+    // the bounded submission estimate instead of accepting a new multiplier.
+    for (const field of fields) {
+      if (field.value === undefined || field.value === null || field.value === "") continue;
+      const value = Number(field.value);
+      if (!Number.isFinite(value) || value < field.minimum || value > field.maximum || (field.integer && !Number.isInteger(value))) continue;
+      facts[field.key] = value;
+    }
+    return Object.keys(facts).length ? facts : null;
   }
   const width = Number((body || {}).video_width || 0);
   const height = Number((body || {}).video_height || 0);
