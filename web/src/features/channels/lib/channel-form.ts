@@ -254,6 +254,10 @@ export const channelFormSchema = z
     multi_key_type: z.enum(['random', 'polling']).optional(),
     batch_add_set_key_prefix_2_name: z.boolean().optional(),
     key_mode: z.enum(['append', 'replace']).optional(), // For editing multi-key channels
+    // Target key storage shape when editing an existing channel. Unlike
+    // multi_key_mode (a create-time add mode), this is the persisted shape of
+    // the channel and switching it converts the channel in place.
+    key_storage_mode: z.enum(['single', 'multi']).optional(),
     // Channel extra settings (stored in setting JSON, not sent directly)
     force_format: z.boolean().optional(),
     thinking_to_content: z.boolean().optional(),
@@ -438,6 +442,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   multi_key_type: 'random',
   batch_add_set_key_prefix_2_name: false,
   key_mode: 'append',
+  key_storage_mode: 'single',
   // Channel extra settings
   force_format: false,
   thinking_to_content: false,
@@ -591,6 +596,9 @@ export function transformChannelToFormDefaults(
     multi_key_type: channel.channel_info.multi_key_mode || 'random',
     batch_add_set_key_prefix_2_name: false,
     key_mode: 'append', // Default to append mode for editing multi-key channels
+    // Start from the channel's persisted storage shape so an unchanged form
+    // never asks the backend to convert anything.
+    key_storage_mode: channel.channel_info.is_multi_key ? 'multi' : 'single',
     // Channel extra settings
     ...extraSettings,
     // Type-specific settings
@@ -844,11 +852,18 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
 /**
  * Transform form data to API payload for updating channel
  */
+export type ChannelUpdatePayload = Partial<Channel> & {
+  key_mode?: 'append' | 'replace'
+  key_storage_mode?: 'single' | 'multi'
+  multi_key_mode?: 'random' | 'polling'
+}
+
 export function transformFormDataToUpdatePayload(
   formData: ChannelFormValues,
-  channelId: number
-): Partial<Channel> {
-  const payload: Partial<Channel> = {
+  channelId: number,
+  isMultiKeyChannel: boolean
+): ChannelUpdatePayload {
+  const payload: ChannelUpdatePayload = {
     id: channelId,
     name: formData.name,
     type: formData.type,
@@ -894,7 +909,50 @@ export function transformFormDataToUpdatePayload(
   payload.param_override = formData.param_override || ''
   payload.header_override = formData.header_override || ''
 
+  const requestedStorageMode = formData.key_storage_mode || 'single'
+  const currentStorageMode = isMultiKeyChannel ? 'multi' : 'single'
+  const isStorageConversion = requestedStorageMode !== currentStorageMode
+
+  if (isStorageConversion) {
+    payload.key_storage_mode = requestedStorageMode
+    if (requestedStorageMode === 'multi') {
+      payload.multi_key_mode = formData.multi_key_type || 'random'
+    }
+  }
+
   return payload
+}
+
+export function countUpdateKeys(
+  key: string,
+  options?: { type?: number; vertexKeyType?: string }
+): number {
+  const trimmed = key.trim()
+  if (!trimmed) return 0
+
+  const isVertexJsonChannel =
+    options?.type === 41 && options.vertexKeyType !== 'api_key'
+  if (isVertexJsonChannel) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item) => {
+          if (typeof item === 'string') return item.trim().length > 0
+          return item !== null && item !== undefined
+        }).length
+      }
+      if (parsed !== null && typeof parsed === 'object') {
+        return 1
+      }
+    } catch {
+      // Invalid JSON still falls through to newline counting.
+    }
+  }
+
+  return trimmed
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean).length
 }
 
 // ============================================================================
