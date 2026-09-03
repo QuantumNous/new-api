@@ -299,6 +299,32 @@ func TestHTTPClientCachePolicyAndCompatibility(t *testing.T) {
 	assert.NotSame(t, clientA, proxyHTTP1)
 }
 
+func TestWebSocketDialerUsesConfiguredProxy(t *testing.T) {
+	t.Run("http proxy", func(t *testing.T) {
+		dialer, err := GetWebSocketDialerWithProxy("http://proxy.example:8080")
+		require.NoError(t, err)
+		require.NotNil(t, dialer.Proxy)
+		request, err := http.NewRequest(http.MethodGet, "https://api.openai.com/v1/responses", nil)
+		require.NoError(t, err)
+		proxyURL, err := dialer.Proxy(request)
+		require.NoError(t, err)
+		require.NotNil(t, proxyURL)
+		assert.Equal(t, "http://proxy.example:8080", proxyURL.String())
+	})
+
+	t.Run("socks proxy", func(t *testing.T) {
+		dialer, err := GetWebSocketDialerWithProxy("socks5://proxy.example:1080")
+		require.NoError(t, err)
+		assert.Nil(t, dialer.Proxy)
+		assert.NotNil(t, dialer.NetDialContext)
+	})
+
+	t.Run("invalid proxy", func(t *testing.T) {
+		_, err := GetWebSocketDialerWithProxy("ftp://proxy.example:21")
+		require.EqualError(t, err, "proxy URL must use http, https, socks5, or socks5h")
+	})
+}
+
 func TestHTTPClientCacheConcurrentGetOrCreate(t *testing.T) {
 	initDefaultHTTPClientFixture(t)
 

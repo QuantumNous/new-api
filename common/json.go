@@ -6,6 +6,8 @@ import (
 	"io"
 )
 
+type RawMessage = json.RawMessage
+
 func Unmarshal(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
@@ -30,7 +32,7 @@ func IndentJson(data []byte) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func GetJsonType(data json.RawMessage) string {
+func GetJsonType(data RawMessage) string {
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 {
 		return "unknown"
@@ -53,7 +55,7 @@ func GetJsonType(data json.RawMessage) string {
 }
 
 // JsonRawMessageToString returns JSON strings as their decoded value and other JSON values as raw text.
-func JsonRawMessageToString(data json.RawMessage) string {
+func JsonRawMessageToString(data RawMessage) string {
 	trimmed := bytes.TrimSpace(data)
 	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
 		return ""

@@ -225,14 +225,18 @@ func usageFromResponsesUsage(src *dto.Usage, createBillingSnapshot bool) *dto.Us
 		usage.PromptTokensDetails.ImageTokens = src.InputTokensDetails.ImageTokens
 		usage.PromptTokensDetails.AudioTokens = src.InputTokensDetails.AudioTokens
 	}
-	if src.CompletionTokenDetails.ReasoningTokens != 0 ||
-		src.CompletionTokenDetails.TextTokens != 0 ||
-		src.CompletionTokenDetails.AudioTokens != 0 ||
-		src.CompletionTokenDetails.ImageTokens != 0 {
-		usage.CompletionTokenDetails.ReasoningTokens = src.CompletionTokenDetails.ReasoningTokens
-		usage.CompletionTokenDetails.TextTokens = src.CompletionTokenDetails.TextTokens
-		usage.CompletionTokenDetails.AudioTokens = src.CompletionTokenDetails.AudioTokens
-		usage.CompletionTokenDetails.ImageTokens = src.CompletionTokenDetails.ImageTokens
+	outputDetails := src.CompletionTokenDetails
+	if src.OutputTokensDetails != nil {
+		outputDetails = *src.OutputTokensDetails
+	}
+	if outputDetails.ReasoningTokens != 0 ||
+		outputDetails.TextTokens != 0 ||
+		outputDetails.AudioTokens != 0 ||
+		outputDetails.ImageTokens != 0 {
+		usage.CompletionTokenDetails.ReasoningTokens = outputDetails.ReasoningTokens
+		usage.CompletionTokenDetails.TextTokens = outputDetails.TextTokens
+		usage.CompletionTokenDetails.AudioTokens = outputDetails.AudioTokens
+		usage.CompletionTokenDetails.ImageTokens = outputDetails.ImageTokens
 	}
 	usage.ClaudeCacheCreation5mTokens = src.ClaudeCacheCreation5mTokens
 	usage.ClaudeCacheCreation1hTokens = src.ClaudeCacheCreation1hTokens

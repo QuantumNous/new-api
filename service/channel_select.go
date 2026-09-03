@@ -36,12 +36,13 @@ func AppendTaskPluginIdentityFilter(c *gin.Context, pluginKey string) {
 }
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	RequestPath  string
-	Retry        *int
-	resetNextTry bool
+	Ctx                 *gin.Context
+	TokenGroup          string
+	ModelName           string
+	RequestPath         string
+	AllowedChannelTypes []int
+	Retry               *int
+	resetNextTry        bool
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -110,7 +111,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	var err error
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
-	filters := GetChannelConstraints(param.Ctx).Filters
+	filters := channelSelectionFilters(param)
 
 	if param.TokenGroup == "auto" {
 		autoGroups := GetRequestAutoGroups(param.Ctx, userGroup)
@@ -195,6 +196,35 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		}
 	}
 	return channel, selectGroup, nil
+}
+
+func channelSelectionFilters(param *RetryParam) []dto.ChannelFilter {
+	if param == nil {
+		return nil
+	}
+	filters := append([]dto.ChannelFilter(nil), GetChannelConstraints(param.Ctx).Filters...)
+	if param.RequestPath != "" {
+		pathFilterFound := false
+		for _, filter := range filters {
+			if filter.Kind == dto.FilterRequestPath && filter.RequestPath == param.RequestPath {
+				pathFilterFound = true
+				break
+			}
+		}
+		if !pathFilterFound {
+			filters = append(filters, dto.ChannelFilter{
+				Kind:        dto.FilterRequestPath,
+				RequestPath: param.RequestPath,
+			})
+		}
+	}
+	if len(param.AllowedChannelTypes) > 0 {
+		filters = append(filters, dto.ChannelFilter{
+			Kind:                   dto.FilterTaskPluginIdentity,
+			TaskPluginChannelTypes: append([]int(nil), param.AllowedChannelTypes...),
+		})
+	}
+	return filters
 }
 
 func pinnedTaskPluginChannelTypes(c *gin.Context, expected string) []int {

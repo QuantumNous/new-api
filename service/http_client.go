@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
+	"github.com/gorilla/websocket"
 	"golang.org/x/net/proxy"
 )
 
@@ -381,6 +382,33 @@ func newProxyHTTPClient(proxyURL *url.URL) (*http.Client, error) {
 // GetHttpClientWithProxy returns the default client or a cached proxy-enabled client.
 func GetHttpClientWithProxy(rawProxyURL string) (*http.Client, error) {
 	return GetHttpClientWithProxySettings(rawProxyURL, dto.ChannelSettings{})
+}
+
+// GetWebSocketDialerWithProxy builds a WebSocket dialer with the same proxy
+// and TLS policy used by ordinary upstream relay requests.
+func GetWebSocketDialerWithProxy(rawProxyURL string) (*websocket.Dialer, error) {
+	transport := newRelayHTTPTransport()
+	trimmedProxyURL := strings.TrimSpace(rawProxyURL)
+	if trimmedProxyURL != "" {
+		parsedURL, legacySuffixStripped, err := common.ParseProxyURLRuntime(trimmedProxyURL)
+		if err != nil {
+			return nil, err
+		}
+		config := newProxyURLConfig(parsedURL)
+		if legacySuffixStripped {
+			warnLegacyProxyURLOnce(config)
+		}
+		if err := configureProxyTransport(transport, config.parsedURL); err != nil {
+			return nil, err
+		}
+	}
+
+	dialer := *websocket.DefaultDialer
+	dialer.Proxy = transport.Proxy
+	dialer.NetDialContext = transport.DialContext
+	dialer.TLSClientConfig = transport.TLSClientConfig
+	dialer.HandshakeTimeout = transport.TLSHandshakeTimeout
+	return &dialer, nil
 }
 
 // GetHttpClientWithProxySettings returns a cached HTTP client for the proxy URL and

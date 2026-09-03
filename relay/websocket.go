@@ -1,8 +1,12 @@
 package relay
 
 import (
+	"errors"
 	"fmt"
+	"sync"
+	"time"
 
+	"github.com/QuantumNous/new-api/pkg/wsmanager"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -20,6 +24,7 @@ func WssHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
+	connectionVersion := wsmanager.ChannelVersion(info.ChannelId)
 	//var requestBody io.Reader
 	//firstWssRequest, _ := c.Get("first_wss_request")
 	//requestBody = bytes.NewBuffer(firstWssRequest.([]byte))
@@ -33,6 +38,21 @@ func WssHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.
 	if resp != nil {
 		info.TargetWs = resp.(*websocket.Conn)
 		defer info.TargetWs.Close()
+		var closeOnce sync.Once
+		unregister, registered := wsmanager.RegisterWithVersion(info.ChannelId, wsmanager.KindRealtime, func(reason string) {
+			closeOnce.Do(func() {
+				deadline := time.Now().Add(time.Second)
+				closeMessage := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, reason)
+				_ = info.ClientWs.WriteControl(websocket.CloseMessage, closeMessage, deadline)
+				_ = info.TargetWs.WriteControl(websocket.CloseMessage, closeMessage, deadline)
+				_ = info.ClientWs.Close()
+				_ = info.TargetWs.Close()
+			})
+		}, connectionVersion)
+		if !registered {
+			return types.NewError(errors.New("websocket channel was closed while connecting"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+		}
+		defer unregister()
 	}
 
 	usage, newAPIError := adaptor.DoResponse(c, nil, info)

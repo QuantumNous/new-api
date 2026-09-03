@@ -544,3 +544,38 @@ func mustStreamChunks(t *testing.T, state *ResponsesToChatStreamState, event *dt
 	require.NoError(t, err)
 	return chunks
 }
+
+func TestNormalizeResponsesUsagePrefersOutputTokensDetails(t *testing.T) {
+	usage := NormalizeResponsesUsage(&dto.Usage{
+		InputTokens:  11,
+		OutputTokens: 7,
+		TotalTokens:  18,
+		InputTokensDetails: &dto.InputTokenDetails{
+			CachedTokens: 3,
+		},
+		OutputTokensDetails: &dto.OutputTokenDetails{
+			ReasoningTokens: 4,
+			TextTokens:      1,
+		},
+	})
+
+	require.NotNil(t, usage)
+	assert.Equal(t, 11, usage.PromptTokens)
+	assert.Equal(t, 7, usage.CompletionTokens)
+	assert.Equal(t, 18, usage.TotalTokens)
+	assert.Equal(t, 3, usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 4, usage.CompletionTokenDetails.ReasoningTokens)
+	assert.Equal(t, 1, usage.CompletionTokenDetails.TextTokens)
+}
+
+func TestNormalizeResponsesUsageFallsBackToCompletionTokenDetails(t *testing.T) {
+	usage := NormalizeResponsesUsage(&dto.Usage{
+		OutputTokens: 9,
+		CompletionTokenDetails: dto.OutputTokenDetails{
+			ReasoningTokens: 9,
+		},
+	})
+
+	require.NotNil(t, usage)
+	assert.Equal(t, 9, usage.CompletionTokenDetails.ReasoningTokens)
+}

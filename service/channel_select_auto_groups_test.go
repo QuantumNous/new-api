@@ -127,3 +127,52 @@ func TestCacheGetRandomSatisfiedChannelUsesTokenAutoGroupsWhenGlobalAutoIsEmpty(
 	assert.Equal(t, "default", selectedGroup)
 	assert.Equal(t, "default", common.GetContextKeyString(ctx, constant.ContextKeyAutoGroup))
 }
+
+func TestCacheGetRandomSatisfiedChannelFiltersChannelTypesBeforePriority(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	const modelName = "responses-websocket-selection-model"
+
+	createChannel := func(id, channelType int, priority int64) {
+		t.Helper()
+		weight := uint(100)
+		require.NoError(t, db.Create(&model.Channel{
+			Id:       id,
+			Type:     channelType,
+			Key:      fmt.Sprintf("key-%d", id),
+			Status:   common.ChannelStatusEnabled,
+			Name:     fmt.Sprintf("channel-%d", id),
+			Weight:   &weight,
+			Models:   modelName,
+			Group:    "default",
+			Priority: &priority,
+		}).Error)
+		require.NoError(t, db.Create(&model.Ability{
+			Group:     "default",
+			Model:     modelName,
+			ChannelId: id,
+			Enabled:   true,
+			Priority:  &priority,
+			Weight:    weight,
+		}).Error)
+	}
+
+	createChannel(2201, constant.ChannelTypeGemini, 100)
+	createChannel(2202, constant.ChannelTypeOpenAI, 10)
+	model.InitChannelCache()
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	retry := 0
+	channel, selectedGroup, err := CacheGetRandomSatisfiedChannel(&RetryParam{
+		Ctx:                 ctx,
+		TokenGroup:          "default",
+		ModelName:           modelName,
+		AllowedChannelTypes: []int{constant.ChannelTypeOpenAI, constant.ChannelTypeCodex},
+		Retry:               &retry,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, channel)
+	assert.Equal(t, 2202, channel.Id)
+	assert.Equal(t, "default", selectedGroup)
+}

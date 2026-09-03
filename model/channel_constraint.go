@@ -99,9 +99,15 @@ func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilte
 		return config != nil && config.SupportsPathForModel(filter.RequestPath, modelName)
 	case dto.FilterTaskPluginIdentity:
 		if ch.Type == constant.ChannelTypeTaskPlugin {
-			return filter.TaskPluginKey != "" && ch.GetSetting().TaskPluginKey == filter.TaskPluginKey
+			if filter.TaskPluginKey != "" {
+				return ch.GetSetting().TaskPluginKey == filter.TaskPluginKey
+			}
+			return slices.Contains(filter.TaskPluginChannelTypes, ch.Type)
 		}
-		return filter.TaskPluginKey == "" || slices.Contains(filter.TaskPluginChannelTypes, ch.Type)
+		if len(filter.TaskPluginChannelTypes) > 0 {
+			return slices.Contains(filter.TaskPluginChannelTypes, ch.Type)
+		}
+		return filter.TaskPluginKey == ""
 	default:
 		return true
 	}
