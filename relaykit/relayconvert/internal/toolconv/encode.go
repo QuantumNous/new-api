@@ -381,13 +381,13 @@ func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnosti
 				diagnostics = append(diagnostics, geminiWebSearchDiagnostics(index, definition.WebSearch)...)
 			}
 		case KindCodeExecution:
-			if set.Source == types.RelayFormatGemini {
+			if set.Source == types.RelayFormatGemini || definition.NativeType == "codeExecution" {
 				tools = append(tools, map[string]any{"codeExecution": map[string]any{}})
 				continue
 			}
 			diagnostics = append(diagnostics, semanticLoss(fmt.Sprintf("tools[%d]", index), "unverified_tool_mapping", "code execution semantics differ across providers"))
 		case KindURLContext:
-			if set.Source == types.RelayFormatGemini {
+			if set.Source == types.RelayFormatGemini || definition.NativeType == "urlContext" {
 				tools = append(tools, map[string]any{"urlContext": map[string]any{}})
 				continue
 			}

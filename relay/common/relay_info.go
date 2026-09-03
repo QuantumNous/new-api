@@ -123,9 +123,14 @@ type RelayInfo struct {
 	UserSetting           dto.UserSetting
 	UserEmail             string
 	UserQuota             int
-	RelayFormat           types.RelayFormat
-	SendResponseCount     int
-	ReceivedResponseCount int
+	RelayFormat       types.RelayFormat
+	SendResponseCount int
+	// ClaudeToChatStreamState / ChatToGeminiStreamState hold per-attempt
+	// stream converters. InitChannelMeta nils them so a retry cannot resume a
+	// dirty converter (advanced tool index / finalized).
+	ClaudeToChatStreamState any
+	ChatToGeminiStreamState any
+	ReceivedResponseCount   int
 	FinalPreConsumedQuota int // 最终预消耗的配额
 	// ForcePreConsume 为 true 时禁用 BillingSession 的信任额度旁路，
 	// 强制预扣全额。用于异步任务（视频/音乐生成等），因为请求返回后任务仍在运行，
@@ -203,6 +208,11 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	info.FinalRequestRelayFormat = ""
 	info.RequestConversionChain = nil
 	info.InitRequestConversionChain()
+	// Per-attempt only. Do not clear StreamStatus, conversion diagnostics,
+	// LastError, or billing accumulators — those are request-scoped.
+	info.SendResponseCount = 0
+	info.ClaudeToChatStreamState = nil
+	info.ChatToGeminiStreamState = nil
 	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
 	paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)
 	headerOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelHeaderOverride)

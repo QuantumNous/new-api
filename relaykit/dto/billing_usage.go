@@ -270,25 +270,12 @@ func (usage *BillingUsage) CanonicalUsage() (*Usage, bool) {
 
 func (usage *BillingUsage) canonicalOpenAIUsage() *Usage {
 	canonical := cloneOpenAIUsage(usage.OpenAIUsage)
-	if inputDetails := canonical.InputTokensDetails; inputDetails != nil {
-		if canonical.PromptTokensDetails.CachedTokens == 0 && inputDetails.CachedTokens > 0 {
-			canonical.PromptTokensDetails.CachedTokens = inputDetails.CachedTokens
-		}
-		if canonical.PromptTokensDetails.CachedCreationTokens == 0 && inputDetails.CachedCreationTokens > 0 {
-			canonical.PromptTokensDetails.CachedCreationTokens = inputDetails.CachedCreationTokens
-		}
-		if canonical.PromptTokensDetails.CacheWriteTokens == 0 && inputDetails.CacheWriteTokens > 0 {
-			canonical.PromptTokensDetails.CacheWriteTokens = inputDetails.CacheWriteTokens
-		}
-		if canonical.PromptTokensDetails.TextTokens == 0 && inputDetails.TextTokens > 0 {
-			canonical.PromptTokensDetails.TextTokens = inputDetails.TextTokens
-		}
-		if canonical.PromptTokensDetails.ImageTokens == 0 && inputDetails.ImageTokens > 0 {
-			canonical.PromptTokensDetails.ImageTokens = inputDetails.ImageTokens
-		}
-		if canonical.PromptTokensDetails.AudioTokens == 0 && inputDetails.AudioTokens > 0 {
-			canonical.PromptTokensDetails.AudioTokens = inputDetails.AudioTokens
-		}
+	if canonical.InputTokensDetails != nil {
+		// InputTokensDetails fills fields that PromptTokensDetails omitted;
+		// existing PromptTokensDetails values stay canonical on overlap.
+		filled := *canonical.InputTokensDetails
+		mergeInputTokenDetails(&filled, canonical.PromptTokensDetails)
+		canonical.PromptTokensDetails = filled
 	}
 	if canonical.PromptTokensDetails.CachedTokens == 0 && canonical.PromptCacheHitTokens > 0 {
 		canonical.PromptTokensDetails.CachedTokens = canonical.PromptCacheHitTokens
@@ -316,12 +303,15 @@ func (usage *BillingUsage) canonicalOpenAIUsage() *Usage {
 
 func (usage *BillingUsage) canonicalClaudeUsage() *Usage {
 	claudeUsage := usage.ClaudeUsage
-	cacheCreation5m := claudeUsage.GetCacheCreation5mTokens()
-	if cacheCreation5m == 0 {
+	// Flat legacy fields are a fallback only when this snapshot never carried
+	// a CacheCreation sub-object. Presence (non-nil), not zero vs non-zero,
+	// is the discriminator — a later sub-object that zeros 1h must win.
+	var cacheCreation5m, cacheCreation1h int
+	if claudeUsage.CacheCreation != nil {
+		cacheCreation5m = claudeUsage.GetCacheCreation5mTokens()
+		cacheCreation1h = claudeUsage.GetCacheCreation1hTokens()
+	} else {
 		cacheCreation5m = claudeUsage.ClaudeCacheCreation5mTokens
-	}
-	cacheCreation1h := claudeUsage.GetCacheCreation1hTokens()
-	if cacheCreation1h == 0 {
 		cacheCreation1h = claudeUsage.ClaudeCacheCreation1hTokens
 	}
 
@@ -363,7 +353,7 @@ func (usage *BillingUsage) canonicalGeminiUsage() *Usage {
 		addGeminiInputTokenDetail(&canonical.PromptTokensDetails, detail)
 	}
 	for _, detail := range metadata.CandidatesTokensDetails {
-		switch detail.Modality {
+		switch normalizeGeminiModality(detail.Modality) {
 		case "IMAGE":
 			canonical.CompletionTokenDetails.ImageTokens += detail.TokenCount
 		case "AUDIO":
@@ -377,6 +367,9 @@ func (usage *BillingUsage) canonicalGeminiUsage() *Usage {
 		canonical.TotalTokens = canonical.PromptTokens + canonical.CompletionTokens
 	} else if canonical.CompletionTokens <= 0 {
 		canonical.CompletionTokens = canonical.TotalTokens - canonical.PromptTokens
+		if canonical.CompletionTokens < 0 {
+			canonical.CompletionTokens = 0
+		}
 	}
 	if canonical.PromptTokens > 0 && canonical.PromptTokensDetails.TextTokens == 0 && canonical.PromptTokensDetails.AudioTokens == 0 {
 		canonical.PromptTokensDetails.TextTokens = canonical.PromptTokens
@@ -385,7 +378,7 @@ func (usage *BillingUsage) canonicalGeminiUsage() *Usage {
 }
 
 func addGeminiInputTokenDetail(details *InputTokenDetails, detail GeminiPromptTokensDetails) {
-	switch detail.Modality {
+	switch normalizeGeminiModality(detail.Modality) {
 	case "AUDIO":
 		details.AudioTokens += detail.TokenCount
 	case "IMAGE":

@@ -157,22 +157,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 
 	if textRequest.Tools != nil {
 		functions := make([]dto.FunctionRequest, 0, len(textRequest.Tools))
-		googleSearch := false
-		codeExecution := false
-		urlContext := false
 		for _, tool := range textRequest.Tools {
-			if tool.Function.Name == "googleSearch" {
-				googleSearch = true
-				continue
-			}
-			if tool.Function.Name == "codeExecution" {
-				codeExecution = true
-				continue
-			}
-			if tool.Function.Name == "urlContext" {
-				urlContext = true
-				continue
-			}
 			if tool.Function.Parameters != nil {
 				if params, ok := tool.Function.Parameters.(map[string]interface{}); ok {
 					if props, hasProps := params["properties"].(map[string]interface{}); hasProps && len(props) == 0 {
@@ -184,21 +169,6 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 			functions = append(functions, tool.Function)
 		}
 		geminiTools := geminiRequest.GetTools()
-		if codeExecution {
-			geminiTools = append(geminiTools, dto.GeminiChatTool{
-				CodeExecution: make(map[string]string),
-			})
-		}
-		if googleSearch {
-			geminiTools = append(geminiTools, dto.GeminiChatTool{
-				GoogleSearch: make(map[string]string),
-			})
-		}
-		if urlContext {
-			geminiTools = append(geminiTools, dto.GeminiChatTool{
-				URLContext: make(map[string]string),
-			})
-		}
 		if len(functions) > 0 {
 			geminiTools = append(geminiTools, dto.GeminiChatTool{
 				FunctionDeclarations: functions,

@@ -56,6 +56,10 @@ func extractOpenAIChatRequest(request any) (any, Set, error) {
 	}
 	for index, tool := range source.Tools {
 		if tool.Type == "function" || tool.Type == "" {
+			if definition, ok := decodeOpenAIChatPseudoHostedTool(tool.Function.Name); ok {
+				set.Definitions = append(set.Definitions, definition)
+				continue
+			}
 			set.Definitions = append(set.Definitions, Definition{
 				Kind:      KindFunction,
 				Execution: ExecutionClient,
@@ -509,6 +513,40 @@ func rawBoolPointer(raw json.RawMessage) *bool {
 		return nil
 	}
 	return &value
+}
+
+// decodeOpenAIChatPseudoHostedTool recognizes the OpenAI Chat dialect that
+// declares Gemini hosted tools as function definitions named googleSearch,
+// codeExecution, or urlContext. The names are the historical public contract;
+// recognition lives here so every target format goes through the same hosted
+// ToolDefinition pipeline.
+func decodeOpenAIChatPseudoHostedTool(name string) (Definition, bool) {
+	switch name {
+	case "googleSearch":
+		return Definition{
+			Kind:       KindWebSearch,
+			Execution:  ExecutionServer,
+			NativeType: "googleSearch",
+			Name:       "googleSearch",
+			WebSearch:  &WebSearch{},
+		}, true
+	case "codeExecution":
+		return Definition{
+			Kind:       KindCodeExecution,
+			Execution:  ExecutionServer,
+			NativeType: "codeExecution",
+			Name:       "codeExecution",
+		}, true
+	case "urlContext":
+		return Definition{
+			Kind:       KindURLContext,
+			Execution:  ExecutionServer,
+			NativeType: "urlContext",
+			Name:       "urlContext",
+		}, true
+	default:
+		return Definition{}, false
+	}
 }
 
 func decodeOpenAIChatLocation(raw json.RawMessage) (*ApproximateLocation, error) {

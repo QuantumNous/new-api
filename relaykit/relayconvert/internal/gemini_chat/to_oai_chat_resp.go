@@ -283,6 +283,11 @@ func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*d
 		Object:  "chat.completion.chunk",
 		Choices: choices,
 	}
+	// Only attach usage the chunk actually reported. Do not fall back to a
+	// local prompt estimate — converters treat this as first-frame truth.
+	if metadata := geminiResponse.GetUsageMetadata(); dto.HasGeminiUsageMetadataTokens(metadata) {
+		response.Usage = UsageFromGeminiMetadata(metadata, 0)
+	}
 	return &response, isStop
 }
 
