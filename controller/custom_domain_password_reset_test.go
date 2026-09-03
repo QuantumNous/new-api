@@ -23,22 +23,28 @@ func TestPasswordResetReturnDispatcherUsesSignedCustomDomainOrMainFallback(t *te
 	previousDB := model.DB
 	previousDatabaseType := common.MainDatabaseType()
 	previousSecret := common.SessionSecret
+	previousEnabled := common.CustomDomainEnabled
 	previousSuffix := common.CustomDomainSuffix
 	previousMainOrigin := common.CustomDomainMainOrigin
+	previousMainOrigins := common.CustomDomainMainOrigins
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.CustomDomain{}))
 	model.DB = db
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	common.SessionSecret = "reset-dispatcher-test-secret"
+	common.CustomDomainEnabled = true
 	common.CustomDomainSuffix = "yeschoy.io"
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro"}
 	t.Cleanup(func() {
 		model.DB = previousDB
 		common.SetMainDatabaseType(previousDatabaseType)
 		common.SessionSecret = previousSecret
+		common.CustomDomainEnabled = previousEnabled
 		common.CustomDomainSuffix = previousSuffix
 		common.CustomDomainMainOrigin = previousMainOrigin
+		common.CustomDomainMainOrigins = previousMainOrigins
 	})
 
 	owner := model.User{Username: "reset-dispatcher-owner", AffCode: "reset-dispatcher-aff", Status: common.UserStatusEnabled}
@@ -48,7 +54,14 @@ func TestPasswordResetReturnDispatcherUsesSignedCustomDomainOrMainFallback(t *te
 	domain, err = model.EnableCustomDomain(domain.Label)
 	require.NoError(t, err)
 
-	settings, err := common.ParseCustomDomainSettings("true", "yeschoy.io", "https://yeschoy.com", "5", "")
+	settings, err := common.ParseCustomDomainSettingsWithMainOrigins(
+		"true",
+		"yeschoy.io",
+		"https://yeschoy.com",
+		"https://yeschoy.com,https://yeschoy.pro",
+		"5",
+		"",
+	)
 	require.NoError(t, err)
 	resolver, err := service.NewCustomDomainResolver(settings)
 	require.NoError(t, err)
@@ -81,4 +94,17 @@ func TestPasswordResetReturnDispatcherUsesSignedCustomDomainOrMainFallback(t *te
 
 	response = requestDispatcher("forged")
 	assert.Equal(t, http.StatusBadRequest, response.Code)
+
+	peerContext, err := service.CreatePasswordResetReturnContext(0, "yeschoy.pro", email, token, time.Now().Add(time.Minute))
+	require.NoError(t, err)
+	response = requestDispatcher(peerContext)
+	require.Equal(t, http.StatusFound, response.Code)
+	assert.Equal(t, "https://yeschoy.pro/user/reset?email=user%40example.com&token=reset-token", response.Header().Get("Location"))
+
+	query := url.Values{"email": {email}, "token": {token}, "context": {peerContext}}
+	request := httptest.NewRequest(http.MethodGet, "https://yeschoy.pro/api/reset_password/return?"+query.Encode(), nil)
+	request.Host = "yeschoy.pro"
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusNotFound, response.Code)
 }

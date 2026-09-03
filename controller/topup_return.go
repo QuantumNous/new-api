@@ -7,7 +7,6 @@ import (
 
 	"github.com/Calcium-Ion/go-epay/epay"
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
@@ -15,7 +14,7 @@ import (
 
 func StripeBrowserReturn(c *gin.Context) {
 	setTopUpReturnNoStore(c)
-	if !isMainDomainCallback(c) {
+	if !isCustomDomainCallbackRequest(c) {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
@@ -39,7 +38,7 @@ func StripeBrowserReturn(c *gin.Context) {
 
 func EpayBrowserReturn(c *gin.Context) {
 	setTopUpReturnNoStore(c)
-	if !isMainDomainCallback(c) {
+	if !isCustomDomainCallbackRequest(c) {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
@@ -98,11 +97,6 @@ func epayNotifyURL() string {
 		return fixedPaymentReturnPath("/api/user/epay/notify")
 	}
 	return strings.TrimRight(service.GetCallbackAddress(), "/") + "/api/user/epay/notify"
-}
-
-func isMainDomainCallback(c *gin.Context) bool {
-	context, found := middleware.GetCustomDomainContext(c)
-	return !found || context.Kind == service.CustomDomainKindMain
 }
 
 func setTopUpReturnNoStore(c *gin.Context) {

@@ -13,9 +13,13 @@ import (
 func DomainOAuthHandoffBridge(c *gin.Context) {
 	domainContext, found := middleware.GetCustomDomainContext(c)
 	mode := c.Query("mode")
-	allowedCustom := domainContext.Kind == service.CustomDomainKindCustom || domainContext.Kind == service.CustomDomainKindDisabled
-	allowedMainFallback := domainContext.Kind == service.CustomDomainKindMain && mode == "fallback"
-	if !found || (!allowedCustom && !allowedMainFallback) {
+	allowedPromotionTarget := (domainContext.Kind == service.CustomDomainKindCustom ||
+		domainContext.Kind == service.CustomDomainKindDisabled) && mode != "fallback"
+	allowedPeerMainTarget := domainContext.Kind == service.CustomDomainKindMain &&
+		!domainContext.IsCallbackHost && mode != "fallback"
+	allowedCallbackFallback := domainContext.Kind == service.CustomDomainKindMain &&
+		domainContext.IsCallbackHost && mode == "fallback"
+	if !found || (!allowedPromotionTarget && !allowedPeerMainTarget && !allowedCallbackFallback) {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}

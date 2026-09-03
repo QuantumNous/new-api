@@ -20,12 +20,13 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestPaymentReturnURLUsesOnlyAStoredCurrentlyActiveCustomDomain(t *testing.T) {
+func TestPaymentReturnURLUsesOnlyAStoredTrustedOrigin(t *testing.T) {
 	previousDB := model.DB
 	previousDatabaseType := common.MainDatabaseType()
 	previousEnabled := common.CustomDomainEnabled
 	previousSuffix := common.CustomDomainSuffix
 	previousMainOrigin := common.CustomDomainMainOrigin
+	previousMainOrigins := common.CustomDomainMainOrigins
 	previousServerAddress := system_setting.ServerAddress
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -35,6 +36,7 @@ func TestPaymentReturnURLUsesOnlyAStoredCurrentlyActiveCustomDomain(t *testing.T
 	common.CustomDomainEnabled = true
 	common.CustomDomainSuffix = "yeschoy.io"
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://future.example"}
 	system_setting.ServerAddress = "https://legacy-main.example.com"
 	t.Cleanup(func() {
 		model.DB = previousDB
@@ -42,6 +44,7 @@ func TestPaymentReturnURLUsesOnlyAStoredCurrentlyActiveCustomDomain(t *testing.T
 		common.CustomDomainEnabled = previousEnabled
 		common.CustomDomainSuffix = previousSuffix
 		common.CustomDomainMainOrigin = previousMainOrigin
+		common.CustomDomainMainOrigins = previousMainOrigins
 		system_setting.ServerAddress = previousServerAddress
 	})
 
@@ -51,7 +54,14 @@ func TestPaymentReturnURLUsesOnlyAStoredCurrentlyActiveCustomDomain(t *testing.T
 	require.NoError(t, err)
 	_, err = model.EnableCustomDomain(domain.Label)
 	require.NoError(t, err)
-	settings, err := common.ParseCustomDomainSettings("true", "yeschoy.io", "https://yeschoy.com", "5", "")
+	settings, err := common.ParseCustomDomainSettingsWithMainOrigins(
+		"true",
+		"yeschoy.io",
+		"https://yeschoy.com",
+		"https://yeschoy.com,https://yeschoy.pro",
+		"5",
+		"",
+	)
 	require.NoError(t, err)
 	resolver, err := service.NewCustomDomainResolver(settings)
 	require.NoError(t, err)
@@ -71,8 +81,17 @@ func TestPaymentReturnURLUsesOnlyAStoredCurrentlyActiveCustomDomain(t *testing.T
 	require.Equal(t, http.StatusNoContent, response.Code)
 	assert.Equal(t, "alpha.yeschoy.io", capturedOrigin)
 
+	request = httptest.NewRequest(http.MethodGet, "https://yeschoy.pro/origin", nil)
+	request.Host = "yeschoy.pro"
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(t, http.StatusNoContent, response.Code)
+	assert.Equal(t, "yeschoy.pro", capturedOrigin)
+
 	topUp := &model.TopUp{OriginHost: "alpha.yeschoy.io"}
 	assert.Equal(t, "https://alpha.yeschoy.io/usage-logs", paymentReturnURLForTopUp(topUp, "/usage-logs"))
+	assert.Equal(t, "https://yeschoy.pro/usage-logs", paymentReturnURLForTopUp(&model.TopUp{OriginHost: "yeschoy.pro"}, "/usage-logs"))
+	assert.Equal(t, "https://future.example/wallet", paymentReturnURLForTopUp(&model.TopUp{OriginHost: "future.example"}, "/wallet"))
 
 	_, err = model.DisableCustomDomain(domain.Label)
 	require.NoError(t, err)
@@ -86,6 +105,7 @@ func TestStripeBrowserReturnNavigatesFromStoredOrderWithoutCrediting(t *testing.
 	previousEnabled := common.CustomDomainEnabled
 	previousSuffix := common.CustomDomainSuffix
 	previousMainOrigin := common.CustomDomainMainOrigin
+	previousMainOrigins := common.CustomDomainMainOrigins
 	previousServerAddress := system_setting.ServerAddress
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -95,6 +115,7 @@ func TestStripeBrowserReturnNavigatesFromStoredOrderWithoutCrediting(t *testing.
 	common.CustomDomainEnabled = true
 	common.CustomDomainSuffix = "yeschoy.io"
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro"}
 	system_setting.ServerAddress = "https://yeschoy.com"
 	t.Cleanup(func() {
 		model.DB = previousDB
@@ -102,6 +123,7 @@ func TestStripeBrowserReturnNavigatesFromStoredOrderWithoutCrediting(t *testing.
 		common.CustomDomainEnabled = previousEnabled
 		common.CustomDomainSuffix = previousSuffix
 		common.CustomDomainMainOrigin = previousMainOrigin
+		common.CustomDomainMainOrigins = previousMainOrigins
 		system_setting.ServerAddress = previousServerAddress
 	})
 
@@ -115,8 +137,19 @@ func TestStripeBrowserReturnNavigatesFromStoredOrderWithoutCrediting(t *testing.
 		UserId: 99, TradeNo: "stripe-return-order", PaymentProvider: model.PaymentProviderStripe,
 		PaymentMethod: model.PaymentMethodStripe, Status: common.TopUpStatusPending, OriginHost: "alpha.yeschoy.io",
 	}).Error)
+	require.NoError(t, db.Create(&model.TopUp{
+		UserId: 99, TradeNo: "stripe-peer-main-order", PaymentProvider: model.PaymentProviderStripe,
+		PaymentMethod: model.PaymentMethodStripe, Status: common.TopUpStatusPending, OriginHost: "yeschoy.pro",
+	}).Error)
 
-	settings, err := common.ParseCustomDomainSettings("true", "yeschoy.io", "https://yeschoy.com", "5", "")
+	settings, err := common.ParseCustomDomainSettingsWithMainOrigins(
+		"true",
+		"yeschoy.io",
+		"https://yeschoy.com",
+		"https://yeschoy.com,https://yeschoy.pro",
+		"5",
+		"",
+	)
 	require.NoError(t, err)
 	resolver, err := service.NewCustomDomainResolver(settings)
 	require.NoError(t, err)
@@ -140,9 +173,22 @@ func TestStripeBrowserReturnNavigatesFromStoredOrderWithoutCrediting(t *testing.
 		assert.Equal(t, test.expected, response.Header().Get("Location"))
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "https://yeschoy.com/api/stripe/return?trade_no=missing&result=success", nil)
+	request := httptest.NewRequest(http.MethodGet, "https://yeschoy.com/api/stripe/return?trade_no=stripe-peer-main-order&result=success", nil)
 	request.Host = "yeschoy.com"
 	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(t, http.StatusFound, response.Code)
+	assert.Equal(t, "https://yeschoy.pro/usage-logs", response.Header().Get("Location"))
+
+	request = httptest.NewRequest(http.MethodGet, "https://yeschoy.pro/api/stripe/return?trade_no=stripe-return-order&result=success", nil)
+	request.Host = "yeschoy.pro"
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusNotFound, response.Code)
+
+	request = httptest.NewRequest(http.MethodGet, "https://yeschoy.com/api/stripe/return?trade_no=missing&result=success", nil)
+	request.Host = "yeschoy.com"
+	response = httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	assert.Equal(t, http.StatusNotFound, response.Code)
 }
@@ -181,6 +227,43 @@ func TestStripeCheckoutReturnURLsIgnoreClientTargetsForACustomDomain(t *testing.
 	common.CustomDomainEnabled = false
 	assert.Equal(t, "https://legacy-main.example.com/api/user/epay/return", epayBrowserReturnURL())
 	assert.Equal(t, "https://legacy-callback.example.com/api/user/epay/notify", epayNotifyURL())
+}
+
+func TestWalletWebhooksAcceptOnlyTheConfiguredCallbackMainHost(t *testing.T) {
+	previousEnabled := common.CustomDomainEnabled
+	previousMainOrigin := common.CustomDomainMainOrigin
+	previousMainOrigins := common.CustomDomainMainOrigins
+	common.CustomDomainEnabled = true
+	common.CustomDomainMainOrigin = "https://yeschoy.com"
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro"}
+	t.Cleanup(func() {
+		common.CustomDomainEnabled = previousEnabled
+		common.CustomDomainMainOrigin = previousMainOrigin
+		common.CustomDomainMainOrigins = previousMainOrigins
+	})
+	settings, err := common.ParseCustomDomainSettingsWithMainOrigins(
+		"true",
+		"yeschoy.io",
+		"https://yeschoy.com",
+		"https://yeschoy.com,https://yeschoy.pro",
+		"5",
+		"",
+	)
+	require.NoError(t, err)
+	resolver, err := service.NewCustomDomainResolver(settings)
+	require.NoError(t, err)
+	router := gin.New()
+	router.Use(middleware.CustomDomainContextWithResolver(resolver, true))
+	router.POST("/api/stripe/webhook", StripeWebhook)
+	router.POST("/api/user/epay/notify", EpayNotify)
+
+	for _, path := range []string{"/api/stripe/webhook", "/api/user/epay/notify"} {
+		request := httptest.NewRequest(http.MethodPost, "https://yeschoy.pro"+path, nil)
+		request.Host = "yeschoy.pro"
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusNotFound, response.Code)
+	}
 }
 
 func TestEpayBrowserReturnVerifiesSettlesOnceAndReturnsToTheStoredDomain(t *testing.T) {

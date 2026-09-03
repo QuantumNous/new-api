@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestDomainOAuthHandoffBridgeIsCustomOnlyNoStoreAndSelfContained(t *testing.T) {
+func TestDomainOAuthHandoffBridgeAllowsPromotionAndPeerMainTargetsOnly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	previousDB := model.DB
 	previousDatabaseType := common.MainDatabaseType()
@@ -36,7 +36,14 @@ func TestDomainOAuthHandoffBridgeIsCustomOnlyNoStoreAndSelfContained(t *testing.
 	require.NoError(t, err)
 	_, err = model.EnableCustomDomain(domain.Label)
 	require.NoError(t, err)
-	settings, err := common.ParseCustomDomainSettings("true", "yeschoy.io", "https://yeschoy.com", "5", "")
+	settings, err := common.ParseCustomDomainSettingsWithMainOrigins(
+		"true",
+		"yeschoy.io",
+		"https://yeschoy.com",
+		"https://yeschoy.com,https://yeschoy.pro,https://future.example",
+		"5",
+		"",
+	)
 	require.NoError(t, err)
 	resolver, err := service.NewCustomDomainResolver(settings)
 	require.NoError(t, err)
@@ -64,8 +71,28 @@ func TestDomainOAuthHandoffBridgeIsCustomOnlyNoStoreAndSelfContained(t *testing.
 	assert.NotContains(t, response.Body.String(), "<script src=")
 	assert.NotContains(t, response.Body.String(), "analytics")
 
+	for _, host := range []string{"yeschoy.pro", "future.example"} {
+		request = httptest.NewRequest(http.MethodGet, "https://"+host+"/oauth/handoff", nil)
+		request.Host = host
+		response = httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusOK, response.Code)
+	}
+
 	request = httptest.NewRequest(http.MethodGet, "https://yeschoy.com/oauth/handoff", nil)
 	request.Host = "yeschoy.com"
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusNotFound, response.Code)
+
+	request = httptest.NewRequest(http.MethodGet, "https://yeschoy.com/oauth/handoff?mode=fallback", nil)
+	request.Host = "yeschoy.com"
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusOK, response.Code)
+
+	request = httptest.NewRequest(http.MethodGet, "https://yeschoy.pro/oauth/handoff?mode=fallback", nil)
+	request.Host = "yeschoy.pro"
 	response = httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	assert.Equal(t, http.StatusNotFound, response.Code)

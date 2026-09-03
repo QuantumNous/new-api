@@ -57,7 +57,14 @@ func TestRegisterOnCustomDomainUsesDomainOwnerOnlyWhenAffIsEmpty(t *testing.T) {
 	_, err = model.EnableCustomDomain(domain.Label)
 	require.NoError(t, err)
 
-	settings, err := common.ParseCustomDomainSettings("true", "yeschoy.io", "https://yeschoy.com", "5", "")
+	settings, err := common.ParseCustomDomainSettingsWithMainOrigins(
+		"true",
+		"yeschoy.io",
+		"https://yeschoy.com",
+		"https://yeschoy.com,https://yeschoy.pro",
+		"5",
+		"",
+	)
 	require.NoError(t, err)
 	resolver, err := service.NewCustomDomainResolver(settings)
 	require.NoError(t, err)
@@ -88,4 +95,14 @@ func TestRegisterOnCustomDomainUsesDomainOwnerOnlyWhenAffIsEmpty(t *testing.T) {
 			assert.Equal(t, test.expectedInviter, stored.InviterId)
 		})
 	}
+
+	request := httptest.NewRequest(http.MethodPost, "https://yeschoy.pro/api/user/register", strings.NewReader("{\"username\":\"peer-main-user\",\"password\":\"password123\"}"))
+	request.Host = "yeschoy.pro"
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code)
+	var peerMainUser model.User
+	require.NoError(t, db.Where("username = ?", "peer-main-user").First(&peerMainUser).Error)
+	assert.Zero(t, peerMainUser.InviterId)
 }

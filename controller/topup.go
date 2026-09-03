@@ -391,6 +391,10 @@ func UnlockOrder(tradeNo string) {
 }
 
 func EpayNotify(c *gin.Context) {
+	if !isCustomDomainCallbackRequest(c) {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
 	if !isEpayWebhookEnabled() {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("易支付 webhook 被拒绝 reason=webhook_disabled path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
 		_, _ = c.Writer.Write([]byte("fail"))

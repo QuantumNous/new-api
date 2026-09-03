@@ -166,6 +166,10 @@ func RequestStripePay(c *gin.Context) {
 
 func StripeWebhook(c *gin.Context) {
 	ctx := c.Request.Context()
+	if !isCustomDomainCallbackRequest(c) {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
 	if !isStripeWebhookEnabled() {
 		logger.LogWarn(ctx, fmt.Sprintf("Stripe webhook 被拒绝 reason=webhook_disabled path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
 		c.AbortWithStatus(http.StatusForbidden)

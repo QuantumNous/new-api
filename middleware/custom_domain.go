@@ -18,13 +18,7 @@ func CustomDomainContext() gin.HandlerFunc {
 	if !common.CustomDomainEnabled {
 		return func(c *gin.Context) { c.Next() }
 	}
-	resolver, err := service.NewCustomDomainResolver(common.CustomDomainSettings{
-		Enabled:         common.CustomDomainEnabled,
-		Suffix:          common.CustomDomainSuffix,
-		MainOrigin:      common.CustomDomainMainOrigin,
-		CacheTTLSeconds: common.CustomDomainCacheTTLSeconds,
-		ReservedLabels:  common.CustomDomainReservedLabels,
-	})
+	resolver, err := service.NewRuntimeCustomDomainResolver()
 	if err != nil {
 		common.SysError("custom domain configuration is invalid: " + err.Error())
 		return func(c *gin.Context) { c.AbortWithStatus(http.StatusServiceUnavailable) }

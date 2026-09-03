@@ -15,10 +15,10 @@ import (
 )
 
 // PasswordResetReturnDispatcher is intentionally served only from the fixed
-// main host. It validates a server-signed reset return context before moving
-// the browser to the original custom-domain reset page.
+// callback host. It validates a server-signed reset return context before
+// moving the browser to the original peer-main or promotion-domain reset page.
 func PasswordResetReturnDispatcher(c *gin.Context) {
-	if domainContext, found := middleware.GetCustomDomainContext(c); found && domainContext.Kind != service.CustomDomainKindMain {
+	if !isCustomDomainCallbackRequest(c) {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
@@ -53,12 +53,18 @@ func invalidPasswordResetReturnContext(c *gin.Context) {
 
 func passwordResetEmailLink(c *gin.Context, email, token string) string {
 	query := url.Values{"email": {email}, "token": {token}}
-	if domainContext, found := middleware.GetCustomDomainContext(c); found && domainContext.Kind == service.CustomDomainKindCustom {
+	if domainContext, found := middleware.GetCustomDomainContext(c); found &&
+		(domainContext.Kind == service.CustomDomainKindCustom ||
+			(domainContext.Kind == service.CustomDomainKindMain && !domainContext.IsCallbackHost)) {
 		expiresAt := time.Now().Add(time.Duration(common.VerificationValidMinutes) * time.Minute)
 		if returnContext, err := service.CreatePasswordResetReturnContext(domainContext.DomainID, domainContext.Host, email, token, expiresAt); err == nil {
 			query.Set("context", returnContext)
 			return strings.TrimRight(common.CustomDomainMainOrigin, "/") + "/api/reset_password/return?" + query.Encode()
 		}
 	}
-	return strings.TrimRight(system_setting.ServerAddress, "/") + "/user/reset?" + query.Encode()
+	baseOrigin := system_setting.ServerAddress
+	if common.CustomDomainEnabled {
+		baseOrigin = common.CustomDomainMainOrigin
+	}
+	return strings.TrimRight(baseOrigin, "/") + "/user/reset?" + query.Encode()
 }

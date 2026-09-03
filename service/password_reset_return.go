@@ -25,26 +25,26 @@ type passwordResetReturnPayload struct {
 	ExpiresAt int64  `json:"expires_at"`
 }
 
-// CreatePasswordResetReturnContext signs the verified custom-domain source of
-// a reset link. The email and token remain outside the payload but are bound
-// through a purpose-separated HMAC, preventing copied contexts from being
-// attached to another reset request.
+// CreatePasswordResetReturnContext signs a verified peer-main or promotion
+// source. The email and token remain outside the payload but are bound through
+// a purpose-separated HMAC, preventing copied contexts from being attached to
+// another reset request.
 func CreatePasswordResetReturnContext(domainID int64, host, email, token string, expiresAt time.Time) (string, error) {
-	if domainID <= 0 || token == "" || expiresAt.IsZero() || !expiresAt.After(time.Now()) {
+	if domainID < 0 || token == "" || expiresAt.IsZero() || !expiresAt.After(time.Now()) {
 		return "", ErrPasswordResetReturnInvalid
 	}
-	domain, err := model.GetCustomDomainByID(domainID)
-	if err != nil || !domain.Enabled {
+	resolver, err := NewRuntimeCustomDomainResolver()
+	if err != nil {
 		return "", ErrPasswordResetReturnInvalid
 	}
-	expectedHost := customDomainHost(domain)
-	if !constantTimeEqual(strings.ToLower(strings.TrimSpace(host)), expectedHost) {
+	context, err := resolver.ResolveStoredOrigin(domainID, host)
+	if err != nil || (context.Kind != CustomDomainKindMain && context.Kind != CustomDomainKindCustom) {
 		return "", ErrPasswordResetReturnInvalid
 	}
 
 	payloadBytes, err := common.Marshal(passwordResetReturnPayload{
-		DomainID:  domain.Id,
-		Host:      expectedHost,
+		DomainID:  domainID,
+		Host:      context.Host,
 		ExpiresAt: expiresAt.Unix(),
 	})
 	if err != nil {
@@ -60,8 +60,8 @@ func CreatePasswordResetReturnContext(domainID int64, host, email, token string,
 }
 
 // ResolvePasswordResetReturnContext returns an active destination Host. A
-// valid context for a domain that has since been disabled is intentionally not
-// an error: callers must fall back to the fixed main site.
+// valid context for an origin that is no longer allowed is intentionally not
+// an error: callers must fall back to the fixed callback site.
 func ResolvePasswordResetReturnContext(raw, email, token string, now time.Time) (string, bool, error) {
 	parts := strings.Split(raw, ".")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" || token == "" {
@@ -80,21 +80,27 @@ func ResolvePasswordResetReturnContext(raw, email, token string, now time.Time) 
 		return "", false, ErrPasswordResetReturnInvalid
 	}
 	var payload passwordResetReturnPayload
-	if err := common.Unmarshal(payloadBytes, &payload); err != nil || payload.DomainID <= 0 || payload.Host == "" || payload.ExpiresAt <= 0 {
+	if err := common.Unmarshal(payloadBytes, &payload); err != nil || payload.DomainID < 0 || payload.Host == "" || payload.ExpiresAt <= 0 {
 		return "", false, ErrPasswordResetReturnInvalid
 	}
 	if !time.Unix(payload.ExpiresAt, 0).After(now) {
 		return "", false, ErrPasswordResetReturnExpired
 	}
-	domain, err := model.GetCustomDomainByID(payload.DomainID)
-	if err != nil || !domain.Enabled {
+	resolver, err := NewRuntimeCustomDomainResolver()
+	if err != nil {
+		return "", false, err
+	}
+	context, err := resolver.ResolveStoredOrigin(payload.DomainID, payload.Host)
+	if err == ErrCustomDomainOriginInvalid || context.Kind == CustomDomainKindDisabled {
 		return "", false, nil
 	}
-	expectedHost := customDomainHost(domain)
-	if !constantTimeEqual(payload.Host, expectedHost) {
-		return "", false, ErrPasswordResetReturnInvalid
+	if err != nil {
+		return "", false, err
 	}
-	return expectedHost, true, nil
+	if context.Kind != CustomDomainKindMain && context.Kind != CustomDomainKindCustom {
+		return "", false, nil
+	}
+	return context.Host, true, nil
 }
 
 func passwordResetReturnBinding(email, token string) string {
@@ -102,10 +108,6 @@ func passwordResetReturnBinding(email, token string) string {
 		[]byte(passwordResetReturnPurpose+":binding:"+common.SessionSecret),
 		model.NormalizeEmail(email)+"\x00"+token,
 	)
-}
-
-func customDomainHost(domain *model.CustomDomain) string {
-	return strings.ToLower(domain.Label + "." + common.CustomDomainSuffix)
 }
 
 func constantTimeEqual(left, right string) bool {

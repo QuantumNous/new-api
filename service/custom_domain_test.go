@@ -34,17 +34,20 @@ func TestCustomDomainResolverClassifiesOnlyTrustedHosts(t *testing.T) {
 	_, err = model.CreateCustomDomain("disabled", owner.Id)
 	require.NoError(t, err)
 
-	settings, err := common.ParseCustomDomainSettings("true", "yeschoy.io", "https://yeschoy.com", "5", "")
+	settings, err := common.ParseCustomDomainSettingsWithMainOrigins("true", "yeschoy.io", "https://yeschoy.com", "https://yeschoy.com,https://yeschoy.pro,https://future.example", "5", "")
 	require.NoError(t, err)
 	resolver, err := NewCustomDomainResolver(settings)
 	require.NoError(t, err)
 
 	tests := []struct {
-		name string
-		host string
-		kind CustomDomainKind
+		name           string
+		host           string
+		kind           CustomDomainKind
+		isCallbackHost bool
 	}{
-		{name: "main host with standard port", host: "yeschoy.com:443", kind: CustomDomainKindMain},
+		{name: "callback main host with standard port", host: "yeschoy.com:443", kind: CustomDomainKindMain, isCallbackHost: true},
+		{name: "peer main host", host: "yeschoy.pro", kind: CustomDomainKindMain},
+		{name: "future peer main host", host: "FUTURE.EXAMPLE.", kind: CustomDomainKindMain},
 		{name: "apex is rejected", host: "yeschoy.io", kind: CustomDomainKindApex},
 		{name: "active custom host", host: "ALPHA.yeschoy.io.", kind: CustomDomainKindCustom},
 		{name: "disabled custom host", host: "disabled.yeschoy.io", kind: CustomDomainKindDisabled},
@@ -57,6 +60,7 @@ func TestCustomDomainResolverClassifiesOnlyTrustedHosts(t *testing.T) {
 			context, err := resolver.ResolveHost(test.host)
 			require.NoError(t, err)
 			assert.Equal(t, test.kind, context.Kind)
+			assert.Equal(t, test.isCallbackHost, context.IsCallbackHost)
 		})
 	}
 
@@ -75,6 +79,73 @@ func TestCustomDomainResolverRejectsMainOriginInsideTheCustomDomainSuffix(t *tes
 		ReservedLabels:  map[string]struct{}{},
 	})
 	assert.Error(t, err)
+}
+
+func TestCustomDomainResolverValidatesStoredMainAndPromotionOrigins(t *testing.T) {
+	previousDB := model.DB
+	previousDatabaseType := common.MainDatabaseType()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.CustomDomain{}))
+	model.DB = db
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
+	t.Cleanup(func() {
+		model.DB = previousDB
+		common.SetMainDatabaseType(previousDatabaseType)
+	})
+
+	owner := model.User{Username: "stored-origin-owner", AffCode: "stored-origin-aff", Status: common.UserStatusEnabled}
+	require.NoError(t, db.Create(&owner).Error)
+	domain, err := model.CreateCustomDomain("alpha", owner.Id)
+	require.NoError(t, err)
+	domain, err = model.EnableCustomDomain(domain.Label)
+	require.NoError(t, err)
+
+	settings, err := common.ParseCustomDomainSettingsWithMainOrigins(
+		"true",
+		"yeschoy.io",
+		"https://yeschoy.com",
+		"https://yeschoy.com,https://yeschoy.pro,https://future.example",
+		"5",
+		"",
+	)
+	require.NoError(t, err)
+	resolver, err := NewCustomDomainResolver(settings)
+	require.NoError(t, err)
+
+	for _, test := range []struct {
+		name     string
+		domainID int64
+		host     string
+		kind     CustomDomainKind
+	}{
+		{name: "peer main", host: "yeschoy.pro", kind: CustomDomainKindMain},
+		{name: "future peer main", host: "future.example", kind: CustomDomainKindMain},
+		{name: "promotion", domainID: domain.Id, host: "alpha.yeschoy.io", kind: CustomDomainKindCustom},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			context, err := resolver.ResolveStoredOrigin(test.domainID, test.host)
+			require.NoError(t, err)
+			assert.Equal(t, test.kind, context.Kind)
+			assert.Equal(t, test.host, context.Host)
+		})
+	}
+
+	for _, test := range []struct {
+		name     string
+		domainID int64
+		host     string
+	}{
+		{name: "main with promotion id", domainID: domain.Id, host: "yeschoy.pro"},
+		{name: "promotion without id", host: "alpha.yeschoy.io"},
+		{name: "promotion with wrong id", domainID: domain.Id + 1, host: "alpha.yeschoy.io"},
+		{name: "unknown main", host: "evil.example"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := resolver.ResolveStoredOrigin(test.domainID, test.host)
+			assert.ErrorIs(t, err, ErrCustomDomainOriginInvalid)
+		})
+	}
 }
 
 func TestCustomDomainResolverRechecksCachedDomainAfterItsTTL(t *testing.T) {

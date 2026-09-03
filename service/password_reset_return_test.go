@@ -57,3 +57,38 @@ func TestPasswordResetReturnContextBindsTheEmailTokenAndCurrentDomainState(t *te
 	assert.False(t, active)
 	assert.Empty(t, targetHost)
 }
+
+func TestPasswordResetReturnContextAllowsConfiguredPeerMainOrigins(t *testing.T) {
+	previousSecret := common.SessionSecret
+	previousEnabled := common.CustomDomainEnabled
+	previousSuffix := common.CustomDomainSuffix
+	previousMainOrigin := common.CustomDomainMainOrigin
+	previousMainOrigins := common.CustomDomainMainOrigins
+	common.SessionSecret = "peer-main-reset-return-secret"
+	common.CustomDomainEnabled = true
+	common.CustomDomainSuffix = "yeschoy.io"
+	common.CustomDomainMainOrigin = "https://yeschoy.com"
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://future.example"}
+	t.Cleanup(func() {
+		common.SessionSecret = previousSecret
+		common.CustomDomainEnabled = previousEnabled
+		common.CustomDomainSuffix = previousSuffix
+		common.CustomDomainMainOrigin = previousMainOrigin
+		common.CustomDomainMainOrigins = previousMainOrigins
+	})
+
+	now := time.Now()
+	for _, host := range []string{"yeschoy.pro", "future.example"} {
+		t.Run(host, func(t *testing.T) {
+			context, err := CreatePasswordResetReturnContext(0, host, "user@example.com", "reset-token", now.Add(10*time.Minute))
+			require.NoError(t, err)
+			targetHost, active, err := ResolvePasswordResetReturnContext(context, "user@example.com", "reset-token", now)
+			require.NoError(t, err)
+			assert.True(t, active)
+			assert.Equal(t, host, targetHost)
+		})
+	}
+
+	_, err := CreatePasswordResetReturnContext(0, "evil.example", "user@example.com", "reset-token", now.Add(10*time.Minute))
+	assert.ErrorIs(t, err, ErrPasswordResetReturnInvalid)
+}

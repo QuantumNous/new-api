@@ -31,18 +31,12 @@ func paymentReturnURLForTopUp(topUp *model.TopUp, suffix string) string {
 	if topUp == nil || strings.TrimSpace(topUp.OriginHost) == "" {
 		return fixedPaymentReturnPath(suffix)
 	}
-	resolver, err := service.NewCustomDomainResolver(common.CustomDomainSettings{
-		Enabled:         common.CustomDomainEnabled,
-		Suffix:          common.CustomDomainSuffix,
-		MainOrigin:      common.CustomDomainMainOrigin,
-		CacheTTLSeconds: common.CustomDomainCacheTTLSeconds,
-		ReservedLabels:  common.CustomDomainReservedLabels,
-	})
+	resolver, err := service.NewRuntimeCustomDomainResolver()
 	if err != nil {
 		return fixedPaymentReturnPath(suffix)
 	}
 	context, err := resolver.ResolveHost(topUp.OriginHost)
-	if err != nil || context.Kind != service.CustomDomainKindCustom {
+	if err != nil || (context.Kind != service.CustomDomainKindMain && context.Kind != service.CustomDomainKindCustom) {
 		return fixedPaymentReturnPath(suffix)
 	}
 	return "https://" + context.Host + suffix
@@ -50,8 +44,12 @@ func paymentReturnURLForTopUp(topUp *model.TopUp, suffix string) string {
 
 func topUpOriginHostFromContext(c *gin.Context) string {
 	context, found := middleware.GetCustomDomainContext(c)
-	if !found || context.Kind != service.CustomDomainKindCustom {
+	if !found {
 		return ""
 	}
-	return context.Host
+	if context.Kind == service.CustomDomainKindCustom ||
+		(context.Kind == service.CustomDomainKindMain && !context.IsCallbackHost) {
+		return context.Host
+	}
+	return ""
 }

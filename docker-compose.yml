@@ -58,10 +58,12 @@ services:
       SESSION_COOKIE_TRUSTED_URL: "${SESSION_COOKIE_TRUSTED_URL:-}"
 
       # 专属推广域名。保持默认关闭；启用时 SESSION_COOKIE_SECURE 必须为 true，
-      # 且 SESSION_COOKIE_TRUSTED_URL 必须包含 CUSTOM_DOMAIN_MAIN_ORIGIN。
+      # 且 SESSION_COOKIE_TRUSTED_URL 必须包含全部 CUSTOM_DOMAIN_MAIN_ORIGINS。
       CUSTOM_DOMAIN_ENABLED: "${CUSTOM_DOMAIN_ENABLED:-false}"
       CUSTOM_DOMAIN_SUFFIX: "${CUSTOM_DOMAIN_SUFFIX:-yeschoy.io}"
       CUSTOM_DOMAIN_MAIN_ORIGIN: "${CUSTOM_DOMAIN_MAIN_ORIGIN:-https://yeschoy.com}"
+      # 留空时应用自动回退为仅包含 CUSTOM_DOMAIN_MAIN_ORIGIN；多主域必须显式配置。
+      CUSTOM_DOMAIN_MAIN_ORIGINS: "${CUSTOM_DOMAIN_MAIN_ORIGINS:-}"
       CUSTOM_DOMAIN_CACHE_TTL_SECONDS: "${CUSTOM_DOMAIN_CACHE_TTL_SECONDS:-5}"
       CUSTOM_DOMAIN_RESERVED_LABELS: "${CUSTOM_DOMAIN_RESERVED_LABELS:-}"
 
@@ -93,7 +95,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget -q --header='Host: yeschoy.com' -O - http://127.0.0.1:3000/api/status | grep -Eq '\"success\"[[:space:]]*:[[:space:]]*true' || exit 1"
+          "set -eu; origins=\"$${CUSTOM_DOMAIN_MAIN_ORIGINS:-$${CUSTOM_DOMAIN_MAIN_ORIGIN}}\"; IFS=','; for origin in $$origins; do origin=\"$$(printf '%s' \"$$origin\" | sed 's/^[[:space:]]*//;s/[[:space:]]*$$//')\"; host=\"$${origin#https://}\"; host=\"$${host%/}\"; [ -n \"$$host\" ] && [ \"$$host\" != \"$$origin\" ] || exit 1; wget -q --header=\"Host: $$host\" -O - http://127.0.0.1:3000/api/status | grep -Eq '\"success\"[[:space:]]*:[[:space:]]*true' || exit 1; done"
         ]
       interval: 30s
       timeout: 10s

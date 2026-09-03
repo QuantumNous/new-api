@@ -78,6 +78,19 @@ Planning consequence: add only a signed, expiring return context and main-host d
 
 Planning consequence: persist canonical DomainContext Host in wallet TopUp only; keep notify/webhook on the main Host, make custom-origin browser returns server-generated, and never use browser return as the sole credit signal.
 
+## 2026-09-03 multi-main-domain bug audit
+
+The implemented feature still has a single-main-origin assumption:
+
+- `common/custom_domain.go:30-43,56-88,91-129` stores and validates only one `MainOrigin`; startup only requires that one origin in `SESSION_COOKIE_TRUSTED_URL`.
+- `service/custom_domain.go:35-38,59-104` reduces that origin to one `mainHost`; every other host outside `CUSTOM_DOMAIN_SUFFIX` is classified invalid. With the requested production values, enabling the feature therefore makes `yeschoy.pro` return `404`.
+- `controller/oauth.go:79-99` records `origin_host` and browser binding only when `domain_id > 0`, while `controller/domain_oauth_handoff.go:22-113` requires a positive custom-domain ID. A peer main host cannot currently return from the fixed `.com` OAuth callback to its own Host-only Session.
+- `controller/password_reset_return.go:54-63` and `service/password_reset_return.go:22-97` create/resolve signed return context only for a positive custom-domain ID, so `.pro` cannot be preserved through reset mail.
+- `controller/return_path.go:27-56` persists and resolves only active custom hosts for wallet returns; a `.pro` order falls back to `.com`.
+- `controller/topup_return.go:103-105` treats every configured main host as callback-capable once host resolution becomes plural. The fix must distinguish the single technical callback/fallback origin from the peer main-origin allowlist so browser/provider callbacks remain pinned to `.com`.
+
+Planning consequence: retain `CUSTOM_DOMAIN_MAIN_ORIGIN` as the single technical callback/fallback origin for backward compatibility, add a complete peer-main-origin allowlist, and generalize trusted-origin handoff/reset/payment validation to support either a configured main host (`domain_id=0`) or a live promotion host (`domain_id>0`). Main hosts remain equal application entries and keep independent Host-only Sessions.
+
 ## Migration, CLI and verification
 
 - `model/main.go:302-349` uses GORM `AutoMigrate` for primary models on the master node.

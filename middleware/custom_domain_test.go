@@ -38,7 +38,7 @@ func TestCustomDomainContextAllowsOnlyMainAndEnabledCustomHosts(t *testing.T) {
 	_, err = model.CreateCustomDomain("disabled", owner.Id)
 	require.NoError(t, err)
 
-	settings, err := common.ParseCustomDomainSettings("true", "yeschoy.io", "https://yeschoy.com", "5", "")
+	settings, err := common.ParseCustomDomainSettingsWithMainOrigins("true", "yeschoy.io", "https://yeschoy.com", "https://yeschoy.com,https://yeschoy.pro,https://future.example", "5", "")
 	require.NoError(t, err)
 	resolver, err := service.NewCustomDomainResolver(settings)
 	require.NoError(t, err)
@@ -65,6 +65,8 @@ func TestCustomDomainContextAllowsOnlyMainAndEnabledCustomHosts(t *testing.T) {
 		expectedKind   service.CustomDomainKind
 	}{
 		{name: "main", host: "yeschoy.com", expectedStatus: http.StatusOK, expectedKind: service.CustomDomainKindMain},
+		{name: "peer main", host: "yeschoy.pro", expectedStatus: http.StatusOK, expectedKind: service.CustomDomainKindMain},
+		{name: "future peer main", host: "future.example", expectedStatus: http.StatusOK, expectedKind: service.CustomDomainKindMain},
 		{name: "active custom", host: "alpha.yeschoy.io", expectedStatus: http.StatusOK, expectedKind: service.CustomDomainKindCustom},
 		{name: "apex", host: "yeschoy.io", expectedStatus: http.StatusNotFound},
 		{name: "disabled", host: "disabled.yeschoy.io", expectedStatus: http.StatusNotFound},

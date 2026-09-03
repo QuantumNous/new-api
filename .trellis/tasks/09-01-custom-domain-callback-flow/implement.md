@@ -1,8 +1,56 @@
-# 专属推广域名与回调链路实施计划
+# 多主域名、专属推广域名与回调链路实施计划
+
+## 当前执行增量：修复单主域假设
+
+原专属推广域实现已经在当前分支落地；本轮只实现 `.com`/`.pro` 平级主域支持及其跨域回程，不重做已完成的域名表、CLI、邀请归属和前端 bridge。以下清单优先于后文原始实施阶段。
+
+### A. 配置与 Host 分类（TDD）
+
+- 在 `common/custom_domain_test.go` 先增加失败测试：解析/规范化 `CUSTOM_DOMAIN_MAIN_ORIGINS=https://yeschoy.com,https://yeschoy.pro`，拒绝非 HTTPS、路径、推广 suffix 内 Host、callback origin 缺失；空复数配置兼容为单数 `CUSTOM_DOMAIN_MAIN_ORIGIN`。
+- 使用 table test 覆盖 1、2、3 个主域、大小写/默认端口归一化、重复 Host、超出数量上限与乱序输入；新增第三个合成主域后不得新增任何 Host 专用分支。
+- 验证启动时两个主 Origin 都必须存在于 `SESSION_COOKIE_TRUSTED_URL`；缺任一项 fail closed。
+- 在 `service/custom_domain_test.go` 与 `middleware/custom_domain_test.go` 先证明 `.com`、`.pro` 都是 `Main`，推广 apex/未知/嵌套仍为 `404`，伪造 forwarded host 不改变结果。
+- 增加同一 resolver 的并行矩阵：`.com`、`.pro`、A、B 同时可用；主域 `DomainID=0` 且无默认 inviter，A/B 保留各自 Domain ID、owner 归属与停用语义。
+- 扩展 `CustomDomainSettings` 与全局配置，resolver 使用主 Host 集合并保留单一 callback Host；Compose 与 `.env.example` 显式透传新变量。
+- 增加 callback-host 精确判断；OAuth callback、reset dispatcher、ePay return/notify 与 Stripe return/webhook 不能仅凭 `KindMain` 放行 `.pro`。
+
+### B. 统一受信来源解析（TDD）
+
+- 新增共享解析契约，输入 `domain_id + origin_host`：`domain_id=0` 只接受配置中的主 Host；正数 ID 继续按推广域记录、suffix 与 enabled 状态复核。
+- 所有返回目标只由 DomainContext、签名 AuthFlow 或订单字段产生，不接受客户端完整 URL。
+- 保持 `.com` 技术 fallback、推广域动态停用 fallback 与历史空字段兼容；主域移出静态 allowlist 后直接不可访问，不引入动态墓碑。
+
+### C. OAuth 登录与绑定（TDD）
+
+- 在 `controller/custom_domain_oauth_test.go` 增加 `.pro` state 用例：`domain_id=0`、`origin_host=yeschoy.pro`、browser-binding 已设置；`.com` 仍走原地 AuthBundle。
+- 增加 `.pro -> .com callback -> .pro handoff` 登录测试，覆盖正确 Host-only Cookie、重放、错 Host、错 binding、过期与 auth version 变化。
+- 覆盖 middleware cache 仍为 active、数据库已 disable 的竞态，确保消费端使用实时状态签发 `.com` fallback，而不是因 `Kind` 不一致返回 403。
+- 增加 `.pro` OAuth bind 测试，要求原 `.pro` user/session/opener 完成最终绑定；`.com` callback 不得静默写绑定。
+- 覆盖 provider disabled、token exchange、user info、注册策略、封禁用户、重复绑定与 handoff 签发失败；state 校验成功后必须用 typed action 返回可信原域，并保持各失败阶段既有的 state 消费时点。
+- 泛化 handoff payload/消费校验，使 Main target 使用 allowlist、Custom target 使用 Domain ID；保持现有 action 名与前端 fragment bridge 契约，避免不必要的前端协议变更。
+- OAuth、reset 与 payment 测试各增加一个第三主域样例，证明所有非 callback 主域复用同一 trusted-origin 路径，而不是只为 `.pro` 打补丁。
+- 回归 A/B 推广域登录、绑定、停用 fallback 与默认邀请归属，确保 `.pro` 不获得 owner/inviter 语义。
+
+### D. 密码重置与钱包回跳（TDD）
+
+- 为 `.pro` 增加签名 reset return context 测试：邮件先到 `.com` dispatcher，验证后回 `.pro`；篡改 Host/签名/过期失败。
+- 将 `ServerAddress` 与 callback Origin 设为不同值，证明功能开启时 `.com` 自身重置链接仍固定 `.com`，功能关闭才沿用 legacy 地址。
+- 泛化 reset payload 的 `domain_id` 为可选；主 Host 通过 allowlist 复核，推广域继续查表并检查 enabled。
+- 为 ePay 与 Stripe 增加 `.pro` 订单 `origin_host` 持久化及 browser return 测试；notify/webhook 仍固定 `.com` 且维持验签、幂等入账。
+- `topUpOriginHostFromContext` 保存非 callback 主 Host 与推广 Host；订单返回解析同时支持配置主 Host 和有效推广 Host，历史空值回 `.com`。
+
+### E. 范围、验证与回滚
+
+- 不修改 Passkey 数据模型、RP ID、凭据注册/登录或设置；不把推广子域开放给 Passkey。
+- 不修改订阅支付、用户/余额隔离、客户白标或生产 DNS/OAuth/支付配置。
+- 先运行受影响包测试与 race：`go test ./common ./service ./middleware ./controller`、`go test -race ./common ./service ./middleware ./controller`。
+- 再运行项目门禁：`make test`、`go vet ./...`、`go build ./...`、`cd relaykit && GOWORK=off go build ./...`；若前端协议未改，至少运行现有 OAuth bridge 单测、typecheck 与 build。
+- 渲染 `docker compose config`，确认 `CUSTOM_DOMAIN_MAIN_ORIGINS`、单数 callback origin 与 Session trusted origins 均进入容器；复数为空时 healthcheck 回退单数，显式 2/3 主域时逐个探测 Host。
+- 回滚只需移除复数配置并回退本轮代码；原单主域与推广域数据模型不变，无新增数据库迁移。
 
 ## 0. 执行前置门
 
-当前仓库已包含完整 New API fork；实施基线为 commit `d68bc3adb5e6766ebd1bd3bf610d8e8b2452a8db`，本地 `main...HEAD` 为 `0/0`。
+当前仓库已包含完整 New API fork，且原单推广域实现已提交。本轮实施基线以开始编码前的实际 `HEAD`/`git status` 为准；原始 commit `d68bc3adb5e6766ebd1bd3bf610d8e8b2452a8db` 仅保留为历史研究基线。
 
 进入 Phase 2 前必须完成：
 

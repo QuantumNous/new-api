@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -25,17 +26,19 @@ const (
 )
 
 type CustomDomainContext struct {
-	Kind        CustomDomainKind
-	Host        string
-	DomainID    int64
-	OwnerUserID int
-	Enabled     bool
+	Kind           CustomDomainKind
+	Host           string
+	DomainID       int64
+	OwnerUserID    int
+	Enabled        bool
+	IsCallbackHost bool
 }
 
 type CustomDomainResolver struct {
-	settings common.CustomDomainSettings
-	mainHost string
-	now      func() time.Time
+	settings     common.CustomDomainSettings
+	mainHosts    map[string]struct{}
+	callbackHost string
+	now          func() time.Time
 
 	cacheMu sync.RWMutex
 	cache   map[string]customDomainCacheEntry
@@ -48,8 +51,25 @@ type customDomainCacheEntry struct {
 
 const maximumCustomDomainCacheEntries = 1024
 
+// ErrCustomDomainOriginInvalid indicates that a stored Host/domain pair no
+// longer matches either a configured main origin or its promotion-domain row.
+var ErrCustomDomainOriginInvalid = errors.New("custom domain origin is invalid")
+
 func NewCustomDomainResolver(settings common.CustomDomainSettings) (*CustomDomainResolver, error) {
 	return NewCustomDomainResolverWithClock(settings, time.Now)
+}
+
+// NewRuntimeCustomDomainResolver builds the resolver from startup-normalized
+// settings shared by middleware and callback validation.
+func NewRuntimeCustomDomainResolver() (*CustomDomainResolver, error) {
+	return NewCustomDomainResolver(common.CustomDomainSettings{
+		Enabled:         common.CustomDomainEnabled,
+		Suffix:          common.CustomDomainSuffix,
+		MainOrigin:      common.CustomDomainMainOrigin,
+		MainOrigins:     common.CustomDomainMainOrigins,
+		CacheTTLSeconds: common.CustomDomainCacheTTLSeconds,
+		ReservedLabels:  common.CustomDomainReservedLabels,
+	})
 }
 
 func NewCustomDomainResolverWithClock(settings common.CustomDomainSettings, now func() time.Time) (*CustomDomainResolver, error) {
@@ -75,9 +95,36 @@ func NewCustomDomainResolverWithClock(settings common.CustomDomainSettings, now 
 			return nil, fmt.Errorf("custom domain suffix is invalid")
 		}
 	}
-	mainHost := strings.ToLower(parsedMainOrigin.Hostname())
-	if mainHost == suffix || strings.HasSuffix(mainHost, "."+suffix) {
-		return nil, fmt.Errorf("custom domain suffix is invalid")
+	callbackHost := strings.ToLower(parsedMainOrigin.Hostname())
+	mainOrigins := settings.MainOrigins
+	if len(mainOrigins) == 0 {
+		mainOrigins = []string{normalizedMainOrigin}
+	}
+	mainHosts := make(map[string]struct{}, len(mainOrigins))
+	normalizedMainOrigins := make([]string, 0, len(mainOrigins))
+	callbackFound := false
+	for _, rawOrigin := range mainOrigins {
+		origin, err := common.NormalizeOrigin(rawOrigin)
+		if err != nil {
+			return nil, fmt.Errorf("custom domain main origin is invalid")
+		}
+		parsedOrigin, err := url.Parse(origin)
+		if err != nil || parsedOrigin.Scheme != "https" || parsedOrigin.Hostname() == "" {
+			return nil, fmt.Errorf("custom domain main origin is invalid")
+		}
+		host := strings.ToLower(parsedOrigin.Hostname())
+		if host == suffix || strings.HasSuffix(host, "."+suffix) {
+			return nil, fmt.Errorf("custom domain suffix is invalid")
+		}
+		if _, found := mainHosts[host]; found {
+			return nil, fmt.Errorf("custom domain main origin host is duplicated")
+		}
+		mainHosts[host] = struct{}{}
+		normalizedMainOrigins = append(normalizedMainOrigins, origin)
+		callbackFound = callbackFound || origin == normalizedMainOrigin
+	}
+	if !callbackFound {
+		return nil, fmt.Errorf("custom domain callback origin is not a main origin")
 	}
 	if settings.CacheTTLSeconds < 1 {
 		return nil, fmt.Errorf("custom domain cache TTL is invalid")
@@ -87,11 +134,13 @@ func NewCustomDomainResolverWithClock(settings common.CustomDomainSettings, now 
 	}
 	settings.Suffix = suffix
 	settings.MainOrigin = normalizedMainOrigin
+	settings.MainOrigins = normalizedMainOrigins
 	return &CustomDomainResolver{
-		settings: settings,
-		mainHost: mainHost,
-		now:      now,
-		cache:    make(map[string]customDomainCacheEntry),
+		settings:     settings,
+		mainHosts:    mainHosts,
+		callbackHost: callbackHost,
+		now:          now,
+		cache:        make(map[string]customDomainCacheEntry),
 	}, nil
 }
 
@@ -100,8 +149,12 @@ func (resolver *CustomDomainResolver) ResolveHost(rawHost string) (CustomDomainC
 	if !ok {
 		return CustomDomainContext{Kind: CustomDomainKindInvalid}, nil
 	}
-	if host == resolver.mainHost {
-		return CustomDomainContext{Kind: CustomDomainKindMain, Host: host}, nil
+	if _, found := resolver.mainHosts[host]; found {
+		return CustomDomainContext{
+			Kind:           CustomDomainKindMain,
+			Host:           host,
+			IsCallbackHost: host == resolver.callbackHost,
+		}, nil
 	}
 	if host == resolver.settings.Suffix {
 		return CustomDomainContext{Kind: CustomDomainKindApex, Host: host}, nil
@@ -145,6 +198,24 @@ func (resolver *CustomDomainResolver) ResolveHost(rawHost string) (CustomDomainC
 	}
 	resolver.cacheContext(host, context)
 	return context, nil
+}
+
+// ResolveStoredOrigin verifies a persisted Host against either the peer-main
+// allowlist (domainID zero) or the matching promotion-domain row.
+func (resolver *CustomDomainResolver) ResolveStoredOrigin(domainID int64, rawHost string) (CustomDomainContext, error) {
+	context, err := resolver.ResolveHost(rawHost)
+	if err != nil {
+		return CustomDomainContext{}, err
+	}
+	if domainID == 0 && context.Kind == CustomDomainKindMain {
+		return context, nil
+	}
+	if domainID > 0 &&
+		(context.Kind == CustomDomainKindCustom || context.Kind == CustomDomainKindDisabled) &&
+		context.DomainID == domainID {
+		return context, nil
+	}
+	return CustomDomainContext{}, ErrCustomDomainOriginInvalid
 }
 
 func (resolver *CustomDomainResolver) cachedContext(host string) (CustomDomainContext, bool) {

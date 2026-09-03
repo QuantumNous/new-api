@@ -2,7 +2,6 @@ package controller
 
 import (
 	"crypto/subtle"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -50,12 +49,8 @@ func issueDomainLoginHandoff(c *gin.Context, userID int, providerName string, st
 	if statePayload.BrowserBindingHash == "" {
 		return false, nil
 	}
-	expectedHost, active, err := resolveCustomOAuthTarget(statePayload)
+	expectedHost, active, err := resolveOAuthReturnTarget(statePayload)
 	if err != nil || !active {
-		return false, err
-	}
-	domain, err := model.GetCustomDomainByID(statePayload.DomainID)
-	if err != nil {
 		return false, err
 	}
 	user, err := model.GetUserById(userID, false)
@@ -63,7 +58,7 @@ func issueDomainLoginHandoff(c *gin.Context, userID int, providerName string, st
 		return false, err
 	}
 	handoffPayload, err := common.Marshal(domainLoginHandoffPayload{
-		DomainID:            domain.Id,
+		DomainID:            statePayload.DomainID,
 		TargetHost:          expectedHost,
 		BrowserBindingHash:  statePayload.BrowserBindingHash,
 		ExpectedAuthVersion: user.AuthVersion,
@@ -95,22 +90,28 @@ func issueDomainLoginHandoff(c *gin.Context, userID int, providerName string, st
 	return true, nil
 }
 
-func resolveCustomOAuthTarget(statePayload oauthFlowPayload) (string, bool, error) {
-	if statePayload.DomainID <= 0 || statePayload.OriginHost == "" {
+func resolveOAuthReturnTarget(statePayload oauthFlowPayload) (string, bool, error) {
+	if statePayload.DomainID < 0 || statePayload.OriginHost == "" {
 		return "", false, nil
 	}
-	domain, err := model.GetCustomDomainByID(statePayload.DomainID)
+	resolver, err := service.NewRuntimeCustomDomainResolver()
 	if err != nil {
-		if errors.Is(err, model.ErrCustomDomainNotFound) {
+		return "", false, err
+	}
+	context, err := resolver.ResolveStoredOrigin(statePayload.DomainID, statePayload.OriginHost)
+	if err != nil {
+		if err == service.ErrCustomDomainOriginInvalid {
 			return "", false, nil
 		}
 		return "", false, err
 	}
-	expectedHost := strings.ToLower(domain.Label + "." + common.CustomDomainSuffix)
-	if subtle.ConstantTimeCompare([]byte(statePayload.OriginHost), []byte(expectedHost)) != 1 {
+	if context.Kind == service.CustomDomainKindDisabled {
+		return context.Host, false, nil
+	}
+	if context.Kind != service.CustomDomainKindMain && context.Kind != service.CustomDomainKindCustom {
 		return "", false, nil
 	}
-	return expectedHost, domain.Enabled, nil
+	return context.Host, true, nil
 }
 
 func writeDomainBindReturn(c *gin.Context, targetHost, provider, result, message string) {
@@ -127,8 +128,36 @@ func writeDomainBindReturn(c *gin.Context, targetHost, provider, result, message
 	})
 }
 
+func writeOAuthFlowFailure(c *gin.Context, intent string, statePayload oauthFlowPayload, provider, result, message string) bool {
+	targetHost, active, err := resolveOAuthReturnTarget(statePayload)
+	if err != nil {
+		common.ApiError(c, err)
+		return true
+	}
+	if intent == model.AuthFlowIntentBind && targetHost != "" {
+		if !active {
+			result = "target_unavailable"
+		}
+		writeDomainBindReturn(c, targetHost, provider, result, message)
+		return true
+	}
+	if intent != model.AuthFlowIntentLogin || !active {
+		return false
+	}
+	setDomainHandoffNoStore(c)
+	c.JSON(http.StatusOK, gin.H{
+		"success": false,
+		"message": message,
+		"data": gin.H{
+			"action":        "domain_oauth_return",
+			"target_origin": "https://" + targetHost,
+		},
+	})
+	return true
+}
+
 func issueDomainBindHandoff(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser, pendingFlow *model.AuthFlow, statePayload oauthFlowPayload) error {
-	targetHost, active, err := resolveCustomOAuthTarget(statePayload)
+	targetHost, active, err := resolveOAuthReturnTarget(statePayload)
 	if err != nil {
 		return err
 	}
@@ -189,7 +218,10 @@ func issueDomainBindHandoff(c *gin.Context, provider oauth.Provider, oauthUser *
 func ConsumeDomainLoginHandoff(c *gin.Context) {
 	setDomainHandoffNoStore(c)
 	domainContext, found := middleware.GetCustomDomainContext(c)
-	if !found || (domainContext.Kind != service.CustomDomainKindCustom && domainContext.Kind != service.CustomDomainKindDisabled) {
+	allowedTarget := domainContext.Kind == service.CustomDomainKindCustom ||
+		domainContext.Kind == service.CustomDomainKindDisabled ||
+		(domainContext.Kind == service.CustomDomainKindMain && !domainContext.IsCallbackHost)
+	if !found || !allowedTarget {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
@@ -214,13 +246,17 @@ func ConsumeDomainLoginHandoff(c *gin.Context) {
 		return
 	}
 
-	domain, err := model.GetCustomDomainByID(payload.DomainID)
+	resolver, err := service.NewRuntimeCustomDomainResolver()
 	if err != nil {
 		writeInvalidDomainHandoff(c, http.StatusForbidden)
 		return
 	}
-	expectedHost := strings.ToLower(domain.Label + "." + common.CustomDomainSuffix)
-	if subtle.ConstantTimeCompare([]byte(payload.TargetHost), []byte(expectedHost)) != 1 {
+	targetContext, err := resolver.ResolveStoredOrigin(payload.DomainID, payload.TargetHost)
+	if err != nil ||
+		(targetContext.Kind != service.CustomDomainKindMain &&
+			targetContext.Kind != service.CustomDomainKindCustom &&
+			targetContext.Kind != service.CustomDomainKindDisabled) ||
+		subtle.ConstantTimeCompare([]byte(targetContext.Host), []byte(domainContext.Host)) != 1 {
 		writeInvalidDomainHandoff(c, http.StatusForbidden)
 		return
 	}
@@ -229,7 +265,7 @@ func ConsumeDomainLoginHandoff(c *gin.Context) {
 		writeInvalidDomainHandoff(c, http.StatusForbidden)
 		return
 	}
-	if !domain.Enabled {
+	if targetContext.Kind == service.CustomDomainKindDisabled {
 		if _, err := model.ConsumeAuthFlow(request.Ticket, model.AuthFlowMatch{
 			Purpose:  model.AuthFlowPurposeDomainLoginHandoff,
 			Provider: flow.Provider,
@@ -301,7 +337,9 @@ func ConsumeDomainBindHandoff(c *gin.Context) {
 	setDomainHandoffNoStore(c)
 	domainContext, found := middleware.GetCustomDomainContext(c)
 	identity, authenticated := middleware.GetSessionAuthIdentity(c)
-	if !found || domainContext.Kind != service.CustomDomainKindCustom || !authenticated {
+	allowedTarget := domainContext.Kind == service.CustomDomainKindCustom ||
+		(domainContext.Kind == service.CustomDomainKindMain && !domainContext.IsCallbackHost)
+	if !found || !allowedTarget || !authenticated {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
@@ -331,13 +369,15 @@ func ConsumeDomainBindHandoff(c *gin.Context) {
 		writeInvalidDomainBindHandoff(c, http.StatusForbidden)
 		return
 	}
-	domain, err := model.GetCustomDomainByID(payload.DomainID)
-	if err != nil || !domain.Enabled {
+	resolver, err := service.NewRuntimeCustomDomainResolver()
+	if err != nil {
 		writeInvalidDomainBindHandoff(c, http.StatusForbidden)
 		return
 	}
-	expectedHost := strings.ToLower(domain.Label + "." + common.CustomDomainSuffix)
-	if subtle.ConstantTimeCompare([]byte(payload.TargetHost), []byte(expectedHost)) != 1 {
+	targetContext, err := resolver.ResolveStoredOrigin(payload.DomainID, payload.TargetHost)
+	if err != nil ||
+		(targetContext.Kind != service.CustomDomainKindMain && targetContext.Kind != service.CustomDomainKindCustom) ||
+		subtle.ConstantTimeCompare([]byte(targetContext.Host), []byte(domainContext.Host)) != 1 {
 		writeInvalidDomainBindHandoff(c, http.StatusForbidden)
 		return
 	}
@@ -366,7 +406,7 @@ func ConsumeDomainBindHandoff(c *gin.Context) {
 
 func ConsumeDomainLoginFallback(c *gin.Context) {
 	setDomainHandoffNoStore(c)
-	if domainContext, found := middleware.GetCustomDomainContext(c); found && domainContext.Kind != service.CustomDomainKindMain {
+	if !isCustomDomainCallbackRequest(c) {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}

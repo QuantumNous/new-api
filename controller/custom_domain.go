@@ -1,10 +1,19 @@
 package controller
 
 import (
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
+
+func isCustomDomainCallbackRequest(c *gin.Context) bool {
+	if !common.CustomDomainEnabled {
+		return true
+	}
+	context, found := middleware.GetCustomDomainContext(c)
+	return found && context.Kind == service.CustomDomainKindMain && context.IsCallbackHost
+}
 
 func customDomainIDFromContext(c *gin.Context) int64 {
 	context, found := middleware.GetCustomDomainContext(c)

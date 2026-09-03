@@ -22,12 +22,16 @@ import (
 type authFlowTestOAuthProvider struct {
 	exchangeErr   error
 	userInfoErr   error
+	disabled      bool
+	userIDTaken   bool
 	exchangeCalls int
 	userInfoCalls int
 }
 
 func (*authFlowTestOAuthProvider) GetName() string { return "Auth Flow Test" }
-func (*authFlowTestOAuthProvider) IsEnabled() bool { return true }
+func (provider *authFlowTestOAuthProvider) IsEnabled() bool {
+	return !provider.disabled
+}
 func (provider *authFlowTestOAuthProvider) ExchangeToken(context.Context, string, *gin.Context) (*oauth.OAuthToken, error) {
 	provider.exchangeCalls++
 	if provider.exchangeErr != nil {
@@ -42,7 +46,7 @@ func (provider *authFlowTestOAuthProvider) GetUserInfo(context.Context, *oauth.O
 	}
 	return &oauth.OAuthUser{ProviderUserID: "external-user"}, nil
 }
-func (*authFlowTestOAuthProvider) IsUserIDTaken(string) bool                      { return false }
+func (provider *authFlowTestOAuthProvider) IsUserIDTaken(string) bool             { return provider.userIDTaken }
 func (*authFlowTestOAuthProvider) FillUserByProviderID(*model.User, string) error { return nil }
 func (*authFlowTestOAuthProvider) SetProviderUserID(*model.User, string)          {}
 func (*authFlowTestOAuthProvider) GetProviderPrefix() string                      { return "flow_" }

@@ -19,13 +19,15 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestPasswordResetEmailLinkUsesMainDispatcherForACustomDomain(t *testing.T) {
+func TestPasswordResetEmailLinkUsesCallbackDispatcherForTrustedOrigins(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	previousDB := model.DB
 	previousDatabaseType := common.MainDatabaseType()
 	previousSecret := common.SessionSecret
+	previousEnabled := common.CustomDomainEnabled
 	previousSuffix := common.CustomDomainSuffix
 	previousMainOrigin := common.CustomDomainMainOrigin
+	previousMainOrigins := common.CustomDomainMainOrigins
 	previousServerAddress := system_setting.ServerAddress
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	require.NoError(t, err)
@@ -33,15 +35,19 @@ func TestPasswordResetEmailLinkUsesMainDispatcherForACustomDomain(t *testing.T) 
 	model.DB = db
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	common.SessionSecret = "reset-email-link-test-secret"
+	common.CustomDomainEnabled = true
 	common.CustomDomainSuffix = "yeschoy.io"
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
-	system_setting.ServerAddress = "https://yeschoy.com"
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://future.example"}
+	system_setting.ServerAddress = "https://legacy-main.example.com"
 	t.Cleanup(func() {
 		model.DB = previousDB
 		common.SetMainDatabaseType(previousDatabaseType)
 		common.SessionSecret = previousSecret
+		common.CustomDomainEnabled = previousEnabled
 		common.CustomDomainSuffix = previousSuffix
 		common.CustomDomainMainOrigin = previousMainOrigin
+		common.CustomDomainMainOrigins = previousMainOrigins
 		system_setting.ServerAddress = previousServerAddress
 	})
 
@@ -51,7 +57,14 @@ func TestPasswordResetEmailLinkUsesMainDispatcherForACustomDomain(t *testing.T) 
 	require.NoError(t, err)
 	domain, err = model.EnableCustomDomain(domain.Label)
 	require.NoError(t, err)
-	settings, err := common.ParseCustomDomainSettings("true", "yeschoy.io", "https://yeschoy.com", "5", "")
+	settings, err := common.ParseCustomDomainSettingsWithMainOrigins(
+		"true",
+		"yeschoy.io",
+		"https://yeschoy.com",
+		"https://yeschoy.com,https://yeschoy.pro,https://future.example",
+		"5",
+		"",
+	)
 	require.NoError(t, err)
 	resolver, err := service.NewCustomDomainResolver(settings)
 	require.NoError(t, err)
@@ -79,7 +92,28 @@ func TestPasswordResetEmailLinkUsesMainDispatcherForACustomDomain(t *testing.T) 
 	assert.True(t, active)
 	assert.Equal(t, "alpha.yeschoy.io", targetHost)
 
-	mainContext, _ := gin.CreateTestContext(httptest.NewRecorder())
-	mainLink := passwordResetEmailLink(mainContext, "user@example.com", "reset-token")
-	assert.Equal(t, "https://yeschoy.com/user/reset?email=user%40example.com&token=reset-token", mainLink)
+	for _, host := range []string{"yeschoy.pro", "future.example"} {
+		request = httptest.NewRequest(http.MethodGet, "https://"+host+"/link", nil)
+		request.Host = host
+		response = httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		require.Equal(t, http.StatusNoContent, response.Code)
+
+		parsed, err = url.Parse(generatedLink)
+		require.NoError(t, err)
+		assert.Equal(t, "yeschoy.com", parsed.Host)
+		assert.Equal(t, "/api/reset_password/return", parsed.Path)
+		query = parsed.Query()
+		targetHost, active, err = service.ResolvePasswordResetReturnContext(query.Get("context"), query.Get("email"), query.Get("token"), time.Now())
+		require.NoError(t, err)
+		assert.True(t, active)
+		assert.Equal(t, host, targetHost)
+	}
+
+	request = httptest.NewRequest(http.MethodGet, "https://yeschoy.com/link", nil)
+	request.Host = "yeschoy.com"
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(t, http.StatusNoContent, response.Code)
+	assert.Equal(t, "https://yeschoy.com/user/reset?email=user%40example.com&token=reset-token", generatedLink)
 }
