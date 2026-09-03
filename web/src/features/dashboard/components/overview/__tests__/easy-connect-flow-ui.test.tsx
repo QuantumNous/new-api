@@ -17,13 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createApiKey } from '@/features/keys/api'
 import type { ApiKey } from '@/features/keys/types'
-import { getUserGroups, getUserModels } from '@/lib/api'
+import { getUserGroupModels, getUserGroups, getUserModels } from '@/lib/api'
 
 import { EasyConnectFlow } from '../easy-connect-flow'
 
@@ -60,7 +60,29 @@ vi.mock('@/features/keys/api', () => ({
 vi.mock('@/lib/api', () => ({
   getUserGroups: vi.fn(),
   getUserModels: vi.fn(),
+  getUserGroupModels: vi.fn(),
 }))
+
+const DEEPSEEK = 'deepseek-v4-flash-0731'
+
+function renderFlow() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  })
+  render(
+    <QueryClientProvider client={queryClient}>
+      <EasyConnectFlow />
+    </QueryClientProvider>
+  )
+  return queryClient
+}
+
+function chooseModel(model: string) {
+  const input = screen.getByRole('combobox')
+  fireEvent.pointerDown(input)
+  act(() => input.focus())
+  fireEvent.mouseDown(screen.getByRole('option', { name: model }))
+}
 
 function createdKey(): ApiKey {
   return {
@@ -78,7 +100,7 @@ function createdKey(): ApiKey {
     auto_groups: null,
     cross_group_retry: false,
     model_limits_enabled: true,
-    model_limits: 'deepseek-v4',
+    model_limits: DEEPSEEK,
     allow_ips: '',
   }
 }
@@ -88,14 +110,20 @@ describe('easy connect flow', () => {
     vi.clearAllMocks()
     vi.mocked(getUserModels).mockResolvedValue({
       success: true,
-      data: ['deepseek-v4'],
+      data: [DEEPSEEK, 'gpt-5.6', 'minimax-m3'],
     })
     vi.mocked(getUserGroups).mockResolvedValue({
       success: true,
       data: {
         discount: { desc: 'Value route', ratio: 0.8 },
+        codex: { desc: 'Codex route', ratio: 0.13 },
+        auto: { desc: 'auto', ratio: '自动' },
       },
     })
+    vi.mocked(getUserGroupModels).mockImplementation(async (group) => ({
+      success: true,
+      data: group === 'discount' ? [DEEPSEEK] : ['gpt-5.6'],
+    }))
     vi.mocked(createApiKey).mockResolvedValue({
       success: true,
       data: createdKey(),
@@ -103,15 +131,7 @@ describe('easy connect flow', () => {
   })
 
   it('creates a model-limited key and copies the three values as one bundle', async () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    })
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <EasyConnectFlow />
-      </QueryClientProvider>
-    )
+    renderFlow()
 
     expect(await screen.findByText('About 8 off · saves 20%')).toBeVisible()
     fireEvent.click(
@@ -125,7 +145,7 @@ describe('easy connect flow', () => {
       expect.objectContaining({
         group: 'discount',
         model_limits_enabled: true,
-        model_limits: 'deepseek-v4',
+        model_limits: DEEPSEEK,
         unlimited_quota: true,
       })
     )
@@ -135,8 +155,178 @@ describe('easy connect flow', () => {
       [
         'API address: https://api.example.com/v1',
         'API key: sk-new-secret',
-        'Model: deepseek-v4',
+        `Model: ${DEEPSEEK}`,
       ].join('\n')
     )
+  })
+
+  it('does not offer Codex or automatic routes when they cannot serve the selected DeepSeek model', async () => {
+    renderFlow()
+    expect(
+      await screen.findByRole('radio', { name: /Value route/ })
+    ).toBeVisible()
+    expect(screen.queryByRole('radio', { name: /Codex route/ })).toBeNull()
+    expect(screen.queryByRole('radio', { name: /Automatic route/ })).toBeNull()
+  })
+
+  it('replaces an incompatible route and hides old connection details when the model changes', async () => {
+    renderFlow()
+    await screen.findByRole('radio', { name: /Value route/ })
+    chooseModel('gpt-5.6')
+    fireEvent.click(await screen.findByRole('radio', { name: /Codex route/ }))
+    expect(screen.getByRole('radio', { name: /Automatic route/ })).toBeVisible()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Generate connection details' })
+    )
+    await screen.findByRole('button', { name: 'Copy everything' })
+
+    chooseModel(DEEPSEEK)
+
+    expect(screen.queryByRole('radio', { name: /Codex route/ })).toBeNull()
+    expect(screen.getByRole('radio', { name: /Value route/ })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
+    expect(screen.queryByRole('button', { name: 'Copy everything' })).toBeNull()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Generate connection details' })
+    )
+    await screen.findByRole('button', { name: 'Copy everything' })
+    expect(createApiKey).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        model_limits: DEEPSEEK,
+        group: 'discount',
+      })
+    )
+  })
+
+  it('does not generate a connection while route support is still being checked', async () => {
+    let resolveModels!: (
+      result: Awaited<ReturnType<typeof getUserGroupModels>>
+    ) => void
+    vi.mocked(getUserGroupModels).mockReturnValue(
+      new Promise((resolve) => {
+        resolveModels = resolve
+      })
+    )
+    // One route keeps the pending response explicit and deterministic.
+    vi.mocked(getUserGroups).mockResolvedValue({
+      success: true,
+      data: { discount: { desc: 'Value route', ratio: 0.8 } },
+    })
+    renderFlow()
+    await waitFor(() =>
+      expect(screen.getByRole('combobox')).toHaveValue(DEEPSEEK)
+    )
+    expect(screen.queryAllByRole('radio')).toHaveLength(0)
+    expect(
+      screen.getByRole('button', { name: 'Generate connection details' })
+    ).toBeDisabled()
+    await act(async () => resolveModels({ success: true, data: [DEEPSEEK] }))
+    expect(
+      await screen.findByRole('radio', { name: /Value route/ })
+    ).toBeVisible()
+  })
+
+  it('shows an empty state instead of falling back to all routes for an unsupported model', async () => {
+    renderFlow()
+    await screen.findByRole('radio', { name: /Value route/ })
+    chooseModel('minimax-m3')
+    expect(screen.queryAllByRole('radio')).toHaveLength(0)
+    expect(
+      screen.getByText(
+        'No billing route supports this model. Choose another model or contact support.'
+      )
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Generate connection details' })
+    ).toBeDisabled()
+  })
+
+  it.each(['network', 'api'] as const)(
+    'does not assume support after a %s failure and lets the user retry',
+    async (failure) => {
+      if (failure === 'network') {
+        vi.mocked(getUserGroupModels).mockRejectedValue(new Error('offline'))
+      } else {
+        vi.mocked(getUserGroupModels).mockResolvedValue({
+          success: false,
+          message: 'unavailable',
+        })
+      }
+      renderFlow()
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Some billing routes could not be checked. Retry to see all available routes.'
+      )
+      expect(screen.queryAllByRole('radio')).toHaveLength(0)
+      expect(
+        screen.getByRole('button', { name: 'Generate connection details' })
+      ).toBeDisabled()
+
+      vi.mocked(getUserGroupModels).mockResolvedValue({
+        success: true,
+        data: [DEEPSEEK],
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+      expect(
+        await screen.findByRole('radio', { name: /Value route/ })
+      ).toBeVisible()
+    }
+  )
+
+  it('invalidates the copyable connection when refreshed routing data removes model support', async () => {
+    const queryClient = renderFlow()
+    await screen.findByRole('radio', { name: /Value route/ })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Generate connection details' })
+    )
+    await screen.findByRole('button', { name: 'Copy everything' })
+
+    vi.mocked(getUserGroupModels).mockResolvedValue({ success: true, data: [] })
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: ['user-group-models'] })
+    })
+
+    expect(screen.queryByRole('button', { name: 'Copy everything' })).toBeNull()
+    expect(screen.queryAllByRole('radio')).toHaveLength(0)
+    expect(
+      screen.getByRole('button', { name: 'Generate connection details' })
+    ).toBeDisabled()
+  })
+
+  it('rechecks the route before creating a key and blocks a route disabled since page load', async () => {
+    renderFlow()
+    await screen.findByRole('radio', { name: /Value route/ })
+    vi.mocked(getUserGroupModels).mockResolvedValue({ success: true, data: [] })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Generate connection details' })
+    )
+    await waitFor(() => expect(screen.queryByText('Preparing...')).toBeNull())
+    expect(createApiKey).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Copy everything' })).toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'Generate connection details' })
+    ).toBeDisabled()
+  })
+
+  it('does not create an outdated connection when the user switches models during validation', async () => {
+    renderFlow()
+    await screen.findByRole('radio', { name: /Value route/ })
+    let resolveModels!: (
+      result: Awaited<ReturnType<typeof getUserGroupModels>>
+    ) => void
+    vi.mocked(getUserGroupModels).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveModels = resolve
+      })
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Generate connection details' })
+    )
+    chooseModel('gpt-5.6')
+    await act(async () => resolveModels({ success: true, data: [DEEPSEEK] }))
+    expect(createApiKey).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Copy everything' })).toBeNull()
+    expect(screen.getByRole('combobox')).toHaveValue('gpt-5.6')
   })
 })

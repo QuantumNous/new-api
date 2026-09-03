@@ -61,7 +61,10 @@ export function canReuseEasyConnectKey(
   group: string
 ): boolean {
   if (!apiKey || apiKey.status !== 1) return false
-  if ((apiKey.group || 'default') !== group) return false
+  // An empty group inherits the user's group, not necessarily "default".
+  if (!apiKey.group || apiKey.group !== group) return false
+  // A custom Auto subset is not the account-wide Auto route we validated.
+  if (group === 'auto' && apiKey.auto_groups?.length) return false
   if (!apiKey.model_limits_enabled) return true
 
   return (apiKey.model_limits ?? '')
