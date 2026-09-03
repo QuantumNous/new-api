@@ -14,21 +14,22 @@ const (
 	chatFinishReasonLength        = "length"
 	chatFinishReasonContentFilter = "content_filter"
 
-	responsesEventCreated                  = "response.created"
-	responsesEventCompleted                = "response.completed"
-	responsesEventIncomplete               = "response.incomplete"
-	responsesEventOutputTextDelta          = "response.output_text.delta"
-	responsesEventOutputItemAdded          = "response.output_item.added"
-	responsesEventOutputItemDone           = "response.output_item.done"
-	responsesEventFunctionArgsDelta        = "response.function_call_arguments.delta"
-	responsesEventFunctionArgsDone         = "response.function_call_arguments.done"
-	responsesEventReasoningSummaryDelta    = "response.reasoning_summary_text.delta"
-	responsesEventReasoningSummaryDone     = "response.reasoning_summary_text.done"
-	responsesOutputTypeFunctionCall        = "function_call"
-	responsesOutputTypeMessage             = "message"
-	responsesOutputTypeReasoning           = "reasoning"
-	responsesIncompleteReasonContentFilter = "content_filter"
-	responsesIncompleteReasonMaxTokens     = "max_output_tokens"
+	responsesEventCreated                   = "response.created"
+	responsesEventCompleted                 = "response.completed"
+	responsesEventIncomplete                = "response.incomplete"
+	responsesEventOutputTextDelta           = "response.output_text.delta"
+	responsesEventOutputTextAnnotationAdded = "response.output_text.annotation.added"
+	responsesEventOutputItemAdded           = "response.output_item.added"
+	responsesEventOutputItemDone            = "response.output_item.done"
+	responsesEventFunctionArgsDelta         = "response.function_call_arguments.delta"
+	responsesEventFunctionArgsDone          = "response.function_call_arguments.done"
+	responsesEventReasoningSummaryDelta     = "response.reasoning_summary_text.delta"
+	responsesEventReasoningSummaryDone      = "response.reasoning_summary_text.done"
+	responsesOutputTypeFunctionCall         = "function_call"
+	responsesOutputTypeMessage              = "message"
+	responsesOutputTypeReasoning            = "reasoning"
+	responsesIncompleteReasonContentFilter  = "content_filter"
+	responsesIncompleteReasonMaxTokens      = "max_output_tokens"
 )
 
 func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id string) (*dto.OpenAIResponsesResponse, *dto.Usage, error) {
@@ -57,7 +58,24 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id
 		out.IncompleteDetails = details
 	}
 
+	if reasoning := choice.Message.GetReasoningContent(); reasoning != "" {
+		out.Output = append(out.Output, dto.ResponsesOutput{
+			Type:   responsesOutputTypeReasoning,
+			ID:     fmt.Sprintf("%s_reasoning_0", id),
+			Status: responseOutputStatus(out),
+			Summary: []dto.ResponsesReasoningSummaryPart{
+				{
+					Type: "summary_text",
+					Text: reasoning,
+				},
+			},
+		})
+	}
 	if text := choice.Message.StringContent(); text != "" {
+		annotations, err := chatAnnotationsToResponses(choice.Message.Annotations)
+		if err != nil {
+			return nil, nil, err
+		}
 		out.Output = append(out.Output, dto.ResponsesOutput{
 			Type:   responsesOutputTypeMessage,
 			ID:     fmt.Sprintf("%s_msg_0", id),
@@ -67,20 +85,7 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id
 				{
 					Type:        "output_text",
 					Text:        text,
-					Annotations: []interface{}{},
-				},
-			},
-		})
-	}
-	if reasoning := choice.Message.GetReasoningContent(); reasoning != "" {
-		out.Output = append(out.Output, dto.ResponsesOutput{
-			Type:   responsesOutputTypeReasoning,
-			ID:     fmt.Sprintf("%s_reasoning_0", id),
-			Status: responseOutputStatus(out),
-			Content: []dto.ResponsesOutputContent{
-				{
-					Type: "summary_text",
-					Text: reasoning,
+					Annotations: annotations,
 				},
 			},
 		})
@@ -95,6 +100,35 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id
 	}
 
 	return out, usage, nil
+}
+
+func chatAnnotationsToResponses(raw []byte) ([]interface{}, error) {
+	if len(raw) == 0 {
+		return []interface{}{}, nil
+	}
+	var annotations []map[string]any
+	if err := kitutil.Unmarshal(raw, &annotations); err != nil {
+		return nil, fmt.Errorf("invalid Chat annotations: %w", err)
+	}
+	converted := make([]interface{}, 0, len(annotations))
+	for _, annotation := range annotations {
+		if strings.TrimSpace(kitutil.Interface2String(annotation["type"])) != "url_citation" {
+			converted = append(converted, annotation)
+			continue
+		}
+		citation, ok := annotation["url_citation"].(map[string]any)
+		if !ok {
+			converted = append(converted, annotation)
+			continue
+		}
+		flattened := make(map[string]any, len(citation)+1)
+		flattened["type"] = "url_citation"
+		for key, value := range citation {
+			flattened[key] = value
+		}
+		converted = append(converted, flattened)
+	}
+	return converted, nil
 }
 
 func ResponsesStatusFromChatFinishReason(finishReason string) (string, *dto.IncompleteDetails) {
@@ -228,5 +262,9 @@ func responsesStreamEvent(eventType string, payload dto.ResponsesStreamResponse)
 }
 
 func intPtr(v int) *int {
+	return &v
+}
+
+func stringPtr(v string) *string {
 	return &v
 }

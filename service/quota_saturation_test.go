@@ -1,12 +1,16 @@
 package service
 
 import (
+	"math"
 	"net/http"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -30,16 +34,39 @@ func TestAttachQuotaSaturationNestsUnderAdminInfo(t *testing.T) {
 		},
 	}
 
-	other := map[string]interface{}{"model_price": 0.004}
+	other := model.NewLogOther()
+	other.SetPublic("model_price", 0.004)
 	attachQuotaSaturation(ctx, relayInfo, other)
 
-	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	adminInfo, ok := other.Snapshot()["admin_info"].(map[string]interface{})
 	require.True(t, ok, "admin_info should be created")
 	sat, ok := adminInfo["quota_saturation"].(map[string]interface{})
 	require.True(t, ok, "quota_saturation should be nested under admin_info")
 	require.Equal(t, "QuotaFromDecimal", sat["op"])
 	require.Equal(t, common.QuotaClampOverflow, sat["kind"])
 	require.Equal(t, common.MaxQuota, sat["clamped"])
+}
+
+func TestCalcViolationFeeQuotaSaturates(t *testing.T) {
+	oldQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 500_000
+	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
+
+	require.Equal(t, common.MaxQuota, calcViolationFeeQuota(1e20, 1))
+}
+
+func TestCalcOpenRouterCacheCreateTokensDoesNotWrap(t *testing.T) {
+	oldQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 500_000
+	t.Cleanup(func() { common.QuotaPerUnit = oldQuotaPerUnit })
+
+	got := CalcOpenRouterCacheCreateTokens(dto.Usage{Cost: math.Inf(1)}, hosttypes.PriceData{
+		ModelRatio:         1,
+		CacheCreationRatio: 2,
+		CacheRatio:         1,
+		CompletionRatio:    1,
+	})
+	require.Equal(t, -1, got)
 }
 
 // TestAttachQuotaSaturationPreservesExistingAdminInfo verifies the marker is
@@ -51,12 +78,11 @@ func TestAttachQuotaSaturationPreservesExistingAdminInfo(t *testing.T) {
 	relayInfo := &relaycommon.RelayInfo{
 		QuotaClamp: &common.QuotaClamp{Op: "QuotaFromFloat", Kind: common.QuotaClampUnderflow, Clamped: common.MinQuota},
 	}
-	other := map[string]interface{}{
-		"admin_info": map[string]interface{}{"admin_username": "root"},
-	}
+	other := model.NewLogOther()
+	other.SetAdmin("admin_username", "root")
 	attachQuotaSaturation(ctx, relayInfo, other)
 
-	adminInfo := other["admin_info"].(map[string]interface{})
+	adminInfo := other.Snapshot()["admin_info"].(map[string]interface{})
 	require.Equal(t, "root", adminInfo["admin_username"], "existing admin_info fields preserved")
 	require.NotNil(t, adminInfo["quota_saturation"])
 }
@@ -68,10 +94,11 @@ func TestAttachQuotaSaturationNoClampNoMarker(t *testing.T) {
 	ctx, _ := gin.CreateTestContext(nil)
 
 	relayInfo := &relaycommon.RelayInfo{QuotaClamp: nil}
-	other := map[string]interface{}{"model_price": 0.004}
+	other := model.NewLogOther()
+	other.SetPublic("model_price", 0.004)
 	attachQuotaSaturation(ctx, relayInfo, other)
 
-	_, hasAdmin := other["admin_info"]
+	_, hasAdmin := other.Snapshot()["admin_info"]
 	require.False(t, hasAdmin, "no admin_info should be added when there is no clamp")
 }
 

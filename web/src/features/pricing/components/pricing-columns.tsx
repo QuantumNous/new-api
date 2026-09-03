@@ -31,7 +31,9 @@ import { getLobeIcon } from '@/lib/lobe-icon'
 import { DEFAULT_TOKEN_UNIT } from '../constants'
 import {
   getDynamicDisplayGroupRatio,
+  getDynamicPriceUnitLabelKey,
   getDynamicPricingSummary,
+  isUnconfiguredTaskUsageModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
 import { isTokenBasedModel } from '../lib/model-helpers'
@@ -154,21 +156,39 @@ export function usePricingColumns(
           return (
             <div className='max-w-full min-w-0'>
               <span className='font-mono text-sm tabular-nums'>
-                {primaryEntries.map((entry, index) => (
-                  <span key={entry.key}>
-                    {index > 0 && (
-                      <span className='text-muted-foreground/40 mx-1'>/</span>
-                    )}
-                    {stripTrailingZeros(entry.formatted)}
-                  </span>
-                ))}
+                {primaryEntries.map((entry, index) => {
+                  const unitLabelKey = getDynamicPriceUnitLabelKey(entry)
+                  return (
+                    <span key={entry.key}>
+                      {index > 0 && (
+                        <span className='text-muted-foreground/40 mx-1'>/</span>
+                      )}
+                      {stripTrailingZeros(
+                        entry.formattedRange ?? entry.formatted
+                      )}
+                      {unitLabelKey && <>/{t(unitLabelKey)}</>}
+                    </span>
+                  )
+                })}
               </span>
               <div className='text-muted-foreground/50 text-[10px]'>
-                / {tokenUnitLabel} tokens
+                {!dynamicSummary.isTaskUsage && `/ ${tokenUnitLabel} tokens`}
+                {dynamicSummary.isTaskUsage && dynamicSummary.tier?.label}
                 {dynamicSummary.tierCount > 1 &&
                   ` · ${t('{{count}} tiers', {
                     count: dynamicSummary.tierCount,
                   })}`}
+              </div>
+            </div>
+          )
+        }
+
+        if (isUnconfiguredTaskUsageModel(model)) {
+          return (
+            <div className='max-w-full min-w-0'>
+              <div className='text-sm font-medium'>{t('Not configured')}</div>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                {t('Usage-based billing')}
               </div>
             </div>
           )
@@ -280,6 +300,10 @@ export function usePricingColumns(
               </div>
             </div>
           )
+        }
+
+        if (isUnconfiguredTaskUsageModel(model)) {
+          return <span className='text-muted-foreground/30 text-xs'>—</span>
         }
 
         const isTokenBased = isTokenBasedModel(model)
