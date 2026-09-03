@@ -339,6 +339,15 @@ func Register(c *gin.Context) {
 		}
 		if setting.DefaultUseAutoGroup {
 			token.Group = "auto"
+		} else {
+			userGroup := insertedUser.Group
+			if service.IsUserSelectableGroup(userGroup, userGroup) {
+				// Pin the initial key to the group the user has on registration,
+				// so a later change to that user group does not move it silently.
+				token.Group = userGroup
+			} else if service.IsUserSelectableGroup(userGroup, "default") {
+				token.Group = "default"
+			}
 		}
 		if err := token.Insert(); err != nil {
 			common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)

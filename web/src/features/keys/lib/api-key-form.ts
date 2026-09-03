@@ -40,7 +40,7 @@ export function getApiKeyFormSchema(t: TFunction, maxAutoGroups = 5) {
       unlimited_quota: z.boolean(),
       model_limits: z.array(z.string()),
       allow_ips: z.string().optional(),
-      group: z.string().optional(),
+      group: z.string().min(1, t('Please select a group')),
       auto_groups_mode: z.enum(['inherit', 'custom']),
       auto_groups: z.array(z.string()),
       cross_group_retry: z.boolean().optional(),
@@ -110,7 +110,7 @@ export const API_KEY_FORM_DEFAULT_VALUES: ApiKeyFormValues = {
   unlimited_quota: true,
   model_limits: [],
   allow_ips: '',
-  group: DEFAULT_GROUP,
+  group: '',
   auto_groups_mode: 'inherit',
   auto_groups: [],
   cross_group_retry: true,
@@ -122,11 +122,29 @@ export function getApiKeyFormDefaultValues(
 ): ApiKeyFormValues {
   return {
     ...API_KEY_FORM_DEFAULT_VALUES,
-    group: defaultUseAutoGroup ? 'auto' : DEFAULT_GROUP,
+    // An empty group is resolved against the loaded group list by
+    // resolveApiKeyGroup, so a key is never created without an explicit group.
+    group: defaultUseAutoGroup ? 'auto' : '',
     auto_groups_mode: 'inherit',
     auto_groups: [],
     cross_group_retry: defaultUseAutoGroup,
   }
+}
+
+/**
+ * Pick the group a key should carry when the form has no usable selection yet.
+ * The key must always name one group explicitly, otherwise the backend would
+ * fall back to the owner's user group on every request and the key would follow
+ * later admin changes to that user group.
+ */
+export function resolveApiKeyGroup(
+  availableGroups: string[],
+  userGroup?: string
+): string {
+  if (availableGroups.length === 0) return ''
+  if (userGroup && availableGroups.includes(userGroup)) return userGroup
+  if (availableGroups.includes(DEFAULT_GROUP)) return DEFAULT_GROUP
+  return availableGroups.find((group) => group !== 'auto') ?? availableGroups[0]
 }
 
 // ============================================================================
@@ -189,7 +207,9 @@ export function transformApiKeyToFormDefaults(
       ? apiKey.model_limits.split(',').filter(Boolean)
       : [],
     allow_ips: apiKey.allow_ips || '',
-    group: apiKey.group || DEFAULT_GROUP,
+    // Legacy keys stored an empty group; resolveApiKeyGroup fills in the group
+    // they resolve to today so that saving pins it instead of dropping it.
+    group: apiKey.group || '',
     auto_groups_mode: autoGroupsMode,
     auto_groups: autoGroups,
     cross_group_retry: !!apiKey.cross_group_retry,

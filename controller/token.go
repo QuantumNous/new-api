@@ -87,6 +87,35 @@ func getTokenRequestUserGroup(c *gin.Context) (string, error) {
 	return model.GetUserGroup(c.GetInt("id"), false)
 }
 
+// resolveTokenGroup pins the group a token bills and routes with, so that a
+// later change to the owner's user group cannot silently move existing keys to
+// another group. An explicit group must be one the caller may actually use; an
+// omitted group is snapshotted from the caller's current user group, falling
+// back to the standard default group when necessary. It never permits the
+// empty group fallback that dynamically follows a user's group.
+func resolveTokenGroup(c *gin.Context, group string) (string, bool) {
+	userGroup, err := getTokenRequestUserGroup(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return "", false
+	}
+	if group != "" {
+		if !service.IsUserSelectableGroup(userGroup, group) {
+			common.ApiErrorI18n(c, i18n.MsgTokenGroupInvalid, map[string]any{"Group": group})
+			return "", false
+		}
+		return group, true
+	}
+	if service.IsUserSelectableGroup(userGroup, userGroup) {
+		return userGroup, true
+	}
+	if service.IsUserSelectableGroup(userGroup, "default") {
+		return "default", true
+	}
+	common.ApiErrorI18n(c, i18n.MsgTokenGroupInvalid, map[string]any{"Group": userGroup})
+	return "", false
+}
+
 func setTokenAutoGroups(c *gin.Context, token *model.Token, groups []string) bool {
 	if len(groups) == 0 {
 		if err := token.SetAutoGroups(nil); err != nil {
@@ -315,6 +344,11 @@ func AddToken(c *gin.Context) {
 			return
 		}
 	} else {
+		resolvedGroup, ok := resolveTokenGroup(c, token.Group)
+		if !ok {
+			return
+		}
+		token.Group = resolvedGroup
 		token.CrossGroupRetry = false
 		_ = token.SetAutoGroups(nil)
 	}
@@ -419,6 +453,13 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
 		if token.Group != "auto" {
+			// Resolve every non-Auto update, including legacy empty keys. This
+			// normalizes any key saved from the current UI to an explicit group.
+			resolvedGroup, ok := resolveTokenGroup(c, token.Group)
+			if !ok {
+				return
+			}
+			cleanToken.Group = resolvedGroup
 			cleanToken.CrossGroupRetry = false
 			_ = cleanToken.SetAutoGroups(nil)
 		} else if request.AutoGroups.Set {

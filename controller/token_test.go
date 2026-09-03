@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -526,6 +527,7 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 	}
 
 	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, 1)
+	common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
 	UpdateToken(ctx)
 
 	response := decodeAPIResponse(t, recorder)

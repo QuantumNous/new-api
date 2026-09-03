@@ -66,6 +66,7 @@ import { useStatus } from '@/hooks/use-status'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { cn } from '@/lib/utils'
+import { useAuthStore } from '@/stores/auth-store'
 
 import {
   createApiKey,
@@ -78,6 +79,7 @@ import {
   getApiKeyFormSchema,
   type ApiKeyFormValues,
   getApiKeyFormDefaultValues,
+  resolveApiKeyGroup,
   transformFormDataToPayload,
   transformApiKeyToFormDefaults,
 } from '../lib'
@@ -105,6 +107,7 @@ export function ApiKeysMutateDrawer({
   const currentRowId = currentRow?.id
   const { triggerRefresh } = useApiKeys()
   const { status, loading: statusLoading } = useStatus()
+  const userGroup = useAuthStore((s) => s.auth.user?.group)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [initializedTarget, setInitializedTarget] = useState<string | null>(
@@ -259,23 +262,31 @@ export function ApiKeysMutateDrawer({
   const isFormInitialized = initializedTarget === formTarget
   const selectedGroup = form.watch('group')
 
-  // Correct group after groups load: if the form value is not in available groups, fall back
+  // Resolve the group after the group list loads: an empty value (a new key, or
+  // a legacy key stored without a group) and a value the user can no longer use
+  // both get replaced by a concrete group, so the key never routes through
+  // whatever group its owner happens to have at request time. isFormInitialized
+  // is a dependency because form.reset() restores the unresolved group.
   useEffect(() => {
+    if (!isFormInitialized) return
     if (groups.length === 0) return
     const currentGroup = selectedGroup
-    if (currentGroup && !groups.some((g) => g.value === currentGroup)) {
-      const fallback =
-        groups.find((g) => g.value === 'default')?.value ??
-        groups[0]?.value ??
-        ''
-      form.setValue('group', fallback)
-      if (currentGroup === 'auto') {
-        form.setValue('auto_groups', [])
-        form.setValue('auto_groups_mode', 'inherit')
-        form.setValue('cross_group_retry', false)
-      }
+    if (currentGroup && groups.some((g) => g.value === currentGroup)) return
+
+    form.setValue(
+      'group',
+      resolveApiKeyGroup(
+        groups.map((g) => g.value),
+        userGroup
+      ),
+      { shouldDirty: !!currentGroup }
+    )
+    if (currentGroup === 'auto') {
+      form.setValue('auto_groups', [])
+      form.setValue('auto_groups_mode', 'inherit')
+      form.setValue('cross_group_retry', false)
     }
-  }, [groups, form, selectedGroup])
+  }, [groups, form, selectedGroup, userGroup, isFormInitialized])
 
   const onSubmit = async (data: ApiKeyFormValues) => {
     setIsSubmitting(true)
