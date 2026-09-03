@@ -92,6 +92,14 @@ export function SidebarModulesSection({
         title: t('Playground'),
         description: t('Experiment with prompts and models in real time.'),
       },
+      canvas: {
+        title: t('Canvas'),
+        description: t('Image generation workspace with text and reference images.'),
+      },
+      history: {
+        title: t('Drawing Records'),
+        description: t('Saved images and prompts from the Canvas.'),
+      },
       chat: {
         title: t('Chat'),
         description: t('Access previous conversations and start new ones.'),

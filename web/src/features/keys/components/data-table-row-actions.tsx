@@ -25,6 +25,7 @@ import {
   ExternalLink,
   ArrowRightLeft,
   Copy,
+  ImagePlus,
   Link,
   Loader2,
 } from 'lucide-react'
@@ -50,6 +51,7 @@ import {
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
 import { sendToFluent } from '@/features/chat/lib/send-to-fluent'
+import { STORAGE_KEYS } from '@/features/canvas/constants'
 import { encodeChannelConnectionInfo } from '@/lib/channel-connection-info'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
 
@@ -281,6 +283,21 @@ export function DataTableRowActions<TData>({
           {t('CC Switch')}
           <DropdownMenuShortcut>
             <ArrowRightLeft size={16} />
+          </DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={async () => {
+            const realKey = await resolveRealKey(apiKey.id)
+            if (!realKey) return
+            sessionStorage.setItem(STORAGE_KEYS.API_KEY, realKey)
+            sessionStorage.setItem(STORAGE_KEYS.GROUP, apiKey.group || '')
+            toast.success(t('Imported to Canvas'))
+            window.location.assign('/canvas')
+          }}
+        >
+          {t('Import to Canvas')}
+          <DropdownMenuShortcut>
+            <ImagePlus size={16} />
           </DropdownMenuShortcut>
         </DropdownMenuItem>
         {hasChatPresets && (
