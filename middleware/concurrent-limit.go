@@ -16,11 +16,12 @@ import (
 )
 
 const (
-	concurrentLimitMark     = "MCCL"
-	concurrentLeaseTTL      = 5 * time.Minute
-	concurrentSlotKey       = "concurrent_slot"
-	concurrentBackendRedis  = "redis"
-	concurrentBackendMemory = "memory"
+	concurrentLimitMark      = "MCCL"
+	concurrentLeaseTTL       = 5 * time.Minute
+	concurrentReleaseTimeout = 2 * time.Second
+	concurrentSlotKey        = "concurrent_slot"
+	concurrentBackendRedis   = "redis"
+	concurrentBackendMemory  = "memory"
 )
 
 func concurrentKey(scope, id string) string {
@@ -86,7 +87,11 @@ func releaseUserConcurrent(c *gin.Context) {
 		slot.cancel()
 	}
 	if slot.backend == concurrentBackendRedis {
-		limiter.NewConcurrent(common.RDB).Release(context.Background(), slot.key, slot.leaseID)
+		// 释放是同步 I/O：给一个短 deadline，防止 Redis 卡顿时
+		// 已完成的请求 handler 被拖住；超时未释放的槽位由 lease TTL 兜底回收。
+		releaseCtx, cancel := context.WithTimeout(context.Background(), concurrentReleaseTimeout)
+		defer cancel()
+		limiter.NewConcurrent(common.RDB).Release(releaseCtx, slot.key, slot.leaseID)
 		return
 	}
 	limiter.GetInMemoryConcurrent().Release(slot.key)
