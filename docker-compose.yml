@@ -53,13 +53,23 @@ services:
       SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET is required}"
       # CRYPTO_SECRET: "${CRYPTO_SECRET:?CRYPTO_SECRET is required}"
 
+      # 浏览器 Session 安全。宿主机 .env 只参与 Compose 插值，必须在这里显式传入容器。
+      SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-false}"
+      SESSION_COOKIE_TRUSTED_URL: "${SESSION_COOKIE_TRUSTED_URL:-}"
+
+      # 专属推广域名。保持默认关闭；启用时 SESSION_COOKIE_SECURE 必须为 true，
+      # 且 SESSION_COOKIE_TRUSTED_URL 必须包含 CUSTOM_DOMAIN_MAIN_ORIGIN。
+      CUSTOM_DOMAIN_ENABLED: "${CUSTOM_DOMAIN_ENABLED:-false}"
+      CUSTOM_DOMAIN_SUFFIX: "${CUSTOM_DOMAIN_SUFFIX:-yeschoy.io}"
+      CUSTOM_DOMAIN_MAIN_ORIGIN: "${CUSTOM_DOMAIN_MAIN_ORIGIN:-https://yeschoy.com}"
+      CUSTOM_DOMAIN_CACHE_TTL_SECONDS: "${CUSTOM_DOMAIN_CACHE_TTL_SECONDS:-5}"
+      CUSTOM_DOMAIN_RESERVED_LABELS: "${CUSTOM_DOMAIN_RESERVED_LABELS:-}"
+
       # 可选配置
       # STREAMING_TIMEOUT: "${STREAMING_TIMEOUT:-300}"
       # RELAY_IDLE_CONN_TIMEOUT: "${RELAY_IDLE_CONN_TIMEOUT:-90}"
       # SYNC_FREQUENCY: "${SYNC_FREQUENCY:-60}"
 
- #      - SESSION_COOKIE_SECURE=true  # true：启用 Secure Refresh Cookie 和严格 refresh/logout OriginGuard；false/未配置：关闭 OriginGuard，仅用于本地 HTTP (true: Secure cookie + strict refresh/logout OriginGuard; false/unset: guard disabled for local HTTP only)
-#      - SESSION_COOKIE_TRUSTED_URL=https://example.com,https://admin.example.com  # Secure=true 时必填的精确 HTTPS Origin；不是 relay CORS 白名单，不支持通配符/路径 (Required exact HTTPS origins when Secure=true; not a relay CORS allowlist, no wildcard/path)
 #      - TRUSTED_PROXIES=172.20.0.0/16  # 未配置时信任回环/RFC1918/fc00::/7 并告警，none 为严格模式，显式列表替代默认值 (Unset trusts loopback/RFC 1918/fc00::/7 with a warning; none trusts no proxies; an explicit list replaces defaults)
 #      - USER_SESSION_ACTIVE_LIMIT=50
 #      - USER_SESSION_ISSUANCE_LIMIT=100
@@ -83,7 +93,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "wget -q -O - http://localhost:3000/api/status | grep -Eq '\"success\"[[:space:]]*:[[:space:]]*true' || exit 1"
+          "wget -q --header='Host: yeschoy.com' -O - http://127.0.0.1:3000/api/status | grep -Eq '\"success\"[[:space:]]*:[[:space:]]*true' || exit 1"
         ]
       interval: 30s
       timeout: 10s
