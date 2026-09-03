@@ -100,5 +100,10 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('About'), href: '/about' })
   }
 
+  // Contact Us
+  if (modules?.contact !== false) {
+    links.push({ title: t('Contact Us'), href: '/contact' })
+  }
+
   return links
 }
