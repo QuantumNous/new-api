@@ -167,22 +167,14 @@ func loginMethodFromContext(c *gin.Context) string {
 
 // recordLoginAudit 记录登录成功审计日志（对所有用户启用，仅记录成功，不记录失败）。
 func recordLoginAudit(user *model.User, c *gin.Context) {
-	recordLoginAuditWithMethod(user.Id, user.Username, loginMethodFromContext(c), c)
-}
-
-func recordLoginAuditByUserID(userID int, method string, c *gin.Context) {
-	username, _ := model.GetUsernameById(userID, false)
-	recordLoginAuditWithMethod(userID, username, method, c)
-}
-
-func recordLoginAuditWithMethod(userID int, username, method string, c *gin.Context) {
+	method := loginMethodFromContext(c)
 	ip := c.ClientIP()
 	extra := map[string]interface{}{
 		"login_method": method,
 		"user_agent":   c.Request.UserAgent(),
 	}
 	content := fmt.Sprintf("Logged in successfully via %s", method)
-	model.RecordLoginLog(userID, username, content, ip, "login", map[string]interface{}{
+	model.RecordLoginLog(user.Id, user.Username, content, ip, "login", map[string]interface{}{
 		"method": method,
 	}, extra)
 }
@@ -299,11 +291,7 @@ func Register(c *gin.Context) {
 		return
 	}
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
-	inviterId, err := resolveRequestRegistrationInviter(c, affCode)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	inviterId, _ := model.GetUserIdByAffCode(affCode)
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
