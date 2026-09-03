@@ -1125,7 +1125,7 @@
     "Converter is not registered": "Конвертер не зарегистрирован",
     "Copied": "Скопировано",
     "Copied {{count}} key(s)": "Скопировано {{count}} ключ(ей)",
-    "Copied {{count}} code(s)": "Скопировано {{count}} код(ов)",
+    "Copied {{count}} code(s)": "Коды скопированы: {{count}}",
     "Copied channel (source ID: {{sourceId}}) to {{name}} (new ID: {{id}})": "Канал скопирован (исходный ID: {{sourceId}}) в {{name}} (новый ID: {{id}})",
     "Copied to clipboard": "Скопировано в буфер обмена",
     "Copied: {{model}}": "Скопировано: {{model}}",

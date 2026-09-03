@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import {
+  type RenderResult,
   fireEvent,
   render,
   screen,
@@ -61,7 +62,7 @@ const originalPost = apiClient.post
 let writeText: ReturnType<typeof vi.fn>
 
 /** Opens the create drawer so the real create -> created-dialog flow can run. */
-function OpenCreateDrawer() {
+function OpenCreateDrawer(): React.JSX.Element {
   const { setOpen } = useRedemptions()
   return (
     <button type='button' onClick={() => setOpen('create')}>
@@ -70,7 +71,7 @@ function OpenCreateDrawer() {
   )
 }
 
-function renderDialogs() {
+function renderDialogs(): RenderResult {
   return render(
     <I18nextProvider i18n={i18n}>
       <RedemptionsProvider>
@@ -83,14 +84,17 @@ function renderDialogs() {
 }
 
 /** The dialog chrome also renders an sr-only "Close", so scope to the footer. */
-function footerButton(name: string) {
+function footerButton(name: string): HTMLElement {
   const footer = document.querySelector('[data-slot=dialog-footer]')
   if (!footer) throw new Error('Expected the created dialog footer')
   return within(footer as HTMLElement).getByRole('button', { name })
 }
 
 /** Submits the create form, which is prefilled with a valid quota and count. */
-async function createCodes(codes: string[], count = codes.length) {
+async function createCodes(
+  codes: string[],
+  count = codes.length
+): Promise<void> {
   apiClient.post = async () => ({ data: { success: true, data: codes } })
 
   fireEvent.click(screen.getByRole('button', { name: 'open-create' }))
