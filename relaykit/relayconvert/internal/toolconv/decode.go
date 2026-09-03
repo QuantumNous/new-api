@@ -143,11 +143,11 @@ func extractOpenAIResponsesRequest(request any) (any, Set, error) {
 			return nil, Set{}, fmt.Errorf("invalid Responses tools: %w", err)
 		}
 		for index, rawTool := range rawTools {
-			definition, err := decodeOpenAIResponsesDefinition(rawTool)
+			definitions, err := decodeOpenAIResponsesDefinitions(rawTool)
 			if err != nil {
 				return nil, Set{}, fmt.Errorf("tools[%d]: %w", index, err)
 			}
-			set.Definitions = append(set.Definitions, definition)
+			set.Definitions = append(set.Definitions, definitions...)
 		}
 	}
 	choice, err := decodeOpenAIResponsesChoice(source.ToolChoice)
@@ -264,24 +264,119 @@ func extractGeminiRequest(request any) (any, Set, error) {
 }
 
 func decodeOpenAIResponsesDefinition(raw json.RawMessage) (Definition, error) {
-	var tool map[string]any
-	if err := kitutil.Unmarshal(raw, &tool); err != nil {
+	definitions, err := decodeOpenAIResponsesDefinitions(raw)
+	if err != nil {
 		return Definition{}, err
 	}
+	if len(definitions) != 1 {
+		return Definition{}, fmt.Errorf("expected one tool definition, got %d", len(definitions))
+	}
+	return definitions[0], nil
+}
+
+func decodeOpenAIResponsesDefinitions(raw json.RawMessage) ([]Definition, error) {
+	var tool map[string]any
+	if err := kitutil.Unmarshal(raw, &tool); err != nil {
+		return nil, err
+	}
 	toolType := strings.TrimSpace(kitutil.Interface2String(tool["type"]))
-	if toolType == "function" {
-		return Definition{
-			Kind:      KindFunction,
-			Execution: ExecutionClient,
-			Name:      strings.TrimSpace(kitutil.Interface2String(tool["name"])),
-			Raw:       cloneRaw(raw),
+	if toolType == "namespace" || toolType == "mcp_server" {
+		namespace := strings.TrimSpace(kitutil.Interface2String(tool["name"]))
+		children, ok := tool["tools"].([]any)
+		if !ok {
+			children, _ = tool["children"].([]any)
+		}
+		definitions := make([]Definition, 0, len(children))
+		for _, child := range children {
+			rawChild, err := kitutil.Marshal(child)
+			if err != nil {
+				return nil, err
+			}
+			childDefinitions, err := decodeOpenAIResponsesDefinitions(rawChild)
+			if err != nil {
+				return nil, err
+			}
+			for _, definition := range childDefinitions {
+				if definition.Function != nil && definition.NativeType != "custom" && namespace != "" {
+					definition.Namespace = namespace
+					definition.Name = definition.Function.Name
+					definition.Function.Name = namespace + "__" + definition.Function.Name
+				}
+				definitions = append(definitions, definition)
+			}
+		}
+		return definitions, nil
+	}
+	if toolType == "tool_search" {
+		return []Definition{{
+			Kind:       KindFunction,
+			Execution:  ExecutionClient,
+			NativeType: toolType,
+			Name:       "tool_search",
 			Function: &Function{
-				Name:        strings.TrimSpace(kitutil.Interface2String(tool["name"])),
-				Description: kitutil.Interface2String(tool["description"]),
-				Parameters:  tool["parameters"],
-				Strict:      boolPointer(tool, "strict"),
+				Name:        "tool_search",
+				Description: "Search and load Codex tools, plugins, connectors, and MCP namespaces for the current task.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"query": map[string]any{"type": "string", "description": "Search query for tools or connectors to load."},
+						"limit": map[string]any{"type": "integer", "description": "Maximum number of tool groups to return."},
+					},
+					"required": []string{"query"},
+				},
 			},
-		}, nil
+		}}, nil
+	}
+	if toolType == "custom" {
+		name := strings.TrimSpace(kitutil.Interface2String(tool["name"]))
+		if name == "" {
+			return nil, nil
+		}
+		description := strings.TrimSpace(kitutil.Interface2String(tool["description"]))
+		if description == "" {
+			description = "Custom tool " + name
+		}
+		return []Definition{{
+			Kind: KindFunction, Execution: ExecutionClient, NativeType: toolType, Name: name,
+			Function: &Function{Name: name, Description: description, Parameters: map[string]any{
+				"type": "object", "properties": map[string]any{"input": map[string]any{"type": "string", "description": "Raw string input for the original custom tool."}}, "required": []string{"input"},
+			}},
+		}}, nil
+	}
+	functionTool := tool
+	if nested, ok := tool["function"].(map[string]any); ok {
+		functionTool = make(map[string]any, len(tool)+len(nested))
+		for key, value := range tool {
+			functionTool[key] = value
+		}
+		for key, value := range nested {
+			functionTool[key] = value
+		}
+	}
+	name := strings.TrimSpace(kitutil.Interface2String(functionTool["name"]))
+	if name != "" {
+		chatName := name
+		serverName := ""
+		if toolType == "mcp" {
+			serverName = strings.TrimSpace(kitutil.Interface2String(tool["server_label"]))
+			if serverName != "" {
+				chatName = serverName + "__" + name
+			}
+		}
+		return []Definition{{
+			Kind:       KindFunction,
+			Execution:  ExecutionClient,
+			NativeType: toolType,
+			Name:       name,
+			ServerName: serverName,
+			Raw:        cloneRaw(raw),
+			Function: &Function{
+				Name:        chatName,
+				Description: kitutil.Interface2String(functionTool["description"]),
+				Parameters:  functionTool["parameters"],
+				Strict:      boolPointer(functionTool, "strict"),
+			},
+		}}, nil
 	}
 	if isOpenAIResponsesWebSearchType(toolType) {
 		webSearch := &WebSearch{
@@ -291,7 +386,7 @@ func decodeOpenAIResponsesDefinition(raw json.RawMessage) (Definition, error) {
 		if value, exists := tool["return_token_budget"]; exists {
 			encoded, err := rawJSON(value)
 			if err != nil {
-				return Definition{}, err
+				return nil, err
 			}
 			webSearch.ReturnTokenBudget = encoded
 		}
@@ -301,20 +396,20 @@ func decodeOpenAIResponsesDefinition(raw json.RawMessage) (Definition, error) {
 		if location, ok := tool["user_location"].(map[string]any); ok {
 			webSearch.Location = locationFromMap(location)
 		}
-		return Definition{
+		return []Definition{{
 			Kind:       KindWebSearch,
 			Execution:  ExecutionServer,
 			NativeType: toolType,
 			WebSearch:  webSearch,
 			Raw:        cloneRaw(raw),
-		}, nil
+		}}, nil
 	}
-	return Definition{
+	return []Definition{{
 		Kind:       kindFromNativeType(toolType),
 		Execution:  executionFromNativeType(toolType),
 		NativeType: toolType,
 		Raw:        cloneRaw(raw),
-	}, nil
+	}}, nil
 }
 
 func decodeClaudeDefinition(raw json.RawMessage) (Definition, error) {

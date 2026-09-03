@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 )
 
@@ -41,6 +42,7 @@ type ChatToResponsesStreamState struct {
 	toolsByIndex       map[int]*chatToResponsesStreamTool
 	hostedByID         map[string]*chatToResponsesHostedTool
 	outputOrder        []chatToResponsesOutputRef
+	toolIdentities     map[string]convmeta.ResponsesToolIdentity
 	text               strings.Builder
 	annotations        []interface{}
 	reasoning          strings.Builder
@@ -113,6 +115,12 @@ func (s *ChatToResponsesStreamState) StreamUsage() *dto.Usage {
 func (s *ChatToResponsesStreamState) SetStreamUsage(usage *dto.Usage) {
 	if s != nil && usage != nil {
 		s.Usage = UsageFromChatUsage(usage)
+	}
+}
+
+func (s *ChatToResponsesStreamState) SetToolIdentities(identities map[string]convmeta.ResponsesToolIdentity) {
+	if s != nil && identities != nil {
+		s.toolIdentities = identities
 	}
 }
 
@@ -506,6 +514,7 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 				Arguments: []byte(`""`),
 			},
 		}))
+		applyResponsesToolIdentity(events[len(events)-1].Payload.Item, s.toolIdentities[tool.Name])
 	}
 	if tool.Done {
 		return nil, fmt.Errorf("tool-call stream index %d received data after completion", chatIndex)
@@ -525,8 +534,12 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 	}
 	if toolCall.Function.Arguments != "" {
 		tool.Arguments.WriteString(toolCall.Function.Arguments)
-		events = append(events, s.event(responsesEventFunctionArgsDelta, dto.ResponsesStreamResponse{
-			Type:        responsesEventFunctionArgsDelta,
+		eventType := responsesEventFunctionArgsDelta
+		if s.toolIdentities[tool.Name].Kind == "mcp" {
+			eventType = "response.mcp_call_arguments.delta"
+		}
+		events = append(events, s.event(eventType, dto.ResponsesStreamResponse{
+			Type:        eventType,
 			OutputIndex: intPtr(tool.OutputIndex),
 			ItemID:      tool.ItemID,
 			Delta:       toolCall.Function.Arguments,
@@ -584,8 +597,12 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 			continue
 		}
 		tool.Done = true
+		eventType := responsesEventFunctionArgsDone
+		if s.toolIdentities[tool.Name].Kind == "mcp" {
+			eventType = "response.mcp_call_arguments.done"
+		}
 		argumentsDone := dto.ResponsesStreamResponse{
-			Type:        responsesEventFunctionArgsDone,
+			Type:        eventType,
 			OutputIndex: intPtr(tool.OutputIndex),
 			ItemID:      tool.ItemID,
 		}
@@ -593,7 +610,7 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 			argumentsDone.Arguments = kitutil.GetPointer(tool.Arguments.String())
 			argumentsDone.Name = tool.Name
 		}
-		events = append(events, s.event(responsesEventFunctionArgsDone, argumentsDone))
+		events = append(events, s.event(eventType, argumentsDone))
 		events = append(events, s.event(responsesEventOutputItemDone, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemDone,
 			OutputIndex: intPtr(tool.OutputIndex),
@@ -762,7 +779,7 @@ func (s *ChatToResponsesStreamState) reasoningOutput(status string) *dto.Respons
 }
 
 func (s *ChatToResponsesStreamState) toolOutput(tool *chatToResponsesStreamTool, status string) *dto.ResponsesOutput {
-	return &dto.ResponsesOutput{
+	output := &dto.ResponsesOutput{
 		Type:      responsesOutputTypeFunctionCall,
 		ID:        tool.ItemID,
 		Status:    status,
@@ -770,6 +787,21 @@ func (s *ChatToResponsesStreamState) toolOutput(tool *chatToResponsesStreamTool,
 		Name:      tool.Name,
 		Arguments: chatArgumentsRawMessage(tool.Arguments.String()),
 	}
+	applyResponsesToolIdentity(output, s.toolIdentities[tool.Name])
+	return output
+}
+
+func applyResponsesToolIdentity(output *dto.ResponsesOutput, identity convmeta.ResponsesToolIdentity) {
+	if output == nil || identity.Name == "" {
+		return
+	}
+	output.Name = identity.Name
+	if identity.Kind == "mcp" {
+		output.Type = "mcp_call"
+		output.ServerLabel = identity.ServerLabel
+		return
+	}
+	output.Namespace = identity.Namespace
 }
 
 func (t *chatToResponsesStreamTool) callID() string {

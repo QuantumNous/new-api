@@ -183,6 +183,27 @@ func TestResponsesRequestToChatCompletionsRequestOnlyFunctionCallCreatesAssistan
 	assert.Equal(t, `{"q":"x"}`, toolCalls[0].Function.Arguments)
 }
 
+func TestResponsesRequestToChatCompletionsRequestFunctionCallRestoresNamespace(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, []map[string]any{
+			{
+				"type":      "function_call",
+				"call_id":   "call_1",
+				"namespace": "mcp__docs",
+				"name":      "search",
+				"arguments": `{"q":"x"}`,
+			},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Messages, 1)
+	toolCalls := got.Messages[0].ParseToolCalls()
+	require.Len(t, toolCalls, 1)
+	assert.Equal(t, "mcp__docs__search", toolCalls[0].Function.Name)
+}
+
 func TestResponsesRequestToChatCompletionsRequestToolsToolChoiceAndTextFormat(t *testing.T) {
 	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
 		Model: "gpt-test",
@@ -534,4 +555,43 @@ func TestResponsesRequestToChatCompletionsRequestMcpToolChoiceUsesFlattenedName(
 			"name": "docs-svc__search_docs",
 		},
 	}, got.ToolChoice)
+}
+
+func TestResponsesRequestToChatCompletionsRequestConvertsSupportedNonFunctionTools(t *testing.T) {
+	strict := true
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, "hello"),
+		Tools: mustRawMessage(t, []map[string]any{
+			{"type": "file_search"},
+			{"type": "image_generation"},
+			{
+				"type": "web_search_preview",
+				"function": map[string]any{
+					"name":       "search_web",
+					"parameters": map[string]any{"type": "object"},
+				},
+				"description": "Search the web",
+				"strict":      strict,
+			},
+			{
+				"type":         "mcp",
+				"server_label": "docs-svc",
+				"name":         "lookup",
+				"parameters":   map[string]any{"type": "object"},
+			},
+			{"type": "custom", "name": "raw_lookup"},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Tools, 3)
+	assert.Equal(t, "search_web", got.Tools[0].Function.Name)
+	assert.Equal(t, "Search the web", got.Tools[0].Function.Description)
+	assert.Equal(t, &strict, got.Tools[0].Function.Strict)
+	assert.Equal(t, "docs-svc__lookup", got.Tools[1].Function.Name)
+	assert.Equal(t, "raw_lookup", got.Tools[2].Function.Name)
+	params, ok := got.Tools[2].Function.Parameters.(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, params["properties"], responsesCustomToolInputField)
 }

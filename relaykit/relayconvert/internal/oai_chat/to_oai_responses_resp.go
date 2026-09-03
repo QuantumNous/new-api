@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 )
 
@@ -33,6 +34,10 @@ const (
 )
 
 func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id string) (*dto.OpenAIResponsesResponse, *dto.Usage, error) {
+	return ChatCompletionsResponseToResponsesResponseWithToolIdentities(resp, id, nil)
+}
+
+func ChatCompletionsResponseToResponsesResponseWithToolIdentities(resp *dto.OpenAITextResponse, id string, identities map[string]convmeta.ResponsesToolIdentity) (*dto.OpenAIResponsesResponse, *dto.Usage, error) {
 	if resp == nil {
 		return nil, nil, errors.New("response is nil")
 	}
@@ -92,7 +97,7 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id
 	}
 
 	for i, toolCall := range choice.Message.ParseToolCalls() {
-		toolOutput, err := chatToolCallToResponsesOutput(toolCall, id, i, responseOutputStatus(out))
+		toolOutput, err := chatToolCallToResponsesOutput(toolCall, id, i, responseOutputStatus(out), identities)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -203,20 +208,30 @@ func responseStatusString(resp *dto.OpenAIResponsesResponse) string {
 	return strings.TrimSpace(status)
 }
 
-func chatToolCallToResponsesOutput(toolCall dto.ToolCallRequest, responseID string, index int, status string) (dto.ResponsesOutput, error) {
+func chatToolCallToResponsesOutput(toolCall dto.ToolCallRequest, responseID string, index int, status string, identities map[string]convmeta.ResponsesToolIdentity) (dto.ResponsesOutput, error) {
 	callID := strings.TrimSpace(toolCall.ID)
 	if callID == "" {
 		callID = fmt.Sprintf("%s_call_%d", responseID, index)
 	}
 	if toolCall.Type == "" || toolCall.Type == "function" {
-		return dto.ResponsesOutput{
+		output := dto.ResponsesOutput{
 			Type:      responsesOutputTypeFunctionCall,
 			ID:        callID,
 			Status:    status,
 			CallId:    callID,
 			Name:      toolCall.Function.Name,
 			Arguments: chatArgumentsRawMessage(toolCall.Function.Arguments),
-		}, nil
+		}
+		if identity, ok := identities[toolCall.Function.Name]; ok {
+			output.Name = identity.Name
+			if identity.Kind == "mcp" {
+				output.Type = "mcp_call"
+				output.ServerLabel = identity.ServerLabel
+			} else {
+				output.Namespace = identity.Namespace
+			}
+		}
+		return output, nil
 	}
 	return dto.ResponsesOutput{
 		Type:      toolCall.Type,
