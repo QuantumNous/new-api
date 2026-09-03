@@ -106,13 +106,10 @@ func InitChannelCache() {
 func SyncChannelCache(frequency int) {
 	for {
 		time.Sleep(time.Duration(frequency) * time.Second)
-		if !RunMetaproxyProvisionSyncIfReady(func() {
+		runProvisionSync(func() {
 			common.SysLog("syncing channels from database")
 			InitChannelCache()
-		}) {
-			common.SysLog("skipping channel sync while a metaproxy provision restart is pending")
-			continue
-		}
+		})
 	}
 }
 

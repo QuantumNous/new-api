@@ -357,11 +357,10 @@ func ApplyMetaproxyProvision(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"revision":         request.Revision,
-			"digest":           request.Digest,
-			"previous_digest":  result.PreviousDigest,
-			"already_applied":  result.AlreadyApplied,
-			"restart_required": result.RestartRequired,
+			"revision":        request.Revision,
+			"digest":          request.Digest,
+			"previous_digest": result.PreviousDigest,
+			"already_applied": result.AlreadyApplied,
 		},
 	})
 }

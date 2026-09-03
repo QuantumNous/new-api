@@ -22,7 +22,6 @@ func setupMetaproxyProvisionTestDB(t *testing.T) *gorm.DB {
 	previousMemoryCacheEnabled := common.MemoryCacheEnabled
 	DB = db
 	common.MemoryCacheEnabled = true
-	provisionRuntimeFrozen.Store(false)
 	common.OptionMapRWMutex.Lock()
 	previousOptions := common.OptionMap
 	common.OptionMap = map[string]string{
@@ -33,12 +32,22 @@ func setupMetaproxyProvisionTestDB(t *testing.T) *gorm.DB {
 	t.Cleanup(func() {
 		DB = previousDB
 		common.MemoryCacheEnabled = previousMemoryCacheEnabled
-		provisionRuntimeFrozen.Store(false)
 		common.OptionMapRWMutex.Lock()
 		common.OptionMap = previousOptions
 		common.OptionMapRWMutex.Unlock()
 	})
 	return db
+}
+
+// stubProvisionReload replaces the hot-reload steps for the duration of one
+// test and restores them afterwards.
+func stubProvisionReload(t *testing.T, reloadOptions func(), reloadChannels func()) {
+	t.Helper()
+	originalOptions, originalChannels := reloadProvisionOptions, reloadProvisionChannels
+	reloadProvisionOptions, reloadProvisionChannels = reloadOptions, reloadChannels
+	t.Cleanup(func() {
+		reloadProvisionOptions, reloadProvisionChannels = originalOptions, originalChannels
+	})
 }
 
 func provisionTestChannel(name, key, models string) MetaproxyProvisionChannel {
@@ -115,12 +124,14 @@ func desiredProvisionConfig() MetaproxyProvisionConfig {
 func TestApplyMetaproxyProvisionReplacesManagedStateAtomically(t *testing.T) {
 	db := setupMetaproxyProvisionTestDB(t)
 	seedProvisionState(t, db)
+	config := desiredProvisionConfig()
 
-	result, err := ApplyMetaproxyProvision(desiredProvisionConfig(), "old-digest")
+	result, err := ApplyMetaproxyProvision(config, "old-digest")
 	require.NoError(t, err)
-	require.False(t, result.AlreadyApplied)
-	require.True(t, result.RestartRequired)
-	require.True(t, IsMetaproxyProvisionRuntimeFrozen())
+	require.Equal(t, MetaproxyProvisionResult{
+		AlreadyApplied: false,
+		PreviousDigest: "old-digest",
+	}, result)
 
 	var channels []Channel
 	require.NoError(t, db.Where("tag = ?", MetaproxyProvisionManagedTag).Find(&channels).Error)
@@ -141,15 +152,60 @@ func TestApplyMetaproxyProvisionReplacesManagedStateAtomically(t *testing.T) {
 	for _, option := range options {
 		got[option.Key] = option.Value
 	}
-	require.Equal(t, desiredProvisionConfig().Digest, got[MetaproxyProvisionDigestOption])
-	require.Equal(t, desiredProvisionConfig().Revision, got[MetaproxyProvisionRevisionOption])
+	require.Equal(t, config.Digest, got[MetaproxyProvisionDigestOption])
+	require.Equal(t, config.Revision, got[MetaproxyProvisionRevisionOption])
 	require.Equal(t, `{"new-model":1.5}`, got["ModelRatio"])
 	require.Equal(t, `{"image-model":"tiered_expr"}`, got["billing_setting.billing_mode"])
 	require.Equal(t, `{"image-model":"tier(\"base\", 200000)"}`, got["billing_setting.billing_expr"])
 
+	// The apply hot-reloads the in-process state: the new digest is active in
+	// memory and the new channel is routable without a restart.
 	common.OptionMapRWMutex.RLock()
-	require.Equal(t, "old-digest", common.OptionMap[MetaproxyProvisionDigestOption])
+	require.Equal(t, config.Digest, common.OptionMap[MetaproxyProvisionDigestOption])
 	common.OptionMapRWMutex.RUnlock()
+
+	channel, err := GetRandomSatisfiedChannel("standard", "new-model", 0, "")
+	require.NoError(t, err)
+	require.NotNil(t, channel)
+	require.Equal(t, "New upstream [new]", channel.Name)
+	require.Equal(t, "new-key", channel.Key)
+}
+
+func TestApplyMetaproxyProvisionReloadsOptionsBeforeChannels(t *testing.T) {
+	db := setupMetaproxyProvisionTestDB(t)
+	seedProvisionState(t, db)
+
+	var reloadSequence []string
+	stubProvisionReload(t,
+		func() { reloadSequence = append(reloadSequence, "options") },
+		func() { reloadSequence = append(reloadSequence, "channels") },
+	)
+
+	_, err := ApplyMetaproxyProvision(desiredProvisionConfig(), "old-digest")
+	require.NoError(t, err)
+	require.Equal(t, []string{"options", "channels"}, reloadSequence)
+}
+
+func TestApplyMetaproxyProvisionIdempotentRetrySkipsReload(t *testing.T) {
+	db := setupMetaproxyProvisionTestDB(t)
+	seedProvisionState(t, db)
+	config := desiredProvisionConfig()
+
+	first, err := ApplyMetaproxyProvision(config, "old-digest")
+	require.NoError(t, err)
+	require.False(t, first.AlreadyApplied)
+	common.OptionMapRWMutex.RLock()
+	require.Equal(t, config.Digest, common.OptionMap[MetaproxyProvisionDigestOption])
+	common.OptionMapRWMutex.RUnlock()
+
+	optionsReloads, channelsReloads := 0, 0
+	stubProvisionReload(t, func() { optionsReloads++ }, func() { channelsReloads++ })
+
+	second, err := ApplyMetaproxyProvision(config, config.Digest)
+	require.NoError(t, err)
+	require.True(t, second.AlreadyApplied)
+	require.Zero(t, optionsReloads)
+	require.Zero(t, channelsReloads)
 }
 
 func TestApplyMetaproxyProvisionConflictDoesNotWrite(t *testing.T) {
@@ -158,7 +214,6 @@ func TestApplyMetaproxyProvisionConflictDoesNotWrite(t *testing.T) {
 
 	_, err := ApplyMetaproxyProvision(desiredProvisionConfig(), "some-other-digest")
 	require.ErrorIs(t, err, ErrMetaproxyProvisionConflict)
-	require.False(t, IsMetaproxyProvisionRuntimeFrozen())
 
 	var channel Channel
 	require.NoError(t, db.First(&channel, old.Id).Error)
@@ -166,6 +221,10 @@ func TestApplyMetaproxyProvisionConflictDoesNotWrite(t *testing.T) {
 	var digest Option
 	require.NoError(t, db.First(&digest, "key = ?", MetaproxyProvisionDigestOption).Error)
 	require.Equal(t, "old-digest", digest.Value)
+
+	common.OptionMapRWMutex.RLock()
+	require.Equal(t, "old-digest", common.OptionMap[MetaproxyProvisionDigestOption])
+	common.OptionMapRWMutex.RUnlock()
 }
 
 func TestApplyMetaproxyProvisionRequiresMemoryCache(t *testing.T) {
@@ -197,10 +256,9 @@ func TestApplyMetaproxyProvisionUpdatesInPlaceAndIsIdempotent(t *testing.T) {
 	require.Equal(t, old.Status, updated.Status)
 	require.Equal(t, "rotated-key", updated.Key)
 
-	second, err := ApplyMetaproxyProvision(config, "old-digest")
+	second, err := ApplyMetaproxyProvision(config, config.Digest)
 	require.NoError(t, err)
 	require.True(t, second.AlreadyApplied)
-	require.True(t, second.RestartRequired)
 
 	var count int64
 	require.NoError(t, db.Model(&Channel{}).Where("tag = ?", MetaproxyProvisionManagedTag).Count(&count).Error)
@@ -222,7 +280,6 @@ func TestApplyMetaproxyProvisionRollsBackEveryTableOnFailure(t *testing.T) {
 	_, err := ApplyMetaproxyProvision(desiredProvisionConfig(), "old-digest")
 	require.Error(t, err)
 	require.False(t, errors.Is(err, ErrMetaproxyProvisionConflict))
-	require.False(t, IsMetaproxyProvisionRuntimeFrozen())
 
 	var channels []Channel
 	require.NoError(t, db.Where("tag = ?", MetaproxyProvisionManagedTag).Find(&channels).Error)
@@ -236,4 +293,8 @@ func TestApplyMetaproxyProvisionRollsBackEveryTableOnFailure(t *testing.T) {
 	var digest Option
 	require.NoError(t, db.First(&digest, "key = ?", MetaproxyProvisionDigestOption).Error)
 	require.Equal(t, "old-digest", digest.Value)
+
+	common.OptionMapRWMutex.RLock()
+	require.Equal(t, "old-digest", common.OptionMap[MetaproxyProvisionDigestOption])
+	common.OptionMapRWMutex.RUnlock()
 }
