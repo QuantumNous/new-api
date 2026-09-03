@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	relaykitdto "github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 // TaskAliasTarget is one mapping-derived alias after cross-channel aggregation.
@@ -20,9 +22,16 @@ type TaskAliasTarget struct {
 }
 
 type taskAliasView struct {
-	generation uint64
-	expiresAt  time.Time
-	byFold     map[string]TaskAliasTarget
+	generation     uint64
+	expiresAt      time.Time
+	byFold         map[string]TaskAliasTarget
+	fallbackByFold map[string][]TaskModelFallbackCandidate
+}
+
+type TaskModelFallbackCandidate struct {
+	Declared  string
+	PluginKey string
+	ChannelID int
 }
 
 const taskAliasViewTTL = 60 * time.Second
@@ -45,6 +54,17 @@ func ResolveTaskModelAlias(g *jsplugin.RoutingGeneration, name string) (TaskAlia
 	}
 	target, ok := view.byFold[jsplugin.ASCIIFold(name)]
 	return target, ok
+}
+
+func ResolveTaskModelFallbackCandidates(g *jsplugin.RoutingGeneration, name string) []TaskModelFallbackCandidate {
+	if g == nil || name == "" {
+		return nil
+	}
+	view := loadFreshTaskAliasView(g)
+	if view == nil {
+		return nil
+	}
+	return append([]TaskModelFallbackCandidate(nil), view.fallbackByFold[jsplugin.ASCIIFold(name)]...)
 }
 
 func loadFreshTaskAliasView(g *jsplugin.RoutingGeneration) *taskAliasView {
@@ -84,16 +104,17 @@ func buildTaskAliasView(generation *jsplugin.RoutingGeneration) *taskAliasView {
 		genNum = generation.Number
 	}
 	view := &taskAliasView{
-		generation: genNum,
-		expiresAt:  time.Now().Add(taskAliasViewTTL),
-		byFold:     make(map[string]TaskAliasTarget),
+		generation:     genNum,
+		expiresAt:      time.Now().Add(taskAliasViewTTL),
+		byFold:         make(map[string]TaskAliasTarget),
+		fallbackByFold: make(map[string][]TaskModelFallbackCandidate),
 	}
 	if DB == nil {
 		return view
 	}
 
 	var channels []Channel
-	err := DB.Select("id", "type", "models", "model_mapping").
+	err := DB.Select("id", "type", "models", "model_mapping", "setting").
 		Where("status = ?", common.ChannelStatusEnabled).
 		Find(&channels).Error
 	if err != nil {
@@ -104,6 +125,12 @@ func buildTaskAliasView(generation *jsplugin.RoutingGeneration) *taskAliasView {
 	drafts := make(map[string]*taskAliasDraft)
 	for i := range channels {
 		channel := &channels[i]
+		settings := relaykitdto.ChannelSettings{}
+		if channel.Type == constant.ChannelTypeTaskPlugin && channel.Setting != nil && *channel.Setting != "" {
+			if err := common.Unmarshal([]byte(*channel.Setting), &settings); err != nil {
+				continue
+			}
+		}
 		mappingJSON := channel.GetModelMapping()
 		if mappingJSON == "" || mappingJSON == "{}" {
 			continue
@@ -124,9 +151,6 @@ func buildTaskAliasView(generation *jsplugin.RoutingGeneration) *taskAliasView {
 			if _, exposed := inModels[alias]; !exposed {
 				continue
 			}
-			if _, declared := generation.CanonicalModel(alias); declared {
-				continue
-			}
 			tail, cyclic := followChannelModelMapping(modelMap, alias)
 			if cyclic {
 				common.SysError(fmt.Sprintf("task alias mapping cycle dropped: channel=%d key=%q", channel.Id, alias))
@@ -138,6 +162,15 @@ func buildTaskAliasView(generation *jsplugin.RoutingGeneration) *taskAliasView {
 			}
 			plugin, ok := generation.GetByModel(declared)
 			if !ok {
+				continue
+			}
+			if channel.Type == constant.ChannelTypeTaskPlugin && settings.TaskPluginKey == plugin.Meta.Key {
+				fold := jsplugin.ASCIIFold(alias)
+				view.fallbackByFold[fold] = append(view.fallbackByFold[fold], TaskModelFallbackCandidate{
+					Declared: declared, PluginKey: plugin.Meta.Key, ChannelID: channel.Id,
+				})
+			}
+			if _, directlyDeclared := generation.CanonicalModel(alias); directlyDeclared {
 				continue
 			}
 			fold := jsplugin.ASCIIFold(alias)

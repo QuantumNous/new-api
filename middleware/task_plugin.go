@@ -342,7 +342,9 @@ func PinTaskPluginEndpoint() gin.HandlerFunc {
 		pinModel := claimedModel
 		mappedModel := ""
 		rewriteTo := ""
+		directlyDeclared := false
 		if declared, ok := generation.CanonicalModel(claimedModel); ok {
+			directlyDeclared = true
 			lookupModel = declared
 			pinModel = declared
 			if claimedModel != declared {
@@ -415,6 +417,13 @@ func PinTaskPluginEndpoint() gin.HandlerFunc {
 			candidates = filtered
 			binding = candidates[0]
 		}
+		if directlyDeclared && !hasTaskPluginChannel(c, generation, pinModel, binding.Plugin, candidates) {
+			if fallback, fallbackCandidates, ok := mappedTaskPluginFallback(c, generation, pinModel); ok {
+				binding = fallback
+				candidates = fallbackCandidates
+				mappedModel = fallback.Model
+			}
+		}
 
 		pin := pluginruntime.PinnedPlugin{Generation: generation, Plugin: binding.Plugin}
 		pinnedEndpoint := pluginruntime.PinnedEndpoint{
@@ -440,6 +449,127 @@ func PinTaskPluginEndpoint() gin.HandlerFunc {
 		)
 		c.Next()
 	}
+}
+
+func hasTaskPluginChannel(c *gin.Context, generation *pluginruntime.RoutingGeneration, modelName string, plugin *pluginruntime.LoadedPlugin, candidates []pluginruntime.ProtocolBinding) bool {
+	groups := taskPluginRequestGroups(c)
+	if len(groups) == 0 || plugin == nil {
+		return false
+	}
+	channelTypes := make([]int, 0)
+	for _, candidate := range candidates {
+		if candidate.Plugin == nil {
+			continue
+		}
+		for _, channelType := range candidate.Plugin.Meta.ChannelTypes {
+			if channelType != 0 && channelType != constant.ChannelTypeTaskPlugin && generation != nil {
+				if owner, ok := generation.GetByChannelType(channelType); ok && owner == candidate.Plugin {
+					channelTypes = append(channelTypes, channelType)
+				}
+			}
+		}
+	}
+	filters := append([]dto.ChannelFilter(nil), service.GetChannelConstraints(c).Filters...)
+	filters = append(filters,
+		dto.ChannelFilter{Kind: dto.FilterRequestPath, RequestPath: c.Request.URL.Path},
+		dto.ChannelFilter{Kind: dto.FilterTaskPluginIdentity, TaskPluginKey: plugin.Meta.Key, TaskPluginChannelTypes: channelTypes},
+	)
+	if pin, found, _ := service.GetChannelConstraints(c).ResolvedPin(); found {
+		channel, err := model.CacheGetChannel(pin.ChannelId)
+		if err != nil || channel.Status != common.ChannelStatusEnabled || !model.IsChannelEnabledForAnyGroupModel(groups, modelName, channel.Id) {
+			return false
+		}
+		ok, _ := model.ChannelSatisfiesFilters(channel, modelName, filters)
+		return ok
+	}
+	for _, group := range groups {
+		channel, err := model.GetRandomSatisfiedChannel(group, modelName, 0, filters)
+		if err != nil {
+			return true
+		}
+		if channel != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func mappedTaskPluginFallback(c *gin.Context, generation *pluginruntime.RoutingGeneration, modelName string) (pluginruntime.ProtocolBinding, []pluginruntime.ProtocolBinding, bool) {
+	groups := taskPluginRequestGroups(c)
+	if len(groups) == 0 {
+		return pluginruntime.ProtocolBinding{}, nil, false
+	}
+	pin, pinned, _ := service.GetChannelConstraints(c).ResolvedPin()
+	type fallbackChoice struct {
+		binding pluginruntime.ProtocolBinding
+	}
+	choices := make(map[string]fallbackChoice)
+	for _, candidate := range model.ResolveTaskModelFallbackCandidates(generation, modelName) {
+		channel, err := model.CacheGetChannel(candidate.ChannelID)
+		if err != nil || channel.Status != common.ChannelStatusEnabled || pinned && pin.ChannelId != channel.Id {
+			continue
+		}
+		if channel.Type != constant.ChannelTypeTaskPlugin {
+			continue
+		}
+		if !model.IsChannelEnabledForAnyGroupModel(groups, modelName, channel.Id) {
+			continue
+		}
+		filters := append([]dto.ChannelFilter(nil), service.GetChannelConstraints(c).Filters...)
+		filters = append(filters,
+			dto.ChannelFilter{Kind: dto.FilterRequestPath, RequestPath: c.Request.URL.Path},
+			dto.ChannelFilter{Kind: dto.FilterTaskPluginIdentity, TaskPluginKey: candidate.PluginKey},
+		)
+		if ok, _ := model.ChannelSatisfiesFilters(channel, modelName, filters); !ok {
+			continue
+		}
+		endpointCandidates := generation.LookupEndpointCandidates(c.Request.Method, c.Request.URL.Path, candidate.Declared)
+		var binding pluginruntime.ProtocolBinding
+		for _, endpointCandidate := range endpointCandidates {
+			supported := endpointCandidate.Plugin != nil && taskPluginBindingSupportsRequest(c, endpointCandidate)
+			if supported && endpointCandidate.Plugin.Meta.Key == candidate.PluginKey {
+				binding = endpointCandidate
+			}
+		}
+		if binding.Plugin == nil {
+			continue
+		}
+		key := candidate.PluginKey + "\x00" + candidate.Declared
+		choices[key] = fallbackChoice{binding: binding}
+	}
+	if len(choices) != 1 {
+		return pluginruntime.ProtocolBinding{}, nil, false
+	}
+	for _, choice := range choices {
+		return choice.binding, []pluginruntime.ProtocolBinding{choice.binding}, true
+	}
+	return pluginruntime.ProtocolBinding{}, nil, false
+}
+
+func taskPluginRequestGroups(c *gin.Context) []string {
+	usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	if usingGroup == "auto" {
+		return service.GetRequestAutoGroups(c, common.GetContextKeyString(c, constant.ContextKeyUserGroup))
+	}
+	if usingGroup == "" {
+		return nil
+	}
+	return []string{usingGroup}
+}
+
+func taskPluginBindingSupportsRequest(c *gin.Context, binding pluginruntime.ProtocolBinding) bool {
+	definition, known := pluginruntime.HostProtocol(binding.Protocol)
+	if !known || len(definition.DefinedModes()) == 0 {
+		return true
+	}
+	stream, background := jsonBodyBoolFlags(c)
+	mode := "sync"
+	if stream {
+		mode = "stream"
+	} else if background {
+		mode = "background"
+	}
+	return binding.Plugin.Meta.ProtocolSupports(binding.Protocol, mode)
 }
 
 func jsonBodyBoolFlags(c *gin.Context) (stream, background bool) {

@@ -19,6 +19,9 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	builtinplugins "github.com/QuantumNous/new-api/plugins"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -1582,6 +1585,275 @@ func TestPinTaskPluginEndpointMovesParserToSurvivingSharedCandidate(t *testing.T
 		assert.Same(t, streamOnly, pinned.Candidates[0].Plugin)
 		assert.Equal(t, "stream-parser", action)
 	})
+}
+
+func TestPinTaskPluginEndpointFallsBackToUniqueMappedPlugin(t *testing.T) {
+	tests := []struct {
+		name           string
+		channels       []taskPluginFallbackTestChannel
+		targetModels   map[string][]string
+		targetProtocol map[string]string
+		pinChannel     int
+		wantPlugin     string
+		wantMapped     string
+		usingGroup     string
+		autoGroups     []string
+	}{
+		{
+			name: "direct owner channel keeps direct plugin",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "direct", models: "client-model"},
+				{plugin: "target", models: "client-model", mapping: `{"client-model":"target-model"}`},
+			},
+			wantPlugin: "direct",
+		},
+		{
+			name: "unique mapping falls back",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "client-model", mapping: `{"client-model":"target-model"}`},
+			},
+			wantPlugin: "target", wantMapped: "target-model",
+		},
+		{
+			name: "duplicate channels with same pair fall back",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "client-model", mapping: `{"client-model":"target-model"}`},
+				{plugin: "target", models: "client-model", mapping: `{"client-model":"target-model"}`},
+			},
+			wantPlugin: "target", wantMapped: "target-model",
+		},
+		{
+			name: "different plugins are ambiguous",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "client-model", mapping: `{"client-model":"target-model"}`},
+				{plugin: "other", models: "client-model", mapping: `{"client-model":"other-model"}`},
+			},
+			targetModels: map[string][]string{"other": {"other-model"}},
+			wantPlugin:   "direct",
+		},
+		{
+			name: "different target models in one plugin are ambiguous",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "client-model", mapping: `{"client-model":"target-model"}`},
+				{plugin: "target", models: "client-model", mapping: `{"client-model":"target-model-2"}`},
+			},
+			targetModels: map[string][]string{"target": {"target-model", "target-model-2"}},
+			wantPlugin:   "direct",
+		},
+		{
+			name: "disabled mapping is ignored",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "client-model", mapping: `{"client-model":"target-model"}`, disabled: true},
+			},
+			wantPlugin: "direct",
+		},
+		{
+			name: "mapping outside request group is ignored",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "client-model", group: "other", mapping: `{"client-model":"target-model"}`},
+			},
+			wantPlugin: "direct",
+		},
+		{
+			name: "mapping in auto request group falls back",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "client-model", group: "other", mapping: `{"client-model":"target-model"}`},
+			},
+			usingGroup: "auto", autoGroups: []string{"other"},
+			wantPlugin: "target", wantMapped: "target-model",
+		},
+		{
+			name: "mapping outside auto request groups is ignored",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "client-model", group: "other", mapping: `{"client-model":"target-model"}`},
+			},
+			usingGroup: "auto", autoGroups: []string{"default"},
+			wantPlugin: "direct",
+		},
+		{
+			name: "mapping source must be publicly exposed",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "another-model", mapping: `{"client-model":"target-model"}`},
+			},
+			wantPlugin: "direct",
+		},
+		{
+			name: "cyclic mapping is ignored",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "client-model", mapping: `{"client-model":"middle-model","middle-model":"client-model"}`},
+			},
+			wantPlugin: "direct",
+		},
+		{
+			name: "undeclared mapping target is ignored",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "client-model", mapping: `{"client-model":"missing-model"}`},
+			},
+			wantPlugin: "direct",
+		},
+		{
+			name: "malformed mapping is ignored",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "client-model", mapping: `{"client-model":`},
+			},
+			wantPlugin: "direct",
+		},
+		{
+			name: "channel plugin identity must match target owner",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "other", models: "client-model", mapping: `{"client-model":"target-model"}`},
+			},
+			targetModels: map[string][]string{"other": {"other-model"}},
+			wantPlugin:   "direct",
+		},
+		{
+			name: "target must support request path",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "client-model", mapping: `{"client-model":"target-model"}`},
+			},
+			targetProtocol: map[string]string{"target": "/v1/responses"},
+			wantPlugin:     "direct",
+		},
+		{
+			name: "channel pin restricts fallback candidates",
+			channels: []taskPluginFallbackTestChannel{
+				{plugin: "target", models: "client-model", mapping: `{"client-model":"target-model"}`},
+				{plugin: "other", models: "client-model", mapping: `{"client-model":"other-model"}`},
+			},
+			targetModels: map[string][]string{"other": {"other-model"}},
+			pinChannel:   1,
+			wantPlugin:   "target", wantMapped: "target-model",
+		},
+	}
+
+	for index, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			previousDB := model.DB
+			previousMemoryCache := common.MemoryCacheEnabled
+			database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+			require.NoError(t, err)
+			require.NoError(t, database.AutoMigrate(&model.Channel{}, &model.Ability{}))
+			model.DB = database
+			common.MemoryCacheEnabled = true
+			if testCase.usingGroup == "auto" {
+				originalMax := setting.GetMaxTokenAutoGroups()
+				originalUsableGroups := setting.UserUsableGroups2JSONString()
+				originalRatios := ratio_setting.GroupRatio2JSONString()
+				require.NoError(t, setting.UpdateMaxTokenAutoGroups("10"))
+				require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","other":"Other"}`))
+				require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"other":1}`))
+				t.Cleanup(func() {
+					require.NoError(t, setting.UpdateMaxTokenAutoGroups(fmt.Sprintf("%d", originalMax)))
+					require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(originalUsableGroups))
+					require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(originalRatios))
+				})
+			}
+			t.Cleanup(func() {
+				model.DB = previousDB
+				common.MemoryCacheEnabled = previousMemoryCache
+				if previousDB != nil {
+					model.InitChannelCache()
+				}
+			})
+
+			prefix := fmt.Sprintf("fallback-%d-", index)
+			directKey := prefix + "direct"
+			pluginKeys := map[string]string{"direct": directKey, "target": prefix + "target", "other": prefix + "other"}
+			modelsByPlugin := map[string][]string{"direct": {prefix + "client-model"}, "target": {prefix + "target-model"}}
+			for plugin, models := range testCase.targetModels {
+				prefixed := make([]string, len(models))
+				for i, modelName := range models {
+					prefixed[i] = prefix + modelName
+				}
+				modelsByPlugin[plugin] = prefixed
+			}
+			for plugin, models := range modelsByPlugin {
+				endpoint := "/v1/videos"
+				if configured := testCase.targetProtocol[plugin]; configured != "" {
+					endpoint = configured
+				}
+				modelJSON, marshalErr := common.Marshal(models)
+				require.NoError(t, marshalErr)
+				_, err = jsplugin.DefaultRegistry.Register(taskProtocolPluginSource(
+					pluginKeys[plugin], "1.0.0", string(modelJSON), endpoint,
+					fmt.Sprintf(`return {model: ctx.model, action: %q};`, plugin),
+				), jsplugin.Options{})
+				require.NoError(t, err)
+				key := pluginKeys[plugin]
+				t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(key)) })
+			}
+
+			insertedIDs := make([]int, 0, len(testCase.channels))
+			for _, fixture := range testCase.channels {
+				status := common.ChannelStatusEnabled
+				if fixture.disabled {
+					status = common.ChannelStatusManuallyDisabled
+				}
+				group := fixture.group
+				if group == "" {
+					group = "default"
+				}
+				mapping := strings.ReplaceAll(fixture.mapping, "client-model", prefix+"client-model")
+				mapping = strings.ReplaceAll(mapping, "other-model", prefix+"other-model")
+				mapping = strings.ReplaceAll(mapping, "target-model", prefix+"target-model")
+				setting := fmt.Sprintf(`{"task_plugin_key":%q}`, pluginKeys[fixture.plugin])
+				baseURL := "https://example.com"
+				priority := int64(0)
+				weight := uint(1)
+				channel := model.Channel{
+					Type: constant.ChannelTypeTaskPlugin, Status: status, Name: fixture.plugin,
+					Key: "sk", Models: prefix + fixture.models, Group: group, BaseURL: &baseURL,
+					Setting: &setting, ModelMapping: &mapping, Priority: &priority, Weight: &weight,
+				}
+				require.NoError(t, channel.Insert())
+				insertedIDs = append(insertedIDs, channel.Id)
+			}
+			model.InitChannelCache()
+
+			var pinned jsplugin.PinnedEndpoint
+			var action string
+			router := gin.New()
+			router.POST("/v1/videos", func(c *gin.Context) {
+				usingGroup := testCase.usingGroup
+				if usingGroup == "" {
+					usingGroup = "default"
+				}
+				common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
+				if usingGroup == "auto" {
+					common.SetContextKey(c, constant.ContextKeyTokenAutoGroups, testCase.autoGroups)
+				}
+				if testCase.pinChannel > 0 {
+					service.GetChannelConstraints(c).AddPin(dto.ChannelPin{ChannelId: insertedIDs[testCase.pinChannel-1], Source: dto.PinSourceToken, Rank: dto.PinRankToken})
+				}
+				c.Next()
+			}, PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+				pinned = c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint)
+				action = c.GetString("task_action")
+				c.Status(http.StatusNoContent)
+			})
+			request := httptest.NewRequest(http.MethodPost, "/v1/videos", strings.NewReader(fmt.Sprintf(`{"model":%q}`, prefix+"client-model")))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+
+			require.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
+			assert.Equal(t, pluginKeys[testCase.wantPlugin], pinned.Plugin.Meta.Key)
+			assert.Equal(t, testCase.wantPlugin, action)
+			mapped := testCase.wantMapped
+			if mapped != "" {
+				mapped = prefix + mapped
+			}
+			assert.Equal(t, mapped, pinned.MappedModel)
+		})
+	}
+}
+
+type taskPluginFallbackTestChannel struct {
+	plugin   string
+	models   string
+	group    string
+	mapping  string
+	disabled bool
 }
 
 func compileTaskRoutePlugin(t *testing.T, source string) *jsplugin.LoadedPlugin {
