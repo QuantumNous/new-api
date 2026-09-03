@@ -1747,7 +1747,8 @@ For commercial licensing, please contact support@quantumnous.com
   background: color-mix(in oklch, var(--sidebar) 93%, var(--primary));
 }
 
-.dopa-console [data-sidebar='menu-button'][data-active='true'] {
+/* Base UI exposes boolean state as a presence attribute: data-active="". */
+.dopa-console [data-sidebar='menu-button'][data-active] {
   color: var(--foreground);
   background: color-mix(in oklch, var(--primary) 14%, var(--sidebar));
   box-shadow: inset 3px 0 0 var(--primary);
@@ -1813,7 +1814,7 @@ For commercial licensing, please contact support@quantumnous.com
   background: var(--dopa-sidebar-surface-hover);
 }
 
-.dopa-console--developer [data-sidebar='menu-button'][data-active='true'] {
+.dopa-console--developer [data-sidebar='menu-button'][data-active] {
   color: var(--dopa-sidebar-active-ink);
   background: var(--dopa-sidebar-active);
   box-shadow:
@@ -1853,7 +1854,7 @@ For commercial licensing, please contact support@quantumnous.com
   background: var(--dopa-sidebar-surface-hover);
 }
 
-.dopa-console--developer [data-sidebar='menu-sub-button'][data-active='true'] {
+.dopa-console--developer [data-sidebar='menu-sub-button'][data-active] {
   color: var(--dopa-sidebar-active-ink);
   background: var(--dopa-sidebar-active);
   font-weight: 800;
