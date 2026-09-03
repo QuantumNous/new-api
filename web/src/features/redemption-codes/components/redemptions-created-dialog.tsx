@@ -98,7 +98,7 @@ export function RedemptionsCreatedDialog() {
             {t('Close')}
           </DialogClose>
           <Button onClick={handleCopyAll}>
-            <Copy />
+            <Copy aria-hidden='true' />
             {t('Copy All')}
           </Button>
         </DialogFooter>

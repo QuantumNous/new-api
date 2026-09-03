@@ -144,6 +144,9 @@ describe('redemption created dialog', () => {
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1))
     expect(writeText).toHaveBeenCalledWith('code-aaa\ncode-bbb')
+    await waitFor(() =>
+      expect(document.body).toHaveTextContent('Copied 2 code(s)')
+    )
   })
 
   test('copies only the selected code from its per-row button', async () => {
@@ -199,17 +202,23 @@ describe('redemption created dialog', () => {
 
   test('reports a failure and keeps the dialog open when copying is rejected', async () => {
     writeText.mockRejectedValue(new Error('denied'))
-    vi.stubGlobal('document', document)
-    Reflect.set(document, 'execCommand', () => false)
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: () => false,
+    })
 
-    renderDialogs()
-    await createCodes(['code-aaa'])
+    try {
+      renderDialogs()
+      await createCodes(['code-aaa'])
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Copy All' }))
+      fireEvent.click(await screen.findByRole('button', { name: 'Copy All' }))
 
-    await waitFor(() =>
-      expect(document.body).toHaveTextContent('Failed to copy to clipboard')
-    )
-    expect(screen.getByText('code-aaa')).toBeInTheDocument()
+      await waitFor(() =>
+        expect(document.body).toHaveTextContent('Failed to copy to clipboard')
+      )
+      expect(screen.getByText('code-aaa')).toBeInTheDocument()
+    } finally {
+      Reflect.deleteProperty(document, 'execCommand')
+    }
   })
 })
