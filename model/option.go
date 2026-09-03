@@ -1,6 +1,8 @@
 package model
 
 import (
+	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -220,6 +222,19 @@ func validateOptionValue(key string, value string) error {
 	}
 	if key == "ModelConcurrentLimitGroup" {
 		return setting.CheckModelConcurrentLimitGroup(value)
+	}
+	if key == "ModelConcurrentLimitEnabled" {
+		if value != "true" && value != "false" {
+			return fmt.Errorf("ModelConcurrentLimitEnabled must be true or false")
+		}
+		return nil
+	}
+	if key == "ModelConcurrentLimit" {
+		limit, err := strconv.Atoi(value)
+		if err != nil || limit < 0 || limit > math.MaxInt32 {
+			return fmt.Errorf("ModelConcurrentLimit must be an integer between 0 and %d", math.MaxInt32)
+		}
+		return nil
 	}
 	return nil
 }

@@ -1,28 +1,25 @@
 package setting
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sync"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 )
 
 var (
-	ModelConcurrentLimitEnabled  = false
-	ModelConcurrentLimit         = 0 // 0 = unlimited
-	ModelConcurrentLimitGroup    = map[string]int{}
-	ModelConcurrentLimitMutex    sync.RWMutex
-	ModelConcurrentLeaseTTL      = 5 * time.Minute
+	ModelConcurrentLimitEnabled = false
+	ModelConcurrentLimit        = 0 // 0 = unlimited
+	ModelConcurrentLimitGroup   = map[string]int{}
+	ModelConcurrentLimitMutex   sync.RWMutex
 )
 
 func ModelConcurrentLimitGroup2JSONString() string {
 	ModelConcurrentLimitMutex.RLock()
 	defer ModelConcurrentLimitMutex.RUnlock()
 
-	jsonBytes, err := json.Marshal(ModelConcurrentLimitGroup)
+	jsonBytes, err := common.Marshal(ModelConcurrentLimitGroup)
 	if err != nil {
 		common.SysLog("error marshalling concurrent limit group: " + err.Error())
 	}
@@ -34,7 +31,7 @@ func UpdateModelConcurrentLimitGroupByJSONString(jsonStr string) error {
 	defer ModelConcurrentLimitMutex.Unlock()
 
 	ModelConcurrentLimitGroup = make(map[string]int)
-	return json.Unmarshal([]byte(jsonStr), &ModelConcurrentLimitGroup)
+	return common.Unmarshal([]byte(jsonStr), &ModelConcurrentLimitGroup)
 }
 
 func GetGroupConcurrentLimit(group string) (int, bool) {
@@ -50,7 +47,7 @@ func GetGroupConcurrentLimit(group string) (int, bool) {
 
 func CheckModelConcurrentLimitGroup(jsonStr string) error {
 	check := make(map[string]int)
-	err := json.Unmarshal([]byte(jsonStr), &check)
+	err := common.Unmarshal([]byte(jsonStr), &check)
 	if err != nil {
 		return err
 	}

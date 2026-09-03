@@ -23,7 +23,7 @@ func TestInMemoryConcurrentLimiter_ReleaseUnderflow(t *testing.T) {
 	l := &InMemoryConcurrentLimiter{store: make(map[string]*int64)}
 
 	l.Release("nonexistent")
-	l.Acquire("user1", 2)
+	require.True(t, l.Acquire("user1", 2))
 	l.Release("user1")
 	l.Release("user1")
 	l.Release("user1")

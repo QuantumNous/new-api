@@ -16,54 +16,80 @@ import (
 )
 
 const (
-	concurrentLimitMark = "MCCL"
-	concurrentLeaseTTL  = 5 * time.Minute
+	concurrentLimitMark     = "MCCL"
+	concurrentLeaseTTL      = 5 * time.Minute
+	concurrentSlotKey       = "concurrent_slot"
+	concurrentBackendRedis  = "redis"
+	concurrentBackendMemory = "memory"
 )
 
 func concurrentKey(scope, id string) string {
 	return fmt.Sprintf("concurrentLimit:%s:%s", scope, id)
 }
 
+// concurrentSlot 记录一次成功占用的并发槽位。release 时据此释放
+// 同一 backend（Redis 或内存），即使 acquire 与 release 之间
+// Redis 状态发生变化也不会释放错对象。
+type concurrentSlot struct {
+	backend string // "redis" | "memory"
+	key     string
+	leaseID string             // Redis lease ID，内存 backend 为空
+	cancel  context.CancelFunc // 停止 Redis lease 续租协程，可为 nil
+}
+
+// acquireUserConcurrent 为请求占用一个用户并发槽位。
+// Redis 正常时使用 Redis lease 并启动续租；Redis 异常时回退到
+// 本实例的内存计数器（单实例语义），不再直接放行。
 func acquireUserConcurrent(c *gin.Context, userID int, maxConcurrent int) bool {
 	if maxConcurrent <= 0 {
 		return true
 	}
 	key := concurrentKey(concurrentLimitMark, strconv.Itoa(userID))
 	if common.RedisEnabled {
-		allowed, err := limiter.NewConcurrent(context.Background(), common.RDB).Acquire(
+		leaseID, allowed, err := limiter.NewConcurrent(common.RDB).Acquire(
 			c.Request.Context(), key, maxConcurrent, concurrentLeaseTTL,
 		)
-		if err != nil {
-			common.SysError(fmt.Sprintf("concurrent limit acquire failed for user %d: %v", userID, err))
+		if err == nil {
+			if !allowed {
+				return false
+			}
+			renewCtx, cancel := context.WithCancel(context.Background())
+			go limiter.NewConcurrent(common.RDB).KeepAlive(renewCtx, key, leaseID, concurrentLeaseTTL)
+			c.Set(concurrentSlotKey, &concurrentSlot{
+				backend: concurrentBackendRedis,
+				key:     key,
+				leaseID: leaseID,
+				cancel:  cancel,
+			})
 			return true
 		}
-		if !allowed {
-			return false
-		}
-		c.Set("concurrent_release_key", key)
-		return true
+		common.SysError(fmt.Sprintf("concurrent limit redis acquire failed for user %d, falling back to in-memory limiter: %v", userID, err))
 	}
 	allowed := limiter.GetInMemoryConcurrent().Acquire(key, maxConcurrent)
-	if allowed {
-		c.Set("concurrent_release_key", key)
+	if !allowed {
+		return false
 	}
-	return allowed
+	c.Set(concurrentSlotKey, &concurrentSlot{backend: concurrentBackendMemory, key: key})
+	return true
 }
 
 func releaseUserConcurrent(c *gin.Context) {
-	key, exists := c.Get("concurrent_release_key")
+	v, exists := c.Get(concurrentSlotKey)
 	if !exists {
 		return
 	}
-	keyStr, ok := key.(string)
-	if !ok || keyStr == "" {
+	slot, ok := v.(*concurrentSlot)
+	if !ok || slot == nil {
 		return
 	}
-	if common.RedisEnabled {
-		limiter.NewConcurrent(context.Background(), common.RDB).Release(context.Background(), keyStr)
-	} else {
-		limiter.GetInMemoryConcurrent().Release(keyStr)
+	if slot.cancel != nil {
+		slot.cancel()
 	}
+	if slot.backend == concurrentBackendRedis {
+		limiter.NewConcurrent(common.RDB).Release(context.Background(), slot.key, slot.leaseID)
+		return
+	}
+	limiter.GetInMemoryConcurrent().Release(slot.key)
 }
 
 // ModelConcurrentLimit 限制同一用户的在途请求数量（多 token 聚合到 user 级）。
