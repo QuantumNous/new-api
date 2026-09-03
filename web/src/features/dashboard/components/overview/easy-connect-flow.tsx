@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import {
   ArrowRight,
@@ -29,7 +29,7 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -39,7 +39,7 @@ import { useGuideAddress } from '@/features/guide/use-guide-address'
 import { createApiKey, fetchTokenKey } from '@/features/keys/api'
 import type { ApiKey } from '@/features/keys/types'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-import { getUserGroups, getUserModels } from '@/lib/api'
+import { getUserGroupModels, getUserGroups, getUserModels } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 import { canReuseEasyConnectKey, explainGroupRatio } from './easy-connect'
@@ -164,6 +164,8 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
   const [groupChoice, setGroupChoice] = useState('')
   const [connection, setConnection] = useState<ConnectionBundle | null>(null)
   const [isPreparing, setIsPreparing] = useState(false)
+  const modelInputId = useId()
+  const selectionVersion = useRef(0)
 
   const modelsQuery = useQuery({
     queryKey: ['user-models'],
@@ -176,10 +178,15 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
     staleTime: 60 * 1000,
   })
 
-  const models = modelsQuery.data?.data ?? []
-  const groups = useMemo<EasyConnectGroup[]>(
+  const models =
+    modelsQuery.data?.success && !modelsQuery.isError
+      ? (modelsQuery.data.data ?? [])
+      : []
+  const userGroups = useMemo<EasyConnectGroup[]>(
     () =>
-      Object.entries(groupsQuery.data?.data ?? {}).map(([key, value]) => ({
+      Object.entries(
+        groupsQuery.data?.success ? (groupsQuery.data.data ?? {}) : {}
+      ).map(([key, value]) => ({
         value: key,
         label: getGroupLabel(key, value.desc),
         description: value.desc || key,
@@ -187,6 +194,16 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
       })),
     [groupsQuery.data]
   )
+
+  // Ask the enabled-model endpoint, not pricing ratios or group names.
+  // It also resolves the account's real automatic routing group membership.
+  const groupModelsQueries = useQueries({
+    queries: userGroups.map((group) => ({
+      queryKey: ['user-group-models', group.value],
+      queryFn: () => getUserGroupModels(group.value),
+      staleTime: 60 * 1000,
+    })),
+  })
 
   const existingLimitedModels = (props.existingKey?.model_limits ?? '')
     .split(',')
@@ -199,6 +216,23 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
   const selectedModel = models.includes(modelChoice)
     ? modelChoice
     : defaultModel
+  const routesLoading =
+    groupsQuery.isLoading || groupModelsQueries.some((query) => query.isPending)
+  const routesError =
+    groupsQuery.isError ||
+    groupsQuery.data?.success === false ||
+    groupModelsQueries.some(
+      (query) => query.isError || query.data?.success === false
+    )
+  const groups = userGroups.filter((_, index) => {
+    const query = groupModelsQueries[index]
+    return (
+      !groupsQuery.isError &&
+      !query.isError &&
+      query.data?.success &&
+      query.data.data?.includes(selectedModel)
+    )
+  })
   const existingGroup = props.existingKey?.group || 'default'
   const defaultGroup =
     groups.find((group) => group.value === existingGroup)?.value ??
@@ -215,13 +249,13 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
     connection?.model === selectedModel && connection.group === selectedGroup
       ? connection
       : null
-  const canReuseKey = canReuseEasyConnectKey(
-    props.existingKey,
-    selectedModel,
-    selectedGroup
-  )
-  const optionsLoading = modelsQuery.isLoading || groupsQuery.isLoading
-  const selectionReady = Boolean(selectedModel && selectedGroup)
+  const canReuseKey =
+    Boolean(selectedModel && selectedGroup) &&
+    canReuseEasyConnectKey(props.existingKey, selectedModel, selectedGroup)
+  const optionsLoading = modelsQuery.isLoading || routesLoading
+  const modelsError = modelsQuery.isError || modelsQuery.data?.success === false
+  const selectionReady =
+    !optionsLoading && Boolean(selectedModel && selectedGroup)
   let passDescription = t(
     'We will create a dedicated key for this model and billing route.'
   )
@@ -240,18 +274,41 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
   }
 
   const handleModelChange = (nextModel: string | null) => {
+    selectionVersion.current += 1
+    setConnection(null)
     setModelChoice(nextModel ?? '')
   }
 
   const handleGroupChange = (nextGroup: string) => {
+    selectionVersion.current += 1
+    setConnection(null)
     setGroupChoice(nextGroup)
   }
 
   const handlePrepareConnection = async () => {
     if (!selectionReady || isPreparing) return
 
+    const preparingVersion = selectionVersion.current
     setIsPreparing(true)
     try {
+      // Recheck immediately before creating/revealing a key so a stale cached
+      // list cannot produce a connection for a route that was just disabled.
+      const supported = await queryClient.fetchQuery({
+        queryKey: ['user-group-models', selectedGroup],
+        queryFn: () => getUserGroupModels(selectedGroup),
+        staleTime: 0,
+      })
+      if (preparingVersion !== selectionVersion.current) return
+      if (!supported.success || !supported.data?.includes(selectedModel)) {
+        setConnection(null)
+        toast.error(
+          t(
+            'This route no longer supports the selected model. Choose another route.'
+          )
+        )
+        return
+      }
+
       let secret = ''
       if (canReuseKey && props.existingKey) {
         const result = await fetchTokenKey(props.existingKey.id)
@@ -285,6 +342,7 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
         }
       }
 
+      if (preparingVersion !== selectionVersion.current) return
       setConnection({
         apiKey: secret,
         baseUrl: address.baseUrl,
@@ -342,13 +400,16 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
           <div className='dopa-easy-connect__step-heading'>
             <span>1</span>
             <div>
-              <h3>{t('Choose a model')}</h3>
+              <h3>
+                <label htmlFor={modelInputId}>{t('Choose a model')}</label>
+              </h3>
               <p>{t('Which AI do you want to use?')}</p>
             </div>
           </div>
           <div className='dopa-easy-connect__model-picker'>
             <Search aria-hidden='true' />
             <Combobox
+              id={modelInputId}
               options={models.map((model) => ({
                 label: model,
                 value: model,
@@ -362,7 +423,19 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
               className='h-14 rounded-2xl border-0 bg-transparent pl-10 font-mono shadow-none'
             />
           </div>
-          {!modelsQuery.isLoading && models.length === 0 ? (
+          {modelsError ? (
+            <div role='alert' className='dopa-easy-connect__empty'>
+              <p>{t('Could not load models. Please retry.')}</p>
+              <YecaiAction
+                appearance='outline'
+                size='sm'
+                onClick={() => void modelsQuery.refetch()}
+              >
+                {t('Retry')}
+              </YecaiAction>
+            </div>
+          ) : null}
+          {!modelsError && !modelsQuery.isLoading && models.length === 0 ? (
             <p className='dopa-easy-connect__empty'>
               {t('No available models yet. Ask support to enable one first.')}
             </p>
@@ -378,6 +451,7 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
             </div>
           </div>
           <div
+            aria-busy={routesLoading}
             aria-label={t('Billing route')}
             className='dopa-easy-connect__groups'
             role='radiogroup'
@@ -409,9 +483,39 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
               )
             })}
           </div>
-          {!groupsQuery.isLoading && groups.length === 0 ? (
+          {routesLoading ? (
+            <p role='status' className='dopa-easy-connect__empty'>
+              {t('Checking available routes...')}
+            </p>
+          ) : null}
+          {routesError ? (
+            <div role='alert' className='dopa-easy-connect__empty'>
+              <p>
+                {t(
+                  'Some billing routes could not be checked. Retry to see all available routes.'
+                )}
+              </p>
+              <YecaiAction
+                appearance='outline'
+                size='sm'
+                onClick={() => {
+                  void groupsQuery.refetch()
+                  void queryClient.invalidateQueries({
+                    queryKey: ['user-group-models'],
+                  })
+                }}
+              >
+                {t('Retry')}
+              </YecaiAction>
+            </div>
+          ) : null}
+          {!routesLoading && !routesError && groups.length === 0 ? (
             <p className='dopa-easy-connect__empty'>
-              {t('No billing route is available for this account.')}
+              {userGroups.length === 0
+                ? t('No billing route is available for this account.')
+                : t(
+                    'No billing route supports this model. Choose another model or contact support.'
+                  )}
             </p>
           ) : null}
         </section>

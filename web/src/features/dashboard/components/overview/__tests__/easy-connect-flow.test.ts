@@ -63,6 +63,30 @@ describe('easy connect group pricing copy', () => {
 })
 
 describe('easy connect existing key reuse', () => {
+  it('does not reuse a key whose implicit or custom automatic routes differ from the checked route', () => {
+    expect(
+      canReuseEasyConnectKey(
+        createApiKey({ group: '' }),
+        'deepseek-v4',
+        'default'
+      )
+    ).toBe(false)
+    expect(
+      canReuseEasyConnectKey(
+        createApiKey({ group: 'auto', auto_groups: ['codex'] }),
+        'deepseek-v4',
+        'auto'
+      )
+    ).toBe(false)
+    expect(
+      canReuseEasyConnectKey(
+        createApiKey({ group: 'auto', auto_groups: null }),
+        'deepseek-v4',
+        'auto'
+      )
+    ).toBe(true)
+  })
+
   it('reuses only active keys that match the selected group and model', () => {
     const apiKey = createApiKey()
 
