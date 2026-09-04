@@ -26,7 +26,11 @@ import type { z } from 'zod'
 
 import { Dialog } from '@/components/dialog'
 import { PasswordInput } from '@/components/password-input'
-import { Turnstile } from '@/components/turnstile'
+import {
+  Turnstile,
+  type TurnstileErrorCode,
+  type TurnstileStatus,
+} from '@/components/turnstile'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -66,6 +70,11 @@ export function SignUpForm({
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
   const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
+  const [turnstileStatus, setTurnstileStatus] =
+    useState<TurnstileStatus>('loading')
+  const [turnstileErrorCode, setTurnstileErrorCode] = useState<
+    TurnstileErrorCode | undefined
+  >()
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
 
   const { status } = useStatus()
@@ -107,7 +116,16 @@ export function SignUpForm({
     status?.data?.oauth_register_enabled ??
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
-  const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
+  const turnstileReady =
+    !isTurnstileEnabled ||
+    (turnstileStatus === 'verified' && Boolean(turnstileToken))
+
+  function resetTurnstileWidget() {
+    setTurnstileToken('')
+    setTurnstileStatus('loading')
+    setTurnstileErrorCode(undefined)
+    setTurnstileWidgetKey((current) => current + 1)
+  }
 
   const wechatQrCodeUrl = useMemo(() => {
     return (
@@ -158,6 +176,11 @@ export function SignUpForm({
 
     if (!validateTurnstile()) return
 
+    const submittedTurnstileToken = turnstileToken
+    if (isTurnstileEnabled) {
+      resetTurnstileWidget()
+    }
+
     setIsLoading(true)
     try {
       const res = await register({
@@ -166,7 +189,7 @@ export function SignUpForm({
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
-        turnstile: turnstileToken,
+        turnstile: submittedTurnstileToken,
       })
 
       if (res?.success) {
@@ -183,10 +206,32 @@ export function SignUpForm({
   }
 
   async function handleSendVerificationCode() {
-    if (await sendCode(emailValue || '')) {
-      setTurnstileToken('')
-      setTurnstileWidgetKey((current) => current + 1)
+    const email = emailValue || ''
+    const hadUsableTurnstileToken = isTurnstileEnabled && turnstileReady
+    const sent = await sendCode(email)
+
+    // Turnstile tokens are single-use. The backend may consume one even when
+    // email delivery fails, so do not reuse it after an actual send attempt.
+    if (email && hadUsableTurnstileToken) {
+      resetTurnstileWidget()
     }
+
+    return sent
+  }
+
+  function handleTurnstileStatusChange(
+    nextStatus: TurnstileStatus,
+    errorCode?: TurnstileErrorCode
+  ) {
+    setTurnstileStatus(nextStatus)
+    setTurnstileErrorCode(errorCode)
+    if (nextStatus !== 'verified') {
+      setTurnstileToken('')
+    }
+  }
+
+  function handleTurnstileRetry() {
+    resetTurnstileWidget()
   }
 
   const handleOpenWeChatDialog = () => {
@@ -353,7 +398,42 @@ export function SignUpForm({
               key={turnstileWidgetKey}
               siteKey={turnstileSiteKey}
               onVerify={setTurnstileToken}
+              onExpire={() => setTurnstileToken('')}
+              onStatusChange={handleTurnstileStatusChange}
             />
+            {turnstileStatus === 'loading' && (
+              <p className='text-muted-foreground mt-2 text-sm' role='status'>
+                {t('Human verification is loading...')}
+              </p>
+            )}
+            {turnstileStatus === 'verified' && (
+              <p className='text-muted-foreground mt-2 text-sm' role='status'>
+                {t('Human verification passed.')}
+              </p>
+            )}
+            {turnstileStatus === 'expired' && (
+              <p className='text-muted-foreground mt-2 text-sm' role='status'>
+                {t('Human verification expired. Please retry.')}
+              </p>
+            )}
+            {turnstileStatus === 'error' && (
+              <div className='mt-2 flex items-center gap-2' role='alert'>
+                <p className='text-destructive text-sm'>
+                  {turnstileErrorCode === 'script-timeout'
+                    ? t(
+                        'Human verification took too long to load. Please retry or try another network.'
+                      )
+                    : t('Human verification failed. Please retry.')}
+                </p>
+                <button
+                  type='button'
+                  className='text-primary shrink-0 text-sm font-medium underline underline-offset-4'
+                  onClick={handleTurnstileRetry}
+                >
+                  {t('Retry human verification')}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
