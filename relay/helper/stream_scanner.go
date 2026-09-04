@@ -290,15 +290,27 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	})
 
 	// 主循环等待完成或超时
+	clientGoneDrainTimeout := time.Duration(constant.ClientGoneDrainTimeout) * time.Second
 	select {
 	case <-ticker.C:
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
 	case <-stopChan:
 		// EndReason already set by the goroutine that triggered stopChan
 	case <-c.Request.Context().Done():
-		// 客户端断开：立即 cleanup 关闭上游 resp.Body，解除 scanner 阻塞并让上游停止生成，
-		// 避免为已放弃的请求继续消费上游 token。
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
+		// 客户端断开。不要立即关闭上游 body：先继续消费上游一段时间，尽可能拿到最终
+		// usage，避免后续只能用本地估算 token 结算导致多扣/少扣。
+		if clientGoneDrainTimeout <= 0 {
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
+			break
+		}
+		logger.LogInfo(c, fmt.Sprintf("client gone, draining upstream for %.0fs to collect final usage", clientGoneDrainTimeout.Seconds()))
+		select {
+		case <-stopChan:
+			// 上游已正常结束/出错，scanner 会设置对应的 EndReason。
+		case <-time.After(clientGoneDrainTimeout):
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
+			logger.LogWarn(c, fmt.Sprintf("client gone drain timeout after %.0fs, force closing upstream", clientGoneDrainTimeout.Seconds()))
+		}
 	}
 
 	cleanup()
