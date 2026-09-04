@@ -92,9 +92,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 		info.SetReasoningEffort(string(effectiveEffort))
 	}
 
-	if len(claudeRequest.StopSequences) == 1 {
-		openAIRequest.Stop = claudeRequest.StopSequences[0]
-	} else if len(claudeRequest.StopSequences) > 1 {
+	if len(claudeRequest.StopSequences) > 0 {
 		openAIRequest.Stop = claudeRequest.StopSequences
 	}
 
