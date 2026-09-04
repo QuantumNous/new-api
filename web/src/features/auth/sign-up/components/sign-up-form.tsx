@@ -169,7 +169,10 @@ export function SignUpForm({
         turnstile: turnstileToken,
       })
 
-      if (res?.success) {
+      if (res?.success && isAuthBundle(res.data)) {
+        await handleLoginSuccess(res.data)
+        toast.success(t('Signed in successfully!'))
+      } else if (res?.success) {
         toast.success(t('Account created! Please sign in'))
         redirectToLogin()
       } else {

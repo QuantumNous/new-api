@@ -8,45 +8,16 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 func TestRegisterOnCustomDomainUsesDomainOwnerOnlyWhenAffIsEmpty(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	previousDB := model.DB
-	previousDatabaseType := common.MainDatabaseType()
-	previousRegisterEnabled := common.RegisterEnabled
-	previousPasswordRegisterEnabled := common.PasswordRegisterEnabled
-	previousEmailVerificationEnabled := common.EmailVerificationEnabled
-	previousRedisEnabled := common.RedisEnabled
-	previousGenerateDefaultToken := constant.GenerateDefaultToken
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.CustomDomain{}))
-	model.DB = db
-	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
-	common.RegisterEnabled = true
-	common.PasswordRegisterEnabled = true
-	common.EmailVerificationEnabled = false
-	common.RedisEnabled = false
-	constant.GenerateDefaultToken = false
-	t.Cleanup(func() {
-		model.DB = previousDB
-		common.SetMainDatabaseType(previousDatabaseType)
-		common.RegisterEnabled = previousRegisterEnabled
-		common.PasswordRegisterEnabled = previousPasswordRegisterEnabled
-		common.EmailVerificationEnabled = previousEmailVerificationEnabled
-		common.RedisEnabled = previousRedisEnabled
-		constant.GenerateDefaultToken = previousGenerateDefaultToken
-	})
+	db := setupRegistrationTest(t)
 
 	owner := model.User{Username: "registration-domain-owner", AffCode: "registration-owner-aff", Status: common.UserStatusEnabled}
 	explicit := model.User{Username: "registration-explicit-owner", AffCode: "registration-explicit-aff", Status: common.UserStatusDisabled}
@@ -93,6 +64,23 @@ func TestRegisterOnCustomDomainUsesDomainOwnerOnlyWhenAffIsEmpty(t *testing.T) {
 			var stored model.User
 			require.NoError(t, db.Where("username = ?", test.username).First(&stored).Error)
 			assert.Equal(t, test.expectedInviter, stored.InviterId)
+			var result struct {
+				Success bool `json:"success"`
+				Data    struct {
+					service.AuthBundle
+					User model.User `json:"user"`
+				} `json:"data"`
+			}
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
+			require.True(t, result.Success)
+			require.NotEmpty(t, result.Data.AccessToken)
+			assert.Equal(t, stored.Id, result.Data.User.Id)
+			assert.Equal(t, test.expectedInviter, result.Data.User.InviterId)
+			cookies := response.Result().Cookies()
+			require.Len(t, cookies, 1)
+			assert.Equal(t, service.RefreshCookieName, cookies[0].Name)
+			assert.Empty(t, cookies[0].Domain)
+			assert.Empty(t, response.Header().Get("Location"))
 		})
 	}
 
