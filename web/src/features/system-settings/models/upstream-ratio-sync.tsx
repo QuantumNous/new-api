@@ -35,6 +35,7 @@ import type {
   UpstreamChannel,
   UpstreamConfig,
 } from '../types'
+import { AutoRatioSyncSection } from './auto-ratio-sync-section'
 import { ChannelSelectorDialog } from './channel-selector-dialog'
 import {
   ConflictConfirmDialog,
@@ -476,6 +477,8 @@ export function UpstreamRatioSync({ modelRatios }: UpstreamRatioSyncProps) {
 
   return (
     <div className='flex h-full min-h-0 flex-col gap-4'>
+      <AutoRatioSyncSection />
+
       <div className='flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex flex-col gap-2 sm:flex-row'>
           <Button onClick={handleOpenChannelDialog} disabled={isLoading}>

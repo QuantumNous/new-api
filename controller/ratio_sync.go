@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -37,6 +38,7 @@ const (
 	officialRatioPresetID       = -100
 	officialRatioPresetName     = "官方倍率预设"
 	officialRatioPresetBaseURL  = "https://basellm.github.io"
+	officialRatioPresetEndpoint = "/llm-metadata/api/newapi/ratio_config-v1-base.json"
 	modelsDevPresetID           = -101
 	modelsDevPresetName         = "models.dev 价格预设"
 	modelsDevPresetBaseURL      = "https://models.dev"
@@ -139,6 +141,8 @@ func getLocalPricingSyncData() map[string]any {
 	return data
 }
 
+var errNoValidRatioSyncUpstreams = errors.New("no valid ratio sync upstreams")
+
 func FetchUpstreamRatios(c *gin.Context) {
 	var req dto.UpstreamRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -147,6 +151,31 @@ func FetchUpstreamRatios(c *gin.Context) {
 		return
 	}
 
+	differences, testResults, err := fetchUpstreamRatioDifferences(c.Request.Context(), req)
+	if err != nil {
+		if errors.Is(err, errNoValidRatioSyncUpstreams) {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "无有效上游渠道"})
+			return
+		}
+		logger.LogError(c.Request.Context(), err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "查询渠道失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"differences":  differences,
+			"test_results": testResults,
+		},
+	})
+}
+
+// fetchUpstreamRatioDifferences resolves the requested upstreams (explicit
+// DTOs or channel ids), fetches their pricing concurrently, and diffs the
+// results against the local pricing data. It is free of gin so both the admin
+// endpoint and the scheduled pricing sync task can use it.
+func fetchUpstreamRatioDifferences(reqCtx context.Context, req dto.UpstreamRequest) (map[string]map[string]dto.DifferenceItem, []dto.TestResult, error) {
 	if req.Timeout <= 0 {
 		req.Timeout = defaultTimeoutSeconds
 	}
@@ -170,9 +199,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 		}
 		dbChannels, err := model.GetChannelsByIds(intIds)
 		if err != nil {
-			logger.LogError(c.Request.Context(), "failed to query channels: "+err.Error())
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "查询渠道失败"})
-			return
+			return nil, nil, fmt.Errorf("failed to query channels: %w", err)
 		}
 		for _, ch := range dbChannels {
 			if base := ch.GetBaseURL(); strings.HasPrefix(base, "http") {
@@ -187,8 +214,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 	}
 
 	if len(upstreams) == 0 {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "无有效上游渠道"})
-		return
+		return nil, nil, errNoValidRatioSyncUpstreams
 	}
 
 	var wg sync.WaitGroup
@@ -248,12 +274,12 @@ func FetchUpstreamRatios(c *gin.Context) {
 				uniqueName = fmt.Sprintf("%s(%d)", chItem.Name, chItem.ID)
 			}
 
-			ctx, cancel := context.WithTimeout(c.Request.Context(), time.Duration(req.Timeout)*time.Second)
+			ctx, cancel := context.WithTimeout(reqCtx, time.Duration(req.Timeout)*time.Second)
 			defer cancel()
 
 			httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
 			if err != nil {
-				logger.LogWarn(c.Request.Context(), "build request failed: "+err.Error())
+				logger.LogWarn(reqCtx, "build request failed: "+err.Error())
 				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 				return
 			}
@@ -291,25 +317,25 @@ func FetchUpstreamRatios(c *gin.Context) {
 				time.Sleep(time.Duration(200*(1<<attempt)) * time.Millisecond)
 			}
 			if lastErr != nil {
-				logger.LogWarn(c.Request.Context(), "http error on "+chItem.Name+": "+lastErr.Error())
+				logger.LogWarn(reqCtx, "http error on "+chItem.Name+": "+lastErr.Error())
 				ch <- upstreamResult{Name: uniqueName, Err: lastErr.Error()}
 				return
 			}
 			defer resp.Body.Close()
 			if resp.StatusCode != http.StatusOK {
-				logger.LogWarn(c.Request.Context(), "non-200 from "+chItem.Name+": "+resp.Status)
+				logger.LogWarn(reqCtx, "non-200 from "+chItem.Name+": "+resp.Status)
 				ch <- upstreamResult{Name: uniqueName, Err: resp.Status}
 				return
 			}
 
 			// Content-Type 和响应体大小校验
 			if ct := resp.Header.Get("Content-Type"); ct != "" && !strings.Contains(strings.ToLower(ct), "application/json") {
-				logger.LogWarn(c.Request.Context(), "unexpected content-type from "+chItem.Name+": "+ct)
+				logger.LogWarn(reqCtx, "unexpected content-type from "+chItem.Name+": "+ct)
 			}
 			limited := io.LimitReader(resp.Body, maxRatioConfigBytes)
 			bodyBytes, err := io.ReadAll(limited)
 			if err != nil {
-				logger.LogWarn(c.Request.Context(), "read response failed from "+chItem.Name+": "+err.Error())
+				logger.LogWarn(reqCtx, "read response failed from "+chItem.Name+": "+err.Error())
 				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 				return
 			}
@@ -318,7 +344,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			if isOpenRouter {
 				converted, err := convertOpenRouterToRatioData(bytes.NewReader(bodyBytes))
 				if err != nil {
-					logger.LogWarn(c.Request.Context(), "OpenRouter parse failed from "+chItem.Name+": "+err.Error())
+					logger.LogWarn(reqCtx, "OpenRouter parse failed from "+chItem.Name+": "+err.Error())
 					ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 					return
 				}
@@ -330,7 +356,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			if isModelsDev {
 				converted, err := convertModelsDevToRatioData(bytes.NewReader(bodyBytes))
 				if err != nil {
-					logger.LogWarn(c.Request.Context(), "models.dev parse failed from "+chItem.Name+": "+err.Error())
+					logger.LogWarn(reqCtx, "models.dev parse failed from "+chItem.Name+": "+err.Error())
 					ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 					return
 				}
@@ -348,7 +374,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			}
 
 			if err := common.DecodeJson(bytes.NewReader(bodyBytes), &body); err != nil {
-				logger.LogWarn(c.Request.Context(), "json decode failed from "+chItem.Name+": "+err.Error())
+				logger.LogWarn(reqCtx, "json decode failed from "+chItem.Name+": "+err.Error())
 				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 				return
 			}
@@ -393,7 +419,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 				BillingExpr          string   `json:"billing_expr"`
 			}
 			if err := common.Unmarshal(body.Data, &pricingItems); err != nil {
-				logger.LogWarn(c.Request.Context(), "unrecognized data format from "+chItem.Name+": "+err.Error())
+				logger.LogWarn(reqCtx, "unrecognized data format from "+chItem.Name+": "+err.Error())
 				ch <- upstreamResult{Name: uniqueName, Err: "无法解析上游返回数据"}
 				return
 			}
@@ -524,13 +550,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 
 	differences := buildDifferences(localData, successfulChannels)
 
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"data": gin.H{
-			"differences":  differences,
-			"test_results": testResults,
-		},
-	})
+	return differences, testResults, nil
 }
 
 func buildDifferences(localData map[string]any, successfulChannels []struct {
