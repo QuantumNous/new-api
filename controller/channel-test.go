@@ -70,6 +70,26 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 }
 
 func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+	return testChannelWithVertexStorageDependencies(
+		ctx,
+		channel,
+		testUserID,
+		testModel,
+		endpointType,
+		isStream,
+		defaultVertexStorageChannelProbeDependencies(),
+	)
+}
+
+func testChannelWithVertexStorageDependencies(
+	ctx context.Context,
+	channel *model.Channel,
+	testUserID int,
+	testModel string,
+	endpointType string,
+	isStream bool,
+	storageDeps vertexStorageChannelProbeDependencies,
+) testResult {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -105,6 +125,23 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			if testModel == "" {
 				testModel = "gpt-4o-mini"
 			}
+		}
+	}
+	if isVertexStorageChannelTest(channel, testModel) {
+		c.Request = httptest.NewRequestWithContext(ctx, http.MethodPost, relayconstant.VertexStorageRoutePrefix, nil)
+		c.Set("channel", channel.Type)
+		c.Set("base_url", channel.GetBaseURL())
+		newAPIError := middleware.SetupContextForSelectedChannel(c, channel, testModel)
+		if newAPIError != nil {
+			return testResult{
+				context:     c,
+				localErr:    newAPIError,
+				newAPIError: newAPIError,
+			}
+		}
+		return testResult{
+			context:  c,
+			localErr: testVertexStorageChannel(ctx, c, testModel, storageDeps),
 		}
 	}
 
@@ -667,6 +704,12 @@ func validateTestResponseBody(respBody []byte, isStream bool) error {
 
 func shouldUseStreamForAutomaticChannelTest(channel *model.Channel) bool {
 	return channel != nil && channel.Type == constant.ChannelTypeCodex
+}
+
+func isVertexStorageChannelTest(channel *model.Channel, testModel string) bool {
+	return channel != nil &&
+		channel.Type == constant.ChannelTypeVertexAi &&
+		strings.HasPrefix(strings.TrimSpace(testModel), relayconstant.VertexStorageModelPrefix)
 }
 
 func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {

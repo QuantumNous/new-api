@@ -1,10 +1,13 @@
 package router
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/relay"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
@@ -78,6 +81,23 @@ func SetRelayRouter(router *gin.Engine) {
 		wsRouter.GET("/realtime", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIRealtime)
 		})
+	}
+
+	vertexStorageRouter := router.Group(relayconstant.VertexStorageRoutePrefix)
+	vertexStorageRouter.Use(middleware.RouteTag("relay"))
+	vertexStorageRouter.Use(middleware.SystemPerformanceCheck())
+	vertexStorageRouter.Use(middleware.TokenAuth())
+	vertexStorageRouter.Use(middleware.ModelRequestRateLimit())
+	vertexStorageRouter.Use(middleware.DistributeByChannelType(constant.ChannelTypeVertexAi))
+	{
+		uploadPath := strings.TrimPrefix(relayconstant.VertexStorageUploadRoute, relayconstant.VertexStorageRoutePrefix)
+		listPath := strings.TrimPrefix(relayconstant.VertexStorageListRoute, relayconstant.VertexStorageRoutePrefix)
+		objectPath := strings.TrimPrefix(relayconstant.VertexStorageObjectRoute, relayconstant.VertexStorageRoutePrefix)
+		vertexStorageRouter.POST(uploadPath, controller.RelayVertexStorageUpload)
+		vertexStorageRouter.PUT(uploadPath, controller.RelayVertexStorageUpload)
+		vertexStorageRouter.GET(listPath, controller.RelayVertexStorageList)
+		vertexStorageRouter.GET(objectPath, controller.RelayVertexStorageObject)
+		vertexStorageRouter.DELETE(objectPath, controller.RelayVertexStorageObject)
 	}
 	{
 		//http router

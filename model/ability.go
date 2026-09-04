@@ -60,51 +60,6 @@ func GetAllEnableAbilities() []Ability {
 	return abilities
 }
 
-func getPriority(group string, model string, retry int) (int, error) {
-
-	var priorities []int
-	err := DB.Model(&Ability{}).
-		Select("DISTINCT(priority)").
-		Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
-		Order("priority DESC").              // 按优先级降序排序
-		Pluck("priority", &priorities).Error // Pluck用于将查询的结果直接扫描到一个切片中
-
-	if err != nil {
-		// 处理错误
-		return 0, err
-	}
-
-	if len(priorities) == 0 {
-		// 如果没有查询到优先级，则返回错误
-		return 0, errors.New("数据库一致性被破坏")
-	}
-
-	// 确定要使用的优先级
-	var priorityToUse int
-	if retry >= len(priorities) {
-		// 如果重试次数大于优先级数，则使用最小的优先级
-		priorityToUse = priorities[len(priorities)-1]
-	} else {
-		priorityToUse = priorities[retry]
-	}
-	return priorityToUse, nil
-}
-
-func getChannelQuery(group string, model string, retry int) (*gorm.DB, error) {
-	maxPrioritySubQuery := DB.Model(&Ability{}).Select("MAX(priority)").Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true)
-	channelQuery := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = (?)", group, model, true, maxPrioritySubQuery)
-	if retry != 0 {
-		priority, err := getPriority(group, model, retry)
-		if err != nil {
-			return nil, err
-		} else {
-			channelQuery = DB.Where(commonGroupCol+" = ? and model = ? and enabled = ? and priority = ?", group, model, true, priority)
-		}
-	}
-
-	return channelQuery, nil
-}
-
 func GetChannel(
 	group string,
 	model string,
@@ -165,7 +120,7 @@ func GetChannel(
 
 // filterAbilitiesByConstraints applies the same ChannelSatisfiesFilters
 // predicate used by the memory-cache path. A failed channel lookup fails
-// closed when a task-plugin identity is required and fails open otherwise.
+// closed when a filter requires known channel metadata and fails open otherwise.
 func filterAbilitiesByConstraints(abilities []Ability, modelName string, filters []dto.ChannelFilter) []Ability {
 	if len(abilities) == 0 {
 		return nil
@@ -183,7 +138,7 @@ func filterAbilitiesByConstraints(abilities []Ability, modelName string, filters
 
 	var channels []*Channel
 	if err := DB.Where("id IN ?", channelIds).Find(&channels).Error; err != nil {
-		if identityFilterRequiresKey(filters) {
+		if filtersRequireKnownChannel(filters) {
 			return nil
 		}
 		return abilities
@@ -204,8 +159,11 @@ func filterAbilitiesByConstraints(abilities []Ability, modelName string, filters
 	return filtered
 }
 
-func identityFilterRequiresKey(filters []dto.ChannelFilter) bool {
+func filtersRequireKnownChannel(filters []dto.ChannelFilter) bool {
 	for _, filter := range filters {
+		if filter.Kind == dto.FilterChannelType && filter.ChannelType != 0 {
+			return true
+		}
 		if filter.Kind == dto.FilterTaskPluginIdentity && filter.TaskPluginKey != "" {
 			return true
 		}
