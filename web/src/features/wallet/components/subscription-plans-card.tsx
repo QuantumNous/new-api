@@ -187,7 +187,13 @@ export function SubscriptionPlansCard({
     }
   }
 
-  const hasActive = activeSubscriptions.length > 0
+  // activeSubscriptions 含续费排队中（start_time 在未来）的订阅，这些当下还不能用
+  const currentSubscriptionCount = activeSubscriptions.filter(
+    (sub) => (sub?.subscription?.start_time || 0) <= Date.now() / 1000
+  ).length
+  const scheduledSubscriptionCount =
+    activeSubscriptions.length - currentSubscriptionCount
+  const hasActive = currentSubscriptionCount > 0
   const hasAny = allSubscriptions.length > 0
   const isAvailable = loading || plans.length > 0 || hasAny
   const disablePref = !hasActive
@@ -282,12 +288,20 @@ export function SubscriptionPlansCard({
                 />
                 {hasActive ? (
                   <span className={cn(textColorMap.success)}>
-                    {activeSubscriptions.length} {t('active')}
+                    {currentSubscriptionCount} {t('active')}
                   </span>
                 ) : (
                   <span className='text-muted-foreground'>
                     {t('No Active')}
                   </span>
+                )}
+                {scheduledSubscriptionCount > 0 && (
+                  <>
+                    <span className='text-muted-foreground/30'>·</span>
+                    <span className='text-muted-foreground'>
+                      {scheduledSubscriptionCount} {t('scheduled')}
+                    </span>
+                  </>
                 )}
                 {allSubscriptions.length > activeSubscriptions.length && (
                   <>
@@ -408,8 +422,13 @@ export function SubscriptionPlansCard({
                   const now = Date.now() / 1000
                   const isExpired = (subscription?.end_time || 0) < now
                   const isCancelled = subscription?.status === 'cancelled'
+                  // 续费接续产生的订阅在生效时间之前额度不可用，不能显示成生效中
+                  const isPending =
+                    subscription?.status === 'active' &&
+                    !isExpired &&
+                    (subscription?.start_time || 0) > now
                   const isActive =
-                    subscription?.status === 'active' && !isExpired
+                    subscription?.status === 'active' && !isExpired && !isPending
                   const nextResetTime = subscription?.next_reset_time ?? 0
                   let statusBadge = (
                     <StatusBadge
@@ -426,6 +445,14 @@ export function SubscriptionPlansCard({
                         copyable={false}
                       />
                     )
+                  } else if (isPending) {
+                    statusBadge = (
+                      <StatusBadge
+                        label={t('Scheduled')}
+                        variant='info'
+                        copyable={false}
+                      />
+                    )
                   } else if (isCancelled) {
                     statusBadge = (
                       <StatusBadge
@@ -437,7 +464,7 @@ export function SubscriptionPlansCard({
                   }
 
                   let endTimeLabel = t('Expired at')
-                  if (isActive) {
+                  if (isActive || isPending) {
                     endTimeLabel = t('Until')
                   } else if (isCancelled) {
                     endTimeLabel = t('Cancelled at')
@@ -465,6 +492,14 @@ export function SubscriptionPlansCard({
                           </span>
                         )}
                       </div>
+                      {isPending && (
+                        <div className='text-muted-foreground mt-1.5'>
+                          {t('Quota unlocks at')}{' '}
+                          {new Date(
+                            (subscription?.start_time || 0) * 1000
+                          ).toLocaleString()}
+                        </div>
+                      )}
                       <div className='text-muted-foreground mt-1.5'>
                         {endTimeLabel}{' '}
                         {new Date(
