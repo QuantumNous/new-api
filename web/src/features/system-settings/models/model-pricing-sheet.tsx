@@ -563,7 +563,7 @@ export const ModelPricingEditorPanel = forwardRef<
           autoComplete='off'
         >
           <div className='min-h-0 flex-1 overflow-y-auto p-4 pb-6'>
-            <div className='grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(220px,260px)]'>
+            <div className='grid items-start gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(160px,200px)]'>
               <FieldGroup>
                 {warnings.length > 0 && (
                   <Alert variant='destructive'>
@@ -658,7 +658,7 @@ export const ModelPricingEditorPanel = forwardRef<
                         </FieldDescription>
                       </Field>
 
-                      <div className='grid gap-3 sm:grid-cols-[repeat(auto-fit,minmax(400px,1fr))]'>
+                      <div className='grid gap-3 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,400px),1fr))]'>
                         {laneConfigs.map((lane) => {
                           const disabled =
                             lane.key === 'audioOutput' &&
