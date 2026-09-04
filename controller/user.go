@@ -364,7 +364,7 @@ func Register(c *gin.Context) {
 		}
 	}
 
-	if common.PasswordLoginEnabled {
+	if common.PasswordLoginEnabled && middleware.SessionCookieOriginAllowed(c) {
 		bundle, err := service.CreateLoginSession(insertedUser.Id, loginMethodFromContext(c), c.ClientIP(), c.Request.UserAgent())
 		if err == nil {
 			completeLogin(&insertedUser, bundle, c)

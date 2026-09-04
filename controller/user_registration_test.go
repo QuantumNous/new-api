@@ -45,6 +45,7 @@ func performRegistrationRequest(t *testing.T, router http.Handler, body string) 
 	t.Helper()
 	request := httptest.NewRequest(http.MethodPost, "https://main.example/api/user/register", strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Origin", "https://main.example")
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	return response
@@ -69,13 +70,14 @@ func TestRegisterCreatesUsableLoginSession(t *testing.T) {
 			router.GET("/api/user/self", middleware.UserAuth(), GetSelf)
 			response := performRegistrationRequest(t, router, `{"username":"new-user","password":"password123","email":"new@example.com","verification_code":"123456","role":100}`)
 			require.Equal(t, http.StatusOK, response.Code)
-			var result struct {
+			type registrationResponse struct {
 				Success bool `json:"success"`
 				Data    struct {
 					service.AuthBundle
 					User map[string]interface{} `json:"user"`
 				} `json:"data"`
 			}
+			var result registrationResponse
 			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
 			require.True(t, result.Success)
 			require.NotEmpty(t, result.Data.AccessToken, "registration must return a login bundle")
@@ -126,11 +128,19 @@ func TestRegisterCreatesUsableLoginSession(t *testing.T) {
 			refreshResponse := httptest.NewRecorder()
 			router.ServeHTTP(refreshResponse, refreshRequest)
 			require.Equal(t, http.StatusOK, refreshResponse.Code)
-			previousSID := result.Data.Session.SID
-			require.NoError(t, common.Unmarshal(refreshResponse.Body.Bytes(), &result))
-			assert.True(t, result.Success)
-			assert.Equal(t, previousSID, result.Data.Session.SID)
-			assert.Equal(t, float64(stored.Id), result.Data.User["id"])
+			var refreshed registrationResponse
+			require.NoError(t, common.Unmarshal(refreshResponse.Body.Bytes(), &refreshed))
+			require.True(t, refreshed.Success)
+			require.NotEmpty(t, refreshed.Data.AccessToken, "refresh must return its own login bundle")
+			assert.Equal(t, "Bearer", refreshed.Data.TokenType)
+			assert.Equal(t, result.Data.Session.SID, refreshed.Data.Session.SID)
+			assert.Equal(t, float64(stored.Id), refreshed.Data.User["id"])
+			identity, err := service.ParseAccessToken(refreshed.Data.AccessToken)
+			require.NoError(t, err)
+			_, refreshedUser, err := service.ValidateLoginSession(identity)
+			require.NoError(t, err)
+			assert.Equal(t, stored.Id, refreshedUser.Id)
+			assert.Equal(t, result.Data.Session.SID, identity.SessionID)
 		})
 	}
 }
@@ -191,6 +201,43 @@ func TestRegisterRejectedRequestDoesNotCreateSession(t *testing.T) {
 			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
 			assert.False(t, result.Success)
 			assert.Empty(t, response.Result().Cookies())
+			var count int64
+			require.NoError(t, db.Model(&model.UserSession{}).Count(&count).Error)
+			assert.Zero(t, count)
+		})
+	}
+}
+
+func TestRegisterDoesNotSetSessionCookieForUntrustedBrowserOrigin(t *testing.T) {
+	for _, origin := range []string{"https://foreign.example", "null", ""} {
+		t.Run("origin="+origin, func(t *testing.T) {
+			db := setupRegistrationTest(t)
+			previousTrusted := common.SessionCookieTrustedURLs
+			common.SessionCookieTrustedURLs = nil
+			t.Cleanup(func() { common.SessionCookieTrustedURLs = previousTrusted })
+			router := gin.New()
+			router.POST("/api/user/register", Register)
+			// A top-level text/plain form can carry valid JSON with the '='
+			// separator inside an ignored field. It does not need a CORS preflight.
+			request := httptest.NewRequest(http.MethodPost, "https://main.example/api/user/register",
+				strings.NewReader("{\"username\":\"origin-user\",\"password\":\"password123\",\"padding\":\"=\"}\r\n"))
+			request.Header.Set("Content-Type", "text/plain")
+			request.Header.Set("Sec-Fetch-Site", "cross-site")
+			request.Header.Set("Sec-Fetch-Mode", "navigate")
+			if origin != "" {
+				request.Header.Set("Origin", origin)
+			}
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			require.Equal(t, http.StatusOK, response.Code)
+			var result struct {
+				Success bool                `json:"success"`
+				Data    *service.AuthBundle `json:"data"`
+			}
+			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
+			require.True(t, result.Success, "registration-only clients remain compatible")
+			assert.Empty(t, response.Result().Cookies(), "untrusted registration must not replace a browser's login")
+			assert.Nil(t, result.Data)
 			var count int64
 			require.NoError(t, db.Model(&model.UserSession{}).Count(&count).Error)
 			assert.Zero(t, count)

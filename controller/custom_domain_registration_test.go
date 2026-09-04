@@ -57,6 +57,7 @@ func TestRegisterOnCustomDomainUsesDomainOwnerOnlyWhenAffIsEmpty(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "https://alpha.yeschoy.io/api/user/register", strings.NewReader(body))
 			request.Host = "alpha.yeschoy.io"
 			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Origin", "https://alpha.yeschoy.io")
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, request)
 			require.Equal(t, http.StatusOK, response.Code)
@@ -87,6 +88,7 @@ func TestRegisterOnCustomDomainUsesDomainOwnerOnlyWhenAffIsEmpty(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "https://yeschoy.pro/api/user/register", strings.NewReader("{\"username\":\"peer-main-user\",\"password\":\"password123\"}"))
 	request.Host = "yeschoy.pro"
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Origin", "https://yeschoy.pro")
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	require.Equal(t, http.StatusOK, response.Code)

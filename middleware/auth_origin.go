@@ -18,12 +18,7 @@ import (
 // relay routes.
 func SessionCookieOriginGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !common.SessionCookieSecure {
-			c.Next()
-			return
-		}
-		origin, ok := requestBrowserOrigin(c.Request)
-		if !ok || !isAllowedSessionOrigin(c, origin) {
+		if !SessionCookieOriginAllowed(c) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"success": false,
 				"code":    "AUTH_ORIGIN_FORBIDDEN",
@@ -33,6 +28,18 @@ func SessionCookieOriginGuard() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// SessionCookieOriginAllowed applies the shared browser-origin policy without
+// writing a response. Registration uses it to offer automatic login only when
+// the request is allowed to establish a cookie session. Insecure development
+// mode retains the same compatibility policy as refresh/logout.
+func SessionCookieOriginAllowed(c *gin.Context) bool {
+	if !common.SessionCookieSecure {
+		return true
+	}
+	origin, ok := requestBrowserOrigin(c.Request)
+	return ok && isAllowedSessionOrigin(c, origin)
 }
 
 func requestBrowserOrigin(request *http.Request) (string, bool) {
