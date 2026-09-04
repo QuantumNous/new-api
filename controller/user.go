@@ -263,7 +263,13 @@ func Register(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailVerificationRequired)
 			return
 		}
-		if !common.VerifyCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose) {
+		valid, err := common.ConsumeVerificationCodeWithKey(user.Email, user.VerificationCode, common.EmailVerificationPurpose)
+		if err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to consume registration verification code for %s: %s", user.Email, err.Error()))
+			common.ApiErrorI18n(c, i18n.MsgRetryLater)
+			return
+		}
+		if !valid {
 			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
 			return
 		}
@@ -345,7 +351,6 @@ func Register(c *gin.Context) {
 			return
 		}
 	}
-
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -1313,11 +1318,6 @@ func EmailBind(c *gin.Context) {
 	}
 	email := req.Email
 	email = model.NormalizeEmail(email)
-	code := req.Code
-	if !common.VerifyCodeWithKey(email, code, common.EmailVerificationPurpose) {
-		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
-		return
-	}
 	user := model.User{
 		Id: c.GetInt("id"),
 	}
@@ -1325,7 +1325,18 @@ func EmailBind(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "not authenticated"})
 		return
 	}
-	err := user.FillUserById()
+	code := req.Code
+	valid, err := common.ConsumeVerificationCodeWithKey(email, code, common.EmailVerificationPurpose)
+	if err != nil {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("failed to consume email binding verification code for %s: %s", email, err.Error()))
+		common.ApiErrorI18n(c, i18n.MsgRetryLater)
+		return
+	}
+	if !valid {
+		common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+		return
+	}
+	err = user.FillUserById()
 	if err != nil {
 		common.ApiError(c, err)
 		return
