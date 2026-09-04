@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
-	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -18,15 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type ClientMode int
-
-const (
-	ClientModeApiKey ClientMode = iota + 1
-	ClientModeAKSK
-)
-
 type Adaptor struct {
-	ClientMode ClientMode
 	AwsClient  *bedrockruntime.Client
 	AwsModelId string
 	AwsReq     any
@@ -92,26 +82,14 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
-func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if info.ChannelOtherSettings.AwsKeyType == dto.AwsKeyTypeApiKey {
-		awsModelId := getAwsModelID(info.UpstreamModelName)
-		a.ClientMode = ClientModeApiKey
-		awsSecret := strings.Split(info.ApiKey, "|")
-		if len(awsSecret) != 2 {
-			return "", errors.New("invalid aws api key, should be in format of <api-key>|<region>")
-		}
-		return fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com/model/%s/converse", awsModelId, awsSecret[1]), nil
-	} else {
-		a.ClientMode = ClientModeAKSK
-		return "", nil
-	}
+// GetRequestURL 保留通用适配器接口；AWS 端点由 SDK 根据渠道信息解析，因此返回空地址和空错误
+func (a *Adaptor) GetRequestURL(_ *relaycommon.RelayInfo) (string, error) {
+	return "", nil
 }
 
+// SetupRequestHeader 将请求上下文 c 与渠道信息 info 中的 Claude 扩展头写入 req，成功时返回 nil
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	claude.CommonClaudeHeadersOperation(c, req, info)
-	if a.ClientMode == ClientModeApiKey {
-		req.Set("Authorization", "Bearer "+info.ApiKey)
-	}
 	return nil
 }
 
@@ -153,29 +131,25 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	return nil, errors.New("not implemented")
 }
 
+// DoRequest 使用请求上下文 c、渠道信息 info 和请求体 requestBody 构造 AWS SDK 请求，返回构造结果或错误
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
-	if a.ClientMode == ClientModeApiKey {
-		return channel.DoApiRequest(a, c, info, requestBody)
-	} else {
-		return doAwsClientRequest(c, info, a, requestBody)
-	}
+	return doAwsClientRequest(c, info, a, requestBody)
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	if a.ClientMode == ClientModeApiKey {
-		claudeAdaptor := claude.Adaptor{}
-		usage, err = claudeAdaptor.DoResponse(c, resp, info)
-	} else {
-		if a.IsNova {
-			err, usage = handleNovaRequest(c, info, a)
-		} else {
-			if info.IsStream {
-				err, usage = awsStreamHandler(c, info, a)
-			} else {
-				err, usage = awsHandler(c, info, a)
-			}
-		}
+// DoResponse 使用请求上下文 c 与渠道信息 info 执行并解析 AWS SDK 响应，返回用量和标准化错误
+func (a *Adaptor) DoResponse(c *gin.Context, _ *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	// 1. Nova 使用独立的请求与响应格式
+	if a.IsNova {
+		err, usage = handleNovaRequest(c, info, a)
+		return
 	}
+
+	// 2. Claude 根据流式标记选择现有 SDK 响应处理器
+	if info.IsStream {
+		err, usage = awsStreamHandler(c, info, a)
+		return
+	}
+	err, usage = awsHandler(c, info, a)
 	return
 }
 
