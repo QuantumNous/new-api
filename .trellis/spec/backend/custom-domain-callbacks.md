@@ -19,12 +19,12 @@
 
 ### 3. Contracts
 
-- Environment: `CUSTOM_DOMAIN_ENABLED` defaults false; `CUSTOM_DOMAIN_SUFFIX`, `CUSTOM_DOMAIN_MAIN_ORIGIN`, `CUSTOM_DOMAIN_MAIN_ORIGINS`, `CUSTOM_DOMAIN_CACHE_TTL_SECONDS` (1-60), and `CUSTOM_DOMAIN_RESERVED_LABELS` define the trusted policy. The plural list supports up to 32 exact HTTPS Origins, is normalized/deduplicated by Host, must contain the singular callback Origin, must not contain the promotion apex/subdomains, and requires non-callback peers to use the standard HTTPS port because runtime Host identity is hostname-based. When omitted it falls back to the singular Origin for compatibility. Starting HTTP with the feature enabled additionally requires `SESSION_COOKIE_SECURE=true` and every main Origin in `SESSION_COOKIE_TRUSTED_URL`; startup fails closed otherwise.
+- Environment: `CUSTOM_DOMAIN_ENABLED` defaults false; `CUSTOM_DOMAIN_SUFFIX`, `CUSTOM_DOMAIN_MAIN_ORIGIN`, `CUSTOM_DOMAIN_MAIN_ORIGINS`, `CUSTOM_DOMAIN_CACHE_TTL_SECONDS` (1-60), and `CUSTOM_DOMAIN_RESERVED_LABELS` define the trusted policy. The plural list supports up to 32 exact HTTPS Origins or explicit one-label wildcard rules, is normalized/deduplicated by Host, must contain the singular callback Origin, must not contain the promotion apex/subdomains, and requires non-callback peers to use the standard HTTPS port because runtime Host identity is hostname-based. When omitted it falls back to the singular Origin for compatibility. Starting HTTP with the feature enabled additionally requires `SESSION_COOKIE_SECURE=true` and every exact main Origin in `SESSION_COOKIE_TRUSTED_URL`; startup fails closed otherwise.
 - Docker Compose must explicitly map every `CUSTOM_DOMAIN_*` and `SESSION_COOKIE_*` variable into `services.new-api.environment`. A host-side Compose `.env` supplies interpolation values only; documenting a variable in `.env.example` does not inject it into the container. The Compose default for `CUSTOM_DOMAIN_MAIN_ORIGINS` must remain empty so the application can preserve the singular-origin fallback. Its healthcheck probes every effective configured main Origin and falls back to `CUSTOM_DOMAIN_MAIN_ORIGIN` when the plural value is empty. Without the environment mapping the CLI can still see/migrate the database while HTTP silently runs with `CUSTOM_DOMAIN_ENABLED=false` and OAuth state omits domain fields.
 - Request identity comes only from normalized `Request.Host`; never use `X-Forwarded-Host` as the domain owner source.
 - Every configured main Host and enabled assigned promotion domain reaches normal routes simultaneously. Apex, unknown, nested, invalid, and disabled promotion domains return 404. Disabled promotion domains expose only the minimal OAuth handoff paths required to exchange an in-flight ticket for a callback-site fallback.
 - Middleware promotion status may be stale for at most the configured cache TTL. Handoff consumption must match the signed Host/domain ID, then use a fresh resolver result as the authority for enabled/disabled behavior; never reject solely because cached and fresh `DomainKind` values differ.
-- `CUSTOM_DOMAIN_MAIN_ORIGIN` is a technical role, not a canonical product domain. All other main Hosts are peers, keep independent Host-only Sessions, and use the same handoff/reset/payment-return path without Host-specific branches. Adding a main Host requires only DNS/TLS, reverse-proxy, main-list, and Session trusted-Origin configuration.
+- `CUSTOM_DOMAIN_MAIN_ORIGIN` is a technical role, not a canonical product domain. All other main Hosts are peers, keep independent Host-only Sessions, and use the same handoff/reset/payment-return path without Host-specific branches. Adding an exact main Host requires DNS/TLS, reverse-proxy, main-list, and Session trusted-Origin configuration. A concrete Host covered by a wildcard needs only the corresponding infrastructure coverage.
 - OAuth provider callbacks, password-reset dispatch, ePay return/notify, Stripe return/webhook, and login fallback consumption require `DomainContext.IsCallbackHost=true`; belonging to the peer-main allowlist is not sufficient.
 - OAuth callback responses use typed actions: `domain_login_handoff`, `domain_login_fallback`, `domain_bind_handoff`, `domain_bind_return`, or `domain_oauth_return`. `domain_bind_return` carries a server-selected `result` of `cancelled`, `failed`, or `target_unavailable`; target origins come from signed AuthFlow/domain state, never from a client `return_url`.
 - After an OAuth state has been validated, provider-disabled, token-exchange, user-info, registration-policy, banned-user, duplicate-binding, and handoff-issuance failures for a non-callback origin must also use the typed return actions. The error response must preserve the existing state-consumption point for that failure stage while returning the browser or bind opener to the trusted signed origin.
@@ -46,7 +46,7 @@
 |---|---|
 | Any configured main Host or enabled assigned first-level promotion domain | Continue with attached typed DomainContext |
 | Main-origin list omits callback Origin, exceeds 32, contains HTTP/promotion Host, or duplicates one Host with conflicting Origins | Startup configuration error |
-| Any main Host is missing from `SESSION_COOKIE_TRUSTED_URL` in Secure mode | HTTP startup error |
+| Any exact main Origin is missing from `SESSION_COOKIE_TRUSTED_URL` in Secure mode | HTTP startup error |
 | Provider/reset/payment callback arrives on a peer non-callback main Host | 404 before provider or order processing |
 | Apex, unknown, nested, reserved, malformed, or ordinary disabled request | 404 |
 | Domain owner disabled/deleted during default attribution | Create user with `inviter_id=0`; domain remains routable when enabled |
@@ -82,7 +82,7 @@
 ### 6. Tests Required
 
 - Model: label normalization, permanent tombstone ownership, one active domain per owner, migration registration, and duplicate-key translation with global GORM translation disabled.
-- Middleware/service: 1/2/3-main-origin parse matrices, callback membership, 32-origin bound, every-main Session trust, simultaneous main/promotion Host classification, positive/negative promotion cache, forwarded-host rejection, exact custom HTTPS Origin for refresh/logout, and callback-host identity.
+- Middleware/service: 1/2/3-main-origin parse matrices, callback membership, 32-origin bound, every-exact-main Session trust and wildcard same-Origin enforcement, simultaneous main/promotion Host classification, positive/negative promotion cache, forwarded-host rejection, exact custom HTTPS Origin for refresh/logout, and callback-host identity.
 - Controller/router: main Hosts never receive default inviter; `.pro` and a synthetic third main Host use the same OAuth login/bind handoff, signed reset return, and stored wallet return path; provider, token-exchange, user-info, registration-policy, and duplicate-binding failures return through typed actions to the trusted peer/promotion origin; callback endpoints reject peer non-callback main Hosts; cached-enabled/fresh-disabled promotion handoff falls back safely; callback-main reset links ignore a conflicting legacy `ServerAddress`; promotion-domain inviter, replay/wrong-binding, ePay signature/idempotency, Stripe navigation-only, login-audit, and critical-limiter tests remain green.
 - Frontend: type guards and URL builders assert target is a pure HTTPS Origin and ticket/result exists only in the fragment; popup messages check exact origin/source/provider/result; typecheck, targeted lint/format, and production build must pass.
 - Deployment: render `docker compose config` with custom domains enabled and assert the service receives singular callback Origin, plural peer-main Origins, promotion suffix, and all Session trusted Origins before recreating the container. Verify an omitted plural value falls back to the singular callback Origin and an explicit 2/3-origin list makes the healthcheck probe every configured Host.
@@ -169,3 +169,67 @@ const url = new URL('/oauth/handoff', validatedTargetOrigin)
 url.hash = new URLSearchParams({ ticket }).toString()
 window.location.replace(url.toString())
 ```
+
+## Scenario: explicit primary-domain wildcards
+
+### 1. Scope / Trigger
+
+Apply when extending primary Host admission, Session Origin checks, stored callback destinations, or the Compose healthcheck. Exact rules keep precedence and existing compatibility. Promotion allocation/cache and Passkey RP behavior are unchanged.
+
+### 2. Signatures
+
+- `common.ParseCustomDomainMainOriginRule(raw, promotionSuffix string) (CustomDomainMainOriginRule, error)` returns `Origin`, exact/base `Host`, and `Wildcard`.
+- `service.CustomDomainContext.IsWildcardMain` marks a concrete Main Host admitted through a wildcard; it is recomputed, never persisted or client-supplied.
+- `common.NormalizeOrigin` remains exact-only; never pass wildcard rules into browser-Origin comparisons.
+
+### 3. Contracts
+
+- `CUSTOM_DOMAIN_MAIN_ORIGINS` accepts `https://*.example.com` alongside exact Origins. Each wildcard covers one valid ASCII DNS label only. Apex membership is explicit; another wildcard can explicitly cover a deeper base. The singular callback must be an explicit exact list member.
+- Normalize wildcard base case, terminal DNS dot, root slash and `:443`; reject IP bases, public/private suffix bases via the existing `publicsuffix` dependency, and any base equal to/above/below the promotion suffix on dot boundaries. Base length is at most 251 so a concrete one-character label fits the 253-character hostname bound; labels are at most 63 characters.
+- Startup Session trust requires exact primary entries only. Wildcard-derived and enabled promotion Hosts accept only their own exact HTTPS Origin (or valid Referer fallback), including behind HTTP TLS termination. A mismatch never falls through to static trusted Origins, even for a trusted sibling. Cookies remain Host-only.
+- Resolution order: exact primary -> one-label wildcard -> existing promotion lookup. A wildcard-derived Main has concrete Host, zero DomainID/OwnerUserID, and `IsCallbackHost=false`. Never exempt relay paths or use forwarded Host to admit requests.
+- OAuth/reset/payment store concrete Hosts and revalidate current policy. Removed rules invalidate login/bind tickets even with stale middleware; valid signed reset links and stored order returns fall back to the fixed callback Origin.
+- Compose disables pathname expansion (`set -f`), probes each exact authority and `h.<base>` for each wildcard locally, and fails if any probe lacks a successful status body. It does not check public DNS/TLS.
+- Rollout: compatible image with old exact settings, then reviewed wildcard settings and application container recreation. Rollback: restore exact settings before starting an older image. No migration is needed. Deployment requires separate authorization.
+
+### 4. Validation & Error Matrix
+
+| Input / boundary | Result |
+|---|---|
+| `api.example.com` with `https://*.example.com` | Main context with the actual Host; normal API authentication still applies |
+| `a.api.example.com`, lookalike suffix, literal star, invalid label or overlong Host | No wildcard match; ordinary Host rejection |
+| Partial/multiple star, HTTP, nonstandard wildcard port, userinfo/path/query/fragment, public/private suffix or promotion overlap | Startup/resolver construction error |
+| Callback covered only implicitly by a wildcard | Startup error |
+| Wildcard refresh/logout from a sibling, HTTP, nonstandard port, missing/null/multiple Origin | 403 before cookie-authenticated mutation |
+| Removed wildcard with pending login/bind ticket | 403 with stale middleware, or Host rejection with refreshed middleware; no Session/binding mutation |
+| Removed wildcard with valid signed reset / stored payment return | Fixed callback-site fallback |
+
+### 5. Good/Base/Bad Cases
+
+- Good: exact `yeschoy.com` plus `*.yeschoy.com` admits api/www/new labels; only the exact callback is statically trusted.
+- Base: empty plural remains the single exact callback deployment; explicit exact peers retain static-Origin compatibility.
+- Bad: trusting a wildcard string as an Origin, sharing parent-domain cookies, or configuring `*.yeschoy.io` to bypass promotion assignments.
+
+### 6. Tests Required
+
+- `common/custom_domain_test.go`: normalized mixed rules, exact Session membership, malformed and suffix-overlap rejection; browser normalization stays exact-only.
+- `service/custom_domain_test.go`: single-label matching, explicit deeper rules, exact precedence, DNS bounds and stored-origin revalidation after removal.
+- `middleware/custom_domain_test.go`: both refresh and logout behind HTTP TLS termination, own HTTPS/Referer success, static-trusted sibling/foreign rejection, promotion regressions.
+- `router/api_router_custom_domain_test.go`: `api.yeschoy.com` status 200 and API-key endpoints 401 without credentials; invalid/unknown Hosts 404, regardless of forwarded Host.
+- Controller suites: concrete OAuth state/return, provider failures, login/bind tickets, Host-only cookie, wrong Host/browser/replay/removal, fixed callback guards, signed reset and stored wallet fallbacks.
+- `common/custom_domain_compose_test.go`: run the actual YAML command with a controlled wget stub; capture concrete Hosts, protect against filesystem glob expansion, preserve single-Origin fallback and propagate a required failing probe.
+
+### 7. Wrong vs Correct
+
+Wrong: `SESSION_COOKIE_TRUSTED_URL=https://*.yeschoy.com` or `wget --header='Host: *.yeschoy.com'`.
+
+Correct:
+
+```dotenv
+CUSTOM_DOMAIN_MAIN_ORIGIN=https://yeschoy.com
+CUSTOM_DOMAIN_MAIN_ORIGINS=https://yeschoy.com,https://*.yeschoy.com,https://yeschoy.pro,https://*.yeschoy.pro
+SESSION_COOKIE_SECURE=true
+SESSION_COOKIE_TRUSTED_URL=https://yeschoy.com,https://yeschoy.pro
+```
+
+Concrete wildcard health probes use `Host: h.yeschoy.com` and `Host: h.yeschoy.pro`. DNS, certificates and ingress coverage remain independently required for externally exposed Hosts.

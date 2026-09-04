@@ -40,7 +40,7 @@ func TestDomainOAuthHandoffBridgeAllowsPromotionAndPeerMainTargetsOnly(t *testin
 		"true",
 		"yeschoy.io",
 		"https://yeschoy.com",
-		"https://yeschoy.com,https://yeschoy.pro,https://future.example",
+		"https://yeschoy.com,https://yeschoy.pro,https://future.example,https://*.yeschoy.com",
 		"5",
 		"",
 	)
@@ -71,7 +71,7 @@ func TestDomainOAuthHandoffBridgeAllowsPromotionAndPeerMainTargetsOnly(t *testin
 	assert.NotContains(t, response.Body.String(), "<script src=")
 	assert.NotContains(t, response.Body.String(), "analytics")
 
-	for _, host := range []string{"yeschoy.pro", "future.example"} {
+	for _, host := range []string{"yeschoy.pro", "future.example", "api.yeschoy.com"} {
 		request = httptest.NewRequest(http.MethodGet, "https://"+host+"/oauth/handoff", nil)
 		request.Host = host
 		response = httptest.NewRecorder()

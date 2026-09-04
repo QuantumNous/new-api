@@ -38,7 +38,7 @@ func TestPasswordResetEmailLinkUsesCallbackDispatcherForTrustedOrigins(t *testin
 	common.CustomDomainEnabled = true
 	common.CustomDomainSuffix = "yeschoy.io"
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
-	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://future.example"}
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://future.example", "https://*.yeschoy.com"}
 	system_setting.ServerAddress = "https://legacy-main.example.com"
 	t.Cleanup(func() {
 		model.DB = previousDB
@@ -61,7 +61,7 @@ func TestPasswordResetEmailLinkUsesCallbackDispatcherForTrustedOrigins(t *testin
 		"true",
 		"yeschoy.io",
 		"https://yeschoy.com",
-		"https://yeschoy.com,https://yeschoy.pro,https://future.example",
+		"https://yeschoy.com,https://yeschoy.pro,https://future.example,https://*.yeschoy.com",
 		"5",
 		"",
 	)
@@ -92,7 +92,7 @@ func TestPasswordResetEmailLinkUsesCallbackDispatcherForTrustedOrigins(t *testin
 	assert.True(t, active)
 	assert.Equal(t, "alpha.yeschoy.io", targetHost)
 
-	for _, host := range []string{"yeschoy.pro", "future.example"} {
+	for _, host := range []string{"yeschoy.pro", "future.example", "api.yeschoy.com"} {
 		request = httptest.NewRequest(http.MethodGet, "https://"+host+"/link", nil)
 		request.Host = host
 		response = httptest.NewRecorder()

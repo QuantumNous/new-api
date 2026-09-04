@@ -2,11 +2,51 @@ package common
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCustomDomainMainWildcardsNormalizeAndRequireOnlyExactSessionTrust(t *testing.T) {
+	settings, err := ParseCustomDomainSettingsWithMainOrigins("true", "yeschoy.io", "https://yeschoy.com",
+		"https://yeschoy.com, https://*.YESCHOY.COM.:443/,https://*.yeschoy.com,https://yeschoy.pro,https://*.yeschoy.pro", "5", "")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"https://yeschoy.com", "https://*.yeschoy.com", "https://yeschoy.pro", "https://*.yeschoy.pro"}, settings.MainOrigins)
+	assert.NoError(t, validateCustomDomainSessionSettings(settings, true, []string{"https://yeschoy.com", "https://yeschoy.pro"}))
+	assert.Error(t, validateCustomDomainSessionSettings(settings, true, []string{"https://yeschoy.com"}))
+	assert.Error(t, validateCustomDomainSessionSettings(settings, false, nil))
+	_, err = NormalizeOrigin("https://*.yeschoy.com")
+	assert.Error(t, err, "browser Origins must remain exact")
+}
+
+func TestCustomDomainMainWildcardsRejectInvalidRules(t *testing.T) {
+	longLabel := strings.Repeat("a", 64)
+	longBase := strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 56) + ".com"
+	for _, rule := range []string{
+		"https://*yeschoy.com", "https://api.*.yeschoy.com", "https://*.*.yeschoy.com",
+		"http://*.yeschoy.com", "https://*.yeschoy.com:8443", "https://*.yeschoy.com:",
+		"https://user@*.yeschoy.com", "https://*.yeschoy.com/path", "https://*.yeschoy.com?", "https://*.yeschoy.com#",
+		"https://*.yeschoy.com?q=1", "https://*.yeschoy.com#fragment",
+		"https://*.127.0.0.1", "https://*.[::1]", "https://*.com", "https://*.co.uk", "https://*.github.io",
+		"https://*.yeschoy.io", "https://*.child.yeschoy.io", "https://*.io",
+		"https://*.a..com", "https://*.-bad.com", "https://*.bad_.com", "https://*.yeschoy.com..",
+		"https://*." + longLabel + ".com", "https://*." + longBase,
+	} {
+		t.Run(rule, func(t *testing.T) {
+			_, err := ParseCustomDomainSettingsWithMainOrigins("true", "yeschoy.io", "https://yeschoy.com", "https://yeschoy.com,"+rule, "5", "")
+			assert.Error(t, err)
+			assert.Error(t, validateCustomDomainSessionSettings(CustomDomainSettings{Enabled: true, Suffix: "yeschoy.io", MainOrigins: []string{rule}}, true, []string{rule}), "programmatic settings must validate rules")
+		})
+	}
+	_, err := ParseCustomDomainSettingsWithMainOrigins("true", "promo.example.com", "https://yeschoy.com", "https://yeschoy.com,https://*.example.com", "5", "")
+	assert.Error(t, err, "wildcard cannot cover the promotion apex")
+	_, err = ParseCustomDomainSettingsWithMainOrigins("true", "yeschoy.io", "https://api.yeschoy.com", "https://*.yeschoy.com", "5", "")
+	assert.Error(t, err, "callback needs explicit exact membership")
+	_, err = ParseCustomDomainSettingsWithMainOrigins("true", "yeschoy.io", "https://*.yeschoy.com", "", "5", "")
+	assert.Error(t, err, "callback cannot be a wildcard")
+}
 
 func TestParseCustomDomainSettingsNormalizesTheTrustedDomainPolicy(t *testing.T) {
 	settings, err := ParseCustomDomainSettingsWithMainOrigins(

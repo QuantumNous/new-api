@@ -32,13 +32,15 @@ type CustomDomainContext struct {
 	OwnerUserID    int
 	Enabled        bool
 	IsCallbackHost bool
+	IsWildcardMain bool
 }
 
 type CustomDomainResolver struct {
-	settings     common.CustomDomainSettings
-	mainHosts    map[string]struct{}
-	callbackHost string
-	now          func() time.Time
+	settings      common.CustomDomainSettings
+	mainHosts     map[string]struct{}
+	mainWildcards []string
+	callbackHost  string
+	now           func() time.Time
 
 	cacheMu sync.RWMutex
 	cache   map[string]customDomainCacheEntry
@@ -101,13 +103,16 @@ func NewCustomDomainResolverWithClock(settings common.CustomDomainSettings, now 
 		mainOrigins = []string{normalizedMainOrigin}
 	}
 	mainHosts := make(map[string]struct{}, len(mainOrigins))
+	var mainWildcards []string
+	seenOrigins := make(map[string]struct{}, len(mainOrigins))
 	normalizedMainOrigins := make([]string, 0, len(mainOrigins))
 	callbackFound := false
 	for _, rawOrigin := range mainOrigins {
-		origin, err := common.NormalizeOrigin(rawOrigin)
+		rule, err := common.ParseCustomDomainMainOriginRule(rawOrigin, suffix)
 		if err != nil {
-			return nil, fmt.Errorf("custom domain main origin is invalid")
+			return nil, fmt.Errorf("custom domain main origin is invalid: %w", err)
 		}
+		origin := rule.Origin
 		parsedOrigin, err := url.Parse(origin)
 		if err != nil || parsedOrigin.Scheme != "https" || parsedOrigin.Hostname() == "" {
 			return nil, fmt.Errorf("custom domain main origin is invalid")
@@ -116,10 +121,18 @@ func NewCustomDomainResolverWithClock(settings common.CustomDomainSettings, now 
 		if host == suffix || strings.HasSuffix(host, "."+suffix) {
 			return nil, fmt.Errorf("custom domain suffix is invalid")
 		}
-		if _, found := mainHosts[host]; found {
+		if origin != normalizedMainOrigin && parsedOrigin.Port() != "" {
+			return nil, fmt.Errorf("custom domain peer origins must use the standard https port")
+		}
+		if _, found := seenOrigins[host]; found {
 			return nil, fmt.Errorf("custom domain main origin host is duplicated")
 		}
-		mainHosts[host] = struct{}{}
+		seenOrigins[host] = struct{}{}
+		if rule.Wildcard {
+			mainWildcards = append(mainWildcards, "."+rule.Host)
+		} else {
+			mainHosts[host] = struct{}{}
+		}
 		normalizedMainOrigins = append(normalizedMainOrigins, origin)
 		callbackFound = callbackFound || origin == normalizedMainOrigin
 	}
@@ -136,11 +149,12 @@ func NewCustomDomainResolverWithClock(settings common.CustomDomainSettings, now 
 	settings.MainOrigin = normalizedMainOrigin
 	settings.MainOrigins = normalizedMainOrigins
 	return &CustomDomainResolver{
-		settings:     settings,
-		mainHosts:    mainHosts,
-		callbackHost: callbackHost,
-		now:          now,
-		cache:        make(map[string]customDomainCacheEntry),
+		settings:      settings,
+		mainHosts:     mainHosts,
+		mainWildcards: mainWildcards,
+		callbackHost:  callbackHost,
+		now:           now,
+		cache:         make(map[string]customDomainCacheEntry),
 	}, nil
 }
 
@@ -155,6 +169,17 @@ func (resolver *CustomDomainResolver) ResolveHost(rawHost string) (CustomDomainC
 			Host:           host,
 			IsCallbackHost: host == resolver.callbackHost,
 		}, nil
+	}
+	if len(host) <= 253 {
+		for _, suffix := range resolver.mainWildcards {
+			if !strings.HasSuffix(host, suffix) {
+				continue
+			}
+			label := strings.TrimSuffix(host, suffix)
+			if normalized, err := common.NormalizeDNSLabel(label); err == nil && normalized == label {
+				return CustomDomainContext{Kind: CustomDomainKindMain, Host: host, IsWildcardMain: true}, nil
+			}
+		}
 	}
 	if host == resolver.settings.Suffix {
 		return CustomDomainContext{Kind: CustomDomainKindApex, Host: host}, nil

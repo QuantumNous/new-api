@@ -60,7 +60,8 @@ func requestBrowserOrigin(request *http.Request) (string, bool) {
 }
 
 func isAllowedSessionOrigin(c *gin.Context, origin string) bool {
-	if domainContext, found := GetCustomDomainContext(c); found && domainContext.Kind == service.CustomDomainKindCustom {
+	if domainContext, found := GetCustomDomainContext(c); found &&
+		(domainContext.Kind == service.CustomDomainKindCustom || domainContext.IsWildcardMain) {
 		expectedOrigin := "https://" + domainContext.Host
 		return subtle.ConstantTimeCompare([]byte(origin), []byte(expectedOrigin)) == 1
 	}

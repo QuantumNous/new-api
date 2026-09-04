@@ -36,7 +36,7 @@ func TestPasswordResetReturnDispatcherUsesSignedCustomDomainOrMainFallback(t *te
 	common.CustomDomainEnabled = true
 	common.CustomDomainSuffix = "yeschoy.io"
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
-	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro"}
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://*.yeschoy.com"}
 	t.Cleanup(func() {
 		model.DB = previousDB
 		common.SetMainDatabaseType(previousDatabaseType)
@@ -58,7 +58,7 @@ func TestPasswordResetReturnDispatcherUsesSignedCustomDomainOrMainFallback(t *te
 		"true",
 		"yeschoy.io",
 		"https://yeschoy.com",
-		"https://yeschoy.com,https://yeschoy.pro",
+		"https://yeschoy.com,https://yeschoy.pro,https://*.yeschoy.com",
 		"5",
 		"",
 	)
@@ -107,4 +107,19 @@ func TestPasswordResetReturnDispatcherUsesSignedCustomDomainOrMainFallback(t *te
 	response = httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	assert.Equal(t, http.StatusNotFound, response.Code)
+
+	wildcardContext, err := service.CreatePasswordResetReturnContext(0, "api.yeschoy.com", email, token, time.Now().Add(time.Minute))
+	require.NoError(t, err)
+	response = requestDispatcher(wildcardContext)
+	require.Equal(t, http.StatusFound, response.Code)
+	assert.Equal(t, "https://api.yeschoy.com/user/reset?email=user%40example.com&token=reset-token", response.Header().Get("Location"))
+	query = url.Values{"email": {email}, "token": {"tampered"}, "context": {wildcardContext}}
+	request = httptest.NewRequest(http.MethodGet, "https://yeschoy.com/api/reset_password/return?"+query.Encode(), nil)
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro"}
+	response = requestDispatcher(wildcardContext)
+	assert.Equal(t, http.StatusFound, response.Code)
+	assert.Equal(t, "https://yeschoy.com/user/reset?email=user%40example.com&token=reset-token", response.Header().Get("Location"))
 }

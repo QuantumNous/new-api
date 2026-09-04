@@ -15,6 +15,63 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestSessionCookieOriginGuardWildcardMainBehindTLSProxy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousSecure, previousTrusted := common.SessionCookieSecure, common.SessionCookieTrustedURLs
+	t.Cleanup(func() { common.SessionCookieSecure, common.SessionCookieTrustedURLs = previousSecure, previousTrusted })
+	common.SessionCookieSecure = true
+	common.SessionCookieTrustedURLs = []string{"https://yeschoy.com", "https://www.yeschoy.com", "https://foreign.example"}
+	settings := common.CustomDomainSettings{Enabled: true, Suffix: "yeschoy.io", MainOrigin: "https://yeschoy.com",
+		MainOrigins: []string{"https://yeschoy.com", "https://*.yeschoy.com", "https://exact.yeschoy.com"}, CacheTTLSeconds: 5}
+	resolver, err := service.NewCustomDomainResolver(settings)
+	require.NoError(t, err)
+	router := gin.New()
+	router.Use(CustomDomainContextWithResolver(resolver, true))
+	for _, path := range []string{"/api/user/auth/refresh", "/api/user/auth/logout"} {
+		router.POST(path, SessionCookieOriginGuard(), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		for _, test := range []struct {
+			name    string
+			host    string
+			origins []string
+			referer string
+			status  int
+		}{
+			{name: "own HTTPS", origins: []string{"https://api.yeschoy.com"}, status: 204},
+			{name: "normalized HTTPS", origins: []string{"https://API.yeschoy.com:443"}, status: 204},
+			{name: "referer", referer: "https://api.yeschoy.com/console", status: 204},
+			{name: "trusted sibling", origins: []string{"https://www.yeschoy.com"}, status: 403},
+			{name: "callback", origins: []string{"https://yeschoy.com"}, status: 403},
+			{name: "trusted foreign", origins: []string{"https://foreign.example"}, status: 403},
+			{name: "HTTP", origins: []string{"http://api.yeschoy.com"}, status: 403},
+			{name: "port", origins: []string{"https://api.yeschoy.com:8443"}, status: 403},
+			{name: "null", origins: []string{"null"}, status: 403},
+			{name: "missing", status: 403},
+			{name: "multiple", origins: []string{"https://api.yeschoy.com", "https://api.yeschoy.com"}, status: 403},
+			{name: "comma", origins: []string{"https://api.yeschoy.com,https://www.yeschoy.com"}, status: 403},
+			{name: "invalid Origin overrides Referer", origins: []string{"null"}, referer: "https://api.yeschoy.com/", status: 403},
+			{name: "exact takes precedence", host: "exact.yeschoy.com", origins: []string{"https://www.yeschoy.com"}, status: 204},
+		} {
+			t.Run(path+"/"+test.name, func(t *testing.T) {
+				request := httptest.NewRequest(http.MethodPost, "http://api.yeschoy.com"+path, nil)
+				if test.host != "" {
+					request.Host = test.host
+				}
+				for _, origin := range test.origins {
+					request.Header.Add("Origin", origin)
+				}
+				if test.referer != "" {
+					request.Header.Set("Referer", test.referer)
+				}
+				request.Header.Set("X-Forwarded-Host", "www.yeschoy.com")
+				request.Header.Set("X-Forwarded-Proto", "https")
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, request)
+				assert.Equal(t, test.status, response.Code)
+			})
+		}
+	}
+}
+
 func TestCustomDomainContextAllowsOnlyMainAndEnabledCustomHosts(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	previousDB := model.DB
@@ -38,7 +95,7 @@ func TestCustomDomainContextAllowsOnlyMainAndEnabledCustomHosts(t *testing.T) {
 	_, err = model.CreateCustomDomain("disabled", owner.Id)
 	require.NoError(t, err)
 
-	settings, err := common.ParseCustomDomainSettingsWithMainOrigins("true", "yeschoy.io", "https://yeschoy.com", "https://yeschoy.com,https://yeschoy.pro,https://future.example", "5", "")
+	settings, err := common.ParseCustomDomainSettingsWithMainOrigins("true", "yeschoy.io", "https://yeschoy.com", "https://yeschoy.com,https://yeschoy.pro,https://future.example,https://*.yeschoy.com", "5", "")
 	require.NoError(t, err)
 	resolver, err := service.NewCustomDomainResolver(settings)
 	require.NoError(t, err)

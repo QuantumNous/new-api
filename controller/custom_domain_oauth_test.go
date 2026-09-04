@@ -98,12 +98,19 @@ func TestGenerateOAuthCodeStoresTheTrustedCustomDomainID(t *testing.T) {
 }
 
 func TestGenerateOAuthCodeStoresAPeerMainOriginWithoutPromotionID(t *testing.T) {
+	for _, host := range []string{"yeschoy.pro", "api.yeschoy.com"} {
+		t.Run(host, func(t *testing.T) { testGenerateOAuthCodeStoresAPeerMainOriginWithoutPromotionID(t, host) })
+	}
+}
+
+func testGenerateOAuthCodeStoresAPeerMainOriginWithoutPromotionID(t *testing.T, host string) {
+	t.Helper()
 	setupAuthFlowControllerTest(t)
 	settings, err := common.ParseCustomDomainSettingsWithMainOrigins(
 		"true",
 		"yeschoy.io",
 		"https://yeschoy.com",
-		"https://yeschoy.com,https://yeschoy.pro,https://future.example",
+		"https://yeschoy.com,https://yeschoy.pro,https://future.example,https://*.yeschoy.com",
 		"5",
 		"",
 	)
@@ -116,8 +123,8 @@ func TestGenerateOAuthCodeStoresAPeerMainOriginWithoutPromotionID(t *testing.T) 
 	router.Use(middleware.CustomDomainContextWithResolver(resolver, true))
 	router.POST("/api/oauth/state", GenerateOAuthCode)
 
-	request := httptest.NewRequest(http.MethodPost, "https://yeschoy.pro/api/oauth/state", strings.NewReader("{\"provider\":\"auth-flow-test\",\"intent\":\"login\"}"))
-	request.Host = "yeschoy.pro"
+	request := httptest.NewRequest(http.MethodPost, "https://"+host+"/api/oauth/state", strings.NewReader("{\"provider\":\"auth-flow-test\",\"intent\":\"login\"}"))
+	request.Host = host
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
@@ -134,7 +141,7 @@ func TestGenerateOAuthCodeStoresAPeerMainOriginWithoutPromotionID(t *testing.T) 
 	var payload oauthFlowPayload
 	require.NoError(t, common.UnmarshalJsonStr(flow.Payload, &payload))
 	assert.Zero(t, payload.DomainID)
-	assert.Equal(t, "yeschoy.pro", payload.OriginHost)
+	assert.Equal(t, host, payload.OriginHost)
 	assert.NotEmpty(t, payload.BrowserBindingHash)
 	assert.Contains(t, response.Header().Get("Set-Cookie"), domainOAuthBindingCookieName+"=")
 }
@@ -295,7 +302,7 @@ func TestHandleOAuthAcceptsOnlyTheConfiguredCallbackMainHost(t *testing.T) {
 		"true",
 		"yeschoy.io",
 		"https://yeschoy.com",
-		"https://yeschoy.com,https://yeschoy.pro",
+		"https://yeschoy.com,https://yeschoy.pro,https://*.yeschoy.com",
 		"5",
 		"",
 	)
@@ -309,6 +316,11 @@ func TestHandleOAuthAcceptsOnlyTheConfiguredCallbackMainHost(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "https://yeschoy.pro/api/oauth/auth-flow-test?state=missing", nil)
 	request.Host = "yeschoy.pro"
 	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusNotFound, response.Code)
+
+	request = httptest.NewRequest(http.MethodGet, "https://api.yeschoy.com/api/oauth/auth-flow-test?state=missing", nil)
+	response = httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	assert.Equal(t, http.StatusNotFound, response.Code)
 
@@ -333,7 +345,7 @@ func TestHandleOAuthReturnsToAnyConfiguredPeerMainOrigin(t *testing.T) {
 	common.RedisEnabled = false
 	common.CustomDomainEnabled = true
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
-	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://future.example"}
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://future.example", "https://*.yeschoy.com"}
 	t.Cleanup(func() {
 		model.LOG_DB = previousLogDB
 		common.RegisterEnabled = previousRegisterEnabled
@@ -347,7 +359,7 @@ func TestHandleOAuthReturnsToAnyConfiguredPeerMainOrigin(t *testing.T) {
 		"true",
 		"yeschoy.io",
 		"https://yeschoy.com",
-		"https://yeschoy.com,https://yeschoy.pro,https://future.example",
+		"https://yeschoy.com,https://yeschoy.pro,https://future.example,https://*.yeschoy.com",
 		"5",
 		"",
 	)
@@ -358,7 +370,7 @@ func TestHandleOAuthReturnsToAnyConfiguredPeerMainOrigin(t *testing.T) {
 	router.Use(middleware.CustomDomainContextWithResolver(resolver, true))
 	router.GET("/api/oauth/:provider", HandleOAuth)
 
-	for _, host := range []string{"yeschoy.pro", "future.example"} {
+	for _, host := range []string{"yeschoy.pro", "future.example", "api.yeschoy.com"} {
 		t.Run(host, func(t *testing.T) {
 			payloadBytes, err := common.Marshal(oauthFlowPayload{
 				OriginHost:         host,
@@ -395,6 +407,13 @@ func TestHandleOAuthReturnsToAnyConfiguredPeerMainOrigin(t *testing.T) {
 }
 
 func TestHandleOAuthProviderFailuresReturnToPeerMainOrigin(t *testing.T) {
+	for _, host := range []string{"yeschoy.pro", "api.yeschoy.com"} {
+		t.Run(host, func(t *testing.T) { testHandleOAuthProviderFailuresReturnToPeerMainOrigin(t, host) })
+	}
+}
+
+func testHandleOAuthProviderFailuresReturnToPeerMainOrigin(t *testing.T, host string) {
+	t.Helper()
 	provider := setupAuthFlowControllerTest(t)
 	require.NoError(t, appI18n.Init())
 	previousEnabled := common.CustomDomainEnabled
@@ -402,7 +421,7 @@ func TestHandleOAuthProviderFailuresReturnToPeerMainOrigin(t *testing.T) {
 	previousMainOrigins := common.CustomDomainMainOrigins
 	common.CustomDomainEnabled = true
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
-	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro"}
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://*.yeschoy.com"}
 	t.Cleanup(func() {
 		common.CustomDomainEnabled = previousEnabled
 		common.CustomDomainMainOrigin = previousMainOrigin
@@ -413,7 +432,7 @@ func TestHandleOAuthProviderFailuresReturnToPeerMainOrigin(t *testing.T) {
 		"true",
 		"yeschoy.io",
 		"https://yeschoy.com",
-		"https://yeschoy.com,https://yeschoy.pro",
+		"https://yeschoy.com,https://yeschoy.pro,https://*.yeschoy.com",
 		"5",
 		"",
 	)
@@ -436,7 +455,7 @@ func TestHandleOAuthProviderFailuresReturnToPeerMainOrigin(t *testing.T) {
 			provider.exchangeErr = test.exchangeErr
 			provider.userInfoErr = test.userInfoErr
 			payloadBytes, err := common.Marshal(oauthFlowPayload{
-				OriginHost:         "yeschoy.pro",
+				OriginHost:         host,
 				BrowserBindingHash: domainOAuthBindingHash("peer-main-provider-failure-binding"),
 			})
 			require.NoError(t, err)
@@ -462,7 +481,7 @@ func TestHandleOAuthProviderFailuresReturnToPeerMainOrigin(t *testing.T) {
 			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
 			assert.False(t, body.Success)
 			assert.Equal(t, "domain_oauth_return", body.Data.Action)
-			assert.Equal(t, "https://yeschoy.pro", body.Data.TargetOrigin)
+			assert.Equal(t, "https://"+host, body.Data.TargetOrigin)
 			_, err = model.GetAuthFlow(state, model.AuthFlowMatch{
 				Purpose: model.AuthFlowPurposeOAuth, Provider: "auth-flow-test", Intent: model.AuthFlowIntentLogin,
 			})
@@ -472,6 +491,13 @@ func TestHandleOAuthProviderFailuresReturnToPeerMainOrigin(t *testing.T) {
 }
 
 func TestHandleOAuthApplicationFailuresReturnToPeerMainOrigin(t *testing.T) {
+	for _, host := range []string{"yeschoy.pro", "api.yeschoy.com"} {
+		t.Run(host, func(t *testing.T) { testHandleOAuthApplicationFailuresReturnToPeerMainOrigin(t, host) })
+	}
+}
+
+func testHandleOAuthApplicationFailuresReturnToPeerMainOrigin(t *testing.T, host string) {
+	t.Helper()
 	provider := setupAuthFlowControllerTest(t)
 	require.NoError(t, appI18n.Init())
 	previousEnabled := common.CustomDomainEnabled
@@ -480,7 +506,7 @@ func TestHandleOAuthApplicationFailuresReturnToPeerMainOrigin(t *testing.T) {
 	previousRegisterEnabled := common.RegisterEnabled
 	common.CustomDomainEnabled = true
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
-	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro"}
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://*.yeschoy.com"}
 	t.Cleanup(func() {
 		common.CustomDomainEnabled = previousEnabled
 		common.CustomDomainMainOrigin = previousMainOrigin
@@ -492,7 +518,7 @@ func TestHandleOAuthApplicationFailuresReturnToPeerMainOrigin(t *testing.T) {
 		"true",
 		"yeschoy.io",
 		"https://yeschoy.com",
-		"https://yeschoy.com,https://yeschoy.pro",
+		"https://yeschoy.com,https://yeschoy.pro,https://*.yeschoy.com",
 		"5",
 		"",
 	)
@@ -518,7 +544,7 @@ func TestHandleOAuthApplicationFailuresReturnToPeerMainOrigin(t *testing.T) {
 			provider.userIDTaken = false
 			common.RegisterEnabled = test.registerEnabled
 			payloadBytes, err := common.Marshal(oauthFlowPayload{
-				OriginHost:         "yeschoy.pro",
+				OriginHost:         host,
 				BrowserBindingHash: domainOAuthBindingHash("peer-main-application-failure-binding"),
 			})
 			require.NoError(t, err)
@@ -544,12 +570,19 @@ func TestHandleOAuthApplicationFailuresReturnToPeerMainOrigin(t *testing.T) {
 			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
 			assert.False(t, body.Success)
 			assert.Equal(t, "domain_oauth_return", body.Data.Action)
-			assert.Equal(t, "https://yeschoy.pro", body.Data.TargetOrigin)
+			assert.Equal(t, "https://"+host, body.Data.TargetOrigin)
 		})
 	}
 }
 
 func TestHandleOAuthBindProviderFailuresReturnToPeerMainOpener(t *testing.T) {
+	for _, host := range []string{"yeschoy.pro", "api.yeschoy.com"} {
+		t.Run(host, func(t *testing.T) { testHandleOAuthBindProviderFailuresReturnToPeerMainOpener(t, host) })
+	}
+}
+
+func testHandleOAuthBindProviderFailuresReturnToPeerMainOpener(t *testing.T, host string) {
+	t.Helper()
 	provider := setupAuthFlowControllerTest(t)
 	require.NoError(t, appI18n.Init())
 	require.NoError(t, model.DB.AutoMigrate(&model.User{}, &model.UserSession{}))
@@ -560,7 +593,7 @@ func TestHandleOAuthBindProviderFailuresReturnToPeerMainOpener(t *testing.T) {
 	common.RedisEnabled = false
 	common.CustomDomainEnabled = true
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
-	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro"}
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://*.yeschoy.com"}
 	t.Cleanup(func() {
 		common.RedisEnabled = previousRedisEnabled
 		common.CustomDomainEnabled = previousEnabled
@@ -579,7 +612,7 @@ func TestHandleOAuthBindProviderFailuresReturnToPeerMainOpener(t *testing.T) {
 		"true",
 		"yeschoy.io",
 		"https://yeschoy.com",
-		"https://yeschoy.com,https://yeschoy.pro",
+		"https://yeschoy.com,https://yeschoy.pro,https://*.yeschoy.com",
 		"5",
 		"",
 	)
@@ -603,7 +636,7 @@ func TestHandleOAuthBindProviderFailuresReturnToPeerMainOpener(t *testing.T) {
 			provider.userInfoErr = nil
 			provider.userIDTaken = test.userIDTaken
 			payloadBytes, err := common.Marshal(oauthFlowPayload{
-				OriginHost:             "yeschoy.pro",
+				OriginHost:             host,
 				BrowserBindingHash:     domainOAuthBindingHash("peer-main-provider-failure-bind-binding"),
 				ExpectedAuthVersion:    user.AuthVersion,
 				ExpectedSessionVersion: 1,
@@ -638,7 +671,7 @@ func TestHandleOAuthBindProviderFailuresReturnToPeerMainOpener(t *testing.T) {
 			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
 			assert.False(t, body.Success)
 			assert.Equal(t, "domain_bind_return", body.Data.Action)
-			assert.Equal(t, "https://yeschoy.pro", body.Data.TargetOrigin)
+			assert.Equal(t, "https://"+host, body.Data.TargetOrigin)
 			assert.Equal(t, "auth-flow-test", body.Data.Provider)
 			assert.Equal(t, "failed", body.Data.Result)
 			_, err = model.GetAuthFlow(state, model.AuthFlowMatch{
@@ -745,6 +778,13 @@ func TestDomainLoginHandoffConsumesTheBoundTicketOnceAndWritesOnlyACustomHostCoo
 }
 
 func TestDomainLoginHandoffCreatesAnIndependentSessionOnAPeerMainHost(t *testing.T) {
+	for _, host := range []string{"yeschoy.pro", "api.yeschoy.com"} {
+		t.Run(host, func(t *testing.T) { testDomainLoginHandoffCreatesAnIndependentSessionOnAPeerMainHost(t, host) })
+	}
+}
+
+func testDomainLoginHandoffCreatesAnIndependentSessionOnAPeerMainHost(t *testing.T, host string) {
+	t.Helper()
 	setupAuthFlowControllerTest(t)
 	previousLogDB := model.LOG_DB
 	previousRedisEnabled := common.RedisEnabled
@@ -758,7 +798,7 @@ func TestDomainLoginHandoffCreatesAnIndependentSessionOnAPeerMainHost(t *testing
 	common.SessionCookieSecure = true
 	common.CustomDomainEnabled = true
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
-	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://future.example"}
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://future.example", "https://*.yeschoy.com"}
 	t.Cleanup(func() {
 		model.LOG_DB = previousLogDB
 		common.RedisEnabled = previousRedisEnabled
@@ -774,7 +814,7 @@ func TestDomainLoginHandoffCreatesAnIndependentSessionOnAPeerMainHost(t *testing
 	recorder := httptest.NewRecorder()
 	context, _ := gin.CreateTestContext(recorder)
 	issued, err := issueDomainLoginHandoff(context, user.Id, "github", oauthFlowPayload{
-		OriginHost:         "yeschoy.pro",
+		OriginHost:         host,
 		BrowserBindingHash: domainOAuthBindingHash(binding),
 	})
 	require.NoError(t, err)
@@ -787,14 +827,14 @@ func TestDomainLoginHandoffCreatesAnIndependentSessionOnAPeerMainHost(t *testing
 		} `json:"data"`
 	}
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &body))
-	assert.Equal(t, "https://yeschoy.pro", body.Data.TargetOrigin)
+	assert.Equal(t, "https://"+host, body.Data.TargetOrigin)
 	require.NotEmpty(t, body.Data.Ticket)
 
 	settings, err := common.ParseCustomDomainSettingsWithMainOrigins(
 		"true",
 		"yeschoy.io",
 		"https://yeschoy.com",
-		"https://yeschoy.com,https://yeschoy.pro,https://future.example",
+		"https://yeschoy.com,https://yeschoy.pro,https://future.example,https://*.yeschoy.com",
 		"5",
 		"",
 	)
@@ -806,15 +846,42 @@ func TestDomainLoginHandoffCreatesAnIndependentSessionOnAPeerMainHost(t *testing
 	router.POST("/api/oauth/domain-handoff", ConsumeDomainLoginHandoff)
 
 	requestBody := fmt.Sprintf("{\"ticket\":%q}", body.Data.Ticket)
-	request := httptest.NewRequest(http.MethodPost, "https://yeschoy.pro/api/oauth/domain-handoff", strings.NewReader(requestBody))
-	request.Host = "yeschoy.pro"
-	request.Header.Set("Content-Type", "application/json")
-	request.AddCookie(&http.Cookie{Name: domainOAuthBindingCookieName, Value: binding})
-	response := httptest.NewRecorder()
-	router.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code)
-	assert.Contains(t, response.Header().Get("Set-Cookie"), service.RefreshCookieName+"=")
-	assert.NotContains(t, response.Header().Get("Set-Cookie"), "Domain=")
+	for _, attempt := range []struct {
+		name    string
+		host    string
+		binding string
+		removed bool
+		status  int
+	}{
+		{name: "wrong host", host: "www.yeschoy.com", binding: binding, status: 403},
+		{name: "wrong browser", host: host, binding: "wrong-browser", status: 403},
+		{name: "removed rule with stale middleware", host: host, binding: binding, removed: true, status: 403},
+		{name: "valid", host: host, binding: binding, status: 200},
+		{name: "replay", host: host, binding: binding, status: 403},
+	} {
+		origins := common.CustomDomainMainOrigins
+		if attempt.removed {
+			common.CustomDomainMainOrigins = []string{common.CustomDomainMainOrigin}
+		}
+		request := httptest.NewRequest(http.MethodPost, "https://"+attempt.host+"/api/oauth/domain-handoff", strings.NewReader(requestBody))
+		request.Header.Set("Content-Type", "application/json")
+		request.AddCookie(&http.Cookie{Name: domainOAuthBindingCookieName, Value: attempt.binding})
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		common.CustomDomainMainOrigins = origins
+		require.Equal(t, attempt.status, response.Code, attempt.name)
+		if attempt.status != 200 {
+			assert.Empty(t, response.Header().Get("Set-Cookie"), attempt.name)
+			continue
+		}
+		require.NotEmpty(t, response.Result().Cookies())
+		for _, cookie := range response.Result().Cookies() {
+			assert.Empty(t, cookie.Domain)
+			assert.Equal(t, service.RefreshCookieName, cookie.Name)
+			assert.True(t, cookie.Secure)
+			assert.True(t, cookie.HttpOnly)
+		}
+	}
 
 	var sessionCount int64
 	require.NoError(t, model.DB.Model(&model.UserSession{}).Count(&sessionCount).Error)
@@ -1125,6 +1192,13 @@ func TestHandleOAuthBindOnMainIssuesATicketWithoutChangingTheUserBinding(t *test
 }
 
 func TestHandleOAuthBindDefersAPeerMainMutationBackToTheOriginSession(t *testing.T) {
+	for _, host := range []string{"yeschoy.pro", "api.yeschoy.com"} {
+		t.Run(host, func(t *testing.T) { testHandleOAuthBindDefersAPeerMainMutationBackToTheOriginSession(t, host) })
+	}
+}
+
+func testHandleOAuthBindDefersAPeerMainMutationBackToTheOriginSession(t *testing.T, host string) {
+	t.Helper()
 	setupAuthFlowControllerTest(t)
 	require.NoError(t, appI18n.Init())
 	require.NoError(t, model.DB.AutoMigrate(&model.User{}, &model.UserSession{}))
@@ -1135,7 +1209,7 @@ func TestHandleOAuthBindDefersAPeerMainMutationBackToTheOriginSession(t *testing
 	common.RedisEnabled = false
 	common.CustomDomainEnabled = true
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
-	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro"}
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://*.yeschoy.com"}
 	t.Cleanup(func() {
 		common.RedisEnabled = previousRedisEnabled
 		common.CustomDomainEnabled = previousCustomDomainEnabled
@@ -1152,7 +1226,7 @@ func TestHandleOAuthBindDefersAPeerMainMutationBackToTheOriginSession(t *testing
 	require.NoError(t, err)
 	binding := "peer-main-bind-value-with-at-least-thirty-two-characters"
 	payloadBytes, err := common.Marshal(oauthFlowPayload{
-		OriginHost:             "yeschoy.pro",
+		OriginHost:             host,
 		BrowserBindingHash:     domainOAuthBindingHash(binding),
 		ExpectedAuthVersion:    user.AuthVersion,
 		ExpectedSessionVersion: 1,
@@ -1173,7 +1247,7 @@ func TestHandleOAuthBindDefersAPeerMainMutationBackToTheOriginSession(t *testing
 		"true",
 		"yeschoy.io",
 		"https://yeschoy.com",
-		"https://yeschoy.com,https://yeschoy.pro",
+		"https://yeschoy.com,https://yeschoy.pro,https://*.yeschoy.com",
 		"5",
 		"",
 	)
@@ -1200,7 +1274,7 @@ func TestHandleOAuthBindDefersAPeerMainMutationBackToTheOriginSession(t *testing
 	}
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
 	assert.Equal(t, "domain_bind_handoff", body.Data.Action)
-	assert.Equal(t, "https://yeschoy.pro", body.Data.TargetOrigin)
+	assert.Equal(t, "https://"+host, body.Data.TargetOrigin)
 	assert.NotEmpty(t, body.Data.Ticket)
 
 	var unchanged model.User
@@ -1211,14 +1285,32 @@ func TestHandleOAuthBindDefersAPeerMainMutationBackToTheOriginSession(t *testing
 	consumeRouter.Use(middleware.CustomDomainContextWithResolver(resolver, true))
 	consumeRouter.POST("/api/oauth/domain-bind-handoff", middleware.UserAuth(), ConsumeDomainBindHandoff)
 	requestBody := fmt.Sprintf("{\"ticket\":%q}", body.Data.Ticket)
-	request = httptest.NewRequest(http.MethodPost, "https://yeschoy.pro/api/oauth/domain-bind-handoff", strings.NewReader(requestBody))
-	request.Host = "yeschoy.pro"
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("Authorization", "Bearer "+bundle.AccessToken)
-	request.AddCookie(&http.Cookie{Name: domainOAuthBindingCookieName, Value: binding})
-	response = httptest.NewRecorder()
-	consumeRouter.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code)
+	for _, attempt := range []struct {
+		name    string
+		host    string
+		binding string
+		removed bool
+		status  int
+	}{
+		{name: "wrong host", host: "www.yeschoy.com", binding: binding, status: 403},
+		{name: "wrong browser", host: host, binding: "wrong-browser", status: 403},
+		{name: "removed rule with stale middleware", host: host, binding: binding, removed: true, status: 403},
+		{name: "valid", host: host, binding: binding, status: 200},
+		{name: "replay", host: host, binding: binding, status: 403},
+	} {
+		origins := common.CustomDomainMainOrigins
+		if attempt.removed {
+			common.CustomDomainMainOrigins = []string{common.CustomDomainMainOrigin}
+		}
+		request = httptest.NewRequest(http.MethodPost, "https://"+attempt.host+"/api/oauth/domain-bind-handoff", strings.NewReader(requestBody))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Authorization", "Bearer "+bundle.AccessToken)
+		request.AddCookie(&http.Cookie{Name: domainOAuthBindingCookieName, Value: attempt.binding})
+		response = httptest.NewRecorder()
+		consumeRouter.ServeHTTP(response, request)
+		common.CustomDomainMainOrigins = origins
+		require.Equal(t, attempt.status, response.Code, attempt.name)
+	}
 
 	var updated model.User
 	require.NoError(t, model.DB.First(&updated, user.Id).Error)

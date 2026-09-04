@@ -2,11 +2,14 @@ package common
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"golang.org/x/net/publicsuffix"
 )
 
 const (
@@ -126,6 +129,7 @@ func InitCustomDomainSettings() error {
 func ValidateCustomDomainHTTPSettings() error {
 	return validateCustomDomainSessionSettings(CustomDomainSettings{
 		Enabled:     CustomDomainEnabled,
+		Suffix:      CustomDomainSuffix,
 		MainOrigin:  CustomDomainMainOrigin,
 		MainOrigins: CustomDomainMainOrigins,
 	}, SessionCookieSecure, SessionCookieTrustedURLs)
@@ -147,11 +151,69 @@ func validateCustomDomainSessionSettings(settings CustomDomainSettings, secure b
 		trusted[origin] = struct{}{}
 	}
 	for _, mainOrigin := range mainOrigins {
-		if _, found := trusted[mainOrigin]; !found {
-			return fmt.Errorf("all CUSTOM_DOMAIN_MAIN_ORIGINS must be included in SESSION_COOKIE_TRUSTED_URL")
+		rule, err := ParseCustomDomainMainOriginRule(mainOrigin, settings.Suffix)
+		if err != nil {
+			return err
+		}
+		if rule.Wildcard {
+			continue
+		}
+		if _, found := trusted[rule.Origin]; !found {
+			return fmt.Errorf("all exact CUSTOM_DOMAIN_MAIN_ORIGINS must be included in SESSION_COOKIE_TRUSTED_URL")
 		}
 	}
 	return nil
+}
+
+// CustomDomainMainOriginRule is either an exact Origin or a one-label wildcard.
+// Host is the exact hostname or the wildcard's base, never a browser Origin.
+type CustomDomainMainOriginRule struct {
+	Origin   string
+	Host     string
+	Wildcard bool
+}
+
+// ParseCustomDomainMainOriginRule is shared by startup and runtime resolvers.
+// Wildcards are routing policy only; NormalizeOrigin remains exact-only.
+func ParseCustomDomainMainOriginRule(raw, promotionSuffix string) (CustomDomainMainOriginRule, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return CustomDomainMainOriginRule{}, fmt.Errorf("main origin rule is empty")
+	}
+	if !strings.Contains(raw, "*") {
+		origin, err := normalizeCustomDomainMainOrigin(raw, promotionSuffix)
+		if err != nil {
+			return CustomDomainMainOriginRule{}, err
+		}
+		parsed, _ := url.Parse(origin)
+		return CustomDomainMainOriginRule{Origin: origin, Host: parsed.Hostname()}, nil
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "https" || parsed.User != nil ||
+		strings.ContainsAny(raw, "?#\r\n") || (parsed.Path != "" && parsed.Path != "/") ||
+		strings.Count(raw, "*") != 1 || !strings.HasPrefix(parsed.Hostname(), "*.") ||
+		(parsed.Port() != "" && parsed.Port() != "443") || strings.HasSuffix(parsed.Host, ":") {
+		return CustomDomainMainOriginRule{}, fmt.Errorf("wildcard main origin must be https://*.domain with the standard HTTPS port")
+	}
+	base := strings.TrimSuffix(strings.ToLower(strings.TrimPrefix(parsed.Hostname(), "*.")), ".")
+	// Leave room for at least one concrete label and its separating dot.
+	if len(base) > 251 || net.ParseIP(base) != nil {
+		return CustomDomainMainOriginRule{}, fmt.Errorf("wildcard main origin base is too long or an IP address")
+	}
+	for _, label := range strings.Split(base, ".") {
+		if normalized, err := NormalizeDNSLabel(label); err != nil || normalized != label {
+			return CustomDomainMainOriginRule{}, fmt.Errorf("wildcard main origin base has an invalid DNS label")
+		}
+	}
+	boundary, _ := publicsuffix.PublicSuffix(base)
+	if base == boundary {
+		return CustomDomainMainOriginRule{}, fmt.Errorf("wildcard main origin base must not be a public or private suffix")
+	}
+	suffix := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(promotionSuffix)), ".")
+	if base == suffix || strings.HasSuffix(base, "."+suffix) || strings.HasSuffix(suffix, "."+base) {
+		return CustomDomainMainOriginRule{}, fmt.Errorf("wildcard main origin must not overlap CUSTOM_DOMAIN_SUFFIX")
+	}
+	return CustomDomainMainOriginRule{Origin: "https://*." + base, Host: base, Wildcard: true}, nil
 }
 
 func defaultCustomDomainReservedLabelSet() map[string]struct{} {
@@ -228,10 +290,11 @@ func normalizeCustomDomainMainOrigins(raw, mainOrigin, suffix string) ([]string,
 		if strings.TrimSpace(part) == "" {
 			return nil, fmt.Errorf("CUSTOM_DOMAIN_MAIN_ORIGINS contains an empty origin")
 		}
-		origin, err := normalizeCustomDomainMainOrigin(part, suffix)
+		rule, err := ParseCustomDomainMainOriginRule(part, suffix)
 		if err != nil {
 			return nil, fmt.Errorf("CUSTOM_DOMAIN_MAIN_ORIGINS is invalid: %w", err)
 		}
+		origin := rule.Origin
 		parsed, _ := url.Parse(origin)
 		if origin != mainOrigin && parsed.Port() != "" {
 			return nil, fmt.Errorf("CUSTOM_DOMAIN_MAIN_ORIGINS peer origins must use the standard https port")

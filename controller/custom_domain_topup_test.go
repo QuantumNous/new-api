@@ -36,7 +36,7 @@ func TestPaymentReturnURLUsesOnlyAStoredTrustedOrigin(t *testing.T) {
 	common.CustomDomainEnabled = true
 	common.CustomDomainSuffix = "yeschoy.io"
 	common.CustomDomainMainOrigin = "https://yeschoy.com"
-	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://future.example"}
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://future.example", "https://*.yeschoy.com"}
 	system_setting.ServerAddress = "https://legacy-main.example.com"
 	t.Cleanup(func() {
 		model.DB = previousDB
@@ -58,7 +58,7 @@ func TestPaymentReturnURLUsesOnlyAStoredTrustedOrigin(t *testing.T) {
 		"true",
 		"yeschoy.io",
 		"https://yeschoy.com",
-		"https://yeschoy.com,https://yeschoy.pro",
+		"https://yeschoy.com,https://yeschoy.pro,https://*.yeschoy.com",
 		"5",
 		"",
 	)
@@ -87,6 +87,16 @@ func TestPaymentReturnURLUsesOnlyAStoredTrustedOrigin(t *testing.T) {
 	router.ServeHTTP(response, request)
 	require.Equal(t, http.StatusNoContent, response.Code)
 	assert.Equal(t, "yeschoy.pro", capturedOrigin)
+	request = httptest.NewRequest(http.MethodGet, "https://api.yeschoy.com/origin", nil)
+	request.Header.Set("X-Forwarded-Host", "attacker.example")
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(t, http.StatusNoContent, response.Code)
+	assert.Equal(t, "api.yeschoy.com", capturedOrigin)
+	wildcardTopUp := &model.TopUp{OriginHost: capturedOrigin}
+	assert.Equal(t, "https://api.yeschoy.com/wallet", paymentReturnURLForTopUp(wildcardTopUp, "/wallet"))
+	common.CustomDomainMainOrigins = []string{"https://yeschoy.com", "https://yeschoy.pro", "https://future.example"}
+	assert.Equal(t, "https://yeschoy.com/wallet", paymentReturnURLForTopUp(wildcardTopUp, "/wallet"))
 
 	topUp := &model.TopUp{OriginHost: "alpha.yeschoy.io"}
 	assert.Equal(t, "https://alpha.yeschoy.io/usage-logs", paymentReturnURLForTopUp(topUp, "/usage-logs"))
@@ -245,7 +255,7 @@ func TestWalletWebhooksAcceptOnlyTheConfiguredCallbackMainHost(t *testing.T) {
 		"true",
 		"yeschoy.io",
 		"https://yeschoy.com",
-		"https://yeschoy.com,https://yeschoy.pro",
+		"https://yeschoy.com,https://yeschoy.pro,https://*.yeschoy.com",
 		"5",
 		"",
 	)
@@ -257,12 +267,14 @@ func TestWalletWebhooksAcceptOnlyTheConfiguredCallbackMainHost(t *testing.T) {
 	router.POST("/api/stripe/webhook", StripeWebhook)
 	router.POST("/api/user/epay/notify", EpayNotify)
 
-	for _, path := range []string{"/api/stripe/webhook", "/api/user/epay/notify"} {
-		request := httptest.NewRequest(http.MethodPost, "https://yeschoy.pro"+path, nil)
-		request.Host = "yeschoy.pro"
-		response := httptest.NewRecorder()
-		router.ServeHTTP(response, request)
-		assert.Equal(t, http.StatusNotFound, response.Code)
+	for _, host := range []string{"yeschoy.pro", "api.yeschoy.com"} {
+		for _, path := range []string{"/api/stripe/webhook", "/api/user/epay/notify"} {
+			request := httptest.NewRequest(http.MethodPost, "https://"+host+path, nil)
+			request.Host = host
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+			assert.Equal(t, http.StatusNotFound, response.Code)
+		}
 	}
 }
 
