@@ -47,6 +47,7 @@ export const STATUS_STORAGE_KEY = 'status'
 /** Status payload shape — loose on purpose; the backend map is open-ended. */
 export type StatusData = Record<string, unknown>
 
+/** Coerce a status field to a number, keeping `fallback` for unusable values. */
 function toNumber(value: unknown, fallback: number): number {
   if (typeof value === 'number' && !Number.isNaN(value)) return value
   if (typeof value === 'string') {
@@ -113,6 +114,7 @@ export function readCachedStatus(): StatusData | null {
   }
 }
 
+/** Persist the latest status so the next cold start can render before fetching. */
 function writeCachedStatus(status: StatusData | null): void {
   try {
     if (typeof window !== 'undefined' && status) {
@@ -123,6 +125,12 @@ function writeCachedStatus(status: StatusData | null): void {
   }
 }
 
+/**
+ * The single `/api/status` request.
+ *
+ * Owns both side effects of a successful read — syncing the system-config store
+ * and writing the localStorage snapshot — so consumers never repeat either one.
+ */
 async function fetchStatus(): Promise<StatusData | null> {
   const status = (await getStatus()) as StatusData | null
 

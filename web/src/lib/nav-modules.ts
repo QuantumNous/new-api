@@ -144,6 +144,12 @@ export function parseHeaderNavModulesFromStatus(
   return parseHeaderNavModules(status?.HeaderNavModules)
 }
 
+/**
+ * Resolve one module's access flags from an already-loaded status payload.
+ *
+ * Falls back to the module's default when status is missing or does not carry
+ * a `HeaderNavModules` entry for it.
+ */
 export function getModuleAccessFromStatus(
   status: Record<string, unknown> | null,
   module: HeaderNavModule
@@ -151,19 +157,34 @@ export function getModuleAccessFromStatus(
   return parseHeaderNavModulesFromStatus(status)[module] ?? DEFAULTS[module]
 }
 
+/**
+ * Read module access synchronously from the persisted status snapshot.
+ *
+ * For render paths that cannot await, such as deciding whether to show a nav
+ * item. Never issues a request; use {@link getModuleAccessForGuard} when the
+ * caller can await.
+ */
 export function getModuleAccess(module: HeaderNavModule): ModuleAccess {
   return getModuleAccessFromStatus(readCachedStatus(), module)
 }
 
 /**
- * Resolve module access for a router guard.
+ * Resolve module access for a router `beforeLoad` guard.
  *
- * Goes through the shared `['status']` cache, so a guard on a fresh page load
+ * Reads through the shared `['status']` cache, so a guard on a fresh page load
  * reuses the request already started during boot instead of issuing its own.
- * Once the cache is warm this resolves without blocking on the network — see
- * `ensureStatus` for the exact fresh/stale resolution rules.
+ *
+ * This does not force a network round trip: a warm cache resolves immediately,
+ * and a stale entry resolves from cache while a refresh runs in the background.
+ * A guard can therefore act on status that is up to one `staleTime` old — see
+ * `ensureStatus` for the exact resolution rules. That is deliberate; these
+ * guards only decide navigation, and the backend still authorizes every
+ * request behind them.
+ *
+ * On failure this fails closed, reporting the module as disabled and
+ * auth-required.
  */
-export async function getFreshModuleAccess(
+export async function getModuleAccessForGuard(
   queryClient: QueryClient,
   module: HeaderNavModule
 ): Promise<ModuleAccess> {
@@ -175,6 +196,12 @@ export async function getFreshModuleAccess(
   }
 }
 
+/**
+ * Whether an admin sidebar entry is enabled by `SidebarModulesAdmin`.
+ *
+ * Fails open: an absent, blank, or unparsable configuration keeps every module
+ * visible, so a status read that has not landed yet cannot blank the sidebar.
+ */
 export function isSidebarModuleEnabled(
   section: string,
   module: string

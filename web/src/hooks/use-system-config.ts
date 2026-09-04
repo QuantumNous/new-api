@@ -29,7 +29,7 @@ interface UseSystemConfigOptions {
   autoLoad?: boolean
 }
 
-// Preload image and return cleanup function
+/** Preload an image, returning a cleanup that detaches the pending handlers. */
 function preloadImage(
   src: string,
   onLoad: () => void,

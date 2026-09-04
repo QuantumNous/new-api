@@ -28,7 +28,9 @@ import { UserBindingDialog } from '../user-binding-dialog'
  * The dialog reads `/api/status` through the shared React Query cache, so it
  * needs a provider. A fresh client per render keeps tests isolated.
  */
-function renderWithQueryClient(ui: React.ReactElement) {
+function renderWithQueryClient(
+  ui: React.ReactElement
+): ReturnType<typeof render> {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   })
