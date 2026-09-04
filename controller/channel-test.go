@@ -118,31 +118,8 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			requestPath = endpointInfo.Path
 		}
 	} else {
-		// 如果没有指定端点类型，使用原有的自动检测逻辑
-
-		if strings.Contains(strings.ToLower(testModel), "rerank") {
-			requestPath = "/v1/rerank"
-		}
-
-		// 先判断是否为 Embedding 模型
-		if strings.Contains(strings.ToLower(testModel), "embedding") ||
-			strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
-			strings.Contains(testModel, "bge-") || // bge 系列模型
-			strings.Contains(testModel, "embed") ||
-			channel.Type == constant.ChannelTypeMokaAI { // 其他 embedding 模型
-			requestPath = "/v1/embeddings" // 修改请求路径
-		}
-
-		// VolcEngine 图像生成模型
-		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
-			requestPath = "/v1/images/generations"
-		}
-
-		// responses-only models
-		if strings.Contains(strings.ToLower(testModel), "codex") {
-			requestPath = "/v1/responses"
-		}
-
+		// 如果没有指定端点类型，使用自动检测逻辑
+		requestPath = autoDetectChannelTestRequestPath(channel.Type, testModel)
 	}
 	// Gemini 原生流式通过 URL action（:streamGenerateContent）表达而非请求体字段，
 	// GeminiChatRequest.IsStream 依据请求 URL 判定，合成请求路径需与生产入口保持一致
@@ -515,7 +492,12 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		Group:            info.UsingGroup,
 		Other:            other,
 	})
-	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
+	// 图片生成等测试响应可能携带超大 base64 内容，仅记录前缀避免刷爆日志
+	logRespBody := respBody
+	if len(logRespBody) > 64<<10 {
+		logRespBody = logRespBody[:64<<10]
+	}
+	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(logRespBody)))
 	return testResult{
 		context:     c,
 		localErr:    nil,
@@ -711,13 +693,9 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Input: []any{"hello world"},
 			}
 		case constant.EndpointTypeImageGeneration:
-			// 返回 ImageRequest
-			return &dto.ImageRequest{
-				Model:  model,
-				Prompt: "a cute cat",
-				N:      lo.ToPtr(uint(1)),
-				Size:   "1024x1024",
-			}
+			// 图片生成连通性测试使用最小生成配置（n=1 + 最小可用尺寸/最低档），
+			// 验证渠道连通性的同时把每次测试的 token 消耗降到最低。
+			return buildImageGenerationTestRequest(model)
 		case constant.EndpointTypeJinaRerank:
 			// 返回 RerankRequest
 			return &dto.RerankRequest{
@@ -803,6 +781,11 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		}
 	}
 
+	// 图片生成模型（OpenAI gpt-image/dall-e、flux、seedream、cogview、wanx 等）
+	if isImageGenerationTestModel(model) {
+		return buildImageGenerationTestRequest(model)
+	}
+
 	// Responses-only models (e.g. codex series)
 	if strings.Contains(strings.ToLower(model), "codex") {
 		return &dto.OpenAIResponsesRequest{
@@ -840,6 +823,84 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	}
 
 	return testRequest
+}
+
+// autoDetectChannelTestRequestPath 根据渠道类型与模型名自动推断测试请求路径，
+// 与 buildTestRequest 的判断保持一致。
+func autoDetectChannelTestRequestPath(channelType int, model string) string {
+	requestPath := "/v1/chat/completions"
+
+	if strings.Contains(strings.ToLower(model), "rerank") {
+		requestPath = "/v1/rerank"
+	}
+
+	// 先判断是否为 Embedding 模型
+	if strings.Contains(strings.ToLower(model), "embedding") ||
+		strings.HasPrefix(model, "m3e") || // m3e 系列模型
+		strings.Contains(model, "bge-") || // bge 系列模型
+		strings.Contains(model, "embed") ||
+		channelType == constant.ChannelTypeMokaAI { // 其他 embedding 模型
+		requestPath = "/v1/embeddings"
+	}
+
+	// 图片生成模型统一走 /v1/images/generations（含 VolcEngine seedream 等各厂商模型）
+	if isImageGenerationTestModel(model) {
+		requestPath = "/v1/images/generations"
+	}
+
+	// responses-only models
+	if strings.Contains(strings.ToLower(model), "codex") {
+		requestPath = "/v1/responses"
+	}
+
+	return requestPath
+}
+
+// isImageGenerationTestModel 判断渠道测试是否应把该模型当作图片生成模型处理。
+// 除了复用全局 common.IsImageGenerationModel（OpenAI gpt-image/dall-e、imagen、flux），
+// 仅在此处补充其它走 OpenAI 兼容 /v1/images/generations 的厂商图片模型关键字，
+// 避免把这类识别逻辑泛化到模型目录/定价等其它功能。
+func isImageGenerationTestModel(model string) bool {
+	if common.IsImageGenerationModel(model) {
+		return true
+	}
+	lowerModel := strings.ToLower(model)
+	for _, keyword := range []string{"seedream", "cogview", "wanx", "stable-diffusion", "kolors", "ideogram"} {
+		if strings.Contains(lowerModel, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+// buildImageGenerationTestRequest 构造图片生成连通性测试请求，n 固定为 1 且
+// 使用各厂商允许的最小尺寸/最低质量档位，尽量降低每次测试消耗的 token：
+//   - OpenAI gpt-image 系列：最小尺寸 1024x1024 + quality=low（当前最小像素预算）
+//   - OpenAI dall-e-2/dall-e：支持 256x256，为最小尺寸
+//   - OpenAI dall-e-3：最小尺寸 1024x1024 + standard（hd 才加倍）
+//   - 其它厂商（flux/seedream/cogview/wanx 等）：默认 1024x1024，不传 quality
+func buildImageGenerationTestRequest(model string) *dto.ImageRequest {
+	lowerModel := strings.ToLower(model)
+	req := &dto.ImageRequest{
+		Model:  model,
+		Prompt: "a red dot on a plain white background",
+		N:      lo.ToPtr(uint(1)),
+	}
+
+	switch {
+	case strings.Contains(lowerModel, "gpt-image"):
+		req.Size = "1024x1024"
+		req.Quality = "low"
+	case strings.Contains(lowerModel, "dall-e-3"):
+		req.Size = "1024x1024"
+		req.Quality = "standard"
+	case strings.Contains(lowerModel, "dall-e"):
+		req.Size = "256x256"
+	default:
+		req.Size = "1024x1024"
+	}
+
+	return req
 }
 
 func TestChannel(c *gin.Context) {

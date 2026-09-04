@@ -464,3 +464,107 @@ func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), existing.TaskID)
 	require.Contains(t, recorder.Body.String(), "已有通道测试任务正在运行或等待中")
 }
+
+func TestAutoDetectChannelTestRequestPath(t *testing.T) {
+	tests := []struct {
+		name        string
+		channelType int
+		model       string
+		want        string
+	}{
+		{name: "chat model", channelType: constant.ChannelTypeOpenAI, model: "gpt-5.4", want: "/v1/chat/completions"},
+		{name: "rerank", channelType: constant.ChannelTypeJina, model: "jina-reranker", want: "/v1/rerank"},
+		{name: "embedding", channelType: constant.ChannelTypeOpenAI, model: "text-embedding-3-small", want: "/v1/embeddings"},
+		{name: "gpt-image-2", channelType: constant.ChannelTypeOpenAI, model: "gpt-image-2", want: "/v1/images/generations"},
+		{name: "dall-e-3", channelType: constant.ChannelTypeOpenAI, model: "dall-e-3", want: "/v1/images/generations"},
+		{name: "flux", channelType: constant.ChannelTypeOpenAI, model: "black-forest-labs/flux-1.1-pro", want: "/v1/images/generations"},
+		{name: "seedream on volcengine", channelType: constant.ChannelTypeVolcEngine, model: "seedream-3.0-250825", want: "/v1/images/generations"},
+		{name: "cogview", channelType: constant.ChannelTypeZhipu_v4, model: "cogview-4-250304", want: "/v1/images/generations"},
+		{name: "wanx", channelType: constant.ChannelTypeAli, model: "wanx2.1-t2i-turbo", want: "/v1/images/generations"},
+		{name: "responses model", channelType: constant.ChannelTypeOpenAI, model: "gpt-5.4-codex", want: "/v1/responses"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, autoDetectChannelTestRequestPath(tt.channelType, tt.model))
+		})
+	}
+}
+
+func TestIsImageGenerationTestModel(t *testing.T) {
+	tests := []struct {
+		name  string
+		model string
+		want  bool
+	}{
+		// 全局分类（OpenAI gpt-image / dall-e / imagen / flux）
+		{name: "gpt-image-2", model: "gpt-image-2", want: true},
+		{name: "dall-e-3", model: "dall-e-3", want: true},
+		{name: "imagen", model: "imagen-3.0-generate-002", want: true},
+		{name: "flux", model: "black-forest-labs/flux-1.1-pro", want: true},
+		// 渠道测试本地补充的厂商
+		{name: "seedream", model: "seedream-3.0-250825", want: true},
+		{name: "cogview", model: "cogview-4-250304", want: true},
+		{name: "wanx", model: "wanx2.1-t2i-turbo", want: true},
+		{name: "stable diffusion", model: "stable-diffusion-xl-1024-v1-0", want: true},
+		// 非图片模型保持不受影响
+		{name: "chat", model: "gpt-5.4", want: false},
+		{name: "embedding", model: "text-embedding-3-small", want: false},
+		{name: "video", model: "doubao-seedance-1-0-pro", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, isImageGenerationTestModel(tt.model))
+		})
+	}
+}
+
+func TestBuildImageGenerationTestRequest(t *testing.T) {
+	tests := []struct {
+		name          string
+		model         string
+		wantSize      string
+		wantQuality   string
+		wantPromptLen int
+	}{
+		{name: "gpt-image-2 low cost", model: "gpt-image-2", wantSize: "1024x1024", wantQuality: "low"},
+		{name: "gpt-image-1 low cost", model: "gpt-image-1", wantSize: "1024x1024", wantQuality: "low"},
+		{name: "dall-e-3 standard", model: "dall-e-3", wantSize: "1024x1024", wantQuality: "standard"},
+		{name: "dall-e-2 small", model: "dall-e-2", wantSize: "256x256", wantQuality: ""},
+		{name: "flux default", model: "black-forest-labs/flux-1.1-pro", wantSize: "1024x1024", wantQuality: ""},
+		{name: "seedream default", model: "seedream-3.0-250825", wantSize: "1024x1024", wantQuality: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := buildImageGenerationTestRequest(tt.model)
+			require.NotNil(t, req)
+			require.Equal(t, tt.model, req.Model)
+			require.NotEmpty(t, req.Prompt)
+			require.NotNil(t, req.N)
+			require.Equal(t, uint(1), *req.N)
+			require.Equal(t, tt.wantSize, req.Size)
+			require.Equal(t, tt.wantQuality, req.Quality)
+		})
+	}
+}
+
+func TestBuildTestRequestAutoDetectsImageModel(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeOpenAI}
+	req := buildTestRequest("gpt-image-2", "", channel, false)
+
+	imageReq, ok := req.(*dto.ImageRequest)
+	require.True(t, ok)
+	require.Equal(t, "gpt-image-2", imageReq.Model)
+	require.Equal(t, "1024x1024", imageReq.Size)
+	require.Equal(t, "low", imageReq.Quality)
+	require.NotNil(t, imageReq.N)
+	require.Equal(t, uint(1), *imageReq.N)
+
+	explicit := buildTestRequest("gpt-image-2", string(constant.EndpointTypeImageGeneration), channel, false)
+	explicitImage, ok := explicit.(*dto.ImageRequest)
+	require.True(t, ok)
+	require.Equal(t, "1024x1024", explicitImage.Size)
+	require.Equal(t, "low", explicitImage.Quality)
+}
