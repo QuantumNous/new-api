@@ -909,11 +909,14 @@ export function transformFormDataToUpdatePayload(
   payload.param_override = formData.param_override || ''
   payload.header_override = formData.header_override || ''
 
-  const requestedStorageMode = formData.key_storage_mode || 'single'
-  const currentStorageMode = isMultiKeyChannel ? 'multi' : 'single'
-  const isStorageConversion = requestedStorageMode !== currentStorageMode
+  // This transform only runs while editing, so the persisted shape is always the
+  // comparison baseline here.
+  const { requestedStorageMode, isConvertingStorage } =
+    resolveStorageModeConversion(true, isMultiKeyChannel, {
+      key_storage_mode: formData.key_storage_mode,
+    })
 
-  if (isStorageConversion) {
+  if (isConvertingStorage) {
     payload.key_storage_mode = requestedStorageMode
     if (requestedStorageMode === 'multi') {
       payload.multi_key_mode = formData.multi_key_type || 'random'
@@ -921,6 +924,39 @@ export function transformFormDataToUpdatePayload(
   }
 
   return payload
+}
+
+export type KeyStorageMode = 'single' | 'multi'
+
+export type StorageModeConversion = {
+  currentStorageMode: KeyStorageMode
+  requestedStorageMode: KeyStorageMode
+  isConvertingStorage: boolean
+}
+
+/**
+ * Resolves the persisted storage shape against the requested one. The edit UI and
+ * the submit-time validation must agree on whether a conversion is happening, so
+ * both read this single rule instead of recomputing it.
+ */
+export function resolveStorageModeConversion(
+  isEditing: boolean,
+  isMultiKeyChannel: boolean,
+  formData: Pick<ChannelFormValues, 'key_storage_mode'>
+): StorageModeConversion {
+  const currentStorageMode: KeyStorageMode = isMultiKeyChannel
+    ? 'multi'
+    : 'single'
+  // Creation always posts a single key; only an edit can convert in place.
+  const requestedStorageMode: KeyStorageMode = isEditing
+    ? formData.key_storage_mode || currentStorageMode
+    : 'single'
+  return {
+    currentStorageMode,
+    requestedStorageMode,
+    isConvertingStorage:
+      isEditing && requestedStorageMode !== currentStorageMode,
+  }
 }
 
 export function countUpdateKeys(

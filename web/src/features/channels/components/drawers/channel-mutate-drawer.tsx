@@ -160,6 +160,7 @@ import {
   channelsQueryKeys,
   countUpdateKeys,
   getAdvancedCustomStats,
+  resolveStorageModeConversion,
   transformChannelToFormDefaults,
   type ChannelFormValues,
   deduplicateKeys,
@@ -869,12 +870,10 @@ export function ChannelMutateDrawer({
   const isChannelDetailLoading = isEditing && isChannelLoading
   const supportsMultiKeyAddMode =
     currentType !== 57 && !(currentType === 41 && vertexKeyType === 'api_key')
-  const currentStorageMode = isMultiKeyChannel ? 'multi' : 'single'
-  const requestedStorageMode = isEditing
-    ? keyStorageMode || currentStorageMode
-    : 'single'
-  const isConvertingStorage =
-    isEditing && requestedStorageMode !== currentStorageMode
+  const { currentStorageMode, requestedStorageMode, isConvertingStorage } =
+    resolveStorageModeConversion(isEditing, isMultiKeyChannel, {
+      key_storage_mode: keyStorageMode,
+    })
   const isConvertingToSingle =
     isConvertingStorage && requestedStorageMode === 'single'
   const isConvertingToMulti =
@@ -1673,12 +1672,10 @@ export function ChannelMutateDrawer({
         return
       }
 
-      const currentStorageModeOnSubmit = isMultiKeyChannel ? 'multi' : 'single'
-      const requestedStorageModeOnSubmit = isEditing
-        ? data.key_storage_mode || currentStorageModeOnSubmit
-        : 'single'
-      const isConvertingStorageOnSubmit =
-        isEditing && requestedStorageModeOnSubmit !== currentStorageModeOnSubmit
+      const {
+        requestedStorageMode: requestedStorageModeOnSubmit,
+        isConvertingStorage: isConvertingStorageOnSubmit,
+      } = resolveStorageModeConversion(isEditing, isMultiKeyChannel, data)
       if (isConvertingStorageOnSubmit) {
         if (!data.key?.trim()) {
           form.setError('key', {

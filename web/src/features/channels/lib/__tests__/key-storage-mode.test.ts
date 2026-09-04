@@ -20,8 +20,68 @@ import { describe, expect, test } from 'vitest'
 
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  resolveStorageModeConversion,
   transformFormDataToUpdatePayload,
 } from '../channel-form'
+
+describe('resolveStorageModeConversion', () => {
+  test('reports no conversion when creating a channel even if a mode is preselected', () => {
+    const result = resolveStorageModeConversion(false, false, {
+      key_storage_mode: 'multi',
+    })
+
+    expect(result.requestedStorageMode).toBe('single')
+    expect(result.isConvertingStorage).toBe(false)
+  })
+
+  test('reports a conversion when an edit requests multi for a single-key channel', () => {
+    const result = resolveStorageModeConversion(true, false, {
+      key_storage_mode: 'multi',
+    })
+
+    expect(result.currentStorageMode).toBe('single')
+    expect(result.requestedStorageMode).toBe('multi')
+    expect(result.isConvertingStorage).toBe(true)
+  })
+
+  test('reports a conversion when an edit requests single for a multi-key channel', () => {
+    const result = resolveStorageModeConversion(true, true, {
+      key_storage_mode: 'single',
+    })
+
+    expect(result.currentStorageMode).toBe('multi')
+    expect(result.requestedStorageMode).toBe('single')
+    expect(result.isConvertingStorage).toBe(true)
+  })
+
+  test('falls back to the persisted shape when an edit omits the requested mode', () => {
+    const result = resolveStorageModeConversion(true, true, {
+      key_storage_mode: undefined,
+    })
+
+    expect(result.requestedStorageMode).toBe('multi')
+    expect(result.isConvertingStorage).toBe(false)
+  })
+
+  test('agrees with the payload transform so the drawer and submit validation cannot diverge', () => {
+    const formData = {
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      name: 'openai',
+      key: 'sk-a\nsk-b',
+      models: 'gpt-4o',
+      key_storage_mode: 'multi' as const,
+    }
+    const { isConvertingStorage } = resolveStorageModeConversion(
+      true,
+      false,
+      formData
+    )
+    const payload = transformFormDataToUpdatePayload(formData, 12, false)
+
+    expect(isConvertingStorage).toBe(true)
+    expect(payload.key_storage_mode).toBe('multi')
+  })
+})
 
 describe('channel key storage conversion payload', () => {
   test('sends key_storage_mode and rotation when converting a single-key channel to multi-key', () => {
