@@ -179,6 +179,14 @@ export async function getPermissionCatalog(): Promise<PermissionCatalog> {
 // Admin Binding Management APIs
 // ============================================================================
 
+export interface OAuthBinding {
+  provider_id: number
+  provider_name: string
+  provider_slug: string
+  provider_icon: string
+  provider_user_id: string
+}
+
 /**
  * Get user's custom OAuth bindings (admin)
  */

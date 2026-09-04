@@ -49,7 +49,6 @@ import {
   buildOIDCOAuthUrl,
   type CustomOAuthBinding,
 } from '@/lib/oauth'
-
 import { getSelfOAuthBindings, unbindCustomOAuth } from '../../api'
 import type { UserProfile, BindingItem } from '../../types'
 import { EmailBindDialog } from '../dialogs/email-bind-dialog'
