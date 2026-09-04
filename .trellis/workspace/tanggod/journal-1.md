@@ -75,3 +75,41 @@
 ### Next Steps
 
 - 本地任务完成；生产上线及 DNS/TLS/代理配置需要单独授权。
+
+
+## Session 3: 完成注册自动登录与两轮审查
+
+**Date**: 2026-09-04
+**Task**: 完成注册自动登录与两轮审查
+**Branch**: `feat/custom-domain-callback-flow`
+
+### Summary
+
+完成账号密码注册自动登录；复用会话响应和安全用户 DTO，保留密码登录关闭及会话失败时的注册成功回退。两轮审查补充安全 Cookie 来源校验并修正刷新测试旧数据误判。后端认证 race 回归、前端 46 项测试、类型检查、构建、lint、格式和七语言 i18n 同步通过。任务已本地归档，未推送或部署。
+
+### Main Changes
+
+- 注册成功后应用统一认证数据并进入控制台，保留登录关闭或会话创建失败时的回退。
+- 安全 Cookie 模式复用来源校验，避免跨站注册建立登录会话。
+- 独立解析刷新响应并验证返回令牌，防止测试沿用注册数据误判。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `94f9c0cc` | 🐛 fix(auth): 支持注册成功后自动登录 |
+| `6cb9352a` | 🐛 fix(auth): 校验注册自动登录请求来源 |
+
+### Testing
+
+- [OK] controller/service/middleware/router 相关认证 race 回归；强化刷新断言后再次通过 controller/middleware 注册与来源校验 race 回归。
+- [OK] 前端 46 项认证测试、typecheck、build、变更文件 lint/format、七语言 i18n 同步。
+- [OK] 用临时 Go overlay 证明缺失刷新数据会被强化后的测试捕获；未修改生产刷新实现。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 任务已本地归档；后续推送和部署按用户指令执行。
