@@ -37,6 +37,9 @@ func TestToolPriceHardcodedFallbacksSurviveMissingOperatorConfig(t *testing.T) {
 	}
 	assert.Equal(t, 25.0, GetToolPriceForModel("web_search_preview", "gpt-4o-2024-11-20"))
 	assert.Equal(t, 25.0, GetToolPriceForModel("web_search_preview", "gpt-4.1-mini"))
+	assert.Equal(t, 150.0, GetImageGenerationToolPriceForModel("gpt-5.1", "low", "1024x1024"))
+	assert.Equal(t, 150.0, GetImageGenerationToolPriceForModel("gpt-5.1", "high", "1024x1024"))
+	assert.Equal(t, 150.0, GetImageGenerationToolPriceForModel("gpt-5.1", "auto", "auto"))
 }
 
 func TestToolPriceOperatorOverridePrecedenceAndExplicitZero(t *testing.T) {
@@ -82,6 +85,23 @@ func TestToolPriceCustomFunctionHasNoHardcodedFallback(t *testing.T) {
 	toolPriceSetting.Prices["lookup_customer"] = 0
 	RebuildToolPriceIndex()
 	assert.Equal(t, 0.0, GetToolPrice("lookup_customer"))
+}
+
+func TestImageGenerationToolPriceModelOverrideAndExplicitZero(t *testing.T) {
+	preserveToolPrices(t)
+	toolPriceSetting.Prices = map[string]float64{
+		"image_generation:gpt-5.5*":                  211,
+		"image_generation/high/1024x1024:gpt-5.5*":   205,
+		"image_generation/high/1536x1024:gpt-5.5*":   0,
+		"image_generation/medium/1024x1024:gpt-5.1*": 42,
+	}
+	RebuildToolPriceIndex()
+
+	assert.Equal(t, 205.0, GetImageGenerationToolPriceForModel("gpt-5.5-2026-07-01", "high", "1024x1024"))
+	assert.Equal(t, 0.0, GetImageGenerationToolPriceForModel("gpt-5.5-2026-07-01", "high", "1536x1024"))
+	assert.Equal(t, 211.0, GetImageGenerationToolPriceForModel("gpt-5.5-2026-07-01", "", ""))
+	assert.Equal(t, 42.0, GetImageGenerationToolPriceForModel("gpt-5.1", "medium", "1024x1024"))
+	assert.Equal(t, 150.0, GetImageGenerationToolPriceForModel("gpt-5.1", "high", "1024x1024"))
 }
 
 func TestValidateToolPricesJSON(t *testing.T) {
