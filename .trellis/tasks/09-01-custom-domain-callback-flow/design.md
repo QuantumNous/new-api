@@ -13,6 +13,8 @@
 - 所有入口共享用户、余额、订单、API Key 与权限；浏览器 Refresh Cookie 保持 Host-only，不做跨域 SSO。
 - 本任务不处理多域名 Passkey、订阅套餐购买或客户白标 UI；TOTP 2FA 保持上游语义。
 
+本轮用户复核明确将 Passkey 审查项延期到后续任务：当前路由与登录状态标志只排除 `Custom`，不保证 `.pro` 等非 callback `Main` 的 Passkey 入口已隐藏。本任务不调整该行为，也不将其表述为已经支持或验证多 RP ID。
+
 原始设计以 commit `d68bc3adb5e6766ebd1bd3bf610d8e8b2452a8db` 为基线；单推广域实现已落地，当前多主域缺陷按 2026-09-03 分支代码重新核对并记录在 `research/local-baseline.md`。`research/upstream-new-api.md` 只保留为外部历史研究。生产 image digest/commit、数据库类型、节点/Redis 拓扑、反向代理和第三方平台配置仍需在发布前只读核对。
 
 ## 2. 总体架构
@@ -76,6 +78,8 @@ a.yeschoy.io ─▶ 易支付 / Stripe ─▶ yeschoy.com callback/webhook
 启动时必须 fail closed 校验：suffix 是无通配符的 DNS 名；单数/复数 main origins 均为无 userinfo/query/fragment 的精确 `https` Origin；非 callback 平级主域使用标准 HTTPS 端口，避免 hostname-based Host 上下文在回跳时丢失端口；主域名 Host 去重后均位于推广 suffix 之外；`CUSTOM_DOMAIN_MAIN_ORIGINS` 必须包含 `CUSTOM_DOMAIN_MAIN_ORIGIN`；所有主 Origin 必须逐项出现在 `SESSION_COOKIE_TRUSTED_URL`；TTL 为有上限的正整数。功能开关关闭时保留上游行为，专属域名入口由基础设施保持关闭/404。
 
 主域列表不赋予顺序语义，除 `CUSTOM_DOMAIN_MAIN_ORIGIN` 指定的 callback/fallback Host 外，其余成员完全同构。实现不得出现针对 `yeschoy.pro` 的业务分支；`.pro` 只是首个非 callback 主域测试样例。列表设置合理上限以防异常环境变量放大启动成本，未来在上限内增加主域不需要代码或数据库迁移。
+
+单数 callback Origin 与复数应用主域列表同时生效，不互相覆盖；Compose 中复数默认留空，由应用回退单数。`SESSION_COOKIE_TRUSTED_URL` 是 refresh/logout 的精确浏览器 Origin 信任列表，不是 Host 路由表或父域 Cookie 配置；推广 apex `yeschoy.io` 不需要加入，已启用的 `ai.yeschoy.io` 等推广域由 DomainContext 动态校验自身 HTTPS Origin。Healthcheck 对有效主域逐个发送本机 HTTP 请求并设置 Host，仅验证本机应用路由，不验证公网 DNS/TLS。完整配置、错误矩阵与断言以 [code-spec](../../spec/backend/custom-domain-callbacks.md) 为准。
 
 基础设施职责：
 
@@ -276,7 +280,14 @@ ticket 不得进入 query/path、Access/Refresh Token 不得进入任何交接 U
 
 ### 8.5 OAuth 失败或取消
 
-回调通过 state 中的可信 `origin_host` 返回安全错误码；不回显任意 provider URL。`.pro` 返回 `.pro`，推广域已显式停用时返回 `.com`。错误/取消也消费原 OAuth state，防止重放。
+回调从服务端 AuthFlow 中解析并验证 `origin_host`，使用既有 typed action 返回原域，不接受客户端任意 URL。有效 `.pro`/推广来源的登录失败返回 `domain_oauth_return`；绑定失败通过 `domain_bind_return(result=failed|cancelled|target_unavailable)` 回原域最小 bridge 通知 opener。已停用推广域的登录失败留在 callback 主域，绑定失败可通过已知停用域的最小 bridge 返回 `target_unavailable`；目标不能被可信解析时不构造任意跨域地址。
+
+错误返回与 state 消费是两个独立契约，保留各阶段现有消费时点：
+
+- provider disabled、token exchange/user-info 失败，以及绑定身份已占用检查失败：该分支不消费 state，但仍应向可信原域返回失败 action。
+- 显式 provider callback `error`（含取消）进入处理分支、绑定目标推广域停用、原绑定 Session 失效：先消费 state，再返回失败 action。
+- 登录取得 provider 身份后先消费 state，再查找/创建用户；注册策略、用户封禁等后续失败保持已消费。登录/绑定 handoff 签发失败也不恢复此前消费的 state。
+- state 无效、过期、重放或原子消费失败：保留拒绝，不为错误回程绕过校验或创建 Session/绑定。
 
 ## 9. 密码重置
 

@@ -19,7 +19,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
 | [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
-| [Custom-domain callbacks](./custom-domain-callbacks.md) | Host, OAuth, reset, and wallet return contracts | Implemented |
+| [Custom-domain callbacks](./custom-domain-callbacks.md) | Main-Origin/Session configuration, Host routing, OAuth failure/state contracts, reset/wallet returns, and local healthchecks | Implemented; peer-main Passkey deferred |
 
 ---
 
