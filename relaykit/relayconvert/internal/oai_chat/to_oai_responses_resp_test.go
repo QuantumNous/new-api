@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,6 +40,25 @@ func TestChatCompletionsResponseToResponsesPreservesTextToolCallsAndUsage(t *tes
 	assert.Equal(t, "call_1", resp.Output[1].CallId)
 	assert.Equal(t, "lookup", resp.Output[1].Name)
 	assert.Equal(t, `"{\"q\":\"x\"}"`, string(resp.Output[1].Arguments))
+}
+
+func TestChatCompletionsResponseToResponsesRestoresNamespace(t *testing.T) {
+	chat := &dto.OpenAITextResponse{
+		Choices: []dto.OpenAITextResponseChoice{
+			{
+				Message:      assistantMessageWithTool("", "call_1", "mcp__docs__search", `{"q":"x"}`),
+				FinishReason: "tool_calls",
+			},
+		},
+	}
+
+	resp, _, err := ChatCompletionsResponseToResponsesResponseWithToolIdentities(chat, "resp_1", map[string]convmeta.ResponsesToolIdentity{
+		"mcp__docs__search": {Kind: "function", Name: "search", Namespace: "mcp__docs"},
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Output, 1)
+	assert.Equal(t, "mcp__docs", resp.Output[0].Namespace)
+	assert.Equal(t, "search", resp.Output[0].Name)
 }
 
 func TestChatCompletionsResponseToResponsesEmitsReasoningSummaryBeforeText(t *testing.T) {
@@ -151,6 +171,63 @@ func TestChatCompletionsStreamToResponsesEventsAggregatesUsageAndToolArgs(t *tes
 	require.Len(t, events[9].Payload.Response.Output, 2)
 	assert.Equal(t, "hello", events[9].Payload.Response.Output[0].Content[0].Text)
 	assert.Equal(t, `"{\"q\":\"x\"}"`, string(events[9].Payload.Response.Output[1].Arguments))
+}
+
+func TestChatCompletionsStreamToResponsesEventsRestoresNamespace(t *testing.T) {
+	state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+	state.SetToolIdentities(map[string]convmeta.ResponsesToolIdentity{
+		"mcp__docs__search": {Kind: "function", Name: "search", Namespace: "mcp__docs"},
+	})
+	toolIndex := 0
+
+	events := mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{Index: 0, Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{
+				{Index: &toolIndex, ID: "call_1", Type: "function", Function: dto.FunctionResponse{Name: "mcp__docs__search"}},
+			}}},
+		},
+	})
+
+	require.Len(t, events, 2)
+	require.NotNil(t, events[1].Payload.Item)
+	assert.Equal(t, "mcp__docs", events[1].Payload.Item.Namespace)
+	assert.Equal(t, "search", events[1].Payload.Item.Name)
+
+	finalEvents := FinalizeChatCompletionsStreamToResponses(state)
+	require.NotEmpty(t, finalEvents)
+	completed := finalEvents[len(finalEvents)-1].Payload.Response
+	require.NotNil(t, completed)
+	require.Len(t, completed.Output, 1)
+	assert.Equal(t, "mcp__docs", completed.Output[0].Namespace)
+	assert.Equal(t, "search", completed.Output[0].Name)
+}
+
+func TestChatCompletionsStreamToResponsesEventsRestoresMCPCall(t *testing.T) {
+	state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+	state.SetToolIdentities(map[string]convmeta.ResponsesToolIdentity{
+		"docs-svc__search": {Kind: "mcp", Name: "search", ServerLabel: "docs-svc"},
+	})
+	toolIndex := 0
+
+	events := mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{Index: 0, Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{
+				{Index: &toolIndex, ID: "call_1", Type: "function", Function: dto.FunctionResponse{Name: "docs-svc__search", Arguments: `{"q":"x"}`}},
+			}}},
+		},
+	})
+
+	require.Len(t, events, 3)
+	require.NotNil(t, events[1].Payload.Item)
+	assert.Equal(t, "mcp_call", events[1].Payload.Item.Type)
+	assert.Equal(t, "docs-svc", events[1].Payload.Item.ServerLabel)
+	assert.Equal(t, "search", events[1].Payload.Item.Name)
+	assert.Equal(t, "response.mcp_call_arguments.delta", events[2].Type)
+
+	finalEvents := FinalizeChatCompletionsStreamToResponses(state)
+	require.GreaterOrEqual(t, len(finalEvents), 3)
+	assert.Equal(t, "response.mcp_call_arguments.done", finalEvents[0].Type)
+	assert.Equal(t, "mcp_call", finalEvents[1].Payload.Item.Type)
 }
 
 func mustResponsesEventsFromChatChunk(t *testing.T, state *ChatToResponsesStreamState, chunk *dto.ChatCompletionsStreamResponse) []ChatToResponsesStreamEvent {

@@ -670,6 +670,44 @@ func textRegistryChatResponse() *dto.OpenAITextResponse {
 	}
 }
 
+func TestResponsesToChatToolIdentityRoundTrip(t *testing.T) {
+	info := &convmeta.Values{}
+	requestResult, err := ConvertRequest(nil, info, types.RelayFormatOpenAI, &dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, "hello"),
+		Tools: mustRawMessage(t, []map[string]any{
+			{
+				"type": "namespace",
+				"name": "mcp__docs",
+				"tools": []map[string]any{
+					{"type": "function", "name": "search", "parameters": map[string]any{"type": "object"}},
+				},
+			},
+			{"type": "function", "name": "ordinary__function", "parameters": map[string]any{"type": "object"}},
+		}),
+	})
+	require.NoError(t, err)
+	chatRequest := requestResult.Value.(*dto.GeneralOpenAIRequest)
+	require.Len(t, chatRequest.Tools, 2)
+	assert.Equal(t, "mcp__docs__search", chatRequest.Tools[0].Function.Name)
+
+	message := dto.Message{Role: "assistant"}
+	message.SetToolCalls([]dto.ToolCallRequest{
+		{ID: "call_1", Type: "function", Function: dto.FunctionRequest{Name: "mcp__docs__search", Arguments: `{}`}},
+		{ID: "call_2", Type: "function", Function: dto.FunctionRequest{Name: "ordinary__function", Arguments: `{}`}},
+	})
+	responseResult, err := ConvertResponse(nil, info, types.RelayFormatOpenAIResponses, &dto.OpenAITextResponse{
+		Choices: []dto.OpenAITextResponseChoice{{Message: message, FinishReason: "tool_calls"}},
+	})
+	require.NoError(t, err)
+	responses := responseResult.Value.(*dto.OpenAIResponsesResponse)
+	require.Len(t, responses.Output, 2)
+	assert.Equal(t, "mcp__docs", responses.Output[0].Namespace)
+	assert.Equal(t, "search", responses.Output[0].Name)
+	assert.Empty(t, responses.Output[1].Namespace)
+	assert.Equal(t, "ordinary__function", responses.Output[1].Name)
+}
+
 func textRegistryResponsesResponse() *dto.OpenAIResponsesResponse {
 	return &dto.OpenAIResponsesResponse{
 		ID:        "resp_1",

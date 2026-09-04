@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
@@ -16,44 +17,50 @@ const (
 	responsesInputTypeFunctionCallOutput = "function_call_output"
 	responsesInputTypeCustomToolCall     = "custom_tool_call"
 	responsesInputTypeCustomToolOutput   = "custom_tool_call_output"
-)
-
-const (
+	responsesInputTypeMCPCall            = "mcp_call"
+	responsesInputTypeMCPCallOutput      = "mcp_call_output"
 	ResponsesInputTypeFunctionCall       = responsesInputTypeFunctionCall
 	ResponsesInputTypeFunctionCallOutput = responsesInputTypeFunctionCallOutput
 	ResponsesInputTypeCustomToolCall     = responsesInputTypeCustomToolCall
 	ResponsesInputTypeCustomToolOutput   = responsesInputTypeCustomToolOutput
+	responsesToolSearchProxyName         = "tool_search"
+	responsesCustomToolInputField        = "input"
 )
 
 func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (*dto.GeneralOpenAIRequest, error) {
+	out, _, err := ResponsesRequestToChatCompletionsRequestWithToolIdentities(req)
+	return out, err
+}
+
+func ResponsesRequestToChatCompletionsRequestWithToolIdentities(req *dto.OpenAIResponsesRequest) (*dto.GeneralOpenAIRequest, map[string]convmeta.ResponsesToolIdentity, error) {
 	if req == nil {
-		return nil, errors.New("request is nil")
+		return nil, nil, errors.New("request is nil")
 	}
 	if req.Model == "" {
-		return nil, errors.New("model is required")
+		return nil, nil, errors.New("model is required")
 	}
 	if err := validateResponsesRequestChatUnsupportedFields(req); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	messages, err := responsesRequestMessagesToChat(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	tools, err := responsesRequestToolsToChat(req.Tools)
+	tools, identities, err := responsesRequestToolsToChat(req.Tools)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	toolChoice, err := responsesRequestToolChoiceToChat(req.ToolChoice)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	responseFormat, err := responsesRequestTextToChatResponseFormat(req.Text)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	out := &dto.GeneralOpenAIRequest{
@@ -79,17 +86,17 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 
 	out.FrequencyPenalty, err = responsesRawFloat(req.FrequencyPenalty)
 	if err != nil {
-		return nil, fmt.Errorf("invalid frequency_penalty: %w", err)
+		return nil, nil, fmt.Errorf("invalid frequency_penalty: %w", err)
 	}
 	out.PresencePenalty, err = responsesRawFloat(req.PresencePenalty)
 	if err != nil {
-		return nil, fmt.Errorf("invalid presence_penalty: %w", err)
+		return nil, nil, fmt.Errorf("invalid presence_penalty: %w", err)
 	}
 
 	if reasoningIntent, err := reasoning.FromOpenAIResponses(req); err != nil {
-		return nil, reasoning.AsClientError(err)
+		return nil, nil, reasoning.AsClientError(err)
 	} else if err := reasoning.ApplyToOpenAIChat(out, reasoningIntent); err != nil {
-		return nil, reasoning.AsClientError(err)
+		return nil, nil, reasoning.AsClientError(err)
 	}
 	if req.ServiceTier != "" {
 		out.ServiceTier, _ = kitutil.Marshal(req.ServiceTier)
@@ -107,7 +114,7 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 		}
 	}
 
-	return out, nil
+	return out, identities, nil
 }
 
 func validateResponsesRequestChatUnsupportedFields(req *dto.OpenAIResponsesRequest) error {
@@ -179,7 +186,7 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 func responsesInputItemToChatMessages(item map[string]any, messages []dto.Message) ([]dto.Message, error) {
 	itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 	switch itemType {
-	case responsesInputTypeFunctionCall:
+	case responsesInputTypeFunctionCall, responsesInputTypeMCPCall:
 		toolCall, err := responsesFunctionCallItemToChatToolCall(item)
 		if err != nil {
 			return nil, err
@@ -191,7 +198,7 @@ func responsesInputItemToChatMessages(item map[string]any, messages []dto.Messag
 			return nil, err
 		}
 		return appendToolCallToLastAssistant(messages, toolCall), nil
-	case responsesInputTypeFunctionCallOutput:
+	case responsesInputTypeFunctionCallOutput, responsesInputTypeMCPCallOutput:
 		callID := strings.TrimSpace(kitutil.Interface2String(item["call_id"]))
 		content := responseToolOutputToChatContent(item["output"])
 		return append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: content}), nil
@@ -292,6 +299,11 @@ func responsesFunctionCallItemToChatToolCall(item map[string]any) (dto.ToolCallR
 	if name == "" {
 		return dto.ToolCallRequest{}, errors.New("function_call item is missing name")
 	}
+	if namespace := strings.TrimSpace(kitutil.Interface2String(item["namespace"])); namespace != "" {
+		name = responsesFlattenToolName(namespace, name)
+	} else if serverLabel := strings.TrimSpace(kitutil.Interface2String(item["server_label"])); serverLabel != "" {
+		name = responsesFlattenToolName(serverLabel, name)
+	}
 	return dto.ToolCallRequest{
 		ID:   responsesCallID(item),
 		Type: "function",
@@ -331,41 +343,173 @@ func appendToolCallToLastAssistant(messages []dto.Message, toolCall dto.ToolCall
 	return messages
 }
 
-func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, error) {
+func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, map[string]convmeta.ResponsesToolIdentity, error) {
 	if !rawJSONPresent(raw) {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	var tools []map[string]any
 	if err := kitutil.Unmarshal(raw, &tools); err != nil {
-		return nil, fmt.Errorf("invalid tools: %w", err)
+		return nil, nil, fmt.Errorf("invalid tools: %w", err)
 	}
 
 	out := make([]dto.ToolCallRequest, 0, len(tools))
+	identities := make(map[string]convmeta.ResponsesToolIdentity)
 	for _, tool := range tools {
 		toolType := strings.TrimSpace(kitutil.Interface2String(tool["type"]))
-		if toolType == "function" {
-			out = append(out, dto.ToolCallRequest{
-				Type: "function",
-				Function: dto.FunctionRequest{
-					Name:        strings.TrimSpace(kitutil.Interface2String(tool["name"])),
-					Description: kitutil.Interface2String(tool["description"]),
-					Parameters:  tool["parameters"],
-				},
-			})
+		if toolType == "namespace" || toolType == "mcp_server" {
+			innerTools, innerIdentities := responsesFlattenInnerTools(tool)
+			out = append(out, innerTools...)
+			for name, identity := range innerIdentities {
+				identities[name] = identity
+			}
 			continue
 		}
 
-		rawTool, err := kitutil.Marshal(tool)
-		if err != nil {
-			return nil, err
+		if toolType == "tool_search" {
+			out = append(out, dto.ToolCallRequest{
+				Type: "function",
+				Function: dto.FunctionRequest{
+					Name:        responsesToolSearchProxyName,
+					Description: "Search and load Codex tools, plugins, connectors, and MCP namespaces for the current task.",
+					Parameters: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"query": map[string]any{
+								"type":        "string",
+								"description": "Search query for tools or connectors to load.",
+							},
+							"limit": map[string]any{
+								"type":        "integer",
+								"description": "Maximum number of tool groups to return.",
+							},
+						},
+						"required": []string{"query"},
+					},
+				},
+			})
+			identities[responsesToolSearchProxyName] = convmeta.ResponsesToolIdentity{Kind: "tool_search", Name: responsesToolSearchProxyName}
+			continue
+		}
+
+		if toolType == "custom" {
+			name := strings.TrimSpace(kitutil.Interface2String(tool["name"]))
+			if name == "" {
+				continue
+			}
+			description := strings.TrimSpace(kitutil.Interface2String(tool["description"]))
+			if description == "" {
+				description = "Custom tool " + name
+			}
+			out = append(out, dto.ToolCallRequest{
+				Type: "function",
+				Function: dto.FunctionRequest{
+					Name:        name,
+					Description: description,
+					Parameters: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							responsesCustomToolInputField: map[string]any{
+								"type":        "string",
+								"description": "Raw string input for the original custom tool.",
+							},
+						},
+						"required": []string{responsesCustomToolInputField},
+					},
+				},
+			})
+			identities[name] = convmeta.ResponsesToolIdentity{Kind: "custom", Name: name}
+			continue
+		}
+
+		definition, ok := responsesFunctionDefinition(tool)
+		if !ok {
+			continue
+		}
+		if toolType == "mcp" {
+			if serverLabel := strings.TrimSpace(kitutil.Interface2String(tool["server_label"])); serverLabel != "" {
+				originalName := definition.Name
+				definition.Name = responsesFlattenToolName(serverLabel, definition.Name)
+				identities[definition.Name] = convmeta.ResponsesToolIdentity{Kind: "mcp", Name: originalName, ServerLabel: serverLabel}
+			}
+		}
+		if _, exists := identities[definition.Name]; !exists {
+			identities[definition.Name] = convmeta.ResponsesToolIdentity{Kind: "function", Name: definition.Name}
+		}
+		out = append(out, dto.ToolCallRequest{Type: "function", Function: definition})
+	}
+	return out, identities, nil
+}
+
+func responsesFunctionDefinition(tool map[string]any) (dto.FunctionRequest, bool) {
+	definition, _ := tool["function"].(map[string]any)
+	if definition == nil {
+		definition = map[string]any{}
+	}
+	value := func(key string) any {
+		if nestedValue, ok := definition[key]; ok {
+			return nestedValue
+		}
+		return tool[key]
+	}
+	name := strings.TrimSpace(kitutil.Interface2String(value("name")))
+	if name == "" {
+		return dto.FunctionRequest{}, false
+	}
+	function := dto.FunctionRequest{
+		Name:        name,
+		Description: kitutil.Interface2String(value("description")),
+		Parameters:  value("parameters"),
+	}
+	if strict, ok := value("strict").(bool); ok {
+		function.Strict = &strict
+	}
+	return function, true
+}
+
+func responsesFlattenToolName(namespace string, name string) string {
+	return namespace + "__" + name
+}
+
+// responsesFlattenInnerTools converts the inner tools array of an
+// mcp_server or namespace tool into individual function tool entries.
+// Fields specific to the Responses API (e.g. defer_loading) are stripped.
+func responsesFlattenInnerTools(tool map[string]any) ([]dto.ToolCallRequest, map[string]convmeta.ResponsesToolIdentity) {
+	innerTools, ok := tool["tools"].([]any)
+	if !ok {
+		innerTools, ok = tool["children"].([]any)
+		if !ok {
+			return nil, nil
+		}
+	}
+	namespace := strings.TrimSpace(kitutil.Interface2String(tool["name"]))
+
+	out := make([]dto.ToolCallRequest, 0, len(innerTools))
+	identities := make(map[string]convmeta.ResponsesToolIdentity)
+	for _, item := range innerTools {
+		tool, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		definition, ok := responsesFunctionDefinition(tool)
+		if !ok {
+			continue
+		}
+		chatName := definition.Name
+		if namespace != "" {
+			chatName = responsesFlattenToolName(namespace, definition.Name)
+		}
+		definition.Name = chatName
+		identities[chatName] = convmeta.ResponsesToolIdentity{Kind: "function", Name: strings.TrimPrefix(chatName, namespace+"__"), Namespace: namespace}
+		if definition.Parameters == nil {
+			definition.Parameters = map[string]any{"type": "object", "properties": map[string]any{}}
 		}
 		out = append(out, dto.ToolCallRequest{
-			Type:   toolType,
-			Custom: rawTool,
+			Type:     "function",
+			Function: definition,
 		})
 	}
-	return out, nil
+	return out, identities
 }
 
 func responsesRequestToolChoiceToChat(raw json.RawMessage) (any, error) {
@@ -387,6 +531,11 @@ func responsesRequestToolChoiceToChat(raw json.RawMessage) (any, error) {
 	if kitutil.Interface2String(choice["type"]) == "function" {
 		name := strings.TrimSpace(kitutil.Interface2String(choice["name"]))
 		if name != "" {
+			if namespace := strings.TrimSpace(kitutil.Interface2String(choice["server_label"])); namespace != "" {
+				name = responsesFlattenToolName(namespace, name)
+			} else if namespace = strings.TrimSpace(kitutil.Interface2String(choice["namespace"])); namespace != "" {
+				name = responsesFlattenToolName(namespace, name)
+			}
 			return map[string]any{
 				"type": "function",
 				"function": map[string]any{
@@ -394,6 +543,23 @@ func responsesRequestToolChoiceToChat(raw json.RawMessage) (any, error) {
 				},
 			}, nil
 		}
+	}
+	if choiceType := strings.TrimSpace(kitutil.Interface2String(choice["type"])); choiceType == "mcp" || choiceType == "mcp_server" || choiceType == "namespace" {
+		name := strings.TrimSpace(kitutil.Interface2String(choice["name"]))
+		if name == "" {
+			return choice, nil
+		}
+		if namespace := strings.TrimSpace(kitutil.Interface2String(choice["server_label"])); namespace != "" {
+			name = responsesFlattenToolName(namespace, name)
+		} else if namespace = strings.TrimSpace(kitutil.Interface2String(choice["namespace"])); namespace != "" {
+			name = responsesFlattenToolName(namespace, name)
+		}
+		return map[string]any{
+			"type": "function",
+			"function": map[string]any{
+				"name": name,
+			},
+		}, nil
 	}
 	return choice, nil
 }
