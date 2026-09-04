@@ -359,7 +359,7 @@ export function AccountBindingsTab({
       },
       {
         id: 'oidc',
-        label: t('OIDC'),
+        label: status?.oidc_display_name?.trim() || t('OIDC'),
         icon: Shield,
         value: (profile as unknown as Record<string, unknown>).oidc_id as
           | string
