@@ -483,7 +483,7 @@ Token、Origin 検証、PAT の契約については[ユーザー認証とログ
 
 <div align="center">
 
-[![スター履歴チャート](https://api.star-history.com/svg?repos=Calcium-Ion/new-api&type=Date)](https://star-history.com/#Calcium-Ion/new-api&Date)
+[![スター履歴チャート](https://star-history.dera.page/svg?repos=Calcium-Ion/new-api&type=Date)](https://star-history.dera.page/#Calcium-Ion/new-api&Date)
 
 </div>
 
