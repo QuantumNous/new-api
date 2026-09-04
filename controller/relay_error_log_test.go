@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
@@ -19,7 +20,8 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestProcessChannelErrorUsesSnapshotWithoutLeakingChannelMetadata(t *testing.T) {
+func setupProcessChannelErrorLogDB(t *testing.T) *gorm.DB {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	previousDB, previousLogDB := model.DB, model.LOG_DB
 	previousRedisEnabled := common.RedisEnabled
@@ -44,10 +46,12 @@ func TestProcessChannelErrorUsesSnapshotWithoutLeakingChannelMetadata(t *testing
 		constant.ErrorLogEnabled = previousErrorLogEnabled
 		require.NoError(t, sqlDB.Close())
 	})
-
 	require.NoError(t, database.Create(&model.User{Id: 7, Username: "log-owner", Group: "default"}).Error)
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
+	return database
+}
+
+func newProcessChannelErrorContext() *gin.Context {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 	ctx.Set("id", 7)
 	ctx.Set("username", "log-owner")
@@ -60,6 +64,12 @@ func TestProcessChannelErrorUsesSnapshotWithoutLeakingChannelMetadata(t *testing
 	ctx.Set("channel_type", 9)
 	ctx.Set("use_channel", []string{"101"})
 	common.SetContextKey(ctx, constant.ContextKeyRequestStartTime, time.Now().Add(-time.Second))
+	return ctx
+}
+
+func TestProcessChannelErrorUsesSnapshotWithoutLeakingChannelMetadata(t *testing.T) {
+	database := setupProcessChannelErrorLogDB(t)
+	ctx := newProcessChannelErrorContext()
 
 	channelSnapshot := types.ChannelError{
 		ChannelId:   101,
@@ -77,6 +87,7 @@ func TestProcessChannelErrorUsesSnapshotWithoutLeakingChannelMetadata(t *testing
 	storedOther, err := common.StrToMap(stored.Other)
 	require.NoError(t, err)
 	assert.Equal(t, float64(http.StatusBadGateway), storedOther["status_code"])
+	assert.Equal(t, "/v1/chat/completions", storedOther["request_path"])
 	for _, key := range []string{"channel_id", "channel_name", "channel_type"} {
 		assert.NotContains(t, storedOther, key)
 	}
@@ -93,7 +104,71 @@ func TestProcessChannelErrorUsesSnapshotWithoutLeakingChannelMetadata(t *testing
 	userOther, err := common.StrToMap(logs[0].Other)
 	require.NoError(t, err)
 	assert.NotContains(t, userOther, "admin_info")
+	assert.Equal(t, "/v1/chat/completions", userOther["request_path"])
 	for _, key := range []string{"channel_id", "channel_name", "channel_type"} {
 		assert.NotContains(t, userOther, key)
 	}
+}
+
+func TestProcessChannelErrorRecordsModelMappingAndRequestDiagnostics(t *testing.T) {
+	database := setupProcessChannelErrorLogDB(t)
+	ctx := newProcessChannelErrorContext()
+	ctx.Set(string(constant.ContextKeySystemPromptOverride), true)
+
+	streamStatus := relaycommon.NewStreamStatus()
+	streamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, errors.New(`Get "https://api.openai.com/v1/chat/completions": upstream timeout`))
+	streamStatus.RecordError("chunk decode failed from 10.0.0.1")
+
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName:         "gpt-test",
+		ReasoningEffort:         "high",
+		IsStream:                true,
+		RequestConversionChain:  []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatClaude},
+		FinalRequestRelayFormat: types.RelayFormatClaude,
+		ParamOverrideAudit:      []string{"set temperature=0.2"},
+		StreamStatus:            streamStatus,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			IsModelMapped:     true,
+			UpstreamModelName: "claude-sonnet-4",
+		},
+	}
+	channelSnapshot := types.ChannelError{
+		ChannelId:   101,
+		ChannelType: 1,
+		ChannelName: "snapshot-channel",
+		AutoBan:     false,
+	}
+	apiErr := types.NewOpenAIError(errors.New("upstream failed"), types.ErrorCodeBadResponseStatusCode, http.StatusBadGateway)
+
+	processChannelError(ctx, channelSnapshot, apiErr, relayInfo)
+
+	var stored model.Log
+	require.NoError(t, database.First(&stored).Error)
+	storedOther, err := common.StrToMap(stored.Other)
+	require.NoError(t, err)
+	assert.Equal(t, true, storedOther["is_model_mapped"])
+	assert.Equal(t, "claude-sonnet-4", storedOther["upstream_model_name"])
+	assert.Equal(t, true, storedOther["is_system_prompt_overwritten"])
+	assert.Equal(t, "high", storedOther["reasoning_effort"])
+	assert.Equal(t, []interface{}{"OpenAI Compatible", "Claude Messages"}, storedOther["request_conversion"])
+	assert.Equal(t, true, storedOther["claude"])
+	assert.Equal(t, []interface{}{"set temperature=0.2"}, storedOther["po"])
+	assert.Equal(t, "/v1/chat/completions", storedOther["request_path"])
+	streamInfo, ok := storedOther["stream_status"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "error", streamInfo["status"])
+	assert.Equal(t, "timeout", streamInfo["end_reason"])
+	assert.Equal(t, common.MaskSensitiveInfo(`Get "https://api.openai.com/v1/chat/completions": upstream timeout`), streamInfo["end_error"])
+	assert.NotContains(t, streamInfo["end_error"], "api.openai.com")
+	require.Equal(t, []interface{}{common.MaskSensitiveInfo("chunk decode failed from 10.0.0.1")}, streamInfo["errors"])
+
+	logs, total, err := model.GetUserLogs(7, model.LogTypeError, 0, 0, "", "", 0, 10, "", "", "")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), total)
+	userOther, err := common.StrToMap(logs[0].Other)
+	require.NoError(t, err)
+	assert.NotContains(t, userOther, "admin_info")
+	assert.Equal(t, true, userOther["is_model_mapped"])
+	assert.Equal(t, "claude-sonnet-4", userOther["upstream_model_name"])
+	assert.Equal(t, []interface{}{"OpenAI Compatible", "Claude Messages"}, userOther["request_conversion"])
 }
