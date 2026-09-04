@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { z } from 'zod'
+import * as z from 'zod'
 
 export const STORAGE_VERSION = 1
 export const MAX_STORED_MESSAGES = 100
