@@ -159,6 +159,25 @@ func TestApplyReasoningModelSuffixPreservesEffortTailModelID(t *testing.T) {
 	assert.Nil(t, info.ReasoningConversion)
 }
 
+// qwen3.8-max is a real upstream model ID that is not on the effort-tail
+// preserve list; -max must not be trimmed into a non-existent qwen3.8.
+func TestApplyReasoningModelSuffixKeepsUnlistedMaxProductTier(t *testing.T) {
+	request := &dto.GeneralOpenAIRequest{Model: "qwen3.8-max"}
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "qwen3.8-max",
+		Request:         request,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType:       constant.ChannelTypeOpenAI,
+			UpstreamModelName: "qwen3.8-max",
+		},
+	}
+
+	require.NoError(t, ApplyReasoningModelSuffix(info, request))
+	assert.Equal(t, "qwen3.8-max", info.UpstreamModelName)
+	assert.Equal(t, "qwen3.8-max", request.Model)
+	assert.Nil(t, info.ReasoningConversion)
+}
+
 func TestApplyReasoningModelSuffixLeavesDeepSeekV4SuffixForAdaptor(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		OriginModelName: "deepseek-v4-chat-max",

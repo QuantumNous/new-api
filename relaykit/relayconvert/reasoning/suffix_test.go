@@ -120,6 +120,20 @@ func TestParseKnownProviderModelSuffix(t *testing.T) {
 		assert.Equal(t, "gpt-5.6-sol", base)
 	})
 
+	t.Run("xhigh effort tail wins over the high tail", func(t *testing.T) {
+		t.Parallel()
+		effort, base := ParseOpenAIReasoningEffortFromModelSuffix("gpt-5.6-sol-xhigh", nil)
+		assert.Equal(t, "xhigh", effort)
+		assert.Equal(t, "gpt-5.6-sol", base)
+	})
+
+	t.Run("max tail is a product tier, not an openai effort", func(t *testing.T) {
+		t.Parallel()
+		effort, base := ParseOpenAIReasoningEffortFromModelSuffix("qwen3.8-max", nil)
+		assert.Empty(t, effort)
+		assert.Equal(t, "qwen3.8-max", base)
+	})
+
 	t.Run("preserve effort tail on real model id", func(t *testing.T) {
 		t.Parallel()
 		effort, base := ParseOpenAIReasoningEffortFromModelSuffix("qwen-max", preserveQwenMax)

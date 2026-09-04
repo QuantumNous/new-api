@@ -10,7 +10,13 @@ import (
 
 var EffortSuffixes = []string{"-max", "-xhigh", "-high", "-medium", "-low", "-minimal"}
 
-var OpenAIEffortSuffixes = []string{"-max", "-xhigh", "-high", "-medium", "-low", "-minimal", "-none"}
+// OpenAIEffortSuffixes are the effort tails recognized on arbitrary
+// OpenAI-compatible model names. "-max" is deliberately absent: it is not an
+// OpenAI reasoning_effort value (see OpenAIEffort, which folds max into xhigh)
+// and it is a common product-tier token in real model IDs such as qwen3.8-max
+// or qwen-vl-max. Providers that do own a "-max" effort tail (Claude, Gemini,
+// DeepSeek V4) parse it through their own model-gated suffix lists.
+var OpenAIEffortSuffixes = []string{"-xhigh", "-high", "-medium", "-low", "-minimal", "-none"}
 
 var DeepSeekV4EffortSuffixes = []string{"-none", "-max"}
 
