@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -252,6 +253,87 @@ func TestUpdateChannelConvertsVertexJsonChannelToMultiKeyUsingJsonArray(t *testi
 	assert.True(t, stored.ChannelInfo.IsMultiKey)
 	assert.Equal(t, 2, stored.ChannelInfo.MultiKeySize)
 	assert.Len(t, stored.GetKeys(), 2)
+}
+
+func TestUpdateChannelTypeChangeWithoutSettingsKeepsPersistedCredentialMode(t *testing.T) {
+	setupTaskPluginBindChannelTest(t)
+	// A channel can carry a stale vertex_key_type from an earlier configuration.
+	// Changing type without sending settings does not clear the settings column,
+	// so the conversion guard must read the value that stays persisted.
+	channel := insertKeyStorageChannel(t, model.Channel{
+		Type:          1,
+		Key:           "sk-old",
+		Other:         `{"default":"us-central1"}`,
+		OtherSettings: `{"vertex_key_type":"api_key"}`,
+	})
+
+	// The key is a JSON array so it survives the Vertex JSON parse and reaches the
+	// multi-key gate. Assuming a cleared credential mode would let it through and
+	// commit a multi-key Vertex channel that still stores vertex_key_type=api_key.
+	newKeys := `[{"type":"service_account","project_id":"a"},{"type":"service_account","project_id":"b"}]`
+	encodedKeys, err := common.Marshal(newKeys)
+	require.NoError(t, err)
+
+	recorder := putUpdateChannel(t, 1, common.RoleRootUser, keyStorageUpdateBody(
+		channel.Id, constant.ChannelTypeVertexAi,
+		fmt.Sprintf(
+			`"key_storage_mode":"multi","key":%s,"other":"{\"default\":\"us-central1\"}"`,
+			encodedKeys,
+		),
+	))
+	assert.Contains(t, recorder.Body.String(), `"success":false`)
+	assert.Contains(t, recorder.Body.String(), "当前渠道类型不支持多密钥模式")
+
+	stored, err := model.GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.False(t, stored.ChannelInfo.IsMultiKey)
+	assert.Equal(t, "sk-old", stored.Key)
+	assert.Equal(t, `{"vertex_key_type":"api_key"}`, stored.OtherSettings)
+}
+
+func TestUpdateChannelConcurrentOrdinaryUpdateDoesNotRestoreMultiKeyState(t *testing.T) {
+	setupTaskPluginBindChannelTest(t)
+	channel := insertKeyStorageChannel(t, model.Channel{
+		Type: 1,
+		Key:  "sk-a\nsk-b",
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:         true,
+			MultiKeySize:       2,
+			MultiKeyMode:       constant.MultiKeyModePolling,
+			MultiKeyStatusList: map[int]int{1: common.ChannelStatusAutoDisabled},
+		},
+	})
+
+	// An ordinary rename racing a multi→single conversion must not write back the
+	// pre-conversion ChannelInfo it read, which would leave the channel flagged
+	// multi-key while holding a single key.
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(2)
+	go func() {
+		defer waitGroup.Done()
+		putUpdateChannel(t, 1, common.RoleRootUser, keyStorageUpdateBody(
+			channel.Id, 1,
+			`"key_storage_mode":"single","key":"sk-fresh"`,
+		))
+	}()
+	go func() {
+		defer waitGroup.Done()
+		putUpdateChannel(t, 1, common.RoleRootUser, fmt.Sprintf(
+			`{"id":%d,"type":1,"name":"renamed","models":"gpt-4o","group":"default"}`,
+			channel.Id,
+		))
+	}()
+	waitGroup.Wait()
+
+	stored, err := model.GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	// Whichever request commits last, the stored key and storage flag must agree.
+	if stored.ChannelInfo.IsMultiKey {
+		assert.Equal(t, "sk-a\nsk-b", stored.Key)
+	} else {
+		assert.Equal(t, "sk-fresh", stored.Key)
+		assert.Empty(t, stored.ChannelInfo.MultiKeyStatusList)
+	}
 }
 
 func TestUpdateChannelDoesNotTrustOmittedVertexCredentialSettings(t *testing.T) {

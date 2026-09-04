@@ -990,14 +990,14 @@ func UpdateChannel(c *gin.Context) {
 	}
 	clearChannelReadOnlyFields(&channel, requestData)
 	convertingStorage := channel.KeyStorageMode != nil && strings.TrimSpace(*channel.KeyStorageMode) != ""
-	if convertingStorage {
-		// Serialize conversion with polling/key-management operations before
-		// reading the source ChannelInfo. Otherwise a request can wait for the
-		// lock and then apply a stale pre-conversion snapshot.
-		lock := model.GetChannelPollingLock(channel.Id)
-		lock.Lock()
-		defer lock.Unlock()
-	}
+	// Every update copies the persisted ChannelInfo forward, so an ordinary edit
+	// that reads multi-key metadata before a multi→single conversion commits
+	// would restore IsMultiKey and its status maps over the converted single key.
+	// Hold the per-channel lock from the source read through persistence for all
+	// requests, not just conversions.
+	lock := model.GetChannelPollingLock(channel.Id)
+	lock.Lock()
+	defer lock.Unlock()
 
 	var originChannel *model.Channel
 	if convertingStorage {
@@ -1069,13 +1069,15 @@ func UpdateChannel(c *gin.Context) {
 		keyConfig := *originChannel
 		if _, provided := requestData["type"]; provided {
 			keyConfig.Type = channel.Type
-			// A type change without an explicit settings payload must not inherit
-			// a provider-specific credential mode from the old type.
-			if keyConfig.Type != originChannel.Type {
-				keyConfig.OtherSettings = ""
-			}
 		}
-		if _, provided := requestData["settings"]; provided {
+		// The conversion guard must judge the settings that will actually be
+		// persisted. UpdateWithConvertedKeyStorage writes only key/channel_info
+		// explicitly and its struct update skips an empty settings column, so a
+		// request that omits or blanks settings keeps the stored value — even
+		// when it also changes the channel type. Assuming a cleared credential
+		// mode here would let a Vertex API Key channel pass the multi-key gate
+		// and then keep vertex_key_type=api_key after commit.
+		if strings.TrimSpace(channel.OtherSettings) != "" {
 			keyConfig.OtherSettings = channel.OtherSettings
 		}
 		if err := applyKeyStorageMode(&channel, originChannel, &keyConfig); err != nil {
