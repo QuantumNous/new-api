@@ -52,6 +52,50 @@ func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) s
 	return normalized
 }
 
+// detectTestRelayFromModel infers the request path and relay format used to test
+// a channel model when no explicit endpoint type is given (auto-detection).
+//
+// Precedence matters: rerank models (e.g. "bge-reranker-v2-m3") must stay on the
+// rerank endpoint even though their name also matches the "bge-" embedding
+// heuristic. Otherwise the channel is misclassified as embedding and the test
+// request is routed to /v1/embeddings, which fails.
+func detectTestRelayFromModel(testModel string, channelType int) (requestPath string, relayFormat types.RelayFormat) {
+	requestPath = "/v1/chat/completions"
+	relayFormat = types.RelayFormatOpenAI
+
+	lowerModel := strings.ToLower(testModel)
+	isRerank := strings.Contains(lowerModel, "rerank")
+	if isRerank {
+		requestPath = "/v1/rerank"
+		relayFormat = types.RelayFormatRerank
+	}
+
+	// 先判断是否为 Embedding 模型（但不覆盖已识别为 rerank 的模型，例如 bge-reranker-v2-m3）
+	if !isRerank &&
+		(strings.Contains(lowerModel, "embedding") ||
+			strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
+			strings.Contains(testModel, "bge-") || // bge 系列模型
+			strings.Contains(lowerModel, "embed") ||
+			channelType == constant.ChannelTypeMokaAI) { // 其他 embedding 模型
+		requestPath = "/v1/embeddings"
+		relayFormat = types.RelayFormatEmbedding
+	}
+
+	// VolcEngine 图像生成模型
+	if channelType == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
+		requestPath = "/v1/images/generations"
+		relayFormat = types.RelayFormatOpenAIImage
+	}
+
+	// responses-only models
+	if strings.Contains(lowerModel, "codex") {
+		requestPath = "/v1/responses"
+		relayFormat = types.RelayFormatOpenAIResponses
+	}
+
+	return requestPath, relayFormat
+}
+
 func resolveChannelTestUserID(c *gin.Context) (int, error) {
 	if c != nil {
 		if userID := c.GetInt("id"); userID > 0 {
@@ -119,30 +163,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	} else {
 		// 如果没有指定端点类型，使用原有的自动检测逻辑
-
-		if strings.Contains(strings.ToLower(testModel), "rerank") {
-			requestPath = "/v1/rerank"
-		}
-
-		// 先判断是否为 Embedding 模型
-		if strings.Contains(strings.ToLower(testModel), "embedding") ||
-			strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
-			strings.Contains(testModel, "bge-") || // bge 系列模型
-			strings.Contains(testModel, "embed") ||
-			channel.Type == constant.ChannelTypeMokaAI { // 其他 embedding 模型
-			requestPath = "/v1/embeddings" // 修改请求路径
-		}
-
-		// VolcEngine 图像生成模型
-		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
-			requestPath = "/v1/images/generations"
-		}
-
-		// responses-only models
-		if strings.Contains(strings.ToLower(testModel), "codex") {
-			requestPath = "/v1/responses"
-		}
-
+		requestPath, _ = detectTestRelayFromModel(testModel, channel.Type)
 	}
 	// Gemini 原生流式通过 URL action（:streamGenerateContent）表达而非请求体字段，
 	// GeminiChatRequest.IsStream 依据请求 URL 判定，合成请求路径需与生产入口保持一致
@@ -202,29 +223,8 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			relayFormat = types.RelayFormatOpenAI
 		}
 	} else {
-		// 根据请求路径自动检测
-		relayFormat = types.RelayFormatOpenAI
-		if c.Request.URL.Path == "/v1/embeddings" {
-			relayFormat = types.RelayFormatEmbedding
-		}
-		if c.Request.URL.Path == "/v1/images/generations" {
-			relayFormat = types.RelayFormatOpenAIImage
-		}
-		if c.Request.URL.Path == "/v1/messages" {
-			relayFormat = types.RelayFormatClaude
-		}
-		if strings.Contains(c.Request.URL.Path, "/v1beta/models") {
-			relayFormat = types.RelayFormatGemini
-		}
-		if c.Request.URL.Path == "/v1/rerank" || c.Request.URL.Path == "/rerank" {
-			relayFormat = types.RelayFormatRerank
-		}
-		if c.Request.URL.Path == "/v1/responses" {
-			relayFormat = types.RelayFormatOpenAIResponses
-		}
-		if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") {
-			relayFormat = types.RelayFormatOpenAIResponsesCompaction
-		}
+		// 根据自动检测到的模型类型设置 relayFormat（与 requestPath 保持一致）
+		_, relayFormat = detectTestRelayFromModel(testModel, channel.Type)
 	}
 
 	request := buildTestRequest(testModel, endpointType, channel, isStream)
