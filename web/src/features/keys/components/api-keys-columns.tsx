@@ -33,6 +33,7 @@ import { toIntlLocale } from '@/i18n/languages'
 import { getUserGroups } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
 import { formatQuota } from '@/lib/format'
+import { buildGroupOptions } from '@/lib/group-options'
 import { cn } from '@/lib/utils'
 
 import { API_KEY_STATUSES } from '../constants'
@@ -53,20 +54,24 @@ function getQuotaProgressColor(percentage: number): string {
   return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
 }
 
-function useGroupRatios(): Record<string, number | string> {
+type GroupMetadata = Record<string, { label: string; ratio?: number | string }>
+
+/** 加载 API Key 列表展示所需的分组名称和倍率。 */
+function useGroupMetadata(): GroupMetadata {
   const { data } = useQuery({
     queryKey: ['user-groups'],
     queryFn: getUserGroups,
     staleTime: 0,
     select: (res) => {
       if (!res.success || !res.data) return {}
-      const ratios: Record<string, number | string> = {}
-      for (const [group, info] of Object.entries(res.data)) {
-        if (typeof info.ratio === 'number' || typeof info.ratio === 'string') {
-          ratios[group] = info.ratio
+      const metadata: GroupMetadata = {}
+      for (const option of buildGroupOptions(res.data)) {
+        metadata[option.value] = {
+          label: option.label,
+          ratio: option.ratio,
         }
       }
-      return ratios
+      return metadata
     },
   })
 
@@ -75,7 +80,7 @@ function useGroupRatios(): Record<string, number | string> {
 
 export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
   const { t, i18n } = useTranslation()
-  const groupRatios = useGroupRatios()
+  const groupMetadata = useGroupMetadata()
   const shouldReduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)')
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const justNowLabel = t('Just now')
@@ -196,10 +201,12 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
       cell: ({ row }) => {
         const apiKey = row.original
         const group = row.getValue('group') as string
+        const metadata = group ? groupMetadata[group] : undefined
         return (
           <ApiKeyGroupCell
             group={group}
-            ratio={groupRatios[group]}
+            label={metadata?.label}
+            ratio={metadata?.ratio}
             crossGroupRetry={apiKey.cross_group_retry}
             shouldReduceMotion={shouldReduceMotion}
           />

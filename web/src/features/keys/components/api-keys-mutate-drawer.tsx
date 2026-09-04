@@ -65,6 +65,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useStatus } from '@/hooks/use-status'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { buildGroupOptions } from '@/lib/group-options'
 import { cn } from '@/lib/utils'
 
 import {
@@ -156,13 +157,7 @@ export function ApiKeysMutateDrawer({
 
   const models = modelsData?.data || []
   const groups = useMemo<ApiKeyGroupOption[]>(
-    () =>
-      Object.entries(groupsData?.data || {}).map(([key, info]) => ({
-        value: key,
-        label: key,
-        desc: info.desc || key,
-        ratio: info.ratio,
-      })),
+    () => buildGroupOptions(groupsData?.data || {}),
     [groupsData]
   )
   const backendHasAuto = groups.some((g) => g.value === 'auto')
