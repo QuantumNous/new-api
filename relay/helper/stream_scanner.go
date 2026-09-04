@@ -283,7 +283,11 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		if err := scanner.Err(); err != nil {
 			if err != io.EOF {
 				logger.LogError(c, "scanner error: "+err.Error())
-				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, err)
+				clientGone := c.Request != nil && c.Request.Context().Err() != nil
+				if !clientGone {
+					info.StreamStatus.RecordError(err.Error())
+					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, err)
+				}
 			}
 		}
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
@@ -306,5 +310,6 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		logger.LogInfo(c, fmt.Sprintf("stream ended: %s", info.StreamStatus.Summary()))
 	} else {
 		logger.LogError(c, fmt.Sprintf("stream ended: %s, received=%d", info.StreamStatus.Summary(), info.ReceivedResponseCount))
+		service.RecordStreamErrorLog(c, info)
 	}
 }
