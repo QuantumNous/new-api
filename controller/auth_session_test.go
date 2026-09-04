@@ -107,7 +107,10 @@ func TestWriteAuthSessionErrorMapsSessionGrowthLimits(t *testing.T) {
 	}
 }
 
-func TestSessionLimitDoesNotRecordRejectedLoginAsSuccessful(t *testing.T) {
+// A login rejected by the issuance limit (the active session limit now evicts
+// the oldest session instead of rejecting) must not record the login as
+// successful on the user row.
+func TestIssuanceLimitDoesNotRecordRejectedLoginAsSuccessful(t *testing.T) {
 	previousDB := model.DB
 	previousRedis := common.RedisEnabled
 	previousActiveLimit := common.UserSessionActiveLimit
@@ -118,8 +121,8 @@ func TestSessionLimitDoesNotRecordRejectedLoginAsSuccessful(t *testing.T) {
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}))
 	model.DB = db
 	common.RedisEnabled = false
-	common.UserSessionActiveLimit = 1
-	common.UserSessionIssuanceLimit = 100
+	common.UserSessionActiveLimit = 10
+	common.UserSessionIssuanceLimit = 1
 	common.UserSessionIssuanceWindowSeconds = int64(common.DefaultUserSessionIssuanceWindowSeconds)
 	t.Cleanup(func() {
 		model.DB = previousDB
@@ -148,7 +151,7 @@ func TestSessionLimitDoesNotRecordRejectedLoginAsSuccessful(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/user/login", nil)
 	setupLogin(user, c)
 
-	assert.Equal(t, http.StatusConflict, recorder.Code)
+	assert.Equal(t, http.StatusTooManyRequests, recorder.Code)
 	var stored model.User
 	require.NoError(t, db.First(&stored, user.Id).Error)
 	assert.Equal(t, previousLastLoginAt, stored.LastLoginAt)

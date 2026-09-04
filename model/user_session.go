@@ -709,6 +709,55 @@ func RevokeAllUserSessions(userID int, reason string) (int64, error) {
 	return revokeUserSessions(userID, "", reason)
 }
 
+// RevokeOldestActiveUserSessions revokes the oldest active sessions of a user
+// so that the number of active sessions does not exceed limit. It is a no-op
+// when the active count is already at or below limit, and returns the number
+// of sessions actually revoked. It is used at login time to make room for a
+// new session instead of hard-blocking once the active session limit is
+// reached, so a full session table can never lock the user out. excludedSID
+// (typically the just-created session) is never considered for eviction:
+// last_active_at and created_at can tie for sessions created within the same
+// second, and without the exclusion the undefined tie order could revoke the
+// new session while its tokens are being issued.
+func RevokeOldestActiveUserSessions(userID int, limit int64, now int64, reason, excludedSID string) (int64, error) {
+	if userID <= 0 || limit <= 0 {
+		return 0, ErrUserSessionInvalid
+	}
+	if now <= 0 {
+		now = time.Now().Unix()
+	}
+	activeCount, err := CountActiveUserSessions(userID, now)
+	if err != nil {
+		return 0, err
+	}
+	toEvict := activeCount - limit
+	if toEvict <= 0 {
+		return 0, nil
+	}
+	evictQuery := DB.Model(&UserSession{}).
+		Where("user_id = ? AND status = ? AND expires_at > ?", userID, UserSessionStatusActive, now)
+	if excludedSID != "" {
+		evictQuery = evictQuery.Where("sid <> ?", excludedSID)
+	}
+	var sids []string
+	if err := evictQuery.
+		Order("last_active_at ASC").Order("created_at ASC").
+		Limit(int(toEvict)).Pluck("sid", &sids).Error; err != nil {
+		return 0, err
+	}
+	var revoked int64
+	for _, sid := range sids {
+		ok, err := RevokeUserSession(userID, sid, reason)
+		if err != nil {
+			return revoked, err
+		}
+		if ok {
+			revoked++
+		}
+	}
+	return revoked, nil
+}
+
 func revokeUserSessions(userID int, excludedSID, reason string) (int64, error) {
 	if userID <= 0 {
 		return 0, ErrUserSessionInvalid
@@ -771,6 +820,22 @@ func revokeUserSessions(userID int, excludedSID, reason string) (int64, error) {
 			}
 		}
 	}
+}
+
+// DeleteUserSession permanently removes one session row. It exists for
+// compensation on the login-issuance path: when enforcement fails after a new
+// session row was stored but before any token is issued, the row must not
+// linger: stored rows count toward the issuance-limit window regardless of
+// status — and RevokeUserSession cannot be relied on there because its
+// deny-fence write is likely the very component that is failing. Only use it
+// for sessions that were never issued: a deleted row leaves no tombstone, so
+// tokens handed out for a live session would keep authorizing until their
+// cache entries expire.
+func DeleteUserSession(userID int, sid string) error {
+	if userID <= 0 || sid == "" {
+		return ErrUserSessionInvalid
+	}
+	return DB.Where("sid = ? AND user_id = ?", sid, userID).Delete(&UserSession{}).Error
 }
 
 func DeleteExpiredUserSessions(now int64) error {
