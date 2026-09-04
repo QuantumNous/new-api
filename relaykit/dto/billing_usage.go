@@ -52,7 +52,9 @@ func HasClaudeUsageTokens(usage *ClaudeUsage) bool {
 		(usage.CacheCreation.Ephemeral5mInputTokens != 0 || usage.CacheCreation.Ephemeral1hInputTokens != 0) {
 		return true
 	}
-	return false
+	// A fallback response can carry every billable count inside the per-attempt
+	// breakdown, so an all-zero top level must not discard the snapshot.
+	return len(usage.Iterations) > 0
 }
 
 func NewOpenAIChatBillingUsage(usage *Usage) *BillingUsage {
@@ -414,6 +416,16 @@ func cloneClaudeUsage(usage *ClaudeUsage) *ClaudeUsage {
 	if usage.ServerToolUse != nil {
 		serverToolUse := *usage.ServerToolUse
 		clone.ServerToolUse = &serverToolUse
+	}
+	if len(usage.Iterations) > 0 {
+		clone.Iterations = make([]ClaudeUsageIteration, len(usage.Iterations))
+		for i, iteration := range usage.Iterations {
+			if iteration.CacheCreation != nil {
+				cacheCreation := *iteration.CacheCreation
+				iteration.CacheCreation = &cacheCreation
+			}
+			clone.Iterations[i] = iteration
+		}
 	}
 	return &clone
 }

@@ -66,6 +66,15 @@ type textQuotaSummary struct {
 	AudioInputPrice        float64
 	ToolSurchargeItems     []ToolSurchargeItem
 	ToolCallSurchargeQuota decimal.Decimal
+
+	// BillingWaived marks a request the upstream declined without charging us:
+	// a Claude refusal that arrived before any output. Tokens are still logged
+	// for auditing, but the quota is zero.
+	BillingWaived bool
+	// FallbackIterations holds the billable attempts of a server-side refusal
+	// fallback — those that produced output. When present, each is priced at its
+	// own model's rate instead of the single request-time PriceData.
+	FallbackIterations []dto.ClaudeUsageIteration
 }
 
 // hasBillableUsage reports whether this request should incur any charge.
@@ -74,6 +83,19 @@ type textQuotaSummary struct {
 // call), so token count alone is not sufficient to decide.
 func (s *textQuotaSummary) hasBillableUsage() bool {
 	return s.TotalTokens > 0 || !s.ToolCallSurchargeQuota.IsZero()
+}
+
+// applyRefusalWaiver drops the token charge for a request the upstream declined
+// before producing any output, which the upstream itself did not bill. Server
+// tools it already executed are billed separately and stay charged, so the
+// surcharge survives the waiver. It runs after every pricing path — per-token,
+// per-call and tiered — so no branch can leave a token charge behind.
+func (s *textQuotaSummary) applyRefusalWaiver() bool {
+	if !s.BillingWaived {
+		return false
+	}
+	s.Quota = common.QuotaFromDecimal(s.ToolCallSurchargeQuota)
+	return true
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -254,6 +276,9 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		}
 	}
 
+	summary.BillingWaived = upstreamRefusalWaivesBilling(ctx, usage)
+	summary.FallbackIterations = claudeBillableIterations(usage)
+
 	summary.PromptTokens = usage.PromptTokens
 	summary.CompletionTokens = usage.CompletionTokens
 	summary.TotalTokens = usage.PromptTokens + usage.CompletionTokens
@@ -355,6 +380,12 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		promptQuota := baseTokens.Add(cachedTokensWithRatio).Add(imageTokensWithRatio).Add(cachedCreationTokensWithRatio)
 		completionQuota := dCompletionTokens.Mul(dCompletionRatio)
 		quotaCalculateDecimal := promptQuota.Add(completionQuota).Mul(ratio)
+		if len(summary.FallbackIterations) > 0 {
+			// The top-level counts describe only the attempt that served the
+			// response, so pricing them once would drop every earlier attempt
+			// that emitted output before handing over.
+			quotaCalculateDecimal = claudeIterationsTextQuota(ctx, relayInfo, summary.FallbackIterations, dGroupRatio)
+		}
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		quotaCalculateDecimal = relayInfo.PriceData.ApplyOtherRatiosToDecimal(quotaCalculateDecimal)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(summary.ToolCallSurchargeQuota)
@@ -380,6 +411,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	} else if !ratio.IsZero() && summary.Quota == 0 {
 		summary.Quota = 1
 	}
+	summary.applyRefusalWaiver()
 
 	return summary
 }
@@ -409,7 +441,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	var tieredResult *billingexpr.TieredResult
 	tieredBillingApplied := false
-	if originUsage != nil {
+	if originUsage != nil && !summary.BillingWaived {
 		var tieredUsedVars map[string]bool
 		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
 			tieredUsedVars = billingexpr.UsedVars(snap.ExprString)
@@ -420,6 +452,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			tieredResult = tieredRes
 			summary.Quota = composeTieredTextQuota(relayInfo, summary, tieredQuota, tieredRes)
 		}
+	}
+	if summary.applyRefusalWaiver() {
+		extraContent = append(extraContent, "上游拒绝且未产生输出，本次请求不计费")
 	}
 
 	for _, item := range summary.ToolSurchargeItems {
@@ -444,6 +479,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		extraContent = append(extraContent, "上游没有返回计费信息，无法扣费（可能是上游超时）")
 		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota))
 	} else {
+		// A waived refusal reported real token counts and still consumed a
+		// request slot upstream, so the request count is recorded even though the
+		// token charge is zero.
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
 	}
@@ -479,6 +517,12 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	appendUsageBillingPathForLog(other, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens), originUsage)
 	if adminRejectReason != "" {
 		other.SetAdmin("reject_reason", adminRejectReason)
+	}
+	if summary.BillingWaived {
+		other["billing_waived"] = true
+	}
+	if len(summary.FallbackIterations) > 0 {
+		other["billed_fallback_iterations"] = summary.FallbackIterations
 	}
 	if summary.ImageTokens != 0 {
 		other.SetPublic("image", true)

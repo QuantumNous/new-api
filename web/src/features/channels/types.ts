@@ -101,6 +101,7 @@ export interface ChannelOtherSettings {
   allow_include_obfuscation?: boolean
   allow_inference_geo?: boolean
   allow_speed?: boolean
+  allow_fallbacks?: boolean
   claude_beta_query?: boolean
   disable_task_polling_sleep?: boolean
   upstream_model_update_check_enabled?: boolean
