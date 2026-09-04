@@ -132,6 +132,76 @@ func TestGetFlowQuotaDataUsesQuotaDataRoleSpecificDimensions(t *testing.T) {
 	require.Equal(t, 175, selfRows[0].Quota)
 }
 
+// 添加显示名称
+func TestGetFlowQuotaDataReturnsDisplayName(t *testing.T) {
+	truncateTables(t)
+
+	alice := User{
+		Id:          1,
+		Username:    "alice",
+		Password:    "password123",
+		DisplayName: "Alice Chen",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AffCode:     "flow-aff-alice",
+	}
+	bob := User{
+		Id:          2,
+		Username:    "bob",
+		Password:    "password123",
+		DisplayName: "",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AffCode:     "flow-aff-bob",
+	}
+	require.NoError(t, DB.Create(&alice).Error)
+	require.NoError(t, DB.Create(&bob).Error)
+
+	seedFlowQuotaData(t, QuotaData{
+		UserID:    1,
+		Username:  "alice",
+		UseGroup:  "vip",
+		ModelName: "gpt-a",
+		ChannelID: 1,
+		CreatedAt: 1000,
+		Count:     1,
+		Quota:     80,
+		TokenUsed: 40,
+	})
+	seedFlowQuotaData(t, QuotaData{
+		UserID:    2,
+		Username:  "bob",
+		UseGroup:  "default",
+		ModelName: "gpt-b",
+		ChannelID: 1,
+		CreatedAt: 1100,
+		Count:     1,
+		Quota:     50,
+		TokenUsed: 25,
+	})
+
+	adminRows, err := GetFlowQuotaData(900, 2000, "", 0, common.RoleAdminUser)
+	require.NoError(t, err)
+	require.Len(t, adminRows, 2)
+
+	byUser := make(map[string]*FlowQuotaData, len(adminRows))
+	for _, row := range adminRows {
+		byUser[row.Username] = row
+	}
+
+	require.Contains(t, byUser, "alice")
+	require.Contains(t, byUser, "bob")
+	require.Equal(t, "Alice Chen", byUser["alice"].DisplayName)
+	require.Equal(t, "", byUser["bob"].DisplayName)
+
+	rootRows, err := GetFlowQuotaData(900, 2000, "", 0, common.RoleRootUser)
+	require.NoError(t, err)
+	require.Len(t, rootRows, 2)
+	require.Equal(t, "Alice Chen", rootRows[0].DisplayName)
+}
+
 func TestLogQuotaDataSplitsRowsByUseGroupTokenChannelAndNode(t *testing.T) {
 	truncateTables(t)
 	CacheQuotaDataLock.Lock()
