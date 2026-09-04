@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+export type PlaygroundMode = 'chat' | 'image'
+
 // Message types
 export type MessageRole = 'user' | 'assistant' | 'system'
 
@@ -76,6 +78,9 @@ export interface ChatCompletionRequest {
   frequency_penalty?: number
   presence_penalty?: number
   seed?: number
+  web_search_options?: {
+    search_context_size: 'low' | 'medium' | 'high'
+  }
 }
 
 export interface ChatCompletionChunk {
@@ -89,6 +94,7 @@ export interface ChatCompletionChunk {
       role?: MessageRole
       content?: string
       reasoning_content?: string
+      annotations?: unknown
     }
     finish_reason: string | null
   }>
@@ -105,6 +111,7 @@ export interface ChatCompletionResponse {
       role: MessageRole
       content: string
       reasoning_content?: string
+      annotations?: unknown
     }
     finish_reason: string
   }>
@@ -113,6 +120,35 @@ export interface ChatCompletionResponse {
     completion_tokens: number
     total_tokens: number
   }
+}
+
+export interface ImageGenerationRequest {
+  model: string
+  prompt: string
+  n?: number
+  size?: string
+  quality?: string
+  response_format?: 'url' | 'b64_json'
+}
+
+export interface ImageGenerationResult {
+  url?: string
+  b64_json?: string
+  revised_prompt?: string
+}
+
+export interface ImageGenerationResponse {
+  created?: number
+  data: ImageGenerationResult[]
+}
+
+export interface ImageConfig {
+  model: string
+  group: string
+  n: number
+  size: string
+  quality: string
+  response_format: string
 }
 
 // Configuration types
@@ -126,6 +162,7 @@ export interface PlaygroundConfig {
   presence_penalty: number
   seed: number | null
   stream: boolean
+  searchEnabled?: boolean
 }
 
 export interface ParameterEnabled {

@@ -34,6 +34,16 @@ export const playgroundConfigSchema = z.object({
   presence_penalty: z.number().optional(),
   seed: z.number().nullable().optional(),
   stream: z.boolean().optional(),
+  searchEnabled: z.boolean().optional(),
+})
+
+export const imageConfigSchema = z.object({
+  model: z.string().optional(),
+  group: z.string().optional(),
+  n: z.number().int().optional(),
+  size: z.string().optional(),
+  quality: z.string().optional(),
+  response_format: z.string().optional(),
 })
 
 export const parameterEnabledSchema = z.object({

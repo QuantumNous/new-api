@@ -1074,6 +1074,25 @@ func TestCalculateTextQuotaSummaryDoesNotApplyRequestMultipliersToToolSurcharge(
 	assert.Equal(t, common.QuotaFromDecimal(expected), summary.Quota)
 }
 
+func TestCalculateTextToolCallSurchargeDoesNotBillDeclaredSearchWithoutUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	relayInfo := &relaycommon.RelayInfo{
+		RelayMode:       relayconstant.RelayModeChatCompletions,
+		OriginModelName: "gpt-4o",
+		Request: &dto.GeneralOpenAIRequest{
+			WebSearchOptions: &dto.WebSearchOptions{SearchContextSize: "medium"},
+		},
+	}
+	summary := &textQuotaSummary{ModelName: relayInfo.OriginModelName, GroupRatio: 1}
+
+	surcharge := calculateTextToolCallSurcharge(ctx, relayInfo, summary)
+
+	assert.True(t, surcharge.IsZero())
+	assert.Empty(t, summary.ToolSurchargeItems)
+}
+
 func TestCalculateTextToolCallSurchargeGeminiGoogleSearch(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

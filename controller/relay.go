@@ -187,7 +187,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		Ctx:         c,
 		TokenGroup:  relayInfo.TokenGroup,
 		ModelName:   relayInfo.OriginModelName,
-		RequestPath: c.Request.URL.Path,
+		RequestPath: common.CanonicalRelayRequestPath(c.Request.URL.Path),
 		Retry:       common.GetPointer(0),
 	}
 	relayInfo.RetryIndex = 0
@@ -634,7 +634,7 @@ func executeTaskSubmissionWith(
 		Ctx:         c,
 		TokenGroup:  relayInfo.TokenGroup,
 		ModelName:   relayInfo.OriginModelName,
-		RequestPath: c.Request.URL.Path,
+		RequestPath: common.CanonicalRelayRequestPath(c.Request.URL.Path),
 		Retry:       common.GetPointer(0),
 	}
 

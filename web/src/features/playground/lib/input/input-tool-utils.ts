@@ -52,9 +52,3 @@ export function getAttachmentActionNotice(action: string): InputToolNotice {
     title: 'Feature in development',
   }
 }
-
-export function getSearchActionNotice(): InputToolNotice {
-  return {
-    title: 'Search feature in development',
-  }
-}

@@ -17,17 +17,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ERROR_MESSAGES } from '../../constants'
-import type { ChatCompletionChunk } from '../../types'
+import type { ChatCompletionChunk, Message } from '../../types'
+import { parseUrlCitations } from '../citations'
 
 const STREAM_DONE_MESSAGE = '[DONE]'
 const STREAM_CLOSED_READY_STATE = 2
 
-export type StreamUpdateType = 'reasoning' | 'content'
+export type StreamUpdateType = 'reasoning' | 'content' | 'sources'
 
-export type StreamMessageUpdate = {
-  type: StreamUpdateType
-  chunk: string
-}
+export type StreamMessageUpdate =
+  | {
+      type: 'reasoning' | 'content'
+      chunk: string
+    }
+  | {
+      type: 'sources'
+      sources: NonNullable<Message['sources']>
+    }
 
 type StreamErrorPayload = {
   error?: {
@@ -80,6 +86,13 @@ export function parseStreamMessageUpdates(data: string): StreamMessageUpdate[] {
 
   if (delta.content) {
     updates.push({ type: 'content', chunk: delta.content })
+  }
+
+  if (delta.annotations !== undefined) {
+    const sources = parseUrlCitations(delta.annotations)
+    if (sources.length > 0) {
+      updates.push({ type: 'sources', sources })
+    }
   }
 
   return updates

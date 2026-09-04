@@ -38,11 +38,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-import {
-  ATTACHMENT_ACTIONS,
-  getAttachmentActionNotice,
-  getSearchActionNotice,
-} from '../../lib'
+import { cn } from '@/lib/utils'
+
+import { ATTACHMENT_ACTIONS, getAttachmentActionNotice } from '../../lib'
 import type { ParameterEnabled, PlaygroundConfig } from '../../types'
 import { PlaygroundParameterPanel } from './playground-parameter-panel'
 
@@ -82,8 +80,7 @@ export function PlaygroundInputTools({
   }
 
   const handleSearchAction = () => {
-    const notice = getSearchActionNotice()
-    toast.info(t(notice.title))
+    onConfigChange('searchEnabled', !config.searchEnabled)
   }
 
   const handleClearMessages = () => {
@@ -135,12 +132,21 @@ export function PlaygroundInputTools({
             render={
               <PromptInputButton
                 aria-label={t('Search')}
-                className='text-muted-foreground hover:text-foreground hover:bg-muted/70 font-medium'
+                aria-pressed={Boolean(config.searchEnabled)}
+                className={cn(
+                  'font-medium transition-colors',
+                  config.searchEnabled
+                    ? 'bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 hover:text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+                )}
                 disabled={disabled}
                 onClick={handleSearchAction}
                 variant='ghost'
               >
-                <GlobeIcon size={16} />
+                <GlobeIcon aria-hidden='true' size={16} />
+                {config.searchEnabled && (
+                  <span className='sr-only'>{t('Search enabled')}</span>
+                )}
               </PromptInputButton>
             }
           />

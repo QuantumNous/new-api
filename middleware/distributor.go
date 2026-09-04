@@ -35,9 +35,11 @@ func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		var channel *model.Channel
 		constraints := service.GetChannelConstraints(c)
+		// Channels are matched by canonical /v1 paths; playground routes must
+		// not be filtered out just because the client-facing path is /pg.
 		constraints.AddFilter(taskdto.ChannelFilter{
 			Kind:        taskdto.FilterRequestPath,
-			RequestPath: c.Request.URL.Path,
+			RequestPath: common.CanonicalRelayRequestPath(c.Request.URL.Path),
 		})
 		service.AppendTaskPluginIdentityFilter(c, c.GetString("expected_task_plugin_key"))
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
@@ -162,7 +164,7 @@ func Distribute() func(c *gin.Context) {
 						Ctx:         c,
 						ModelName:   modelRequest.Model,
 						TokenGroup:  usingGroup,
-						RequestPath: c.Request.URL.Path,
+						RequestPath: common.CanonicalRelayRequestPath(c.Request.URL.Path),
 						Retry:       common.GetPointer(0),
 					})
 					if err != nil {

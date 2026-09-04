@@ -22,6 +22,20 @@ func LocalLogPreview(content string) string {
 	return fmt.Sprintf("%s... [truncated, original_length=%d, limit=%d]", content[:LocalLogContentLimit], len(content), LocalLogContentLimit)
 }
 
+// PlaygroundRequestPathPrefix marks dashboard playground relay routes.
+const PlaygroundRequestPathPrefix = "/pg"
+
+// CanonicalRelayRequestPath maps a playground request path to its canonical
+// relay path. Channel selection (path filters, retry selection, affinity)
+// must match channels by the /v1 path they are configured with, while the
+// client-facing route stays /pg. Non-playground paths are returned unchanged.
+func CanonicalRelayRequestPath(path string) string {
+	if strings.HasPrefix(path, PlaygroundRequestPathPrefix+"/") {
+		return "/v1" + strings.TrimPrefix(path, PlaygroundRequestPathPrefix)
+	}
+	return path
+}
+
 func GetStringIfEmpty(str string, defaultValue string) string {
 	if str == "" {
 		return defaultValue

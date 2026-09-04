@@ -20,6 +20,7 @@ import { t } from 'i18next'
 
 import { ERROR_MESSAGES, MESSAGE_ROLES, MESSAGE_STATUS } from '../../constants'
 import type { ChatCompletionResponse, Message } from '../../types'
+import { mergeSources, parseUrlCitations } from '../citations'
 import { parseThinkTags } from './message-reasoning-utils'
 import {
   completeAssistantTiming,
@@ -76,6 +77,21 @@ function getAppendableChunk(currentContent: string, chunk: string): string {
   }
 
   return chunk.slice(currentContent.length)
+}
+
+export function applyStreamingSources(
+  message: Message,
+  sources: NonNullable<Message['sources']>
+): Message {
+  if (message.status === MESSAGE_STATUS.ERROR || sources.length === 0) {
+    return message
+  }
+
+  return {
+    ...message,
+    sources: mergeSources(message.sources, sources),
+    status: MESSAGE_STATUS.STREAMING,
+  }
 }
 
 export function applyStreamingChunk(
@@ -188,11 +204,14 @@ export function applyChatCompletionChoice(
   message: Message,
   choice: ChatCompletionChoice
 ): Message {
+  const sources = parseUrlCitations(choice.message?.annotations)
+
   return completeAssistantTiming({
     ...finalizeMessage(
       updateCurrentVersionContent(message, choice.message?.content || ''),
       choice.message?.reasoning_content
     ),
+    sources: mergeSources(message.sources, sources),
     status: MESSAGE_STATUS.COMPLETE,
   })
 }

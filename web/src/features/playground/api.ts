@@ -22,6 +22,8 @@ import { API_ENDPOINTS } from './constants'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
+  ImageGenerationRequest,
+  ImageGenerationResponse,
   ModelOption,
   GroupOption,
 } from './types'
@@ -41,11 +43,36 @@ export async function sendChatCompletion(
 }
 
 /**
+ * Send image generation request via the playground relay
+ */
+export async function sendImageGeneration(
+  payload: ImageGenerationRequest,
+  group: string,
+  signal?: AbortSignal
+): Promise<ImageGenerationResponse> {
+  const res = await api.post(
+    API_ENDPOINTS.IMAGE_GENERATIONS,
+    payload,
+    group
+      ? {
+          signal,
+          params: { pg_group: group },
+          skipErrorHandler: true,
+        }
+      : ({ signal, skipErrorHandler: true } as Record<string, unknown>)
+  )
+  return res.data
+}
+
+/**
  * Get user available models
  */
-export async function getUserModels(group: string): Promise<ModelOption[]> {
+export async function getUserModels(
+  group: string,
+  endpointType?: 'image-generation'
+): Promise<ModelOption[]> {
   const res = await api.get(API_ENDPOINTS.USER_MODELS, {
-    params: { group },
+    params: endpointType ? { group, endpoint_type: endpointType } : { group },
   })
   const { data } = res
 

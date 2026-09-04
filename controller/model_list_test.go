@@ -265,6 +265,73 @@ func TestGetUserModelsExpandsAutoGroupsInConfiguredOrder(t *testing.T) {
 	assert.Equal(t, "zz-default-model", models[2])
 }
 
+func TestGetUserModelsEndpointTypeFilter(t *testing.T) {
+	withSelfUseModeDisabled(t)
+
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1004,
+		Username: "playground-endpoint-type-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	require.NoError(t, db.Create(&model.Channel{
+		Id:     1,
+		Type:   constant.ChannelTypeOpenAI,
+		Key:    "test-key",
+		Status: common.ChannelStatusEnabled,
+		Name:   "playground-image-test",
+		Group:  "default",
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "dall-e-3", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "gpt-4o", ChannelId: 1, Enabled: true},
+	}).Error)
+	model.InvalidatePricingCache()
+	model.GetPricing()
+	t.Cleanup(model.InvalidatePricingCache)
+
+	// Case 1: invalid endpoint_type returns 400
+	{
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/models?endpoint_type=invalid_type", nil)
+		ctx.Set("id", 1004)
+
+		GetUserModels(ctx)
+		assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	}
+
+	// Case 2: endpoint_type=image-generation filters to image-capable models
+	{
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/models?endpoint_type=image-generation", nil)
+		ctx.Set("id", 1004)
+
+		GetUserModels(ctx)
+		assert.Equal(t, http.StatusOK, recorder.Code)
+		models := decodeUserModelsResponse(t, recorder)
+		assert.Contains(t, models, "dall-e-3")
+		assert.NotContains(t, models, "gpt-4o")
+	}
+
+	// Case 3: omitted endpoint_type retains all models unchanged
+	{
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/models", nil)
+		ctx.Set("id", 1004)
+
+		GetUserModels(ctx)
+		assert.Equal(t, http.StatusOK, recorder.Code)
+		models := decodeUserModelsResponse(t, recorder)
+		assert.Contains(t, models, "dall-e-3")
+		assert.Contains(t, models, "gpt-4o")
+	}
+}
+
 func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	withSelfUseModeDisabled(t)
 	withTieredBillingConfig(t, map[string]string{

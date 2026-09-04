@@ -38,18 +38,18 @@ export const PLAYGROUND_PARAMETER_CONTROLS = [
     labelKey: 'Temperature',
     descriptionKey: 'Controls randomness and creativity',
     valueType: 'slider',
-    min: 0.1,
+    min: 0,
     max: 1,
-    step: 0.1,
+    step: 0.01,
   },
   {
     key: 'top_p',
     labelKey: 'Top P',
     descriptionKey: 'Limits token selection to a probability mass',
     valueType: 'slider',
-    min: 0.1,
+    min: 0,
     max: 1,
-    step: 0.1,
+    step: 0.01,
   },
   {
     key: 'frequency_penalty',
@@ -58,7 +58,7 @@ export const PLAYGROUND_PARAMETER_CONTROLS = [
     valueType: 'slider',
     min: -2,
     max: 2,
-    step: 0.1,
+    step: 0.01,
   },
   {
     key: 'presence_penalty',
@@ -67,7 +67,7 @@ export const PLAYGROUND_PARAMETER_CONTROLS = [
     valueType: 'slider',
     min: -2,
     max: 2,
-    step: 0.1,
+    step: 0.01,
   },
   {
     key: 'max_tokens',
@@ -101,9 +101,10 @@ export function normalizeParameterNumberValue(
   }
 
   const control = PLAYGROUND_PARAMETER_CONTROLS.find((item) => item.key === key)
-  const parsed = typeof value === 'number' ? value : Number.parseFloat(value)
+  const parsed =
+    typeof value === 'number' ? value : parseStrictNumberString(value)
 
-  if (!control || Number.isNaN(parsed)) {
+  if (!control || parsed === null || !Number.isFinite(parsed)) {
     return key === 'seed' ? null : 0
   }
 
@@ -115,6 +116,16 @@ export function normalizeParameterNumberValue(
 
   const precision = Math.max(0, String(control.step).split('.')[1]?.length ?? 0)
   return Number(clamped.toFixed(precision))
+}
+
+function parseStrictNumberString(value: string): number | null {
+  const trimmed = value.trim()
+  if (trimmed === '') {
+    return null
+  }
+
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 export function getParameterControlValueText(

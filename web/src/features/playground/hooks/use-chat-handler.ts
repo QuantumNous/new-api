@@ -24,6 +24,7 @@ import { sendChatCompletion } from '../api'
 import { ERROR_MESSAGES } from '../constants'
 import {
   applyStreamingChunk,
+  applyStreamingSources,
   buildChatCompletionPayload,
   updateAssistantMessageWithError,
   updateLastAssistantMessage,
@@ -33,6 +34,7 @@ import {
   hasChatCompletionChoice,
   isAssistantMessageFinal,
   isAssistantMessagePending,
+  mergeSources,
 } from '../lib'
 import type { Message, PlaygroundConfig, ParameterEnabled } from '../types'
 import { useStreamRequest } from './use-stream-request'
@@ -50,6 +52,7 @@ type PendingStreamChunks = {
   generation: number
   content: string
   reasoning: string
+  sources: NonNullable<Message['sources']>
 }
 
 function mergePendingStreamChunk(
@@ -80,6 +83,7 @@ export function useChatHandler({
     generation: 0,
     content: '',
     reasoning: '',
+    sources: [],
   })
   const streamFlushTimerRef = useRef<number | null>(null)
 
@@ -92,6 +96,7 @@ export function useChatHandler({
       generation,
       content: '',
       reasoning: '',
+      sources: [],
     }
   }, [])
 
@@ -105,7 +110,11 @@ export function useChatHandler({
 
       const pendingChunks = pendingStreamChunksRef.current
       if (pendingChunks.generation !== generation) return
-      if (!pendingChunks.reasoning && !pendingChunks.content) {
+      if (
+        !pendingChunks.reasoning &&
+        !pendingChunks.content &&
+        pendingChunks.sources.length === 0
+      ) {
         return
       }
 
@@ -113,6 +122,7 @@ export function useChatHandler({
         generation,
         content: '',
         reasoning: '',
+        sources: [],
       }
       onMessageUpdate((prev) => {
         if (generation !== requestGenerationRef.current) return prev
@@ -132,6 +142,13 @@ export function useChatHandler({
               updatedMessage,
               'content',
               pendingChunks.content
+            )
+          }
+
+          if (pendingChunks.sources.length > 0) {
+            updatedMessage = applyStreamingSources(
+              updatedMessage,
+              pendingChunks.sources
             )
           }
 
@@ -188,13 +205,28 @@ export function useChatHandler({
 
   // Handle stream update
   const handleStreamUpdate = useCallback(
-    (generation: number, type: 'reasoning' | 'content', chunk: string) => {
+    (
+      generation: number,
+      type: 'reasoning' | 'content' | 'sources',
+      update: string | NonNullable<Message['sources']>
+    ) => {
       if (generation !== requestGenerationRef.current) return
       if (pendingStreamChunksRef.current.generation !== generation) return
-      pendingStreamChunksRef.current[type] = mergePendingStreamChunk(
-        pendingStreamChunksRef.current[type],
-        chunk
-      )
+
+      if (type === 'sources') {
+        if (!Array.isArray(update)) return
+        pendingStreamChunksRef.current.sources = mergeSources(
+          pendingStreamChunksRef.current.sources,
+          update
+        )
+      } else {
+        if (typeof update !== 'string') return
+        pendingStreamChunksRef.current[type] = mergePendingStreamChunk(
+          pendingStreamChunksRef.current[type],
+          update
+        )
+      }
+
       scheduleStreamFlush(generation)
     },
     [scheduleStreamFlush]

@@ -695,10 +695,34 @@ func GetUserModels(c *gin.Context) {
 			groupsToQuery = []string{group}
 		}
 	}
+	endpointType := c.Query("endpoint_type")
+	if endpointType != "" && endpointType != string(constant.EndpointTypeImageGeneration) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "unsupported endpoint_type",
+		})
+		return
+	}
+
+	enabledModels := service.GetGroupsEnabledModels(groupsToQuery)
+	if endpointType == string(constant.EndpointTypeImageGeneration) {
+		filteredModels := make([]string, 0, len(enabledModels))
+		for _, m := range enabledModels {
+			supports := model.GetModelSupportEndpointTypes(m)
+			for _, ep := range supports {
+				if ep == constant.EndpointTypeImageGeneration {
+					filteredModels = append(filteredModels, m)
+					break
+				}
+			}
+		}
+		enabledModels = filteredModels
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    service.GetGroupsEnabledModels(groupsToQuery),
+		"data":    enabledModels,
 	})
 }
 

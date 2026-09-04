@@ -17,7 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { MESSAGE_STATUS, STORAGE_KEYS } from '../../constants'
-import type { PlaygroundConfig, ParameterEnabled, Message } from '../../types'
+import type {
+  PlaygroundConfig,
+  ParameterEnabled,
+  Message,
+  ImageConfig,
+} from '../../types'
 import {
   finalizeMessage,
   isAssistantMessagePending,
@@ -31,6 +36,7 @@ import {
   MAX_STORED_MESSAGES,
   MAX_STORED_MESSAGES_BYTES,
   STORAGE_VERSION,
+  imageConfigSchema,
   messagesSchema,
   parameterEnabledSchema,
   playgroundConfigSchema,
@@ -336,6 +342,35 @@ export function saveParameterEnabled(
 }
 
 /**
+ * Load image generation config from localStorage
+ */
+export function loadImageConfig(): Partial<ImageConfig> {
+  try {
+    const saved = readStoredValue(STORAGE_KEYS.IMAGE_CONFIG)
+    if (!saved) return {}
+
+    return imageConfigSchema.parse(unwrapStoredValue(saved))
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load image config:', error)
+  }
+  return {}
+}
+
+/**
+ * Save image generation config to localStorage
+ */
+export function saveImageConfig(imageConfig: Partial<ImageConfig>): void {
+  try {
+    const parsed = imageConfigSchema.parse(imageConfig)
+    writeStoredValue(STORAGE_KEYS.IMAGE_CONFIG, parsed)
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to save image config:', error)
+  }
+}
+
+/**
  * Load messages from localStorage
  */
 export function loadMessages(): Message[] | null {
@@ -391,6 +426,7 @@ export function clearPlaygroundData(): void {
     localStorage.removeItem(STORAGE_KEYS.CONFIG)
     localStorage.removeItem(STORAGE_KEYS.PARAMETER_ENABLED)
     localStorage.removeItem(STORAGE_KEYS.MESSAGES)
+    localStorage.removeItem(STORAGE_KEYS.IMAGE_CONFIG)
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Failed to clear playground data:', error)

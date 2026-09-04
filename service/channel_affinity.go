@@ -554,7 +554,7 @@ func GetPreferredChannelByAffinity(c *gin.Context, modelName string, usingGroup 
 	}
 	path := ""
 	if c != nil && c.Request != nil && c.Request.URL != nil {
-		path = c.Request.URL.Path
+		path = common.CanonicalRelayRequestPath(c.Request.URL.Path)
 	}
 	userAgent := ""
 	if c != nil && c.Request != nil {

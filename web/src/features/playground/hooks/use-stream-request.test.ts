@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, test } from 'vitest'
 
-import type { ChatCompletionRequest } from '../types'
+import type { ChatCompletionRequest, Message } from '../types'
 import { createStreamRequestController } from './use-stream-request'
 
 function deferred<T>() {
@@ -173,8 +173,12 @@ describe('latest-wins stream request coordination', () => {
       setStreaming: () => undefined,
     })
     const callbacks = {
-      onUpdate: (_type: 'reasoning' | 'content', chunk: string) =>
-        updates.push(chunk),
+      onUpdate: (
+        _type: 'reasoning' | 'content' | 'sources',
+        update: string | NonNullable<Message['sources']>
+      ) => {
+        if (typeof update === 'string') updates.push(update)
+      },
       onComplete: () => undefined,
       onError: () => undefined,
     }

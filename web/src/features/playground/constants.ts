@@ -35,6 +35,7 @@ export const MESSAGE_STATUS = {
 // API endpoints
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
+  IMAGE_GENERATIONS: '/pg/images/generations',
   USER_MODELS: '/api/user/models',
   USER_GROUPS: '/api/user/self/groups',
 } as const
@@ -54,6 +55,7 @@ export const DEFAULT_CONFIG: PlaygroundConfig = {
   presence_penalty: 0,
   seed: null,
   stream: true,
+  searchEnabled: false,
 }
 
 export const DEFAULT_PARAMETER_ENABLED: ParameterEnabled = {
@@ -65,11 +67,22 @@ export const DEFAULT_PARAMETER_ENABLED: ParameterEnabled = {
   seed: false,
 }
 
+// Default image configuration
+export const DEFAULT_IMAGE_CONFIG = {
+  model: '',
+  group: DEFAULT_GROUP,
+  n: 1,
+  size: 'auto',
+  quality: 'auto',
+  response_format: 'auto',
+}
+
 // Storage keys
 export const STORAGE_KEYS = {
   CONFIG: 'playground_config',
   MESSAGES: 'playground_messages',
   PARAMETER_ENABLED: 'playground_parameter_enabled',
+  IMAGE_CONFIG: 'playground_image_config',
 } as const
 
 // Error messages
