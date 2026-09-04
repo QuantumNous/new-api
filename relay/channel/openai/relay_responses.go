@@ -158,5 +158,10 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		usage.BillingUsage = dto.CloneBillingUsageWithEstimatedCompletion(usage.BillingUsage, usage.CompletionTokens)
 	}
 
+	// Terminal-state guard (#7059): forward a terminal failure event when
+	// the upstream relay ended abnormally instead of letting the stream
+	// close with only a success-looking envelope (or bare EOF).
+	helper.EmitRelayFailureTerminal(c, info)
+
 	return usage, nil
 }
