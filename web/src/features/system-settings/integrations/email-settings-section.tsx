@@ -34,6 +34,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 
 import {
   SettingsForm,
@@ -64,6 +65,11 @@ const createEmailSchema = (t: (key: string) => string) =>
     SMTPStartTLSEnabled: z.boolean(),
     SMTPInsecureSkipVerify: z.boolean(),
     SMTPForceAuthLogin: z.boolean(),
+    EmailVerificationSubject: z.string(),
+    EmailVerificationHTML: z.string(),
+    EmailPasswordResetSubject: z.string(),
+    EmailPasswordResetHTML: z.string(),
+    EmailNotifyHTML: z.string(),
   })
 
 type EmailFormValues = z.infer<ReturnType<typeof createEmailSchema>>
@@ -109,6 +115,11 @@ export function EmailSettingsSection({
       SMTPStartTLSEnabled: securityMode === 'starttls',
       SMTPInsecureSkipVerify: values.SMTPInsecureSkipVerify,
       SMTPForceAuthLogin: values.SMTPForceAuthLogin,
+      EmailVerificationSubject: values.EmailVerificationSubject,
+      EmailVerificationHTML: values.EmailVerificationHTML,
+      EmailPasswordResetSubject: values.EmailPasswordResetSubject,
+      EmailPasswordResetHTML: values.EmailPasswordResetHTML,
+      EmailNotifyHTML: values.EmailNotifyHTML,
     }
 
     const initial = {
@@ -121,6 +132,11 @@ export function EmailSettingsSection({
       SMTPStartTLSEnabled: defaultValues.SMTPStartTLSEnabled,
       SMTPInsecureSkipVerify: defaultValues.SMTPInsecureSkipVerify,
       SMTPForceAuthLogin: defaultValues.SMTPForceAuthLogin,
+      EmailVerificationSubject: defaultValues.EmailVerificationSubject,
+      EmailVerificationHTML: defaultValues.EmailVerificationHTML,
+      EmailPasswordResetSubject: defaultValues.EmailPasswordResetSubject,
+      EmailPasswordResetHTML: defaultValues.EmailPasswordResetHTML,
+      EmailNotifyHTML: defaultValues.EmailNotifyHTML,
     }
 
     const updates: Array<{ key: string; value: string | boolean }> = []
@@ -171,6 +187,20 @@ export function EmailSettingsSection({
         key: 'SMTPForceAuthLogin',
         value: sanitized.SMTPForceAuthLogin,
       })
+    }
+
+    const templateKeys = [
+      'EmailVerificationSubject',
+      'EmailVerificationHTML',
+      'EmailPasswordResetSubject',
+      'EmailPasswordResetHTML',
+      'EmailNotifyHTML',
+    ] as const
+
+    for (const key of templateKeys) {
+      if (sanitized[key] !== initial[key]) {
+        updates.push({ key, value: sanitized[key] })
+      }
     }
 
     for (const update of updates) {
@@ -400,6 +430,129 @@ export function EmailSettingsSection({
                 </FormControl>
                 <FormDescription>
                   {t('Leave blank to keep the existing credential')}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='EmailVerificationSubject'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Verification email subject')}</FormLabel>
+                <FormControl>
+                  <Input
+                    autoComplete='off'
+                    placeholder='{{system_name}}邮箱验证邮件'
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('Leave blank to use the built-in template')}.{' '}
+                  {t('Supported placeholders')}: {'{{system_name}}'},{' '}
+                  {'{{code}}'}, {'{{minutes}}'}, {'{{email}}'}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='EmailVerificationHTML'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Verification email HTML')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={6}
+                    autoComplete='off'
+                    placeholder='<p>您好，你正在进行{{system_name}}邮箱验证。</p>'
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('Leave blank to use the built-in template')}.{' '}
+                  {t('Supported placeholders')}: {'{{system_name}}'},{' '}
+                  {'{{code}}'}, {'{{minutes}}'}, {'{{email}}'}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='EmailPasswordResetSubject'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Password reset email subject')}</FormLabel>
+                <FormControl>
+                  <Input
+                    autoComplete='off'
+                    placeholder='{{system_name}}密码重置'
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('Leave blank to use the built-in template')}.{' '}
+                  {t('Supported placeholders')}: {'{{system_name}}'},{' '}
+                  {'{{link}}'}, {'{{minutes}}'}, {'{{email}}'}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='EmailPasswordResetHTML'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Password reset email HTML')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={8}
+                    autoComplete='off'
+                    placeholder="<p>点击 <a href='{{link}}'>此处</a> 进行密码重置。</p>"
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('Leave blank to use the built-in template')}.{' '}
+                  {t('Supported placeholders')}: {'{{system_name}}'},{' '}
+                  {'{{link}}'}, {'{{minutes}}'}, {'{{email}}'}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='EmailNotifyHTML'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Notification email HTML')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={6}
+                    autoComplete='off'
+                    placeholder='<div>{{title}}</div><div>{{content}}</div>'
+                    {...field}
+                    onChange={(event) => field.onChange(event.target.value)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t('Leave blank to use the built-in template')}.{' '}
+                  {t('Supported placeholders')}: {'{{system_name}}'},{' '}
+                  {'{{title}}'}, {'{{content}}'}, {'{{email}}'}
                 </FormDescription>
                 <FormMessage />
               </FormItem>
