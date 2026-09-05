@@ -42,6 +42,13 @@ export interface ModelCardGridProps {
 export function ModelCardGrid(props: ModelCardGridProps) {
   const { t } = useTranslation()
   const [page, setPage] = useState(1)
+  const [prevModels, setPrevModels] = useState(props.models)
+  if (props.models !== prevModels) {
+    // A new filtered list (group/search/sort change) invalidates the old page
+    // number; adjusting during render resets it in the same paint.
+    setPrevModels(props.models)
+    setPage(1)
+  }
   const pageSize = DEFAULT_PRICING_PAGE_SIZE
   const tokenUnit = props.tokenUnit ?? DEFAULT_TOKEN_UNIT
   const totalPages = Math.max(1, Math.ceil(props.models.length / pageSize))
