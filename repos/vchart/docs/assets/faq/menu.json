@@ -1,0 +1,1693 @@
+{
+  "menu": "faq",
+  "children": [
+    {
+      "Index": 1,
+      "path": "1- Does the tooltip support changing the background color",
+      "title": {
+        "zh": "1- tooltip是否支持修改背景色",
+        "en": "1- Does the tooltip support changing the background color"
+      }
+    },
+    {
+      "Index": 2,
+      "path": "2-How can I customize the display of fields in data in Tooltip in VChart",
+      "title": {
+        "zh": "2- VChart 中 Tooltip 中怎么能自定义展示数据中的字段？",
+        "en": "2-How can I customize the display of fields in data in Tooltip in VChart"
+      }
+    },
+    {
+      "Index": 3,
+      "path": "3- How to solve the issue of line chart bifurcation after combining with stacked line and bidirectional bar charts",
+      "title": {
+        "zh": "3- 如何解决堆叠折线图和双向柱状图组合后，折线图部分分岔的问题？",
+        "en": "3- How to solve the issue of line chart bifurcation after combining with stacked line and bidirectional bar charts"
+      }
+    },
+    {
+      "Index": 4,
+      "path": "4-The time interval of the coordinate axis scale is given",
+      "title": {
+        "zh": "4- 坐标轴刻度的时间区间长度是给定的（一个季度），我怎么能设定比如只显示三个坐标轴刻度么？或者自适应的均匀些？",
+        "en": "4-The time interval of the coordinate axis scale is given"
+      }
+    },
+    {
+      "Index": 5,
+      "path": "5- How to position the chart on the far left of the canvas",
+      "title": {
+        "zh": "5- 怎么让图在canvas的最左边? ",
+        "en": "5- How to position the chart on the far left of the canvas"
+      }
+    },
+    {
+      "Index": 6,
+      "path": "6- How to export charts as images",
+      "title": {
+        "zh": "6- 图表如何导出图片？",
+        "en": "6- How to export charts as images"
+      }
+    },
+    {
+      "Index": 7,
+      "path": "7- How to draw combination charts in React",
+      "title": {
+        "zh": "7-react 如何画组合图",
+        "en": "7- How to draw combination charts in React"
+      }
+    },
+    {
+      "Index": 8,
+      "path": "8- Does the tooltip support custom two-line display content",
+      "title": {
+        "zh": "8- tooltip是否支持自定义双行显示内容",
+        "en": "8- Does the tooltip support custom two-line display content"
+      }
+    },
+    {
+      "Index": 9,
+      "path": "9- How to display \u0027sum\u0027 in the tooltip of a line chart",
+      "title": {
+        "zh": "9-如何在line chart的tooltip中显示“加和”？",
+        "en": "9- How to display \u0027sum\u0027 in the tooltip of a line chart"
+      }
+    },
+    {
+      "Index": 10,
+      "path": "10- How to change the color of the legend",
+      "title": {
+        "zh": "10- 如何更改图例的颜色？",
+        "en": "10- How to change the color of the legend"
+      }
+    },
+    {
+      "Index": 11,
+      "path": "11- How to display a color block area within a specified x-axis range in the chart",
+      "title": {
+        "zh": "11- 如何在图表中显示一个色块区域，区域是覆盖在指定的 x 轴范围之内？",
+        "en": "11- How to display a color block area within a specified x-axis range in the chart"
+      }
+    },
+    {
+      "Index": 12,
+      "path": "12- How to set grid lines on VChart axes to dashed lines",
+      "title": {
+        "zh": "12- VChart 坐标轴网格线如何设置为虚线",
+        "en": "12- How to set grid lines on VChart axes to dashed lines"
+      }
+    },
+    {
+      "Index": 13,
+      "path": "13-How does the label of the auxiliary line automatically change lines",
+      "title": {
+        "zh": "13- 辅助线的 label 如何自动换行？",
+        "en": "13-How does the label of the auxiliary line automatically change lines"
+      }
+    },
+    {
+      "Index": 14,
+      "path": "14-How to customize the label text content, color, and layout of a pie chart",
+      "title": {
+        "zh": "14- 如何自定义饼图的 label 文字内容、颜色、布局",
+        "en": "14-How to customize the label text content, color, and layout of a pie chart"
+      }
+    },
+    {
+      "Index": 15,
+      "path": "15- How to implement line breaks in pie chart labels",
+      "title": {
+        "zh": "15- 饼图标签如何实现换行效果",
+        "en": "15- How to implement line breaks in pie chart labels"
+      }
+    },
+    {
+      "Index": 16,
+      "path": "16-How to achieve permanent display of chart tooltips",
+      "title": {
+        "zh": "16- 如何实现图表 tooltip 常驻显示？",
+        "en": "16-How to achieve permanent display of chart tooltips"
+      }
+    },
+    {
+      "Index": 17,
+      "path": "17- How to use tooltips and the x-axis in the vchart library",
+      "title": {
+        "zh": "17- vchart 图表库中的 tooltip 和横坐标如何使用？",
+        "en": "17- How to use tooltips and the x-axis in the vchart library"
+      }
+    },
+    {
+      "Index": 18,
+      "path": "18-How to truncate, wrap, or perform other formatting effects on axis labels in charts",
+      "title": {
+        "zh": "18- 图表的轴标签如何做截断，换行等效果？",
+        "en": "18-How to truncate, wrap, or perform other formatting effects on axis labels in charts"
+      }
+    },
+    {
+      "Index": 19,
+      "path": "19-How to configure gradient colors for area charts",
+      "title": {
+        "zh": "19- 面积图渐变色如何配置，能否支持堆叠面积图配置不同渐变方向的渐变色？",
+        "en": "19-How to configure gradient colors for area charts"
+      }
+    },
+    {
+      "Index": 20,
+      "path": "20- How to add graphics to axis labels",
+      "title": {
+        "zh": "20- 如何使轴标签带上图形？",
+        "en": "20- How to add graphics to axis labels"
+      }
+    },
+    {
+      "Index": 21,
+      "path": "21- How to adjust the display order of contents in the Tooltip of a VChart stacked bar chart",
+      "title": {
+        "zh": "21-VChart堆积柱图如何调整Tooltip中内容的展示顺序？",
+        "en": "21- How to adjust the display order of contents in the Tooltip of a VChart stacked bar chart"
+      }
+    },
+    {
+      "Index": 22,
+      "path": "22- How to center the labels in a bar chart",
+      "title": {
+        "zh": "22- 如何设置柱状图的标签居中？",
+        "en": "22- How to center the labels in a bar chart"
+      }
+    },
+    {
+      "Index": 23,
+      "path": "23- How to customize legend shapes",
+      "title": {
+        "zh": "23- 如何自定义图例形状？",
+        "en": "23- How to customize legend shapes"
+      }
+    },
+    {
+      "Index": 24,
+      "path": "24- How to configure a custom theme in VChart",
+      "title": {
+        "zh": "24- 如何在VChart中配置自定义主题？",
+        "en": "24- How to configure a custom theme in VChart"
+      }
+    },
+    {
+      "Index": 25,
+      "path": "25- How to listen to DataZoom operations",
+      "title": {
+        "zh": "25- 如何监听 DataZoom 的操作？",
+        "en": "25- How to listen to DataZoom operations"
+      }
+    },
+    {
+      "Index": 26,
+      "path": "26- How to render axis labels using HTML",
+      "title": {
+        "zh": "26-轴标签如何使用Html渲染？",
+        "en": "26- How to render axis labels using HTML"
+      }
+    },
+    {
+      "Index": 27,
+      "path": "27-How to customize the mounting node of the tooltip component in VChart",
+      "title": {
+        "zh": "27- 如何自定义 Tooltip 组件的挂载节点？",
+        "en": "27-How to customize the mounting node of the tooltip component in VChart"
+      }
+    },
+    {
+      "Index": 28,
+      "path": "28- How to configure a correlation scatterplot in VChart",
+      "title": {
+        "zh": "28- VChart 如何配置出相关性散点图",
+        "en": "28- How to configure a correlation scatterplot in VChart"
+      }
+    },
+    {
+      "Index": 29,
+      "path": "29- How to control layout spacing of charts and components within the chart",
+      "title": {
+        "zh": "29- 如何控制图表以及图表内组件的布局间距",
+        "en": "29- How to control layout spacing of charts and components within the chart"
+      }
+    },
+    {
+      "Index": 30,
+      "path": "30-How to add prompt information to the legend",
+      "title": {
+        "zh": "30- 如何给图例（legend）添加提示信息？",
+        "en": "30-How to add prompt information to the legend"
+      }
+    },
+    {
+      "Index": 31,
+      "path": "31- Can VChart be server-side rendered",
+      "title": {
+        "zh": "31- VChart 可以服务端渲染吗",
+        "en": "31- Can VChart be server-side rendered"
+      }
+    },
+    {
+      "Index": 32,
+      "path": "32- How to configure the points in a line chart to be sparser in vchart",
+      "title": {
+        "zh": "32- vchart如何配置折线图的点稀疏一点",
+        "en": "32- How to configure the points in a line chart to be sparser in vchart"
+      }
+    },
+    {
+      "Index": 33,
+      "path": "33-How to customize the tooltip display content in a dual axis chart",
+      "title": {
+        "zh": "33- 双轴图中如何自定义 Tooltip 显示内容？",
+        "en": "33-How to customize the tooltip display content in a dual axis chart"
+      }
+    },
+    {
+      "Index": 34,
+      "path": "34- How to left-align bar chart labels and keep the style consistent",
+      "title": {
+        "zh": "34- 如何实现条形图标签左对齐，标签的样式保持一致",
+        "en": "34- How to left-align bar chart labels and keep the style consistent"
+      }
+    },
+    {
+      "Index": 35,
+      "path": "35- How to disable chart interaction",
+      "title": {
+        "zh": "35- 如何禁用图表交互",
+        "en": "35- How to disable chart interaction"
+      }
+    },
+    {
+      "Index": 36,
+      "path": "36-How to configure a DataZoom component in a chart that can be used on a mobile device",
+      "title": {
+        "zh": "36- 如何在图表中配置一个能够在移动端响应的 DataZoom 组件？",
+        "en": "36-How to configure a DataZoom component in a chart that can be used on a mobile device"
+      }
+    },
+    {
+      "Index": 37,
+      "path": "37-When the data is all 0, how to configure the position of the x-axis",
+      "title": {
+        "zh": "37- 数据全 0 时，如何配置 x 轴的位置？",
+        "en": "37-When the data is all 0, how to configure the position of the x-axis"
+      }
+    },
+    {
+      "Index": 38,
+      "path": "38-How does the label at the center of the ring chart adapt to the size of the ring",
+      "title": {
+        "zh": "38- 环形图 label 如何自适应环的大小？",
+        "en": "38-How does the label at the center of the ring chart adapt to the size of the ring"
+      }
+    },
+    {
+      "Index": 39,
+      "path": "39-How to customize the length of the pie chart guide line",
+      "title": {
+        "zh": "39- 如何自定义饼图引导线的长度？",
+        "en": "39-How to customize the length of the pie chart guide line"
+      }
+    },
+    {
+      "Index": 41,
+      "path": "41- Does the line chart support setting background colors based on Y-axis segments",
+      "title": {
+        "zh": "41-折线图支持按照y轴分段设置背景颜色吗",
+        "en": "41- Does the line chart support setting background colors based on Y-axis segments"
+      }
+    },
+    {
+      "Index": 42,
+      "path": "42-How can VChart set the number of display bars for Tooltip, and support effects such as scrolling, pagination, and merged display when there is too much data",
+      "title": {
+        "zh": "42- VChart 如何设置 Tooltip 的展示条数，数据过多时支持滚动、分页、合并展示等效果？",
+        "en": "42-How can VChart set the number of display bars for Tooltip, and support effects such as scrolling, pagination, and merged display when there is too much data"
+      }
+    },
+    {
+      "Index": 43,
+      "path": "43- Does the thumbnail axis handle shape support SVG",
+      "title": {
+        "zh": "43- 缩略轴手柄图元形状是否支持svg？",
+        "en": "43- Does the thumbnail axis handle shape support SVG"
+      }
+    },
+    {
+      "Index": 44,
+      "path": "44-How to customize the image and color of a legend",
+      "title": {
+        "zh": "44- 如何自定义图表中的图例的图像和颜色？",
+        "en": "44-How to customize the image and color of a legend"
+      }
+    },
+    {
+      "Index": 45,
+      "path": "45-How to control the display order of stacking and legends and add display of total information on the tooltip",
+      "title": {
+        "zh": "45- 如何控制堆叠以及图例的显示顺序，同时在 tooltip 上添加总计信息的展示？",
+        "en": "45-How to control the display order of stacking and legends and add display of total information on the tooltip"
+      }
+    },
+    {
+      "Index": 46,
+      "path": "46- How to display all words in a word cloud on a small canvas",
+      "title": {
+        "zh": "46-词云如何在小画布上显示所有词",
+        "en": "46- How to display all words in a word cloud on a small canvas"
+      }
+    },
+    {
+      "Index": 47,
+      "path": "47- How to configure tooltip and legend shapes as rounded rectangles",
+      "title": {
+        "zh": "47-tooltip 和 legend shape如何配置为带圆角的矩形",
+        "en": "47- How to configure tooltip and legend shapes as rounded rectangles"
+      }
+    },
+    {
+      "Index": 48,
+      "path": "48-How to customize the position and offset of the tooltip in the chart",
+      "title": {
+        "zh": "48- 图表中如何自定义 tooltip 的位置，偏移量？",
+        "en": "48-How to customize the position and offset of the tooltip in the chart"
+      }
+    },
+    {
+      "Index": 49,
+      "path": "49- How to configure the hierarchy in a combination chart",
+      "title": {
+        "zh": "49- 组合图层级如何配置？",
+        "en": "49- How to configure the hierarchy in a combination chart"
+      }
+    },
+    {
+      "Index": 50,
+      "path": "50- How to adjust the layer order of lines in a line chart",
+      "title": {
+        "zh": "50-如何调整线图中线的层级",
+        "en": "50- How to adjust the layer order of lines in a line chart"
+      }
+    },
+    {
+      "Index": 51,
+      "path": "51-How to use charts libraries in React",
+      "title": {
+        "zh": "51- 如何在 React 中使用图表库，如 VChart？",
+        "en": "51-How to use charts libraries in React"
+      }
+    },
+    {
+      "Index": 52,
+      "path": "52- Can the legend shape be set to a rectangle",
+      "title": {
+        "zh": "52- 图例形状是否可以设置为长方形？",
+        "en": "52- Can the legend shape be set to a rectangle"
+      }
+    },
+    {
+      "Index": 53,
+      "path": "53- How to configure axis unit display on the axes of a line chart",
+      "title": {
+        "zh": "53-如何在折线图的axes上配置轴单位的展示",
+        "en": "53- How to configure axis unit display on the axes of a line chart"
+      }
+    },
+    {
+      "Index": 54,
+      "path": "54- How to configure the outer border of graphical elements when hovering on a bar chart",
+      "title": {
+        "zh": "54- 柱状图如何配置hover时的图元外边框？",
+        "en": "54- How to configure the outer border of graphical elements when hovering on a bar chart"
+      }
+    },
+    {
+      "Index": 55,
+      "path": "55- How to modify the marker graphic of tooltip content items",
+      "title": {
+        "zh": "55- 如何修改 tooltip 内容项的标记图形",
+        "en": "55- How to modify the marker graphic of tooltip content items"
+      }
+    },
+    {
+      "Index": 56,
+      "path": "56- How to set the bar width in a bar chart in VChart",
+      "title": {
+        "zh": "56- VChart 如何设置柱状图的柱子宽度",
+        "en": "56- How to set the bar width in a bar chart in VChart"
+      }
+    },
+    {
+      "Index": 57,
+      "path": "57-When listening to events at the Chart level, is it possible to get the type of element that was clicked via the event parameter, similar to the target parameter in dom",
+      "title": {
+        "zh": "57- 在 Chart 层面监听事件，是否可以通过 event 参数获取具体点击的元素类型，类似于 dom 的 target 参数？",
+        "en": "57-When listening to events at the Chart level, is it possible to get the type of element that was clicked via the event parameter, similar to the target parameter in dom"
+      }
+    },
+    {
+      "Index": 58,
+      "path": "58- How to clear the selection in the onbrushEnd event when using vchart",
+      "title": {
+        "zh": "58- 如何在使用vchart时，在onbrushEnd事件最后清除框选？",
+        "en": "58- How to clear the selection in the onbrushEnd event when using vchart"
+      }
+    },
+    {
+      "Index": 59,
+      "path": "59- What are the methods for formatting chart labels in VChart",
+      "title": {
+        "zh": "59- VChart 图表标签格式化的方法有哪些？",
+        "en": "59- What are the methods for formatting chart labels in VChart"
+      }
+    },
+    {
+      "Index": 60,
+      "path": "60- How to configure the size of a pie chart in VChart",
+      "title": {
+        "zh": "60- VChart 如何配置饼图大小",
+        "en": "60- How to configure the size of a pie chart in VChart"
+      }
+    },
+    {
+      "Index": 61,
+      "path": "61-How to generate a simplified mini line chart",
+      "title": {
+        "zh": "61- 如何生成一个 mini 折线图？",
+        "en": "61-How to generate a simplified mini line chart"
+      }
+    },
+    {
+      "Index": 62,
+      "path": "62-How to achieve reverse y-axis effect",
+      "title": {
+        "zh": "62- 如何实现反向 y 轴效果？",
+        "en": "62-How to achieve reverse y-axis effect"
+      }
+    },
+    {
+      "Index": 63,
+      "path": "63-How to configure the range of the axis",
+      "title": {
+        "zh": "63- 如何配置坐标轴的范围？",
+        "en": "63-How to configure the range of the axis"
+      }
+    },
+    {
+      "Index": 64,
+      "path": "64-How to display the center value when selecting an arc in a pie chart",
+      "title": {
+        "zh": "64- 环形图中心指标能否设置选中时展示？",
+        "en": "64-How to display the center value when selecting an arc in a pie chart"
+      }
+    },
+    {
+      "Index": 65,
+      "path": "65- How to prevent displaying abbreviated tooltips when custom tooltips are already set",
+      "title": {
+        "zh": "65- 如何禁止被缩略的 tooltip 展示，已经自定义 tooltip 不需要重复展示",
+        "en": "65- How to prevent displaying abbreviated tooltips when custom tooltips are already set"
+      }
+    },
+    {
+      "Index": 66,
+      "path": "66-How do I customize the position of the tooltip to avoid occlusion",
+      "title": {
+        "zh": "66- 如何自定义 tooltip 的位置，避免遮挡？",
+        "en": "66-How do I customize the position of the tooltip to avoid occlusion"
+      }
+    },
+    {
+      "Index": 67,
+      "path": "67- How to set the axis width in VChart",
+      "title": {
+        "zh": "67- VChart  如何设置坐标轴宽度？",
+        "en": "67- How to set the axis width in VChart"
+      }
+    },
+    {
+      "Index": 68,
+      "path": "68- Is there a way to deselect all line chart contents currently set to display by default (e.g., a button to hide all)",
+      "title": {
+        "zh": "68-折线图展示内容目前默认是全部选择展示，是否可以有渠道反选（例如有个按钮一键不展示）",
+        "en": "68- Is there a way to deselect all line chart contents currently set to display by default (e.g., a button to hide all)"
+      }
+    },
+    {
+      "Index": 69,
+      "path": "69- How to select only the current item when clicking a legend",
+      "title": {
+        "zh": "69- 如何实现图例点击时仅选中当前项？",
+        "en": "69- How to select only the current item when clicking a legend"
+      }
+    },
+    {
+      "Index": 70,
+      "path": "70-How can line and bar charts be displayed at the same time",
+      "title": {
+        "zh": "70- 折线图和柱状图如何同时展示？",
+        "en": "70-How can line and bar charts be displayed at the same time"
+      }
+    },
+    {
+      "Index": 71,
+      "path": "71- Does the tree map support configuring the style when hovering",
+      "title": {
+        "zh": "71- 树图支持配置hover时的样式吗？",
+        "en": "71- Does the tree map support configuring the style when hovering"
+      }
+    },
+    {
+      "Index": 72,
+      "path": "72-How to set column width in bar chart",
+      "title": {
+        "zh": "72- 柱状图如何设置柱子宽度？",
+        "en": "72-How to set column width in bar chart"
+      }
+    },
+    {
+      "Index": 73,
+      "path": "73- In the vchart library, why does the area chart\u0027s Y-axis display lower values higher",
+      "title": {
+        "zh": "73- vchart图表库中面积图Y轴展示异常，数值低的反而更高",
+        "en": "73- In the vchart library, why does the area chart\u0027s Y-axis display lower values higher"
+      }
+    },
+    {
+      "Index": 74,
+      "path": "74- How to adjust bar spacing in a bar chart",
+      "title": {
+        "zh": "74- 如何调整柱状图的柱间距",
+        "en": "74- How to adjust bar spacing in a bar chart"
+      }
+    },
+    {
+      "Index": 75,
+      "path": "75-How to display the legend title and legend with left-right separation in the same row",
+      "title": {
+        "zh": "75- 如何实现图例的标题和 图例左右分开显示？",
+        "en": "75-How to display the legend title and legend with left-right separation in the same row"
+      }
+    },
+    {
+      "Index": 76,
+      "path": "76-How do I set the scrollbars for the common chart",
+      "title": {
+        "zh": "76- 组合图滚动条如何设置？",
+        "en": "76-How do I set the scrollbars for the common chart"
+      }
+    },
+    {
+      "Index": 77,
+      "path": "77-How to customize the display text content of the funnel chart",
+      "title": {
+        "zh": "77- 漏斗图如何自定义显示文字内容？",
+        "en": "77-How to customize the display text content of the funnel chart"
+      }
+    },
+    {
+      "Index": 78,
+      "path": "78-How do I configure the default scroll position for chart scrollbars",
+      "title": {
+        "zh": "78- 图表滚动条如何配置默认滚动的位置？",
+        "en": "78-How do I configure the default scroll position for chart scrollbars"
+      }
+    },
+    {
+      "Index": 79,
+      "path": "79- How to achieve coordinated display of positions in other charts when moving the mouse in the vchart library",
+      "title": {
+        "zh": "79- 在vchart图表库中，如何实现鼠标移动时其他图表也显示位置的联动效果？",
+        "en": "79- How to achieve coordinated display of positions in other charts when moving the mouse in the vchart library"
+      }
+    },
+    {
+      "Index": 80,
+      "path": "80-How can the background color of the funnel chart\u0027s conversion layers be modified",
+      "title": {
+        "zh": "80- 漏斗图转化层的背景颜色如何修改？",
+        "en": "80-How can the background color of the funnel chart\u0027s conversion layers be modified"
+      }
+    },
+    {
+      "Index": 81,
+      "path": "81- How to solve the issue of the upper area chart obscuring the lower point chart in a combo chart",
+      "title": {
+        "zh": "81- 如何解决在组合图中，上层面积图遮挡下层点图的问题？",
+        "en": "81- How to solve the issue of the upper area chart obscuring the lower point chart in a combo chart"
+      }
+    },
+    {
+      "Index": 82,
+      "path": "82-How to use chart components in Taro",
+      "title": {
+        "zh": "82- 如何在 Taro 框架中使用图表组件？",
+        "en": "82-How to use chart components in Taro"
+      }
+    },
+    {
+      "Index": 83,
+      "path": "83-How to Customize Colors for Different Series in Dual-Axis Chart",
+      "title": {
+        "zh": "83- 线、柱双轴图中，如何自定义不同系列的颜色？",
+        "en": "83-How to Customize Colors for Different Series in Dual-Axis Chart"
+      }
+    },
+    {
+      "Index": 84,
+      "path": "84- How to configure the style of legend pager arrows in VChart",
+      "title": {
+        "zh": "84- VChart 中图例翻页器箭头的样式如何配置？",
+        "en": "84- How to configure the style of legend pager arrows in VChart"
+      }
+    },
+    {
+      "Index": 85,
+      "path": "85-How to display scales at several points on the x-axis of an area chart",
+      "title": {
+        "zh": "85- 面积图 x 轴如何隔几个点显示刻度？",
+        "en": "85-How to display scales at several points on the x-axis of an area chart"
+      }
+    },
+    {
+      "Index": 86,
+      "path": "86- How to emphasize a specific point in a vchart line chart",
+      "title": {
+        "zh": "86- vchart折线图如何支持强调某个点",
+        "en": "86- How to emphasize a specific point in a vchart line chart"
+      }
+    },
+    {
+      "Index": 87,
+      "path": "87- How to handle incomplete label display in VChart pie charts",
+      "title": {
+        "zh": "87- VChart 饼图label显示不全, 该如何处理?",
+        "en": "87- How to handle incomplete label display in VChart pie charts"
+      }
+    },
+    {
+      "Index": 88,
+      "path": "88- How to customize pie chart labels",
+      "title": {
+        "zh": "88- 饼图标签如何自定义？",
+        "en": "88- How to customize pie chart labels"
+      }
+    },
+    {
+      "Index": 89,
+      "path": "89- How to retrieve all data of the same dimension as the clicked bar in a stacked bar chart",
+      "title": {
+        "zh": "89- 当使用堆叠柱状图时，如何在点击事件中获取与被点击柱子同维度的所有数据",
+        "en": "89- How to retrieve all data of the same dimension as the clicked bar in a stacked bar chart"
+      }
+    },
+    {
+      "Index": 90,
+      "path": "90-How can VChart achieve a profile effect similar to ECharts",
+      "title": {
+        "zh": "90- VChart 如何实现类似 ECharts 的 profile 效果？",
+        "en": "90-How can VChart achieve a profile effect similar to ECharts"
+      }
+    },
+    {
+      "Index": 91,
+      "path": "91- How to add custom items to a tooltip",
+      "title": {
+        "zh": "91- 如何在tooltip中添加自定义项？",
+        "en": "91- How to add custom items to a tooltip"
+      }
+    },
+    {
+      "Index": 92,
+      "path": "92- How to set a segment of a dashed line in a line chart",
+      "title": {
+        "zh": "92- 折线图如何设置一段虚线？",
+        "en": "92- How to set a segment of a dashed line in a line chart"
+      }
+    },
+    {
+      "Index": 93,
+      "path": "93-How to set the style of the line segments in a line chart, such as dashed at the end",
+      "title": {
+        "zh": "93- 如何设置折线的分段样式，比如 末尾虚线？",
+        "en": "93-How to set the style of the line segments in a line chart, such as dashed at the end"
+      }
+    },
+    {
+      "Index": 94,
+      "path": "94- How to set the background width during bar chart interaction",
+      "title": {
+        "zh": "94- 如何设置柱状图交互时的背景宽度？",
+        "en": "94- How to set the background width during bar chart interaction"
+      }
+    },
+    {
+      "Index": 95,
+      "path": "95- How to achieve edge-aligned x-axis labels in a trend chart",
+      "title": {
+        "zh": "95- 如何实现趋势图的x轴标签贴边的效果",
+        "en": "95- How to achieve edge-aligned x-axis labels in a trend chart"
+      }
+    },
+    {
+      "Index": 96,
+      "path": "96-How to display the complete information of the legend when hovering",
+      "title": {
+        "zh": "96- 如何 hover 时显示图例的完整信息？",
+        "en": "96-How to display the complete information of the legend when hovering"
+      }
+    },
+    {
+      "Index": 97,
+      "path": "97-How to use chart library in mini program",
+      "title": {
+        "zh": "97- 如何在小程序中使用图表库？",
+        "en": "97-How to use chart library in mini program"
+      }
+    },
+    {
+      "Index": 98,
+      "path": "98- How to customize legends in React",
+      "title": {
+        "zh": "98- 如何以 React 的方式， 自定义图例？",
+        "en": "98- How to customize legends in React"
+      }
+    },
+    {
+      "Index": 99,
+      "path": "99- Can a line chart be segmented",
+      "title": {
+        "zh": "99- 折线图能分段吗？",
+        "en": "99- Can a line chart be segmented"
+      }
+    },
+    {
+      "Index": 100,
+      "path": "100-How can Tooltip achieve multi column display in VChart",
+      "title": {
+        "zh": "100- VChart 中 Tooltip 如何实现多列显示？",
+        "en": "100-How can Tooltip achieve multi column display in VChart"
+      }
+    },
+    {
+      "Index": 101,
+      "path": "101- How to configure nested pie charts in VChart",
+      "title": {
+        "zh": "101- VChart 怎么配置嵌套饼图",
+        "en": "101- How to configure nested pie charts in VChart"
+      }
+    },
+    {
+      "Index": 102,
+      "path": "102-How to automatically update chart data in React components",
+      "title": {
+        "zh": "102- React 组件中如何自动更新图表数据？",
+        "en": "102-How to automatically update chart data in React components"
+      }
+    },
+    {
+      "Index": 103,
+      "path": "103-How to change the hover display content when the mouse is moved into the chart area",
+      "title": {
+        "zh": "103- 鼠标移入图表区域，hover 显示内容怎么更换？",
+        "en": "103-How to change the hover display content when the mouse is moved into the chart area"
+      }
+    },
+    {
+      "Index": 104,
+      "path": "104- Issues with x-axis data overlapping and y-axis data not displaying when using the vchart library",
+      "title": {
+        "zh": "104- 使用vchart图表库时x轴数据重叠和y轴数据不显示的问题",
+        "en": "104- Issues with x-axis data overlapping and y-axis data not displaying when using the vchart library"
+      }
+    },
+    {
+      "Index": 105,
+      "path": "105- How to customize Tooltip shapes",
+      "title": {
+        "zh": "105- 如何自定义Tooltip形状",
+        "en": "105- How to customize Tooltip shapes"
+      }
+    },
+    {
+      "Index": 106,
+      "path": "106- How to set a default selection for a sector in a VChart pie chart",
+      "title": {
+        "zh": "106- VChart  饼图如何设置默认选中一个区域？",
+        "en": "106- How to set a default selection for a sector in a VChart pie chart"
+      }
+    },
+    {
+      "Index": 107,
+      "path": "107-How can we still make data points respond to hover events without displaying point graphics in area chart",
+      "title": {
+        "zh": "107- 面积图，如何不显示 point 图形 的情况下，仍然能让数据点响应 hover 事件？",
+        "en": "107-How can we still make data points respond to hover events without displaying point graphics in area chart"
+      }
+    },
+    {
+      "Index": 108,
+      "path": "108-How to configure the axis scale alignment of a two-axis graph",
+      "title": {
+        "zh": "108- 47.如何配置双轴图的坐标轴刻度对齐？",
+        "en": "108-How to configure the axis scale alignment of a two-axis graph"
+      }
+    },
+    {
+      "Index": 109,
+      "path": "109-How to implement a combination of line chart and stacked bar chart",
+      "title": {
+        "zh": "109- 如何实现折线图和堆积柱状图的组合？",
+        "en": "109-How to implement a combination of line chart and stacked bar chart"
+      }
+    },
+    {
+      "Index": 110,
+      "path": "110-How to customize pointer style in a gauge chart",
+      "title": {
+        "zh": "110- 如何自定义仪表图指针样式？",
+        "en": "110-How to customize pointer style in a gauge chart"
+      }
+    },
+    {
+      "Index": 111,
+      "path": "111- How to sort x-axis labels in a combination chart",
+      "title": {
+        "zh": "111-组合图如何实现对x轴的标签进行排序排序？",
+        "en": "111- How to sort x-axis labels in a combination chart"
+      }
+    },
+    {
+      "Index": 112,
+      "path": "112-How to add transition animations when clicking the legend of a funnel chart",
+      "title": {
+        "zh": "112- 漏斗图点击图例怎么添加过渡动画？",
+        "en": "112-How to add transition animations when clicking the legend of a funnel chart"
+      }
+    },
+    {
+      "Index": 113,
+      "path": "113- How to change bar width in a bar chart",
+      "title": {
+        "zh": "113- 柱状图如何改变柱宽",
+        "en": "113- How to change bar width in a bar chart"
+      }
+    },
+    {
+      "Index": 114,
+      "path": "114-How to add a title and subtitle to a chart in VChart",
+      "title": {
+        "zh": "114- 如何给图表添加标题？",
+        "en": "114-How to add a title and subtitle to a chart in VChart"
+      }
+    },
+    {
+      "Index": 115,
+      "path": "115-How to modify the text color of the percentage of the funnel chart",
+      "title": {
+        "zh": "115- 漏斗图百分比文字颜色如何修改？",
+        "en": "115-How to modify the text color of the percentage of the funnel chart"
+      }
+    },
+    {
+      "Index": 116,
+      "path": "116-How to add background color to the bottom of ring chart when it is set with gaps",
+      "title": {
+        "zh": "116- 当环形图设置有间隔时，环形的底部能否增加背景颜色？",
+        "en": "116-How to add background color to the bottom of ring chart when it is set with gaps"
+      }
+    },
+    {
+      "Index": 117,
+      "path": "117-How to modify the style of the legend element when the mouse is hovering over the legend",
+      "title": {
+        "zh": "117- 如何实现当鼠标悬浮于图例上时 圆形的图例扩大一圈高亮显示 并且去掉长方形的灰色的背景？",
+        "en": "117-How to modify the style of the legend element when the mouse is hovering over the legend"
+      }
+    },
+    {
+      "Index": 118,
+      "path": "118- How to implement point hover effects in the vchart library",
+      "title": {
+        "zh": "118- 如何在vchart图表库中实现点的hover效果？",
+        "en": "118- How to implement point hover effects in the vchart library"
+      }
+    },
+    {
+      "Index": 119,
+      "path": "119- How to bind click events to pie chart labels",
+      "title": {
+        "zh": "119-如何绑定饼图label的点击事件",
+        "en": "119- How to bind click events to pie chart labels"
+      }
+    },
+    {
+      "Index": 120,
+      "path": "120- How to set an adaptive y-axis range in a line chart",
+      "title": {
+        "zh": "120- 折线图如何设置自适应y轴区间",
+        "en": "120- How to set an adaptive y-axis range in a line chart"
+      }
+    },
+    {
+      "Index": 121,
+      "path": "121- How to customize the rich text axis label style in radar charts",
+      "title": {
+        "zh": "121- 如何自定义雷达图富文本轴标签样式？",
+        "en": "121- How to customize the rich text axis label style in radar charts"
+      }
+    },
+    {
+      "Index": 122,
+      "path": "122-How to customize the theme for a chart",
+      "title": {
+        "zh": "122- 如何为图表自定义主题，如在 VChart？",
+        "en": "122-How to customize the theme for a chart"
+      }
+    },
+    {
+      "Index": 123,
+      "path": "123-Can we add a horizontal line for the average value to the data",
+      "title": {
+        "zh": "123- 能否给数据添加平均值横线？",
+        "en": "123-Can we add a horizontal line for the average value to the data"
+      }
+    },
+    {
+      "Index": 124,
+      "path": "124-Is there an API on the mini program that prompts the location of data points when touching the screen with your finger",
+      "title": {
+        "zh": "124- 在 pc 端上鼠标悬浮在数据点上出现的 tooltip 这种效果，在小程序上有类似这样手指触碰屏幕提示数据点位置的 api 吗？",
+        "en": "124-Is there an API on the mini program that prompts the location of data points when touching the screen with your finger"
+      }
+    },
+    {
+      "Index": 125,
+      "path": "125- How to make the word cloud fully fill the outer container",
+      "title": {
+        "zh": "125- 词云如何顶满外层容器显示",
+        "en": "125- How to make the word cloud fully fill the outer container"
+      }
+    },
+    {
+      "Index": 126,
+      "path": "126- Line chart in combo chart is obscured, preventing tooltip hover",
+      "title": {
+        "zh": "126- 组合图折线图被遮住，导致无法hover出tooltip",
+        "en": "126- Line chart in combo chart is obscured, preventing tooltip hover"
+      }
+    },
+    {
+      "Index": 127,
+      "path": "127- How to set the x and y axis labels and bar size in vchart bar charts",
+      "title": {
+        "zh": "127-如何设置vchart柱状图的x，y轴文字和柱状大小",
+        "en": "127- How to set the x and y axis labels and bar size in vchart bar charts"
+      }
+    },
+    {
+      "Index": 128,
+      "path": "128- How to achieve overlap of bar chart data in the same dimension rather than stacking",
+      "title": {
+        "zh": "128- 如何实现柱形图同维度数据前后重叠而不是堆叠效果？",
+        "en": "128- How to achieve overlap of bar chart data in the same dimension rather than stacking"
+      }
+    },
+    {
+      "Index": 129,
+      "path": "129-How to customize Tooltip in dual axis chart",
+      "title": {
+        "zh": "129- 双轴图中如何自定义 Tooltip？",
+        "en": "129-How to customize Tooltip in dual axis chart"
+      }
+    },
+    {
+      "Index": 130,
+      "path": "130-How to configure the colors of different line segments in a line chart",
+      "title": {
+        "zh": "130- 折线图如何配置不同线段的颜色？",
+        "en": "130-How to configure the colors of different line segments in a line chart"
+      }
+    },
+    {
+      "Index": 131,
+      "path": "131- Can the tick range of a continuous axis be configured to closely match the data range",
+      "title": {
+        "zh": "131- 连续轴的刻度范围可以通过配置尽量的贴近数据范围吗",
+        "en": "131- Can the tick range of a continuous axis be configured to closely match the data range"
+      }
+    },
+    {
+      "Index": 132,
+      "path": "132- How to customize slice colors in VChart pie charts",
+      "title": {
+        "zh": "132- VChart 饼图如何自定义扇形颜色",
+        "en": "132- How to customize slice colors in VChart pie charts"
+      }
+    },
+    {
+      "Index": 133,
+      "path": "133-How to control the display order of discrete legends",
+      "title": {
+        "zh": "133- 如何控制离散图例的显示顺序?",
+        "en": "133-How to control the display order of discrete legends"
+      }
+    },
+    {
+      "Index": 134,
+      "path": "134-How does the Ring with Indicator Card dynamically update indicator values",
+      "title": {
+        "zh": "134- 带指标卡环形图如何动态更新指标值?",
+        "en": "134-How does the Ring with Indicator Card dynamically update indicator values"
+      }
+    },
+    {
+      "Index": 135,
+      "path": "135-How to customize the colors of bars based on values in a bar chart",
+      "title": {
+        "zh": "135- 柱状图如何根据不同的数值自定义柱子的颜色？",
+        "en": "135-How to customize the colors of bars based on values in a bar chart"
+      }
+    },
+    {
+      "Index": 136,
+      "path": "136- How to prevent the stroke from being obscured when hovering over pie chart sectors",
+      "title": {
+        "zh": "136- 如何避免饼图扇区的hover时描边被遮挡？",
+        "en": "136- How to prevent the stroke from being obscured when hovering over pie chart sectors"
+      }
+    },
+    {
+      "Index": 137,
+      "path": "137- Does the bar chart support setting colors for individual columns",
+      "title": {
+        "zh": "137- 柱状图支持对某一列单独设置颜色吗？",
+        "en": "137- Does the bar chart support setting colors for individual columns"
+      }
+    },
+    {
+      "Index": 138,
+      "path": "138-How to customize the font size of words in Word Cloud Chart",
+      "title": {
+        "zh": "138- 词云图中如何自定义词语的字体大小？",
+        "en": "138-How to customize the font size of words in Word Cloud Chart"
+      }
+    },
+    {
+      "Index": 139,
+      "path": "139-How to configure chart adaptive container width and height",
+      "title": {
+        "zh": "139- 如何配置图表自适应容器宽高？",
+        "en": "139-How to configure chart adaptive container width and height"
+      }
+    },
+    {
+      "Index": 140,
+      "path": "140- How to configure the highlight effect in a Sankey diagram",
+      "title": {
+        "zh": "140- 如何配置桑基图的高亮效果",
+        "en": "140- How to configure the highlight effect in a Sankey diagram"
+      }
+    },
+    {
+      "Index": 141,
+      "path": "141- How to draw a multi-row layout line chart",
+      "title": {
+        "zh": "141- 如何绘制多行布局的折线图",
+        "en": "141- How to draw a multi-row layout line chart"
+      }
+    },
+    {
+      "Index": 142,
+      "path": "142- How to add tracking points in VChart based on Tooltip behavior",
+      "title": {
+        "zh": "142- 如何在 VChart 中根据 Tooltip 行为， 进行埋点",
+        "en": "142- How to add tracking points in VChart based on Tooltip behavior"
+      }
+    },
+    {
+      "Index": 143,
+      "path": "143- How to set the maximum number of labels on the X and Y axes",
+      "title": {
+        "zh": "143-如何设置X轴和Y轴标签的最大数量？",
+        "en": "143- How to set the maximum number of labels on the X and Y axes"
+      }
+    },
+    {
+      "Index": 144,
+      "path": "144- How does the tooltip layer support the display of total data",
+      "title": {
+        "zh": "144-Tooltip浮层如何支持总计数据的展示？",
+        "en": "144- How does the tooltip layer support the display of total data"
+      }
+    },
+    {
+      "Index": 145,
+      "path": "145- How to show the full content of abbreviated text when hovering with the mouse",
+      "title": {
+        "zh": "145- 如何实现鼠标悬浮时展示缩略文字的全部内容？",
+        "en": "145- How to show the full content of abbreviated text when hovering with the mouse"
+      }
+    },
+    {
+      "Index": 146,
+      "path": "146-How to configure the transform width of the funnel chart",
+      "title": {
+        "zh": "146- 如何配置漏斗图的转化宽度？",
+        "en": "146-How to configure the transform width of the funnel chart"
+      }
+    },
+    {
+      "Index": 147,
+      "path": "147-How to achieve background segmentation and rounded corner effect in a gauge chart",
+      "title": {
+        "zh": "147- 如何实现仪表图的分段圆角效果？",
+        "en": "147-How to achieve background segmentation and rounded corner effect in a gauge chart"
+      }
+    },
+    {
+      "Index": 148,
+      "path": "148-How to configure horizontal scrollbars when there is too much data in a bar chart in an applet",
+      "title": {
+        "zh": "148- 在小程序中，柱图数据过多时，如何配置横向滚动条？",
+        "en": "148-How to configure horizontal scrollbars when there is too much data in a bar chart in an applet"
+      }
+    },
+    {
+      "Index": 149,
+      "path": "149- How to obtain the relative position of the brush in the coordinate system in the vchart library",
+      "title": {
+        "zh": "149- 如何在vchart图表库中获取brush在坐标系中的相对位置？",
+        "en": "149- How to obtain the relative position of the brush in the coordinate system in the vchart library"
+      }
+    },
+    {
+      "Index": 150,
+      "path": "150- How to format axis labels",
+      "title": {
+        "zh": "150- 如何对轴标签进行格式化？",
+        "en": "150- How to format axis labels"
+      }
+    },
+    {
+      "Index": 151,
+      "path": "151-How does the legend component limit the width of the graph",
+      "title": {
+        "zh": "151- 图例组件如何限制图形的宽度?",
+        "en": "151-How does the legend component limit the width of the graph"
+      }
+    },
+    {
+      "Index": 152,
+      "path": "152- How to display labels on multiple lines",
+      "title": {
+        "zh": "152- 标签如何显示多行？",
+        "en": "152- How to display labels on multiple lines"
+      }
+    },
+    {
+      "Index": 153,
+      "path": "153- How to sort data by specified fields",
+      "title": {
+        "zh": "153- 如何对数据指定字段进行排序",
+        "en": "153- How to sort data by specified fields"
+      }
+    },
+    {
+      "Index": 154,
+      "path": "154- Segmented display of bar progress chart",
+      "title": {
+        "zh": "154- 条形进度图分段展示",
+        "en": "154- Segmented display of bar progress chart"
+      }
+    },
+    {
+      "Index": 155,
+      "path": "155- How to adjust the spacing between axis labels in vchart",
+      "title": {
+        "zh": "155- 如何在vchart中调整轴标签之间的间距？",
+        "en": "155- How to adjust the spacing between axis labels in vchart"
+      }
+    },
+    {
+      "Index": 156,
+      "path": "156- How to assign different colors to multiple lines in a line chart",
+      "title": {
+        "zh": "156-在折线图中如何给多条折线指定不同颜色",
+        "en": "156- How to assign different colors to multiple lines in a line chart"
+      }
+    },
+    {
+      "Index": 157,
+      "path": "157- How to individually configure legend styles and change graphic shapes in VChart",
+      "title": {
+        "zh": "157- VChart 中如何单独配置图例的样式，改变图形的形状",
+        "en": "157- How to individually configure legend styles and change graphic shapes in VChart"
+      }
+    },
+    {
+      "Index": 158,
+      "path": "158- How to configure the hover state of graphical elements",
+      "title": {
+        "zh": "158- 如何配置图元hover状态？",
+        "en": "158- How to configure the hover state of graphical elements"
+      }
+    },
+    {
+      "Index": 159,
+      "path": "159-How to configure Tooltip to automatically wrap text",
+      "title": {
+        "zh": "159- 如何配置 Tooltip (文字提示) 自动换行？",
+        "en": "159-How to configure Tooltip to automatically wrap text"
+      }
+    },
+    {
+      "Index": 160,
+      "path": "160-How to disable the default interactive behavior of legends",
+      "title": {
+        "zh": "160- 如何禁用图例的默认交互行为？",
+        "en": "160-How to disable the default interactive behavior of legends"
+      }
+    },
+    {
+      "Index": 161,
+      "path": "161-How to customize the axis label display spacing",
+      "title": {
+        "zh": "161- 如何自定义轴 label 显示间距？",
+        "en": "161-How to customize the axis label display spacing"
+      }
+    },
+    {
+      "Index": 162,
+      "path": "162-How to define the mapping relationship of the axes for the combination of line chart and stacked column chart",
+      "title": {
+        "zh": "162- 线图和堆积柱状图组合，如何定义轴的映射关系？",
+        "en": "162-How to define the mapping relationship of the axes for the combination of line chart and stacked column chart"
+      }
+    },
+    {
+      "Index": 163,
+      "path": "163- How to limit the number of lines in a Tooltip",
+      "title": {
+        "zh": "163- 如何限制Tooltip的行数？",
+        "en": "163- How to limit the number of lines in a Tooltip"
+      }
+    },
+    {
+      "Index": 164,
+      "path": "164-How to use vchart to display charts in Notebook",
+      "title": {
+        "zh": "164- 如何在 notebook 中使用 @visactor/vchart 显示图表？",
+        "en": "164-How to use vchart to display charts in Notebook"
+      }
+    },
+    {
+      "Index": 165,
+      "path": "165-How to configure the default selection effect of the legend component",
+      "title": {
+        "zh": "165- 图例组件如何配置默认选中效果？",
+        "en": "165-How to configure the default selection effect of the legend component"
+      }
+    },
+    {
+      "Index": 166,
+      "path": "166- Does VChart\u0027s multi-group bar chart support multi-layer axis labels",
+      "title": {
+        "zh": "166- VChart的多分组柱状图是否支持多层轴标签？",
+        "en": "166- Does VChart\u0027s multi-group bar chart support multi-layer axis labels"
+      }
+    },
+    {
+      "Index": 167,
+      "path": "167-How to combine percentage bar and TGI chart",
+      "title": {
+        "zh": "167- 如何实现百分比条形和 tgi 图的组合？",
+        "en": "167-How to combine percentage bar and TGI chart"
+      }
+    },
+    {
+      "Index": 168,
+      "path": "168-How do I set up some lines to follow the left axis, while the others follow the right axis in a line chart",
+      "title": {
+        "zh": "168- 折线图有多条线，如何设置右侧坐标轴，并且某条线是根据右侧坐标轴绘制的?",
+        "en": "168-How do I set up some lines to follow the left axis, while the others follow the right axis in a line chart"
+      }
+    },
+    {
+      "Index": 169,
+      "path": "169-How to set the order of the chart tooltip display content",
+      "title": {
+        "zh": "169- 如何设置图表 Tooltip 显示内容的顺序？",
+        "en": "169-How to set the order of the chart tooltip display content"
+      }
+    },
+    {
+      "Index": 170,
+      "path": "170- How to set different colors for each bar in a bar chart",
+      "title": {
+        "zh": "170- 如何为柱状图每根柱子设置不同颜色？",
+        "en": "170- How to set different colors for each bar in a bar chart"
+      }
+    },
+    {
+      "Index": 171,
+      "path": "171- How to achieve multi-group bar charts and highlight interactions based on grouping dimensions",
+      "title": {
+        "zh": "171- 如何实现多分组柱状图以及按照分组维度高亮的交互？",
+        "en": "171- How to achieve multi-group bar charts and highlight interactions based on grouping dimensions"
+      }
+    },
+    {
+      "Index": 172,
+      "path": "172- Can the bar series listen to event callbacks",
+      "title": {
+        "zh": "172- 柱系列是否可以监听事件回调？",
+        "en": "172- Can the bar series listen to event callbacks"
+      }
+    },
+    {
+      "Index": 173,
+      "path": "173- How to remove axis tick values",
+      "title": {
+        "zh": "173-如何去除轴刻度值？",
+        "en": "173- How to remove axis tick values"
+      }
+    },
+    {
+      "Index": 174,
+      "path": "174-How to achieve a bar chart similar to the stacked column chart",
+      "title": {
+        "zh": "174- 如何实现柱形图同维度数据前后重叠而不是堆叠效果？",
+        "en": "174-How to achieve a bar chart similar to the stacked column chart"
+      }
+    },
+    {
+      "Index": 175,
+      "path": "175-How to define the number of decimal places of a value displayed by a label in VChart",
+      "title": {
+        "zh": "175- VChart 中如何定义 label 显示的数值小数位数？",
+        "en": "175-How to define the number of decimal places of a value displayed by a label in VChart"
+      }
+    },
+    {
+      "Index": 176,
+      "path": "176-How to listen to the click event of the histogram to customize the style of the column",
+      "title": {
+        "zh": "176- 如何监听柱状图的点击事件来自定义柱子的样式？",
+        "en": "176-How to listen to the click event of the histogram to customize the style of the column"
+      }
+    },
+    {
+      "Index": 177,
+      "path": "177-How to get the data point information in a click event using react-vchart",
+      "title": {
+        "zh": "177- 使用@visactor/react-vchart,如何在点击事件中获取对应数据点信息？",
+        "en": "177-How to get the data point information in a click event using react-vchart"
+      }
+    },
+    {
+      "Index": 178,
+      "path": "178- How to set different fill colors based on groups in a radar chart",
+      "title": {
+        "zh": "178- 雷达图如何根据分组设置不同的填充颜色",
+        "en": "178- How to set different fill colors based on groups in a radar chart"
+      }
+    },
+    {
+      "Index": 179,
+      "path": "179- Bar chart value labels aligned to the right display",
+      "title": {
+        "zh": "179-条形图数值标签右对齐展示",
+        "en": "179- Bar chart value labels aligned to the right display"
+      }
+    },
+    {
+      "Index": 180,
+      "path": "180-How to use charts libraries in Vue",
+      "title": {
+        "zh": "180- 如何在 Vue 中使用图表库，如 VChart？",
+        "en": "180-How to use charts libraries in Vue"
+      }
+    },
+    {
+      "Index": 181,
+      "path": "181- How to format the tooltip in a VChart radar chart",
+      "title": {
+        "zh": "181- VChart 雷达图如何格式化Tooltip?",
+        "en": "181- How to format the tooltip in a VChart radar chart"
+      }
+    },
+    {
+      "Index": 182,
+      "path": "182- How to assign different colors to a line in VChart",
+      "title": {
+        "zh": "182- VChart 怎么给一根线配置不同的颜色",
+        "en": "182- How to assign different colors to a line in VChart"
+      }
+    },
+    {
+      "Index": 183,
+      "path": "183- Can the unit of the y-axis be configured without a function",
+      "title": {
+        "zh": "183-不用函数能配置 y 轴的单位吗",
+        "en": "183- Can the unit of the y-axis be configured without a function"
+      }
+    },
+    {
+      "Index": 184,
+      "path": "184-How to customize the shape and text style of the legend",
+      "title": {
+        "zh": "184- 如何自定义图例的形状和文字样式？",
+        "en": "184-How to customize the shape and text style of the legend"
+      }
+    },
+    {
+      "Index": 185,
+      "path": "185- How to set the title font size to semi\u0027s heading-4 in vchart",
+      "title": {
+        "zh": "185- 如何在vchart中设置title的字号为semi的heading-4？",
+        "en": "185- How to set the title font size to semi\u0027s heading-4 in vchart"
+      }
+    },
+    {
+      "Index": 186,
+      "path": "186- How to add custom content to the bottom of a tooltip card in vChart",
+      "title": {
+        "zh": "186- 如何在vChart的tooltip卡片底部添加自定义内容？",
+        "en": "186- How to add custom content to the bottom of a tooltip card in vChart"
+      }
+    },
+    {
+      "Index": 187,
+      "path": "187- How to listen to events on data dimensions and retrieve corresponding data",
+      "title": {
+        "zh": "187- 如何监听数据维度的事件并拿到对应数据？",
+        "en": "187- How to listen to events on data dimensions and retrieve corresponding data"
+      }
+    },
+    {
+      "Index": 188,
+      "path": "188- In vchart, how to set the legend not to follow gradient colors and draw legends with rounded rectangles",
+      "title": {
+        "zh": "188- vchart图表中，如何设置legend不跟随渐变色并绘制圆角矩形的图例？",
+        "en": "188- In vchart, how to set the legend not to follow gradient colors and draw legends with rounded rectangles"
+      }
+    },
+    {
+      "Index": 189,
+      "path": "189-How to customize the axis scale value of a gauge chart",
+      "title": {
+        "zh": "189- 如何自定义仪表图的刻度值？",
+        "en": "189-How to customize the axis scale value of a gauge chart"
+      }
+    },
+    {
+      "Index": 190,
+      "path": "190- How to draw a dual-axis chart",
+      "title": {
+        "zh": "190- 如何绘制双轴图",
+        "en": "190- How to draw a dual-axis chart"
+      }
+    },
+    {
+      "Index": 191,
+      "path": "191-How to customize the position of gauge indicator in VChart",
+      "title": {
+        "zh": "191- VChart 仪表盘如何自定义标题的显示位置？",
+        "en": "191-How to customize the position of gauge indicator in VChart"
+      }
+    },
+    {
+      "Index": 192,
+      "path": "192-How can I customize colors based on data values in a map chart",
+      "title": {
+        "zh": "192- 地图组件，如何根据数值自定义区块颜色？",
+        "en": "192-How can I customize colors based on data values in a map chart"
+      }
+    },
+    {
+      "Index": 193,
+      "path": "193-How to clear charts and data",
+      "title": {
+        "zh": "193- 如何清空图表和数据？",
+        "en": "193-How to clear charts and data"
+      }
+    },
+    {
+      "Index": 194,
+      "path": "194-How to customize the text content of the legend",
+      "title": {
+        "zh": "194- 如何自定义图例的文本内容？",
+        "en": "194-How to customize the text content of the legend"
+      }
+    },
+    {
+      "Index": 195,
+      "path": "195- How to display all labels on the x-axis",
+      "title": {
+        "zh": "195- 如何令x轴的标签全部展示",
+        "en": "195- How to display all labels on the x-axis"
+      }
+    },
+    {
+      "Index": 196,
+      "path": "196-How to customize legend shapes",
+      "title": {
+        "zh": "196- 如何自定义图例形状",
+        "en": "196-How to customize legend shapes"
+      }
+    },
+    {
+      "Index": 197,
+      "path": "197- How to configure animations in VChart combination charts",
+      "title": {
+        "zh": "197- VChart  组合图中如何配置动画？",
+        "en": "197- How to configure animations in VChart combination charts"
+      }
+    },
+    {
+      "Index": 198,
+      "path": "198- How to set the shape type of Legend and Tooltip in VChart line charts",
+      "title": {
+        "zh": "198- VChart 如何设置折线图的Legend和Tooltip的形状类型?",
+        "en": "198- How to set the shape type of Legend and Tooltip in VChart line charts"
+      }
+    },
+    {
+      "Index": 199,
+      "path": "199-Can users click on data points within the VChart to show a list of actions",
+      "title": {
+        "zh": "199- VChart 图表点击数据点，展示操作列表？",
+        "en": "199-Can users click on data points within the VChart to show a list of actions"
+      }
+    },
+    {
+      "Index": 200,
+      "path": "200-When hovering over a donut chart, how to configure the style of donut chart",
+      "title": {
+        "zh": "200- 环形图 hover 的时候，如何配置边框的样式？",
+        "en": "200-When hovering over a donut chart, how to configure the style of donut chart"
+      }
+    },
+    {
+      "Index": 201,
+      "path": "201-How to configure the scope of the crosshair auxiliary line",
+      "title": {
+        "zh": "201- 组合图中，如何配置十字辅助线的作用范围，在某一个子图内，或者作用于整个组合图表？",
+        "en": "201-How to configure the scope of the crosshair auxiliary line"
+      }
+    },
+    {
+      "Index": 202,
+      "path": "202- Does VChart support setting graphical elements to the selected state",
+      "title": {
+        "zh": "202- VChart是否支持将图元设置为选中状态？",
+        "en": "202- Does VChart support setting graphical elements to the selected state"
+      }
+    },
+    {
+      "Index": 203,
+      "path": "203- How to limit the width of tooltip content",
+      "title": {
+        "zh": "203- 如何限制 Tootlip 内容宽度？",
+        "en": "203- How to limit the width of tooltip content"
+      }
+    },
+    {
+      "Index": 204,
+      "path": "204-How to set the color and transparency of individual words inside the word cloud based on their values",
+      "title": {
+        "zh": "204- 如何根据数值设定词云里面单个词语的颜色和透明度？",
+        "en": "204-How to set the color and transparency of individual words inside the word cloud based on their values"
+      }
+    },
+    {
+      "Index": 205,
+      "path": "205-How can chart tooltips be configured to display dimensions and measures as single or multiple rows",
+      "title": {
+        "zh": "205- 图表 tooltip 如何配置将维度和指标展现成单行或者多行？",
+        "en": "205-How can chart tooltips be configured to display dimensions and measures as single or multiple rows"
+      }
+    },
+    {
+      "Index": 206,
+      "path": "206- Can vchart multi-line charts limit the default rendered lines",
+      "title": {
+        "zh": "206- vchart多线图能否限制默认渲染的线条？",
+        "en": "206- Can vchart multi-line charts limit the default rendered lines"
+      }
+    },
+    {
+      "Index": 207,
+      "path": "207- How to trigger chart tooltips on mobile devices",
+      "title": {
+        "zh": "207- 如何在移动端触发图表 tooltip？",
+        "en": "207- How to trigger chart tooltips on mobile devices"
+      }
+    },
+    {
+      "Index": 208,
+      "path": "208-How to configure the position of the markLine text label, can it be configured to display at the starting point, end point or in the middle of the line segment",
+      "title": {
+        "zh": "208- 如何配置 MarkLine 文字标签的位置，可以配置显示在线起点、终点或者线段中间？",
+        "en": "208-How to configure the position of the markLine text label, can it be configured to display at the starting point, end point or in the middle of the line segment"
+      }
+    },
+    {
+      "Index": 209,
+      "path": "209- Can the tip displayed above an overly long label when hovering be configured to change background and text colors",
+      "title": {
+        "zh": "209-hover 超长label时候上方显示的这个tip能否配置修改背景颜色和文字颜色",
+        "en": "209- Can the tip displayed above an overly long label when hovering be configured to change background and text colors"
+      }
+    },
+    {
+      "Index": 210,
+      "path": "210- How to set the time interval in a timeline",
+      "title": {
+        "zh": "210- 时间轴如何设置时间间隔？",
+        "en": "210- How to set the time interval in a timeline"
+      }
+    },
+    {
+      "Index": 211,
+      "path": "211-How to configure it to ignore part of the display content",
+      "title": {
+        "zh": "211- x 轴数据过于密集，如何配置忽略一部分显示内容？",
+        "en": "211-How to configure it to ignore part of the display content"
+      }
+    },
+    {
+      "Index": 212,
+      "path": "212- What are the methods for data sampling in VChart charts",
+      "title": {
+        "zh": "212- VChart 图表中数据采样的方法有哪些？",
+        "en": "212- What are the methods for data sampling in VChart charts"
+      }
+    }
+  ]
+}

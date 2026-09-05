@@ -1,0 +1,23 @@
+{
+  "name": "tanstack-router-e2e-react-match-params",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "build": "vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "test:e2e": "rm -rf port*.txt; playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:^",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "vite": "^8.0.14"
+  }
+}

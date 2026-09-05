@@ -1,0 +1,16 @@
+name: Auto Translate Issues
+
+on: 
+  issue_comment: 
+    types: [created]
+  issues: 
+    types: [opened]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dromara/issues-translate-action@v2.7
+        with:
+          IS_MODIFY_TITLE: false
+

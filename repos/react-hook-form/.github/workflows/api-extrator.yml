@@ -1,0 +1,20 @@
+name: API Extrator
+
+on: [pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v6
+
+      - name: Install Dependencies
+        uses: ./.github/actions/install-dependencies
+
+      - name: Build
+        run: pnpm build:esm
+
+      - name: API Extractor
+        run: pnpm api-extractor:ci

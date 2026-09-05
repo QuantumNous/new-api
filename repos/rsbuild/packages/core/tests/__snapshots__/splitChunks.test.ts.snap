@@ -1,0 +1,58 @@
+// Rstest Snapshot v1
+
+exports[`plugin-split-chunks > should merge split chunks options 1`] = `
+{
+  "cacheGroups": {
+    "commons": {
+      "minChunks": 2,
+      "name": "commons",
+      "priority": -10,
+      "test": /\\[\\\\\\\\/\\]src\\[\\\\\\\\/\\]commons\\[\\\\\\\\/\\]/,
+    },
+  },
+  "chunks": "all",
+}
+`;
+
+exports[`plugin-split-chunks > should set \`default\` preset by default 1`] = `
+{
+  "cacheGroups": {
+    "lib-polyfill": {
+      "name": "lib-polyfill",
+      "priority": 0,
+      "test": /node_modules\\[\\\\\\\\/\\]\\(\\?:tslib\\|core-js\\|@swc\\[\\\\\\\\/\\]helpers\\)\\[\\\\\\\\/\\]/,
+    },
+  },
+  "chunks": "all",
+}
+`;
+
+exports[`plugin-split-chunks > should set \`per-package\` preset 1`] = `
+{
+  "cacheGroups": {
+    "vendors": {
+      "name": [Function],
+      "priority": -9,
+      "test": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+    },
+  },
+  "chunks": "all",
+  "maxInitialRequests": Infinity,
+  "minSize": 0,
+}
+`;
+
+exports[`plugin-split-chunks > should set \`single-vendor\` preset 1`] = `
+{
+  "cacheGroups": {
+    "singleVendor": {
+      "chunks": "all",
+      "enforce": true,
+      "name": "vendor",
+      "priority": 0,
+      "test": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+    },
+  },
+  "chunks": "all",
+}
+`;

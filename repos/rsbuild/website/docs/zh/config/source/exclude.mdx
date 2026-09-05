@@ -1,0 +1,67 @@
+---
+description: '排除不需要被 SWC 编译的 JavaScript 或 TypeScript 文件。'
+---
+
+# source.exclude
+
+- **类型：** [Rspack.RuleSetCondition](https://rspack.rs/zh/config/module-rules#condition)`[]`
+- **默认值：** `[]`
+
+排除不需要被 [SWC](/guide/configuration/swc) 编译的 JavaScript 或 TypeScript 文件。
+
+## 用法
+
+`source.exclude` 的用法与 [source.include](/config/source/include) 类似，支持传入字符串或正则表达式来匹配模块的路径。
+
+比如:
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  source: {
+    exclude: [path.resolve(__dirname, 'src/module-a'), /src\/module-b/],
+  },
+};
+```
+
+> 查看 [source.include](/config/source/include) 来了解更多用法。
+
+## 优先级
+
+当同时设置 `source.include` 和 `source.exclude` 时，`source.exclude` 具有更高的优先级。
+
+例如，在下面的示例中，虽然 `source.include` 匹配了整个 `src` 目录，但 `src/foo` 目录下的 JavaScript 文件不会被 SWC 编译：
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  source: {
+    include: [path.resolve(__dirname, 'src')],
+    exclude: [path.resolve(__dirname, 'src/foo')],
+  },
+};
+```
+
+## 排除打包
+
+`source.exclude` 用于指定不需要编译的 JavaScript/TypeScript 文件。这意味着这些文件不会经过 SWC 转译，但被引用的文件仍然会被打包到产物中。
+
+如果你希望某些文件在打包过程中被排除，不被打包到产物中，可以使用 Rspack 的 [IgnorePlugin](https://rspack.rs/zh/plugins/webpack/ignore-plugin)。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { rspack }) => {
+      config.plugins.push(
+        new rspack.IgnorePlugin({
+          resourceRegExp: /^\.\/locale$/,
+          contextRegExp: /moment$/,
+        }),
+      );
+      return config;
+    },
+  },
+};
+```

@@ -1,0 +1,87 @@
+@layer components {
+  .TypeRefTrigger {
+    cursor: default;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    border-radius: var(--radius-4);
+    font: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-decoration-style: dotted;
+    text-decoration-color: color-mix(in oklab, var(--color-violet), transparent);
+    text-underline-offset: 3px;
+
+    &:hover {
+      text-decoration-color: var(--color-violet);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--gray-t2);
+      outline-offset: 2px;
+    }
+  }
+
+  .TypeRefPopup {
+    max-width: min(36rem, var(--available-width));
+    overflow: visible;
+  }
+
+  .TypeRefInner {
+    display: flex;
+    flex-direction: column;
+    max-height: var(--available-height, none);
+  }
+
+  .TypeRefArrow {
+    &[data-side='bottom'] {
+      top: -8px;
+    }
+
+    &[data-side='left'] {
+      right: -13px;
+      transform: rotate(90deg);
+    }
+
+    &[data-side='right'] {
+      left: -13px;
+      transform: rotate(-90deg);
+    }
+
+    &[data-side='top'] {
+      bottom: -8px;
+      transform: rotate(180deg);
+    }
+  }
+
+  .TypeRefArrowFill {
+    fill: var(--color-popup);
+  }
+
+  .TypeRefArrowStroke {
+    fill: var(--blackA-3);
+  }
+
+  .TypeRefArrowStrokeDark {
+    @media (prefers-color-scheme: dark) {
+      fill: var(--gray-c3);
+    }
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .TypeRefArrowStroke {
+      fill: none;
+    }
+  }
+
+  .TypeRefContent {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    scrollbar-width: auto;
+  }
+
+  .TypeRefPopup .ScrollAreaViewport {
+    padding: 0.5rem 0.75rem;
+  }
+}

@@ -1,0 +1,53 @@
+/* Client Widget B - Teal theme */
+.widget {
+  background-color: #ccfbf1;
+  border: 2px solid #14b8a6;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 8px 0;
+}
+
+.header {
+  margin-bottom: 8px;
+}
+
+.badge {
+  display: inline-block;
+  background-color: #14b8a6;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.title {
+  margin: 0 0 8px 0;
+  color: #115e59;
+  font-size: 16px;
+}
+
+.content {
+  margin: 0 0 12px 0;
+  color: #0d9488;
+  font-size: 13px;
+}
+
+.toggleButton {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background-color: #14b8a6;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.toggleButton:hover {
+  background-color: #0d9488;
+}
+
+.toggleButton.active {
+  background-color: #115e59;
+}

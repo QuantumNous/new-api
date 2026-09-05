@@ -1,0 +1,39 @@
+---
+description: '指定项目根目录。可以是绝对路径，也可以是相对于 process.cwd() 的路径。'
+---
+
+# root
+
+- **类型：** `string`
+- **默认值：** [process.cwd()](https://nodejs.org/api/process.html#processcwd)
+- **版本：** `>= 1.0.0`
+
+指定项目根目录。可以是绝对路径，也可以是相对于 `process.cwd()` 的路径。
+
+Rsbuild `root` 的值也会传递给 Rspack 的 [context](https://rspack.rs/zh/config/context) 配置。
+
+:::tip
+`root` 的值不会影响 `.env` 文件的加载路径，因为 `.env` 文件早于 Rsbuild 的配置文件被解析。
+
+Rsbuild CLI 支持使用 `--root` 选项来指定根目录，它可以影响 `.env` 文件的加载路径，详见 ["CLI"](/guide/basic/cli)。
+:::
+
+## 示例
+
+- 相对路径：
+
+```ts title="rsbuild.config.ts"
+export default {
+  root: './foo',
+};
+```
+
+- 绝对路径：
+
+```ts title="rsbuild.config.ts"
+import { join } from 'node:path';
+
+export default {
+  root: join(__dirname, 'foo'),
+};
+```

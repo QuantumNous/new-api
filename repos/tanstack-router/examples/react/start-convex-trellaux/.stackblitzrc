@@ -1,0 +1,3 @@
+{
+  "startCommand": "cp .env.local.example .env.local && npx vite dev"
+}

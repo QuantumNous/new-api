@@ -1,0 +1,14 @@
+@layer components {
+  .List {
+    box-sizing: border-box;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .ListItem {
+    border-bottom: 1px solid var(--gray-t2);
+    padding-block-start: 12px;
+    padding-block-end: 12px;
+  }
+}

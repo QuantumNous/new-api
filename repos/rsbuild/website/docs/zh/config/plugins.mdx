@@ -1,0 +1,202 @@
+---
+description: '默认情况下，插件会按照 plugins 数组中的顺序依次执行，Rsbuild 内置插件的执行时机早于用户注册的插件。'
+---
+
+# plugins
+
+用于注册 Rsbuild 插件。
+
+- **类型：**
+
+```ts
+type Falsy = false | null | undefined;
+
+type RsbuildPlugins = (
+  RsbuildPlugin | Falsy | Promise<RsbuildPlugin | Falsy | RsbuildPlugins> | RsbuildPlugins
+)[];
+```
+
+- **默认值：** `undefined`
+
+> 请查看 [插件列表](/plugins/list/index) 页面来发现所有可用的插件。
+
+## 示例
+
+比如注册 Rsbuild 的 [Sass 插件](/plugins/list/plugin-sass)。
+
+- 安装插件：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-sass -D" />
+
+- 注册插件：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginSass } from '@rsbuild/plugin-sass';
+
+export default defineConfig({
+  plugins: [pluginSass()],
+});
+```
+
+## 执行顺序
+
+默认情况下，插件会按照 `plugins` 数组中的顺序依次执行，Rsbuild 内置插件的执行时机早于用户注册的插件。
+
+如果插件使用了控制执行顺序的字段，比如 `enforce` 属性时，则最终的执行顺序会根据这些字段进行调整，详见 [`enforce` 属性](/plugins/dev/core#enforce-property)。
+
+## 条件注册
+
+`plugins` 数组中的 falsy value 会被忽略，这允许你方便地根据一些判断条件来注册插件：
+
+```ts title="rsbuild.config.ts"
+const isProd = process.env.NODE_ENV === 'production';
+
+export default {
+  plugins: [isProd && somePlugin()],
+};
+```
+
+## 嵌套插件
+
+Rsbuild 还支持添加嵌套插件，你可以传入一个包含多个插件的数组，类似于一个插件预设集合，这对于实现需要多个插件组合的复杂功能（例如框架集成）很有帮助。
+
+```ts title="rsbuild.config.ts"
+function myPlugin() {
+  return [fooPlugin(), barPlugin()];
+}
+
+export default {
+  plugins: [myPlugin()],
+};
+```
+
+## 异步插件
+
+如果插件是异步的，你可以返回一个 `Promise` 对象或使用 `async` 函数，Rsbuild 会自动等待 `Promise` 被 resolve：
+
+```ts title="rsbuild.config.ts"
+async function myPlugin() {
+  await someAsyncOperation();
+  return {
+    name: 'my-plugin',
+    setup(api) {
+      // ...
+    },
+  };
+}
+
+export default {
+  plugins: [myPlugin()],
+};
+```
+
+## 本地插件
+
+如果本地代码仓库中包含了一些 Rsbuild 插件，你可以直接通过相对路径引入。
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginCustom } from './plugins/pluginCustom';
+
+export default defineConfig({
+  plugins: [pluginCustom()],
+});
+```
+
+## 插件选项
+
+如果插件提供了一些选项，你可以通过插件函数的参数传入配置。
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginStylus } from '@rsbuild/plugin-stylus';
+
+export default defineConfig({
+  plugins: [
+    pluginStylus({
+      stylusOptions: {
+        lineNumbers: false,
+      },
+    }),
+  ],
+});
+```
+
+## 插件注册时机 \{#plugin-registration-phase}
+
+需要注意的是，插件的注册只能在 Rsbuild 初始化阶段进行，你不能在一个插件内通过插件 API 动态地添加其他插件：
+
+```ts title="rsbuild.config.ts"
+// 错误
+function myPlugin() {
+  return {
+    setup(api) {
+      api.modifyRsbuildConfig((config, { mergeRsbuildConfig }) => {
+        return mergeRsbuildConfig(config, {
+          plugins: [fooPlugin(), barPlugin()], // <- it won't work
+        });
+      });
+    },
+  };
+}
+
+// 正确
+function myPlugin() {
+  return [fooPlugin(), barPlugin()];
+}
+
+export default {
+  plugins: [myPlugin()],
+};
+```
+
+## Rspack 插件
+
+`plugins` 选项用于注册 Rsbuild 插件，如果你需要注册 Rspack 或 webpack 插件，请使用 [tools.rspack](/config/tools/rspack)。
+
+```ts title="rsbuild.config.ts"
+export default {
+  // Rsbuild 插件
+  plugins: [pluginStylus()],
+  tools: {
+    rspack: {
+      // Rspack 或 webpack 插件
+      plugins: [new SomeWebpackPlugin()],
+    },
+  },
+};
+```
+
+## Unplugin
+
+[unplugin](https://github.com/unjs/unplugin) 是一个适用于不同构建工具的统一插件系统。你可以在 Rsbuild 中使用基于 unplugin 实现的插件，只需要引入插件的 `/rspack` 子路径，并通过 [tools.rspack](/config/tools/rspack) 注册即可。
+
+下面是使用 [unplugin-vue-components](https://npmjs.com/package/unplugin-vue-components) 的示例：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginVue } from '@rsbuild/plugin-vue';
+import Components from 'unplugin-vue-components/rspack';
+
+export default defineConfig({
+  plugins: [pluginVue()],
+  tools: {
+    rspack: {
+      plugins: [
+        Components({
+          // options
+        }),
+      ],
+    },
+  },
+});
+```
+
+:::tip
+在使用 unplugin 的 transform hook 时，请使用 `transformInclude` hook 来匹配指定的模块。当 transform hook 会匹配到 `.html` 模块时，会代替 [html-rspack-plugin](https://github.com/rstackjs/html-rspack-plugin) 默认的 EJS 转换。
+:::
+
+> 请确保依赖的 `unplugin` 包版本 >= v1.6.0。

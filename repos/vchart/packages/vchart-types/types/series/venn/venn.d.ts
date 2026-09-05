@@ -1,0 +1,66 @@
+import type { ILabelMark, IMark } from '../../mark/interface';
+import type { Datum, IPoint, StringOrNumber } from '../../typings';
+import type { SeriesMarkMap } from '../interface';
+import { SeriesTypeEnum } from '../interface/type';
+import type { IVennSeriesSpec } from './interface';
+import { VennSeriesSpecTransformer } from './venn-transform';
+import { BaseSeries } from '../base';
+import type { ILegend } from '../../component/legend/interface';
+export declare class VennSeries<T extends IVennSeriesSpec = IVennSeriesSpec> extends BaseSeries<T> {
+    static readonly type: string;
+    type: SeriesTypeEnum;
+    static readonly mark: SeriesMarkMap;
+    static readonly builtInTheme: {
+        venn: import("./interface").IVennSeriesTheme;
+    };
+    static readonly transformerConstructor: typeof VennSeriesSpecTransformer;
+    readonly transformerConstructor: typeof VennSeriesSpecTransformer;
+    private _circleMark;
+    private _overlapMark;
+    private _labelMark;
+    protected _spec: T;
+    private _viewBox;
+    protected _categoryField: string;
+    getCategoryField(): string;
+    setCategoryField(f: string): string;
+    protected _valueField: string;
+    getValueField(): string;
+    setValueField(f: string): string;
+    setAttrFromSpec(): void;
+    initData(): void;
+    compile(): void;
+    protected _runVennTransform(render?: boolean): void;
+    initMark(): void;
+    initMarkStyle(): void;
+    protected _initCircleMarkStyle(): void;
+    protected _initOverlapMarkStyle(): void;
+    initLabelMarkStyle(labelMark: ILabelMark): void;
+    initOverlapLabelMarkStyle(labelMark: ILabelMark): void;
+    protected initTooltip(): void;
+    getDimensionField(): string[];
+    getMeasureField(): string[];
+    onLayoutEnd(): void;
+    getDefaultShapeType(): string;
+    getActiveMarks(): IMark[];
+    getStatisticFields(): {
+        key: string;
+        operations: Array<'max' | 'min' | 'values'>;
+    }[];
+    getGroupFields(): string[];
+    dataToPosition(data: Datum, checkInViewData?: boolean): IPoint;
+    dataToPositionX(data: Datum): number;
+    dataToPositionY(data: Datum): number;
+    valueToPosition(value1: any, value2?: any): IPoint;
+    getStackGroupFields(): string[];
+    getStackValueField(): string;
+    protected _getSeriesInfo(field: string, keys: string[]): {
+        key: string;
+        originalKey: string;
+        style: (attribute: string) => unknown;
+        shapeType: string;
+    }[];
+    getSeriesFieldValue(datum: Datum, seriesField?: string): string;
+    legendSelectedFilter(component: ILegend, selectedKeys: StringOrNumber[]): StringOrNumber[];
+    initAnimation(): void;
+}
+export declare const registerVennSeries: () => void;

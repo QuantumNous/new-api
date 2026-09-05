@@ -1,0 +1,210 @@
+{
+  "autoBandSize": {
+    "key": "autoBandSize",
+    "oneDesc": "是否自动开启.如果开启，会根据传入的 barWidth 等配置自动计算 bandSize，从而影响轴实际长度"
+  },
+  "direction": {
+    "key": "direction",
+    "oneDesc": "图表方向为水平或垂直"
+  },
+  "markLine": {
+    "key": "markLine",
+    "oneDesc": "参考线标注，支持在图表上进行标注，标注样式为线条，可以自定义各种线条样式，同时也支持文本展示"
+  },
+  "markArea": {
+    "key": "markArea",
+    "oneDesc": "区域标注，支持在图表上对某块区域进行标注，支持对标注区域配色和文本解释."
+  },
+  "markPoint": {
+    "key": "markPoint",
+    "oneDesc": "参考点标注，支持对图表上某个具体的点进行标注，支持文本解释"
+  },
+  "padding": {
+    "key": "padding",
+    "oneDesc": "图表整体padding设置"
+  },
+  "percent": {
+    "key": "percent",
+    "oneDesc": "开启后为百分比图表,与stack相同需要同步设置xField,yField,seriesField"
+  },
+  "name": {
+    "key": "name",
+    "oneDesc": "系列名称"
+  },
+  "id": {
+    "key": "id",
+    "oneDesc": "用户自定义的 series id"
+  },
+  "animation": {
+    "key": "animation",
+    "oneDesc": "是否开启系列动画"
+  },
+  "stack": {
+    "key": "stack",
+    "oneDesc": "开启后为堆叠图，关闭后为分组柱图，但需要同步设置xField,yField,seriesField"
+  },
+  "animationEnter": {
+    "key": "animationEnter",
+    "oneDesc": "新增数据动画"
+  },
+  "animationUpdate": {
+    "key": "animationUpdate",
+    "oneDesc": "数据更新动画"
+  },
+  "animationExit": {
+    "key": "animationExit",
+    "oneDesc": "数据删除动画"
+  },
+  "dataIndex": {
+    "key": "dataIndex",
+    "oneDesc": "系列关联的数据索引"
+  },
+  "sampling": {
+    "key": "sampling",
+    "oneDesc": "数据采样具体的采样方法"
+  },
+  "animationState": {
+    "key": "animationState",
+    "oneDesc": "状态切换动画"
+  },
+  "large": {
+    "key": "large",
+    "oneDesc": "是否开启大数据渲染模式，开启后会降低渲染的精度"
+  },
+  "largeThreshold": {
+    "key": "largeThreshold",
+    "oneDesc": "开启大数据渲染优化的阀值，对应的是data的长度"
+  },
+  "progressiveStep": {
+    "key": "progressiveStep",
+    "oneDesc": "分片长度"
+  },
+  "progressiveThreshold": {
+    "key": "progressiveThreshold",
+    "oneDesc": "开启分片渲染的阀值，对应的是单系列data的长度"
+  },
+  "support3d": {
+    "key": "support3d",
+    "oneDesc": "是否支持3d视角"
+  },
+  "regionIndex": {
+    "key": "regionIndex",
+    "oneDesc": "系列关联的region索引"
+  },
+  "regionId": {
+    "key": "regionId",
+    "oneDesc": "系列关联的region id"
+  },
+  "totalLabel": {
+    "key": "totalLabel",
+    "oneDesc": "堆叠汇总标签"
+  },
+  "animationAppear": {
+    "key": "animationAppear",
+    "oneDesc": "图表入场动画"
+  },
+  "animationDisappear": {
+    "key": "animationDisappear",
+    "oneDesc": "图表退场动画"
+  },
+  "animationNormal": {
+    "key": "animationNormal",
+    "oneDesc": "循环动画"
+  },
+  "xField": {
+    "key": "xField",
+    "oneDesc": "数据中映射到x轴的字段。当类型为数组时，图表按顺序进行数据分组，并与seriesField结合形成多系列柱图。堆积场景下xField只能包含一个字段"
+  },
+  "yField": {
+    "key": "yField",
+    "oneDesc": "数据中映射到y轴的字段。可以声明为数组类型，内部会依次按照声明的字段进行数据分组。"
+  },
+  "label": {
+    "key": "label",
+    "oneDesc": "标签相关配置,包括跟标签相关的引导线配置"
+  },
+  "bar": {
+    "key": "bar",
+    "oneDesc": "柱图图元样式配置和鼠标样式配置.同时可以配置选中，hover等交互状态下的柱子和鼠标的样式"
+  },
+  "barBackground": {
+    "key": "barBackground",
+    "oneDesc": "柱图中每根柱子背后的背景图元配置.同时可以配置选中，hover等交互状态下的背景图元和对应鼠标的样式"
+  },
+  "barWidth": {
+    "key": "barWidth",
+    "oneDesc": "柱体宽度"
+  },
+  "barMinWidth": {
+    "key": "barMinWidth",
+    "oneDesc": "柱体最小宽度"
+  },
+  "barMaxWidth": {
+    "key": "barMaxWidth",
+    "oneDesc": "柱体最大宽度"
+  },
+  "barGapInGroup": {
+    "key": "barGapInGroup",
+    "oneDesc": "分组柱图中各个分组内的柱子间距，支持多层分组"
+  },
+  "barMinHeight": {
+    "key": "barMinHeight",
+    "oneDesc": "柱条最小高度，可用于防止某数据项的值过小的视觉调整。"
+  },
+  "stackCornerRadius": {
+    "key": "stackCornerRadius",
+    "oneDesc": "堆叠柱整体的圆角"
+  },
+  "x2Field": {
+    "key": "x2Field",
+    "oneDesc": "用于区间数据，声明区间末尾的数据字段"
+  },
+  "y2Field": {
+    "key": "y2Field",
+    "oneDesc": "用于区间数据，声明区间末尾的数据字段"
+  },
+  "zField": {
+    "key": "zField",
+    "oneDesc": "z轴字段,用于3d散点图等"
+  },
+  "sortDataByAxis": {
+    "key": "sortDataByAxis",
+    "oneDesc": "指定数据是否按x轴顺序排序，以确保在数据顺序不确定时图形正确绘制"
+  },
+  "dataId": {
+    "key": "dataId",
+    "oneDesc": "系列关联的数据id"
+  },
+  "dataKey": {
+    "key": "dataKey",
+    "oneDesc": "dataKey用于绑定数据与Mark的关系, 该配置在动画中非常重要."
+  },
+  "seriesField": {
+    "key": "seriesField",
+    "oneDesc": "分组字段映射，该字段决定了系列个数和分组情况，默认会用于颜色映射"
+  },
+  "stackOffsetSilhouette": {
+    "key": "stackOffsetSilhouette",
+    "oneDesc": "是否围绕中心轴偏移轮廓"
+  },
+  "invalidType": {
+    "key": "invalidType",
+    "oneDesc": "null，undefined等非法数据点连接方式。"
+  },
+  "extensionMark": {
+    "key": "extensionMark",
+    "oneDesc": "扩展mark用于在系列数据中添加特定图元，展示自定义信息。可添加：点图形、线段、文本、矩形、路径、弧形、多边形、图像和mark组合"
+  },
+  "interactions": {
+    "key": "interactions",
+    "oneDesc": "交互配置，配置交互行为，不包含交互样式"
+  },
+  "activePoint": {
+    "key": "activePoint",
+    "oneDesc": "是否使用额外的 activePoint 显示交互点，可以在点隐藏时显示被交互的点"
+  },
+  "samplingFactor": {
+    "key": "samplingFactor",
+    "oneDesc": "数据采样 - 采样系数"
+  }
+}

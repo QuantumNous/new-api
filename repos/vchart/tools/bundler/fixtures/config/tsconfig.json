@@ -1,0 +1,18 @@
+{
+  "extends": "@internal/ts-config/tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": "./",
+    "rootDir": "./",
+    "outDir": "output",
+    "target": "ES2015",
+    "module": "ESNext",
+    "declaration": true,
+    "sourceMap": false,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["source/*"]
+    }
+  },
+  "include": ["source"]
+}
+

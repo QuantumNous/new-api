@@ -1,0 +1,52 @@
+---
+description: 'Rsbuild 默认使用 css-loader 来处理 CSS 资源。你可以通过 tools.cssLoader 来修改 css-loader 的选项。'
+---
+
+# tools.cssLoader
+
+- **类型：** `Object | Function`
+- **默认值：**
+
+```js
+const defaultOptions = {
+  modules: rsbuildConfig.output.cssModules,
+  sourceMap: rsbuildConfig.output.sourceMap.css,
+};
+```
+
+Rsbuild 默认使用 [css-loader](https://github.com/webpack/css-loader) 来处理 CSS 资源。你可以通过 `tools.cssLoader` 来修改 css-loader 的选项。
+
+:::tip
+如果你需要修改 CSS Modules 相关的选项，推荐优先使用 [output.cssModules](/config/output/css-modules) 配置项。
+:::
+
+### Object 类型
+
+当此值为 Object 类型时，会与默认配置进行深层合并 (deep merge)。比如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    cssLoader: {
+      modules: {
+        exportOnlyLocals: true,
+      },
+    },
+  },
+};
+```
+
+### Function 类型
+
+当此值为 Function 类型时，默认配置作为第一个参数传入，你可以直接修改配置对象，也可以返回一个对象作为最终配置。比如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    cssLoader: (config) => {
+      config.modules.exportOnlyLocals = true;
+      return config;
+    },
+  },
+};
+```

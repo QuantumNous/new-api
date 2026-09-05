@@ -1,0 +1,171 @@
+// Rstest Snapshot v1
+
+exports[`plugin-output > should allow customizing filename hash format with object config 1`] = `
+{
+  "assetModuleFilename": "static/assets/[name].[contenthash:16][ext]",
+  "chunkFilename": "static/js/async/[name].[contenthash:16].js",
+  "devtoolFallbackModuleFilenameTemplate": "[relative-resource-path]?[hash]",
+  "devtoolModuleFilenameTemplate": "[relative-resource-path]",
+  "environment": {
+    "const": false,
+  },
+  "filename": "static/js/[name].[contenthash:16].js",
+  "path": "<ROOT>/dist",
+  "publicPath": "/",
+  "webassemblyModuleFilename": "static/wasm/[contenthash:16].module.wasm",
+}
+`;
+
+exports[`plugin-output > should allow customizing server directory with distPath.root 1`] = `
+{
+  "assetModuleFilename": "static/assets/[name].[contenthash:10][ext]",
+  "chunkFilename": "[name].js",
+  "chunkFormat": "module",
+  "chunkLoading": "import",
+  "devtoolFallbackModuleFilenameTemplate": "[relative-resource-path]?[hash]",
+  "devtoolModuleFilenameTemplate": "[relative-resource-path]",
+  "filename": "[name].js",
+  "library": {
+    "type": "module",
+  },
+  "module": true,
+  "path": "<ROOT>/dist/server",
+  "publicPath": "/",
+  "webassemblyModuleFilename": "static/wasm/[contenthash:10].module.wasm",
+  "workerChunkLoading": "import",
+}
+`;
+
+exports[`plugin-output > should allow disabling filename hash with object config 1`] = `
+{
+  "assetModuleFilename": "static/assets/[name][ext]",
+  "chunkFilename": "static/js/async/[name].js",
+  "devtoolFallbackModuleFilenameTemplate": "[relative-resource-path]?[hash]",
+  "devtoolModuleFilenameTemplate": "[relative-resource-path]",
+  "environment": {
+    "const": false,
+  },
+  "filename": "static/js/[name].js",
+  "path": "<ROOT>/dist",
+  "publicPath": "/",
+  "webassemblyModuleFilename": "static/wasm/[contenthash:10].module.wasm",
+}
+`;
+
+exports[`plugin-output > should allow enabling filename hash in development mode 1`] = `
+{
+  "assetModuleFilename": "static/assets/[name].[contenthash:10][ext]",
+  "chunkFilename": "static/js/async/[name].[contenthash:10].js",
+  "devtoolFallbackModuleFilenameTemplate": [Function],
+  "devtoolModuleFilenameTemplate": [Function],
+  "environment": {
+    "const": false,
+  },
+  "filename": "static/js/[name].[contenthash:10].js",
+  "path": "<ROOT>/dist",
+  "publicPath": "/",
+  "webassemblyModuleFilename": "static/wasm/[contenthash:10].module.wasm",
+}
+`;
+
+exports[`plugin-output > should allow setting distPath.js and distPath.css to empty string 1`] = `
+{
+  "assetModuleFilename": "static/assets/[name].[contenthash:10][ext]",
+  "chunkFilename": "async/[name].js",
+  "devtoolFallbackModuleFilenameTemplate": "[relative-resource-path]?[hash]",
+  "devtoolModuleFilenameTemplate": "[relative-resource-path]",
+  "environment": {
+    "const": false,
+  },
+  "filename": "[name].js",
+  "path": "<ROOT>/dist",
+  "publicPath": "/",
+  "webassemblyModuleFilename": "static/wasm/[contenthash:10].module.wasm",
+}
+`;
+
+exports[`plugin-output > should allow using copy plugin 1`] = `
+CopyRspackPlugin {
+  "_args": [
+    {
+      "patterns": [
+        {
+          "from": "test",
+        },
+      ],
+    },
+  ],
+  "affectedHooks": undefined,
+  "name": "CopyRspackPlugin",
+}
+`;
+
+exports[`plugin-output > should allow using copy plugin with multiple configurations 1`] = `
+CopyRspackPlugin {
+  "_args": [
+    {
+      "patterns": [
+        {
+          "from": "test",
+        },
+        "src/assets/",
+        "tests/",
+      ],
+    },
+  ],
+  "affectedHooks": undefined,
+  "name": "CopyRspackPlugin",
+}
+`;
+
+exports[`plugin-output > should allow using filename.js to modify filename 1`] = `
+{
+  "assetModuleFilename": "static/assets/[name].[contenthash:10][ext]",
+  "chunkFilename": "static/js/async/foo.js",
+  "devtoolFallbackModuleFilenameTemplate": "[relative-resource-path]?[hash]",
+  "devtoolModuleFilenameTemplate": "[relative-resource-path]",
+  "environment": {
+    "const": false,
+  },
+  "filename": "static/js/foo.js",
+  "path": "<ROOT>/dist",
+  "publicPath": "/",
+  "webassemblyModuleFilename": "static/wasm/[contenthash:10].module.wasm",
+}
+`;
+
+exports[`plugin-output > should apply output config when target is node 1`] = `
+{
+  "assetModuleFilename": "static/assets/[name].[contenthash:10][ext]",
+  "chunkFilename": "bundle/foo.js",
+  "chunkFormat": "module",
+  "chunkLoading": "import",
+  "devtoolFallbackModuleFilenameTemplate": "[relative-resource-path]?[hash]",
+  "devtoolModuleFilenameTemplate": "[relative-resource-path]",
+  "filename": "bundle/foo.js",
+  "library": {
+    "type": "module",
+  },
+  "module": true,
+  "path": "<ROOT>/dist",
+  "publicPath": "/",
+  "webassemblyModuleFilename": "static/wasm/[contenthash:10].module.wasm",
+  "workerChunkLoading": "import",
+}
+`;
+
+exports[`plugin-output > should set output correctly 1`] = `
+{
+  "assetModuleFilename": "static/assets/[name].[contenthash:10][ext]",
+  "chunkFilename": "static/js/async/[name].js",
+  "devtoolFallbackModuleFilenameTemplate": "[relative-resource-path]?[hash]",
+  "devtoolModuleFilenameTemplate": "[relative-resource-path]",
+  "environment": {
+    "const": false,
+  },
+  "filename": "static/js/[name].js",
+  "path": "<ROOT>/dist",
+  "publicPath": "/",
+  "webassemblyModuleFilename": "static/wasm/[contenthash:10].module.wasm",
+}
+`;

@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@visactor/react-vchart",
+      "comment": "chore: align VRender runtime dependencies with the VChart VRender 1.1.0 upgrade",
+      "type": "patch"
+    }
+  ],
+  "packageName": "@visactor/react-vchart",
+  "email": "openai@example.com"
+}

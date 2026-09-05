@@ -1,0 +1,6 @@
+{
+  "simple_dev": "ok_from_special_dev",
+  "test": {
+    "simple_dev": "ok_from_special_dev"
+  }
+}

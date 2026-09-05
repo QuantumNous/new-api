@@ -1,0 +1,163 @@
+---
+description: 'Rsbuild 默认支持 TypeScript，你可以直接在项目中使用 .ts 和 .tsx 文件。'
+---
+
+# TypeScript
+
+Rsbuild 默认支持 TypeScript，你可以直接在项目中使用 `.ts` 和 `.tsx` 文件。
+
+## TypeScript 转换 \{#typescript-transformation}
+
+Rsbuild 默认使用 [SWC](/guide/configuration/swc) 来转换 TypeScript 代码为 JavaScript，也支持切换到 [Babel](/plugins/list/plugin-babel) 进行转换。
+
+### 模块隔离
+
+与 TypeScript 原生编译器不同，像 SWC 和 Babel 这样的工具会将每个文件单独编译，它无法确定导入的名称是一个类型还是一个值。因此，当你在 Rsbuild 中使用 TypeScript 时，需要启用 `tsconfig.json` 中的 [verbatimModuleSyntax](https://www.typescriptlang.org/tsconfig/#verbatimModuleSyntax) 或 [isolatedModules](https://typescriptlang.org/tsconfig/#isolatedModules) 选项：
+
+- 如果 `typescript` >= 5.0.0，使用 `verbatimModuleSyntax` 选项，它会默认启用 `isolatedModules` 选项：
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "verbatimModuleSyntax": true
+  }
+}
+```
+
+- 如果 `typescript` < 5.0.0，使用 `isolatedModules` 选项：
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "isolatedModules": true
+  }
+}
+```
+
+开启 `isolatedModules` 选项可以帮助你避免使用一些 SWC 和 Babel 无法正确编译的写法，比如跨文件的类型引用问题，它会引导你更正对应的用法：
+
+```ts
+// 错误
+export { SomeType } from './types';
+
+// 正确
+export type { SomeType } from './types';
+```
+
+> 参考 [SWC - Migrating from tsc](https://swc.rs/docs/migrating-from-tsc) 了解更多 SWC 和 tsc 的差异。
+
+## 预设类型 \{#preset-types}
+
+`@rsbuild/core` 提供了一些预设的类型定义，包含 CSS 文件、CSS Modules、静态资源、`import.meta` 等类型。
+
+你可以在 `tsconfig.json` 的 `compilerOptions.types` 中添加这些预设类型：
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "types": ["@rsbuild/core/types"]
+  }
+}
+```
+
+如果你的项目中已经配置了 `compilerOptions.types`，请将 `@rsbuild/core/types` 追加到已有列表中。
+
+> 参考 [types.d.ts](https://github.com/web-infra-dev/rsbuild/blob/main/packages/core/types.d.ts) 来了解 Rsbuild 提供的完整预设类型定义。
+
+## 类型检查 \{#type-checking}
+
+在进行 TypeScript 转译时，SWC 和 Babel 等工具不会执行类型检查。
+
+### 类型检查插件
+
+要启用类型检查，可以使用 [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check) 插件。该插件会在单独的进程中运行 TypeScript 类型检查，并在内部集成了 [ts-checker-rspack-plugin](https://github.com/rstackjs/ts-checker-rspack-plugin)。
+
+该插件支持在开发模式和构建模式下进行类型检查，帮助你在开发过程中及时发现类型错误。
+
+请参考 [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check) 了解用法。
+
+### 使用 tsc
+
+你也可以直接使用 [tsc](https://www.typescriptlang.org/docs/handbook/compiler-options.html) 来进行类型检查，在 `build` 脚本中添加 `type-check` 步骤即可。这种方式仅在构建完成后执行类型检查，在开发模式下不会执行。
+
+```json title="package.json"
+{
+  "scripts": {
+    "build": "rsbuild build && npm run type-check",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0"
+  }
+}
+```
+
+对于 Vue 应用，使用 [vue-tsc](https://github.com/vuejs/language-tools/tree/master/packages/tsc) 代替 `tsc`，它除了支持 TypeScript 文件外，还支持 Vue 单文件组件（SFC）。
+
+```json title="package.json"
+{
+  "scripts": {
+    "build": "rsbuild build && npm run type-check",
+    "type-check": "vue-tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0",
+    "vue-tsc": "^3.0.0"
+  }
+}
+```
+
+## tsconfig.json 路径
+
+Rsbuild 默认读取根目录的 `tsconfig.json` 文件，你可以使用 [source.tsconfigPath](/config/source/tsconfig-path) 配置自定义的 tsconfig.json 文件路径。
+
+```ts
+export default {
+  source: {
+    tsconfigPath: './tsconfig.custom.json',
+  },
+};
+```
+
+## 路径后缀
+
+当在一个 TypeScript 模块中导入另一个模块时，TypeScript 允许使用 `.js` 文件扩展名：
+
+```ts title="src/index.ts"
+// 实际引用的模块可能是 `./some-module.ts` 或 `./some-module.tsx`
+import { someFn } from './some-module.js';
+```
+
+Rsbuild 通过 Rspack 的 [extensionAlias](https://rspack.rs/zh/config/resolve#resolveextensionalias) 配置来支持该特性。在 TypeScript 项目中，Rsbuild 默认会添加以下配置：
+
+```js
+const rspackConfig = {
+  resolve: {
+    extensionAlias: {
+      '.js': ['.js', '.ts', '.tsx'],
+      '.jsx': ['.jsx', '.tsx'],
+    },
+  },
+};
+```
+
+这意味着：
+
+- 允许使用 `.js` 文件扩展名导入 `.ts` 或 `.tsx` 文件。
+- 允许使用 `.jsx` 文件扩展名导入 `.tsx` 文件。
+
+## 装饰器版本
+
+Rsbuild 不会读取 `tsconfig.json` 中的 `experimentalDecorators` 选项，而是提供了 [decorators.version](/config/source/decorators#decoratorsversion) 配置项来指定装饰器版本。
+
+默认情况下，Rsbuild 会使用 `2023-11` 版本的装饰器，你也可以按需将其设置为 `legacy` 或其他版本：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    decorators: {
+      version: 'legacy',
+    },
+  },
+};
+```

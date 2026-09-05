@@ -1,0 +1,55 @@
+<div class="p-2">
+  <table>
+    <thead>
+      @for (headerGroup of table.getHeaderGroups(); track headerGroup.id) {
+        <tr>
+          @for (header of headerGroup.headers; track header.id) {
+            @if (!header.isPlaceholder) {
+              <th>
+                <ng-container
+                  *flexRender="
+                    header.column.columnDef.header;
+                    props: header.getContext();
+                    let header
+                  "
+                >
+                  <div [innerHTML]="header"></div>
+                </ng-container>
+              </th>
+            }
+          }
+        </tr>
+      }
+    </thead>
+    <tbody
+      #boundaryElement
+      cdkDropList
+      [cdkDropListData]="data()"
+      (cdkDropListDropped)="drop($event)"
+    >
+      @for (row of table.getRowModel().rows; track row.id) {
+        <tr
+          cdkDrag
+          [cdkDragData]="row.original"
+          [cdkDragBoundary]="boundaryElement"
+        >
+          @for (cell of row.getVisibleCells(); track cell.id) {
+            <td [style.width.px]="cell.column.getSize()">
+              <ng-container
+                *flexRender="
+                  cell.column.columnDef.cell;
+                  props: cell.getContext();
+                  let cell
+                "
+              >
+                <div [innerHTML]="cell"></div>
+              </ng-container>
+            </td>
+          }
+        </tr>
+      }
+    </tbody>
+  </table>
+
+  <pre>{{ sortedIds() | json }}</pre>
+</div>

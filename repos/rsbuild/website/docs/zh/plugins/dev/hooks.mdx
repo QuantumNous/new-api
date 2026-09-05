@@ -1,0 +1,977 @@
+---
+description: '本章节介绍 Rsbuild 插件可用的 hooks。'
+---
+
+# 插件 hooks \{#plugin-hooks}
+
+本章节介绍 Rsbuild 插件可用的 hooks。
+
+## 总览
+
+### Common hooks
+
+- [modifyRsbuildConfig](#modifyrsbuildconfig)：修改传递给 Rsbuild 的配置。
+- [modifyEnvironmentConfig](#modifyenvironmentconfig): 修改特定 environment 的 Rsbuild 配置。
+- [modifyRspackConfig](#modifyrspackconfig)：修改传递给 Rspack 的配置。
+- [modifyBundlerChain](#modifybundlerchain)：通过 chain API 修改 Rspack 的配置。
+- [modifyHTMLTags](#modifyhtmltags)：修改注入到 HTML 中的标签。
+- [modifyHTML](#modifyhtml)：修改最终的 HTML 内容。
+- [onBeforeCreateCompiler](#onbeforecreatecompiler)：在创建 compiler 实例前调用。
+- [onAfterCreateCompiler](#onaftercreatecompiler)：在创建 compiler 实例后、执行构建前调用。
+- [onBeforeEnvironmentCompile](#onbeforeenvironmentcompile): 在每次执行单个 environment 的构建前调用。
+- [onAfterEnvironmentCompile](#onafterenvironmentcompile): 在每次单个 environment 的构建结束后调用。
+- [onExit](#onexit)：在进程即将退出时调用。
+
+### Dev hooks
+
+在执行 `rsbuild dev` 命令或 `rsbuild.startDevServer()` 方法时调用：
+
+- [onBeforeStartDevServer](#onbeforestartdevserver)：在启动开发服务器前调用。
+- [onAfterStartDevServer](#onafterstartdevserver)：在启动开发服务器后调用。
+- [onBeforeDevCompile](#onbeforedevcompile)：在每次执行开发环境构建前调用。
+- [onAfterDevCompile](#onafterdevcompile)：在每次开发模式构建结束后调用。
+- [onCloseDevServer](#onclosedevserver)：在关闭开发服务器时调用。
+
+### Build hooks
+
+在执行 `rsbuild build` 命令或 `rsbuild.build()` 方法时调用：
+
+- [onBeforeBuild](#onbeforebuild)：在执行生产模式构建前调用。
+- [onAfterBuild](#onafterbuild)：在执行生产模式构建后调用，可以获取到构建结果信息。
+- [onCloseBuild](#onclosebuild)：在关闭构建时调用。
+
+### Preview hooks
+
+在执行 `rsbuild preview` 命令或 `rsbuild.preview()` 方法时调用：
+
+- [onBeforeStartPreviewServer](#onbeforestartpreviewserver)：在启动预览服务器前调用。
+- [onAfterStartPreviewServer](#onafterstartpreviewserver)：在启动预览服务器后调用。
+
+## Hooks 顺序
+
+### Dev hooks
+
+执行 `rsbuild dev` 命令或 `rsbuild.startDevServer()` 方法时，Rsbuild 会依次执行以下 hooks：
+
+- [modifyRsbuildConfig](#modifyrsbuildconfig)
+- [modifyEnvironmentConfig](#modifyenvironmentconfig)
+- [onBeforeStartDevServer](#onbeforestartdevserver)
+- [modifyBundlerChain](#modifybundlerchain)
+- [modifyRspackConfig](#modifyrspackconfig)
+- [onBeforeCreateCompiler](#onbeforecreatecompiler)
+- [onAfterCreateCompiler](#onaftercreatecompiler)
+- [onBeforeDevCompile](#onbeforedevcompile)
+- [onBeforeEnvironmentCompile](#onbeforeenvironmentcompile)
+- [onAfterStartDevServer](#onafterstartdevserver)
+- [modifyHTMLTags](#modifyhtmltags)
+- [modifyHTML](#modifyhtml)
+- [onAfterEnvironmentCompile](#onafterenvironmentcompile)
+- [onAfterDevCompile](#onafterdevcompile)
+- [onCloseDevServer](#onclosedevserver)
+- [onExit](#onexit)
+
+当 rebuild 时，以下 hooks 会再次触发：
+
+- [onBeforeDevCompile](#onbeforedevcompile)
+- [onBeforeEnvironmentCompile](#onbeforeenvironmentcompile)
+- [modifyHTMLTags](#modifyhtmltags)
+- [modifyHTML](#modifyhtml)
+- [onAfterEnvironmentCompile](#onafterenvironmentcompile)
+- [onAfterDevCompile](#onafterdevcompile)
+
+### Build hooks
+
+执行 `rsbuild build` 命令或 `rsbuild.build()` 方法时，Rsbuild 会依次执行以下 hooks：
+
+- [modifyRsbuildConfig](#modifyrsbuildconfig)
+- [modifyEnvironmentConfig](#modifyenvironmentconfig)
+- [modifyBundlerChain](#modifybundlerchain)
+- [modifyRspackConfig](#modifyrspackconfig)
+- [onBeforeCreateCompiler](#onbeforecreatecompiler)
+- [onAfterCreateCompiler](#onaftercreatecompiler)
+- [onBeforeBuild](#onbeforebuild)
+- [onBeforeEnvironmentCompile](#onbeforeenvironmentcompile)
+- [modifyHTMLTags](#modifyhtmltags)
+- [modifyHTML](#modifyhtml)
+- [onAfterEnvironmentCompile](#onafterenvironmentcompile)
+- [onAfterBuild](#onafterbuild)
+- [onCloseBuild](#onclosebuild)
+- [onExit](#onexit)
+
+当 rebuild 时，以下 hooks 会再次触发：
+
+- [onBeforeBuild](#onbeforebuild)
+- [onBeforeEnvironmentCompile](#onbeforeenvironmentcompile)
+- [modifyHTMLTags](#modifyhtmltags)
+- [modifyHTML](#modifyhtml)
+- [onAfterEnvironmentCompile](#onafterenvironmentcompile)
+- [onAfterBuild](#onafterbuild)
+
+### Preview hooks
+
+执行 `rsbuild preview` 命令或 `rsbuild.preview()` 方法时，Rsbuild 会依次执行以下 hooks：
+
+- [modifyRsbuildConfig](#modifyrsbuildconfig)
+- [modifyEnvironmentConfig](#modifyenvironmentconfig)
+- [onBeforeStartPreviewServer](#onbeforestartpreviewserver)
+- [onAfterStartPreviewServer](#onafterstartpreviewserver)
+- [onExit](#onexit)
+
+## Global hooks vs environment hooks
+
+在 Rsbuild 中，有一些插件 hooks 是全局 hooks，这些 hook 的执行往往和 Rsbuild 自身的启动流程或全局逻辑相关，在所有 environment 下共享。如：
+
+- `modifyRsbuildConfig` 用来修改 Rsbuild 的基础配置，基础配置最终会和 environment 配置合并；
+- `onBeforeStartDevServer`、`onAfterStartDevServer` 和 Rsbuild dev server 启动流程相关，所有 environments 共享 Rsbuild 的开发服务器、中间件、WebSocket。
+
+与之对应的，有一些插件 hooks 是和当前 environment 相关的 hook，这些 hook 执行时会带有特定的 environment 上下文，并根据 environment 的不同而触发多次。
+
+### Global hooks
+
+- [modifyRsbuildConfig](#modifyrsbuildconfig)
+- [onBeforeStartDevServer](#onbeforestartdevserver)
+- [onBeforeCreateCompiler](#onbeforecreatecompiler)
+- [onAfterCreateCompiler](#onaftercreatecompiler)
+- [onAfterStartDevServer](#onafterstartdevserver)
+- [onBeforeDevCompile](#onbeforedevcompile)
+- [onAfterDevCompile](#onafterdevcompile)
+- [onCloseDevServer](#onclosedevserver)
+- [onBeforeBuild](#onbeforebuild)
+- [onAfterBuild](#onafterbuild)
+- [onCloseBuild](#onclosebuild)
+- [onBeforeStartPreviewServer](#onbeforestartpreviewserver)
+- [onAfterStartPreviewServer](#onafterstartpreviewserver)
+- [onExit](#onexit)
+
+### Environment hooks
+
+- [modifyEnvironmentConfig](#modifyenvironmentconfig)
+- [modifyBundlerChain](#modifybundlerchain)
+- [modifyRspackConfig](#modifyrspackconfig)
+- [modifyHTMLTags](#modifyhtmltags)
+- [modifyHTML](#modifyhtml)
+- [onBeforeEnvironmentCompile](#onbeforeenvironmentcompile)
+- [onAfterEnvironmentCompile](#onafterenvironmentcompile)
+
+## 回调函数顺序 \{#callback-order}
+
+### 默认行为
+
+如果多个插件注册了相同的 hook，那么 hook 的回调函数会按照注册时的顺序执行。
+
+在以下例子中，控制台会依次输出 `'1'` 和 `'2'`：
+
+```ts
+const plugin1 = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig(() => console.log('1'));
+  },
+});
+
+const plugin2 = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig(() => console.log('2'));
+  },
+});
+
+rsbuild.addPlugins([plugin1, plugin2]);
+```
+
+### order 字段
+
+在注册 hook 时，可以通过 `order` 字段来声明 hook 的顺序。
+
+```ts
+type HookDescriptor<T extends (...args: any[]) => any> = {
+  handler: T;
+  order: 'pre' | 'post' | 'default';
+};
+```
+
+在以下例子中，控制台会依次输出 `'2'` 和 `'1'`，因为 plugin2 在调用 modifyRsbuildConfig 时设置了 order 为 `pre`。
+
+```ts
+const plugin1 = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig(() => console.log('1'));
+  },
+});
+
+const plugin2 = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig({
+      handler: () => console.log('2'),
+      order: 'pre',
+    });
+  },
+});
+
+rsbuild.addPlugins([plugin1, plugin2]);
+```
+
+## Common hooks
+
+### modifyRsbuildConfig
+
+修改传递给 Rsbuild 的配置项，你可以直接修改传入的 config 对象，也可以返回一个新的对象来替换传入的对象。
+
+:::warning
+`modifyRsbuildConfig` 为全局 hook。如果你希望你开发的插件支持[仅在特定的 environment 下生效](/guide/advanced/environments#plugins-specified-environment)，应避免使用 `modifyRsbuildConfig`，可使用 [modifyEnvironmentConfig](/plugins/dev/hooks#modifyenvironmentconfig) 代替。
+:::
+
+- **类型：**
+
+```ts
+type ModifyRsbuildConfigUtils = {
+  mergeRsbuildConfig: typeof mergeRsbuildConfig;
+};
+
+function ModifyRsbuildConfig(
+  callback: (
+    config: RsbuildConfig,
+    utils: ModifyRsbuildConfigUtils,
+  ) => MaybePromise<RsbuildConfig | void>,
+): void;
+```
+
+- **示例：** 为某个配置项设置一个默认值：
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig((config) => {
+      config.html ||= {};
+      config.html.title = 'My Default Title';
+    });
+  },
+});
+```
+
+- **示例：** 通过 `mergeRsbuildConfig` 合并配置多个对象，并返回合并后的对象。
+
+```ts
+import type { RsbuildConfig } from '@rsbuild/core';
+
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig((userConfig, { mergeRsbuildConfig }) => {
+      const extraConfig: RsbuildConfig = {
+        source: {
+          // ...
+        },
+        output: {
+          // ...
+        },
+      };
+
+      // extraConfig 会覆盖 userConfig 里的字段，
+      // 如果你不希望覆盖 userConfig，可以调整为 `mergeRsbuildConfig(extraConfig, userConfig)`
+      return mergeRsbuildConfig(userConfig, extraConfig);
+    });
+  },
+});
+```
+
+:::tip
+`modifyRsbuildConfig` 不能用于注册额外的 Rsbuild 插件。这是因为在执行 `modifyRsbuildConfig` 时，Rsbuild 已经初始化了所有插件，并开始执行 hooks 的回调函数。详情可参考 [插件注册时机](/config/plugins#plugin-registration-phase)。
+:::
+
+### modifyEnvironmentConfig
+
+修改特定 environment 的 Rsbuild 配置。
+
+在回调函数中，入参里的 config 对象已经合并了公共的 Rsbuild 配置，你可以直接修改这个 config 对象，也可以返回一个新的对象来替换它。
+
+- **类型：**
+
+```ts
+type ArrayAtLeastOne<A, B> = [A, ...Array<A | B>] | [...Array<A | B>, A];
+
+type ModifyEnvironmentConfigUtils = {
+  /** 当前 environment 名称 */
+  name: string;
+  mergeEnvironmentConfig: (
+    ...configs: ArrayAtLeastOne<MergedEnvironmentConfig, EnvironmentConfig>
+  ) => EnvironmentConfig;
+};
+
+function ModifyEnvironmentConfig(
+  callback: (
+    config: EnvironmentConfig,
+    utils: ModifyEnvironmentConfigUtils,
+  ) => MaybePromise<EnvironmentConfig | void>,
+): void;
+```
+
+- **示例：** 为指定 environment 的 Rsbuild config 设置一个默认值：
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyEnvironmentConfig((config, { name }) => {
+      if (name !== 'web') {
+        return config;
+      }
+      config.html.title = 'My Default Title';
+    });
+  },
+});
+```
+
+- **示例：** 通过 `mergeEnvironmentConfig` 合并配置多个对象，并返回合并后的对象。
+
+```ts
+import type { EnvironmentConfig } from '@rsbuild/core';
+
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyEnvironmentConfig((userConfig, { mergeEnvironmentConfig }) => {
+      const extraConfig: EnvironmentConfig = {
+        source: {
+          // ...
+        },
+        output: {
+          // ...
+        },
+      };
+
+      // extraConfig 会覆盖 userConfig 里的字段
+      // 如果你不希望覆盖 userConfig，可以调整为 `mergeEnvironmentConfig(extraConfig, userConfig)`
+      return mergeEnvironmentConfig(userConfig, extraConfig);
+    });
+  },
+});
+```
+
+### modifyRspackConfig
+
+修改 Rspack 配置，你可以直接修改传入的 config 对象，也可以返回一个新的对象来替换传入的对象。
+
+:::tip
+`modifyRspackConfig` 的执行时机早于 [tools.rspack](/config/tools/rspack)。因此，无法在 `modifyRspackConfig` 中获取到 `tools.rspack` 所做的修改。
+:::
+
+- **类型：**
+
+```ts
+type ModifyRspackConfigUtils = {
+  environment: EnvironmentContext;
+  env: string;
+  isDev: boolean;
+  isProd: boolean;
+  target: RsbuildTarget;
+  isServer: boolean;
+  isWebWorker: boolean;
+  rspack: Rspack;
+  HtmlPlugin: typeof import('html-rspack-plugin');
+  // more...
+};
+
+function ModifyRspackConfig(
+  callback: (
+    config: Rspack.Configuration,
+    utils: ModifyRspackConfigUtils,
+  ) => Promise<RspackConfig | void> | Rspack.Configuration | void,
+): void;
+```
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyRspackConfig((config, utils) => {
+      if (utils.env === 'development') {
+        config.devtool = 'eval-cheap-source-map';
+      }
+    });
+  },
+});
+```
+
+回调函数的第二个参数 `utils` 是一个对象，包含了一些工具函数和属性，详见 [tools.rspack - 工具对象](/config/tools/rspack#utils)。
+
+### modifyBundlerChain
+
+import RspackChain from '@zh/shared/rspackChain.mdx';
+
+<RspackChain />
+
+`modifyBundlerChain` 允许你使用 `rspack-chain` API 来修改 Rspack 的配置，它的用法与 [tools.bundlerChain](/config/tools/bundler-chain) 相同。
+
+- **类型：**
+
+```ts
+type ModifyBundlerChainUtils = {
+  environment: EnvironmentContext;
+  env: string;
+  isDev: boolean;
+  isProd: boolean;
+  target: RsbuildTarget;
+  isServer: boolean;
+  isWebWorker: boolean;
+  CHAIN_ID: ChainIdentifier;
+  HtmlPlugin: typeof import('html-rspack-plugin');
+  bundler: {
+    // some Rspack built-in plugins
+  };
+};
+
+function ModifyBundlerChain(
+  callback: (chain: RspackChain, utils: ModifyBundlerChainUtils) => Promise<void> | void,
+): void;
+```
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyBundlerChain((chain, utils) => {
+      if (utils.env === 'development') {
+        chain.devtool('eval');
+      }
+
+      chain.plugin('circular-dependency').use(utils.rspack.CircularDependencyRspackPlugin);
+    });
+  },
+});
+```
+
+回调函数的第二个参数 `utils` 是一个对象，包含了一些工具函数和属性，详见 [tools.bundlerChain - 工具对象](/config/tools/bundler-chain#utils)。
+
+### modifyHTML
+
+修改最终的 HTML 内容。该钩子接收一个 HTML 字符串和上下文对象，你可以返回一个新的 HTML 字符串来替换原始内容。
+
+这个钩子在 [modifyHTMLTags](#modifyhtmltags) 钩子之后触发。
+
+- **类型：**
+
+```ts
+type Context = {
+  /**
+   * Rspack 的 Compiler 对象
+   */
+  compiler: Rspack.Compiler;
+  /**
+   * Rspack 的 Compilation 对象
+   */
+  compilation: Rspack.Compilation;
+  /**
+   * HTML 文件的名称，相对于 dist 目录
+   * @example 'index.html'
+   */
+  filename: string;
+  /**
+   * 当前构建的 environment 上下文
+   */
+  environment: EnvironmentContext;
+};
+
+function ModifyHTML(callback: (html: string, context: Context) => MaybePromise<string>): void;
+```
+
+- **版本：** 添加于 v1.3.15
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyHTML((html) => {
+      return html.replace('foo', 'bar');
+    });
+  },
+});
+```
+
+基于 `filename` 来修改 HTML 内容：
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyHTML((html, { filename }) => {
+      if (filename === 'foo.html') {
+        return html.replace('foo', 'bar');
+      }
+      return html;
+    });
+  },
+});
+```
+
+与直接操作 HTML 字符串相比，你可以借助 [cheerio](https://github.com/cheeriojs/cheerio) 或 [htmlparser2](https://github.com/fb55/htmlparser2) 等库来更便捷地修改 HTML 内容。
+
+以 `cheerio` 为例，它提供了类似 jQuery 的 API 来操作 HTML：
+
+```ts
+import cheerio from 'cheerio';
+
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyHTML((html) => {
+      const $ = cheerio.load(html);
+      $('h2.title').text('Hello there!');
+      $('h2').addClass('welcome');
+      return $.html();
+    });
+  },
+});
+```
+
+### modifyHTMLTags
+
+修改注入到 HTML 中的标签。
+
+- **类型：**
+
+```ts
+type HtmlBasicTag = {
+  // 标签名
+  tag: string;
+  // 标签的属性
+  attrs?: Record<string, string | boolean | null | undefined>;
+  // 标签的 innerHTML
+  children?: string;
+  // 额外的元信息
+  metadata?: Record<string, any>;
+};
+
+type HTMLTags = {
+  // 插入到 <head> 的标签组
+  headTags: HtmlBasicTag[];
+  // 插入到 <body> 的标签组
+  bodyTags: HtmlBasicTag[];
+};
+
+type Context = {
+  /**
+   * Rspack 的 Compiler 对象
+   */
+  compiler: Rspack.Compiler;
+  /**
+   * Rspack 的 Compilation 对象
+   */
+  compilation: Rspack.Compilation;
+  /**
+   * 静态资源的 URL 前缀
+   * @example 'https://example.com/'
+   */
+  assetPrefix: string;
+  /**
+   * HTML 文件的名称，相对于 dist 目录
+   * @example 'index.html'
+   */
+  filename: string;
+  /**
+   * 当前构建的 environment 上下文
+   */
+  environment: EnvironmentContext;
+};
+
+function ModifyHTMLTags(
+  callback: (tags: HTMLTags, context: Context) => MaybePromise<HTMLTags>,
+): void;
+```
+
+- **示例：**
+
+```ts
+const tagsPlugin = () => ({
+  name: 'tags-plugin',
+  setup(api) {
+    api.modifyHTMLTags(({ headTags, bodyTags }) => {
+      // 在 <head> 中插入一个标签，位于其他标签之前
+      headTags.unshift({
+        tag: 'script',
+        attrs: { src: 'https://example.com/foo.js' },
+      });
+
+      // 在 <head> 中插入一个标签，位于其他标签之后
+      headTags.push({
+        tag: 'script',
+        attrs: { src: 'https://example.com/bar.js' },
+      });
+
+      // 在 <body> 中插入一个标签，位于其他标签之前
+      bodyTags.unshift({
+        tag: 'div',
+        children: 'before other body tags',
+      });
+
+      // 在 <body> 中插入一个标签，位于其他标签之后
+      bodyTags.push({
+        tag: 'div',
+        children: 'after other body tags',
+      });
+
+      return { headTags, bodyTags };
+    });
+  },
+});
+```
+
+查看 [html.tags](/config/html/tags) 了解如何定义标签。
+
+:::tip
+
+当同时使用 `modifyHTML`，`modifyHTMLTags` 和 `html.tags` 选项时，执行顺序如下：
+
+1. [modifyHTML](#modifyhtml)
+2. [modifyHTMLTags](#modifyhtmltags)
+3. [html.tags](/config/html/tags)
+
+:::
+
+### onBeforeCreateCompiler
+
+import OnBeforeCreateCompiler from '@zh/shared/onBeforeCreateCompiler.mdx';
+
+<OnBeforeCreateCompiler />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeCreateCompiler(({ bundlerConfigs }) => {
+      console.log('the bundler configs are ', bundlerConfigs);
+    });
+  },
+});
+```
+
+### onAfterCreateCompiler
+
+import OnAfterCreateCompiler from '@zh/shared/onAfterCreateCompiler.mdx';
+
+<OnAfterCreateCompiler />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onAfterCreateCompiler(({ compiler }) => {
+      console.log('the compiler is ', compiler);
+    });
+  },
+});
+```
+
+### onBeforeEnvironmentCompile
+
+import OnBeforeEnvironmentCompile from '@zh/shared/onBeforeEnvironmentCompile.mdx';
+
+<OnBeforeEnvironmentCompile />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeEnvironmentCompile(({ bundlerConfig, environment }) => {
+      console.log(`the bundler config for the ${environment.name} is `, bundlerConfig);
+    });
+  },
+});
+```
+
+### onAfterEnvironmentCompile
+
+import OnAfterEnvironmentCompile from '@zh/shared/onAfterEnvironmentCompile.mdx';
+
+<OnAfterEnvironmentCompile />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onAfterEnvironmentCompile(({ isFirstCompile, stats }) => {
+      console.log(stats?.toJson(), isFirstCompile);
+    });
+  },
+});
+```
+
+## Build hooks
+
+### onBeforeBuild
+
+import OnBeforeBuild from '@zh/shared/onBeforeBuild.mdx';
+
+<OnBeforeBuild />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeBuild(({ bundlerConfigs }) => {
+      console.log('the bundler configs are ', bundlerConfigs);
+    });
+  },
+});
+```
+
+### onAfterBuild
+
+import OnAfterBuild from '@zh/shared/onAfterBuild.mdx';
+
+<OnAfterBuild />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onAfterBuild(({ isFirstCompile, stats }) => {
+      console.log(stats?.toJson(), isFirstCompile);
+    });
+  },
+});
+```
+
+### onCloseBuild
+
+import OnCloseBuild from '@zh/shared/onCloseBuild.mdx';
+
+<OnCloseBuild />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onCloseBuild(() => {
+      console.log('close build!');
+    });
+  },
+});
+```
+
+## Dev hooks
+
+### onBeforeStartDevServer
+
+import OnBeforeStartDevServer from '@zh/shared/onBeforeStartDevServer.mdx';
+
+<OnBeforeStartDevServer />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeStartDevServer(({ server, environments }) => {
+      console.log('before starting dev server.');
+      console.log('the server is ', server);
+      console.log('the environments contexts are: ', environments);
+    });
+  },
+});
+```
+
+#### 注册中间件
+
+一个常见的使用场景是在 `onBeforeStartDevServer` 中注册自定义的中间件：
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeStartDevServer(({ server }) => {
+      server.middlewares.use((req, res, next) => {
+        next();
+      });
+    });
+  },
+});
+```
+
+当 `onBeforeStartDevServer` 被调用时，Rsbuild 内置的中间件还未注册，因此你添加的中间件会早于内置中间件执行。
+
+`onBeforeStartDevServer` 允许你返回一个回调函数，当 Rsbuild 内置的中间件注册完成后，会执行你返回的回调函数，在回调函数中注册的中间件会晚于内置中间件执行。
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeStartDevServer(({ server }) => {
+      // the returned callback will be called when the default
+      // middlewares are registered
+      return () => {
+        server.middlewares.use((req, res, next) => {
+          next();
+        });
+      };
+    });
+  },
+});
+```
+
+#### 保存 server 实例
+
+如果你需要在其他 hooks 中访问 `server`，可以通过 `onBeforeStartDevServer` 来存储 `server` 实例，并在执行后续的 hooks 时访问它。注意你不能在执行时机早于 `onBeforeStartDevServer` 的 hooks 中访问 `server`。
+
+```ts
+import type { RsbuildDevServer } from '@rsbuild/core';
+
+const myPlugin = () => ({
+  setup(api) {
+    let devServer: RsbuildDevServer | null = null;
+
+    api.onBeforeStartDevServer(({ server, environments }) => {
+      devServer = server;
+    });
+
+    api.transform({ test: /\.foo$/ }, ({ code }) => {
+      if (devServer) {
+        // access server API
+      }
+      return code;
+    });
+
+    api.onCloseDevServer(() => {
+      devServer = null;
+    });
+  },
+});
+```
+
+### onAfterStartDevServer
+
+import OnAfterStartDevServer from '@zh/shared/onAfterStartDevServer.mdx';
+
+<OnAfterStartDevServer />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onAfterStartDevServer(({ port, routes }) => {
+      console.log('this port is: ', port);
+      console.log('this routes is: ', routes);
+    });
+  },
+});
+```
+
+### onBeforeDevCompile
+
+import OnBeforeDevCompile from '@zh/shared/onBeforeDevCompile.mdx';
+
+<OnBeforeDevCompile />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeDevCompile(({ bundlerConfigs }) => {
+      console.log('the bundler configs are ', bundlerConfigs);
+    });
+  },
+});
+```
+
+### onAfterDevCompile
+
+import OnAfterDevCompile from '@zh/shared/onAfterDevCompile.mdx';
+
+<OnAfterDevCompile />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onAfterDevCompile(({ isFirstCompile }) => {
+      if (isFirstCompile) {
+        console.log('first compile!');
+      } else {
+        console.log('re-compile!');
+      }
+    });
+  },
+});
+```
+
+### onCloseDevServer
+
+import OnCloseDevServer from '@zh/shared/onCloseDevServer.mdx';
+
+<OnCloseDevServer />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onCloseDevServer(async () => {
+      console.log('close dev server!');
+    });
+  },
+});
+```
+
+## Preview hooks
+
+### onBeforeStartPreviewServer
+
+import OnBeforeStartPreviewServer from '@zh/shared/onBeforeStartPreviewServer.mdx';
+
+<OnBeforeStartPreviewServer />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeStartPreviewServer(({ server, environments }) => {
+      console.log('before start!');
+      console.log('the server is ', server);
+      console.log('the environments contexts are: ', environments);
+    });
+  },
+});
+```
+
+### onAfterStartPreviewServer
+
+import OnAfterStartPreviewServer from '@zh/shared/onAfterStartPreviewServer.mdx';
+
+<OnAfterStartPreviewServer />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onAfterStartPreviewServer(({ port, routes }) => {
+      console.log('this port is: ', port);
+      console.log('this routes is: ', routes);
+    });
+  },
+});
+```
+
+## Other hooks
+
+### onExit
+
+import OnExit from '@zh/shared/onExit.mdx';
+
+<OnExit />
+
+- **示例：**
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onExit(({ exitCode }) => {
+      console.log('exit: ', exitCode);
+    });
+  },
+});
+```

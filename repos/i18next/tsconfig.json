@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "module": "ES6",
+    "target": "ES2017",
+    "lib": ["ES2020", "DOM"],
+    "jsx": "react",
+    "moduleResolution": "Bundler",
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "i18next": ["./index.d.mts"]
+    },
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+
+    "skipDefaultLibCheck": true,
+    /**
+     * setting this to `false` to throw an error when d.ts file have invalid code
+     * @see https://github.com/i18next/i18next/issues/2168
+     */
+    "skipLibCheck": false
+  }
+}

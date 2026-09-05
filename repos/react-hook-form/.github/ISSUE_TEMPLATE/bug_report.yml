@@ -1,0 +1,75 @@
+name: Bug Report
+description: File a bug report
+title: 'issue: '
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: input
+    id: version
+    attributes:
+      label: Version Number
+      description: What's the version number?
+      placeholder: Version number.
+    validations:
+      required: true
+  - type: input
+    id: codesandbox
+    attributes:
+      label: Codesandbox/Expo snack
+      description: Codesandbox/Expo snack link
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        V7
+        - [JS](https://codesandbox.io/p/sandbox/react-hook-form-v7-js-kn8g63) Template
+        - [TS](https://codesandbox.io/p/sandbox/happy-rgb-kps3dv) Template
+
+        V6
+        - [JS](https://codesandbox.io/s/mystifying-keller-5jwf5) Template
+        - [TS](https://codesandbox.io/s/romantic-moon-0chz7) Template
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Steps to reproduce
+      placeholder: Tell us what you see!
+      value: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: what-expect
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: dropdown
+    id: browsers
+    attributes:
+      label: What browsers are you seeing the problem on?
+      multiple: true
+      options:
+        - Firefox
+        - Chrome
+        - Safari
+        - Edge
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
+      render: shell
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/react-hook-form/react-hook-form/blob/master/CODE_OF_CONDUCT.md)
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

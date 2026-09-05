@@ -1,0 +1,14 @@
+.accentBox {
+  background: #dcfce7;
+  border: 2px solid #16a34a;
+  border-radius: 12px;
+  padding: 12px;
+  color: #14532d;
+}
+
+.accentTitle {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

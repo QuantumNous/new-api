@@ -1,0 +1,63 @@
+@layer components {
+  .Link {
+    display: inline;
+    width: fit-content;
+    color: currentColor;
+    align-items: center;
+    gap: 4px;
+    -webkit-tap-highlight-color: transparent;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 4px;
+
+    &:active {
+      background-color: var(--gray-t2);
+      color: var(--gray-s1);
+    }
+
+    /* stylelint-disable-next-line selector-pseudo-class-disallowed-list */
+    &:has(code) {
+      text-decoration-color: var(--color-blue);
+    }
+
+    /* stylelint-disable-next-line selector-pseudo-class-disallowed-list */
+    &:has(code):active {
+      color: var(--color-background);
+      background-color: var(--color-blue);
+    }
+
+    /* stylelint-disable-next-line selector-pseudo-class-disallowed-list */
+    &:has(code):active * {
+      color: var(--color-background) !important;
+    }
+
+    &:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: 2px;
+      border-radius: var(--radius-4);
+    }
+
+    .LinkArrowLine {
+      opacity: 0;
+      transition: opacity 100ms ease;
+    }
+
+    .LinkArrowCaret {
+      transition: transform 100ms ease;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        text-decoration: none;
+      }
+
+      &:hover .LinkArrowLine {
+        opacity: 1;
+      }
+
+      &:hover .LinkArrowCaret {
+        transform: translateX(4px);
+      }
+    }
+  }
+}

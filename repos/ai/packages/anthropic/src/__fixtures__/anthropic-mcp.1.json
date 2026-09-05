@@ -1,0 +1,39 @@
+{
+  "model": "claude-sonnet-4-5-20250929",
+  "id": "msg_01P81KJc28LkYyoDAYG1bWVb",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "mcp_tool_use",
+      "id": "mcptoolu_015oTj2fXVKLrDohFetJd5UL",
+      "name": "echo",
+      "input": { "message": "hello world" },
+      "server_name": "echo"
+    },
+    {
+      "type": "mcp_tool_result",
+      "tool_use_id": "mcptoolu_015oTj2fXVKLrDohFetJd5UL",
+      "is_error": false,
+      "content": [{ "type": "text", "text": "Tool echo: hello world" }]
+    },
+    {
+      "type": "text",
+      "text": "The echo tool responded back with: **\"hello world\"**\n\nAs expected, it simply echoes back the exact message that was sent to it!"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1250,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 88,
+    "service_tier": "standard",
+    "server_tool_use": { "web_search_requests": 0, "web_fetch_requests": 0 }
+  }
+}

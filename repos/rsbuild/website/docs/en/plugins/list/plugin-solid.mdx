@@ -1,0 +1,129 @@
+---
+description: 'The Solid plugin provides support for Solid features. The plugin internally integrates babel-preset-solid.'
+---
+
+# Solid plugin
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-solid" />
+
+The Solid plugin provides support for Solid features. The plugin internally integrates [babel-preset-solid](https://github.com/solidjs/solid/tree/main/packages/babel-preset-solid).
+
+:::tip
+The Solid plugin relies on Babel transpilation and requires an additional [Babel Plugin](/plugins/list/plugin-babel). At the same time, adding the Babel plugin will cause additional compilation overhead.
+:::
+
+## Quick start
+
+### Install plugin
+
+Run the following command:
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-babel @rsbuild/plugin-solid -D" />
+
+### Register plugin
+
+Register the plugin in Rsbuild config:
+
+```ts title="rsbuild.config.ts"
+import { pluginBabel } from '@rsbuild/plugin-babel';
+import { pluginSolid } from '@rsbuild/plugin-solid';
+
+export default {
+  plugins: [
+    pluginBabel({
+      include: /\.(?:jsx|tsx)$/,
+    }),
+    pluginSolid(),
+  ],
+};
+```
+
+After registration, you can develop Solid directly.
+
+:::tip
+Since the Solid JSX relies on Babel for compilation, you need to additionally add the [Babel plugin](/plugins/list/plugin-babel).
+
+Babel compilation will introduce extra overhead, in the example above, we use `include` to match `.jsx` and `.tsx` files, thereby reducing the performance cost brought by Babel.
+
+:::
+
+## Resolution behavior
+
+The Solid plugin adds `solid` to Rsbuild's [resolve.conditionNames](/config/resolve/condition-names). This allows package exports to resolve Solid-specific entries when they are available.
+
+In development mode, the plugin also adds `development` to resolve Solid's development runtime. You can disable this behavior with [`dev: false`](#dev).
+
+If you configure `resolve.conditionNames`, the plugin preserves your configured values and prepends these Solid conditions.
+
+## Options
+
+To customize the compilation behavior of Solid, use the following options.
+
+### dev
+
+Whether to resolve Solid's development runtime in development mode. Set it to `false` to disable the `development` condition, or set it to `true` to force the `development` condition in production mode.
+
+- **Type:** `boolean`
+- **Default:** `true` in development mode, `false` in production mode
+- **Example:**
+
+```ts
+pluginSolid({
+  dev: false,
+});
+```
+
+### refresh.disabled
+
+Whether to disable [Solid Refresh](https://github.com/solidjs/solid-refresh) for HMR in development mode. This only controls Solid Refresh injection and does not disable Rsbuild HMR.
+
+- **Type:** `boolean`
+- **Default:** `false`
+- **Example:**
+
+```ts
+pluginSolid({
+  refresh: {
+    disabled: true,
+  },
+});
+```
+
+### ssr
+
+Whether to generate output for Solid SSR. When enabled, the plugin uses `generate: 'ssr'` and `hydratable: true` for Node.js targets, and uses `generate: 'dom'` and `hydratable: true` for other targets.
+
+Values in [`solid`](#solid) will override these defaults.
+
+- **Type:** `boolean`
+- **Default:** `false`
+- **Example:**
+
+```ts
+pluginSolid({
+  ssr: true,
+});
+```
+
+### solid
+
+These options are passed to `babel-preset-solid`. For details, see the [babel-preset-solid documentation](https://npmjs.com/package/babel-preset-solid).
+
+- **Type:** `SolidPresetOptions`
+- **Default:** `{}`
+- **Example:**
+
+```ts
+pluginSolid({
+  solid: {
+    generate: 'ssr',
+    hydratable: true,
+  },
+});
+```
+
+> `solidPresetOptions` is a deprecated alias for `solid`. Use `solid` instead. If both options are set, `solid` takes precedence.
