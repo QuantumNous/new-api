@@ -1,0 +1,196 @@
+name: YesChoy Production Deploy
+
+on:
+  # main 分支有新提交时自动部署
+  push:
+    branches:
+      - main
+
+  # 同时允许在 GitHub Actions 页面手动部署
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# 防止两个部署同时执行
+concurrency:
+  group: yeschoy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: yeschoy/new-api
+
+
+jobs:
+
+  # ============================================================
+  # 1. 构建并推送 Docker 镜像
+  # ============================================================
+
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # 拉取当前 main 代码
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      # Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+
+      # 登录 GitHub Container Registry
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+
+      # 构建并推送 Docker 镜像
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+
+          # 你的生产服务器是 x86-64
+          platforms: linux/amd64
+
+          push: true
+
+          tags: |
+            ghcr.io/yeschoy/new-api:${{ github.sha }}
+            ghcr.io/yeschoy/new-api:production
+
+          # GitHub Actions Docker layer cache
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+
+      - name: Build summary
+        run: |
+          echo "## Docker Image" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "ghcr.io/yeschoy/new-api:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "ghcr.io/yeschoy/new-api:production" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+
+  # ============================================================
+  # 2. 部署到生产服务器
+  # ============================================================
+
+  deploy:
+    name: Deploy Production
+    runs-on: ubuntu-latest
+
+    # build 成功之后才部署
+    needs:
+      - build
+
+    steps:
+
+      # --------------------------------------------------------
+      # 配置 SSH
+      # --------------------------------------------------------
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          echo "${{ secrets.PROD_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+
+      # --------------------------------------------------------
+      # 部署
+      # --------------------------------------------------------
+
+      - name: Deploy New API
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+
+        run: |
+          ssh \
+            -p "${{ secrets.PROD_SSH_PORT }}" \
+            "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" \
+            "cd /opt/new-api && \
+             IMAGE_TAG=${IMAGE_TAG} docker compose pull new-api && \
+             IMAGE_TAG=${IMAGE_TAG} docker compose up -d --no-deps new-api"
+
+
+      # --------------------------------------------------------
+      # 等待 New API 启动
+      # --------------------------------------------------------
+
+      - name: Wait for application
+        run: sleep 15
+
+
+      # --------------------------------------------------------
+      # 检查 Docker 健康状态
+      # --------------------------------------------------------
+
+      - name: Health check
+        run: |
+          ssh \
+            -p "${{ secrets.PROD_SSH_PORT }}" \
+            "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" \
+            '
+            for i in $(seq 1 12); do
+
+              STATUS=$(docker inspect \
+                --format="{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}" \
+                new-api 2>/dev/null || true)
+
+              echo "New API status: $STATUS"
+
+              if [ "$STATUS" = "healthy" ]; then
+                echo "New API deployment successful."
+                exit 0
+              fi
+
+              if [ "$STATUS" = "exited" ] || [ "$STATUS" = "dead" ]; then
+                echo "New API container failed."
+                docker logs --tail 100 new-api
+                exit 1
+              fi
+
+              sleep 5
+
+            done
+
+            echo "Health check timeout."
+            docker logs --tail 100 new-api
+            exit 1
+            '
+
+
+      # --------------------------------------------------------
+      # 部署结果
+      # --------------------------------------------------------
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "## Production Deployment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Deployment successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "Image: ghcr.io/yeschoy/new-api:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
