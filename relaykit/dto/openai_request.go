@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
@@ -232,8 +233,26 @@ func IsOpenAIReasoningOModel(modelName string) bool {
 		strings.HasPrefix(modelName, "o4")
 }
 
+// IsOpenAIGPT5Model reports whether the model belongs to the gpt-5 generation
+// or a later one (gpt-5, gpt-5.6-luna, gpt-6-astra, ...). Those models share the
+// same request rules: max_tokens must be sent as max_completion_tokens, and
+// temperature / top_p / logprobs are rejected. Matching on the major version
+// keeps every future generation covered without adding one prefix per release.
 func IsOpenAIGPT5Model(modelName string) bool {
-	return strings.HasPrefix(modelName, "gpt-5")
+	name := strings.ToLower(strings.TrimSpace(modelName))
+	if !strings.HasPrefix(name, "gpt-") {
+		return false
+	}
+	rest := name[len("gpt-"):]
+	end := 0
+	for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
+		end++
+	}
+	if end == 0 {
+		return false
+	}
+	major, err := strconv.Atoi(rest[:end])
+	return err == nil && major >= 5
 }
 
 func IsQwenThinkingBudgetModel(modelName string) bool {
