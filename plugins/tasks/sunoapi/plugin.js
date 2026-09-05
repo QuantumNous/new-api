@@ -9,7 +9,7 @@ export const meta = {
     en: "SunoAPI project music and lyrics generation",
     zh: "SunoAPI 项目 音乐与歌词生成",
   },
-  version: "1.0.0",
+  version: "1.0.1",
   author: { name: "QuantumNous" },
   channelTypes: [36],
   models: ["suno_music", "suno_lyrics"],
@@ -133,19 +133,23 @@ export function extractUsage(ctx) {
   return { clips: action === "lyrics" ? 1 : 2, action: action };
 }
 
-export function buildBatchQueryRequest(ctx, taskIds) {
+export function buildBatchQueryRequest(ctx, tasks) {
   return {
     url: ctx.baseUrl + "/suno/fetch",
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: "Bearer " + ctx.apiKey },
-    body: { ids: taskIds },
+    body: {
+      ids: (tasks || []).map(function (task) {
+        return task.taskId;
+      }),
+    },
   };
 }
 
 // Required v1 per-task hooks remain defined for contract compatibility. Suno's
 // host polling path uses the batch hooks below.
 export function buildQueryRequest(ctx) {
-  return buildBatchQueryRequest(ctx, (ctx.requestBody || {}).ids || []);
+  return buildBatchQueryRequest(ctx, [ctx]);
 }
 
 export function parseBatchResult(ctx, body) {

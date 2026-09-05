@@ -75,9 +75,170 @@ func TestTaskPluginLogVisibilityIsRoleSeparated(t *testing.T) {
 	})
 
 	t.Run("root", func(t *testing.T) {
-		parsed, err := common.StrToMap(other)
+		logs := []*Log{{Other: other}}
+		FormatRootLogs(logs)
+
+		parsed, err := common.StrToMap(logs[0].Other)
 		require.NoError(t, err)
 		assert.Contains(t, parsed, "admin_info")
 		assert.Contains(t, parsed, "root_info")
+	})
+}
+
+func TestLegacyLogOtherVisibilityIsRoleSeparated(t *testing.T) {
+	other := common.MapToJsonStr(map[string]interface{}{
+		"request_path":  "/v1/chat/completions",
+		"channel_id":    202,
+		"channel_name":  "legacy-secret-channel",
+		"channel_type":  1,
+		"reject_reason": "legacy-policy-rejection",
+		"admin_info": map[string]interface{}{
+			"existing_admin_field": "preserved",
+		},
+		"root_info": map[string]interface{}{
+			"upstream_request_id": "upstream-private",
+		},
+		"audit_info": map[string]interface{}{
+			"method": "POST",
+		},
+	})
+
+	t.Run("user", func(t *testing.T) {
+		logs := []*Log{{
+			Id:          99,
+			ChannelId:   77,
+			ChannelName: "resolved-secret-channel",
+			Other:       other,
+		}}
+
+		formatUserLogs(logs, 10)
+
+		assert.Equal(t, 11, logs[0].Id)
+		assert.Equal(t, 77, logs[0].ChannelId)
+		assert.Empty(t, logs[0].ChannelName)
+		parsed, err := common.StrToMap(logs[0].Other)
+		require.NoError(t, err)
+		assert.Equal(t, "/v1/chat/completions", parsed["request_path"])
+		for _, key := range []string{
+			"channel_id",
+			"channel_name",
+			"channel_type",
+			"reject_reason",
+			"admin_info",
+			"root_info",
+			"audit_info",
+		} {
+			assert.NotContains(t, parsed, key)
+		}
+	})
+
+	t.Run("admin", func(t *testing.T) {
+		logs := []*Log{{Other: other}}
+
+		FormatAdminLogs(logs)
+
+		parsed, err := common.StrToMap(logs[0].Other)
+		require.NoError(t, err)
+		assert.Equal(t, "legacy-secret-channel", parsed["channel_name"])
+		assert.NotContains(t, parsed, "reject_reason")
+		assert.NotContains(t, parsed, "root_info")
+		assert.Contains(t, parsed, "audit_info")
+		adminInfo, ok := parsed["admin_info"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "preserved", adminInfo["existing_admin_field"])
+		assert.Equal(t, "legacy-policy-rejection", adminInfo["reject_reason"])
+	})
+
+	t.Run("root", func(t *testing.T) {
+		logs := []*Log{{Other: other}}
+
+		FormatRootLogs(logs)
+
+		parsed, err := common.StrToMap(logs[0].Other)
+		require.NoError(t, err)
+		assert.Equal(t, "legacy-secret-channel", parsed["channel_name"])
+		assert.NotContains(t, parsed, "reject_reason")
+		assert.Contains(t, parsed, "root_info")
+		assert.Contains(t, parsed, "audit_info")
+		adminInfo, ok := parsed["admin_info"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "preserved", adminInfo["existing_admin_field"])
+		assert.Equal(t, "legacy-policy-rejection", adminInfo["reject_reason"])
+	})
+}
+
+func TestLegacyRejectReasonDoesNotOverrideScopedValue(t *testing.T) {
+	other := common.MapToJsonStr(map[string]interface{}{
+		"reject_reason": "legacy-value",
+		"admin_info": map[string]interface{}{
+			"reject_reason": "scoped-value",
+		},
+	})
+	logs := []*Log{{Other: other}}
+
+	FormatRootLogs(logs)
+
+	parsed, err := common.StrToMap(logs[0].Other)
+	require.NoError(t, err)
+	assert.NotContains(t, parsed, "reject_reason")
+	adminInfo, ok := parsed["admin_info"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "scoped-value", adminInfo["reject_reason"])
+}
+
+func TestLegacyRejectReasonHandlesNullAdminInfo(t *testing.T) {
+	logs := []*Log{{Other: `{"reject_reason":"legacy-value","admin_info":null}`}}
+
+	FormatAdminLogs(logs)
+
+	parsed, err := common.StrToMap(logs[0].Other)
+	require.NoError(t, err)
+	assert.NotContains(t, parsed, "reject_reason")
+	adminInfo, ok := parsed["admin_info"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "legacy-value", adminInfo["reject_reason"])
+}
+
+func TestLogFormattingPreservesLargeIntegerLexemes(t *testing.T) {
+	const other = `{"public_id":9007199254740993,"admin_info":{"admin_id":9007199254740995},"root_info":{"generation":18446744073709551615}}`
+
+	t.Run("user", func(t *testing.T) {
+		logs := []*Log{{Other: other}}
+
+		formatUserLogs(logs, 0)
+
+		assert.Contains(t, logs[0].Other, `"public_id":9007199254740993`)
+		assert.NotContains(t, logs[0].Other, "admin_id")
+		assert.NotContains(t, logs[0].Other, "generation")
+	})
+
+	t.Run("admin", func(t *testing.T) {
+		logs := []*Log{{Other: other}}
+
+		FormatAdminLogs(logs)
+
+		assert.Contains(t, logs[0].Other, `"public_id":9007199254740993`)
+		assert.Contains(t, logs[0].Other, `"admin_id":9007199254740995`)
+		assert.NotContains(t, logs[0].Other, "generation")
+	})
+
+	t.Run("root", func(t *testing.T) {
+		logs := []*Log{{Other: other}}
+
+		FormatRootLogs(logs)
+
+		assert.Equal(t, other, logs[0].Other)
+	})
+
+	t.Run("unprivileged", func(t *testing.T) {
+		const unprivileged = `{"public_id":9007199254740993,"model_price":0.004}`
+
+		userLogs := []*Log{{Other: unprivileged}}
+		formatUserLogs(userLogs, 0)
+		assert.Equal(t, unprivileged, userLogs[0].Other)
+
+		adminLogs := []*Log{{Other: unprivileged}}
+		FormatAdminLogs(adminLogs)
+		assert.Equal(t, unprivileged, adminLogs[0].Other)
 	})
 }

@@ -259,7 +259,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			newAPIError: types.NewError(err, types.ErrorCodeChannelModelMappedError),
 		}
 	}
-	if err = helper.ApplyReasoningModelSuffix(info, request); err != nil {
+	if err := helper.ApplyReasoningModelSuffix(c, info, request); err != nil {
 		return testResult{
 			context:     c,
 			localErr:    err,
@@ -559,7 +559,7 @@ func settleTestQuota(info *relaycommon.RelayInfo, priceData hosttypes.PriceData,
 	return common.QuotaFromFloat(priceData.ModelPrice * common.QuotaPerUnit), nil
 }
 
-func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData hosttypes.PriceData, usage *dto.Usage, tieredResult *billingexpr.TieredResult) map[string]interface{} {
+func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData hosttypes.PriceData, usage *dto.Usage, tieredResult *billingexpr.TieredResult) *model.LogOther {
 	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
 		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredResult != nil {
@@ -1033,7 +1033,7 @@ func testChannelAllKeysForHealthCheck(ctx context.Context, channel *model.Channe
 		summary.Tested++
 		summary.Failed++
 		if allowDisable && isChannelEnabled && channel.GetAutoBan() {
-			processChannelError(nil, *types.NewChannelError(channel.Id, channel.Type, channel.Name, true, "", channel.GetAutoBan()), types.NewError(fmt.Errorf("no keys available"), types.ErrorCodeChannelNoAvailableKey))
+			processChannelError(nil, *types.NewChannelError(channel.Id, channel.Type, channel.Name, true, "", channel.GetAutoBan()), types.NewError(fmt.Errorf("no keys available"), types.ErrorCodeChannelNoAvailableKey), nil)
 			summary.Disabled++
 		}
 		return summary
@@ -1123,7 +1123,7 @@ func testChannelAllKeysForHealthCheck(ctx context.Context, channel *model.Channe
 
 		// Disable individual key if needed
 		if allowDisable && shouldBanKey && channel.GetAutoBan() {
-			processChannelError(res.result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, true, common.GetContextKeyString(res.result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+			processChannelError(res.result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, true, common.GetContextKeyString(res.result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError, nil)
 			summary.Disabled++
 		}
 
@@ -1189,7 +1189,7 @@ func testChannelAllKeysSequential(ctx context.Context, channel *model.Channel, k
 
 		// Disable individual key if needed
 		if allowDisable && shouldBanKey && channel.GetAutoBan() {
-			processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, true, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError)
+			processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, true, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError, nil)
 			summary.Disabled++
 		}
 

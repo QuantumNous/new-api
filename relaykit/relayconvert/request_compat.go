@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	sharedgemini "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/gemini"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
@@ -33,7 +34,14 @@ func ApplyGeminiThinkingConfigChecked(geminiRequest *dto.GeminiChatRequest, info
 }
 
 func ApplyClaudeThinkingModel(claudeRequest *dto.ClaudeRequest, info convmeta.Meta) error {
-	return reasoning.AsClientError(sharedclaude.ApplyReasoning(claudeRequest, info, reasoning.Intent{}))
+	ctx, collector := convdiag.WithCollector(context.Background())
+	err := reasoning.AsClientError(sharedclaude.ApplyReasoning(ctx, claudeRequest, info, reasoning.Intent{}, false))
+	if recorder, ok := info.(interface {
+		RecordConversionDiagnostics(context.Context, []types.ConversionDiagnostic)
+	}); ok {
+		recorder.RecordConversionDiagnostics(ctx, collector.Diagnostics())
+	}
+	return err
 }
 
 func ChatCompletionsRequestToResponsesRequest(req *dto.GeneralOpenAIRequest) (*dto.OpenAIResponsesRequest, error) {

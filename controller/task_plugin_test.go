@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -115,6 +116,17 @@ func TestDisableThirdPartyPluginSupportsCascadeAndForce(t *testing.T) {
 	updated, err := model.GetChannelById(channel.Id, true)
 	require.NoError(t, err)
 	assert.Equal(t, common.ChannelStatusManuallyDisabled, updated.Status)
+}
+
+// klingFactoryVersion returns the version declared in the embedded kling factory
+// manifest so tests do not hardcode a value that moves with every plugin release.
+func klingFactoryVersion(t *testing.T) string {
+	t.Helper()
+	factorySource, err := plugins.Source("kling")
+	require.NoError(t, err)
+	match := regexp.MustCompile(`version:\s*"([^"]+)"`).FindStringSubmatch(factorySource)
+	require.Len(t, match, 2, "kling factory manifest must declare a version")
+	return match[1]
 }
 
 func setupTaskPluginFactoryDisableTest(t *testing.T) {
@@ -240,7 +252,9 @@ func TestDisableFactoryOverrideRowKeepsEnabledFlagPath(t *testing.T) {
 	setupTaskPluginFactoryDisableTest(t)
 	factorySource, err := plugins.Source("kling")
 	require.NoError(t, err)
-	overrideSource := strings.Replace(factorySource, `version: "1.0.0"`, `version: "1.0.0-test-factory-status"`, 1)
+	factoryVersion := klingFactoryVersion(t)
+	overrideSource := strings.Replace(factorySource, `version: "`+factoryVersion+`"`, `version: "`+factoryVersion+`-test-factory-status"`, 1)
+	require.NotEqual(t, factorySource, overrideSource, "factory version marker must be found in kling source")
 	loaded, err := jsplugin.DefaultRegistry.Register(overrideSource, jsplugin.Options{})
 	require.NoError(t, err)
 	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("kling") })
@@ -266,7 +280,7 @@ func TestDisableFactoryOverrideRowKeepsEnabledFlagPath(t *testing.T) {
 	assert.True(t, taskPluginOptionsHasKey(t, "kling"))
 	got, ok := jsplugin.DefaultRegistry.Get("kling")
 	require.True(t, ok)
-	assert.Equal(t, "1.0.0", got.Meta.Version)
+	assert.Equal(t, factoryVersion, got.Meta.Version)
 }
 
 func TestListTaskPluginsIncludesFactoryWithoutDatabaseRows(t *testing.T) {
@@ -358,7 +372,9 @@ func TestListTaskPluginsShowsDisabledFallbackWhenOverridesAreDisabled(t *testing
 	setupTaskPluginControllerTest(t)
 	factorySource, err := plugins.Source("kling")
 	require.NoError(t, err)
-	overrideSource := strings.Replace(factorySource, `version: "1.0.0"`, `version: "1.0.0-test-disabled-override"`, 1)
+	factoryVersion := klingFactoryVersion(t)
+	overrideSource := strings.Replace(factorySource, `version: "`+factoryVersion+`"`, `version: "`+factoryVersion+`-test-disabled-override"`, 1)
+	require.NotEqual(t, factorySource, overrideSource, "factory version marker must be found in kling source")
 	loaded, err := jsplugin.DefaultRegistry.Register(overrideSource, jsplugin.Options{})
 	require.NoError(t, err)
 	plugin := model.TaskPlugin{
@@ -399,7 +415,9 @@ func TestDeleteActiveOverrideFallsBackToFactoryAndDeletesRecord(t *testing.T) {
 	setupTaskPluginControllerTest(t)
 	factorySource, err := plugins.Source("kling")
 	require.NoError(t, err)
-	overrideSource := strings.Replace(factorySource, `version: "1.0.0"`, `version: "1.0.0-test-override"`, 1)
+	factoryVersion := klingFactoryVersion(t)
+	overrideSource := strings.Replace(factorySource, `version: "`+factoryVersion+`"`, `version: "`+factoryVersion+`-test-override"`, 1)
+	require.NotEqual(t, factorySource, overrideSource, "factory version marker must be found in kling source")
 	loaded, err := jsplugin.DefaultRegistry.Register(overrideSource, jsplugin.Options{Key: "kling", Version: "test-override"})
 	require.NoError(t, err)
 	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("kling") })

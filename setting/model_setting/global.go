@@ -1,9 +1,13 @@
 package model_setting
 
 import (
+	"fmt"
+	"regexp"
 	"slices"
 	"strings"
+	"sync"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
@@ -33,8 +37,10 @@ func (p ChatCompletionsToResponsesPolicy) IsChannelEnabled(channelID int, channe
 }
 
 type GlobalSettings struct {
-	PassThroughRequestEnabled        bool                             `json:"pass_through_request_enabled"`
-	ThinkingModelBlacklist           []string                         `json:"thinking_model_blacklist"`
+	PassThroughRequestEnabled bool     `json:"pass_through_request_enabled"`
+	ThinkingModelBlacklist    []string `json:"thinking_model_blacklist"`
+	// EffortTailModelIDs lists real model IDs that sit inside the GPT/o-series
+	// family whitelist but whose names already end in an effort word.
 	EffortTailModelIDs               []string                         `json:"effort_tail_model_ids"`
 	ChatCompletionsToResponsesPolicy ChatCompletionsToResponsesPolicy `json:"chat_completions_to_responses_policy"`
 }
@@ -71,32 +77,105 @@ func GetGlobalSettings() *GlobalSettings {
 	return &globalSettings
 }
 
-// ShouldPreserveThinkingSuffix 判断模型是否配置为保留 thinking/-nothinking/-low/-high/-medium 后缀
+const thinkingBlacklistRegexPrefix = "re:"
+
+type thinkingBlacklistCompiled struct {
+	source  string
+	exact   []string
+	regexes []*regexp.Regexp
+}
+
+var (
+	thinkingBlacklistMu    sync.RWMutex
+	thinkingBlacklistCache thinkingBlacklistCompiled
+)
+
+func thinkingBlacklistSourceKey(entries []string) string {
+	return strings.Join(entries, "\x00")
+}
+
+func compiledThinkingBlacklist() ([]string, []*regexp.Regexp) {
+	entries := globalSettings.ThinkingModelBlacklist
+	key := thinkingBlacklistSourceKey(entries)
+
+	thinkingBlacklistMu.RLock()
+	if thinkingBlacklistCache.source == key {
+		exact, regexes := thinkingBlacklistCache.exact, thinkingBlacklistCache.regexes
+		thinkingBlacklistMu.RUnlock()
+		return exact, regexes
+	}
+	thinkingBlacklistMu.RUnlock()
+
+	thinkingBlacklistMu.Lock()
+	defer thinkingBlacklistMu.Unlock()
+	if thinkingBlacklistCache.source == key {
+		return thinkingBlacklistCache.exact, thinkingBlacklistCache.regexes
+	}
+
+	exact := make([]string, 0, len(entries))
+	var regexes []*regexp.Regexp
+	for _, entry := range entries {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		if strings.HasPrefix(entry, thinkingBlacklistRegexPrefix) {
+			pattern := strings.TrimPrefix(entry, thinkingBlacklistRegexPrefix)
+			if pattern == "" {
+				common.SysError(fmt.Sprintf("invalid thinking_model_blacklist regex %q: pattern is empty", entry))
+				continue
+			}
+			re, err := regexp.Compile(pattern)
+			if err != nil {
+				common.SysError(fmt.Sprintf("invalid thinking_model_blacklist regex %q: %v", entry, err))
+				continue
+			}
+			regexes = append(regexes, re)
+			continue
+		}
+		exact = append(exact, entry)
+	}
+	thinkingBlacklistCache = thinkingBlacklistCompiled{source: key, exact: exact, regexes: regexes}
+	return exact, regexes
+}
+
+// ShouldPreserveThinkingSuffix reports whether the full model name is exempt
+// from host thinking-suffix and @-modifier parsing. Exact blacklist entries
+// match the complete name; entries prefixed with re: are Go regular expressions
+// matched with MatchString against the same full name.
 func ShouldPreserveThinkingSuffix(modelName string) bool {
 	target := strings.TrimSpace(modelName)
 	if target == "" {
 		return false
 	}
 
-	for _, entry := range globalSettings.ThinkingModelBlacklist {
-		if strings.TrimSpace(entry) == target {
+	exact, regexes := compiledThinkingBlacklist()
+	for _, entry := range exact {
+		if entry == target {
+			return true
+		}
+	}
+	for _, re := range regexes {
+		if re.MatchString(target) {
 			return true
 		}
 	}
 	return false
 }
 
-// ShouldPreserveEffortTail reports model IDs whose names already end in an
-// effort-like token and must not be treated as reasoning aliases.
+// ShouldPreserveEffortTail reports whether modelName is a real model ID whose
+// name already ends in an effort word. Entries match the complete name and the
+// de-namespaced bare name.
 func ShouldPreserveEffortTail(modelName string) bool {
 	target := strings.TrimSpace(modelName)
 	if target == "" {
 		return false
 	}
 	bare := target
-	if slash := strings.LastIndex(bare, "/"); slash >= 0 {
-		bare = bare[slash+1:]
+	if slash := strings.LastIndex(target, "/"); slash >= 0 {
+		bare = target[slash+1:]
 	}
+
 	for _, entry := range globalSettings.EffortTailModelIDs {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {

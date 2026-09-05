@@ -177,6 +177,29 @@ func TestSnapshotEqual_NilVsEmpty(t *testing.T) {
 	assert.True(t, a.Equal(b))
 }
 
+func TestSnapshotEqual_PluginStateAndPollFailures(t *testing.T) {
+	base := taskSnapshot{
+		Status:       TaskStatusInProgress,
+		PluginState:  json.RawMessage(`{"req_key":"a"}`),
+		PollFailures: 2,
+	}
+	assert.True(t, base.Equal(taskSnapshot{
+		Status:       TaskStatusInProgress,
+		PluginState:  json.RawMessage(`{"req_key":"a"}`),
+		PollFailures: 2,
+	}))
+	assert.False(t, base.Equal(taskSnapshot{
+		Status:       TaskStatusInProgress,
+		PluginState:  json.RawMessage(`{"req_key":"b"}`),
+		PollFailures: 2,
+	}))
+	assert.False(t, base.Equal(taskSnapshot{
+		Status:       TaskStatusInProgress,
+		PluginState:  json.RawMessage(`{"req_key":"a"}`),
+		PollFailures: 3,
+	}))
+}
+
 func TestSnapshot_Roundtrip(t *testing.T) {
 	task := &Task{
 		Status:     TaskStatusInProgress,
@@ -185,7 +208,9 @@ func TestSnapshot_Roundtrip(t *testing.T) {
 		FinishTime: 5678,
 		FailReason: "timeout",
 		PrivateData: TaskPrivateData{
-			ResultURL: "https://example.com/result.mp4",
+			ResultURL:    "https://example.com/result.mp4",
+			PluginState:  json.RawMessage(`{"req_key":"keep"}`),
+			PollFailures: 3,
 		},
 		Data: json.RawMessage(`{"model":"test-model"}`),
 	}
@@ -197,6 +222,8 @@ func TestSnapshot_Roundtrip(t *testing.T) {
 	assert.Equal(t, task.FailReason, snap.FailReason)
 	assert.Equal(t, task.PrivateData.ResultURL, snap.ResultURL)
 	assert.JSONEq(t, string(task.Data), string(snap.Data))
+	assert.Equal(t, task.PrivateData.PluginState, snap.PluginState)
+	assert.Equal(t, task.PrivateData.PollFailures, snap.PollFailures)
 }
 
 // ---------------------------------------------------------------------------
@@ -291,4 +318,31 @@ func TestUpdateWithStatus_ConcurrentWinner(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, winCount, "exactly one goroutine should win the CAS")
+}
+
+func TestUpdateWithStatus_PersistsPluginStateAndPollFailures(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID: "task_cas_plugin_state",
+		Status: TaskStatusInProgress,
+		Data:   json.RawMessage(`{}`),
+		PrivateData: TaskPrivateData{
+			PluginState:  json.RawMessage(`{"req_key":"old"}`),
+			PollFailures: 1,
+		},
+	}
+	insertTask(t, task)
+
+	task.PrivateData.PluginState = json.RawMessage(`{"req_key":"new"}`)
+	task.PrivateData.PollFailures = 4
+	won, err := task.UpdateWithStatus(TaskStatusInProgress)
+	require.NoError(t, err)
+	require.True(t, won)
+
+	var reloaded Task
+	require.NoError(t, DB.First(&reloaded, task.ID).Error)
+	assert.EqualValues(t, TaskStatusInProgress, reloaded.Status)
+	assert.JSONEq(t, `{"req_key":"new"}`, string(reloaded.PrivateData.PluginState))
+	assert.Equal(t, 4, reloaded.PrivateData.PollFailures)
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	claudemessages "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/claude_messages"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	geminichat "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/gemini_chat"
 	oaichat "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/oai_chat"
 	oairesponses "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/oai_responses"
@@ -239,6 +240,7 @@ func executeRequestSpec(c context.Context, info convmeta.Meta, from types.RelayF
 }
 
 func executeRequestSteps(c context.Context, info convmeta.Meta, from types.RelayFormat, target types.RelayFormat, request any, converter string, quality RequestConverterQuality, specs []RequestConverterSpec) (*RequestResult, error) {
+	c, diagnosticCollector := convdiag.WithCollector(c)
 	current, tools, err := toolconv.ExtractRequest(from, request)
 	if err != nil {
 		return nil, err
@@ -258,7 +260,16 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 		steps = append(steps, step)
 	}
 
-	current, diagnostics, err := toolconv.AttachRequest(target, current, tools, convmeta.OptionsOf(info))
+	current, toolDiagnostics, err := toolconv.AttachRequest(target, current, tools, convmeta.OptionsOf(info))
+	diagnostics := append(diagnosticCollector.Diagnostics(), toolDiagnostics...)
+	for i := range diagnostics {
+		if diagnostics[i].From == "" {
+			diagnostics[i].From = from
+		}
+		if diagnostics[i].To == "" {
+			diagnostics[i].To = target
+		}
+	}
 	if err != nil {
 		return &RequestResult{
 			Value:       current,

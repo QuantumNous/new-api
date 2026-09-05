@@ -2885,6 +2885,7 @@
     "Models exposed by this channel": "このチャンネルで公開するモデル",
     "Models fetched successfully": "モデルが正常に取得されました",
     "Models filled to form": "フォームにモデルが記入されました",
+    "Models listed here skip automatic -thinking / -nothinking suffix handling. Matched names are also exempt from @-modifier parsing and 400 validation. Prefix an entry with re: to match the full model name as a Go regular expression, for example re:.*@sha256:.*": "ここに記載されたモデルは、-thinking / -nothinking サフィックスの自動付与・削除を行いません。一致した名前は @ 修飾子の解析および 400 バリデーションからも除外されます。re: で始まる項目は完全なモデル名に対する Go 正規表現として扱われます（例: re:.*@sha256:.*）。",
     "Models listed here will not automatically append or remove -thinking / -nothinking suffixes.": "ここに記載されたモデルは、-thinking / -nothinking サフィックスの自動付与・削除を行いません。",
     "Models losing positions": "順位を下げているモデル",
     "Models losing the most positions": "順位を最も落としているモデル",

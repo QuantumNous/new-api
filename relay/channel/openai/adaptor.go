@@ -272,7 +272,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		if len(request.Usage) == 0 {
 			request.Usage = json.RawMessage(`{"include":true}`)
 		}
-		// 适配 OpenRouter 的 thinking 后缀
+		// 合并 effort 尾巴产生的意图
 		preserveSuffix := model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) || model_setting.ShouldPreserveThinkingSuffix(info.UpstreamModelName)
 		mergeEffortSuffix := func(modelName string) error {
 			rawEffort, _ := reasoning.ParseOpenAIReasoningEffortFromModelSuffix(modelName)
@@ -302,28 +302,6 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 				if err := mergeEffortSuffix(info.OriginModelName); err != nil {
 					return nil, kitreasoning.AsClientError(err)
 				}
-			}
-		}
-		if !preserveSuffix && strings.HasSuffix(info.UpstreamModelName, "-thinking") {
-			initialIntent, err = kitreasoning.MergeExplicitAndSuffix(
-				initialIntent,
-				kitreasoning.Intent{Mode: kitreasoning.ModeEnabled},
-				info.UpstreamModelName,
-			)
-			if err != nil {
-				return nil, kitreasoning.AsClientError(err)
-			}
-			info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-thinking")
-			request.Model = info.UpstreamModelName
-		}
-		if !preserveSuffix && info.OriginModelName != info.UpstreamModelName && strings.HasSuffix(info.OriginModelName, "-thinking") {
-			initialIntent, err = kitreasoning.MergeExplicitAndSuffix(
-				initialIntent,
-				kitreasoning.Intent{Mode: kitreasoning.ModeEnabled},
-				info.OriginModelName,
-			)
-			if err != nil {
-				return nil, kitreasoning.AsClientError(err)
 			}
 		}
 		if !initialIntent.IsEmpty() {

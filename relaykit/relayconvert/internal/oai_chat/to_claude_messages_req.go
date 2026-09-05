@@ -97,7 +97,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 	if err != nil {
 		return nil, reasoning.AsClientError(err)
 	}
-	if err := sharedclaude.ApplyReasoning(&claudeRequest, info, sourceReasoning); err != nil {
+	if err := sharedclaude.ApplyReasoning(c, &claudeRequest, info, sourceReasoning, true); err != nil {
 		return nil, reasoning.AsClientError(err)
 	}
 	if claudeRequest.MaxTokens == nil {

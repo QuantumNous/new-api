@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -445,20 +446,18 @@ func TestUsageBillingPathForLog(t *testing.T) {
 }
 
 func TestAppendUsageBillingPathForLogWritesAdminInfo(t *testing.T) {
-	other := map[string]interface{}{
-		"admin_info": map[string]interface{}{},
-	}
+	other := model.NewLogOther()
 	appendUsageBillingPathForLog(other, true, &dto.Usage{
 		BillingUsage: dto.NewClaudeMessagesBillingUsage(&dto.ClaudeUsage{InputTokens: 1}),
 	})
 
-	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	adminInfo, ok := other.Snapshot()["admin_info"].(map[string]interface{})
 	require.True(t, ok)
 	require.Equal(t, usageBillingPathAnthropic, adminInfo["usage_billing_path"])
 
-	other = map[string]interface{}{}
+	other = model.NewLogOther()
 	appendUsageBillingPathForLog(other, true, nil)
-	adminInfo, ok = other["admin_info"].(map[string]interface{})
+	adminInfo, ok = other.Snapshot()["admin_info"].(map[string]interface{})
 	require.True(t, ok)
 	require.Equal(t, usageBillingPathLocal, adminInfo["usage_billing_path"])
 }
@@ -1118,9 +1117,9 @@ func TestCalculateTextToolCallSurchargeGeminiFunctionCall(t *testing.T) {
 	assert.Equal(t, 2, summary.ToolSurchargeItems[0].Count)
 	assert.Equal(t, 5.0, summary.ToolSurchargeItems[0].Price)
 
-	other := map[string]interface{}{}
+	other := model.NewLogOther()
 	appendToolSurchargeLogInfo(other, summary.ToolSurchargeItems)
-	assert.Equal(t, summary.ToolSurchargeItems, other["tool_surcharges"])
+	assert.Equal(t, summary.ToolSurchargeItems, other.Snapshot()["tool_surcharges"])
 }
 
 func TestCalculateTextToolCallSurchargeImageGenerationDefaultPrice(t *testing.T) {
@@ -1214,15 +1213,16 @@ func TestAppendToolSurchargeLogInfoWritesOnlyStructuredFields(t *testing.T) {
 		{Name: dto.BuildInToolWebSearch, Count: 2, Price: 10},
 		{Name: dto.BuildInToolImageGeneration, Count: 1, Price: 150},
 	}
-	other := map[string]interface{}{}
+	other := model.NewLogOther()
 
 	appendToolSurchargeLogInfo(other, items)
 
-	assert.Equal(t, items, other["tool_surcharges"])
-	assert.NotContains(t, other, "web_search")
-	assert.NotContains(t, other, "web_search_call_count")
-	assert.NotContains(t, other, "web_search_price")
-	assert.NotContains(t, other, "file_search")
-	assert.NotContains(t, other, "image_generation_call")
-	assert.NotContains(t, other, "image_generation_call_price")
+	fields := other.Snapshot()
+	assert.Equal(t, items, fields["tool_surcharges"])
+	assert.NotContains(t, fields, "web_search")
+	assert.NotContains(t, fields, "web_search_call_count")
+	assert.NotContains(t, fields, "web_search_price")
+	assert.NotContains(t, fields, "file_search")
+	assert.NotContains(t, fields, "image_generation_call")
+	assert.NotContains(t, fields, "image_generation_call_price")
 }

@@ -101,7 +101,13 @@ func MergeBillingUsageNonZero(current *BillingUsage, incoming *BillingUsage) *Bi
 		return CloneBillingUsage(current)
 	}
 	if current == nil || !sameBillingUsageDialect(current, incoming) {
-		return CloneBillingUsage(incoming)
+		replaced := CloneBillingUsage(incoming)
+		if current != nil && replaced != nil {
+			// Replacement carries the incoming payload; Estimated carries the
+			// history of any local synthesis on either side.
+			replaced.Estimated = current.Estimated || incoming.Estimated
+		}
+		return replaced
 	}
 
 	merged := CloneBillingUsage(current)
@@ -120,7 +126,7 @@ func MergeBillingUsageNonZero(current *BillingUsage, incoming *BillingUsage) *Bi
 			cloneOpenAIUsage(incoming.OpenAIUsage),
 		)
 	case current.ClaudeUsage != nil && incoming.ClaudeUsage != nil:
-		merged.ClaudeUsage = mergeClaudeUsageNonZero(current.ClaudeUsage, incoming.ClaudeUsage)
+		merged.ClaudeUsage = MergeClaudeUsageNonZero(current.ClaudeUsage, incoming.ClaudeUsage)
 	case current.GeminiUsageMetadata != nil && incoming.GeminiUsageMetadata != nil:
 		merged.GeminiUsageMetadata = MergeGeminiUsageMetadataNonZero(current.GeminiUsageMetadata, incoming.GeminiUsageMetadata)
 	}
@@ -140,12 +146,15 @@ func sameBillingUsageDialect(current *BillingUsage, incoming *BillingUsage) bool
 		current.GeminiUsageMetadata != nil && incoming.GeminiUsageMetadata != nil
 }
 
-func mergeClaudeUsageNonZero(current *ClaudeUsage, incoming *ClaudeUsage) *ClaudeUsage {
+func MergeClaudeUsageNonZero(current *ClaudeUsage, incoming *ClaudeUsage) *ClaudeUsage {
 	merged := cloneClaudeUsage(current)
 	if merged == nil {
 		merged = &ClaudeUsage{}
 	}
 	if incoming == nil {
+		if current != nil {
+			merged.BillingUsage = CloneBillingUsage(current.BillingUsage)
+		}
 		return merged
 	}
 	if incoming.InputTokens > 0 {
@@ -169,6 +178,11 @@ func mergeClaudeUsageNonZero(current *ClaudeUsage, incoming *ClaudeUsage) *Claud
 	if incoming.CacheCreation != nil {
 		cacheCreation := *incoming.CacheCreation
 		merged.CacheCreation = &cacheCreation
+		// Flat legacy fields are the same information as the sub-object.
+		// Sync them as a whole overwrite, including explicit zeros, so a
+		// later correction cannot leave a stale high-watermark behind.
+		merged.ClaudeCacheCreation5mTokens = cacheCreation.Ephemeral5mInputTokens
+		merged.ClaudeCacheCreation1hTokens = cacheCreation.Ephemeral1hInputTokens
 	}
 	if incoming.ServerToolUse != nil {
 		if merged.ServerToolUse == nil {
@@ -186,6 +200,14 @@ func mergeClaudeUsageNonZero(current *ClaudeUsage, incoming *ClaudeUsage) *Claud
 		if incoming.ServerToolUse.ToolSearchRequests > 0 {
 			merged.ServerToolUse.ToolSearchRequests = incoming.ServerToolUse.ToolSearchRequests
 		}
+	}
+	// cloneClaudeUsage strips BillingUsage so a nested Claude snapshot cannot
+	// recurse. Restore the client-visible sidecar here: incoming wins when
+	// present (authoritative/upstream), otherwise keep current's.
+	if incoming.BillingUsage != nil {
+		merged.BillingUsage = CloneBillingUsage(incoming.BillingUsage)
+	} else if current != nil {
+		merged.BillingUsage = CloneBillingUsage(current.BillingUsage)
 	}
 	return merged
 }
@@ -238,19 +260,23 @@ func MergeGeminiUsageMetadataNonZero(current *GeminiUsageMetadata, incoming *Gem
 	return &merged
 }
 
+func normalizeGeminiModality(modality string) string {
+	return strings.ToUpper(strings.TrimSpace(modality))
+}
+
 func mergeGeminiTokenDetails(current []GeminiPromptTokensDetails, incoming []GeminiPromptTokensDetails) []GeminiPromptTokensDetails {
 	merged := append([]GeminiPromptTokensDetails{}, current...)
 	indexes := make(map[string]int, len(merged))
 	for index, detail := range merged {
-		indexes[strings.ToUpper(strings.TrimSpace(detail.Modality))] = index
+		indexes[normalizeGeminiModality(detail.Modality)] = index
 	}
 	for _, detail := range incoming {
 		if detail.TokenCount <= 0 {
 			continue
 		}
-		key := strings.ToUpper(strings.TrimSpace(detail.Modality))
+		key := normalizeGeminiModality(detail.Modality)
 		if index, ok := indexes[key]; ok {
-			merged[index] = detail
+			merged[index].TokenCount += detail.TokenCount
 			continue
 		}
 		indexes[key] = len(merged)

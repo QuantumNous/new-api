@@ -342,7 +342,8 @@ func applyOpenAIChatReasoningThroughHandlerOrder(t *testing.T, original dto.Gene
 	outbound, err := common.DeepCopy(&original)
 	require.NoError(t, err)
 	require.NoError(t, helper.ModelMappedHelper(c, info, outbound))
-	require.NoError(t, helper.ApplyReasoningModelSuffix(info, outbound))
+	err = helper.ApplyReasoningModelSuffix(nil, info, outbound)
+	require.NoError(t, err)
 	return outbound, info
 }
 

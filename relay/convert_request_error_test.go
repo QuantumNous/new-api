@@ -7,7 +7,9 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	kitreasoning "github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
@@ -57,9 +59,33 @@ func TestOptInSafeToolLossRejectedAsBadRequestWithAdminDiagnostics(t *testing.T)
 	assert.True(t, hasHostDiagnosticCode(diagnostics, "unsupported_hosted_tool"))
 
 	other := service.GenerateTextOtherInfo(c, info, 1, 1, 1, 0, 0, 0, 1)
-	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	adminInfo, ok := other.Snapshot()["admin_info"].(map[string]interface{})
 	require.True(t, ok)
 	require.Contains(t, adminInfo, "conversion_diagnostics")
+}
+
+func TestUnknownModelModifierIsBadRequestWithoutRetry(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "m@thinkin:on",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "m@thinkin:on",
+		},
+	}
+	err := helper.ApplyReasoningModelSuffix(c, info)
+	require.Error(t, err)
+	require.True(t, kitreasoning.IsClientError(err))
+	assert.Contains(t, err.Error(), `unsupported model modifier "thinkin"`)
+	assert.Contains(t, err.Error(), "re:")
+
+	apiErr := newConvertRequestFailedError(c, info, err)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
+	assert.Equal(t, types.ErrorCodeConvertRequestFailed, apiErr.GetErrorCode())
+	assert.True(t, types.IsSkipRetryError(apiErr))
 }
 
 func hasHostDiagnosticCode(diagnostics []types.ConversionDiagnostic, code string) bool {

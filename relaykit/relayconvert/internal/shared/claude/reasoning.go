@@ -1,27 +1,21 @@
 package claude
 
 import (
+	"context"
 	"fmt"
 	"math"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
-func ApplyReasoning(req *dto.ClaudeRequest, info convmeta.Meta, source reasoning.Intent) error {
+func ApplyReasoning(ctx context.Context, req *dto.ClaudeRequest, info convmeta.Meta, source reasoning.Intent, crossProtocol bool) error {
 	if req == nil {
 		return nil
-	}
-
-	native, err := reasoning.FromClaude(req)
-	if err != nil {
-		return err
-	}
-	explicit, err := reasoning.MergeExplicit(native, source, req.Model)
-	if err != nil {
-		return err
 	}
 
 	opts := convmeta.OptionsOf(info)
@@ -35,6 +29,32 @@ func ApplyReasoning(req *dto.ClaudeRequest, info convmeta.Meta, source reasoning
 	if preserveSuffix {
 		suffix = reasoning.Intent{}
 	}
+	// A native Claude request without a host modifier is already in the target
+	// protocol, including Claude-compatible proxies that keep native controls
+	// instead of applying Anthropic model rules. Read portable effort for
+	// accounting metadata, but do not run the capability renderer or rewrite
+	// provider-native controls.
+	if !crossProtocol && source.IsEmpty() && suffix.IsEmpty() {
+		native, err := reasoning.FromClaude(req)
+		if err != nil {
+			return err
+		}
+		if info != nil {
+			if effort := reasoning.EffectiveEffort(native); effort != "" {
+				info.SetReasoningEffort(string(effort))
+			}
+		}
+		return nil
+	}
+
+	native, err := reasoning.FromClaude(req)
+	if err != nil {
+		return err
+	}
+	explicit, err := reasoning.MergeExplicit(native, source, req.Model)
+	if err != nil {
+		return err
+	}
 	if info != nil && !reasoning.IsKnownClaudeModel(capabilityModel) && reasoning.IsKnownClaudeModel(info.GetOriginModelName()) {
 		capabilityModel = info.GetOriginModelName()
 	}
@@ -43,18 +63,6 @@ func ApplyReasoning(req *dto.ClaudeRequest, info convmeta.Meta, source reasoning
 		return err
 	}
 	knownClaudeModel := reasoning.IsKnownClaudeModel(capabilityModel)
-	if source.IsEmpty() && suffix.IsEmpty() && !knownClaudeModel {
-		// A native Messages request can target a non-Anthropic model through a
-		// Claude-compatible proxy. Its capability vocabulary belongs to that
-		// upstream, so preserve validated native controls instead of applying
-		// Anthropic model rules to an unknown model name.
-		if info != nil {
-			if effort := reasoning.EffectiveEffort(intent); effort != "" {
-				info.SetReasoningEffort(string(effort))
-			}
-		}
-		return nil
-	}
 	if !knownClaudeModel && intent.Mode == reasoning.ModeAdaptive {
 		// Cross-protocol pivots cannot safely assume that an unknown
 		// Claude-compatible model implements Anthropic's adaptive mode. Render
@@ -93,6 +101,7 @@ func ApplyReasoning(req *dto.ClaudeRequest, info convmeta.Meta, source reasoning
 	if err != nil {
 		return err
 	}
+	convdiag.Add(ctx, rendered.Diagnostics...)
 	req.Model = baseModel
 	if rendered.Thinking != nil {
 		req.Thinking = rendered.Thinking
@@ -118,14 +127,33 @@ func ApplyReasoning(req *dto.ClaudeRequest, info convmeta.Meta, source reasoning
 		req.OutputConfig = encoded
 	}
 	if rendered.ClearSampling {
+		if req.Temperature != nil || req.TopP != nil || req.TopK != nil {
+			convdiag.Add(ctx, types.ConversionDiagnostic{
+				Code:     "claude_sampling_removed",
+				Path:     "temperature/top_p/top_k",
+				Message:  fmt.Sprintf("model %q does not accept sampling controls with the selected thinking mode", capabilityModel),
+				Severity: types.ConversionDiagnosticWarning,
+				To:       types.RelayFormatClaude,
+			})
+		}
 		req.Temperature = nil
 		req.TopP = nil
 		req.TopK = nil
 	} else if rendered.ConstrainThinkingSampling {
+		removedSampling := req.Temperature != nil || req.TopK != nil || req.TopP != nil && (*req.TopP < 0.95 || *req.TopP > 1)
 		req.Temperature = nil
 		req.TopK = nil
 		if req.TopP != nil && (*req.TopP < 0.95 || *req.TopP > 1) {
 			req.TopP = nil
+		}
+		if removedSampling {
+			convdiag.Add(ctx, types.ConversionDiagnostic{
+				Code:     "claude_sampling_constrained",
+				Path:     "temperature/top_p/top_k",
+				Message:  fmt.Sprintf("model %q accepts only top_p between 0.95 and 1 with manual thinking", capabilityModel),
+				Severity: types.ConversionDiagnosticWarning,
+				To:       types.RelayFormatClaude,
+			})
 		}
 	}
 	if info != nil && rendered.EffectiveEffort != "" {

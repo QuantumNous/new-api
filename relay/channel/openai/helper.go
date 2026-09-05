@@ -19,8 +19,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const chatToGeminiStreamStateKey = "relaykit.chat_to_gemini_stream_state"
-
 // 辅助函数
 func HandleStreamFormat(c *gin.Context, info *relaycommon.RelayInfo, data string, forceFormat bool, thinkToContent bool) error {
 	switch info.RelayFormat {
@@ -68,7 +66,7 @@ func handleGeminiFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 		return err
 	}
 
-	state, err := chatToGeminiStreamState(c, &streamResponse)
+	state, err := chatToGeminiStreamState(info, &streamResponse)
 	if err != nil {
 		return err
 	}
@@ -79,11 +77,11 @@ func handleGeminiFormat(c *gin.Context, data string, info *relaycommon.RelayInfo
 	return sendGeminiStreamResults(c, results)
 }
 
-func chatToGeminiStreamState(c *gin.Context, streamResponse *dto.ChatCompletionsStreamResponse) (*relayconvert.ResponseStreamState, error) {
-	if value, ok := c.Get(chatToGeminiStreamStateKey); ok {
-		state, ok := value.(*relayconvert.ResponseStreamState)
+func chatToGeminiStreamState(info *relaycommon.RelayInfo, streamResponse *dto.ChatCompletionsStreamResponse) (*relayconvert.ResponseStreamState, error) {
+	if info != nil && info.ChatToGeminiStreamState != nil {
+		state, ok := info.ChatToGeminiStreamState.(*relayconvert.ResponseStreamState)
 		if !ok || state == nil {
-			return nil, fmt.Errorf("invalid Chat-to-Gemini stream state %T", value)
+			return nil, fmt.Errorf("invalid Chat-to-Gemini stream state %T", info.ChatToGeminiStreamState)
 		}
 		return state, nil
 	}
@@ -96,7 +94,9 @@ func chatToGeminiStreamState(c *gin.Context, streamResponse *dto.ChatCompletions
 	if err != nil {
 		return nil, err
 	}
-	c.Set(chatToGeminiStreamStateKey, state)
+	if info != nil {
+		info.ChatToGeminiStreamState = state
+	}
 	return state, nil
 }
 
@@ -233,7 +233,7 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 			return
 		}
 
-		state, err := chatToGeminiStreamState(c, &streamResponse)
+		state, err := chatToGeminiStreamState(info, &streamResponse)
 		if err != nil {
 			common.SysLog("error creating Gemini stream state: " + err.Error())
 			return

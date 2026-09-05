@@ -7,7 +7,7 @@ export const meta = {
     en: "Alibaba Cloud Bailian Wanxiang video generation (text-to-video and image-to-video)",
     zh: "阿里云百炼万相视频生成（文生视频、图生视频）",
   },
-  version: "1.0.0",
+  version: "1.0.1",
   author: { name: "QuantumNous" },
   channelTypes: [17],
   models: [
@@ -270,7 +270,7 @@ export function parseTaskResult(ctx, body) {
     if (!reason) reason = "task failed";
     return { status: "FAILURE", reason: reason };
   }
-  return { status: "QUEUED" };
+  return { status: "UNKNOWN", reason: "unrecognized status: " + String(output.task_status || "") };
 }
 
 function artifactData(ctx) {

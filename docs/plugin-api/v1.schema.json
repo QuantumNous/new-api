@@ -41,6 +41,45 @@
         "maxBytes": {"type": "integer", "exclusiveMinimum": 0}
       }
     },
-    "route": {"type": "object", "additionalProperties": false, "required": ["method", "path", "type", "render"], "properties": {"method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]}, "path": {"type": "string", "pattern": "^/"}, "type": {"enum": ["submit", "query", "dynamic"]}, "action": {"type": "string"}, "taskIdParam": {"type": "string"}, "decode": {"type": "string"}, "render": {"type": "string"}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}, "allOf": [{"if": {"properties": {"type": {"const": "query"}}}, "then": {"allOf": [{"not": {"required": ["decode"]}}, {"not": {"required": ["models"]}}]}}, {"if": {"properties": {"type": {"enum": ["submit", "dynamic"]}}}, "then": {"required": ["decode"]}}]}
+    "route": {"type": "object", "additionalProperties": false, "required": ["method", "path", "type", "render"], "properties": {"method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]}, "path": {"type": "string", "pattern": "^/"}, "type": {"enum": ["submit", "query", "dynamic"]}, "action": {"type": "string"}, "taskIdParam": {"type": "string"}, "decode": {"type": "string"}, "render": {"type": "string"}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}, "allOf": [{"if": {"properties": {"type": {"const": "query"}}}, "then": {"allOf": [{"not": {"required": ["decode"]}}, {"not": {"required": ["models"]}}]}}, {"if": {"properties": {"type": {"enum": ["submit", "dynamic"]}}}, "then": {"required": ["decode"]}}]},
+    "taskQueryContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["taskId", "publicTaskId", "action", "model", "upstreamModel", "baseUrl", "authHeader", "data", "state"],
+      "properties": {
+        "taskId": {"type": "string"},
+        "publicTaskId": {"type": "string"},
+        "action": {"type": "string"},
+        "model": {"type": "string"},
+        "upstreamModel": {"type": "string"},
+        "baseUrl": {"type": "string"},
+        "apiKey": {"type": "string"},
+        "authHeader": {"type": "string"},
+        "auth": true,
+        "data": true,
+        "state": true
+      }
+    },
+    "batchQueryContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseUrl", "authHeader", "tasks"],
+      "properties": {
+        "baseUrl": {"type": "string"},
+        "apiKey": {"type": "string"},
+        "authHeader": {"type": "string"},
+        "auth": true,
+        "tasks": {"type": "array", "items": {"$ref": "#/$defs/taskQueryContext"}}
+      }
+    },
+    "hookHTTPResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "headers"],
+      "properties": {
+        "status": {"type": "integer"},
+        "headers": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    }
   }
 }

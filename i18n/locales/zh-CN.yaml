@@ -273,6 +273,7 @@ distributor.invalid_playground_request: "无效的playground请求，{{.Error}}"
 distributor.group_access_denied: "无权访问该分组"
 distributor.get_channel_failed: "获取分组 {{.Group}} 下模型 {{.Model}} 的可用渠道失败（distributor）：{{.Error}}"
 distributor.no_available_channel: "分组 {{.Group}} 下模型 {{.Model}} 无可用渠道（distributor）"
+distributor.no_available_channel_task_plugin: "分组 {{.Group}} 下模型 {{.Model}} 无可用渠道：该模型由任务插件「{{.Plugin}}」认领，但该插件当前没有启用的渠道可服务此模型。若要让其他插件或渠道服务该模型，请在任务插件管理中禁用或覆盖插件「{{.Plugin}}」（distributor）"
 distributor.invalid_midjourney_request: "无效的midjourney请求，{{.Error}}"
 distributor.invalid_request_parse_model: "无效的请求，无法解析模型"
 

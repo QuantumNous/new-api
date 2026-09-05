@@ -7,7 +7,7 @@ export const meta = {
     en: "Shengshu Vidu video generation (text-to-video, image-to-video, first-and-last-frame, and reference-to-video)",
     zh: "生数 Vidu 视频生成（文生视频、图生视频、首尾帧、参考生视频）",
   },
-  version: "1.0.0",
+  version: "1.0.1",
   author: { name: "QuantumNous" },
   channelTypes: [52],
   models: ["viduq2", "viduq1", "vidu2.0", "vidu1.5"],
@@ -265,7 +265,7 @@ export function buildQueryRequest(ctx) {
 export function parseTaskResult(ctx, body) {
   const statuses = { created: "SUBMITTED", queueing: "SUBMITTED", processing: "IN_PROGRESS", success: "SUCCESS", failed: "FAILURE" };
   const status = statuses[body.state];
-  if (!status) throw new Error("unknown task state: " + body.state);
+  if (!status) return { status: "UNKNOWN", reason: "unknown task state: " + String(body.state || "") };
   const url = body.creations && body.creations.length ? body.creations[0].url || "" : "";
   const result = { status: status, reason: body.state === "failed" ? body.err_code || "" : "" };
   if (url) result.url = url;

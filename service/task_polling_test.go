@@ -40,12 +40,15 @@ type batchPollingAdaptor struct {
 }
 
 func (a *batchPollingAdaptor) FetchMode() string { return "batch" }
-func (a *batchPollingAdaptor) FetchBatchTasks(_ string, _ string, taskIDs []string, _ string) (*http.Response, error) {
+func (a *batchPollingAdaptor) FetchBatchTasks(_ string, _ string, tasks []*model.Task, _ string) (*http.Response, error) {
 	a.batchCalls++
-	a.batchIDs = append([]string(nil), taskIDs...)
+	a.batchIDs = a.batchIDs[:0]
+	for _, task := range tasks {
+		a.batchIDs = append(a.batchIDs, task.GetUpstreamTaskID())
+	}
 	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader([]byte(`{}`)))}, nil
 }
-func (a *batchPollingAdaptor) ParseBatchResult([]byte) (map[string]*BatchTaskResult, error) {
+func (a *batchPollingAdaptor) ParseBatchResult(_ []*model.Task, _ *http.Response, _ []byte) (map[string]*BatchTaskResult, error) {
 	if a.results != nil {
 		return a.results, nil
 	}
@@ -58,8 +61,11 @@ func (a *batchPollingAdaptor) ParseBatchResult([]byte) (map[string]*BatchTaskRes
 
 func (a *taskPollingFetchAdaptor) Init(_ *relaycommon.RelayInfo) {}
 
-func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]any, _ string) (*http.Response, error) {
-	taskID, _ := body["task_id"].(string)
+func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, task *model.Task, _ string) (*http.Response, error) {
+	taskID := ""
+	if task != nil {
+		taskID = task.GetUpstreamTaskID()
+	}
 	if taskID == a.blockTaskID && a.releaseBlock != nil {
 		a.blockOnce.Do(func() {
 			if a.blockStarted != nil {
@@ -97,7 +103,7 @@ func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, body map[string]
 	}, nil
 }
 
-func (a *taskPollingFetchAdaptor) ParseTaskResult([]byte) (*relaycommon.TaskInfo, error) {
+func (a *taskPollingFetchAdaptor) ParseTaskResult(*model.Task, *http.Response, []byte) (*relaycommon.TaskInfo, error) {
 	return &relaycommon.TaskInfo{Status: model.TaskStatusInProgress}, nil
 }
 
@@ -720,4 +726,274 @@ func TestSweepTimedOutTasksHonorsRefundRolloutBoundary(t *testing.T) {
 	assert.Contains(t, reloadedModern.FailReason, "任务超时")
 	assert.Equal(t, initialQuota+modernTaskQuota, getUserQuota(t, userID))
 	assert.Equal(t, int64(1), countLogs(t))
+}
+
+type scriptedPollingAdaptor struct {
+	statusCode int
+	body       []byte
+	fetchErr   error
+	parse      *relaycommon.TaskInfo
+	parseErr   error
+}
+
+func (a *scriptedPollingAdaptor) Init(*relaycommon.RelayInfo) {}
+func (a *scriptedPollingAdaptor) FetchTask(string, string, *model.Task, string) (*http.Response, error) {
+	if a.fetchErr != nil {
+		return nil, a.fetchErr
+	}
+	code := a.statusCode
+	if code == 0 {
+		code = http.StatusOK
+	}
+	body := a.body
+	if body == nil {
+		body = []byte(`{}`)
+	}
+	return &http.Response{StatusCode: code, Body: io.NopCloser(bytes.NewReader(body))}, nil
+}
+func (a *scriptedPollingAdaptor) ParseTaskResult(*model.Task, *http.Response, []byte) (*relaycommon.TaskInfo, error) {
+	if a.parseErr != nil {
+		return nil, a.parseErr
+	}
+	if a.parse != nil {
+		return a.parse, nil
+	}
+	return &relaycommon.TaskInfo{Status: model.TaskStatusInProgress}, nil
+}
+func (a *scriptedPollingAdaptor) AdjustBillingOnComplete(*model.Task, *relaycommon.TaskInfo) int {
+	return 0
+}
+
+type scriptedBatchPollingAdaptor struct {
+	scriptedPollingAdaptor
+	results map[string]*BatchTaskResult
+}
+
+func (a *scriptedBatchPollingAdaptor) FetchMode() string { return "batch" }
+func (a *scriptedBatchPollingAdaptor) FetchBatchTasks(string, string, []*model.Task, string) (*http.Response, error) {
+	return a.FetchTask("", "", nil, "")
+}
+func (a *scriptedBatchPollingAdaptor) ParseBatchResult([]*model.Task, *http.Response, []byte) (map[string]*BatchTaskResult, error) {
+	if a.parseErr != nil {
+		return nil, a.parseErr
+	}
+	return a.results, nil
+}
+
+func TestUpdateVideoSingleTaskPollClassification(t *testing.T) {
+	testCases := []struct {
+		name          string
+		statusCode    int
+		fetchErr      error
+		parse         *relaycommon.TaskInfo
+		parseErr      error
+		priorFailures int
+		priorState    string
+		maxFailures   int
+		wantStatus    model.TaskStatus
+		wantFailures  int
+		wantRefund    bool
+		wantReason    string
+		wantState     string
+		wantUnchanged bool
+	}{
+		{
+			name:          "404 fails immediately and refunds",
+			statusCode:    http.StatusNotFound,
+			wantStatus:    model.TaskStatusFailure,
+			wantRefund:    true,
+			wantReason:    "upstream task not found (HTTP 404)",
+			wantUnchanged: false,
+		},
+		{
+			name:          "401 increments without changing status",
+			statusCode:    http.StatusUnauthorized,
+			wantStatus:    model.TaskStatusInProgress,
+			wantFailures:  1,
+			wantUnchanged: true,
+		},
+		{
+			name:          "429 reaches threshold and refunds",
+			statusCode:    http.StatusTooManyRequests,
+			priorFailures: 2,
+			maxFailures:   3,
+			wantStatus:    model.TaskStatusFailure,
+			wantFailures:  3,
+			wantRefund:    true,
+			wantReason:    "poll failed: transient (HTTP 429)",
+		},
+		{
+			name:          "UNKNOWN increments",
+			statusCode:    http.StatusOK,
+			parse:         &relaycommon.TaskInfo{Status: model.TaskStatusUnknown, Reason: "weird"},
+			wantStatus:    model.TaskStatusInProgress,
+			wantFailures:  1,
+			wantUnchanged: true,
+		},
+		{
+			name:          "valid 2xx resets the failure counter",
+			statusCode:    http.StatusOK,
+			parse:         &relaycommon.TaskInfo{Status: model.TaskStatusInProgress},
+			priorFailures: 5,
+			wantStatus:    model.TaskStatusInProgress,
+			wantFailures:  0,
+		},
+		{
+			name:       "omit state preserves previous plugin state",
+			statusCode: http.StatusOK,
+			parse:      &relaycommon.TaskInfo{Status: model.TaskStatusInProgress},
+			priorState: `{"req_key":"keep"}`,
+			wantStatus: model.TaskStatusInProgress,
+			wantState:  `{"req_key":"keep"}`,
+		},
+		{
+			name:       "returned state replaces plugin state",
+			statusCode: http.StatusOK,
+			parse: &relaycommon.TaskInfo{
+				Status:      model.TaskStatusInProgress,
+				PluginState: []byte(`{"req_key":"new"}`),
+			},
+			priorState: `{"req_key":"old"}`,
+			wantStatus: model.TaskStatusInProgress,
+			wantState:  `{"req_key":"new"}`,
+		},
+		{
+			name:          "other 4xx non-terminal is unrecognized",
+			statusCode:    http.StatusBadRequest,
+			parse:         &relaycommon.TaskInfo{Status: model.TaskStatusInProgress},
+			wantStatus:    model.TaskStatusInProgress,
+			wantFailures:  1,
+			wantUnchanged: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			truncate(t)
+			const userID, tokenID, channelID = 510, 510, 510
+			const initialQuota, preConsumed, tokenRemain = 10_000, 4_000, 7_000
+			seedUser(t, userID, initialQuota)
+			seedToken(t, tokenID, userID, "sk-poll-class", tokenRemain)
+			ch := &model.Channel{Id: channelID, Type: constant.ChannelTypeKling, Name: "poll", Key: "sk-test", Status: common.ChannelStatusEnabled}
+
+			if testCase.maxFailures > 0 {
+				previous := constant.TaskPollMaxFailures
+				constant.TaskPollMaxFailures = testCase.maxFailures
+				t.Cleanup(func() { constant.TaskPollMaxFailures = previous })
+			}
+
+			task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+			task.TaskID = "task_poll_class"
+			task.PrivateData.UpstreamTaskID = "upstream_poll_class"
+			task.PrivateData.PollFailures = testCase.priorFailures
+			if testCase.priorState != "" {
+				task.PrivateData.PluginState = []byte(testCase.priorState)
+			}
+			require.NoError(t, model.DB.Create(task).Error)
+
+			adaptor := &scriptedPollingAdaptor{statusCode: testCase.statusCode, fetchErr: testCase.fetchErr, parse: testCase.parse, parseErr: testCase.parseErr}
+			require.NoError(t, updateVideoSingleTask(context.Background(), adaptor, ch, task.GetUpstreamTaskID(), map[string]*model.Task{
+				task.GetUpstreamTaskID(): task,
+			}))
+
+			var persisted model.Task
+			require.NoError(t, model.DB.First(&persisted, task.ID).Error)
+			assert.EqualValues(t, testCase.wantStatus, persisted.Status)
+			assert.Equal(t, testCase.wantFailures, persisted.PrivateData.PollFailures)
+			if testCase.wantUnchanged {
+				assert.Empty(t, persisted.FailReason)
+			}
+			if testCase.wantReason != "" {
+				assert.Contains(t, persisted.FailReason, testCase.wantReason)
+			}
+			if testCase.wantState != "" {
+				assert.JSONEq(t, testCase.wantState, string(persisted.PrivateData.PluginState))
+			}
+			if testCase.wantRefund {
+				assert.Equal(t, initialQuota+preConsumed, getUserQuota(t, userID))
+				assert.Equal(t, tokenRemain+preConsumed, getTokenRemainQuota(t, tokenID))
+				assert.Zero(t, persisted.Quota)
+				log := getLastLog(t)
+				require.NotNil(t, log)
+				assert.Equal(t, model.LogTypeRefund, log.Type)
+			} else {
+				assert.Equal(t, initialQuota, getUserQuota(t, userID))
+				assert.Equal(t, tokenRemain, getTokenRemainQuota(t, tokenID))
+			}
+		})
+	}
+}
+
+func TestUpdateBatchTasksPollClassification(t *testing.T) {
+	testCases := []struct {
+		name         string
+		statusCode   int
+		resultStatus model.TaskStatus
+		wantStatus   model.TaskStatus
+		wantFailures int
+		wantRefund   bool
+		wantReason   string
+	}{
+		{
+			name:       "404 fails the batch and refunds",
+			statusCode: http.StatusNotFound,
+			wantStatus: model.TaskStatusFailure,
+			wantRefund: true,
+			wantReason: "upstream task not found (HTTP 404)",
+		},
+		{
+			name:         "401 increments every task",
+			statusCode:   http.StatusUnauthorized,
+			wantStatus:   model.TaskStatusInProgress,
+			wantFailures: 1,
+		},
+		{
+			name:         "UNKNOWN increments",
+			statusCode:   http.StatusOK,
+			resultStatus: model.TaskStatusUnknown,
+			wantStatus:   model.TaskStatusInProgress,
+			wantFailures: 1,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			truncate(t)
+			const userID, tokenID, channelID = 610, 610, 610
+			const initialQuota, preConsumed, tokenRemain = 10_000, 4_000, 7_000
+			seedUser(t, userID, initialQuota)
+			seedToken(t, tokenID, userID, "sk-batch-class", tokenRemain)
+			seedTaskPollingChannel(t, channelID, true)
+
+			task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+			task.TaskID = "task_batch_class"
+			task.PrivateData.UpstreamTaskID = "upstream_batch_class"
+			require.NoError(t, model.DB.Create(task).Error)
+			upstreamID := task.GetUpstreamTaskID()
+
+			adaptor := &scriptedBatchPollingAdaptor{
+				scriptedPollingAdaptor: scriptedPollingAdaptor{statusCode: testCase.statusCode},
+			}
+			if testCase.resultStatus != "" {
+				adaptor.results = map[string]*BatchTaskResult{
+					upstreamID: {TaskInfo: relaycommon.TaskInfo{TaskID: upstreamID, Status: string(testCase.resultStatus), Reason: "weird"}},
+				}
+			}
+
+			require.NoError(t, UpdateBatchTasks(context.Background(), adaptor, map[int][]string{channelID: {upstreamID}}, map[string]*model.Task{upstreamID: task}))
+
+			var persisted model.Task
+			require.NoError(t, model.DB.First(&persisted, task.ID).Error)
+			assert.EqualValues(t, testCase.wantStatus, persisted.Status)
+			assert.Equal(t, testCase.wantFailures, persisted.PrivateData.PollFailures)
+			if testCase.wantReason != "" {
+				assert.Contains(t, persisted.FailReason, testCase.wantReason)
+			}
+			if testCase.wantRefund {
+				assert.Equal(t, initialQuota+preConsumed, getUserQuota(t, userID))
+				assert.Zero(t, persisted.Quota)
+			} else {
+				assert.Equal(t, initialQuota, getUserQuota(t, userID))
+			}
+		})
+	}
 }

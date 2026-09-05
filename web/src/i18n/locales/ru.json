@@ -2885,6 +2885,7 @@
     "Models exposed by this channel": "Модели, доступные через этот канал",
     "Models fetched successfully": "Модели успешно получены",
     "Models filled to form": "Модели заполнены в форму",
+    "Models listed here skip automatic -thinking / -nothinking suffix handling. Matched names are also exempt from @-modifier parsing and 400 validation. Prefix an entry with re: to match the full model name as a Go regular expression, for example re:.*@sha256:.*": "Модели из этого списка не получают и не теряют автоматически суффиксы -thinking / -nothinking. Совпавшие имена также освобождаются от разбора модификаторов @ и проверки с ответом 400. Запись с префиксом re: — регулярное выражение Go по полному имени модели, например re:.*@sha256:.*",
     "Models listed here will not automatically append or remove -thinking / -nothinking suffixes.": "Модели из этого списка не будут автоматически добавлять или удалять суффиксы -thinking / -nothinking.",
     "Models losing positions": "Модели, теряющие позиции",
     "Models losing the most positions": "Модели, потерявшие больше всего позиций",
