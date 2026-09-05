@@ -25,6 +25,17 @@ type Ability struct {
 	Tag       *string `json:"tag" gorm:"index"`
 }
 
+// channelModelClientName returns the client-facing model name for a channel:
+// the bare model name prefixed with the channel's model prefix. Stored model
+// names may already carry the prefix (legacy data), so the prefix is stripped
+// before re-applying to keep the result idempotent.
+func channelModelClientName(modelName, prefix string) string {
+	if prefix == "" {
+		return modelName
+	}
+	return prefix + "/" + strings.TrimPrefix(modelName, prefix+"/")
+}
+
 type AbilityWithChannel struct {
 	Ability
 	ChannelType int `json:"channel_type"`
@@ -216,18 +227,20 @@ func identityFilterRequiresKey(filters []dto.ChannelFilter) bool {
 func (channel *Channel) AddAbilities(tx *gorm.DB) error {
 	models_ := strings.Split(channel.Models, ",")
 	groups_ := strings.Split(channel.Group, ",")
+	prefix := channel.GetOtherSettings().ModelPrefix
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))
 	for _, model := range models_ {
+		clientModel := channelModelClientName(model, prefix)
 		for _, group := range groups_ {
-			key := group + "|" + model
+			key := group + "|" + clientModel
 			if _, exists := abilitySet[key]; exists {
 				continue
 			}
 			abilitySet[key] = struct{}{}
 			ability := Ability{
 				Group:     group,
-				Model:     model,
+				Model:     clientModel,
 				ChannelId: channel.Id,
 				Enabled:   channel.Status == common.ChannelStatusEnabled,
 				Priority:  channel.Priority,
@@ -288,18 +301,20 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 	// Then add new abilities
 	models_ := strings.Split(channel.Models, ",")
 	groups_ := strings.Split(channel.Group, ",")
+	prefix := channel.GetOtherSettings().ModelPrefix
 	abilitySet := make(map[string]struct{})
 	abilities := make([]Ability, 0, len(models_))
 	for _, model := range models_ {
+		clientModel := channelModelClientName(model, prefix)
 		for _, group := range groups_ {
-			key := group + "|" + model
+			key := group + "|" + clientModel
 			if _, exists := abilitySet[key]; exists {
 				continue
 			}
 			abilitySet[key] = struct{}{}
 			ability := Ability{
 				Group:     group,
-				Model:     model,
+				Model:     clientModel,
 				ChannelId: channel.Id,
 				Enabled:   channel.Status == common.ChannelStatusEnabled,
 				Priority:  channel.Priority,

@@ -518,6 +518,113 @@ func TestCheckUpdatePasswordRequiresCurrentPassword(t *testing.T) {
 	assert.True(t, updatePassword)
 }
 
+func TestListModelsShowsPrefixedVariantsFromDifferentChannels(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1004,
+		Username: "prefixed-model-list-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	// Channel 1 (prefix "openrouter") provides deepseek/deepseek-v4-flash — a
+	// model name that itself contains a slash. Channel 2 (prefix "deepseek")
+	// provides deepseek-v4-flash. Both client-facing variants must be listed;
+	// the old first-slash dedup wrongly hid deepseek/deepseek-v4-flash.
+	require.NoError(t, db.Create(&[]model.Channel{
+		{Id: 1, Name: "openrouter-prefixed", Type: constant.ChannelTypeOpenAI, OtherSettings: `{"model_prefix":"openrouter"}`},
+		{Id: 2, Name: "deepseek-prefixed", Type: constant.ChannelTypeOpenAI, OtherSettings: `{"model_prefix":"deepseek"}`},
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "openrouter/deepseek/deepseek-v4-flash", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "deepseek/deepseek-v4-flash", ChannelId: 2, Enabled: true},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	ctx.Set("id", 1004)
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "openrouter/deepseek/deepseek-v4-flash")
+	require.Contains(t, ids, "deepseek/deepseek-v4-flash")
+}
+
+func TestListModelsKeepsBareModelWhenNonPrefixedChannelProvidesIt(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1006,
+		Username: "mixed-prefix-model-list-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	// Channel 1 (prefixed) provides deepseek/deepseek-v4-flash; channel 2 has NO
+	// prefix and provides deepseek-v4-flash bare. Because a non-prefixed channel
+	// provides the bare model, it must stay visible alongside the prefixed form.
+	require.NoError(t, db.Create(&[]model.Channel{
+		{Id: 1, Name: "deepseek-prefixed", Type: constant.ChannelTypeOpenAI, OtherSettings: `{"model_prefix":"deepseek"}`},
+		{Id: 2, Name: "no-prefix", Type: constant.ChannelTypeOpenAI},
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "deepseek/deepseek-v4-flash", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "deepseek-v4-flash", ChannelId: 2, Enabled: true},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	ctx.Set("id", 1006)
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "deepseek/deepseek-v4-flash")
+	require.Contains(t, ids, "deepseek-v4-flash")
+}
+
+func TestListModelsKeepsOriginalWhenPrefixedVariantNotDisplayed(t *testing.T) {
+	withSelfUseModeDisabled(t)
+	withTieredBillingConfig(t, map[string]string{
+		"zz-prefix-base-model": "tiered_expr",
+	}, map[string]string{
+		"zz-prefix-base-model": `tier("base", p * 1 + c * 2)`,
+	})
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.User{
+		Id:       1005,
+		Username: "prefixed-billing-model-list-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+	// The prefixed variant "deepseek/zz-prefix-base-model" has NO billing config,
+	// so it is filtered out by the billing loop and never displayed. The bare
+	// original must therefore be kept. This scenario now only arises from
+	// directly-seeded abilities — AddAbilities always writes client-facing
+	// (prefixed) names, so a prefixed variant without billing config cannot be
+	// produced through the normal channel-save path.
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "zz-prefix-base-model", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "deepseek/zz-prefix-base-model", ChannelId: 2, Enabled: true},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	ctx.Set("id", 1005)
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	ids := decodeListModelsResponse(t, recorder)
+	require.Contains(t, ids, "zz-prefix-base-model")
+	require.NotContains(t, ids, "deepseek/zz-prefix-base-model")
+}
+
 func TestCheckUpdatePasswordRejectsHistoricalEmptyPassword(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
 	user := &model.User{

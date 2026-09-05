@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, RefreshCw, Trash2, Power, PowerOff } from 'lucide-react'
+import { Loader2, RefreshCw, Trash2, Power, PowerOff, CheckCircle2 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -51,6 +51,7 @@ import {
   enableAllMultiKeys,
   disableAllMultiKeys,
   deleteDisabledMultiKeys,
+  testChannelAllKeys,
 } from '../../api'
 import { MULTI_KEY_FILTER_OPTIONS } from '../../constants'
 import {
@@ -100,6 +101,7 @@ export function MultiKeyManageDialog({
   const [confirmAction, setConfirmAction] =
     useState<MultiKeyConfirmAction | null>(null)
   const [isPerformingAction, setIsPerformingAction] = useState(false)
+  const [isTestingAllKeys, setIsTestingAllKeys] = useState(false)
 
   // Reset and load data when dialog opens
   useEffect(() => {
@@ -158,6 +160,53 @@ export function MultiKeyManageDialog({
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage)
     loadKeyStatus(newPage, pageSize)
+  }
+
+  const handleTestAllKeys = async () => {
+    if (!currentRow) return
+
+    setIsTestingAllKeys(true)
+    try {
+      const response = await testChannelAllKeys(currentRow.id)
+      // Build summary string for both success and partial failure cases
+      const summary =
+        response.tested && response.tested > 0
+          ? ` ${t('{{success}} succeeded, {{failed}} failed', {
+              success: response.succeeded,
+              failed: response.failed,
+            })}`
+          : ''
+
+      if (response.success) {
+        toast.success(t('All keys test completed') + summary)
+      } else {
+        // Build detailed error message
+        let errorMsg = response.message || t('Test failed')
+        // Add status code and error code for debugging
+        const details: string[] = []
+        if (response.status_code) {
+          details.push(`HTTP ${response.status_code}`)
+        }
+        if (response.error_code) {
+          details.push(response.error_code)
+        }
+        if (details.length > 0) {
+          errorMsg += ` [${details.join(', ')}]`
+        }
+        errorMsg += summary
+        toast.error(errorMsg)
+      }
+
+      // Always refresh state after test (including partial failures that may auto-disable keys)
+      loadKeyStatus(currentPage, pageSize)
+      queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Test failed')
+      )
+    } finally {
+      setIsTestingAllKeys(false)
+    }
   }
 
   const performAction = async () => {
@@ -292,32 +341,33 @@ export function MultiKeyManageDialog({
           <Separator className='shrink-0' />
 
           {/* Toolbar */}
-          <div className='flex shrink-0 items-center justify-between'>
-            <Select
-              items={[
-                ...MULTI_KEY_FILTER_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: t(option.label),
-                })),
-              ]}
-              value={statusFilter === null ? 'all' : statusFilter.toString()}
-              onValueChange={(v) => v !== null && handleStatusFilterChange(v)}
-            >
-              <SelectTrigger className='w-40'>
-                <SelectValue placeholder={t('All Status')} />
-              </SelectTrigger>
-              <SelectContent alignItemWithTrigger={false}>
-                <SelectGroup>
-                  {MULTI_KEY_FILTER_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {t(option.label)}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-
+          <div className='flex shrink-0 flex-col gap-2'>
+            {/* Row 1: Status filter + Refresh */}
             <div className='flex items-center gap-2'>
+              <Select
+                items={[
+                  ...MULTI_KEY_FILTER_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: t(option.label),
+                  })),
+                ]}
+                value={statusFilter === null ? 'all' : statusFilter.toString()}
+                onValueChange={(v) => v !== null && handleStatusFilterChange(v)}
+              >
+                <SelectTrigger className='w-40'>
+                  <SelectValue placeholder={t('All Status')} />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {MULTI_KEY_FILTER_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {t(option.label)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+
               <Button
                 variant='outline'
                 size='sm'
@@ -325,6 +375,23 @@ export function MultiKeyManageDialog({
                 disabled={isLoading}
               >
                 <RefreshCw className='h-4 w-4' />
+              </Button>
+            </div>
+
+            {/* Row 2: Action buttons */}
+            <div className='flex flex-wrap items-center gap-2'>
+              <Button
+                variant='default'
+                size='sm'
+                onClick={handleTestAllKeys}
+                disabled={isLoading || isTestingAllKeys}
+              >
+                {isTestingAllKeys ? (
+                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                ) : (
+                  <CheckCircle2 className='mr-2 h-4 w-4' />
+                )}
+                {t('Test All Keys')}
               </Button>
 
               {manualDisabledCount + autoDisabledCount > 0 && (

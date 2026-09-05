@@ -70,13 +70,37 @@ const channelTestModes = [
 ] as const
 type ChannelTestMode = (typeof channelTestModes)[number]
 const MAX_CHANNEL_TEST_CONCURRENCY = 32
+const MAX_MULTI_KEY_TEST_CONCURRENCY = 16
+
+/**
+ * Helper: accept either a valid number (within bounds) or an empty string.
+ * On save the empty string is replaced with the minimum value.
+ */
+function boundedNumericField(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  min: number,
+  max: number,
+  label: string
+) {
+  return z.union([
+    z.coerce
+      .number()
+      .int(t('Enter a positive integer'))
+      .min(min, t('{{label}} must be between {{min}} and {{max}}', { label, min, max }))
+      .max(max, t('{{label}} must be between {{min}} and {{max}}', { label, min, max })),
+    z.literal(''),
+  ])
+}
 
 const createRoutingReliabilitySchema = (
   t: (key: string, options?: Record<string, unknown>) => string
 ) =>
   z
     .object({
-      RetryTimes: z.coerce.number().min(0).max(10),
+      RetryTimes: z.union([
+        z.coerce.number().min(0).max(10),
+        z.literal(''),
+      ]),
       ChannelDisableThreshold: numericString,
       AutomaticDisableChannelEnabled: z.boolean(),
       AutomaticEnableChannelEnabled: z.boolean(),
@@ -85,18 +109,22 @@ const createRoutingReliabilitySchema = (
       AutomaticRetryStatusCodes: z.string(),
       monitor_setting: z.object({
         auto_test_channel_enabled: z.boolean(),
-        auto_test_channel_minutes: z.coerce
-          .number()
-          .int()
-          .min(1, t('Interval must be at least 1 minute')),
-        channel_test_concurrency: z.coerce
-          .number()
-          .int(t('Enter a positive integer'))
-          .min(1, t('Channel test concurrency must be between 1 and 32'))
-          .max(
-            MAX_CHANNEL_TEST_CONCURRENCY,
-            t('Channel test concurrency must be between 1 and 32')
-          ),
+        auto_test_channel_minutes: z.union([
+          z.coerce.number().int().min(1, t('Interval must be at least 1 minute')),
+          z.literal(''),
+        ]),
+        channel_test_concurrency: boundedNumericField(
+          t,
+          1,
+          MAX_CHANNEL_TEST_CONCURRENCY,
+          t('Channel test concurrency')
+        ),
+        multi_key_test_concurrency: boundedNumericField(
+          t,
+          1,
+          MAX_MULTI_KEY_TEST_CONCURRENCY,
+          t('Multi-key test concurrency')
+        ),
         channel_test_mode: z.enum(channelTestModes),
       }),
     })
@@ -146,6 +174,7 @@ type RoutingReliabilitySectionProps = {
     'monitor_setting.auto_test_channel_enabled': boolean
     'monitor_setting.auto_test_channel_minutes': number
     'monitor_setting.channel_test_concurrency': number
+    'monitor_setting.multi_key_test_concurrency': number
     'monitor_setting.channel_test_mode': ChannelTestMode
   }
 }
@@ -165,6 +194,7 @@ type NormalizedRoutingReliabilityValues = {
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
   'monitor_setting.channel_test_concurrency': number
+  'monitor_setting.multi_key_test_concurrency': number
   'monitor_setting.channel_test_mode': ChannelTestMode
 }
 
@@ -191,9 +221,11 @@ const buildFormDefaults = (
     auto_test_channel_enabled:
       defaults['monitor_setting.auto_test_channel_enabled'],
     auto_test_channel_minutes:
-      defaults['monitor_setting.auto_test_channel_minutes'],
+      defaults['monitor_setting.auto_test_channel_minutes'] ?? 1,
     channel_test_concurrency:
-      defaults['monitor_setting.channel_test_concurrency'],
+      defaults['monitor_setting.channel_test_concurrency'] ?? 1,
+    multi_key_test_concurrency:
+      defaults['monitor_setting.multi_key_test_concurrency'] ?? 1,
     channel_test_mode: normalizeChannelTestMode(
       defaults['monitor_setting.channel_test_mode']
     ),
@@ -222,6 +254,8 @@ const normalizeDefaults = (
     defaults['monitor_setting.auto_test_channel_minutes'],
   'monitor_setting.channel_test_concurrency':
     defaults['monitor_setting.channel_test_concurrency'],
+  'monitor_setting.multi_key_test_concurrency':
+    defaults['monitor_setting.multi_key_test_concurrency'] ?? 1,
   'monitor_setting.channel_test_mode': normalizeChannelTestMode(
     defaults['monitor_setting.channel_test_mode']
   ),
@@ -230,7 +264,7 @@ const normalizeDefaults = (
 const normalizeFormValues = (
   values: RoutingReliabilityFormValues
 ): NormalizedRoutingReliabilityValues => ({
-  RetryTimes: values.RetryTimes,
+  RetryTimes: values.RetryTimes === '' ? 0 : values.RetryTimes,
   ChannelDisableThreshold: values.ChannelDisableThreshold.trim(),
   AutomaticDisableChannelEnabled: values.AutomaticDisableChannelEnabled,
   AutomaticEnableChannelEnabled: values.AutomaticEnableChannelEnabled,
@@ -246,9 +280,18 @@ const normalizeFormValues = (
   'monitor_setting.auto_test_channel_enabled':
     values.monitor_setting.auto_test_channel_enabled,
   'monitor_setting.auto_test_channel_minutes':
-    values.monitor_setting.auto_test_channel_minutes,
+    values.monitor_setting.auto_test_channel_minutes === ''
+      ? 1
+      : values.monitor_setting.auto_test_channel_minutes,
+  // Empty string means the user cleared the field — use the minimum value
   'monitor_setting.channel_test_concurrency':
-    values.monitor_setting.channel_test_concurrency,
+    values.monitor_setting.channel_test_concurrency === ''
+      ? 1
+      : values.monitor_setting.channel_test_concurrency,
+  'monitor_setting.multi_key_test_concurrency':
+    values.monitor_setting.multi_key_test_concurrency === ''
+      ? 1
+      : values.monitor_setting.multi_key_test_concurrency,
   'monitor_setting.channel_test_mode': values.monitor_setting.channel_test_mode,
 })
 
@@ -526,6 +569,31 @@ export function RoutingReliabilitySection({
                     <FormDescription>
                       {t(
                         'Maximum number of channels tested at the same time (1-32)'
+                      )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='monitor_setting.multi_key_test_concurrency'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Multi-key test concurrency')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={1}
+                        max={MAX_MULTI_KEY_TEST_CONCURRENCY}
+                        step={1}
+                        {...safeNumberFieldProps(field)}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'Maximum number of API keys tested in parallel for multi-key channels (1-16)'
                       )}
                     </FormDescription>
                     <FormMessage />

@@ -284,6 +284,8 @@ export const channelFormSchema = z
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
     upstream_model_update_ignored_models: z.string().optional(),
+    // Per-channel model prefix (stored in settings JSON)
+    model_prefix: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (
@@ -465,6 +467,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
   advanced_custom: '',
+  model_prefix: '',
 }
 
 // ============================================================================
@@ -531,6 +534,7 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
   let advancedCustom = ''
+  let modelPrefix = ''
 
   if (channel.settings) {
     try {
@@ -559,9 +563,54 @@ export function transformChannelToFormDefaults(
       if (parsed.advanced_custom) {
         advancedCustom = stringifyAdvancedCustomConfig(parsed.advanced_custom)
       }
+      modelPrefix = parsed.model_prefix || ''
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to parse channel settings:', error)
+    }
+  }
+
+  // Strip model prefix from models for display
+  let modelsForDisplay = channel.models || ''
+  let modelMappingForDisplay = channel.model_mapping || ''
+  if (modelPrefix) {
+    // Strip prefix from models list
+    if (modelsForDisplay) {
+      const modelsArray = modelsForDisplay
+        .split(',')
+        .map((m) => m.trim())
+        .filter(Boolean)
+      const strippedModels = modelsArray.map((model) => {
+        if (model.startsWith(modelPrefix + '/')) {
+          return model.substring(modelPrefix.length + 1)
+        }
+        return model
+      })
+      modelsForDisplay = strippedModels.join(',')
+    }
+
+    // Also strip prefix from model_mapping source models (even if models is empty)
+    if (modelMappingForDisplay) {
+      try {
+        const modelMap = JSON.parse(modelMappingForDisplay)
+        const strippedModelMap: Record<string, string> = {}
+        // Process non-prefixed keys first, then prefixed keys so prefixed
+        // entries win on collision (e.g. foo -> A, prefix/foo -> B => foo -> B).
+        const entries = Object.entries(modelMap)
+        for (const [key, value] of entries) {
+          if (!key.startsWith(modelPrefix + '/')) {
+            strippedModelMap[key] = value as string
+          }
+        }
+        for (const [key, value] of entries) {
+          if (key.startsWith(modelPrefix + '/')) {
+            strippedModelMap[key.substring(modelPrefix.length + 1)] = value as string
+          }
+        }
+        modelMappingForDisplay = JSON.stringify(strippedModelMap)
+      } catch {
+        // Ignore parse errors
+      }
     }
   }
 
@@ -571,9 +620,9 @@ export function transformChannelToFormDefaults(
     base_url: channel.base_url || '',
     key: '', // Never populate key from backend for security
     openai_organization: channel.openai_organization || '',
-    models: channel.models || '',
+    models: modelsForDisplay,
     group: parseGroups(channel.group || 'default'),
-    model_mapping: channel.model_mapping || '',
+    model_mapping: modelMappingForDisplay,
     priority: channel.priority || 0,
     weight: channel.weight || 0,
     test_model: channel.test_model || '',
@@ -610,6 +659,7 @@ export function transformChannelToFormDefaults(
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
     advanced_custom: advancedCustom,
+    model_prefix: modelPrefix,
   }
 }
 
@@ -778,6 +828,15 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     }
   } else if ('advanced_custom' in settingsObj) {
     delete settingsObj.advanced_custom
+  }
+
+  // Per-channel model prefix
+  const rawPrefix = typeof formData.model_prefix === 'string' ? formData.model_prefix : ''
+  const modelPrefix = rawPrefix.trim()
+  if (modelPrefix) {
+    settingsObj.model_prefix = modelPrefix
+  } else if ('model_prefix' in settingsObj) {
+    delete settingsObj.model_prefix
   }
 
   return JSON.stringify(settingsObj)

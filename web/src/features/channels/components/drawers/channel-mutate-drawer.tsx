@@ -172,6 +172,7 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
   hasAdvancedSettingsErrors,
+  stripModelPrefix,
 } from '../../lib'
 import {
   collectInvalidStatusCodeEntries,
@@ -1271,10 +1272,10 @@ export function ChannelMutateDrawer({
       setAdvancedSettingsOpen(
         readAdvancedSettingsPreference() || hasAdvancedSettingsValues(defaults)
       )
-      // Store initial values for comparison
-      initialModelsRef.current = parseModelsString(
-        channelData.data.models || ''
-      )
+      // Store initial values for comparison. `defaults` comes from
+      // transformChannelToFormDefaults, which strips the per-channel prefix for
+      // display, so change detection compares bare vs bare.
+      initialModelsRef.current = parseModelsString(defaults.models || '')
       initialModelMappingRef.current = channelData.data.model_mapping || ''
       initialStatusCodeMappingRef.current =
         channelData.data.status_code_mapping || ''
@@ -1706,14 +1707,49 @@ export function ChannelMutateDrawer({
         }
       }
 
-      // Normalize models array
+      // Normalize models array (bare names are stored in DB; the backend applies
+      // the per-channel prefix when exposing /v1/models and routing)
       const normalizedModels = parseModelsString(data.models || '')
 
-      // Check for missing models in model_mapping
+      // Apply model prefix to model_mapping source models. Source keys must stay
+      // client-facing (prefixed) so ModelMappedHelper can match OriginModelName.
+      const modelPrefix = (data.model_prefix || '').trim()
+      if (modelPrefix && hasModelMapping && modelMappingValue) {
+        try {
+          const modelMap = JSON.parse(modelMappingValue)
+          const updatedModelMap: Record<string, string> = {}
+          for (const [key, value] of Object.entries(modelMap)) {
+            // Apply prefix to source model if not already prefixed
+            const prefixedKey = key.startsWith(modelPrefix + '/')
+              ? key
+              : `${modelPrefix}/${key}`
+            // Handle collision: if both gpt-4 and openai/gpt-4 exist,
+            // keep the explicitly prefixed one
+            if (!(prefixedKey in updatedModelMap)) {
+              updatedModelMap[prefixedKey] = value as string
+            }
+          }
+          data.model_mapping = JSON.stringify(updatedModelMap)
+          form.setValue('model_mapping', data.model_mapping)
+        } catch {
+          // Ignore parse errors, will be caught by validation later
+        }
+      }
+
+      // Check for missing models in model_mapping. Mapping source keys are stored
+      // client-facing (prefixed); compare them against the prefixed forms of the
+      // bare models list so the check runs in the same name space.
       if (hasModelMapping) {
+        const prefixedModels = modelPrefix
+          ? normalizedModels.map((model) =>
+              model.startsWith(`${modelPrefix}/`)
+                ? model
+                : `${modelPrefix}/${model}`
+            )
+          : normalizedModels
         const missingModels = findMissingModelsInMapping(
-          modelMappingValue,
-          normalizedModels
+          data.model_mapping || modelMappingValue,
+          prefixedModels
         )
 
         const shouldPromptMissing =
@@ -1732,7 +1768,12 @@ export function ChannelMutateDrawer({
           }
           if (confirmAction === 'add') {
             const updatedModels = [
-              ...new Set([...normalizedModels, ...missingModels]),
+              ...new Set([
+                ...normalizedModels,
+                ...missingModels.map((model) =>
+                  modelPrefix ? stripModelPrefix(model, modelPrefix) : model
+                ),
+              ]),
             ]
             data.models = formatModelsArray(updatedModels)
             form.setValue('models', data.models)
@@ -3669,6 +3710,85 @@ export function ChannelMutateDrawer({
                                       </AlertDescription>
                                     </Alert>
                                   )}
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+
+                          <div className='border-border/60 rounded-lg border p-4'>
+                            <FormField
+                              control={form.control}
+                              name='model_prefix'
+                              render={({ field }) => (
+                                <FormItem className='space-y-3'>
+                                  <div className='space-y-1'>
+                                    <div className='flex items-center gap-2'>
+                                      <FormLabel className='mb-0'>
+                                        {t('Model Prefix')}
+                                      </FormLabel>
+                                      <Tooltip>
+                                        <TooltipTrigger
+                                          render={
+                                            <Button
+                                              type='button'
+                                              variant='ghost'
+                                              size='icon-sm'
+                                              className='text-muted-foreground hover:text-foreground size-auto p-0'
+                                              aria-label={t(
+                                                'How model prefix works'
+                                              )}
+                                            />
+                                          }
+                                        >
+                                          <HelpCircle
+                                            className='h-4 w-4'
+                                            aria-hidden='true'
+                                          />
+                                        </TooltipTrigger>
+                                        <TooltipContent
+                                          side='top'
+                                          align='start'
+                                          className='max-w-xs space-y-2 text-left'
+                                        >
+                                          <p className='text-xs font-semibold tracking-wide uppercase'>
+                                            {t('Request flow')}
+                                          </p>
+                                          <div className='space-y-1 font-mono text-xs'>
+                                            <div className='flex items-center gap-1'>
+                                              <span>gpt-4</span>
+                                              <ArrowRight
+                                                className='h-3.5 w-3.5 opacity-70'
+                                                aria-hidden='true'
+                                              />
+                                              <span>
+                                                {field.value
+                                                  ? `${field.value}/gpt-4`
+                                                  : 'gpt-4'}
+                                              </span>
+                                            </div>
+                                          </div>
+                                          <p className='text-[11px] leading-relaxed opacity-80'>
+                                            {t(
+                                              'Prefix is added to the beginning of the model name when sending to upstream. For example, prefix "openai" transforms "gpt-4" to "openai/gpt-4".'
+                                            )}
+                                          </p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </div>
+                                    <FormDescription>
+                                      {t(
+                                        'Optional prefix added to model names before sending to upstream. Leave empty for no prefix.'
+                                      )}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Input
+                                      placeholder={t('e.g. openai')}
+                                      {...field}
+                                      disabled={isSubmitting}
+                                    />
+                                  </FormControl>
                                   <FormMessage />
                                 </FormItem>
                               )}

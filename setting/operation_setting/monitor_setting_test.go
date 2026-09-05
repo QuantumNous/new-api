@@ -89,3 +89,37 @@ func TestValidateChannelTestConcurrency(t *testing.T) {
 	assert.Error(t, ValidateChannelTestConcurrency("33"))
 	assert.Error(t, ValidateChannelTestConcurrency("1.5"))
 }
+
+func TestGetMonitorSettingNormalizesMultiKeyTestConcurrency(t *testing.T) {
+	orig := monitorSetting
+	t.Cleanup(func() { monitorSetting = orig })
+
+	tests := []struct {
+		name        string
+		concurrency int
+		want        int
+	}{
+		{name: "missing uses safe default", concurrency: 0, want: DefaultMultiKeyTestConcurrency},
+		{name: "configured value is preserved", concurrency: 4, want: 4},
+		{name: "oversized value is capped", concurrency: MaxMultiKeyTestConcurrency + 1, want: MaxMultiKeyTestConcurrency},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			monitorSetting = MonitorSetting{MultiKeyTestConcurrency: test.concurrency}
+
+			setting := GetMonitorSetting()
+
+			require.NotNil(t, setting)
+			assert.Equal(t, test.want, setting.MultiKeyTestConcurrency)
+		})
+	}
+}
+
+func TestValidateMultiKeyTestConcurrency(t *testing.T) {
+	require.NoError(t, ValidateMultiKeyTestConcurrency("1"))
+	require.NoError(t, ValidateMultiKeyTestConcurrency("16"))
+	assert.Error(t, ValidateMultiKeyTestConcurrency("0"))
+	assert.Error(t, ValidateMultiKeyTestConcurrency("17"))
+	assert.Error(t, ValidateMultiKeyTestConcurrency("1.5"))
+}
