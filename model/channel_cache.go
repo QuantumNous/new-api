@@ -82,6 +82,20 @@ func InitChannelCache() {
 	group2model2channels = newGroup2model2channels
 	//channelsIDM = newChannelId2channel
 	for i, channel := range newChannelId2channel {
+		if oldChannel, ok := channelsIDM[i]; ok {
+			// 保留内存中的响应时间：DB 重建会把 response_time 覆盖为旧值/0，
+			// 而智能路由 speed/success_rate 策略依赖实时采集值（见 flushChannelResponseTimes）。
+			if oldChannel.ResponseTime > 0 {
+				channel.ResponseTime = oldChannel.ResponseTime
+			}
+			// 同样保留内存中的请求/成功计数（可能含未落库的增量），避免周期同步回退。
+			if oldChannel.RequestCount > channel.RequestCount {
+				channel.RequestCount = oldChannel.RequestCount
+			}
+			if oldChannel.SuccessCount > channel.SuccessCount {
+				channel.SuccessCount = oldChannel.SuccessCount
+			}
+		}
 		if channel.ChannelInfo.IsMultiKey {
 			channel.Keys = channel.GetKeys()
 			if channel.ChannelInfo.MultiKeyMode == constant.MultiKeyModePolling {
@@ -216,6 +230,87 @@ func GetRandomSatisfiedChannel(
 	return nil, errors.New("channel not found")
 }
 
+// GroupChannelStat 某分组下指定模型候选渠道的统计信息，供智能路由按策略跨分组排序。
+type GroupChannelStat struct {
+	Group           string
+	HasChannel      bool    // 该分组是否有该模型的可用渠道
+	MaxPriority     int64   // 候选渠道中最高优先级
+	MinResponseTime int     // 候选渠道中最短响应时间（毫秒），0 表示无记录
+	SumWeight       int     // 候选渠道权重和
+	TotalRequest    int64   // 候选渠道累计请求数（success_rate 数据源）
+	TotalSuccess    int64   // 候选渠道累计成功数（success_rate 数据源）
+	SuccessRate     float64 // 候选渠道综合成功率 = TotalSuccess/TotalRequest，无记录为 0
+}
+
+// GetGroupChannelStats 计算多个分组下指定模型的候选渠道统计。
+// 智能路由（Token.RoutingPriority）用它来确定各分组的可用性与速度/成功率排序依据。
+func GetGroupChannelStats(groups []string, model string, requestPath string) map[string]*GroupChannelStat {
+	stats := make(map[string]*GroupChannelStat, len(groups))
+	for _, group := range groups {
+		stats[group] = &GroupChannelStat{Group: group}
+	}
+	if len(groups) == 0 {
+		return stats
+	}
+
+	// 未启用内存缓存时退化为数据库查询
+	if !common.MemoryCacheEnabled {
+		filters := []dto.ChannelFilter{{Kind: dto.FilterRequestPath, RequestPath: requestPath}}
+		for _, group := range groups {
+			ch, _ := GetRandomSatisfiedChannel(group, model, 0, filters)
+			if ch == nil {
+				continue
+			}
+			st := stats[group]
+			st.HasChannel = true
+			st.MaxPriority = ch.GetPriority()
+			st.MinResponseTime = ch.ResponseTime
+			st.SumWeight = ch.GetWeight()
+			st.TotalRequest = ch.RequestCount
+			st.TotalSuccess = ch.SuccessCount
+			if st.TotalRequest > 0 {
+				st.SuccessRate = float64(st.TotalSuccess) / float64(st.TotalRequest)
+			}
+		}
+		return stats
+	}
+
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	normalized := ratio_setting.FormatMatchingModelName(model)
+	requestPathFilter := []dto.ChannelFilter{{Kind: dto.FilterRequestPath, RequestPath: requestPath}}
+	for _, group := range groups {
+		st := stats[group]
+		ids, _ := filterCandidateIDs(group2model2channels[group][model], model, requestPathFilter)
+		if len(ids) == 0 && normalized != "" && normalized != model {
+			ids, _ = filterCandidateIDs(group2model2channels[group][normalized], model, requestPathFilter)
+		}
+		if len(ids) == 0 {
+			continue
+		}
+		st.HasChannel = true
+		for _, id := range ids {
+			ch, ok := channelsIDM[id]
+			if !ok {
+				continue
+			}
+			if ch.GetPriority() > st.MaxPriority {
+				st.MaxPriority = ch.GetPriority()
+			}
+			if ch.ResponseTime > 0 && (st.MinResponseTime == 0 || ch.ResponseTime < st.MinResponseTime) {
+				st.MinResponseTime = ch.ResponseTime
+			}
+			st.SumWeight += ch.GetWeight()
+			st.TotalRequest += ch.RequestCount
+			st.TotalSuccess += ch.SuccessCount
+		}
+		if st.TotalRequest > 0 {
+			st.SuccessRate = float64(st.TotalSuccess) / float64(st.TotalRequest)
+		}
+	}
+	return stats
+}
 func CacheGetChannel(id int) (*Channel, error) {
 	if !common.MemoryCacheEnabled {
 		return GetChannelById(id, true)
@@ -306,4 +401,149 @@ func CacheUpdateChannel(channel *Channel) {
 	// updatePricingLock while holding channelSyncLock would be an AB-BA deadlock.
 	channelSyncLock.Unlock()
 	InvalidatePricingCache()
+}
+
+// ---------------------------------------------------------------------------
+// 渠道响应时间采集（智能路由 speed/success_rate 策略的数据源）
+//
+// relay 成功结算（service.PostTextConsumeQuota）时调用 CacheUpdateChannelResponseTime
+// 更新内存缓存，并由后台协程定期 flush 到数据库。注意与 model/utils.go 的批量更新器
+// 区分：那是 delta 累加（+=），而响应时间是 set 语义（覆盖），故单独维护 dirty map。
+// ---------------------------------------------------------------------------
+
+var channelResponseTimeDirty = make(map[int]int)
+var channelResponseTimeLock sync.Mutex
+var responseTimeFlusherOnce sync.Once
+
+// CacheUpdateChannelResponseTime 记录渠道最近一次成功请求的响应时间（毫秒）。
+// 先覆盖内存缓存（智能路由读它），再进 dirty map 等待落库。
+func CacheUpdateChannelResponseTime(channelId int, ms int) {
+	if channelId <= 0 || ms <= 0 {
+		return
+	}
+	channelSyncLock.Lock()
+	if channel, ok := channelsIDM[channelId]; ok {
+		channel.ResponseTime = ms
+	}
+	channelSyncLock.Unlock()
+
+	channelResponseTimeLock.Lock()
+	channelResponseTimeDirty[channelId] = ms
+	channelResponseTimeLock.Unlock()
+
+	startResponseTimeFlusher()
+}
+
+// flushChannelResponseTimes 把 dirty map 中的响应时间按 set 语义写回数据库。
+func flushChannelResponseTimes() {
+	channelResponseTimeLock.Lock()
+	if len(channelResponseTimeDirty) == 0 {
+		channelResponseTimeLock.Unlock()
+		return
+	}
+	dirty := channelResponseTimeDirty
+	channelResponseTimeDirty = make(map[int]int)
+	channelResponseTimeLock.Unlock()
+
+	for channelId, ms := range dirty {
+		if err := DB.Model(&Channel{}).Where("id = ?", channelId).UpdateColumn("response_time", ms).Error; err != nil {
+			common.SysLog("failed to update channel response time: " + err.Error())
+		}
+	}
+}
+
+// startResponseTimeFlusher 懒启动后台刷新协程（首次采集时触发）。
+func startResponseTimeFlusher() {
+	responseTimeFlusherOnce.Do(func() {
+		interval := common.BatchUpdateInterval
+		if interval <= 0 {
+			interval = 10
+		}
+		go func() {
+			for {
+				time.Sleep(time.Duration(interval) * time.Second)
+				flushChannelResponseTimes()
+			}
+		}()
+	})
+}
+
+// ---------------------------------------------------------------------------
+// 渠道请求/成功计数（智能路由 success_rate 策略的数据源）
+// 与 ResponseTime 相同的 dirty-map + flusher 模式，但这里是 delta 累加语义：
+// 内存缓存存累计值（含未落库增量），dirty map 存 delta，后台协程定期累加写回 DB。
+// ---------------------------------------------------------------------------
+
+// ChannelCounter 一次未落库的计数增量。
+type ChannelCounter struct {
+	Request int64
+	Success int64
+}
+
+var channelCountDirty = make(map[int]*ChannelCounter)
+var channelCountLock sync.Mutex
+var countFlusherOnce sync.Once
+
+// CacheRecordChannelResult 记录一次渠道请求的成败（成功 = 结算前 HTTP 状态 < 400）。
+// 先累加内存缓存（智能路由读它），再进 dirty map 等待落库。
+func CacheRecordChannelResult(channelId int, success bool) {
+	if channelId <= 0 {
+		return
+	}
+	channelSyncLock.Lock()
+	if channel, ok := channelsIDM[channelId]; ok {
+		channel.RequestCount++
+		if success {
+			channel.SuccessCount++
+		}
+	}
+	channelSyncLock.Unlock()
+
+	channelCountLock.Lock()
+	d := channelCountDirty[channelId]
+	if d == nil {
+		d = &ChannelCounter{}
+		channelCountDirty[channelId] = d
+	}
+	d.Request++
+	if success {
+		d.Success++
+	}
+	channelCountLock.Unlock()
+
+	startCountFlusher()
+}
+
+// flushChannelCounts 把 dirty map 中的计数增量累加写回数据库。
+func flushChannelCounts() {
+	channelCountLock.Lock()
+	if len(channelCountDirty) == 0 {
+		channelCountLock.Unlock()
+		return
+	}
+	dirty := channelCountDirty
+	channelCountDirty = make(map[int]*ChannelCounter)
+	channelCountLock.Unlock()
+
+	for channelId, d := range dirty {
+		if err := DB.Exec("UPDATE channels SET request_count = request_count + ?, success_count = success_count + ? WHERE id = ?", d.Request, d.Success, channelId).Error; err != nil {
+			common.SysLog("failed to update channel counts: " + err.Error())
+		}
+	}
+}
+
+// startCountFlusher 懒启动后台刷新协程（首次记录时触发）。
+func startCountFlusher() {
+	countFlusherOnce.Do(func() {
+		interval := common.BatchUpdateInterval
+		if interval <= 0 {
+			interval = 10
+		}
+		go func() {
+			for {
+				time.Sleep(time.Duration(interval) * time.Second)
+				flushChannelCounts()
+			}
+		}()
+	})
 }

@@ -5538,6 +5538,17 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Speed": "Speed",
+    "Smart routing": "Smart routing",
+    "Routing strategy": "Routing strategy",
+    "Select a routing strategy": "Select a routing strategy",
+    "Auto (price, speed, success rate)": "Auto (price, speed, success rate)",
+    "Price first (lowest cost)": "Price first (lowest cost)",
+    "Speed first (fastest response)": "Speed first (fastest response)",
+    "Success rate first (most stable)": "Success rate first (most stable)",
+    "When enabled, the system picks the optimal channel across all usable groups by strategy, ignoring the specified group.": "When enabled, the system picks the optimal channel across all usable groups by strategy, ignoring the specified group.",
+    "Smart: {{strategy}}": "Smart: {{strategy}}",
+    "Smart routing: the system picks the optimal channel across all usable groups by the selected strategy.": "Smart routing: the system picks the optimal channel across all usable groups by the selected strategy."
   }
 }

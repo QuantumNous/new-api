@@ -1,6 +1,8 @@
 package service
 
 import (
+	"math"
+	"sort"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -130,4 +132,96 @@ func GetUserGroupRatio(userGroup, group string) float64 {
 		return ratio
 	}
 	return ratio_setting.GetGroupRatio(group)
+}
+
+// GetSmartRoutingGroups 计算智能路由（Token.RoutingPriority）下应使用的有序分组列表。
+// 仅包含用户可用分组（含特殊可用分组）中该模型存在可用渠道的分组。
+//
+// 排序策略：
+//   - price：按用户实际使用倍率升序（成本低优先），同倍率按响应速度升序；
+//   - speed：按候选渠道最短响应时间升序（无记录排后），同速度按优先级降序；
+//   - success_rate：按候选渠道实测成功率降序（无请求记录的分组排最后），同成功率按优先级、再按速度升序；
+//   - auto：综合排序，先成功率（优先级）降序，再价格升序，最后速度升序。
+//
+// 注：Channel 模型维护请求/成功计数（Distribute 记录，dirty-map+flusher 落库），
+// success_rate 用实测成功率排序；auto 仍用「优先级 + 响应时间」作为稳定性代理。
+func GetSmartRoutingGroups(userGroup, modelName, requestPath, routingPriority string) []string {
+	usable := GetUserUsableGroups(userGroup)
+	groups := make([]string, 0, len(usable))
+	for group := range usable {
+		if group == "" || group == "auto" {
+			continue
+		}
+		groups = append(groups, group)
+	}
+
+	stats := model.GetGroupChannelStats(groups, modelName, requestPath)
+
+	type rankedGroup struct {
+		group string
+		ratio float64
+		stat  *model.GroupChannelStat
+	}
+	ranked := make([]rankedGroup, 0, len(groups))
+	for _, group := range groups {
+		st, ok := stats[group]
+		if !ok || !st.HasChannel {
+			continue
+		}
+		ranked = append(ranked, rankedGroup{group: group, ratio: GetUserGroupRatio(userGroup, group), stat: st})
+	}
+
+	// rt 将「无响应记录(0)」归一化为最大整数，使其总是排到最后。
+	rt := func(ms int) int {
+		if ms == 0 {
+			return math.MaxInt32
+		}
+		return ms
+	}
+
+	sort.SliceStable(ranked, func(i, j int) bool {
+		a, b := ranked[i], ranked[j]
+		switch routingPriority {
+		case constant.RoutingPriorityPrice:
+			if a.ratio != b.ratio {
+				return a.ratio < b.ratio
+			}
+			return rt(a.stat.MinResponseTime) < rt(b.stat.MinResponseTime)
+		case constant.RoutingPrioritySpeed:
+			if rt(a.stat.MinResponseTime) != rt(b.stat.MinResponseTime) {
+				return rt(a.stat.MinResponseTime) < rt(b.stat.MinResponseTime)
+			}
+			return a.stat.MaxPriority > b.stat.MaxPriority
+		case constant.RoutingPrioritySuccessRate:
+			// 成功率优先：无请求记录的分组排最后，其余按实测成功率降序。
+			as, bs := a.stat.SuccessRate, b.stat.SuccessRate
+			if a.stat.TotalRequest == 0 {
+				as = -1
+			}
+			if b.stat.TotalRequest == 0 {
+				bs = -1
+			}
+			if as != bs {
+				return as > bs
+			}
+			if a.stat.MaxPriority != b.stat.MaxPriority {
+				return a.stat.MaxPriority > b.stat.MaxPriority
+			}
+			return rt(a.stat.MinResponseTime) < rt(b.stat.MinResponseTime)
+		default: // auto：综合
+			if a.stat.MaxPriority != b.stat.MaxPriority {
+				return a.stat.MaxPriority > b.stat.MaxPriority
+			}
+			if a.ratio != b.ratio {
+				return a.ratio < b.ratio
+			}
+			return rt(a.stat.MinResponseTime) < rt(b.stat.MinResponseTime)
+		}
+	})
+
+	result := make([]string, 0, len(ranked))
+	for _, r := range ranked {
+		result = append(result, r.group)
+	}
+	return result
 }

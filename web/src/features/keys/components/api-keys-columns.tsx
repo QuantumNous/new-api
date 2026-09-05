@@ -201,6 +201,7 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
             group={group}
             ratio={groupRatios[group]}
             crossGroupRetry={apiKey.cross_group_retry}
+            routingPriority={apiKey.routing_priority ?? undefined}
             shouldReduceMotion={shouldReduceMotion}
           />
         )
