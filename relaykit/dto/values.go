@@ -2,6 +2,8 @@ package dto
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"strconv"
 )
 
@@ -34,6 +36,16 @@ func (i *IntValue) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &n); err == nil {
 		*i = IntValue(n)
 		return nil
+	}
+	var f float64
+	if err := json.Unmarshal(b, &f); err == nil {
+		// The upper bound must be < rather than <=: float64(math.MaxInt) rounds
+		// up to 2^63, which is just out of range.
+		if f >= math.MinInt && f < math.MaxInt {
+			*i = IntValue(int(f))
+			return nil
+		}
+		return fmt.Errorf("json: number %s overflows int", string(b))
 	}
 	var s string
 	if err := json.Unmarshal(b, &s); err != nil {
