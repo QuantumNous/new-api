@@ -17,6 +17,7 @@ import (
 
 type Pricing struct {
 	ModelName              string                  `json:"model_name"`
+	PriceConfigured        bool                    `json:"price_configured"`
 	Description            string                  `json:"description,omitempty"`
 	Icon                   string                  `json:"icon,omitempty"`
 	Tags                   string                  `json:"tags,omitempty"`
@@ -375,10 +376,12 @@ func updatePricing() {
 		}
 		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
 		if findPrice {
+			pricing.PriceConfigured = true
 			pricing.ModelPrice = modelPrice
 			pricing.QuotaType = 1
 		} else {
-			modelRatio, _, _ := ratio_setting.GetModelRatio(model)
+			modelRatio, configured, _ := ratio_setting.GetModelRatio(model)
+			pricing.PriceConfigured = configured
 			pricing.ModelRatio = modelRatio
 			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
 			pricing.QuotaType = 0
@@ -403,6 +406,7 @@ func updatePricing() {
 		if billingMode := billing_setting.GetBillingMode(model); billingMode == "tiered_expr" {
 			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
 				pricing.BillingMode = billingMode
+				pricing.PriceConfigured = true
 				pricing.BillingExpr = expr
 			}
 		}
