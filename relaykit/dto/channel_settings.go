@@ -11,6 +11,7 @@ import (
 )
 
 type ChannelSettings struct {
+	TaskPluginKey          string `json:"task_plugin_key,omitempty"`
 	ForceFormat            bool   `json:"force_format,omitempty"`
 	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
 	Proxy                  string `json:"proxy"`
@@ -85,6 +86,10 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastRemovedModels  []string              `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string              `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
 	AdvancedCustom                        *AdvancedCustomConfig `json:"advanced_custom,omitempty"`
+	// ToolLossPolicy is a channel-level opt-in for request-phase conversion
+	// rejection. Empty follows the default allow policy. Accepted values:
+	// "", "allow", "safe", "strict".
+	ToolLossPolicy string `json:"tool_loss_policy,omitempty"`
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
@@ -92,6 +97,20 @@ func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
 		return false
 	}
 	return *s.OpenRouterEnterprise
+}
+
+// ValidateToolLossPolicy validates the channel-level request-phase tool-loss
+// policy. Empty keeps the default allow policy.
+func (s *ChannelOtherSettings) ValidateToolLossPolicy() error {
+	if s == nil {
+		return nil
+	}
+	switch strings.TrimSpace(s.ToolLossPolicy) {
+	case "", string(types.ConversionLossPolicyAllow), string(types.ConversionLossPolicySafe), string(types.ConversionLossPolicyStrict):
+		return nil
+	default:
+		return fmt.Errorf("invalid tool_loss_policy: %s", s.ToolLossPolicy)
+	}
 }
 
 const (
@@ -145,8 +164,12 @@ const (
 	advancedCustomEndpointPathEmbeddings             = "/v1/embeddings"
 )
 
-// AdvancedCustomModelListPath identifies the optional OpenAI Models discovery route.
-const AdvancedCustomModelListPath = "/v1/models"
+const (
+	// AdvancedCustomModelListPath identifies the optional OpenAI Models discovery route.
+	AdvancedCustomModelListPath = "/v1/models"
+	// AdvancedCustomBalancePath identifies the optional balance lookup route used by channel management.
+	AdvancedCustomBalancePath = "/v1/dashboard/billing/credit_grants"
+)
 
 // MatchPath returns the first route whose IncomingPath matches requestPath.
 // Matching mirrors the relay adaptor: exact match, {model} placeholder, and
@@ -187,6 +210,19 @@ func (c *AdvancedCustomConfig) ModelListRoute() (AdvancedCustomRoute, bool) {
 	}
 	for _, route := range c.Routes {
 		if strings.TrimSpace(route.IncomingPath) == AdvancedCustomModelListPath {
+			return route, true
+		}
+	}
+	return AdvancedCustomRoute{}, false
+}
+
+// BalanceRoute returns the explicitly configured channel-management balance route.
+func (c *AdvancedCustomConfig) BalanceRoute() (AdvancedCustomRoute, bool) {
+	if c == nil {
+		return AdvancedCustomRoute{}, false
+	}
+	for _, route := range c.Routes {
+		if strings.TrimSpace(route.IncomingPath) == AdvancedCustomBalancePath {
 			return route, true
 		}
 	}
@@ -360,6 +396,7 @@ func (c *AdvancedCustomConfig) Validate() error {
 
 	paths := make(map[string]*advancedCustomPathModelState, len(c.Routes))
 	modelListRouteIndex := -1
+	balanceRouteIndex := -1
 	for i := range c.Routes {
 		route := c.Routes[i]
 		route.IncomingPath = strings.TrimSpace(route.IncomingPath)
@@ -378,19 +415,28 @@ func (c *AdvancedCustomConfig) Validate() error {
 		if strings.Contains(route.IncomingPath, "?") {
 			return fmt.Errorf("advanced_custom.advanced_routes[%d].incoming_path must not include query", i)
 		}
-		if route.IncomingPath == AdvancedCustomModelListPath {
-			if modelListRouteIndex >= 0 {
-				return fmt.Errorf("advanced_custom.advanced_routes[%d] duplicates the /v1/models route at advanced_routes[%d]", i, modelListRouteIndex)
+		if route.IncomingPath == AdvancedCustomModelListPath || route.IncomingPath == AdvancedCustomBalancePath {
+			managementRouteName := route.IncomingPath
+			previousIndex := modelListRouteIndex
+			if route.IncomingPath == AdvancedCustomBalancePath {
+				previousIndex = balanceRouteIndex
 			}
-			modelListRouteIndex = i
+			if previousIndex >= 0 {
+				return fmt.Errorf("advanced_custom.advanced_routes[%d] duplicates the %s route at advanced_routes[%d]", i, managementRouteName, previousIndex)
+			}
+			if route.IncomingPath == AdvancedCustomModelListPath {
+				modelListRouteIndex = i
+			} else {
+				balanceRouteIndex = i
+			}
 			if len(normalizeAdvancedCustomRouteModels(route.Models)) > 0 {
-				return fmt.Errorf("advanced_custom.advanced_routes[%d].models must be empty for /v1/models", i)
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].models must be empty for %s", i, managementRouteName)
 			}
 			if route.Converter != advancedCustomConverterNone {
-				return fmt.Errorf("advanced_custom.advanced_routes[%d].converter must be none for /v1/models", i)
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].converter must be none for %s", i, managementRouteName)
 			}
 			if strings.Contains(upstreamPath, advancedCustomModelPlaceholder) {
-				return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must not contain %s for /v1/models", i, advancedCustomModelPlaceholder)
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must not contain %s for %s", i, advancedCustomModelPlaceholder, managementRouteName)
 			}
 		}
 		if err := validateAdvancedCustomRouteModels(i, route.IncomingPath, route.Models, paths); err != nil {

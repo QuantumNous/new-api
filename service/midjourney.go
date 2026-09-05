@@ -117,6 +117,9 @@ func RefundMidjourneyQuota(ctx context.Context, task *model.Midjourney, reason s
 	billingChannelId := task.GetBillingChannelId()
 	model.UpdateUserUsedQuota(task.UserId, -quota)
 	model.UpdateChannelUsedQuota(billingChannelId, -quota)
+	other := model.NewLogOther()
+	other.SetPublic("task_id", task.MjId)
+	other.SetPublic("reason", reason)
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
 		UserId:    task.UserId,
 		LogType:   model.LogTypeRefund,
@@ -125,10 +128,7 @@ func RefundMidjourneyQuota(ctx context.Context, task *model.Midjourney, reason s
 		ModelName: CovertMjpActionToModelName(task.Action),
 		Quota:     quota,
 		TokenId:   task.TokenId,
-		Other: map[string]interface{}{
-			"task_id": task.MjId,
-			"reason":  reason,
-		},
+		Other:     other,
 	})
 
 	task.Quota = 0

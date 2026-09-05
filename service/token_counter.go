@@ -140,11 +140,11 @@ func getImageToken(c *gin.Context, fileMeta *types.FileMeta, model string, strea
 			if imageTokens > 1536 {
 				imageTokens = 1536
 			}
-			return int(math.Round(float64(imageTokens) * multiplier)), nil
+			return common.QuotaRound(float64(imageTokens) * multiplier), nil
 		}
 		// below cap
 		imageTokens := rawPatches
-		return int(math.Round(float64(imageTokens) * multiplier)), nil
+		return common.QuotaRound(float64(imageTokens) * multiplier), nil
 	}
 
 	// Tile-based calculation for 4o/4.1/4.5/o1/o3/etc.
@@ -181,7 +181,13 @@ func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *rela
 	if !constant.CountToken {
 		return 0, nil
 	}
+	return CountRequestToken(c, meta, info)
+}
 
+// CountRequestToken counts request tokens regardless of the billing estimation
+// switch. Utility endpoints such as Claude's messages/count_tokens must remain
+// available even when operators disable request-token estimation for relays.
+func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relaycommon.RelayInfo) (int, error) {
 	if meta == nil {
 		return 0, errors.New("token count meta is nil")
 	}

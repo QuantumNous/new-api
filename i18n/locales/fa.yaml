@@ -272,6 +272,7 @@ distributor.invalid_playground_request: "درخواست محیط آزمایشی 
 distributor.group_access_denied: "اجازه دسترسی به این گروه را ندارید"
 distributor.get_channel_failed: "دریافت کانال قابل استفاده برای مدل {{.Model}} در گروه {{.Group}} ناموفق بود (توزیع‌کننده): {{.Error}}"
 distributor.no_available_channel: "هیچ کانال قابل استفاده‌ای برای مدل {{.Model}} در گروه {{.Group}} وجود ندارد (توزیع‌کننده)"
+distributor.no_available_channel_task_plugin: "هیچ کانال قابل استفاده‌ای برای مدل {{.Model}} در گروه {{.Group}} وجود ندارد: این مدل در اختیار افزونه وظیفه «{{.Plugin}}» است، اما آن افزونه کانال فعالی برای ارائه این مدل ندارد. برای ارائه این مدل توسط افزونه یا کانال دیگری، افزونه «{{.Plugin}}» را در پنل افزونه‌های وظیفه غیرفعال یا بازنویسی کنید (توزیع‌کننده)"
 distributor.invalid_midjourney_request: "درخواست Midjourney نامعتبر است: {{.Error}}"
 distributor.invalid_request_parse_model: "درخواست نامعتبر است؛ تجزیه نام مدل ممکن نشد"
 

@@ -13,20 +13,26 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
 type TaskSubmitResult struct {
 	UpstreamTaskID string
 	TaskData       []byte
+	ClientResponse any
 	Platform       constant.TaskPlatform
 	Quota          int
+	Immediate      *relaycommon.TaskInfo
+	PluginState    []byte
 	//PerCallPrice   types.PriceData
 }
 
@@ -137,11 +143,57 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 	return nil
 }
 
+// ApplyChannelPin copies plugin-declared origin-task facts from the prepare
+// context onto RelayInfo and, when the resolved pin retries on the same
+// channel, writes LockedChannel. ResolveOriginTask is unchanged.
+func ApplyChannelPin(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+	if info == nil {
+		return nil
+	}
+	if info.TaskRelayInfo == nil {
+		info.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+	}
+	if tasks, ok := common.GetContextKeyType[[]*model.Task](c, constant.ContextKeyOriginTasks); ok {
+		refs := make([]relaycommon.OriginTaskRef, 0, len(tasks))
+		for _, task := range tasks {
+			if task == nil {
+				continue
+			}
+			refs = append(refs, relaycommon.OriginTaskRef{
+				TaskID:         task.TaskID,
+				UpstreamTaskID: task.GetUpstreamTaskID(),
+				Action:         task.Action,
+				Status:         string(task.Status),
+				Data:           append([]byte(nil), task.Data...),
+			})
+		}
+		info.OriginTasks = refs
+	}
+	pin, found, _ := service.GetChannelConstraints(c).ResolvedPin()
+	if !found || pin.RetryMode != dto.PinRetrySameChannel {
+		return nil
+	}
+	ch, err := model.CacheGetChannel(pin.ChannelId)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "origin_task_channel_disabled", http.StatusBadRequest)
+	}
+	if ch.Status != common.ChannelStatusEnabled {
+		return service.TaskErrorWrapperLocal(errors.New("the channel of the origin task is disabled"), "origin_task_channel_disabled", http.StatusBadRequest)
+	}
+	info.LockedChannel = ch
+	return nil
+}
+
+// ApplyOriginTaskAffinity is the compatibility name for ApplyChannelPin.
+func ApplyOriginTaskAffinity(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
+	return ApplyChannelPin(c, info)
+}
+
 // RelayTaskSubmit 完成 task 提交的全部流程（每次尝试调用一次）：
 // 刷新渠道元数据 → 确定 platform/adaptor → 验证请求 →
 // 估算计费(EstimateBilling) → 计算价格 → 预扣费（仅首次）→
 // 构建/发送/解析上游请求 → 提交后计费调整(AdjustBillingOnSubmit)。
-// 控制器负责 defer Refund 和成功后 Settle。
+// 共享控制器编排负责未落库退款、最终额度预留、落库和结算。
 func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitResult, *dto.TaskError) {
 	info.InitChannelMeta(c)
 
@@ -150,11 +202,30 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if platform == "" {
 		platform = GetTaskPlatform(c)
 	}
-	adaptor := GetTaskAdaptor(platform)
+	platform, adaptor := getTaskAdaptorForRequest(c, platform)
 	if adaptor == nil {
-		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("invalid api platform: %s", platform), "invalid_api_platform", http.StatusBadRequest)
+		code, message := TaskPlatformUnavailableError(platform)
+		return nil, service.TaskErrorWrapperLocal(errors.New(message), code, http.StatusBadRequest)
+	}
+	// buildSubmitRequest runs during validation and the unreleased plugin
+	// contract exposes this host-generated id to that hook.
+	if info.PublicTaskID == "" {
+		info.PublicTaskID = model.GenerateTaskID()
 	}
 	adaptor.Init(info)
+	// Plugin submit hooks run during ValidateRequestAndSetAction and cache the
+	// upstream body. OriginModelName is already seeded on that line (protocol
+	// resolved_task_model, legacy submit, or GenRelayInfo original_model), so
+	// map before validation. The empty-name CoverTaskActionToModelName
+	// synthesis happens after validate and cannot move; skip the late block
+	// when early mapping ran so a chain is never applied twice.
+	mappedBeforeValidate := info.OriginModelName != ""
+	if mappedBeforeValidate {
+		info.UpstreamModelName = info.OriginModelName
+		if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+			return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
+		}
+	}
 	if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
 		return nil, taskErr
 	}
@@ -165,37 +236,88 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		modelName = service.CoverTaskActionToModelName(platform, info.Action)
 	}
 
-	// 2.5 应用渠道的模型映射（与同步任务对齐）
-	info.OriginModelName = modelName
-	info.UpstreamModelName = modelName
-	if err := helper.ModelMappedHelper(c, info, nil); err != nil {
-		return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
-	}
-
-	// 3. 预生成公开 task ID（仅首次）
-	if info.PublicTaskID == "" {
-		info.PublicTaskID = model.GenerateTaskID()
+	if !mappedBeforeValidate {
+		info.OriginModelName = modelName
+		info.UpstreamModelName = modelName
+		if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+			return nil, service.TaskErrorWrapperLocal(err, "model_mapping_failed", http.StatusBadRequest)
+		}
 	}
 
 	// 4. 价格计算：基础模型价格
 	info.OriginModelName = modelName
-	priceData, err := helper.ModelPriceHelperPerCall(c, info)
-	if err != nil {
-		return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
+	var priceData types.PriceData
+	var err error
+	useTiered := billing_setting.GetBillingMode(modelName) == billing_setting.BillingModeTieredExpr
+	var exprStr string
+	var exists bool
+	if useTiered {
+		exprStr, exists = billing_setting.GetBillingExpr(modelName)
+	} else if info.IsModelMapped {
+		if billing_setting.GetBillingMode(info.UpstreamModelName) == billing_setting.BillingModeTieredExpr {
+			if tailExpr, tailOK := billing_setting.GetBillingExpr(info.UpstreamModelName); tailOK && strings.TrimSpace(tailExpr) != "" {
+				exprStr = tailExpr
+				exists = true
+				useTiered = true
+			}
+		}
+	}
+	if useTiered {
+		provider, supported := adaptor.(channel.TaskUsageFactsProvider)
+		if !exists || !supported {
+			return nil, service.TaskErrorWrapper(fmt.Errorf("task model %s has no usage expression or meter", modelName), "model_price_error", http.StatusBadRequest)
+		}
+		var facts map[string]any
+		if validatedProvider, ok := adaptor.(channel.TaskValidatedUsageFactsProvider); ok {
+			facts, err = validatedProvider.ExtractUsageFactsValidated(c, info)
+			if err != nil {
+				return nil, service.TaskErrorWrapperLocal(err, "plugin_usage_invalid", http.StatusBadRequest)
+			}
+		} else {
+			facts = provider.ExtractUsageFacts(c, info)
+		}
+		cost, trace, runErr := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{}, billingexpr.RequestInput{Usage: facts})
+		if runErr != nil || cost < 0 {
+			if runErr == nil {
+				runErr = fmt.Errorf("negative task expression result")
+			}
+			return nil, service.TaskErrorWrapper(runErr, "model_price_error", http.StatusBadRequest)
+		}
+		groupRatioInfo := helper.HandleGroupRatio(c, info)
+		quota, clamp := common.QuotaRoundChecked(cost * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		noteTaskQuotaClamp(info, clamp)
+		priceData = types.PriceData{Quota: quota, QuotaToPreConsume: quota, GroupRatioInfo: groupRatioInfo}
+		info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{BillingMode: billing_setting.BillingModeTieredExpr, ModelName: modelName, ExprString: exprStr, ExprHash: billingexpr.ExprHashString(exprStr), GroupRatio: groupRatioInfo.GroupRatio, EstimatedQuotaBeforeGroup: cost * common.QuotaPerUnit, EstimatedQuotaAfterGroup: quota, EstimatedTier: trace.MatchedTier, QuotaPerUnit: common.QuotaPerUnit, ExprVersion: billingexpr.ExprVersion(exprStr), TaskUsageBilling: true, UsageFacts: facts}
+	} else {
+		priceData, err = helper.ModelPriceHelperPerCall(c, info)
+		if err != nil {
+			return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
+		}
 	}
 	info.PriceData = priceData
 
 	// 5. 计费估算：让适配器根据用户请求提供 OtherRatios（时长、分辨率等）
 	//    必须在 ModelPriceHelperPerCall 之后调用（它会重建 PriceData）。
 	//    ResolveOriginTask 可能已在 remix 路径中预设了 OtherRatios，此处合并。
-	if estimatedRatios := adaptor.EstimateBilling(c, info); len(estimatedRatios) > 0 {
-		for k, v := range estimatedRatios {
-			info.PriceData.AddOtherRatio(k, v)
+	if info.TieredBillingSnapshot == nil {
+		var estimatedRatios map[string]float64
+		if validatedProvider, ok := adaptor.(channel.TaskValidatedBillingProvider); ok {
+			estimatedRatios, err = validatedProvider.EstimateBillingValidated(c, info)
+			if err != nil {
+				return nil, service.TaskErrorWrapperLocal(err, "plugin_usage_invalid", http.StatusBadRequest)
+			}
+		} else {
+			estimatedRatios = adaptor.EstimateBilling(c, info)
+		}
+		if len(estimatedRatios) > 0 {
+			for k, v := range estimatedRatios {
+				info.PriceData.AddOtherRatio(k, v)
+			}
 		}
 	}
 
 	// 6. 将 OtherRatios 应用到基础额度（饱和转换，防止溢出成负数）
-	if !common.StringsContains(constant.TaskPricePatches, modelName) {
+	if info.TieredBillingSnapshot == nil && !common.StringsContains(constant.TaskPricePatches, modelName) {
 		quotaWithRatios := info.PriceData.ApplyOtherRatiosToFloat(float64(info.PriceData.Quota))
 		quota, clamp := common.QuotaFromFloatChecked(quotaWithRatios)
 		info.PriceData.Quota = quota
@@ -221,41 +343,46 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
 	}
-	if resp != nil && resp.StatusCode != http.StatusOK {
+	if resp == nil {
+		return nil, service.TaskErrorWrapperLocal(errors.New("upstream returned an empty response"), "fail_to_fetch_task", http.StatusBadGateway)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(resp.Body)
 		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
 	}
 
-	// 10. 返回 OtherRatios 给下游（header 必须在 DoResponse 写 body 之前设置）
-	otherRatios := info.PriceData.OtherRatios()
-	if otherRatios == nil {
-		otherRatios = map[string]float64{}
-	}
-	ratiosJSON, _ := common.Marshal(otherRatios)
-	c.Header("X-New-Api-Other-Ratios", string(ratiosJSON))
-
-	// 11. 解析响应
-	upstreamTaskID, taskData, taskErr := adaptor.DoResponse(c, resp, info)
+	// 10. Parse only. The controller presents the response after the durable
+	// task barrier and billing settlement.
+	parsed, taskErr := adaptor.ParseResponse(c, resp, info)
 	if taskErr != nil {
 		return nil, taskErr
+	}
+	if parsed == nil {
+		return nil, service.TaskErrorWrapperLocal(errors.New("task adaptor returned an empty response"), "plugin_submit_response_invalid", http.StatusBadGateway)
 	}
 
 	// 11. 提交后计费调整：让适配器根据上游实际返回调整 OtherRatios
 	finalQuota := info.PriceData.Quota
-	if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, taskData); len(adjustedRatios) > 0 {
-		if adjustedQuota, ok := recalcQuotaFromRatios(info, adjustedRatios); ok {
-			// 基于调整后的 ratios 重新计算 quota
-			finalQuota = adjustedQuota
-			info.PriceData.ReplaceOtherRatios(adjustedRatios)
-			info.PriceData.Quota = finalQuota
+	if info.TieredBillingSnapshot == nil {
+		if adjustedRatios := adaptor.AdjustBillingOnSubmit(info, parsed.TaskData); len(adjustedRatios) > 0 {
+			if adjustedQuota, ok := recalcQuotaFromRatios(info, adjustedRatios); ok {
+				// 基于调整后的 ratios 重新计算 quota
+				finalQuota = adjustedQuota
+				info.PriceData.ReplaceOtherRatios(adjustedRatios)
+				info.PriceData.Quota = finalQuota
+			}
 		}
 	}
 
 	return &TaskSubmitResult{
-		UpstreamTaskID: upstreamTaskID,
-		TaskData:       taskData,
+		UpstreamTaskID: parsed.UpstreamTaskID,
+		TaskData:       parsed.TaskData,
+		ClientResponse: parsed.ClientResponse,
 		Platform:       platform,
 		Quota:          finalQuota,
+		Immediate:      parsed.Immediate,
+		PluginState:    parsed.PluginState,
 	}, nil
 }
 
@@ -288,8 +415,6 @@ func noteTaskQuotaClamp(info *relaycommon.RelayInfo, clamp *common.QuotaClamp) {
 }
 
 var fetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, taskResp *dto.TaskError){
-	relayconstant.RelayModeSunoFetchByID:  sunoFetchByIDRespBodyBuilder,
-	relayconstant.RelayModeSunoFetch:      sunoFetchRespBodyBuilder,
 	relayconstant.RelayModeVideoFetchByID: videoFetchByIDRespBodyBuilder,
 }
 
@@ -313,58 +438,6 @@ func RelayTaskFetch(c *gin.Context, relayMode int) (taskResp *dto.TaskError) {
 		taskResp = service.TaskErrorWrapper(err, "copy_response_body_failed", http.StatusInternalServerError)
 		return
 	}
-	return
-}
-
-func sunoFetchRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
-	userId := c.GetInt("id")
-	var condition = struct {
-		IDs    []any  `json:"ids"`
-		Action string `json:"action"`
-	}{}
-	err := c.BindJSON(&condition)
-	if err != nil {
-		taskResp = service.TaskErrorWrapper(err, "invalid_request", http.StatusBadRequest)
-		return
-	}
-	var tasks []any
-	if len(condition.IDs) > 0 {
-		taskModels, err := model.GetByTaskIds(userId, condition.IDs)
-		if err != nil {
-			taskResp = service.TaskErrorWrapper(err, "get_tasks_failed", http.StatusInternalServerError)
-			return
-		}
-		for _, task := range taskModels {
-			tasks = append(tasks, TaskModel2Dto(task))
-		}
-	} else {
-		tasks = make([]any, 0)
-	}
-	respBody, err = common.Marshal(dto.TaskResponse[[]any]{
-		Code: "success",
-		Data: tasks,
-	})
-	return
-}
-
-func sunoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.TaskError) {
-	taskId := c.Param("id")
-	userId := c.GetInt("id")
-
-	originTask, exist, err := model.GetByTaskId(userId, taskId)
-	if err != nil {
-		taskResp = service.TaskErrorWrapper(err, "get_task_failed", http.StatusInternalServerError)
-		return
-	}
-	if !exist {
-		taskResp = service.TaskErrorWrapperLocal(errors.New("task_not_exist"), "task_not_exist", http.StatusBadRequest)
-		return
-	}
-
-	respBody, err = common.Marshal(dto.TaskResponse[any]{
-		Code: "success",
-		Data: TaskModel2Dto(originTask),
-	})
 	return
 }
 
@@ -436,7 +509,7 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		return nil
 	}
 
-	baseURL := constant.ChannelBaseURLs[channelModel.Type]
+	baseURL := constant.GetChannelBaseURL(channelModel.Type)
 	if channelModel.GetBaseURL() != "" {
 		baseURL = channelModel.GetBaseURL()
 	}
@@ -446,10 +519,7 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		return nil
 	}
 
-	resp, err := adaptor.FetchTask(baseURL, channelModel.Key, map[string]any{
-		"task_id": task.GetUpstreamTaskID(),
-		"action":  task.Action,
-	}, proxy)
+	resp, err := adaptor.FetchTask(baseURL, channelModel.Key, task, proxy)
 	if err != nil || resp == nil {
 		return nil
 	}
@@ -459,7 +529,7 @@ func tryRealtimeFetch(task *model.Task, isOpenAIVideoAPI bool) []byte {
 		return nil
 	}
 
-	ti, err := adaptor.ParseTaskResult(body)
+	ti, err := adaptor.ParseTaskResult(task, resp, body)
 	if err != nil || ti == nil {
 		return nil
 	}
@@ -558,7 +628,7 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		Group:      task.Group,
 		ChannelId:  task.ChannelId,
 		Quota:      task.Quota,
-		Action:     task.Action,
+		Action:     constant.NormalizeTaskAction(task.Action),
 		Status:     string(task.Status),
 		FailReason: task.FailReason,
 		ResultURL:  task.GetResultURL(),
