@@ -195,6 +195,9 @@ func TestGeneralOpenAIRequestGetSystemRoleName(t *testing.T) {
 		{name: "o1 mini stays system", model: "o1-mini", want: "system"},
 		{name: "o1 preview stays system", model: "o1-preview", want: "system"},
 		{name: "gpt 5 uses developer", model: "gpt-5", want: "developer"},
+		{name: "gpt 5.6 uses developer", model: "gpt-5.6-luna", want: "developer"},
+		{name: "gpt 6 uses developer", model: "gpt-6-astra", want: "developer"},
+		{name: "gpt 4.1 stays system", model: "gpt-4.1-nano", want: "system"},
 		{name: "omni is not o series", model: "omni-moderation-latest", want: "system"},
 	}
 
@@ -203,6 +206,41 @@ func TestGeneralOpenAIRequestGetSystemRoleName(t *testing.T) {
 			req := GeneralOpenAIRequest{Model: tt.model}
 
 			require.Equal(t, tt.want, req.GetSystemRoleName())
+		})
+	}
+}
+
+func TestIsOpenAIGPT5Model(t *testing.T) {
+	tests := []struct {
+		model string
+		want  bool
+	}{
+		{model: "gpt-5", want: true},
+		{model: "gpt-5-mini", want: true},
+		{model: "gpt-5-chat-latest", want: true},
+		{model: "gpt-5.6-luna", want: true},
+		{model: "gpt-5.4-nano", want: true},
+		{model: "gpt-6-astra", want: true},
+		{model: "gpt-6-astra-high", want: true},
+		{model: "gpt-6.1-x", want: true},
+		{model: "gpt-10-x", want: true},
+		{model: " GPT-6-Astra ", want: true},
+		{model: "gpt-4.1", want: false},
+		{model: "gpt-4.1-nano", want: false},
+		{model: "gpt-4o", want: false},
+		{model: "gpt-4.5-preview", want: false},
+		{model: "gpt-oss-120b", want: false},
+		{model: "gpt-image-2", want: false},
+		{model: "gpt-realtime-2.1", want: false},
+		{model: "chatgpt-4o-latest", want: false},
+		{model: "o3-mini", want: false},
+		{model: "gpt-", want: false},
+		{model: "", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.model, func(t *testing.T) {
+			require.Equal(t, tt.want, IsOpenAIGPT5Model(tt.model))
 		})
 	}
 }
