@@ -29,6 +29,7 @@ import {
   Search,
   Sparkles,
 } from 'lucide-react'
+import { nanoid } from 'nanoid'
 import { useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -36,7 +37,7 @@ import { toast } from 'sonner'
 import { Combobox } from '@/components/ui/combobox'
 import { YecaiAction, YecaiPanel } from '@/components/yecai'
 import { useGuideAddress } from '@/features/guide/use-guide-address'
-import { createApiKey, fetchTokenKey } from '@/features/keys/api'
+import { createApiKey, fetchTokenKey, searchApiKeys } from '@/features/keys/api'
 import type { ApiKey } from '@/features/keys/types'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getUserGroupModels, getUserGroups, getUserModels } from '@/lib/api'
@@ -319,8 +320,10 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
           return
         }
       } else {
+        const keyLabel = `${t('Easy setup')} · ${selectedModel}`
+        const keyName = `${keyLabel.slice(0, 35)} · ${nanoid(12)}`
         const result = await createApiKey({
-          name: `${t('Easy setup')} · ${selectedModel}`,
+          name: keyName,
           remain_quota: 0,
           expired_time: -1,
           unlimited_quota: true,
@@ -331,14 +334,34 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
           auto_groups: [],
           cross_group_retry: selectedGroup === 'auto',
         })
-        if (result.success && result.data?.key) {
-          secret = normalizeApiKey(result.data.key)
-          await queryClient.invalidateQueries({
-            queryKey: ['dashboard', 'easy-overview', 'api-keys'],
-          })
-        } else {
+        if (!result.success) {
           toast.error(result.message || t('Could not create the API key'))
           return
+        }
+        await queryClient.invalidateQueries({
+          queryKey: ['dashboard', 'easy-overview', 'api-keys'],
+        })
+        if (result.data?.key) {
+          secret = normalizeApiKey(result.data.key)
+        } else {
+          const search = await searchApiKeys({
+            keyword: keyName,
+            p: 1,
+            size: 100,
+          })
+          const matches = search.data?.items.filter(
+            (key) => key.name === keyName
+          )
+          if (!search.success || matches?.length !== 1) {
+            toast.error(search.message || t('Could not read this API key'))
+            return
+          }
+          const revealed = await fetchTokenKey(matches[0].id)
+          if (!revealed.success || !revealed.data?.key) {
+            toast.error(revealed.message || t('Could not read this API key'))
+            return
+          }
+          secret = normalizeApiKey(revealed.data.key)
         }
       }
 

@@ -21,7 +21,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createApiKey } from '@/features/keys/api'
+import { createApiKey, fetchTokenKey, searchApiKeys } from '@/features/keys/api'
 import type { ApiKey } from '@/features/keys/types'
 import { getUserGroupModels, getUserGroups, getUserModels } from '@/lib/api'
 
@@ -55,6 +55,7 @@ vi.mock('@/hooks/use-copy-to-clipboard', () => ({
 vi.mock('@/features/keys/api', () => ({
   createApiKey: vi.fn(),
   fetchTokenKey: vi.fn(),
+  searchApiKeys: vi.fn(),
 }))
 
 vi.mock('@/lib/api', () => ({
@@ -167,6 +168,71 @@ describe('easy connect flow', () => {
     ).toBeVisible()
     expect(screen.queryByRole('radio', { name: /Codex route/ })).toBeNull()
     expect(screen.queryByRole('radio', { name: /Automatic route/ })).toBeNull()
+  })
+
+  it('uses existing key lookup endpoints when creation returns only success', async () => {
+    vi.mocked(createApiKey).mockResolvedValueOnce({ success: true })
+    vi.mocked(searchApiKeys).mockImplementationOnce(async ({ keyword }) => ({
+      success: true,
+      data: {
+        items: [
+          { ...createdKey(), id: 9, name: `${keyword}-another-key` },
+          { ...createdKey(), name: keyword ?? '' },
+        ],
+        total: 2,
+        page: 1,
+        page_size: 100,
+      },
+    }))
+    vi.mocked(fetchTokenKey).mockResolvedValueOnce({
+      success: true,
+      data: { key: 'main-response-secret' },
+    })
+    renderFlow()
+    await screen.findByRole('radio', { name: /Value route/ })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Generate connection details' })
+    )
+
+    expect(
+      await screen.findByText('Your connection pass is ready')
+    ).toBeVisible()
+    const name = vi.mocked(createApiKey).mock.calls[0][0].name
+    expect(name.length).toBeLessThanOrEqual(50)
+    expect(searchApiKeys).toHaveBeenCalledWith({
+      keyword: name,
+      p: 1,
+      size: 100,
+    })
+    expect(fetchTokenKey).toHaveBeenCalledWith(8)
+    fireEvent.click(screen.getByRole('button', { name: 'Copy everything' }))
+    expect(copyToClipboard).toHaveBeenCalledWith(
+      expect.stringContaining('sk-main-response-secret')
+    )
+  })
+
+  it('does not read a key when the created name cannot be identified uniquely', async () => {
+    vi.mocked(createApiKey).mockResolvedValueOnce({ success: true })
+    vi.mocked(searchApiKeys).mockImplementationOnce(async ({ keyword }) => ({
+      success: true,
+      data: {
+        items: [
+          { ...createdKey(), name: keyword ?? '' },
+          { ...createdKey(), id: 9, name: keyword ?? '' },
+        ],
+        total: 2,
+        page: 1,
+        page_size: 100,
+      },
+    }))
+    renderFlow()
+    await screen.findByRole('radio', { name: /Value route/ })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Generate connection details' })
+    )
+    await waitFor(() => expect(searchApiKeys).toHaveBeenCalled())
+    expect(fetchTokenKey).not.toHaveBeenCalled()
+    expect(screen.queryByText('Your connection pass is ready')).toBeNull()
   })
 
   it('replaces an incompatible route and hides old connection details when the model changes', async () => {

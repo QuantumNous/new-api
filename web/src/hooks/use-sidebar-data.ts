@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   Activity,
+  BookOpen,
   Box,
   CreditCard,
   FileText,
