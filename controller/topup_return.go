@@ -42,6 +42,10 @@ func EpayBrowserReturn(c *gin.Context) {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
+	if !isEpayWebhookEnabled() {
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
 	params := make(map[string]string, len(c.Request.URL.Query()))
 	for key, values := range c.Request.URL.Query() {
 		if len(values) > 0 {

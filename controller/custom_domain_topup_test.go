@@ -279,6 +279,10 @@ func TestWalletWebhooksAcceptOnlyTheConfiguredCallbackMainHost(t *testing.T) {
 }
 
 func TestEpayBrowserReturnVerifiesSettlesOnceAndReturnsToTheStoredDomain(t *testing.T) {
+	confirmPaymentComplianceForTest(t)
+	previousPayMethods := operation_setting.PayMethods
+	operation_setting.PayMethods = []map[string]string{{"type": "alipay"}}
+	t.Cleanup(func() { operation_setting.PayMethods = previousPayMethods })
 	previousDB, previousLogDB := model.DB, model.LOG_DB
 	previousDatabaseType := common.MainDatabaseType()
 	previousRedisEnabled := common.RedisEnabled
@@ -370,4 +374,77 @@ func TestEpayBrowserReturnVerifiesSettlesOnceAndReturnsToTheStoredDomain(t *test
 	query.Set("sign", "forged")
 	response = requestReturn(query.Encode())
 	assert.Equal(t, http.StatusBadRequest, response.Code)
+}
+
+func TestEpayBrowserReturnRejectsDisabledPaymentWithoutSettling(t *testing.T) {
+	for _, test := range []struct {
+		name                string
+		complianceConfirmed bool
+		payMethods          []map[string]string
+	}{
+		{name: "payment methods cleared", complianceConfirmed: true},
+		{name: "compliance withdrawn", payMethods: []map[string]string{{"type": "alipay"}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			db := setupManageUserTestDB(t)
+			require.NoError(t, db.AutoMigrate(&model.TopUp{}))
+			confirmPaymentComplianceForTest(t)
+			previousEnabled := common.CustomDomainEnabled
+			previousQuotaPerUnit := common.QuotaPerUnit
+			previousPayMethods := operation_setting.PayMethods
+			previousPayAddress := operation_setting.PayAddress
+			previousEpayID := operation_setting.EpayId
+			previousEpayKey := operation_setting.EpayKey
+			common.CustomDomainEnabled = false
+			common.QuotaPerUnit = 100
+			operation_setting.PayMethods = test.payMethods
+			operation_setting.GetPaymentSetting().ComplianceConfirmed = test.complianceConfirmed
+			operation_setting.PayAddress = "https://pay.example.com"
+			operation_setting.EpayId = "merchant-id"
+			operation_setting.EpayKey = "merchant-secret"
+			t.Cleanup(func() {
+				common.CustomDomainEnabled = previousEnabled
+				common.QuotaPerUnit = previousQuotaPerUnit
+				operation_setting.PayMethods = previousPayMethods
+				operation_setting.PayAddress = previousPayAddress
+				operation_setting.EpayId = previousEpayID
+				operation_setting.EpayKey = previousEpayKey
+			})
+
+			payer := model.User{Username: "disabled-epay-payer", Status: common.UserStatusEnabled}
+			require.NoError(t, db.Create(&payer).Error)
+			order := model.TopUp{
+				UserId: payer.Id, Amount: 1, Money: 1, TradeNo: "disabled-epay-order",
+				PaymentProvider: model.PaymentProviderEpay, PaymentMethod: "alipay",
+				Status: common.TopUpStatusPending,
+			}
+			require.NoError(t, db.Create(&order).Error)
+			params := epay.GenerateParams(map[string]string{
+				"pid": "merchant-id", "type": "alipay", "out_trade_no": order.TradeNo,
+				"trade_no": "provider-order", "trade_status": epay.StatusTradeSuccess, "money": "1.00",
+			}, "merchant-secret")
+			query := url.Values{}
+			for key, value := range params {
+				query.Set(key, value)
+			}
+			router := gin.New()
+			router.GET("/api/user/epay/return", EpayBrowserReturn)
+			request := httptest.NewRequest(http.MethodGet, "https://yeschoy.com/api/user/epay/return?"+query.Encode(), nil)
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusForbidden, response.Code)
+			assert.Empty(t, response.Header().Get("Location"))
+			var updatedUser model.User
+			require.NoError(t, db.First(&updatedUser, payer.Id).Error)
+			assert.Zero(t, updatedUser.Quota)
+			var updatedOrder model.TopUp
+			require.NoError(t, db.First(&updatedOrder, order.Id).Error)
+			assert.Equal(t, common.TopUpStatusPending, updatedOrder.Status)
+			assert.Zero(t, updatedOrder.CompleteTime)
+			var topupLogCount int64
+			require.NoError(t, db.Model(&model.Log{}).Where("user_id = ? AND type = ?", payer.Id, model.LogTypeTopup).Count(&topupLogCount).Error)
+			assert.Zero(t, topupLogCount)
+		})
+	}
 }

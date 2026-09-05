@@ -19,11 +19,12 @@ import (
 const domainLoginHandoffTTL = 2 * time.Minute
 
 type domainLoginHandoffPayload struct {
-	DomainID            int64  `json:"domain_id"`
-	TargetHost          string `json:"target_host"`
-	BrowserBindingHash  string `json:"browser_binding_hash"`
-	ExpectedAuthVersion int64  `json:"expected_auth_version"`
-	LoginMethod         string `json:"login_method"`
+	DomainID                   int64  `json:"domain_id"`
+	TargetHost                 string `json:"target_host"`
+	BrowserBindingHash         string `json:"browser_binding_hash"`
+	FallbackBrowserBindingHash string `json:"fallback_browser_binding_hash,omitempty"`
+	ExpectedAuthVersion        int64  `json:"expected_auth_version"`
+	LoginMethod                string `json:"login_method"`
 }
 
 type domainLoginHandoffRequest struct {
@@ -43,14 +44,25 @@ type domainBindHandoffPayload struct {
 type domainLoginFallbackPayload struct {
 	ExpectedAuthVersion int64  `json:"expected_auth_version"`
 	LoginMethod         string `json:"login_method"`
+	BrowserBindingHash  string `json:"browser_binding_hash"`
 }
 
 func issueDomainLoginHandoff(c *gin.Context, userID int, providerName string, statePayload oauthFlowPayload) (bool, error) {
 	if statePayload.BrowserBindingHash == "" {
 		return false, nil
 	}
-	expectedHost, active, err := resolveOAuthReturnTarget(statePayload)
-	if err != nil || !active {
+	expectedHost, _, err := resolveOAuthReturnTarget(statePayload)
+	if err != nil {
+		return false, err
+	}
+	if expectedHost == "" {
+		return false, model.ErrAuthFlowInvalid
+	}
+	// Even a disabled origin must verify its binding before returning here.
+	// The callback site's separate Host-only cookie binds any eventual fallback
+	// to this browser without sharing the origin's cookie across domains.
+	fallbackBindingHash, err := ensureDomainOAuthBrowserBinding(c)
+	if err != nil {
 		return false, err
 	}
 	user, err := model.GetUserById(userID, false)
@@ -58,11 +70,12 @@ func issueDomainLoginHandoff(c *gin.Context, userID int, providerName string, st
 		return false, err
 	}
 	handoffPayload, err := common.Marshal(domainLoginHandoffPayload{
-		DomainID:            statePayload.DomainID,
-		TargetHost:          expectedHost,
-		BrowserBindingHash:  statePayload.BrowserBindingHash,
-		ExpectedAuthVersion: user.AuthVersion,
-		LoginMethod:         "oauth:" + providerName,
+		DomainID:                   statePayload.DomainID,
+		TargetHost:                 expectedHost,
+		BrowserBindingHash:         statePayload.BrowserBindingHash,
+		FallbackBrowserBindingHash: fallbackBindingHash,
+		ExpectedAuthVersion:        user.AuthVersion,
+		LoginMethod:                "oauth:" + providerName,
 	})
 	if err != nil {
 		return false, err
@@ -266,6 +279,10 @@ func ConsumeDomainLoginHandoff(c *gin.Context) {
 		return
 	}
 	if targetContext.Kind == service.CustomDomainKindDisabled {
+		if payload.FallbackBrowserBindingHash == "" {
+			writeInvalidDomainHandoff(c, http.StatusForbidden)
+			return
+		}
 		if _, err := model.ConsumeAuthFlow(request.Ticket, model.AuthFlowMatch{
 			Purpose:  model.AuthFlowPurposeDomainLoginHandoff,
 			Provider: flow.Provider,
@@ -277,6 +294,7 @@ func ConsumeDomainLoginHandoff(c *gin.Context) {
 		fallbackPayload, err := common.Marshal(domainLoginFallbackPayload{
 			ExpectedAuthVersion: payload.ExpectedAuthVersion,
 			LoginMethod:         payload.LoginMethod,
+			BrowserBindingHash:  payload.FallbackBrowserBindingHash,
 		})
 		if err != nil {
 			common.ApiError(c, err)
@@ -422,7 +440,12 @@ func ConsumeDomainLoginFallback(c *gin.Context) {
 		return
 	}
 	var payload domainLoginFallbackPayload
-	if err := common.UnmarshalJsonStr(flow.Payload, &payload); err != nil || flow.UserId <= 0 || payload.ExpectedAuthVersion <= 0 || payload.LoginMethod == "" {
+	if err := common.UnmarshalJsonStr(flow.Payload, &payload); err != nil || flow.UserId <= 0 || payload.ExpectedAuthVersion <= 0 || payload.LoginMethod == "" || payload.BrowserBindingHash == "" {
+		writeInvalidDomainHandoff(c, http.StatusForbidden)
+		return
+	}
+	binding, err := c.Cookie(domainOAuthBindingCookieName)
+	if err != nil || subtle.ConstantTimeCompare([]byte(domainOAuthBindingHash(binding)), []byte(payload.BrowserBindingHash)) != 1 {
 		writeInvalidDomainHandoff(c, http.StatusForbidden)
 		return
 	}

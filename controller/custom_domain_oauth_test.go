@@ -283,7 +283,8 @@ func TestHandleOAuthReturnsDomainHandoffInsteadOfCreatingAMainSession(t *testing
 	assert.Equal(t, "domain_login_handoff", body.Data.Action)
 	assert.NotEmpty(t, body.Data.Ticket)
 	assert.Equal(t, "https://alpha.yeschoy.io", body.Data.TargetOrigin)
-	assert.Empty(t, response.Header().Get("Set-Cookie"))
+	assert.Contains(t, response.Header().Get("Set-Cookie"), domainOAuthBindingCookieName+"=")
+	assert.NotContains(t, response.Header().Get("Set-Cookie"), service.RefreshCookieName+"=")
 
 	var sessionCount int64
 	require.NoError(t, model.DB.Model(&model.UserSession{}).Count(&sessionCount).Error)
@@ -401,7 +402,8 @@ func TestHandleOAuthReturnsToAnyConfiguredPeerMainOrigin(t *testing.T) {
 			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
 			assert.Equal(t, "domain_login_handoff", body.Data.Action)
 			assert.Equal(t, "https://"+host, body.Data.TargetOrigin)
-			assert.Empty(t, response.Header().Get("Set-Cookie"))
+			assert.Contains(t, response.Header().Get("Set-Cookie"), domainOAuthBindingCookieName+"=")
+			assert.NotContains(t, response.Header().Get("Set-Cookie"), service.RefreshCookieName+"=")
 		})
 	}
 }
@@ -813,6 +815,7 @@ func testDomainLoginHandoffCreatesAnIndependentSessionOnAPeerMainHost(t *testing
 	binding := "peer-main-binding-value-with-at-least-thirty-two-characters"
 	recorder := httptest.NewRecorder()
 	context, _ := gin.CreateTestContext(recorder)
+	context.Request = httptest.NewRequest(http.MethodGet, "https://yeschoy.com/api/oauth/github", nil)
 	issued, err := issueDomainLoginHandoff(context, user.Id, "github", oauthFlowPayload{
 		OriginHost:         host,
 		BrowserBindingHash: domainOAuthBindingHash(binding),
@@ -1402,6 +1405,15 @@ func TestDomainBindHandoffRequiresTheOriginalSessionAndUpdatesTheBindingOnce(t *
 }
 
 func TestDisabledDomainLoginHandoffExchangesTheBoundTicketForAMainFallback(t *testing.T) {
+	for _, timing := range []string{"before callback", "after callback"} {
+		t.Run(timing, func(t *testing.T) {
+			testDisabledDomainLoginHandoffExchangesTheBoundTicketForAMainFallback(t, timing == "before callback")
+		})
+	}
+}
+
+func testDisabledDomainLoginHandoffExchangesTheBoundTicketForAMainFallback(t *testing.T, disabledBeforeCallback bool) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	previousDB := model.DB
 	previousLogDB := model.LOG_DB
@@ -1444,20 +1456,39 @@ func TestDisabledDomainLoginHandoffExchangesTheBoundTicketForAMainFallback(t *te
 	require.NoError(t, err)
 	domain, err = model.EnableCustomDomain(domain.Label)
 	require.NoError(t, err)
+	if disabledBeforeCallback {
+		_, err = model.DisableCustomDomain(domain.Label)
+		require.NoError(t, err)
+	}
 	binding := "fallback-browser-binding-with-at-least-thirty-two-characters"
-	payloadBytes, err := common.Marshal(domainLoginHandoffPayload{
-		DomainID:            domain.Id,
-		TargetHost:          "alpha.yeschoy.io",
-		BrowserBindingHash:  domainOAuthBindingHash(binding),
-		ExpectedAuthVersion: user.AuthVersion,
-		LoginMethod:         "oauth:github",
+	callbackResponse := httptest.NewRecorder()
+	callbackContext, _ := gin.CreateTestContext(callbackResponse)
+	callbackContext.Request = httptest.NewRequest(http.MethodGet, "https://yeschoy.com/api/oauth/github", nil)
+	issued, err := issueDomainLoginHandoff(callbackContext, user.Id, "github", oauthFlowPayload{
+		DomainID: domain.Id, OriginHost: "alpha.yeschoy.io", BrowserBindingHash: domainOAuthBindingHash(binding),
 	})
 	require.NoError(t, err)
-	ticket, _, err := model.CreateAuthFlow(model.AuthFlowCreate{
-		Purpose: model.AuthFlowPurposeDomainLoginHandoff, Provider: "github", UserId: user.Id,
-		Payload: string(payloadBytes), ExpiresAt: time.Now().Add(time.Minute),
-	})
-	require.NoError(t, err)
+	require.True(t, issued)
+	var handoff struct {
+		Data struct {
+			Ticket string `json:"ticket"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(callbackResponse.Body.Bytes(), &handoff))
+	require.NotEmpty(t, handoff.Data.Ticket)
+	var callbackBinding *http.Cookie
+	for _, cookie := range callbackResponse.Result().Cookies() {
+		assert.NotEqual(t, service.RefreshCookieName, cookie.Name, "the callback must not log into the main site yet")
+		if cookie.Name == domainOAuthBindingCookieName {
+			callbackBinding = cookie
+		}
+	}
+	require.NotNil(t, callbackBinding, "fallback must be bound to the browser that visited the callback site")
+	assert.Empty(t, callbackBinding.Domain)
+	assert.Equal(t, "/", callbackBinding.Path)
+	assert.True(t, callbackBinding.Secure)
+	assert.True(t, callbackBinding.HttpOnly)
+	assert.Equal(t, http.SameSiteStrictMode, callbackBinding.SameSite)
 	settings, err := common.ParseCustomDomainSettingsWithMainOrigins(
 		"true",
 		"yeschoy.io",
@@ -1471,15 +1502,18 @@ func TestDisabledDomainLoginHandoffExchangesTheBoundTicketForAMainFallback(t *te
 	require.NoError(t, err)
 	cachedDomain, err := resolver.ResolveHost("alpha.yeschoy.io")
 	require.NoError(t, err)
-	require.Equal(t, service.CustomDomainKindCustom, cachedDomain.Kind)
-
-	_, err = model.DisableCustomDomain(domain.Label)
-	require.NoError(t, err)
+	if disabledBeforeCallback {
+		require.Equal(t, service.CustomDomainKindDisabled, cachedDomain.Kind)
+	} else {
+		require.Equal(t, service.CustomDomainKindCustom, cachedDomain.Kind)
+		_, err = model.DisableCustomDomain(domain.Label)
+		require.NoError(t, err)
+	}
 	router := gin.New()
 	router.Use(middleware.CustomDomainContextWithResolver(resolver, true))
 	router.POST("/api/oauth/domain-handoff", ConsumeDomainLoginHandoff)
 	router.POST("/api/oauth/domain-handoff-fallback", ConsumeDomainLoginFallback)
-	request := httptest.NewRequest(http.MethodPost, "https://alpha.yeschoy.io/api/oauth/domain-handoff", strings.NewReader(`{"ticket":"`+ticket+`"}`))
+	request := httptest.NewRequest(http.MethodPost, "https://alpha.yeschoy.io/api/oauth/domain-handoff", strings.NewReader(`{"ticket":"`+handoff.Data.Ticket+`"}`))
 	request.Host = "alpha.yeschoy.io"
 	request.Header.Set("Content-Type", "application/json")
 	request.AddCookie(&http.Cookie{Name: domainOAuthBindingCookieName, Value: binding})
@@ -1510,15 +1544,31 @@ func TestDisabledDomainLoginHandoffExchangesTheBoundTicketForAMainFallback(t *te
 	router.ServeHTTP(response, request)
 	assert.Equal(t, http.StatusNotFound, response.Code)
 
-	requestFallback := func() *httptest.ResponseRecorder {
+	requestFallback := func(cookie *http.Cookie) *httptest.ResponseRecorder {
 		request := httptest.NewRequest(http.MethodPost, "https://yeschoy.com/api/oauth/domain-handoff-fallback", strings.NewReader(`{"ticket":"`+body.Data.Ticket+`"}`))
 		request.Host = "yeschoy.com"
 		request.Header.Set("Content-Type", "application/json")
+		if cookie != nil {
+			request.AddCookie(cookie)
+		}
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, request)
 		return response
 	}
-	response = requestFallback()
+	for _, cookie := range []*http.Cookie{
+		nil,
+		{Name: domainOAuthBindingCookieName, Value: "another-browser-binding-with-at-least-thirty-two-characters"},
+		{Name: domainOAuthBindingCookieName, Value: binding},
+	} {
+		response = requestFallback(cookie)
+		assert.Equal(t, http.StatusForbidden, response.Code)
+		assert.Empty(t, response.Result().Cookies())
+		_, err = model.GetAuthFlow(body.Data.Ticket, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeDomainLoginFallback})
+		require.NoError(t, err, "a wrong browser must not burn the legitimate browser's ticket")
+	}
+	require.NoError(t, db.Model(&model.UserSession{}).Count(&sessionCount).Error)
+	assert.Zero(t, sessionCount)
+	response = requestFallback(callbackBinding)
 	require.Equal(t, http.StatusOK, response.Code)
 	assert.Contains(t, response.Header().Get("Set-Cookie"), service.RefreshCookieName+"=")
 	require.NoError(t, db.Model(&model.UserSession{}).Count(&sessionCount).Error)
@@ -1527,7 +1577,7 @@ func TestDisabledDomainLoginHandoffExchangesTheBoundTicketForAMainFallback(t *te
 	require.NoError(t, db.Where("user_id = ? AND type = ?", user.Id, model.LogTypeLogin).First(&loginLog).Error)
 	assert.Equal(t, user.Username, loginLog.Username)
 	assert.Contains(t, loginLog.Other, `"login_method":"oauth:github"`)
-	response = requestFallback()
+	response = requestFallback(callbackBinding)
 	assert.Equal(t, http.StatusForbidden, response.Code)
 	var loginLogCount int64
 	require.NoError(t, db.Model(&model.Log{}).Where("user_id = ? AND type = ?", user.Id, model.LogTypeLogin).Count(&loginLogCount).Error)

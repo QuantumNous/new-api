@@ -74,6 +74,7 @@ For an `ai.yeschoy.io` promotion entry, use the CLI `assign ai --owner-user-id <
 - A successful origin login handoff or callback-site fallback writes the same `LogTypeLogin` audit record as an ordinary login, using the server-issued `login_method`; creating a Session alone is not sufficient.
 - Refresh cookies remain Host-only, `HttpOnly`, `SameSite=Strict`, and never set `Domain=.yeschoy.io`.
 - Password reset context binds purpose, optional promotion-domain ID, trusted Host, normalized email/token digest, and expiry. Peer main Hosts resolve through the main allowlist; promotion Hosts resolve through the database and enabled state. ePay browser return must verify provider signature; Stripe browser return is navigation-only.
+- ePay browser return can settle an order, so it must check `isEpayWebhookEnabled()` before processing, just like the notification endpoint. A disabled payment configuration returns 403 without redirecting, changing the order/balance, or writing a top-up log, even when custom-domain routing is disabled.
 - While the feature is enabled, callback-main password reset links use `CUSTOM_DOMAIN_MAIN_ORIGIN` even when `ServerAddress` differs. `ServerAddress` remains the legacy source only when the feature is disabled.
 - While custom domains are enabled, the wallet ePay notify URL, fixed ePay/Stripe browser callbacks, and invalid/disabled-domain payment fallbacks use `CUSTOM_DOMAIN_MAIN_ORIGIN`. `ServerAddress`/`CustomCallbackAddress` remain legacy sources only when the feature is disabled.
 - Public browser-return routes use `CriticalRateLimit`. Access logging redacts `trade_no`, `out_trade_no`, `sign`, reset email/token/context values on both the dispatcher and `/user/reset` landing request without mutating the request query used for ePay signature verification.
@@ -114,6 +115,7 @@ Runtime routing rows assume `CUSTOM_DOMAIN_ENABLED=true`; OriginGuard rows addit
 | `ServerAddress` differs from `CUSTOM_DOMAIN_MAIN_ORIGIN` while enabled | Build fixed payment callback/fallback URLs from `CUSTOM_DOMAIN_MAIN_ORIGIN` |
 | `CustomCallbackAddress` differs from `CUSTOM_DOMAIN_MAIN_ORIGIN` while enabled | Wallet ePay notify still uses `CUSTOM_DOMAIN_MAIN_ORIGIN` so Host guard accepts the authoritative callback |
 | ePay return signature/order/provider mismatch | 400/404 and no credit |
+| ePay return with cleared payment methods or withdrawn payment compliance confirmation | 403, no redirect, order/balance unchanged, and no top-up log |
 | Stripe return trade number missing/provider mismatch | 400/404 and no credit |
 | Any configured-main healthcheck probe fails or lacks `success: true` | Healthcheck failure, even if the other main Hosts succeed |
 
@@ -158,6 +160,7 @@ Focused assertion points (requirements, not a declaration that every row has an 
 | `common/custom_domain_test.go` and `common/url_validator_test.go` | Empty plural resolves a non-default singular Origin; non-empty plural retains the singular callback role and rejects missing membership/promotion Hosts; secure/trusted settings reject invalid combinations and wildcard Origins. |
 | `middleware/custom_domain_test.go` | Under HTTP proxy upstream, enabled promotion refresh/logout accepts only its own exact HTTPS Origin without a static entry; a statically trusted foreign Origin still fails; static trust cannot make the apex or unknown Host routable. |
 | `controller/custom_domain_oauth_test.go` and `controller/auth_flow_test.go` | Assert `success=false`, the correct action/target/provider/result, and the consumed/unconsumed state for each failure stage above. Existing `TestOAuthLoginConsumesFlowOnlyAfterProviderIdentity` must remain green. |
+| `controller/custom_domain_topup_test.go` | A valid signed ePay return cannot settle when payment methods are cleared or compliance confirmation is withdrawn; enabled returns still verify signatures, settle once, and return to the stored domain. |
 | Compose healthcheck | With a single custom callback Host or an explicit three-Origin list, capture the actual `Host` headers; assert every configured main is probed, any one failing probe makes the command fail, and no public DNS/TLS coverage is inferred. |
 
 Implementation evidence: [configuration parser](../../../common/custom_domain.go), [Session settings](../../../common/session_cookie.go), [Host guard](../../../middleware/custom_domain.go), [OriginGuard](../../../middleware/auth_origin.go), [OAuth callbacks](../../../controller/oauth.go), [failure return helper](../../../controller/domain_oauth_handoff.go), and [Compose wiring/probe](../../../docker-compose.yml).
