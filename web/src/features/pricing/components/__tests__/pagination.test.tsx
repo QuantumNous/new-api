@@ -21,7 +21,8 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import { useState } from 'react'
-import { beforeAll, describe, expect, test, vi } from 'vitest'
+import { I18nextProvider } from 'react-i18next'
+import { describe, expect, test, vi } from 'vitest'
 
 import type { PerfSummaryAllData } from '@/features/performance-metrics/types'
 
@@ -46,20 +47,6 @@ vi.mock('@/features/performance-metrics/api', () => ({
   ),
 }))
 
-beforeAll(() => {
-  i18next.addResourceBundle(
-    'en',
-    'translation',
-    {
-      'Page {{current}} of {{total}}': 'Page {{current}} of {{total}}',
-      'Previous page': 'Previous page',
-      'Next page': 'Next page',
-    },
-    true,
-    true
-  )
-})
-
 // The grid paginates 20 models per page (DEFAULT_PRICING_PAGE_SIZE).
 function makeModels(count: number): PricingModel[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -72,12 +59,35 @@ function makeModels(count: number): PricingModel[] {
   }))
 }
 
+// A test-local i18next instance keeps the shared singleton untouched; the
+// three keys are the only copy the pagination assertions rely on.
+function createTestI18n() {
+  const instance = i18next.createInstance()
+  void instance.init({
+    lng: 'en',
+    fallbackLng: 'en',
+    resources: {
+      en: {
+        translation: {
+          'Page {{current}} of {{total}}': 'Page {{current}} of {{total}}',
+          'Previous page': 'Previous page',
+          'Next page': 'Next page',
+        },
+      },
+    },
+  })
+  return instance
+}
+
 function GridHarness({ models }: { models: PricingModel[] }) {
   const [queryClient] = useState(() => new QueryClient())
+  const [i18n] = useState(createTestI18n)
   return (
-    <QueryClientProvider client={queryClient}>
-      <ModelCardGrid models={models} onModelClick={() => {}} />
-    </QueryClientProvider>
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid models={models} onModelClick={() => {}} />
+      </QueryClientProvider>
+    </I18nextProvider>
   )
 }
 
