@@ -749,6 +749,7 @@ export function ChannelMutateDrawer({
   const currentWeight = form.watch('weight')
   const currentTestModel = form.watch('test_model')
   const currentAutoBan = form.watch('auto_ban')
+  const currentActiveProbe = form.watch('active_probe')
   const currentTag = form.watch('tag')
   const currentRemark = form.watch('remark')
   const currentStatusCodeMapping = form.watch('status_code_mapping')
@@ -1022,7 +1023,8 @@ export function ChannelMutateDrawer({
     currentPriority ||
     currentWeight ||
     currentTestModel?.trim() ||
-    (currentAutoBan ?? 1) !== 1
+    (currentAutoBan ?? 1) !== 1 ||
+    (currentActiveProbe ?? 1) !== 1
   )
   const internalNotesConfigured = Boolean(
     currentTag?.trim() || currentRemark?.trim()
@@ -3819,6 +3821,29 @@ export function ChannelMutateDrawer({
                                     <FormLabel>{t('Auto Ban')}</FormLabel>
                                     <FormDescription>
                                       {t(FIELD_DESCRIPTIONS.AUTO_BAN)}
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch
+                                      checked={field.value === 1}
+                                      onCheckedChange={(checked) =>
+                                        field.onChange(checked ? 1 : 0)
+                                      }
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name='active_probe'
+                              render={({ field }) => (
+                                <FormItem className='flex items-center justify-between'>
+                                  <div className='space-y-0.5'>
+                                    <FormLabel>{t('Active probe')}</FormLabel>
+                                    <FormDescription>
+                                      {t(FIELD_DESCRIPTIONS.ACTIVE_PROBE)}
                                     </FormDescription>
                                   </div>
                                   <FormControl>

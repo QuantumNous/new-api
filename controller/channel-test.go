@@ -1117,6 +1117,10 @@ func selectChannelsForAutomaticTest(channels []*model.Channel, mode string) []*m
 		if mode == operation_setting.ChannelTestModeAutoBanOnly && !channel.GetAutoBan() {
 			continue
 		}
+		if mode == operation_setting.ChannelTestModeAutoBanOnly &&
+			channel.Status == common.ChannelStatusEnabled && !channel.GetActiveProbe() {
+			continue
+		}
 		if mode == operation_setting.ChannelTestModePassiveRecovery && channel.Status != common.ChannelStatusAutoDisabled {
 			continue
 		}

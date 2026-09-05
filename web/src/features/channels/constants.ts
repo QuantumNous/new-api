@@ -303,6 +303,7 @@ export const DEFAULT_CHANNEL_VALUES = {
   priority: 0,
   weight: 0,
   auto_ban: 1,
+  active_probe: 1,
   remark: '',
 } as const
 
@@ -386,6 +387,8 @@ export const FIELD_DESCRIPTIONS = {
   WEIGHT: 'Used for load balancing. Higher weight = more requests',
   TEST_MODEL: 'Model to use when testing channel connectivity',
   AUTO_BAN: 'Automatically disable channel on repeated failures',
+  ACTIVE_PROBE:
+    'In auto-disable-only mode, probe this channel while enabled; auto-disabled channels are still checked for recovery.',
   STATUS_CODE_MAPPING: 'Map response status codes (JSON format)',
   TAG: 'Group channels by tag for batch operations',
   REMARK: 'Internal notes (not shown to users)',

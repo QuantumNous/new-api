@@ -23,7 +23,11 @@ import {
   CHANNEL_TYPE_OPTIONS,
   MODEL_FETCHABLE_TYPES,
 } from '../../constants'
-import { CHANNEL_FORM_DEFAULT_VALUES, channelFormSchema } from '../channel-form'
+import {
+  CHANNEL_FORM_DEFAULT_VALUES,
+  channelFormSchema,
+  transformFormDataToCreatePayload,
+} from '../channel-form'
 import { getChannelTypeConfig } from '../channel-type-config'
 import { getChannelTypeIcon, getKeyPromptForType } from '../channel-utils'
 
@@ -87,5 +91,11 @@ describe('New API channel', () => {
     })
 
     expect(result.success).toBe(true)
+  })
+
+  test('includes active probing in new channel payloads', () => {
+    const payload = transformFormDataToCreatePayload(newAPIForm(''))
+
+    expect(payload.channel.active_probe).toBe(1)
   })
 })

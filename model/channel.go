@@ -44,6 +44,7 @@ type Channel struct {
 	StatusCodeMapping *string `json:"status_code_mapping" gorm:"type:varchar(1024);default:''"`
 	Priority          *int64  `json:"priority" gorm:"bigint;default:0"`
 	AutoBan           *int    `json:"auto_ban" gorm:"default:1"`
+	ActiveProbe       *int    `json:"active_probe"`
 	OtherInfo         string  `json:"other_info"`
 	Tag               *string `json:"tag" gorm:"index"`
 	Setting           *string `json:"setting" gorm:"type:text"` // 渠道额外设置
@@ -345,6 +346,16 @@ func (channel *Channel) GetAutoBan() bool {
 		return false
 	}
 	return *channel.AutoBan == 1
+}
+
+// GetActiveProbe reports whether an enabled channel should be included in
+// scheduled active health checks. Nil preserves the legacy enabled behavior
+// for channels created before the field existed.
+func (channel *Channel) GetActiveProbe() bool {
+	if channel.ActiveProbe == nil {
+		return true
+	}
+	return *channel.ActiveProbe == 1
 }
 
 func (channel *Channel) Save() error {
