@@ -16,12 +16,28 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest'
 
 import { api } from '@/lib/api'
 
 import { UserBindingDialog } from '../user-binding-dialog'
+
+/**
+ * The dialog reads `/api/status` through the shared React Query cache, so it
+ * needs a provider. A fresh client per render keeps tests isolated.
+ */
+function renderWithQueryClient(
+  ui: React.ReactElement
+): ReturnType<typeof render> {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+  )
+}
 
 type ApiMethod = (url: string) => Promise<{ data: unknown }>
 type MockableApi = {
@@ -117,7 +133,9 @@ describe('UserBindingDialog built-in bindings', () => {
       return { data: { success: true, message: 'success' } }
     }
 
-    render(<UserBindingDialog open userId={7} onOpenChange={() => undefined} />)
+    renderWithQueryClient(
+      <UserBindingDialog open userId={7} onOpenChange={() => undefined} />
+    )
 
     const expectedBindings = [
       ['Email', 'email'],
