@@ -51,14 +51,9 @@ func TaskExecutionSnapshotFromContext(ctx *gin.Context) *model.TaskExecutionSnap
 
 // AppendTaskPluginAuditInfo writes role-separated, credential-free plugin
 // provenance into a usage log.
-func AppendTaskPluginAuditInfo(other map[string]interface{}, snapshot *model.TaskPluginSnapshot) {
+func AppendTaskPluginAuditInfo(other *model.LogOther, snapshot *model.TaskPluginSnapshot) {
 	if other == nil || snapshot == nil || snapshot.Key == "" {
 		return
-	}
-	adminInfo, ok := other["admin_info"].(map[string]interface{})
-	if !ok || adminInfo == nil {
-		adminInfo = map[string]interface{}{}
-		other["admin_info"] = adminInfo
 	}
 	taskPlugin := map[string]interface{}{
 		"key":     snapshot.Key,
@@ -72,24 +67,18 @@ func AppendTaskPluginAuditInfo(other map[string]interface{}, snapshot *model.Tas
 		}
 		taskPlugin["author"] = author
 	}
-	adminInfo["task_plugin"] = taskPlugin
-
-	rootInfo, ok := other["root_info"].(map[string]interface{})
-	if !ok || rootInfo == nil {
-		rootInfo = map[string]interface{}{}
-		other["root_info"] = rootInfo
-	}
-	rootInfo["task_plugin"] = map[string]interface{}{
+	other.SetAdmin("task_plugin", taskPlugin)
+	other.SetRoot("task_plugin", map[string]interface{}{
 		"key":         snapshot.Key,
 		"version":     snapshot.Version,
 		"api_version": snapshot.APIVersion,
 		"generation":  snapshot.Generation,
-	}
+	})
 }
 
 // AppendTaskPluginContextAuditInfo is used before a task row exists, such as
 // an upstream submission error log.
-func AppendTaskPluginContextAuditInfo(ctx *gin.Context, other map[string]interface{}) {
+func AppendTaskPluginContextAuditInfo(ctx *gin.Context, other *model.LogOther) {
 	execution := TaskExecutionSnapshotFromContext(ctx)
 	if execution == nil {
 		return

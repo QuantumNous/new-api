@@ -42,6 +42,9 @@ func TestChatCompletionsResponseToResponsesPreservesTextToolCallsAndUsage(t *tes
 }
 
 func TestChatCompletionsResponseToResponsesDropsEmptyNameToolCalls(t *testing.T) {
+	usage := dto.Usage{PromptTokens: 20, CompletionTokens: 5, TotalTokens: 25}
+	usage.PromptTokensDetails.CachedTokens = 7
+	usage.BillingUsage = dto.NewOpenAIChatBillingUsage(&usage)
 	message := dto.Message{Role: "assistant"}
 	message.SetToolCalls([]dto.ToolCallRequest{
 		{
@@ -50,6 +53,10 @@ func TestChatCompletionsResponseToResponsesDropsEmptyNameToolCalls(t *testing.T)
 			Function: dto.FunctionRequest{
 				Arguments: `{"ok":true}`,
 			},
+		},
+		{
+			ID:       "call_whitespace",
+			Function: dto.FunctionRequest{Name: " \t\n", Arguments: `{}`},
 		},
 		{
 			ID:   "call_valid",
@@ -61,7 +68,8 @@ func TestChatCompletionsResponseToResponsesDropsEmptyNameToolCalls(t *testing.T)
 		},
 	})
 
-	resp, _, err := ChatCompletionsResponseToResponsesResponse(&dto.OpenAITextResponse{
+	resp, convertedUsage, err := ChatCompletionsResponseToResponsesResponse(&dto.OpenAITextResponse{
+		Usage: usage,
 		Choices: []dto.OpenAITextResponseChoice{{
 			Message:      message,
 			FinishReason: "tool_calls",
@@ -73,6 +81,33 @@ func TestChatCompletionsResponseToResponsesDropsEmptyNameToolCalls(t *testing.T)
 	assert.Equal(t, "call_valid", resp.Output[0].CallId)
 	assert.Equal(t, "lookup", resp.Output[0].Name)
 	assert.Equal(t, `"{\"q\":\"x\"}"`, string(resp.Output[0].Arguments))
+	assert.Equal(t, 20, convertedUsage.InputTokens)
+	assert.Equal(t, 5, convertedUsage.OutputTokens)
+	assert.Equal(t, 25, convertedUsage.TotalTokens)
+	require.NotNil(t, convertedUsage.InputTokensDetails)
+	assert.Equal(t, 7, convertedUsage.InputTokensDetails.CachedTokens)
+	assert.Equal(t, usage.BillingUsage, convertedUsage.BillingUsage)
+}
+
+func TestChatCompletionsResponseToResponsesEmitsReasoningSummaryBeforeText(t *testing.T) {
+	message := dto.Message{Role: "assistant", Content: "final answer"}
+	message.ReasoningContent = lo.ToPtr("thinking summary")
+	resp, _, err := ChatCompletionsResponseToResponsesResponse(&dto.OpenAITextResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.OpenAITextResponseChoice{
+			{Message: message, FinishReason: "stop"},
+		},
+	}, "resp_1")
+	require.NoError(t, err)
+
+	require.Len(t, resp.Output, 2)
+	assert.Equal(t, responsesOutputTypeReasoning, resp.Output[0].Type)
+	require.Len(t, resp.Output[0].Summary, 1)
+	assert.Equal(t, "thinking summary", resp.Output[0].Summary[0].Text)
+	assert.Empty(t, resp.Output[0].Content)
+	assert.Equal(t, responsesOutputTypeMessage, resp.Output[1].Type)
+	assert.Equal(t, "final answer", resp.Output[1].Content[0].Text)
 }
 
 func TestChatCompletionsResponseToResponsesMapsIncompleteFinishReasons(t *testing.T) {
@@ -168,11 +203,17 @@ func TestChatCompletionsStreamToResponsesEventsAggregatesUsageAndToolArgs(t *tes
 
 func TestChatCompletionsStreamToResponsesDropsToolCallsThatFinishWithoutName(t *testing.T) {
 	state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+	state.EmitSequenceNumber = true
+	usage := dto.Usage{PromptTokens: 20, CompletionTokens: 5, TotalTokens: 25}
+	usage.PromptTokensDetails.CachedTokens = 7
+	usage.BillingUsage = dto.NewOpenAIChatBillingUsage(&usage)
 	invalidIndex := 0
 	validIndex := 1
+	whitespaceIndex := 2
 
 	var events []ChatToResponsesStreamEvent
 	events = append(events, mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
+		Usage: &usage,
 		Choices: []dto.ChatCompletionsStreamResponseChoice{{
 			Index: 0,
 			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{
@@ -188,6 +229,11 @@ func TestChatCompletionsStreamToResponsesDropsToolCallsThatFinishWithoutName(t *
 					Type:     "function",
 					Function: dto.FunctionResponse{Name: "lookup", Arguments: `{"q":"x"}`},
 				},
+				{
+					Index:    &whitespaceIndex,
+					ID:       "call_whitespace",
+					Function: dto.FunctionResponse{Name: " \t\n", Arguments: `{}`},
+				},
 			}},
 		}},
 	})...)
@@ -197,9 +243,14 @@ func TestChatCompletionsStreamToResponsesDropsToolCallsThatFinishWithoutName(t *
 	})...)
 	events = append(events, FinalizeChatCompletionsStreamToResponses(state)...)
 
-	for _, event := range events {
+	for i, event := range events {
+		require.NotNil(t, event.Payload.SequenceNumber)
+		assert.Equal(t, i, *event.Payload.SequenceNumber)
+		if event.Payload.OutputIndex != nil {
+			assert.Equal(t, 0, *event.Payload.OutputIndex)
+		}
 		if event.Payload.Item != nil && event.Payload.Item.Type == responsesOutputTypeFunctionCall {
-			assert.NotEmpty(t, event.Payload.Item.Name)
+			assert.Equal(t, "lookup", event.Payload.Item.Name)
 		}
 	}
 	completed := events[len(events)-1].Payload.Response
@@ -208,6 +259,12 @@ func TestChatCompletionsStreamToResponsesDropsToolCallsThatFinishWithoutName(t *
 	assert.Equal(t, "call_valid", completed.Output[0].CallId)
 	assert.Equal(t, "lookup", completed.Output[0].Name)
 	assert.Equal(t, `"{\"q\":\"x\"}"`, string(completed.Output[0].Arguments))
+	assert.Equal(t, 20, completed.Usage.InputTokens)
+	assert.Equal(t, 5, completed.Usage.OutputTokens)
+	assert.Equal(t, 25, completed.Usage.TotalTokens)
+	require.NotNil(t, completed.Usage.InputTokensDetails)
+	assert.Equal(t, 7, completed.Usage.InputTokensDetails.CachedTokens)
+	assert.Equal(t, usage.BillingUsage, completed.Usage.BillingUsage)
 }
 
 func TestChatCompletionsStreamToResponsesBuffersToolCallUntilNameArrives(t *testing.T) {
@@ -219,7 +276,6 @@ func TestChatCompletionsStreamToResponsesBuffersToolCallUntilNameArrives(t *test
 			Index: 0,
 			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{{
 				Index:    &toolIndex,
-				ID:       "call_1",
 				Type:     "function",
 				Function: dto.FunctionResponse{Arguments: `{"q":`},
 			}}},
@@ -233,6 +289,7 @@ func TestChatCompletionsStreamToResponsesBuffersToolCallUntilNameArrives(t *test
 			Index: 0,
 			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{{
 				Index:    &toolIndex,
+				ID:       "call_1",
 				Function: dto.FunctionResponse{Name: "lookup", Arguments: `"x"}`},
 			}}},
 		}},
@@ -241,13 +298,18 @@ func TestChatCompletionsStreamToResponsesBuffersToolCallUntilNameArrives(t *test
 	assert.Equal(t, responsesEventOutputItemAdded, secondEvents[0].Type)
 	require.NotNil(t, secondEvents[0].Payload.Item)
 	assert.Equal(t, "lookup", secondEvents[0].Payload.Item.Name)
+	assert.Equal(t, "call_1", secondEvents[0].Payload.Item.ID)
+	assert.Equal(t, "call_1", secondEvents[0].Payload.Item.CallId)
 	assert.Equal(t, responsesEventFunctionArgsDelta, secondEvents[1].Type)
+	assert.Equal(t, "call_1", secondEvents[1].Payload.ItemID)
 	assert.Equal(t, `{"q":"x"}`, secondEvents[1].Payload.Delta)
 
 	finalEvents := FinalizeChatCompletionsStreamToResponses(state)
 	completed := finalEvents[len(finalEvents)-1].Payload.Response
 	require.NotNil(t, completed)
 	require.Len(t, completed.Output, 1)
+	assert.Equal(t, "call_1", completed.Output[0].ID)
+	assert.Equal(t, "call_1", completed.Output[0].CallId)
 	assert.Equal(t, "lookup", completed.Output[0].Name)
 	assert.Equal(t, `"{\"q\":\"x\"}"`, string(completed.Output[0].Arguments))
 }

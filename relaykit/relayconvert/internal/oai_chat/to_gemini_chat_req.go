@@ -3,6 +3,7 @@ package oaichat
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"context"
@@ -11,6 +12,7 @@ import (
 	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
 	sharedgemini "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/gemini"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
 
 func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto.GeneralOpenAIRequest, info convmeta.Meta) (*dto.GeminiChatRequest, error) {
@@ -22,13 +24,15 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		},
 	}
 
-	if textRequest.TopP != nil && *textRequest.TopP > 0 {
+	if textRequest.TopP != nil {
 		geminiRequest.GenerationConfig.TopP = kitutil.GetPointer(*textRequest.TopP)
 	}
-	if maxTokens := textRequest.GetMaxTokens(); maxTokens > 0 {
-		geminiRequest.GenerationConfig.MaxOutputTokens = kitutil.GetPointer(maxTokens)
+	if textRequest.MaxCompletionTokens != nil {
+		geminiRequest.GenerationConfig.MaxOutputTokens = kitutil.GetPointer(*textRequest.MaxCompletionTokens)
+	} else if textRequest.MaxTokens != nil {
+		geminiRequest.GenerationConfig.MaxOutputTokens = kitutil.GetPointer(*textRequest.MaxTokens)
 	}
-	if textRequest.Seed != nil && *textRequest.Seed != 0 {
+	if textRequest.Seed != nil {
 		geminiRequest.GenerationConfig.Seed = kitutil.GetPointer(int64(*textRequest.Seed))
 	}
 
@@ -50,7 +54,6 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		geminiRequest.GenerationConfig.StopSequences = stopSequences
 	}
 
-	adaptorWithExtraBody := false
 	if len(textRequest.ExtraBody) > 0 {
 		var extraBody map[string]interface{}
 		if err := kitutil.Unmarshal(textRequest.ExtraBody, &extraBody); err != nil {
@@ -58,61 +61,47 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		}
 
 		if googleBody, ok := extraBody["google"].(map[string]interface{}); ok {
-			if !strings.HasSuffix(upstreamModelName, "-nothinking") {
-				adaptorWithExtraBody = true
-				if _, hasErrorParam := googleBody["thinkingConfig"]; hasErrorParam {
-					return nil, errors.New("extra_body.google.thinkingConfig is not supported, use extra_body.google.thinking_config instead")
+			if _, hasErrorParam := googleBody["thinkingConfig"]; hasErrorParam {
+				return nil, errors.New("extra_body.google.thinkingConfig is not supported, use extra_body.google.thinking_config instead")
+			}
+
+			if thinkingConfig, ok := googleBody["thinking_config"].(map[string]interface{}); ok {
+				if _, hasErrorParam := thinkingConfig["thinkingBudget"]; hasErrorParam {
+					return nil, errors.New("extra_body.google.thinking_config.thinkingBudget is not supported, use extra_body.google.thinking_config.thinking_budget instead")
+				}
+				var hasThinkingConfig bool
+				var tempThinkingConfig dto.GeminiThinkingConfig
+
+				if thinkingBudget, exists := thinkingConfig["thinking_budget"]; exists {
+					v, ok := thinkingBudget.(float64)
+					maxInt := int(^uint(0) >> 1)
+					if !ok || math.IsNaN(v) || math.IsInf(v, 0) || math.Trunc(v) != v || v > float64(maxInt) || v < float64(-maxInt-1) {
+						return nil, errors.New("extra_body.google.thinking_config.thinking_budget must be an integer")
+					}
+					budgetInt := int(v)
+					tempThinkingConfig.ThinkingBudget = kitutil.GetPointer(budgetInt)
+					hasThinkingConfig = true
 				}
 
-				if thinkingConfig, ok := googleBody["thinking_config"].(map[string]interface{}); ok {
-					if _, hasErrorParam := thinkingConfig["thinkingBudget"]; hasErrorParam {
-						return nil, errors.New("extra_body.google.thinking_config.thinkingBudget is not supported, use extra_body.google.thinking_config.thinking_budget instead")
+				if includeThoughts, exists := thinkingConfig["include_thoughts"]; exists {
+					if v, ok := includeThoughts.(bool); ok {
+						tempThinkingConfig.IncludeThoughts = kitutil.GetPointer(v)
+						hasThinkingConfig = true
+					} else {
+						return nil, errors.New("extra_body.google.thinking_config.include_thoughts must be a boolean")
 					}
-					var hasThinkingConfig bool
-					var tempThinkingConfig dto.GeminiThinkingConfig
+				}
+				if thinkingLevel, exists := thinkingConfig["thinking_level"]; exists {
+					if v, ok := thinkingLevel.(string); ok {
+						tempThinkingConfig.ThinkingLevel = v
+						hasThinkingConfig = true
+					} else {
+						return nil, errors.New("extra_body.google.thinking_config.thinking_level must be a string")
+					}
+				}
 
-					if thinkingBudget, exists := thinkingConfig["thinking_budget"]; exists {
-						switch v := thinkingBudget.(type) {
-						case float64:
-							budgetInt := int(v)
-							tempThinkingConfig.ThinkingBudget = kitutil.GetPointer(budgetInt)
-							tempThinkingConfig.IncludeThoughts = budgetInt > 0
-							hasThinkingConfig = true
-						default:
-							return nil, errors.New("extra_body.google.thinking_config.thinking_budget must be an integer")
-						}
-					}
-
-					if includeThoughts, exists := thinkingConfig["include_thoughts"]; exists {
-						if v, ok := includeThoughts.(bool); ok {
-							tempThinkingConfig.IncludeThoughts = v
-							hasThinkingConfig = true
-						} else {
-							return nil, errors.New("extra_body.google.thinking_config.include_thoughts must be a boolean")
-						}
-					}
-					if thinkingLevel, exists := thinkingConfig["thinking_level"]; exists {
-						if v, ok := thinkingLevel.(string); ok {
-							tempThinkingConfig.ThinkingLevel = v
-							hasThinkingConfig = true
-						} else {
-							return nil, errors.New("extra_body.google.thinking_config.thinking_level must be a string")
-						}
-					}
-
-					if hasThinkingConfig {
-						if geminiRequest.GenerationConfig.ThinkingConfig == nil {
-							geminiRequest.GenerationConfig.ThinkingConfig = &tempThinkingConfig
-						} else {
-							if tempThinkingConfig.ThinkingBudget != nil {
-								geminiRequest.GenerationConfig.ThinkingConfig.ThinkingBudget = tempThinkingConfig.ThinkingBudget
-							}
-							geminiRequest.GenerationConfig.ThinkingConfig.IncludeThoughts = tempThinkingConfig.IncludeThoughts
-							if tempThinkingConfig.ThinkingLevel != "" {
-								geminiRequest.GenerationConfig.ThinkingConfig.ThinkingLevel = tempThinkingConfig.ThinkingLevel
-							}
-						}
-					}
+				if hasThinkingConfig {
+					geminiRequest.GenerationConfig.ThinkingConfig = &tempThinkingConfig
 				}
 			}
 
@@ -147,8 +136,8 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		}
 	}
 
-	if !adaptorWithExtraBody {
-		sharedgemini.ApplyThinkingConfig(&geminiRequest, info, textRequest)
+	if err := sharedgemini.ApplyThinkingConfig(&geminiRequest, info, textRequest); err != nil {
+		return nil, reasoning.AsClientError(err)
 	}
 
 	var safetySettings []dto.GeminiChatSafetySettings
@@ -168,22 +157,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 
 	if textRequest.Tools != nil {
 		functions := make([]dto.FunctionRequest, 0, len(textRequest.Tools))
-		googleSearch := false
-		codeExecution := false
-		urlContext := false
 		for _, tool := range textRequest.Tools {
-			if tool.Function.Name == "googleSearch" {
-				googleSearch = true
-				continue
-			}
-			if tool.Function.Name == "codeExecution" {
-				codeExecution = true
-				continue
-			}
-			if tool.Function.Name == "urlContext" {
-				urlContext = true
-				continue
-			}
 			if tool.Function.Parameters != nil {
 				if params, ok := tool.Function.Parameters.(map[string]interface{}); ok {
 					if props, hasProps := params["properties"].(map[string]interface{}); hasProps && len(props) == 0 {
@@ -195,21 +169,6 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 			functions = append(functions, tool.Function)
 		}
 		geminiTools := geminiRequest.GetTools()
-		if codeExecution {
-			geminiTools = append(geminiTools, dto.GeminiChatTool{
-				CodeExecution: make(map[string]string),
-			})
-		}
-		if googleSearch {
-			geminiTools = append(geminiTools, dto.GeminiChatTool{
-				GoogleSearch: make(map[string]string),
-			})
-		}
-		if urlContext {
-			geminiTools = append(geminiTools, dto.GeminiChatTool{
-				URLContext: make(map[string]string),
-			})
-		}
 		if len(functions) > 0 {
 			geminiTools = append(geminiTools, dto.GeminiChatTool{
 				FunctionDeclarations: functions,
@@ -270,6 +229,13 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 				Name:     name,
 				Response: contentMap,
 			}
+			if message.ToolCallId != "" {
+				id, err := kitutil.Marshal(message.ToolCallId)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal function response ID: %w", err)
+				}
+				functionResp.ID = id
+			}
 
 			*parts = append(*parts, dto.GeminiPart{
 				FunctionResponse: functionResp,
@@ -293,6 +259,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 				}
 				toolCall := dto.GeminiPart{
 					FunctionCall: &dto.FunctionCall{
+						ID:           call.ID,
 						FunctionName: call.Function.Name,
 						Arguments:    args,
 					},

@@ -7,7 +7,7 @@ export const meta = {
     en: "Google Veo video generation on the Gemini API (text-to-video and image-to-video)",
     zh: "Google Veo 视频生成（文生视频、图生视频），Gemini API 版本",
   },
-  version: "1.0.0",
+  version: "1.0.1",
   author: { name: "QuantumNous" },
   channelTypes: [24],
   models: ["veo-3.0-generate-001", "veo-3.0-fast-generate-001", "veo-3.1-generate-preview", "veo-3.1-fast-generate-preview"],
@@ -209,7 +209,11 @@ export function buildQueryRequest(ctx) {
 
 export function parseTaskResult(ctx, body) {
   if (body.error && body.error.message) return { status: "FAILURE", progress: "100%", reason: body.error.message };
-  if (!body.done) return { status: "IN_PROGRESS", progress: "50%" };
+  // Google long-running operations omit `done` (proto3 default) while still
+  // running, so a missing key means in-progress; only a non-operation shape is
+  // unrecognized.
+  if (!body || typeof body !== "object" || !String(body.name || "").trim()) return { status: "UNKNOWN", reason: "unrecognized operation state" };
+  if (body.done !== true) return { status: "IN_PROGRESS", progress: "50%" };
   const videos = ((body.response || {}).generateVideoResponse || {}).generatedVideos || [];
   const uri = videos.length && videos[0].video ? videos[0].video.uri || "" : "";
   return { taskId: utils.base64URL(body.name || ""), status: "SUCCESS", progress: "100%", remoteUrl: uri };

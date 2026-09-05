@@ -6,11 +6,12 @@ import (
 	"sort"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
 )
 
@@ -46,20 +47,52 @@ func GetBillingMode(model string) string {
 	if mode, ok := billingSetting.BillingMode[model]; ok {
 		return mode
 	}
+	if _, ok := builtinBillingExpr[model]; ok {
+		// Existing administrator-configured legacy prices take precedence over
+		// a newly introduced built-in expression unless a mode was explicit.
+		if ratio_setting.HasConfiguredModelRatio(model) {
+			return BillingModeRatio
+		}
+		if _, configured := ratio_setting.GetModelPrice(model, false); configured {
+			return BillingModeRatio
+		}
+		return BillingModeTieredExpr
+	}
 	return BillingModeRatio
 }
 
 func GetBillingExpr(model string) (string, bool) {
-	expr, ok := billingSetting.BillingExpr[model]
-	return expr, ok
+	if expr, ok := billingSetting.BillingExpr[model]; ok {
+		return expr, true
+	}
+	if GetBillingMode(model) == BillingModeTieredExpr {
+		expr, ok := builtinBillingExpr[model]
+		return expr, ok
+	}
+	return "", false
 }
 
 func GetBillingModeCopy() map[string]string {
-	return lo.Assign(billingSetting.BillingMode)
+	modes := lo.Assign(billingSetting.BillingMode)
+	for model := range builtinBillingExpr {
+		if _, configured := modes[model]; !configured && GetBillingMode(model) == BillingModeTieredExpr {
+			modes[model] = BillingModeTieredExpr
+		}
+	}
+	return modes
 }
 
 func GetBillingExprCopy() map[string]string {
-	return lo.Assign(billingSetting.BillingExpr)
+	expressions := lo.Assign(billingSetting.BillingExpr)
+	for model := range builtinBillingExpr {
+		if _, configured := expressions[model]; configured {
+			continue
+		}
+		if expression, ok := GetBillingExpr(model); ok {
+			expressions[model] = expression
+		}
+	}
+	return expressions
 }
 
 func GetPricingSyncData(base map[string]any) map[string]any {

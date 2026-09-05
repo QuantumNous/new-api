@@ -7,7 +7,7 @@ export const meta = {
     en: "Volcengine Jimeng video generation (text-to-video, image-to-video, and first-and-last-frame)",
     zh: "火山引擎即梦视频生成（文生视频、图生视频、首尾帧）",
   },
-  version: "1.0.0",
+  version: "1.0.1",
   author: { name: "QuantumNous" },
   channelTypes: [51],
   models: ["jimeng_vgfm_t2v_l20"],
@@ -270,10 +270,8 @@ function filePlaceholder(image) {
 }
 
 function queryReqKey(ctx) {
-  const data = (ctx && ctx.data) || {};
-  if (typeof data.req_key === "string" && data.req_key.trim()) return data.req_key.trim();
-  const req = (ctx && ctx.requestBody) || {};
-  if (typeof req.req_key === "string" && req.req_key.trim()) return req.req_key.trim();
+  const state = (ctx && ctx.state) || {};
+  if (typeof state.req_key === "string" && state.req_key.trim()) return state.req_key.trim();
   if (ctx && ctx.action === "image_to_video") return "jimeng_vgfm_i2v_l20";
   if (ctx && ctx.action === "first_tail_to_video") return "jimeng_i2v_first_tail_v30";
   return "jimeng_vgfm_t2v_l20";
@@ -349,7 +347,7 @@ export function parseSubmitResponse(ctx, resp) {
   const body = resp.body || {};
   if (body.code !== 10000) throw new Error(body.message || "jimeng submit failed");
   if (!body.data || !body.data.task_id) throw new Error("missing task_id");
-  return { taskId: body.data.task_id, taskData: Object.assign({}, body, { req_key: submitReqKey(ctx) }) };
+  return { taskId: body.data.task_id, taskData: Object.assign({}, body, { req_key: submitReqKey(ctx) }), state: { req_key: submitReqKey(ctx) } };
 }
 
 export function extractUsage(ctx) {
@@ -366,22 +364,20 @@ export function buildQueryRequest(ctx) {
 
 export function parseTaskResult(ctx, body) {
   const data = body.data || {};
-  let status = "";
-  let progress = "";
   if (body.code !== 10000) {
-    status = "FAILURE";
-    progress = "100%";
+    return { code: body.code || 0, status: "FAILURE", progress: "100%", reason: body.message || "" };
   }
   if (data.status === "in_queue") {
-    status = "QUEUED";
-    progress = "10%";
-  } else if (data.status === "done") {
-    status = "SUCCESS";
-    progress = "100%";
+    const result = { code: 0, status: "QUEUED", progress: "10%", reason: "" };
+    if (data.video_url) result.url = data.video_url;
+    return result;
   }
-  const result = { code: body.code === 10000 ? 0 : body.code || 0, status: status, progress: progress, reason: body.code === 10000 ? "" : body.message || "" };
-  if (data.video_url) result.url = data.video_url;
-  return result;
+  if (data.status === "done") {
+    const result = { code: 0, status: "SUCCESS", progress: "100%", reason: "" };
+    if (data.video_url) result.url = data.video_url;
+    return result;
+  }
+  return { code: 0, status: "UNKNOWN", reason: "unrecognized status: " + String(data.status || "") };
 }
 
 function artifactData(ctx) {
