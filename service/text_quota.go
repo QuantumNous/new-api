@@ -66,6 +66,7 @@ type textQuotaSummary struct {
 	AudioInputPrice        float64
 	ToolSurchargeItems     []ToolSurchargeItem
 	ToolCallSurchargeQuota decimal.Decimal
+	MissingUsageFallback   bool
 }
 
 // hasBillableUsage reports whether this request should incur any charge.
@@ -73,7 +74,42 @@ type textQuotaSummary struct {
 // surcharge (e.g. /v1/alpha/search returns no usage but bills one web_search
 // call), so token count alone is not sufficient to decide.
 func (s *textQuotaSummary) hasBillableUsage() bool {
-	return s.TotalTokens > 0 || !s.ToolCallSurchargeQuota.IsZero()
+	return s.MissingUsageFallback || s.TotalTokens > 0 || !s.ToolCallSurchargeQuota.IsZero()
+}
+
+func preConsumedQuotaForRelay(relayInfo *relaycommon.RelayInfo) int {
+	if relayInfo == nil {
+		return 0
+	}
+	if relayInfo.Billing != nil {
+		// BillingSession is authoritative even when a trusted request legitimately
+		// reserved zero quota.
+		return relayInfo.Billing.GetPreConsumedQuota()
+	}
+	return relayInfo.FinalPreConsumedQuota
+}
+
+func missingResponsesUsageFallbackQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, summary *textQuotaSummary) (int, bool) {
+	if relayInfo == nil || summary == nil || !relayInfo.IsStream || summary.TotalTokens != 0 {
+		return 0, false
+	}
+	if relayInfo.GetFinalRequestRelayFormat() != types.RelayFormatOpenAIResponses {
+		return 0, false
+	}
+	if !common.GetContextKeyBool(ctx, constant.ContextKeyResponsesBillableStreamOutput) {
+		return 0, false
+	}
+
+	preConsumed := preConsumedQuotaForRelay(relayInfo)
+	if preConsumed <= 0 {
+		return 0, false
+	}
+
+	quota, clamp := common.QuotaFromDecimalChecked(
+		decimal.NewFromInt(int64(preConsumed)).Add(summary.ToolCallSurchargeQuota),
+	)
+	noteQuotaClamp(relayInfo, clamp)
+	return quota, true
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -375,7 +411,10 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		noteQuotaClamp(relayInfo, clamp)
 	}
 
-	if !summary.hasBillableUsage() {
+	if fallbackQuota, ok := missingResponsesUsageFallbackQuota(ctx, relayInfo, &summary); ok {
+		summary.Quota = fallbackQuota
+		summary.MissingUsageFallback = true
+	} else if !summary.hasBillableUsage() {
 		summary.Quota = 0
 	} else if !ratio.IsZero() && summary.Quota == 0 {
 		summary.Quota = 1
@@ -409,7 +448,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	var tieredResult *billingexpr.TieredResult
 	tieredBillingApplied := false
-	if originUsage != nil {
+	if originUsage != nil && !summary.MissingUsageFallback {
 		var tieredUsedVars map[string]bool
 		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
 			tieredUsedVars = billingexpr.UsedVars(snap.ExprString)
@@ -442,8 +481,12 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	if !summary.hasBillableUsage() {
 		extraContent = append(extraContent, "上游没有返回计费信息，无法扣费（可能是上游超时）")
-		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota))
+		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, preConsumedQuotaForRelay(relayInfo)))
 	} else {
+		if summary.MissingUsageFallback {
+			extraContent = append(extraContent, "流式响应已产生可计费输出但缺少最终用量，按预扣额度结算")
+			logger.LogWarn(ctx, fmt.Sprintf("responses stream usage missing after billable output, settling pre-consumed quota, userId %d, channelId %d, tokenId %d, model %s, quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, summary.Quota))
+		}
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
 	}
@@ -479,6 +522,12 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	appendUsageBillingPathForLog(other, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens), originUsage)
 	if adminRejectReason != "" {
 		other.SetAdmin("reject_reason", adminRejectReason)
+	}
+	if summary.MissingUsageFallback {
+		other.SetAdmin("missing_usage_fallback", map[string]any{
+			"policy": "pre_consumed_after_billable_output",
+			"quota":  summary.Quota,
+		})
 	}
 	if summary.ImageTokens != 0 {
 		other.SetPublic("image", true)
@@ -517,7 +566,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		// prompt/cache fields here, otherwise old upstream payloads may be double-counted.
 		other.SetPublic("input_tokens_total", billingUsage.InputTokens)
 	}
-	if tieredBillingApplied {
+	if tieredBillingApplied || summary.MissingUsageFallback {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
 
