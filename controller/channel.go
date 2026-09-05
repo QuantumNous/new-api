@@ -954,8 +954,9 @@ func DeleteChannelBatch(c *gin.Context) {
 
 type PatchChannel struct {
 	model.Channel
-	MultiKeyMode *string `json:"multi_key_mode"`
-	KeyMode      *string `json:"key_mode"` // 多key模式下密钥覆盖或者追加
+	MultiKeyMode   *string `json:"multi_key_mode"`
+	KeyMode        *string `json:"key_mode"`         // 多key模式下密钥覆盖或者追加
+	KeyStorageMode *string `json:"key_storage_mode"` // single | multi，编辑时转换密钥存储形态
 }
 
 type ChannelStatusRequest struct {
@@ -988,8 +989,37 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 	clearChannelReadOnlyFields(&channel, requestData)
+	convertingStorage := channel.KeyStorageMode != nil && strings.TrimSpace(*channel.KeyStorageMode) != ""
+	// Every update copies the persisted ChannelInfo forward, so an ordinary edit
+	// that reads multi-key metadata before a multi→single conversion commits
+	// would restore IsMultiKey and its status maps over the converted single key.
+	// Hold the per-channel lock from the source read through persistence for all
+	// requests, not just conversions.
+	lock := model.GetChannelPollingLock(channel.Id)
+	lock.Lock()
+	defer lock.Unlock()
 
-	if channel.Type == constant.ChannelTypeTaskPlugin &&
+	var originChannel *model.Channel
+	if convertingStorage {
+		// Conversion checks must use a fresh source row while the per-channel
+		// lock is held. In particular, a partial request may omit type/settings.
+		originChannel, err = model.GetChannelById(channel.Id, true)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+	}
+
+	channelTypeForChecks := channel.Type
+	if convertingStorage {
+		if _, provided := requestData["type"]; !provided {
+			channelTypeForChecks = originChannel.Type
+		}
+	}
+	if channelTypeForChecks == constant.ChannelTypeTaskPlugin &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.TaskPluginBind) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -1007,13 +1037,15 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 	// Preserve existing ChannelInfo to ensure multi-key channels keep correct state even if the client does not send ChannelInfo in the request.
-	originChannel, err := model.GetChannelById(channel.Id, true)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
+	if originChannel == nil {
+		originChannel, err = model.GetChannelById(channel.Id, true)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	}
 	originProxy := originChannel.GetSetting().Proxy
 	proxyChanged := false
@@ -1033,12 +1065,36 @@ func UpdateChannel(c *gin.Context) {
 	}
 
 	// If the request explicitly specifies a new MultiKeyMode, apply it on top of the original info.
-	if channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
+	if convertingStorage {
+		keyConfig := *originChannel
+		if _, provided := requestData["type"]; provided {
+			keyConfig.Type = channel.Type
+		}
+		// The conversion guard must judge the settings that will actually be
+		// persisted. UpdateWithConvertedKeyStorage writes only key/channel_info
+		// explicitly and its struct update skips an empty settings column, so a
+		// request that omits or blanks settings keeps the stored value — even
+		// when it also changes the channel type. Assuming a cleared credential
+		// mode here would let a Vertex API Key channel pass the multi-key gate
+		// and then keep vertex_key_type=api_key after commit.
+		if strings.TrimSpace(channel.OtherSettings) != "" {
+			keyConfig.OtherSettings = channel.OtherSettings
+		}
+		if err := applyKeyStorageMode(&channel, originChannel, &keyConfig); err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+	}
+
+	if !convertingStorage && channel.MultiKeyMode != nil && *channel.MultiKeyMode != "" {
 		channel.ChannelInfo.MultiKeyMode = constant.MultiKeyMode(*channel.MultiKeyMode)
 	}
 
 	// 处理多key模式下的密钥追加/覆盖逻辑
-	if channel.KeyMode != nil && channel.ChannelInfo.IsMultiKey {
+	if !convertingStorage && channel.KeyMode != nil && channel.ChannelInfo.IsMultiKey {
 		switch *channel.KeyMode {
 		case "append":
 			// 追加模式：将新密钥添加到现有密钥列表
@@ -1117,7 +1173,14 @@ func UpdateChannel(c *gin.Context) {
 			// 覆盖模式：直接使用新密钥（默认行为，不需要特殊处理）
 		}
 	}
-	err = channel.Update()
+	// 密钥形态转换必须把 key 与 channel_info 放进同一事务：
+	// GORM Updates(struct) 会跳过零值 ChannelInfo，若分两次写入，
+	// 失败时会留下「标记为多密钥、实际只有一把密钥」或反过来的半成品。
+	if convertingStorage {
+		err = channel.UpdateWithConvertedKeyStorage()
+	} else {
+		err = channel.Update()
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -1538,6 +1601,13 @@ func ManageMultiKeys(c *gin.Context) {
 		return
 	}
 
+	// Acquire the channel lock before reading ChannelInfo. A conversion can
+	// replace the key storage shape while this request is waiting; reading
+	// first would let a stale multi-key snapshot overwrite that conversion.
+	lock := model.GetChannelPollingLock(request.ChannelId)
+	lock.Lock()
+	defer lock.Unlock()
+
 	channel, err := model.GetChannelById(request.ChannelId, true)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -1569,10 +1639,6 @@ func ManageMultiKeys(c *gin.Context) {
 			"id":     channel.Id,
 		})
 	}
-
-	lock := model.GetChannelPollingLock(channel.Id)
-	lock.Lock()
-	defer lock.Unlock()
 
 	switch request.Action {
 	case "get_key_status":

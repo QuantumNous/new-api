@@ -33,6 +33,7 @@ import {
   transformFormDataToCreatePayload,
   transformFormDataToUpdatePayload,
   type ChannelFormValues,
+  type ChannelUpdatePayload,
 } from '../lib'
 import type { Channel } from '../types'
 
@@ -53,7 +54,8 @@ const SENSITIVE_UPDATE_FIELDS = [
   'setting',
   'settings',
   'other',
-] satisfies (keyof Channel)[]
+  'key_storage_mode',
+] satisfies (keyof ChannelUpdatePayload)[]
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -94,9 +96,11 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
       if (props.isEditing && props.currentRow) {
         const payload = transformFormDataToUpdatePayload(
           data,
-          props.currentRow.id
+          props.currentRow.id,
+          props.isMultiKeyChannel
         )
-        if (!data.key?.trim()) {
+        const isStorageConversion = Boolean(payload.key_storage_mode)
+        if (!data.key?.trim() && !isStorageConversion) {
           delete payload.key
         }
         if (!canEditSensitive) {
@@ -107,6 +111,7 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
         const payloadWithKeyMode =
           canEditSensitive &&
           props.isMultiKeyChannel &&
+          !isStorageConversion &&
           data.key?.trim() &&
           data.key_mode
             ? {
