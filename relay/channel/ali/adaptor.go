@@ -125,6 +125,13 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			}
 		case constant.RelayModeCompletions:
 			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/completions", info.ChannelBaseUrl)
+		case constant.RelayModeAudioTranscription:
+			switch aliAudioTranscriptionProtocolFor(info.UpstreamModelName) {
+			case aliAudioTranscriptionProtocolLegacyMultimodal, aliAudioTranscriptionProtocolQwenASRMultimodal:
+				fullRequestURL = fmt.Sprintf("%s/api/v1/services/aigc/multimodal-generation/generation", info.ChannelBaseUrl)
+			default:
+				return "", fmt.Errorf("Ali audio transcription model %q is not supported", info.UpstreamModelName)
+			}
 		default:
 			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/chat/completions", info.ChannelBaseUrl)
 		}
@@ -138,6 +145,19 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 	req.Set("Authorization", "Bearer "+info.ApiKey)
 	if info.IsStream {
 		req.Set("X-DashScope-SSE", "enable")
+	}
+	if info.RelayMode == constant.RelayModeAudioTranscription {
+		switch aliAudioTranscriptionProtocolFor(info.UpstreamModelName) {
+		case aliAudioTranscriptionProtocolLegacyMultimodal, aliAudioTranscriptionProtocolQwenASRMultimodal:
+			req.Set("Content-Type", "application/json")
+			req.Set("X-DashScope-SSE", "disable")
+			if info.IsStream {
+				req.Set("Accept", "text/event-stream")
+				req.Set("X-DashScope-SSE", "enable")
+			}
+		default:
+			return fmt.Errorf("Ali audio transcription model %q is not supported", info.UpstreamModelName)
+		}
 	}
 	if c.GetString("plugin") != "" {
 		req.Set("X-DashScope-Plugin", c.GetString("plugin"))
@@ -230,8 +250,14 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
+	switch aliAudioTranscriptionProtocolFor(info.UpstreamModelName) {
+	case aliAudioTranscriptionProtocolLegacyMultimodal:
+		return convertAliAudioTranscriptionRequest(c, info, request)
+	case aliAudioTranscriptionProtocolQwenASRMultimodal:
+		return convertAliQwenASRTranscriptionRequest(c, info, request)
+	default:
+		return nil, fmt.Errorf("Ali audio transcription model %q is not supported", info.UpstreamModelName)
+	}
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
@@ -260,6 +286,15 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			err, usage = aliImageHandler(a, c, resp, info)
 		case constant.RelayModeRerank:
 			err, usage = RerankHandler(c, resp, info)
+		case constant.RelayModeAudioTranscription:
+			switch aliAudioTranscriptionProtocolFor(info.UpstreamModelName) {
+			case aliAudioTranscriptionProtocolLegacyMultimodal:
+				usage, err = aliAudioTranscriptionHandler(c, resp, info)
+			case aliAudioTranscriptionProtocolQwenASRMultimodal:
+				usage, err = aliQwenASRTranscriptionHandler(c, resp, info)
+			default:
+				err = types.NewError(fmt.Errorf("Ali audio transcription model %q is not supported", info.UpstreamModelName), types.ErrorCodeBadResponseBody)
+			}
 		default:
 			adaptor := openai.Adaptor{}
 			usage, err = adaptor.DoResponse(c, resp, info)
