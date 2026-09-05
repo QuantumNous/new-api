@@ -537,6 +537,9 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 			return nil, fmt.Errorf("tool-call stream index %d changed id from %q to %q", chatIndex, tool.CallID, incomingID)
 		}
 		tool.CallID = incomingID
+		if !tool.Announced {
+			tool.ItemID = incomingID
+		}
 	}
 	incomingName := strings.TrimSpace(toolCall.Function.Name)
 	if incomingName != "" {
@@ -547,9 +550,9 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 	}
 	delta := toolCall.Function.Arguments
 	tool.Arguments.WriteString(delta)
-	// Whether a call restores a custom tool depends on its name, so a nameless
-	// first fragment is held back while custom tools are in play.
-	if !tool.Announced && (tool.Name != "" || !s.hasCustomTools()) {
+	// A nameless call is invalid Responses output, so hold it back until a
+	// valid name arrives. Announcement also determines whether it is custom.
+	if !tool.Announced && tool.Name != "" {
 		events = append(events, s.announceTool(tool))
 		delta = tool.Arguments.String()
 	}
@@ -563,10 +566,6 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 		}))
 	}
 	return events, nil
-}
-
-func (s *ChatToResponsesStreamState) hasCustomTools() bool {
-	return s.Tools != nil && len(s.Tools.CustomToolNames) > 0
 }
 
 // announceTool also allocates the output index, so a held tool never ends up
@@ -660,6 +659,9 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 		}
 		tool.Done = true
 		if !tool.Announced {
+			if tool.Name == "" {
+				continue
+			}
 			events = append(events, s.announceTool(tool))
 			if !tool.Custom && tool.Arguments.Len() > 0 {
 				events = append(events, s.event(responsesEventFunctionArgsDelta, dto.ResponsesStreamResponse{
