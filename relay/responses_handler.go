@@ -1,6 +1,8 @@
 package relay
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,7 +19,32 @@ import (
 	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jinzhu/copier"
 )
+
+// cloneResponsesRequest preserves retry isolation without copying large raw JSON
+// fields one byte at a time through reflection. Keep this scoped to Responses;
+// other request types retain common.DeepCopy's existing behavior.
+func cloneResponsesRequest(src *dto.OpenAIResponsesRequest) (*dto.OpenAIResponsesRequest, error) {
+	if src == nil {
+		return nil, fmt.Errorf("copy source cannot be nil")
+	}
+	var dst dto.OpenAIResponsesRequest
+	err := copier.CopyWithOption(&dst, src, copier.Option{
+		DeepCopy: true, IgnoreEmpty: true,
+		Converters: []copier.TypeConverter{{
+			SrcType: json.RawMessage{},
+			DstType: json.RawMessage{},
+			Fn: func(src interface{}) (interface{}, error) {
+				return json.RawMessage(bytes.Clone(src.(json.RawMessage))), nil
+			},
+		}},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &dst, nil
+}
 
 func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
@@ -61,7 +88,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		)
 	}
 
-	request, err := common.DeepCopy(responsesReq)
+	request, err := cloneResponsesRequest(responsesReq)
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
