@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ConcurrentLimitSection } from '../request-limits/concurrent-limit-section'
 import { RateLimitSection } from '../request-limits/rate-limit-section'
 import { SensitiveWordsSection } from '../request-limits/sensitive-words-section'
 import { SSRFSection } from '../request-limits/ssrf-section'
@@ -37,6 +38,19 @@ const SECURITY_SECTIONS = [
           ModelRequestRateLimitDurationMinutes:
             settings.ModelRequestRateLimitDurationMinutes,
           ModelRequestRateLimitGroup: settings.ModelRequestRateLimitGroup,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'concurrent-limit',
+    titleKey: 'Concurrent Limit',
+    build: (settings: SecuritySettings) => (
+      <ConcurrentLimitSection
+        defaultValues={{
+          ModelConcurrentLimitEnabled: settings.ModelConcurrentLimitEnabled,
+          ModelConcurrentLimit: settings.ModelConcurrentLimit,
+          ModelConcurrentLimitGroup: settings.ModelConcurrentLimitGroup,
         }}
       />
     ),
