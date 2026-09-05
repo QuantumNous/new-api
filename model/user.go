@@ -214,6 +214,23 @@ func UpdateUserBindColumn(userId int, column string, value string) error {
 	return DB.Model(&User{}).Where("id = ?", userId).Update(column, value).Error
 }
 
+func UpdateUserBindColumnWithTx(tx *gorm.DB, userId int, column string, value string) error {
+	if tx == nil || userId <= 0 {
+		return errors.New("id 为空！")
+	}
+	if !userBindColumns[column] {
+		return fmt.Errorf("invalid user bind column: %s", column)
+	}
+	result := tx.Model(&User{}).Where("id = ?", userId).Update(column, value)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 // 根据用户角色生成默认的边栏配置
 func generateDefaultSidebarConfigForRole(userRole int) string {
 	defaultConfig := map[string]interface{}{}

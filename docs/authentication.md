@@ -93,9 +93,9 @@
 refresh/logout 的 Origin 防护与 Refresh Cookie 的 Secure 模式绑定：
 
 - 未配置 `SESSION_COOKIE_SECURE` 或显式设为 `false` 时，Refresh Cookie 可用于本地 HTTP，refresh/logout 的 OriginGuard 关闭，并且不得配置 `SESSION_COOKIE_TRUSTED_URL`。这使 `http://localhost` 上不同端口的 Rsbuild/Vite 开发代理可以正常转发请求。该模式仅用于可信的本地开发环境，不应暴露到公网。
-- `SESSION_COOKIE_SECURE=true` 时，Refresh Cookie 仅通过 HTTPS 发送，同时启用严格 OriginGuard。`POST /api/user/auth/refresh` 和 `POST /api/user/auth/logout` 会校验浏览器的 `Origin`；缺少 `Origin` 时只接受合法的单一 `Referer` 作为回退。允许来源包括请求自身的精确 Origin，以及 `SESSION_COOKIE_TRUSTED_URL` 中配置的精确 Origin。
+- `SESSION_COOKIE_SECURE=true` 时，Refresh Cookie 仅通过 HTTPS 发送，同时启用严格 OriginGuard。`POST /api/user/auth/refresh` 和 `POST /api/user/auth/logout` 会校验浏览器的 `Origin`；缺少 `Origin` 时只接受合法的单一 `Referer` 作为回退。普通入口允许请求自身的精确 Origin，以及 `SESSION_COOKIE_TRUSTED_URL` 中配置的精确 Origin；启用域名路由后的推广域名和泛域匹配主域只允许自身的精确 HTTPS Origin。
 
-Secure 模式的 Origin 校验不信任客户端直接发送的 `X-Forwarded-Proto`。TLS 在反向代理终止时，应将面板的公开 HTTPS Origin 明确写入 `SESSION_COOKIE_TRUSTED_URL`。
+Secure 模式的 Origin 校验不信任客户端直接发送的 `X-Forwarded-Proto`。TLS 在反向代理终止时，普通入口和精确主域需将公开 HTTPS Origin 写入 `SESSION_COOKIE_TRUSTED_URL`；推广域名和泛域匹配主域根据已验证的 Host 自动校验自身 HTTPS Origin。
 
 `SESSION_COOKIE_TRUSTED_URL` 现在具有明确的新语义：它是 refresh/logout Cookie 端点的可信 Origin 列表，不是 CORS 白名单。配置规则如下：
 
@@ -103,6 +103,29 @@ Secure 模式的 Origin 校验不信任客户端直接发送的 `X-Forwarded-Pro
 - 每项必须是精确的 HTTPS Origin，例如 `https://panel.example.com` 或 `https://panel.example.com:8443`。
 - 不接受通配符、路径、查询参数、用户信息或域名后缀匹配。
 - 不会修改 relay、旧 billing dashboard、`/api/usage/token` 或 `/api/log/token` 的 CORS 行为。浏览器使用 `sk-` key 直连 relay 的场景保持不变。
+
+### 主域名泛域匹配
+
+以下配置允许两个根域及其一级子域访问应用和 API，OAuth/支付技术回调仍固定在 `https://yeschoy.com`：
+
+```dotenv
+CUSTOM_DOMAIN_ENABLED=true
+CUSTOM_DOMAIN_SUFFIX=yeschoy.io
+CUSTOM_DOMAIN_MAIN_ORIGIN=https://yeschoy.com
+CUSTOM_DOMAIN_MAIN_ORIGINS=https://yeschoy.com,https://*.yeschoy.com,https://yeschoy.pro,https://*.yeschoy.pro
+SESSION_COOKIE_SECURE=true
+SESSION_COOKIE_TRUSTED_URL=https://yeschoy.com,https://yeschoy.pro
+```
+
+- `https://*.yeschoy.com` 仅匹配一个合法 DNS label，例如 `api.yeschoy.com`、`www.yeschoy.com`；不自动包含根域或 `a.api.yeschoy.com`。根域需精确列出，额外层级需另设明确规则。列表最多 32 项，允许大小写归一化、去重和 `:443`；泛域还会归一化末尾 DNS 点。
+- 泛域只允许完整的最左侧 `*`，HTTPS 标准端口及空路径或 `/`。IP、公共/私有后缀（例如 `*.com`、`*.co.uk`、`*.github.io`）、非法 label，以及覆盖推广后缀的祖先/相同/子级规则均在启动时拒绝。
+- 单数 `CUSTOM_DOMAIN_MAIN_ORIGIN` 必须是复数列表中显式存在的精确 Origin，不能由泛域隐式满足。复数留空继续回退到单数配置。
+- 精确规则优先；精确主域必须列入静态 Session 信任列表。泛域匹配子域无需逐个注册，refresh/logout 只接受自身 HTTPS Origin，即使兄弟域已在静态信任列表中也不能代替。`SESSION_COOKIE_TRUSTED_URL` 本身始终不支持泛域。
+- Cookies 仍为 Host-only。OAuth 登录/绑定、密码重置和订单返回只保存实际发起 Host。移除规则后，未消费的登录/绑定票据失效；有效签名的重置链接和已存储订单返回固定回调主站。推广域名分配、启用、归属规则保持有效；Passkey 不增加跨 RP 支持。
+
+DNS、证书和入口反向代理必须独立覆盖暴露的域名，并保留请求 Host。Compose 健康检查对每条精确规则发送本地 `/api/status` 请求，泛域规则使用具体的 `h.<base>` Host，任一探测失败即失败；它不验证公网 DNS/TLS。
+
+上线先部署支持泛域的镜像并保留原精确配置，再启用泛域配置并重建应用容器。已有精确子域可先保留，以维持其静态 Origin 兼容行为；同时从主域列表及静态信任列表移除冗余精确子域后，该 Host 才按泛域同源规则处理。回滚旧镜像前，先恢复精确域名配置。此变更无需数据库迁移；部署和 DNS/代理修改需单独授权。
 
 本地 HTTP 开发示例（OriginGuard 关闭）：
 

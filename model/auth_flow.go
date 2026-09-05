@@ -15,17 +15,20 @@ import (
 )
 
 const (
-	AuthFlowPurposeOAuth             = "oauth"
-	AuthFlowPurposeTwoFALogin        = "2fa_login"
-	AuthFlowPurposePasskeyLogin      = "passkey_login"
-	AuthFlowPurposePasskeyRegister   = "passkey_register"
-	AuthFlowPurposePasskeyStepUp     = "passkey_step_up"
-	AuthFlowPurposeTelegramBind      = "telegram_bind"
-	AuthFlowPurposeTelegramAssertion = "telegram_assertion"
-	AuthFlowIntentLogin              = "login"
-	AuthFlowIntentBind               = "bind"
-	AuthFlowTokenBytes               = 32
-	AuthFlowDefaultCleanupRetention  = 24 * time.Hour
+	AuthFlowPurposeOAuth               = "oauth"
+	AuthFlowPurposeDomainLoginHandoff  = "domain_login_handoff"
+	AuthFlowPurposeDomainLoginFallback = "domain_login_fallback"
+	AuthFlowPurposeDomainBindHandoff   = "domain_bind_handoff"
+	AuthFlowPurposeTwoFALogin          = "2fa_login"
+	AuthFlowPurposePasskeyLogin        = "passkey_login"
+	AuthFlowPurposePasskeyRegister     = "passkey_register"
+	AuthFlowPurposePasskeyStepUp       = "passkey_step_up"
+	AuthFlowPurposeTelegramBind        = "telegram_bind"
+	AuthFlowPurposeTelegramAssertion   = "telegram_assertion"
+	AuthFlowIntentLogin                = "login"
+	AuthFlowIntentBind                 = "bind"
+	AuthFlowTokenBytes                 = 32
+	AuthFlowDefaultCleanupRetention    = 24 * time.Hour
 )
 
 var (

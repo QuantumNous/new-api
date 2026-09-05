@@ -13,11 +13,16 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-const oauthAuthFlowTTL = 10 * time.Minute
+const (
+	oauthAuthFlowTTL               = 10 * time.Minute
+	domainOAuthBindingCookieName   = "__Host-yeschoy_oauth_binding"
+	domainOAuthBindingCookieMaxAge = 15 * 60
+)
 
 type oauthStateRequest struct {
 	Provider string `json:"provider"`
@@ -26,7 +31,12 @@ type oauthStateRequest struct {
 }
 
 type oauthFlowPayload struct {
-	AffiliateCode string `json:"affiliate_code,omitempty"`
+	AffiliateCode          string `json:"affiliate_code,omitempty"`
+	DomainID               int64  `json:"domain_id,omitempty"`
+	OriginHost             string `json:"origin_host,omitempty"`
+	BrowserBindingHash     string `json:"browser_binding_hash,omitempty"`
+	ExpectedAuthVersion    int64  `json:"expected_auth_version,omitempty"`
+	ExpectedSessionVersion int64  `json:"expected_session_version,omitempty"`
 }
 
 // providerParams returns map with Provider key for i18n templates
@@ -53,6 +63,8 @@ func GenerateOAuthCode(c *gin.Context) {
 	}
 	userID := 0
 	sessionID := ""
+	expectedAuthVersion := int64(0)
+	expectedSessionVersion := int64(0)
 	if request.Intent == model.AuthFlowIntentBind {
 		identity, ok := middleware.GetSessionAuthIdentity(c)
 		if !ok {
@@ -61,8 +73,31 @@ func GenerateOAuthCode(c *gin.Context) {
 		}
 		userID = identity.UserID
 		sessionID = identity.SessionID
+		expectedAuthVersion = identity.UserAuthVersion
+		expectedSessionVersion = identity.SessionVersion
 	}
-	payload, err := common.Marshal(oauthFlowPayload{AffiliateCode: request.Aff})
+	domainID := customDomainIDFromContext(c)
+	originHost := ""
+	browserBindingHash := ""
+	var err error
+	if domainContext, found := middleware.GetCustomDomainContext(c); found &&
+		(domainContext.Kind == service.CustomDomainKindCustom ||
+			(domainContext.Kind == service.CustomDomainKindMain && !domainContext.IsCallbackHost)) {
+		originHost = domainContext.Host
+		browserBindingHash, err = ensureDomainOAuthBrowserBinding(c)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+	payload, err := common.Marshal(oauthFlowPayload{
+		AffiliateCode:          request.Aff,
+		DomainID:               domainID,
+		OriginHost:             originHost,
+		BrowserBindingHash:     browserBindingHash,
+		ExpectedAuthVersion:    expectedAuthVersion,
+		ExpectedSessionVersion: expectedSessionVersion,
+	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -91,8 +126,36 @@ func GenerateOAuthCode(c *gin.Context) {
 	})
 }
 
+func ensureDomainOAuthBrowserBinding(c *gin.Context) (string, error) {
+	binding, err := c.Cookie(domainOAuthBindingCookieName)
+	if err != nil || len(binding) < 32 || len(binding) > 128 {
+		binding, err = common.GenerateRandomCharsKey(48)
+		if err != nil {
+			return "", err
+		}
+	}
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     domainOAuthBindingCookieName,
+		Value:    binding,
+		Path:     "/",
+		MaxAge:   domainOAuthBindingCookieMaxAge,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+	return domainOAuthBindingHash(binding), nil
+}
+
+func domainOAuthBindingHash(binding string) string {
+	return common.GenerateHMACWithKey([]byte("custom-domain-oauth-binding-v1:"+common.SessionSecret), binding)
+}
+
 // HandleOAuth handles OAuth callback for all standard OAuth providers
 func HandleOAuth(c *gin.Context) {
+	if !isCustomDomainCallbackRequest(c) {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
 	providerName := c.Param("provider")
 	provider := oauth.GetProvider(providerName)
 	if provider == nil {
@@ -116,24 +179,68 @@ func HandleOAuth(c *gin.Context) {
 		})
 		return
 	}
+	var pendingPayload oauthFlowPayload
+	if pendingFlow.Payload != "" {
+		_ = common.UnmarshalJsonStr(pendingFlow.Payload, &pendingPayload)
+	}
 
 	consumeMatch := model.AuthFlowMatch{
 		Purpose:  model.AuthFlowPurposeOAuth,
 		Provider: providerName,
 		Intent:   pendingFlow.Intent,
 	}
+	deferDomainBind := false
 	// 2. Bind flows are bound to the live dashboard Session that created them.
 	if pendingFlow.Intent == model.AuthFlowIntentBind {
 		identity, ok := middleware.GetSessionAuthIdentity(c)
-		if !ok || identity.UserID != pendingFlow.UserId || identity.SessionID != pendingFlow.SessionId {
-			c.JSON(http.StatusForbidden, gin.H{
-				"success": false,
-				"message": i18n.T(c, i18n.MsgOAuthStateInvalid),
-			})
-			return
+		if pendingPayload.OriginHost != "" {
+			targetHost, active, targetErr := resolveOAuthReturnTarget(pendingPayload)
+			if targetErr != nil {
+				common.ApiError(c, targetErr)
+				return
+			}
+			if targetHost == "" || pendingPayload.BrowserBindingHash == "" || pendingPayload.ExpectedAuthVersion <= 0 || pendingPayload.ExpectedSessionVersion <= 0 {
+				c.JSON(http.StatusForbidden, gin.H{
+					"success": false,
+					"message": i18n.T(c, i18n.MsgOAuthStateInvalid),
+				})
+				return
+			}
+			consumeMatch.UserId = pendingFlow.UserId
+			consumeMatch.SessionId = pendingFlow.SessionId
+			if !active {
+				if _, err := model.ConsumeAuthFlow(state, consumeMatch); err != nil {
+					c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+					return
+				}
+				writeDomainBindReturn(c, targetHost, providerName, "target_unavailable", i18n.T(c, i18n.MsgOAuthStateInvalid))
+				return
+			}
+			if _, _, err := service.ValidateLoginSession(service.AuthIdentity{
+				UserID:          pendingFlow.UserId,
+				SessionID:       pendingFlow.SessionId,
+				UserAuthVersion: pendingPayload.ExpectedAuthVersion,
+				SessionVersion:  pendingPayload.ExpectedSessionVersion,
+			}); err != nil {
+				if _, consumeErr := model.ConsumeAuthFlow(state, consumeMatch); consumeErr != nil {
+					c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+					return
+				}
+				writeDomainBindReturn(c, targetHost, providerName, "failed", i18n.T(c, i18n.MsgOAuthStateInvalid))
+				return
+			}
+			deferDomainBind = true
+		} else {
+			if !ok || identity.UserID != pendingFlow.UserId || identity.SessionID != pendingFlow.SessionId {
+				c.JSON(http.StatusForbidden, gin.H{
+					"success": false,
+					"message": i18n.T(c, i18n.MsgOAuthStateInvalid),
+				})
+				return
+			}
+			consumeMatch.UserId = identity.UserID
+			consumeMatch.SessionId = identity.SessionID
 		}
-		consumeMatch.UserId = identity.UserID
-		consumeMatch.SessionId = identity.SessionID
 	} else if pendingFlow.Intent != model.AuthFlowIntentLogin {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -141,20 +248,34 @@ func HandleOAuth(c *gin.Context) {
 
 	// 3. Check if provider is enabled
 	if !provider.IsEnabled() {
-		common.ApiErrorI18n(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName()))
+		handleOAuthFlowMessage(
+			c,
+			i18n.T(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName())),
+			pendingFlow.Intent,
+			pendingPayload,
+			providerName,
+		)
 		return
 	}
 
 	// 4. Handle error from provider
 	errorCode := c.Query("error")
 	if errorCode != "" {
-		if _, err := model.ConsumeAuthFlow(state, consumeMatch); err != nil {
+		flow, err := model.ConsumeAuthFlow(state, consumeMatch)
+		if err != nil {
 			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
 			return
 		}
 		errorDescription := c.Query("error_description")
 		if errorDescription == "" {
 			errorDescription = errorCode
+		}
+		result := "failed"
+		if errorCode == "access_denied" {
+			result = "cancelled"
+		}
+		if writeOAuthFlowFailure(c, flow.Intent, pendingPayload, providerName, result, errorDescription) {
+			return
 		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -163,7 +284,7 @@ func HandleOAuth(c *gin.Context) {
 		return
 	}
 	if pendingFlow.Intent == model.AuthFlowIntentBind {
-		handleOAuthBind(c, provider, pendingFlow, state)
+		handleOAuthBind(c, provider, pendingFlow, state, pendingPayload, deferDomainBind)
 		return
 	}
 
@@ -171,14 +292,14 @@ func HandleOAuth(c *gin.Context) {
 	code := c.Query("code")
 	token, err := provider.ExchangeToken(c.Request.Context(), code, c)
 	if err != nil {
-		handleOAuthError(c, err)
+		handleOAuthFlowError(c, err, pendingFlow.Intent, pendingPayload, providerName)
 		return
 	}
 
 	// 6. Get user info
 	oauthUser, err := provider.GetUserInfo(c.Request.Context(), token)
 	if err != nil {
-		handleOAuthError(c, err)
+		handleOAuthFlowError(c, err, pendingFlow.Intent, pendingPayload, providerName)
 		return
 	}
 	flow, err := model.ConsumeAuthFlow(state, consumeMatch)
@@ -193,28 +314,34 @@ func HandleOAuth(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	user, err := findOrCreateOAuthUser(c, provider, oauthUser, payload.AffiliateCode)
+	user, err := findOrCreateOAuthUser(c, provider, oauthUser, payload.AffiliateCode, payload.DomainID)
 	if err != nil {
+		message := err.Error()
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {
-			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
-			return
+			message = i18n.T(c, i18n.MsgUserEmailAlreadyTaken)
+		} else {
+			switch err.(type) {
+			case *OAuthUserDeletedError:
+				message = i18n.T(c, i18n.MsgOAuthUserDeleted)
+			case *OAuthRegistrationDisabledError:
+				message = i18n.T(c, i18n.MsgUserRegisterDisabled)
+			case *OAuthEmailAlreadyTakenError:
+				message = i18n.T(c, i18n.MsgUserEmailAlreadyTaken)
+			}
 		}
-		switch err.(type) {
-		case *OAuthUserDeletedError:
-			common.ApiErrorI18n(c, i18n.MsgOAuthUserDeleted)
-		case *OAuthRegistrationDisabledError:
-			common.ApiErrorI18n(c, i18n.MsgUserRegisterDisabled)
-		case *OAuthEmailAlreadyTakenError:
-			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
-		default:
-			common.ApiError(c, err)
-		}
+		handleOAuthFlowMessage(c, message, pendingFlow.Intent, payload, providerName)
 		return
 	}
 
 	// 8. Check user status
 	if user.Status != common.UserStatusEnabled {
-		common.ApiErrorI18n(c, i18n.MsgOAuthUserBanned)
+		handleOAuthFlowMessage(c, i18n.T(c, i18n.MsgOAuthUserBanned), pendingFlow.Intent, payload, providerName)
+		return
+	}
+	if issued, err := issueDomainLoginHandoff(c, user.Id, providerName, payload); err != nil {
+		handleOAuthFlowError(c, err, pendingFlow.Intent, payload, providerName)
+		return
+	} else if issued {
 		return
 	}
 
@@ -223,33 +350,61 @@ func HandleOAuth(c *gin.Context) {
 }
 
 // handleOAuthBind handles binding OAuth account to existing user
-func handleOAuthBind(c *gin.Context, provider oauth.Provider, pendingFlow *model.AuthFlow, flowToken string) {
+func handleOAuthBind(c *gin.Context, provider oauth.Provider, pendingFlow *model.AuthFlow, flowToken string, statePayload oauthFlowPayload, deferDomainBind bool) {
 	// Exchange code for token
 	code := c.Query("code")
 	token, err := provider.ExchangeToken(c.Request.Context(), code, c)
 	if err != nil {
-		handleOAuthError(c, err)
+		handleOAuthFlowError(c, err, pendingFlow.Intent, statePayload, pendingFlow.Provider)
 		return
 	}
 
 	// Get user info
 	oauthUser, err := provider.GetUserInfo(c.Request.Context(), token)
 	if err != nil {
-		handleOAuthError(c, err)
+		handleOAuthFlowError(c, err, pendingFlow.Intent, statePayload, pendingFlow.Provider)
 		return
 	}
 
 	// Check if this OAuth account is already bound (check both new ID and legacy ID)
 	if provider.IsUserIDTaken(oauthUser.ProviderUserID) {
-		common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
+		handleOAuthFlowMessage(
+			c,
+			i18n.T(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName())),
+			pendingFlow.Intent,
+			statePayload,
+			pendingFlow.Provider,
+		)
 		return
 	}
 	// Also check legacy ID to prevent duplicate bindings during migration period
 	if legacyID, ok := oauthUser.Extra["legacy_id"].(string); ok && legacyID != "" {
 		if provider.IsUserIDTaken(legacyID) {
-			common.ApiErrorI18n(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName()))
+			handleOAuthFlowMessage(
+				c,
+				i18n.T(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName())),
+				pendingFlow.Intent,
+				statePayload,
+				pendingFlow.Provider,
+			)
 			return
 		}
+	}
+	if deferDomainBind {
+		if _, err := model.ConsumeAuthFlow(flowToken, model.AuthFlowMatch{
+			Purpose:   model.AuthFlowPurposeOAuth,
+			Provider:  pendingFlow.Provider,
+			Intent:    model.AuthFlowIntentBind,
+			UserId:    pendingFlow.UserId,
+			SessionId: pendingFlow.SessionId,
+		}); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+			return
+		}
+		if err := issueDomainBindHandoff(c, provider, oauthUser, pendingFlow, statePayload); err != nil {
+			handleOAuthFlowError(c, err, pendingFlow.Intent, statePayload, pendingFlow.Provider)
+		}
+		return
 	}
 
 	if _, err := model.ConsumeAuthFlow(flowToken, model.AuthFlowMatch{
@@ -289,7 +444,7 @@ func handleOAuthBind(c *gin.Context, provider oauth.Provider, pendingFlow *model
 }
 
 // findOrCreateOAuthUser finds existing user or creates new user
-func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser, affiliateCode string) (*model.User, error) {
+func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *oauth.OAuthUser, affiliateCode string, domainID int64) (*model.User, error) {
 	user := &model.User{}
 
 	// Check if user already exists with new ID
@@ -362,10 +517,11 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	user.Status = common.UserStatusEnabled
 
 	// Handle affiliate code
-	inviterId := 0
-	if affiliateCode != "" {
-		inviterId, _ = model.GetUserIdByAffCode(affiliateCode)
+	inviterId, err := service.ResolveRegistrationInviter(affiliateCode, domainID)
+	if err != nil {
+		return nil, err
 	}
+	user.InviterId = inviterId
 
 	// Use transaction to ensure user creation and OAuth binding are atomic
 	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
@@ -447,20 +603,29 @@ func (e *OAuthEmailAlreadyTakenError) Error() string {
 	return "email is already in use"
 }
 
-// handleOAuthError handles OAuth errors and returns translated message
-func handleOAuthError(c *gin.Context, err error) {
+func handleOAuthFlowError(c *gin.Context, err error, intent string, statePayload oauthFlowPayload, provider string) {
+	handleOAuthFlowMessage(c, oauthErrorMessage(c, err), intent, statePayload, provider)
+}
+
+func handleOAuthFlowMessage(c *gin.Context, message, intent string, statePayload oauthFlowPayload, provider string) {
+	if writeOAuthFlowFailure(c, intent, statePayload, provider, "failed", message) {
+		return
+	}
+	common.ApiErrorMsg(c, message)
+}
+
+func oauthErrorMessage(c *gin.Context, err error) string {
 	switch e := err.(type) {
 	case *oauth.OAuthError:
 		if e.Params != nil {
-			common.ApiErrorI18n(c, e.MsgKey, e.Params)
-		} else {
-			common.ApiErrorI18n(c, e.MsgKey)
+			return i18n.T(c, e.MsgKey, e.Params)
 		}
+		return i18n.T(c, e.MsgKey)
 	case *oauth.AccessDeniedError:
-		common.ApiErrorMsg(c, e.Message)
+		return e.Message
 	case *oauth.TrustLevelError:
-		common.ApiErrorI18n(c, i18n.MsgOAuthTrustLevelLow)
+		return i18n.T(c, i18n.MsgOAuthTrustLevelLow)
 	default:
-		common.ApiError(c, err)
+		return err.Error()
 	}
 }

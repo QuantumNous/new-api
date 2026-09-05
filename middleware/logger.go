@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"net/url"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
@@ -35,7 +36,27 @@ func SetUpLogger(server *gin.Engine) {
 			param.Latency,
 			param.ClientIP,
 			param.Method,
-			param.Path,
+			redactCustomDomainCallbackLogPath(param.Path),
 		)
 	}))
+}
+
+func redactCustomDomainCallbackLogPath(rawPath string) string {
+	parsed, err := url.ParseRequestURI(rawPath)
+	if err != nil {
+		return rawPath
+	}
+	switch parsed.Path {
+	case "/api/stripe/return", "/api/user/epay/return", "/api/reset_password/return", "/user/reset":
+	default:
+		return rawPath
+	}
+	query := parsed.Query()
+	for _, key := range []string{"trade_no", "out_trade_no", "sign", "email", "token", "context"} {
+		if query.Has(key) {
+			query.Set(key, "[REDACTED]")
+		}
+	}
+	parsed.RawQuery = query.Encode()
+	return parsed.RequestURI()
 }

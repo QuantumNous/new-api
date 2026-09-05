@@ -145,7 +145,7 @@ func Login(c *gin.Context) {
 // loginMethodFromContext 根据请求路径推导登录方式，用于登录审计日志。
 func loginMethodFromContext(c *gin.Context) string {
 	switch c.FullPath() {
-	case "/api/user/login":
+	case "/api/user/login", "/api/user/register":
 		return "password"
 	case "/api/user/login/2fa":
 		return "2fa"
@@ -167,14 +167,22 @@ func loginMethodFromContext(c *gin.Context) string {
 
 // recordLoginAudit 记录登录成功审计日志（对所有用户启用，仅记录成功，不记录失败）。
 func recordLoginAudit(user *model.User, c *gin.Context) {
-	method := loginMethodFromContext(c)
+	recordLoginAuditWithMethod(user.Id, user.Username, loginMethodFromContext(c), c)
+}
+
+func recordLoginAuditByUserID(userID int, method string, c *gin.Context) {
+	username, _ := model.GetUsernameById(userID, false)
+	recordLoginAuditWithMethod(userID, username, method, c)
+}
+
+func recordLoginAuditWithMethod(userID int, username, method string, c *gin.Context) {
 	ip := c.ClientIP()
 	extra := map[string]interface{}{
 		"login_method": method,
 		"user_agent":   c.Request.UserAgent(),
 	}
 	content := fmt.Sprintf("Logged in successfully via %s", method)
-	model.RecordLoginLog(user.Id, user.Username, content, ip, "login", map[string]interface{}{
+	model.RecordLoginLog(userID, username, content, ip, "login", map[string]interface{}{
 		"method": method,
 	}, extra)
 }
@@ -216,6 +224,12 @@ func setupLoginAtAuthVersion(user *model.User, expectedAuthVersion int64, c *gin
 		writeAuthSessionError(c, err)
 		return
 	}
+	completeLogin(currentUser, bundle, c)
+}
+
+// completeLogin publishes a successfully created session using the shared
+// cookie, audit and safe dashboard-user response contract.
+func completeLogin(user *model.User, bundle *service.AuthBundle, c *gin.Context) {
 	model.UpdateUserLastLoginAt(user.Id)
 	service.WriteRefreshCookie(c, bundle.RefreshToken)
 	setAuthNoStore(c)
@@ -228,7 +242,7 @@ func setupLoginAtAuthVersion(user *model.User, expectedAuthVersion int64, c *gin
 			"token_type":        bundle.TokenType,
 			"access_expires_at": bundle.AccessExpiresAt,
 			"session":           bundle.Session,
-			"user":              buildSelfUserData(currentUser),
+			"user":              buildSelfUserData(user),
 		},
 	})
 }
@@ -291,7 +305,11 @@ func Register(c *gin.Context) {
 		return
 	}
 	affCode := user.AffCode // this code is the inviter's code, not the user's own code
-	inviterId, _ := model.GetUserIdByAffCode(affCode)
+	inviterId, err := resolveRequestRegistrationInviter(c, affCode)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
@@ -344,6 +362,17 @@ func Register(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgCreateDefaultTokenErr)
 			return
 		}
+	}
+
+	if common.PasswordLoginEnabled && middleware.SessionCookieOriginAllowed(c) {
+		bundle, err := service.CreateLoginSession(insertedUser.Id, loginMethodFromContext(c), c.ClientIP(), c.Request.UserAgent())
+		if err == nil {
+			completeLogin(&insertedUser, bundle, c)
+			return
+		}
+		// The account already exists. Keep registration successful so the
+		// client can direct the user to sign in instead of registering again.
+		logger.LogError(c.Request.Context(), fmt.Sprintf("registration auto-login failed for user %d: %v", insertedUser.Id, err))
 	}
 
 	c.JSON(http.StatusOK, gin.H{

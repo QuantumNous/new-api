@@ -21,6 +21,7 @@ type WebAssets struct {
 
 func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.HandlerFunc) {
 	frontendFS := common.EmbedFolder(assets.BuildFS, "web/dist")
+	router.GET("/oauth/handoff", middleware.RouteTag("web"), controller.DomainOAuthHandoffBridge)
 
 	router.NoRoute(
 		pluginDispatcher,

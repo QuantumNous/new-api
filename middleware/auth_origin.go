@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,12 +18,7 @@ import (
 // relay routes.
 func SessionCookieOriginGuard() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !common.SessionCookieSecure {
-			c.Next()
-			return
-		}
-		origin, ok := requestBrowserOrigin(c.Request)
-		if !ok || !isAllowedSessionOrigin(c.Request, origin) {
+		if !SessionCookieOriginAllowed(c) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"success": false,
 				"code":    "AUTH_ORIGIN_FORBIDDEN",
@@ -32,6 +28,18 @@ func SessionCookieOriginGuard() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// SessionCookieOriginAllowed applies the shared browser-origin policy without
+// writing a response. Registration uses it to offer automatic login only when
+// the request is allowed to establish a cookie session. Insecure development
+// mode retains the same compatibility policy as refresh/logout.
+func SessionCookieOriginAllowed(c *gin.Context) bool {
+	if !common.SessionCookieSecure {
+		return true
+	}
+	origin, ok := requestBrowserOrigin(c.Request)
+	return ok && isAllowedSessionOrigin(c, origin)
 }
 
 func requestBrowserOrigin(request *http.Request) (string, bool) {
@@ -58,7 +66,14 @@ func requestBrowserOrigin(request *http.Request) (string, bool) {
 	return origin, err == nil
 }
 
-func isAllowedSessionOrigin(request *http.Request, origin string) bool {
+func isAllowedSessionOrigin(c *gin.Context, origin string) bool {
+	if domainContext, found := GetCustomDomainContext(c); found &&
+		(domainContext.Kind == service.CustomDomainKindCustom || domainContext.IsWildcardMain) {
+		expectedOrigin := "https://" + domainContext.Host
+		return subtle.ConstantTimeCompare([]byte(origin), []byte(expectedOrigin)) == 1
+	}
+
+	request := c.Request
 	requestScheme := "http"
 	if request.TLS != nil {
 		requestScheme = "https"

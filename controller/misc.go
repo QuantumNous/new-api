@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -49,6 +50,10 @@ func GetStatus(c *gin.Context) {
 
 	passkeySetting := system_setting.GetPasskeySettings()
 	legalSetting := system_setting.GetLegalSettings()
+	domainKind := service.CustomDomainKindMain
+	if domainContext, found := middleware.GetCustomDomainContext(c); found {
+		domainKind = domainContext.Kind
+	}
 
 	data := gin.H{
 		"version":                     common.Version,
@@ -114,7 +119,7 @@ func GetStatus(c *gin.Context) {
 		"oidc_client_id":              system_setting.GetOIDCSettings().ClientId,
 		"oidc_authorization_endpoint": system_setting.GetOIDCSettings().AuthorizationEndpoint,
 		"oidc_display_name":           system_setting.GetOIDCSettings().GetEffectiveDisplayName(),
-		"passkey_login":               passkeySetting.Enabled,
+		"passkey_login":               passkeyLoginEnabledForDomain(domainKind, passkeySetting.Enabled),
 		"passkey_display_name":        passkeySetting.RPDisplayName,
 		"passkey_rp_id":               passkeySetting.RPID,
 		"passkey_origins":             passkeySetting.Origins,
@@ -310,7 +315,7 @@ func SendPasswordResetEmail(c *gin.Context) {
 	if _, err := model.GetUniqueUserByEmail(email); err == nil {
 		code := common.GenerateVerificationCode(0)
 		common.RegisterVerificationCodeWithKey(email, code, common.PasswordResetPurpose)
-		link := fmt.Sprintf("%s/user/reset?email=%s&token=%s", system_setting.ServerAddress, email, code)
+		link := passwordResetEmailLink(c, email, code)
 		subject := fmt.Sprintf("%s密码重置", common.SystemName)
 		content := fmt.Sprintf("<p>您好，你正在进行%s密码重置。</p>"+
 			"<p>点击 <a href='%s'>此处</a> 进行密码重置。</p>"+
