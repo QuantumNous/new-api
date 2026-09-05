@@ -279,7 +279,7 @@ export function ModelMutateDrawer({
   })
 
   // Fetch system options for ratio configuration
-  const { data: systemOptionsData } = useSystemOptions()
+  const { data: systemOptionsData } = useSystemOptions({ enabled: open })
 
   const updateOption = useUpdateOption()
 

@@ -20,11 +20,12 @@ import { useQuery } from '@tanstack/react-query'
 
 import { getSystemOptions } from '../api'
 
-export function useSystemOptions() {
+export function useSystemOptions(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['system-options'],
     queryFn: getSystemOptions,
     staleTime: 5 * 60 * 1000,
+    enabled: options?.enabled,
   })
 }
 
