@@ -5538,6 +5538,8 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Multi-Key Auto Recovery": "Récupération automatique multi-clés",
+    "After the channel is auto-disabled, channel tests probe each auto-disabled key and restore the keys that are available again. Manually disabled keys are not tested. One check may make multiple upstream requests.": "Après la désactivation automatique du canal, les tests vérifient chaque clé désactivée automatiquement et rétablissent celles qui sont de nouveau disponibles. Les clés désactivées manuellement ne sont pas testées. Une vérification peut générer plusieurs requêtes en amont."
   }
 }

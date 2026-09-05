@@ -5538,6 +5538,8 @@
     "Zero retention": "Без хранения данных",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Multi-Key Auto Recovery": "Автовосстановление нескольких ключей",
+    "After the channel is auto-disabled, channel tests probe each auto-disabled key and restore the keys that are available again. Manually disabled keys are not tested. One check may make multiple upstream requests.": "После автоматического отключения канала тесты проверяют каждый автоматически отключённый ключ и восстанавливают снова доступные ключи. Отключённые вручную ключи не тестируются. Одна проверка может создать несколько запросов к вышестоящему сервису."
   }
 }
