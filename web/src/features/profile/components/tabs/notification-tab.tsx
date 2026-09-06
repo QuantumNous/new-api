@@ -125,7 +125,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       } else {
         toast.error(response.message || t('Failed to update settings'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to update settings'))
     } finally {
       setLoading(false)
@@ -135,204 +135,33 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
   const notifyType = normalizeNotifyType(settings.notify_type)
 
   return (
-    <div className='space-y-4 sm:space-y-6'>
-      {/* Notification Type */}
-      <div className='space-y-2.5'>
-        <Label>{t('Notification Method')}</Label>
-        <ToggleGroup
-          value={[notifyType]}
-          onValueChange={(value) => {
-            const nextValue = value.find((item) => item !== notifyType)
-            if (nextValue)
-              updateField('notify_type', normalizeNotifyType(nextValue))
-          }}
-          aria-label={t('Notification Method')}
-          variant='outline'
-          size='lg'
-          spacing={2}
-          className='grid w-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3'
-        >
-          {NOTIFICATION_METHODS.map((method) => {
-            const Icon = NOTIFICATION_ICONS[method.value]
-            return (
-              <ToggleGroupItem
-                key={method.value}
-                value={method.value}
-                className='h-auto min-h-14 w-full flex-col gap-1.5 px-3 py-3 sm:min-h-16'
-              >
-                <Icon className='h-4 w-4 sm:h-5 sm:w-5' />
-                <span className='max-w-full truncate text-xs font-medium sm:text-sm'>
-                  {t(method.label)}
-                </span>
-              </ToggleGroupItem>
-            )
-          })}
-        </ToggleGroup>
-      </div>
-
-      {/* Warning Threshold */}
-      <div className='space-y-1.5'>
-        <Label htmlFor='threshold'>{t('Quota Warning Threshold')}</Label>
-        <Input
-          id='threshold'
-          type='number'
-          className='h-9'
-          value={settings.quota_warning_threshold}
-          onChange={(e) =>
-            updateField('quota_warning_threshold', Number(e.target.value))
-          }
-          placeholder={t('Enter threshold')}
-        />
-        <p className='text-muted-foreground text-xs'>
-          {t('Get notified when balance falls below this value')}
-        </p>
-      </div>
-
-      {/* Email Settings */}
-      {notifyType === 'email' && (
-        <div className='space-y-1.5'>
-          <Label htmlFor='notifyEmail'>{t('Notification Email')}</Label>
-          <Input
-            id='notifyEmail'
-            type='email'
-            className='h-9'
-            value={settings.notification_email}
-            onChange={(e) => updateField('notification_email', e.target.value)}
-            placeholder={t('Leave empty to use account email')}
-          />
+    <div className='flex flex-col space-y-4 sm:space-y-6'>
+      {/* Notification Content */}
+      <div className='order-2 space-y-3'>
+        <div>
+          <h4 className='text-sm font-medium'>{t('Notification Content')}</h4>
+          <p className='text-muted-foreground mt-1 text-xs'>
+            {t('Choose which events should send notifications.')}
+          </p>
         </div>
-      )}
 
-      {/* Webhook Settings */}
-      {notifyType === 'webhook' && (
-        <>
-          <div className='space-y-1.5'>
-            <Label htmlFor='webhookUrl'>{t('Webhook URL')}</Label>
-            <Input
-              id='webhookUrl'
-              type='url'
-              className='h-9'
-              value={settings.webhook_url}
-              onChange={(e) => updateField('webhook_url', e.target.value)}
-              placeholder={t('https://example.com/webhook')}
-            />
-          </div>
-          <div className='space-y-1.5'>
-            <Label htmlFor='webhookSecret'>{t('Webhook Secret')}</Label>
-            <PasswordInput
-              id='webhookSecret'
-              value={settings.webhook_secret}
-              onChange={(e) => updateField('webhook_secret', e.target.value)}
-              placeholder={t('Enter secret key')}
-            />
-          </div>
-        </>
-      )}
-
-      {/* Bark Settings */}
-      {notifyType === 'bark' && (
         <div className='space-y-1.5'>
-          <Label htmlFor='barkUrl'>{t('Bark Push URL')}</Label>
+          <Label htmlFor='threshold'>{t('Quota Warning Threshold')}</Label>
           <Input
-            id='barkUrl'
-            type='url'
+            id='threshold'
+            type='number'
             className='h-9'
-            value={settings.bark_url}
-            onChange={(e) => updateField('bark_url', e.target.value)}
-            placeholder={t('https://api.day.app/yourkey/{{title}}/{{content}}')}
+            value={settings.quota_warning_threshold}
+            onChange={(e) =>
+              updateField('quota_warning_threshold', Number(e.target.value))
+            }
+            placeholder={t('Enter threshold')}
           />
           <p className='text-muted-foreground text-xs'>
-            {t('Template variables:')} {'{{title}}'}, {'{{content}}'}
-          </p>
-        </div>
-      )}
-
-      {/* Gotify Settings */}
-      {notifyType === 'gotify' && (
-        <>
-          <div className='space-y-1.5'>
-            <Label htmlFor='gotifyUrl'>{t('Gotify Server URL')}</Label>
-            <Input
-              id='gotifyUrl'
-              type='url'
-              className='h-9'
-              value={settings.gotify_url}
-              onChange={(e) => updateField('gotify_url', e.target.value)}
-              placeholder={t('https://gotify.example.com')}
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t('Enter the full URL of your Gotify server')}
-            </p>
-          </div>
-          <div className='space-y-1.5'>
-            <Label htmlFor='gotifyToken'>{t('Gotify Application Token')}</Label>
-            <PasswordInput
-              id='gotifyToken'
-              value={settings.gotify_token}
-              onChange={(e) => updateField('gotify_token', e.target.value)}
-              placeholder={t('Enter application token')}
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t('Token obtained from your Gotify application')}
-            </p>
-          </div>
-          <div className='space-y-1.5'>
-            <Label htmlFor='gotifyPriority'>{t('Message Priority')}</Label>
-            <Input
-              id='gotifyPriority'
-              type='number'
-              className='h-9'
-              min='0'
-              max='10'
-              value={settings.gotify_priority}
-              onChange={(e) =>
-                updateField('gotify_priority', Number(e.target.value))
-              }
-              placeholder='5'
-            />
-            <p className='text-muted-foreground text-xs'>
-              {t(
-                'Priority level from 0 (lowest) to 10 (highest), default is 5'
-              )}
-            </p>
-          </div>
-          <div className='bg-muted/50 rounded-lg border p-3 sm:p-4'>
-            <h5 className='mb-1.5 text-sm font-medium sm:mb-2'>
-              {t('Setup Instructions')}
-            </h5>
-            <ol className='text-muted-foreground space-y-1 text-xs'>
-              <li>{t('1. Create an application in your Gotify server')}</li>
-              <li>{t('2. Copy the application token')}</li>
-              <li>{t('3. Enter your Gotify server URL and token above')}</li>
-            </ol>
-            <p className='text-muted-foreground mt-3 text-xs'>
-              {t('Learn more:')}{' '}
-              <a
-                href='https://gotify.net/'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='text-primary underline underline-offset-4'
-              >
-                {t('Gotify Documentation')}
-              </a>
-            </p>
-          </div>
-        </>
-      )}
-
-      {/* Divider */}
-      <div className='border-t' />
-
-      {/* Preferences Section */}
-      <div className='space-y-3'>
-        <div>
-          <h4 className='text-sm font-medium'>{t('Preferences')}</h4>
-          <p className='text-muted-foreground mt-1 text-xs'>
-            {t('Configure your account behavior preferences')}
+            {t('Get notified when balance falls below this value')}
           </p>
         </div>
 
-        {/* Receive Upstream Model Update Notifications (admin only) */}
         {isAdmin && (
           <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
             <div className='space-y-0.5'>
@@ -355,6 +184,209 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
             />
           </div>
         )}
+
+        <p className='text-muted-foreground rounded-lg border border-dashed p-3 text-xs'>
+          {t(
+            'Channel status and channel test notifications are system-managed and sent to the root administrator.'
+          )}
+        </p>
+      </div>
+
+      <div className='order-3 border-t' />
+
+      {/* Notification Channel */}
+      <div className='order-1 space-y-3'>
+        <div>
+          <h4 className='text-sm font-medium'>{t('Notification Channel')}</h4>
+          <p className='text-muted-foreground mt-1 text-xs'>
+            {t('Choose how enabled notification events should be delivered.')}
+          </p>
+        </div>
+
+        <div className='space-y-2.5'>
+          <Label>{t('Notification Method')}</Label>
+          <ToggleGroup
+            value={[notifyType]}
+            onValueChange={(value) => {
+              const nextValue = value.find((item) => item !== notifyType)
+              if (nextValue) {
+                updateField('notify_type', normalizeNotifyType(nextValue))
+              }
+            }}
+            aria-label={t('Notification Method')}
+            variant='outline'
+            size='lg'
+            spacing={2}
+            className='grid w-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3'
+          >
+            {NOTIFICATION_METHODS.map((method) => {
+              const Icon = NOTIFICATION_ICONS[method.value]
+              return (
+                <ToggleGroupItem
+                  key={method.value}
+                  value={method.value}
+                  className='h-auto min-h-14 w-full flex-col gap-1.5 px-3 py-3 sm:min-h-16'
+                >
+                  <Icon className='h-4 w-4 sm:h-5 sm:w-5' />
+                  <span className='max-w-full truncate text-xs font-medium sm:text-sm'>
+                    {t(method.label)}
+                  </span>
+                </ToggleGroupItem>
+              )
+            })}
+          </ToggleGroup>
+        </div>
+
+        {/* Email Settings */}
+        {notifyType === 'email' && (
+          <div className='space-y-1.5'>
+            <Label htmlFor='notifyEmail'>{t('Notification Email')}</Label>
+            <Input
+              id='notifyEmail'
+              type='email'
+              className='h-9'
+              value={settings.notification_email}
+              onChange={(e) =>
+                updateField('notification_email', e.target.value)
+              }
+              placeholder={t('Leave empty to use account email')}
+            />
+          </div>
+        )}
+
+        {/* Webhook Settings */}
+        {notifyType === 'webhook' && (
+          <>
+            <div className='space-y-1.5'>
+              <Label htmlFor='webhookUrl'>{t('Webhook URL')}</Label>
+              <Input
+                id='webhookUrl'
+                type='url'
+                className='h-9'
+                value={settings.webhook_url}
+                onChange={(e) => updateField('webhook_url', e.target.value)}
+                placeholder={t('https://example.com/webhook')}
+              />
+            </div>
+            <div className='space-y-1.5'>
+              <Label htmlFor='webhookSecret'>{t('Webhook Secret')}</Label>
+              <PasswordInput
+                id='webhookSecret'
+                value={settings.webhook_secret}
+                onChange={(e) => updateField('webhook_secret', e.target.value)}
+                placeholder={t('Enter secret key')}
+              />
+            </div>
+          </>
+        )}
+
+        {/* Bark Settings */}
+        {notifyType === 'bark' && (
+          <div className='space-y-1.5'>
+            <Label htmlFor='barkUrl'>{t('Bark Push URL')}</Label>
+            <Input
+              id='barkUrl'
+              type='url'
+              className='h-9'
+              value={settings.bark_url}
+              onChange={(e) => updateField('bark_url', e.target.value)}
+              placeholder={t(
+                'https://api.day.app/yourkey/{{title}}/{{content}}'
+              )}
+            />
+            <p className='text-muted-foreground text-xs'>
+              {t('Template variables:')} {'{{title}}'}, {'{{content}}'}
+            </p>
+          </div>
+        )}
+
+        {/* Gotify Settings */}
+        {notifyType === 'gotify' && (
+          <>
+            <div className='space-y-1.5'>
+              <Label htmlFor='gotifyUrl'>{t('Gotify Server URL')}</Label>
+              <Input
+                id='gotifyUrl'
+                type='url'
+                className='h-9'
+                value={settings.gotify_url}
+                onChange={(e) => updateField('gotify_url', e.target.value)}
+                placeholder={t('https://gotify.example.com')}
+              />
+              <p className='text-muted-foreground text-xs'>
+                {t('Enter the full URL of your Gotify server')}
+              </p>
+            </div>
+            <div className='space-y-1.5'>
+              <Label htmlFor='gotifyToken'>
+                {t('Gotify Application Token')}
+              </Label>
+              <PasswordInput
+                id='gotifyToken'
+                value={settings.gotify_token}
+                onChange={(e) => updateField('gotify_token', e.target.value)}
+                placeholder={t('Enter application token')}
+              />
+              <p className='text-muted-foreground text-xs'>
+                {t('Token obtained from your Gotify application')}
+              </p>
+            </div>
+            <div className='space-y-1.5'>
+              <Label htmlFor='gotifyPriority'>{t('Message Priority')}</Label>
+              <Input
+                id='gotifyPriority'
+                type='number'
+                className='h-9'
+                min='0'
+                max='10'
+                value={settings.gotify_priority}
+                onChange={(e) =>
+                  updateField('gotify_priority', Number(e.target.value))
+                }
+                placeholder='5'
+              />
+              <p className='text-muted-foreground text-xs'>
+                {t(
+                  'Priority level from 0 (lowest) to 10 (highest), default is 5'
+                )}
+              </p>
+            </div>
+            <div className='bg-muted/50 rounded-lg border p-3 sm:p-4'>
+              <h5 className='mb-1.5 text-sm font-medium sm:mb-2'>
+                {t('Setup Instructions')}
+              </h5>
+              <ol className='text-muted-foreground space-y-1 text-xs'>
+                <li>{t('1. Create an application in your Gotify server')}</li>
+                <li>{t('2. Copy the application token')}</li>
+                <li>{t('3. Enter your Gotify server URL and token above')}</li>
+              </ol>
+              <p className='text-muted-foreground mt-3 text-xs'>
+                {t('Learn more:')}{' '}
+                <a
+                  href='https://gotify.net/'
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-primary underline underline-offset-4'
+                >
+                  {t('Gotify Documentation')}
+                </a>
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Divider */}
+      <div className='order-4 border-t' />
+
+      {/* Account Behavior Section */}
+      <div className='order-5 space-y-3'>
+        <div>
+          <h4 className='text-sm font-medium'>{t('Account Behavior')}</h4>
+          <p className='text-muted-foreground mt-1 text-xs'>
+            {t('Configure your account behavior preferences')}
+          </p>
+        </div>
 
         {/* Accept Unset Model Price */}
         <div className='flex items-start justify-between gap-3 rounded-lg border p-3 sm:items-center sm:p-4'>
@@ -394,7 +426,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       </div>
 
       {/* Save Button */}
-      <div className='flex justify-end'>
+      <div className='order-6 flex justify-end'>
         <Button onClick={handleSave} disabled={loading}>
           {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
           {loading ? t('Saving...') : t('Save Settings')}
