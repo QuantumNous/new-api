@@ -400,6 +400,13 @@ type AdminResetSubscriptionRequest struct {
 	AdvanceResetTime *bool `json:"advance_reset_time"`
 }
 
+type AdminSyncSubscriptionRequest struct {
+	SyncQuota          bool `json:"sync_quota"`
+	SyncResetPeriod    bool `json:"sync_reset_period"`
+	SyncWalletOverflow bool `json:"sync_wallet_overflow"`
+	SyncGroups         bool `json:"sync_groups"`
+}
+
 func resolveAdvanceResetTime(value *bool) bool {
 	if value == nil {
 		return true
@@ -504,6 +511,56 @@ func AdminResetPlanSubscriptions(c *gin.Context) {
 		"reset_count":        result.ResetCount,
 		"user_count":         result.UserCount,
 		"advance_reset_time": result.AdvanceResetTime,
+	})
+	common.ApiSuccess(c, result)
+}
+
+func AdminSyncPlanSubscriptions(c *gin.Context) {
+	if !requirePaymentCompliance(c) {
+		return
+	}
+	planId, _ := strconv.Atoi(c.Param("id"))
+	if planId <= 0 {
+		common.ApiErrorMsg(c, "无效的ID")
+		return
+	}
+	var req AdminSyncSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	result, err := model.AdminSyncPlanSubscriptions(planId, model.SubscriptionSyncOptions{
+		SyncQuota:          req.SyncQuota,
+		SyncResetPeriod:    req.SyncResetPeriod,
+		SyncWalletOverflow: req.SyncWalletOverflow,
+		SyncGroups:         req.SyncGroups,
+	})
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if result.UpdatedCount > 0 {
+		content := fmt.Sprintf("管理员同步订阅套餐 %s（ID: %d）配置", result.PlanTitle, result.PlanId)
+		adminInfo := auditOperatorInfo(c)
+		for _, userId := range result.UpdatedUserIds {
+			model.RecordLogWithAdminInfo(userId, model.LogTypeManage, content, adminInfo)
+		}
+	}
+	common.SysLog(fmt.Sprintf("admin synced subscription plan %d: updated_count=%d user_count=%d exhausted_count=%d group_conflict_user_count=%d",
+		result.PlanId, result.UpdatedCount, result.UserCount, result.ExhaustedCount, result.GroupConflictUserCount))
+	recordManageAudit(c, "subscription.plan_sync", map[string]interface{}{
+		"plan_id":                   result.PlanId,
+		"plan_title":                result.PlanTitle,
+		"matched_count":             result.MatchedCount,
+		"updated_count":             result.UpdatedCount,
+		"user_count":                result.UserCount,
+		"exhausted_count":           result.ExhaustedCount,
+		"group_updated_user_count":  result.GroupUpdatedUserCount,
+		"group_conflict_user_count": result.GroupConflictUserCount,
+		"sync_quota":                req.SyncQuota,
+		"sync_reset_period":         req.SyncResetPeriod,
+		"sync_wallet_overflow":      req.SyncWalletOverflow,
+		"sync_groups":               req.SyncGroups,
 	})
 	common.ApiSuccess(c, result)
 }

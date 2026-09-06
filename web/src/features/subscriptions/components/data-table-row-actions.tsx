@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { Row } from '@tanstack/react-table'
-import { Pencil, Power, PowerOff, RotateCcw } from 'lucide-react'
+import { Pencil, Power, PowerOff, RefreshCw, RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -34,25 +34,33 @@ interface DataTableRowActionsProps {
   row: Row<PlanRecord>
 }
 
-export function DataTableRowActions({ row }: DataTableRowActionsProps) {
+export function DataTableRowActions(
+  props: DataTableRowActionsProps
+): React.JSX.Element {
   const { t } = useTranslation()
+  const row = props.row
   const { setOpen, setCurrentRow, complianceConfirmed } = useSubscriptions()
   const isEnabled = row.original.plan.enabled
   const toggleLabel = isEnabled ? t('Disable') : t('Enable')
 
-  const handleEdit = () => {
+  const handleEdit = (): void => {
     setCurrentRow(row.original)
     setOpen('update')
   }
 
-  const handleToggleStatus = () => {
+  const handleToggleStatus = (): void => {
     setCurrentRow(row.original)
     setOpen('toggle-status')
   }
 
-  const handleResetSubscriptions = () => {
+  const handleResetSubscriptions = (): void => {
     setCurrentRow(row.original)
     setOpen('reset-subscriptions')
+  }
+
+  const handleSyncSubscriptions = (): void => {
+    setCurrentRow(row.original)
+    setOpen('sync-subscriptions')
   }
 
   return (
@@ -72,6 +80,23 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
           <Pencil />
         </TooltipTrigger>
         <TooltipContent>{t('Edit')}</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              disabled={!complianceConfirmed}
+              onClick={handleSyncSubscriptions}
+              aria-label={t('Sync subscription settings')}
+            />
+          }
+        >
+          <RefreshCw aria-hidden='true' />
+        </TooltipTrigger>
+        <TooltipContent>{t('Sync subscription settings')}</TooltipContent>
       </Tooltip>
 
       <Tooltip>

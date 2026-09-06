@@ -463,6 +463,8 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   // Subscriptions
   'subscription.plan_create': 'Created a subscription plan',
   'subscription.plan_update': 'Updated a subscription plan',
+  'subscription.plan_sync':
+    'Synchronized {{updated_count}} active subscriptions for plan {{plan_title}}',
   'subscription.bind': 'Bound a subscription',
   // Logs
   'log.clear': 'Cleared historical logs',

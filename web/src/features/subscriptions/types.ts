@@ -126,12 +126,29 @@ export interface ResetPlanSubscriptionsRequest {
   advance_reset_time: boolean
 }
 
+export interface SyncPlanSubscriptionsRequest {
+  sync_quota: boolean
+  sync_reset_period: boolean
+  sync_wallet_overflow: boolean
+  sync_groups: boolean
+}
+
 export interface SubscriptionResetResult {
   plan_id: number
   matched_count: number
   reset_count: number
   user_count: number
   advance_reset_time: boolean
+}
+
+export interface SubscriptionSyncResult {
+  plan_id: number
+  matched_count: number
+  updated_count: number
+  user_count: number
+  exhausted_count: number
+  group_updated_user_count: number
+  group_conflict_user_count: number
 }
 
 // ============================================================================
@@ -153,3 +170,4 @@ export type SubscriptionsDialogType =
   | 'update'
   | 'toggle-status'
   | 'reset-subscriptions'
+  | 'sync-subscriptions'

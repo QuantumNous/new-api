@@ -26,7 +26,9 @@ import type {
   CreateUserSubscriptionRequest,
   ResetUserSubscriptionsRequest,
   ResetPlanSubscriptionsRequest,
+  SyncPlanSubscriptionsRequest,
   SubscriptionResetResult,
+  SubscriptionSyncResult,
   SubscriptionPayResponse,
   SubscriptionPayRequest,
   SelfSubscriptionData,
@@ -125,6 +127,17 @@ export async function resetPlanSubscriptions(
 ): Promise<ApiResponse<SubscriptionResetResult>> {
   const res = await api.post(
     `/api/subscription/admin/plans/${planId}/subscriptions/reset`,
+    data
+  )
+  return res.data
+}
+
+export async function syncPlanSubscriptions(
+  planId: number,
+  data: SyncPlanSubscriptionsRequest
+): Promise<ApiResponse<SubscriptionSyncResult>> {
+  const res = await api.post(
+    `/api/subscription/admin/plans/${planId}/subscriptions/sync`,
     data
   )
   return res.data
