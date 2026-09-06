@@ -32,6 +32,11 @@ interface NumericSpinnerInputProps {
   disabled?: boolean
   className?: string
   label?: string
+  /** Forwarded from FormControl so label htmlFor / aria-describedby /
+   * aria-invalid land on the focusable element inside this control. */
+  id?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: boolean | 'true' | 'false'
 }
 
 export function NumericSpinnerInput({
@@ -44,6 +49,9 @@ export function NumericSpinnerInput({
   disabled = false,
   className,
   label,
+  id,
+  'aria-describedby': ariaDescribedby,
+  'aria-invalid': ariaInvalid,
 }: NumericSpinnerInputProps) {
   const [localValue, setLocalValue] = useState(String(value ?? 0))
   const [editing, setEditing] = useState(false)
@@ -168,6 +176,9 @@ export function NumericSpinnerInput({
         {editing ? (
           <input
             ref={inputRef}
+            id={id}
+            aria-describedby={ariaDescribedby}
+            aria-invalid={ariaInvalid}
             type='text'
             value={localValue}
             onChange={handleInputChange}
@@ -179,6 +190,9 @@ export function NumericSpinnerInput({
         ) : (
           <button
             type='button'
+            id={id}
+            aria-describedby={ariaDescribedby}
+            aria-invalid={ariaInvalid}
             onClick={handleStartEdit}
             disabled={disabled}
             title={localValue}

@@ -759,6 +759,7 @@ export function ChannelMutateDrawer({
   const currentForceFormat = form.watch('force_format')
   const currentThinkingToContent = form.watch('thinking_to_content')
   const currentPassThroughBodyEnabled = form.watch('pass_through_body_enabled')
+  const currentTtfbTimeout = form.watch('ttfb_timeout')
   const currentDisableTaskPollingSleep = form.watch(
     'disable_task_polling_sleep'
   )
@@ -1043,7 +1044,8 @@ export function ChannelMutateDrawer({
     currentSystemPrompt?.trim() ||
     currentSystemPromptOverride ||
     (currentHttpProtocol && currentHttpProtocol !== 'auto') ||
-    (currentHttp2ConnectionShards != null && currentHttp2ConnectionShards > 1)
+    (currentHttp2ConnectionShards != null && currentHttp2ConnectionShards > 1) ||
+    (currentTtfbTimeout != null && currentTtfbTimeout > 0)
   )
   let fieldPassthroughConfigured = false
   if (OPENAI_FIELD_PASSTHROUGH_TYPES.has(currentType)) {
@@ -4435,7 +4437,7 @@ export function ChannelMutateDrawer({
                                   </FormControl>
                                   <FormDescription>
                                     {t(
-                                      'Max seconds to wait for the first upstream data chunk before the request falls back to the next channel (streaming only). 0 disables.'
+                                      'Max seconds to wait for the first upstream data chunk before the request falls back to the next channel (streaming only). 0 uses the global TTFB_TIMEOUT default.'
                                     )}
                                   </FormDescription>
                                   <FormMessage />

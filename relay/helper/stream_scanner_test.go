@@ -336,6 +336,60 @@ func TestStreamScannerHandler_PingSentDuringSlowUpstream(t *testing.T) {
 		"expected at least 1 ping during slow stream with 1s interval; got %d", pingCount)
 }
 
+func TestStreamScannerHandler_PingSuppressedBeforeFirstChunk(t *testing.T) {
+	setting := operation_setting.GetGeneralSetting()
+	oldEnabled := setting.PingIntervalEnabled
+	oldSeconds := setting.PingIntervalSeconds
+	setting.PingIntervalEnabled = true
+	setting.PingIntervalSeconds = 1
+	t.Cleanup(func() {
+		setting.PingIntervalEnabled = oldEnabled
+		setting.PingIntervalSeconds = oldSeconds
+	})
+
+	pr, pw := io.Pipe()
+	go func() {
+		defer pw.Close()
+		// First upstream chunk is delayed well past one ping interval.
+		time.Sleep(1500 * time.Millisecond)
+		fmt.Fprint(pw, "data: chunk_0\n")
+		fmt.Fprint(pw, "data: [DONE]\n")
+	}()
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	resp := &http.Response{Body: pr}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+
+	var count atomic.Int64
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+			count.Add(1)
+			// Simulate the real relay path: the data handler forwards each
+			// chunk into the client response body.
+			fmt.Fprint(c.Writer, data+"\n")
+		})
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for stream to finish")
+	}
+
+	assert.Equal(t, int64(1), count.Load())
+
+	body := recorder.Body.String()
+	assert.Contains(t, body, "chunk_0", "upstream data chunk should be forwarded")
+	assert.NotContains(t, body, ": PING",
+		"no ping may be written before the first upstream data chunk: "+
+			"a premature ping commits the response and would break TTFB fallback")
+}
+
 func TestStreamScannerHandler_PingDisabledByRelayInfo(t *testing.T) {
 	setting := operation_setting.GetGeneralSetting()
 	oldEnabled := setting.PingIntervalEnabled
