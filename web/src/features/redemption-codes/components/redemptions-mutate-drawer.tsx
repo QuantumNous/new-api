@@ -85,7 +85,7 @@ export function RedemptionsMutateDrawer({
   const { t } = useTranslation()
   const isUpdate = !!currentRow
   const redemptionId = currentRow?.id
-  const { triggerRefresh } = useRedemptions()
+  const { triggerRefresh, setOpen, setCreatedCodes } = useRedemptions()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [redemptionLoadState, setRedemptionLoadState] = useState<
     'idle' | 'loading' | 'ready' | 'error'
@@ -182,16 +182,20 @@ export function RedemptionsMutateDrawer({
         // Create mode
         const result = await createRedemption(basePayload)
         if (result.success) {
-          const count = result.data?.length || 0
-          toast.success(
-            count > 1
-              ? t('Successfully created {{count}} redemption codes', {
-                  count,
-                })
-              : t(SUCCESS_MESSAGES.REDEMPTION_CREATED)
-          )
-          onOpenChange(false)
+          const createdKeys = result.data ?? []
           triggerRefresh()
+
+          if (createdKeys.length > 0) {
+            // Hand the drawer over to the created dialog, which reports the count
+            // and offers one-click copy. Closing through onOpenChange would clear
+            // the shared dialog state and hide it, so it is skipped here.
+            setCreatedCodes(createdKeys)
+            setOpen('created')
+            return
+          }
+
+          toast.success(t(SUCCESS_MESSAGES.REDEMPTION_CREATED))
+          onOpenChange(false)
         }
       }
     } finally {
