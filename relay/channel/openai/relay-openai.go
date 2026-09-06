@@ -142,6 +142,18 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		}
 	})
 
+	// TTFB timeout: the upstream sent response headers but never delivered the
+	// first data chunk within the configured window. Nothing has been written to
+	// the client yet (SSE headers flush with the first data), so return a
+	// channel-level error to make the relay fall back to the next channel.
+	if info.StreamStatus.EndReason == relaycommon.StreamEndReasonTTFBTimeout {
+		err := info.StreamStatus.EndError
+		if err == nil {
+			err = fmt.Errorf("first token timeout")
+		}
+		return nil, types.NewOpenAIError(err, types.ErrorCodeChannelTTFBTimeout, http.StatusBadGateway)
+	}
+
 	// 处理最后的响应
 	shouldSendLastResp := true
 	if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,

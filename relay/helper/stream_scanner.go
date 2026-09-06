@@ -87,6 +87,20 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 	streamingTimeout := time.Duration(constant.StreamingTimeout) * time.Second
 
+	// TTFB (first-token) timeout: per-channel value wins; otherwise the global
+	// TTFB_TIMEOUT env default. 0 in both = feature disabled.
+	ttfbSeconds := info.ChannelSetting.TTFBTimeoutSeconds
+	if ttfbSeconds <= 0 {
+		ttfbSeconds = common.TTFBTimeout
+	}
+	var ttfbTimer *time.Timer
+	var ttfbTimerC <-chan time.Time // nil channel disables the select branch
+	if ttfbSeconds > 0 {
+		ttfbTimer = time.NewTimer(time.Duration(ttfbSeconds) * time.Second)
+		ttfbTimerC = ttfbTimer.C
+		logger.LogDebug(c, "ttfb timeout seconds: %d", ttfbSeconds)
+	}
+
 	var (
 		stopChan    = make(chan bool, 3) // 增加缓冲区避免阻塞
 		scanner     = NewStreamScanner(resp.Body)
@@ -130,6 +144,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			}
 
 			ticker.Stop()
+			if ttfbTimer != nil {
+				ttfbTimer.Stop()
+			}
 			if pingTicker != nil {
 				pingTicker.Stop()
 			}
@@ -265,6 +282,15 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			if !strings.HasPrefix(data, "[DONE]") {
 				info.SetFirstResponseTime()
 				info.ReceivedResponseCount++
+				// First data chunk arrived: TTFB satisfied, disarm the timer.
+				if ttfbTimer != nil {
+					if !ttfbTimer.Stop() {
+						select {
+						case <-ttfbTimer.C:
+						default:
+						}
+					}
+				}
 
 				select {
 				case dataChan <- data:
@@ -293,6 +319,13 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	select {
 	case <-ticker.C:
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
+	case <-ttfbTimerC:
+		// Headers arrived but the first data chunk never did within the TTFB
+		// window. cleanup() below closes resp.Body which unblocks the scanner,
+		// then the caller sees StreamEndReasonTTFBTimeout and returns a
+		// channel-level error so the relay falls back to the next channel.
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTTFBTimeout,
+			fmt.Errorf("first token timeout: no upstream data within %d seconds", ttfbSeconds))
 	case <-stopChan:
 		// EndReason already set by the goroutine that triggered stopChan
 	case <-c.Request.Context().Done():

@@ -173,6 +173,14 @@ var RelayIdleConnTimeout int // unit is second
 // ResponseHeaderTimeout only bounds the wait for the response headers; once the
 // headers arrive, streaming is unaffected.
 var RelayResponseHeaderTimeout int // unit is second
+
+// TTFBTimeout is the global default first-token (TTFB) timeout in seconds for
+// streaming requests: once the upstream response headers have arrived, if the
+// first data chunk does not arrive within this window the request fails as a
+// channel error ("channel:ttfb_timeout") so the relay can fall back to the
+// next channel. 0 disables it. Per-channel override:
+// ChannelSettings.TTFBTimeoutSeconds (channel setting JSON field "ttfb_timeout").
+var TTFBTimeout int // unit is second
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 

@@ -24,6 +24,12 @@ type ChannelSettings struct {
 	// HTTP2ConnectionShards spreads HTTP/2 traffic across N independent transports
 	// (1-8). Zero/unset means 1. Ignored when HTTPProtocol is "http1".
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
+	// TTFBTimeoutSeconds bounds the wait for the first upstream data chunk after
+	// the response headers have arrived (streaming requests only). If the first
+	// chunk does not arrive within this window, the request fails with a
+	// channel-level error so the relay falls back to the next channel.
+	// 0 = unset for this channel; falls back to the global TTFB_TIMEOUT env.
+	TTFBTimeoutSeconds int `json:"ttfb_timeout,omitempty"`
 }
 
 const (

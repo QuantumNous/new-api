@@ -15,6 +15,7 @@ const (
 	StreamEndReasonTimeout     StreamEndReason = "timeout"
 	StreamEndReasonClientGone  StreamEndReason = "client_gone"
 	StreamEndReasonScannerErr  StreamEndReason = "scanner_error"
+	StreamEndReasonTTFBTimeout StreamEndReason = "ttfb_timeout"
 	StreamEndReasonHandlerStop StreamEndReason = "handler_stop"
 	StreamEndReasonEOF         StreamEndReason = "eof"
 	StreamEndReasonPanic       StreamEndReason = "panic"

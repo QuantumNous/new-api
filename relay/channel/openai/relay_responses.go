@@ -139,6 +139,17 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 	})
 
+	// TTFB timeout: upstream sent headers but no first data chunk within the
+	// configured window. Nothing written to the client yet, so fail with a
+	// channel-level error to trigger fallback to the next channel.
+	if info.StreamStatus.EndReason == relaycommon.StreamEndReasonTTFBTimeout {
+		err := info.StreamStatus.EndError
+		if err == nil {
+			err = fmt.Errorf("first token timeout")
+		}
+		return nil, types.NewOpenAIError(err, types.ErrorCodeChannelTTFBTimeout, http.StatusBadGateway)
+	}
+
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量
 		tempStr := responseTextBuilder.String()
