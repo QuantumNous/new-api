@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next'
 import { ModelGroupSelector } from '@/components/model-group-selector'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -43,6 +44,7 @@ import {
   type DrawingFormValues,
 } from '../lib/drawing'
 import type { DrawingRequest } from '../types'
+import { PromptTemplates } from './prompt-templates'
 import { SourceImageField } from './source-image-field'
 
 type DrawingFormProps = {
@@ -52,6 +54,7 @@ type DrawingFormProps = {
   group: string
   isLoadingModels: boolean
   isSubmitting: boolean
+  maxCount?: number
   onModelChange: (value: string) => void
   onGroupChange: (value: string) => void
   onSubmit: (request: DrawingRequest) => void
@@ -62,26 +65,32 @@ export function DrawingForm(props: DrawingFormProps) {
   const [image, setImage] = useState<File>()
   const form = useForm<DrawingFormValues>({
     resolver: zodResolver(drawingSchema),
-    defaultValues: { prompt: '', size: '1024x1024' },
+    defaultValues: { prompt: '', size: '1024x1024', count: '' },
   })
 
+  const values = form.watch()
+  const count = values.count.trim() === '' ? 1 : Number(values.count)
+  const validCount =
+    Number.isInteger(count) && count >= 1 && count <= (props.maxCount ?? 20)
+  const busy = props.isSubmitting
   const handleSubmit = (values: DrawingFormValues) => {
-    if (!props.model || !props.group) return
+    if (!props.model || !props.group || !validCount) return
     props.onSubmit({
       model: props.model,
       group: props.group,
       prompt: values.prompt,
       size: values.size,
+      count,
       image,
     })
   }
 
   return (
-    <Card className='min-h-0'>
+    <Card className='shrink-0 md:min-h-0 md:shrink'>
       <CardHeader>
         <CardTitle>{t('Creation settings')}</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className='md:min-h-0 md:overflow-y-auto'>
         <form className='grid gap-5' onSubmit={form.handleSubmit(handleSubmit)}>
           <ModelGroupSelector
             selectedModel={props.model}
@@ -90,7 +99,18 @@ export function DrawingForm(props: DrawingFormProps) {
             selectedGroup={props.group}
             groups={props.groups}
             onGroupChange={props.onGroupChange}
-            disabled={props.isLoadingModels || props.isSubmitting}
+            disabled={props.isLoadingModels || busy}
+          />
+
+          <PromptTemplates
+            value={values.prompt}
+            disabled={busy}
+            onApply={(prompt) =>
+              form.setValue('prompt', prompt, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
           />
 
           <div className='grid gap-2'>
@@ -103,7 +123,7 @@ export function DrawingForm(props: DrawingFormProps) {
                 'Describe the scene, subject, composition, and style'
               )}
               autoFocus
-              disabled={props.isSubmitting}
+              disabled={busy}
               {...form.register('prompt')}
             />
             {form.formState.errors.prompt && (
@@ -115,12 +135,12 @@ export function DrawingForm(props: DrawingFormProps) {
 
           <SourceImageField
             image={image}
-            disabled={props.isSubmitting}
+            disabled={busy}
             onImageChange={setImage}
           />
 
           <div className='grid gap-2'>
-            <Label>{t('Aspect ratio')}</Label>
+            <Label htmlFor='drawing-size'>{t('Aspect ratio')}</Label>
             <Controller
               control={form.control}
               name='size'
@@ -131,8 +151,9 @@ export function DrawingForm(props: DrawingFormProps) {
                 return (
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger
+                      id='drawing-size'
                       className='w-full'
-                      disabled={props.isSubmitting}
+                      disabled={busy}
                     >
                       <SelectValue>
                         {selected
@@ -155,11 +176,34 @@ export function DrawingForm(props: DrawingFormProps) {
             />
           </div>
 
+          <div className='grid gap-2'>
+            <Label htmlFor='drawing-count'>{t('Number of images')}</Label>
+            <Input
+              id='drawing-count'
+              type='number'
+              min={1}
+              max={props.maxCount ?? 20}
+              step={1}
+              placeholder='1'
+              disabled={busy}
+              aria-invalid={!validCount}
+              {...form.register('count')}
+            />
+            {!validCount && (
+              <p className='text-destructive text-xs' role='alert'>
+                {t('Enter a whole number from 1 to {{max}}', {
+                  max: props.maxCount ?? 20,
+                })}
+              </p>
+            )}
+          </div>
+
           <Button
             type='submit'
             size='lg'
             disabled={
-              props.isSubmitting ||
+              busy ||
+              !validCount ||
               props.isLoadingModels ||
               !props.model ||
               !props.group

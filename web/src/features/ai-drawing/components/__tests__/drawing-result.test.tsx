@@ -16,75 +16,98 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { getDrawingImage, getDrawingZip } from '../../api'
+import type { DrawingBatch } from '../../types'
 import { DrawingResult } from '../drawing-result'
 
-describe('AI drawing result panel', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
+vi.mock('../../api', () => ({
+  getDrawingImage: vi.fn(),
+  getDrawingZip: vi.fn(),
+  drawingErrorMessage: () => 'Request failed',
+}))
+const expires = Math.floor(Date.now() / 1000) + 7200
+const batch: DrawingBatch = {
+  id: 'batch-1',
+  model: 'gpt-image-2',
+  group: 'default',
+  ratio: '3:4',
+  created_at: expires - 7200,
+  expires_at: expires,
+  items: Array.from({ length: 8 }, (_, index) => ({
+    id: `image-${index}`,
+    batch_id: 'batch-1',
+    title: `Product ${index + 1}`,
+    prompt: 'Product',
+    position: index + 1,
+    status: index === 4 ? 'failed' : 'succeeded',
+    attempts: 1,
+    request_id: '',
+    error: '',
+    mime: 'image/png',
+    width: 864,
+    height: 1152,
+    expires_at: expires,
+  })),
+}
+const props = {
+  isLoading: false,
+}
+beforeEach(() => {
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:preview')
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+  vi.mocked(getDrawingImage).mockResolvedValue(
+    new Blob(['image'], { type: 'image/png' })
+  )
+  vi.mocked(getDrawingZip).mockResolvedValue(new Blob(['zip']))
+})
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.clearAllMocks()
+  vi.useRealTimers()
+})
+describe('drawing results', () => {
+  it('shows Ready before any batch exists', () => {
+    render(<DrawingResult {...props} />)
+    expect(screen.getByRole('status', { name: 'Ready' })).toBeInTheDocument()
   })
-
-  it('shows a ready state before generation starts', () => {
-    render(<DrawingResult resultUrl='' isLoading={false} />)
-
-    expect(screen.getByText('Ready')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Download' })).toBeNull()
-  })
-
-  it('shows generation progress while waiting for the provider', () => {
-    render(<DrawingResult resultUrl='' isLoading />)
-
-    expect(screen.getByText('Generating image')).toBeInTheDocument()
-  })
-
-  it('shows the generated image and a download action', () => {
-    render(
-      <DrawingResult
-        resultUrl='https://example.com/generated.png'
-        isLoading={false}
-      />
-    )
-
+  it('keeps all eight positions including a failed image, and downloads the successful images as a ZIP', async () => {
+    render(<DrawingResult {...props} batch={batch} />)
+    await waitFor(() => expect(screen.getAllByRole('img')).toHaveLength(7))
+    expect(screen.getAllByRole('button', { name: 'Download' })).toHaveLength(8)
     expect(
-      screen.getByRole('img', { name: 'Generated image' })
-    ).toHaveAttribute('src', 'https://example.com/generated.png')
-    expect(screen.getByRole('button', { name: 'Download' })).toBeEnabled()
-  })
-
-  it('downloads the generated image as a local blob', async () => {
-    const user = userEvent.setup()
-    const clickSpy = vi
+      screen.getAllByRole('button', { name: 'Download' })[4]
+    ).toBeDisabled()
+    expect(screen.queryByText('05 Product 5')).toBeNull()
+    expect(screen.queryByText(/864.*1152/)).toBeNull()
+    expect(screen.queryByRole('combobox')).toBeNull()
+    const click = vi
       .spyOn(HTMLAnchorElement.prototype, 'click')
       .mockImplementation(() => undefined)
-    const createObjectUrl = vi
-      .spyOn(URL, 'createObjectURL')
-      .mockReturnValue('blob:download')
-    const revokeObjectUrl = vi
-      .spyOn(URL, 'revokeObjectURL')
-      .mockImplementation(() => undefined)
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        blob: async () => new Blob(['image'], { type: 'image/png' }),
-      })
-    )
-    render(
-      <DrawingResult
-        resultUrl='https://example.com/generated.png'
-        isLoading={false}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Download' }))
-
-    await waitFor(() => expect(clickSpy).toHaveBeenCalledOnce())
-    expect(createObjectUrl).toHaveBeenCalledOnce()
-    expect(revokeObjectUrl).toHaveBeenCalledWith('blob:download')
+    fireEvent.click(screen.getByRole('button', { name: 'Download as ZIP' }))
+    await waitFor(() => expect(getDrawingZip).toHaveBeenCalledWith('batch-1'))
+    await waitFor(() => expect(click).toHaveBeenCalledOnce())
+  })
+  it('removes an expired preview and disables further downloads without refreshing the page', async () => {
+    vi.useFakeTimers()
+    const one: DrawingBatch = {
+      ...batch,
+      items: [
+        { ...batch.items[0], expires_at: Math.floor(Date.now() / 1000) + 2 },
+      ],
+    }
+    render(<DrawingResult {...props} batch={one} />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('img')).toBeInTheDocument()
+    await act(async () => {
+      vi.advanceTimersByTime(3000)
+    })
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Download' })).toBeNull()
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview')
   })
 })

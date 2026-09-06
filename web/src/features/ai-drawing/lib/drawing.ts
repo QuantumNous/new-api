@@ -20,14 +20,16 @@ import { z } from 'zod'
 
 import type { ModelOption } from '@/features/playground/types'
 
-import type { ImageGenerationResponse } from '../types'
-
 export const IMAGE_RATIO_OPTIONS = [
-  { size: '1792x1024', ratio: '16:9', labelKey: 'Landscape' },
-  { size: '1024x1792', ratio: '9:16', labelKey: 'Portrait' },
   { size: '1024x1024', ratio: '1:1', labelKey: 'Square' },
+  { size: '864x1152', ratio: '3:4', labelKey: 'Portrait' },
+  { size: '1536x864', ratio: '16:9', labelKey: 'Landscape' },
+  { size: '1152x864', ratio: '4:3', labelKey: 'Landscape' },
+  { size: '864x1536', ratio: '9:16', labelKey: 'Portrait' },
+  { size: '1024x1536', ratio: '2:3', labelKey: 'Portrait' },
+  { size: '1536x1024', ratio: '3:2', labelKey: 'Landscape' },
+  { size: '1792x768', ratio: '21:9', labelKey: 'Landscape' },
 ] as const
-
 const IMAGE_MODEL_HINTS = [
   'gpt-image',
   'dall-e',
@@ -38,22 +40,34 @@ const IMAGE_MODEL_HINTS = [
   'wanx',
   'jimeng',
 ]
-
 export const drawingSchema = z.object({
   prompt: z.string().trim().min(1, 'Prompt is required'),
-  size: z.enum(['1024x1024', '1024x1792', '1792x1024']),
+  size: z.enum([
+    '1024x1024',
+    '864x1152',
+    '1536x864',
+    '1152x864',
+    '864x1536',
+    '1024x1536',
+    '1536x1024',
+    '1792x768',
+  ]),
+  count: z
+    .string()
+    .refine(
+      (value) =>
+        value.trim() === '' ||
+        (/^\d+$/.test(value) && Number(value) >= 1 && Number(value) <= 100),
+      'Invalid image count'
+    ),
 })
-
 export type DrawingFormValues = z.infer<typeof drawingSchema>
-
 export function filterImageModels(models: ModelOption[]): ModelOption[] {
-  const matched = models.filter((model) => {
-    const value = model.value.toLowerCase()
-    return IMAGE_MODEL_HINTS.some((hint) => value.includes(hint))
-  })
+  const matched = models.filter((model) =>
+    IMAGE_MODEL_HINTS.some((hint) => model.value.toLowerCase().includes(hint))
+  )
   return matched.length > 0 ? matched : models
 }
-
 export function getDefaultImageModel(models: ModelOption[]): string {
   return (
     models.find((model) => model.value.toLowerCase() === 'gpt-image-2')
@@ -62,30 +76,13 @@ export function getDefaultImageModel(models: ModelOption[]): string {
     ''
   )
 }
-
-export function getDrawingResultUrl(
-  response: ImageGenerationResponse
-): string | null {
-  const image = response.data?.[0]
-  if (image?.url) return image.url
-  if (image?.b64_json) return `data:image/png;base64,${image.b64_json}`
-  return null
-}
-
-export async function downloadDrawingImage(url: string): Promise<void> {
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`image download failed with status ${response.status}`)
-  }
-
-  const blob = await response.blob()
-  const extension = blob.type === 'image/jpeg' ? 'jpg' : 'png'
-  const objectUrl = URL.createObjectURL(blob)
+export function saveDrawingBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
-  link.href = objectUrl
-  link.download = `ai-drawing.${extension}`
+  link.href = url
+  link.download = filename
   document.body.append(link)
   link.click()
   link.remove()
-  URL.revokeObjectURL(objectUrl)
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }

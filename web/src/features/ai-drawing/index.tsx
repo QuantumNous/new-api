@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -24,139 +24,137 @@ import { toast } from 'sonner'
 import { getUserGroups, getUserModels } from '@/features/playground/api'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { createDrawing } from './api'
+import {
+  createDrawing,
+  drawingErrorMessage,
+  getDrawingBatches,
+  getDrawingSettings,
+} from './api'
 import { DrawingForm } from './components/drawing-form'
 import { DrawingResult } from './components/drawing-result'
-import {
-  filterImageModels,
-  getDefaultImageModel,
-  getDrawingResultUrl,
-} from './lib/drawing'
-import {
-  loadCachedDrawingResult,
-  saveCachedDrawingResult,
-} from './lib/drawing-cache'
+import { filterImageModels, getDefaultImageModel } from './lib/drawing'
+import { clearLegacyDrawingCache } from './lib/drawing-cache'
 import type { DrawingRequest } from './types'
-
-function getRequestErrorMessage(error: unknown, fallback: string): string {
-  if (error && typeof error === 'object') {
-    const response = 'response' in error ? error.response : undefined
-    if (response && typeof response === 'object' && 'data' in response) {
-      const data = response.data as {
-        error?: { message?: string }
-        message?: string
-      }
-      return data.error?.message || data.message || fallback
-    }
-  }
-  return error instanceof Error ? error.message : fallback
-}
 
 export function AiDrawing() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const userId = useAuthStore((state) => state.auth.user?.id)
   const [group, setGroup] = useState('default')
   const [model, setModel] = useState('')
-  const [resultUrl, setResultUrl] = useState('')
-  const hasStartedGeneration = useRef(false)
-  const userId = useAuthStore((state) => state.auth.user?.id)
+  const [selectedId, setSelectedId] = useState('')
+  const pendingSubmit = useRef<{
+    signature: string
+    id: string
+    image?: File
+  } | null>(null)
   const groupsQuery = useQuery({
-    queryKey: ['ai-drawing-groups'],
+    queryKey: ['ai-drawing-groups', userId],
     queryFn: getUserGroups,
   })
   const modelsQuery = useQuery({
-    queryKey: ['ai-drawing-models', group],
+    queryKey: ['ai-drawing-models', userId, group],
     queryFn: () => getUserModels(group),
     enabled: Boolean(group),
+  })
+  const settingsQuery = useQuery({
+    queryKey: ['ai-drawing-settings', userId],
+    queryFn: getDrawingSettings,
+  })
+  const batchesQuery = useQuery({
+    queryKey: ['ai-drawing-batches', userId],
+    queryFn: getDrawingBatches,
+    enabled: Boolean(userId),
+    refetchInterval: 3000,
   })
   const groups = useMemo(() => groupsQuery.data ?? [], [groupsQuery.data])
   const models = useMemo(
     () => filterImageModels(modelsQuery.data ?? []),
     [modelsQuery.data]
   )
+  const batches = batchesQuery.data ?? []
+  const selected =
+    batches.find((batch) => batch.id === selectedId) ?? batches[0]
 
   useEffect(() => {
-    if (!userId) return
-    let cancelled = false
-    loadCachedDrawingResult(`latest:${userId}`)
-      .then((cachedUrl) => {
-        if (!cancelled && !hasStartedGeneration.current && cachedUrl) {
-          setResultUrl(cachedUrl)
-        }
-      })
-      .catch(() => undefined)
-    return () => {
-      cancelled = true
+    void clearLegacyDrawingCache().catch(() =>
+      toast.error(t('Close older drawing tabs to clear their cached images'))
+    )
+  }, [t])
+  useEffect(() => {
+    if (groups.length && !groups.some((option) => option.value === group)) {
+      setGroup(groups[0].value)
     }
-  }, [userId])
-
+  }, [groups, group])
   useEffect(() => {
-    if (groups.length === 0) return
-    if (groups.some((option) => option.value === group)) return
-    setGroup(groups[0].value)
-  }, [group, groups])
-
-  useEffect(() => {
-    if (models.length === 0) {
-      setModel('')
-      return
+    if (!models.some((option) => option.value === model)) {
+      setModel(getDefaultImageModel(models))
     }
-    if (models.some((option) => option.value === model)) return
-    setModel(getDefaultImageModel(models))
-  }, [model, models])
-
+  }, [models, model])
   useEffect(() => {
-    if (!groupsQuery.error) return
-    toast.error(getRequestErrorMessage(groupsQuery.error, t('Request failed')))
-  }, [groupsQuery.error, t])
+    const error =
+      groupsQuery.error ||
+      modelsQuery.error ||
+      settingsQuery.error ||
+      batchesQuery.error
+    if (error) toast.error(t(drawingErrorMessage(error, 'Request failed')))
+  }, [
+    groupsQuery.error,
+    modelsQuery.error,
+    settingsQuery.error,
+    batchesQuery.error,
+    t,
+  ])
 
-  useEffect(() => {
-    if (!modelsQuery.error) return
-    toast.error(getRequestErrorMessage(modelsQuery.error, t('Request failed')))
-  }, [modelsQuery.error, t])
-
-  const drawingMutation = useMutation({
+  const mutation = useMutation({
     mutationFn: async (request: DrawingRequest) => {
-      const response = await createDrawing(request)
-      const url = getDrawingResultUrl(response)
-      if (!url) {
-        throw new Error(response.error?.message || t('Empty image response'))
+      const signature = JSON.stringify({ ...request, image: undefined })
+      if (
+        !pendingSubmit.current ||
+        pendingSubmit.current.signature !== signature ||
+        pendingSubmit.current.image !== request.image
+      ) {
+        pendingSubmit.current = {
+          signature,
+          image: request.image,
+          id: crypto.randomUUID(),
+        }
       }
-      return url
+      return createDrawing(request, pendingSubmit.current.id)
     },
-    onMutate: () => {
-      hasStartedGeneration.current = true
-      setResultUrl('')
+    onSuccess: async (batch) => {
+      pendingSubmit.current = null
+      setSelectedId(batch.id)
+      await queryClient.invalidateQueries({
+        queryKey: ['ai-drawing-batches', userId],
+      })
     },
-    onSuccess: (url) => {
-      setResultUrl(url)
-      if (userId) {
-        void saveCachedDrawingResult(`latest:${userId}`, url).catch(
-          () => undefined
-        )
-      }
-    },
-    onError: (error) => {
-      toast.error(getRequestErrorMessage(error, t('Request failed')))
-    },
+    onError: (error) =>
+      toast.error(t(drawingErrorMessage(error, 'Request failed'))),
   })
-
   return (
-    <div className='mx-auto flex size-full min-h-0 max-w-[100rem] flex-col'>
-      <div className='grid min-h-0 flex-1 gap-5 md:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]'>
+    <div className='mx-auto flex size-full min-h-0 max-w-[100rem] flex-col overflow-y-auto md:overflow-visible'>
+      <div className='flex flex-col gap-5 md:grid md:min-h-0 md:flex-1 md:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]'>
         <DrawingForm
           models={models}
           groups={groups}
           model={model}
           group={group}
-          isLoadingModels={modelsQuery.isLoading || groupsQuery.isLoading}
-          isSubmitting={drawingMutation.isPending}
+          isLoadingModels={
+            modelsQuery.isLoading ||
+            groupsQuery.isLoading ||
+            settingsQuery.isLoading
+          }
+          isSubmitting={mutation.isPending}
+          maxCount={settingsQuery.data?.max_count}
           onModelChange={setModel}
           onGroupChange={setGroup}
-          onSubmit={drawingMutation.mutate}
+          onSubmit={mutation.mutate}
         />
         <DrawingResult
-          resultUrl={resultUrl}
-          isLoading={drawingMutation.isPending}
+          key={userId}
+          batch={selected}
+          isLoading={batchesQuery.isLoading}
         />
       </div>
     </div>

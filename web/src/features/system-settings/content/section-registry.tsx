@@ -107,6 +107,8 @@ const CONTENT_SECTIONS = [
       <DrawingSettingsSection
         defaultValues={{
           DrawingEnabled: settings.DrawingEnabled,
+          DrawingBatchMaxCount: settings.DrawingBatchMaxCount,
+          DrawingBatchConcurrency: settings.DrawingBatchConcurrency,
           MjNotifyEnabled: settings.MjNotifyEnabled,
           MjAccountFilterEnabled: settings.MjAccountFilterEnabled,
           MjForwardUrlEnabled: settings.MjForwardUrlEnabled,

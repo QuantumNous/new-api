@@ -21,6 +21,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DrawingForm } from '../drawing-form'
 
+vi.mock('../prompt-templates', () => ({ PromptTemplates: () => null }))
+
 const FORM_PROPS = {
   models: [{ label: 'GPT Image', value: 'gpt-image-2' }],
   groups: [{ label: 'default', value: 'default', ratio: 1 }],
@@ -41,6 +43,7 @@ describe('AI drawing form', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.clearAllMocks()
   })
 
   it('focuses the prompt when the page opens', () => {

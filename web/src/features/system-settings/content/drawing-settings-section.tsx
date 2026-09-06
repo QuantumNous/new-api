@@ -27,9 +27,11 @@ import {
   FormControl,
   FormDescription,
   FormField,
+  FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 
 import {
@@ -43,6 +45,8 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const drawingSchema = z.object({
   DrawingEnabled: z.boolean(),
+  DrawingBatchMaxCount: z.number().int().min(1).max(100),
+  DrawingBatchConcurrency: z.number().int().min(1).max(16),
   MjNotifyEnabled: z.boolean(),
   MjAccountFilterEnabled: z.boolean(),
   MjForwardUrlEnabled: z.boolean(),
@@ -81,7 +85,10 @@ export function DrawingSettingsSection({
   }
 
   const switches: Array<{
-    name: keyof DrawingFormValues
+    name: Exclude<
+      keyof DrawingFormValues,
+      'DrawingBatchMaxCount' | 'DrawingBatchConcurrency'
+    >
     label: string
     description: string
   }> = [
@@ -138,6 +145,56 @@ export function DrawingSettingsSection({
             isSaving={updateOption.isPending}
             saveLabel='Save drawing settings'
           />
+          <div className='grid gap-4 rounded-lg border p-4'>
+            <p className='font-medium'>{t('AI drawing batches')}</p>
+            <FormField
+              control={form.control}
+              name='DrawingBatchMaxCount'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Maximum images per batch')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      max={100}
+                      {...field}
+                      onChange={(event) =>
+                        field.onChange(Number(event.target.value))
+                      }
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='DrawingBatchConcurrency'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Concurrent image requests')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      max={16}
+                      {...field}
+                      onChange={(event) =>
+                        field.onChange(Number(event.target.value))
+                      }
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Global limit. Each user and channel can run up to 2 image requests at once. Images expire after 2 hours.'
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
           <div className='space-y-4'>
             {switches.map((item) => (
               <FormField

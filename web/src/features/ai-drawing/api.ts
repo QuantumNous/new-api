@@ -18,38 +18,95 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { DrawingRequest, ImageGenerationResponse } from './types'
+import { IMAGE_RATIO_OPTIONS } from './lib/drawing'
+import type {
+  DrawingBatch,
+  DrawingTemplate,
+  DrawingRequest,
+  DrawingSettings,
+} from './types'
 
+export async function getDrawingSettings(): Promise<DrawingSettings> {
+  return (await api.get('/pg/drawing/settings')).data
+}
+export async function getDrawingBatches(): Promise<DrawingBatch[]> {
+  return (await api.get('/pg/drawing/batches')).data
+}
 export async function createDrawing(
-  request: DrawingRequest
-): Promise<ImageGenerationResponse> {
-  if (!request.image) {
-    const response = await api.post(
-      '/pg/images/generations',
-      {
-        model: request.model,
-        group: request.group,
-        prompt: request.prompt,
-        size: request.size,
-        n: 1,
-        response_format: 'b64_json',
-      },
-      { skipErrorHandler: true }
-    )
-    return response.data
-  }
-
+  request: DrawingRequest,
+  submissionId: string
+): Promise<DrawingBatch> {
   const form = new FormData()
-  form.append('model', request.model)
-  form.append('group', request.group)
-  form.append('prompt', request.prompt)
-  form.append('size', request.size)
-  form.append('n', '1')
-  form.append('response_format', 'b64_json')
-  form.append('image', request.image)
-
-  const response = await api.post('/pg/images/edits', form, {
-    skipErrorHandler: true,
-  })
-  return response.data
+  form.append(
+    'request',
+    JSON.stringify({
+      submission_id: submissionId,
+      model: request.model,
+      group: request.group,
+      prompt: request.prompt,
+      ratio: IMAGE_RATIO_OPTIONS.find((option) => option.size === request.size)
+        ?.ratio,
+      count: request.count ?? 1,
+      items: request.items,
+    })
+  )
+  if (request.image) form.append('image', request.image)
+  return (
+    await api.post('/pg/drawing/batches', form, { skipErrorHandler: true })
+  ).data
+}
+export async function getDrawingTemplates(): Promise<DrawingTemplate[]> {
+  return (await api.get('/pg/drawing/templates', { skipErrorHandler: true }))
+    .data
+}
+export async function saveDrawingTemplate(template: {
+  id?: string
+  name: string
+  prompt: string
+}): Promise<DrawingTemplate> {
+  const data = { name: template.name, prompt: template.prompt }
+  if (template.id) {
+    return (
+      await api.put(`/pg/drawing/templates/${template.id}`, data, {
+        skipErrorHandler: true,
+      })
+    ).data
+  }
+  return (
+    await api.post('/pg/drawing/templates', data, { skipErrorHandler: true })
+  ).data
+}
+export async function deleteDrawingTemplate(id: string): Promise<void> {
+  await api.delete(`/pg/drawing/templates/${id}`, { skipErrorHandler: true })
+}
+export async function getDrawingImage(
+  id: string,
+  signal?: AbortSignal
+): Promise<Blob> {
+  return (
+    await api.get(`/pg/drawing/images/${id}`, {
+      responseType: 'blob',
+      disableDuplicate: true,
+      signal,
+      skipErrorHandler: true,
+    })
+  ).data
+}
+export async function getDrawingZip(id: string): Promise<Blob> {
+  return (
+    await api.get(`/pg/drawing/batches/${id}/download`, {
+      responseType: 'blob',
+      skipErrorHandler: true,
+      timeout: 120000,
+    })
+  ).data
+}
+export function drawingErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const response = error.response as {
+      data?: { error?: { message?: string }; message?: string }
+    }
+    return response?.data?.error?.message || response?.data?.message || fallback
+  }
+  return error instanceof Error ? error.message : fallback
 }

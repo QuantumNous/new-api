@@ -16,22 +16,63 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type ImageSize = '1024x1024' | '1024x1792' | '1792x1024'
-
-export type ImageGenerationResponse = {
-  data?: Array<{
-    url?: string
-    b64_json?: string
-  }>
-  error?: {
-    message?: string
-  }
-}
-
+export type ImageSize =
+  | '1024x1024'
+  | '864x1152'
+  | '1536x864'
+  | '1152x864'
+  | '864x1536'
+  | '1024x1536'
+  | '1536x1024'
+  | '1792x768'
+export type DrawingPlanItem = { id?: string; title: string; prompt: string }
 export type DrawingRequest = {
   model: string
   group: string
   prompt: string
   size: ImageSize
+  count?: number
   image?: File
+  items?: DrawingPlanItem[]
+}
+export type DrawingItem = DrawingPlanItem & {
+  id: string
+  batch_id: string
+  position: number
+  status:
+    | 'queued'
+    | 'running'
+    | 'succeeded'
+    | 'failed'
+    | 'unknown'
+    | 'storage_failed'
+    | 'recovering'
+    | 'expired'
+  attempts: number
+  request_id: string
+  error: string
+  mime: string
+  width: number
+  height: number
+  expires_at: number
+}
+export type DrawingBatch = {
+  id: string
+  model: string
+  group: string
+  ratio: string
+  created_at: number
+  expires_at: number
+  items: DrawingItem[]
+}
+export type DrawingSettings = {
+  max_count: number
+  lifetime_seconds: number
+}
+
+export type DrawingTemplate = {
+  id: string
+  name: string
+  prompt: string
+  updated_at: number
 }

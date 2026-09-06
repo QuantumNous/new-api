@@ -180,6 +180,8 @@ export type ContentSettings = {
   DataExportInterval: number
   Chats: string
   DrawingEnabled: boolean
+  DrawingBatchMaxCount: number
+  DrawingBatchConcurrency: number
   MjNotifyEnabled: boolean
   MjAccountFilterEnabled: boolean
   MjForwardUrlEnabled: boolean

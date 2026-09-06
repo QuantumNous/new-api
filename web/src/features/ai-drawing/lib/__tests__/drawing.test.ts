@@ -21,7 +21,7 @@ import { describe, expect, it } from 'vitest'
 import {
   filterImageModels,
   getDefaultImageModel,
-  getDrawingResultUrl,
+  drawingSchema,
   IMAGE_RATIO_OPTIONS,
 } from '../drawing'
 
@@ -50,29 +50,35 @@ describe('AI drawing model filtering', () => {
     expect(getDefaultImageModel(models)).toBe('gpt-image-2')
   })
 
-  it('maps friendly ratios to provider-supported pixel sizes', () => {
-    expect(IMAGE_RATIO_OPTIONS).toEqual([
-      { size: '1792x1024', ratio: '16:9', labelKey: 'Landscape' },
-      { size: '1024x1792', ratio: '9:16', labelKey: 'Portrait' },
-      { size: '1024x1024', ratio: '1:1', labelKey: 'Square' },
+  it('uses exact pixel ratios for all eight requested options', () => {
+    expect(IMAGE_RATIO_OPTIONS.map((option) => option.ratio)).toEqual([
+      '1:1',
+      '3:4',
+      '16:9',
+      '4:3',
+      '9:16',
+      '2:3',
+      '3:2',
+      '21:9',
     ])
+    for (const option of IMAGE_RATIO_OPTIONS) {
+      const [width, height] = option.size.split('x').map(Number)
+      const [rw, rh] = option.ratio.split(':').map(Number)
+      expect(width * rh).toBe(height * rw)
+    }
   })
-})
-
-describe('AI drawing response parsing', () => {
-  it('uses a provider URL when one is returned', () => {
-    expect(
-      getDrawingResultUrl({ data: [{ url: 'https://example.com/image.png' }] })
-    ).toBe('https://example.com/image.png')
-  })
-
-  it('converts base64 output into a displayable PNG data URL', () => {
-    expect(getDrawingResultUrl({ data: [{ b64_json: 'aW1hZ2U=' }] })).toBe(
-      'data:image/png;base64,aW1hZ2U='
-    )
-  })
-
-  it('returns null for an empty provider response', () => {
-    expect(getDrawingResultUrl({ data: [] })).toBeNull()
+  it('accepts blank count and integers but rejects negative, fractional and oversized counts', () => {
+    for (const count of ['', '1', '8', '16']) {
+      expect(
+        drawingSchema.safeParse({ prompt: 'Product', size: '864x1152', count })
+          .success
+      ).toBe(true)
+    }
+    for (const count of ['0', '-1', '1.5', '999999999', 'NaN']) {
+      expect(
+        drawingSchema.safeParse({ prompt: 'Product', size: '864x1152', count })
+          .success
+      ).toBe(false)
+    }
   })
 })

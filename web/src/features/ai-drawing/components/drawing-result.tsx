@@ -17,87 +17,104 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Download, ImageIcon, LoaderCircle, WandSparkles } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-import { downloadDrawingImage } from '../lib/drawing'
+import { getDrawingZip } from '../api'
+import { saveDrawingBlob } from '../lib/drawing'
+import type { DrawingBatch } from '../types'
+import { DrawingImageCard } from './drawing-image-card'
 
-type DrawingResultProps = {
-  resultUrl: string
-  isLoading: boolean
-}
-
+type DrawingResultProps = { batch?: DrawingBatch; isLoading: boolean }
 export function DrawingResult(props: DrawingResultProps) {
   const { t } = useTranslation()
-  const [isDownloading, setIsDownloading] = useState(false)
-
-  const handleDownload = async () => {
-    if (!props.resultUrl || isDownloading) return
-    setIsDownloading(true)
+  const [busy, setBusy] = useState(false)
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000))
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000)
+    return () => clearInterval(timer)
+  }, [])
+  const items = (props.batch?.items ?? []).filter(
+    (item) =>
+      item.expires_at > now ||
+      item.status === 'running' ||
+      item.status === 'recovering'
+  )
+  const succeeded = items.filter(
+    (item) => item.status === 'succeeded' && item.expires_at > now
+  ).length
+  const downloadAll = async () => {
+    if (!props.batch) return
+    setBusy(true)
     try {
-      await downloadDrawingImage(props.resultUrl)
+      saveDrawingBlob(
+        await getDrawingZip(props.batch.id),
+        `ai-drawing-${props.batch.id}.zip`
+      )
     } catch {
       toast.error(t('Download failed'))
     } finally {
-      setIsDownloading(false)
+      setBusy(false)
     }
   }
-
-  let resultContent = (
-    <div className='text-muted-foreground grid justify-items-center gap-2 text-sm'>
-      <ImageIcon className='size-9' aria-hidden='true' />
-      <span>{t('Ready')}</span>
-    </div>
-  )
-
-  if (props.isLoading) {
-    resultContent = (
-      <div className='text-muted-foreground grid justify-items-center gap-3 text-sm'>
-        <LoaderCircle className='size-8 animate-spin' aria-hidden='true' />
-        <span>{t('Generating image')}</span>
-      </div>
-    )
-  } else if (props.resultUrl) {
-    resultContent = (
-      <img
-        src={props.resultUrl}
-        alt={t('Generated image')}
-        className='max-h-full w-full object-contain'
-      />
-    )
-  }
-
   return (
-    <Card className='min-h-[22rem] md:min-h-0'>
+    <Card className='min-h-[22rem] shrink-0 md:min-h-0 md:shrink'>
       <CardHeader className='grid-cols-[1fr_auto]'>
         <CardTitle className='flex items-center gap-2'>
           <WandSparkles className='size-4' aria-hidden='true' />
           {t('Result')}
         </CardTitle>
-        {props.resultUrl && (
+        {succeeded > 0 && (
           <Button
             size='sm'
             variant='outline'
-            disabled={isDownloading}
-            onClick={handleDownload}
+            disabled={busy}
+            onClick={downloadAll}
           >
-            {isDownloading ? (
+            {busy ? (
               <LoaderCircle className='animate-spin' aria-hidden='true' />
             ) : (
               <Download aria-hidden='true' />
             )}
-            {t('Download')}
+            {t('Download as ZIP')}
           </Button>
         )}
       </CardHeader>
-      <CardContent className='flex min-h-0 flex-1'>
-        <div className='bg-muted/20 flex min-h-[18rem] flex-1 items-center justify-center overflow-hidden rounded-lg border border-dashed'>
-          {resultContent}
-        </div>
+      <CardContent className='flex min-h-0 flex-1 flex-col'>
+        {items.length === 0 ? (
+          <div
+            className='bg-muted/20 flex min-h-[18rem] flex-1 items-center justify-center rounded-lg border border-dashed'
+            role='status'
+            aria-label={t(props.isLoading ? 'Loading' : 'Ready')}
+          >
+            {props.isLoading ? (
+              <LoaderCircle
+                className='text-muted-foreground size-7 animate-spin'
+                aria-hidden='true'
+              />
+            ) : (
+              <ImageIcon
+                className='text-muted-foreground size-7'
+                aria-hidden='true'
+              />
+            )}
+          </div>
+        ) : (
+          <div className='grid min-h-0 grid-cols-2 content-start items-start gap-3 overflow-y-auto sm:grid-cols-[repeat(auto-fill,9rem)]'>
+            {items.map((item) => (
+              <DrawingImageCard
+                key={item.id}
+                item={item}
+                now={now}
+                ratio={props.batch?.ratio ?? '1:1'}
+              />
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   )

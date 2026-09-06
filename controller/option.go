@@ -141,6 +141,18 @@ func UpdateOption(c *gin.Context) {
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
+	if option.Key == "DrawingBatchMaxCount" || option.Key == "DrawingBatchConcurrency" {
+		n, err := strconv.Atoi(option.Value.(string))
+		limit := 100
+		if option.Key == "DrawingBatchConcurrency" {
+			limit = 16
+		}
+		if err != nil || n < 1 || n > limit {
+			common.ApiErrorMsg(c, "Invalid drawing limit")
+			return
+		}
+	}
+
 	switch option.Key {
 	case "QuotaForInviter", "QuotaForInvitee":
 		if isPositiveOptionValue(option.Value.(string)) && !operation_setting.IsPaymentComplianceConfirmed() {

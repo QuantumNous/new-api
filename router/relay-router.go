@@ -59,6 +59,22 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 	}
 
+	drawingRouter := router.Group("/pg/drawing")
+	drawingRouter.Use(middleware.UserAuth())
+	{
+		drawingRouter.GET("/settings", controller.DrawingSettings)
+		drawingRouter.GET("/batches", controller.ListDrawingBatches)
+		drawingRouter.POST("/batches", controller.CreateDrawingBatch)
+		drawingRouter.GET("/templates", controller.ListDrawingTemplates)
+		drawingRouter.POST("/templates", controller.SaveDrawingTemplate)
+		drawingRouter.PUT("/templates/:id", controller.SaveDrawingTemplate)
+		drawingRouter.DELETE("/templates/:id", controller.DeleteDrawingTemplate)
+		drawingRouter.GET("/batches/:id/download", controller.DownloadDrawingBatch)
+		drawingRouter.GET("/images/:id", controller.DrawingImage)
+		drawingRouter.POST("/images/:id/retry", controller.RetryDrawing)
+		drawingRouter.POST("/images/:id/recover", controller.RecoverDrawing)
+	}
+
 	playgroundRouter := router.Group("/pg")
 	playgroundRouter.Use(middleware.RouteTag("relay"))
 	playgroundRouter.Use(middleware.SystemPerformanceCheck())

@@ -38,6 +38,8 @@ const defaultContentSettings: ContentSettings = {
   DataExportInterval: 5,
   Chats: '[]',
   DrawingEnabled: false,
+  DrawingBatchMaxCount: 20,
+  DrawingBatchConcurrency: 4,
   MjNotifyEnabled: false,
   MjAccountFilterEnabled: false,
   MjForwardUrlEnabled: false,

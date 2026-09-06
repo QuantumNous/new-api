@@ -150,6 +150,10 @@ func main() {
 	// switch are enforced inside the runner and each handler's Enabled().
 	controller.RegisterScheduledSystemTasks()
 	service.StartSystemTaskRunner()
+	if err := controller.StartDrawingWorker(); err != nil {
+		common.FatalLog("failed to start drawing queue: " + err.Error())
+		return
+	}
 
 	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
 		common.BatchUpdateEnabled = true
