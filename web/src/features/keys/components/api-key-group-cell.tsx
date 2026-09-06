@@ -36,6 +36,7 @@ import {
 type ApiKeyGroupCellProps = {
   crossGroupRetry: boolean
   group: string
+  label?: string
   ratio?: GroupRatio
   shouldReduceMotion: boolean
 }
@@ -48,10 +49,14 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
     return (
       <TruncatedCell
         className='-ml-1.5'
-        tooltipContent={props.group || '-'}
+        tooltipContent={
+          props.label && props.label !== props.group
+            ? `${props.label} (${props.group})`
+            : props.group || '-'
+        }
         tooltipClassName='break-all'
       >
-        <GroupBadge group={props.group} ratio={ratio} />
+        <GroupBadge group={props.group} label={props.label} ratio={ratio} />
       </TruncatedCell>
     )
   }
@@ -66,11 +71,7 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
           />
         }
       >
-        <StatusBadge
-          label={t('Cross-group')}
-          variant='info'
-          copyable={false}
-        />
+        <StatusBadge label={t('Cross-group')} variant='info' copyable={false} />
         {/*<AutoGroupBadge shouldReduceMotion={props.shouldReduceMotion} />*/}
         <GroupRatioBadge
           ratio={props.ratio}

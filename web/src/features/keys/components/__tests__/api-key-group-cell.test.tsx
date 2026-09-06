@@ -42,6 +42,7 @@ await i18n.use(initReactI18next).init({
 
 function CellHarness(props: {
   group: string
+  label?: string
   ratio?: number | string
   crossGroupRetry?: boolean
   shouldReduceMotion?: boolean
@@ -51,6 +52,7 @@ function CellHarness(props: {
       <TooltipProvider>
         <ApiKeyGroupCell
           group={props.group}
+          label={props.label}
           ratio={props.ratio}
           crossGroupRetry={props.crossGroupRetry ?? false}
           shouldReduceMotion={props.shouldReduceMotion ?? false}
@@ -61,6 +63,16 @@ function CellHarness(props: {
 }
 
 describe('API key group table cell', () => {
+  test('renders the display name for a stable group identifier', () => {
+    const { container } = render(
+      <CellHarness group='stable-id' label='Stable group' ratio={2} />
+    )
+
+    expect(container).toHaveTextContent('Stable group')
+    expect(container).not.toHaveTextContent('stable-id')
+    expect(container).toHaveTextContent('2x')
+  })
+
   test('renders an unclipped ring and a localized Auto ratio when API data uses a nonlocalized string', () => {
     const { container } = render(
       <CellHarness
