@@ -197,6 +197,10 @@ func TestGeneralOpenAIRequestGetSystemRoleName(t *testing.T) {
 		{name: "gpt 5 uses developer", model: "gpt-5", want: "developer"},
 		{name: "gpt 5.6 uses developer", model: "gpt-5.6-luna", want: "developer"},
 		{name: "gpt 6 uses developer", model: "gpt-6-astra", want: "developer"},
+		{name: "gpt 6 snapshot uses developer", model: "gpt-6-astra-2026-09-03", want: "developer"},
+		{name: "unknown gpt 6 variant stays system", model: "gpt-6-astra-pro", want: "system"},
+		{name: "invalid gpt 6 snapshot stays system", model: "gpt-6-astra-2026-99-03", want: "system"},
+		{name: "unknown generation stays system", model: "gpt-7", want: "system"},
 		{name: "gpt 4.1 stays system", model: "gpt-4.1-nano", want: "system"},
 		{name: "omni is not o series", model: "omni-moderation-latest", want: "system"},
 	}
@@ -205,7 +209,7 @@ func TestGeneralOpenAIRequestGetSystemRoleName(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := GeneralOpenAIRequest{Model: tt.model}
 
-			require.Equal(t, tt.want, req.GetSystemRoleName())
+			assert.Equal(t, tt.want, req.GetSystemRoleName())
 		})
 	}
 }
@@ -220,11 +224,11 @@ func TestIsOpenAIGPT5Model(t *testing.T) {
 		{model: "gpt-5-chat-latest", want: true},
 		{model: "gpt-5.6-luna", want: true},
 		{model: "gpt-5.4-nano", want: true},
-		{model: "gpt-6-astra", want: true},
-		{model: "gpt-6-astra-high", want: true},
-		{model: "gpt-6.1-x", want: true},
-		{model: "gpt-10-x", want: true},
-		{model: " GPT-6-Astra ", want: true},
+		{model: "gpt-5.2-2025-12-11", want: true},
+		{model: "gpt-6-astra", want: false},
+		{model: "gpt-50", want: false},
+		{model: "gpt-5custom", want: false},
+		{model: " GPT-5 ", want: false},
 		{model: "gpt-4.1", want: false},
 		{model: "gpt-4.1-nano", want: false},
 		{model: "gpt-4o", want: false},
@@ -240,7 +244,7 @@ func TestIsOpenAIGPT5Model(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.model, func(t *testing.T) {
-			require.Equal(t, tt.want, IsOpenAIGPT5Model(tt.model))
+			assert.Equal(t, tt.want, IsOpenAIGPT5Model(tt.model))
 		})
 	}
 }
