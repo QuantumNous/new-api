@@ -356,3 +356,79 @@ func mustRawMessage(t *testing.T, value any) []byte {
 	require.NoError(t, err)
 	return raw
 }
+
+func TestResponsesToolMediaPreservesParallelRepliesAndPayloads(t *testing.T) {
+	const image = "data:image/png;base64,AAEC"
+	output := []map[string]any{
+		{"type": "input_text", "text": "first image"},
+		{"type": "input_image", "image_url": image, "detail": "high"},
+		{"type": "input_text", "text": "second image"},
+		{"type": "input_image", "image_url": "https://example.test/b.png", "detail": "low"},
+		{"type": "input_file", "file_data": "data:application/pdf;base64,AAAA", "filename": "report.pdf"},
+	}
+	input := mustRawMessage(t, []map[string]any{
+		{"type": "function_call", "call_id": "a", "name": "inspect", "arguments": "{}"},
+		{"type": "function_call", "call_id": "b", "name": "inspect", "arguments": "{}"},
+		{"type": "function_call_output", "call_id": "a", "output": output},
+		{"type": "function_call_output", "call_id": "b", "output": []map[string]any{{"type": "input_image", "image_url": image}}},
+		{"role": "assistant", "content": "done"},
+	})
+	original := string(input)
+	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{Model: "gpt-test", Input: input})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 6)
+	assert.Equal(t, []string{"assistant", "tool", "tool", "user", "user", "assistant"}, []string{got.Messages[0].Role, got.Messages[1].Role, got.Messages[2].Role, got.Messages[3].Role, got.Messages[4].Role, got.Messages[5].Role})
+	assert.Equal(t, "a", got.Messages[1].ToolCallId)
+	assert.Equal(t, "b", got.Messages[2].ToolCallId)
+	assert.NotContains(t, got.Messages[1].StringContent(), "base64")
+	encoded, err := kitutil.Marshal(got)
+	require.NoError(t, err)
+	assert.Contains(t, gjson.GetBytes(encoded, "messages.3.content.0.text").String(), `call_id "a"`)
+	assert.Equal(t, "first image", gjson.GetBytes(encoded, "messages.3.content.1.text").String())
+	assert.Equal(t, image, gjson.GetBytes(encoded, "messages.3.content.2.image_url.url").String())
+	assert.Equal(t, "high", gjson.GetBytes(encoded, "messages.3.content.2.image_url.detail").String())
+	assert.Equal(t, "second image", gjson.GetBytes(encoded, "messages.3.content.3.text").String())
+	assert.Equal(t, "low", gjson.GetBytes(encoded, "messages.3.content.4.image_url.detail").String())
+	assert.Equal(t, "data:application/pdf;base64,AAAA", gjson.GetBytes(encoded, "messages.3.content.5.file.file_data").String())
+	assert.Equal(t, image, gjson.GetBytes(encoded, "messages.4.content.1.image_url.url").String())
+	assert.Equal(t, original, string(input))
+}
+
+func TestResponsesToolOutputContentBoundaries(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		output  any
+		want    string
+		wantErr string
+		media   bool
+	}{
+		{name: "string", output: "plain", want: "plain"},
+		{name: "object", output: map[string]any{"ok": true}, want: `{"ok":true}`},
+		{name: "empty array", output: []any{}, want: `[]`},
+		{name: "unknown parts", output: []any{map[string]any{"type": "unknown"}}, want: `[{"type":"unknown"}]`},
+		{name: "text parts", output: []any{map[string]any{"type": "input_text", "text": "a"}, map[string]any{"type": "input_text", "text": "b"}}, want: "ab"},
+		{name: "image at end", output: []any{map[string]any{"type": "input_image", "image_url": "data:image/png;base64,AAEC"}}, media: true},
+		{name: "file id", output: []any{map[string]any{"type": "input_file", "file_id": "file-123"}}, media: true},
+		{name: "unsupported image id", output: []any{map[string]any{"type": "input_image", "file_id": "file-123"}}, wantErr: "file_id images are unsupported"},
+		{name: "unsupported file url", output: []any{map[string]any{"type": "input_file", "file_url": "https://example.test/a.pdf"}}, wantErr: "file_url is unsupported"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{Model: "gpt-test", Input: mustRawMessage(t, []map[string]any{
+				{"type": "function_call", "call_id": "a", "name": "inspect", "arguments": "{}"},
+				{"type": "function_call_output", "call_id": "a", "output": tt.output},
+			})})
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			if tt.media {
+				require.Len(t, got.Messages, 3)
+				assert.Equal(t, "user", got.Messages[2].Role)
+			} else {
+				require.Len(t, got.Messages, 2)
+				assert.Equal(t, tt.want, got.Messages[1].StringContent())
+			}
+		})
+	}
+}
