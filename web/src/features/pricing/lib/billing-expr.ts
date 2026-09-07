@@ -28,6 +28,8 @@ For commercial licensing, please contact support@quantumnous.com
  * expression syntax.
  */
 
+import type { BillingUsageSchema } from '../types'
+
 // ---------------------------------------------------------------------------
 // Variable registry
 // ---------------------------------------------------------------------------
@@ -248,6 +250,18 @@ export type ParsedTier = {
   [field: string]: unknown
 }
 
+export type TaskTierCondition = {
+  field: string
+  value: string
+}
+
+export type ParsedTaskTier = {
+  label: string
+  conditions: TaskTierCondition[]
+  constant: number
+  unitPrices: Record<string, number>
+}
+
 // ---------------------------------------------------------------------------
 // Tier parser
 // ---------------------------------------------------------------------------
@@ -305,6 +319,274 @@ export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
       tier.label = m[2]
       tier.conditions = conditions
       tiers.push(tier)
+    }
+    return tiers
+  } catch {
+    return []
+  }
+}
+
+function findTaskTopLevelCharacter(
+  expression: string,
+  target: string,
+  start = 0
+): number {
+  let depth = 0
+  let quoted = false
+  let escaped = false
+  for (let index = start; index < expression.length; index += 1) {
+    const character = expression[index]
+    if (quoted) {
+      if (escaped) {
+        escaped = false
+      } else if (character === '\\') {
+        escaped = true
+      } else if (character === '"') {
+        quoted = false
+      }
+      continue
+    }
+    if (character === '"') {
+      quoted = true
+      continue
+    }
+    if (character === '(') {
+      depth += 1
+      continue
+    }
+    if (character === ')') {
+      depth -= 1
+      if (depth < 0) return -1
+      continue
+    }
+    if (depth === 0 && character === target) return index
+  }
+  return -1
+}
+
+function findTaskTernaryColon(
+  expression: string,
+  questionIndex: number
+): number {
+  let depth = 0
+  let ternaryDepth = 0
+  let quoted = false
+  let escaped = false
+  for (let index = questionIndex + 1; index < expression.length; index += 1) {
+    const character = expression[index]
+    if (quoted) {
+      if (escaped) {
+        escaped = false
+      } else if (character === '\\') {
+        escaped = true
+      } else if (character === '"') {
+        quoted = false
+      }
+      continue
+    }
+    if (character === '"') {
+      quoted = true
+      continue
+    }
+    if (character === '(') {
+      depth += 1
+      continue
+    }
+    if (character === ')') {
+      depth -= 1
+      if (depth < 0) return -1
+      continue
+    }
+    if (depth !== 0) continue
+    if (character === '?') {
+      ternaryDepth += 1
+      continue
+    }
+    if (character !== ':') continue
+    if (ternaryDepth === 0) return index
+    ternaryDepth -= 1
+  }
+  return -1
+}
+
+function splitTaskTopLevel(expression: string, operator: '&&' | '+'): string[] {
+  const parts: string[] = []
+  let start = 0
+  let depth = 0
+  let quoted = false
+  let escaped = false
+  for (let index = 0; index < expression.length; index += 1) {
+    const character = expression[index]
+    if (quoted) {
+      if (escaped) {
+        escaped = false
+      } else if (character === '\\') {
+        escaped = true
+      } else if (character === '"') {
+        quoted = false
+      }
+      continue
+    }
+    if (character === '"') {
+      quoted = true
+      continue
+    }
+    if (character === '(') {
+      depth += 1
+      continue
+    }
+    if (character === ')') {
+      depth -= 1
+      continue
+    }
+    if (depth !== 0) continue
+    if (operator === '&&' && expression.slice(index, index + 2) === '&&') {
+      parts.push(expression.slice(start, index).trim())
+      start = index + 2
+      index += 1
+      continue
+    }
+    if (
+      operator === '+' &&
+      character === '+' &&
+      expression[index - 1] !== 'e' &&
+      expression[index - 1] !== 'E'
+    ) {
+      parts.push(expression.slice(start, index).trim())
+      start = index + 1
+    }
+  }
+  parts.push(expression.slice(start).trim())
+  return parts.filter(Boolean)
+}
+
+function parseTaskConditions(
+  expression: string,
+  schema: BillingUsageSchema
+): TaskTierCondition[] | null {
+  const conditions: TaskTierCondition[] = []
+  for (const part of splitTaskTopLevel(expression, '&&')) {
+    const match = part.match(
+      /^u\(\s*("(?:[^"\\]|\\.)*")\s*\)\s*==\s*("(?:[^"\\]|\\.)*")$/
+    )
+    if (!match) return null
+    let field: string
+    let value: string
+    try {
+      field = JSON.parse(match[1]) as string
+      value = JSON.parse(match[2]) as string
+    } catch {
+      return null
+    }
+    const declaredValues = schema[field]?.enum
+    if (!declaredValues?.includes(value)) return null
+    conditions.push({ field, value })
+  }
+  return conditions.length > 0 ? conditions : null
+}
+
+function parseTaskTierCall(
+  expression: string,
+  conditions: TaskTierCondition[],
+  schema: BillingUsageSchema
+): ParsedTaskTier | null {
+  const trimmed = expression.trim()
+  if (!trimmed.startsWith('tier(') || !trimmed.endsWith(')')) return null
+  const inner = trimmed.slice(5, -1)
+  const commaIndex = findTaskTopLevelCharacter(inner, ',')
+  if (commaIndex < 0) return null
+
+  let label: string
+  try {
+    label = JSON.parse(inner.slice(0, commaIndex).trim()) as string
+  } catch {
+    return null
+  }
+  if (typeof label !== 'string') return null
+
+  const terms = splitTaskTopLevel(inner.slice(commaIndex + 1), '+')
+  const unitPrices: Record<string, number> = {}
+  let constant = 0
+  let hasConstant = false
+  for (const term of terms) {
+    if (NUMERIC_LITERAL_REGEX.test(term)) {
+      const value = Number(term)
+      if (hasConstant || !Number.isFinite(value) || value < 0) return null
+      constant = value
+      hasConstant = true
+      continue
+    }
+    const scaledMatch = term.match(
+      /^u\(\s*("(?:[^"\\]|\\.)*")\s*\)\s*\*\s*(-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s*\/\s*1000000$/
+    )
+    const bareMatch = term.match(
+      /^u\(\s*("(?:[^"\\]|\\.)*")\s*\)\s*\*\s*(-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)$/
+    )
+    const match = scaledMatch ?? bareMatch
+    if (!match) return null
+    let field: string
+    try {
+      field = JSON.parse(match[1]) as string
+    } catch {
+      return null
+    }
+    const fieldSchema = schema[field]
+    const value = Number(match[2])
+    if (
+      fieldSchema?.type !== 'number' ||
+      !fieldSchema.unit ||
+      field in unitPrices ||
+      !Number.isFinite(value) ||
+      value < 0
+    ) {
+      return null
+    }
+    if (fieldSchema.unit === 'token') {
+      if (!scaledMatch) return null
+    } else if (scaledMatch) {
+      return null
+    }
+    unitPrices[field] = value
+  }
+  if (Object.keys(unitPrices).length === 0) return null
+  return { label, conditions, constant, unitPrices }
+}
+
+export function parseTaskTiersFromExpr(
+  exprStr: string,
+  schema: BillingUsageSchema | null | undefined
+): ParsedTaskTier[] {
+  if (!exprStr || !schema || Object.keys(schema).length === 0) return []
+  try {
+    const split = splitBillingExprAndRequestRules(exprStr)
+    const versioned = stripExprVersion(split.billingExpr).body.trim()
+    if (!versioned) return []
+
+    const tiers: ParsedTaskTier[] = []
+    let remaining = versioned
+    while (remaining) {
+      const questionIndex = findTaskTopLevelCharacter(remaining, '?')
+      if (questionIndex < 0) {
+        const tier = parseTaskTierCall(remaining, [], schema)
+        if (!tier) return []
+        tiers.push(tier)
+        break
+      }
+      const colonIndex = findTaskTernaryColon(remaining, questionIndex)
+      if (colonIndex < 0) return []
+      const conditions = parseTaskConditions(
+        remaining.slice(0, questionIndex).trim(),
+        schema
+      )
+      if (!conditions) return []
+      const tier = parseTaskTierCall(
+        remaining.slice(questionIndex + 1, colonIndex).trim(),
+        conditions,
+        schema
+      )
+      if (!tier) return []
+      tiers.push(tier)
+      remaining = remaining.slice(colonIndex + 1).trim()
     }
     return tiers
   } catch {
@@ -372,25 +654,44 @@ function parseExprLiteral(raw: string): string | null {
   }
 }
 
+// Time function value domains. Values outside these ranges are invalid for
+// the corresponding time function (e.g. hour() is 0-23) and would otherwise
+// produce always-true conditions like hour >= -1 || hour < -5.
+const TIME_FUNC_RANGES: Record<TimeFunc, [number, number]> = {
+  hour: [0, 23],
+  minute: [0, 59],
+  weekday: [0, 6],
+  month: [1, 12],
+  day: [1, 31],
+}
+
+function isTimeValueInRange(timeFunc: TimeFunc, text: string): boolean {
+  if (!NUMERIC_LITERAL_REGEX.test(text)) return false
+  const value = Number(text)
+  if (!Number.isInteger(value)) return false
+  const [min, max] = TIME_FUNC_RANGES[timeFunc]
+  return value >= min && value <= max
+}
+
 function tryParseTimeCondition(expr: string): RequestCondition | null {
   let m = expr.match(
-    /^(hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) \|\| \1\("\2"\) < ([\d.eE+-]+)$/
+    /^(hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) (?:&&|\|\|) \1\("\2"\) < ([\d.eE+-]+)$/
   )
-  if (m) {
-    return {
-      source: 'time',
-      timeFunc: m[1] as TimeFunc,
-      timezone: m[2],
-      mode: MATCH_RANGE,
-      value: '',
-      rangeStart: m[3],
-      rangeEnd: m[4],
-    }
+  if (!m) {
+    m = expr.match(
+      /^\((hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) (?:&&|\|\|) \1\("\2"\) < ([\d.eE+-]+)\)$/
+    )
   }
-  m = expr.match(
-    /^\((hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) \|\| \1\("\2"\) < ([\d.eE+-]+)\)$/
-  )
   if (m) {
+    // Reject invalid bounds at parse time too: an unparseable rule keeps the
+    // editor in raw mode, while a leniently parsed one would be silently
+    // dropped when the visual editor rebuilds the expression.
+    if (
+      !isTimeValueInRange(m[1] as TimeFunc, m[3]) ||
+      !isTimeValueInRange(m[1] as TimeFunc, m[4])
+    ) {
+      return null
+    }
     return {
       source: 'time',
       timeFunc: m[1] as TimeFunc,
@@ -405,6 +706,7 @@ function tryParseTimeCondition(expr: string): RequestCondition | null {
     /^(hour|minute|weekday|month|day)\("([^"]+)"\) (==|>=|<) ([\d.eE+-]+)$/
   )
   if (m) {
+    if (!isTimeValueInRange(m[1] as TimeFunc, m[4])) return null
     const opMap: Record<string, string> = {
       '==': MATCH_EQ,
       '>=': MATCH_GTE,
@@ -483,13 +785,51 @@ function tryParseRequestCondition(expr: string): RequestCondition | null {
   return null
 }
 
+function tryParseTimeRangePair(
+  lower: string,
+  upper: string
+): RequestCondition | null {
+  const a = tryParseTimeCondition(lower)
+  const b = tryParseTimeCondition(upper)
+  if (!a || !b || a.source !== 'time' || b.source !== 'time') return null
+  const ta = a as TimeCondition
+  const tb = b as TimeCondition
+  if (ta.timeFunc !== tb.timeFunc || ta.timezone !== tb.timezone) return null
+  if (ta.mode !== MATCH_GTE || tb.mode !== MATCH_LT) return null
+  return {
+    source: 'time',
+    timeFunc: ta.timeFunc,
+    timezone: ta.timezone,
+    mode: MATCH_RANGE,
+    value: '',
+    rangeStart: ta.value,
+    rangeEnd: tb.value,
+  }
+}
+
 function tryParseRequestConditions(
   conditionStr: string
 ): RequestCondition[] | null {
+  // A single time range like hour(tz) >= 9 && hour(tz) < 12 must stay one
+  // MATCH_RANGE condition instead of being split into two scalar conditions.
+  const wholeTimeCond = tryParseTimeCondition(conditionStr.trim())
+  if (wholeTimeCond) return [wholeTimeCond]
+
   const andParts = splitTopLevelAnd(conditionStr)
   const conditions: RequestCondition[] = []
-  for (const part of andParts) {
-    const condition = tryParseRequestCondition(part.trim())
+  for (let i = 0; i < andParts.length; i += 1) {
+    const part = andParts[i].trim()
+    // Adjacent matching time bounds (fn >= X && fn < Y) form one range; merge
+    // them so the visual editor keeps a single MATCH_RANGE row even when
+    // other conditions follow in the same group.
+    const next = i + 1 < andParts.length ? andParts[i + 1].trim() : ''
+    const merged = next ? tryParseTimeRangePair(part, next) : null
+    if (merged) {
+      conditions.push(merged)
+      i += 1
+      continue
+    }
+    const condition = tryParseRequestCondition(part)
     if (!condition) return null
     conditions.push(condition)
   }
@@ -732,13 +1072,21 @@ function buildTimeConditionExpr(cond: TimeCondition): string {
   if (mode === MATCH_RANGE) {
     const s = normalized.rangeStart.trim()
     const e = normalized.rangeEnd.trim()
-    if (!NUMERIC_LITERAL_REGEX.test(s) || !NUMERIC_LITERAL_REGEX.test(e)) {
+    if (!isTimeValueInRange(timeFunc, s) || !isTimeValueInRange(timeFunc, e)) {
       return ''
     }
-    return `${fn} >= ${s} || ${fn} < ${e}`
+    // Overnight range (start > end) crosses the day boundary, e.g. 21-6.
+    // A within-day range (start <= end), e.g. 9-12, must use && so the
+    // condition is not a tautology that always applies the multiplier.
+    const sNum = Number(s)
+    const eNum = Number(e)
+    if (sNum > eNum) {
+      return `${fn} >= ${s} || ${fn} < ${e}`
+    }
+    return `${fn} >= ${s} && ${fn} < ${e}`
   }
   const v = normalized.value.trim()
-  if (!NUMERIC_LITERAL_REGEX.test(v)) return ''
+  if (!isTimeValueInRange(timeFunc, v)) return ''
   const opMap: Record<string, string> = {
     [MATCH_EQ]: '==',
     [MATCH_GTE]: '>=',

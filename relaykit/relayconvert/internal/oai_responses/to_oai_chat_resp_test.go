@@ -56,9 +56,9 @@ func TestResponsesResponseToChatCompletionsPreservesReasoningSummary(t *testing.
 		Output: []dto.ResponsesOutput{
 			{
 				Type: responsesOutputTypeReasoning,
-				Content: []dto.ResponsesOutputContent{
+				Summary: []dto.ResponsesReasoningSummaryPart{
 					{Type: "summary_text", Text: "first summary"},
-					{Type: "summary_text", Text: "\n\nsecond summary"},
+					{Type: "summary_text", Text: "second summary"},
 				},
 			},
 			{
@@ -75,6 +75,20 @@ func TestResponsesResponseToChatCompletionsPreservesReasoningSummary(t *testing.
 	require.NoError(t, err)
 	assert.Equal(t, "first summary\n\nsecond summary", chat.Choices[0].Message.GetReasoningContent())
 	assert.Equal(t, "final", chat.Choices[0].Message.StringContent())
+}
+
+func TestResponsesResponseToChatCompletionsSeparatesInterleavedOutputItems(t *testing.T) {
+	resp := &dto.OpenAIResponsesResponse{
+		ID:     "resp_1",
+		Model:  "gpt-test",
+		Status: []byte(`"completed"`),
+		Output: interleavedReasoningAndTextOutput(),
+	}
+
+	chat, _, err := ResponsesResponseToChatCompletionsResponse(resp, "chatcmpl_1")
+	require.NoError(t, err)
+	assert.Equal(t, "**Planning file inspection**\n\n**Clarifying environment task requirements**", chat.Choices[0].Message.GetReasoningContent())
+	assert.Equal(t, "I’ll inspect the starter repository.\n\nWhat would you like me to build?", chat.Choices[0].Message.StringContent())
 }
 
 func TestResponsesFinishReasonFromIncompleteStatus(t *testing.T) {
@@ -431,6 +445,90 @@ func TestResponsesBufferedAccumulatorDoesNotDuplicatePendingArgsWithOutputIndexA
 	assert.Equal(t, `{"q":"x"}`, toolCalls[0].Function.Arguments)
 	assert.Empty(t, acc.pendingByOutputIndex)
 	assert.Empty(t, acc.pendingByItemID)
+}
+
+func TestResponsesBufferedAccumulatorPreservesInterleavedReasoningAndTextItems(t *testing.T) {
+	acc := NewResponsesBufferedAccumulator()
+	events := []dto.ResponsesStreamResponse{
+		bufferedOutputItemAdded(0, "rs_1", responsesOutputTypeReasoning),
+		{Type: responsesEventReasoningSummaryDelta, OutputIndex: intPointer(0), ItemID: "rs_1", Delta: "**Planning file inspection**"},
+		bufferedOutputItemAdded(1, "msg_1", responsesOutputTypeMessage),
+		{Type: responsesEventOutputTextDelta, OutputIndex: intPointer(1), ItemID: "msg_1", Delta: "I’ll inspect the starter repository."},
+		bufferedOutputItemAdded(2, "rs_2", responsesOutputTypeReasoning),
+		{Type: responsesEventReasoningSummaryDelta, OutputIndex: intPointer(2), ItemID: "rs_2", Delta: "**Clarifying environment task requirements**"},
+		bufferedOutputItemAdded(3, "msg_2", responsesOutputTypeMessage),
+		{Type: responsesEventOutputTextDelta, OutputIndex: intPointer(3), ItemID: "msg_2", Delta: "What would you like me to build?"},
+	}
+	for index := range events {
+		acc.ProcessEvent(&events[index])
+	}
+
+	output := acc.BuildOutput()
+	require.Len(t, output, 4)
+	assert.Equal(t, []string{
+		responsesOutputTypeReasoning,
+		responsesOutputTypeMessage,
+		responsesOutputTypeReasoning,
+		responsesOutputTypeMessage,
+	}, []string{output[0].Type, output[1].Type, output[2].Type, output[3].Type})
+	assert.Equal(t, "**Planning file inspection**", output[0].Summary[0].Text)
+	assert.Equal(t, "I’ll inspect the starter repository.", output[1].Content[0].Text)
+	assert.Equal(t, "**Clarifying environment task requirements**", output[2].Summary[0].Text)
+	assert.Equal(t, "What would you like me to build?", output[3].Content[0].Text)
+}
+
+func TestResponsesStreamTerminalOutputPreservesInterleavedReasoningAndTextItems(t *testing.T) {
+	state := newTestResponsesStreamState()
+	chunks, err := ResponsesStreamEventToChatChunks(&dto.ResponsesStreamResponse{
+		Type: responsesEventCompleted,
+		Response: &dto.OpenAIResponsesResponse{
+			Status: []byte(`"completed"`),
+			Output: interleavedReasoningAndTextOutput(),
+		},
+	}, state)
+	require.NoError(t, err)
+
+	var deltas []string
+	for _, chunk := range chunks {
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+		delta := chunk.Choices[0].Delta
+		if delta.ReasoningContent != nil {
+			deltas = append(deltas, "thinking:"+*delta.ReasoningContent)
+		}
+		if delta.Content != nil && *delta.Content != "" {
+			deltas = append(deltas, "text:"+*delta.Content)
+		}
+	}
+	assert.Equal(t, []string{
+		"thinking:**Planning file inspection**",
+		"text:I’ll inspect the starter repository.",
+		"thinking:**Clarifying environment task requirements**",
+		"text:What would you like me to build?",
+	}, deltas)
+}
+
+func bufferedOutputItemAdded(outputIndex int, itemID string, itemType string) dto.ResponsesStreamResponse {
+	return dto.ResponsesStreamResponse{
+		Type:        responsesEventOutputItemAdded,
+		OutputIndex: &outputIndex,
+		ItemID:      itemID,
+		Item:        &dto.ResponsesOutput{ID: itemID, Type: itemType},
+	}
+}
+
+func interleavedReasoningAndTextOutput() []dto.ResponsesOutput {
+	return []dto.ResponsesOutput{
+		{Type: responsesOutputTypeReasoning, Summary: []dto.ResponsesReasoningSummaryPart{{Type: "summary_text", Text: "**Planning file inspection**"}}},
+		{Type: responsesOutputTypeMessage, Role: "assistant", Content: []dto.ResponsesOutputContent{{Type: "output_text", Text: "I’ll inspect the starter repository."}}},
+		{Type: responsesOutputTypeReasoning, Summary: []dto.ResponsesReasoningSummaryPart{{Type: "summary_text", Text: "**Clarifying environment task requirements**"}}},
+		{Type: responsesOutputTypeMessage, Role: "assistant", Content: []dto.ResponsesOutputContent{{Type: "output_text", Text: "What would you like me to build?"}}},
+	}
+}
+
+func intPointer(value int) *int {
+	return &value
 }
 
 func newTestResponsesStreamState() *ResponsesToChatStreamState {

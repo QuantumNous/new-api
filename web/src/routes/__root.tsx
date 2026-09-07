@@ -107,37 +107,8 @@ function RootComponent() {
   )
 }
 
-// 缓存 setup 状态检查结果，避免每次导航都重复调用 API
-// 使用 localStorage 持久化，避免页面刷新后重复检查
-const SETUP_CHECKED_KEY = 'setup_status_checked'
-
-function getSetupStatusFromCache(): boolean {
-  try {
-    if (typeof window !== 'undefined') {
-      return window.localStorage.getItem(SETUP_CHECKED_KEY) === 'true'
-    }
-  } catch {
-    /* empty */
-  }
-  return false
-}
-
-function setSetupStatusCache(value: boolean): void {
-  try {
-    if (typeof window !== 'undefined') {
-      if (value) {
-        window.localStorage.setItem(SETUP_CHECKED_KEY, 'true')
-      } else {
-        window.localStorage.removeItem(SETUP_CHECKED_KEY)
-      }
-    }
-  } catch {
-    /* empty */
-  }
-}
-
-// 内存中的标记，避免同一会话中重复检查
-let setupStatusChecked = getSetupStatusFromCache()
+// 同一页面会话内避免重复检查；刷新后重新校验当前服务实例。
+let setupStatusChecked = false
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient
@@ -167,11 +138,12 @@ export const Route = createRootRouteWithContext<{
         authBootstrap,
       ])
 
-      if (status?.success && status.data && !status.data.status) {
-        throw redirect({ to: '/setup' })
+      if (status?.success && status.data) {
+        if (!status.data.status) {
+          throw redirect({ to: '/setup' })
+        }
+        setupStatusChecked = true
       }
-      setupStatusChecked = true
-      setSetupStatusCache(true)
     } else {
       await authBootstrap
     }

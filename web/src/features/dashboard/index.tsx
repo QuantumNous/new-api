@@ -89,6 +89,12 @@ const LazyModelCharts = lazy(() =>
   }))
 )
 
+const LazyModelMetricsTable = lazy(() =>
+  import('./components/models/model-metrics-table').then((m) => ({
+    default: m.ModelMetricsTable,
+  }))
+)
+
 const LazyConsumptionDistributionChart = lazy(() =>
   import('./components/models/consumption-distribution-chart').then((m) => ({
     default: m.ConsumptionDistributionChart,
@@ -148,6 +154,30 @@ function ModelChartsFallback() {
       </div>
       <div className='h-96 p-2'>
         <Skeleton className='h-full w-full' />
+      </div>
+    </div>
+  )
+}
+
+function ModelMetricsFallback() {
+  return (
+    <div className='overflow-hidden rounded-lg border'>
+      <div className='flex items-center gap-2 border-b px-4 py-3 sm:px-5'>
+        <Skeleton className='size-7 rounded-md' />
+        <div className='space-y-1'>
+          <Skeleton className='h-4 w-32' />
+          <Skeleton className='h-3 w-48' />
+        </div>
+      </div>
+      <div className='space-y-3 p-4'>
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className='flex items-center gap-4'>
+            <Skeleton className='h-4 flex-1' />
+            <Skeleton className='h-4 w-16' />
+            <Skeleton className='h-4 w-20' />
+            <Skeleton className='h-4 w-20' />
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -355,14 +385,23 @@ export function Dashboard() {
                   />
                 </Suspense>
               </FadeIn>
+              <FadeIn delay={0.05}>
+                <Suspense fallback={<ModelMetricsFallback />}>
+                  <LazyModelMetricsTable
+                    data={modelData}
+                    filters={modelFilters}
+                    loading={dataLoading}
+                  />
+                </Suspense>
+              </FadeIn>
               {isAdmin && (
-                <FadeIn delay={0.05}>
+                <FadeIn delay={0.1}>
                   <Suspense fallback={<PerformanceOverviewFallback />}>
                     <LazyPerformanceOverview />
                   </Suspense>
                 </FadeIn>
               )}
-              <FadeIn delay={0.1}>
+              <FadeIn delay={0.15}>
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyConsumptionDistributionChart
                     data={modelData}
@@ -376,7 +415,7 @@ export function Dashboard() {
                   />
                 </Suspense>
               </FadeIn>
-              <FadeIn delay={0.15}>
+              <FadeIn delay={0.2}>
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyModelCharts
                     data={modelData}

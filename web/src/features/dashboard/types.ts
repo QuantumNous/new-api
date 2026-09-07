@@ -33,6 +33,14 @@ export interface QuotaDataItem {
   quota?: number
 }
 
+export interface ModelMetric {
+  modelName: string
+  requestCount: number
+  totalTokens: number
+  averageRpm: number
+  averageTpm: number
+}
+
 export interface FlowQuotaDataItem {
   user_id?: number
   username?: string

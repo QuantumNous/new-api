@@ -16,7 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { QuotaDataItem } from '@/features/dashboard/types'
+import type {
+  DashboardFilters,
+  ModelMetric,
+  QuotaDataItem,
+} from '@/features/dashboard/types'
+import { computeTimeRange } from '@/lib/time'
+
+import { getDefaultDays } from './filters'
 
 /**
  * Safe division: handles NaN and Infinity cases
@@ -44,4 +51,54 @@ export function calculateDashboardStats(data: QuotaDataItem[]) {
     }),
     { totalQuota: 0, totalCount: 0, totalTokens: 0 }
   )
+}
+
+export function getDashboardDurationMinutes(
+  filters?: DashboardFilters
+): number {
+  const timeRange = computeTimeRange(
+    getDefaultDays(filters?.time_granularity),
+    filters?.start_timestamp,
+    filters?.end_timestamp
+  )
+  const durationMinutes =
+    (timeRange.end_timestamp - timeRange.start_timestamp) / 60
+  return Math.max(durationMinutes, 1)
+}
+
+export function buildModelMetrics(
+  data: QuotaDataItem[],
+  durationMinutes: number
+): ModelMetric[] {
+  const safeDurationMinutes = Math.max(durationMinutes, 1)
+  const totals = new Map<
+    string,
+    { requestCount: number; totalTokens: number }
+  >()
+
+  for (const item of data) {
+    const modelName = item.model_name?.trim() ?? ''
+    const current = totals.get(modelName) ?? {
+      requestCount: 0,
+      totalTokens: 0,
+    }
+    current.requestCount += Number(item.count) || 0
+    current.totalTokens += Number(item.token_used) || 0
+    totals.set(modelName, current)
+  }
+
+  return [...totals.entries()]
+    .map(([modelName, item]) => ({
+      modelName,
+      requestCount: item.requestCount,
+      totalTokens: item.totalTokens,
+      averageRpm: item.requestCount / safeDurationMinutes,
+      averageTpm: item.totalTokens / safeDurationMinutes,
+    }))
+    .sort((a, b) => {
+      if (b.totalTokens !== a.totalTokens) {
+        return b.totalTokens - a.totalTokens
+      }
+      return a.modelName.localeCompare(b.modelName)
+    })
 }

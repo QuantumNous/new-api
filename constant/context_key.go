@@ -15,7 +15,8 @@ const (
 	ContextKeyTokenKey               ContextKey = "token_key"
 	ContextKeyTokenId                ContextKey = "token_id"
 	ContextKeyTokenGroup             ContextKey = "token_group"
-	ContextKeyTokenSpecificChannelId ContextKey = "specific_channel_id"
+	ContextKeyOriginTasks            ContextKey = "origin_tasks"
+	ContextKeyChannelConstraints     ContextKey = "channel_constraints"
 	ContextKeyTokenModelLimitEnabled ContextKey = "token_model_limit_enabled"
 	ContextKeyTokenModelLimit        ContextKey = "token_model_limit"
 	ContextKeyTokenCrossGroupRetry   ContextKey = "token_cross_group_retry"
@@ -95,6 +96,16 @@ const (
 	// ContextKeyAdminRejectReason stores an admin-only reject/block reason extracted from upstream responses.
 	// It is not returned to end users, but can be persisted into consume/error logs for debugging.
 	ContextKeyAdminRejectReason ContextKey = "admin_reject_reason"
+
+	// ContextKeyRelayAttempt stores the in-progress relay attempt telemetry
+	// record, so the upstream request layer and the billing layer can annotate
+	// the attempt they are part of without threading a parameter through every
+	// relay handler signature.
+	ContextKeyRelayAttempt ContextKey = "relay_attempt"
+
+	// ContextKeyFinishReason stores the terminal finish/stop reason reported by
+	// the upstream model, extracted where the response is already being parsed.
+	ContextKeyFinishReason ContextKey = "finish_reason"
 
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
