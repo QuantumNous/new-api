@@ -43,6 +43,9 @@ type Channel struct {
 	//MaxInputTokens     *int    `json:"max_input_tokens" gorm:"default:0"`
 	StatusCodeMapping *string `json:"status_code_mapping" gorm:"type:varchar(1024);default:''"`
 	Priority          *int64  `json:"priority" gorm:"bigint;default:0"`
+	RPM               int     `json:"rpm" gorm:"default:0"`
+	TPM               int     `json:"tpm" gorm:"default:0"`
+	MaxConcurrency    int     `json:"max_concurrency" gorm:"default:0"`
 	AutoBan           *int    `json:"auto_ban" gorm:"default:1"`
 	OtherInfo         string  `json:"other_info"`
 	Tag               *string `json:"tag" gorm:"index"`
@@ -285,6 +288,36 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 		// Unknown mode, default to first enabled key (or original key string)
 		return keys[enabledIdx[0]], enabledIdx[0], nil
 	}
+}
+
+// GetEnabledKeyAt returns the exact enabled key requested by an upstream
+// scheduler. It intentionally does not mutate polling state. This makes the
+// Scheduler's immutable Candidate Chain reproducible while preserving the
+// existing random/polling behaviour for requests without a scheduler hint.
+func (channel *Channel) GetEnabledKeyAt(index int) (string, int, *types.NewAPIError) {
+	if !channel.ChannelInfo.IsMultiKey {
+		if index != 0 {
+			return "", 0, types.NewError(fmt.Errorf("key index %d is invalid for single-key channel", index), types.ErrorCodeChannelNoAvailableKey)
+		}
+		if channel.Key == "" {
+			return "", 0, types.NewError(errors.New("no key available"), types.ErrorCodeChannelNoAvailableKey)
+		}
+		return channel.Key, 0, nil
+	}
+
+	keys := channel.GetKeys()
+	if index < 0 || index >= len(keys) {
+		return "", 0, types.NewError(fmt.Errorf("key index %d is out of range", index), types.ErrorCodeChannelNoAvailableKey)
+	}
+	if statusList := channel.ChannelInfo.MultiKeyStatusList; statusList != nil {
+		if status, ok := statusList[index]; ok && status != common.ChannelStatusEnabled {
+			return "", 0, types.NewError(fmt.Errorf("key index %d is disabled", index), types.ErrorCodeChannelNoAvailableKey)
+		}
+	}
+	if keys[index] == "" {
+		return "", 0, types.NewError(fmt.Errorf("key index %d is empty", index), types.ErrorCodeChannelNoAvailableKey)
+	}
+	return keys[index], index, nil
 }
 
 func (channel *Channel) SaveChannelInfo() error {

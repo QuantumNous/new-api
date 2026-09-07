@@ -236,6 +236,33 @@ func TestGetPreferredChannelByAffinity_RequestHeaderKeySource(t *testing.T) {
 	require.Equal(t, buildChannelAffinityKeyHint(affinityValue), meta.KeyHint)
 }
 
+func TestGetPreferredChannelByAffinity_GenericConversationID(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	originalRules := setting.Rules
+	defer func() { setting.Rules = originalRules }()
+	rule := operation_setting.ChannelAffinityRule{
+		Name: "conversation id", ModelRegex: []string{"^.+$"},
+		KeySources:      []operation_setting.ChannelAffinityKeySource{{Type: "gjson", Path: "conversation_id"}},
+		IncludeRuleName: true, IncludeModelName: true, IncludeUsingGroup: true, TTLSeconds: 60,
+	}
+	setting.Rules = []operation_setting.ChannelAffinityRule{rule}
+	affinityValue := "conversation-123"
+	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(rule, "deepseek-v4-flash", "vip", affinityValue)
+	cache := getChannelAffinityCache()
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 42, time.Minute))
+
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(`{"model":"deepseek-v4-flash","conversation_id":"conversation-123"}`))
+	channelID, found := GetPreferredChannelByAffinity(ctx, "deepseek-v4-flash", "vip")
+	require.True(t, found)
+	require.Equal(t, 42, channelID)
+	meta, ok := getChannelAffinityMeta(ctx)
+	require.True(t, ok)
+	require.Equal(t, "gjson", meta.KeySourceType)
+	require.Equal(t, "conversation_id", meta.KeySourcePath)
+}
+
 func TestClearCurrentChannelAffinityCache(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

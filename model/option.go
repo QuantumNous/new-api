@@ -1,6 +1,7 @@
 package model
 
 import (
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -186,6 +187,49 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableStatusCodes"] = operation_setting.AutomaticDisableStatusCodesToString()
 	common.OptionMap["AutomaticRetryStatusCodes"] = operation_setting.AutomaticRetryStatusCodesToString()
 	common.OptionMap["ExposeRatioEnabled"] = strconv.FormatBool(ratio_setting.IsExposeRatioEnabled())
+	// Scheduler integration defaults. Values persisted in the options table
+	// override these environment-backed defaults during startup.
+	common.OptionMap["SchedulerEnabled"] = os.Getenv("SCHEDULER_ENABLED")
+	if common.OptionMap["SchedulerEnabled"] == "" {
+		common.OptionMap["SchedulerEnabled"] = "false"
+	}
+	common.OptionMap["SchedulerURL"] = os.Getenv("SCHEDULER_URL")
+	common.OptionMap["SchedulerBootstrapURLs"] = os.Getenv("SCHEDULER_BOOTSTRAP_URLS")
+	common.OptionMap["SchedulerLocalURL"] = os.Getenv("SCHEDULER_LOCAL_URL")
+	common.OptionMap["SchedulerToken"] = os.Getenv("SCHEDULER_TOKEN")
+	common.OptionMap["SchedulerMode"] = os.Getenv("SCHEDULER_MODE")
+	if common.OptionMap["SchedulerMode"] == "" {
+		common.OptionMap["SchedulerMode"] = "shadow"
+	}
+	common.OptionMap["SchedulerCanaryPercent"] = os.Getenv("SCHEDULER_CANARY_PERCENT")
+	if common.OptionMap["SchedulerCanaryPercent"] == "" {
+		common.OptionMap["SchedulerCanaryPercent"] = "0"
+	}
+	common.OptionMap["SchedulerCanarySalt"] = os.Getenv("SCHEDULER_CANARY_SALT")
+	if common.OptionMap["SchedulerCanarySalt"] == "" {
+		common.OptionMap["SchedulerCanarySalt"] = "scheduler-v2"
+	}
+	common.OptionMap["SchedulerShadowTimeoutMS"] = os.Getenv("SCHEDULER_SHADOW_TIMEOUT_MS")
+	if common.OptionMap["SchedulerShadowTimeoutMS"] == "" {
+		common.OptionMap["SchedulerShadowTimeoutMS"] = "100"
+	}
+	common.OptionMap["SchedulerRuntimePrefix"] = os.Getenv("SCHEDULER_RUNTIME_PREFIX")
+	if common.OptionMap["SchedulerRuntimePrefix"] == "" {
+		common.OptionMap["SchedulerRuntimePrefix"] = "new-api:scheduler:runtime"
+	}
+	common.OptionMap["SchedulerRuntimeHighWatermark"] = os.Getenv("SCHEDULER_RUNTIME_HIGH_WATERMARK")
+	if common.OptionMap["SchedulerRuntimeHighWatermark"] == "" {
+		common.OptionMap["SchedulerRuntimeHighWatermark"] = "0.8"
+	}
+	common.OptionMap["SchedulerSigningSecret"] = os.Getenv("SCHEDULER_SIGNING_SECRET")
+	common.OptionMap["SchedulerEmergencyNativeRouting"] = "false"
+	common.OptionMap["SchedulerEmergencyMaxDurationSeconds"] = "600"
+	common.OptionMap["SchedulerEmergencyGroups"] = ""
+	common.OptionMap["SchedulerEmergencyModels"] = ""
+	common.OptionMap["SchedulerKillSwitch"] = os.Getenv("SCHEDULER_KILL_SWITCH")
+	if common.OptionMap["SchedulerKillSwitch"] == "" {
+		common.OptionMap["SchedulerKillSwitch"] = "false"
+	}
 
 	// 自动添加所有注册的模型配置
 	modelConfigs := config.GlobalConfig.ExportAllConfigs()

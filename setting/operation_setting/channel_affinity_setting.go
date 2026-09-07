@@ -1,6 +1,11 @@
 package operation_setting
 
-import "github.com/QuantumNous/new-api/setting/config"
+import (
+	"strings"
+	"sync"
+
+	"github.com/QuantumNous/new-api/setting/config"
+)
 
 type ChannelAffinityKeySource struct {
 	Type string `json:"type"` // context_int, context_string, request_header, gjson
@@ -146,13 +151,66 @@ var channelAffinitySetting = ChannelAffinitySetting{
 			IncludeRuleName:       true,
 			UserAgentInclude:      nil,
 		},
+		{
+			// Generic conversation affinity applies to every model/protocol. A
+			// client may send conversation_id in the JSON body or one of the
+			// conventional headers; model and effective group remain part of the
+			// cache key so unrelated conversations never share a binding.
+			Name:       "conversation id",
+			ModelRegex: []string{"^.+$"},
+			KeySources: []ChannelAffinityKeySource{
+				{Type: "gjson", Path: "conversation_id"},
+				{Type: "gjson", Path: "conversation.id"},
+				{Type: "gjson", Path: "metadata.conversation_id"},
+				{Type: "request_header", Key: "X-Conversation-ID"},
+				{Type: "request_header", Key: "Conversation-ID"},
+				{Type: "request_header", Key: "X-Conversation-Id"},
+			},
+			TTLSeconds:         86400,
+			SkipRetryOnFailure: false,
+			IncludeUsingGroup:  true,
+			IncludeModelName:   true,
+			IncludeRuleName:    true,
+		},
 	},
 }
+
+var channelAffinityDefaultsMu sync.Mutex
 
 func init() {
 	config.GlobalConfig.Register("channel_affinity_setting", &channelAffinitySetting)
 }
 
 func GetChannelAffinitySetting() *ChannelAffinitySetting {
+	// Older installations may have a persisted Rules slice containing only
+	// protocol-specific Codex/Claude entries. Add the generic conversation rule
+	// lazily so those installations gain all-model affinity without requiring a
+	// manual settings migration. A user-defined rule with the same name wins.
+	channelAffinityDefaultsMu.Lock()
+	hasConversationRule := false
+	for _, rule := range channelAffinitySetting.Rules {
+		if strings.EqualFold(strings.TrimSpace(rule.Name), "conversation id") {
+			hasConversationRule = true
+			break
+		}
+	}
+	if !hasConversationRule {
+		channelAffinitySetting.Rules = append(channelAffinitySetting.Rules, ChannelAffinityRule{
+			Name: "conversation id", ModelRegex: []string{"^.+$"},
+			KeySources: []ChannelAffinityKeySource{
+				{Type: "gjson", Path: "conversation_id"},
+				{Type: "gjson", Path: "conversation.id"},
+				{Type: "gjson", Path: "metadata.conversation_id"},
+				{Type: "request_header", Key: "X-Conversation-ID"},
+				{Type: "request_header", Key: "Conversation-ID"},
+				{Type: "request_header", Key: "X-Conversation-Id"},
+			},
+			TTLSeconds:        86400,
+			IncludeUsingGroup: true,
+			IncludeModelName:  true,
+			IncludeRuleName:   true,
+		})
+	}
+	channelAffinityDefaultsMu.Unlock()
 	return &channelAffinitySetting
 }

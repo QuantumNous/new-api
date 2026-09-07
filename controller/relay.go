@@ -155,6 +155,26 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	relayInfo.SetEstimatePromptTokens(tokens)
+	// Make the canonical Relay tokenizer estimate available to Scheduler
+	// Attempt/retry reporting. Distributor may have scheduled earlier, before
+	// RelayInfo exists, so this context write intentionally happens here too.
+	common.SetContextKey(c, constant.ContextKeyEstimatedTokens, tokens)
+	canonicalReservationEstimate := tokens + service.SchedulerMaxOutputTokens(c)
+	if canonicalReservationEstimate < tokens { // integer overflow guard
+		canonicalReservationEstimate = tokens
+	}
+	// Channels without a finite TPM gate cannot benefit from a resize. Avoid a
+	// second synchronous Scheduler round trip for the common unlimited-capacity
+	// case; finite-TPM channels retain the safety correction below.
+	if service.SchedulerReservationResizeRequired(c) {
+		if err := service.ResizeSchedulerReservation(c, canonicalReservationEstimate); err != nil {
+			if service.SchedulerEnforcedForRequest(c) {
+				newAPIError = types.NewError(fmt.Errorf("scheduler reservation resize failed: %w", err), types.ErrorCodeGetChannelFailed, types.ErrOptionWithStatusCode(http.StatusServiceUnavailable))
+				return
+			}
+			logger.LogDebug(c, "scheduler reservation resize skipped: %v", err)
+		}
+	}
 
 	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
 	if err != nil {
@@ -210,6 +230,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
+		service.ResetSchedulerAttemptMetrics(c)
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())
@@ -234,20 +255,22 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
+		keyIndex := common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex)
+		attemptStart := time.Now()
+		runtimeWindow := service.BeginSchedulerRuntimeWithCapacity(channel.Id, keyIndex, channel.RPM, channel.TPM, channel.MaxConcurrency)
 		attempt := attemptScope.BeginAttempt(c, retryParam.GetRetry(), attemptlog.ChannelTarget{
 			ChannelId:         channel.Id,
 			ChannelType:       channel.Type,
 			UpstreamModelName: relayInfo.GetUpstreamModelName(),
 			UsingGroup:        relayInfo.UsingGroup,
-		}, &attemptlog.Pricing{
-			ModelRatio:      priceData.ModelRatio,
-			CompletionRatio: priceData.CompletionRatio,
-			GroupRatio:      priceData.GroupRatioInfo.GroupRatio,
-			CacheRatio:      priceData.CacheRatio,
-			ModelPrice:      priceData.ModelPrice,
-			UsePrice:        priceData.UsePrice,
-		})
-
+			}, &attemptlog.Pricing{
+				ModelRatio:      priceData.ModelRatio,
+				CompletionRatio: priceData.CompletionRatio,
+				GroupRatio:      priceData.GroupRatioInfo.GroupRatio,
+				CacheRatio:      priceData.CacheRatio,
+				ModelPrice:      priceData.ModelPrice,
+				UsePrice:        priceData.UsePrice,
+			})
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
 			newAPIError = relay.WssHelper(c, relayInfo)
@@ -258,6 +281,26 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		default:
 			newAPIError = relayHandler(c, relayInfo)
 		}
+		attemptStatus := http.StatusOK
+		if newAPIError != nil {
+			attemptStatus = newAPIError.StatusCode
+		}
+		streamStarted := common.GetContextKeyBool(c, constant.ContextKeySchedulerStreamStarted)
+		if !streamStarted {
+			streamStarted = relayInfo.IsStream && relayInfo.HasSendResponse()
+		}
+		if streamStarted && !relayInfo.FirstResponseTime.IsZero() && !relayInfo.StartTime.IsZero() {
+			common.SetContextKey(c, constant.ContextKeySchedulerTTFTMS, int(relayInfo.FirstResponseTime.Sub(relayInfo.StartTime).Milliseconds()))
+		}
+		inputTokens := common.GetContextKeyInt(c, constant.ContextKeySchedulerInputTokens)
+		if inputTokens == 0 {
+			inputTokens = common.GetContextKeyInt(c, constant.ContextKeyPromptTokens)
+		}
+		outputTokens := common.GetContextKeyInt(c, constant.ContextKeySchedulerOutputTokens)
+		if err := service.ReportSchedulerAttemptAsync(c, service.SchedulerEndpointForChannel(c, channel.Id), retryParam.GetRetry()+1, attemptStatus, newAPIError == nil, streamStarted, inputTokens, outputTokens); err != nil {
+			logger.LogDebug(c, "scheduler attempt report skipped: %v", err)
+		}
+		service.FinishSchedulerRuntime(channel.Id, keyIndex, runtimeWindow, attemptStatus, inputTokens, outputTokens, time.Since(attemptStart))
 
 		attempt.Finish(c, finishInputFor(c, relayInfo, newAPIError))
 
@@ -399,6 +442,26 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			Name:    c.GetString("channel_name"),
 			AutoBan: &autoBanInt,
 		}, nil
+	}
+	if candidate, enforced := service.SchedulerCandidateForRetry(c, retryParam.GetRetry()); enforced {
+		if retryParam.GetRetry() > 0 {
+			if err := service.ReserveSchedulerCandidate(c, candidate, retryParam.GetRetry()+1); err != nil {
+				return nil, types.NewError(fmt.Errorf("scheduler candidate reservation failed: %w", err), types.ErrorCodeGetChannelFailed)
+			}
+		}
+		channel, err := model.GetChannelById(candidate.ChannelID, true)
+		if err != nil || channel == nil || channel.Status != common.ChannelStatusEnabled {
+			return nil, types.NewError(fmt.Errorf("scheduler candidate channel %d unavailable", candidate.ChannelID), types.ErrorCodeGetChannelFailed)
+		}
+		info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
+		newAPIError := middleware.SetupContextForSelectedChannel(c, channel, info.OriginModelName)
+		if newAPIError != nil {
+			return nil, newAPIError
+		}
+		return channel, nil
+	}
+	if service.SchedulerEnforcedForRequest(c) && !service.SchedulerEmergencyNativeActive(c) {
+		return nil, types.NewError(fmt.Errorf("scheduler candidate chain exhausted at retry %d", retryParam.GetRetry()), types.ErrorCodeGetChannelFailed)
 	}
 	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
 	if err != nil {

@@ -23,7 +23,11 @@ import {
   CHANNEL_TYPE_OPTIONS,
   MODEL_FETCHABLE_TYPES,
 } from '../../constants'
-import { CHANNEL_FORM_DEFAULT_VALUES, channelFormSchema } from '../channel-form'
+import {
+  CHANNEL_FORM_DEFAULT_VALUES,
+  channelFormSchema,
+  transformFormDataToUpdatePayload,
+} from '../channel-form'
 import { getChannelTypeConfig } from '../channel-type-config'
 import { getChannelTypeIcon, getKeyPromptForType } from '../channel-utils'
 
@@ -87,5 +91,30 @@ describe('New API channel', () => {
     })
 
     expect(result.success).toBe(true)
+  })
+
+  test('serializes zero-as-unlimited RPM and TPM channel limits', () => {
+    const result = transformFormDataToUpdatePayload(
+      {
+        ...newAPIForm('https://new-api.example'),
+        rpm: 60,
+        tpm: 12000,
+        max_concurrency: 3,
+      },
+      42
+    )
+
+    expect(result).toMatchObject({
+      id: 42,
+      rpm: 60,
+      tpm: 12000,
+      max_concurrency: 3,
+    })
+    expect(
+      channelFormSchema.safeParse({
+        ...newAPIForm('https://new-api.example'),
+        rpm: -1,
+      }).success
+    ).toBe(false)
   })
 })

@@ -207,6 +207,10 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	paramOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelParamOverride)
 	headerOverride := common.GetContextKeyStringMap(c, constant.ContextKeyChannelHeaderOverride)
 	apiType, _ := common.ChannelType2APIType(channelType)
+	upstreamModel := common.GetContextKeyString(c, constant.ContextKeySchedulerUpstreamModel)
+	if upstreamModel == "" {
+		upstreamModel = common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+	}
 	channelMeta := &ChannelMeta{
 		ChannelType:          channelType,
 		ChannelId:            common.GetContextKeyInt(c, constant.ContextKeyChannelId),
@@ -220,7 +224,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 		ChannelCreateTime:    c.GetInt64("channel_create_time"),
 		ParamOverride:        paramOverride,
 		HeadersOverride:      headerOverride,
-		UpstreamModelName:    common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
+		UpstreamModelName:    upstreamModel,
 		IsModelMapped:        false,
 		SupportStreamOptions: false,
 	}
@@ -262,7 +266,11 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	// reset some fields based on channel meta
 	// 重置某些字段，例如模型名称等
 	if info.Request != nil {
-		info.Request.SetModelName(info.OriginModelName)
+		if upstreamModel != "" && upstreamModel != info.OriginModelName {
+			info.Request.SetModelName(upstreamModel)
+		} else {
+			info.Request.SetModelName(info.OriginModelName)
+		}
 	}
 }
 

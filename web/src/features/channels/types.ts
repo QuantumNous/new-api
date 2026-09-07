@@ -64,6 +64,10 @@ export const channelSchema = z.object({
   header_override: z.string().nullish(),
   remark: z.string().default(''),
   max_input_tokens: z.number().default(0),
+  /** Scheduler capacity limits; zero means unlimited. */
+  rpm: z.number().default(0),
+  tpm: z.number().default(0),
+  max_concurrency: z.number().default(0),
   channel_info: channelInfoSchema.default({
     is_multi_key: false,
     multi_key_size: 0,

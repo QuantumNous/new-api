@@ -39,6 +39,38 @@ const (
 	ContextKeyChannelIsMultiKey        ContextKey = "channel_is_multi_key"
 	ContextKeyChannelMultiKeyIndex     ContextKey = "channel_multi_key_index"
 	ContextKeyChannelKey               ContextKey = "channel_key"
+	// ContextKeySchedulerKeyIndex is an optional per-attempt hint supplied by
+	// the Scheduler. When present, new-api must consume exactly this enabled
+	// multi-key slot instead of applying its local random/polling policy.
+	ContextKeySchedulerKeyIndex          ContextKey = "scheduler_key_index"
+	ContextKeySchedulerCandidates        ContextKey = "scheduler_candidates"
+	ContextKeySchedulerDecisionID        ContextKey = "scheduler_decision_id"
+	ContextKeySchedulerScoreVersion      ContextKey = "scheduler_score_version"
+	ContextKeySchedulerPreferenceVersion ContextKey = "scheduler_preference_version"
+	ContextKeySchedulerReservationID     ContextKey = "scheduler_reservation_id"
+	ContextKeySchedulerShadowMatch       ContextKey = "scheduler_shadow_match"
+	ContextKeySchedulerUpstreamModel     ContextKey = "scheduler_upstream_model"
+	ContextKeySchedulerAttemptReported   ContextKey = "scheduler_attempt_reported"
+	ContextKeySchedulerInputTokens       ContextKey = "scheduler_input_tokens"
+	ContextKeySchedulerOutputTokens      ContextKey = "scheduler_output_tokens"
+	ContextKeySchedulerUsageUnverified   ContextKey = "scheduler_usage_unverified"
+	ContextKeySchedulerEstimatedTokens   ContextKey = "scheduler_estimated_tokens"
+	ContextKeySchedulerStreamStarted     ContextKey = "scheduler_stream_started"
+	ContextKeySchedulerTTFTMS            ContextKey = "scheduler_ttft_ms"
+	ContextKeySchedulerWorkload          ContextKey = "scheduler_workload"
+	// ContextKeySchedulerAllowedChannelIDs carries the effective group/model
+	// channel scope into the Scheduler request. An empty-but-present slice
+	// means the group has no usable channel and must not fall back globally.
+	ContextKeySchedulerAllowedChannelIDs ContextKey = "scheduler_allowed_channel_ids"
+	// ContextKeySchedulerAffinityChannelID carries the currently bound
+	// conversation-affinity channel into an enforced Scheduler request.
+	ContextKeySchedulerAffinityChannelID ContextKey = "scheduler_affinity_channel_id"
+	// ContextKeySchedulerEmergencyNative marks a request that explicitly fell
+	// back to native routing because Scheduler infrastructure was unavailable.
+	ContextKeySchedulerEmergencyNative ContextKey = "scheduler_emergency_native"
+	ContextKeySchedulerDegradedReason  ContextKey = "scheduler_degraded_reason"
+	ContextKeySchedulerFailureReason   ContextKey = "scheduler_failure_reason"
+	ContextKeySchedulerEnforcedRequest ContextKey = "scheduler_enforced_request"
 
 	ContextKeyAutoGroup           ContextKey = "auto_group"
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"

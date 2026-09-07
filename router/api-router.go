@@ -23,6 +23,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/setup", controller.GetSetup)
 		apiRouter.POST("/setup", anonymousRequestBodyLimit, controller.PostSetup)
 		apiRouter.GET("/status", controller.GetStatus)
+		apiRouter.GET("/scheduler/catalog", middleware.SchedulerCatalogAuth(), controller.GetSchedulerCatalog)
 		apiRouter.GET("/uptime/status", controller.GetUptimeKumaStatus)
 		apiRouter.GET("/models", middleware.UserAuth(), controller.DashboardListModels)
 		apiRouter.GET("/status/test", middleware.AdminAuth(), controller.TestStatus)
@@ -114,6 +115,8 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
 				selfRoute.POST("/aff_transfer", middleware.UserCriticalRateLimit("aff-transfer"), controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
+				selfRoute.GET("/self/routing-preferences", controller.GetRoutingPreferences)
+				selfRoute.PUT("/self/routing-preferences", controller.UpdateRoutingPreferences)
 
 				// 2FA routes
 				selfRoute.GET("/2fa/status", controller.Get2FAStatus)
@@ -204,6 +207,14 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/waffo-pancake/save", controller.SaveWaffoPancake)
 			optionRoute.POST("/waffo-pancake/subscription-product", controller.CreateWaffoPancakeSubscriptionProduct)
 			optionRoute.GET("/waffo-pancake/subscription-product-options", controller.ListWaffoPancakeSubscriptionProductOptions)
+		}
+		schedulerRoute := apiRouter.Group("/scheduler")
+		schedulerRoute.Use(middleware.RootAuth())
+		{
+			schedulerRoute.GET("/config", controller.GetSchedulerConfig)
+			schedulerRoute.PUT("/config", controller.UpdateSchedulerConfig)
+			schedulerRoute.GET("/monitor", controller.GetSchedulerMonitor)
+			schedulerRoute.POST("/test-connection", controller.TestSchedulerConnection)
 		}
 
 		// Custom OAuth provider management (root only)

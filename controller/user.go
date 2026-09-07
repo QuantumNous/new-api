@@ -1424,18 +1424,37 @@ func TopUp(c *gin.Context) {
 }
 
 type UpdateUserSettingRequest struct {
-	QuotaWarningType                 string  `json:"notify_type"`
-	QuotaWarningThreshold            float64 `json:"quota_warning_threshold"`
-	WebhookUrl                       string  `json:"webhook_url,omitempty"`
-	WebhookSecret                    string  `json:"webhook_secret,omitempty"`
-	NotificationEmail                string  `json:"notification_email,omitempty"`
-	BarkUrl                          string  `json:"bark_url,omitempty"`
-	GotifyUrl                        string  `json:"gotify_url,omitempty"`
-	GotifyToken                      string  `json:"gotify_token,omitempty"`
-	GotifyPriority                   int     `json:"gotify_priority,omitempty"`
-	UpstreamModelUpdateNotifyEnabled *bool   `json:"upstream_model_update_notify_enabled,omitempty"`
-	AcceptUnsetModelRatioModel       bool    `json:"accept_unset_model_ratio_model"`
-	RecordIpLog                      bool    `json:"record_ip_log"`
+	QuotaWarningType                 string                           `json:"notify_type"`
+	QuotaWarningThreshold            float64                          `json:"quota_warning_threshold"`
+	WebhookUrl                       string                           `json:"webhook_url,omitempty"`
+	WebhookSecret                    string                           `json:"webhook_secret,omitempty"`
+	NotificationEmail                string                           `json:"notification_email,omitempty"`
+	BarkUrl                          string                           `json:"bark_url,omitempty"`
+	GotifyUrl                        string                           `json:"gotify_url,omitempty"`
+	GotifyToken                      string                           `json:"gotify_token,omitempty"`
+	GotifyPriority                   int                              `json:"gotify_priority,omitempty"`
+	UpstreamModelUpdateNotifyEnabled *bool                            `json:"upstream_model_update_notify_enabled,omitempty"`
+	AcceptUnsetModelRatioModel       bool                             `json:"accept_unset_model_ratio_model"`
+	RecordIpLog                      bool                             `json:"record_ip_log"`
+	RoutingPreferences               map[string]dto.RoutingPreference `json:"routing_preferences,omitempty"`
+}
+
+func validateRoutingPreferences(preferences map[string]dto.RoutingPreference) error {
+	for modelName, preference := range preferences {
+		if strings.TrimSpace(modelName) == "" {
+			return errors.New("routing preference model is required")
+		}
+		mode := strings.ToLower(strings.TrimSpace(preference.Mode))
+		switch mode {
+		case "balanced", "price", "latency", "throughput", "quality":
+		default:
+			return fmt.Errorf("invalid routing preference mode: %s", preference.Mode)
+		}
+		if preference.MaxPrice < 0 || preference.MinQualityScore < 0 || preference.MinQualityScore > 1 || preference.MaxAttempts < 0 {
+			return fmt.Errorf("invalid routing preference constraints for %s", modelName)
+		}
+	}
+	return nil
 }
 
 func UpdateUserSetting(c *gin.Context) {
@@ -1455,6 +1474,12 @@ func UpdateUserSetting(c *gin.Context) {
 	if req.QuotaWarningThreshold <= 0 {
 		common.ApiErrorI18n(c, i18n.MsgQuotaThresholdGtZero)
 		return
+	}
+	if req.RoutingPreferences != nil {
+		if err := validateRoutingPreferences(req.RoutingPreferences); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 
 	// 如果是webhook类型,验证webhook地址
@@ -1538,6 +1563,10 @@ func UpdateUserSetting(c *gin.Context) {
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
 		RecordIpLog:                      req.RecordIpLog,
+		RoutingPreferences:               existingSettings.RoutingPreferences,
+	}
+	if req.RoutingPreferences != nil {
+		settings.RoutingPreferences = req.RoutingPreferences
 	}
 
 	// 如果是webhook类型,添加webhook相关设置
@@ -1577,4 +1606,47 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	common.ApiSuccessI18n(c, i18n.MsgSettingSaved, nil)
+}
+
+type UpdateRoutingPreferencesRequest struct {
+	RoutingPreferences map[string]dto.RoutingPreference `json:"routing_preferences"`
+}
+
+// GetRoutingPreferences returns only the user's credential-free Scheduler
+// policy preferences. It is intentionally separate from notification settings
+// so clients can update routing without resubmitting unrelated fields.
+func GetRoutingPreferences(c *gin.Context) {
+	user, err := model.GetUserById(c.GetInt("id"), false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"routing_preferences": user.GetSetting().RoutingPreferences})
+}
+
+// UpdateRoutingPreferences persists the model-scoped user policy consumed by
+// Scheduler. Platform/group hard constraints are still applied by the future
+// effective-policy merge and cannot be relaxed by this payload.
+func UpdateRoutingPreferences(c *gin.Context) {
+	var req UpdateRoutingPreferencesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := validateRoutingPreferences(req.RoutingPreferences); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	user, err := model.GetUserById(c.GetInt("id"), true)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	settings := user.GetSetting()
+	settings.RoutingPreferences = req.RoutingPreferences
+	if err := model.UpdateUserSetting(user.Id, settings); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"routing_preferences": settings.RoutingPreferences})
 }

@@ -27,8 +27,9 @@ import (
 )
 
 type ModelRequest struct {
-	Model string `json:"model"`
-	Group string `json:"group,omitempty"`
+	Model    string `json:"model"`
+	Group    string `json:"group,omitempty"`
+	Workload string `json:"workload,omitempty"`
 }
 
 func Distribute() func(c *gin.Context) {
@@ -45,7 +46,13 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
-		if pin, found, overridden := constraints.ResolvedPin(); found {
+
+		if workload := strings.TrimSpace(modelRequest.Workload); workload != "" {
+			common.SetContextKey(c, constant.ContextKeySchedulerWorkload, workload)
+		}
+
+		pin, pinFound, overridden := constraints.ResolvedPin()
+		if pinFound {
 			for _, lost := range overridden {
 				logger.LogWarn(c, fmt.Sprintf(
 					"channel pin overridden: winning_source=%s winning_channel_id=%d overridden_source=%s overridden_channel_id=%d",
@@ -77,13 +84,10 @@ func Distribute() func(c *gin.Context) {
 				return
 			}
 		} else {
-			// Select a channel for the user
-			// check token model mapping
 			modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
 			if modelLimitEnable {
 				s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
 				if !ok {
-					// token model limit is empty, all models are not allowed
 					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenNoModelAccess))
 					return
 				}
@@ -92,7 +96,7 @@ func Distribute() func(c *gin.Context) {
 				if !ok {
 					tokenModelLimit = map[string]bool{}
 				}
-				matchName := ratio_setting.FormatMatchingModelName(modelRequest.Model) // match gpts & thinking-*
+				matchName := ratio_setting.FormatMatchingModelName(modelRequest.Model)
 				if _, ok := tokenModelLimit[matchName]; !ok {
 					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenModelForbidden, map[string]any{"Model": modelRequest.Model}))
 					return
@@ -104,9 +108,9 @@ func Distribute() func(c *gin.Context) {
 					abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorModelNameRequired))
 					return
 				}
+
 				var selectGroup string
 				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
-				// check path is /pg/chat/completions
 				if strings.HasPrefix(c.Request.URL.Path, "/pg/chat/completions") {
 					playgroundRequest := &dto.PlayGroundRequest{}
 					err = common.UnmarshalBodyReusable(c, playgroundRequest)
@@ -124,68 +128,116 @@ func Distribute() func(c *gin.Context) {
 					}
 				}
 
-				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
-					affinityUsable := false
-					preferred, err := model.CacheGetChannel(preferredChannelID)
-					affinitySatisfied := false
-					if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
-						affinitySatisfied, _ = model.ChannelSatisfiesFilters(preferred, modelRequest.Model, constraints.Filters)
+				if service.SchedulerClient().Enabled {
+					setSchedulerAllowedChannelIDs(c, modelRequest.Model, usingGroup, c.Request.URL.Path)
+				}
+				if service.SchedulerEnforcedForRequest(c) {
+					if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
+						common.SetContextKey(c, constant.ContextKeySchedulerAffinityChannelID, preferredChannelID)
 					}
-					if affinitySatisfied {
+					if err := service.RunSchedulerShadow(c, modelRequest.Model, usingGroup); err != nil {
+						if service.IsSchedulerTransientUnavailable(err) && service.SchedulerEmergencyNativeAllowed(modelRequest.Model, usingGroup) {
+							service.MarkSchedulerEmergency(c, err)
+							common.SysLog(fmt.Sprintf("scheduler emergency native routing enabled: request_id=%s model=%s group=%s error=%v", c.GetString(common.RequestIdKey), modelRequest.Model, usingGroup, err))
+						} else {
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, "scheduler unavailable: "+err.Error(), types.ErrorCodeModelNotFound)
+							return
+						}
+					} else {
+						candidate, found := service.SchedulerCandidateForInitial(c)
+						if !found {
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, "scheduler returned no usable candidate", types.ErrorCodeModelNotFound)
+							return
+						}
+						candidateChannel, candidateErr := model.GetChannelById(candidate.ChannelID, true)
+						if candidateErr != nil || candidateChannel == nil || candidateChannel.Status != common.ChannelStatusEnabled ||
+							!channelSupportsRequestPath(candidateChannel, c.Request.URL.Path, modelRequest.Model) {
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("scheduler candidate channel %d unavailable", candidate.ChannelID), types.ErrorCodeModelNotFound)
+							return
+						}
 						if usingGroup == "auto" {
 							userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-							autoGroups := service.GetRequestAutoGroups(c, userGroup)
-							for _, g := range autoGroups {
-								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
+							for _, g := range service.GetRequestAutoGroups(c, userGroup) {
+								if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, candidateChannel.Id) {
 									selectGroup = g
 									common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
-									channel = preferred
-									affinityUsable = true
-									service.MarkChannelAffinityUsed(c, g, preferred.Id)
 									break
 								}
 							}
-						} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
-							channel = preferred
+							if selectGroup == "" {
+								abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("scheduler candidate channel %d is not enabled for model %s", candidate.ChannelID, modelRequest.Model), types.ErrorCodeModelNotFound)
+								return
+							}
+						} else {
+							if !model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, candidateChannel.Id) {
+								abortWithOpenAiMessage(c, http.StatusServiceUnavailable, fmt.Sprintf("scheduler candidate channel %d is not enabled for group %s and model %s", candidate.ChannelID, usingGroup, modelRequest.Model), types.ErrorCodeModelNotFound)
+								return
+							}
 							selectGroup = usingGroup
-							affinityUsable = true
-							service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
 						}
-					}
-					if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
-						service.ClearCurrentChannelAffinityCache(c)
+						channel = candidateChannel
 					}
 				}
 
 				if channel == nil {
-					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:         c,
-						ModelName:   modelRequest.Model,
-						TokenGroup:  usingGroup,
-						RequestPath: c.Request.URL.Path,
-						Retry:       common.GetPointer(0),
-					})
-					if err != nil {
-						showGroup := usingGroup
-						if usingGroup == "auto" {
-							showGroup = fmt.Sprintf("auto(%s)", selectGroup)
+					if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
+						affinityUsable := false
+						preferred, err := model.CacheGetChannel(preferredChannelID)
+						affinitySatisfied := false
+						if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
+							affinitySatisfied, _ = model.ChannelSatisfiesFilters(preferred, modelRequest.Model, constraints.Filters)
 						}
-						message := i18n.T(c, i18n.MsgDistributorGetChannelFailed, map[string]any{"Group": showGroup, "Model": modelRequest.Model, "Error": err.Error()})
-						// 如果错误，但是渠道不为空，说明是数据库一致性问题
-						//if channel != nil {
-						//	common.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
-						//	message = "数据库一致性已被破坏，请联系管理员"
-						//}
-						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message, types.ErrorCodeModelNotFound)
-						return
+						if affinitySatisfied {
+							if usingGroup == "auto" {
+								userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+								for _, g := range service.GetRequestAutoGroups(c, userGroup) {
+									if model.IsChannelEnabledForGroupModel(g, modelRequest.Model, preferred.Id) {
+										selectGroup = g
+										common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+										channel = preferred
+										affinityUsable = true
+										service.MarkChannelAffinityUsed(c, g, preferred.Id)
+										break
+									}
+								}
+							} else if model.IsChannelEnabledForGroupModel(usingGroup, modelRequest.Model, preferred.Id) {
+								channel = preferred
+								selectGroup = usingGroup
+								affinityUsable = true
+								service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
+							}
+						}
+						if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
+							service.ClearCurrentChannelAffinityCache(c)
+						}
 					}
+
 					if channel == nil {
-						abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
-						return
+						channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
+							Ctx:         c,
+							ModelName:   modelRequest.Model,
+							TokenGroup:  usingGroup,
+							RequestPath: c.Request.URL.Path,
+							Retry:       common.GetPointer(0),
+						})
+						if err != nil {
+							showGroup := usingGroup
+							if usingGroup == "auto" {
+								showGroup = fmt.Sprintf("auto(%s)", selectGroup)
+							}
+							message := i18n.T(c, i18n.MsgDistributorGetChannelFailed, map[string]any{"Group": showGroup, "Model": modelRequest.Model, "Error": err.Error()})
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, message, types.ErrorCodeModelNotFound)
+							return
+						}
+						if channel == nil {
+							abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": usingGroup, "Model": modelRequest.Model}), types.ErrorCodeModelNotFound)
+							return
+						}
 					}
 				}
 			}
 		}
+
 		if channel != nil {
 			if ok, kind := model.ChannelSatisfiesFilters(channel, modelRequest.Model, constraints.Filters); !ok {
 				if kind == taskdto.FilterTaskPluginIdentity {
@@ -197,11 +249,35 @@ func Distribute() func(c *gin.Context) {
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		if !pinFound && channel != nil && !service.SchedulerEnforcedForRequest(c) && !common.GetContextKeyBool(c, constant.ContextKeySchedulerAttemptReported) {
+			if err := service.RunSchedulerShadow(c, modelRequest.Model, common.GetContextKeyString(c, constant.ContextKeyUsingGroup)); err != nil {
+				common.SysLog(fmt.Sprintf("scheduler shadow skipped: %v", err))
+			}
+		}
 		c.Next()
+		if service.SchedulerEmergencyNativeActive(c) {
+			common.SysLog(fmt.Sprintf("scheduler degraded native selected: request_id=%s model=%s group=%s channel_id=%d status=%d", c.GetString(common.RequestIdKey), modelRequest.Model, common.GetContextKeyString(c, constant.ContextKeyUsingGroup), common.GetContextKeyInt(c, constant.ContextKeyChannelId), c.Writer.Status()))
+		}
+		if !pinFound && channel != nil && !common.GetContextKeyBool(c, constant.ContextKeySchedulerAttemptReported) {
+			if err := service.ReportSchedulerShadowAttempt(c); err != nil {
+				common.SysLog(fmt.Sprintf("scheduler shadow attempt report skipped: %v", err))
+			}
+		}
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func channelSupportsRequestPath(channel *model.Channel, requestPath string, requestModel string) bool {
+	if channel == nil {
+		return false
+	}
+	if channel.Type != constant.ChannelTypeAdvancedCustom {
+		return true
+	}
+	config := channel.GetOtherSettings().AdvancedCustom
+	return config != nil && config.SupportsPathForModel(requestPath, requestModel)
 }
 
 func channelMatchesExpectedTaskPlugin(c *gin.Context, channel *model.Channel, expected string) bool {
@@ -268,6 +344,33 @@ func pinnedEndpointCandidateForChannel(c *gin.Context, channel *model.Channel, e
 	return selected, expectedOwned && selected.Plugin != nil
 }
 
+// setSchedulerAllowedChannelIDs projects new-api's effective group/model
+// permissions into the Scheduler request. Scheduler ranks endpoints, but it
+// must never rank a channel outside the native permission scope.
+func setSchedulerAllowedChannelIDs(c *gin.Context, modelName, usingGroup, requestPath string) {
+	groups := []string{usingGroup}
+	if usingGroup == "auto" {
+		groups = service.GetRequestAutoGroups(c, common.GetContextKeyString(c, constant.ContextKeyUserGroup))
+	}
+	allowed := make(map[int]struct{})
+	for _, group := range groups {
+		for _, channelID := range model.GetEnabledChannelIDsForGroupModel(group, modelName) {
+			channel, err := model.CacheGetChannel(channelID)
+			if err != nil || channel == nil || channel.Status != common.ChannelStatusEnabled ||
+				!channelSupportsRequestPath(channel, requestPath, modelName) {
+				continue
+			}
+			allowed[channelID] = struct{}{}
+		}
+	}
+	ids := make([]int, 0, len(allowed))
+	for channelID := range allowed {
+		ids = append(ids, channelID)
+	}
+	slices.Sort(ids)
+	common.SetContextKey(c, constant.ContextKeySchedulerAllowedChannelIDs, ids)
+}
+
 // getModelFromRequest 从请求中读取模型信息
 // 根据 Content-Type 自动处理：
 // - application/json
@@ -312,12 +415,16 @@ func getModelFromJSONBody(c *gin.Context) (*ModelRequest, error) {
 		return nil, errors.New("model must be provided once")
 	}
 
-	values := gjson.GetManyBytes(requestBody, "model", "group")
+	values := gjson.GetManyBytes(requestBody, "model", "group", "workload")
 	model, err := getJSONStringValue(values[0], "model")
 	if err != nil {
 		return nil, err
 	}
 	group, err := getJSONStringValue(values[1], "group")
+	if err != nil {
+		return nil, err
+	}
+	workload, err := getJSONStringValue(values[2], "workload")
 	if err != nil {
 		return nil, err
 	}
@@ -328,8 +435,9 @@ func getModelFromJSONBody(c *gin.Context) (*ModelRequest, error) {
 	c.Request.Body = io.NopCloser(storage)
 
 	return &ModelRequest{
-		Model: model,
-		Group: group,
+		Model:    model,
+		Group:    group,
+		Workload: workload,
 	}, nil
 }
 
@@ -640,7 +748,17 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelModelMapping, channel.GetModelMapping())
 	common.SetContextKey(c, constant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
 
-	key, index, newAPIError := channel.GetNextEnabledKey()
+	var key string
+	var index int
+	var newAPIError *types.NewAPIError
+	if schedulerIndex, ok := common.GetContextKeyType[int](c, constant.ContextKeySchedulerKeyIndex); ok {
+		key, index, newAPIError = channel.GetEnabledKeyAt(schedulerIndex)
+		// The hint is per attempt. Consume it so a later native retry does not
+		// accidentally reuse a stale Scheduler selection.
+		c.Set(string(constant.ContextKeySchedulerKeyIndex), nil)
+	} else {
+		key, index, newAPIError = channel.GetNextEnabledKey()
+	}
 	if newAPIError != nil {
 		return newAPIError
 	}

@@ -19,6 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 // Static translation keys that don't get picked up by the t('...') regex.
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  // Routing provider sort labels
+  'Default (balanced)',
+  'Price (cheapest first)',
+  'Throughput (highest first)',
+  'Latency (lowest first)',
+  'Exacto (tool-call quality first)',
+
   // Header navigation
   'Home',
   'Console',
