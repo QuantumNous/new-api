@@ -14,6 +14,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func newImageTestContext(t *testing.T, body, contentType string, isStream bool) (*gin.Context, *httptest.ResponseRecorder, *http.Response, *relaycommon.RelayInfo) {
@@ -50,7 +51,9 @@ func TestOpenaiImageDoResponseUsesInfoIsStream(t *testing.T) {
 
 		require.Nil(t, err)
 		require.NotNil(t, usage)
-		require.Equal(t, body, recorder.Body.String())
+		require.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+		require.Equal(t, "image", gjson.Get(recorder.Body.String(), "data.0.b64_json").String())
+		require.EqualValues(t, 1710000000, gjson.Get(recorder.Body.String(), "created").Int())
 	})
 
 	t.Run("stream response converts JSON to SSE", func(t *testing.T) {
@@ -356,7 +359,12 @@ func TestOpenaiImageHandlerUsesPositiveActualCountForFixedPrice(t *testing.T) {
 
 			require.Nil(t, err)
 			require.Equal(t, tt.wantCount, info.PriceData.OtherRatios()["n"])
-			require.Equal(t, tt.body, recorder.Body.String())
+			originalItems := gjson.Get(tt.body, "data").Array()
+			returnedItems := gjson.Get(recorder.Body.String(), "data").Array()
+			require.Len(t, returnedItems, len(originalItems))
+			for i, item := range originalItems {
+				require.Equal(t, item.Get("b64_json").String(), returnedItems[i].Get("b64_json").String())
+			}
 		})
 	}
 }

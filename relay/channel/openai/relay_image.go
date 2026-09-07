@@ -52,7 +52,10 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	updateOpenAIImageCount(info, gjson.GetBytes(responseBody, "data.#").Int())
 
 	// 写入新的 response body
-	service.IOCopyBytesGracefully(c, resp, responseBody)
+	for _, key := range []string{"ETag", "Content-MD5", "Digest", "Content-Digest", "Repr-Digest"} {
+		resp.Header.Del(key)
+	}
+	service.IOCopyBytesGracefully(c, resp, service.NormalizeImageJSONResponse(c.Request.Context(), responseBody))
 
 	normalizeOpenAIUsage(&usageResp.Usage)
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
