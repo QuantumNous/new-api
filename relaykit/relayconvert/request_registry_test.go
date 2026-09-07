@@ -1,6 +1,7 @@
 package relayconvert
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -11,6 +12,41 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGeminiToOpenAIThinkingLevelNormalization(t *testing.T) {
+	for _, fields := range []struct{ generation, thinking, level string }{
+		{"generationConfig", "thinkingConfig", "thinkingLevel"},
+		{"generationConfig", "thinking_config", "thinking_level"},
+	} {
+		for _, tt := range []struct {
+			model, level, want string
+		}{
+			{"gemini-3.7-flash", "medium", "medium"},
+			{"gemini-3.7-flash", "MEDIUM", "medium"},
+			{"gemini-3.7-flash", " Medium ", "medium"},
+			{"gemini-3-pro-preview", "LOW", "low"},
+			{"gemini-3-pro-preview", "MEDIUM", ""},
+			{"gemini-3.7-flash", "MAX", ""},
+			{"gemini-2.5-flash", "LOW", ""},
+		} {
+			t.Run(fields.thinking+"/"+tt.model+"/"+tt.level, func(t *testing.T) {
+				body := fmt.Sprintf(`{"%s":{"%s":{"%s":%q,"includeThoughts":true}}}`, fields.generation, fields.thinking, fields.level, tt.level)
+				var request dto.GeminiChatRequest
+				require.NoError(t, kitutil.UnmarshalJsonStr(body, &request))
+				info := &convmeta.Values{ChannelMetaAttached: true, OriginModelName: tt.model, UpstreamModelName: "gpt-5"}
+				converted, err := GeminiGenerateContentRequestToOpenAIChat(&request, info)
+				if tt.want == "" {
+					require.Error(t, err)
+					return
+				}
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, info.GetReasoningEffort())
+				assert.Equal(t, tt.want, converted.ReasoningEffort)
+				assert.Equal(t, tt.level, request.GenerationConfig.ThinkingConfig.ThinkingLevel)
+			})
+		}
+	}
+}
 
 func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 	tests := []struct {

@@ -213,7 +213,7 @@ func ValidateGeminiThinkingConfig(model string, config *dto.GeminiThinkingConfig
 		if err != nil {
 			return "", err
 		}
-		if level != config.ThinkingLevel {
+		if Effort(level) != intent.Effort {
 			return "", fmt.Errorf("thinkingLevel %q is not supported by model %q", config.ThinkingLevel, model)
 		}
 		return Effort(level), nil
