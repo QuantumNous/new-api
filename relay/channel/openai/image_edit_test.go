@@ -13,6 +13,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,4 +96,65 @@ func TestConvertImageEditRequestMultipart(t *testing.T) {
 
 		convertAndReplay(t, c, prompt)
 	})
+}
+
+// TestConvertImageEditRequestPreservesFilenames verifies that multipart conversion
+// preserves image and mask attachments with filenames that require escaping.
+func TestConvertImageEditRequestPreservesFilenames(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, filename := range []string{"input.png", `input"quoted.png`, `input\\backslash.png`, "图片.png"} {
+		for _, imageField := range []string{"image", "image[]"} {
+			t.Run(imageField+"/"+filename, func(t *testing.T) {
+				var body bytes.Buffer
+				writer := multipart.NewWriter(&body)
+				fields := []string{imageField, "mask"}
+				if imageField == "image[]" {
+					fields = append(fields, imageField)
+				}
+				for _, field := range fields {
+					part, err := writer.CreateFormFile(field, filename)
+					require.NoError(t, err)
+					_, err = io.WriteString(part, "contents of "+field)
+					require.NoError(t, err)
+				}
+				require.NoError(t, writer.Close())
+
+				c, _ := gin.CreateTestContext(httptest.NewRecorder())
+				c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+				c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+				require.NoError(t, c.Request.ParseMultipartForm(32<<20))
+				t.Cleanup(func() { require.NoError(t, c.Request.MultipartForm.RemoveAll()) })
+
+				converted, err := (&Adaptor{}).ConvertImageRequest(c, &relaycommon.RelayInfo{
+					RelayMode: relayconstant.RelayModeImagesEdits,
+				}, dto.ImageRequest{Model: "gpt-image-1"})
+				require.NoError(t, err)
+				convertedBody, ok := converted.(*bytes.Buffer)
+				require.True(t, ok)
+				replayed := httptest.NewRequest(http.MethodPost, "/v1/images/edits", convertedBody)
+				replayed.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+				require.NoError(t, replayed.ParseMultipartForm(32<<20))
+				t.Cleanup(func() { require.NoError(t, replayed.MultipartForm.RemoveAll()) })
+
+				for _, field := range []string{imageField, "mask"} {
+					wantCount := 1
+					if field == "image[]" {
+						wantCount = 2
+					}
+					files := replayed.MultipartForm.File[field]
+					require.Len(t, files, wantCount)
+					for _, header := range files {
+						assert.Equal(t, c.Request.MultipartForm.File[field][0].Filename, header.Filename)
+						assert.Equal(t, "image/png", header.Header.Get("Content-Type"))
+						file, err := header.Open()
+						require.NoError(t, err)
+						contents, err := io.ReadAll(file)
+						require.NoError(t, err)
+						require.NoError(t, file.Close())
+						assert.Equal(t, "contents of "+field, string(contents))
+					}
+				}
+			})
+		}
+	}
 }

@@ -579,7 +579,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 				// Create a form file with the appropriate content type
 				h := make(textproto.MIMEHeader)
-				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, fileHeader.Filename))
+				h.Set("Content-Disposition", multipart.FileContentDisposition(fieldName, fileHeader.Filename))
 				h.Set("Content-Type", mimeType)
 
 				part, err := writer.CreatePart(h)
@@ -608,7 +608,7 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 				// Create a form file with the appropriate content type
 				h := make(textproto.MIMEHeader)
-				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="mask"; filename="%s"`, maskFiles[0].Filename))
+				h.Set("Content-Disposition", multipart.FileContentDisposition("mask", maskFiles[0].Filename))
 				h.Set("Content-Type", mimeType)
 
 				maskPart, err := writer.CreatePart(h)
