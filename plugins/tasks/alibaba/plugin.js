@@ -7,10 +7,12 @@ export const meta = {
     en: "Alibaba Cloud Bailian Wanxiang video generation (text-to-video and image-to-video)",
     zh: "阿里云百炼万相视频生成（文生视频、图生视频）",
   },
-  version: "1.0.1",
+  version: "1.1.0",
   author: { name: "QuantumNous" },
   channelTypes: [17],
   models: [
+    "wan3.0-video",
+    "wan3.0-video-prime",
     "wan2.7-i2v",
     "wan2.7-t2v",
     "wan2.5-t2v-preview",
@@ -79,13 +81,14 @@ function convert(ctx) {
     else parameters.resolution = normalizeResolution(req.size);
   } else if (String(req.model).includes("t2v")) {
     parameters.size = String(req.model).startsWith("wan2.5") || String(req.model).startsWith("wan2.2") ? "1920*1080" : "1280*720";
-  } else if (String(req.model).startsWith("wan2.6") || String(req.model).startsWith("wan2.5") || String(req.model).startsWith("wan2.2-i2v-plus")) {
+  } else if (String(req.model).startsWith("wan2.6") || String(req.model).startsWith("wan2.5") || String(req.model).startsWith("wan2.2-i2v-plus") || String(req.model).startsWith("wan3.0")) {
     parameters.resolution = "1080P";
   } else {
     parameters.resolution = "720P";
   }
 
   if (Number(req.duration) > 0) parameters.duration = Number(req.duration);
+  else if (Number(req.duration) === -1 && String(upstreamModel).startsWith("wan3.0")) parameters.duration = -1;
   else if (req.seconds) {
     const seconds = Number(req.seconds);
     if (!Number.isInteger(seconds)) throw new Error("convert seconds to int failed");
@@ -99,16 +102,42 @@ function convert(ctx) {
   if (model !== upstreamModel) throw new Error("can't change model with metadata");
   const body = { model: model, input: input, parameters: parameters };
 
-  if (String(model).startsWith("wan2.7-i2v")) {
+  if (String(model).startsWith("wan2.7-i2v") || String(model).startsWith("wan3.0-video")) {
     if (!Array.isArray(input.media) || input.media.length === 0) {
       input.media = [];
       const first = trimmed(input.first_frame_url) || trimmed(input.img_url) || firstImage(req);
       const last = trimmed(input.last_frame_url) || secondImage(req);
       if (first) input.media.push({ type: "first_frame", url: first });
       if (last) input.media.push({ type: "last_frame", url: last });
-      if (trimmed(input.audio_url)) input.media.push({ type: "driving_audio", url: input.audio_url });
+      if (String(model).startsWith("wan2.7-i2v") && trimmed(input.audio_url)) input.media.push({ type: "driving_audio", url: input.audio_url });
     }
-    if (input.media.length === 0) throw new Error("wan2.7-i2v requires image, images, input_reference, or input.media");
+    if (String(model).startsWith("wan2.7-i2v") && input.media.length === 0) throw new Error("wan2.7-i2v requires image, images, input_reference, or input.media");
+    if (String(model).startsWith("wan3.0-video")) {
+      if (input.media.length === 0) delete input.media;
+      if (!trimmed(input.prompt) && !(Array.isArray(input.media) && input.media.length)) throw new Error("wan3.0-video requires prompt or input.media");
+      if (parameters.size) {
+        parameters.resolution = {
+          "832*480": "480P",
+          "480*832": "480P",
+          "624*624": "480P",
+          "1280*720": "720P",
+          "720*1280": "720P",
+          "960*960": "720P",
+          "1088*832": "720P",
+          "832*1088": "720P",
+          "1920*1080": "1080P",
+          "1080*1920": "1080P",
+          "1440*1440": "1080P",
+          "1632*1248": "1080P",
+          "1248*1632": "1080P",
+        }[parameters.size] || parameters.resolution;
+        delete parameters.size;
+      }
+      if (!parameters.resolution) parameters.resolution = "1080P";
+      if (!parameters.ratio) parameters.ratio = "adaptive";
+      const duration = Number(parameters.duration);
+      if (duration !== -1 && (!Number.isInteger(duration) || duration < 2 || duration > 30)) throw new Error("wan3.0 duration must be -1 or an integer between 2 and 30");
+    }
     delete input.img_url;
     delete input.first_frame_url;
     delete input.last_frame_url;
@@ -117,7 +146,7 @@ function convert(ctx) {
   if (!parameters.prompt_extend) delete parameters.prompt_extend;
   if (!parameters.watermark) delete parameters.watermark;
   if (!parameters.seed) delete parameters.seed;
-  for (const key of ["resolution", "size"]) if (!parameters[key]) delete parameters[key];
+  for (const key of ["resolution", "size", "ratio"]) if (!parameters[key]) delete parameters[key];
   return body;
 }
 
@@ -140,6 +169,8 @@ function resolutionRatio(body) {
       }[body.parameters.size]
     : normalizeResolution(body.parameters.resolution);
   const ratios = {
+    "wan3.0-video": { "480P": 1, "720P": 2, "1080P": 4 },
+    "wan3.0-video-prime": { "480P": 1, "720P": 2, "1080P": 4 },
     "wan2.6-i2v": { "720P": 1, "1080P": 1 / 0.6 },
     "wan2.5-t2v-preview": { "480P": 1, "720P": 2, "1080P": 1 / 0.3 },
     "wan2.2-t2v-plus": { "480P": 1, "1080P": 5 },
@@ -205,7 +236,7 @@ export function buildSubmitRequest(ctx) {
     method: "POST",
     headers: { Authorization: "Bearer " + ctx.apiKey, "Content-Type": "application/json", "X-DashScope-Async": "enable" },
     body: body,
-    action: firstImage(ctx.requestBody) ? "image_to_video" : "text_to_video",
+    action: firstImage(ctx.requestBody) || (body.input && Array.isArray(body.input.media) && body.input.media.length) ? "image_to_video" : "text_to_video",
   };
 }
 
@@ -218,8 +249,10 @@ export function parseSubmitResponse(ctx, resp) {
 
 export function extractUsage(ctx) {
   const body = convert(ctx);
+  const duration = Number(body.parameters.duration);
+  const seconds = Math.min(duration === -1 ? 30 : duration, 3600);
   if (ctx.usagePurpose === "billing_ratios") {
-    const ratios = { seconds: Math.min(Number(body.parameters.duration), 3600) };
+    const ratios = { seconds: seconds };
     const resolution = resolutionRatio(body);
     if (resolution && resolution.value !== undefined) ratios[resolution.key] = resolution.value;
     return ratios;
@@ -241,8 +274,8 @@ export function extractUsage(ctx) {
         "1248*1632": "1080P",
       }[body.parameters.size]
     : normalizeResolution(body.parameters.resolution);
-  if (!["480P", "720P", "1080P"].includes(resolution)) resolution = "720P";
-  return { seconds: Math.min(Number(body.parameters.duration), 3600), resolution: resolution };
+  if (!["480P", "720P", "1080P"].includes(resolution)) resolution = String(body.model).startsWith("wan3.0") ? "1080P" : "720P";
+  return { seconds: seconds, resolution: resolution };
 }
 
 export function extractUsageOnComplete(task, taskResult, body) {
@@ -297,17 +330,19 @@ export const native = {
     const req = ctx.body.value,
       input = req.input || {},
       parameters = req.parameters || {};
+    const requestBody = {
+      model: req.model,
+      prompt: input.prompt || "",
+      image: input.img_url,
+      duration: parameters.duration,
+      size: parameters.size || parameters.resolution,
+    };
+    if (Array.isArray(input.media) && input.media.length) requestBody.metadata = { input: { media: input.media }, parameters: parameters };
     return {
       kind: "submit",
       model: req.model,
-      action: input.img_url ? "image_to_video" : "text_to_video",
-      requestBody: {
-        model: req.model,
-        prompt: input.prompt || "",
-        image: input.img_url,
-        duration: parameters.duration,
-        size: parameters.size || parameters.resolution,
-      },
+      action: input.img_url || (Array.isArray(input.media) && input.media.length) ? "image_to_video" : "text_to_video",
+      requestBody: requestBody,
     };
   },
   taskCreated: function (ctx, task) {
@@ -347,8 +382,9 @@ export const protocols = {
         if (Object.prototype.hasOwnProperty.call(req, key)) requestBody[key] = req[key];
       }
       if (Object.prototype.hasOwnProperty.call(req, "metadata")) requestBody.metadata = req.metadata;
-      if (!prompt && (!model.includes("i2v") || !firstImage(requestBody))) throw new Error("input is required");
-      return { kind: "submit", model: model, action: firstImage(requestBody) ? "image_to_video" : "text_to_video", requestBody: requestBody };
+      const hasMetaMedia = req.metadata && req.metadata.input && Array.isArray(req.metadata.input.media) && req.metadata.input.media.length > 0;
+      if (!prompt && !firstImage(requestBody) && !hasMetaMedia) throw new Error("input is required");
+      return { kind: "submit", model: model, action: firstImage(requestBody) || hasMetaMedia ? "image_to_video" : "text_to_video", requestBody: requestBody };
     },
     renderEvents: function (ctx, task, previousState) {
       const status = String(task.status || "UNKNOWN").toUpperCase();
