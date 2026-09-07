@@ -20,7 +20,8 @@ import { api } from '@/lib/api'
 
 export interface SchedulerConfig {
   enabled: boolean
-  url: string
+  bootstrap_urls: string
+  local_url: string
   token_set: boolean
   mode: 'shadow' | 'enforced' | 'canary'
   canary_percent: number
@@ -41,8 +42,10 @@ export interface SchedulerConfig {
 export interface SchedulerMonitor {
   configured: boolean
   url: string
+  urls?: string[]
   reachable: boolean
   checked_at: string
+  nodes?: Array<{ url: string; reachable: boolean }>
   observability?: {
     status?: string
     catalog?: {

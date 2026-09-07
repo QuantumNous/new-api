@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -94,6 +95,48 @@ func TestRunSchedulerShadowStoresOnlyMetadata(t *testing.T) {
 	}
 	if got := SchedulerEndpointForChannel(c, 99); got != "ep1" {
 		t.Fatalf("shadow fallback endpoint=%s", got)
+	}
+}
+
+func TestRunSchedulerShadowFallsBackToNextSchedulerURL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var firstHits int32
+	var secondHits int32
+	first := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&firstHits, 1)
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&secondHits, 1)
+		if r.URL.Path != "/v1/schedule" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"decision_id":"d-fallback","catalog_version":"catalog-v1","candidates":[{"endpoint_id":"ep2","channel_id":8,"key_index":1,"model":"m","reason":["healthy"]}]}`))
+	}))
+	defer second.Close()
+
+	ConfigureSchedulerClientForTest(SchedulerClientConfig{
+		Enabled:       true,
+		LocalURL:      first.URL,
+		BootstrapURLs: []string{second.URL},
+		Token:         "scheduler-test",
+		Timeout:       time.Second,
+	})
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Set(common.RequestIdKey, "req-fallback")
+	if err := RunSchedulerShadow(c, "m", "default"); err != nil {
+		t.Fatalf("fallback scheduler request failed: %v", err)
+	}
+	if got := atomic.LoadInt32(&firstHits); got == 0 {
+		t.Fatal("local scheduler was not tried first")
+	}
+	if got := atomic.LoadInt32(&secondHits); got == 0 {
+		t.Fatal("bootstrap scheduler was not used after local failure")
+	}
+	if got := common.GetContextKeyString(c, constant.ContextKeySchedulerDecisionID); got != "d-fallback" {
+		t.Fatalf("decision=%s", got)
 	}
 }
 

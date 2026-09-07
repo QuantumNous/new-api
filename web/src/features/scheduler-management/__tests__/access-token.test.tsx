@@ -26,7 +26,8 @@ import { SchedulerConfigPage } from '../config'
 
 const schedulerConfig: SchedulerConfig = {
   enabled: true,
-  url: 'http://127.0.0.1:18080',
+  bootstrap_urls: 'http://node-a:18080,http://node-b:18080',
+  local_url: 'http://127.0.0.1:18080',
   token_set: true,
   mode: 'shadow',
   canary_percent: 0,

@@ -37,6 +37,8 @@ const schedulerDefaultRuntimeHighWatermark = 0.8
 type SchedulerClientConfig struct {
 	Enabled              bool
 	BaseURL              string
+	BootstrapURLs        []string
+	LocalURL             string
 	Token                string
 	SigningSecret        string
 	Timeout              time.Duration
@@ -50,6 +52,11 @@ type SchedulerClientConfig struct {
 	EmergencyModels      []string
 	EmergencyLocalSwitch bool
 }
+
+func (c SchedulerClientConfig) URLs() []string {
+	return schedulerResolvedURLs(c)
+}
+
 type SchedulerCandidate struct {
 	EndpointID    string   `json:"endpoint_id"`
 	ChannelID     int      `json:"channel_id"`
@@ -151,6 +158,19 @@ var schedulerCircuitState struct {
 	probeSuccesses int
 }
 
+type schedulerEndpointCircuit struct {
+	failures       int
+	failedAt       time.Time
+	openedAt       time.Time
+	halfOpen       bool
+	probeSuccesses int
+}
+
+var schedulerEndpointCircuitState struct {
+	sync.Mutex
+	states map[string]*schedulerEndpointCircuit
+}
+
 func resetSchedulerCircuit() {
 	schedulerCircuitState.Lock()
 	schedulerCircuitState.failures = 0
@@ -159,6 +179,9 @@ func resetSchedulerCircuit() {
 	schedulerCircuitState.halfOpen = false
 	schedulerCircuitState.probeSuccesses = 0
 	schedulerCircuitState.Unlock()
+	schedulerEndpointCircuitState.Lock()
+	schedulerEndpointCircuitState.states = make(map[string]*schedulerEndpointCircuit)
+	schedulerEndpointCircuitState.Unlock()
 }
 
 func schedulerCircuitAllows(now time.Time) bool {
@@ -233,6 +256,135 @@ func schedulerCircuitEmergencyActive(now time.Time, maxDuration time.Duration) b
 	return now.Sub(schedulerCircuitState.failedAt) < maxDuration
 }
 
+func schedulerEndpointCircuitForLocked(endpoint string) *schedulerEndpointCircuit {
+	if schedulerEndpointCircuitState.states == nil {
+		schedulerEndpointCircuitState.states = make(map[string]*schedulerEndpointCircuit)
+	}
+	circuit, ok := schedulerEndpointCircuitState.states[endpoint]
+	if !ok {
+		circuit = &schedulerEndpointCircuit{}
+		schedulerEndpointCircuitState.states[endpoint] = circuit
+	}
+	return circuit
+}
+
+func schedulerEndpointCircuitAllows(endpoint string, now time.Time) bool {
+	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
+	if endpoint == "" {
+		return false
+	}
+	schedulerEndpointCircuitState.Lock()
+	defer schedulerEndpointCircuitState.Unlock()
+	circuit := schedulerEndpointCircuitForLocked(endpoint)
+	if circuit.openedAt.IsZero() {
+		return true
+	}
+	if now.Sub(circuit.openedAt) < schedulerCircuitProbeInterval {
+		return false
+	}
+	if circuit.halfOpen {
+		return false
+	}
+	circuit.halfOpen = true
+	return true
+}
+
+func schedulerEndpointCircuitFailure(endpoint string, now time.Time) {
+	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
+	if endpoint == "" {
+		return
+	}
+	schedulerEndpointCircuitState.Lock()
+	defer schedulerEndpointCircuitState.Unlock()
+	circuit := schedulerEndpointCircuitForLocked(endpoint)
+	if circuit.openedAt.IsZero() {
+		if circuit.failedAt.IsZero() {
+			circuit.failedAt = now
+		}
+		circuit.failures++
+		if circuit.failures >= schedulerCircuitFailureThreshold {
+			circuit.openedAt = now
+			circuit.halfOpen = false
+		}
+		return
+	}
+	circuit.openedAt = now
+	circuit.halfOpen = false
+	circuit.probeSuccesses = 0
+}
+
+func schedulerEndpointCircuitSuccess(endpoint string, now time.Time) {
+	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
+	if endpoint == "" {
+		return
+	}
+	schedulerEndpointCircuitState.Lock()
+	defer schedulerEndpointCircuitState.Unlock()
+	circuit := schedulerEndpointCircuitForLocked(endpoint)
+	if !circuit.openedAt.IsZero() {
+		if circuit.halfOpen {
+			circuit.probeSuccesses++
+			circuit.halfOpen = false
+			if circuit.probeSuccesses >= 2 {
+				circuit.failures = 0
+				circuit.failedAt = time.Time{}
+				circuit.openedAt = time.Time{}
+				circuit.probeSuccesses = 0
+			} else {
+				circuit.openedAt = now
+			}
+		}
+		return
+	}
+	circuit.failures = 0
+	circuit.failedAt = time.Time{}
+	circuit.probeSuccesses = 0
+}
+
+func schedulerNormalizedURLs(values ...string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimRight(strings.TrimSpace(value), "/")
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
+}
+
+func schedulerResolvedURLs(config SchedulerClientConfig) []string {
+	values := make([]string, 0, 2+len(config.BootstrapURLs))
+	if strings.TrimSpace(config.LocalURL) != "" {
+		values = append(values, config.LocalURL)
+	}
+	values = append(values, config.BootstrapURLs...)
+	if len(values) == 0 && strings.TrimSpace(config.BaseURL) != "" {
+		values = append(values, config.BaseURL)
+	}
+	return schedulerNormalizedURLs(values...)
+}
+
+func schedulerOptionURLs(key, envKey string) []string {
+	raw := schedulerOption(key, envKey, "")
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if value := strings.TrimSpace(part); value != "" {
+			result = append(result, strings.TrimRight(value, "/"))
+		}
+	}
+	return schedulerNormalizedURLs(result...)
+}
+
 func isTransientSchedulerError(err error) bool {
 	if err == nil || errors.Is(err, context.Canceled) {
 		return false
@@ -287,9 +439,20 @@ func schedulerClientConfigFromOptions() SchedulerClientConfig {
 	if emergencyMaxDuration <= 0 {
 		emergencyMaxDuration = schedulerEmergencyMaxDuration
 	}
+	bootstrapURLs := schedulerOptionList("SchedulerBootstrapURLs")
+	localURL := strings.TrimRight(strings.TrimSpace(schedulerOption("SchedulerLocalURL", "SCHEDULER_LOCAL_URL", "")), "/")
+	baseURL := ""
+	switch {
+	case localURL != "":
+		baseURL = localURL
+	case len(bootstrapURLs) > 0:
+		baseURL = bootstrapURLs[0]
+	}
 	return SchedulerClientConfig{
 		Enabled:       schedulerOptionBool("SchedulerEnabled", "SCHEDULER_ENABLED", false),
-		BaseURL:       strings.TrimRight(strings.TrimSpace(schedulerOption("SchedulerURL", "SCHEDULER_URL", "")), "/"),
+		BaseURL:       baseURL,
+		BootstrapURLs: bootstrapURLs,
+		LocalURL:      localURL,
 		Token:         schedulerOption("SchedulerToken", "SCHEDULER_TOKEN", ""),
 		SigningSecret: schedulerOption("SchedulerSigningSecret", "SCHEDULER_SIGNING_SECRET", ""),
 		Timeout:       timeout, Mode: mode, CanaryPercent: canaryPercent, CanarySalt: canarySalt,
@@ -354,6 +517,86 @@ func schedulerOptionList(key string) []string {
 		}
 	}
 	return result
+}
+
+type schedulerRequestOutcome struct {
+	endpoint string
+	status   int
+	body     []byte
+	err      error
+}
+
+func schedulerDoRequestWithFallback(ctx context.Context, config SchedulerClientConfig, method, path string, payload []byte, includeAuth bool) (schedulerRequestOutcome, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	endpoints := config.URLs()
+	if len(endpoints) == 0 {
+		return schedulerRequestOutcome{}, ErrSchedulerTemporarilyUnavailable
+	}
+	if config.Timeout <= 0 {
+		config.Timeout = 100 * time.Millisecond
+	}
+	client := &http.Client{Timeout: config.Timeout}
+	var lastErr error
+	var transientFailures int
+	now := time.Now()
+	for _, endpoint := range endpoints {
+		if !schedulerEndpointCircuitAllows(endpoint, now) {
+			lastErr = ErrSchedulerTemporarilyUnavailable
+			continue
+		}
+		attemptCtx, cancel := context.WithTimeout(ctx, config.Timeout)
+		req, err := http.NewRequestWithContext(attemptCtx, method, endpoint+path, bytes.NewReader(payload))
+		if err != nil {
+			cancel()
+			return schedulerRequestOutcome{}, err
+		}
+		if includeAuth && config.Token != "" {
+			req.Header.Set("Authorization", "Bearer "+config.Token)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		if includeAuth {
+			signSchedulerRequest(req, config.SigningSecret, payload)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			cancel()
+			if isTransientSchedulerError(err) {
+				schedulerEndpointCircuitFailure(endpoint, time.Now())
+				transientFailures++
+				lastErr = fmt.Errorf("%w: %v", ErrSchedulerTemporarilyUnavailable, err)
+				continue
+			}
+			return schedulerRequestOutcome{}, err
+		}
+		body, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		cancel()
+		if readErr != nil {
+			schedulerEndpointCircuitFailure(endpoint, time.Now())
+			transientFailures++
+			lastErr = fmt.Errorf("%w: %v", ErrSchedulerTemporarilyUnavailable, readErr)
+			continue
+		}
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			schedulerEndpointCircuitSuccess(endpoint, time.Now())
+			schedulerCircuitSuccess(time.Now())
+			return schedulerRequestOutcome{endpoint: endpoint, status: resp.StatusCode, body: body}, nil
+		}
+		if resp.StatusCode >= 500 {
+			schedulerEndpointCircuitFailure(endpoint, time.Now())
+			transientFailures++
+			lastErr = fmt.Errorf("%w: scheduler status %d", ErrSchedulerTemporarilyUnavailable, resp.StatusCode)
+			continue
+		}
+		return schedulerRequestOutcome{endpoint: endpoint, status: resp.StatusCode, body: body, err: fmt.Errorf("scheduler status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))}, nil
+	}
+	schedulerCircuitFailure(time.Now())
+	if transientFailures > 0 && lastErr != nil {
+		return schedulerRequestOutcome{}, lastErr
+	}
+	return schedulerRequestOutcome{}, ErrSchedulerTemporarilyUnavailable
 }
 
 // ReloadSchedulerClient causes the next request to read the latest persisted
@@ -627,8 +870,8 @@ func ReserveSchedulerCandidate(c *gin.Context, candidate SchedulerCandidate, att
 	if candidate.EndpointID == "" {
 		return fmt.Errorf("scheduler candidate endpoint is empty")
 	}
-	if config.Timeout <= 0 {
-		config.Timeout = 100 * time.Millisecond
+	if len(config.URLs()) == 0 || config.Token == "" {
+		return nil
 	}
 	estimatedTokens := common.GetContextKeyInt(c, constant.ContextKeySchedulerEstimatedTokens)
 	if estimatedTokens <= 0 {
@@ -639,27 +882,20 @@ func ReserveSchedulerCandidate(c *gin.Context, candidate SchedulerCandidate, att
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), config.Timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, config.BaseURL+"/v1/reserve", bytes.NewReader(payload))
+	outcome, err := schedulerDoRequestWithFallback(c.Request.Context(), config, http.MethodPost, "/v1/reserve", payload, true)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+config.Token)
-	req.Header.Set("Content-Type", "application/json")
-	signSchedulerRequest(req, config.SigningSecret, payload)
-	resp, err := (&http.Client{Timeout: config.Timeout}).Do(req)
-	if err != nil {
-		return err
+	if outcome.err != nil {
+		return outcome.err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("scheduler reserve status %d", resp.StatusCode)
+	if outcome.status < 200 || outcome.status >= 300 {
+		return fmt.Errorf("scheduler reserve status %d", outcome.status)
 	}
 	var reservation struct {
 		ReservationID string `json:"reservation_id"`
 	}
-	if err := common.DecodeJson(resp.Body, &reservation); err != nil {
+	if err := common.DecodeJson(bytes.NewReader(outcome.body), &reservation); err != nil {
 		return err
 	}
 	if reservation.ReservationID == "" {
@@ -675,7 +911,7 @@ func ReserveSchedulerCandidate(c *gin.Context, candidate SchedulerCandidate, att
 // for Attempt telemetry.
 func ResizeSchedulerReservation(c *gin.Context, estimatedTokens int) error {
 	config := SchedulerClient()
-	if !SchedulerEnforcedForRequest(c) || config.BaseURL == "" || config.Token == "" {
+	if !SchedulerEnforcedForRequest(c) || len(config.URLs()) == 0 || config.Token == "" {
 		return nil
 	}
 	if estimatedTokens < 0 {
@@ -700,30 +936,20 @@ func ResizeSchedulerReservation(c *gin.Context, estimatedTokens int) error {
 	if endpointID == "" {
 		return fmt.Errorf("scheduler resize endpoint is empty")
 	}
-	if config.Timeout <= 0 {
-		config.Timeout = 100 * time.Millisecond
-	}
 	body := schedulerResizeRequest{RequestID: c.GetString(common.RequestIdKey), DecisionID: decisionID, AttemptNo: 1, EndpointID: endpointID, ReservationID: reservationID, EstimatedTokens: estimatedTokens}
 	payload, err := common.Marshal(body)
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, config.BaseURL+"/v1/resize", bytes.NewReader(payload))
+	outcome, err := schedulerDoRequestWithFallback(context.Background(), config, http.MethodPost, "/v1/resize", payload, true)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+config.Token)
-	req.Header.Set("Content-Type", "application/json")
-	signSchedulerRequest(req, config.SigningSecret, payload)
-	resp, err := (&http.Client{Timeout: config.Timeout}).Do(req)
-	if err != nil {
-		return err
+	if outcome.err != nil {
+		return outcome.err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("scheduler resize status %d", resp.StatusCode)
+	if outcome.status < 200 || outcome.status >= 300 {
+		return fmt.Errorf("scheduler resize status %d", outcome.status)
 	}
 	common.SetContextKey(c, constant.ContextKeySchedulerEstimatedTokens, estimatedTokens)
 	return nil
@@ -811,7 +1037,7 @@ func RunSchedulerShadow(c *gin.Context, modelName, group string) error {
 		return nil
 	}
 	config := SchedulerClient()
-	if !config.Enabled || config.BaseURL == "" || config.Token == "" {
+	if !config.Enabled || len(config.URLs()) == 0 || config.Token == "" {
 		return nil
 	}
 	if !schedulerCircuitAllows(time.Now()) {
@@ -843,34 +1069,18 @@ func RunSchedulerShadow(c *gin.Context, modelName, group string) error {
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), config.Timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, config.BaseURL+"/v1/schedule", bytes.NewReader(payload))
+	outcome, err := schedulerDoRequestWithFallback(c.Request.Context(), config, http.MethodPost, "/v1/schedule", payload, true)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+config.Token)
-	req.Header.Set("Content-Type", "application/json")
-	signSchedulerRequest(req, config.SigningSecret, payload)
-	resp, err := (&http.Client{Timeout: config.Timeout}).Do(req)
-	if err != nil {
-		if isTransientSchedulerError(err) {
-			schedulerCircuitFailure(time.Now())
-			return fmt.Errorf("%w: %v", ErrSchedulerTemporarilyUnavailable, err)
+	if outcome.err != nil {
+		if outcome.status == http.StatusBadGateway || outcome.status == http.StatusServiceUnavailable || outcome.status == http.StatusGatewayTimeout {
+			return fmt.Errorf("%w: %v", ErrSchedulerTemporarilyUnavailable, outcome.err)
 		}
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		statusErr := fmt.Errorf("scheduler status %d", resp.StatusCode)
-		if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
-			schedulerCircuitFailure(time.Now())
-			return fmt.Errorf("%w: %v", ErrSchedulerTemporarilyUnavailable, statusErr)
-		}
-		return statusErr
+		return outcome.err
 	}
 	var scheduled schedulerResponse
-	if err := common.DecodeJson(resp.Body, &scheduled); err != nil {
+	if err := common.DecodeJson(bytes.NewReader(outcome.body), &scheduled); err != nil {
 		return err
 	}
 	if scheduled.DecisionID == "" || scheduled.CatalogVersion == "" || len(scheduled.Candidates) == 0 {
@@ -979,7 +1189,7 @@ func SchedulerMaxOutputTokens(c *gin.Context) int {
 // c.Next() so the final HTTP status is available.
 func ReportSchedulerShadowAttempt(c *gin.Context) error {
 	config := SchedulerClient()
-	if !config.Enabled || config.BaseURL == "" || config.Token == "" {
+	if !config.Enabled || len(config.URLs()) == 0 || config.Token == "" {
 		return nil
 	}
 	decisionID := common.GetContextKeyString(c, constant.ContextKeySchedulerDecisionID)
@@ -1032,7 +1242,7 @@ func ReportSchedulerAttempt(c *gin.Context, endpointID string, attemptNo, status
 	// Shadow and non-selected Canary requests are settled by
 	// ReportSchedulerShadowAttempt, which reports the reserved first candidate
 	// rather than the native channel.
-	if !SchedulerEnforcedForRequest(c) || !config.Enabled || config.BaseURL == "" || config.Token == "" {
+	if !SchedulerEnforcedForRequest(c) || !config.Enabled || len(config.URLs()) == 0 || config.Token == "" {
 		return nil
 	}
 	decisionID := common.GetContextKeyString(c, constant.ContextKeySchedulerDecisionID)
@@ -1068,7 +1278,7 @@ func ReportSchedulerAttempt(c *gin.Context, endpointID string, attemptNo, status
 // the bounded queue prevents goroutine growth during a Scheduler outage.
 func ReportSchedulerAttemptAsync(c *gin.Context, endpointID string, attemptNo, statusCode int, success, streamStarted bool, inputTokens, outputTokens int) error {
 	config := SchedulerClient()
-	if !SchedulerEnforcedForRequest(c) || !config.Enabled || config.BaseURL == "" || config.Token == "" {
+	if !SchedulerEnforcedForRequest(c) || !config.Enabled || len(config.URLs()) == 0 || config.Token == "" {
 		return nil
 	}
 	decisionID := common.GetContextKeyString(c, constant.ContextKeySchedulerDecisionID)
@@ -1139,22 +1349,15 @@ func postSchedulerAttempt(c *gin.Context, config SchedulerClientConfig, attempt 
 	// cancellation must not strand the Scheduler Reservation. The bounded
 	// background context keeps this best-effort side effect independent while
 	// still enforcing the client timeout.
-	ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, config.BaseURL+"/v1/attempt", bytes.NewReader(payload))
+	outcome, err := schedulerDoRequestWithFallback(context.Background(), config, http.MethodPost, "/v1/attempt", payload, true)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+config.Token)
-	req.Header.Set("Content-Type", "application/json")
-	signSchedulerRequest(req, config.SigningSecret, payload)
-	resp, err := (&http.Client{Timeout: config.Timeout}).Do(req)
-	if err != nil {
-		return err
+	if outcome.err != nil {
+		return outcome.err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("scheduler attempt status %d", resp.StatusCode)
+	if outcome.status < 200 || outcome.status >= 300 {
+		return fmt.Errorf("scheduler attempt status %d", outcome.status)
 	}
 	return nil
 }

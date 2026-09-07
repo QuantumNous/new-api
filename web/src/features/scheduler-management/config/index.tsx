@@ -59,7 +59,8 @@ import {
 
 const defaults: SchedulerConfig = {
   enabled: false,
-  url: 'http://127.0.0.1:18080',
+  bootstrap_urls: '',
+  local_url: 'http://127.0.0.1:18080',
   token_set: false,
   mode: 'shadow',
   canary_percent: 0,
@@ -102,12 +103,15 @@ export function SchedulerConfigPage() {
       const runtimeHighWatermark = clampRuntimeHighWatermark(
         config.runtime_high_watermark
       )
-      const response = await updateSchedulerConfig({
+      const payload: Partial<SchedulerConfig> & Record<string, unknown> = {
         ...config,
         runtime_high_watermark: runtimeHighWatermark,
         token: schedulerToken || undefined,
         signing_secret: signingSecret || undefined,
-      })
+      }
+      delete payload.bootstrap_urls
+      delete payload.local_url
+      const response = await updateSchedulerConfig(payload)
       if (!response.success) throw new Error(t('Update failed'))
       setConfig({ ...defaults, ...response.data })
       setSchedulerToken('')
@@ -238,13 +242,12 @@ export function SchedulerConfigPage() {
             </div>
             <div className='grid gap-4 sm:grid-cols-2'>
               <div className='space-y-2 sm:col-span-2'>
-                <Label>{t('Scheduler URL')}</Label>
-                <Input
-                  value={config.url}
-                  onChange={(e) =>
-                    setConfig({ ...config, url: e.target.value })
-                  }
-                />
+                <Label>{t('Scheduler bootstrap list')}</Label>
+                <Input value={config.bootstrap_urls} readOnly />
+                <p className='text-muted-foreground text-sm'>
+                  {t('Local Scheduler: ')}
+                  {config.local_url || t('not configured')}
+                </p>
               </div>
               <div className='space-y-2'>
                 <Label>{t('Mode')}</Label>

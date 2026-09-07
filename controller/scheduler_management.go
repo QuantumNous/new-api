@@ -2,7 +2,6 @@ package controller
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,6 +18,8 @@ import (
 const (
 	schedulerEnabledKey              = "SchedulerEnabled"
 	schedulerURLKey                  = "SchedulerURL"
+	schedulerBootstrapURLsKey        = "SchedulerBootstrapURLs"
+	schedulerLocalURLKey             = "SchedulerLocalURL"
 	schedulerTokenKey                = "SchedulerToken"
 	schedulerModeKey                 = "SchedulerMode"
 	schedulerCanaryPercentKey        = "SchedulerCanaryPercent"
@@ -37,6 +38,8 @@ const (
 type SchedulerConfigResponse struct {
 	Enabled                     bool    `json:"enabled"`
 	URL                         string  `json:"url"`
+	BootstrapURLs               string  `json:"bootstrap_urls"`
+	LocalURL                    string  `json:"local_url"`
 	TokenSet                    bool    `json:"token_set"`
 	Mode                        string  `json:"mode"`
 	CanaryPercent               int     `json:"canary_percent"`
@@ -57,6 +60,8 @@ type SchedulerConfigResponse struct {
 type SchedulerConfigUpdateRequest struct {
 	Enabled                     *bool    `json:"enabled"`
 	URL                         *string  `json:"url"`
+	BootstrapURLs               *string  `json:"bootstrap_urls"`
+	LocalURL                    *string  `json:"local_url"`
 	Token                       *string  `json:"token"`
 	Mode                        *string  `json:"mode"`
 	CanaryPercent               *int     `json:"canary_percent"`
@@ -99,9 +104,12 @@ func schedulerConfigResponse() SchedulerConfigResponse {
 	if emergencyDuration <= 0 {
 		emergencyDuration = 600
 	}
+	config := service.SchedulerClient()
 	return SchedulerConfigResponse{
 		Enabled:                     schedulerConfigValue(schedulerEnabledKey, "SCHEDULER_ENABLED", "false") == "true",
-		URL:                         strings.TrimRight(schedulerConfigValue(schedulerURLKey, "SCHEDULER_URL", ""), "/"),
+		URL:                         config.BaseURL,
+		BootstrapURLs:               strings.Join(config.BootstrapURLs, ","),
+		LocalURL:                    config.LocalURL,
 		TokenSet:                    schedulerConfigValue(schedulerTokenKey, "SCHEDULER_TOKEN", "") != "",
 		Mode:                        strings.ToLower(schedulerConfigValue(schedulerModeKey, "SCHEDULER_MODE", "shadow")),
 		CanaryPercent:               percent,
@@ -143,6 +151,19 @@ func UpdateSchedulerConfig(c *gin.Context) {
 			}
 		}
 		values[schedulerURLKey] = strings.TrimRight(value, "/")
+	}
+	if req.BootstrapURLs != nil {
+		values[schedulerBootstrapURLsKey] = strings.TrimSpace(*req.BootstrapURLs)
+	}
+	if req.LocalURL != nil {
+		value := strings.TrimSpace(*req.LocalURL)
+		if value != "" {
+			if _, err := url.ParseRequestURI(value); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Scheduler 本机地址无效"})
+				return
+			}
+		}
+		values[schedulerLocalURLKey] = strings.TrimRight(value, "/")
 	}
 	if req.Token != nil && strings.TrimSpace(*req.Token) != "" {
 		values[schedulerTokenKey] = strings.TrimSpace(*req.Token)
@@ -228,25 +249,32 @@ func keys(values map[string]string) []string {
 
 func GetSchedulerMonitor(c *gin.Context) {
 	config := service.SchedulerClient()
-	result := gin.H{"configured": config.Enabled && config.BaseURL != "", "url": config.BaseURL, "reachable": false, "checked_at": time.Now()}
-	if config.BaseURL == "" {
+	urls := config.URLs()
+	result := gin.H{"configured": config.Enabled && len(urls) > 0, "url": config.BaseURL, "urls": urls, "reachable": false, "checked_at": time.Now(), "nodes": []gin.H{}}
+	if len(urls) == 0 {
 		c.JSON(http.StatusOK, gin.H{"success": true, "data": result})
 		return
 	}
 	client := &http.Client{Timeout: config.Timeout}
-	resp, err := client.Get(config.BaseURL + "/health/live")
-	if err == nil {
-		result["reachable"] = resp.StatusCode >= 200 && resp.StatusCode < 300
-		_ = resp.Body.Close()
-	}
-	if config.Token != "" {
-		req, _ := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, config.BaseURL+"/admin/observability", nil)
-		req.Header.Set("Authorization", "Bearer "+config.Token)
-		if response, requestErr := client.Do(req); requestErr == nil {
-			defer response.Body.Close()
-			var payload json.RawMessage
-			if common.DecodeJson(response.Body, &payload) == nil {
-				result["observability"] = payload
+	for _, baseURL := range urls {
+		node := gin.H{"url": baseURL, "reachable": false}
+		resp, err := client.Get(baseURL + "/health/live")
+		if err == nil {
+			reachable := resp.StatusCode >= 200 && resp.StatusCode < 300
+			node["reachable"] = reachable
+			result["reachable"] = result["reachable"].(bool) || reachable
+			_ = resp.Body.Close()
+		}
+		result["nodes"] = append(result["nodes"].([]gin.H), node)
+		if config.Token != "" && result["observability"] == nil && node["reachable"].(bool) {
+			req, _ := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, baseURL+"/admin/observability", nil)
+			req.Header.Set("Authorization", "Bearer "+config.Token)
+			if response, requestErr := client.Do(req); requestErr == nil {
+				defer response.Body.Close()
+				var payload json.RawMessage
+				if common.DecodeJson(response.Body, &payload) == nil {
+					result["observability"] = payload
+				}
 			}
 		}
 	}
@@ -255,20 +283,25 @@ func GetSchedulerMonitor(c *gin.Context) {
 
 func TestSchedulerConnection(c *gin.Context) {
 	config := service.SchedulerClient()
-	if config.BaseURL == "" {
+	urls := config.URLs()
+	if len(urls) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Scheduler 地址未配置"})
 		return
 	}
 	client := &http.Client{Timeout: config.Timeout}
-	resp, err := client.Get(config.BaseURL + "/health/live")
-	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": fmt.Sprintf("连接失败: %v", err)})
-		return
+	checked := make([]gin.H, 0, len(urls))
+	for _, baseURL := range urls {
+		item := gin.H{"url": baseURL, "reachable": false}
+		resp, err := client.Get(baseURL + "/health/live")
+		if err == nil {
+			item["reachable"] = resp.StatusCode >= 200 && resp.StatusCode < 300
+			_ = resp.Body.Close()
+		}
+		checked = append(checked, item)
+		if item["reachable"].(bool) {
+			c.JSON(http.StatusOK, gin.H{"success": true, "message": "Scheduler 连接正常", "data": gin.H{"checked": checked}})
+			return
+		}
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": fmt.Sprintf("Scheduler 返回 HTTP %d", resp.StatusCode)})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Scheduler 连接正常"})
+	c.JSON(http.StatusBadGateway, gin.H{"success": false, "message": "所有 Scheduler 节点都不可达", "data": gin.H{"checked": checked}})
 }

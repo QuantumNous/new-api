@@ -184,6 +184,8 @@ func InitOptionMap() {
 		common.OptionMap["SchedulerEnabled"] = "false"
 	}
 	common.OptionMap["SchedulerURL"] = os.Getenv("SCHEDULER_URL")
+	common.OptionMap["SchedulerBootstrapURLs"] = os.Getenv("SCHEDULER_BOOTSTRAP_URLS")
+	common.OptionMap["SchedulerLocalURL"] = os.Getenv("SCHEDULER_LOCAL_URL")
 	common.OptionMap["SchedulerToken"] = os.Getenv("SCHEDULER_TOKEN")
 	common.OptionMap["SchedulerMode"] = os.Getenv("SCHEDULER_MODE")
 	if common.OptionMap["SchedulerMode"] == "" {
