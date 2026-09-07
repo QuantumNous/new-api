@@ -284,3 +284,13 @@ custom_oauth.name_empty: "Provider name cannot be empty"
 custom_oauth.has_bindings: "Cannot delete provider with existing user bindings"
 custom_oauth.binding_not_found: "OAuth binding not found"
 custom_oauth.provider_id_field_invalid: "Could not extract user ID from provider response"
+
+# Language labels
+language.zhCN: "简体中文"
+language.en: "English"
+language.ptBR: "Portuguese (Brazil)"
+language.fr: "Français"
+language.ru: "Русский"
+language.ja: "日本語"
+language.vi: "Tiếng Việt"
+language.zhTW: "繁體中文"
