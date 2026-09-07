@@ -523,6 +523,20 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	attachQuotaSaturation(ctx, relayInfo, other)
 
+	// 记录渠道真实响应时间（智能路由 speed/success_rate 策略的数据源）。
+	// 成功结算路径在此统一上报：有首包时间用首包延迟，否则用从开始到现在的耗时。
+	if relayInfo != nil && relayInfo.ChannelId > 0 {
+		latencyMs := int64(0)
+		if relayInfo.HasSendResponse() {
+			latencyMs = relayInfo.FirstResponseTime.Sub(relayInfo.StartTime).Milliseconds()
+		} else if !relayInfo.StartTime.IsZero() {
+			latencyMs = time.Since(relayInfo.StartTime).Milliseconds()
+		}
+		if latencyMs > 0 {
+			model.CacheUpdateChannelResponseTime(relayInfo.ChannelId, int(latencyMs))
+		}
+	}
+
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     summary.PromptTokens,

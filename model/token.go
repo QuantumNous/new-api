@@ -29,7 +29,23 @@ type Token struct {
 	Group              string         `json:"group" gorm:"default:''"`
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
 	AutoGroups         string         `json:"-" gorm:"type:text"`
-	DeletedAt          gorm.DeletedAt `gorm:"index"`
+	// RoutingPriority 令牌级路由策略（二选一）：
+	//   ''        = 手动：按 group（单一分组）或 AutoGroups（分组优先级列表）路由 —— 指定分组
+	//   auto/price/speed/success_rate = 智能路由：系统按策略在所有可用分组中选择最优渠道
+	RoutingPriority string         `json:"routing_priority" gorm:"default:''"`
+	// ManualGroup 开启智能路由前的手动分组，切回手动时恢复 group 使用。
+	// 前端二选一：路由优先智能时 group 强制为 "auto"，原分组记到这里。
+	ManualGroup string `json:"manual_group" gorm:"default:''"`
+	// GroupOrder 令牌级有序分组列表（openLUX group_ids 对齐），逗号分隔，按优先级排列。
+	// 设置后路由按列表顺序逐组尝试（无渠道的分组自动跳到下一组），忽略单分组 group。
+	// 与智能路由（RoutingPriority）互斥：智能路由优先；未设智能路由时列表优先生效。
+	GroupOrder string `json:"group_order" gorm:"default:''"`
+	DeletedAt  gorm.DeletedAt `gorm:"index"`
+}
+
+// IsSmartRouting 该令牌是否启用智能路由（区别于指定分组/单一分组的手动路由）。
+func (token *Token) IsSmartRouting() bool {
+	return token.RoutingPriority != ""
 }
 
 func (token *Token) GetAutoGroups() ([]string, error) {
@@ -54,6 +70,33 @@ func (token *Token) SetAutoGroups(groups []string) error {
 	}
 	token.AutoGroups = string(data)
 	return nil
+}
+
+// GetGroupOrderList 解析逗号分隔的有序分组列表，去重、去空、保序。
+func (token *Token) GetGroupOrderList() []string {
+	if token.GroupOrder == "" {
+		return nil
+	}
+	parts := strings.Split(token.GroupOrder, ",")
+	out := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if _, ok := seen[p]; ok {
+			continue
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+	return out
+}
+
+// SetGroupOrderList 设置有序分组列表（覆盖写入）。
+func (token *Token) SetGroupOrderList(groups []string) {
+	token.GroupOrder = strings.Join(groups, ",")
 }
 
 func (token *Token) Clean() {
@@ -313,7 +356,8 @@ func (token *Token) Update() (err error) {
 		common.SysLog("failed to invalidate token cache before update: " + cacheErr.Error())
 	}
 	return DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
-		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry", "auto_groups").Updates(token).Error
+		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry", "auto_groups",
+		"routing_priority", "manual_group", "group_order").Updates(token).Error
 }
 
 func (token *Token) SelectUpdate() (err error) {

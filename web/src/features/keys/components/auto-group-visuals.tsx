@@ -72,7 +72,7 @@ function getRatioBadgeClassName(ratio: GroupRatio, isAuto: boolean): string {
   if (isAuto || typeof ratio !== 'number') {
     return 'border-primary/30 bg-primary/10 text-primary'
   }
-  if (ratio > 5) {
+  if (ratio > 7) {
     return 'border-destructive/30 bg-destructive/10 text-destructive'
   }
   if (ratio > 3) {

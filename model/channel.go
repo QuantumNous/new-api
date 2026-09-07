@@ -32,6 +32,8 @@ type Channel struct {
 	CreatedTime        int64   `json:"created_time" gorm:"bigint"`
 	TestTime           int64   `json:"test_time" gorm:"bigint"`
 	ResponseTime       int     `json:"response_time"` // in milliseconds
+	RequestCount       int64   `json:"request_count" gorm:"bigint;default:0"` // 请求总数（智能路由 success_rate 数据源）
+	SuccessCount       int64   `json:"success_count" gorm:"bigint;default:0"` // 成功请求数（智能路由 success_rate 数据源）
 	BaseURL            *string `json:"base_url" gorm:"column:base_url;default:''"`
 	Other              string  `json:"other"`
 	Balance            float64 `json:"balance"` // in USD

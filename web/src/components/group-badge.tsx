@@ -32,13 +32,16 @@ type GroupBadgeProps = Omit<
 }
 
 function getGroupRatioClassName(ratio: number): string {
-  if (ratio > 1) {
+  if (ratio > 7) {
+    return 'bg-destructive/10 text-destructive'
+  }
+  if (ratio > 3) {
     return 'bg-warning/10 text-warning'
   }
-  if (ratio < 1) {
+  if (ratio > 1) {
     return 'bg-info/10 text-info'
   }
-  return 'bg-muted text-muted-foreground'
+  return 'bg-success/10 text-success'
 }
 
 function getGroupLabel(params: {

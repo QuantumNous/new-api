@@ -43,6 +43,13 @@ export const apiKeySchema = z.object({
     }, z.boolean())
     .optional()
     .default(false),
+  // 二选一：'' = 指定分组（group / auto_groups），
+  // auto/price/speed/success_rate = 智能路由
+  routing_priority: z.string().nullish().default(''),
+  // 开启智能路由前的手动分组，切回手动时恢复 group 使用
+  manual_group: z.string().nullish().default(''),
+  // 有序分组列表（openLUX group_ids 对齐），逗号分隔，按优先级排列
+  group_order: z.string().nullish().default(''),
   model_limits_enabled: z.boolean(),
   model_limits: z.string().nullish().default(''),
   allow_ips: z.string().nullish().default(''),
@@ -94,6 +101,9 @@ export interface ApiKeyFormData {
   group: string
   auto_groups: string[]
   cross_group_retry: boolean
+  routing_priority: string
+  manual_group: string
+  group_order: string
 }
 
 export interface TokenAutoGroupsConfig {

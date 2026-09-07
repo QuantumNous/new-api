@@ -58,6 +58,7 @@ const (
 	MsgTokenAutoGroupsTooMany    = "token.auto_groups_too_many"
 	MsgTokenAutoGroupsDuplicate  = "token.auto_groups_duplicate"
 	MsgTokenAutoGroupsInvalid    = "token.auto_groups_invalid"
+	MsgTokenRoutingPriorityInvalid = "token.routing_priority_invalid"
 )
 
 // Redemption related messages
