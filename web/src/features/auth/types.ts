@@ -39,6 +39,7 @@ export interface RegisterPayload {
   email?: string
   verification_code?: string
   aff_code?: string
+  agent_invite?: string
   turnstile?: string
 }
 

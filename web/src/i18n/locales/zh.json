@@ -5459,6 +5459,19 @@
     "Image price changed; review the new price and submit again": "图片价格已变化，请核对新价格后重新提交",
     "Unable to determine the image price": "暂时无法确定图片价格，请稍后重试",
     "Unable to save the image price": "无法保存图片价格",
-    "Unable to read the locked image price": "无法读取本批次的锁定价格"
+    "Unable to read the locked image price": "无法读取本批次的锁定价格",
+    "My registration links": "我的专属注册链接",
+    "Links are valid for 2 hours. Registered customers keep the price from their link.": "链接有效期为 2 小时，注册成功后客户保留链接对应的价格。",
+    "Set a price and generate a registration link.": "设置价格后，点击“生成链接”。",
+    "Generate link": "生成链接",
+    "Valid until": "有效至",
+    "New links use this price. Existing links and customers are not changed.": "新链接使用此价格，不影响已有链接和客户。",
+    "Registration link created": "专属注册链接已生成",
+    "Registration link is invalid or expired. Ask your agent for a new link.": "注册链接无效或已过期，请联系代理获取新链接。",
+    "Too many active registration links. Reuse an existing link or wait for it to expire.": "有效链接数量已达上限，请使用已有链接或等待过期后再生成。",
+    "Register with a username and password to keep this price. The link expiry does not change your registered price.": "使用用户名和密码注册后，将保留此价格。链接过期不影响已注册账号的价格。",
+    "Platform price": "平台价格",
+    "Default price for historical customers when enabling agent access. Generated links have their own prices.": "首次开通时用于已有客户的默认价，新生成的链接各自定价。",
+    "Image unit": "张"
   }
 }

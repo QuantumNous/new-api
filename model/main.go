@@ -277,6 +277,8 @@ func migrateDB() error {
 		&DrawingBatch{},
 		&AgentProfile{},
 		&AgentPriceChange{},
+		&AgentInvitation{},
+		&AgentCustomerPrice{},
 		&DrawingTemplate{},
 		&DrawingItem{},
 		&DrawingQueueLock{},
@@ -300,6 +302,9 @@ func migrateDB() error {
 		&AuthzRole{},
 	)
 	if err != nil {
+		return err
+	}
+	if err := InitializeAgentCustomerPrices(); err != nil {
 		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
@@ -346,6 +351,8 @@ func migrateDBFast() error {
 		{&DrawingBatch{}, "DrawingBatch"},
 		{&AgentProfile{}, "AgentProfile"},
 		{&AgentPriceChange{}, "AgentPriceChange"},
+		{&AgentInvitation{}, "AgentInvitation"},
+		{&AgentCustomerPrice{}, "AgentCustomerPrice"},
 		{&DrawingTemplate{}, "DrawingTemplate"},
 		{&DrawingItem{}, "DrawingItem"},
 		{&DrawingQueueLock{}, "DrawingQueueLock"},
@@ -388,6 +395,9 @@ func migrateDBFast() error {
 		if err != nil {
 			return err
 		}
+	}
+	if err := InitializeAgentCustomerPrices(); err != nil {
+		return err
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err

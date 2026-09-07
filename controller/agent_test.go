@@ -181,20 +181,20 @@ func TestAgentBatchPriceLockAndAPISettlement(t *testing.T) {
 	require.Equal(t, 200, response.Code, response.Body.String())
 	user, err = model.GetUserById(81002, false)
 	require.NoError(t, err)
-	assert.Equal(t, 10_000_000-150_000, user.Quota, "API uses current 0.02 price and ignores client supplied price and agent")
+	assert.Equal(t, 10_000_000-165_000, user.Quota, "API retains customer-specific 0.03 price and ignores client supplied price and agent")
 	response = send("fail-and-change-price", 1)
 	assert.Equal(t, 400, response.Code)
 	require.Eventually(t, func() bool {
 		refundedUser, userErr := model.GetUserById(81002, false)
 		var refundedToken model.Token
 		tokenErr := model.DB.First(&refundedToken, apiToken.Id).Error
-		return userErr == nil && tokenErr == nil && refundedUser.Quota == 10_000_000-150_000 && refundedToken.RemainQuota == 970_000
-	}, 2*time.Second, 10*time.Millisecond, "async refund uses reserved 0.02, not the new 0.05 price")
+		return userErr == nil && tokenErr == nil && refundedUser.Quota == 10_000_000-165_000 && refundedToken.RemainQuota == 955_000
+	}, 2*time.Second, 10*time.Millisecond, "async refund uses reserved 0.03, not the new 0.05 price")
 	response = send("after-change", 1)
 	require.Equal(t, 200, response.Code, response.Body.String())
 	user, err = model.GetUserById(81002, false)
 	require.NoError(t, err)
-	assert.Equal(t, 10_000_000-175_000, user.Quota)
+	assert.Equal(t, 10_000_000-180_000, user.Quota)
 }
 
 func TestAgentCannotEscalateOrTargetAnotherAccount(t *testing.T) {

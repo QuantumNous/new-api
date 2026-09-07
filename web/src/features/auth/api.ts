@@ -184,6 +184,7 @@ export async function telegramLogin(
 export async function register(payload: RegisterPayload): Promise<ApiResponse> {
   const res = await api.post(`/api/user/register`, payload, {
     params: { turnstile: payload.turnstile ?? '' },
+    skipErrorHandler: Boolean(payload.agent_invite),
   })
   return res.data
 }

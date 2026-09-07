@@ -5459,6 +5459,19 @@
     "Image price changed; review the new price and submit again": "Image price changed; review the new price and submit again",
     "Unable to determine the image price": "Unable to determine the image price",
     "Unable to save the image price": "Unable to save the image price",
-    "Unable to read the locked image price": "Unable to read the locked image price"
+    "Unable to read the locked image price": "Unable to read the locked image price",
+    "My registration links": "My registration links",
+    "Links are valid for 2 hours. Registered customers keep the price from their link.": "Links are valid for 2 hours. Registered customers keep the price from their link.",
+    "Set a price and generate a registration link.": "Set a price and generate a registration link.",
+    "Generate link": "Generate link",
+    "Valid until": "Valid until",
+    "New links use this price. Existing links and customers are not changed.": "New links use this price. Existing links and customers are not changed.",
+    "Registration link created": "Registration link created",
+    "Registration link is invalid or expired. Ask your agent for a new link.": "Registration link is invalid or expired. Ask your agent for a new link.",
+    "Too many active registration links. Reuse an existing link or wait for it to expire.": "Too many active registration links. Reuse an existing link or wait for it to expire.",
+    "Register with a username and password to keep this price. The link expiry does not change your registered price.": "Register with a username and password to keep this price. The link expiry does not change your registered price.",
+    "Platform price": "Platform price",
+    "Default price for historical customers when enabling agent access. Generated links have their own prices.": "Default price for historical customers when enabling agent access. Generated links have their own prices.",
+    "Image unit": "image"
   }
 }

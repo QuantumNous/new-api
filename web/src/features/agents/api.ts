@@ -43,6 +43,41 @@ export type AgentCustomer = {
   username: string
   display_name: string
   created_at: number
+  price_cents: number | null
+}
+export type AgentInvitation = {
+  token: string
+  price_cents: number
+  created_at: number
+  expires_at: number
+}
+export type InvitationPreview = {
+  model: string
+  price_cents: number
+  expires_at: number
+}
+export async function getAgentInvitations(): Promise<AgentInvitation[]> {
+  return (await api.get('/api/agent/invitations')).data
+}
+export async function createAgentInvitation(
+  price_cents: number
+): Promise<AgentInvitation> {
+  return (
+    await api.post(
+      '/api/agent/invitations',
+      { price_cents },
+      { skipErrorHandler: true }
+    )
+  ).data
+}
+export async function previewAgentInvitation(
+  token: string
+): Promise<InvitationPreview> {
+  return (
+    await api.get(`/api/agent-invitations/${encodeURIComponent(token)}`, {
+      skipErrorHandler: true,
+    })
+  ).data
 }
 export type AgentCustomers = {
   customers: AgentCustomer[]
@@ -84,18 +119,6 @@ export async function getAgentTopUps(
     await api.get(`/api/agent/customers/${id}/topups`, {
       params: { p: page, page_size: 20 },
     })
-  ).data
-}
-export async function setAgentPrice(
-  price_cents: number,
-  version: number
-): Promise<AgentProfile> {
-  return (
-    await api.put(
-      '/api/agent/price',
-      { price_cents, version },
-      { skipErrorHandler: true }
-    )
   ).data
 }
 export async function getAdminAgent(id: number): Promise<AgentProfile> {

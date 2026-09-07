@@ -18,11 +18,12 @@ var ErrAgentConflict = errors.New("Agent settings changed; reload before saving"
 
 // Agent permission is independent of User.Role: enabling it grants no admin access.
 type AgentProfile struct {
-	UserID     int   `json:"user_id" gorm:"primaryKey;autoIncrement:false"`
-	Enabled    bool  `json:"enabled"`
-	PriceCents int   `json:"price_cents"`
-	Version    int64 `json:"version"`
-	UpdatedAt  int64 `json:"updated_at"`
+	UserID               int   `json:"user_id" gorm:"primaryKey;autoIncrement:false"`
+	Enabled              bool  `json:"enabled"`
+	PriceCents           int   `json:"price_cents"`
+	Version              int64 `json:"version"`
+	UpdatedAt            int64 `json:"updated_at"`
+	CustomerPricesLocked bool  `json:"-"`
 }
 
 type AgentPriceChange struct {
@@ -94,6 +95,12 @@ func UpdateAgentProfile(agentID, operatorID, priceCents int, enabled bool, versi
 		if err := tx.Create(&change).Error; err != nil {
 			return err
 		}
+		if enabled && (!change.OldEnabled || !profile.CustomerPricesLocked) {
+			if err := lockHistoricalAgentPrices(tx, &profile); err != nil {
+				return err
+			}
+			profile.CustomerPricesLocked = true
+		}
 		result = &profile
 		return nil
 	})
@@ -104,7 +111,7 @@ func UpdateAgentProfile(agentID, operatorID, priceCents int, enabled bool, versi
 // automatically includes both historical and future direct invitees, never descendants.
 func AgentForCustomer(customerID int) (*AgentProfile, error) {
 	var profile AgentProfile
-	result := DB.Table("agent_profiles AS ap").Select("ap.*").Joins("JOIN users AS owner ON owner.id = ap.user_id").Joins("JOIN users AS customer ON customer.inviter_id = ap.user_id").Where("customer.id = ? AND customer.deleted_at IS NULL AND owner.deleted_at IS NULL AND owner.status = ? AND ap.enabled = ?", customerID, common.UserStatusEnabled, true).Limit(1).Find(&profile)
+	result := DB.Table("agent_profiles AS ap").Select("ap.user_id, ap.enabled, ap.version, cp.price_cents").Joins("JOIN agent_customer_prices AS cp ON cp.agent_id = ap.user_id").Joins("JOIN users AS owner ON owner.id = ap.user_id").Joins("JOIN users AS customer ON customer.inviter_id = ap.user_id AND customer.id = cp.customer_id").Where("customer.id = ? AND customer.deleted_at IS NULL AND owner.deleted_at IS NULL AND owner.status = ? AND ap.enabled = ?", customerID, common.UserStatusEnabled, true).Limit(1).Find(&profile)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -119,6 +126,7 @@ type AgentCustomer struct {
 	Username    string `json:"username"`
 	DisplayName string `json:"display_name"`
 	CreatedAt   int64  `json:"created_at"`
+	PriceCents  *int   `json:"price_cents"`
 }
 type AgentTopUpTotal struct {
 	UserID          int     `json:"user_id,omitempty"`
@@ -135,7 +143,7 @@ func AgentCustomers(agentID, offset, limit int) ([]AgentCustomer, int64, []Agent
 	if err := query.Count(&count).Error; err != nil {
 		return nil, 0, nil, err
 	}
-	if err := query.Select("id", "username", "display_name", "created_at").Order("id DESC").Offset(offset).Limit(limit).Find(&customers).Error; err != nil {
+	if err := query.Select("users.id, users.username, users.display_name, users.created_at, cp.price_cents").Joins("LEFT JOIN agent_customer_prices AS cp ON cp.customer_id = users.id AND cp.agent_id = users.inviter_id").Order("users.id DESC").Offset(offset).Limit(limit).Find(&customers).Error; err != nil {
 		return nil, 0, nil, err
 	}
 	ids := []int{}

@@ -32,7 +32,7 @@ func setupDrawingTests(t *testing.T) (*gin.Engine, []byte) {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&model.AgentProfile{}, &model.AgentPriceChange{}, &model.DrawingBatch{}, &model.DrawingItem{}, &model.DrawingQueueLock{}, &model.Log{}, &model.Token{}))
+	require.NoError(t, db.AutoMigrate(&model.AgentProfile{}, &model.AgentPriceChange{}, &model.AgentInvitation{}, &model.AgentCustomerPrice{}, &model.DrawingBatch{}, &model.DrawingItem{}, &model.DrawingQueueLock{}, &model.Log{}, &model.Token{}))
 	require.NoError(t, model.InitDrawingQueue())
 	t.Setenv("DRAWING_STORAGE_DIR", t.TempDir())
 	oldMemory, oldBatch, oldLog := common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled

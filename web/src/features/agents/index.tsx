@@ -19,11 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import {
   Table,
   TableBody,
@@ -36,8 +34,8 @@ import {
 import { getAgentCustomers, type AgentCustomer } from './api'
 import { CustomerTopUps } from './customer-topups'
 import { useAgentSelf } from './hooks'
+import { AgentInvitations } from './invitations'
 import { formatTopUps } from './money'
-import { AgentPriceEditor } from './price-editor'
 
 export function AgentCenter() {
   const { t } = useTranslation()
@@ -52,17 +50,6 @@ export function AgentCenter() {
   })
   if (self.isLoading) return <p>{t('Loading')}</p>
   if (!profile?.enabled) return <p>{t('Agent access is not enabled')}</p>
-  const link = self.data?.invite_code
-    ? `${window.location.origin}/sign-up?aff=${encodeURIComponent(self.data.invite_code)}`
-    : ''
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(link)
-      toast.success(t('Copied'))
-    } catch {
-      toast.error(t('Copy failed'))
-    }
-  }
   return (
     <div className='grid gap-5'>
       <h1 className='text-xl font-semibold'>{t('Agent center')}</h1>
@@ -85,31 +72,7 @@ export function AgentCenter() {
           </Card>
         ))}
       </div>
-      <div className='grid gap-4 md:grid-cols-2'>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('My registration link')}</CardTitle>
-          </CardHeader>
-          <CardContent className='flex gap-2'>
-            <Input
-              aria-label={t('My registration link')}
-              readOnly
-              value={link}
-            />
-            <Button disabled={!link} onClick={copy}>
-              {t('Copy')}
-            </Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('Customer image price')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <AgentPriceEditor key={profile.version} profile={profile} />
-          </CardContent>
-        </Card>
-      </div>
+      <AgentInvitations profile={profile} />
       <Card>
         <CardHeader>
           <CardTitle>{t('My customers')}</CardTitle>
@@ -129,6 +92,7 @@ export function AgentCenter() {
                   <TableHead>{t('Customer')}</TableHead>
                   <TableHead>{t('Registered at')}</TableHead>
                   <TableHead>{t('Top-up amount')}</TableHead>
+                  <TableHead>{t('Customer image price')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
@@ -150,6 +114,11 @@ export function AgentCenter() {
                           (row) => row.user_id === item.id
                         ) ?? []
                       )}
+                    </TableCell>
+                    <TableCell>
+                      {item.price_cents == null
+                        ? t('Platform price')
+                        : `¥${(item.price_cents / 100).toFixed(2)}`}
                     </TableCell>
                     <TableCell>
                       <Button

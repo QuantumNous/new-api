@@ -38,6 +38,8 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useInvitationPreview } from '@/features/agents/hooks'
+import { drawingErrorMessage } from '@/features/ai-drawing/api'
 import { register, wechatLoginByCode } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
@@ -59,6 +61,10 @@ export function SignUpForm({
   ...props
 }: React.HTMLAttributes<HTMLFormElement>) {
   const { t } = useTranslation()
+  const invitationToken = new URLSearchParams(window.location.search).get(
+    'invite'
+  )
+  const invitation = useInvitationPreview(invitationToken)
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState('')
   const [agreedToLegal, setAgreedToLegal] = useState(false)
@@ -139,6 +145,18 @@ export function SignUpForm({
   }, [])
 
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
+    if (
+      invitation.blocked ||
+      (invitationToken !== null &&
+        Date.now() >= (invitation.query.data?.expires_at ?? 0) * 1000)
+    ) {
+      toast.error(
+        t(
+          'Registration link is invalid or expired. Ask your agent for a new link.'
+        )
+      )
+      return
+    }
     if (requiresLegalConsent && !agreedToLegal) {
       toast.error(legalConsentErrorMessage)
       return
@@ -166,6 +184,7 @@ export function SignUpForm({
         email: data.email || undefined,
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
+        agent_invite: invitationToken ?? undefined,
         turnstile: turnstileToken,
       })
 
@@ -175,8 +194,11 @@ export function SignUpForm({
       } else {
         toast.error(res?.message || t('Failed to create account'))
       }
-    } catch {
-      // Errors are handled by global interceptor
+    } catch (error) {
+      if (invitationToken !== null) {
+        toast.error(t(drawingErrorMessage(error, 'Failed to create account')))
+      }
+      // Ordinary registration errors are handled by the global interceptor.
     } finally {
       setIsLoading(false)
     }
@@ -240,6 +262,29 @@ export function SignUpForm({
     verificationCodeAction = <Loader2 className='h-4 w-4 animate-spin' />
   }
 
+  let invitationNotice: ReactNode = null
+  if (invitation.query.isLoading) {
+    invitationNotice = t('Loading')
+  } else if (invitation.blocked) {
+    invitationNotice = t(
+      'Registration link is invalid or expired. Ask your agent for a new link.'
+    )
+  } else if (invitation.query.data) {
+    invitationNotice = (
+      <>
+        <p>
+          gpt-image-2 · ¥{(invitation.query.data.price_cents / 100).toFixed(2)}{' '}
+          / {t('Image unit')}
+        </p>
+        <p className='text-muted-foreground mt-1 text-xs'>
+          {t(
+            'Register with a username and password to keep this price. The link expiry does not change your registered price.'
+          )}
+        </p>
+      </>
+    )
+  }
+
   return (
     <Form {...form}>
       <form
@@ -247,6 +292,11 @@ export function SignUpForm({
         className={cn('grid gap-4', className)}
         {...props}
       >
+        {invitationToken !== null && (
+          <div className='rounded-xl border p-3 text-sm' role='status'>
+            {invitationNotice}
+          </div>
+        )}
         {/* Username Field */}
         <FormField
           control={form.control}
@@ -370,6 +420,7 @@ export function SignUpForm({
           className='mt-2 w-full justify-center gap-2'
           disabled={
             isLoading ||
+            invitation.blocked ||
             (requiresLegalConsent && !agreedToLegal) ||
             !turnstileReady
           }
@@ -378,7 +429,7 @@ export function SignUpForm({
           {t('Create account')}
         </Button>
 
-        {oauthRegisterEnabled && (
+        {oauthRegisterEnabled && invitationToken === null && (
           <OAuthProviders
             status={status}
             disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
@@ -389,7 +440,7 @@ export function SignUpForm({
         )}
       </form>
 
-      {hasWeChatLogin && (
+      {hasWeChatLogin && invitationToken === null && (
         <Dialog
           open={isWeChatDialogOpen}
           onOpenChange={handleWeChatDialogChange}

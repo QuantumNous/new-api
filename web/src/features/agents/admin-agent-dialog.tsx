@@ -94,6 +94,11 @@ function AgentSettings(props: { profile: AgentProfile; onSaved: () => void }) {
           disabled={busy}
           onChange={(event) => setPrice(event.target.value)}
         />
+        <p className='text-muted-foreground text-xs'>
+          {t(
+            'Default price for historical customers when enabling agent access. Generated links have their own prices.'
+          )}
+        </p>
       </div>
       <Button disabled={busy || cents === null} onClick={save}>
         {t('Save')}

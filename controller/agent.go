@@ -25,11 +25,57 @@ func agentError(c *gin.Context, err error) {
 	case errors.Is(err, model.ErrAgentConflict):
 		status = 409
 		message = err.Error()
+	case errors.Is(err, model.ErrAgentInvitationExpired):
+		status = 410
+		message = err.Error()
+	case errors.Is(err, model.ErrAgentInvitationLimit):
+		status = 429
+		message = err.Error()
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		status = 404
 		message = "Customer or agent not found"
 	}
 	c.JSON(status, gin.H{"error": gin.H{"message": message}})
+}
+
+func AgentInvitations(c *gin.Context) {
+	c.Header("Cache-Control", "private, no-store")
+	if requireAgent(c) == nil {
+		return
+	}
+	if c.Request.Method == http.MethodGet {
+		links, err := model.ListAgentInvitations(c.GetInt("id"))
+		if err != nil {
+			agentError(c, err)
+			return
+		}
+		c.JSON(200, links)
+		return
+	}
+	var input struct {
+		PriceCents *int `json:"price_cents"`
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 1024)
+	if err := common.DecodeJson(c.Request.Body, &input); err != nil || input.PriceCents == nil {
+		drawingError(c, 400, "Invalid agent price request")
+		return
+	}
+	link, err := model.CreateAgentInvitation(c.GetInt("id"), *input.PriceCents)
+	if err != nil {
+		agentError(c, err)
+		return
+	}
+	c.JSON(201, link)
+}
+
+func PreviewAgentInvitation(c *gin.Context) {
+	c.Header("Cache-Control", "private, no-store")
+	link, err := model.GetAgentInvitation(c.Param("token"))
+	if err != nil {
+		agentError(c, err)
+		return
+	}
+	c.JSON(200, gin.H{"model": model.AgentImageModel, "price_cents": link.PriceCents, "expires_at": link.ExpiresAt})
 }
 func requireAgent(c *gin.Context) *model.AgentProfile {
 	profile, err := model.GetAgentProfile(c.GetInt("id"))

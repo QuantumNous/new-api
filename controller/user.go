@@ -272,7 +272,16 @@ func Register(c *gin.Context) {
 	if common.EmailVerificationEnabled {
 		cleanUser.Email = user.Email
 	}
-	if err := cleanUser.Insert(inviterId); err != nil {
+	if user.AgentInvitation != "" {
+		err = cleanUser.InsertWithAgentInvitation(user.AgentInvitation)
+	} else {
+		err = cleanUser.Insert(inviterId)
+	}
+	if err != nil {
+		if errors.Is(err, model.ErrAgentInvitationExpired) || errors.Is(err, model.ErrAgentPriceRange) {
+			agentError(c, err)
+			return
+		}
 		if errors.Is(err, model.ErrEmailAlreadyTaken) {
 			common.ApiErrorI18n(c, i18n.MsgUserEmailAlreadyTaken)
 			return
