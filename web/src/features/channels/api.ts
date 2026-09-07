@@ -234,6 +234,46 @@ export async function updateChannelBalance(
   return res.data
 }
 
+export interface AccountBalanceConfig {
+  enabled: boolean
+  base_url: string
+  user_id: number
+  has_access_token: boolean
+}
+
+export async function getAccountBalanceConfig(
+  id: number
+): Promise<AccountBalanceConfig> {
+  const response = await api.get(
+    `/api/channel/balance_config/${id}`,
+    channelActionConfig()
+  )
+  if (!response.data.success) {
+    throw new Error(
+      response.data.message || 'Failed to load account balance settings'
+    )
+  }
+  return response.data.data
+}
+
+export async function saveAccountBalanceConfig(
+  id: number,
+  config: Omit<AccountBalanceConfig, 'has_access_token'> & {
+    access_token: string
+  }
+): Promise<void> {
+  const response = await api.put(
+    `/api/channel/balance_config/${id}`,
+    config,
+    channelActionConfig()
+  )
+  if (!response.data.success) {
+    throw new Error(
+      response.data.message || 'Failed to save account balance settings'
+    )
+  }
+}
+
 /**
  * Fetch available models from upstream provider
  */

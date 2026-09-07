@@ -86,11 +86,13 @@ var channelReadOnlyFields = map[string]struct{}{
 	"test_time":            {},
 	"response_time":        {},
 	"balance":              {},
+	"balance_currency":     {},
 	"balance_updated_time": {},
 	"used_quota":           {},
 }
 
 func clearChannelReadOnlyFields(channel *PatchChannel, requestData map[string]any) {
+	channel.BalanceCurrency = ""
 	if _, ok := requestData["created_time"]; ok {
 		channel.CreatedTime = 0
 	}

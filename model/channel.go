@@ -34,7 +34,9 @@ type Channel struct {
 	ResponseTime       int     `json:"response_time"` // in milliseconds
 	BaseURL            *string `json:"base_url" gorm:"column:base_url;default:''"`
 	Other              string  `json:"other"`
-	Balance            float64 `json:"balance"` // in USD
+	Balance            float64 `json:"balance"` // USD unless BalanceCurrency identifies an upstream account currency.
+	BalanceCurrency    string  `json:"balance_currency" gorm:"type:varchar(8);default:''"`
+	BalanceConfig      string  `json:"-" gorm:"type:text"`
 	BalanceUpdatedTime int64   `json:"balance_updated_time" gorm:"bigint"`
 	Models             string  `json:"models"`
 	Group              string  `json:"group" gorm:"type:varchar(64);default:'default'"`
@@ -599,7 +601,7 @@ func (channel *Channel) UpdateResponseTime(responseTime int64) {
 }
 
 func (channel *Channel) UpdateBalance(balance float64) {
-	err := DB.Model(channel).Select("balance_updated_time", "balance").Updates(Channel{
+	err := DB.Model(channel).Select("balance_updated_time", "balance", "balance_currency").Updates(Channel{
 		BalanceUpdatedTime: common.GetTimestamp(),
 		Balance:            balance,
 	}).Error

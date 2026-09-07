@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -58,6 +59,7 @@ const maxAdvancedCustomBalanceResponseBytes = 256 << 10
 type channelBalanceResult struct {
 	Balance     float64
 	RawResponse string
+	Currency    string
 }
 
 type OpenAIUsageResponse struct {
@@ -455,6 +457,23 @@ func fetchAdvancedCustomBalance(channel *model.Channel) (channelBalanceResult, e
 }
 
 func updateChannelBalance(channel *model.Channel) (channelBalanceResult, error) {
+	config, err := channel.GetBalanceConfig()
+	if err != nil {
+		return channelBalanceResult{}, err
+	}
+	if config.Enabled {
+		balance, currency, err := service.FetchAccountBalance(context.Background(), channel, config)
+		if err != nil {
+			return channelBalanceResult{}, err
+		}
+		if err := channel.StoreAccountBalance(balance, currency); err != nil {
+			return channelBalanceResult{}, err
+		}
+		return channelBalanceResult{Balance: balance, Currency: currency}, nil
+	}
+	if channel.ChannelInfo.IsMultiKey {
+		return channelBalanceResult{}, errors.New("多密钥渠道需要配置独立的账户余额查询")
+	}
 	if channel.Type == constant.ChannelTypeAdvancedCustom {
 		return fetchAdvancedCustomBalance(channel)
 	}
@@ -506,6 +525,9 @@ func updateStandardChannelBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+	if subscription.HardLimitUSD == 100000000 && subscription.SoftLimitUSD == 100000000 && subscription.SystemHardLimitUSD == 100000000 {
+		return 0, errors.New("上游返回无限额度占位值，无法作为钱包余额；请配置账户余额查询")
+	}
 	now := time.Now()
 	startDate := fmt.Sprintf("%s-01", now.Format("2006-01"))
 	endDate := now.Format("2006-01-02")
@@ -533,16 +555,9 @@ func UpdateChannelBalance(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	channel, err := model.CacheGetChannel(id)
+	channel, err := model.GetChannelById(id, true)
 	if err != nil {
 		common.ApiError(c, err)
-		return
-	}
-	if channel.ChannelInfo.IsMultiKey {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": "多密钥渠道不支持余额查询",
-		})
 		return
 	}
 	result, err := updateChannelBalance(channel)
@@ -556,6 +571,7 @@ func UpdateChannelBalance(c *gin.Context) {
 	}
 	if result.RawResponse == "" {
 		response["balance"] = result.Balance
+		response["balance_currency"] = result.Currency
 	} else {
 		response["raw_response"] = result.RawResponse
 	}
@@ -571,9 +587,6 @@ func updateAllChannelsBalance() error {
 		if channel.Status != common.ChannelStatusEnabled {
 			continue
 		}
-		if channel.ChannelInfo.IsMultiKey {
-			continue // skip multi-key channels
-		}
 		// TODO: support Azure
 		//if channel.Type != common.ChannelTypeOpenAI && channel.Type != common.ChannelTypeCustom {
 		//	continue
@@ -581,7 +594,7 @@ func updateAllChannelsBalance() error {
 		result, err := updateChannelBalance(channel)
 		if err != nil {
 			continue
-		} else if result.RawResponse == "" {
+		} else if result.RawResponse == "" && result.Currency == "" {
 			// err is nil & balance <= 0 means quota is used up
 			if result.Balance <= 0 {
 				service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan()), "余额不足")

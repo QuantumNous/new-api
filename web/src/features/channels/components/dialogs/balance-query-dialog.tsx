@@ -30,12 +30,19 @@ import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { IconBadge } from '@/components/ui/icon-badge'
-import { formatCurrencyFromUSD } from '@/lib/currency'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  hasPermission,
+} from '@/lib/admin-permissions'
 import { formatTimestampToDate } from '@/lib/format'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { getCodexUsage, updateChannelBalance } from '../../api'
 import { channelsQueryKeys } from '../../lib'
+import { formatChannelBalance } from '../../lib/channel-balance'
 import { useChannels } from '../channels-provider'
+import { AccountBalanceSettings } from './account-balance-settings'
 import {
   CodexUsageDialog,
   type CodexUsageDialogData,
@@ -52,6 +59,14 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
   const { currentRow, setCurrentRow } = useChannels()
   const queryClient = useQueryClient()
   const [isQuerying, setIsQuerying] = useState(false)
+  const [settingsBusy, setSettingsBusy] = useState(false)
+  const [queryError, setQueryError] = useState<string | null>(null)
+  const currentUser = useAuthStore((s) => s.auth.user)
+  const canConfigure = hasPermission(
+    currentUser,
+    ADMIN_PERMISSION_RESOURCES.CHANNEL,
+    ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
+  )
   const [balance, setBalance] = useState<number | null>(null)
   const [balanceUpdatedTime, setBalanceUpdatedTime] = useState<number | null>(
     null
@@ -94,6 +109,7 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
 
   const handleQueryBalance = async () => {
     setIsQuerying(true)
+    setQueryError(null)
     try {
       const response = await updateChannelBalance(currentRow.id)
       if (response.success && response.balance !== undefined) {
@@ -108,6 +124,7 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
         setCurrentRow({
           ...currentRow,
           balance: newBalance,
+          balance_currency: response.balance_currency || '',
           balance_updated_time: now,
         })
 
@@ -119,9 +136,13 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
       } else if (response.success && response.raw_response !== undefined) {
         setRawResponse(response.raw_response)
       } else {
+        setQueryError(response.message || t('Failed to query balance'))
         toast.error(response.message || t('Failed to query balance'))
       }
     } catch (error: unknown) {
+      setQueryError(
+        error instanceof Error ? error.message : t('Failed to query balance')
+      )
       toast.error(
         error instanceof Error ? error.message : t('Failed to query balance')
       )
@@ -131,6 +152,8 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
   }
 
   const handleClose = () => {
+    if (settingsBusy || isQuerying) return
+    setQueryError(null)
     setBalance(null)
     setBalanceUpdatedTime(null)
     setRawResponse(null)
@@ -139,7 +162,7 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
   }
 
   const formatBalance = (bal: number) =>
-    formatCurrencyFromUSD(bal, {
+    formatChannelBalance(bal, currentRow.balance_currency, {
       digitsLarge: 2,
       digitsSmall: 4,
       abbreviate: false,
@@ -166,6 +189,13 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
     )
   }
 
+  let displayedBalance = t('Not queried')
+  if (balance !== null) {
+    displayedBalance = formatBalance(balance)
+  } else if (currentRow.balance_updated_time) {
+    displayedBalance = formatBalance(currentRow.balance)
+  }
+
   return (
     <Dialog
       open={props.open}
@@ -180,7 +210,11 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
       contentHeight='auto'
       bodyClassName='space-y-4'
       footer={
-        <Button variant='outline' onClick={handleClose} disabled={isQuerying}>
+        <Button
+          variant='outline'
+          onClick={handleClose}
+          disabled={isQuerying || settingsBusy}
+        >
           {t('Close')}
         </Button>
       }
@@ -214,13 +248,9 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
                 <IconBadge tone='success' size='xs'>
                   <DollarSign />
                 </IconBadge>
-                <span>{t('Current Balance')}</span>
+                <span>{t('Last successful balance')}</span>
               </div>
-              <div className='text-2xl font-bold'>
-                {balance !== null
-                  ? formatBalance(balance)
-                  : formatBalance(currentRow.balance)}
-              </div>
+              <div className='text-2xl font-bold'>{displayedBalance}</div>
               <div className='text-muted-foreground mt-2 text-xs'>
                 {t('Last updated:')}{' '}
                 {formatDate(
@@ -232,15 +262,43 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
         )}
 
         {/* Balance Update Button */}
+        {queryError && (
+          <p role='alert' className='text-destructive text-sm'>
+            {queryError}
+          </p>
+        )}
         <Button
           className='w-full'
           onClick={handleQueryBalance}
-          disabled={isQuerying}
+          disabled={isQuerying || settingsBusy}
         >
           {isQuerying && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
           {!isQuerying && <RefreshCw className='mr-2 h-4 w-4' />}
           {isQuerying ? t('Querying...') : t('Update Balance')}
         </Button>
+        {props.open && canConfigure && (
+          <AccountBalanceSettings
+            key={currentRow.id}
+            channelId={currentRow.id}
+            disabled={isQuerying}
+            onBusyChange={setSettingsBusy}
+            onSaved={() => {
+              setBalance(null)
+              setBalanceUpdatedTime(null)
+              setRawResponse(null)
+              setQueryError(null)
+              setCurrentRow({
+                ...currentRow,
+                balance: 0,
+                balance_currency: '',
+                balance_updated_time: 0,
+              })
+              void queryClient.invalidateQueries({
+                queryKey: channelsQueryKeys.lists(),
+              })
+            }}
+          />
+        )}
       </div>
     </Dialog>
   )

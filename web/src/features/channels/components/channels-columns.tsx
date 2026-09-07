@@ -47,11 +47,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { toIntlLocale } from '@/i18n/languages'
-import {
-  formatCurrencyFromUSD,
-  formatQuotaWithCurrency,
-  getCurrencyLabel,
-} from '@/lib/currency'
+import { formatQuotaWithCurrency, getCurrencyLabel } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 import { truncateText } from '@/lib/utils'
 
@@ -75,6 +71,7 @@ import {
   isTagAggregateRow,
   type TagRow,
 } from '../lib'
+import { formatChannelBalance } from '../lib/channel-balance'
 import { parseUpstreamUpdateMeta } from '../lib/upstream-update-utils'
 import type { Channel } from '../types'
 import { ChannelRowActionsLayoutContext } from './channel-row-actions-context'
@@ -362,9 +359,14 @@ export function BalanceCell({ channel }: { channel: Channel }) {
       showSymbol: layout !== 'card',
     })
   )
-  const remainingFull = withSuffix(
-    formatCurrencyFromUSD(balance, balanceFormatOptions)
+  const remainingFormatted = formatChannelBalance(
+    balance,
+    channel.balance_currency,
+    balanceFormatOptions
   )
+  const remainingFull = channel.balance_currency
+    ? remainingFormatted
+    : withSuffix(remainingFormatted)
   const usedDisplay =
     usedFull.length > MAX_INLINE_BALANCE_CHARS
       ? withSuffix(
@@ -375,16 +377,21 @@ export function BalanceCell({ channel }: { channel: Channel }) {
           })
         )
       : usedFull
-  const remainingDisplay =
-    remainingFull.length > MAX_INLINE_BALANCE_CHARS
-      ? withSuffix(
-          formatCurrencyFromUSD(balance, {
-            compact: true,
-            locale,
-            showSymbol: layout !== 'card',
-          })
-        )
-      : remainingFull
+  let remainingDisplay = remainingFull
+  if (remainingFull.length > MAX_INLINE_BALANCE_CHARS) {
+    const compactBalance = formatChannelBalance(
+      balance,
+      channel.balance_currency,
+      {
+        compact: true,
+        locale,
+        showSymbol: layout !== 'card',
+      }
+    )
+    remainingDisplay = channel.balance_currency
+      ? compactBalance
+      : withSuffix(compactBalance)
+  }
   const usedLabel = `${t('Used:')} ${usedFull}`
   const remainingLabel = `${t('Remaining:')} ${remainingFull}`
   const maskedUsedLabel = `${t('Used:')} ${SENSITIVE_MASK}`
@@ -451,11 +458,15 @@ export function BalanceCell({ channel }: { channel: Channel }) {
       if (response.success && response.balance !== undefined) {
         toast.success(
           t('Balance updated: {{balance}}', {
-            balance: formatCurrencyFromUSD(response.balance, {
-              digitsLarge: 2,
-              digitsSmall: 4,
-              abbreviate: false,
-            }),
+            balance: formatChannelBalance(
+              response.balance,
+              response.balance_currency,
+              {
+                digitsLarge: 2,
+                digitsSmall: 4,
+                abbreviate: false,
+              }
+            ),
           })
         )
         void queryClient.invalidateQueries({
@@ -476,6 +487,13 @@ export function BalanceCell({ channel }: { channel: Channel }) {
     }
   }
   let remainingBadgeLabel = sensitiveVisible ? remainingDisplay : SENSITIVE_MASK
+  if (
+    sensitiveVisible &&
+    !channel.balance_updated_time &&
+    channel.type !== 57
+  ) {
+    remainingBadgeLabel = t('Not queried')
+  }
   if (sensitiveVisible && isUpdating) {
     remainingBadgeLabel = t('Updating...')
   } else if (sensitiveVisible && channel.type === 57) {

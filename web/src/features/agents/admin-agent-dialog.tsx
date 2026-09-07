@@ -96,7 +96,7 @@ function AgentSettings(props: { profile: AgentProfile; onSaved: () => void }) {
         />
         <p className='text-muted-foreground text-xs'>
           {t(
-            'Default price for historical customers when enabling agent access. Generated links have their own prices.'
+            'This price applies to the agent personally and initially to historical customers. Generated links keep their own prices.'
           )}
         </p>
       </div>

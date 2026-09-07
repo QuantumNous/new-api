@@ -111,6 +111,15 @@ func UpdateAgentProfile(agentID, operatorID, priceCents int, enabled bool, versi
 // automatically includes both historical and future direct invitees, never descendants.
 func AgentForCustomer(customerID int) (*AgentProfile, error) {
 	var profile AgentProfile
+	// An enabled agent uses their own configured price, even without an inviter.
+	// Customer invitation prices remain independently locked in the branch below.
+	self := DB.Table("agent_profiles AS ap").Select("ap.user_id, ap.enabled, ap.version, ap.price_cents").Joins("JOIN users AS owner ON owner.id = ap.user_id").Where("ap.user_id = ? AND owner.deleted_at IS NULL AND owner.status = ? AND ap.enabled = ?", customerID, common.UserStatusEnabled, true).Limit(1).Find(&profile)
+	if self.Error != nil {
+		return nil, self.Error
+	}
+	if self.RowsAffected != 0 {
+		return &profile, nil
+	}
 	result := DB.Table("agent_profiles AS ap").Select("ap.user_id, ap.enabled, ap.version, cp.price_cents").Joins("JOIN agent_customer_prices AS cp ON cp.agent_id = ap.user_id").Joins("JOIN users AS owner ON owner.id = ap.user_id").Joins("JOIN users AS customer ON customer.inviter_id = ap.user_id AND customer.id = cp.customer_id").Where("customer.id = ? AND customer.deleted_at IS NULL AND owner.deleted_at IS NULL AND owner.status = ? AND ap.enabled = ?", customerID, common.UserStatusEnabled, true).Limit(1).Find(&profile)
 	if result.Error != nil {
 		return nil, result.Error
