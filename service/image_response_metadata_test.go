@@ -25,7 +25,7 @@ func TestImageMetadataMixedSizesAndUnknownFields(t *testing.T) {
 	var first, second bytes.Buffer
 	require.NoError(t, png.Encode(&first, image.NewNRGBA(image.Rect(0, 0, 2, 3))))
 	require.NoError(t, jpeg.Encode(&second, image.NewNRGBA(image.Rect(0, 0, 4, 5)), nil))
-	body, err := common.Marshal(map[string]any{"created": 123, "quality": "low", "background": "opaque", "vendor": map[string]string{"job": "original"}, "data": []any{
+	body, err := common.Marshal(map[string]any{"created": 123, "size": "1024x1024", "quality": "low", "background": "opaque", "vendor": map[string]string{"job": "original"}, "data": []any{
 		map[string]any{"b64_json": base64.StdEncoding.EncodeToString(first.Bytes()), "size": "incorrect"},
 		map[string]any{"b64_json": base64.StdEncoding.EncodeToString(second.Bytes())},
 	}})
@@ -40,6 +40,23 @@ func TestImageMetadataMixedSizesAndUnknownFields(t *testing.T) {
 	assert.Equal(t, "low", gjson.Get(result, "quality").String())
 	assert.Equal(t, "opaque", gjson.Get(result, "background").String())
 	assert.Equal(t, "original", gjson.Get(result, "vendor.job").String())
+}
+
+func TestImageMetadataAlwaysDerivesTopLevelSize(t *testing.T) {
+	var imageBytes bytes.Buffer
+	require.NoError(t, png.Encode(&imageBytes, image.NewNRGBA(image.Rect(0, 0, 2, 3))))
+	for _, test := range []struct{ name, encoded, expected string }{
+		{"ignores upstream claimed size", base64.StdEncoding.EncodeToString(imageBytes.Bytes()), `"2x3"`},
+		{"does not retain unverified upstream size", "not-an-image", "null"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			body, err := common.Marshal(map[string]any{"size": "1024x1024", "data": []any{map[string]any{"b64_json": test.encoded}}})
+			require.NoError(t, err)
+			result := string(NormalizeImageJSONResponse(context.Background(), body))
+			assert.Equal(t, test.expected, gjson.Get(result, "size").Raw)
+			assert.Equal(t, test.expected, gjson.Get(result, "data.0.size").Raw)
+		})
+	}
 }
 
 func TestImageMetadataURLProbeAndRedirect(t *testing.T) {

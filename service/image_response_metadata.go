@@ -76,8 +76,9 @@ func NormalizeImageJSONResponse(ctx context.Context, body []byte) []byte {
 			response[key] = json.RawMessage("null")
 		}
 	}
-	// Preserve an upstream top-level value; inferred values describe all items.
-	if string(response["size"]) == "null" && sharedSize != "" {
+	// Size always describes the decoded files, never the request or an upstream claim.
+	response["size"] = json.RawMessage("null")
+	if sharedSize != "" {
 		response["size"], _ = common.Marshal(sharedSize)
 	}
 	if string(response["output_format"]) == "null" && sharedFormat != "" {
