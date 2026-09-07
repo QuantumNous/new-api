@@ -336,6 +336,19 @@ func TestStreamScannerHandler_PingSentDuringSlowUpstream(t *testing.T) {
 		"expected at least 1 ping during slow stream with 1s interval; got %d", pingCount)
 }
 
+// signalReadCloser closes `started` on the first Read, letting the test wait
+// until the scanner goroutine has actually begun consuming the upstream body.
+type signalReadCloser struct {
+	io.ReadCloser
+	started chan struct{}
+	once    sync.Once
+}
+
+func (s *signalReadCloser) Read(p []byte) (int, error) {
+	s.once.Do(func() { close(s.started) })
+	return s.ReadCloser.Read(p)
+}
+
 func TestStreamScannerHandler_PingSuppressedBeforeFirstChunk(t *testing.T) {
 	setting := operation_setting.GetGeneralSetting()
 	oldEnabled := setting.PingIntervalEnabled
@@ -348,19 +361,44 @@ func TestStreamScannerHandler_PingSuppressedBeforeFirstChunk(t *testing.T) {
 	})
 
 	pr, pw := io.Pipe()
+	// The writer waits for the scanner to start reading before it begins the
+	// 1.5s delay. Otherwise a late-scheduled handler goroutine could let the
+	// first chunk arrive before the ping ticker exists, and the test would
+	// pass even with a buggy pre-first-chunk ping.
+	scannerStarted := make(chan struct{})
+	resp := &http.Response{Body: &signalReadCloser{ReadCloser: pr, started: scannerStarted}}
+
+	writeErr := make(chan error, 1)
 	go func() {
-		defer pw.Close()
+		var werr error
+		defer func() {
+			if err := pw.Close(); err != nil && werr == nil {
+				werr = fmt.Errorf("close pipe writer: %w", err)
+			}
+			writeErr <- werr
+		}()
+		select {
+		case <-scannerStarted:
+		case <-time.After(5 * time.Second):
+			werr = fmt.Errorf("scanner never started reading")
+			return
+		}
 		// First upstream chunk is delayed well past one ping interval.
 		time.Sleep(1500 * time.Millisecond)
-		fmt.Fprint(pw, "data: chunk_0\n")
-		fmt.Fprint(pw, "data: [DONE]\n")
+		if _, err := fmt.Fprint(pw, "data: chunk_0\n"); err != nil {
+			werr = fmt.Errorf("write chunk: %w", err)
+			return
+		}
+		if _, err := fmt.Fprint(pw, "data: [DONE]\n"); err != nil {
+			werr = fmt.Errorf("write [DONE]: %w", err)
+			return
+		}
 	}()
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
-	resp := &http.Response{Body: pr}
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
 
 	var count atomic.Int64
@@ -370,7 +408,7 @@ func TestStreamScannerHandler_PingSuppressedBeforeFirstChunk(t *testing.T) {
 			count.Add(1)
 			// Simulate the real relay path: the data handler forwards each
 			// chunk into the client response body.
-			fmt.Fprint(c.Writer, data+"\n")
+			_, _ = fmt.Fprint(c.Writer, data+"\n")
 		})
 		close(done)
 	}()
@@ -379,6 +417,10 @@ func TestStreamScannerHandler_PingSuppressedBeforeFirstChunk(t *testing.T) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for stream to finish")
+	}
+
+	if err := <-writeErr; err != nil {
+		t.Fatalf("pipe writer failed: %v", err)
 	}
 
 	assert.Equal(t, int64(1), count.Load())

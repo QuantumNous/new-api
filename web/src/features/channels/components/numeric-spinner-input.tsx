@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Minus, Plus } from 'lucide-react'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
@@ -54,6 +54,7 @@ export function NumericSpinnerInput({
   'aria-invalid': ariaInvalid,
 }: NumericSpinnerInputProps) {
   const [localValue, setLocalValue] = useState(String(value ?? 0))
+  const autoId = useId()
   const [editing, setEditing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -143,10 +144,16 @@ export function NumericSpinnerInput({
   const atMin = min !== undefined && Number(localValue) <= min
   const atMax = max !== undefined && Number(localValue) >= max
 
+  // Control id: caller-provided (FormControl) wins; otherwise auto-generate
+  // one so a `label` (htmlFor) always has a focusable control to point at.
+  const controlId = id ?? autoId
+
   return (
     <div className={cn('inline-flex items-center', className)}>
       {label && (
-        <Label className='text-muted-foreground mr-1.5 text-xs'>{label}</Label>
+        <Label htmlFor={controlId} className='text-muted-foreground mr-1.5 text-xs'>
+          {label}
+        </Label>
       )}
       <div
         onBlur={handleControlBlur}
@@ -176,7 +183,7 @@ export function NumericSpinnerInput({
         {editing ? (
           <input
             ref={inputRef}
-            id={id}
+            id={controlId}
             aria-describedby={ariaDescribedby}
             aria-invalid={ariaInvalid}
             type='text'
@@ -190,7 +197,7 @@ export function NumericSpinnerInput({
         ) : (
           <button
             type='button'
-            id={id}
+            id={controlId}
             aria-describedby={ariaDescribedby}
             aria-invalid={ariaInvalid}
             onClick={handleStartEdit}
