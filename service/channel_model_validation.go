@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 // ModelLiveness is the tri-state result of validating a single model against an

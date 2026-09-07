@@ -1,6 +1,7 @@
 package model
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -20,6 +21,7 @@ var defaultVendorRules = map[string]string{
 	"qwen":     "Alibaba",
 	"deepseek": "DeepSeek",
 	"abab":     "MiniMax",
+	"minimax":  "MiniMax",
 	"ernie":    "Baidu",
 	"spark":    "iFlytek",
 	"hunyuan":  "Tencent",
@@ -68,6 +70,16 @@ var defaultVendorIcons = map[string]string{
 
 // initDefaultVendorMapping 简化的默认供应商映射
 func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[int]*Vendor, enableAbilities []AbilityWithChannel) {
+	patterns := make([]string, 0, len(defaultVendorRules))
+	for pattern := range defaultVendorRules {
+		patterns = append(patterns, pattern)
+	}
+	slices.SortFunc(patterns, func(a, b string) int {
+		if len(a) != len(b) {
+			return len(b) - len(a)
+		}
+		return strings.Compare(a, b)
+	})
 	for _, ability := range enableAbilities {
 		modelName := ability.Model
 		if _, exists := metaMap[modelName]; exists {
@@ -77,9 +89,10 @@ func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[int]*Vend
 		// 匹配供应商
 		vendorID := 0
 		modelLower := strings.ToLower(modelName)
-		for pattern, vendorName := range defaultVendorRules {
+		for _, pattern := range patterns {
+			vendorName := defaultVendorRules[pattern]
 			if strings.Contains(modelLower, pattern) {
-				vendorID = getOrCreateVendor(vendorName, vendorMap)
+				vendorID = getDisplayVendor(vendorName, vendorMap)
 				break
 			}
 		}
@@ -94,28 +107,46 @@ func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[int]*Vend
 	}
 }
 
-// 查找或创建供应商
-func getOrCreateVendor(vendorName string, vendorMap map[int]*Vendor) int {
-	// 查找现有供应商
+// Default vendor entries are presentation data. Reading pricing must never
+// recreate a deleted/merged database record.
+var defaultVendorDisplayIDs = map[string]int{
+	"360":        -1001,
+	"Anthropic":  -1002,
+	"Cloudflare": -1003,
+	"Cohere":     -1004,
+	"DeepSeek":   -1005,
+	"Google":     -1006,
+	"Jina":       -1007,
+	"Meta":       -1008,
+	"MiniMax":    -1009,
+	"Mistral":    -1010,
+	"Moonshot":   -1011,
+	"OpenAI":     -1012,
+	"Vidu":       -1013,
+	"xAI":        -1014,
+	"Jimeng":     -1015,
+	"ByteDance":  -1016,
+	"Kuaishou":   -1017,
+	"Zhipu AI":   -1018,
+	"Baidu":      -1019,
+	"Tencent":    -1020,
+	"iFlytek":    -1021,
+	"Alibaba":    -1022,
+	"01.AI":      -1023,
+}
+
+func getDisplayVendor(vendorName string, vendorMap map[int]*Vendor) int {
 	for id, vendor := range vendorMap {
-		if vendor.Name == vendorName {
+		if strings.EqualFold(vendor.Name, vendorName) {
 			return id
 		}
 	}
-
-	// 创建新供应商
-	newVendor := &Vendor{
-		Name:   vendorName,
-		Status: 1,
-		Icon:   getDefaultVendorIcon(vendorName),
-	}
-
-	if err := newVendor.Insert(); err != nil {
+	id := defaultVendorDisplayIDs[vendorName]
+	if id == 0 {
 		return 0
 	}
-
-	vendorMap[newVendor.Id] = newVendor
-	return newVendor.Id
+	vendorMap[id] = &Vendor{Id: id, Name: vendorName, Status: 1, Icon: getDefaultVendorIcon(vendorName)}
+	return id
 }
 
 // 获取供应商默认图标

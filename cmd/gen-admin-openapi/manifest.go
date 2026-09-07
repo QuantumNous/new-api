@@ -52,8 +52,8 @@ var manifest = map[string]map[string]respSpec{
 	"/api/verify":            {"post": {Empty: true}},
 
 	// === Auth & Login ===
-	"/api/user/login":     {"post": {Type: "User"}},
-	"/api/user/login/2fa": {"post": {Type: "User"}},
+	"/api/user/login":     {"post": {Custom: "LoginResponse"}},
+	"/api/user/login/2fa": {"post": {Custom: "LoginSessionResponse"}},
 	"/api/user/logout":    {"get": {Empty: true}},
 	"/api/user/register":  {"post": {Empty: true}},
 	"/api/user/reset":     {"post": {Empty: true}},
@@ -79,22 +79,20 @@ var manifest = map[string]map[string]respSpec{
 	"/api/user/group/batch": {"post": {Type: "BulkUpdateUserGroupResponse", Body: "BulkUpdateUserGroupRequest"}},
 
 	// === Pricing admin ===
-	"/api/option/pricing/models/{channel_type}": {"get": {Type: "ListProviderModelsResponse"}},
-	"/api/option/pricing/adjust":                {"post": {Type: "AdjustModelPricingResponse", Body: "AdjustModelPricingRequest"}},
-	"/api/user/self":                            {"get": {Type: "User"}},
-	"/api/user/aff":                             {"get": {Wrap: "ApiResponseOfString"}},
-	"/api/user/groups":                          {"get": {Wrap: "ApiResponseOfStringList"}},
-	"/api/user/self/groups":                     {"get": {Wrap: "ApiResponseOfStringList"}},
-	"/api/user/aff_transfer":                    {"post": {Empty: true}},
-	"/api/user/amount":                          {"post": {Custom: "MessageEnvelopeOfString"}},
-	"/api/user/setting":                         {"put": {Empty: true}},
-	"/api/user/token":                           {"get": {Wrap: "ApiResponseOfString"}},
-	"/api/user/models":                          {"get": {Wrap: "ApiResponseOfStringList"}},
+	"/api/user/self":         {"get": {Type: "User"}},
+	"/api/user/aff":          {"get": {Wrap: "ApiResponseOfString"}},
+	"/api/user/groups":       {"get": {Wrap: "ApiResponseOfStringList"}},
+	"/api/user/self/groups":  {"get": {Wrap: "ApiResponseOfStringList"}},
+	"/api/user/aff_transfer": {"post": {Empty: true}},
+	"/api/user/amount":       {"post": {Custom: "MessageEnvelopeOfString"}},
+	"/api/user/setting":      {"put": {Empty: true}},
+	"/api/user/token":        {"get": {Wrap: "ApiResponseOfString"}},
+	"/api/user/models":       {"get": {Wrap: "ApiResponseOfStringList"}},
 
 	// === Passkey ===
 	"/api/user/passkey":                 {"get": {Wrap: "ApiResponseOfObject"}},
 	"/api/user/passkey/login/begin":     {"post": {Wrap: "ApiResponseOfObject"}},
-	"/api/user/passkey/login/finish":    {"post": {Type: "User"}},
+	"/api/user/passkey/login/finish":    {"post": {Custom: "LoginSessionResponse"}},
 	"/api/user/passkey/register/begin":  {"post": {Wrap: "ApiResponseOfObject"}},
 	"/api/user/passkey/register/finish": {"post": {Empty: true}},
 	"/api/user/passkey/verify/begin":    {"post": {Wrap: "ApiResponseOfObject"}},
@@ -149,9 +147,9 @@ var manifest = map[string]map[string]respSpec{
 	"/api/channel/validate_models":     {"post": {Type: "ValidateModelsResponse"}},
 
 	// === Token ===
-	"/api/token/":       {"get": {Type: "Token", Paged: true}, "post": {Type: "Token"}, "put": {Type: "Token"}},
-	"/api/token/{id}":   {"get": {Type: "Token"}, "delete": {Empty: true}},
-	"/api/token/search": {"get": {Type: "Token", Paged: true}},
+	"/api/token/":       {"get": {Type: "tokenResponse", Paged: true}, "post": {Type: "tokenResponse"}, "put": {Type: "tokenResponse"}},
+	"/api/token/{id}":   {"get": {Type: "tokenResponse"}, "delete": {Empty: true}},
+	"/api/token/search": {"get": {Type: "tokenResponse", Paged: true}},
 	"/api/token/batch":  {"post": {Wrap: "ApiResponseOfObject"}},
 
 	// === Logs ===
@@ -175,7 +173,7 @@ var manifest = map[string]map[string]respSpec{
 	"/api/models/{id}":                  {"get": {Type: "Model"}, "delete": {Empty: true}},
 	"/api/models/missing":               {"get": {Wrap: "ApiResponseOfStringList"}},
 	"/api/models/search":                {"get": {Type: "Model", Paged: true}},
-	"/api/models/sync_upstream":         {"post": {Type: "SyncUpstreamModelsResponse"}},
+	"/api/models/sync_upstream":         {"post": {Type: "MetadataSyncResult"}},
 	"/api/models/sync_upstream/preview": {"get": {Type: "SyncUpstreamPreviewResponse"}},
 
 	// === Vendors ===
@@ -458,8 +456,7 @@ func newOperation(path, method string) map[string]interface{} {
 
 func defaultSecurity() []interface{} {
 	return []interface{}{
-		map[string]interface{}{"Combination343": []interface{}{}},
-		map[string]interface{}{"Combination1243": []interface{}{}},
+		map[string]interface{}{"AccessToken1": []interface{}{}},
 	}
 }
 
@@ -942,14 +939,17 @@ func isGenericResponse(op map[string]interface{}) bool {
 // setInlineResponse replaces responses["200"] schema with an inline object
 // when the controller returns a custom gin.H{...} envelope.
 func setInlineResponse(op map[string]interface{}, schema map[string]interface{}) {
-	op["responses"] = map[string]interface{}{
-		"200": map[string]interface{}{
-			"description": translate(currentLocale, "resp.success"),
-			"headers":     map[string]interface{}{},
-			"content": map[string]interface{}{
-				"application/json": map[string]interface{}{
-					"schema": schema,
-				},
+	responses, _ := op["responses"].(map[string]interface{})
+	if responses == nil {
+		responses = map[string]interface{}{}
+		op["responses"] = responses
+	}
+	responses["200"] = map[string]interface{}{
+		"description": translate(currentLocale, "resp.success"),
+		"headers":     map[string]interface{}{},
+		"content": map[string]interface{}{
+			"application/json": map[string]interface{}{
+				"schema": schema,
 			},
 		},
 	}

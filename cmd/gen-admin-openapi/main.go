@@ -60,7 +60,7 @@ func bootstrap() error {
 	if err := parseModels("./model"); err != nil {
 		return fmt.Errorf("parse models: %w", err)
 	}
-	for _, dir := range []string{"./dto", "./pkg/ionet"} {
+	for _, dir := range []string{"./dto", "./relaykit/dto", "./pkg/ionet"} {
 		if err := parseModels(dir); err != nil {
 			return fmt.Errorf("parse %s: %w", dir, err)
 		}
@@ -130,17 +130,34 @@ func run(locale string) error {
 	removeFakePaths(paths)
 	clearPlaceholderBodies(paths)
 	applyManifest(paths)
+	reconcileRoutes(paths)
+	defaultUntypedResponses(paths)
 	enrichFromHandlers(paths)
 	applyManifestBodies(paths)
 	defaultUntypedResponses(paths)
 	enrichErrorResponses(paths)
+	enrichExplicitContracts(paths)
 
+	pathReferences, err := json.Marshal(paths)
+	if err != nil {
+		return err
+	}
+	for name := range collectRefs(string(pathReferences)) {
+		referencedTypes[name] = true
+	}
 	schemas := buildSchemas()
+	enrichLoginSchemas(schemas)
+	enrichMetadataSelectionSchema(schemas)
 
 	components, _ := spec["components"].(map[string]interface{})
 	if components == nil {
 		components = map[string]interface{}{}
 		spec["components"] = components
+	}
+	enrichSecurityContracts(paths, components)
+	spec["security"] = defaultSecurity()
+	if err := validateSecurityRequirements(spec); err != nil {
+		return err
 	}
 	existingSchemas, _ := components["schemas"].(map[string]interface{})
 	if existingSchemas == nil {
@@ -193,10 +210,11 @@ func run(locale string) error {
 		}
 	}
 	if len(missing) > 0 {
-		fmt.Printf("    WARN: %d dangling $refs:\n", len(missing))
+		fmt.Printf("    ERROR: %d dangling $refs:\n", len(missing))
 		for _, m := range missing {
 			fmt.Println("     -", m)
 		}
+		return fmt.Errorf("schema coverage failed: %d dangling refs", len(missing))
 	}
 
 	// Run schema validation. Errors fail the build; warnings are surfaced.
@@ -227,7 +245,15 @@ func sweepUnreferencedSchemas(spec map[string]interface{}, schemas map[string]in
 		return 0
 	}
 
-	pathsJSON, _ := json.Marshal(paths)
+	roots := map[string]interface{}{"paths": paths}
+	if components, ok := spec["components"].(map[string]interface{}); ok {
+		for name, value := range components {
+			if name != "schemas" {
+				roots[name] = value
+			}
+		}
+	}
+	pathsJSON, _ := json.Marshal(roots)
 	reachable := map[string]bool{}
 	queue := []string{}
 	for ref := range collectRefs(string(pathsJSON)) {

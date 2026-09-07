@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -521,27 +523,47 @@ func GetUserOAuthBindingsByAdmin(c *gin.Context) {
 
 // UnbindCustomOAuth unbinds a custom OAuth provider from the current user
 func UnbindCustomOAuth(c *gin.Context) {
-	userId := c.GetInt("id")
-	if userId == 0 {
-		common.ApiErrorMsg(c, "未登录")
+	identity, ok := middleware.GetSessionAuthIdentity(c)
+	if !ok {
+		writeSecurityOperationError(c, service.ErrAuthTokenInvalid)
 		return
 	}
 
 	providerIdStr := c.Param("provider_id")
 	providerId, err := strconv.Atoi(providerIdStr)
-	if err != nil {
+	if err != nil || providerId <= 0 {
 		common.ApiErrorMsg(c, "无效的提供商 ID")
 		return
 	}
 
-	if err := model.DeleteUserOAuthBinding(userId, providerId); err != nil {
-		common.ApiError(c, err)
+	succeeded, notificationFailed := false, false
+	defer func() {
+		recordUserSecurityAudit(c, identity.UserID, "user.binding_unbind", map[string]interface{}{"provider_id": providerId, "success": succeeded, "notification_failed": notificationFailed})
+	}()
+	context, err := common.Marshal(service.AccountUnbindingContext{ProviderID: providerId})
+	if err != nil {
+		writeSecurityOperationError(c, err)
 		return
 	}
+	if middleware.RequireSecurityProof(c, service.VerificationOperation{Scope: service.VerificationScopeAccountUnbind, Context: context}) == nil {
+		return
+	}
+	if err := service.UnbindAccountOAuth(identity, providerId); err != nil {
+		writeSecurityOperationError(c, err)
+		return
+	}
+	succeeded = true
+	user, err := model.GetUserById(identity.UserID, false)
+	if err != nil {
+		writeSecurityOperationError(c, err)
+		return
+	}
+	notificationFailed = service.NotifyAccountSecurityChange(user.Email, "Login account unlinked") != nil
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "解绑成功",
+		"data":    gin.H{"notification_warning": notificationFailed},
 	})
 }
 

@@ -104,9 +104,17 @@ func validateOperation(path, method string, op map[string]interface{}, schemas m
 	}
 	r200, _ := resp["200"].(map[string]interface{})
 	if r200 == nil {
+		for status, response := range resp {
+			if strings.HasPrefix(status, "2") {
+				r200, _ = response.(map[string]interface{})
+				break
+			}
+		}
+	}
+	if r200 == nil {
 		out = append(out, validationIssue{
-			Path: path, Method: method, Code: "RESP_NO_200",
-			Message:  "operation has no responses[\"200\"]",
+			Path: path, Method: method, Code: "RESP_NO_SUCCESS",
+			Message:  "operation has no successful response",
 			Severity: "warn",
 		})
 		return out

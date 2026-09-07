@@ -10,7 +10,8 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/types"
+	kitreasoning "github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/samber/lo"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -30,6 +31,11 @@ var paramOverrideSensitivePathPrefixes = []string{
 	"model",
 	"original_model",
 	"upstream_model",
+	"reasoning",
+	"reasoning_effort",
+	"output_config",
+	"generationConfig.thinkingConfig",
+	"generation_config.thinking_config",
 	"service_tier",
 	"inference_geo",
 	"speed",
@@ -191,6 +197,7 @@ func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, 
 	if err != nil {
 		return nil, err
 	}
+	syncReasoningEffortAfterParamOverride(info, jsonData, result)
 	syncRuntimeHeaderOverrideFromContext(info, overrideCtx)
 	if info != nil {
 		if recorder != nil {
@@ -200,6 +207,121 @@ func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, 
 		}
 	}
 	return result, nil
+}
+
+func syncReasoningEffortAfterParamOverride(info *RelayInfo, before, after []byte) {
+	if info == nil {
+		return
+	}
+	_, existedBefore := extractReasoningEffortFromJSON(info.GetFinalRequestRelayFormat(), before)
+	effort, existsAfter := extractReasoningEffortFromJSON(info.GetFinalRequestRelayFormat(), after)
+	if existsAfter {
+		info.SetReasoningEffort(effort)
+		return
+	}
+	if existedBefore {
+		info.SetReasoningEffort("")
+	}
+}
+
+func extractReasoningEffortFromJSON(format types.RelayFormat, data []byte) (string, bool) {
+	switch format {
+	case types.RelayFormatOpenAI:
+		if effort, exists := firstStringValue(data, "reasoning_effort"); exists && effort != "" {
+			return effort, true
+		}
+		if enabled := gjson.GetBytes(data, "reasoning.enabled"); enabled.Exists() {
+			if enabled.Type != gjson.True && enabled.Type != gjson.False {
+				return "", true
+			}
+			if !enabled.Bool() {
+				return string(kitreasoning.EffortNone), true
+			}
+			if effort, exists := firstStringValue(data, "reasoning.effort"); exists && effort != "" {
+				return effort, true
+			}
+			if budget := gjson.GetBytes(data, "reasoning.max_tokens"); budget.Exists() {
+				return reasoningEffortFromBudgetValue(budget)
+			}
+			return string(kitreasoning.EffortHigh), true
+		}
+		if effort, exists := firstStringValue(data, "reasoning.effort"); exists && effort != "" {
+			return effort, true
+		}
+		if budget := gjson.GetBytes(data, "reasoning.max_tokens"); budget.Exists() {
+			return reasoningEffortFromBudgetValue(budget)
+		}
+		return "", false
+	case types.RelayFormatOpenAIResponses:
+		return firstStringValue(data, "reasoning.effort")
+	case types.RelayFormatClaude:
+		if effort, exists := firstStringValue(data, "output_config.effort"); exists && effort != "" {
+			return effort, true
+		}
+		thinkingType, hasThinkingType := firstStringValue(data, "thinking.type")
+		if thinkingType == "disabled" {
+			return string(kitreasoning.EffortNone), true
+		}
+		if budget := gjson.GetBytes(data, "thinking.budget_tokens"); budget.Exists() {
+			return reasoningEffortFromBudgetValue(budget)
+		}
+		if thinkingType == "enabled" || thinkingType == "adaptive" {
+			return string(kitreasoning.EffortHigh), true
+		}
+		return "", hasThinkingType
+	case types.RelayFormatGemini:
+		level, hasLevel := firstStringValue(data,
+			"generationConfig.thinkingConfig.thinkingLevel",
+			"generation_config.thinking_config.thinking_level",
+		)
+		if level != "" {
+			return level, true
+		}
+		for _, path := range []string{
+			"generationConfig.thinkingConfig.thinkingBudget",
+			"generation_config.thinking_config.thinking_budget",
+		} {
+			if budget := gjson.GetBytes(data, path); budget.Exists() {
+				return reasoningEffortFromBudgetValue(budget)
+			}
+		}
+		return "", hasLevel
+	default:
+		return "", false
+	}
+}
+
+func firstStringValue(data []byte, paths ...string) (string, bool) {
+	for _, path := range paths {
+		value := gjson.GetBytes(data, path)
+		if !value.Exists() {
+			continue
+		}
+		if value.Type != gjson.String {
+			return "", true
+		}
+		return strings.TrimSpace(value.String()), true
+	}
+	return "", false
+}
+
+func reasoningEffortFromBudgetValue(value gjson.Result) (string, bool) {
+	if value.Type != gjson.Number {
+		return "", true
+	}
+	budget := value.Float()
+	switch {
+	case budget == 0:
+		return string(kitreasoning.EffortNone), true
+	case budget < 0:
+		return string(kitreasoning.EffortHigh), true
+	case budget <= 1024:
+		return string(kitreasoning.EffortLow), true
+	case budget <= 8192:
+		return string(kitreasoning.EffortMedium), true
+	default:
+		return string(kitreasoning.EffortHigh), true
+	}
 }
 
 func shouldEnableParamOverrideAudit(paramOverride map[string]interface{}) bool {
@@ -2043,6 +2165,10 @@ func mergeObjects(data []byte, path string, value interface{}, keepOrigin bool) 
 // 目前内置以下字段：
 //   - upstream_model/model：始终为通道映射后的上游模型名。
 //   - original_model：请求最初指定的模型名。
+//   - user_id：已认证用户 ID。
+//   - user_group：用户所属分组。
+//   - token_group：令牌指定的分组；未指定时回退为用户分组。
+//   - using_group：当前实际使用的分组，自动跨分组重试时可能变化。
 //   - request_path：请求路径
 //   - is_channel_test：是否为渠道测试请求（同 is_test）。
 func BuildParamOverrideContext(info *RelayInfo) map[string]interface{} {
@@ -2051,6 +2177,10 @@ func BuildParamOverrideContext(info *RelayInfo) map[string]interface{} {
 	}
 
 	ctx := make(map[string]interface{})
+	ctx["user_id"] = info.UserId
+	ctx["user_group"] = info.UserGroup
+	ctx["token_group"] = info.TokenGroup
+	ctx["using_group"] = info.UsingGroup
 	if info.ChannelMeta != nil && info.ChannelMeta.UpstreamModelName != "" {
 		ctx["model"] = info.ChannelMeta.UpstreamModelName
 		ctx["upstream_model"] = info.ChannelMeta.UpstreamModelName

@@ -16,7 +16,7 @@ cp ../new-api-macos ../new-api
 **Option B: Build from source (requires Go)**
 TODO
 
-### 3. Electron Dependencies
+### 2. Electron Dependencies
 ```bash
 cd electron
 npm install
@@ -24,13 +24,21 @@ npm install
 
 ## Development
 
-Run the app in development mode:
+Start the backend, the frontend, and Electron in separate terminals:
 ```bash
-npm start
+# Repository root
+go run main.go
+
+# Repository root
+make dev-web
+
+# electron/
+npm run dev-app
 ```
 
 This will:
-- Start the Go backend on port 3000
+- Use the Go backend on port 3000
+- Use the Rsbuild frontend development server on port 5173
 - Open an Electron window with DevTools enabled
 - Create a system tray icon (menu bar on macOS)
 - Store database in `../data/new-api.db`
@@ -39,10 +47,10 @@ This will:
 
 ### Quick Build
 ```bash
-# Ensure Go binary exists in parent directory
-ls ../new-api  # Should exist
+# From electron/, build the frontend, Go binary, and desktop package
+./build.sh
 
-# Build for current platform
+# Or package an existing binary for the current platform
 npm run build
 
 # Platform-specific builds
