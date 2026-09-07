@@ -9,16 +9,16 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/service/relayconvert"
-	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
@@ -193,6 +193,68 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	return a.routeURL(info)
 }
 
+func (a *Adaptor) BuildModelListRequest(info *relaycommon.RelayInfo) (string, http.Header, error) {
+	return a.buildManagementRequest(info, dto.AdvancedCustomModelListPath)
+}
+
+func (a *Adaptor) BuildBalanceRequest(info *relaycommon.RelayInfo) (string, http.Header, error) {
+	return a.buildManagementRequest(info, dto.AdvancedCustomBalancePath)
+}
+
+func (a *Adaptor) buildManagementRequest(info *relaycommon.RelayInfo, managementPath string) (string, http.Header, error) {
+	if info == nil {
+		return "", nil, errors.New("missing relay info")
+	}
+	config := info.ChannelOtherSettings.AdvancedCustom
+	if config == nil {
+		return "", nil, errors.New("advanced_custom is required")
+	}
+	if err := config.Validate(); err != nil {
+		return "", nil, err
+	}
+	var route dto.AdvancedCustomRoute
+	var ok bool
+	switch managementPath {
+	case dto.AdvancedCustomModelListPath:
+		route, ok = config.ModelListRoute()
+	case dto.AdvancedCustomBalancePath:
+		route, ok = config.BalanceRoute()
+	default:
+		return "", nil, fmt.Errorf("unsupported advanced custom management path: %s", managementPath)
+	}
+	if !ok {
+		return "", nil, fmt.Errorf("advanced custom channel does not configure a %s route", managementPath)
+	}
+	converter := strings.TrimSpace(route.Converter)
+	if converter == "" {
+		converter = relayconvert.ConverterNone
+	}
+	if converter != relayconvert.ConverterNone {
+		return "", nil, fmt.Errorf("converter %q does not support %s requests", converter, managementPath)
+	}
+
+	requestURL, err := buildRouteURL(route, converter, info)
+	if err != nil {
+		return "", nil, err
+	}
+
+	header := http.Header{}
+	auth := route.Auth
+	if auth == nil {
+		header.Set("Authorization", "Bearer "+info.ApiKey)
+		return requestURL, header, nil
+	}
+
+	switch strings.TrimSpace(auth.Type) {
+	case dto.AdvancedCustomAuthTypeNone, dto.AdvancedCustomAuthTypeQuery:
+	case dto.AdvancedCustomAuthTypeHeader:
+		header.Set(strings.TrimSpace(auth.Name), applyAuthTemplate(auth.Value, info.ApiKey))
+	default:
+		return "", nil, fmt.Errorf("invalid advanced custom auth type: %s", auth.Type)
+	}
+	return requestURL, header, nil
+}
+
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
 	if err := a.resolve(c, info); err != nil {
 		return err
@@ -343,11 +405,15 @@ func incomingRequestPath(c *gin.Context, info *relaycommon.RelayInfo) string {
 }
 
 func (a *Adaptor) routeURL(info *relaycommon.RelayInfo) (string, error) {
-	parsedURL, err := resolveUpstreamTargetURL(applyUpstreamPathTemplate(strings.TrimSpace(a.route.UpstreamPath), info), info)
+	return buildRouteURL(a.route, a.converter, info)
+}
+
+func buildRouteURL(route dto.AdvancedCustomRoute, converter string, info *relaycommon.RelayInfo) (string, error) {
+	parsedURL, err := resolveUpstreamTargetURL(applyUpstreamPathTemplate(strings.TrimSpace(route.UpstreamPath), info), info)
 	if err != nil {
 		return "", err
 	}
-	if shouldUseGeminiStreamURL(a.converter, info) {
+	if shouldUseGeminiStreamURL(converter, info) {
 		useGeminiStreamGenerateContentURL(parsedURL)
 	}
 	if info != nil && info.RelayMode == relayconstant.RelayModeRealtime {
@@ -358,9 +424,9 @@ func (a *Adaptor) routeURL(info *relaycommon.RelayInfo) (string, error) {
 			parsedURL.Scheme = "ws"
 		}
 	}
-	if a.route.Auth != nil && strings.TrimSpace(a.route.Auth.Type) == dto.AdvancedCustomAuthTypeQuery {
+	if route.Auth != nil && strings.TrimSpace(route.Auth.Type) == dto.AdvancedCustomAuthTypeQuery {
 		query := parsedURL.Query()
-		query.Set(strings.TrimSpace(a.route.Auth.Name), applyAuthTemplate(a.route.Auth.Value, info.ApiKey))
+		query.Set(strings.TrimSpace(route.Auth.Name), applyAuthTemplate(route.Auth.Value, info.ApiKey))
 		parsedURL.RawQuery = query.Encode()
 	}
 	return parsedURL.String(), nil

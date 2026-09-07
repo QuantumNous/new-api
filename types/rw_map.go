@@ -57,7 +57,6 @@ func (m *RWMap[K, V]) Clear() {
 	m.data = make(map[K]V)
 }
 
-// ReadAll returns a copy of the entire map.
 func (m *RWMap[K, V]) ReadAll() map[K]V {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
@@ -81,7 +80,6 @@ func LoadFromJsonString[K comparable, V any](m *RWMap[K, V], jsonStr string) err
 	return common.Unmarshal([]byte(jsonStr), &m.data)
 }
 
-// LoadFromJsonStringWithCallback loads a JSON string into the RWMap and calls the callback on success.
 func LoadFromJsonStringWithCallback[K comparable, V any](m *RWMap[K, V], jsonStr string, onSuccess func()) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -93,7 +91,6 @@ func LoadFromJsonStringWithCallback[K comparable, V any](m *RWMap[K, V], jsonStr
 	return err
 }
 
-// MarshalJSONString returns the JSON string representation of the RWMap.
 func (m *RWMap[K, V]) MarshalJSONString() string {
 	bytes, err := m.MarshalJSON()
 	if err != nil {

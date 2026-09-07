@@ -49,6 +49,9 @@ token.status_unavailable: "This token status is unavailable"
 token.db_error: "Invalid token, database query error, please contact administrator"
 token.not_exists: "Token not found"
 token.count_limit: "Maximum token count reached ({{.Max}})"
+token.auto_groups_too_many: "A token can select at most {{.Max}} Auto groups"
+token.auto_groups_duplicate: "Auto group {{.Group}} is duplicated"
+token.auto_groups_invalid: "Auto group {{.Group}} is unavailable or unauthorized"
 
 # Redemption messages
 redemption.name_length: "Redemption code name length must be between 1-20"
@@ -277,6 +280,7 @@ distributor.invalid_playground_request: "Invalid playground request: {{.Error}}"
 distributor.group_access_denied: "No permission to access this group"
 distributor.get_channel_failed: "Failed to get available channel for model {{.Model}} under group {{.Group}} (distributor): {{.Error}}"
 distributor.no_available_channel: "No available channel for model {{.Model}} under group {{.Group}} (distributor)"
+distributor.no_available_channel_task_plugin: "No available channel for model {{.Model}} under group {{.Group}}: the model is claimed by task plugin \"{{.Plugin}}\", which has no enabled channel serving it. To let another plugin or channel serve this model, disable or override plugin \"{{.Plugin}}\" in the task plugin console (distributor)"
 distributor.invalid_midjourney_request: "Invalid Midjourney request: {{.Error}}"
 distributor.invalid_request_parse_model: "Invalid request, unable to parse model"
 

@@ -407,13 +407,13 @@ func resolveAdvanceResetTime(value *bool) bool {
 	return *value
 }
 
-func recordSubscriptionResetUserLogs(result *model.SubscriptionResetResult, adminInfo map[string]interface{}) {
+func recordSubscriptionResetUserLogs(c *gin.Context, result *model.SubscriptionResetResult, adminInfo *model.AuditAdminInfo) {
 	if result == nil || result.ResetCount == 0 {
 		return
 	}
 	content := fmt.Sprintf("管理员重置订阅套餐 %s（ID: %d）额度", result.PlanTitle, result.PlanId)
 	for _, userId := range result.AffectedUserIds {
-		model.RecordLogWithAdminInfo(userId, model.LogTypeManage, content, adminInfo)
+		model.RecordLogWithAdminInfo(userId, model.LogTypeManage, content, adminInfo, nil, c)
 	}
 }
 
@@ -466,7 +466,7 @@ func AdminResetUserSubscriptionsByPlan(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	recordSubscriptionResetUserLogs(result, auditOperatorInfo(c))
+	recordSubscriptionResetUserLogs(c, result, auditOperatorInfo(c))
 	recordManageAuditFor(c, userId, "subscription.user_plan_reset", map[string]interface{}{
 		"target_user_id":     userId,
 		"plan_id":            result.PlanId,
@@ -495,7 +495,7 @@ func AdminResetPlanSubscriptions(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	recordSubscriptionResetUserLogs(result, auditOperatorInfo(c))
+	recordSubscriptionResetUserLogs(c, result, auditOperatorInfo(c))
 	common.SysLog(fmt.Sprintf("admin reset subscription plan %d quota: reset_count=%d user_count=%d advance_reset_time=%t",
 		result.PlanId, result.ResetCount, result.UserCount, result.AdvanceResetTime))
 	recordManageAudit(c, "subscription.plan_reset", map[string]interface{}{

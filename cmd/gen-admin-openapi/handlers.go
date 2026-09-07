@@ -23,6 +23,7 @@ type HandlerInfo struct {
 	QueryParams []QueryParam
 	RespType    string                 // single named model type
 	RespSchema  map[string]interface{} // inline schema for gin.H{...} responses
+	RespStatus  int
 	RespIsList  bool
 	RespIsPaged bool
 	ErrorCodes  []ErrorCode // populated by analyzeErrorCalls — see enrichErrorResponses
@@ -45,24 +46,24 @@ type ErrorCode struct {
 // AST inspection. Covers all status codes the migrated handlers currently
 // emit (waves 1–7). Extend when a new status is introduced in handlers.
 var httpStatusMap = map[string]int{
-	"StatusOK":                   200,
-	"StatusCreated":              201,
-	"StatusAccepted":             202,
-	"StatusNoContent":            204,
-	"StatusBadRequest":           400,
-	"StatusUnauthorized":         401,
-	"StatusForbidden":            403,
-	"StatusNotFound":             404,
-	"StatusMethodNotAllowed":     405,
-	"StatusConflict":             409,
-	"StatusGone":                 410,
-	"StatusUnprocessableEntity":  422,
-	"StatusTooManyRequests":      429,
-	"StatusInternalServerError":  500,
-	"StatusNotImplemented":       501,
-	"StatusBadGateway":           502,
-	"StatusServiceUnavailable":   503,
-	"StatusGatewayTimeout":       504,
+	"StatusOK":                  200,
+	"StatusCreated":             201,
+	"StatusAccepted":            202,
+	"StatusNoContent":           204,
+	"StatusBadRequest":          400,
+	"StatusUnauthorized":        401,
+	"StatusForbidden":           403,
+	"StatusNotFound":            404,
+	"StatusMethodNotAllowed":    405,
+	"StatusConflict":            409,
+	"StatusGone":                410,
+	"StatusUnprocessableEntity": 422,
+	"StatusTooManyRequests":     429,
+	"StatusInternalServerError": 500,
+	"StatusNotImplemented":      501,
+	"StatusBadGateway":          502,
+	"StatusServiceUnavailable":  503,
+	"StatusGatewayTimeout":      504,
 }
 
 // errorHelperNames — Set of common.ApiError*StatusCode helpers analyzeErrorCall
@@ -237,9 +238,10 @@ func analyzeHandler(fn *ast.FuncDecl) *HandlerInfo {
 // match (different package, different fn name, non-literal args, etc.).
 //
 // Expected shapes:
-//   common.ApiErrorStatusCode(c, http.StatusXxx, "code", err)
-//   common.ApiErrorMsgStatusCode(c, http.StatusXxx, "code", msg)
-//   common.ApiErrorI18nStatusCode(c, http.StatusXxx, "code", i18nKey, ...)
+//
+//	common.ApiErrorStatusCode(c, http.StatusXxx, "code", err)
+//	common.ApiErrorMsgStatusCode(c, http.StatusXxx, "code", msg)
+//	common.ApiErrorI18nStatusCode(c, http.StatusXxx, "code", i18nKey, ...)
 //
 // AST shape: CallExpr{Fun: SelectorExpr{X:Ident("common"), Sel:Ident("ApiErrorI18nStatusCode")}}.
 // Args[1] is http.StatusXxx (SelectorExpr), Args[2] is the code BasicLit.
@@ -477,17 +479,24 @@ func analyzeCall(call *ast.CallExpr, locals map[string]localVar, info *HandlerIn
 	case recv != nil && recv.Name == "common" && method == "GetPageQuery":
 		info.QueryParams = appendUniqueParam(info.QueryParams, QueryParam{Name: "p", Type: "integer"})
 		info.QueryParams = appendUniqueParam(info.QueryParams, QueryParam{Name: "page_size", Type: "integer"})
-	case recv != nil && recv.Name == "common" && (method == "ApiSuccess" || method == "ApiSuccessI18n"):
+	case recv != nil && recv.Name == "common" && (method == "ApiSuccess" || method == "ApiSuccessI18n" || method == "ApiSuccessStatus"):
 		idx := 1
-		if method == "ApiSuccessI18n" {
+		if method == "ApiSuccessI18n" || method == "ApiSuccessStatus" {
 			idx = 2
+		}
+		if method == "ApiSuccessStatus" && len(call.Args) > 1 {
+			if status, ok := call.Args[1].(*ast.SelectorExpr); ok {
+				info.RespStatus = httpStatusMap[status.Sel.Name]
+			}
 		}
 		if len(call.Args) > idx {
 			analyzeResponseValue(call.Args[idx], locals, info)
 		}
 	case recv != nil && recv.Name == "c" && method == "JSON":
 		if len(call.Args) >= 2 {
-			analyzeJSONResponse(call.Args[1], locals, info)
+			if status, ok := call.Args[0].(*ast.SelectorExpr); ok && httpStatusMap[status.Sel.Name] >= 200 && httpStatusMap[status.Sel.Name] < 300 {
+				analyzeJSONResponse(call.Args[1], locals, info)
+			}
 		}
 	}
 }
@@ -595,7 +604,14 @@ func analyzeResponseValue(arg ast.Expr, locals map[string]localVar, info *Handle
 		}
 	case *ast.CompositeLit:
 		if isGinH(v) {
-			info.RespSchema = ginHSchema(v, locals)
+			info.RespSchema = map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"success": map[string]interface{}{"type": "boolean"},
+					"message": map[string]interface{}{"type": "string"},
+					"data":    ginHSchema(v, locals),
+				},
+			}
 			return
 		}
 		if t := goTypeOf(v.Type); isKnownModel(t) {
@@ -674,6 +690,8 @@ func ginHSchema(cl *ast.CompositeLit, locals map[string]localVar) map[string]int
 // can't be determined.
 func inferValueSchema(expr ast.Expr, locals map[string]localVar) map[string]interface{} {
 	switch v := expr.(type) {
+	case *ast.ArrayType:
+		return map[string]interface{}{"type": "array", "items": refOrPrimitive(goTypeOf(v.Elt))}
 	case *ast.BasicLit:
 		switch v.Kind {
 		case token.STRING:

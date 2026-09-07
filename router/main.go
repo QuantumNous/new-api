@@ -12,25 +12,32 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetRouter(router *gin.Engine, assets ThemeAssets) {
+func SetRouter(router *gin.Engine, assets WebAssets) {
 	SetMetricsRouter(router)
 	SetApiRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
+	SetTaskPluginProtocolRouter(router)
 	SetVideoRouter(router)
 	SetOpenAPIRouter(router, assets.OpenAPISpecs)
+	SetTaskRouter(router)
+	pluginDispatcher := SetPluginRouter(router)
 	frontendBaseUrl := os.Getenv("FRONTEND_BASE_URL")
 	if common.IsMasterNode && frontendBaseUrl != "" {
 		frontendBaseUrl = ""
 		common.SysLog("FRONTEND_BASE_URL is ignored on master node")
 	}
 	if frontendBaseUrl == "" {
-		SetWebRouter(router, assets)
+		SetWebRouter(router, assets, pluginDispatcher)
 	} else {
 		frontendBaseUrl = strings.TrimSuffix(frontendBaseUrl, "/")
-		router.NoRoute(func(c *gin.Context) {
-			c.Set(middleware.RouteTagKey, "web")
-			c.Redirect(http.StatusMovedPermanently, fmt.Sprintf("%s%s", frontendBaseUrl, c.Request.RequestURI))
-		})
+		router.NoRoute(
+			pluginDispatcher,
+			middleware.RouteTag("web"),
+			middleware.AccessTokenAudit(),
+			func(c *gin.Context) {
+				c.Redirect(http.StatusMovedPermanently, fmt.Sprintf("%s%s", frontendBaseUrl, c.Request.RequestURI))
+			},
+		)
 	}
 }

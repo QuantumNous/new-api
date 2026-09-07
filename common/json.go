@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+
+	"github.com/gin-gonic/gin/binding"
 )
 
 func Unmarshal(data []byte, v any) error {
@@ -18,8 +20,28 @@ func DecodeJson(reader io.Reader, v any) error {
 	return json.NewDecoder(reader).Decode(v)
 }
 
+// DecodeJsonWithValidation decodes JSON and applies Gin's configured binding-tag
+// validator, including binding:"required" and any registered custom validators.
+func DecodeJsonWithValidation(reader io.Reader, v any) error {
+	if err := DecodeJson(reader, v); err != nil {
+		return err
+	}
+	if binding.Validator == nil {
+		return nil
+	}
+	return binding.Validator.ValidateStruct(v)
+}
+
 func Marshal(v any) ([]byte, error) {
 	return json.Marshal(v)
+}
+
+func IndentJson(data []byte) ([]byte, error) {
+	var buffer bytes.Buffer
+	if err := json.Indent(&buffer, data, "", "  "); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
 }
 
 func GetJsonType(data json.RawMessage) string {

@@ -622,7 +622,23 @@ func structToSchema(st *ast.StructType) map[string]interface{} {
 			}
 		}
 		if len(field.Names) == 0 {
-			// Embedded type — skip, would require recursion.
+			embeddedType := field.Type
+			if pointer, ok := embeddedType.(*ast.StarExpr); ok {
+				embeddedType = pointer.X
+			}
+			name := ""
+			switch embedded := embeddedType.(type) {
+			case *ast.Ident:
+				name = embedded.Name
+			case *ast.SelectorExpr:
+				name = embedded.Sel.Name
+			}
+			if embedded := modelTypes[name]; embedded != nil {
+				embeddedProperties := structToSchema(embedded)["properties"].(map[string]interface{})
+				for name, property := range embeddedProperties {
+					props[name] = property
+				}
+			}
 			continue
 		}
 		jsonName := strings.SplitN(jsonTag, ",", 2)[0]
@@ -632,6 +648,9 @@ func structToSchema(st *ast.StructType) map[string]interface{} {
 		schema := exprToSchema(field.Type)
 		if schema == nil {
 			continue
+		}
+		if jsonName == "auto_groups" && st == modelTypes["tokenResponse"] {
+			schema["nullable"] = true
 		}
 		props[jsonName] = schema
 	}
@@ -710,6 +729,8 @@ func exprToSchema(expr ast.Expr) map[string]interface{} {
 
 func identToSchema(name string) map[string]interface{} {
 	switch name {
+	case "tokenAutoGroupsInput":
+		return map[string]interface{}{"type": "array", "items": map[string]interface{}{"type": "string"}, "nullable": true}
 	case "string":
 		return map[string]interface{}{"type": "string"}
 	case "bool":

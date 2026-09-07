@@ -14,6 +14,7 @@ import (
 type RouteEntry struct {
 	Method      string // "GET", "POST", ...
 	Path        string // resolved full path with {param}-style placeholders
+	AuthMode    string // dashboard, optional, relay, or anonymous (empty)
 	HandlerName string // bare function name as referenced in router (e.g. "UpdateUser")
 }
 
@@ -37,6 +38,7 @@ func dedupeRoutes() {
 // prefix it is mounted under (resolved from `for _, route := range table {
 // group.Handle(...) }` loops).
 var permissionTableBase = map[string]string{}
+var permissionTableAuth = map[string]string{}
 
 func parseRoutes(dir string) error {
 	fset := token.NewFileSet()
@@ -137,6 +139,7 @@ func processPermissionTable(vs *ast.ValueSpec) {
 				Method:      method,
 				Path:        joinRoutePath(base, path),
 				HandlerName: handler,
+				AuthMode:    permissionTableAuth[name.Name],
 			})
 		}
 	}
@@ -196,6 +199,22 @@ func processRouterFunc(fn *ast.FuncDecl) {
 		}
 	}
 
+	groupMiddleware := map[string][]ast.Expr{}
+	groupAuth := map[string]string{}
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Use" {
+			return true
+		}
+		if recv, ok := sel.X.(*ast.Ident); ok {
+			groupMiddleware[recv.Name] = append(groupMiddleware[recv.Name], call.Args...)
+		}
+		return true
+	})
 	// Multi-pass to resolve nested group declarations.
 	for pass := 0; pass < 6; pass++ {
 		ast.Inspect(fn.Body, func(n ast.Node) bool {
@@ -225,7 +244,7 @@ func processRouterFunc(fn *ast.FuncDecl) {
 			}
 			base := strings.TrimRight(groups[parent.Name], "/")
 			suffix := arg
-			if !strings.HasPrefix(suffix, "/") {
+			if suffix != "" && !strings.HasPrefix(suffix, "/") {
 				suffix = "/" + suffix
 			}
 			full := base + suffix
@@ -235,6 +254,7 @@ func processRouterFunc(fn *ast.FuncDecl) {
 				full = "/"
 			}
 			groups[lhs.Name] = full
+			groupAuth[lhs.Name] = routeAuthMode(groupMiddleware[lhs.Name], routeAuthMode(call.Args[1:], groupAuth[parent.Name]))
 			return true
 		})
 	}
@@ -265,6 +285,7 @@ func processRouterFunc(fn *ast.FuncDecl) {
 			}
 			if base, ok := groups[recv.Name]; ok {
 				permissionTableBase[table.Name] = base
+				permissionTableAuth[table.Name] = groupAuth[recv.Name]
 			}
 			return true
 		})
@@ -293,13 +314,16 @@ func processRouterFunc(fn *ast.FuncDecl) {
 		if !ok {
 			return true
 		}
-		pathArg := stringArgRoutes(call, 0)
-		if pathArg == "" {
+		if len(call.Args) == 0 {
 			return true
 		}
+		if _, ok := call.Args[0].(*ast.BasicLit); !ok {
+			return true
+		}
+		pathArg := stringArgRoutes(call, 0)
 		base := strings.TrimRight(basePath, "/")
 		suffix := pathArg
-		if !strings.HasPrefix(suffix, "/") {
+		if suffix != "" && !strings.HasPrefix(suffix, "/") {
 			suffix = "/" + suffix
 		}
 		full := base + suffix
@@ -318,6 +342,7 @@ func processRouterFunc(fn *ast.FuncDecl) {
 			Method:      method,
 			Path:        full,
 			HandlerName: handler,
+			AuthMode:    routeAuthMode(call.Args[1:], groupAuth[recv.Name]),
 		})
 		return true
 	})
@@ -359,4 +384,75 @@ func lastControllerHandler(args []ast.Expr) string {
 func init() {
 	// Silence unused import warnings if we drop helpers later.
 	_ = os.Stderr
+}
+
+// reconcileRoutes makes the registered admin API authoritative. The manifest
+// supplies shapes, not endpoint existence: newly added native routes must not
+// disappear merely because they have no handwritten manifest entry yet.
+func reconcileRoutes(paths map[string]interface{}) {
+	registered := map[string]map[string]bool{}
+	for _, route := range routes {
+		if !strings.HasPrefix(route.Path, "/api/") {
+			continue
+		}
+		method := strings.ToLower(route.Method)
+		if registered[route.Path] == nil {
+			registered[route.Path] = map[string]bool{}
+		}
+		registered[route.Path][method] = true
+		path, _ := paths[route.Path].(map[string]interface{})
+		if path == nil {
+			path = map[string]interface{}{}
+			paths[route.Path] = path
+		}
+		if path[method] == nil {
+			path[method] = newOperation(route.Path, method)
+		}
+	}
+	for name, value := range paths {
+		if !strings.HasPrefix(name, "/api/") {
+			continue
+		}
+		path, _ := value.(map[string]interface{})
+		for method := range path {
+			if isHTTPMethod(method) && !registered[name][method] {
+				delete(path, method)
+			}
+		}
+		if len(registered[name]) == 0 {
+			delete(paths, name)
+		}
+	}
+}
+
+// Dashboard auth accepts access JWT or PAT; relay credentials are a different
+// token namespace. Optional/header-navigation auth deliberately allows anonymous
+// access depending on the operation/configuration.
+func routeAuthMode(args []ast.Expr, inherited string) string {
+	mode := inherited
+	for _, arg := range args {
+		call, ok := arg.(*ast.CallExpr)
+		if !ok {
+			continue
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			continue
+		}
+		pkg, ok := sel.X.(*ast.Ident)
+		if !ok || pkg.Name != "middleware" {
+			continue
+		}
+		switch sel.Sel.Name {
+		case "UserAuth", "AdminAuth", "RootAuth":
+			mode = "dashboard"
+		case "TokenAuth", "TokenAuthReadOnly":
+			mode = "relay"
+		case "TryUserAuth", "HeaderNavModuleAuth", "HeaderNavModulePublicOrUserAuth":
+			if mode == "" {
+				mode = "optional"
+			}
+		}
+	}
+	return mode
 }

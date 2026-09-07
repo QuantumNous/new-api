@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
 	// import ratio_setting for its init() that seeds defaultGroupRatio
@@ -20,8 +21,8 @@ import (
 )
 
 type bulkGroupAPIResponse struct {
-	Success bool                        `json:"success"`
-	Message string                      `json:"message"`
+	Success bool                         `json:"success"`
+	Message string                       `json:"message"`
 	Data    *BulkUpdateUserGroupResponse `json:"data"`
 }
 
@@ -37,9 +38,7 @@ func openUserControllerTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open sqlite db: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}); err != nil {
-		t.Fatalf("failed to migrate user table: %v", err)
-	}
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.CasbinRule{}, &model.AuthzRole{}, &model.Log{}, &model.AuditLog{}))
 	model.DB = db
 	model.LOG_DB = db
 

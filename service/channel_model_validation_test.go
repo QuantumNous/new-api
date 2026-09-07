@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 func apiErr(msg string) *types.NewAPIError {

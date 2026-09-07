@@ -1,5 +1,21 @@
 # CLAUDE.md
 
+## MANDATORY: Read AGENTS.md with the Read tool
+
+Do not treat `@AGENTS.md` as loaded. Claude Code does not reliably inline that import.
+
+Before any planning, coding, reviewing, or answering a project question, you MUST call the Read tool on the repo-root file `AGENTS.md` and wait for the full contents. This is the first action of every session and every new task.
+
+Rules:
+
+- Do not start from memory, summaries, or this file alone.
+- Do not skip the Read because a previous turn mentioned AGENTS.md.
+- Do not replace the Read with a grep, glob, or partial skim.
+- After reading, follow every rule in `AGENTS.md` for the rest of the work.
+- If the task touches `web/`, also Read `web/AGENTS.md` before editing frontend files.
+
+## Repository guide
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Overview
@@ -9,7 +25,7 @@ AI API gateway/proxy. Aggregates 40+ upstream AI providers (OpenAI, Claude, Gemi
 ## Tech Stack
 
 - **Backend**: Go 1.25+ (`go.mod` declares `go 1.25.1`; legacy `+heroku goVersion go1.18` comment is misleading — ignore it), Gin, GORM v2
-- **Frontend**: dual theme. `web/default/` = React 19 + Rsbuild + Base UI + TanStack Router/Query + Tailwind v4. `web/classic/` = React 18 + Vite + Semi Design + React Router v6
+- **Frontend**: `web/` = React 19 + Rsbuild + Base UI + TanStack Router/Query + Tailwind v4; rc34 consolidates the dashboard into this single frontend.
 - **Databases**: SQLite, MySQL >= 5.7.8, PostgreSQL >= 9.6 (all three must work simultaneously)
 - **Cache**: Redis (go-redis) + in-memory cache (auto-enabled when Redis on)
 - **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, WeChat, Telegram, custom)
@@ -23,7 +39,7 @@ AI API gateway/proxy. Aggregates 40+ upstream AI providers (OpenAI, Claude, Gemi
 ```bash
 # build/run
 go build -o new-api               # produces ./new-api binary
-go run main.go                    # dev run (embeds web/default/dist + web/classic/dist via go:embed)
+go run main.go                    # dev run (embeds web/dist + web/classic/dist via go:embed)
 
 # tests
 go test ./...                     # all tests
@@ -37,9 +53,9 @@ go vet ./...
 
 Tests are colocated: `foo_test.go` next to `foo.go`. Key suites: `common/json_test.go`, `pkg/billingexpr/billingexpr_test.go`, `controller/*_test.go`, `dto/openai_request_zero_value_test.go` (Rule 6 guard).
 
-> The Go binary embeds `web/default/dist` and `web/classic/dist` via `go:embed` (`main.go:38-48`). The frontends MUST be built before `go run` / `go build`, otherwise `embed.FS` will fail.
+> The Go binary embeds `web/dist` via `go:embed`. Build the frontend before `go run` / `go build`; otherwise embed fails.
 
-### Frontend (`web/default/`, run from that dir)
+### Frontend (`web/`, run from that dir)
 
 ```bash
 bun install
@@ -55,23 +71,9 @@ bun run i18n:sync         # sync src/i18n/locales/{lang}.json against source str
 bun run copyright:check   # verify copyright headers; `bun run copyright` to apply
 ```
 
-`web/classic/` uses Vite scripts (`vite`, `vite build`, etc.) — same `bun run <script>` form.
+### Backend CI
 
-### Make targets
-
-```bash
-make build-frontend            # default theme
-make build-frontend-classic
-make build-all-frontends
-make start-backend             # go run main.go &  (runs in background)
-make all                       # build both frontends + start backend
-make dev-api                   # docker compose -f docker-compose.dev.yml up -d
-make dev-api-rebuild           # rebuild new-api service in compose
-make dev-web                   # bun run dev on default
-make dev-web-classic
-make dev                       # dev-api + dev-web
-make reset-setup               # wipe setup wizard (postgres in compose OR local SQLite)
-```
+`.github/workflows/ci.yml` runs vet/build/test for the root and relaykit modules. This checkout has no Makefile; run Go test commands directly.
 
 ### Docker
 
@@ -96,7 +98,8 @@ setting/             — Config namespaces: ratio_setting, model_setting, operat
 common/              — Shared utils: json (REQUIRED wrapper, see Rule 1), crypto, redis, env, rate-limit, url_validator, etc.
 constant/            — channel.go (ChannelType*), api_type.go (APIType*), context_key.go (~69 ctx keys carrying token/channel/user/request state)
 dto/                 — Request/response structs for each provider family + sensitive/notify/playground
-types/               — relay formats, file sources, NewAPIError
+types/               — host-side types
+relaykit/            — shared relay DTOs/types including NewAPIError
 oauth/               — providers + LoadCustomProviders() on boot
 pkg/
   billingexpr/       — Expression compiler/evaluator/settler (read pkg/billingexpr/expr.md)
@@ -150,7 +153,7 @@ Typical channel dir: `adaptor.go` (interface impl), `relay-<name>.go` (streaming
 - Path alias `@/*` → `./src/*`
 - Styling: Tailwind v4 via `@tailwindcss/postcss`; theme tokens in `src/styles/theme.css` (oklch color space + light/dark CSS vars); UI primitives from `@base-ui/react` + Radix
 - `next-themes` for mode switching, `react-hook-form` + zod resolver for forms, `recharts` + `@visactor/react-vchart` for charts
-- No test framework configured in default theme — do not invent vitest/jest commands
+- Use the test script declared in `web/package.json` (Vitest).
 
 ## Internationalization (i18n)
 
@@ -158,12 +161,12 @@ Typical channel dir: `adaptor.go` (interface impl), `relay-<name>.go` (streaming
 - `nicksnyder/go-i18n/v2`, languages: en, zh
 - `i18n.SetUserLangLoader(model.GetUserLanguage)` wires per-user language at request time
 
-### Frontend (`web/default/src/i18n/`)
+### Frontend (`web/src/i18n/`)
 - `i18next` + `react-i18next` + `i18next-browser-languagedetector`
 - Languages: en (base), zh (fallback), fr, ru, ja, vi
-- Translation files: `web/default/src/i18n/locales/{lang}.json` — flat JSON, keys are the English source strings
+- Translation files: `web/src/i18n/locales/{lang}.json` — flat JSON, keys are the English source strings
 - Usage: `useTranslation()` hook, `t('English key')`
-- Sync: `bun run i18n:sync` (from `web/default/`)
+- Sync: `bun run i18n:sync` (from `web/`)
 
 ## Rules
 
@@ -204,7 +207,7 @@ Migrations live in `model/main.go` auto-migrate block + targeted helpers. Test a
 
 ### Rule 3: Frontend — Prefer Bun
 
-In `web/default/` and `web/classic/`: `bun install`, `bun run <script>`. Do not introduce `package-lock.json` / `yarn.lock` / `pnpm-lock.yaml` — only `bun.lock`.
+In `web/`: `bun install`, `bun run <script>`. Do not introduce `package-lock.json` / `yarn.lock` / `pnpm-lock.yaml` — only `bun.lock`.
 
 ### Rule 4: New Channel StreamOptions Support
 
@@ -248,15 +251,9 @@ When working on tiered/dynamic billing (expression-based pricing), read `pkg/bil
 
 All code changes to the billing expression system must follow patterns described in that document.
 
-### Rule 8: Pull Request Hygiene (CI-enforced)
+### Rule 8: Pull Request Hygiene
 
-`.github/workflows/pr-check.yml` runs `peakoss/anti-slop`. PRs are auto-closed when they:
-- Lack the PR template sections (especially `✅ 提交前检查项 / Checklist`)
-- Contain the blocked term `🤖 Generated with Claude Code` (or similar AI-attribution boilerplate)
-- Come from accounts younger than 30 days or flagged as spam
-- Have no human-written description
-
-**Implication:** when assisting with commits/PRs on this repo, do not add Claude/AI co-author trailers or "Generated with Claude Code" lines. Write the PR description in the user's voice using the template at `.github/PULL_REQUEST_TEMPLATE.md`.
+Follow the current repository `AGENTS.md` PR governance and `.github/PULL_REQUEST_TEMPLATE.md`. No commit or publication is implied by source-edit approval.
 
 ### Rule 9: Code Review Checklist
 

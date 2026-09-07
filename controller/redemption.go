@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"unicode/utf8"
@@ -85,6 +86,14 @@ func AddRedemption(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgRedemptionCountMax)
 		return
 	}
+	if redemption.Quota <= 0 {
+		common.ApiError(c, errors.New("redemption quota must be positive"))
+		return
+	}
+	if err := common.ValidateWalletQuota(redemption.Quota); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 		return
@@ -153,6 +162,14 @@ func UpdateRedemption(c *gin.Context) {
 		return
 	}
 	if statusOnly == "" {
+		if redemption.Quota <= 0 {
+			common.ApiError(c, errors.New("redemption quota must be positive"))
+			return
+		}
+		if err := common.ValidateWalletQuota(redemption.Quota); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 		if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 			return
