@@ -782,29 +782,30 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		}
 	}
 
-	// 自动检测逻辑（保持原有行为）
-	if strings.Contains(strings.ToLower(model), "rerank") {
+	// 自动检测逻辑：与 detectTestRelayFromModel 保持一致，确保请求体类型与 relayFormat 配对
+	_, relayFormat := detectTestRelayFromModel(model, channel.Type)
+
+	switch relayFormat {
+	case types.RelayFormatRerank:
 		return &dto.RerankRequest{
 			Model:     model,
 			Query:     "What is Deep Learning?",
 			Documents: []any{"Deep Learning is a subset of machine learning.", "Machine learning is a field of artificial intelligence."},
 			TopN:      lo.ToPtr(2),
 		}
-	}
-
-	// 先判断是否为 Embedding 模型
-	if strings.Contains(strings.ToLower(model), "embedding") ||
-		strings.HasPrefix(model, "m3e") ||
-		strings.Contains(model, "bge-") {
-		// 返回 EmbeddingRequest
+	case types.RelayFormatEmbedding:
 		return &dto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
 		}
-	}
-
-	// Responses-only models (e.g. codex series)
-	if strings.Contains(strings.ToLower(model), "codex") {
+	case types.RelayFormatOpenAIImage:
+		return &dto.ImageRequest{
+			Model:  model,
+			Prompt: "a cute cat",
+			N:      lo.ToPtr(uint(1)),
+			Size:   "1024x1024",
+		}
+	case types.RelayFormatOpenAIResponses:
 		return &dto.OpenAIResponsesRequest{
 			Model:  model,
 			Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),

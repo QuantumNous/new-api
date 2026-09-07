@@ -119,3 +119,36 @@ func TestBuildTestRequestRerankModelType(t *testing.T) {
 	_, okEmbed := reqEmbed.(*dto.EmbeddingRequest)
 	require.True(t, okEmbed, "BAAI/bge-large-zh should build an EmbeddingRequest, got %T", reqEmbed)
 }
+
+// buildTestRequest's automatic branch must produce request types that match
+// detectTestRelayFromModel's relay format, including channel-type-dependent
+// cases: VolcEngine seedream → ImageRequest, MokaAI → EmbeddingRequest.
+func TestBuildTestRequestAutomaticTypeConsistency(t *testing.T) {
+	tests := []struct {
+		name        string
+		model       string
+		channelType int
+		wantType    any
+	}{
+		{
+			name:        "VolcEngine seedream builds ImageRequest",
+			model:       "seedream-4-0",
+			channelType: constant.ChannelTypeVolcEngine,
+			wantType:    (*dto.ImageRequest)(nil),
+		},
+		{
+			name:        "MokaAI channel builds EmbeddingRequest",
+			model:       "my-model",
+			channelType: constant.ChannelTypeMokaAI,
+			wantType:    (*dto.EmbeddingRequest)(nil),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			channel := &model.Channel{Type: tt.channelType}
+			req := buildTestRequest(tt.model, "", channel, false)
+			require.IsType(t, tt.wantType, req, "model %q on channel type %d", tt.model, tt.channelType)
+		})
+	}
+}
