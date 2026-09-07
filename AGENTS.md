@@ -54,6 +54,17 @@ web/           — Frontend (React 19, Rsbuild, Base UI, Tailwind)
 
 ## Rules
 
+### Rule 0: Aibuff Code-Candidate Gate — Read Before Development
+
+For any Aibuff code development, code review, candidate validation, or release-preparation task, read these shared rules before working:
+
+1. `AI沟通对接/00-总规则与索引/候选源码跨设备交付规则-v1.md`
+2. `AI沟通对接/02-项目工作区/Aibuff-中转站/02-运维Runbook/2026-08-13-Aibuff-发布总控-v1.md`
+
+At the start of an L2/L3 task, the assignee must record `ACKED` in its ticket. A local worktree, commit hash, or chat summary is not a delivered candidate: before independent acceptance or release-queue entry, the candidate must be recoverable from the shared registry as a complete Git bundle plus manifest and receipt.
+
+After a validated candidate is staged in the shared registry, the release coordinator is authorized to automatically create an independent-acceptance handoff. The implementer must not sign independent PASS for the same candidate. This does not authorize production deployment, production access, paid tests, configuration changes, restarts, or rollback.
+
 ### Common Code Quality
 
 - New code should stay direct and readable. Prefer early returns, clear branches, and well-named local variables to deep nesting or layered control flow.
