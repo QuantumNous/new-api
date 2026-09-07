@@ -12,17 +12,19 @@ const DrawingLifetime = int64(2 * time.Hour / time.Second)
 
 // Drawing records contain metadata only; image bytes live in expiring private storage.
 type DrawingBatch struct {
-	ID           string        `json:"id" gorm:"type:varchar(36);primaryKey"`
-	UserID       int           `json:"-" gorm:"index;uniqueIndex:drawing_submission,priority:1"`
-	SubmissionID string        `json:"-" gorm:"type:varchar(36);uniqueIndex:drawing_submission,priority:2"`
-	RequestHash  string        `json:"-" gorm:"type:varchar(64)"`
-	Model        string        `json:"model" gorm:"type:varchar(200)"`
-	Group        string        `json:"group" gorm:"type:varchar(100)"`
-	Ratio        string        `json:"ratio" gorm:"type:varchar(10)"`
-	HasReference bool          `json:"has_reference"`
-	CreatedAt    int64         `json:"created_at" gorm:"index"`
-	ExpiresAt    int64         `json:"expires_at"`
-	Items        []DrawingItem `json:"items" gorm:"foreignKey:BatchID"`
+	AgentQuoteLocked bool          `json:"-"`
+	AgentQuoteJSON   string        `json:"-" gorm:"type:text"`
+	ID               string        `json:"id" gorm:"type:varchar(36);primaryKey"`
+	UserID           int           `json:"-" gorm:"index;uniqueIndex:drawing_submission,priority:1"`
+	SubmissionID     string        `json:"-" gorm:"type:varchar(36);uniqueIndex:drawing_submission,priority:2"`
+	RequestHash      string        `json:"-" gorm:"type:varchar(64)"`
+	Model            string        `json:"model" gorm:"type:varchar(200)"`
+	Group            string        `json:"group" gorm:"type:varchar(100)"`
+	Ratio            string        `json:"ratio" gorm:"type:varchar(10)"`
+	HasReference     bool          `json:"has_reference"`
+	CreatedAt        int64         `json:"created_at" gorm:"index"`
+	ExpiresAt        int64         `json:"expires_at"`
+	Items            []DrawingItem `json:"items" gorm:"foreignKey:BatchID"`
 }
 
 type DrawingItem struct {
@@ -62,7 +64,12 @@ func drawingQueueTransaction(fn func(*gorm.DB) error) error {
 }
 
 func InitDrawingQueue() error {
-	return DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&DrawingQueueLock{ID: 1}).Error
+	if err := DB.Clauses(clause.OnConflict{DoNothing: true}).Create(&DrawingQueueLock{ID: 1}).Error; err != nil {
+		return err
+	}
+	// Pre-feature queued jobs have no agent quote. Keep them on their existing
+	// platform billing path if an inviter is enabled as an agent after upgrade.
+	return DB.Model(&DrawingBatch{}).Where("model = ? AND (agent_quote_locked = ? OR agent_quote_locked IS NULL) AND (agent_quote_json = ? OR agent_quote_json IS NULL)", AgentImageModel, false, "").Update("agent_quote_locked", true).Error
 }
 
 func CreateDrawingBatch(batch *DrawingBatch, maxPending int) (*DrawingBatch, error) {
@@ -244,4 +251,16 @@ func ClaimDrawingRecovery(userID int, id string, now int64, concurrency int) (*D
 		return result.Error
 	})
 	return &item, err
+}
+
+func GetDrawingSubmission(userID int, submissionID string) (*DrawingBatch, error) {
+	var batch DrawingBatch
+	result := DB.Where("user_id = ? AND submission_id = ?", userID, submissionID).Preload("Items", func(db *gorm.DB) *gorm.DB { return db.Order("position ASC") }).Limit(1).Find(&batch)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
+	}
+	return &batch, nil
 }

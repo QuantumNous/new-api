@@ -19,12 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 
+import { useCustomerPrice } from '@/features/agents/hooks'
 import { useStatus } from '@/hooks/use-status'
 
 import { getPricing } from '../api'
 
 export function usePricingData() {
   const { status } = useStatus()
+  const customerPrice = useCustomerPrice()
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['pricing'],
@@ -53,6 +55,18 @@ export function usePricingData() {
         : undefined
       return {
         ...model,
+        ...(model.model_name === 'gpt-image-2' &&
+        customerPrice.data?.price_cents != null
+          ? {
+              agent_price_cents: customerPrice.data.price_cents,
+              quota_type: 1,
+              billing_mode: 'agent_image',
+              billing_expr: '',
+            }
+          : {}),
+        ...(model.model_name === 'gpt-image-2' && customerPrice.error
+          ? { agent_price_unavailable: true }
+          : {}),
         key: model.model_name,
         vendor_name: vendor?.name,
         vendor_icon: vendor?.icon,
@@ -60,7 +74,7 @@ export function usePricingData() {
         group_ratio: data.group_ratio,
       }
     })
-  }, [data])
+  }, [data, customerPrice.data, customerPrice.error])
 
   return {
     models,
@@ -69,8 +83,8 @@ export function usePricingData() {
     usableGroup: data?.usable_group ?? {},
     endpointMap: data?.supported_endpoint ?? {},
     autoGroups: data?.auto_groups ?? [],
-    isLoading,
-    error,
+    isLoading: isLoading || customerPrice.isLoading,
+    error: error || customerPrice.error,
     refetch,
     priceRate,
     usdExchangeRate,

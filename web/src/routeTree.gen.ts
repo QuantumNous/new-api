@@ -34,6 +34,7 @@ import { Route as PricingIndexRouteImport } from './routes/pricing/index'
 import { Route as RankingsIndexRouteImport } from './routes/rankings/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
 import { Route as authUserResetRouteImport } from './routes/(auth)/user/reset'
+import { Route as AuthenticatedAgentCenterIndexRouteImport } from './routes/_authenticated/agent-center/index'
 import { Route as AuthenticatedAiDrawingIndexRouteImport } from './routes/_authenticated/ai-drawing/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authenticated/chat/$chatId'
@@ -193,6 +194,12 @@ const authUserResetRoute = authUserResetRouteImport.update({
   path: '/user/reset',
   getParentRoute: () => authRouteRoute,
 } as any)
+const AuthenticatedAgentCenterIndexRoute =
+  AuthenticatedAgentCenterIndexRouteImport.update({
+    id: '/agent-center/',
+    path: '/agent-center/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAiDrawingIndexRoute =
   AuthenticatedAiDrawingIndexRouteImport.update({
     id: '/ai-drawing/',
@@ -423,6 +430,7 @@ export interface FileRoutesByFullPath {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/agent-center/': typeof AuthenticatedAgentCenterIndexRoute
   '/ai-drawing/': typeof AuthenticatedAiDrawingIndexRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
@@ -481,6 +489,7 @@ export interface FileRoutesByTo {
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/agent-center': typeof AuthenticatedAgentCenterIndexRoute
   '/ai-drawing': typeof AuthenticatedAiDrawingIndexRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
@@ -543,6 +552,7 @@ export interface FileRoutesById {
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
+  '/_authenticated/agent-center/': typeof AuthenticatedAgentCenterIndexRoute
   '/_authenticated/ai-drawing/': typeof AuthenticatedAiDrawingIndexRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
@@ -604,6 +614,7 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
+    | '/agent-center/'
     | '/ai-drawing/'
     | '/channels/'
     | '/dashboard/'
@@ -662,6 +673,7 @@ export interface FileRouteTypes {
     | '/errors/$error'
     | '/models/$section'
     | '/usage-logs/$section'
+    | '/agent-center'
     | '/ai-drawing'
     | '/channels'
     | '/dashboard'
@@ -723,6 +735,7 @@ export interface FileRouteTypes {
     | '/_authenticated/errors/$error'
     | '/_authenticated/models/$section'
     | '/_authenticated/usage-logs/$section'
+    | '/_authenticated/agent-center/'
     | '/_authenticated/ai-drawing/'
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
@@ -949,6 +962,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/user/reset'
       preLoaderRoute: typeof authUserResetRouteImport
       parentRoute: typeof authRouteRoute
+    }
+    '/_authenticated/agent-center/': {
+      id: '/_authenticated/agent-center/'
+      path: '/agent-center'
+      fullPath: '/agent-center/'
+      preLoaderRoute: typeof AuthenticatedAgentCenterIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/ai-drawing/': {
       id: '/_authenticated/ai-drawing/'
@@ -1282,6 +1302,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
+  AuthenticatedAgentCenterIndexRoute: typeof AuthenticatedAgentCenterIndexRoute
   AuthenticatedAiDrawingIndexRoute: typeof AuthenticatedAiDrawingIndexRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
@@ -1306,6 +1327,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
+  AuthenticatedAgentCenterIndexRoute: AuthenticatedAgentCenterIndexRoute,
   AuthenticatedAiDrawingIndexRoute: AuthenticatedAiDrawingIndexRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,

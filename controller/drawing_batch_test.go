@@ -32,7 +32,7 @@ func setupDrawingTests(t *testing.T) (*gin.Engine, []byte) {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&model.DrawingBatch{}, &model.DrawingItem{}, &model.DrawingQueueLock{}, &model.Log{}, &model.Token{}))
+	require.NoError(t, db.AutoMigrate(&model.AgentProfile{}, &model.AgentPriceChange{}, &model.DrawingBatch{}, &model.DrawingItem{}, &model.DrawingQueueLock{}, &model.Log{}, &model.Token{}))
 	require.NoError(t, model.InitDrawingQueue())
 	t.Setenv("DRAWING_STORAGE_DIR", t.TempDir())
 	oldMemory, oldBatch, oldLog := common.MemoryCacheEnabled, common.BatchUpdateEnabled, common.LogConsumeEnabled
@@ -62,7 +62,7 @@ func setupDrawingTests(t *testing.T) (*gin.Engine, []byte) {
 	return r, data.Bytes()
 }
 
-func submitDrawingTestBatch(t *testing.T, r *gin.Engine, input drawingSubmission, reference []byte) *httptest.ResponseRecorder {
+func submitDrawingTestBatch(t *testing.T, r *gin.Engine, input drawingSubmission, reference []byte, testUser ...string) *httptest.ResponseRecorder {
 	t.Helper()
 	var body bytes.Buffer
 	form := multipart.NewWriter(&body)
@@ -78,6 +78,9 @@ func submitDrawingTestBatch(t *testing.T, r *gin.Engine, input drawingSubmission
 	require.NoError(t, form.Close())
 	request := httptest.NewRequest("POST", "/batches", &body)
 	request.Header.Set("Content-Type", form.FormDataContentType())
+	if len(testUser) > 0 {
+		request.Header.Set("X-Test-User", testUser[0])
+	}
 	response := httptest.NewRecorder()
 	r.ServeHTTP(response, request)
 	return response

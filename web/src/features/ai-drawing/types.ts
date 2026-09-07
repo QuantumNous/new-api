@@ -27,6 +27,7 @@ export type ImageSize =
   | '1792x768'
 export type DrawingPlanItem = { id?: string; title: string; prompt: string }
 export type DrawingRequest = {
+  expectedAgentPriceVersion?: number
   model: string
   group: string
   prompt: string

@@ -38,6 +38,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
+import { useAgentSelf } from '@/features/agents/hooks'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -48,6 +49,7 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const agent = useAgentSelf()
 
   return {
     navGroups: [
@@ -114,6 +116,9 @@ export function useSidebarData(): SidebarData {
             url: '/wallet',
             icon: Wallet,
           },
+          ...(agent.data?.profile.enabled
+            ? [{ title: t('Agent center'), url: '/agent-center', icon: Users }]
+            : []),
           {
             title: t('Profile'),
             url: '/profile',

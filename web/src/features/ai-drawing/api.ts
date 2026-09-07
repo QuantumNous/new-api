@@ -41,6 +41,7 @@ export async function createDrawing(
     'request',
     JSON.stringify({
       submission_id: submissionId,
+      expected_agent_price_version: request.expectedAgentPriceVersion,
       model: request.model,
       group: request.group,
       prompt: request.prompt,

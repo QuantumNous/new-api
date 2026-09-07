@@ -54,6 +54,7 @@ type DrawingFormProps = {
   group: string
   isLoadingModels: boolean
   isSubmitting: boolean
+  agentPriceCents?: number
   maxCount?: number
   onModelChange: (value: string) => void
   onGroupChange: (value: string) => void
@@ -197,6 +198,14 @@ export function DrawingForm(props: DrawingFormProps) {
               </p>
             )}
           </div>
+
+          {props.agentPriceCents !== undefined && (
+            <p className='text-muted-foreground text-xs'>
+              {t('Your price: ¥{{price}} per image', {
+                price: (props.agentPriceCents / 100).toFixed(2),
+              })}
+            </p>
+          )}
 
           <Button
             type='submit'

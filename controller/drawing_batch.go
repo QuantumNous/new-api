@@ -23,13 +23,14 @@ type DrawingPlanItem struct {
 	Prompt string `json:"prompt"`
 }
 type drawingSubmission struct {
-	SubmissionID string            `json:"submission_id"`
-	Model        string            `json:"model"`
-	Group        string            `json:"group"`
-	Ratio        string            `json:"ratio"`
-	Prompt       string            `json:"prompt"`
-	Count        *int              `json:"count"`
-	Items        []DrawingPlanItem `json:"items"`
+	ExpectedAgentPriceVersion *int64            `json:"expected_agent_price_version,omitempty"`
+	SubmissionID              string            `json:"submission_id"`
+	Model                     string            `json:"model"`
+	Group                     string            `json:"group"`
+	Ratio                     string            `json:"ratio"`
+	Prompt                    string            `json:"prompt"`
+	Count                     *int              `json:"count"`
+	Items                     []DrawingPlanItem `json:"items"`
 }
 
 func drawingError(c *gin.Context, status int, message string) {
@@ -126,7 +127,9 @@ func CreateDrawingBatch(c *gin.Context) {
 	}
 	now := service.DrawingNow()
 	batch := &model.DrawingBatch{ID: uuid.NewString(), UserID: c.GetInt("id"), SubmissionID: input.SubmissionID, Model: input.Model, Group: input.Group, Ratio: input.Ratio, HasReference: len(reference) > 0, CreatedAt: now, ExpiresAt: now + model.DrawingLifetime}
-	encoded, err := common.Marshal(input)
+	hashInput := input
+	hashInput.ExpectedAgentPriceVersion = nil
+	encoded, err := common.Marshal(hashInput)
 	if err != nil {
 		drawingError(c, 500, "Unable to create drawing task")
 		return
@@ -135,6 +138,46 @@ func CreateDrawingBatch(c *gin.Context) {
 	hash.Write(encoded)
 	hash.Write(reference)
 	batch.RequestHash = fmt.Sprintf("%x", hash.Sum(nil))
+	existing, lookupErr := model.GetDrawingSubmission(batch.UserID, input.SubmissionID)
+	if lookupErr != nil {
+		drawingError(c, 503, "Unable to load drawing tasks")
+		return
+	}
+	if existing != nil {
+		if existing.RequestHash != batch.RequestHash {
+			drawingError(c, 409, "Submission already used or too many pending images")
+			return
+		}
+		c.Header("Cache-Control", "no-store")
+		c.JSON(http.StatusAccepted, existing)
+		return
+	}
+	if input.Model == model.AgentImageModel {
+		quote, quoteErr := service.ResolveAgentImageQuote(batch.UserID, input.Model)
+		if quoteErr != nil {
+			drawingError(c, 503, "Unable to determine the image price")
+			return
+		}
+		if input.ExpectedAgentPriceVersion != nil {
+			currentVersion := int64(0)
+			if quote != nil {
+				currentVersion = quote.Version
+			}
+			if *input.ExpectedAgentPriceVersion != currentVersion {
+				drawingError(c, 409, "Image price changed; review the new price and submit again")
+				return
+			}
+		}
+		batch.AgentQuoteLocked = true
+		if quote != nil {
+			snapshot, marshalErr := common.Marshal(quote)
+			if marshalErr != nil {
+				drawingError(c, 500, "Unable to save the image price")
+				return
+			}
+			batch.AgentQuoteJSON = string(snapshot)
+		}
+	}
 	for i, item := range input.Items {
 		batch.Items = append(batch.Items, model.DrawingItem{ID: uuid.NewString(), BatchID: batch.ID, UserID: batch.UserID, Position: i + 1, Title: item.Title, Prompt: item.Prompt, Status: "queued", ExpiresAt: batch.ExpiresAt})
 	}

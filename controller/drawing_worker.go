@@ -16,15 +16,18 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
 type drawingIdentityKey struct{}
 type drawingIdentity struct {
-	UserID    int
-	Group     string
-	ItemID    string
-	RequestID string
+	QuoteLocked bool
+	Quote       *types.AgentImageQuote
+	UserID      int
+	Group       string
+	ItemID      string
+	RequestID   string
 }
 
 // This in-process router is never mounted on the public server. It reconstructs
@@ -58,6 +61,9 @@ func getDrawingRelay() *gin.Engine {
 			common.SetContextKey(c, constant.ContextKeyUsingGroup, identity.Group)
 			common.SetContextKey(c, constant.ContextKeyTokenGroup, identity.Group)
 			c.Set(common.RequestIdKey, identity.RequestID)
+			if identity.QuoteLocked {
+				service.SetLockedAgentImageQuote(c, identity.Quote)
+			}
 			c.Set("drawing_no_upstream_retry", true)
 			c.Next()
 		})
@@ -217,7 +223,16 @@ func executeDrawingItem(item *model.DrawingItem) {
 		return
 	}
 	defer file.Close()
-	response := runDrawingRelay(ctx, drawingIdentity{item.UserID, batch.Group, item.ID, item.RequestID}, path, contentType, body, file, service.MaxDrawingResponseBytes)
+	identity := drawingIdentity{UserID: item.UserID, Group: batch.Group, ItemID: item.ID, RequestID: item.RequestID, QuoteLocked: batch.AgentQuoteLocked}
+	if batch.AgentQuoteJSON != "" {
+		var quote types.AgentImageQuote
+		if err = common.UnmarshalJsonStr(batch.AgentQuoteJSON, &quote); err != nil {
+			item.Error = "Unable to read the locked image price"
+			return
+		}
+		identity.Quote = &quote
+	}
+	response := runDrawingRelay(ctx, identity, path, contentType, body, file, service.MaxDrawingResponseBytes)
 	syncErr := file.Sync()
 	closeErr := file.Close()
 	if response.header.Get("X-Drawing-Queue-Busy") == "1" {

@@ -46,7 +46,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { AdminAgentDialog } from '@/features/agents/admin-agent-dialog'
 import { UserSubscriptionsDialog } from '@/features/subscriptions/components/dialogs/user-subscriptions-dialog'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { manageUser, resetUserPasskey, resetUserTwoFA } from '../api'
 import {
@@ -67,6 +69,8 @@ interface DataTableRowActionsProps {
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { t } = useTranslation()
   const user = row.original
+  const canManageAgents = useAuthStore((state) => state.auth.user?.role === 100)
+  const [agentOpen, setAgentOpen] = useState(false)
   const { setOpen, setCurrentRow, triggerRefresh } = useUsers()
   const [resetPasskeyOpen, setResetPasskeyOpen] = useState(false)
   const [resetTwoFAOpen, setResetTwoFAOpen] = useState(false)
@@ -161,6 +165,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         ariaLabel={t('Open menu')}
         contentClassName='w-48'
       >
+        {canManageAgents && (
+          <DropdownMenuItem onSelect={() => setAgentOpen(true)}>
+            {t('Agent access')}
+          </DropdownMenuItem>
+        )}
         {isDisabled ? (
           <DropdownMenuItem onClick={() => handleManage('enable')}>
             {t('Enable')}
@@ -295,6 +304,14 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
         onUnbindSuccess={triggerRefresh}
       />
 
+      {canManageAgents && (
+        <AdminAgentDialog
+          userId={user.id}
+          username={user.username}
+          open={agentOpen}
+          onOpenChange={setAgentOpen}
+        />
+      )}
       <UserSubscriptionsDialog
         open={subscriptionsDialogOpen}
         onOpenChange={setSubscriptionsDialogOpen}

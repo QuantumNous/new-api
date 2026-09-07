@@ -28,6 +28,8 @@ export type PricingVendor = {
 }
 
 export type PricingModel = {
+  agent_price_cents?: number
+  agent_price_unavailable?: boolean
   id: number
   model_name: string
   description?: string

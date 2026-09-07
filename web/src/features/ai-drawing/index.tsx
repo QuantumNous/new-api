@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { useCustomerPrice } from '@/features/agents/hooks'
 import { getUserGroups, getUserModels } from '@/features/playground/api'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -39,6 +40,7 @@ import type { DrawingRequest } from './types'
 export function AiDrawing() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const customerPrice = useCustomerPrice()
   const userId = useAuthStore((state) => state.auth.user?.id)
   const [group, setGroup] = useState('default')
   const [model, setModel] = useState('')
@@ -96,19 +98,25 @@ export function AiDrawing() {
       groupsQuery.error ||
       modelsQuery.error ||
       settingsQuery.error ||
-      batchesQuery.error
+      batchesQuery.error ||
+      customerPrice.error
     if (error) toast.error(t(drawingErrorMessage(error, 'Request failed')))
   }, [
     groupsQuery.error,
     modelsQuery.error,
     settingsQuery.error,
     batchesQuery.error,
+    customerPrice.error,
     t,
   ])
 
   const mutation = useMutation({
     mutationFn: async (request: DrawingRequest) => {
-      const signature = JSON.stringify({ ...request, image: undefined })
+      const signature = JSON.stringify({
+        ...request,
+        image: undefined,
+        expectedAgentPriceVersion: undefined,
+      })
       if (
         !pendingSubmit.current ||
         pendingSubmit.current.signature !== signature ||
@@ -129,8 +137,10 @@ export function AiDrawing() {
         queryKey: ['ai-drawing-batches', userId],
       })
     },
-    onError: (error) =>
-      toast.error(t(drawingErrorMessage(error, 'Request failed'))),
+    onError: (error) => {
+      toast.error(t(drawingErrorMessage(error, 'Request failed')))
+      void queryClient.invalidateQueries({ queryKey: ['agent-customer-price'] })
+    },
   })
   return (
     <div className='mx-auto flex size-full min-h-0 max-w-[100rem] flex-col overflow-y-auto md:overflow-visible'>
@@ -143,13 +153,25 @@ export function AiDrawing() {
           isLoadingModels={
             modelsQuery.isLoading ||
             groupsQuery.isLoading ||
-            settingsQuery.isLoading
+            settingsQuery.isLoading ||
+            customerPrice.isLoading ||
+            Boolean(customerPrice.error)
           }
           isSubmitting={mutation.isPending}
           maxCount={settingsQuery.data?.max_count}
+          agentPriceCents={
+            model === 'gpt-image-2'
+              ? (customerPrice.data?.price_cents ?? undefined)
+              : undefined
+          }
           onModelChange={setModel}
           onGroupChange={setGroup}
-          onSubmit={mutation.mutate}
+          onSubmit={(request) =>
+            mutation.mutate({
+              ...request,
+              expectedAgentPriceVersion: customerPrice.data?.version ?? 0,
+            })
+          }
         />
         <DrawingResult
           key={userId}

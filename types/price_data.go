@@ -14,6 +14,8 @@ type GroupRatioInfo struct {
 }
 
 type PriceData struct {
+	AgentImageQuote      *AgentImageQuote
+	AgentImageQuota      int
 	FreeModel            bool
 	ModelPrice           float64
 	ModelRatio           float64

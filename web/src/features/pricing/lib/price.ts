@@ -218,6 +218,9 @@ export function formatFixedPrice(
   usdExchangeRate = 1,
   groupRatio: Record<string, number>
 ): string {
+  if (model.agent_price_unavailable) return '—'
+  if (model.agent_price_cents !== undefined)
+    {return `¥${(model.agent_price_cents / 100).toFixed(2)}`}
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
   }
@@ -249,6 +252,9 @@ export function formatRequestPrice(
   usdExchangeRate = 1,
   selectedGroup?: string
 ): string {
+  if (model.agent_price_unavailable) return '—'
+  if (model.agent_price_cents !== undefined)
+    {return `¥${(model.agent_price_cents / 100).toFixed(2)}`}
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
   }

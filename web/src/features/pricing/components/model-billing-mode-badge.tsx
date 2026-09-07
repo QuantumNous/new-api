@@ -31,7 +31,10 @@ interface ModelBillingModeBadgeProps {
 
 export function ModelBillingModeBadge(props: ModelBillingModeBadgeProps) {
   const { t } = useTranslation()
-  let label = t('Per Request')
+  let label =
+    props.model.agent_price_cents !== undefined
+      ? t('Per image')
+      : t('Per Request')
   let variant: StatusVariant = 'purple'
 
   if (isDynamicPricingModel(props.model)) {
