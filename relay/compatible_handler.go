@@ -107,7 +107,16 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 				logger.LogDebug(c, "requestBody: %s", debugBytes)
 			}
 		}
-		requestBody = common.NewReplayableBodyReader(storage)
+		// 透传不等于「忽略模型映射」：渠道 model_mapping 命中时，顶层 model
+		// 字段必须跟着改写，否则上游收到的仍是对外模型名（404）。
+		passthroughBody, passthroughCloser, err := relaycommon.NewPassthroughBody(storage, info)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+		}
+		if passthroughCloser != nil {
+			defer passthroughCloser.Close()
+		}
+		requestBody = passthroughBody
 	} else {
 		convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, request)
 		if err != nil {

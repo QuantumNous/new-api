@@ -47,7 +47,16 @@ func RerankHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
-		requestBody = common.NewReplayableBodyReader(storage)
+		// 透传不等于「忽略模型映射」：渠道 model_mapping 命中时，顶层 model
+		// 字段必须跟着改写，否则上游收到的仍是对外模型名（404）。
+		passthroughBody, passthroughCloser, err := relaycommon.NewPassthroughBody(storage, info)
+		if err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		if passthroughCloser != nil {
+			defer passthroughCloser.Close()
+		}
+		requestBody = passthroughBody
 	} else {
 		convertedRequest, err := adaptor.ConvertRerankRequest(c, info.RelayMode, *request)
 		if err != nil {
