@@ -190,7 +190,7 @@ func initTaskArtifactAdaptor(task *model.Task) (relaychannel.TaskAdaptor, error)
 	if pluginKey == "" {
 		pluginKey = channelModel.Key
 	}
-	baseURL := channelModel.GetBaseURL()
+	baseURL := channelModel.GetRuntimeBaseURL()
 	if baseURL == "" {
 		baseURL = constant.GetChannelBaseURL(channelModel.Type)
 	}

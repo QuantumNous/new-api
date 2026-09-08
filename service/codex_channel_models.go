@@ -31,7 +31,7 @@ func FetchCodexChannelModels(channel *model.Channel) ([]string, error) {
 		return nil, fmt.Errorf("failed to get Codex client version: %w", err)
 	}
 
-	baseURL := channel.GetBaseURL()
+	baseURL := channel.GetRuntimeBaseURL()
 	if baseURL == "" {
 		baseURL = constant.GetChannelBaseURL(constant.ChannelTypeCodex)
 	}
