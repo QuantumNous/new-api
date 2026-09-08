@@ -150,6 +150,7 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	if err != nil {
 		return err
 	}
+	relayInfo.RealtimeIncrementalQuota += int64(quota)
 	logger.LogInfo(ctx, "realtime streaming consume quota success, quota: "+fmt.Sprintf("%d", quota))
 	return nil
 }
@@ -227,7 +228,12 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
 	}
 
-	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
+	// 结算只补差额：realtime 会话中每个 response.done 段落已经通过
+	// PreWssConsumeQuota 实时扣过费（RealtimeIncrementalQuota 累计），
+	// 总额里只结算尚未扣除的部分；增量扣除已超过总额时净额为负，
+	// SettleBilling 会走返还路径退回多扣部分，保证净扣费恰好等于总额。
+	netQuota := quota - int(relayInfo.RealtimeIncrementalQuota)
+	if err := SettleBilling(ctx, relayInfo, netQuota); err != nil {
 		logger.LogError(ctx, "error settling billing: "+err.Error())
 	}
 
