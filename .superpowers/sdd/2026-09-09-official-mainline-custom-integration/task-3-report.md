@@ -45,7 +45,6 @@ No custom Agent, CXM, or rankings feature was moved in this task. Those remain
 inputs for later integration tasks. The official frontend build and typecheck
 are healthy; the eight frontend test failures should be triaged separately
 before final integration acceptance.
-
 ## Report correction
 
 Removed the extra blank line at EOF after reviewer verification. `git diff
