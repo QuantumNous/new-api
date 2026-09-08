@@ -112,7 +112,10 @@ const MODEL_CATEGORY_RULES: readonly ModelCategoryRule[] = [
       'magistral',
     ],
   },
-  { name: 'Meta', keywords: ['meta-llama', 'llama-', 'llama2', 'llama3'] },
+  {
+    name: 'Meta',
+    keywords: ['muse-spark', 'meta-llama', 'llama-', 'llama2', 'llama3'],
+  },
   {
     name: 'Cohere',
     keywords: ['cohere', 'command-', 'c4ai-aya', 'aya-'],
