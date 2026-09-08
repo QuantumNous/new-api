@@ -47,6 +47,7 @@ const SENSITIVE_UPDATE_FIELDS = [
   'type',
   'key',
   'base_url',
+  'actual_base_url',
   'openai_organization',
   'param_override',
   'header_override',
@@ -54,6 +55,16 @@ const SENSITIVE_UPDATE_FIELDS = [
   'settings',
   'other',
 ] satisfies (keyof Channel)[]
+
+export function stripSensitiveUpdateFields(
+  payload: Partial<Channel>,
+  canEditSensitive: boolean
+): Partial<Channel> {
+  if (canEditSensitive) return payload
+  const sanitized = { ...payload }
+  for (const field of SENSITIVE_UPDATE_FIELDS) delete sanitized[field]
+  return sanitized
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -99,21 +110,17 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
         if (!data.key?.trim()) {
           delete payload.key
         }
-        if (!canEditSensitive) {
-          for (const field of SENSITIVE_UPDATE_FIELDS) {
-            delete payload[field]
-          }
-        }
+        const safePayload = stripSensitiveUpdateFields(payload, canEditSensitive)
         const payloadWithKeyMode =
           canEditSensitive &&
           props.isMultiKeyChannel &&
           data.key?.trim() &&
           data.key_mode
             ? {
-                ...payload,
+                ...safePayload,
                 key_mode: data.key_mode,
               }
-            : payload
+          : safePayload
 
         const response = await updateChannel(
           props.currentRow.id,
