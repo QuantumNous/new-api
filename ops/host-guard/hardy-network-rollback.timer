@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Hardy network rollback deadline independently of SSH
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=15s
+AccuracySec=1s
+Unit=hardy-network-rollback.service
+
+[Install]
+WantedBy=timers.target

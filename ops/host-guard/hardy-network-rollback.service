@@ -1,0 +1,9 @@
+[Unit]
+Description=Restore an unconfirmed Hardy network configuration
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/hardy-network-guard check
+TimeoutStartSec=90
+UMask=0077
