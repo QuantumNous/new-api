@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { formatQuota } from '@/lib/format'
+import { redirectToStripeCheckout } from '@/lib/stripe-checkout'
 import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
 
 import {
@@ -108,9 +109,8 @@ export function SubscriptionPurchaseDialog(props: Props) {
     try {
       const res = await paySubscriptionStripe({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.pay_link) {
-        window.open(res.data.pay_link, '_blank')
-        toast.success(t('Payment page opened'))
-        props.onOpenChange(false)
+        toast.success(t('Redirecting to payment page...'))
+        redirectToStripeCheckout(res.data.pay_link)
       } else {
         toast.error(
           res.message && res.message !== 'success'

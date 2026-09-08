@@ -20,6 +20,8 @@ import i18next from 'i18next'
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 
+import { redirectToStripeCheckout } from '@/lib/stripe-checkout'
+
 import {
   calculateAmount,
   calculateStripeAmount,
@@ -131,8 +133,8 @@ export function usePayment() {
 
         // Handle Stripe payment
         if (isStripe && response.data?.pay_link) {
-          window.open(response.data.pay_link as string, '_blank')
           toast.success(i18next.t('Redirecting to payment page...'))
+          redirectToStripeCheckout(response.data.pay_link as string)
           return true
         }
 
