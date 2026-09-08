@@ -18,12 +18,15 @@ func TryBindUserToAgent(userID int, agentID int) (bool, error) {
 	}
 
 	var account model.AgentAccount
-	if err := model.DB.Select("user_id").Where("user_id = ?", agentID).First(&account).Error; err != nil {
+	if err := model.DB.Select("user_id, status").Where("user_id = ?", agentID).First(&account).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil
 		}
 		common.SysLog(fmt.Sprintf("failed to validate agent account %d for customer %d: %v", agentID, userID, err))
 		return false, err
+	}
+	if account.Status != model.AgentAccountStatusActive {
+		return false, nil
 	}
 
 	bound, err := model.TryBindUserToAgent(userID, agentID)

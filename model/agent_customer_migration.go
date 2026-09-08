@@ -127,6 +127,9 @@ func BackfillAgentCustomerBindings(ctx context.Context, batchSize int) (AgentCus
 					return result.Error
 				}
 				if result.RowsAffected == 1 {
+					if err := InvalidateUserCache(candidate.UserID); err != nil {
+						return err
+					}
 					report.Bound++
 					continue
 				}

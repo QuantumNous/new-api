@@ -6,11 +6,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
-// InvalidateUserCache is a compatibility hook for deployments that maintain
-// a user cache. The official mainline cache implementation may be absent;
-// binding remains correct because ownership is persisted transactionally.
-func InvalidateUserCache(int) error { return nil }
-
 // TryBindUserToAgent atomically assigns the first agent that owns a customer.
 // A non-zero existing owner is never replaced.
 func TryBindUserToAgent(userID int, agentID int) (bool, error) {

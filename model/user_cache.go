@@ -67,6 +67,11 @@ func invalidateUserCache(userId int) error {
 	return common.RedisDelKey(getUserCacheKey(userId))
 }
 
+// InvalidateUserCache clears the shared user cache after an authoritative
+// user mutation. Callers should use this exported seam instead of reaching
+// into cache implementation details.
+func InvalidateUserCache(userId int) error { return invalidateUserCache(userId) }
+
 func populateUserCache(user User) error {
 	if !common.RedisEnabled {
 		return nil
