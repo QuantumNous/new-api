@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -102,7 +103,7 @@ func imageResponseMetadata(ctx context.Context, item map[string]json.RawMessage)
 	_ = common.Unmarshal(item["url"], &location)
 	if encoded != "" {
 		reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(encoded))
-		config, format, err := image.DecodeConfig(io.LimitReader(reader, imageMetadataHeaderLimit))
+		config, format, err := image.DecodeConfig(io.LimitReader(reader, MaxDrawingBytes))
 		if err == nil {
 			return config.Width, config.Height, format
 		}
@@ -110,16 +111,32 @@ func imageResponseMetadata(ctx context.Context, item map[string]json.RawMessage)
 	if ctx.Err() != nil || location == "" {
 		return 0, 0, ""
 	}
-	u, err := url.Parse(location)
-	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil {
+	response, err := requestImageResponse(ctx, location, true)
+	if err != nil {
 		return 0, 0, ""
 	}
-	if ValidateSSRFProtectedFetchURL(location) != nil {
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusPartialContent {
 		return 0, 0, ""
+	}
+	config, format, err := image.DecodeConfig(io.LimitReader(response.Body, imageMetadataHeaderLimit))
+	if err != nil {
+		return 0, 0, ""
+	}
+	return config.Width, config.Height, format
+}
+
+func requestImageResponse(ctx context.Context, location string, headerOnly bool) (*http.Response, error) {
+	u, err := url.Parse(location)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil {
+		return nil, errors.New("invalid image URL")
+	}
+	if ValidateSSRFProtectedFetchURL(location) != nil {
+		return nil, errors.New("image URL is blocked by the fetch policy")
 	}
 	client := GetSSRFProtectedHTTPClient()
 	if client == nil {
-		return 0, 0, ""
+		return nil, errors.New("image download client unavailable")
 	}
 	fetchClient := *client
 	fetchClient.Jar = nil
@@ -137,23 +154,17 @@ func imageResponseMetadata(ctx context.Context, item map[string]json.RawMessage)
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, location, nil)
 	if err != nil {
-		return 0, 0, ""
+		return nil, errors.New("invalid image download request")
 	}
-	request.Header.Set("Range", fmt.Sprintf("bytes=0-%d", imageMetadataHeaderLimit-1))
+	if headerOnly {
+		request.Header.Set("Range", fmt.Sprintf("bytes=0-%d", imageMetadataHeaderLimit-1))
+	}
 	request.Header.Set("Accept", "image/*")
 	request.Header.Set("User-Agent", "Mozilla/5.0 (compatible; NewAPI-ImageMetadata/1.0)")
 	// Never forward the channel key, caller headers, or cookies to an image URL.
 	response, err := fetchClient.Do(request)
 	if err != nil {
-		return 0, 0, ""
+		return nil, errors.New("image download failed or timed out")
 	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusPartialContent {
-		return 0, 0, ""
-	}
-	config, format, err := image.DecodeConfig(io.LimitReader(response.Body, imageMetadataHeaderLimit))
-	if err != nil {
-		return 0, 0, ""
-	}
-	return config.Width, config.Height, format
+	return response, nil
 }

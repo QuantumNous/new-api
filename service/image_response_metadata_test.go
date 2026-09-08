@@ -59,6 +59,19 @@ func TestImageMetadataAlwaysDerivesTopLevelSize(t *testing.T) {
 	}
 }
 
+func TestImageMetadataReadsBase64WithLargeJPEGMetadata(t *testing.T) {
+	var original bytes.Buffer
+	require.NoError(t, jpeg.Encode(&original, image.NewGray(image.Rect(0, 0, 4, 5)), nil))
+	segment := make([]byte, 65537)
+	copy(segment, []byte{0xff, 0xe1, 0xff, 0xff})
+	data := append([]byte{0xff, 0xd8}, bytes.Repeat(segment, 9)...)
+	data = append(data, original.Bytes()[2:]...)
+	body, err := common.Marshal(map[string]any{"data": []any{map[string]any{"b64_json": base64.StdEncoding.EncodeToString(data)}}})
+	require.NoError(t, err)
+	result := NormalizeImageJSONResponse(context.Background(), body)
+	assert.Equal(t, "4x5", gjson.GetBytes(result, "size").String())
+}
+
 func TestImageMetadataURLProbeAndRedirect(t *testing.T) {
 	setting := system_setting.GetFetchSetting()
 	previous := *setting
