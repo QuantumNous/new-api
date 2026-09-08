@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -221,6 +222,12 @@ func (s *responsesWSSession) handleResponseCreate(create responsesWSCreateReques
 			http.StatusConflict,
 			types.ErrOptionWithSkipRetry(),
 		)
+	}
+	if s.lockedChannel != nil {
+		channel, err := appmodel.CacheGetChannel(s.lockedChannel.Id)
+		if err != nil || channel.Status != common.ChannelStatusEnabled || !channel.GetSetting().ResponsesWebSocketEnabled {
+			return types.NewErrorWithStatusCode(errors.New("Responses WebSocket is disabled for this channel"), types.ErrorCode(appdto.FilterResponsesWebSocket), http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		}
 	}
 
 	commitRate, apiErr := middleware.CheckModelRequestRateLimit(s.c)
@@ -853,6 +860,11 @@ func checkResponsesWSModelAccess(c *gin.Context, modelName string) *types.NewAPI
 
 func selectResponsesWSChannel(c *gin.Context, modelName string, retryParam *service.RetryParam) (*appmodel.Channel, *types.NewAPIError) {
 	constraints := service.GetChannelConstraints(c)
+	if !slices.ContainsFunc(constraints.Filters, func(filter appdto.ChannelFilter) bool {
+		return filter.Kind == appdto.FilterResponsesWebSocket
+	}) {
+		constraints.AddFilter(appdto.ChannelFilter{Kind: appdto.FilterResponsesWebSocket})
+	}
 	if pin, found, overridden := constraints.ResolvedPin(); found {
 		for _, lost := range overridden {
 			logger.LogWarn(c, fmt.Sprintf("channel pin overridden: winning_source=%s winning_channel_id=%d overridden_source=%s overridden_channel_id=%d", pin.Source, pin.ChannelId, lost.Source, lost.ChannelId))
@@ -915,6 +927,9 @@ func selectResponsesWSChannel(c *gin.Context, modelName string, retryParam *serv
 	}
 	if channel == nil {
 		return nil, types.NewError(fmt.Errorf("分组 %s 下模型 %s 的可用渠道不存在（retry）", selectGroup, modelName), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	}
+	if ok, kind := appmodel.ChannelSatisfiesFilters(channel, modelName, constraints.Filters); !ok {
+		return nil, types.NewErrorWithStatusCode(errors.New("selected channel does not support Responses WebSocket"), types.ErrorCode(kind), http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
 	}
 	if err := middleware.SetupContextForSelectedChannel(c, channel, modelName); err != nil {
 		return nil, err

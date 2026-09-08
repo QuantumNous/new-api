@@ -148,9 +148,11 @@ func TestFinalizeResponsesWSUsagePreservesBillingSnapshot(t *testing.T) {
 func TestSelectResponsesWSChannelHonorsPinsAndFilters(t *testing.T) {
 	database := setupRelayChannelDB(t)
 	enabled := &model.Channel{Name: "enabled", Key: "sk-test", Status: common.ChannelStatusEnabled, Type: constant.ChannelTypeOpenAI}
+	enabled.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
+	wsDisabled := &model.Channel{Name: "ws-disabled", Key: "sk-test", Status: common.ChannelStatusEnabled, Type: constant.ChannelTypeOpenAI}
 	disabled := &model.Channel{Name: "disabled", Key: "sk-test", Status: common.ChannelStatusManuallyDisabled, Type: constant.ChannelTypeOpenAI}
 	filtered := &model.Channel{Name: "filtered", Key: "sk-test", Status: common.ChannelStatusEnabled, Type: constant.ChannelTypeAdvancedCustom}
-	for _, channel := range []*model.Channel{enabled, disabled, filtered} {
+	for _, channel := range []*model.Channel{enabled, disabled, filtered, wsDisabled} {
 		require.NoError(t, database.Create(channel).Error)
 	}
 	for _, tc := range []struct {
@@ -160,6 +162,7 @@ func TestSelectResponsesWSChannelHonorsPinsAndFilters(t *testing.T) {
 	}{
 		{name: "token pin overrides origin pin", channelID: enabled.Id},
 		{name: "disabled pin rejects", channelID: disabled.Id, status: http.StatusForbidden},
+		{name: "pin cannot bypass websocket switch", channelID: wsDisabled.Id, status: http.StatusBadRequest},
 		{name: "pin cannot bypass path filter", channelID: filtered.Id, status: http.StatusBadRequest},
 		{name: "missing pin rejects", channelID: 99999, status: http.StatusBadRequest},
 	} {
@@ -185,6 +188,45 @@ func TestSelectResponsesWSChannelHonorsPinsAndFilters(t *testing.T) {
 			assert.False(t, service.ShouldRetryRelayError(c, types.NewErrorWithStatusCode(errors.New("upstream failed"), types.ErrorCodeDoRequestFailed, 503), 2))
 		})
 	}
+}
+
+func TestResponsesWSChannelRoutingRequiresExplicitOptIn(t *testing.T) {
+	database := setupRelayChannelDB(t)
+	require.NoError(t, database.AutoMigrate(&model.Ability{}))
+	legacy := &model.Channel{Name: "legacy-http", Key: "sk-test", Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled, Group: "default", Models: "ws-model", Priority: common.GetPointer(int64(10))}
+	enabled := &model.Channel{Name: "websocket", Key: "sk-test", Type: constant.ChannelTypeCodex, Status: common.ChannelStatusEnabled, Group: "default", Models: "ws-model", Priority: common.GetPointer(int64(0))}
+	unsupported := &model.Channel{Name: "unsupported", Key: "sk-test", Type: constant.ChannelTypeAnthropic, Status: common.ChannelStatusEnabled, Group: "default", Models: "ws-model", Priority: common.GetPointer(int64(5))}
+	enabled.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
+	unsupported.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
+	for _, channel := range []*model.Channel{legacy, enabled, unsupported} {
+		require.NoError(t, database.Create(channel).Error)
+		require.NoError(t, database.Create(&model.Ability{ChannelId: channel.Id, Model: "ws-model", Group: "default", Enabled: true, Priority: channel.Priority}).Error)
+	}
+	common.MemoryCacheEnabled = true
+	model.InitChannelCache()
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	params := &service.RetryParam{Ctx: c, ModelName: "ws-model", TokenGroup: "default"}
+	channel, apiErr := selectResponsesWSChannel(c, "ws-model", params)
+	require.Nil(t, apiErr)
+	require.NotNil(t, channel)
+	assert.Equal(t, enabled.Id, channel.Id)
+	httpChannel, err := model.GetRandomSatisfiedChannel("default", "ws-model", 0, nil)
+	require.NoError(t, err)
+	require.NotNil(t, httpChannel)
+	assert.Equal(t, legacy.Id, httpChannel.Id)
+
+	// Disabling the saved setting takes effect for the next create on an existing session.
+	enabled.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: false})
+	require.NoError(t, database.Model(enabled).Update("setting", enabled.Setting).Error)
+	model.InitChannelCache()
+	session := &responsesWSSession{c: c, lockedChannel: enabled, lockedModel: "ws-model"}
+	apiErr = session.handleResponseCreate(responsesWSCreateRequest{Request: dto.OpenAIResponsesRequest{Model: "ws-model"}}, "evt-next")
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+	channel, apiErr = selectResponsesWSChannel(c, "ws-model", params)
+	require.NotNil(t, apiErr)
+	assert.Nil(t, channel)
 }
 
 func TestNormalizeResponsesWSCreateEventWrapper(t *testing.T) {
