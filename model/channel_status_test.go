@@ -100,3 +100,82 @@ func TestSaveStatusStateFromSingleKeySnapshotPreservesUnownedColumns(t *testing.
 	assert.Equal(t, "manual operation", otherInfo["status_reason"])
 	assert.Equal(t, float64(1234), otherInfo["status_time"])
 }
+
+func seedPollingChannel(t *testing.T, name string) Channel {
+	t.Helper()
+	channel := Channel{
+		Name:   name,
+		Key:    "key-a\nkey-b",
+		Status: common.ChannelStatusEnabled,
+		ChannelInfo: ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+			MultiKeyMode: constant.MultiKeyModePolling,
+		},
+	}
+	require.NoError(t, DB.Create(&channel).Error)
+	return channel
+}
+
+// TestGetNextEnabledKeyDoesNotRevertConcurrentKeyDisable pins the write side
+// of the polling path: the per-key status list updated by a concurrent
+// UpdateChannelStatus must survive a request whose channel snapshot was read
+// before that update. channel_info is a single JSON column, so persisting the
+// request's stale snapshot here used to re-enable keys that had just been
+// disabled.
+func TestGetNextEnabledKeyDoesNotRevertConcurrentKeyDisable(t *testing.T) {
+	setupChannelStatusTest(t)
+	channel := seedPollingChannel(t, "polling-lost-update")
+
+	// The request path reads its channel snapshot up front...
+	stale, err := GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+
+	// ...and an async status update lands mid-request.
+	require.True(t, UpdateChannelStatus(channel.Id, "key-a", common.ChannelStatusAutoDisabled, "provider rejected key"))
+
+	// The request finishes selecting a key. The scan still uses the snapshot
+	// (the key was already handed out by the time it was disabled), but the
+	// persisted state must come from the fresh read, not the snapshot.
+	key, idx, apiErr := stale.GetNextEnabledKey()
+	require.Nil(t, apiErr)
+	assert.Equal(t, "key-a", key)
+	assert.Equal(t, 0, idx)
+
+	var stored Channel
+	require.NoError(t, DB.First(&stored, channel.Id).Error)
+	assert.Equal(t, common.ChannelStatusAutoDisabled, stored.ChannelInfo.MultiKeyStatusList[0],
+		"concurrent key disable was reverted by the polling save")
+	assert.Equal(t, 1, stored.ChannelInfo.MultiKeyPollingIndex,
+		"polling cursor was not persisted")
+	assert.Equal(t, "provider rejected key", stored.ChannelInfo.MultiKeyDisabledReason[0])
+}
+
+// TestGetNextEnabledKeyPersistsPollingCursorInDBMode keeps round-robin working
+// across independent reads when the memory cache is off: each call must pick up
+// the cursor persisted by the previous one.
+func TestGetNextEnabledKeyPersistsPollingCursorInDBMode(t *testing.T) {
+	setupChannelStatusTest(t)
+	channel := seedPollingChannel(t, "polling-cursor-persistence")
+
+	first, err := GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	key, idx, apiErr := first.GetNextEnabledKey()
+	require.Nil(t, apiErr)
+	assert.Equal(t, "key-a", key)
+	assert.Equal(t, 0, idx)
+
+	second, err := GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	key, idx, apiErr = second.GetNextEnabledKey()
+	require.Nil(t, apiErr)
+	assert.Equal(t, "key-b", key)
+	assert.Equal(t, 1, idx)
+
+	third, err := GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	key, idx, apiErr = third.GetNextEnabledKey()
+	require.Nil(t, apiErr)
+	assert.Equal(t, "key-a", key)
+	assert.Equal(t, 0, idx)
+}

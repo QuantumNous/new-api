@@ -252,20 +252,20 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 	case constant.MultiKeyModePolling:
 		// Use channel-specific lock to ensure thread-safe polling
 
+		// CacheGetChannelInfo re-reads the current ChannelInfo from the DB (or
+		// the shared cache) while we hold the same per-channel polling lock that
+		// UpdateChannelStatus holds across its own read-modify-write. The
+		// request's `channel` snapshot, by contrast, was read before this lock,
+		// so its ChannelInfo may be stale.
 		channelInfo, err := CacheGetChannelInfo(channel.Id)
 		if err != nil {
 			return "", 0, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
 		}
-		defer func() {
-			if common.DebugEnabled {
-				logger.LogDebug(nil, "channel %d polling index: %d", channel.Id, channel.ChannelInfo.MultiKeyPollingIndex)
-			}
-			if !common.MemoryCacheEnabled {
-				_ = channel.SaveChannelInfo()
-			} else {
-				// CacheUpdateChannel(channel)
-			}
-		}()
+		if common.DebugEnabled {
+			defer func() {
+				logger.LogDebug(nil, "channel %d polling index: %d", channel.Id, channelInfo.MultiKeyPollingIndex)
+			}()
+		}
 		// Start from the saved polling index and look for the next enabled key
 		start := channelInfo.MultiKeyPollingIndex
 		if start < 0 || start >= len(keys) {
@@ -275,7 +275,17 @@ func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {
 			idx := (start + i) % len(keys)
 			if getStatus(idx) == common.ChannelStatusEnabled {
 				// update polling index for next call (point to the next position)
-				channel.ChannelInfo.MultiKeyPollingIndex = (idx + 1) % len(keys)
+				channelInfo.MultiKeyPollingIndex = (idx + 1) % len(keys)
+				if !common.MemoryCacheEnabled {
+					// channel_info is a single JSON column holding both the
+					// polling cursor and the per-key status list. Persist the
+					// freshly read ChannelInfo — never the request's stale
+					// snapshot, which would silently revert a concurrent key
+					// disable/enable that UpdateChannelStatus just persisted.
+					if err := DB.Model(&Channel{}).Where("id = ?", channel.Id).Update("channel_info", *channelInfo).Error; err != nil {
+						common.SysLog(fmt.Sprintf("failed to save multi-key polling index: channel_id=%d, error=%v", channel.Id, err))
+					}
+				}
 				return keys[idx], idx, nil
 			}
 		}
