@@ -20,3 +20,5 @@ Validation:
 - `git diff --check` — passed.
 
 Known limitation: imported custom feature tests using Node's `node:test` module are incompatible with the browser Vitest environment and fail during bundling before test execution. No backend changes were made.
+
+Final closure: status placeholder metadata now flows through `useStatus` into agent access checks; agent overview queries are disabled until access is granted. Typecheck and production build pass.
