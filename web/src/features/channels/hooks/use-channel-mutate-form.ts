@@ -26,6 +26,7 @@ import {
   hasPermission,
 } from '@/lib/admin-permissions'
 import { useAuthStore } from '@/stores/auth-store'
+import { ROLE } from '@/lib/roles'
 
 import { createChannel, updateChannel } from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
@@ -58,11 +59,15 @@ const SENSITIVE_UPDATE_FIELDS = [
 
 export function stripSensitiveUpdateFields(
   payload: Partial<Channel>,
-  canEditSensitive: boolean
+  canEditSensitive: boolean,
+  canEditActualBaseUrl = false
 ): Partial<Channel> {
-  if (canEditSensitive) return payload
   const sanitized = { ...payload }
-  for (const field of SENSITIVE_UPDATE_FIELDS) delete sanitized[field]
+  if (!canEditSensitive) {
+    for (const field of SENSITIVE_UPDATE_FIELDS) delete sanitized[field]
+  } else if (!canEditActualBaseUrl) {
+    delete sanitized.actual_base_url
+  }
   return sanitized
 }
 
@@ -99,6 +104,7 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
     ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
   )
+  const canEditActualBaseUrl = currentUser?.role === ROLE.SUPER_ADMIN
 
   return useMutation({
     mutationFn: async (data: ChannelFormValues): Promise<string> => {
@@ -110,7 +116,11 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
         if (!data.key?.trim()) {
           delete payload.key
         }
-        const safePayload = stripSensitiveUpdateFields(payload, canEditSensitive)
+        const safePayload = stripSensitiveUpdateFields(
+          payload,
+          canEditSensitive,
+          canEditActualBaseUrl
+        )
         const payloadWithKeyMode =
           canEditSensitive &&
           props.isMultiKeyChannel &&
