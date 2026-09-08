@@ -21,12 +21,15 @@ import i18next from 'i18next'
 import { toast } from 'sonner'
 
 import {
+  discoverOIDCEndpoints,
+  type OIDCDiscoveryResponse,
+} from '../../oidc-discovery'
+import {
   createCustomOAuthProvider,
   updateCustomOAuthProvider,
   deleteCustomOAuthProvider,
-  discoverOIDCEndpoints,
 } from '../api'
-import type { CustomOAuthProvider, DiscoveryResponse } from '../types'
+import type { CustomOAuthProvider } from '../types'
 
 function useInvalidateOnSuccess() {
   const queryClient = useQueryClient()
@@ -99,7 +102,7 @@ export function useDeleteProvider() {
 export function useDiscoverEndpoints() {
   return useMutation({
     mutationFn: (wellKnownUrl: string) => discoverOIDCEndpoints(wellKnownUrl),
-    onSuccess: (res: DiscoveryResponse) => {
+    onSuccess: (res: OIDCDiscoveryResponse) => {
       if (res.success) {
         toast.success(i18next.t('OIDC endpoints discovered successfully'))
       }

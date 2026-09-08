@@ -178,7 +178,7 @@ func FetchCustomOAuthDiscovery(c *gin.Context) {
 	}
 	httpReq.Header.Set("Accept", "application/json")
 
-	client := &http.Client{Timeout: 20 * time.Second}
+	client := service.GetSSRFProtectedHTTPClient()
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		common.ApiErrorMsg(c, "获取 Discovery 配置失败: "+err.Error())
