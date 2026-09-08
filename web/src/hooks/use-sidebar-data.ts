@@ -102,6 +102,7 @@ export function useSidebarData(): SidebarData {
             title: t('Usage ranking'),
             url: '/usage-ranking',
             icon: ListTodo,
+            requiredRole: ROLE.SUPER_ADMIN,
           },
           {
             title: t('Agent workspace'),
