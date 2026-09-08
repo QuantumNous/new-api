@@ -80,7 +80,7 @@ export function useAgentAccess() {
   const statusQuery = useStatus()
   const { globallyEnabled } = getAgentStatusAccessState({
     hasStatusData: statusQuery.status !== null,
-    isPlaceholderData: false,
+    isPlaceholderData: statusQuery.isPlaceholderData,
     isFetching: statusQuery.loading,
     isError: Boolean(statusQuery.error),
     agentEnabled: statusQuery.status?.agent_enabled === true,
@@ -101,6 +101,6 @@ export function useAgentAccess() {
     ...query,
     globallyEnabled,
     hasAccess: shouldCheck && query.data !== null && query.data !== undefined,
-    isChecking: statusQuery.status === null && statusQuery.loading || (shouldCheck && query.isPending),
+    isChecking: statusQuery.status === null && statusQuery.loading || statusQuery.isPlaceholderData || (shouldCheck && query.isPending),
   }
 }

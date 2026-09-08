@@ -6,7 +6,7 @@ import { getAgentOverview } from '@/features/agents/api'
 import { useQuery } from '@tanstack/react-query'
 export const Route = createFileRoute('/_authenticated/agents')({ validateSearch: agentWorkspaceSearchSchema, component: AgentsRoute })
 function AgentsRoute() {
-  const access = useAgentAccess(); const overview = useQuery({ queryKey: ['agent-overview'], queryFn: () => getAgentOverview() }); const search = Route.useSearch(); const navigate = Route.useNavigate()
+  const access = useAgentAccess(); const overview = useQuery({ queryKey: ['agent-overview'], queryFn: () => getAgentOverview(), enabled: access.hasAccess }); const search = Route.useSearch(); const navigate = Route.useNavigate()
   if (access.isChecking || overview.isLoading) return null
   if (!access.hasAccess) throw redirect({ to: '/' })
   if (overview.isError) return <div className='p-6 text-destructive'>Unable to load agent overview.</div>

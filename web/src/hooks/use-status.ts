@@ -78,5 +78,6 @@ export function useStatus() {
     status: data ?? null,
     loading: isLoading,
     error,
+    isPlaceholderData: false,
   }
 }
