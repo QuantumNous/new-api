@@ -2,6 +2,7 @@ package service
 
 import (
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/QuantumNous/new-api/model"
@@ -40,5 +41,11 @@ func SanitizeWithPair(actual, display, msg string) string {
 	if transformedActual != display {
 		return strings.ReplaceAll(hostReplaced, transformedActual, display)
 	}
-	return hostReplaced
+	return redactCredentials(hostReplaced)
+}
+
+var sensitiveCredentialRE = regexp.MustCompile(`(?i)(Bearer\s+|api[-_ ]?key[=: ]+|sk-[A-Za-z0-9_-]{8,})[^\s,;]+`)
+
+func redactCredentials(msg string) string {
+	return sensitiveCredentialRE.ReplaceAllString(msg, "[REDACTED]")
 }

@@ -2164,7 +2164,7 @@ func OllamaPullModelStream(c *gin.Context) {
 
 	if err != nil {
 		errorData, _ := json.Marshal(gin.H{
-			"error": err.Error(),
+			"error": service.SanitizeForChannel(channel.Id, err.Error()),
 		})
 		fmt.Fprintf(c.Writer, "data: %s\n\n", string(errorData))
 	} else {
