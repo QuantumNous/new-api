@@ -5608,6 +5608,7 @@
     "Unable to build Passkey assertion": "无法生成 Passkey 断言",
     "Unable to estimate price for this deployment.": "无法为该部署估算价格。",
     "Unable to generate chat link. Please contact your administrator.": "无法生成聊天链接。请联系您的管理员。",
+    "Unable to load agent overview": "无法加载代理概览",
     "Unable to load groups": "无法加载分组",
     "Unable to load login sessions": "无法加载登录会话",
     "Unable to load rankings": "无法加载排行榜",

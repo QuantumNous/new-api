@@ -5608,6 +5608,7 @@
     "Unable to build Passkey assertion": "Không thể tạo xác nhận Passkey",
     "Unable to estimate price for this deployment.": "Không thể ước tính giá cho triển khai này.",
     "Unable to generate chat link. Please contact your administrator.": "Không thể tạo liên kết trò chuyện. Vui lòng liên hệ quản trị viên của bạn.",
+    "Unable to load agent overview": "Không thể tải tổng quan tác nhân",
     "Unable to load groups": "Không thể tải nhóm",
     "Unable to load login sessions": "Không thể tải các phiên đăng nhập",
     "Unable to load rankings": "Không thể tải bảng xếp hạng",

@@ -5608,6 +5608,7 @@
     "Unable to build Passkey assertion": "Не удалось создать утверждение Passkey",
     "Unable to estimate price for this deployment.": "Не удается оценить цену для этого развертывания.",
     "Unable to generate chat link. Please contact your administrator.": "Не удалось сгенерировать ссылку для чата. Пожалуйста, свяжитесь с вашим администратором.",
+    "Unable to load agent overview": "Не удалось загрузить обзор агента",
     "Unable to load groups": "Не удалось загрузить группы",
     "Unable to load login sessions": "Не удалось загрузить сеансы входа",
     "Unable to load rankings": "Не удалось загрузить рейтинги",

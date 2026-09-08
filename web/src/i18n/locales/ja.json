@@ -5608,6 +5608,7 @@
     "Unable to build Passkey assertion": "Passkey アサーションを作成できません",
     "Unable to estimate price for this deployment.": "このデプロイメントの価格を推定できません。",
     "Unable to generate chat link. Please contact your administrator.": "チャットリンクを生成できません。管理者にご連絡ください。",
+    "Unable to load agent overview": "エージェント概要を読み込めません",
     "Unable to load groups": "グループをロードできません",
     "Unable to load login sessions": "ログインセッションを読み込めません",
     "Unable to load rankings": "ランキングを読み込めません",

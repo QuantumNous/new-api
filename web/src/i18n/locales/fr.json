@@ -5608,6 +5608,7 @@
     "Unable to build Passkey assertion": "Impossible de créer l’assertion Passkey",
     "Unable to estimate price for this deployment.": "Impossible d'estimer le prix pour ce déploiement.",
     "Unable to generate chat link. Please contact your administrator.": "Impossible de générer le lien de discussion. Veuillez contacter votre administrateur.",
+    "Unable to load agent overview": "Impossible de charger la vue d’ensemble de l’agent",
     "Unable to load groups": "Impossible de charger les groupes",
     "Unable to load login sessions": "Impossible de charger les sessions de connexion",
     "Unable to load rankings": "Impossible de charger les classements",
