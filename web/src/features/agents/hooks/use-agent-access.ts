@@ -101,6 +101,6 @@ export function useAgentAccess() {
     ...query,
     globallyEnabled,
     hasAccess: shouldCheck && query.data !== null && query.data !== undefined,
-    isChecking: shouldCheck && query.isPending,
+    isChecking: statusQuery.status === null && statusQuery.loading || (shouldCheck && query.isPending),
   }
 }
