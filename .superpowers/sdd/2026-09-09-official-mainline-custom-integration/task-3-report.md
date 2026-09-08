@@ -46,3 +46,7 @@ inputs for later integration tasks. The official frontend build and typecheck
 are healthy; the eight frontend test failures should be triaged separately
 before final integration acceptance.
 
+## Report correction
+
+Removed the extra blank line at EOF after reviewer verification. `git diff
+--check e636f6279..e4c0f6bd3` now passes for this report.
