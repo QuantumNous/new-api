@@ -64,6 +64,7 @@ var channelSensitiveFields = map[string]struct{}{
 	"type":                {},
 	"key":                 {},
 	"base_url":            {},
+	"actual_base_url":     {},
 	"openai_organization": {},
 	"header_override":     {},
 	"param_override":      {},
