@@ -62,8 +62,9 @@ func encode(writer io.Writer, event CustomEvent) error {
 }
 
 func writeData(w stringWriter, data interface{}) error {
-	dataReplacer.WriteString(w, fmt.Sprint(data))
-	if strings.HasPrefix(data.(string), "data") {
+	s := fmt.Sprint(data)
+	dataReplacer.WriteString(w, s)
+	if strings.HasPrefix(s, "data") {
 		w.writeString("\n\n")
 	}
 	return nil
