@@ -58,4 +58,10 @@ sudo journalctl -u hardy-network-rollback.service --since today
 - 当前二进制在无网络、只读根目录、非 root、清空 capabilities 和 no-new-privileges 的隔离容器中成功执行版本检查；这不等于完整业务功能验收。
 - 正式回退 timer 已 enabled/active，当前无待回退事务。
 
-这些保护减少配置误操作的影响，不保证服务器、云网络、存储或 Cloudflare 永不故障。客户端处理 HTML 错误页及多服务器容灾不在本次实施范围。
+这些保护减少配置误操作的影响，不保证服务器、云网络、存储或 Cloudflare 永不故障。
+
+## 后续实施记录
+
+2026-09-08，受限部署入口完成首次实际发布 `hardy-http-guard-20260908-152518`。应用已以 `995:985` 身份运行，capabilities 全部移除，no-new-privileges 生效；健康检查、图片目录和日志目录写权限检查通过。该发布未重载主网卡。原先“尚未实际切换”的记录描述安装工具时的验证范围，现已补充发布证据。
+
+本站客户端 HTML/非 JSON 处理已发布，外部客户程序仍待接入；独立服务器容灾仍待提供备用主机。详见 [非 JSON 响应保护](../../docs/non-json-response-protection.md) 和 [容灾准备](../disaster-recovery/README.md)。
