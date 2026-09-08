@@ -230,7 +230,8 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 	properties := Properties{}
 	privateData := TaskPrivateData{}
 	if relayInfo != nil && relayInfo.ChannelMeta != nil {
-		if relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini ||
+		if relayInfo.ChannelMeta.ChannelIsMultiKey ||
+			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeGemini ||
 			relayInfo.ChannelMeta.ChannelType == constant.ChannelTypeVertexAi {
 			privateData.Key = relayInfo.ChannelMeta.ApiKey
 		}
