@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 	"unicode/utf8"
@@ -14,6 +13,29 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+func DeleteRedemptionBatch(c *gin.Context) {
+	var req struct {
+		IDs []int `json:"ids"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil || len(req.IDs) == 0 || len(req.IDs) > 1000 {
+		common.ApiErrorMsg(c, "invalid redemption ids")
+		return
+	}
+	for _, id := range req.IDs {
+		if id <= 0 {
+			common.ApiErrorMsg(c, "invalid redemption ids")
+			return
+		}
+	}
+	rows, err := model.BatchDeleteRedemptions(req.IDs)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	recordManageAudit(c, "redemption.delete_batch", map[string]any{"count": rows, "total": len(req.IDs), "requested_redemption_ids": req.IDs})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": rows})
+}
 
 func GetAllRedemptions(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
@@ -86,14 +108,6 @@ func AddRedemption(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgRedemptionCountMax)
 		return
 	}
-	if redemption.Quota <= 0 {
-		common.ApiError(c, errors.New("redemption quota must be positive"))
-		return
-	}
-	if err := common.ValidateWalletQuota(redemption.Quota); err != nil {
-		common.ApiError(c, err)
-		return
-	}
 	if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 		return
@@ -121,7 +135,7 @@ func AddRedemption(c *gin.Context) {
 		}
 		keys = append(keys, key)
 	}
-	recordManageAudit(c, "redemption.create", map[string]any{
+	recordManageAudit(c, "redemption.create", map[string]interface{}{
 		"name":  redemption.Name,
 		"count": redemption.Count,
 		"quota": logger.LogQuota(redemption.Quota),
@@ -162,14 +176,6 @@ func UpdateRedemption(c *gin.Context) {
 		return
 	}
 	if statusOnly == "" {
-		if redemption.Quota <= 0 {
-			common.ApiError(c, errors.New("redemption quota must be positive"))
-			return
-		}
-		if err := common.ValidateWalletQuota(redemption.Quota); err != nil {
-			common.ApiError(c, err)
-			return
-		}
 		if valid, msg := validateExpiredTime(c, redemption.ExpiredTime); !valid {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
 			return
@@ -214,25 +220,4 @@ func validateExpiredTime(c *gin.Context, expired int64) (bool, string) {
 		return false, i18n.T(c, i18n.MsgRedemptionExpireTimeInvalid)
 	}
 	return true, ""
-}
-
-func DeleteRedemptionBatch(c *gin.Context) {
-	var request struct {
-		Ids []int `json:"ids" binding:"required,min=1,max=1000,dive,gt=0"`
-	}
-	if err := c.ShouldBindJSON(&request); err != nil {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
-		return
-	}
-	count, err := model.BatchDeleteRedemptions(request.Ids)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	recordManageAudit(c, "redemption.delete_batch", map[string]any{
-		"count":                    count,
-		"total":                    len(request.Ids),
-		"requested_redemption_ids": request.Ids,
-	})
-	common.ApiSuccess(c, count)
 }

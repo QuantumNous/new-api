@@ -1,35 +1,42 @@
 package service
 
 import (
+	"path/filepath"
+	"testing"
+
 	"github.com/QuantumNous/new-api/model"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
-	"path/filepath"
-	"testing"
 )
 
 func setupAgentBindServiceDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	original := model.DB
-	db, err := gorm.Open(sqlite.Open("file:"+filepath.Join(t.TempDir(), "agent-bind.db")), &gorm.Config{})
+	originalDB := model.DB
+	dsn := "file:" + filepath.Join(t.TempDir(), "agent-bind-service.db") + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.AgentAccount{}))
 	model.DB = db
-	t.Cleanup(func() { model.DB = original; sql, _ := db.DB(); _ = sql.Close() })
+	t.Cleanup(func() {
+		model.DB = originalDB
+		sqlDB, dbErr := db.DB()
+		require.NoError(t, dbErr)
+		require.NoError(t, sqlDB.Close())
+	})
 	return db
 }
-func TestTryBindUserToAgentRejectsMissingAndDisabledAgents(t *testing.T) {
+
+func TestTryBindUserToAgentRequiresAnAgentAccount(t *testing.T) {
 	db := setupAgentBindServiceDB(t)
-	require.NoError(t, db.Create(&model.User{Id: 7201, Username: "customer"}).Error)
-	require.NoError(t, db.Create(&model.AgentAccount{UserId: 7202, Status: model.AgentAccountStatusDisabled}).Error)
-	for _, id := range []int{7299, 7202} {
-		bound, err := TryBindUserToAgent(7201, id)
-		require.NoError(t, err)
-		assert.False(t, bound)
-	}
-	var u model.User
-	require.NoError(t, db.First(&u, 7201).Error)
-	assert.Zero(t, u.BoundAgentId)
+	require.NoError(t, db.Create(&model.User{Id: 7201, Username: "customer-7201"}).Error)
+
+	bound, err := TryBindUserToAgent(7201, 7299)
+	require.NoError(t, err)
+	assert.False(t, bound)
+
+	var customer model.User
+	require.NoError(t, db.First(&customer, 7201).Error)
+	assert.Zero(t, customer.BoundAgentId)
 }

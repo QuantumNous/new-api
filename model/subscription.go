@@ -3,10 +3,12 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/cachex"
@@ -23,6 +25,113 @@ const (
 	SubscriptionDurationHour   = "hour"
 	SubscriptionDurationCustom = "custom"
 )
+
+const SubscriptionEntitlementVersion1 = 1
+const maxSubscriptionEntitlementSpanSeconds = int64(math.MaxInt64 / int64(time.Second))
+
+type SubscriptionEntitlementSnapshot struct {
+	Version                 int    `json:"version"`
+	PlanId                  int    `json:"plan_id"`
+	PlanTitle               string `json:"plan_title"`
+	DurationUnit            string `json:"duration_unit"`
+	DurationValue           int    `json:"duration_value"`
+	CustomSeconds           int64  `json:"custom_seconds"`
+	MaxPurchasePerUser      int    `json:"max_purchase_per_user"`
+	UpgradeGroup            string `json:"upgrade_group"`
+	DowngradeGroup          string `json:"downgrade_group"`
+	TotalAmount             int64  `json:"total_amount"`
+	QuotaResetPeriod        string `json:"quota_reset_period"`
+	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds"`
+	AllowWalletOverflow     bool   `json:"allow_wallet_overflow"`
+}
+
+func BuildSubscriptionEntitlementSnapshot(plan *SubscriptionPlan) (SubscriptionEntitlementSnapshot, error) {
+	if plan == nil || plan.Id <= 0 {
+		return SubscriptionEntitlementSnapshot{}, errors.New("invalid plan")
+	}
+	overflow := true
+	if plan.AllowWalletOverflow != nil {
+		overflow = *plan.AllowWalletOverflow
+	}
+	duration, custom := plan.DurationValue, int64(0)
+	if plan.DurationUnit == SubscriptionDurationCustom {
+		duration, custom = 0, plan.CustomSeconds
+	}
+	reset := strings.TrimSpace(plan.QuotaResetPeriod)
+	if reset == "" {
+		reset = SubscriptionResetNever
+	}
+	resetCustom := int64(0)
+	if reset == SubscriptionResetCustom {
+		resetCustom = plan.QuotaResetCustomSeconds
+	}
+	s := SubscriptionEntitlementSnapshot{SubscriptionEntitlementVersion1, plan.Id, strings.TrimSpace(plan.Title), plan.DurationUnit, duration, custom, plan.MaxPurchasePerUser, strings.TrimSpace(plan.UpgradeGroup), strings.TrimSpace(plan.DowngradeGroup), plan.TotalAmount, reset, resetCustom, overflow}
+	if err := ValidateSubscriptionEntitlementSnapshot(s); err != nil {
+		return SubscriptionEntitlementSnapshot{}, err
+	}
+	return s, nil
+}
+func EncodeSubscriptionEntitlementSnapshot(s SubscriptionEntitlementSnapshot) (string, error) {
+	if err := ValidateSubscriptionEntitlementSnapshot(s); err != nil {
+		return "", err
+	}
+	b, e := common.Marshal(s)
+	return string(b), e
+}
+func DecodeSubscriptionEntitlementSnapshot(v string) (SubscriptionEntitlementSnapshot, error) {
+	var s SubscriptionEntitlementSnapshot
+	if !utf8.ValidString(v) {
+		return s, errors.New("invalid UTF-8 subscription entitlement snapshot")
+	}
+	if e := common.UnmarshalJsonStr(v, &s); e != nil {
+		return s, e
+	}
+	return s, ValidateSubscriptionEntitlementSnapshot(s)
+}
+func ValidateSubscriptionEntitlementSnapshot(s SubscriptionEntitlementSnapshot) error {
+	if s.Version != SubscriptionEntitlementVersion1 || s.PlanId <= 0 {
+		return errors.New("invalid subscription entitlement version or plan id")
+	}
+	if s.PlanTitle == "" || !utf8.ValidString(s.PlanTitle) || s.PlanTitle != strings.TrimSpace(s.PlanTitle) || utf8.RuneCountInString(s.PlanTitle) > 128 {
+		return errors.New("invalid subscription entitlement plan title")
+	}
+	if s.MaxPurchasePerUser < 0 || s.TotalAmount < 0 {
+		return errors.New("invalid subscription entitlement amount")
+	}
+	if s.UpgradeGroup != strings.TrimSpace(s.UpgradeGroup) || s.DowngradeGroup != strings.TrimSpace(s.DowngradeGroup) || utf8.RuneCountInString(s.UpgradeGroup) > 64 || utf8.RuneCountInString(s.DowngradeGroup) > 64 {
+		return errors.New("invalid subscription entitlement group snapshot")
+	}
+	switch s.DurationUnit {
+	case SubscriptionDurationYear:
+		if s.DurationValue <= 0 || int64(s.DurationValue) > maxSubscriptionEntitlementSpanSeconds/(366*24*60*60) {
+			return errors.New("invalid subscription duration")
+		}
+	case SubscriptionDurationMonth:
+		if s.DurationValue <= 0 {
+			return errors.New("invalid subscription duration")
+		}
+	case SubscriptionDurationDay, SubscriptionDurationHour:
+		if s.DurationValue <= 0 {
+			return errors.New("invalid subscription duration")
+		}
+	case SubscriptionDurationCustom:
+		if s.CustomSeconds <= 0 || s.CustomSeconds > maxSubscriptionEntitlementSpanSeconds {
+			return errors.New("invalid custom subscription duration")
+		}
+	default:
+		return fmt.Errorf("invalid duration_unit: %s", s.DurationUnit)
+	}
+	switch s.QuotaResetPeriod {
+	case SubscriptionResetNever, SubscriptionResetDaily, SubscriptionResetWeekly, SubscriptionResetMonthly:
+	case SubscriptionResetCustom:
+		if s.QuotaResetCustomSeconds <= 0 || s.QuotaResetCustomSeconds > maxSubscriptionEntitlementSpanSeconds {
+			return errors.New("invalid custom subscription reset seconds")
+		}
+	default:
+		return errors.New("invalid subscription reset period")
+	}
+	return nil
+}
 
 // Subscription quota reset period
 const (
@@ -555,6 +664,22 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		return nil, err
 	}
 	return sub, nil
+}
+
+// CreateUserSubscriptionFromEntitlementTx materializes an immutable package
+// entitlement without consulting the mutable plan row.
+func CreateUserSubscriptionFromEntitlementTx(tx *gorm.DB, userId int, snapshot SubscriptionEntitlementSnapshot, source string) (*UserSubscription, error) {
+	if err := ValidateSubscriptionEntitlementSnapshot(snapshot); err != nil {
+		return nil, err
+	}
+	return CreateUserSubscriptionFromPlanTx(tx, userId, &SubscriptionPlan{
+		Id: snapshot.PlanId, Title: snapshot.PlanTitle, DurationUnit: snapshot.DurationUnit,
+		DurationValue: snapshot.DurationValue, CustomSeconds: snapshot.CustomSeconds,
+		MaxPurchasePerUser: snapshot.MaxPurchasePerUser, UpgradeGroup: snapshot.UpgradeGroup,
+		DowngradeGroup: snapshot.DowngradeGroup, TotalAmount: snapshot.TotalAmount,
+		QuotaResetPeriod: snapshot.QuotaResetPeriod, QuotaResetCustomSeconds: snapshot.QuotaResetCustomSeconds,
+		AllowWalletOverflow: &snapshot.AllowWalletOverflow,
+	}, source)
 }
 
 func refreshSubscriptionUserGroupCache(userId int, operation string) {

@@ -147,6 +147,10 @@ func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
 	return logs, err
 }
 
+func FormatUserLogsForRequester(logs []*Log, startIdx int) { formatUserLogs(logs, startIdx) }
+
+func LogGroupColumn() string { return commonGroupCol }
+
 func RecordLog(userId int, logType int, content string) {
 	if logType == LogTypeConsume && !common.LogConsumeEnabled {
 		return
