@@ -21,3 +21,9 @@ Status: PARTIAL
 - Targeted Vitest channel and usage-log tests — passed (18 tests).
 - Sensitive update regression test — passed.
 - `cd web && bun run build` — not run in this follow-up; full test suite — not run. These remain integration-gate work.
+
+## Reviewer P1 authz closure
+
+`actual_base_url` is now independently gated by the super-admin role. Users with `SENSITIVE_WRITE` may continue editing the existing sensitive fields, but cannot submit or clear `actual_base_url`. Regression coverage includes sensitive-write/non-super-admin and super-admin cases.
+
+Follow-up validation: typecheck passed; focused authz test passed; changed-file oxlint passed; production build passed; `git diff --check` passed.
