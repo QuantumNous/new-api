@@ -244,9 +244,11 @@ export type TierCondition = {
   value: number
 }
 
+export type ParsedTierCondition = TierCondition | RequestCondition
+
 export type ParsedTier = {
   label: string
-  conditions: TierCondition[]
+  conditions: ParsedTierCondition[]
   [field: string]: unknown
 }
 
@@ -306,9 +308,7 @@ export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
   try {
     const versioned = stripExprVersion(exprStr.trim())
     const body = unwrapOuterParens(versioned.body)
-    const condGroup =
-      `((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)` +
-      `(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`
+    const condGroup = `([^?:]+?)`
     const tierRe = new RegExp(
       `(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*([^)]+)\\)`,
       'g'
@@ -322,13 +322,18 @@ export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
       // about what the expression actually charges.
       if (body.slice(end, m.index).trim() !== (end === 0 ? '' : ':')) return []
       if (tiers.length > 0 && tiers.at(-1)?.conditions.length === 0) return []
-      const condStr = m[1] || ''
-      const conditions: TierCondition[] = []
+      const condStr = m[1]?.trim() || ''
+      const conditions: ParsedTierCondition[] = []
       if (condStr) {
-        for (const cp of condStr.split(/\s*&&\s*/)) {
-          const cm = cp.trim().match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/)
-          if (cm) {
-            if (!Number.isFinite(Number(cm[3]))) return []
+        const requestConditions = tryParseRequestConditions(condStr)
+        if (requestConditions) {
+          conditions.push(...requestConditions)
+        } else {
+          for (const cp of condStr.split(/\s*&&\s*/)) {
+            const cm = cp
+              .trim()
+              .match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/)
+            if (!cm || !Number.isFinite(Number(cm[3]))) return []
             conditions.push({
               var: cm[1] as TierCondition['var'],
               op: cm[2] as TierCondition['op'],
