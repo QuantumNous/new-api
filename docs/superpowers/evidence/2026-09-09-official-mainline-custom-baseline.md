@@ -8,15 +8,15 @@
 | Item | Value |
 | --- | --- |
 | Integration branch | `codex/official-mainline-custom-integration` |
-| Current `HEAD` | `16634abb86e78e0d7d45fa6ac1fd91dae78803a5` |
+| Pre-task capture `HEAD` | `16634abb86e78e0d7d45fa6ac1fd91dae78803a5` |
 | `upstream/main` | `9bf328d9749751757d5d6b74088d514813a618bd` |
 | Common merge base (`custom` / `upstream/main`) | `8739c05c0e2aa96d69faec3b9f76b4d2c7f66108` |
-| Worktree status | Clean, branch is ahead of `upstream/main` by the Task 1 planning commit |
+| Pre-task worktree status | Clean, branch was ahead of `upstream/main` by the Task 1 planning commit |
 
 The integration branch is based on the official `upstream/main` commit. The
 existing `custom` worktree was not modified by this task.
 
-## Baseline commands and results
+## Pre-task baseline commands and results
 
 The requested status, revision, whitespace, and untracked-file checks were run
 from this worktree:
@@ -44,6 +44,21 @@ The exact raw command outputs were also saved during capture as:
 /tmp/new-api-divergence.txt
 /tmp/new-api-shortstat.txt
 /tmp/new-api-merge-tree.txt
+```
+
+## Final evidence state
+
+The evidence commit itself advanced the integration branch. A final
+post-commit check confirms the repository state below:
+
+| Item | Value |
+| --- | --- |
+| Final `HEAD` | `c47d5cfca` (`docs: record official mainline custom baseline`) |
+| Final worktree status | Clean, branch is ahead of `upstream/main` by 2 commits |
+
+```text
+git status --short --branch
+## codex/official-mainline-custom-integration...upstream/main [ahead 2]
 ```
 
 ## Custom versus official divergence
