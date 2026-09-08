@@ -491,6 +491,24 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
 	}
+	// Serialize subscription creation per user to close the duplicate check-then-insert race.
+	var lockUser User
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").
+		Select("id").
+		Where("id = ?", userId).
+		First(&lockUser).Error; err != nil {
+		return nil, err
+	}
+	nowUnix := GetDBTimestamp()
+	var activeCount int64
+	if err := tx.Model(&UserSubscription{}).
+		Where("user_id = ? AND plan_id = ? AND status = ? AND end_time > ?", userId, plan.Id, "active", nowUnix).
+		Count(&activeCount).Error; err != nil {
+		return nil, err
+	}
+	if activeCount > 0 {
+		return nil, errors.New("已存在有效订阅")
+	}
 	if plan.MaxPurchasePerUser > 0 {
 		var count int64
 		if err := tx.Model(&UserSubscription{}).
@@ -502,7 +520,6 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
