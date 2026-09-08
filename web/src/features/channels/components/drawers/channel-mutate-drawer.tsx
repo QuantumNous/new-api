@@ -2899,6 +2899,29 @@ export function ChannelMutateDrawer({
                               />
                             )}
 
+                            {canRevealChannelKey && (
+                              <FormField
+                                control={form.control}
+                                name='actual_base_url'
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>{t('Actual Base URL')}</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        aria-label={t('Actual Base URL')}
+                                        placeholder={t('Actual upstream request URL')}
+                                        {...field}
+                                      />
+                                    </FormControl>
+                                    <FormDescription>
+                                      {t('Super administrators only. Used as the runtime upstream address; credentials are masked in display.')}
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+
                             {currentType === CHANNEL_TYPE_ADVANCED_CUSTOM && (
                               <FormField
                                 control={form.control}

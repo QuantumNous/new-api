@@ -47,6 +47,7 @@ export const channelSchema = z.object({
   test_time: z.number(),
   response_time: z.number(), // in milliseconds
   base_url: z.string().nullish(),
+  actual_base_url: z.string().nullish(),
   other: z.string().default(''),
   balance: z.number().default(0), // in USD
   balance_updated_time: z.number(),

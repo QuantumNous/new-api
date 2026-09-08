@@ -39,6 +39,7 @@ export const usageLogSchema = z.object({
   is_stream: z.boolean().default(false),
   channel: z.number().default(0),
   channel_name: z.string().nullish().default(''),
+  actual_base_url: z.string().nullish(),
   token_id: z.number().default(0),
   group: z.string().default(''),
   ip: z.string().default(''),
