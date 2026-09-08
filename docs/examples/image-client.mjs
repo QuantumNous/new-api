@@ -13,6 +13,14 @@ export class ImageRequestError extends Error {
 
 export async function readImageResponse(response) {
   const requestId = response.headers.get('x-request-id') || response.headers.get('cf-ray') || undefined
+  // This function owns the response body. Do not call json/text/blob/getReader
+  // before it, after it, or from another concurrent consumer of the response.
+  if (response.bodyUsed) {
+    throw new ImageRequestError('响应体已经被读取。请删除此前的 response.json()/text() 等读取，只保留一次读取。', response.status, 'BODY_ALREADY_CONSUMED', requestId)
+  }
+  if (response.body?.locked) {
+    throw new ImageRequestError('响应流已被其他读取器锁定，请让本函数独占读取响应。', response.status, 'BODY_LOCKED', requestId)
+  }
   const contentType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
   if (contentType !== 'application/json' && !/^application\/[a-z0-9.+-]+\+json$/.test(contentType)) {
     await response.body?.cancel().catch(() => {})
@@ -23,9 +31,16 @@ export async function readImageResponse(response) {
       requestId,
     )
   }
+  let raw
+  try {
+    // Read exactly once. Parsing the saved string never reads the network again.
+    raw = await response.text()
+  } catch {
+    throw new ImageRequestError('响应读取失败，无法确认生图结果。请先核对任务记录，不要自动重新提交。', response.status, 'READ_RESPONSE_FAILED', requestId)
+  }
   let body
   try {
-    body = await response.json()
+    body = JSON.parse(raw)
   } catch {
     throw new ImageRequestError('响应不完整或 JSON 格式异常，请先核对任务记录。', response.status, 'INVALID_JSON_RESPONSE', requestId)
   }

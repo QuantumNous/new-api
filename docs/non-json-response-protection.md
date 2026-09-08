@@ -11,3 +11,9 @@
 发布后 `/api/status` 返回新版本和 `application/json`；公网入口脚本 `/static/js/index.910cd5bedb.js` 包含新保护代码及中文文案。应用 healthy，运行用户 `995:985`，capabilities 全部移除，启用 no-new-privileges，图片目录和日志目录可写。未重新加载主网卡，网络保护当前无待回退事务。
 
 本次发布前恢复点：`/var/backups/hardy-dr/20260908T073057Z-be1d66`。完整 PostgreSQL 恢复演练已通过；该包对应发布前 Base64 版本，约 321 MB，当前仍仅保存在主机上，不能标记为异地备份。独立节点部署状态见 [容灾准备](../ops/disaster-recovery/README.md)。
+
+## 客户端出现 Body is unusable 时
+
+外部示例现改为仅调用一次 `response.text()`，然后对保存的字符串执行 `JSON.parse`。接入时必须替换原来的响应读取代码，不能先调用 `response.json()`，也不能在 catch 或调试日志中再调用 `response.text()`。`requestImage` 已返回解析后的对象；使用它后也不要再对结果调用 `.json()`/`.text()`。
+
+示例现在区分 `BODY_ALREADY_CONSUMED`（此前已读取）、`BODY_LOCKED`（流被其他读取器锁住）、`READ_RESPONSE_FAILED`（读取中断）和 `INVALID_JSON_RESPONSE`（读取后解析失败）。8 项示例测试通过。此改动仅更新外部接入文件，不表示已修改客户程序，也不需要重启服务器。若客户仍报错，需要检查其 fetch 到响应解析的实际代码。

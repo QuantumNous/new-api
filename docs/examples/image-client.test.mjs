@@ -33,3 +33,24 @@ test('network failure sends the paid request only once', async (context) => {
   await assert.rejects(requestImage('https://example.test/v1/images/generations', 'test-only', { prompt: 'test' }), { code: 'NETWORK_ERROR', autoRetry: false })
   assert.equal(count, 1)
 })
+
+test('an already consumed response is reported as a client integration error', async () => {
+  const response = Response.json({ data: [] })
+  await response.json()
+  await assert.rejects(readImageResponse(response), { code: 'BODY_ALREADY_CONSUMED', autoRetry: false })
+})
+
+test('a locked response is distinguished from invalid JSON', async () => {
+  const response = Response.json({ data: [] })
+  const reader = response.body.getReader()
+  try {
+    await assert.rejects(readImageResponse(response), { code: 'BODY_LOCKED', autoRetry: false })
+  } finally {
+    reader.releaseLock()
+  }
+})
+
+test('a failed stream read is not reported as a JSON syntax error', async () => {
+  const response = new Response(new ReadableStream({ start(controller) { controller.error(new Error('stream failed')) } }), { headers: { 'Content-Type': 'application/json' } })
+  await assert.rejects(readImageResponse(response), { code: 'READ_RESPONSE_FAILED', autoRetry: false })
+})
