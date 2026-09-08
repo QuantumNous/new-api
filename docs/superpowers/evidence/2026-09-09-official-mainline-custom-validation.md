@@ -9,7 +9,7 @@ Validation base HEAD: `fd1425231`
 - `git diff --check`: PASS.
 - Conflict marker scan: no merge markers; matches in documentation and decorative `====` comments only.
 - `go vet ./...`: PASS.
-- `go test ./...`: initially exposed a regression in `TestUpdateChannel_NonRootResponseOmitsActual`; fixed by clearing `ActualBaseURL` after persistence reload and before non-root JSON response. Re-run targeted test PASS. Full suite packages otherwise passed; the initial command exited 1 solely on that regression.
+- `go test ./...`: initially exposed a regression in `TestUpdateChannel_NonRootResponseOmitsActual`; fixed by clearing `ActualBaseURL` after persistence reload and before non-root JSON response. Re-run targeted test `go test ./tests/controller -run ^TestUpdateChannel_NonRootResponseOmitsActual$ -count=1` PASS (uncached; test source is `tests/controller/channel_perm_test.go`). Full suite packages otherwise passed; the initial command exited 1 solely on that regression.
 - `gofmt -w controller/channel.go`: PASS.
 - Nested module: `cd relaykit && go test ./...`: PASS.
 
