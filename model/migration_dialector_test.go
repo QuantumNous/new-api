@@ -127,6 +127,39 @@ func TestMigrationSchemaStability(t *testing.T) {
 				}
 			})
 
+			t.Run("model_cost_fx_schema", func(t *testing.T) {
+				t.Cleanup(func() { _ = db.Migrator().DropTable(&ModelCostFXRow{}) })
+				require.NoError(t, db.AutoMigrate(&ModelCostFXRow{}))
+				row := ModelCostFXRow{
+					Source:      "cbr",
+					EffectiveAt: 1_725_000_000,
+					FetchedAt:   1_725_000_123,
+					Version:     7,
+					RatesJSON:   `{"USD":90,"EUR":98.5}`,
+				}
+				require.NoError(t, db.Create(&row).Error)
+				assert.Error(t, db.Create(&ModelCostFXRow{Source: row.Source}).Error)
+
+				columns, err := db.Migrator().ColumnTypes(&ModelCostFXRow{})
+				require.NoError(t, err)
+				columnTypes := make(map[string]string, len(columns))
+				for _, column := range columns {
+					columnTypes[column.Name()] = strings.ToLower(column.DatabaseTypeName())
+				}
+				assert.Equal(t, "text", columnTypes["rates_json"])
+				assert.Contains(t, columnTypes["effective_at"], "int")
+				assert.Contains(t, columnTypes["fetched_at"], "int")
+				assert.Contains(t, columnTypes["version"], "int")
+
+				recorder.reset()
+				require.NoError(t, db.AutoMigrate(&ModelCostFXRow{}))
+				assert.Empty(t, recorder.schemaMutations())
+
+				var saved ModelCostFXRow
+				require.NoError(t, db.First(&saved, "source = ?", row.Source).Error)
+				assert.Equal(t, row, saved)
+			})
+
 			t.Run("unique_constraint_changes", func(t *testing.T) {
 				const table = "migration_constraint_test"
 				t.Cleanup(func() { _ = db.Migrator().DropTable(table) })

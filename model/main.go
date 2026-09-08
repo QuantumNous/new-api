@@ -366,6 +366,7 @@ func migrateDB() error {
 		&SystemInstance{},
 		&SystemTask{},
 		&SystemTaskLock{},
+		&ModelCostFXRow{},
 		&CasbinRule{},
 		&AuthzRole{},
 	)
