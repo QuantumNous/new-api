@@ -36,3 +36,7 @@ The protected `new-api` and `QuantumNous` identifiers remain present in module p
 ## Working tree and commit
 
 The only integration fix is the non-root response redaction guard in `controller/channel.go`. This report and the baseline evidence update are included in the validation commit. No main branch update, push, PR, or deployment was performed.
+
+## Correction evidence
+
+A subsequent uncached `go test ./... -count=1` run reached all packages but failed in the pre-existing/flaky `service/TestRedeemCodeQuotaZeroResultIncludesQuotaField` redemption fixture (`redemption failed: redeem.failed`); the controller regression test remains green. This failure is retained as an open gate and was not changed by Task 11.
