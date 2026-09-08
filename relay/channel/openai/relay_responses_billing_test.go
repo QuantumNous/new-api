@@ -265,3 +265,88 @@ func TestOaiResponsesStreamHandlerDoesNotCountPartialImageEvent(t *testing.T) {
 
 	assert.Equal(t, 0, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration].CallCount)
 }
+
+func runResponsesBillableOutputMarkerStream(t *testing.T, events ...string) bool {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldTimeout
+	})
+
+	var body strings.Builder
+	for _, event := range events {
+		body.WriteString("data: ")
+		body.WriteString(event)
+		body.WriteString("\n\n")
+	}
+	body.WriteString("data: [DONE]\n\n")
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	info := &relaycommon.RelayInfo{
+		IsStream:        true,
+		OriginModelName: "gpt-5.1",
+		DisablePing:     true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gpt-5.1",
+		},
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body.String())),
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+
+	_, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	return common.GetContextKeyBool(c, constant.ContextKeyResponsesBillableStreamOutput)
+}
+
+func TestOaiResponsesStreamHandlerMarksBillableDeltaOutput(t *testing.T) {
+	marked := runResponsesBillableOutputMarkerStream(
+		t,
+		`{"type":"response.function_call_arguments.delta","delta":"{\"query\":\"status\"}"}`,
+	)
+
+	assert.True(t, marked)
+}
+
+func TestOaiResponsesStreamHandlerMarksCompletedResponseOutput(t *testing.T) {
+	marked := runResponsesBillableOutputMarkerStream(
+		t,
+		`{"type":"response.completed","response":{"status":"completed","output":[{"type":"message","role":"assistant","content":[]}]}}`,
+	)
+
+	assert.True(t, marked)
+}
+
+func TestOaiResponsesStreamHandlerClearsBillableOutputOnFailedTerminalEvent(t *testing.T) {
+	marked := runResponsesBillableOutputMarkerStream(
+		t,
+		`{"type":"response.function_call_arguments.delta","delta":"{\"query\":\"partial\"}"}`,
+		`{"type":"response.failed","response":{"status":"failed"}}`,
+	)
+
+	assert.False(t, marked)
+}
+
+func TestOaiResponsesStreamHandlerDoesNotMarkIncompleteCompletedResponse(t *testing.T) {
+	marked := runResponsesBillableOutputMarkerStream(
+		t,
+		`{"type":"response.completed","response":{"status":"incomplete","output":[{"type":"message","role":"assistant","content":[]}]}}`,
+	)
+
+	assert.False(t, marked)
+}
+
+func TestOaiResponsesStreamHandlerDoesNotMarkMetadataOnlyStream(t *testing.T) {
+	marked := runResponsesBillableOutputMarkerStream(
+		t,
+		`{"type":"response.created","response":{"status":"in_progress"}}`,
+	)
+
+	assert.False(t, marked)
+}

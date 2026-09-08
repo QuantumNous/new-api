@@ -486,6 +486,111 @@ func TestCacheWriteTokensTotal(t *testing.T) {
 	})
 }
 
+func newMissingResponsesUsageContext(markBillableOutput bool) *gin.Context {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyResponsesBillableStreamOutput, markBillableOutput)
+	return ctx
+}
+
+func newMissingResponsesUsageRelayInfo() *relaycommon.RelayInfo {
+	return &relaycommon.RelayInfo{
+		IsStream:              true,
+		RelayFormat:           types.RelayFormatOpenAIResponses,
+		OriginModelName:       "gpt-5.1",
+		FinalPreConsumedQuota: 5000,
+		PriceData: hosttypes.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 1,
+			GroupRatioInfo:  hosttypes.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+}
+
+func TestCalculateTextQuotaSummaryKeepsPreConsumedQuotaForBillableResponsesOutput(t *testing.T) {
+	ctx := newMissingResponsesUsageContext(true)
+	relayInfo := newMissingResponsesUsageRelayInfo()
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	assert.Zero(t, summary.TotalTokens)
+	assert.Equal(t, 5000, summary.Quota)
+	assert.True(t, summary.MissingUsageFallback)
+}
+
+func TestCalculateTextQuotaSummaryRefundsMissingUsageWithoutBillableOutput(t *testing.T) {
+	ctx := newMissingResponsesUsageContext(false)
+	relayInfo := newMissingResponsesUsageRelayInfo()
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	assert.Zero(t, summary.Quota)
+	assert.False(t, summary.MissingUsageFallback)
+}
+
+func TestCalculateTextQuotaSummaryActualUsageOverridesMissingUsageFallback(t *testing.T) {
+	ctx := newMissingResponsesUsageContext(true)
+	relayInfo := newMissingResponsesUsageRelayInfo()
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 20,
+	})
+
+	assert.Equal(t, 120, summary.TotalTokens)
+	assert.Equal(t, 120, summary.Quota)
+	assert.False(t, summary.MissingUsageFallback)
+}
+
+func TestCalculateTextQuotaSummaryDoesNotApplyMissingUsageFallbackToOtherFormats(t *testing.T) {
+	ctx := newMissingResponsesUsageContext(true)
+	relayInfo := newMissingResponsesUsageRelayInfo()
+	relayInfo.RelayFormat = types.RelayFormatOpenAI
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	assert.Zero(t, summary.Quota)
+	assert.False(t, summary.MissingUsageFallback)
+}
+
+func TestCalculateTextQuotaSummaryUsesBillingSessionReservationAsAuthoritative(t *testing.T) {
+	ctx := newMissingResponsesUsageContext(true)
+	relayInfo := newMissingResponsesUsageRelayInfo()
+	relayInfo.Billing = &recordingBillingSettler{}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+
+	assert.Zero(t, summary.Quota)
+	assert.False(t, summary.MissingUsageFallback)
+}
+
+func TestCalculateTextQuotaSummaryAddsObservedToolSurchargeToMissingUsageFallback(t *testing.T) {
+	operation_setting.SetToolPriceForTest(dto.BuildInToolWebSearchPreview, 5)
+	t.Cleanup(func() {
+		operation_setting.DeleteToolPriceForTest(dto.BuildInToolWebSearchPreview)
+	})
+
+	ctx := newMissingResponsesUsageContext(true)
+	relayInfo := newMissingResponsesUsageRelayInfo()
+	relayInfo.ResponsesUsageInfo = &relaycommon.ResponsesUsageInfo{
+		BuiltInTools: map[string]*relaycommon.BuildInToolInfo{
+			dto.BuildInToolWebSearchPreview: {
+				ToolName:  dto.BuildInToolWebSearchPreview,
+				CallCount: 1,
+			},
+		},
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+	expectedSurcharge := common.QuotaFromDecimal(decimal.NewFromFloat(5).
+		Div(decimal.NewFromInt(1000)).
+		Mul(decimal.NewFromFloat(common.QuotaPerUnit)))
+
+	assert.Equal(t, 5000+expectedSurcharge, summary.Quota)
+	assert.True(t, summary.MissingUsageFallback)
+}
+
 func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
