@@ -3,24 +3,82 @@ package helper
 import (
 	"errors"
 	"fmt"
+	"strings"
 
-	rootcommon "github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	hostreasoning "github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/gin-gonic/gin"
 )
 
+// stripPerChannelModelPrefix removes the per-channel model prefix from a model name if present.
+// This is used because the frontend prepends the channel's model_prefix when saving models
+// (e.g., "dashscope/gpt-4" when prefix is "dashscope" and model is "gpt-4"),
+// but the upstream API expects the model name without the prefix.
+func stripPerChannelModelPrefix(modelName string, prefix string) string {
+	if prefix == "" {
+		return modelName
+	}
+	prefixWithSlash := prefix + "/"
+	if strings.HasPrefix(modelName, prefixWithSlash) {
+		return modelName[len(prefixWithSlash):]
+	}
+	return modelName
+}
+
+// StripModelPrefixFromBody strips the per-channel model prefix from the "model"
+// field in a JSON request body. This is used in passthrough mode where the body
+// is forwarded raw — the "model" value still carries the prefix that the frontend
+// prepends (e.g. "dashscope/gpt-4") but upstream APIs expect the unprefixed name.
+//
+// Trade-off: the entire body is re-marshaled, so JSON field order and formatting
+// may change. This is acceptable because upstream parsers care about values, not
+// byte-level fidelity.
+func StripModelPrefixFromBody(body []byte, prefix string) ([]byte, error) {
+	if prefix == "" {
+		return body, nil
+	}
+
+	var parsed map[string]any
+	if err := common.Unmarshal(body, &parsed); err != nil {
+		return body, nil
+	}
+
+	modelVal, ok := parsed["model"]
+	if !ok {
+		return body, nil
+	}
+	modelStr, ok := modelVal.(string)
+	if !ok {
+		return body, nil
+	}
+
+	parsed["model"] = stripPerChannelModelPrefix(modelStr, prefix)
+	return common.Marshal(parsed)
+}
+
 func ModelMappedHelper(c *gin.Context, info *relaycommon.RelayInfo, request dto.Request) error {
 	if info.ChannelMeta == nil {
 		info.ChannelMeta = &relaycommon.ChannelMeta{}
+	}
+
+	// Strip per-channel model prefix from the upstream model name.
+	// The frontend prepends the channel's model_prefix when saving models,
+	// but the upstream API expects the model name without the prefix.
+	prefix := info.ChannelOtherSettings.ModelPrefix
+	if prefix != "" {
+		info.UpstreamModelName = stripPerChannelModelPrefix(
+			info.UpstreamModelName,
+			prefix,
+		)
 	}
 
 	// map model name
 	modelMapping := c.GetString("model_mapping")
 	if modelMapping != "" && modelMapping != "{}" {
 		modelMap := make(map[string]string)
-		err := rootcommon.Unmarshal([]byte(modelMapping), &modelMap)
+		err := common.Unmarshal([]byte(modelMapping), &modelMap)
 		if err != nil {
 			return fmt.Errorf("unmarshal_model_mapping_failed")
 		}
@@ -41,8 +99,10 @@ func ModelMappedHelper(c *gin.Context, info *relaycommon.RelayInfo, request dto.
 				if visitedModels[mappedModel] {
 					if mappedModel == currentModel {
 						if currentModel == info.OriginModelName {
+							// Identity self-cycle: prefix was already stripped above,
+							// so just ensure request gets the normalized name.
 							info.IsModelMapped = false
-							return nil
+							break
 						}
 
 						info.IsModelMapped = true
@@ -58,6 +118,10 @@ func ModelMappedHelper(c *gin.Context, info *relaycommon.RelayInfo, request dto.
 			}
 		}
 		if info.IsModelMapped {
+			// Also strip prefix from mapped model name
+			if prefix != "" {
+				currentModel = stripPerChannelModelPrefix(currentModel, prefix)
+			}
 			info.UpstreamModelName = currentModel
 		}
 	}
