@@ -27,3 +27,9 @@ Status: PARTIAL
 `actual_base_url` is now independently gated by the super-admin role. Users with `SENSITIVE_WRITE` may continue editing the existing sensitive fields, but cannot submit or clear `actual_base_url`. Regression coverage includes sensitive-write/non-super-admin and super-admin cases.
 
 Follow-up validation: typecheck passed; focused authz test passed; changed-file oxlint passed; production build passed; `git diff --check` passed.
+
+## Final review scope
+
+The custom Agent and Agent Admin feature modules and their API/query/type layers have been copied into the official `web/src/features` architecture. They currently require route-tree registration and integration with the official navigation/access configuration before release. The custom usage-ranking screen consuming `/api/log/ranking` likewise remains pending; the existing official `/api/rankings` public page is a separate feature.
+
+Validation after feature import: typecheck passed, focused sensitive-field test passed, and production build passed. Full frontend test suite and route-tree generation remain integration-gate work.
