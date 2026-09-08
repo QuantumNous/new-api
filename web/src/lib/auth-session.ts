@@ -22,6 +22,10 @@ import { t } from 'i18next'
 
 import { publishAuthSessionEvent } from '@/lib/auth-session-sync'
 import {
+  installJsonResponseGuard,
+  NON_JSON_RESPONSE,
+} from '@/lib/json-response-guard'
+import {
   useAuthStore,
   type AuthBootstrapState,
   type AuthBundle,
@@ -73,6 +77,7 @@ const authClient = axios.create({
     'Cache-Control': 'no-store',
   },
 })
+installJsonResponseGuard(authClient)
 
 const refreshRaceDelays = [80, 200, 500] as const
 let refreshPromise: Promise<RefreshOutcome> | null = null
@@ -286,7 +291,8 @@ async function requestRefresh(
   } catch (error: unknown) {
     if (!axios.isAxiosError(error)) return { status: 0, error }
     return {
-      status: error.response?.status ?? 0,
+      status:
+        error.code === NON_JSON_RESPONSE ? 0 : (error.response?.status ?? 0),
       data: error.response?.data,
       error,
     }

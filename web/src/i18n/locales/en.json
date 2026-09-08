@@ -1,5 +1,6 @@
 {
   "translation": {
+    "The service is temporarily unavailable or returned invalid data. Check task history before resubmitting image requests.": "The service is temporarily unavailable or returned invalid data. Check task history before resubmitting image requests.",
     "This price applies to the agent personally and initially to historical customers. Generated links keep their own prices.": "This price applies to the agent personally and initially to historical customers. Generated links keep their own prices.",
     "Enter an HTTPS account site URL": "Enter an HTTPS account site URL",
     "Enter a positive upstream user ID": "Enter a positive upstream user ID",

@@ -25,6 +25,10 @@ import {
   clearAuthentication,
   refreshAuthentication,
 } from '@/lib/auth-session'
+import {
+  installJsonResponseGuard,
+  NON_JSON_RESPONSE,
+} from '@/lib/json-response-guard'
 import { getServerErrorMessageKey } from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -48,6 +52,10 @@ export const api = axios.create({
     'Cache-Control': 'no-store',
   },
 })
+
+// Install before business/auth interceptors so HTML never looks like a login
+// rejection or a successful drawing submission.
+installJsonResponseGuard(api)
 
 const inFlightGet = new Map<string, Promise<unknown>>()
 const originalGet = api.get.bind(api)
@@ -102,7 +110,7 @@ api.interceptors.response.use(
     const skipErrorHandler = config?.skipErrorHandler
     const status = error?.response?.status
 
-    if (status === 401) {
+    if (status === 401 && error?.code !== NON_JSON_RESPONSE) {
       if (config && !config.skipAuthRefresh && !config.authRetry) {
         config.authRetry = true
         const outcome = await refreshAuthentication()

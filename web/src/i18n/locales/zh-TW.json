@@ -1,5 +1,6 @@
 {
   "translation": {
+    "The service is temporarily unavailable or returned invalid data. Check task history before resubmitting image requests.": "服務暫時無法使用或回傳異常。生圖請求請先查看任務紀錄，再決定是否重新提交。",
     "360": "360",
     "1000": "1000",
     "10000": "10000",
