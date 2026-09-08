@@ -5,6 +5,6 @@ export const Route = createFileRoute('/_authenticated/agents')({ component: Agen
 function AgentsRoute() {
   const access = useAgentAccess()
   if (access.isPending) return null
-  if (!access.data?.allowed) throw redirect({ to: '/' })
+  if (!access.hasAccess) throw redirect({ to: '/' })
   return <AgentWorkspace search={{ tab: 'overview', p: 1 }} initialOverview={{} as never} onSearchChange={() => undefined} />
 }
