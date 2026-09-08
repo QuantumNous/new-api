@@ -33,3 +33,9 @@ Follow-up validation: typecheck passed; focused authz test passed; changed-file 
 The custom Agent and Agent Admin feature modules and their API/query/type layers have been copied into the official `web/src/features` architecture. They currently require route-tree registration and integration with the official navigation/access configuration before release. The custom usage-ranking screen consuming `/api/log/ranking` likewise remains pending; the existing official `/api/rankings` public page is a separate feature.
 
 Validation after feature import: typecheck passed, focused sensitive-field test passed, and production build passed. Full frontend test suite and route-tree generation remain integration-gate work.
+
+## Route and ranking integration
+
+Registered authenticated `/agents` and `/agent-admin` routes and added `/usage-ranking`, which consumes root-only `/api/log/ranking` without replacing the public `/api/rankings` page. Route-tree generation occurred during `bun run build`.
+
+Final follow-up validation: `bun run typecheck` and production build passed. Existing imported custom tests using `node:test` are incompatible with the browser Vitest environment and fail before executing; this is recorded as a pre-existing migration issue.
