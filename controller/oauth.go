@@ -515,7 +515,10 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 			return nil, err
 		}
 
-		// Perform post-transaction tasks (logs, sidebar config, inviter rewards)
+		// Bind affiliate customers after the user/OAuth transaction commits. The
+		// binding is intentionally non-fatal: registration must not be rolled back
+		// when an inviter is invalid or disabled.
+		bindOAuthCustomerToAgent(user, inviterId)
 		user.FinalizeOAuthUserCreation(inviterId)
 	} else {
 		// Built-in provider: create user and update provider ID in a transaction
@@ -544,11 +547,20 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 			return nil, err
 		}
 
-		// Perform post-transaction tasks
+		bindOAuthCustomerToAgent(user, inviterId)
 		user.FinalizeOAuthUserCreation(inviterId)
 	}
 
 	return user, nil
+}
+
+func bindOAuthCustomerToAgent(user *model.User, inviterID int) {
+	if user == nil || user.Id <= 0 || inviterID <= 0 {
+		return
+	}
+	if _, err := service.TryBindUserToAgent(user.Id, inviterID); err != nil {
+		common.SysLog(fmt.Sprintf("failed to bind OAuth customer %d to agent %d: %v", user.Id, inviterID, err))
+	}
 }
 
 // Error types for OAuth

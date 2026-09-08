@@ -17,3 +17,5 @@ go test ./controller ./service -run 'TopUp|Register|Agent|Redemption|Refund' -co
 The full Task 7 controller selector also exercises pre-existing audit/token tests and currently reports unrelated baseline failures in those tests; no new production compile failures remain in the focused packages. Three-database integration verification was not available in this worktree, so database compatibility remains unverified.
 
 OAuth registration/login binding hooks and frontend routes are intentionally deferred to their official security flow and Task 10 integration; no rankings or `actual_base_url` work is included.
+
+OAuth generic and built-in provider registration now performs the same post-commit, non-fatal affiliate-agent binding as password registration. Existing-user login and account-binding flows are unchanged.
