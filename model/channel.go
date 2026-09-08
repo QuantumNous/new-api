@@ -623,51 +623,6 @@ func (channel *Channel) Update() error {
 	return err
 }
 
-// UpdateWithOmit 与 Update 行为一致，但允许指定不参与写入的列（用于非 Root 屏蔽 ActualBaseURL 写入）。
-func (channel *Channel) UpdateWithOmit(omits ...string) error {
-	if channel.ChannelInfo.IsMultiKey {
-		var keyStr string
-		if channel.Key != "" {
-			keyStr = channel.Key
-		} else if existing, err := GetChannelById(channel.Id, true); err == nil {
-			keyStr = existing.Key
-		}
-		keys := []string{}
-		if keyStr != "" {
-			trimmed := strings.TrimSpace(keyStr)
-			if strings.HasPrefix(trimmed, "[") {
-				var arr []json.RawMessage
-				if err := common.Unmarshal([]byte(trimmed), &arr); err == nil {
-					keys = make([]string, len(arr))
-					for i, v := range arr {
-						keys[i] = string(v)
-					}
-				}
-			}
-			if len(keys) == 0 {
-				keys = strings.Split(strings.Trim(keyStr, "\n"), "\n")
-			}
-		}
-		channel.ChannelInfo.MultiKeySize = len(keys)
-		if channel.ChannelInfo.MultiKeyStatusList != nil {
-			for idx := range channel.ChannelInfo.MultiKeyStatusList {
-				if idx >= channel.ChannelInfo.MultiKeySize {
-					delete(channel.ChannelInfo.MultiKeyStatusList, idx)
-				}
-			}
-		}
-	}
-	tx := DB.Model(channel)
-	if len(omits) > 0 {
-		tx = tx.Omit(omits...)
-	}
-	if err := tx.Updates(channel).Error; err != nil {
-		return err
-	}
-	DB.Model(channel).First(channel, "id = ?", channel.Id)
-	return channel.UpdateAbilities(nil)
-}
-
 func (channel *Channel) UpdateResponseTime(responseTime int64) {
 	err := DB.Model(channel).Select("response_time", "test_time").Updates(Channel{
 		TestTime:     common.GetTimestamp(),
