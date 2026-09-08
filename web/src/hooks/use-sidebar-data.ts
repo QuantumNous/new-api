@@ -99,6 +99,21 @@ export function useSidebarData(): SidebarData {
             icon: ClipboardList,
           },
           {
+            title: t('Usage ranking'),
+            url: '/usage-ranking',
+            icon: ListTodo,
+          },
+          {
+            title: t('Agent workspace'),
+            url: '/agents',
+            icon: Users,
+          },
+          {
+            title: t('Agent management'),
+            url: '/agent-admin',
+            icon: ServerCog,
+          },
+          {
             title: t('Task Logs'),
             url: '/usage-logs/task',
             activeUrls: ['/usage-logs/drawing'],
