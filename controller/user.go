@@ -289,6 +289,11 @@ func Register(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if inviterId > 0 {
+		if _, bindErr := service.TryBindUserToAgent(cleanUser.Id, inviterId); bindErr != nil {
+			common.SysLog(fmt.Sprintf("failed to bind registered customer %d to agent %d: %v", cleanUser.Id, inviterId, bindErr))
+		}
+	}
 
 	// 获取插入后的用户ID
 	var insertedUser model.User
@@ -1251,17 +1256,21 @@ func TopUp(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	quota, err := model.Redeem(req.Key, id)
+	result, err := service.RedeemCode(id, req.Key)
 	if err != nil {
 		// 不向用户暴露兑换失败的细分原因，避免攻击者根据错误类型判断兑换码状态。
 		common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
 		logger.LogError(c, fmt.Sprintf("failed to redeem key %s for user %d: %s", req.Key, id, err.Error()))
 		return
 	}
+	data := any(result)
+	if result.Type == service.RedemptionResultTypeQuota && result.Quota != nil {
+		data = *result.Quota
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    quota,
+		"data":    data,
 	})
 }
 

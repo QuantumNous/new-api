@@ -103,6 +103,11 @@ func RefundAgentCodes(c *gin.Context) {
 		writeAgentError(c, err)
 		return
 	}
+	recordManageAuditFor(c, userID, "agent.refund", map[string]any{
+		"agent_user_id": userID, "request_id": result.RequestID, "redemption_ids": result.RedemptionIDs,
+		"fee": service.FormatAgentPoints(result.Fee), "refunded": service.FormatAgentPoints(result.Refunded),
+		"balance_after": service.FormatAgentPoints(result.BalanceAfter), "idempotency_key": request.IdempotencyKey,
+	})
 	common.ApiSuccess(c, agentRefundResponse(result))
 }
 
