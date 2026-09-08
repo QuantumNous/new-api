@@ -489,6 +489,12 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	if affiliateCode != "" {
 		inviterId, _ = model.GetUserIdByAffCode(affiliateCode)
 	}
+	// Persist the affiliate relationship on the OAuth-created user. InsertWithTx
+	// deliberately only normalizes and inserts the supplied model, so this must
+	// be set before entering either provider transaction.
+	if inviterId > 0 {
+		user.InviterId = inviterId
+	}
 
 	// Use transaction to ensure user creation and OAuth binding are atomic
 	if genericProvider, ok := provider.(*oauth.GenericOAuthProvider); ok {
