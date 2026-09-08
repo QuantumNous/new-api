@@ -58,6 +58,11 @@ export function useTopNavLinks(): TopNavLink[] {
   // Documentation link (may be external)
   const docsLink: string | undefined = status?.docs_link as string | undefined
 
+  // Canvas SSO URL (only present when backend has CANVAS_SSO_SECRET configured)
+  const canvasSSOUrl: string | undefined = status?.canvas_sso_url as
+    | string
+    | undefined
+
   const isAuthed = !!auth?.user
 
   const links: TopNavLink[] = []
@@ -98,6 +103,16 @@ export function useTopNavLinks(): TopNavLink[] {
   // About
   if (modules?.about !== false) {
     links.push({ title: t('About'), href: '/about' })
+  }
+
+  // Canvas (SSO relay page: fetches a short-lived token with the auth header
+  // and redirects to infinite-canvas; a direct link cannot carry the token)
+  if (modules?.canvas !== false && canvasSSOUrl) {
+    links.push({
+      title: t('Canvas'),
+      href: '/canvas-sso',
+      requiresAuth: !isAuthed,
+    })
   }
 
   return links

@@ -125,6 +125,11 @@ func GetStatus(c *gin.Context) {
 		"checkin_enabled":             operation_setting.GetCheckinSetting().Enabled,
 	}
 
+	// Canvas SSO: only expose when configured
+	if common.CanvasSSOSecret != "" && common.CanvasBaseURL != "" {
+		data["canvas_sso_url"] = "/api/user/canvas-sso"
+	}
+
 	// 根据启用状态注入可选内容
 	if cs.ApiInfoEnabled {
 		data["api_info"] = console_setting.GetApiInfo()

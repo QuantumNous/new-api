@@ -121,6 +121,10 @@ var TurnstileSecretKey = ""
 var TelegramBotToken = ""
 var TelegramBotName = ""
 
+// Canvas SSO integration
+var CanvasSSOSecret = ""
+var CanvasBaseURL = ""
+
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
