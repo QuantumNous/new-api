@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -125,6 +126,55 @@ func GetLogsStat(c *gin.Context) {
 		},
 	})
 	return
+}
+
+func GetUsageRanking(c *gin.Context) {
+	now := time.Now()
+	query := model.UsageRankingQuery{StartTimestamp: time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).Unix(), EndTimestamp: now.Add(time.Hour).Unix(), ModelName: c.Query("model_name"), Group: c.Query("group"), SortBy: c.Query("sort_by"), Page: 1, PageSize: 20}
+	if value := c.Query("start_timestamp"); value != "" {
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || parsed < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid start_timestamp"})
+			return
+		}
+		query.StartTimestamp = parsed
+	}
+	if value := c.Query("end_timestamp"); value != "" {
+		parsed, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || parsed < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid end_timestamp"})
+			return
+		}
+		query.EndTimestamp = parsed
+	}
+	if query.EndTimestamp < query.StartTimestamp {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "end_timestamp must not be earlier than start_timestamp"})
+		return
+	}
+	if value := c.Query("channel"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid channel"})
+			return
+		}
+		query.ChannelID = parsed
+	}
+	if value := c.Query("p"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			query.Page = parsed
+		}
+	}
+	if value := c.Query("page_size"); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+			query.PageSize = min(parsed, 100)
+		}
+	}
+	result, err := model.GetUsageRanking(query)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"items": result.Items, "total": result.Total, "page": query.Page, "page_size": query.PageSize, "summary": result.Summary})
 }
 
 func GetLogsSelfStat(c *gin.Context) {
