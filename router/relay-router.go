@@ -89,6 +89,14 @@ func SetRelayRouter(router *gin.Engine) {
 	relayV1Router.Use(middleware.SystemPerformanceCheck())
 	relayV1Router.Use(middleware.TokenAuth())
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
+	// Durable image tasks use normal API-key auth at submission and isolated
+	// background relay execution. Polling also works after quota is exhausted.
+	imageTasks := router.Group("/v1/images/tasks")
+	imageTasks.Use(middleware.RouteTag("relay"))
+	imageTasks.POST("", middleware.SystemPerformanceCheck(), middleware.TokenAuth(), controller.CreateAPIImageTask)
+	imageTasks.GET("/:id", middleware.TokenAuthReadOnly(), controller.GetAPIImageTask)
+	imageTasks.GET("/:id/result", middleware.TokenAuthReadOnly(), controller.GetAPIImageTask)
+	imageTasks.GET("/by-submission/:submission", middleware.TokenAuthReadOnly(), controller.GetAPIImageTask)
 	{
 		// WebSocket 路由（统一到 Relay）
 		wsRouter := relayV1Router.Group("")

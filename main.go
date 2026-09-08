@@ -154,6 +154,7 @@ func main() {
 		common.FatalLog("failed to start drawing queue: " + err.Error())
 		return
 	}
+	controller.StartAPIImageWorker()
 
 	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
 		common.BatchUpdateEnabled = true
