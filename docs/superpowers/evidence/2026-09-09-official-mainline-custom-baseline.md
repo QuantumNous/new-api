@@ -116,3 +116,7 @@ accepted.
   downstream conflict acceptance must use the captured values above.
 - No production deployment, production database write, or customer data access
   occurred.
+
+Task 11 integration validation (2026-09-09) is recorded in
+`2026-09-09-official-mainline-custom-validation.md`; database and staging
+gates remain open where no local services or DSNs were available.

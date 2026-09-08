@@ -1180,6 +1180,11 @@ func UpdateChannel(c *gin.Context) {
 	recordManageAudit(c, "channel.update", updateAudit)
 	channel.Key = ""
 	clearChannelInfo(&channel.Channel)
+	if nonRoot {
+		// UpdateWithOmit may reload the persisted row; never expose the
+		// privileged upstream URL in a non-root response.
+		channel.ActualBaseURL = nil
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
