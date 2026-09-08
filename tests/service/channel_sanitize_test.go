@@ -38,3 +38,17 @@ func TestSanitizeWithPair_NoPanicOnUnparseableURL(t *testing.T) {
 		service.SanitizeWithPair("https://real.host.com", "http://y:zzz", "err from https://real.host.com")
 	})
 }
+
+func TestSanitizeWithPairAlwaysRedactsCredentials(t *testing.T) {
+	cases := []string{
+		"Bearer secret-token-123",
+		"api_key=sk-secret-123456789",
+		"https://bad:abc/path Bearer leak",
+	}
+	for _, in := range cases {
+		out := service.SanitizeWithPair("https://same.example", "https://same.example", in)
+		assert.NotContains(t, out, "secret-token-123")
+		assert.NotContains(t, out, "sk-secret-123456789")
+		assert.NotContains(t, out, "Bearer leak")
+	}
+}

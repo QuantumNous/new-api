@@ -23,6 +23,10 @@ func SanitizeForChannel(channelID int, msg string) string {
 
 // SanitizeWithPair 用于已持有 (actual, display) 的热路径（如中继错误返回），免一次缓存查询。
 func SanitizeWithPair(actual, display, msg string) string {
+	return redactCredentials(sanitizeWithPairURL(actual, display, msg))
+}
+
+func sanitizeWithPairURL(actual, display, msg string) string {
 	if msg == "" || actual == "" || actual == display {
 		return msg
 	}
@@ -41,7 +45,7 @@ func SanitizeWithPair(actual, display, msg string) string {
 	if transformedActual != display {
 		return strings.ReplaceAll(hostReplaced, transformedActual, display)
 	}
-	return redactCredentials(hostReplaced)
+	return hostReplaced
 }
 
 var sensitiveCredentialRE = regexp.MustCompile(`(?i)(Bearer\s+|api[-_ ]?key[=: ]+|sk-[A-Za-z0-9_-]{8,})[^\s,;]+`)
