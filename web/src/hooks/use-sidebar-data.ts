@@ -113,6 +113,7 @@ export function useSidebarData(): SidebarData {
             title: t('Agent management'),
             url: '/agent-admin',
             icon: ServerCog,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Task Logs'),
