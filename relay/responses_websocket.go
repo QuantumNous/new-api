@@ -4,14 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
+	appdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	appmodel "github.com/QuantumNous/new-api/model"
@@ -19,10 +18,11 @@ import (
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
-	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -49,10 +49,11 @@ type responsesWSErrorEvent struct {
 }
 
 type responsesWSCallState struct {
-	info       *relaycommon.RelayInfo
-	usage      *dto.Usage
-	outputText strings.Builder
-	commitRate middleware.ModelRequestRateLimitCommit
+	info         *relaycommon.RelayInfo
+	usage        *dto.Usage
+	outputText   strings.Builder
+	commitRate   middleware.ModelRequestRateLimitCommit
+	imageCounter relaycommon.ImageGenerationCallCounter
 }
 
 type responsesWSSession struct {
@@ -191,6 +192,9 @@ func normalizeResponsesWSCreateEvent(message []byte) (responsesWSCreateRequest, 
 	if err := common.Unmarshal(payload, &req); err != nil {
 		return responsesWSCreateRequest{}, event.EventID, err
 	}
+	if helper.ExceedsMaxTokensLimit(req.MaxOutputTokens) {
+		return responsesWSCreateRequest{}, event.EventID, errors.New("max_output_tokens is invalid")
+	}
 	req.Stream = nil
 	req.StreamOptions = nil
 	return responsesWSCreateRequest{
@@ -273,12 +277,17 @@ func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest
 		commitRate(false)
 		return err
 	}
+	service.GetChannelConstraints(s.c).AddFilter(appdto.ChannelFilter{
+		Kind:        appdto.FilterRequestPath,
+		RequestPath: s.c.Request.URL.Path,
+	})
 
 	retryParam := &service.RetryParam{
-		Ctx:        s.c,
-		TokenGroup: common.GetContextKeyString(s.c, appconstant.ContextKeyUsingGroup),
-		ModelName:  req.Model,
-		Retry:      common.GetPointer(0),
+		Ctx:         s.c,
+		TokenGroup:  common.GetContextKeyString(s.c, appconstant.ContextKeyUsingGroup),
+		ModelName:   req.Model,
+		RequestPath: s.c.Request.URL.Path,
+		Retry:       common.GetPointer(0),
 	}
 	if retryParam.TokenGroup == "" {
 		retryParam.TokenGroup = common.GetContextKeyString(s.c, appconstant.ContextKeyTokenGroup)
@@ -597,18 +606,19 @@ func (s *responsesWSSession) observeUpstreamMessage(message []byte) {
 
 	switch streamResponse.Type {
 	case "response.completed", "response.done", "response.incomplete":
-		s.applyTerminalResponseUsage(state, streamResponse.Response)
+		s.applyTerminalResponseUsage(state, streamResponse.Response, streamResponse.Type)
 		s.finishCall(state, true)
 	case "response.failed", "response.cancelled", "response.canceled":
 		s.finishCall(state, false)
 	case "response.output_text.delta":
 		state.outputText.WriteString(streamResponse.Delta)
 	case dto.ResponsesOutputTypeItemDone:
-		if streamResponse.Item != nil && streamResponse.Item.Type == dto.BuildInCallWebSearchCall {
-			if state.info != nil && state.info.ResponsesUsageInfo != nil && state.info.ResponsesUsageInfo.BuiltInTools != nil {
-				if webSearchTool, exists := state.info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolWebSearchPreview]; exists && webSearchTool != nil {
-					webSearchTool.CallCount++
-				}
+		if streamResponse.Item != nil {
+			switch streamResponse.Item.Type {
+			case dto.BuildInCallWebSearchCall, dto.BuildInCallFileSearchCall, dto.BuildInCallFunctionCall:
+				state.info.CountBillableToolCall(streamResponse.Item.Type, streamResponse.Item.Name)
+			case dto.ResponsesOutputTypeImageGenerationCall:
+				state.imageCounter.Observe(streamResponse.Item, streamResponse.OutputIndex)
 			}
 		}
 	case "error":
@@ -616,18 +626,21 @@ func (s *responsesWSSession) observeUpstreamMessage(message []byte) {
 	}
 }
 
-func (s *responsesWSSession) applyTerminalResponseUsage(state *responsesWSCallState, response *dto.OpenAIResponsesResponse) {
-	if state == nil || response == nil {
+func (s *responsesWSSession) applyTerminalResponseUsage(state *responsesWSCallState, response *dto.OpenAIResponsesResponse, eventType string) {
+	if state == nil {
 		return
 	}
-	if response.Usage != nil {
+	if response != nil && response.Usage != nil {
 		service.ApplyResponsesUsage(state.usage, response.Usage)
 	}
-	if response.HasImageGenerationCall() {
-		s.c.Set("image_generation_call", true)
-		s.c.Set("image_generation_call_quality", response.GetQuality())
-		s.c.Set("image_generation_call_size", response.GetSize())
+	if eventType == "response.incomplete" || (response != nil && relaycommon.IsNonBillableResponsesStatus(response.Status)) {
+		state.imageCounter.Reset()
+	} else if response != nil {
+		for i := range response.Output {
+			state.imageCounter.Observe(&response.Output[i], &i)
+		}
 	}
+	state.imageCounter.Commit(state.info)
 }
 
 func (s *responsesWSSession) finishCall(state *responsesWSCallState, success bool) {
@@ -664,8 +677,9 @@ func finalizeResponsesWSUsage(state *responsesWSCallState) {
 	if state.usage.PromptTokens == 0 && state.usage.CompletionTokens != 0 {
 		state.usage.PromptTokens = state.info.GetEstimatePromptTokens()
 	}
-	if state.usage.TotalTokens == 0 {
-		state.usage.TotalTokens = state.usage.PromptTokens + state.usage.CompletionTokens
+	state.usage.TotalTokens = state.usage.PromptTokens + state.usage.CompletionTokens
+	if state.usage.BillingUsage != nil {
+		state.usage.BillingUsage = dto.CloneBillingUsageWithEstimatedCompletion(state.usage.BillingUsage, state.usage.CompletionTokens)
 	}
 }
 
@@ -838,21 +852,20 @@ func checkResponsesWSModelAccess(c *gin.Context, modelName string) *types.NewAPI
 }
 
 func selectResponsesWSChannel(c *gin.Context, modelName string, retryParam *service.RetryParam) (*appmodel.Channel, *types.NewAPIError) {
-	if channelIdRaw, ok := common.GetContextKey(c, appconstant.ContextKeyTokenSpecificChannelId); ok {
-		channelID, ok := channelIdRaw.(string)
-		if !ok {
-			return nil, types.NewErrorWithStatusCode(errors.New("invalid specified channel id"), types.ErrorCodeGetChannelFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	constraints := service.GetChannelConstraints(c)
+	if pin, found, overridden := constraints.ResolvedPin(); found {
+		for _, lost := range overridden {
+			logger.LogWarn(c, fmt.Sprintf("channel pin overridden: winning_source=%s winning_channel_id=%d overridden_source=%s overridden_channel_id=%d", pin.Source, pin.ChannelId, lost.Source, lost.ChannelId))
 		}
-		id, err := strconv.Atoi(channelID)
-		if err != nil {
-			return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeGetChannelFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
-		}
-		channel, err := appmodel.GetChannelById(id, true)
+		channel, err := appmodel.CacheGetChannel(pin.ChannelId)
 		if err != nil {
 			return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeGetChannelFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
 		if channel.Status != common.ChannelStatusEnabled {
 			return nil, types.NewErrorWithStatusCode(errors.New("specified channel is disabled"), types.ErrorCodeGetChannelFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		}
+		if ok, kind := appmodel.ChannelSatisfiesFilters(channel, modelName, constraints.Filters); !ok {
+			return nil, types.NewErrorWithStatusCode(errors.New("specified channel does not satisfy request constraints"), types.ErrorCode(kind), http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
 		if err := middleware.SetupContextForSelectedChannel(c, channel, modelName); err != nil {
 			return nil, err
@@ -868,10 +881,14 @@ func selectResponsesWSChannel(c *gin.Context, modelName string, retryParam *serv
 	if retryParam.GetRetry() == 0 {
 		if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelName, usingGroup); found {
 			preferred, err := appmodel.CacheGetChannel(preferredChannelID)
+			affinitySatisfied := false
 			if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
+				affinitySatisfied, _ = appmodel.ChannelSatisfiesFilters(preferred, modelName, constraints.Filters)
+			}
+			if affinitySatisfied {
 				if usingGroup == "auto" {
 					userGroup := common.GetContextKeyString(c, appconstant.ContextKeyUserGroup)
-					for _, g := range service.GetUserAutoGroup(userGroup) {
+					for _, g := range service.GetRequestAutoGroups(c, userGroup) {
 						if appmodel.IsChannelEnabledForGroupModel(g, modelName, preferred.Id) {
 							common.SetContextKey(c, appconstant.ContextKeyAutoGroup, g)
 							service.MarkChannelAffinityUsed(c, g, preferred.Id)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
@@ -15,9 +16,81 @@ import (
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
+
+func setupRelayChannelDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	previousDB := model.DB
+	previousType := common.MainDatabaseType()
+	previousCache := common.MemoryCacheEnabled
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := database.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, database.AutoMigrate(&model.Channel{}))
+	model.DB = database
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() {
+		model.DB = previousDB
+		common.SetMainDatabaseType(previousType)
+		common.MemoryCacheEnabled = previousCache
+		require.NoError(t, sqlDB.Close())
+	})
+	return database
+}
+
+func TestApplyChannelPinPreservesOriginTasksAndRetryMode(t *testing.T) {
+	database := setupRelayChannelDB(t)
+	channel := &model.Channel{Name: "origin-channel", Key: "sk-test", Status: common.ChannelStatusEnabled, Type: constant.ChannelTypeDoubaoVideo}
+	require.NoError(t, database.Create(channel).Error)
+	originTask := &model.Task{
+		TaskID: "task-lock", ChannelId: channel.Id, Action: "text_to_video", Status: model.TaskStatusSuccess,
+		PrivateData: model.TaskPrivateData{UpstreamTaskID: "upstream-task-lock"},
+		Data:        []byte(`{"id":"upstream-task-lock"}`),
+	}
+
+	for _, tc := range []struct {
+		name     string
+		tokenPin bool
+		apply    func(*gin.Context, *relaycommon.RelayInfo) *dto.TaskError
+	}{
+		{name: "origin affinity", apply: ApplyOriginTaskAffinity},
+		{name: "same channel retry", apply: ApplyChannelPin},
+		{name: "token pin suppresses channel lock", tokenPin: true, apply: ApplyChannelPin},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			common.SetContextKey(c, constant.ContextKeyOriginTasks, []*model.Task{originTask})
+			constraints := service.GetChannelConstraints(c)
+			constraints.AddPin(dto.ChannelPin{ChannelId: channel.Id, Source: dto.PinSourceOriginTask, Rank: dto.PinRankOriginTask, RetryMode: dto.PinRetrySameChannel})
+			if tc.tokenPin {
+				constraints.AddPin(dto.ChannelPin{ChannelId: channel.Id, Source: dto.PinSourceToken, Rank: dto.PinRankToken, RetryMode: dto.PinRetrySingleAttempt})
+			}
+			info := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+			require.Nil(t, tc.apply(c, info))
+			if tc.tokenPin {
+				assert.Nil(t, info.LockedChannel)
+			} else {
+				locked, ok := info.LockedChannel.(*model.Channel)
+				require.True(t, ok)
+				require.NotNil(t, locked)
+				assert.Equal(t, channel.Id, locked.Id)
+			}
+			require.Len(t, info.OriginTasks, 1)
+			assert.Equal(t, "task-lock", info.OriginTasks[0].TaskID)
+			assert.Equal(t, "upstream-task-lock", info.OriginTasks[0].UpstreamTaskID)
+			assert.Equal(t, "text_to_video", info.OriginTasks[0].Action)
+			assert.Equal(t, string(model.TaskStatusSuccess), info.OriginTasks[0].Status)
+			assert.Equal(t, []byte(originTask.Data), info.OriginTasks[0].Data)
+		})
+	}
+}
 
 func TestTaskModel2DtoNormalizesLegacyAction(t *testing.T) {
 	task := &model.Task{Action: "firstTailGenerate"}

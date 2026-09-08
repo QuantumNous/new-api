@@ -2,6 +2,7 @@ package relay
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,12 +10,182 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/constant"
+	appdto "github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestNormalizeResponsesWSMaxOutputTokens(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		valid bool
+	}{
+		{value: "0", valid: true},
+		{value: "1073741823", valid: true},
+		{value: "1073741824"},
+		{value: "18446744073686646784"},
+		{value: "-1"},
+	} {
+		for _, wrapped := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/wrapped=%t", tc.value, wrapped), func(t *testing.T) {
+				fields := `"model":"gpt-5.1","input":"hi","max_output_tokens":` + tc.value
+				payload := `{"type":"response.create",` + fields + `}`
+				if wrapped {
+					payload = `{"type":"response.create","response":{` + fields + `}}`
+				}
+				create, _, err := normalizeResponsesWSCreateEvent([]byte(payload))
+				if !tc.valid {
+					require.Error(t, err)
+					assert.Equal(t, http.StatusBadRequest, newResponsesWSInvalidRequestError(err).StatusCode)
+					return
+				}
+				require.NoError(t, err)
+				require.NotNil(t, create.Request.MaxOutputTokens)
+				assert.Equal(t, tc.value, fmt.Sprint(*create.Request.MaxOutputTokens))
+			})
+		}
+	}
+}
+
+func TestResponsesWSToolAndTerminalUsageAccounting(t *testing.T) {
+	operation_setting.SetToolPriceForTest("ws_priced_fn", 5)
+	t.Cleanup(func() { operation_setting.DeleteToolPriceForTest("ws_priced_fn") })
+	for _, tc := range []struct {
+		name       string
+		eventType  string
+		status     string
+		wantImages int
+	}{
+		{name: "completed deduplicates images", eventType: "response.completed", status: `"completed"`, wantImages: 1},
+		{name: "done deduplicates images", eventType: "response.done", wantImages: 1},
+		{name: "incomplete event clears pending images", eventType: "response.incomplete"},
+		{name: "failed response status clears pending images", eventType: "response.done", status: `"failed"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state := &responsesWSCallState{
+				info: &relaycommon.RelayInfo{
+					OriginModelName: "gpt-5.1",
+					ResponsesUsageInfo: &relaycommon.ResponsesUsageInfo{BuiltInTools: map[string]*relaycommon.BuildInToolInfo{
+						dto.BuildInToolWebSearch: {ToolName: dto.BuildInToolWebSearch},
+					}},
+				},
+				usage: &dto.Usage{},
+			}
+			session := &responsesWSSession{current: state}
+			for _, event := range []string{
+				`{"type":"response.output_item.done","item":{"type":"web_search_call"}}`,
+				`{"type":"response.output_item.done","item":{"type":"file_search_call"}}`,
+				`{"type":"response.output_item.done","item":{"type":"function_call","name":"ws_priced_fn"}}`,
+				`{"type":"response.output_item.done","item":{"type":"function_call","name":"ws_unpriced_fn"}}`,
+				`{"type":"response.output_item.done","output_index":0,"item":{"id":"img_1","type":"image_generation_call","result":"image-data","status":"completed"}}`,
+			} {
+				session.observeUpstreamMessage([]byte(event))
+			}
+			response := &dto.OpenAIResponsesResponse{
+				Status: common.RawMessage(tc.status),
+				Usage:  &dto.Usage{InputTokens: 10, OutputTokens: 5, TotalTokens: 15, InputTokensDetails: &dto.InputTokenDetails{CachedTokens: 3}},
+				Output: []dto.ResponsesOutput{{ID: "img_1", Type: dto.ResponsesOutputTypeImageGenerationCall, Result: "image-data", Status: "completed"}},
+			}
+			response.Usage.BillingUsage = dto.NewOpenAIResponsesBillingUsage(response.Usage)
+			session.applyTerminalResponseUsage(state, response, tc.eventType)
+			finalizeResponsesWSUsage(state)
+			tools := state.info.ResponsesUsageInfo.BuiltInTools
+			for _, name := range []string{dto.BuildInToolWebSearch, dto.BuildInToolFileSearch, "ws_priced_fn"} {
+				require.Contains(t, tools, name)
+				assert.Equal(t, 1, tools[name].CallCount)
+			}
+			assert.NotContains(t, tools, dto.BuildInToolWebSearchPreview)
+			assert.NotContains(t, tools, "ws_unpriced_fn")
+			require.Contains(t, tools, dto.BuildInToolImageGeneration)
+			assert.Equal(t, tc.wantImages, tools[dto.BuildInToolImageGeneration].CallCount)
+			assert.Equal(t, 10, state.usage.PromptTokens)
+			assert.Equal(t, 5, state.usage.CompletionTokens)
+			assert.Equal(t, 15, state.usage.TotalTokens)
+			require.NotNil(t, state.usage.BillingUsage)
+			require.NotNil(t, state.usage.BillingUsage.OpenAIUsage)
+			require.NotNil(t, state.usage.BillingUsage.OpenAIUsage.InputTokensDetails)
+			assert.Equal(t, 3, state.usage.BillingUsage.OpenAIUsage.InputTokensDetails.CachedTokens)
+		})
+	}
+}
+
+func TestFinalizeResponsesWSUsagePreservesBillingSnapshot(t *testing.T) {
+	original := dto.NewOpenAIResponsesBillingUsage(&dto.Usage{
+		InputTokens: 10, TotalTokens: 10,
+		InputTokensDetails: &dto.InputTokenDetails{CachedTokens: 3},
+	})
+	state := &responsesWSCallState{
+		info:  &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gpt-4o"}},
+		usage: &dto.Usage{PromptTokens: 10, TotalTokens: 10, BillingUsage: original},
+	}
+	state.outputText.WriteString("hello")
+	finalizeResponsesWSUsage(state)
+	assert.Equal(t, 1, state.usage.CompletionTokens)
+	assert.Equal(t, 11, state.usage.TotalTokens)
+	require.NotNil(t, state.usage.BillingUsage)
+	assert.True(t, state.usage.BillingUsage.Estimated)
+	assert.Equal(t, dto.BillingUsageSourceOAIResponses, state.usage.BillingUsage.Source)
+	usage := state.usage.BillingUsage.OpenAIUsage
+	require.NotNil(t, usage)
+	assert.Equal(t, 1, usage.OutputTokens)
+	assert.Equal(t, 11, usage.TotalTokens)
+	require.NotNil(t, usage.InputTokensDetails)
+	assert.Equal(t, 3, usage.InputTokensDetails.CachedTokens)
+	assert.Zero(t, original.OpenAIUsage.OutputTokens)
+	assert.Equal(t, 10, original.OpenAIUsage.TotalTokens)
+}
+
+func TestSelectResponsesWSChannelHonorsPinsAndFilters(t *testing.T) {
+	database := setupRelayChannelDB(t)
+	enabled := &model.Channel{Name: "enabled", Key: "sk-test", Status: common.ChannelStatusEnabled, Type: constant.ChannelTypeOpenAI}
+	disabled := &model.Channel{Name: "disabled", Key: "sk-test", Status: common.ChannelStatusManuallyDisabled, Type: constant.ChannelTypeOpenAI}
+	filtered := &model.Channel{Name: "filtered", Key: "sk-test", Status: common.ChannelStatusEnabled, Type: constant.ChannelTypeAdvancedCustom}
+	for _, channel := range []*model.Channel{enabled, disabled, filtered} {
+		require.NoError(t, database.Create(channel).Error)
+	}
+	for _, tc := range []struct {
+		name      string
+		channelID int
+		status    int
+	}{
+		{name: "token pin overrides origin pin", channelID: enabled.Id},
+		{name: "disabled pin rejects", channelID: disabled.Id, status: http.StatusForbidden},
+		{name: "pin cannot bypass path filter", channelID: filtered.Id, status: http.StatusBadRequest},
+		{name: "missing pin rejects", channelID: 99999, status: http.StatusBadRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+			constraints := service.GetChannelConstraints(c)
+			constraints.AddPin(appdto.ChannelPin{ChannelId: disabled.Id, Source: appdto.PinSourceOriginTask, Rank: appdto.PinRankOriginTask, RetryMode: appdto.PinRetrySameChannel})
+			constraints.AddPin(appdto.ChannelPin{ChannelId: tc.channelID, Source: appdto.PinSourceToken, Rank: appdto.PinRankToken, RetryMode: appdto.PinRetrySingleAttempt})
+			constraints.AddFilter(appdto.ChannelFilter{Kind: appdto.FilterRequestPath, RequestPath: c.Request.URL.Path})
+			channel, apiErr := selectResponsesWSChannel(c, "gpt-5.1", &service.RetryParam{Ctx: c, ModelName: "gpt-5.1", TokenGroup: "default"})
+			if tc.status != 0 {
+				require.NotNil(t, apiErr)
+				assert.Equal(t, tc.status, apiErr.StatusCode)
+				assert.Nil(t, channel)
+				assert.False(t, service.ShouldRetryRelayError(c, apiErr, 2))
+				return
+			}
+			require.Nil(t, apiErr)
+			require.NotNil(t, channel)
+			assert.Equal(t, enabled.Id, channel.Id)
+			assert.Equal(t, enabled.Id, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+			assert.False(t, service.ShouldRetryRelayError(c, types.NewErrorWithStatusCode(errors.New("upstream failed"), types.ErrorCodeDoRequestFailed, 503), 2))
+		})
+	}
+}
 
 func TestNormalizeResponsesWSCreateEventWrapper(t *testing.T) {
 	message := []byte(`{
