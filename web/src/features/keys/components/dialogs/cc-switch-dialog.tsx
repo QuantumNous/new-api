@@ -92,6 +92,7 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   tokenKey: string
+  tokenGroup?: string | null
 }
 
 export function CCSwitchDialog(props: Props) {
@@ -100,9 +101,12 @@ export function CCSwitchDialog(props: Props) {
   const [name, setName] = useState<string>(APP_CONFIGS.claude.defaultName)
   const [models, setModels] = useState<Record<string, string>>({})
 
+  // 按当前 key 的分组过滤模型列表；分组为空或未设时不过滤（返回全部可用模型）
+  const effectiveGroup = props.tokenGroup || undefined
+
   const { data: modelsData } = useQuery({
-    queryKey: ['user-models-ccswitch'],
-    queryFn: getUserModels,
+    queryKey: ['user-models-ccswitch', props.tokenGroup ?? ''],
+    queryFn: () => getUserModels(effectiveGroup),
     enabled: props.open,
     staleTime: 5 * 60 * 1000,
   })
