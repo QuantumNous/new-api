@@ -1,8 +1,8 @@
 # Official mainline custom integration validation
 
-Date: 2026-09-09 (Asia/Shanghai)  
-Worktree: `codex/official-mainline-custom-integration`  
-HEAD: `fd1425231`
+Date: 2026-09-09 (Asia/Shanghai)
+Worktree: `codex/official-mainline-custom-integration`
+Validation base HEAD: `fd1425231`
 
 ## Static and backend checks
 
