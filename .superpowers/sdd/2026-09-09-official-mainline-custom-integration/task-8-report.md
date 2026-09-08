@@ -14,3 +14,7 @@ PASS (controller, service, model)
 ```
 
 No known blockers. Frontend/i18n changes are deferred to Task 10.
+
+## Pagination hardening follow-up
+
+The controller now rejects malformed `p` and `page_size` values and caps positive `p` at 1,000,000. The model applies the same page cap for direct callers, bounds the page-size default/max, and computes the SQL offset through a checked `int64` multiplication before converting for GORM. Regression coverage includes malformed parameters, a large controller page, and a maximal direct model page; focused ranking tests pass.

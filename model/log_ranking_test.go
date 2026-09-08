@@ -233,3 +233,12 @@ func TestGetUsageRankingReturnsNonNilEmptyItems(t *testing.T) {
 	assert.Empty(t, result.Items)
 	assert.Equal(t, UsageRankingSummary{}, result.Summary)
 }
+
+func TestGetUsageRankingNormalizesHugePageSafely(t *testing.T) {
+	setupUsageRankingTestDB(t)
+	seedUsageRankingLogs(t)
+
+	result, err := GetUsageRanking(UsageRankingQuery{StartTimestamp: 100, EndTimestamp: 200, Page: int(^uint(0) >> 1), PageSize: 100})
+	require.NoError(t, err)
+	assert.Empty(t, result.Items)
+}

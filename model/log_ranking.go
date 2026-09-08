@@ -1,6 +1,7 @@
 package model
 
 import (
+	"math"
 	"strings"
 
 	"gorm.io/gorm"
@@ -9,6 +10,7 @@ import (
 const (
 	UsageRankingSortQuota        = "quota"
 	UsageRankingSortRequestCount = "request_count"
+	usageRankingMaxPage          = 1_000_000
 )
 
 type UsageRankingQuery struct {
@@ -132,6 +134,9 @@ func normalizeUsageRankingQuery(query UsageRankingQuery) UsageRankingQuery {
 	if query.Page < 1 {
 		query.Page = 1
 	}
+	if query.Page > usageRankingMaxPage {
+		query.Page = usageRankingMaxPage
+	}
 	if query.PageSize < 1 {
 		query.PageSize = 20
 	}
@@ -235,10 +240,19 @@ func GetUsageRanking(query UsageRankingQuery) (UsageRankingResult, error) {
 	if err != nil {
 		return result, err
 	}
-	offset := (query.Page - 1) * query.PageSize
+	// Keep the multiplication bounded even if this function is called directly
+	// by an internal caller with an unusually large page value.
+	pageDelta := int64(query.Page - 1)
+	pageSize := int64(query.PageSize)
+	var offset int64
+	if pageDelta > math.MaxInt64/pageSize {
+		offset = math.MaxInt64
+	} else {
+		offset = pageDelta * pageSize
+	}
 	if err = aggregateQuery.Order(query.SortBy + " DESC, user_id ASC, username ASC").
 		Limit(query.PageSize).
-		Offset(offset).
+		Offset(int(offset)).
 		Scan(&result.Items).Error; err != nil {
 		return result, err
 	}
@@ -248,7 +262,7 @@ func GetUsageRanking(query UsageRankingQuery) (UsageRankingResult, error) {
 
 	users := make([]usageRankingIdentity, 0, len(result.Items))
 	for i := range result.Items {
-		result.Items[i].Rank = offset + i + 1
+		result.Items[i].Rank = int(offset) + i + 1
 		result.Items[i].GroupStats = []UsageRankingGroupStat{}
 		users = append(users, usageRankingIdentity{UserID: result.Items[i].UserID, Username: result.Items[i].Username})
 	}

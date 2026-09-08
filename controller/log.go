@@ -160,12 +160,22 @@ func GetUsageRanking(c *gin.Context) {
 		query.ChannelID = parsed
 	}
 	if value := c.Query("p"); value != "" {
-		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
-			query.Page = parsed
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid p"})
+			return
+		}
+		if parsed > 0 {
+			query.Page = min(parsed, 1_000_000)
 		}
 	}
 	if value := c.Query("page_size"); value != "" {
-		if parsed, err := strconv.Atoi(value); err == nil && parsed > 0 {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid page_size"})
+			return
+		}
+		if parsed > 0 {
 			query.PageSize = min(parsed, 100)
 		}
 	}

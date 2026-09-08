@@ -45,6 +45,8 @@ func TestGetUsageRankingRejectsMalformedParameters(t *testing.T) {
 		"end_timestamp=-1",
 		"channel=-1",
 		"start_timestamp=200&end_timestamp=100",
+		"p=not-a-number",
+		"page_size=not-a-number",
 	}
 	for _, rawQuery := range cases {
 		t.Run(rawQuery, func(t *testing.T) {
@@ -54,6 +56,12 @@ func TestGetUsageRankingRejectsMalformedParameters(t *testing.T) {
 			assert.NotEmpty(t, response.Message)
 		})
 	}
+}
+
+func TestGetUsageRankingCapsHugePageWithoutOverflow(t *testing.T) {
+	recorder, response := performUsageRankingRequest(t, "p=999999999999999999999999&page_size=100")
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+	assert.False(t, response.Success)
 }
 
 func TestGetUsageRankingNormalizesPaginationAndReturnsEnvelope(t *testing.T) {
@@ -69,12 +77,12 @@ func TestGetUsageRankingNormalizesPaginationAndReturnsEnvelope(t *testing.T) {
 		common.SetLogDatabaseType(originalLogType)
 	})
 
-	recorder, response := performUsageRankingRequest(t, "p=0&page_size=1000&sort_by=unsupported")
+	recorder, response := performUsageRankingRequest(t, "p=2000000000&page_size=1000&sort_by=unsupported")
 
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.True(t, response.Success)
 	assert.Empty(t, response.Message)
-	assert.Equal(t, 1, response.Data.Page)
+	assert.Equal(t, 1000000, response.Data.Page)
 	assert.Equal(t, 100, response.Data.PageSize)
 	assert.Equal(t, int64(0), response.Data.Total)
 	assert.NotNil(t, response.Data.Items)
