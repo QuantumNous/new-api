@@ -72,13 +72,44 @@ func TestGeneratedAdminContractsMatchResolvedHandlers(t *testing.T) {
 		require.Contains(t, paths, path)
 		return paths[path].(map[string]interface{})[method].(map[string]interface{})
 	}
-	for _, path := range []string{"/api/token/", "/api/user/"} {
+
+	for _, custom := range []struct {
+		path, method, operationID string
+		statuses                  []string
+	}{
+		{"/api/getapi/users", "post", "provisionGetApiUser", []string{"200", "201", "400", "401", "403", "404", "409", "503"}},
+		{"/api/getapi/users/{external_account_id}/credential", "get", "getGetApiUserCredential", []string{"200", "400", "401", "403", "404", "409", "503"}},
+	} {
+		op := operation(custom.path, custom.method)
+		assert.Equal(t, custom.operationID, op["operationId"])
+		assert.Equal(t, defaultSecurity(), op["security"])
+		responses := op["responses"].(map[string]interface{})
+		assert.Len(t, responses, len(custom.statuses))
+		for _, status := range custom.statuses {
+			require.Contains(t, responses, status)
+			response := responses[status].(map[string]interface{})
+			expected := "#/components/schemas/GetApiErrorResponse"
+			if status == "200" || status == "201" {
+				expected = "#/components/schemas/GetApiCredentialResponse"
+			}
+			assert.Equal(t, expected, extractContentSchema(response)["$ref"])
+		}
+	}
+	for _, path := range []string{"/api/token/"} {
 		responses := operation(path, "post")["responses"].(map[string]interface{})
 		assert.NotContains(t, responses, "200")
 		require.Contains(t, responses, "201")
 		schema := responses["201"].(map[string]interface{})["content"].(map[string]interface{})["application/json"].(map[string]interface{})["schema"].(map[string]interface{})
 		assert.NotEqual(t, "#/components/schemas/ApiResponse", schema["$ref"])
 	}
+	userResponses := operation("/api/user/", "post")["responses"].(map[string]interface{})
+	assert.NotContains(t, userResponses, "201")
+	require.Contains(t, userResponses, "200")
+	userSchema := extractContentSchema(userResponses["200"].(map[string]interface{}))
+	userProperties := userSchema["properties"].(map[string]interface{})
+	assert.Contains(t, userProperties, "success")
+	assert.Contains(t, userProperties, "message")
+	assert.NotContains(t, userProperties, "data")
 	pricing := operation("/api/option/model_pricing", "patch")
 	pricingResponse := pricing["responses"].(map[string]interface{})["200"].(map[string]interface{})
 	pricingSchema := extractContentSchema(pricingResponse)

@@ -3619,6 +3619,119 @@
         },
         "type": "object"
       },
+      "GetApiCreateUserRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "display_name": {
+            "maxLength": 20,
+            "type": "string"
+          },
+          "external_account_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 8,
+            "type": "string",
+            "writeOnly": true
+          },
+          "username": {
+            "maxLength": 20,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "external_account_id",
+          "username",
+          "password",
+          "display_name"
+        ],
+        "type": "object"
+      },
+      "GetApiCredential": {
+        "properties": {
+          "access_token": {
+            "description": "Current nonempty PAT for active; null for blocked. Never cache or expose to frontend.",
+            "nullable": true,
+            "type": "string"
+          },
+          "external_account_id": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "active",
+              "blocked"
+            ],
+            "type": "string"
+          },
+          "user_id": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "external_account_id",
+          "user_id",
+          "state",
+          "access_token"
+        ],
+        "type": "object"
+      },
+      "GetApiCredentialResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GetApiCredential"
+          },
+          "success": {
+            "enum": [
+              true
+            ],
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ],
+        "type": "object"
+      },
+      "GetApiErrorResponse": {
+        "properties": {
+          "code": {
+            "enum": [
+              "GETAPI_INVALID_REQUEST",
+              "AUTH_UNAUTHORIZED",
+              "GETAPI_CAPABILITY_DENIED",
+              "GETAPI_ACCOUNT_NOT_FOUND",
+              "GETAPI_CREATE_CONFLICT",
+              "GETAPI_BINDING_CONFLICT",
+              "GETAPI_PAT_MISSING",
+              "GETAPI_CREDENTIAL_UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "success": {
+            "enum": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "code",
+          "message"
+        ],
+        "type": "object"
+      },
       "HardwareType": {
         "properties": {
           "available": {
@@ -17369,6 +17482,374 @@
         "summary": "put /api/deployments/{id}/name",
         "tags": [
           "Deployment"
+        ]
+      }
+    },
+    "/api/getapi/users": {
+      "post": {
+        "description": "Enabled admin/root principal with explicit getapi.users.provision capability, restricted to its server-assigned integration. Active targets must be ordinary users below the principal role. No-store responses.",
+        "operationId": "provisionGetApiUser",
+        "parameters": [
+          {
+            "description": "Must equal external_account_id. Matching replay returns current state, never mints or enables.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetApiCreateUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiCredentialResponse"
+                }
+              }
+            },
+            "description": "Current credential snapshot",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiCredentialResponse"
+                }
+              }
+            },
+            "description": "Current credential snapshot",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Request rejected; no credential material",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Request rejected; no credential material",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Request rejected; no credential material",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Request rejected; no credential material",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Request rejected; no credential material",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Request rejected; no credential material",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ],
+        "summary": "provisionGetApiUser",
+        "tags": [
+          "GetAPI"
+        ]
+      }
+    },
+    "/api/getapi/users/{external_account_id}/credential": {
+      "get": {
+        "description": "Enabled admin/root principal with explicit getapi.users.read-current capability, restricted to its server-assigned integration. Active targets must be ordinary users below the principal role. No-store responses.",
+        "operationId": "getGetApiUserCredential",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_account_id",
+            "required": true,
+            "schema": {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiCredentialResponse"
+                }
+              }
+            },
+            "description": "Current credential snapshot",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Request rejected; no credential material",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Request rejected; no credential material",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Request rejected; no credential material",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Request rejected; no credential material",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Request rejected; no credential material",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetApiErrorResponse"
+                }
+              }
+            },
+            "description": "Request rejected; no credential material",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ],
+        "summary": "getGetApiUserCredential",
+        "tags": [
+          "GetAPI"
         ]
       }
     },
@@ -35626,11 +36107,19 @@
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOfUser"
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
                 }
               }
             },
@@ -35640,25 +36129,12 @@
           "400": {
             "content": {
               "application/json": {
-                "examples": {
-                  "invalid_params": {
-                    "summary": "invalid_params",
-                    "value": {
-                      "code": "invalid_params",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "请求错误 — 参数无效、校验失败或其他客户端错误",
-            "x-error-codes": [
-              "invalid_params"
-            ]
+            "description": "请求错误 — 参数无效、校验失败或其他客户端错误"
           },
           "401": {
             "content": {
@@ -35673,25 +36149,12 @@
           "403": {
             "content": {
               "application/json": {
-                "examples": {
-                  "cannot_create_higher_level": {
-                    "summary": "cannot_create_higher_level",
-                    "value": {
-                      "code": "cannot_create_higher_level",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "禁止访问 — 角色/权限不足或功能未启用",
-            "x-error-codes": [
-              "cannot_create_higher_level"
-            ]
+            "description": "禁止访问 — 角色/权限不足或功能未启用"
           },
           "404": {
             "content": {
@@ -35706,48 +36169,22 @@
           "409": {
             "content": {
               "application/json": {
-                "examples": {
-                  "username_already_taken": {
-                    "summary": "username_already_taken",
-                    "value": {
-                      "code": "username_already_taken",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "冲突 — 资源已存在或当前状态不允许此操作",
-            "x-error-codes": [
-              "username_already_taken"
-            ]
+            "description": "冲突 — 资源已存在或当前状态不允许此操作"
           },
           "422": {
             "content": {
               "application/json": {
-                "examples": {
-                  "user_input_invalid": {
-                    "summary": "user_input_invalid",
-                    "value": {
-                      "code": "user_input_invalid",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "无法处理 — 请求格式正确但语义无效",
-            "x-error-codes": [
-              "user_input_invalid"
-            ]
+            "description": "无法处理 — 请求格式正确但语义无效"
           },
           "500": {
             "content": {
@@ -45097,7 +45534,38 @@
       "get": {
         "deprecated": false,
         "description": "👨‍💼 需要管理员权限（Admin）",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "p",
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "keyword",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "association",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {

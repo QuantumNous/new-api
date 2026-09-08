@@ -253,7 +253,7 @@ func TestManageUser_DisableSuccess_200(t *testing.T) {
 
 // ---------- CreateUser ----------
 
-func TestCreateUser_UsernameCollision_409(t *testing.T) {
+func TestCreateUser_UsernameCollision_LegacyError(t *testing.T) {
 	db := openUserControllerTestDB(t)
 	seedUser(t, db, "taken", common.RoleCommonUser, "default")
 
@@ -261,19 +261,19 @@ func TestCreateUser_UsernameCollision_409(t *testing.T) {
 	ctx, rec := newRestContext(t, http.MethodPost, "/api/user/", body, nil, common.RoleRootUser)
 	CreateUser(ctx)
 
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("status got %d want 409 body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status got %d want 200 body=%s", rec.Code, rec.Body.String())
 	}
 	resp := decodeRestError(t, rec)
-	if resp.Code != "username_already_taken" {
-		t.Errorf("code: got %q want username_already_taken", resp.Code)
+	if resp.Code != "" {
+		t.Errorf("code: got %q want empty legacy code", resp.Code)
 	}
 	if resp.Success {
 		t.Errorf("success should be false")
 	}
 }
 
-func TestCreateUser_UsernameCollision_SecondRequest_409(t *testing.T) {
+func TestCreateUser_UsernameCollision_SecondRequest_LegacyError(t *testing.T) {
 	db := openUserControllerTestDB(t)
 	seedUser(t, db, "secondtaken", common.RoleCommonUser, "default")
 
@@ -281,15 +281,15 @@ func TestCreateUser_UsernameCollision_SecondRequest_409(t *testing.T) {
 	ctx, rec := newRestContext(t, http.MethodPost, "/api/user/", body, nil, common.RoleRootUser)
 	CreateUser(ctx)
 
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("status got %d want 409 body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status got %d want 200 body=%s", rec.Code, rec.Body.String())
 	}
-	if c := decodeRestError(t, rec).Code; c != "username_already_taken" {
-		t.Errorf("code got %q want username_already_taken", c)
+	if c := decodeRestError(t, rec).Code; c != "" {
+		t.Errorf("code got %q want empty legacy code", c)
 	}
 }
 
-func TestCreateUser_HappyPath_201(t *testing.T) {
+func TestCreateUser_HappyPath_LegacyEnvelope(t *testing.T) {
 	openUserControllerTestDB(t)
 
 	// Admin (non-root) caller creating a common user avoids the root-only authz
@@ -298,12 +298,19 @@ func TestCreateUser_HappyPath_201(t *testing.T) {
 	ctx, rec := newRestContext(t, http.MethodPost, "/api/user/", body, nil, common.RoleAdminUser)
 	CreateUser(ctx)
 
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("status got %d want 201 body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status got %d want 200 body=%s", rec.Code, rec.Body.String())
+	}
+	var envelope map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if len(envelope) != 2 || envelope["success"] != true || envelope["message"] != "" {
+		t.Fatalf("unexpected legacy envelope: %v", envelope)
 	}
 }
 
-func TestCreateUser_SoftDeletedUsernameCollision_409(t *testing.T) {
+func TestCreateUser_SoftDeletedUsernameCollision_LegacyError(t *testing.T) {
 	db := openUserControllerTestDB(t)
 	deleted := seedUser(t, db, "ghost", common.RoleCommonUser, "default")
 	if err := db.Delete(&model.User{}, deleted.Id).Error; err != nil {
@@ -314,11 +321,11 @@ func TestCreateUser_SoftDeletedUsernameCollision_409(t *testing.T) {
 	ctx, rec := newRestContext(t, http.MethodPost, "/api/user/", body, nil, common.RoleRootUser)
 	CreateUser(ctx)
 
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("status got %d want 409 body=%s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status got %d want 200 body=%s", rec.Code, rec.Body.String())
 	}
-	if c := decodeRestError(t, rec).Code; c != "username_already_taken" {
-		t.Errorf("code: got %q want username_already_taken", c)
+	if c := decodeRestError(t, rec).Code; c != "" {
+		t.Errorf("code: got %q want empty legacy code", c)
 	}
 }
 

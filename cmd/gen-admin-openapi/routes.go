@@ -444,7 +444,7 @@ func routeAuthMode(args []ast.Expr, inherited string) string {
 			continue
 		}
 		switch sel.Sel.Name {
-		case "UserAuth", "AdminAuth", "RootAuth":
+		case "UserAuth", "AdminAuth", "RootAuth", "GetAPIAuth":
 			mode = "dashboard"
 		case "TokenAuth", "TokenAuthReadOnly":
 			mode = "relay"

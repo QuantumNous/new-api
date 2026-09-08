@@ -21,6 +21,9 @@ func enrichExplicitContracts(paths map[string]interface{}) {
 			responses[strconv.Itoa(h.RespStatus)] = responses["200"]
 			delete(responses, "200")
 		}
+		if route.HandlerName == "ProvisionGetAPIUser" || route.HandlerName == "GetGetAPIUserCredential" {
+			enrichGetAPIContract(op, route.HandlerName == "ProvisionGetAPIUser")
+		}
 		if route.HandlerName == "VerifyLogin" || route.HandlerName == "LoginPasskeyFinish" {
 			op["responses"].(map[string]interface{})["200"] = buildResponse(respSpec{Custom: "LoginSessionResponse"})["200"]
 		}
@@ -84,5 +87,36 @@ func enrichMetadataSelectionSchema(schemas map[string]interface{}) {
 			"create": map[string]interface{}{"type": "boolean", "enum": []bool{false}, "default": false},
 			"fields": map[string]interface{}{"type": "array", "minItems": 1, "items": map[string]interface{}{"type": "string"}},
 		}},
+	}
+}
+
+func enrichGetAPIContract(op map[string]interface{}, provision bool) {
+	statuses := []string{"200", "400", "401", "403", "404", "409", "503"}
+	if provision {
+		statuses = append(statuses, "201")
+	}
+	responses := map[string]interface{}{}
+	for _, status := range statuses {
+		schema := "GetApiErrorResponse"
+		if status == "200" || status == "201" {
+			schema = "GetApiCredentialResponse"
+		}
+		response := buildResponse(respSpec{Custom: schema})["200"].(map[string]interface{})
+		response["description"] = "Request rejected; no credential material"
+		if status == "200" || status == "201" {
+			response["description"] = "Current credential snapshot"
+		}
+		response["headers"] = map[string]interface{}{"Cache-Control": map[string]interface{}{"schema": map[string]interface{}{"type": "string", "enum": []string{"no-store"}}}}
+		responses[status] = response
+	}
+	op["responses"] = responses
+	if provision {
+		op["operationId"] = "provisionGetApiUser"
+		op["parameters"] = []interface{}{map[string]interface{}{"name": "Idempotency-Key", "in": "header", "required": true, "description": "Must equal external_account_id. Matching replay returns current state, never mints or enables.", "schema": map[string]interface{}{"type": "string"}}}
+		op["requestBody"] = map[string]interface{}{"required": true, "content": map[string]interface{}{"application/json": map[string]interface{}{"schema": map[string]interface{}{"$ref": "#/components/schemas/GetApiCreateUserRequest"}}}}
+	} else {
+		op["operationId"] = "getGetApiUserCredential"
+		op["parameters"] = []interface{}{map[string]interface{}{"name": "external_account_id", "in": "path", "required": true, "schema": map[string]interface{}{"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$"}}}
+		delete(op, "requestBody")
 	}
 }

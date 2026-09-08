@@ -1,25 +1,35 @@
 package router
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/service/authz"
+	"github.com/gin-gonic/gin"
 
 	// Import oauth package to register providers via init()
 	_ "github.com/QuantumNous/new-api/oauth"
 
 	"github.com/gin-contrib/gzip"
-	"github.com/gin-gonic/gin"
 )
 
 func SetApiRouter(router *gin.Engine) {
 	apiRouter := router.Group("/api")
 	apiRouter.Use(middleware.RouteTag("api"))
+	apiRouter.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/getapi/") {
+			c.Header("Cache-Control", "no-store")
+		}
+		c.Next()
+	})
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))
 	apiRouter.Use(middleware.AccessTokenAudit())
 	apiRouter.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	apiRouter.Use(middleware.GlobalAPIRateLimit())
 	anonymousRequestBodyLimit := middleware.AnonymousRequestBodyLimit()
+	apiRouter.POST("/getapi/users", middleware.GetAPIAuth("getapi.users.provision"), controller.ProvisionGetAPIUser)
+	apiRouter.GET("/getapi/users/:external_account_id/credential", middleware.GetAPIAuth("getapi.users.read-current"), controller.GetGetAPIUserCredential)
 	{
 		apiRouter.GET("/setup", controller.GetSetup)
 		apiRouter.POST("/setup", anonymousRequestBodyLimit, controller.PostSetup)

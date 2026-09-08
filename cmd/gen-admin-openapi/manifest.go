@@ -36,6 +36,8 @@ type respSpec struct {
 // Methods are lowercase ("get", "post", "put", "delete", "patch").
 // Paths must match the existing api.json paths exactly (with {id} placeholders).
 var manifest = map[string]map[string]respSpec{
+	"/api/getapi/users": {"post": {Custom: "GetApiCredentialResponse", Body: "GetApiCreateUserRequest"}},
+	"/api/getapi/users/{external_account_id}/credential": {"get": {Custom: "GetApiCredentialResponse"}},
 	// === System ===
 	"/api/about":             {"get": {Wrap: "ApiResponseOfString"}},
 	"/api/notice":            {"get": {Wrap: "ApiResponseOfString"}},
@@ -72,7 +74,7 @@ var manifest = map[string]map[string]respSpec{
 	"/api/oauth/{provider}":     {"get": {Empty: true}},
 
 	// === User management ===
-	"/api/user/":            {"get": {Type: "User", Paged: true}, "post": {Type: "User"}, "put": {Type: "User"}},
+	"/api/user/":            {"get": {Type: "User", Paged: true}, "post": {Empty: true}, "put": {Type: "User"}},
 	"/api/user/{id}":        {"get": {Type: "User"}, "delete": {Empty: true}},
 	"/api/user/search":      {"get": {Type: "User", Paged: true}},
 	"/api/user/manage":      {"post": {Type: "ManageUserResponse"}},
