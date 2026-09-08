@@ -6,8 +6,9 @@ PARTIAL. The official backend is retained as the final runtime skeleton. No
 backend source change was justified after the conflict audit: every requested
 controller/model/relay/router/service target is byte-identical to
 `upstream/main` at the integration HEAD. The custom-only Agent/CXM, rankings,
-`actual_base_url`, and legacy video/OAuth protocol paths were not ported, as
-required by the brief and reserved for later tasks or explicit extension work.
+`actual_base_url`, and legacy video/OAuth protocol paths remain explicit
+custom extension seams; their implementation is intentionally deferred to
+Tasks 6–10 while this task preserves the official runtime skeleton.
 
 ## Conflict inventory and decisions
 
@@ -42,9 +43,10 @@ non-frontend merge conflict; the official routing table remains unchanged.
 
 The custom versions were inspected as the conflict side. Their meaningful
 differences either duplicate superseded protocol conversion, alter official
-authentication/billing semantics, or belong to deferred Agent/CXM/rankings
-work. Retaining them would create two competing runtime contracts, so no
-source merge was performed.
+authentication/billing semantics, or belong to the deferred Agent/CXM,
+rankings, and `actual_base_url` extension seams. Retaining those implementations
+in the official path would create two competing runtime contracts, so no
+source merge was performed; the seams remain available for Tasks 6–10.
 
 ## Verification
 
@@ -63,3 +65,11 @@ coverage remains the limitation recorded by Task 2.
 
 This report is the only Task 4 working-tree change. No backend source changes
 were required after the official-vs-custom audit.
+
+## Reviewer correction
+
+The initial wording incorrectly implied that the brief required custom
+Agent/CXM/rankings/`actual_base_url` capabilities to be omitted. It now states
+the intended boundary: preserve those capabilities as explicit extension
+seams and defer their implementation to Tasks 6–10. This correction changes
+documentation only; `git diff --check` passes and no source files changed.
