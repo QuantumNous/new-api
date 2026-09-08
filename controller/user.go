@@ -985,11 +985,11 @@ func CreateUser(c *gin.Context) {
 	err := common.DecodeJson(c.Request.Body, &user)
 	user.Username = strings.TrimSpace(user.Username)
 	if err != nil || user.Username == "" || user.Password == "" {
-		common.ApiErrorI18nStatusCode(c, http.StatusBadRequest, "invalid_params", i18n.MsgInvalidParams)
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 	if err := common.Validate.Struct(&user); err != nil {
-		common.ApiErrorI18nStatusCode(c, http.StatusUnprocessableEntity, "user_input_invalid", i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
+		common.ApiErrorI18n(c, i18n.MsgUserInputInvalid, map[string]any{"Error": err.Error()})
 		return
 	}
 	if user.DisplayName == "" {
@@ -997,7 +997,7 @@ func CreateUser(c *gin.Context) {
 	}
 	myRole := c.GetInt("role")
 	if user.Role >= myRole {
-		common.ApiErrorI18nStatusCode(c, http.StatusForbidden, "cannot_create_higher_level", i18n.MsgUserCannotCreateHigherLevel)
+		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
 	}
 	// Even for admin users, we cannot fully trust them!
@@ -1009,9 +1009,6 @@ func CreateUser(c *gin.Context) {
 	}
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
-		if err := model.EnsureUsernameAvailableWithTx(tx, cleanUser.Username, 0); err != nil {
-			return err
-		}
 		if err := cleanUser.InsertWithTx(tx, 0); err != nil {
 			return err
 		}
@@ -1019,10 +1016,6 @@ func CreateUser(c *gin.Context) {
 		authzTouched = touched
 		return err
 	}); err != nil {
-		if errors.Is(err, model.ErrUsernameAlreadyTaken) {
-			common.ApiErrorI18nStatusCode(c, http.StatusConflict, "username_already_taken", i18n.MsgUserExists)
-			return
-		}
 		common.ApiError(c, err)
 		return
 	}
@@ -1038,7 +1031,11 @@ func CreateUser(c *gin.Context) {
 		"username": cleanUser.Username,
 		"role":     cleanUser.Role,
 	})
-	common.ApiSuccessStatus(c, http.StatusCreated, cleanUser)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+	})
+	return
 }
 
 func updateAdminPermissionsForUserInTx(c *gin.Context, tx *gorm.DB, userID int, userRole int, permissions map[string]map[string]bool) (bool, error) {

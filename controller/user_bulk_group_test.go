@@ -38,7 +38,7 @@ func openUserControllerTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open sqlite db: %v", err)
 	}
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.CasbinRule{}, &model.AuthzRole{}, &model.Log{}, &model.AuditLog{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.GetAPIUserBinding{}, &model.UserSession{}, &model.CasbinRule{}, &model.AuthzRole{}, &model.Log{}, &model.AuditLog{}))
 	model.DB = db
 	model.LOG_DB = db
 
