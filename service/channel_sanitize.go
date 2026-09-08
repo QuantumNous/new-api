@@ -51,5 +51,9 @@ func sanitizeWithPairURL(actual, display, msg string) string {
 var sensitiveCredentialRE = regexp.MustCompile(`(?i)(Bearer\s+|api[-_ ]?key[=: ]+|sk-[A-Za-z0-9_-]{8,})[^\s,;]+`)
 
 func redactCredentials(msg string) string {
-	return sensitiveCredentialRE.ReplaceAllString(msg, "[REDACTED]")
+	msg = sensitiveCredentialRE.ReplaceAllString(msg, "[REDACTED]")
+	queryRE := regexp.MustCompile(`(?i)([?&](?:key|api[-_]?key|x-api-key|access_token|refresh_token|id_token|token|password)=)[^&\s]+`)
+	msg = queryRE.ReplaceAllString(msg, "$1[REDACTED]")
+	userinfoRE := regexp.MustCompile(`(?i)(https?://)[^/@\s:]+:[^/@\s]+@`)
+	return userinfoRE.ReplaceAllString(msg, "$1[REDACTED]@")
 }
