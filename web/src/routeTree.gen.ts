@@ -30,6 +30,7 @@ import { Route as AuthenticatedAgentAdminRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
 import { Route as AuthenticatedChat2linkRouteImport } from './routes/_authenticated/chat2link'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
+import { Route as AuthenticatedUsageRankingRouteImport } from './routes/_authenticated/usage-ranking'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
 import { Route as PricingIndexRouteImport } from './routes/pricing/index'
@@ -175,6 +176,12 @@ const AuthenticatedSystemSettingsRouteRoute =
   AuthenticatedSystemSettingsRouteRouteImport.update({
     id: '/system-settings',
     path: '/system-settings',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedUsageRankingRoute =
+  AuthenticatedUsageRankingRouteImport.update({
+    id: '/usage-ranking',
+    path: '/usage-ranking',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AboutIndexRoute = AboutIndexRouteImport.update({
@@ -440,6 +447,7 @@ export interface FileRoutesByFullPath {
   '/agent-admin': typeof AuthenticatedAgentAdminRoute
   '/agents': typeof AuthenticatedAgentsRoute
   '/chat2link': typeof AuthenticatedChat2linkRoute
+  '/usage-ranking': typeof AuthenticatedUsageRankingRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/pricing/': typeof PricingIndexRoute
@@ -502,6 +510,7 @@ export interface FileRoutesByTo {
   '/agent-admin': typeof AuthenticatedAgentAdminRoute
   '/agents': typeof AuthenticatedAgentsRoute
   '/chat2link': typeof AuthenticatedChat2linkRoute
+  '/usage-ranking': typeof AuthenticatedUsageRankingRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about': typeof AboutIndexRoute
   '/pricing': typeof PricingIndexRoute
@@ -568,6 +577,7 @@ export interface FileRoutesById {
   '/_authenticated/agent-admin': typeof AuthenticatedAgentAdminRoute
   '/_authenticated/agents': typeof AuthenticatedAgentsRoute
   '/_authenticated/chat2link': typeof AuthenticatedChat2linkRoute
+  '/_authenticated/usage-ranking': typeof AuthenticatedUsageRankingRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
   '/pricing/': typeof PricingIndexRoute
@@ -633,6 +643,7 @@ export interface FileRouteTypes {
     | '/agent-admin'
     | '/agents'
     | '/chat2link'
+    | '/usage-ranking'
     | '/oauth/$provider'
     | '/about/'
     | '/pricing/'
@@ -695,6 +706,7 @@ export interface FileRouteTypes {
     | '/agent-admin'
     | '/agents'
     | '/chat2link'
+    | '/usage-ranking'
     | '/oauth/$provider'
     | '/about'
     | '/pricing'
@@ -760,6 +772,7 @@ export interface FileRouteTypes {
     | '/_authenticated/agent-admin'
     | '/_authenticated/agents'
     | '/_authenticated/chat2link'
+    | '/_authenticated/usage-ranking'
     | '/oauth/$provider'
     | '/about/'
     | '/pricing/'
@@ -970,6 +983,13 @@ declare module '@tanstack/react-router' {
       path: '/system-settings'
       fullPath: '/system-settings'
       preLoaderRoute: typeof AuthenticatedSystemSettingsRouteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/usage-ranking': {
+      id: '/_authenticated/usage-ranking'
+      path: '/usage-ranking'
+      fullPath: '/usage-ranking'
+      preLoaderRoute: typeof AuthenticatedUsageRankingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/about/': {
@@ -1357,6 +1377,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAgentAdminRoute: typeof AuthenticatedAgentAdminRoute
   AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
   AuthenticatedChat2linkRoute: typeof AuthenticatedChat2linkRoute
+  AuthenticatedUsageRankingRoute: typeof AuthenticatedUsageRankingRoute
   AuthenticatedChatChatIdRoute: typeof AuthenticatedChatChatIdRoute
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
@@ -1385,6 +1406,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAgentAdminRoute: AuthenticatedAgentAdminRoute,
   AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
   AuthenticatedChat2linkRoute: AuthenticatedChat2linkRoute,
+  AuthenticatedUsageRankingRoute: AuthenticatedUsageRankingRoute,
   AuthenticatedChatChatIdRoute: AuthenticatedChatChatIdRoute,
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
