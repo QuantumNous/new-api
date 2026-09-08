@@ -108,7 +108,7 @@ func fetchCodexChannelWhamData(
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
 
-	statusCode, body, err := fetch(ctx, client, ch.GetBaseURL(), accessToken, accountID)
+	statusCode, body, err := fetch(ctx, client, ch.GetRuntimeBaseURL(), accessToken, accountID)
 	if err != nil {
 		common.SysError(logPrefix + ": " + err.Error())
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": userMessage})
@@ -137,7 +137,7 @@ func fetchCodexChannelWhamData(
 
 			ctx2, cancel2 := context.WithTimeout(c.Request.Context(), 15*time.Second)
 			defer cancel2()
-			statusCode, body, err = fetch(ctx2, client, ch.GetBaseURL(), oauthKey.AccessToken, accountID)
+			statusCode, body, err = fetch(ctx2, client, ch.GetRuntimeBaseURL(), oauthKey.AccessToken, accountID)
 			if err != nil {
 				common.SysError(logPrefix + " after refresh: " + err.Error())
 				c.JSON(http.StatusOK, gin.H{"success": false, "message": userMessage})

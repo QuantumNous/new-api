@@ -370,8 +370,8 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return normalizeModelNames(plugin.Meta.Models), nil
 	}
 	baseURL := constant.GetChannelBaseURL(channel.Type)
-	if channel.GetBaseURL() != "" {
-		baseURL = channel.GetBaseURL()
+	if channel.GetRuntimeBaseURL() != "" {
+		baseURL = channel.GetRuntimeBaseURL()
 	}
 
 	if channel.Type == constant.ChannelTypeOllama {
