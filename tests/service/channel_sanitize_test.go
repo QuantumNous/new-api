@@ -52,3 +52,12 @@ func TestSanitizeWithPairAlwaysRedactsCredentials(t *testing.T) {
 		assert.NotContains(t, out, "Bearer leak")
 	}
 }
+
+func TestSanitizeWithPairRedactsURLCredentials(t *testing.T) {
+	in := "request https://user:pass@real.example/v1?api_key=secret&x=1 and https://real.example/?access_token=tok"
+	out := service.SanitizeWithPair("https://real.example", "https://display.example", in)
+	assert.NotContains(t, out, "user:pass")
+	assert.NotContains(t, out, "api_key=secret")
+	assert.NotContains(t, out, "access_token=tok")
+	assert.Contains(t, out, "display.example")
+}
