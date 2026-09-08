@@ -11,3 +11,5 @@ Known limitation: some controller channel list/fetch code still intentionally us
 Follow-up fixes: Ollama channel management now uses `GetRuntimeBaseURL`; Ollama error projections sanitize actual hosts for non-root users. Removed the `default:''` tag from `ActualBaseURL` to avoid cross-database default churn. `rg` audit confirms remaining `GetBaseURL` uses are validation/display paths.
 
 P1 follow-up: Ollama streaming SSE errors now sanitize runtime hosts and credentials. Upstream model refresh SELECT includes `actual_base_url`, preserving runtime routing after reload. Sanitization redacts Bearer/API-key/sk-style secrets.
+
+Sanitizer follow-up: URL replacement and credential redaction are now separated so every parse/no-op branch redacts secrets, including malformed URLs and actual==display cases.
