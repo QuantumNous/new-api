@@ -13,3 +13,5 @@ Follow-up fixes: Ollama channel management now uses `GetRuntimeBaseURL`; Ollama 
 P1 follow-up: Ollama streaming SSE errors now sanitize runtime hosts and credentials. Upstream model refresh SELECT includes `actual_base_url`, preserving runtime routing after reload. Sanitization redacts Bearer/API-key/sk-style secrets.
 
 Sanitizer follow-up: URL replacement and credential redaction are now separated so every parse/no-op branch redacts secrets, including malformed URLs and actual==display cases.
+
+Final sanitizer follow-up: query credentials (`key`, `api_key`, `access_token`, `token`, `password`, etc.) and URL userinfo are redacted while host replacement remains intact.
