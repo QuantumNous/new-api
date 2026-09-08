@@ -2305,9 +2305,27 @@ placeholder={t(
                               <FormField
                                 control={form.control}
                                 name='aws_key_type'
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel>{t('AWS Key Format')}</FormLabel>
+                                render={({ field }) => {
+                                  let keyFormatDescription = t(
+                                    'AK/SK mode: use AccessKey|SecretAccessKey|Region'
+                                  )
+                                  if (field.value === 'api_key') {
+                                    keyFormatDescription = t(
+                                      'API Key mode: use APIKey|Region'
+                                    )
+                                  } else if (
+                                    field.value === 'credential_chain'
+                                  ) {
+                                    keyFormatDescription = t(
+                                      'Default credential chain mode: use Region or Profile|Region. Credentials come from the deployment environment and are not stored here.'
+                                    )
+                                  }
+
+                                  return (
+                                    <FormItem>
+                                      <FormLabel>
+                                        {t('AWS Key Format')}
+                                      </FormLabel>
                                     <Select
                                       items={[
                                         {
@@ -2319,6 +2337,10 @@ placeholder={t(
                                         {
                                           value: 'api_key',
                                           label: t('API Key'),
+                                        },
+                                        {
+                                          value: 'credential_chain',
+                                          label: t('Default Credential Chain'),
                                         },
                                       ]}
                                       onValueChange={field.onChange}
@@ -2341,19 +2363,19 @@ placeholder={t(
                                           <SelectItem value='api_key'>
                                             {t('API Key')}
                                           </SelectItem>
+                                          <SelectItem value='credential_chain'>
+                                            {t('Default Credential Chain')}
+                                          </SelectItem>
                                         </SelectGroup>
                                       </SelectContent>
                                     </Select>
-                                    <FormDescription>
-                                      {field.value === 'api_key'
-                                        ? t('API Key mode: use APIKey|Region')
-                                        : t(
-                                            'AK/SK mode: use AccessKey|SecretAccessKey|Region'
-                                          )}
-                                    </FormDescription>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
+                                      <FormDescription>
+                                        {keyFormatDescription}
+                                      </FormDescription>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )
+                                }}
                               />
                             )}
 
@@ -2947,6 +2969,13 @@ placeholder={t(
                                   ) {
                                     keyPlaceholder = t(
                                       'Enter API Key, format: APIKey|Region'
+                                    )
+                                  } else if (
+                                    currentType === 33 &&
+                                    awsKeyType === 'credential_chain'
+                                  ) {
+                                    keyPlaceholder = t(
+                                      'Enter key, format: Region or Profile|Region'
                                     )
                                   } else if (
                                     currentType === 33 &&

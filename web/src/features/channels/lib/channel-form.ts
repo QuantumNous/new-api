@@ -269,7 +269,9 @@ export const channelFormSchema = z
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
-    aws_key_type: z.enum(['ak_sk', 'api_key']).optional(), // AWS specific
+    aws_key_type: z
+      .enum(['ak_sk', 'api_key', 'credential_chain'])
+      .optional(), // AWS specific
     azure_responses_version: z.string().optional(), // Azure specific
     // Field passthrough controls (stored in settings JSON)
     allow_service_tier: z.boolean().optional(), // OpenAI/Anthropic
@@ -518,7 +520,7 @@ export function transformChannelToFormDefaults(
   let vertexKeyType: 'json' | 'api_key' = 'json'
   let azureResponsesVersion = ''
   let isEnterpriseAccount = false
-  let awsKeyType: 'ak_sk' | 'api_key' = 'ak_sk'
+  let awsKeyType: 'ak_sk' | 'api_key' | 'credential_chain' = 'ak_sk'
   let allowServiceTier = false
   let disableStore = false
   let allowSafetyIdentifier = false

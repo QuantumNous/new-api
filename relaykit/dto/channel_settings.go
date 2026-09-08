@@ -64,6 +64,9 @@ type AwsKeyType string
 const (
 	AwsKeyTypeAKSK   AwsKeyType = "ak_sk" // 默认
 	AwsKeyTypeApiKey AwsKeyType = "api_key"
+	// AwsKeyTypeCredentialChain 使用 AWS 默认凭据链，凭据由部署环境提供，
+	// 渠道密钥中只保存 Region 与可选的 shared config profile 名称。
+	AwsKeyTypeCredentialChain AwsKeyType = "credential_chain"
 )
 
 type ChannelOtherSettings struct {

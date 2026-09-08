@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -449,4 +450,100 @@ func TestAwsStreamHandlerStopsAtClientCancellation(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("upstream producer did not observe the closed stream")
 	}
+}
+
+func TestParseAwsCredentialChainKey(t *testing.T) {
+	testCases := []struct {
+		name            string
+		key             string
+		expectedProfile string
+		expectedRegion  string
+		expectError     bool
+	}{
+		{
+			name:           "region only",
+			key:            "ap-southeast-2",
+			expectedRegion: "ap-southeast-2",
+		},
+		{
+			name:            "profile and region",
+			key:             "bedrock-runtime|ap-southeast-2",
+			expectedProfile: "bedrock-runtime",
+			expectedRegion:  "ap-southeast-2",
+		},
+		{
+			name:            "surrounding spaces are trimmed",
+			key:             " bedrock-runtime | ap-southeast-2 ",
+			expectedProfile: "bedrock-runtime",
+			expectedRegion:  "ap-southeast-2",
+		},
+		{
+			name:           "empty profile falls back to the default chain",
+			key:            "|ap-southeast-2",
+			expectedRegion: "ap-southeast-2",
+		},
+		{
+			name:        "empty key is rejected",
+			key:         "",
+			expectError: true,
+		},
+		{
+			name:        "missing region is rejected",
+			key:         "bedrock-runtime|",
+			expectError: true,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			profile, region, err := parseAwsCredentialChainKey(testCase.key)
+			if testCase.expectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, testCase.expectedProfile, profile)
+			assert.Equal(t, testCase.expectedRegion, region)
+		})
+	}
+}
+
+func TestAwsCredentialChainProviderIsCached(t *testing.T) {
+	t.Setenv("AWS_CONFIG_FILE", filepath.Join(t.TempDir(), "config"))
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", filepath.Join(t.TempDir(), "credentials"))
+	awsCredentialChainProviders.Delete("|ap-southeast-2")
+	t.Cleanup(func() { awsCredentialChainProviders.Delete("|ap-southeast-2") })
+
+	first, err := awsCredentialChainProvider("", "ap-southeast-2")
+	require.NoError(t, err)
+	second, err := awsCredentialChainProvider("", "ap-southeast-2")
+	require.NoError(t, err)
+
+	// 同一渠道配置必须复用同一个提供者，否则 credential_process 会在每个请求
+	// 重新执行，CredentialsCache 也就失去意义。
+	assert.Same(t, first, second)
+}
+
+func TestNewAwsClientUsesCredentialChain(t *testing.T) {
+	t.Setenv("AWS_CONFIG_FILE", filepath.Join(t.TempDir(), "config"))
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", filepath.Join(t.TempDir(), "credentials"))
+	awsCredentialChainProviders.Delete("|ap-southeast-2")
+	t.Cleanup(func() { awsCredentialChainProviders.Delete("|ap-southeast-2") })
+
+	ginContext, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			// 单段密钥在 ak_sk 模式下会被拒绝，这里必须走凭据链分支。
+			ApiKey: "ap-southeast-2",
+			ChannelOtherSettings: dto.ChannelOtherSettings{
+				AwsKeyType: dto.AwsKeyTypeCredentialChain,
+			},
+		},
+	}
+
+	client, err := newAwsClient(ginContext, info)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	assert.Equal(t, "ap-southeast-2", client.Options().Region)
+	assert.NotNil(t, client.Options().Credentials)
 }
