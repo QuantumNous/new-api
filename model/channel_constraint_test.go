@@ -130,6 +130,27 @@ func TestFilterCandidateIDs(t *testing.T) {
 			wantEmpty: dto.FilterRequestPath,
 		},
 		{
+			name:      "channel type keeps only the required provider type",
+			ids:       []int{900003, 900004},
+			modelName: "shared",
+			filters: []dto.ChannelFilter{{
+				Kind:        dto.FilterChannelType,
+				ChannelType: constant.ChannelTypeKling,
+			}},
+			wantKept: []int{900004},
+		},
+		{
+			name:      "channel type drops missing cache entries",
+			ids:       []int{900003, 999999},
+			modelName: "shared",
+			filters: []dto.ChannelFilter{{
+				Kind:        dto.FilterChannelType,
+				ChannelType: constant.ChannelTypeKling,
+			}},
+			wantKept:  []int{},
+			wantEmpty: dto.FilterChannelType,
+		},
+		{
 			name:      "intersection attributes empty set to identity after path keeps candidates",
 			ids:       []int{900001, 900010},
 			modelName: "gpt-4",
@@ -215,4 +236,11 @@ func TestChannelSatisfiesFilters(t *testing.T) {
 	}})
 	assert.False(t, ok)
 	assert.Equal(t, dto.FilterRequestPath, kind)
+
+	ok, kind = ChannelSatisfiesFilters(ordinary, "gpt-4", []dto.ChannelFilter{{
+		Kind:        dto.FilterChannelType,
+		ChannelType: constant.ChannelTypeVertexAi,
+	}})
+	assert.False(t, ok)
+	assert.Equal(t, dto.FilterChannelType, kind)
 }
