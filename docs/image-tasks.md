@@ -7,7 +7,7 @@
 将 `docs/examples/image-client.mjs`、`docs/examples/image-task-client.mjs` 放在客户程序同一目录。保留原来构造 `body` 的代码，把 fetch 和响应读取部分替换成：
 
 ```js
-import { randomUUID } from 'node:crypto';
+import { randomUUID, webcrypto } from 'node:crypto';
 import { requestImageTask } from './image-task-client.mjs';
 
 // 同一次业务提交生成一次编号，持久化保存；恢复时继续使用这个编号。
@@ -18,6 +18,7 @@ const data = await requestImageTask(
   body,   // 原来的 model、prompt、images、n、quality 等参数。
   {
     submissionId,
+    crypto: webcrypto,
     onTask: (task) => {
       // 将 submissionId / taskId 保存到本次业务记录，方便断线后恢复。
       console.log('image task', task);
@@ -56,4 +57,22 @@ return data;
 
 回归测试覆盖立即受理、生成前不计费、同编号不重复生成、编号参数冲突、价格锁定、原 Base64/size/usage 保留、重复读取只扣一次、同用户不同 Key/不同用户隔离、额度耗尽后取结果、进程中断不重新调度、流式请求拒绝。客户端测试覆盖轮询、恢复、提交失败保留编号和只重试 GET。
 
-部署记录及 150 秒 Cloudflare 验收结果将在发布完成后记录于本页。任何上游拒绝、余额不足、网络全断等仍会产生明确失败；本功能解决的是慢生成超过入口同步等待时限。
+任何上游拒绝、余额不足、网络全断等仍会产生明确失败；本功能解决的是慢生成超过入口同步等待时限。
+
+## 已发布与实际链路验收
+
+2026-09-08 经受限部署账号发布 `hardy-image-tasks-20260908-184008`，功能提交 `04ab30b2`。运行镜像 `sha256:1eeb2014db3bb0e7398f6a5ed33115b6fc5e7f3751942097761222ded72fce45`，二进制 SHA256 `133fb270bab7f26b5b85b1bc3b7004b6868a7f680dee08ac5b617513d921abe1`。公网状态返回该版本、应用 healthy、重启计数 0；任务路由未认证请求返回 401 JSON。
+
+使用同一最终镜像、隔离生产数据库副本和等待 150 秒的模拟上游，经受限临时 Cloudflare Quick Tunnel 验收（非生产域名，不使用真实收费模型）：
+
+| 场景 | 实测结果 |
+| --- | --- |
+| 原同步生图 | 126.553 秒，HTTP 524，HTML 错误页 |
+| 新任务提交 | 2.202 秒受理并取得任务编号 |
+| 后台任务结果 | 154.399 秒成功，完整 Base64、实测 3x4、usage 保留 |
+| 恢复读取同一任务 | 返回相同结果；模拟上游该任务只调用 1 次 |
+| 模拟上游 500 | 错误结果保留，不重试生成，该任务只调用 1 次 |
+
+隔离账本：成功任务 1 条消费、quota=10000（2 分）；失败任务 1 条 quota=0 错误记录。原始请求和结果未复制到公开验收页面，临时入口只接受测试 Key 和指定路径。验证未重新配置生产网络或修改生产 Tunnel。
+
+发布前数据库恢复点及镜像配置位于 `/var/lib/hardy-task-check-184008/`（root 私有），其中 `production-before-activate.dump` 是紧邻发布的数据库备份。回滚镜像为前一版 `sha256:ebbe10b60ba984cb1aaa9d28769dfa6fa94832b75806b77bb596d19c690d7509`；回滚前必须处理运行中的新任务。

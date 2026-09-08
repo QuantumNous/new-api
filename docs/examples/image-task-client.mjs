@@ -44,7 +44,8 @@ export async function requestImageTask(endpoint, apiKey, request, options = {}) 
   base.pathname = '/v1/images/tasks'
   base.search = ''
   base.hash = ''
-  const submissionId = options.submissionId ?? crypto.randomUUID()
+  const cryptoAPI = options.crypto ?? globalThis.crypto
+  const submissionId = options.submissionId ?? cryptoAPI?.randomUUID()
   const requestBody = JSON.stringify(request)
   let taskId = options.taskId
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -57,7 +58,8 @@ export async function requestImageTask(endpoint, apiKey, request, options = {}) 
       if (options.submissionId) {
         try {
           task = await taskRequest(`${base}/by-submission/${submissionId}`, apiKey, 'GET', undefined, undefined, options.signal)
-          const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(requestBody))
+          if (!cryptoAPI?.subtle) throw new Error('Pass Node webcrypto in options.crypto to verify the saved request')
+          const digest = await cryptoAPI.subtle.digest('SHA-256', new TextEncoder().encode(requestBody))
           const requestHash = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
           if (task.request_hash !== requestHash) throw new ImageRequestError('提交编号已用于不同请求，请勿复用编号修改参数。', 409, 'TASK_REQUEST_CONFLICT')
         } catch (error) {
