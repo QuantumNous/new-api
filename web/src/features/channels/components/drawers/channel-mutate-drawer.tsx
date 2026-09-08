@@ -291,6 +291,7 @@ const SENSITIVE_FORM_FIELDS = [
   'allow_include_obfuscation',
   'allow_inference_geo',
   'allow_speed',
+  'allow_fallbacks',
   'claude_beta_query',
   'disable_task_polling_sleep',
   'upstream_model_update_check_enabled',
@@ -742,6 +743,7 @@ export function ChannelMutateDrawer({
   const currentAllowIncludeObfuscation = form.watch('allow_include_obfuscation')
   const currentAllowInferenceGeo = form.watch('allow_inference_geo')
   const currentAllowSpeed = form.watch('allow_speed')
+  const currentAllowFallbacks = form.watch('allow_fallbacks')
   const currentClaudeBetaQuery = form.watch('claude_beta_query')
   const currentUpstreamModelUpdateAutoSyncEnabled = form.watch(
     'upstream_model_update_auto_sync_enabled'
@@ -1031,6 +1033,7 @@ export function ChannelMutateDrawer({
         currentAllowServiceTier ||
         currentAllowInferenceGeo ||
         currentAllowSpeed ||
+        currentAllowFallbacks ||
         (currentType === 14 && currentClaudeBetaQuery)
       )
   }
@@ -4579,6 +4582,31 @@ placeholder={t(
                                             <FormDescription>
                                               {t(
                                                 'Pass through the speed field for Claude inference speed mode control'
+                                              )}
+                                            </FormDescription>
+                                          </div>
+                                          <FormControl>
+                                            <Switch
+                                              checked={field.value}
+                                              onCheckedChange={field.onChange}
+                                            />
+                                          </FormControl>
+                                        </FormItem>
+                                      )}
+                                    />
+
+                                    <FormField
+                                      control={form.control}
+                                      name='allow_fallbacks'
+                                      render={({ field }) => (
+                                        <FormItem className='flex items-center justify-between gap-3 px-4 py-3'>
+                                          <div className='space-y-0.5'>
+                                            <FormLabel className='text-sm'>
+                                              {t('Allow fallbacks passthrough')}
+                                            </FormLabel>
+                                            <FormDescription>
+                                              {t(
+                                                'Pass through the fallbacks field so Claude can retry a refused request on another model, which is then billed at its own rate'
                                               )}
                                             </FormDescription>
                                           </div>

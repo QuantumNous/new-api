@@ -155,6 +155,11 @@ func UpdateCreateCacheRatioByJSONString(jsonStr string) error {
 	return types.LoadFromJsonStringWithCallback(createCacheRatioMap, jsonStr, InvalidateExposedDataCache)
 }
 
+// ClaudeCacheCreation1hMultiplier is the fixed price relation between Claude's
+// 1h and 5m cache writes ($6 vs $3.75 per MTok), used to derive the 1h cache
+// creation ratio from the configured (5m) one.
+const ClaudeCacheCreation1hMultiplier = 6 / 3.75
+
 // GetCacheRatio returns the cache ratio for a model
 func GetCacheRatio(name string) (float64, bool) {
 	ratio, ok := cacheRatioMap.Get(name)

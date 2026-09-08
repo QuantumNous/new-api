@@ -278,6 +278,7 @@ export const channelFormSchema = z
     allow_include_obfuscation: z.boolean().optional(), // OpenAI: include usage obfuscation
     allow_inference_geo: z.boolean().optional(), // OpenAI/Anthropic: inference geography
     allow_speed: z.boolean().optional(), // Anthropic: speed mode control
+    allow_fallbacks: z.boolean().optional(), // Anthropic: server-side refusal fallback
     claude_beta_query: z.boolean().optional(), // Anthropic: beta query passthrough
     disable_task_polling_sleep: z.boolean().optional(),
     // Upstream model update settings (stored in settings JSON)
@@ -459,6 +460,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   allow_include_obfuscation: false,
   allow_inference_geo: false,
   allow_speed: false,
+  allow_fallbacks: false,
   claude_beta_query: false,
   disable_task_polling_sleep: false,
   upstream_model_update_check_enabled: false,
@@ -525,6 +527,7 @@ export function transformChannelToFormDefaults(
   let allowIncludeObfuscation = false
   let allowInferenceGeo = false
   let allowSpeed = false
+  let allowFallbacks = false
   let claudeBetaQuery = false
   let disableTaskPollingSleep = false
   let upstreamModelUpdateCheckEnabled = false
@@ -545,6 +548,7 @@ export function transformChannelToFormDefaults(
       allowIncludeObfuscation = parsed.allow_include_obfuscation === true
       allowInferenceGeo = parsed.allow_inference_geo === true
       allowSpeed = parsed.allow_speed === true
+      allowFallbacks = parsed.allow_fallbacks === true
       claudeBetaQuery = parsed.claude_beta_query === true
       disableTaskPollingSleep = parsed.disable_task_polling_sleep === true
       upstreamModelUpdateCheckEnabled =
@@ -603,6 +607,7 @@ export function transformChannelToFormDefaults(
     allow_include_obfuscation: allowIncludeObfuscation,
     allow_inference_geo: allowInferenceGeo,
     allow_speed: allowSpeed,
+    allow_fallbacks: allowFallbacks,
     claude_beta_query: claudeBetaQuery,
     disable_task_polling_sleep: disableTaskPollingSleep,
     allow_safety_identifier: allowSafetyIdentifier,
@@ -731,6 +736,12 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.allow_speed = formData.allow_speed === true
   } else if ('allow_speed' in settingsObj) {
     delete settingsObj.allow_speed
+  }
+
+  if (CLAUDE_FIELD_PASSTHROUGH_TYPES.has(formData.type)) {
+    settingsObj.allow_fallbacks = formData.allow_fallbacks === true
+  } else if ('allow_fallbacks' in settingsObj) {
+    delete settingsObj.allow_fallbacks
   }
 
   // Only the Anthropic adaptor supports forcing the Claude beta query.

@@ -22,6 +22,11 @@ type ClaudeResponseInfo struct {
 	Usage        *dto.Usage
 	Done         bool
 
+	// Iterations preserves the per-attempt usage breakdown of a server-side
+	// fallback response. The shared dto.Usage shape has no place for it, so it is
+	// carried here and re-attached whenever the billing snapshot is synthesized.
+	Iterations []dto.ClaudeUsageIteration
+
 	// Only snapshots synthesized from partial display usage may be refreshed by
 	// later display deltas. Serialized BillingUsage always remains authoritative.
 	billingUsageSynthesized bool
@@ -395,7 +400,7 @@ func BuildMessageDeltaPatchUsage(claudeResponse *dto.ClaudeResponse, claudeInfo 
 	return usage
 }
 
-func claudeBillingUsageFromSemanticUsage(usage *dto.Usage) *dto.BillingUsage {
+func claudeBillingUsageFromSemanticUsage(usage *dto.Usage, iterations []dto.ClaudeUsageIteration) *dto.BillingUsage {
 	if usage == nil {
 		return nil
 	}
@@ -409,6 +414,7 @@ func claudeBillingUsageFromSemanticUsage(usage *dto.Usage) *dto.BillingUsage {
 		CacheCreationInputTokens: usage.PromptTokensDetails.CachedCreationTokens,
 		CacheReadInputTokens:     usage.PromptTokensDetails.CachedTokens,
 		OutputTokens:             usage.CompletionTokens,
+		Iterations:               iterations,
 	}
 	if cacheCreation5m > 0 || cacheCreation1h > 0 {
 		claudeUsage.CacheCreation = &dto.ClaudeCacheCreationUsage{
@@ -423,6 +429,9 @@ func updateClaudeStreamBillingUsage(claudeUsage *dto.ClaudeUsage, claudeInfo *Cl
 	if claudeUsage == nil || claudeInfo == nil || claudeInfo.Usage == nil {
 		return
 	}
+	if len(claudeUsage.Iterations) > 0 {
+		claudeInfo.Iterations = claudeUsage.Iterations
+	}
 	if billingUsage := dto.CloneBillingUsage(claudeUsage.BillingUsage); billingUsage != nil {
 		claudeInfo.Usage.BillingUsage = billingUsage
 		if terminal || claudeUsage.OutputTokens > 0 {
@@ -435,7 +444,7 @@ func updateClaudeStreamBillingUsage(claudeUsage *dto.ClaudeUsage, claudeInfo *Cl
 	if claudeInfo.Usage.BillingUsage != nil && !claudeInfo.billingUsageSynthesized {
 		return
 	}
-	claudeInfo.Usage.BillingUsage = claudeBillingUsageFromSemanticUsage(claudeInfo.Usage)
+	claudeInfo.Usage.BillingUsage = claudeBillingUsageFromSemanticUsage(claudeInfo.Usage, claudeInfo.Iterations)
 	claudeInfo.billingUsageSynthesized = claudeInfo.Usage.BillingUsage != nil
 }
 
@@ -450,7 +459,7 @@ func FinalizeClaudeStreamBillingUsage(claudeInfo *ClaudeResponseInfo) {
 		return
 	}
 
-	billingUsage := claudeBillingUsageFromSemanticUsage(claudeInfo.Usage)
+	billingUsage := claudeBillingUsageFromSemanticUsage(claudeInfo.Usage, claudeInfo.Iterations)
 	if billingUsage != nil && !claudeInfo.Done {
 		billingUsage.Estimated = true
 	}
