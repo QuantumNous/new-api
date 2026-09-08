@@ -249,6 +249,12 @@ const (
 	RedemptionCodeStatusEnabled  = 1 // don't use 0, 0 is the default value!
 	RedemptionCodeStatusDisabled = 2 // also don't use 0
 	RedemptionCodeStatusUsed     = 3 // also don't use 0
+	RedemptionCodeStatusRefunded = 4
+)
+
+const (
+	RedemptionCodeTypeQuota        = 0
+	RedemptionCodeTypeSubscription = 1
 )
 
 const (
