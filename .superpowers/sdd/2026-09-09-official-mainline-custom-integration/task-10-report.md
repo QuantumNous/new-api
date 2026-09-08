@@ -39,3 +39,9 @@ Validation after feature import: typecheck passed, focused sensitive-field test 
 Registered authenticated `/agents` and `/agent-admin` routes and added `/usage-ranking`, which consumes root-only `/api/log/ranking` without replacing the public `/api/rankings` page. Route-tree generation occurred during `bun run build`.
 
 Final follow-up validation: `bun run typecheck` and production build passed. Existing imported custom tests using `node:test` are incompatible with the browser Vitest environment and fail before executing; this is recorded as a pre-existing migration issue.
+
+## Final review closure
+
+Agent and Agent Admin routes are registered with URL-backed search state; `/usage-ranking` is registered, response-mapped, and super-admin gated. The agent route now waits for access and overview queries and passes the real overview response, avoiding fake initial data. Sidebar entries include role visibility for admin and ranking links.
+
+Remaining limitation: imported custom feature tests using `node:test` are incompatible with the browser Vitest environment and fail before executing. Typecheck and production build pass.
