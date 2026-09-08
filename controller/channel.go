@@ -113,11 +113,26 @@ func disableMultiKeyChannelIfUnavailable(channel *model.Channel) bool {
 	if channel.Status != common.ChannelStatusEnabled {
 		return true
 	}
-	if !model.UpdateChannelStatus(channel.Id, "", common.ChannelStatusManuallyDisabled, "All keys are disabled") {
-		return false
-	}
 	channel.Status = common.ChannelStatusManuallyDisabled
+	info := channel.GetOtherInfo()
+	info["status_reason"] = model.ChannelStatusReasonAllKeysDisabled
+	info["status_time"] = common.GetTimestamp()
+	channel.SetOtherInfo(info)
 	return true
+}
+
+func restoreMultiKeyChannelIfAvailable(channel *model.Channel) {
+	if channel.Status != common.ChannelStatusManuallyDisabled || !hasEnabledMultiKey(channel) {
+		return
+	}
+	info := channel.GetOtherInfo()
+	if info["status_reason"] != model.ChannelStatusReasonAllKeysDisabled {
+		return
+	}
+	channel.Status = common.ChannelStatusEnabled
+	info["status_reason"] = ""
+	info["status_time"] = common.GetTimestamp()
+	channel.SetOtherInfo(info)
 }
 
 func applyChannelStatusFilter(query *gorm.DB, statusFilter int) *gorm.DB {
@@ -1797,13 +1812,12 @@ func ManageMultiKeys(c *gin.Context) {
 
 		channel.ChannelInfo.MultiKeyStatusList[keyIndex] = 2 // disabled
 
+		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		err = channel.Update()
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-
-		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		model.InitChannelCache()
 		if shouldCloseWebSocket {
 			closeActiveChannelWebSockets([]int{channel.Id})
@@ -1842,6 +1856,7 @@ func ManageMultiKeys(c *gin.Context) {
 		if channel.ChannelInfo.MultiKeyDisabledReason != nil {
 			delete(channel.ChannelInfo.MultiKeyDisabledReason, keyIndex)
 		}
+		restoreMultiKeyChannelIfAvailable(channel)
 
 		err = channel.Update()
 		if err != nil {
@@ -1866,6 +1881,7 @@ func ManageMultiKeys(c *gin.Context) {
 		channel.ChannelInfo.MultiKeyStatusList = make(map[int]int)
 		channel.ChannelInfo.MultiKeyDisabledTime = make(map[int]int64)
 		channel.ChannelInfo.MultiKeyDisabledReason = make(map[int]string)
+		restoreMultiKeyChannelIfAvailable(channel)
 
 		err = channel.Update()
 		if err != nil {
@@ -1914,13 +1930,12 @@ func ManageMultiKeys(c *gin.Context) {
 			return
 		}
 
+		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		err = channel.Update()
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-
-		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		model.InitChannelCache()
 		if shouldCloseWebSocket {
 			closeActiveChannelWebSockets([]int{channel.Id})
@@ -1998,13 +2013,12 @@ func ManageMultiKeys(c *gin.Context) {
 		channel.ChannelInfo.MultiKeyDisabledTime = newDisabledTime
 		channel.ChannelInfo.MultiKeyDisabledReason = newDisabledReason
 
+		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		err = channel.Update()
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-
-		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		model.InitChannelCache()
 		if shouldCloseWebSocket {
 			closeActiveChannelWebSockets([]int{channel.Id})
@@ -2070,13 +2084,12 @@ func ManageMultiKeys(c *gin.Context) {
 		channel.ChannelInfo.MultiKeyDisabledTime = newDisabledTime
 		channel.ChannelInfo.MultiKeyDisabledReason = newDisabledReason
 
+		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		err = channel.Update()
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-
-		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		model.InitChannelCache()
 		if shouldCloseWebSocket {
 			closeActiveChannelWebSockets([]int{channel.Id})

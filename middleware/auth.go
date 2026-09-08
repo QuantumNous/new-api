@@ -480,7 +480,7 @@ func TokenAuth() func(c *gin.Context) {
 }
 
 func applyWebSocketSubprotocolAuthorization(header http.Header) bool {
-	key, ok := apiKeyFromWebSocketSubprotocol(header.Get("Sec-WebSocket-Protocol"))
+	key, ok := apiKeyFromWebSocketSubprotocol(strings.Join(header.Values("Sec-WebSocket-Protocol"), ","))
 	if !ok {
 		return false
 	}

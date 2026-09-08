@@ -310,6 +310,7 @@ func TestApplyWebSocketSubprotocolAuthorizationDoesNotOverrideProtocolOnly(t *te
 	header := http.Header{}
 	header.Set("Authorization", "Bearer sk-original")
 	header.Set("Sec-WebSocket-Protocol", "responses")
+	header.Add("Sec-WebSocket-Protocol", "openai-beta.realtime-v1")
 
 	assert.False(t, applyWebSocketSubprotocolAuthorization(header))
 	assert.Equal(t, "Bearer sk-original", header.Get("Authorization"))
@@ -322,4 +323,14 @@ func TestApplyWebSocketSubprotocolAuthorizationOverridesWithInsecureKey(t *testi
 
 	assert.True(t, applyWebSocketSubprotocolAuthorization(header))
 	assert.Equal(t, "Bearer sk-from-protocol", header.Get("Authorization"))
+}
+
+func TestApplyWebSocketSubprotocolAuthorizationReadsRepeatedHeaders(t *testing.T) {
+	header := http.Header{}
+	header.Set("Authorization", "Bearer sk-original")
+	header.Add("Sec-WebSocket-Protocol", "responses")
+	header.Add("Sec-WebSocket-Protocol", "openai-insecure-api-key.sk-later-field")
+
+	assert.True(t, applyWebSocketSubprotocolAuthorization(header))
+	assert.Equal(t, "Bearer sk-later-field", header.Get("Authorization"))
 }

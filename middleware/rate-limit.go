@@ -35,7 +35,7 @@ end
 return {1, count, ttl}
 `
 
-var inMemoryRateLimiter common.InMemoryRateLimiter
+var inMemoryRateLimiter = &common.InMemoryRateLimiter{}
 
 var defNext = func(c *gin.Context) {
 	c.Next()

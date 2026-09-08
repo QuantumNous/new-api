@@ -54,8 +54,9 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	}
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode())))
 	if ShouldDisableChannel(err) && channelError.AutoBan {
+		reason := err.MaskSensitiveErrorWithStatusCode()
 		gopool.Go(func() {
-			DisableChannel(channelError, err.ErrorWithStatusCode())
+			DisableChannel(channelError, reason)
 		})
 	}
 

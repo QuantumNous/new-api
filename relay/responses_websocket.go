@@ -356,7 +356,10 @@ func (s *responsesWSSession) connectAndSendFirst(create responsesWSCreateRequest
 			return types.NewErrorWithStatusCode(errors.New("another response.create is already in progress on this websocket connection"), types.ErrorCodeInvalidRequest, http.StatusConflict, types.ErrOptionWithSkipRetry())
 		}
 		if err := s.writeTarget(websocket.TextMessage, payload); err != nil {
-			s.finishCall(state, false)
+			// The next channel attempt belongs to the same admitted request.
+			// Keep its rate-limit reservation until success or final failure.
+			s.clearCurrent(state)
+			state.refund(s.c)
 			s.closeTarget()
 			apiErr = types.NewError(err, types.ErrorCodeBadResponse)
 			var shouldRetry bool

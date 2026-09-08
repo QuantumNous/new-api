@@ -202,6 +202,14 @@ func TestResponsesWSChannelRoutingRequiresExplicitOptIn(t *testing.T) {
 		require.NoError(t, database.Create(channel).Error)
 		require.NoError(t, database.Create(&model.Ability{ChannelId: channel.Id, Model: "ws-model", Group: "default", Enabled: true, Priority: channel.Priority}).Error)
 	}
+	previousCache := common.MemoryCacheEnabled
+	t.Cleanup(func() {
+		defer func() { common.MemoryCacheEnabled = previousCache }()
+		ids := []int{legacy.Id, enabled.Id, unsupported.Id}
+		require.NoError(t, database.Where("channel_id IN ?", ids).Delete(&model.Ability{}).Error)
+		require.NoError(t, database.Where("id IN ?", ids).Delete(&model.Channel{}).Error)
+		model.InitChannelCache()
+	})
 	common.MemoryCacheEnabled = true
 	model.InitChannelCache()
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
