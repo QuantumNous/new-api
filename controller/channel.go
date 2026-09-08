@@ -990,7 +990,6 @@ func UpdateChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-<<<<<<< ours
 	if err := common.Unmarshal(rawBody, &channel); err != nil {
 		common.ApiError(c, err)
 		return
@@ -1005,12 +1004,10 @@ func UpdateChannel(c *gin.Context) {
 		return
 	}
 	clearChannelReadOnlyFields(&channel, requestData)
-=======
 	nonRoot := !isRoot(c)
 	if nonRoot {
 		channel.ActualBaseURL = nil
 	}
->>>>>>> theirs
 
 	if channel.Type == constant.ChannelTypeTaskPlugin &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.TaskPluginBind) {
