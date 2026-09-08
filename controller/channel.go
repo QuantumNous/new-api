@@ -2077,8 +2077,8 @@ func OllamaPullModel(c *gin.Context) {
 	}
 
 	baseURL := constant.GetChannelBaseURL(channel.Type)
-	if channel.GetBaseURL() != "" {
-		baseURL = channel.GetBaseURL()
+	if channel.GetRuntimeBaseURL() != "" {
+		baseURL = channel.GetRuntimeBaseURL()
 	}
 
 	key := strings.Split(channel.Key, "\n")[0]
@@ -2086,7 +2086,7 @@ func OllamaPullModel(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"message": fmt.Sprintf("Failed to pull model: %s", err.Error()),
+			"message": service.SanitizeForChannel(channel.Id, fmt.Sprintf("Failed to pull model: %s", err.Error())),
 		})
 		return
 	}
@@ -2140,8 +2140,8 @@ func OllamaPullModelStream(c *gin.Context) {
 	}
 
 	baseURL := constant.GetChannelBaseURL(channel.Type)
-	if channel.GetBaseURL() != "" {
-		baseURL = channel.GetBaseURL()
+	if channel.GetRuntimeBaseURL() != "" {
+		baseURL = channel.GetRuntimeBaseURL()
 	}
 
 	// 设置 SSE 头部
@@ -2222,8 +2222,8 @@ func OllamaDeleteModel(c *gin.Context) {
 	}
 
 	baseURL := constant.GetChannelBaseURL(channel.Type)
-	if channel.GetBaseURL() != "" {
-		baseURL = channel.GetBaseURL()
+	if channel.GetRuntimeBaseURL() != "" {
+		baseURL = channel.GetRuntimeBaseURL()
 	}
 
 	key := strings.Split(channel.Key, "\n")[0]
@@ -2231,7 +2231,7 @@ func OllamaDeleteModel(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"message": fmt.Sprintf("Failed to delete model: %s", err.Error()),
+			"message": service.SanitizeForChannel(channel.Id, fmt.Sprintf("Failed to delete model: %s", err.Error())),
 		})
 		return
 	}
@@ -2271,8 +2271,8 @@ func OllamaVersion(c *gin.Context) {
 	}
 
 	baseURL := constant.GetChannelBaseURL(channel.Type)
-	if channel.GetBaseURL() != "" {
-		baseURL = channel.GetBaseURL()
+	if channel.GetRuntimeBaseURL() != "" {
+		baseURL = channel.GetRuntimeBaseURL()
 	}
 
 	key := strings.Split(channel.Key, "\n")[0]
@@ -2280,7 +2280,7 @@ func OllamaVersion(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": fmt.Sprintf("获取Ollama版本失败: %s", err.Error()),
+			"message": service.SanitizeForChannel(channel.Id, fmt.Sprintf("获取Ollama版本失败: %s", err.Error())),
 		})
 		return
 	}
