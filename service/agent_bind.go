@@ -18,7 +18,7 @@ func TryBindUserToAgent(userID int, agentID int) (bool, error) {
 	}
 
 	var account model.AgentAccount
-	if err := model.DB.Select("user_id").Where("user_id = ?", agentID).First(&account).Error; err != nil {
+	if err := model.DB.Select("user_id").Where("user_id = ? AND status = ?", agentID, model.AgentAccountStatusActive).First(&account).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil
 		}

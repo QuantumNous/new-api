@@ -40,3 +40,16 @@ func TestTryBindUserToAgentRequiresAnAgentAccount(t *testing.T) {
 	require.NoError(t, db.First(&customer, 7201).Error)
 	assert.Zero(t, customer.BoundAgentId)
 }
+
+func TestTryBindUserToAgentRejectsDisabledAgent(t *testing.T) {
+	db := setupAgentBindServiceDB(t)
+	require.NoError(t, db.Create(&model.User{Id: 7202, Username: "customer-7202"}).Error)
+	require.NoError(t, db.Create(&model.AgentAccount{UserId: 7298, Status: model.AgentAccountStatusDisabled}).Error)
+
+	bound, err := TryBindUserToAgent(7202, 7298)
+	require.NoError(t, err)
+	assert.False(t, bound)
+	var customer model.User
+	require.NoError(t, db.First(&customer, 7202).Error)
+	assert.Zero(t, customer.BoundAgentId)
+}
