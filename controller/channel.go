@@ -259,9 +259,13 @@ func FetchUpstreamModels(c *gin.Context) {
 
 	ids, err := fetchChannelUpstreamModelIDs(channel)
 	if err != nil {
+		errMsg := err.Error()
+		if !isRoot(c) && channel != nil {
+			errMsg = service.SanitizeWithPair(channel.GetActualBaseURL(), channel.GetDisplayBaseURL(), errMsg)
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": fmt.Sprintf("获取模型列表失败: %s", err.Error()),
+			"message": fmt.Sprintf("获取模型列表失败: %s", errMsg),
 		})
 		return
 	}
@@ -1384,9 +1388,13 @@ func FetchModels(c *gin.Context) {
 
 	models, err := fetchChannelUpstreamModelIDs(channel)
 	if err != nil {
+		errMsg := err.Error()
+		if !isRoot(c) && channel != nil {
+			errMsg = service.SanitizeWithPair(channel.GetActualBaseURL(), channel.GetDisplayBaseURL(), errMsg)
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"message": fmt.Sprintf("获取模型列表失败: %s", err.Error()),
+			"message": fmt.Sprintf("获取模型列表失败: %s", errMsg),
 		})
 		return
 	}

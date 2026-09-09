@@ -932,7 +932,11 @@ func DetectChannelUpstreamModelUpdates(c *gin.Context) {
 	settings := channel.GetOtherSettings()
 	modelsChanged, autoAdded, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, true, false)
 	if err != nil {
-		common.ApiError(c, err)
+		errMsg := err.Error()
+		if !isRoot(c) {
+			errMsg = service.SanitizeWithPair(channel.GetActualBaseURL(), channel.GetDisplayBaseURL(), errMsg)
+		}
+		common.ApiErrorMsg(c, errMsg)
 		return
 	}
 	if modelsChanged {

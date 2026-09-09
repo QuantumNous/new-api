@@ -21,6 +21,7 @@ import (
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
@@ -86,6 +87,7 @@ var numericPricingSyncFields = map[string]bool{
 }
 
 type upstreamResult struct {
+	ID   int            `json:"id,omitempty"`
 	Name string         `json:"name"`
 	Data map[string]any `json:"data,omitempty"`
 	Err  string         `json:"err,omitempty"`
@@ -323,7 +325,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
 			if err != nil {
 				logger.LogWarn(c.Request.Context(), "build request failed: "+err.Error())
-				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
+				ch <- upstreamResult{ID: chItem.ID, Name: uniqueName, Err: err.Error()}
 				return
 			}
 
@@ -331,16 +333,16 @@ func FetchUpstreamRatios(c *gin.Context) {
 			if isOpenRouter && chItem.ID != 0 {
 				dbCh, err := model.GetChannelById(chItem.ID, true)
 				if err != nil {
-					ch <- upstreamResult{Name: uniqueName, Err: "failed to get channel key: " + err.Error()}
+					ch <- upstreamResult{ID: chItem.ID, Name: uniqueName, Err: "failed to get channel key: " + err.Error()}
 					return
 				}
 				key, _, apiErr := dbCh.GetNextEnabledKey()
 				if apiErr != nil {
-					ch <- upstreamResult{Name: uniqueName, Err: "failed to get enabled channel key: " + apiErr.Error()}
+					ch <- upstreamResult{ID: chItem.ID, Name: uniqueName, Err: "failed to get enabled channel key: " + apiErr.Error()}
 					return
 				}
 				if strings.TrimSpace(key) == "" {
-					ch <- upstreamResult{Name: uniqueName, Err: "no API key configured for this channel"}
+					ch <- upstreamResult{ID: chItem.ID, Name: uniqueName, Err: "no API key configured for this channel"}
 					return
 				}
 				httpReq.Header.Set("Authorization", "Bearer "+strings.TrimSpace(key))
@@ -361,13 +363,13 @@ func FetchUpstreamRatios(c *gin.Context) {
 			}
 			if lastErr != nil {
 				logger.LogWarn(c.Request.Context(), "http error on "+chItem.Name+": "+lastErr.Error())
-				ch <- upstreamResult{Name: uniqueName, Err: lastErr.Error()}
+				ch <- upstreamResult{ID: chItem.ID, Name: uniqueName, Err: lastErr.Error()}
 				return
 			}
 			defer resp.Body.Close()
 			if resp.StatusCode != http.StatusOK {
 				logger.LogWarn(c.Request.Context(), "non-200 from "+chItem.Name+": "+resp.Status)
-				ch <- upstreamResult{Name: uniqueName, Err: resp.Status}
+				ch <- upstreamResult{ID: chItem.ID, Name: uniqueName, Err: resp.Status}
 				return
 			}
 
@@ -379,7 +381,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			bodyBytes, err := io.ReadAll(limited)
 			if err != nil {
 				logger.LogWarn(c.Request.Context(), "read response failed from "+chItem.Name+": "+err.Error())
-				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
+				ch <- upstreamResult{ID: chItem.ID, Name: uniqueName, Err: err.Error()}
 				return
 			}
 
@@ -388,7 +390,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 				converted, err := convertOpenRouterToRatioData(bytes.NewReader(bodyBytes))
 				if err != nil {
 					logger.LogWarn(c.Request.Context(), "OpenRouter parse failed from "+chItem.Name+": "+err.Error())
-					ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
+					ch <- upstreamResult{ID: chItem.ID, Name: uniqueName, Err: err.Error()}
 					return
 				}
 				ch <- upstreamResult{Name: uniqueName, Data: converted}
@@ -400,7 +402,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 				converted, err := convertModelsDevToRatioData(bytes.NewReader(bodyBytes))
 				if err != nil {
 					logger.LogWarn(c.Request.Context(), "models.dev parse failed from "+chItem.Name+": "+err.Error())
-					ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
+					ch <- upstreamResult{ID: chItem.ID, Name: uniqueName, Err: err.Error()}
 					return
 				}
 				ch <- upstreamResult{Name: uniqueName, Data: converted}
@@ -418,12 +420,12 @@ func FetchUpstreamRatios(c *gin.Context) {
 
 			if err := common.DecodeJson(bytes.NewReader(bodyBytes), &body); err != nil {
 				logger.LogWarn(c.Request.Context(), "json decode failed from "+chItem.Name+": "+err.Error())
-				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
+				ch <- upstreamResult{ID: chItem.ID, Name: uniqueName, Err: err.Error()}
 				return
 			}
 
 			if !body.Success {
-				ch <- upstreamResult{Name: uniqueName, Err: body.Message}
+				ch <- upstreamResult{ID: chItem.ID, Name: uniqueName, Err: body.Message}
 				return
 			}
 
@@ -463,7 +465,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			}
 			if err := common.Unmarshal(body.Data, &pricingItems); err != nil {
 				logger.LogWarn(c.Request.Context(), "unrecognized data format from "+chItem.Name+": "+err.Error())
-				ch <- upstreamResult{Name: uniqueName, Err: "无法解析上游返回数据"}
+				ch <- upstreamResult{ID: chItem.ID, Name: uniqueName, Err: "无法解析上游返回数据"}
 				return
 			}
 
@@ -580,10 +582,14 @@ func FetchUpstreamRatios(c *gin.Context) {
 
 	for r := range ch {
 		if r.Err != "" {
+			msg := r.Err
+			if r.ID > 0 && !isRoot(c) {
+				msg = service.SanitizeForChannel(r.ID, msg)
+			}
 			testResults = append(testResults, dto.TestResult{
 				Name:   r.Name,
 				Status: "error",
-				Error:  r.Err,
+				Error:  msg,
 			})
 		} else {
 			testResults = append(testResults, dto.TestResult{
