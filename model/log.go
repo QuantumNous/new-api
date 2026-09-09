@@ -149,7 +149,18 @@ func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
 
 func FormatUserLogsForRequester(logs []*Log, startIdx int) { formatUserLogs(logs, startIdx) }
 
-func LogGroupColumn() string { return commonGroupCol }
+// LogGroupColumn returns the dialect-safe quoted group column used by log
+// queries. Callers may run before InitDB selected a database, so it also
+// derives a safe fallback from the configured log dialect.
+func LogGroupColumn() string {
+	if logGroupCol != "" {
+		return logGroupCol
+	}
+	if common.UsingLogDatabase(common.DatabaseTypePostgreSQL) {
+		return `"group"`
+	}
+	return "`group`"
+}
 
 func RecordLog(userId int, logType int, content string) {
 	if logType == LogTypeConsume && !common.LogConsumeEnabled {
