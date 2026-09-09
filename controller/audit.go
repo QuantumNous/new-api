@@ -42,6 +42,13 @@ var auditContentTemplates = map[string]string{
 	"user.passkey_delete":       "Deleted a passkey",
 	"user.reset_passkey":        "Reset the user passkey",
 	"option.update":             "Updated system setting ${key}",
+	"agent.enable":              "Enabled agent account for user ${agent_user_id}",
+	"agent.disable":             "Disabled agent account for user ${agent_user_id}",
+	"agent.limit_update":        "Updated agent ${agent_user_id} daily code limit to ${daily_code_limit}",
+	"agent.credit":              "Credited agent ${agent_user_id} by ${amount} points",
+	"agent.debit":               "Debited agent ${agent_user_id} by ${amount} points",
+	"agent.offer_update":        "Updated agent offer for plan ${plan_id}: enabled=${enabled}, price=${unit_price}, validity=${code_valid_days} days, refund fee=${refund_fee_bps} bps",
+	"agent.refund":              "Refunded agent ${agent_user_id} package codes; fee=${fee}, refunded=${refunded}, balance=${balance_after}",
 
 	"channel.create":             "Created channel ${name} (type ${type}, count ${count})",
 	"channel.update":             "Updated channel ${name} (ID: ${id})",
