@@ -11,9 +11,9 @@ func strPtr(s string) *string { return &s }
 
 func TestRuntimeAndDisplayBaseURL(t *testing.T) {
 	cases := []struct {
-		name                            string
-		base, actual                    *string
-		wantRuntime, wantDisp, wantAct  string
+		name                           string
+		base, actual                   *string
+		wantRuntime, wantDisp, wantAct string
 	}{
 		{"both nil", nil, nil, "", "", ""},
 		{"base only", strPtr("https://platform.claude.com"), nil, "https://platform.claude.com", "https://platform.claude.com", ""},
