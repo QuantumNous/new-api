@@ -78,6 +78,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	var (
 		newAPIError *types.NewAPIError
+		relayInfo   *relaycommon.RelayInfo
 		ws          *websocket.Conn
 	)
 
@@ -94,7 +95,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
-			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			// Sanitize upstream URL before exposing to client. The server log
+			// above keeps the raw URL for super-admin troubleshooting.
+			newAPIError.SetMessage(common.MessageWithRequestId(
+				redactUpstreamURLForClient(relayInfo, newAPIError.Error()), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
@@ -122,7 +126,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
+	relayInfo, err = relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
@@ -540,6 +544,7 @@ func RelayTaskFetch(c *gin.Context) {
 		return
 	}
 	if taskErr := relay.RelayTaskFetch(c, relayInfo.RelayMode); taskErr != nil {
+		taskErr.Message = redactUpstreamURLForClient(relayInfo, taskErr.Message)
 		respondTaskError(c, taskErr)
 	}
 }
@@ -565,16 +570,19 @@ func RelayTask(c *gin.Context) {
 	}
 
 	if taskErr := relay.ResolveOriginTask(c, relayInfo); taskErr != nil {
+		taskErr.Message = redactUpstreamURLForClient(relayInfo, taskErr.Message)
 		respondTaskSubmissionError(c, taskErr)
 		return
 	}
 	if taskErr := relay.ApplyOriginTaskAffinity(c, relayInfo); taskErr != nil {
+		taskErr.Message = redactUpstreamURLForClient(relayInfo, taskErr.Message)
 		respondTaskSubmissionError(c, taskErr)
 		return
 	}
 
 	outcome, taskErr := executeTaskSubmission(c, relayInfo)
 	if taskErr != nil {
+		taskErr.Message = redactUpstreamURLForClient(relayInfo, taskErr.Message)
 		respondTaskSubmissionError(c, taskErr)
 		return
 	}
