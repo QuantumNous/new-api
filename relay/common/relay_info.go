@@ -457,6 +457,9 @@ func GenRelayInfoGemini(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatGemini
 	info.ShouldIncludeUsage = false
+	// countTokens 只统计 token、不做推理，上游也不计费，
+	// 这里尽早标记，供 adaptor 拼上游 action 与计费层跳过预扣使用。
+	info.IsGeminiCountTokens = strings.Contains(c.Request.URL.Path, "countTokens")
 
 	return info
 }

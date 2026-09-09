@@ -168,6 +168,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	if priceData.FreeModel {
 		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
+	} else if relayInfo.IsGeminiCountTokens {
+		// countTokens 不产生生成用量，处理器也不会调用 PostTextConsumeQuota，
+		// 若在此预扣则无人结算，额度会一直被占住。
+		logger.LogInfo(c, "Gemini countTokens 不计费，跳过预扣费")
 	} else {
 		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
 		if newAPIError != nil {

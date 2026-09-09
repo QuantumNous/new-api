@@ -269,7 +269,6 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 // 这里原样转发请求体、原样回传上游响应，不做格式转换，也不结算配额。
 func GeminiCountTokensHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
-	info.IsGeminiCountTokens = true
 
 	// countTokens 的模型名只出现在 URL 上，请求体里没有 model 字段，因此传 nil
 	if err := helper.ModelMappedHelper(c, info, nil); err != nil {
