@@ -99,28 +99,14 @@ func ValidateSubscriptionEntitlementSnapshot(s SubscriptionEntitlementSnapshot) 
 	if s.MaxPurchasePerUser < 0 || s.TotalAmount < 0 {
 		return errors.New("invalid subscription entitlement amount")
 	}
+	if !utf8.ValidString(s.UpgradeGroup) || !utf8.ValidString(s.DowngradeGroup) {
+		return errors.New("invalid subscription group encoding")
+	}
 	if s.UpgradeGroup != strings.TrimSpace(s.UpgradeGroup) || s.DowngradeGroup != strings.TrimSpace(s.DowngradeGroup) || utf8.RuneCountInString(s.UpgradeGroup) > 64 || utf8.RuneCountInString(s.DowngradeGroup) > 64 {
 		return errors.New("invalid subscription entitlement group snapshot")
 	}
-	switch s.DurationUnit {
-	case SubscriptionDurationYear:
-		if s.DurationValue <= 0 || int64(s.DurationValue) > maxSubscriptionEntitlementSpanSeconds/(366*24*60*60) {
-			return errors.New("invalid subscription duration")
-		}
-	case SubscriptionDurationMonth:
-		if s.DurationValue <= 0 {
-			return errors.New("invalid subscription duration")
-		}
-	case SubscriptionDurationDay, SubscriptionDurationHour:
-		if s.DurationValue <= 0 {
-			return errors.New("invalid subscription duration")
-		}
-	case SubscriptionDurationCustom:
-		if s.CustomSeconds <= 0 || s.CustomSeconds > maxSubscriptionEntitlementSpanSeconds {
-			return errors.New("invalid custom subscription duration")
-		}
-	default:
-		return fmt.Errorf("invalid duration_unit: %s", s.DurationUnit)
+	if err := validateSubscriptionDuration(s.DurationUnit, s.DurationValue, s.CustomSeconds); err != nil {
+		return err
 	}
 	switch s.QuotaResetPeriod {
 	case SubscriptionResetNever, SubscriptionResetDaily, SubscriptionResetWeekly, SubscriptionResetMonthly:
@@ -132,6 +118,46 @@ func ValidateSubscriptionEntitlementSnapshot(s SubscriptionEntitlementSnapshot) 
 		return errors.New("invalid subscription reset period")
 	}
 	return nil
+}
+
+// validateSubscriptionDuration bounds every duration unit so that expanding it
+// into a time.Duration cannot overflow int64 nanoseconds and produce an end
+// time before the start time.
+func validateSubscriptionDuration(unit string, value int, customSeconds int64) error {
+	switch unit {
+	case SubscriptionDurationYear:
+		if value <= 0 || int64(value) > maxSubscriptionEntitlementSpanSeconds/(366*24*60*60) {
+			return errors.New("invalid subscription duration years")
+		}
+	case SubscriptionDurationMonth:
+		if value <= 0 || int64(value) > maxSubscriptionEntitlementSpanSeconds/(31*24*60*60) {
+			return errors.New("invalid subscription duration months")
+		}
+	case SubscriptionDurationDay:
+		if value <= 0 || int64(value) > maxSubscriptionEntitlementSpanSeconds/(24*60*60) {
+			return errors.New("invalid subscription duration days")
+		}
+	case SubscriptionDurationHour:
+		if value <= 0 || int64(value) > maxSubscriptionEntitlementSpanSeconds/(60*60) {
+			return errors.New("invalid subscription duration hours")
+		}
+	case SubscriptionDurationCustom:
+		if customSeconds <= 0 || customSeconds > maxSubscriptionEntitlementSpanSeconds {
+			return errors.New("invalid custom subscription duration")
+		}
+	default:
+		return errors.New("invalid subscription duration unit")
+	}
+	return nil
+}
+
+// ValidateSubscriptionPlanDuration rejects plan terms whose end time cannot be
+// computed, so an unusable plan is never persisted.
+func ValidateSubscriptionPlanDuration(plan *SubscriptionPlan) error {
+	if plan == nil {
+		return errors.New("plan is nil")
+	}
+	return validateSubscriptionDuration(plan.DurationUnit, plan.DurationValue, plan.CustomSeconds)
 }
 
 // Subscription quota reset period
@@ -420,8 +446,8 @@ func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
 	if plan == nil {
 		return 0, errors.New("plan is nil")
 	}
-	if plan.DurationValue <= 0 && plan.DurationUnit != SubscriptionDurationCustom {
-		return 0, errors.New("duration_value must be > 0")
+	if err := validateSubscriptionDuration(plan.DurationUnit, plan.DurationValue, plan.CustomSeconds); err != nil {
+		return 0, err
 	}
 	switch plan.DurationUnit {
 	case SubscriptionDurationYear:
@@ -433,9 +459,6 @@ func calcPlanEndTime(start time.Time, plan *SubscriptionPlan) (int64, error) {
 	case SubscriptionDurationHour:
 		return start.Add(time.Duration(plan.DurationValue) * time.Hour).Unix(), nil
 	case SubscriptionDurationCustom:
-		if plan.CustomSeconds <= 0 {
-			return 0, errors.New("custom_seconds must be > 0")
-		}
 		return start.Add(time.Duration(plan.CustomSeconds) * time.Second).Unix(), nil
 	default:
 		return 0, fmt.Errorf("invalid duration_unit: %s", plan.DurationUnit)
