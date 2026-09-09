@@ -18,13 +18,21 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
+
 import { getSystemOptions } from '../api'
 
 export function useSystemOptions() {
+  // GET /api/option/ is RootAuth-only on the backend; non-root users (e.g.
+  // admins opening the model drawer) must not fire the request, otherwise the
+  // 403 surfaces as a spurious "insufficient privilege" toast.
+  const isRoot = useAuthStore((state) => state.auth.user?.role === ROLE.SUPER_ADMIN)
   return useQuery({
     queryKey: ['system-options'],
     queryFn: getSystemOptions,
     staleTime: 5 * 60 * 1000,
+    enabled: isRoot,
   })
 }
 
