@@ -208,3 +208,138 @@ func TestRedeemConcurrentSingleSuccess(t *testing.T) {
 	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
 	assert.Equal(t, 300, user.Quota, "quota must be credited exactly once")
 }
+
+func TestQuotaRedemptionAdminPathsExcludePackageCodes(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Redemption{}))
+	require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
+	t.Cleanup(func() {
+		require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
+	})
+
+	quota := Redemption{
+		Key:    "20000000000000000000000000000001",
+		Name:   "quota-code",
+		Status: common.RedemptionCodeStatusEnabled,
+	}
+	packageCode := Redemption{
+		Key:    "20000000000000000000000000000002",
+		Name:   "package-code",
+		Status: common.RedemptionCodeStatusEnabled,
+		Type:   common.RedemptionCodeTypeSubscription,
+	}
+	directDeleteCode := Redemption{
+		Key:    "20000000000000000000000000000003",
+		Name:   "package-direct-delete",
+		Status: common.RedemptionCodeStatusEnabled,
+		Type:   common.RedemptionCodeTypeSubscription,
+	}
+	idDeleteCode := Redemption{
+		Key:    "20000000000000000000000000000004",
+		Name:   "package-id-delete",
+		Status: common.RedemptionCodeStatusEnabled,
+		Type:   common.RedemptionCodeTypeSubscription,
+	}
+	cleanupCode := Redemption{
+		Key:    "20000000000000000000000000000005",
+		Name:   "package-cleanup",
+		Status: common.RedemptionCodeStatusDisabled,
+		Type:   common.RedemptionCodeTypeSubscription,
+	}
+	invalidQuotaCode := Redemption{
+		Key:    "20000000000000000000000000000006",
+		Name:   "quota-cleanup",
+		Status: common.RedemptionCodeStatusDisabled,
+	}
+	require.NoError(t, DB.Create(&[]Redemption{quota, packageCode, directDeleteCode, idDeleteCode, cleanupCode, invalidQuotaCode}).Error)
+
+	rows, total, err := GetAllRedemptions(0, 10)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), total)
+	assert.Len(t, rows, 2)
+
+	rows, total, err = SearchRedemptions("", "", 0, 10)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), total)
+	assert.Len(t, rows, 2)
+
+	var storedPackage Redemption
+	require.NoError(t, DB.Where("key = ?", packageCode.Key).First(&storedPackage).Error)
+	_, err = GetRedemptionById(storedPackage.Id)
+	assert.Error(t, err)
+	_, err = Redeem(packageCode.Key, 1)
+	assert.Error(t, err)
+
+	storedPackage.Name = "mutated-package-code"
+	assert.Error(t, storedPackage.Update())
+	var reloadedPackage Redemption
+	require.NoError(t, DB.First(&reloadedPackage, storedPackage.Id).Error)
+	assert.Equal(t, packageCode.Name, reloadedPackage.Name)
+
+	var storedDirectDelete Redemption
+	require.NoError(t, DB.Where("key = ?", directDeleteCode.Key).First(&storedDirectDelete).Error)
+	assert.Error(t, storedDirectDelete.Delete())
+	require.NoError(t, DB.First(&Redemption{}, storedDirectDelete.Id).Error)
+
+	var storedIDDelete Redemption
+	require.NoError(t, DB.Where("key = ?", idDeleteCode.Key).First(&storedIDDelete).Error)
+	assert.Error(t, DeleteRedemptionById(storedIDDelete.Id))
+	require.NoError(t, DB.First(&Redemption{}, storedIDDelete.Id).Error)
+
+	deleted, err := DeleteInvalidRedemptions()
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), deleted)
+	var storedCleanup Redemption
+	require.NoError(t, DB.Where("key = ?", cleanupCode.Key).First(&storedCleanup).Error)
+
+	assert.Error(t, (&Redemption{
+		Key:    "20000000000000000000000000000007",
+		Name:   "legacy-package-insert",
+		Status: common.RedemptionCodeStatusEnabled,
+		Type:   common.RedemptionCodeTypeSubscription,
+	}).Insert())
+}
+
+func TestQuotaRedemptionNoOpUpdatesRemainAllowed(t *testing.T) {
+	require.NoError(t, DB.AutoMigrate(&Redemption{}))
+	require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
+	t.Cleanup(func() {
+		require.NoError(t, DB.Session(&gorm.Session{AllowGlobalUpdate: true}).Unscoped().Delete(&Redemption{}).Error)
+	})
+
+	quotaCode := &Redemption{
+		Key:          "30000000000000000000000000000001",
+		Name:         "unchanged-quota-code",
+		Status:       common.RedemptionCodeStatusEnabled,
+		Quota:        100,
+		RedeemedTime: 10,
+	}
+	require.NoError(t, DB.Create(quotaCode).Error)
+	const forceNoOpRowsCallback = "test:force-redemption-update-rows-affected-zero"
+	require.NoError(t, DB.Callback().Update().After("gorm:update").Register(forceNoOpRowsCallback, func(tx *gorm.DB) {
+		tx.RowsAffected = 0
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, DB.Callback().Update().Remove(forceNoOpRowsCallback))
+	})
+	require.NoError(t, quotaCode.SelectUpdate())
+	require.NoError(t, quotaCode.Update())
+
+	packageCode := &Redemption{
+		Key:    "30000000000000000000000000000002",
+		Name:   "protected-package-code",
+		Status: common.RedemptionCodeStatusEnabled,
+		Type:   common.RedemptionCodeTypeSubscription,
+	}
+	require.NoError(t, DB.Create(packageCode).Error)
+	packageCode.Status = common.RedemptionCodeStatusDisabled
+	err := packageCode.SelectUpdate()
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+	packageCode.Name = "mutated-package-code"
+	err = packageCode.Update()
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+
+	var storedPackage Redemption
+	require.NoError(t, DB.First(&storedPackage, packageCode.Id).Error)
+	assert.Equal(t, "protected-package-code", storedPackage.Name)
+	assert.Equal(t, common.RedemptionCodeStatusEnabled, storedPackage.Status)
+}
