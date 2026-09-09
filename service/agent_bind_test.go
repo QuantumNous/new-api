@@ -41,15 +41,18 @@ func TestTryBindUserToAgentRequiresAnAgentAccount(t *testing.T) {
 	assert.Zero(t, customer.BoundAgentId)
 }
 
-func TestTryBindUserToAgentRejectsDisabledAgent(t *testing.T) {
+// Ownership follows the agent who sold the code; a later suspension must
+// not retroactively strip that attribution from an unbound customer.
+func TestTryBindUserToAgentBindsDisabledAgentOwner(t *testing.T) {
 	db := setupAgentBindServiceDB(t)
-	require.NoError(t, db.Create(&model.User{Id: 7202, Username: "customer-7202"}).Error)
-	require.NoError(t, db.Create(&model.AgentAccount{UserId: 7298, Status: model.AgentAccountStatusDisabled}).Error)
+	require.NoError(t, db.Create(&model.User{Id: 7203, Username: "customer-7203"}).Error)
+	require.NoError(t, db.Create(&model.AgentAccount{UserId: 7297, Status: model.AgentAccountStatusDisabled}).Error)
 
-	bound, err := TryBindUserToAgent(7202, 7298)
+	bound, err := TryBindUserToAgent(7203, 7297)
 	require.NoError(t, err)
-	assert.False(t, bound)
+	assert.True(t, bound)
+
 	var customer model.User
-	require.NoError(t, db.First(&customer, 7202).Error)
-	assert.Zero(t, customer.BoundAgentId)
+	require.NoError(t, db.First(&customer, 7203).Error)
+	assert.Equal(t, 7297, customer.BoundAgentId)
 }
