@@ -103,9 +103,11 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 		common.SetContextKey(c, constant.ContextKeyChannelKey, key)
 		common.SetContextKey(c, constant.ContextKeyChannelType, ch.Type)
 		common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, ch.GetRuntimeBaseURL())
+		common.SetContextKey(c, constant.ContextKeyChannelDisplayBaseUrl, ch.GetDisplayBaseURL())
 		common.SetContextKey(c, constant.ContextKeyChannelId, originTask.ChannelId)
 
 		info.ChannelBaseUrl = ch.GetRuntimeBaseURL()
+		info.ChannelDisplayBaseUrl = ch.GetDisplayBaseURL()
 		info.ChannelId = originTask.ChannelId
 		info.ChannelType = ch.Type
 		info.ApiKey = key
