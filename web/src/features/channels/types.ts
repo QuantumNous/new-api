@@ -89,6 +89,11 @@ export interface ChannelSettings {
   system_prompt_override?: boolean
   http_protocol?: 'auto' | 'http1' | string
   http2_connection_shards?: number
+  // First-token (TTFB) timeout in seconds for streaming requests: when the
+  // upstream has sent response headers but no data chunk arrives within this
+  // window, the request fails as a channel error and the relay falls back to
+  // the next channel. 0/unset = disabled (fall back to TTFB_TIMEOUT env).
+  ttfb_timeout?: number
 }
 
 export interface ChannelOtherSettings {

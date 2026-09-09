@@ -54,6 +54,7 @@ import {
 import { type SubmitErrorHandler, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import { NumericSpinnerInput } from '../numeric-spinner-input'
 
 import {
   sideDrawerContentClassName,
@@ -351,6 +352,7 @@ function hasAdvancedSettingsValues(values: ChannelFormValues): boolean {
     (values.http_protocol && values.http_protocol !== 'auto') ||
     (values.http2_connection_shards != null &&
       values.http2_connection_shards > 1) ||
+    (values.ttfb_timeout != null && values.ttfb_timeout > 0) ||
     values.claude_beta_query ||
     values.upstream_model_update_check_enabled ||
     values.upstream_model_update_auto_sync_enabled ||
@@ -711,6 +713,7 @@ export function ChannelMutateDrawer({
   const currentForceFormat = form.watch('force_format')
   const currentThinkingToContent = form.watch('thinking_to_content')
   const currentPassThroughBodyEnabled = form.watch('pass_through_body_enabled')
+  const currentTtfbTimeout = form.watch('ttfb_timeout')
   const currentDisableTaskPollingSleep = form.watch(
     'disable_task_polling_sleep'
   )
@@ -1008,7 +1011,8 @@ export function ChannelMutateDrawer({
     currentSystemPrompt?.trim() ||
     currentSystemPromptOverride ||
     (currentHttpProtocol && currentHttpProtocol !== 'auto') ||
-    (currentHttp2ConnectionShards != null && currentHttp2ConnectionShards > 1)
+    (currentHttp2ConnectionShards != null && currentHttp2ConnectionShards > 1) ||
+    (currentTtfbTimeout != null && currentTtfbTimeout > 0)
   )
   let fieldPassthroughConfigured = false
   if (OPENAI_FIELD_PASSTHROUGH_TYPES.has(currentType)) {
@@ -4419,6 +4423,32 @@ export function ChannelMutateDrawer({
                                   </FormItem>
                                 )
                               }}
+                            />
+
+                            <FormField
+                              control={form.control}
+                              name='ttfb_timeout'
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>
+                                    {t('TTFB Timeout (seconds)')}
+                                  </FormLabel>
+                                  <FormControl>
+                                    <NumericSpinnerInput
+                                      value={field.value ?? 0}
+                                      onChange={(value) => field.onChange(value)}
+                                      min={0}
+                                      step={1}
+                                    />
+                                  </FormControl>
+                                  <FormDescription>
+                                    {t(
+                                      'Max seconds to wait for the first upstream data chunk before the request falls back to the next channel (streaming only). 0 uses the global TTFB_TIMEOUT default.'
+                                    )}
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
                             />
 
                             <FormField

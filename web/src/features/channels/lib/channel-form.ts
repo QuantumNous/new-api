@@ -263,6 +263,7 @@ export const channelFormSchema = z
       .refine(isOptionalProxyURL, ERROR_MESSAGES.INVALID_PROXY),
     http_protocol: z.enum(['auto', 'http1']).optional(),
     http2_connection_shards: z.number().int().optional(),
+    ttfb_timeout: z.number().int().min(0).optional(),
     pass_through_body_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
@@ -444,6 +445,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   proxy: '',
   http_protocol: HTTP_PROTOCOL_AUTO,
   http2_connection_shards: 1,
+  ttfb_timeout: 0,
   pass_through_body_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
@@ -485,6 +487,7 @@ export function transformChannelToFormDefaults(
     proxy: '',
     http_protocol: HTTP_PROTOCOL_AUTO as 'auto' | 'http1',
     http2_connection_shards: 1,
+    ttfb_timeout: 0,
     pass_through_body_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
@@ -504,6 +507,10 @@ export function transformChannelToFormDefaults(
         proxy: parsed.proxy || '',
         http_protocol: protocol,
         http2_connection_shards: protocol === HTTP_PROTOCOL_HTTP1 ? 1 : shards,
+        ttfb_timeout:
+          typeof parsed.ttfb_timeout === 'number' && parsed.ttfb_timeout >= 0
+            ? Math.floor(parsed.ttfb_timeout)
+            : 0,
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
@@ -641,6 +648,10 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     settingObj.http_protocol = HTTP_PROTOCOL_HTTP1
   } else if (shards > 1) {
     settingObj.http2_connection_shards = shards
+  }
+
+  if (typeof formData.ttfb_timeout === 'number' && formData.ttfb_timeout > 0) {
+    settingObj.ttfb_timeout = Math.floor(formData.ttfb_timeout)
   }
 
   return JSON.stringify(settingObj)

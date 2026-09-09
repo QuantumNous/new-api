@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Minus, Plus } from 'lucide-react'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
@@ -32,6 +32,11 @@ interface NumericSpinnerInputProps {
   disabled?: boolean
   className?: string
   label?: string
+  /** Forwarded from FormControl so label htmlFor / aria-describedby /
+   * aria-invalid land on the focusable element inside this control. */
+  id?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: boolean | 'true' | 'false'
 }
 
 export function NumericSpinnerInput({
@@ -44,8 +49,12 @@ export function NumericSpinnerInput({
   disabled = false,
   className,
   label,
+  id,
+  'aria-describedby': ariaDescribedby,
+  'aria-invalid': ariaInvalid,
 }: NumericSpinnerInputProps) {
   const [localValue, setLocalValue] = useState(String(value ?? 0))
+  const autoId = useId()
   const [editing, setEditing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -135,10 +144,16 @@ export function NumericSpinnerInput({
   const atMin = min !== undefined && Number(localValue) <= min
   const atMax = max !== undefined && Number(localValue) >= max
 
+  // Control id: caller-provided (FormControl) wins; otherwise auto-generate
+  // one so a `label` (htmlFor) always has a focusable control to point at.
+  const controlId = id ?? autoId
+
   return (
     <div className={cn('inline-flex items-center', className)}>
       {label && (
-        <Label className='text-muted-foreground mr-1.5 text-xs'>{label}</Label>
+        <Label htmlFor={controlId} className='text-muted-foreground mr-1.5 text-xs'>
+          {label}
+        </Label>
       )}
       <div
         onBlur={handleControlBlur}
@@ -168,6 +183,9 @@ export function NumericSpinnerInput({
         {editing ? (
           <input
             ref={inputRef}
+            id={controlId}
+            aria-describedby={ariaDescribedby}
+            aria-invalid={ariaInvalid}
             type='text'
             value={localValue}
             onChange={handleInputChange}
@@ -179,6 +197,9 @@ export function NumericSpinnerInput({
         ) : (
           <button
             type='button'
+            id={controlId}
+            aria-describedby={ariaDescribedby}
+            aria-invalid={ariaInvalid}
             onClick={handleStartEdit}
             disabled={disabled}
             title={localValue}

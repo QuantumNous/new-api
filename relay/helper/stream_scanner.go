@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -87,6 +88,20 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 	streamingTimeout := time.Duration(constant.StreamingTimeout) * time.Second
 
+	// TTFB (first-token) timeout: per-channel value wins; otherwise the global
+	// TTFB_TIMEOUT env default. 0 in both = feature disabled.
+	ttfbSeconds := info.ChannelSetting.TTFBTimeoutSeconds
+	if ttfbSeconds <= 0 {
+		ttfbSeconds = common.TTFBTimeout
+	}
+	var ttfbTimer *time.Timer
+	var ttfbTimerC <-chan time.Time // nil channel disables the select branch
+	if ttfbSeconds > 0 {
+		ttfbTimer = time.NewTimer(time.Duration(ttfbSeconds) * time.Second)
+		ttfbTimerC = ttfbTimer.C
+		logger.LogDebug(c, "ttfb timeout seconds: %d", ttfbSeconds)
+	}
+
 	var (
 		stopChan    = make(chan bool, 3) // 增加缓冲区避免阻塞
 		scanner     = NewStreamScanner(resp.Body)
@@ -96,6 +111,13 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		wg          sync.WaitGroup // 用于等待所有 goroutine 退出
 		cleanupOnce sync.Once
 		stopOnce    sync.Once
+		// firstChunkArrived flips true the moment the scanner hands the first
+		// real data chunk to the caller. Until then we must not write anything
+		// to the client: a ping would commit the response, which would prevent
+		// the relay from falling back to another channel if the TTFB timer
+		// fires first (the write has already started, so the response can no
+		// longer be aborted for fallback).
+		firstChunkArrived atomic.Bool
 	)
 
 	stop := func() {
@@ -130,6 +152,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			}
 
 			ticker.Stop()
+			if ttfbTimer != nil {
+				ttfbTimer.Stop()
+			}
 			if pingTicker != nil {
 				pingTicker.Stop()
 			}
@@ -168,6 +193,14 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			for {
 				select {
 				case <-pingTicker.C:
+					if !firstChunkArrived.Load() {
+						// The first upstream data chunk has not arrived yet.
+						// Writing a ping now would commit the response and
+						// defeat the TTFB fallback, so drop the tick and wait
+						// for the next one.
+						logger.LogDebug(c, "ping suppressed: first data chunk not yet arrived")
+						continue
+					}
 					var err error
 					func() {
 						writeMutex.Lock()
@@ -265,6 +298,16 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			if !strings.HasPrefix(data, "[DONE]") {
 				info.SetFirstResponseTime()
 				info.ReceivedResponseCount++
+				firstChunkArrived.Store(true)
+				// First data chunk arrived: TTFB satisfied, disarm the timer.
+				if ttfbTimer != nil {
+					if !ttfbTimer.Stop() {
+						select {
+						case <-ttfbTimer.C:
+						default:
+						}
+					}
+				}
 
 				select {
 				case dataChan <- data:
@@ -293,6 +336,13 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	select {
 	case <-ticker.C:
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
+	case <-ttfbTimerC:
+		// Headers arrived but the first data chunk never did within the TTFB
+		// window. cleanup() below closes resp.Body which unblocks the scanner,
+		// then the caller sees StreamEndReasonTTFBTimeout and returns a
+		// channel-level error so the relay falls back to the next channel.
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTTFBTimeout,
+			fmt.Errorf("first token timeout: no upstream data within %d seconds", ttfbSeconds))
 	case <-stopChan:
 		// EndReason already set by the goroutine that triggered stopChan
 	case <-c.Request.Context().Done():
