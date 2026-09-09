@@ -334,6 +334,7 @@ type RecordConsumeLogParams struct {
 	IsStream         bool      `json:"is_stream"`
 	Group            string    `json:"group"`
 	Other            *LogOther `json:"other"`
+	TotalTokens      int       `json:"total_tokens"`
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
@@ -384,13 +385,19 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
 	if common.DataExportEnabled {
+		// Anthropic 语义下 PromptTokens 不含缓存，优先使用调用方已计算好的 TotalTokens；
+		// 未提供时回退到 PromptTokens + CompletionTokens，保持旧行为兼容。
+		tokenUsed := params.TotalTokens
+		if tokenUsed <= 0 {
+			tokenUsed = params.PromptTokens + params.CompletionTokens
+		}
 		LogQuotaData(QuotaDataLogParams{
 			UserID:    userId,
 			Username:  username,
 			ModelName: params.ModelName,
 			Quota:     params.Quota,
 			CreatedAt: createdAt,
-			TokenUsed: params.PromptTokens + params.CompletionTokens,
+			TokenUsed: tokenUsed,
 			UseGroup:  params.Group,
 			TokenID:   params.TokenId,
 			ChannelID: params.ChannelId,
