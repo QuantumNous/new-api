@@ -82,11 +82,23 @@ describe('log cost display', () => {
     renderCost({
       quota: 5000,
       other: { billing_source: 'wallet', subscription_consumed: 12500 },
+      showWalletSource: true,
     })
 
     expect(screen.getByText('$0.01')).toBeVisible()
     expect(screen.getByText('Wallet')).toBeVisible()
     expect(screen.queryByText('Subscription')).not.toBeInTheDocument()
+  })
+
+  test('hides the wallet label when subscriptions are unavailable', () => {
+    renderCost({
+      quota: 5000,
+      other: { billing_source: 'wallet' },
+      showWalletSource: false,
+    })
+
+    expect(screen.getByText('$0.01')).toBeVisible()
+    expect(screen.queryByText('Wallet')).not.toBeInTheDocument()
   })
 
   test('keeps legacy cost visible without inventing a funding source', () => {
