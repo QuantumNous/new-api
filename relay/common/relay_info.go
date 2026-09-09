@@ -453,13 +453,21 @@ func GenRelayInfoResponses(c *gin.Context, request *dto.OpenAIResponsesRequest) 
 	return info
 }
 
+// IsGeminiCountTokensPath 判断入站路径是否为 Gemini 的 :countTokens 动作。
+// 必须按结尾精确匹配：动作是路径的终结部分，用子串匹配会把
+// 名字里含 "countTokens" 的模型（如 my-countTokens-model:generateContent）
+// 误判成计数请求，从而跳过生成计费。
+func IsGeminiCountTokensPath(path string) bool {
+	return strings.HasSuffix(strings.TrimSuffix(path, "/"), ":countTokens")
+}
+
 func GenRelayInfoGemini(c *gin.Context, request dto.Request) *RelayInfo {
 	info := genBaseRelayInfo(c, request)
 	info.RelayFormat = types.RelayFormatGemini
 	info.ShouldIncludeUsage = false
 	// countTokens 只统计 token、不做推理，上游也不计费，
 	// 这里尽早标记，供 adaptor 拼上游 action 与计费层跳过预扣使用。
-	info.IsGeminiCountTokens = strings.Contains(c.Request.URL.Path, "countTokens")
+	info.IsGeminiCountTokens = IsGeminiCountTokensPath(c.Request.URL.Path)
 
 	return info
 }

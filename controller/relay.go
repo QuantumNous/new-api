@@ -63,7 +63,7 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	var err *types.NewAPIError
 	switch {
-	case strings.Contains(c.Request.URL.Path, "countTokens"):
+	case relaycommon.IsGeminiCountTokensPath(c.Request.URL.Path):
 		err = relay.GeminiCountTokensHandler(c, info)
 	case strings.Contains(c.Request.URL.Path, "embed"):
 		err = relay.GeminiEmbeddingHandler(c, info)
