@@ -111,8 +111,8 @@ func ValidateSubscriptionEntitlementSnapshot(s SubscriptionEntitlementSnapshot) 
 	switch s.QuotaResetPeriod {
 	case SubscriptionResetNever, SubscriptionResetDaily, SubscriptionResetWeekly, SubscriptionResetMonthly:
 	case SubscriptionResetCustom:
-		if s.QuotaResetCustomSeconds <= 0 || s.QuotaResetCustomSeconds > maxSubscriptionEntitlementSpanSeconds {
-			return errors.New("invalid custom subscription reset seconds")
+		if err := ValidateSubscriptionResetInterval(s.QuotaResetCustomSeconds); err != nil {
+			return err
 		}
 	default:
 		return errors.New("invalid subscription reset period")
@@ -158,6 +158,16 @@ func ValidateSubscriptionPlanDuration(plan *SubscriptionPlan) error {
 		return errors.New("plan is nil")
 	}
 	return validateSubscriptionDuration(plan.DurationUnit, plan.DurationValue, plan.CustomSeconds)
+}
+
+// ValidateSubscriptionResetInterval bounds a custom quota reset interval so that
+// expanding it into a time.Duration cannot overflow int64 nanoseconds and place
+// the next reset before its base time.
+func ValidateSubscriptionResetInterval(seconds int64) error {
+	if seconds <= 0 || seconds > maxSubscriptionEntitlementSpanSeconds {
+		return errors.New("invalid custom subscription reset seconds")
+	}
+	return nil
 }
 
 // Subscription quota reset period
@@ -502,7 +512,9 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 		next = time.Date(base.Year(), base.Month(), 1, 0, 0, 0, 0, base.Location()).
 			AddDate(0, 1, 0)
 	case SubscriptionResetCustom:
-		if plan.QuotaResetCustomSeconds <= 0 {
+		// An out-of-range interval would wrap to a reset time before base, which
+		// the endUnix guard below cannot detect; treat it as no reset instead.
+		if ValidateSubscriptionResetInterval(plan.QuotaResetCustomSeconds) != nil {
 			return 0
 		}
 		next = base.Add(time.Duration(plan.QuotaResetCustomSeconds) * time.Second)

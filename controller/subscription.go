@@ -204,8 +204,8 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		}
 	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
-	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
-		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
+	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && model.ValidateSubscriptionResetInterval(req.Plan.QuotaResetCustomSeconds) != nil {
+		common.ApiErrorMsg(c, "自定义重置周期无效")
 		return
 	}
 	err := model.DB.Create(&req.Plan).Error
@@ -282,8 +282,8 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		}
 	}
 	req.Plan.QuotaResetPeriod = model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod)
-	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && req.Plan.QuotaResetCustomSeconds <= 0 {
-		common.ApiErrorMsg(c, "自定义重置周期需大于0秒")
+	if req.Plan.QuotaResetPeriod == model.SubscriptionResetCustom && model.ValidateSubscriptionResetInterval(req.Plan.QuotaResetCustomSeconds) != nil {
+		common.ApiErrorMsg(c, "自定义重置周期无效")
 		return
 	}
 
