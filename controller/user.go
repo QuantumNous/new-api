@@ -1260,7 +1260,7 @@ func TopUp(c *gin.Context) {
 	if err != nil {
 		// 不向用户暴露兑换失败的细分原因，避免攻击者根据错误类型判断兑换码状态。
 		common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
-		logger.LogError(c, fmt.Sprintf("failed to redeem key %s for user %d: %s", req.Key, id, err.Error()))
+		logger.LogError(c, fmt.Sprintf("failed to redeem quota code for user %d: %s", id, err.Error()))
 		return
 	}
 	data := any(result)
@@ -1272,6 +1272,34 @@ func TopUp(c *gin.Context) {
 		"message": "",
 		"data":    data,
 	})
+}
+
+// Redeem redeems a quota or agent package code and returns the typed result.
+func Redeem(c *gin.Context) {
+	if !operation_setting.IsPaymentComplianceConfirmed() {
+		common.ApiErrorI18n(c, i18n.MsgPaymentComplianceRequired)
+		return
+	}
+
+	id := c.GetInt("id")
+	lock := getTopUpLock(id)
+	if !lock.TryLock() {
+		common.ApiErrorI18n(c, i18n.MsgUserTopUpProcessing)
+		return
+	}
+	defer lock.Unlock()
+	var req topUpRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	result, err := service.RedeemCode(id, req.Key)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgRedeemFailed)
+		logger.LogError(c, fmt.Sprintf("failed to redeem code for user %d: %s", id, err.Error()))
+		return
+	}
+	common.ApiSuccess(c, result)
 }
 
 type UpdateUserSettingRequest struct {
