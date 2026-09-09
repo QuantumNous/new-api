@@ -291,6 +291,85 @@ func (channel *Channel) SaveChannelInfo() error {
 	return DB.Model(channel).Update("channel_info", channel.ChannelInfo).Error
 }
 
+// SaveKeyAndChannelInfo persists credentials and key-storage metadata together.
+// GORM Updates(struct) skips zero-value ChannelInfo, so multi→single conversion
+// must write these columns through a map instead of relying on Channel.Update.
+func (channel *Channel) SaveKeyAndChannelInfo() error {
+	if channel.Id == 0 {
+		return errors.New("channel ID is 0")
+	}
+	return DB.Model(&Channel{}).Where("id = ?", channel.Id).Updates(channel.keyStorageUpdateMap()).Error
+}
+
+func (channel *Channel) keyStorageUpdateMap() map[string]any {
+	return map[string]any{
+		"key":          channel.Key,
+		"channel_info": channel.ChannelInfo,
+	}
+}
+
+func (channel *Channel) prepareMultiKeySize() {
+	if !channel.ChannelInfo.IsMultiKey {
+		return
+	}
+	var keyStr string
+	if channel.Key != "" {
+		keyStr = channel.Key
+	} else if existing, err := GetChannelById(channel.Id, true); err == nil {
+		keyStr = existing.Key
+	}
+	keys := []string{}
+	if keyStr != "" {
+		trimmed := strings.TrimSpace(keyStr)
+		if strings.HasPrefix(trimmed, "[") {
+			var arr []json.RawMessage
+			if err := common.Unmarshal([]byte(trimmed), &arr); err == nil {
+				keys = make([]string, len(arr))
+				for i, v := range arr {
+					keys[i] = string(v)
+				}
+			}
+		}
+		if len(keys) == 0 { // fallback to newline split
+			keys = strings.Split(strings.Trim(keyStr, "\n"), "\n")
+		}
+	}
+	channel.ChannelInfo.MultiKeySize = len(keys)
+	if channel.ChannelInfo.MultiKeyStatusList != nil {
+		for idx := range channel.ChannelInfo.MultiKeyStatusList {
+			if idx >= channel.ChannelInfo.MultiKeySize {
+				delete(channel.ChannelInfo.MultiKeyStatusList, idx)
+			}
+		}
+	}
+}
+
+// UpdateWithConvertedKeyStorage writes the converted key and ChannelInfo in the
+// same transaction as the rest of the channel update. A later failure must not
+// leave the channel with a new key and stale multi-key metadata, or vice versa.
+func (channel *Channel) UpdateWithConvertedKeyStorage() error {
+	if channel.Id == 0 {
+		return errors.New("channel ID is 0")
+	}
+	channel.prepareMultiKeySize()
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&Channel{}).Where("id = ?", channel.Id).Updates(channel.keyStorageUpdateMap()).Error; err != nil {
+			return err
+		}
+		// The credential and storage metadata were already written explicitly
+		// above. Omit them from the ordinary struct update so a zero-value
+		// ChannelInfo (multi→single) cannot be skipped or reintroduced by a
+		// second write.
+		if err := tx.Model(channel).Omit("key", "channel_info").Updates(channel).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(channel).First(channel, "id = ?", channel.Id).Error; err != nil {
+			return err
+		}
+		return channel.UpdateAbilities(tx)
+	})
+}
+
 func (channel *Channel) GetModels() []string {
 	if channel.Models == "" {
 		return []string{}
@@ -554,44 +633,7 @@ func (channel *Channel) Insert() error {
 }
 
 func (channel *Channel) Update() error {
-	// If this is a multi-key channel, recalculate MultiKeySize based on the current key list to avoid inconsistency after editing keys
-	if channel.ChannelInfo.IsMultiKey {
-		var keyStr string
-		if channel.Key != "" {
-			keyStr = channel.Key
-		} else {
-			// If key is not provided, read the existing key from the database
-			if existing, err := GetChannelById(channel.Id, true); err == nil {
-				keyStr = existing.Key
-			}
-		}
-		// Parse the key list (supports newline separation or JSON array)
-		keys := []string{}
-		if keyStr != "" {
-			trimmed := strings.TrimSpace(keyStr)
-			if strings.HasPrefix(trimmed, "[") {
-				var arr []json.RawMessage
-				if err := common.Unmarshal([]byte(trimmed), &arr); err == nil {
-					keys = make([]string, len(arr))
-					for i, v := range arr {
-						keys[i] = string(v)
-					}
-				}
-			}
-			if len(keys) == 0 { // fallback to newline split
-				keys = strings.Split(strings.Trim(keyStr, "\n"), "\n")
-			}
-		}
-		channel.ChannelInfo.MultiKeySize = len(keys)
-		// Clean up status data that exceeds the new key count to prevent index out of range
-		if channel.ChannelInfo.MultiKeyStatusList != nil {
-			for idx := range channel.ChannelInfo.MultiKeyStatusList {
-				if idx >= channel.ChannelInfo.MultiKeySize {
-					delete(channel.ChannelInfo.MultiKeyStatusList, idx)
-				}
-			}
-		}
-	}
+	channel.prepareMultiKeySize()
 	var err error
 	err = DB.Model(channel).Updates(channel).Error
 	if err != nil {
