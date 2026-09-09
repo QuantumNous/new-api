@@ -66,7 +66,9 @@ func TestAPIImageTaskDetachedIdempotentBillingAndAccess(t *testing.T) {
 		raw, _ := io.ReadAll(req.Body)
 		require.NoError(t, common.Unmarshal(raw, &input))
 		assert.Equal(t, "low", input["quality"])
-		assert.Equal(t, "png", input["output_format"])
+		assert.Equal(t, "jpeg", input["output_format"])
+		assert.Equal(t, "960x1280", input["size"])
+		assert.Equal(t, float64(100), input["output_compression"])
 		close(started)
 		<-release
 		w.Header().Set("Content-Type", "application/json")
@@ -78,7 +80,7 @@ func TestAPIImageTaskDetachedIdempotentBillingAndAccess(t *testing.T) {
 	ch := model.Channel{Type: 1, Key: "fixture", Name: "async-test", BaseURL: &upstream.URL, Models: "gpt-image-2", Group: "default", Status: 1}
 	require.NoError(t, ch.Insert())
 	key := uuid.NewString()
-	body := `{"model":"gpt-image-2","prompt":"async test","n":1,"quality":"low","output_format":"png"}`
+	body := `{"model":"gpt-image-2","prompt":"async test","n":1,"quality":"low","output_format":"jpeg","output_compression":100,"size":"960x1280"}`
 	response := apiTaskCall(t, r, token, "POST", "/v1/images/tasks", key, body)
 	require.Equal(t, 202, response.Code, response.Body.String())
 	var task model.APIImageTask
