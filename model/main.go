@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/url"
@@ -391,7 +392,24 @@ func migrateDB() error {
 			return err
 		}
 	}
+	startAgentCustomerBackfill()
 	return nil
+}
+
+func startAgentCustomerBackfill() {
+	go func() {
+		report, err := BackfillAgentCustomerBindings(context.Background(), 500)
+		if err != nil {
+			common.SysLog("failed to backfill agent customer bindings: " + err.Error())
+			return
+		}
+		if report.Bound > 0 || report.Unresolved > 0 {
+			common.SysLog(fmt.Sprintf(
+				"agent customer binding backfill completed: bound=%d preserved=%d unresolved=%d",
+				report.Bound, report.Preserved, report.Unresolved,
+			))
+		}
+	}()
 }
 
 func migrateLOGDB() error {
