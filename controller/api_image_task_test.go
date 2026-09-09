@@ -92,7 +92,7 @@ func TestAPIImageTaskDetachedIdempotentBillingAndAccess(t *testing.T) {
 	require.NoError(t, err)
 	conflict := apiTaskCall(t, r, token, "POST", "/v1/images/tasks", key, strings.Replace(body, "async test", "changed", 1))
 	assert.Equal(t, 409, conflict.Code)
-	claimed, err := model.ClaimAPIImageTask(time.Now().Unix(), 4)
+	claimed, err := model.ClaimAPIImageTask(time.Now().Unix())
 	require.NoError(t, err)
 	require.NotNil(t, claimed)
 	done := make(chan struct{})
@@ -139,7 +139,7 @@ func TestAPIImageTaskDetachedIdempotentBillingAndAccess(t *testing.T) {
 	assert.Contains(t, apiTaskCall(t, r, token, "GET", "/v1/images/tasks/by-submission/"+key, "", "").Body.String(), task.ID)
 	// An interrupted worker becomes unknown; it must never be claimed a second time.
 	require.NoError(t, model.DB.Model(saved).Updates(map[string]any{"status": "running", "started_at": time.Now().Unix() - 26*60}).Error)
-	next, err := model.ClaimAPIImageTask(time.Now().Unix(), 4)
+	next, err := model.ClaimAPIImageTask(time.Now().Unix())
 	require.NoError(t, err)
 	assert.Nil(t, next)
 	saved, err = model.GetAPIImageTask(token.UserId, token.Id, task.ID)
@@ -152,4 +152,25 @@ func TestAPIImageTaskRejectsStreamAndOtherTokenResults(t *testing.T) {
 	bad := apiTaskCall(t, r, token, "POST", "/v1/images/tasks", uuid.NewString(), `{"model":"gpt-image-2","prompt":"test","stream":true}`)
 	assert.Equal(t, 400, bad.Code)
 	assert.Equal(t, 400, apiTaskCall(t, r, token, "POST", "/v1/images/tasks", "", `{"model":"gpt-image-2","prompt":"test"}`).Code)
+}
+
+func TestAPIImageTasksDoNotAddLocalConcurrencyOrPendingLimits(t *testing.T) {
+	r, token, _ := setupAPIImageTasks(t)
+	// 21 jobs cross all former admission (10 jobs/20 images), per-user (2),
+	// and drawing-pool (4) limits. No upstream requests are executed here.
+	for i := 0; i < 21; i++ {
+		response := apiTaskCall(t, r, token, "POST", "/v1/images/tasks", uuid.NewString(), `{"model":"gpt-image-2","prompt":"queue admission test","n":1}`)
+		require.Equal(t, http.StatusAccepted, response.Code, response.Body.String())
+	}
+	claimedIDs := make(map[string]bool)
+	for i := 0; i < 21; i++ {
+		task, err := model.ClaimAPIImageTask(time.Now().Unix())
+		require.NoError(t, err)
+		require.NotNil(t, task, "every queued job remains eligible while other jobs of this user are running")
+		assert.False(t, claimedIDs[task.ID], "a task must only be claimed once")
+		claimedIDs[task.ID] = true
+	}
+	task, err := model.ClaimAPIImageTask(time.Now().Unix())
+	require.NoError(t, err)
+	assert.Nil(t, task, "all jobs are running, none may be replayed")
 }

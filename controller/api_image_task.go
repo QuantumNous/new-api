@@ -311,8 +311,8 @@ func StartAPIImageWorker() {
 				}
 				_ = model.DB.Where("expires_at < ? AND status NOT IN ?", now-6*24*3600, []string{"running", "queued"}).Delete(&model.APIImageTask{}).Error
 			}
-			for i := 0; i < service.DrawingConcurrency(); i++ {
-				task, err := model.ClaimAPIImageTask(now, service.DrawingConcurrency())
+			for {
+				task, err := model.ClaimAPIImageTask(time.Now().Unix())
 				if err != nil {
 					common.SysError("async image queue claim failed")
 					break

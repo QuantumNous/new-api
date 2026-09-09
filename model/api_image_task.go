@@ -48,23 +48,12 @@ func CreateAPIImageTask(task *APIImageTask) (*APIImageTask, error) {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		var pending []APIImageTask
-		if err := tx.Where("user_id = ? AND status IN ?", task.UserID, []string{"queued", "running"}).Find(&pending).Error; err != nil {
-			return err
-		}
-		count := task.Count
-		for _, item := range pending {
-			count += item.Count
-		}
-		if len(pending) >= 10 || count > 20 {
-			return errors.New("Too many pending images; wait for existing tasks")
-		}
 		return tx.Create(task).Error
 	})
 	return task, err
 }
 
-func ClaimAPIImageTask(now int64, concurrency int) (*APIImageTask, error) {
+func ClaimAPIImageTask(now int64) (*APIImageTask, error) {
 	var result *APIImageTask
 	err := drawingQueueTransaction(func(tx *gorm.DB) error {
 		// A process may have died AFTER upstream generation or billing. Never replay.
@@ -74,25 +63,10 @@ func ClaimAPIImageTask(now int64, concurrency int) (*APIImageTask, error) {
 		if err := tx.Model(&APIImageTask{}).Where("status = ? AND expires_at <= ?", "queued", now).Updates(map[string]any{"status": "expired"}).Error; err != nil {
 			return err
 		}
-		var running []APIImageTask
-		if err := tx.Where("status = ?", "running").Find(&running).Error; err != nil {
-			return err
-		}
-		if len(running) >= concurrency {
-			return nil
-		}
-		users := map[int]int{}
-		for _, task := range running {
-			users[task.UserID]++
-		}
-		excluded := []int{0}
-		for user, count := range users {
-			if count >= 2 {
-				excluded = append(excluded, user)
-			}
-		}
 		var task APIImageTask
-		err := tx.Where("status = ? AND user_id NOT IN ? AND expires_at > ?", "queued", excluded, now).Order("created_at ASC, id ASC").First(&task).Error
+		// Admission/dispatch adds no concurrency ceiling. Retain atomic claims
+		// so concurrent dispatchers cannot send the same paid request twice.
+		err := tx.Where("status = ? AND expires_at > ?", "queued", now).Order("created_at ASC, id ASC").First(&task).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
