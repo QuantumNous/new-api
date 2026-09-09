@@ -109,3 +109,71 @@ func TestGPT6AstraBuiltinBilling(t *testing.T) {
 		})
 	}
 }
+
+func TestVeo31BuiltinBilling(t *testing.T) {
+	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)
+	saved := *settings
+	savedRatios, savedPrices := ratio_setting.ModelRatio2JSONString(), ratio_setting.ModelPrice2JSONString()
+	savedOptions := common.OptionMap
+	t.Cleanup(func() {
+		*settings, common.OptionMap = saved, savedOptions
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+	})
+	common.OptionMap = map[string]string{"billing_setting.billing_mode": `{}`, "billing_setting.billing_expr": `{}`}
+	require.NoError(t, config.GlobalConfig.LoadFromDB(common.OptionMap))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+
+	tests := []struct {
+		model      string
+		seconds    float64
+		resolution string
+		wantQuota  int
+		wantTier   string
+	}{
+		// Standard
+		{"veo-3.1-generate-001", 8, "720p", 1600000, "standard"},
+		{"veo-3.1-generate-001", 8, "1080p", 1600000, "standard"},
+		{"veo-3.1-generate-001", 8, "4k", 2400000, "4k"},
+		{"veo-3.1-generate-preview", 8, "720p", 1600000, "standard"},
+		{"veo-3.1-generate-preview", 8, "4k", 2400000, "4k"},
+
+		// Fast
+		{"veo-3.1-fast-generate-001", 8, "720p", 400000, "720p"},
+		{"veo-3.1-fast-generate-001", 8, "1080p", 480000, "1080p"},
+		{"veo-3.1-fast-generate-001", 8, "4k", 1200000, "4k"},
+		{"veo-3.1-fast-generate-preview", 8, "720p", 400000, "720p"},
+		{"veo-3.1-fast-generate-preview", 8, "1080p", 480000, "1080p"},
+		{"veo-3.1-fast-generate-preview", 8, "4k", 1200000, "4k"},
+
+		// Lite
+		{"veo-3.1-lite-generate-001", 8, "720p", 200000, "720p"},
+		{"veo-3.1-lite-generate-001", 8, "1080p", 320000, "1080p"},
+		{"veo-3.1-lite-generate-preview", 8, "720p", 200000, "720p"},
+		{"veo-3.1-lite-generate-preview", 8, "1080p", 320000, "1080p"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.model+"_"+tt.resolution, func(t *testing.T) {
+			assert.Equal(t, billing_setting.BillingModeTieredExpr, billing_setting.GetBillingMode(tt.model))
+			expr, ok := billing_setting.GetBillingExpr(tt.model)
+			require.True(t, ok)
+
+			facts := map[string]any{
+				"seconds":    tt.seconds,
+				"resolution": tt.resolution,
+			}
+			result, err := billingexpr.ComputeTieredQuotaWithRequest(&billingexpr.BillingSnapshot{
+				ExprString:       expr,
+				ExprHash:         billingexpr.ExprHashString(expr),
+				GroupRatio:       1,
+				QuotaPerUnit:     500000,
+				TaskUsageBilling: true,
+			}, billingexpr.TokenParams{}, billingexpr.RequestInput{Usage: facts})
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantQuota, result.ActualQuotaAfterGroup)
+			assert.Equal(t, tt.wantTier, result.MatchedTier)
+		})
+	}
+}

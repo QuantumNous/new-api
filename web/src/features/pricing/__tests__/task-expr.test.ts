@@ -378,4 +378,21 @@ describe('task visual pricing preview', () => {
       []
     )
   })
+
+  test('evalExprLocally safely evaluates expressions containing u, header, param, and has without throwing', async () => {
+    const { evalExprLocally } = await import('../lib/tier-expr')
+    const expr = 'u("resolution") == "4k" ? tier("4k", u("seconds") * 0.6) : tier("standard", u("seconds") * 0.4)'
+    const result = evalExprLocally(expr, 0, 0, {
+      cacheReadTokens: 0,
+      cacheCreateTokens: 0,
+      cacheCreate1hTokens: 0,
+      imageTokens: 0,
+      imageOutputTokens: 0,
+      audioInputTokens: 0,
+      audioOutputTokens: 0,
+    })
+    assert.equal(result.error, null)
+    assert.equal(result.matchedTier, 'standard')
+    assert.equal(result.cost, 0)
+  })
 })
