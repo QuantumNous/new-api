@@ -329,6 +329,12 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 	if textRequest.Model == "" {
 		return nil, errors.New("model is required")
 	}
+	if relayMode == relayconstant.RelayModeChatCompletions && common.IsImageGenerationModel(textRequest.Model) {
+		return nil, fmt.Errorf(
+			"model %q is not supported on /v1/chat/completions; use /v1/images/generations instead",
+			textRequest.Model,
+		)
+	}
 	if textRequest.WebSearchOptions != nil {
 		if textRequest.WebSearchOptions.SearchContextSize != "" {
 			validSizes := map[string]bool{
