@@ -134,6 +134,30 @@ export function SchedulerMonitorPage() {
             <CardTitle>{t('Endpoint details')}</CardTitle>
           </CardHeader>
           <CardContent>
+            <details className='mb-4 text-sm'>
+              <summary className='cursor-pointer font-medium'>
+                {t('健康状态说明')}
+              </summary>
+              <dl className='mt-3 grid gap-x-4 gap-y-2 sm:grid-cols-[auto_1fr]'>
+                <dt className='font-mono'>AVAILABLE</dt>
+                <dd>{t('可用：健康门禁允许调度，但仍需满足启用状态、权限、容量和评分等条件；不代表评分高或已有样本。')}</dd>
+                <dt className='font-mono'>DEGRADED</dt>
+                <dd>{t('降级：发生计入健康的失败。自动退避首次为 10 秒，第二次为 1 分钟；冷却期间暂停调度。')}</dd>
+                <dt className='font-mono'>ERROR</dt>
+                <dd>{t('异常：连续至少 3 次计入健康的失败，自动冷却 5 分钟，期间暂停调度。')}</dd>
+                <dt className='font-mono'>RECOVERING</dt>
+                <dd>{t('恢复中：降级或异常的冷却结束，在下次调度准入检查时允许重试；成功后恢复可用，失败则重新退避。')}</dd>
+                <dt className='font-mono'>EXHAUSTED</dt>
+                <dd>{t('耗尽：被标记为资源或额度耗尽，暂停调度；不会仅因冷却到期而自动恢复。')}</dd>
+                <dt className='font-mono'>DISABLED_AUTO</dt>
+                <dd>{t('自动禁用：被标记为自动停用，暂停调度；不会仅因冷却到期而自动恢复。')}</dd>
+                <dt className='font-mono'>DISABLED_MANUAL</dt>
+                <dd>{t('手动禁用：由管理员停用，暂停调度；成功请求也不会自动解除，需要显式更新状态。')}</dd>
+              </dl>
+              <p className='text-muted-foreground mt-3'>
+                {t('健康状态按渠道和 Key 共享，适用于该端点下的各模型。429 会计入健康失败，其他 4xx 请求错误不计入。暂无运行时样本表示负载数据未知，不等于渠道故障。')}
+              </p>
+            </details>
             <div className='mb-4 flex flex-wrap gap-2'>
               <input className='rounded-md border px-3 py-2 text-sm' placeholder={t('Model')} value={model} onChange={(e) => setModel(e.target.value)} />
               <input className='rounded-md border px-3 py-2 text-sm' placeholder={t('Channel ID')} value={channel} onChange={(e) => setChannel(e.target.value)} />
