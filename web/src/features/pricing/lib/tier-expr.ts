@@ -298,6 +298,16 @@ export function evalExprLocally(
       abs: Math.abs,
       ceil: Math.ceil,
       floor: Math.floor,
+      header: (_key: string) => '',
+      param: (_path: string) => null,
+      u: (_name: string) => 0,
+      has: (source: unknown, substr: string) =>
+        Boolean(source && substr && String(source).includes(String(substr))),
+      hour: () => 0,
+      minute: () => 0,
+      weekday: () => 0,
+      month: () => 1,
+      day: () => 1,
     }
     for (const field of ESTIMATOR_VARS) {
       env[field.var] = extraTokenValues[field.stateKey] || 0
