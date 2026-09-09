@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -546,6 +547,26 @@ func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 	return group, nil
 }
 
+// serializeSubscriptionUserTx establishes the single lock order used by every
+// transaction that can mutate both a user group and subscriptions:
+// User -> UserSubscription. The no-op self-assignment is a portable write lock
+// for SQLite, MySQL, and PostgreSQL; the following read establishes existence
+// even on MySQL configurations that report zero affected rows for no-op updates.
+func serializeSubscriptionUserTx(tx *gorm.DB, userId int) (*User, error) {
+	if tx == nil || userId <= 0 {
+		return nil, errors.New("invalid subscription user serialization args")
+	}
+	if err := tx.Model(&User{}).Where("id = ?", userId).
+		UpdateColumn("id", gorm.Expr("id")).Error; err != nil {
+		return nil, err
+	}
+	var user User
+	if err := lockForUpdate(tx).First(&user, userId).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now int64) (string, error) {
 	if tx == nil || sub == nil {
 		return "", errors.New("invalid downgrade args")
@@ -600,18 +621,24 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	if userId <= 0 {
 		return nil, errors.New("invalid user id")
 	}
+	entitlementUser, err := serializeSubscriptionUserTx(tx, userId)
+	if err != nil {
+		return nil, err
+	}
 	if plan.MaxPurchasePerUser > 0 {
-		var count int64
-		if err := tx.Model(&UserSubscription{}).
+		var existingSubscriptions []UserSubscription
+		if err := lockForUpdate(tx).Model(&UserSubscription{}).
+			Select("id").
 			Where("user_id = ? AND plan_id = ?", userId, plan.Id).
-			Count(&count).Error; err != nil {
+			Limit(plan.MaxPurchasePerUser).
+			Find(&existingSubscriptions).Error; err != nil {
 			return nil, err
 		}
-		if count >= int64(plan.MaxPurchasePerUser) {
+		if len(existingSubscriptions) >= plan.MaxPurchasePerUser {
 			return nil, errors.New("已达到该套餐购买上限")
 		}
 	}
-	nowUnix := GetDBTimestamp()
+	nowUnix := getDBTimestamp(tx)
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
 	if err != nil {
@@ -626,10 +653,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
 	prevGroup := ""
 	if upgradeGroup != "" {
-		currentGroup, err := getUserGroupByIdTx(tx, userId)
-		if err != nil {
-			return nil, err
-		}
+		currentGroup := entitlementUser.Group
 		if currentGroup != upgradeGroup {
 			prevGroup = currentGroup
 			if err := tx.Model(&User{}).Where("id = ?", userId).
@@ -1056,14 +1080,23 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
 	now := common.GetTimestamp()
 	cacheGroup := ""
 	downgradeGroup := ""
-	var userId int
+	var lookup UserSubscription
+	if err := DB.Select("id", "user_id").Where("id = ?", userSubscriptionId).First(&lookup).Error; err != nil {
+		return "", err
+	}
+	userId := lookup.UserId
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if _, err := serializeSubscriptionUserTx(tx, userId); err != nil {
+			return err
+		}
 		var sub UserSubscription
 		if err := lockForUpdate(tx).
 			Where("id = ?", userSubscriptionId).First(&sub).Error; err != nil {
 			return err
 		}
-		userId = sub.UserId
+		if sub.UserId != userId {
+			return errors.New("subscription owner changed concurrently")
+		}
 		if err := tx.Model(&sub).Updates(map[string]any{
 			"status":     "cancelled",
 			"end_time":   now,
@@ -1101,14 +1134,23 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
 	now := common.GetTimestamp()
 	cacheGroup := ""
 	downgradeGroup := ""
-	var userId int
+	var lookup UserSubscription
+	if err := DB.Select("id", "user_id").Where("id = ?", userSubscriptionId).First(&lookup).Error; err != nil {
+		return "", err
+	}
+	userId := lookup.UserId
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if _, err := serializeSubscriptionUserTx(tx, userId); err != nil {
+			return err
+		}
 		var sub UserSubscription
 		if err := lockForUpdate(tx).
 			Where("id = ?", userSubscriptionId).First(&sub).Error; err != nil {
 			return err
 		}
-		userId = sub.UserId
+		if sub.UserId != userId {
+			return errors.New("subscription owner changed concurrently")
+		}
 		target, err := downgradeUserGroupForSubscriptionTx(tx, &sub, now)
 		if err != nil {
 			return err
@@ -1278,15 +1320,24 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 		return 0, nil
 	}
 	expiredCount := 0
-	userIds := make(map[int]struct{}, len(subs))
+	userIdSet := make(map[int]struct{}, len(subs))
 	for _, sub := range subs {
 		if sub.UserId > 0 {
-			userIds[sub.UserId] = struct{}{}
+			userIdSet[sub.UserId] = struct{}{}
 		}
 	}
-	for userId := range userIds {
+	userIds := make([]int, 0, len(userIdSet))
+	for userId := range userIdSet {
+		userIds = append(userIds, userId)
+	}
+	// Two concurrent expiry passes must take user locks in the same order.
+	sort.Ints(userIds)
+	for _, userId := range userIds {
 		cacheGroup := ""
 		err := DB.Transaction(func(tx *gorm.DB) error {
+			if _, err := serializeSubscriptionUserTx(tx, userId); err != nil {
+				return err
+			}
 			res := tx.Model(&UserSubscription{}).
 				Where("user_id = ? AND status = ? AND end_time > 0 AND end_time <= ?", userId, "active", now).
 				Updates(map[string]any{
