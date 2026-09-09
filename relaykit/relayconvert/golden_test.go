@@ -303,9 +303,8 @@ func TestGoldenRequestConversionMatrix(t *testing.T) {
 			if from == to {
 				continue
 			}
-			if _, ok := lookupRequestRoute(from, to); !ok {
-				t.Fatalf("request route %s -> %s is no longer registered", from, to)
-			}
+			_, ok := lookupRequestRoute(from, to)
+			require.True(t, ok, "request route %s -> %s is no longer registered", from, to)
 			name := fmt.Sprintf("request/%s_to_%s", from, to)
 			t.Run(name, func(t *testing.T) {
 				result, err := ConvertRequest(nil, goldenInfo(), to, deepCopyFixture(t, requests[from]))

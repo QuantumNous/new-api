@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 
 import { getDynamicPriceEntries } from '../lib/dynamic-price'
 import { getTaskMatrixDisplayTiers } from '../lib/task-matrix-display'
@@ -45,7 +44,7 @@ describe('task matrix marketplace display rows', () => {
       resolutionSchema
     )
 
-    assert.deepEqual(rows, [
+    expect(rows).toStrictEqual([
       {
         label: '480P',
         conditions: [{ field: 'resolution', value: '480P' }],
@@ -71,7 +70,9 @@ describe('task matrix marketplace display rows', () => {
     const expression =
       'u("mode") == "std" && u("quality") == "high" ? tier("std·high", 0.1 + u("seconds") * 0.2) : u("mode") == "std" && u("quality") == "low" ? tier("std·low", 0.2 + u("seconds") * 0.3) : u("mode") == "pro" && u("quality") == "high" ? tier("pro·high", 0.3 + u("seconds") * 0.4) : tier("pro·low", 0.4 + u("seconds") * 0.5)'
 
-    assert.deepEqual(getTaskMatrixDisplayTiers(expression, doubleEnumSchema), [
+    expect(
+      getTaskMatrixDisplayTiers(expression, doubleEnumSchema)
+    ).toStrictEqual([
       {
         label: 'std·high',
         conditions: [
@@ -112,30 +113,27 @@ describe('task matrix marketplace display rows', () => {
   })
 
   test('returns null for a number-only schema so the single-row display stays', () => {
-    assert.equal(
+    expect(
       getTaskMatrixDisplayTiers(
         'tier("base", u("seconds") * 0.4)',
         numberOnlySchema
-      ),
-      null
-    )
+      )
+    ).toBe(null)
   })
 
   test('returns null for an unrecognizable sparse expression', () => {
-    assert.equal(
+    expect(
       getTaskMatrixDisplayTiers(
         'u("seconds") > 30 ? tier("long", u("seconds") * 0.3) : tier("short", u("seconds") * 0.4)',
         resolutionSchema
-      ),
-      null
-    )
+      )
+    ).toBe(null)
   })
 
   test('returns null when there is no usage schema', () => {
-    assert.equal(
-      getTaskMatrixDisplayTiers('tier("base", p * 2 + c * 8)', undefined),
-      null
-    )
+    expect(
+      getTaskMatrixDisplayTiers('tier("base", p * 2 + c * 8)', undefined)
+    ).toBe(null)
   })
 
   test('keeps group-ratio multiplication on expanded display-row unit prices', () => {
@@ -143,8 +141,8 @@ describe('task matrix marketplace display rows', () => {
       'tier("base", 0.1 + u("seconds") * 0.4)',
       resolutionSchema
     )
-    assert.ok(rows)
-    assert.equal(rows.length, 3)
+    if (!rows) expect.fail('Expected rows to be present')
+    expect(rows.length).toBe(3)
 
     const baseEntries = getDynamicPriceEntries(rows[0], {
       tokenUnit: 'K',
@@ -159,11 +157,11 @@ describe('task matrix marketplace display rows', () => {
       groupRatioMultiplier: 2,
     })
 
-    assert.equal(baseEntries[0]?.value, 0.4)
-    assert.equal(doubledEntries[0]?.value, 0.4)
-    assert.match(baseEntries[0]?.formatted ?? '', /0[.,]4/)
-    assert.match(doubledEntries[0]?.formatted ?? '', /0[.,]8/)
-    assert.equal(baseEntries.at(-1)?.value, 0.1)
-    assert.match(doubledEntries.at(-1)?.formatted ?? '', /0[.,]2/)
+    expect(baseEntries[0]?.value).toBe(0.4)
+    expect(doubledEntries[0]?.value).toBe(0.4)
+    expect(baseEntries[0]?.formatted ?? '').toMatch(/0[.,]4/)
+    expect(doubledEntries[0]?.formatted ?? '').toMatch(/0[.,]8/)
+    expect(baseEntries.at(-1)?.value).toBe(0.1)
+    expect(doubledEntries.at(-1)?.formatted ?? '').toMatch(/0[.,]2/)
   })
 })

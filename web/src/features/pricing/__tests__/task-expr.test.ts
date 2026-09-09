@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 
 import {
   combineBillingExpr,
@@ -42,8 +41,8 @@ const schema: BillingUsageSchema = {
 function assertConfigRoundTrip(config: TaskVisualConfig) {
   const expression = generateTaskExprFromConfig(config, schema)
   const parsed = tryParseTaskVisualConfig(expression, schema)
-  assert.ok(parsed)
-  assert.equal(generateTaskExprFromConfig(parsed, schema), expression)
+  if (!parsed) expect.fail('Expected parsed to be present')
+  expect(generateTaskExprFromConfig(parsed, schema)).toBe(expression)
 }
 
 describe('task billing expressions', () => {
@@ -104,31 +103,28 @@ describe('task billing expressions', () => {
     const combined = combineBillingExpr(baseExpression, requestRules)
     const split = splitBillingExprAndRequestRules(combined)
 
-    assert.equal(split.requestRuleExpr, requestRules)
+    expect(split.requestRuleExpr).toBe(requestRules)
     const parsed = tryParseTaskVisualConfig(split.billingExpr, schema)
-    assert.ok(parsed)
-    assert.equal(
+    if (!parsed) expect.fail('Expected parsed to be present')
+    expect(
       combineBillingExpr(
         generateTaskExprFromConfig(parsed, schema),
         requestRules
-      ),
-      combined
-    )
+      )
+    ).toBe(combined)
   })
 
   test('rejects expressions outside the frozen task shapes', () => {
-    assert.equal(tryParseTaskVisualConfig('u("seconds") * 0.4', schema), null)
-    assert.equal(
+    expect(tryParseTaskVisualConfig('u("seconds") * 0.4', schema)).toBe(null)
+    expect(
       tryParseTaskVisualConfig(
         'u("seconds") > 30 ? tier("long", u("seconds") * 0.3) : tier("short", u("seconds") * 0.4)',
         schema
-      ),
-      null
-    )
-    assert.equal(
-      tryParseTaskVisualConfig('tier("base", u("unknown") * 0.4)', schema),
-      null
-    )
+      )
+    ).toBe(null)
+    expect(
+      tryParseTaskVisualConfig('tier("base", u("unknown") * 0.4)', schema)
+    ).toBe(null)
   })
 })
 
@@ -143,10 +139,10 @@ describe('task visual pricing preview', () => {
 
     const result = evaluateTaskVisualConfig({ tiers: [tier] }, { seconds: 5 })
 
-    assert.ok(result)
-    assert.equal(result.tier, tier)
-    assert.equal(result.total, 0.52)
-    assert.deepEqual(result.parts, [
+    if (!result) expect.fail('Expected result to be present')
+    expect(result.tier).toBe(tier)
+    expect(result.total).toBe(0.52)
+    expect(result.parts).toStrictEqual([
       { kind: 'constant', amount: 0.02 },
       {
         kind: 'usage',
@@ -176,19 +172,16 @@ describe('task visual pricing preview', () => {
       ],
     }
 
-    assert.equal(
-      evaluateTaskVisualConfig(config, { mode: 'pro', seconds: 1 })?.tier.label,
-      'pro'
-    )
-    assert.equal(
-      evaluateTaskVisualConfig(config, { mode: 'std', seconds: 1 })?.tier.label,
-      'std'
-    )
-    assert.equal(
+    expect(
+      evaluateTaskVisualConfig(config, { mode: 'pro', seconds: 1 })?.tier.label
+    ).toBe('pro')
+    expect(
+      evaluateTaskVisualConfig(config, { mode: 'std', seconds: 1 })?.tier.label
+    ).toBe('std')
+    expect(
       evaluateTaskVisualConfig(config, { mode: 'unknown', seconds: 1 })?.tier
-        .label,
-      'std'
-    )
+        .label
+    ).toBe('std')
   })
 
   test('requires every enum condition on a multi-condition tier', () => {
@@ -212,22 +205,20 @@ describe('task visual pricing preview', () => {
       ],
     }
 
-    assert.equal(
+    expect(
       evaluateTaskVisualConfig(config, {
         action: 'extend',
         quality: 'high',
         clips: 2,
-      })?.tier.label,
-      'extend-two'
-    )
-    assert.equal(
+      })?.tier.label
+    ).toBe('extend-two')
+    expect(
       evaluateTaskVisualConfig(config, {
         action: 'extend',
         quality: 'standard',
         clips: 2,
-      })?.tier.label,
-      'base'
-    )
+      })?.tier.label
+    ).toBe('base')
   })
 
   test('selects the same tier after round-tripping through the expression grammar', () => {
@@ -250,22 +241,12 @@ describe('task visual pricing preview', () => {
     const sample = { mode: 'pro', seconds: 5, clips: 2 }
     const expression = generateTaskExprFromConfig(config, schema)
     const parsedTiers = parseTaskTiersFromExpr(expression, schema)
-    assert.ok(parsedTiers.length > 0)
-    const grammarTier =
-      parsedTiers
-        .slice(0, -1)
-        .find((tier) =>
-          tier.conditions.every(
-            (condition) =>
-              sample[condition.field as keyof typeof sample] === condition.value
-          )
-        ) ?? parsedTiers.at(-1)
-    assert.ok(grammarTier)
+    expect(parsedTiers).toStrictEqual(config.tiers)
 
     const result = evaluateTaskVisualConfig(config, sample)
 
-    assert.ok(result)
-    assert.equal(result.tier.label, grammarTier.label)
+    if (!result) expect.fail('Expected result to be present')
+    expect(result.tier.label).toBe('pro')
   })
 
   test('round-trips a token field at the $/1M editor scale', () => {
@@ -284,30 +265,30 @@ describe('task visual pricing preview', () => {
     }
 
     const expression = generateTaskExprFromConfig(config, tokenSchema)
-    assert.match(expression, /\/ 1000000/)
-    assert.equal(expression, 'tier("base", u("tokens") * 9.8 / 1000000)')
+    expect(expression).toBe('tier("base", u("tokens") * 9.8 / 1000000)')
 
     const parsed = tryParseTaskVisualConfig(expression, tokenSchema)
-    assert.ok(parsed)
-    assert.equal(parsed.tiers[0].unitPrices.tokens, 9.8)
-    assert.equal(generateTaskExprFromConfig(parsed, tokenSchema), expression)
+    if (!parsed) expect.fail('Expected parsed to be present')
+    expect(parsed.tiers[0].unitPrices.tokens).toBe(9.8)
+    expect(generateTaskExprFromConfig(parsed, tokenSchema)).toBe(expression)
   })
 
   test('treats a bare token term as unparseable so old $/token expressions stay raw', () => {
     const tokenSchema: BillingUsageSchema = {
       tokens: { type: 'number', unit: 'token' },
     }
-    assert.equal(
+    expect(
       tryParseTaskVisualConfig(
         'tier("base", u("tokens") * 0.0000098)',
         tokenSchema
-      ),
-      null
-    )
-    assert.deepEqual(
-      parseTaskTiersFromExpr('tier("base", u("tokens") * 0.0000098)', tokenSchema),
-      []
-    )
+      )
+    ).toBe(null)
+    expect(
+      parseTaskTiersFromExpr(
+        'tier("base", u("tokens") * 0.0000098)',
+        tokenSchema
+      )
+    ).toStrictEqual([])
   })
 
   test('round-trips a credit field without a /1M division', () => {
@@ -326,12 +307,11 @@ describe('task visual pricing preview', () => {
     }
 
     const expression = generateTaskExprFromConfig(config, creditSchema)
-    assert.equal(expression, 'tier("base", u("units") * 0.14)')
-    assert.doesNotMatch(expression, /\/ 1000000/)
+    expect(expression).toBe('tier("base", u("units") * 0.14)')
 
     const parsed = tryParseTaskVisualConfig(expression, creditSchema)
-    assert.ok(parsed)
-    assert.equal(parsed.tiers[0].unitPrices.units, 0.14)
+    if (!parsed) expect.fail('Expected parsed to be present')
+    expect(parsed.tiers[0].unitPrices.units).toBe(0.14)
   })
 
   test('maps declared usage example labels to evaluated prices', () => {
@@ -342,17 +322,17 @@ describe('task visual pricing preview', () => {
       'tier("base", u("tokens") * 9.8 / 1000000)',
       tokenSchema
     )
-    assert.ok(config)
+    if (!config) expect.fail('Expected config to be present')
 
     const result = evaluateTaskVisualConfig(
       config,
       { tokens: 108000 },
       tokenSchema
     )
-    assert.ok(result)
-    assert.equal(result.total, (108000 * 9.8) / 1_000_000)
+    if (!result) expect.fail('Expected result to be present')
+    expect(result.total).toBe((108000 * 9.8) / 1_000_000)
 
-    assert.deepEqual(
+    expect(
       evaluateTaskUsageExamples(
         'tier("base", u("tokens") * 9.8 / 1000000)',
         tokenSchema,
@@ -360,22 +340,20 @@ describe('task visual pricing preview', () => {
           { label: '720p · 5s', facts: { tokens: 108000 } },
           { label: '1080p · 5s', facts: { tokens: 243000 } },
         ]
-      ),
-      [
-        { label: '720p · 5s', total: (108000 * 9.8) / 1_000_000 },
-        { label: '1080p · 5s', total: (243000 * 9.8) / 1_000_000 },
-      ]
-    )
+      )
+    ).toStrictEqual([
+      { label: '720p · 5s', total: (108000 * 9.8) / 1_000_000 },
+      { label: '1080p · 5s', total: (243000 * 9.8) / 1_000_000 },
+    ])
   })
 
   test('returns no usage example prices for a raw unparseable expression', () => {
-    assert.deepEqual(
+    expect(
       evaluateTaskUsageExamples(
         'u("tokens") * 0.00007 * (u("tokens") > 100000 ? 0.8 : 1)',
         { tokens: { type: 'number', unit: 'token' } },
         [{ label: '720p · 5s', facts: { tokens: 108000 } }]
-      ),
-      []
-    )
+      )
+    ).toStrictEqual([])
   })
 })

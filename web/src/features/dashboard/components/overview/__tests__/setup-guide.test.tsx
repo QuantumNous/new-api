@@ -139,11 +139,13 @@ describe('overview setup guide', () => {
     expect(
       document.getElementById(toggle.getAttribute('aria-controls') ?? '')
     ).toBeVisible()
-    expect(
-      screen.getByRole('heading', {
-        name: 'Build on your API gateway in minutes',
-      })
-    ).toBeVisible()
+    await waitFor(() =>
+      expect(
+        screen.getByRole('heading', {
+          name: 'Build on your API gateway in minutes',
+        })
+      ).toBeVisible()
+    )
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /^API Keys/ })).toBeVisible()
     )
@@ -187,7 +189,9 @@ describe('overview setup guide', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Hide setup guide' })
     )
-    expect(screen.getByText('Setup progress: 1/3')).toBeVisible()
+    await waitFor(() =>
+      expect(screen.getByText('Setup progress: 1/3')).toBeVisible()
+    )
     expect(
       screen.getByText('Setup guide is collapsed. Expand it anytime.')
     ).toBeVisible()
@@ -196,9 +200,11 @@ describe('overview setup guide', () => {
       screen.queryByRole('button', { name: 'Setup guide' })
     ).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Show setup guide' }))
-    expect(
-      screen.getByRole('button', { name: 'Hide setup guide' })
-    ).toBeVisible()
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Hide setup guide' })
+      ).toBeVisible()
+    )
   })
 
   it('removes the collapsed progress banner when the remaining setup step completes', async () => {
@@ -210,7 +216,9 @@ describe('overview setup guide', () => {
     })
     window.localStorage.setItem(storageKey, 'collapsed')
     await renderOverview()
-    expect(await screen.findByText('Setup progress: 2/3')).toBeVisible()
+    await waitFor(() =>
+      expect(screen.getByText('Setup progress: 2/3')).toBeVisible()
+    )
 
     act(() => {
       useAuthStore.getState().auth.setUser({
@@ -231,9 +239,11 @@ describe('overview setup guide', () => {
     keyLookupError = new Error('Key lookup unavailable')
     await renderOverview()
 
-    expect(
-      await screen.findByRole('button', { name: 'Hide setup guide' })
-    ).toBeVisible()
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Hide setup guide' })
+      ).toBeVisible()
+    )
     expect(
       screen.queryByRole('button', { name: 'Setup guide' })
     ).not.toBeInTheDocument()

@@ -16,20 +16,35 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { createElement } from 'react'
+import { describe, expect, test, vi } from 'vitest'
 
-import {
-  modelGroupSelectorLayoutClasses,
-  scrollSelectedOptionIntoView,
-} from '../layout'
+import { ModelGroupSelector } from '../../model-group-selector'
+import { scrollSelectedOptionIntoView } from '../layout'
 
 describe('model group selector layout', () => {
-  test('keeps group options at a fixed height and aligned to the top', () => {
-    const groupScrollClasses =
-      modelGroupSelectorLayoutClasses.groupScroll.split(' ')
+  test('opened desktop group options keep fixed-height rows aligned to the top', async () => {
+    const user = userEvent.setup()
+    render(
+      createElement(ModelGroupSelector, {
+        selectedModel: 'model-a',
+        models: [{ label: 'Model A', value: 'model-a' }],
+        onModelChange: vi.fn(),
+        selectedGroup: 'group-a',
+        groups: [{ label: 'Group A', value: 'group-a' }],
+        onGroupChange: vi.fn(),
+      })
+    )
 
-    expect(groupScrollClasses.includes('auto-rows-[2rem]')).toBeTruthy()
-    expect(groupScrollClasses.includes('content-start')).toBeTruthy()
+    await user.click(screen.getByRole('combobox'))
+
+    const option = await screen.findByRole('button', { name: 'Group A' })
+    expect(option.parentElement).toHaveClass(
+      'auto-rows-[2rem]',
+      'content-start'
+    )
   })
 
   test('centers the selected group inside its own scroll container', () => {

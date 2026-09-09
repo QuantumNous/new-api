@@ -16,9 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
 
-import { describe, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 
 import {
   assessBaseUrlTrust,
@@ -27,14 +26,14 @@ import {
 
 describe('assessBaseUrlTrust', () => {
   test('returns null for empty or unparsable input', () => {
-    assert.equal(assessBaseUrlTrust(''), null)
-    assert.equal(assessBaseUrlTrust('   '), null)
-    assert.equal(assessBaseUrlTrust('not a url'), null)
-    assert.equal(assessBaseUrlTrust('ftp://files.example.com'), null)
+    expect(assessBaseUrlTrust('')).toBe(null)
+    expect(assessBaseUrlTrust('   ')).toBe(null)
+    expect(assessBaseUrlTrust('not a url')).toBe(null)
+    expect(assessBaseUrlTrust('ftp://files.example.com')).toBe(null)
   })
 
   test('flags plain http on a public host without flagging the host', () => {
-    assert.deepEqual(assessBaseUrlTrust('http://api.example.com/v1'), {
+    expect(assessBaseUrlTrust('http://api.example.com/v1')).toStrictEqual({
       plainHttp: true,
       privateHost: false,
     })
@@ -56,20 +55,19 @@ describe('assessBaseUrlTrust', () => {
       'https://nas.local',
       'https://gateway.internal',
     ]) {
-      assert.equal(assessBaseUrlTrust(url)?.privateHost, true, url)
+      expect(assessBaseUrlTrust(url)?.privateHost, url).toBe(true)
     }
   })
 
   test('does not flag a public https host', () => {
-    assert.deepEqual(assessBaseUrlTrust('https://api.klingai.com'), {
+    expect(assessBaseUrlTrust('https://api.klingai.com')).toStrictEqual({
       plainHttp: false,
       privateHost: false,
     })
-    assert.equal(
+    expect(
       assessBaseUrlTrust('https://172.32.0.1')?.privateHost,
-      false,
       '172.32.x.x is outside the RFC 1918 172.16/12 block'
-    )
+    ).toBe(false)
   })
 })
 
@@ -78,36 +76,33 @@ describe('nextTaskPluginBaseUrl', () => {
   const pluginB = 'https://api.vendor-b.example'
 
   test('fills an empty field with the selected plugin default', () => {
-    assert.equal(nextTaskPluginBaseUrl('', undefined, pluginA), pluginA)
-    assert.equal(nextTaskPluginBaseUrl(undefined, undefined, pluginA), pluginA)
+    expect(nextTaskPluginBaseUrl('', undefined, pluginA)).toBe(pluginA)
+    expect(nextTaskPluginBaseUrl(undefined, undefined, pluginA)).toBe(pluginA)
   })
 
   test('replaces the previous plugin default when switching plugins', () => {
-    assert.equal(nextTaskPluginBaseUrl(pluginA, pluginA, pluginB), pluginB)
-    assert.equal(
+    expect(nextTaskPluginBaseUrl(pluginA, pluginA, pluginB)).toBe(pluginB)
+    expect(
       nextTaskPluginBaseUrl(`${pluginA}/`, pluginA, pluginB),
-      pluginB,
       'a trailing slash typed by the browser autocomplete still counts as the default'
-    )
+    ).toBe(pluginB)
   })
 
   test('keeps a value the administrator typed by hand', () => {
-    assert.equal(
-      nextTaskPluginBaseUrl('https://my-proxy.example', pluginA, pluginB),
-      null
-    )
-    assert.equal(
-      nextTaskPluginBaseUrl('https://my-proxy.example', undefined, pluginB),
-      null
-    )
+    expect(
+      nextTaskPluginBaseUrl('https://my-proxy.example', pluginA, pluginB)
+    ).toBe(null)
+    expect(
+      nextTaskPluginBaseUrl('https://my-proxy.example', undefined, pluginB)
+    ).toBe(null)
   })
 
   test('changes nothing when the selected plugin declares no default', () => {
-    assert.equal(nextTaskPluginBaseUrl('', pluginA, undefined), null)
-    assert.equal(nextTaskPluginBaseUrl(pluginA, pluginA, ''), null)
+    expect(nextTaskPluginBaseUrl('', pluginA, undefined)).toBe(null)
+    expect(nextTaskPluginBaseUrl(pluginA, pluginA, '')).toBe(null)
   })
 
   test('changes nothing when the field already holds the new default', () => {
-    assert.equal(nextTaskPluginBaseUrl(`${pluginB}/`, pluginA, pluginB), null)
+    expect(nextTaskPluginBaseUrl(`${pluginB}/`, pluginA, pluginB)).toBe(null)
   })
 })

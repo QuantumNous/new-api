@@ -1,8 +1,6 @@
 package service
 
 import (
-	"math"
-	"math/rand"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
@@ -11,7 +9,6 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -78,16 +75,11 @@ func TestTryTieredSettleUsesFrozenRequestInput(t *testing.T) {
 	}
 
 	ok, quota, result := TryTieredSettle(relayInfo, billingexpr.TokenParams{P: 100})
-	if !ok {
-		t.Fatal("expected tiered settle to apply")
-	}
+	require.True(t, ok, "expected tiered settle to apply")
 	// fast: p*2 = 200; quota = 200 / 1M * 500K = 100
-	if quota != 100 {
-		t.Fatalf("quota = %d, want 100", quota)
-	}
-	if result == nil || result.MatchedTier != "fast" {
-		t.Fatalf("matched tier = %v, want fast", result)
-	}
+	require.Equal(t, 100, quota)
+	require.NotNil(t, result)
+	require.Equal(t, "fast", result.MatchedTier)
 }
 
 func TestTryTieredSettleFallsBackToFrozenPreConsumeOnExprError(t *testing.T) {
@@ -103,15 +95,9 @@ func TestTryTieredSettleFallsBackToFrozenPreConsumeOnExprError(t *testing.T) {
 	}
 
 	ok, quota, result := TryTieredSettle(relayInfo, billingexpr.TokenParams{P: 100})
-	if !ok {
-		t.Fatal("expected tiered settle to apply")
-	}
-	if quota != 321 {
-		t.Fatalf("quota = %d, want 321", quota)
-	}
-	if result != nil {
-		t.Fatalf("result = %#v, want nil", result)
-	}
+	require.True(t, ok, "expected tiered settle to apply")
+	require.Equal(t, 321, quota)
+	require.Nil(t, result)
 }
 
 // ---------------------------------------------------------------------------
@@ -123,16 +109,10 @@ func TestTryTieredSettle_PreConsumeMatchesPostConsume(t *testing.T) {
 	params := billingexpr.TokenParams{P: 1000, C: 500}
 
 	ok, quota, _ := TryTieredSettle(info, params)
-	if !ok {
-		t.Fatal("expected tiered settle")
-	}
+	require.True(t, ok, "expected tiered settle")
 	// p*2 + c*10 = 7000; quota = 7000 / 1M * 500K = 3500
-	if quota != 3500 {
-		t.Fatalf("quota = %d, want 3500", quota)
-	}
-	if quota != info.FinalPreConsumedQuota {
-		t.Fatalf("pre-consume %d != post-consume %d", info.FinalPreConsumedQuota, quota)
-	}
+	require.Equal(t, 3500, quota)
+	require.Equal(t, info.FinalPreConsumedQuota, quota)
 }
 
 func TestTryTieredSettle_PostConsumeOverPreConsume(t *testing.T) {
@@ -142,16 +122,10 @@ func TestTryTieredSettle_PostConsumeOverPreConsume(t *testing.T) {
 	// Actual usage is higher than estimated
 	params := billingexpr.TokenParams{P: 2000, C: 1000}
 	ok, quota, _ := TryTieredSettle(info, params)
-	if !ok {
-		t.Fatal("expected tiered settle")
-	}
+	require.True(t, ok, "expected tiered settle")
 	// p*2 + c*10 = 14000; quota = 14000 / 1M * 500K = 7000
-	if quota != 7000 {
-		t.Fatalf("quota = %d, want 7000", quota)
-	}
-	if quota <= preConsumed {
-		t.Fatalf("expected supplement: actual %d should > pre-consumed %d", quota, preConsumed)
-	}
+	require.Equal(t, 7000, quota)
+	require.Greater(t, quota, preConsumed)
 }
 
 func TestTryTieredSettle_PostConsumeUnderPreConsume(t *testing.T) {
@@ -161,16 +135,10 @@ func TestTryTieredSettle_PostConsumeUnderPreConsume(t *testing.T) {
 	// Actual usage is lower than estimated
 	params := billingexpr.TokenParams{P: 100, C: 50}
 	ok, quota, _ := TryTieredSettle(info, params)
-	if !ok {
-		t.Fatal("expected tiered settle")
-	}
+	require.True(t, ok, "expected tiered settle")
 	// p*2 + c*10 = 700; quota = 700 / 1M * 500K = 350
-	if quota != 350 {
-		t.Fatalf("quota = %d, want 350", quota)
-	}
-	if quota >= preConsumed {
-		t.Fatalf("expected refund: actual %d should < pre-consumed %d", quota, preConsumed)
-	}
+	require.Equal(t, 350, quota)
+	require.Less(t, quota, preConsumed)
 }
 
 // ---------------------------------------------------------------------------
@@ -182,16 +150,11 @@ func TestTryTieredSettle_ExactBoundary(t *testing.T) {
 
 	// p == 200000 => standard tier (p <= 200000)
 	ok, quota, result := TryTieredSettle(info, billingexpr.TokenParams{P: 200000, C: 1000})
-	if !ok {
-		t.Fatal("expected tiered settle")
-	}
+	require.True(t, ok, "expected tiered settle")
 	// standard: p*1.5 + c*7.5 = 307500; quota = 307500 / 1M * 500K = 153750
-	if quota != 153750 {
-		t.Fatalf("quota = %d, want 153750", quota)
-	}
-	if result.MatchedTier != "standard" {
-		t.Fatalf("tier = %s, want standard", result.MatchedTier)
-	}
+	require.Equal(t, 153750, quota)
+	require.NotNil(t, result)
+	require.Equal(t, "standard", result.MatchedTier)
 }
 
 func TestTryTieredSettle_BoundaryPlusOne(t *testing.T) {
@@ -199,47 +162,30 @@ func TestTryTieredSettle_BoundaryPlusOne(t *testing.T) {
 
 	// p == 200001 => crosses to long_context tier
 	ok, quota, result := TryTieredSettle(info, billingexpr.TokenParams{P: 200001, C: 1000})
-	if !ok {
-		t.Fatal("expected tiered settle")
-	}
+	require.True(t, ok, "expected tiered settle")
 	// long_context: p*3 + c*11.25 = 611253; quota = round(611253 / 1M * 500K) = 305627
-	if quota != 305627 {
-		t.Fatalf("quota = %d, want 305627", quota)
-	}
-	if result.MatchedTier != "long_context" {
-		t.Fatalf("tier = %s, want long_context", result.MatchedTier)
-	}
-	if !result.CrossedTier {
-		t.Fatal("expected CrossedTier = true")
-	}
+	require.Equal(t, 305627, quota)
+	require.NotNil(t, result)
+	require.Equal(t, "long_context", result.MatchedTier)
+	require.True(t, result.CrossedTier, "expected CrossedTier = true")
 }
 
 func TestTryTieredSettle_ZeroTokens(t *testing.T) {
 	info := makeRelayInfo(flatExpr, 1.0, 0, 0)
 
 	ok, quota, result := TryTieredSettle(info, billingexpr.TokenParams{P: 0, C: 0})
-	if !ok {
-		t.Fatal("expected tiered settle")
-	}
-	if quota != 0 {
-		t.Fatalf("quota = %d, want 0", quota)
-	}
-	if result == nil {
-		t.Fatal("result should not be nil")
-	}
+	require.True(t, ok, "expected tiered settle")
+	require.Equal(t, 0, quota)
+	require.NotNil(t, result)
 }
 
 func TestTryTieredSettle_HugeTokens(t *testing.T) {
 	info := makeRelayInfo(flatExpr, 1.0, 10000000, 5000000)
 
 	ok, quota, _ := TryTieredSettle(info, billingexpr.TokenParams{P: 10000000, C: 5000000})
-	if !ok {
-		t.Fatal("expected tiered settle")
-	}
+	require.True(t, ok, "expected tiered settle")
 	// p*2 + c*10 = 70000000; quota = 70000000 / 1M * 500K = 35000000
-	if quota != 35000000 {
-		t.Fatalf("quota = %d, want 35000000", quota)
-	}
+	require.Equal(t, 35000000, quota)
 }
 
 func TestTryTieredSettle_CacheTokensAffectSettlement(t *testing.T) {
@@ -247,27 +193,17 @@ func TestTryTieredSettle_CacheTokensAffectSettlement(t *testing.T) {
 
 	// Without cache tokens
 	ok1, quota1, _ := TryTieredSettle(info, billingexpr.TokenParams{P: 1000, C: 500})
-	if !ok1 {
-		t.Fatal("expected tiered settle")
-	}
+	require.True(t, ok1, "expected tiered settle")
 	// p*2 + c*10 = 7000; quota = 7000 / 1M * 500K = 3500
 
 	// With cache tokens
 	ok2, quota2, _ := TryTieredSettle(info, billingexpr.TokenParams{P: 1000, C: 500, CR: 10000, CC: 5000, CC1h: 2000})
-	if !ok2 {
-		t.Fatal("expected tiered settle")
-	}
+	require.True(t, ok2, "expected tiered settle")
 	// 2000 + 5000 + 2000 + 12500 + 8000 = 29500; quota = 29500 / 1M * 500K = 14750
 
-	if quota2 <= quota1 {
-		t.Fatalf("cache tokens should increase quota: without=%d, with=%d", quota1, quota2)
-	}
-	if quota1 != 3500 {
-		t.Fatalf("no-cache quota = %d, want 3500", quota1)
-	}
-	if quota2 != 14750 {
-		t.Fatalf("cache quota = %d, want 14750", quota2)
-	}
+	require.Greater(t, quota2, quota1)
+	require.Equal(t, 3500, quota1)
+	require.Equal(t, 14750, quota2)
 }
 
 // ---------------------------------------------------------------------------
@@ -281,16 +217,11 @@ func TestTryTieredSettle_RequestProbeInfluencesBilling(t *testing.T) {
 	}
 
 	ok, quota, result := TryTieredSettle(info, billingexpr.TokenParams{P: 1000, C: 500})
-	if !ok {
-		t.Fatal("expected tiered settle")
-	}
+	require.True(t, ok, "expected tiered settle")
 	// fast: p*4 + c*20 = 14000; quota = 14000 / 1M * 500K = 7000
-	if quota != 7000 {
-		t.Fatalf("quota = %d, want 7000", quota)
-	}
-	if result.MatchedTier != "fast" {
-		t.Fatalf("tier = %s, want fast", result.MatchedTier)
-	}
+	require.Equal(t, 7000, quota)
+	require.NotNil(t, result)
+	require.Equal(t, "fast", result.MatchedTier)
 }
 
 func TestTryTieredSettle_NoRequestInput_FallsBackToDefault(t *testing.T) {
@@ -298,16 +229,11 @@ func TestTryTieredSettle_NoRequestInput_FallsBackToDefault(t *testing.T) {
 	// No BillingRequestInput set — param("service_tier") returns nil, not "fast"
 
 	ok, quota, result := TryTieredSettle(info, billingexpr.TokenParams{P: 1000, C: 500})
-	if !ok {
-		t.Fatal("expected tiered settle")
-	}
+	require.True(t, ok, "expected tiered settle")
 	// normal: p*2 + c*10 = 7000; quota = 7000 / 1M * 500K = 3500
-	if quota != 3500 {
-		t.Fatalf("quota = %d, want 3500", quota)
-	}
-	if result.MatchedTier != "normal" {
-		t.Fatalf("tier = %s, want normal", result.MatchedTier)
-	}
+	require.Equal(t, 3500, quota)
+	require.NotNil(t, result)
+	require.Equal(t, "normal", result.MatchedTier)
 }
 
 // ---------------------------------------------------------------------------
@@ -560,25 +486,17 @@ func TestTryTieredSettle_GroupRatioScaling(t *testing.T) {
 	info := makeRelayInfo(flatExpr, 1.5, 1000, 500)
 
 	ok, quota, _ := TryTieredSettle(info, billingexpr.TokenParams{P: 1000, C: 500})
-	if !ok {
-		t.Fatal("expected tiered settle")
-	}
+	require.True(t, ok, "expected tiered settle")
 	// exprCost = 7000, quotaBeforeGroup = 3500, afterGroup = round(3500 * 1.5) = 5250
-	if quota != 5250 {
-		t.Fatalf("quota = %d, want 5250", quota)
-	}
+	require.Equal(t, 5250, quota)
 }
 
 func TestTryTieredSettle_GroupRatioZero(t *testing.T) {
 	info := makeRelayInfo(flatExpr, 0, 1000, 500)
 
 	ok, quota, _ := TryTieredSettle(info, billingexpr.TokenParams{P: 1000, C: 500})
-	if !ok {
-		t.Fatal("expected tiered settle")
-	}
-	if quota != 0 {
-		t.Fatalf("quota = %d, want 0 (group ratio = 0)", quota)
-	}
+	require.True(t, ok, "expected tiered settle")
+	require.Equal(t, 0, quota)
 }
 
 // ---------------------------------------------------------------------------
@@ -591,9 +509,7 @@ func TestTryTieredSettle_RatioMode_NilSnapshot(t *testing.T) {
 	}
 
 	ok, _, _ := TryTieredSettle(info, billingexpr.TokenParams{P: 1000, C: 500})
-	if ok {
-		t.Fatal("expected TryTieredSettle to return false when snapshot is nil")
-	}
+	require.False(t, ok, "expected TryTieredSettle to return false when snapshot is nil")
 }
 
 func TestTryTieredSettle_RatioMode_WrongBillingMode(t *testing.T) {
@@ -607,9 +523,7 @@ func TestTryTieredSettle_RatioMode_WrongBillingMode(t *testing.T) {
 	}
 
 	ok, _, _ := TryTieredSettle(info, billingexpr.TokenParams{P: 1000, C: 500})
-	if ok {
-		t.Fatal("expected TryTieredSettle to return false for ratio billing mode")
-	}
+	require.False(t, ok, "expected TryTieredSettle to return false for ratio billing mode")
 }
 
 func TestTryTieredSettle_RatioMode_EmptyBillingMode(t *testing.T) {
@@ -623,9 +537,7 @@ func TestTryTieredSettle_RatioMode_EmptyBillingMode(t *testing.T) {
 	}
 
 	ok, _, _ := TryTieredSettle(info, billingexpr.TokenParams{P: 1000, C: 500})
-	if ok {
-		t.Fatal("expected TryTieredSettle to return false for empty billing mode")
-	}
+	require.False(t, ok, "expected TryTieredSettle to return false for empty billing mode")
 }
 
 // ---------------------------------------------------------------------------
@@ -645,57 +557,28 @@ func TestTryTieredSettle_ErrorFallbackToEstimatedQuotaAfterGroup(t *testing.T) {
 	}
 
 	ok, quota, result := TryTieredSettle(info, billingexpr.TokenParams{P: 100})
-	if !ok {
-		t.Fatal("expected tiered settle to apply")
-	}
+	require.True(t, ok, "expected tiered settle to apply")
 	// FinalPreConsumedQuota is 0, should fall back to EstimatedQuotaAfterGroup
-	if quota != 999 {
-		t.Fatalf("quota = %d, want 999", quota)
-	}
-	if result != nil {
-		t.Fatal("result should be nil on error fallback")
-	}
+	require.Equal(t, 999, quota)
+	require.Nil(t, result)
 }
 
 // ---------------------------------------------------------------------------
-// BuildTieredTokenParams: token normalization and ratio parity tests
+// BuildTieredTokenParams: token normalization and expression pricing tests
 // ---------------------------------------------------------------------------
 
-func tieredQuota(exprStr string, usage *dto.Usage, isClaudeSemantic bool, groupRatio float64) float64 {
+func tieredQuota(t *testing.T, exprStr string, usage *dto.Usage, isClaudeSemantic bool, groupRatio float64) int {
+	t.Helper()
 	usedVars := billingexpr.UsedVars(exprStr)
 	params := BuildTieredTokenParams(usage, isClaudeSemantic, usedVars)
-	cost, _, _ := billingexpr.RunExpr(exprStr, params)
-	return cost / 1_000_000 * testQuotaPerUnit * groupRatio
-}
-
-func ratioQuota(usage *dto.Usage, isClaudeSemantic bool, modelRatio, completionRatio, cacheRatio, imageRatio, groupRatio float64) float64 {
-	dPromptTokens := decimal.NewFromInt(int64(usage.PromptTokens))
-	dCacheTokens := decimal.NewFromInt(int64(usage.PromptTokensDetails.CachedTokens))
-	dCcTokens := decimal.NewFromInt(int64(usage.PromptTokensDetails.CachedCreationTokens))
-	dImgTokens := decimal.NewFromInt(int64(usage.PromptTokensDetails.ImageTokens))
-	dCompletionTokens := decimal.NewFromInt(int64(usage.CompletionTokens))
-	dModelRatio := decimal.NewFromFloat(modelRatio)
-	dCompletionRatio := decimal.NewFromFloat(completionRatio)
-	dCacheRatio := decimal.NewFromFloat(cacheRatio)
-	dImageRatio := decimal.NewFromFloat(imageRatio)
-	dGroupRatio := decimal.NewFromFloat(groupRatio)
-
-	baseTokens := dPromptTokens
-	if !isClaudeSemantic {
-		baseTokens = baseTokens.Sub(dCacheTokens)
-		baseTokens = baseTokens.Sub(dCcTokens)
-		baseTokens = baseTokens.Sub(dImgTokens)
-	}
-
-	cachedTokensWithRatio := dCacheTokens.Mul(dCacheRatio)
-	imageTokensWithRatio := dImgTokens.Mul(dImageRatio)
-	promptQuota := baseTokens.Add(cachedTokensWithRatio).Add(imageTokensWithRatio)
-	completionQuota := dCompletionTokens.Mul(dCompletionRatio)
-	ratio := dModelRatio.Mul(dGroupRatio)
-
-	result := promptQuota.Add(completionQuota).Mul(ratio)
-	f, _ := result.Float64()
-	return f
+	result, err := billingexpr.ComputeTieredQuota(&billingexpr.BillingSnapshot{
+		ExprString:   exprStr,
+		ExprHash:     billingexpr.ExprHashString(exprStr),
+		GroupRatio:   groupRatio,
+		QuotaPerUnit: testQuotaPerUnit,
+	}, params)
+	require.NoError(t, err)
+	return result.ActualQuotaAfterGroup
 }
 
 func TestBuildTieredTokenParams_GPT_WithCache(t *testing.T) {
@@ -708,12 +591,9 @@ func TestBuildTieredTokenParams_GPT_WithCache(t *testing.T) {
 		},
 	}
 	expr := `tier("base", p * 2.5 + c * 15 + cr * 0.25)`
-	got := tieredQuota(expr, usage, false, 1.0)
+	got := tieredQuota(t, expr, usage, false, 1.0)
 	// P=800, C=500, CR=200 → (800*2.5 + 500*15 + 200*0.25) * 0.5 = 4775
-	want := 4775.0
-	if math.Abs(got-want) > 0.01 {
-		t.Fatalf("quota = %f, want %f", got, want)
-	}
+	assert.Equal(t, 4775, got)
 }
 
 func TestBuildTieredTokenParams_GPT_NoCacheVar(t *testing.T) {
@@ -726,12 +606,9 @@ func TestBuildTieredTokenParams_GPT_NoCacheVar(t *testing.T) {
 		},
 	}
 	expr := `tier("base", p * 2.5 + c * 15)`
-	got := tieredQuota(expr, usage, false, 1.0)
+	got := tieredQuota(t, expr, usage, false, 1.0)
 	// No cr → P=1000 (cache stays in P), C=500 → (1000*2.5 + 500*15) * 0.5 = 5000
-	want := 5000.0
-	if math.Abs(got-want) > 0.01 {
-		t.Fatalf("quota = %f, want %f", got, want)
-	}
+	assert.Equal(t, 5000, got)
 }
 
 func TestBuildTieredTokenParams_GPT_WithImage(t *testing.T) {
@@ -744,12 +621,9 @@ func TestBuildTieredTokenParams_GPT_WithImage(t *testing.T) {
 		},
 	}
 	expr := `tier("base", p * 2 + c * 8 + img * 2.5)`
-	got := tieredQuota(expr, usage, false, 1.0)
+	got := tieredQuota(t, expr, usage, false, 1.0)
 	// P=800, C=500, Img=200 → (800*2 + 500*8 + 200*2.5) * 0.5 = 3050
-	want := 3050.0
-	if math.Abs(got-want) > 0.01 {
-		t.Fatalf("quota = %f, want %f", got, want)
-	}
+	assert.Equal(t, 3050, got)
 }
 
 func TestBuildTieredTokenParams_Claude_WithCache(t *testing.T) {
@@ -762,12 +636,9 @@ func TestBuildTieredTokenParams_Claude_WithCache(t *testing.T) {
 		},
 	}
 	expr := `tier("base", p * 3 + c * 15 + cr * 0.3)`
-	got := tieredQuota(expr, usage, true, 1.0)
+	got := tieredQuota(t, expr, usage, true, 1.0)
 	// Claude: P=800 (no subtraction), C=500, CR=200 → (800*3 + 500*15 + 200*0.3) * 0.5 = 4980
-	want := 4980.0
-	if math.Abs(got-want) > 0.01 {
-		t.Fatalf("quota = %f, want %f", got, want)
-	}
+	assert.Equal(t, 4980, got)
 }
 
 func TestBuildTieredTokenParams_GPT_AudioOutput(t *testing.T) {
@@ -780,12 +651,9 @@ func TestBuildTieredTokenParams_GPT_AudioOutput(t *testing.T) {
 		},
 	}
 	expr := `tier("base", p * 2 + c * 10 + ao * 50)`
-	got := tieredQuota(expr, usage, false, 1.0)
+	got := tieredQuota(t, expr, usage, false, 1.0)
 	// C=600-100=500, AO=100 → (1000*2 + 500*10 + 100*50) * 0.5 = 6000
-	want := 6000.0
-	if math.Abs(got-want) > 0.01 {
-		t.Fatalf("quota = %f, want %f", got, want)
-	}
+	assert.Equal(t, 6000, got)
 }
 
 func TestBuildTieredTokenParams_GPT_AudioOutputNoVar(t *testing.T) {
@@ -798,17 +666,12 @@ func TestBuildTieredTokenParams_GPT_AudioOutputNoVar(t *testing.T) {
 		},
 	}
 	expr := `tier("base", p * 2 + c * 10)`
-	got := tieredQuota(expr, usage, false, 1.0)
+	got := tieredQuota(t, expr, usage, false, 1.0)
 	// No ao → C=600 (audio stays in C) → (1000*2 + 600*10) * 0.5 = 4000
-	want := 4000.0
-	if math.Abs(got-want) > 0.01 {
-		t.Fatalf("quota = %f, want %f", got, want)
-	}
+	assert.Equal(t, 4000, got)
 }
 
-func TestBuildTieredTokenParams_ParityWithRatio(t *testing.T) {
-	// GPT-5.4 prices: input=$2.5, output=$15, cacheRead=$0.25
-	// Ratio equivalents: modelRatio=1.25, completionRatio=6, cacheRatio=0.1
+func TestBuildTieredTokenParams_AppliesGroupRatio(t *testing.T) {
 	usage := &dto.Usage{
 		PromptTokens:     10000,
 		CompletionTokens: 2000,
@@ -818,20 +681,22 @@ func TestBuildTieredTokenParams_ParityWithRatio(t *testing.T) {
 		},
 	}
 	expr := `tier("base", p * 2.5 + c * 15 + cr * 0.25)`
-
-	for _, gr := range []float64{1.0, 1.5, 2.0, 0.5} {
-		tq := tieredQuota(expr, usage, false, gr)
-		rq := ratioQuota(usage, false, 1.25, 6, 0.1, 0, gr)
-
-		if math.Abs(tq-rq) > 0.01 {
-			t.Fatalf("groupRatio=%v: tiered=%f ratio=%f (mismatch)", gr, tq, rq)
-		}
+	// (7000*2.5 + 2000*15 + 3000*0.25) / 2 = 24125 before group scaling.
+	// Settlement rounds half units away from zero after applying the group ratio.
+	for _, tc := range []struct {
+		ratio float64
+		quota int
+	}{
+		{1, 24125},
+		{1.5, 36188},
+		{2, 48250},
+		{0.5, 12063},
+	} {
+		assert.Equal(t, tc.quota, tieredQuota(t, expr, usage, false, tc.ratio), "group ratio %v", tc.ratio)
 	}
 }
 
-func TestBuildTieredTokenParams_ParityWithRatio_Image(t *testing.T) {
-	// gpt-image-1-mini prices: input=$2, output=$8, image=$2.5
-	// Ratio equivalents: modelRatio=1, completionRatio=4, imageRatio=1.25
+func TestBuildTieredTokenParams_PricesImageTokensSeparately(t *testing.T) {
 	usage := &dto.Usage{
 		PromptTokens:     5000,
 		CompletionTokens: 4000,
@@ -841,13 +706,8 @@ func TestBuildTieredTokenParams_ParityWithRatio_Image(t *testing.T) {
 		},
 	}
 	expr := `tier("base", p * 2 + c * 8 + img * 2.5)`
-
-	tq := tieredQuota(expr, usage, false, 1.0)
-	rq := ratioQuota(usage, false, 1.0, 4, 0, 1.25, 1.0)
-
-	if math.Abs(tq-rq) > 0.01 {
-		t.Fatalf("tiered=%f ratio=%f (mismatch)", tq, rq)
-	}
+	// (4000*2 + 4000*8 + 1000*2.5) / 2 = 21250.
+	assert.Equal(t, 21250, tieredQuota(t, expr, usage, false, 1))
 }
 
 // ---------------------------------------------------------------------------
@@ -868,13 +728,9 @@ func TestBuildTieredTokenParams_Len_GPT(t *testing.T) {
 	params := BuildTieredTokenParams(usage, false, usedVars)
 
 	// Non-Claude: Len = raw PromptTokens
-	if params.Len != 10000 {
-		t.Fatalf("Len = %f, want 10000 (raw PromptTokens)", params.Len)
-	}
+	require.Equal(t, float64(10000), params.Len)
 	// P should be reduced by cache
-	if params.P != 7000 {
-		t.Fatalf("P = %f, want 7000 (PromptTokens - CachedTokens)", params.P)
-	}
+	require.Equal(t, float64(7000), params.P)
 }
 
 func TestBuildTieredTokenParams_Len_Claude(t *testing.T) {
@@ -895,13 +751,9 @@ func TestBuildTieredTokenParams_Len_Claude(t *testing.T) {
 
 	// Claude: Len = PromptTokens + CachedTokens + CacheCreation5m + CacheCreation1h
 	wantLen := float64(5000 + 3000 + 1000 + 500)
-	if params.Len != wantLen {
-		t.Fatalf("Len = %f, want %f (text + cache read + cache creation)", params.Len, wantLen)
-	}
+	require.Equal(t, wantLen, params.Len)
 	// Claude: P is not reduced (isClaudeUsageSemantic = true)
-	if params.P != 5000 {
-		t.Fatalf("P = %f, want 5000 (no subtraction for Claude)", params.P)
-	}
+	require.Equal(t, float64(5000), params.P)
 }
 
 func TestBuildTieredTokenParams_Len_TierCondition(t *testing.T) {
@@ -919,108 +771,14 @@ func TestBuildTieredTokenParams_Len_TierCondition(t *testing.T) {
 	params := BuildTieredTokenParams(usage, false, usedVars)
 
 	// Len = 300000 (raw prompt), P = 50000 (300000 - 250000 cache)
-	if params.Len != 300000 {
-		t.Fatalf("Len = %f, want 300000", params.Len)
-	}
-	if params.P != 50000 {
-		t.Fatalf("P = %f, want 50000", params.P)
-	}
+	require.Equal(t, float64(300000), params.Len)
+	require.Equal(t, float64(50000), params.P)
 
 	// Run expression: len=300000 > 200000, so long_context tier
 	cost, trace, err := billingexpr.RunExpr(expr, params)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if trace.MatchedTier != "long_context" {
-		t.Fatalf("tier = %s, want long_context (len=300000 but p=50000)", trace.MatchedTier)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "long_context", trace.MatchedTier)
 	// long_context: 50000*6 + 5000*22.5 + 250000*0.6
 	wantCost := 50000.0*6 + 5000*22.5 + 250000*0.6
-	if math.Abs(cost-wantCost) > 1e-6 {
-		t.Fatalf("cost = %f, want %f", cost, wantCost)
-	}
-}
-
-const complexTieredExpr = `p <= 200000 ? tier("standard", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6 + img * 3 + img_o * 30 + ai * 10 + ao * 40) : tier("long_context", p * 6 + c * 22.5 + cr * 0.6 + cc * 7.5 + cc1h * 12 + img * 6 + img_o * 60 + ai * 20 + ao * 80)`
-
-func randomUsage(rng *rand.Rand) *dto.Usage {
-	cacheRead := int(rng.Float64() * 50000)
-	cacheCreate := int(rng.Float64() * 10000)
-	imgIn := int(rng.Float64() * 5000)
-	audioIn := int(rng.Float64() * 3000)
-	prompt := int(rng.Float64()*300000) + cacheRead + cacheCreate + imgIn + audioIn
-
-	imgOut := int(rng.Float64() * 2000)
-	audioOut := int(rng.Float64() * 1000)
-	completion := int(rng.Float64()*50000) + imgOut + audioOut
-
-	return &dto.Usage{
-		PromptTokens:     prompt,
-		CompletionTokens: completion,
-		PromptTokensDetails: dto.InputTokenDetails{
-			CachedTokens:         cacheRead,
-			CachedCreationTokens: cacheCreate,
-			ImageTokens:          imgIn,
-			AudioTokens:          audioIn,
-			TextTokens:           prompt - cacheRead - cacheCreate - imgIn - audioIn,
-		},
-		CompletionTokenDetails: dto.OutputTokenDetails{
-			ImageTokens: imgOut,
-			AudioTokens: audioOut,
-			TextTokens:  completion - imgOut - audioOut,
-		},
-	}
-}
-
-func BenchmarkTieredBilling_ComplexExpr(b *testing.B) {
-	rng := rand.New(rand.NewSource(42))
-	usedVars := billingexpr.UsedVars(complexTieredExpr)
-	usages := make([]*dto.Usage, 1000)
-	for i := range usages {
-		usages[i] = randomUsage(rng)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		usage := usages[i%len(usages)]
-		params := BuildTieredTokenParams(usage, false, usedVars)
-		billingexpr.RunExpr(complexTieredExpr, params)
-	}
-}
-
-func BenchmarkRatioBilling_Equivalent(b *testing.B) {
-	rng := rand.New(rand.NewSource(42))
-	usages := make([]*dto.Usage, 1000)
-	for i := range usages {
-		usages[i] = randomUsage(rng)
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		usage := usages[i%len(usages)]
-		ratioQuota(usage, false, 1.5, 5.0, 0.1, 1.0, 1.5)
-	}
-}
-
-func BenchmarkTieredBilling_Parallel(b *testing.B) {
-	usedVars := billingexpr.UsedVars(complexTieredExpr)
-
-	b.RunParallel(func(pb *testing.PB) {
-		rng := rand.New(rand.NewSource(rand.Int63()))
-		for pb.Next() {
-			usage := randomUsage(rng)
-			params := BuildTieredTokenParams(usage, false, usedVars)
-			billingexpr.RunExpr(complexTieredExpr, params)
-		}
-	})
-}
-
-func BenchmarkRatioBilling_Parallel(b *testing.B) {
-	b.RunParallel(func(pb *testing.PB) {
-		rng := rand.New(rand.NewSource(rand.Int63()))
-		for pb.Next() {
-			usage := randomUsage(rng)
-			ratioQuota(usage, false, 1.5, 5.0, 0.1, 1.0, 1.5)
-		}
-	})
+	require.InDelta(t, wantCost, cost, 1e-6)
 }

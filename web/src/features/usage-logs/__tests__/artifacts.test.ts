@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 
 import {
   getSafePluginAuthorUrl,
@@ -64,30 +63,27 @@ describe('task artifact projection', () => {
   test('enables projection only after a successful artifact viewer opens', () => {
     const successfulPluginTask = taskFixture()
 
-    assert.equal(shouldLoadTaskArtifacts(successfulPluginTask, false), false)
-    assert.equal(shouldLoadTaskArtifacts(successfulPluginTask, true), true)
-    assert.equal(
-      shouldLoadTaskArtifacts(taskFixture({ status: 'IN_PROGRESS' }), true),
-      false
-    )
-    assert.equal(
-      shouldLoadTaskArtifacts(taskFixture({ admin_info: undefined }), true),
-      true
-    )
+    expect(shouldLoadTaskArtifacts(successfulPluginTask, false)).toBe(false)
+    expect(shouldLoadTaskArtifacts(successfulPluginTask, true)).toBe(true)
+    expect(
+      shouldLoadTaskArtifacts(taskFixture({ status: 'IN_PROGRESS' }), true)
+    ).toBe(false)
+    expect(
+      shouldLoadTaskArtifacts(taskFixture({ admin_info: undefined }), true)
+    ).toBe(true)
   })
 
   test('accepts an empty artifact result without inventing a preview', () => {
-    assert.deepEqual(
+    expect(
       parseTaskArtifactsResponse({
         success: true,
         data: { artifacts: [] },
-      }),
-      { artifacts: [] }
-    )
+      })
+    ).toStrictEqual({ artifacts: [] })
   })
 
   test('keeps stable absolute cross-origin content URLs', () => {
-    assert.deepEqual(
+    expect(
       parseTaskArtifactsResponse({
         success: true,
         data: {
@@ -121,103 +117,94 @@ describe('task artifact projection', () => {
             'https://legacy-media.example.com/public'
           ),
         },
-      }),
-      {
-        artifacts: [
-          {
-            key: 'video-main',
-            type: 'video',
-            mime_type: 'video/mp4',
-            content_url: artifactContentUrl('video-main'),
-          },
-          {
-            key: 'poster~main',
-            type: 'image',
-            mime_type: 'image/webp',
-            content_url: artifactContentUrl(
-              'poster~main',
-              'http://127.0.0.1:3001/nginx/tasks'
-            ),
-          },
-          {
-            key: 'result-file',
-            type: 'file',
-            content_url: artifactContentUrl(
-              'result-file',
-              'https://files.example.net'
-            ),
-          },
-        ],
-        legacyContentUrl: artifactContentUrl(
-          'video',
-          'https://legacy-media.example.com/public'
-        ),
-      }
-    )
+      })
+    ).toStrictEqual({
+      artifacts: [
+        {
+          key: 'video-main',
+          type: 'video',
+          mime_type: 'video/mp4',
+          content_url: artifactContentUrl('video-main'),
+        },
+        {
+          key: 'poster~main',
+          type: 'image',
+          mime_type: 'image/webp',
+          content_url: artifactContentUrl(
+            'poster~main',
+            'http://127.0.0.1:3001/nginx/tasks'
+          ),
+        },
+        {
+          key: 'result-file',
+          type: 'file',
+          content_url: artifactContentUrl(
+            'result-file',
+            'https://files.example.net'
+          ),
+        },
+      ],
+      legacyContentUrl: artifactContentUrl(
+        'video',
+        'https://legacy-media.example.com/public'
+      ),
+    })
   })
 
   test('rejects failed, malformed, or duplicate artifact results', () => {
-    assert.throws(
-      () =>
-        parseTaskArtifactsResponse({
-          success: false,
-          message: 'plugin unavailable',
-        }),
-      TaskArtifactApiError
-    )
-    assert.throws(
-      () =>
-        parseTaskArtifactsResponse({
-          success: true,
-          data: {
-            artifacts: [
-              {
-                key: 'video-main',
-                type: 'video',
-                content_url: artifactContentUrl('video-main'),
-              },
-              {
-                key: 'video-main',
-                type: 'image',
-                content_url: artifactContentUrl('poster-main'),
-              },
-            ],
-          },
-        }),
-      TaskArtifactApiError
-    )
-    assert.throws(
-      () =>
-        parseTaskArtifactsResponse({
-          success: true,
-          data: {
-            artifacts: [
-              {
-                key: 'video:0',
-                type: 'video',
-                content_url: artifactContentUrl('video-main'),
-              },
-            ],
-          },
-        }),
-      TaskArtifactApiError
-    )
-    assert.throws(
-      () =>
-        parseTaskArtifactsResponse({
-          success: true,
-          data: {
-            artifacts: [
-              {
-                key: ' video-main',
-                type: 'video',
-                content_url: artifactContentUrl('video-main'),
-              },
-            ],
-          },
-        }),
-      TaskArtifactApiError
-    )
+    expect(() =>
+      parseTaskArtifactsResponse({
+        success: false,
+        message: 'plugin unavailable',
+      })
+    ).toThrow(TaskArtifactApiError)
+    expect(() =>
+      parseTaskArtifactsResponse({
+        success: true,
+        data: {
+          artifacts: [
+            {
+              key: 'video-main',
+              type: 'video',
+              content_url: artifactContentUrl('video-main'),
+            },
+            {
+              key: 'video-main',
+              type: 'image',
+              content_url: artifactContentUrl('poster-main'),
+            },
+          ],
+        },
+      })
+    ).toThrow(TaskArtifactApiError)
+    expect(() =>
+      parseTaskArtifactsResponse({
+        success: true,
+        data: {
+          artifacts: [
+            {
+              key: 'video:0',
+              type: 'video',
+              content_url: artifactContentUrl('video-main'),
+            },
+          ],
+        },
+      })
+    ).toThrow(TaskArtifactApiError)
+    expect(() =>
+      parseTaskArtifactsResponse({
+        success: true,
+        data: {
+          artifacts: [
+            {
+              key: ' video-main',
+              type: 'video',
+              content_url: artifactContentUrl('video-main'),
+            },
+          ],
+        },
+      })
+    ).toThrow(TaskArtifactApiError)
   })
 
   test('rejects unsafe or missing content URLs', () => {
@@ -245,113 +232,101 @@ describe('task artifact projection', () => {
     ]
 
     for (const contentUrl of unsafeUrls) {
-      assert.throws(
-        () =>
-          parseTaskArtifactsResponse({
-            success: true,
-            data: {
-              artifacts: [
-                {
-                  key: 'video-main',
-                  type: 'video',
-                  content_url: contentUrl,
-                },
-              ],
-            },
-          }),
-        TaskArtifactApiError
-      )
-    }
-
-    assert.throws(
-      () =>
+      expect(() =>
         parseTaskArtifactsResponse({
           success: true,
           data: {
-            artifacts: [],
-            legacy_content_url: `https://media.example.com/v1/videos/task-public/content?access=${artifactAccessToken}`,
+            artifacts: [
+              {
+                key: 'video-main',
+                type: 'video',
+                content_url: contentUrl,
+              },
+            ],
           },
-        }),
-      TaskArtifactApiError
-    )
+        })
+      ).toThrow(TaskArtifactApiError)
+    }
+
+    expect(() =>
+      parseTaskArtifactsResponse({
+        success: true,
+        data: {
+          artifacts: [],
+          legacy_content_url: `https://media.example.com/v1/videos/task-public/content?access=${artifactAccessToken}`,
+        },
+      })
+    ).toThrow(TaskArtifactApiError)
   })
 })
 
 describe('legacy task preview compatibility', () => {
   test('preserves old Suno and video previews without duplicating plugin previews', () => {
-    assert.equal(
+    expect(
       resolveTaskPreviewMode(
         taskFixture({
           platform: 'suno',
           admin_info: undefined,
           data: [{ audio_url: 'https://media.example/audio.mp3' }],
         })
-      ),
-      'legacy-suno'
-    )
-    assert.equal(
+      )
+    ).toBe('legacy-suno')
+    expect(
       resolveTaskPreviewMode(
         taskFixture({
           admin_info: undefined,
           legacy_video_available: true,
         })
-      ),
-      'legacy-video'
-    )
-    assert.equal(
+      )
+    ).toBe('legacy-video')
+    expect(
       resolveTaskPreviewMode(
         taskFixture({
           admin_info: undefined,
           legacy_video_available: true,
         }),
         true
-      ),
-      'plugin'
-    )
-    assert.equal(
+      )
+    ).toBe('plugin')
+    expect(
       resolveTaskPreviewMode(
         taskFixture({
           legacy_video_available: true,
         })
-      ),
-      'plugin'
-    )
-    assert.equal(
+      )
+    ).toBe('plugin')
+    expect(
       resolveTaskPreviewMode(
         taskFixture({
           status: 'FAILURE',
           legacy_video_available: true,
         })
-      ),
-      'none'
-    )
-    assert.equal(
+      )
+    ).toBe('none')
+    expect(
       resolveTaskPreviewMode(
         taskFixture({
           admin_info: undefined,
           legacy_video_available: false,
         })
-      ),
-      'plugin'
-    )
+      )
+    ).toBe('plugin')
   })
 })
 
 describe('plugin author links', () => {
   test('allows HTTP authors and rejects executable URL schemes', () => {
-    assert.equal(
+    expect(
       getSafePluginAuthorUrl({
         name: 'Community Maintainer',
         url: 'https://plugins.example.com/maintainer',
-      }),
-      'https://plugins.example.com/maintainer'
-    )
-    assert.equal(
+      })
+    ).toBe('https://plugins.example.com/maintainer')
+    expect(
       getSafePluginAuthorUrl({
         name: 'Unsafe Maintainer',
         url: 'javascript:alert(1)',
-      }),
-      undefined
-    )
+      })
+    ).toBe(undefined)
   })
 })

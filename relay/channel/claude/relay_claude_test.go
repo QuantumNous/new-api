@@ -80,24 +80,12 @@ func TestFormatClaudeResponseInfo_MessageStart(t *testing.T) {
 	}
 
 	ok := FormatClaudeResponseInfo(claudeResponse, nil, claudeInfo)
-	if !ok {
-		t.Fatal("expected true")
-	}
-	if claudeInfo.Usage.PromptTokens != 100 {
-		t.Errorf("PromptTokens = %d, want 100", claudeInfo.Usage.PromptTokens)
-	}
-	if claudeInfo.Usage.PromptTokensDetails.CachedTokens != 30 {
-		t.Errorf("CachedTokens = %d, want 30", claudeInfo.Usage.PromptTokensDetails.CachedTokens)
-	}
-	if claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens != 50 {
-		t.Errorf("CachedCreationTokens = %d, want 50", claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens)
-	}
-	if claudeInfo.ResponseId != "msg_123" {
-		t.Errorf("ResponseId = %s, want msg_123", claudeInfo.ResponseId)
-	}
-	if claudeInfo.Model != "claude-3-5-sonnet" {
-		t.Errorf("Model = %s, want claude-3-5-sonnet", claudeInfo.Model)
-	}
+	require.True(t, ok)
+	assert.Equal(t, 100, claudeInfo.Usage.PromptTokens)
+	assert.Equal(t, 30, claudeInfo.Usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 50, claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens)
+	assert.Equal(t, "msg_123", claudeInfo.ResponseId)
+	assert.Equal(t, "claude-3-5-sonnet", claudeInfo.Model)
 }
 
 func TestFormatClaudeResponseInfo_MessageDelta_FullUsage(t *testing.T) {
@@ -125,21 +113,11 @@ func TestFormatClaudeResponseInfo_MessageDelta_FullUsage(t *testing.T) {
 	}
 
 	ok := FormatClaudeResponseInfo(claudeResponse, nil, claudeInfo)
-	if !ok {
-		t.Fatal("expected true")
-	}
-	if claudeInfo.Usage.PromptTokens != 100 {
-		t.Errorf("PromptTokens = %d, want 100", claudeInfo.Usage.PromptTokens)
-	}
-	if claudeInfo.Usage.CompletionTokens != 200 {
-		t.Errorf("CompletionTokens = %d, want 200", claudeInfo.Usage.CompletionTokens)
-	}
-	if claudeInfo.Usage.TotalTokens != 300 {
-		t.Errorf("TotalTokens = %d, want 300", claudeInfo.Usage.TotalTokens)
-	}
-	if !claudeInfo.Done {
-		t.Error("expected Done = true")
-	}
+	require.True(t, ok)
+	assert.Equal(t, 100, claudeInfo.Usage.PromptTokens)
+	assert.Equal(t, 200, claudeInfo.Usage.CompletionTokens)
+	assert.Equal(t, 300, claudeInfo.Usage.TotalTokens)
+	assert.True(t, claudeInfo.Done)
 }
 
 func TestFormatClaudeResponseInfo_MessageDelta_OnlyOutputTokens(t *testing.T) {
@@ -167,43 +145,23 @@ func TestFormatClaudeResponseInfo_MessageDelta_OnlyOutputTokens(t *testing.T) {
 	}
 
 	ok := FormatClaudeResponseInfo(claudeResponse, nil, claudeInfo)
-	if !ok {
-		t.Fatal("expected true")
-	}
+	require.True(t, ok)
 	// PromptTokens 应保持 message_start 的值（因为 message_delta 的 InputTokens=0，不更新）
-	if claudeInfo.Usage.PromptTokens != 100 {
-		t.Errorf("PromptTokens = %d, want 100", claudeInfo.Usage.PromptTokens)
-	}
-	if claudeInfo.Usage.CompletionTokens != 200 {
-		t.Errorf("CompletionTokens = %d, want 200", claudeInfo.Usage.CompletionTokens)
-	}
-	if claudeInfo.Usage.TotalTokens != 300 {
-		t.Errorf("TotalTokens = %d, want 300", claudeInfo.Usage.TotalTokens)
-	}
+	assert.Equal(t, 100, claudeInfo.Usage.PromptTokens)
+	assert.Equal(t, 200, claudeInfo.Usage.CompletionTokens)
+	assert.Equal(t, 300, claudeInfo.Usage.TotalTokens)
 	// cache 字段应保持 message_start 的值
-	if claudeInfo.Usage.PromptTokensDetails.CachedTokens != 30 {
-		t.Errorf("CachedTokens = %d, want 30", claudeInfo.Usage.PromptTokensDetails.CachedTokens)
-	}
-	if claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens != 50 {
-		t.Errorf("CachedCreationTokens = %d, want 50", claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens)
-	}
-	if claudeInfo.Usage.ClaudeCacheCreation5mTokens != 10 {
-		t.Errorf("ClaudeCacheCreation5mTokens = %d, want 10", claudeInfo.Usage.ClaudeCacheCreation5mTokens)
-	}
-	if claudeInfo.Usage.ClaudeCacheCreation1hTokens != 20 {
-		t.Errorf("ClaudeCacheCreation1hTokens = %d, want 20", claudeInfo.Usage.ClaudeCacheCreation1hTokens)
-	}
-	if !claudeInfo.Done {
-		t.Error("expected Done = true")
-	}
+	assert.Equal(t, 30, claudeInfo.Usage.PromptTokensDetails.CachedTokens)
+	assert.Equal(t, 50, claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens)
+	assert.Equal(t, 10, claudeInfo.Usage.ClaudeCacheCreation5mTokens)
+	assert.Equal(t, 20, claudeInfo.Usage.ClaudeCacheCreation1hTokens)
+	assert.True(t, claudeInfo.Done)
 }
 
 func TestFormatClaudeResponseInfo_NilClaudeInfo(t *testing.T) {
 	claudeResponse := &dto.ClaudeResponse{Type: "message_start"}
 	ok := FormatClaudeResponseInfo(claudeResponse, nil, nil)
-	if ok {
-		t.Error("expected false for nil claudeInfo")
-	}
+	assert.False(t, ok, "expected false for nil claudeInfo")
 }
 
 func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
@@ -220,44 +178,8 @@ func TestFormatClaudeResponseInfo_ContentBlockDelta(t *testing.T) {
 	}
 
 	ok := FormatClaudeResponseInfo(claudeResponse, nil, claudeInfo)
-	if !ok {
-		t.Fatal("expected true")
-	}
-	if claudeInfo.ResponseText.String() != "hello" {
-		t.Errorf("ResponseText = %q, want %q", claudeInfo.ResponseText.String(), "hello")
-	}
-}
-
-func TestBuildOpenAIStyleUsageFromClaudeUsage(t *testing.T) {
-	usage := &dto.Usage{
-		PromptTokens:     100,
-		CompletionTokens: 20,
-		PromptTokensDetails: dto.InputTokenDetails{
-			CachedTokens:         30,
-			CachedCreationTokens: 50,
-		},
-		ClaudeCacheCreation5mTokens: 10,
-		ClaudeCacheCreation1hTokens: 20,
-		UsageSemantic:               "anthropic",
-	}
-
-	openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(usage)
-
-	if openAIUsage.PromptTokens != 180 {
-		t.Fatalf("PromptTokens = %d, want 180", openAIUsage.PromptTokens)
-	}
-	if openAIUsage.InputTokens != 180 {
-		t.Fatalf("InputTokens = %d, want 180", openAIUsage.InputTokens)
-	}
-	if openAIUsage.TotalTokens != 200 {
-		t.Fatalf("TotalTokens = %d, want 200", openAIUsage.TotalTokens)
-	}
-	if openAIUsage.UsageSemantic != "openai" {
-		t.Fatalf("UsageSemantic = %s, want openai", openAIUsage.UsageSemantic)
-	}
-	if openAIUsage.UsageSource != "anthropic" {
-		t.Fatalf("UsageSource = %s, want anthropic", openAIUsage.UsageSource)
-	}
+	require.True(t, ok)
+	assert.Equal(t, "hello", claudeInfo.ResponseText.String())
 }
 
 func TestBuildOpenAIStyleUsageFromClaudeUsagePreservesCacheCreationRemainder(t *testing.T) {
@@ -300,12 +222,11 @@ func TestBuildOpenAIStyleUsageFromClaudeUsagePreservesCacheCreationRemainder(t *
 
 			openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(usage)
 
-			if openAIUsage.PromptTokens != tt.expectedTotalInputToken {
-				t.Fatalf("PromptTokens = %d, want %d", openAIUsage.PromptTokens, tt.expectedTotalInputToken)
-			}
-			if openAIUsage.InputTokens != tt.expectedTotalInputToken {
-				t.Fatalf("InputTokens = %d, want %d", openAIUsage.InputTokens, tt.expectedTotalInputToken)
-			}
+			require.Equal(t, tt.expectedTotalInputToken, openAIUsage.PromptTokens)
+			require.Equal(t, tt.expectedTotalInputToken, openAIUsage.InputTokens)
+			require.Equal(t, tt.expectedTotalInputToken+20, openAIUsage.TotalTokens)
+			require.Equal(t, "openai", openAIUsage.UsageSemantic)
+			require.Equal(t, "anthropic", openAIUsage.UsageSource)
 		})
 	}
 }

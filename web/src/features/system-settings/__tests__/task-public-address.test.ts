@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 
 import { isValidTaskPublicAddress } from '../general/task-public-address'
 
@@ -30,7 +29,7 @@ describe('async task public address', () => {
       'http://127.0.0.1:8080/nginx/tasks',
       'http://localhost:3000/media',
     ]) {
-      assert.equal(isValidTaskPublicAddress(value), true, value)
+      expect(isValidTaskPublicAddress(value), value).toBe(true)
     }
   })
 
@@ -48,7 +47,7 @@ describe('async task public address', () => {
       'https:\\\\media.example.com\\tasks',
       'https://',
     ]) {
-      assert.equal(isValidTaskPublicAddress(value), false, value)
+      expect(isValidTaskPublicAddress(value), value).toBe(false)
     }
   })
 })

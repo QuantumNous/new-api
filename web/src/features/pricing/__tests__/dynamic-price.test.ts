@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
 
 import { describe, expect, test } from 'vitest'
 
@@ -116,7 +115,7 @@ describe('expression price summaries', () => {
 })
 
 describe('task dynamic pricing', () => {
-  test('treats task coefficients as dollars per unit without a token divisor', () => {
+  test('summarizes task tiers in dollars per unit with their fallback price and range', () => {
     const model = pricingModel({
       billing_mode: 'tiered_expr',
       billing_expr:
@@ -129,13 +128,16 @@ describe('task dynamic pricing', () => {
 
     const summary = getDynamicPricingSummary(model, summaryOptions)
 
-    assert.ok(summary)
-    assert.equal(summary.isTaskUsage, true)
-    assert.equal(summary.isSpecialExpression, false)
-    assert.equal(summary.tier?.label, 'std')
-    assert.equal(summary.primaryEntries[0]?.value, 0.4)
-    assert.equal(summary.primaryEntries[0]?.unit, 'second')
-    assert.match(summary.primaryEntries[0]?.formatted ?? '', /0[.,]4/)
+    if (!summary) expect.fail('Expected summary to be present')
+    expect(summary.isTaskUsage).toBe(true)
+    expect(summary.isSpecialExpression).toBe(false)
+    expect(summary.tier?.label).toBe('std')
+    expect(summary.primaryEntries[0]?.value).toBe(0.4)
+    expect(summary.primaryEntries[0]?.unit).toBe('second')
+    expect(summary.primaryEntries[0]?.formatted ?? '').toMatch(/0[.,]4/)
+    expect(summary.primaryEntries[0]?.formattedRange ?? '').toMatch(/0[.,]4/)
+    expect(summary.primaryEntries[0]?.formattedRange ?? '').toMatch(/0[.,]8/)
+    expect(summary.primaryEntries[0]?.formattedRange ?? '').toMatch(/\S – \S/)
   })
 
   test('falls back for a non-canonical task expression', () => {
@@ -150,29 +152,9 @@ describe('task dynamic pricing', () => {
 
     const summary = getDynamicPricingSummary(model, summaryOptions)
 
-    assert.ok(summary)
-    assert.equal(summary.isSpecialExpression, true)
-    assert.equal(summary.tiers.length, 0)
-  })
-
-  test('summarizes different task tier prices as a range while preserving the fallback price', () => {
-    const model = pricingModel({
-      billing_mode: 'tiered_expr',
-      billing_expr:
-        'u("mode") == "pro" ? tier("pro", u("seconds") * 0.8) : tier("std", u("seconds") * 0.4)',
-      billing_usage_schema: {
-        seconds: { type: 'number', unit: 'second' },
-        mode: { enum: ['std', 'pro'] },
-      },
-    })
-
-    const summary = getDynamicPricingSummary(model, summaryOptions)
-
-    assert.ok(summary)
-    assert.match(summary.primaryEntries[0]?.formattedRange ?? '', /0[.,]4/)
-    assert.match(summary.primaryEntries[0]?.formattedRange ?? '', /0[.,]8/)
-    assert.match(summary.primaryEntries[0]?.formattedRange ?? '', /\S – \S/)
-    assert.match(summary.primaryEntries[0]?.formatted ?? '', /0[.,]4/)
+    if (!summary) expect.fail('Expected summary to be present')
+    expect(summary.isSpecialExpression).toBe(true)
+    expect(summary.tiers.length).toBe(0)
   })
 
   test('omits a task price range when every tier has the same unit price', () => {
@@ -186,8 +168,8 @@ describe('task dynamic pricing', () => {
 
     const summary = getDynamicPricingSummary(model, summaryOptions)
 
-    assert.ok(summary)
-    assert.equal(summary.primaryEntries[0]?.formattedRange, undefined)
+    if (!summary) expect.fail('Expected summary to be present')
+    expect(summary.primaryEntries[0]?.formattedRange).toBe(undefined)
   })
 
   test('identifies unconfigured task usage models without inventing token pricing', () => {
@@ -202,11 +184,11 @@ describe('task dynamic pricing', () => {
       },
     })
 
-    assert.equal(hasTaskUsageSchema(secondsModel), true)
-    assert.equal(isUnconfiguredTaskUsageModel(secondsModel), true)
-    assert.equal(getDynamicPricingSummary(secondsModel, summaryOptions), null)
-    assert.equal(getBillingModeLabelKey(secondsModel), 'Task billing')
-    assert.equal(getBillingModeLabelKey(countModel), 'Task billing')
+    expect(hasTaskUsageSchema(secondsModel)).toBe(true)
+    expect(isUnconfiguredTaskUsageModel(secondsModel)).toBe(true)
+    expect(getDynamicPricingSummary(secondsModel, summaryOptions)).toBe(null)
+    expect(getBillingModeLabelKey(secondsModel)).toBe('Task billing')
+    expect(getBillingModeLabelKey(countModel)).toBe('Task billing')
   })
 
   test('does not mark configured task usage pricing as unconfigured', () => {
@@ -218,8 +200,8 @@ describe('task dynamic pricing', () => {
       },
     })
 
-    assert.equal(isUnconfiguredTaskUsageModel(model), false)
-    assert.ok(getDynamicPricingSummary(model, summaryOptions))
+    expect(isUnconfiguredTaskUsageModel(model)).toBe(false)
+    expect(getDynamicPricingSummary(model, summaryOptions)).toBeTruthy()
   })
 
   test('leaves fixed per-request pricing configured when a usage schema is present', () => {
@@ -231,9 +213,9 @@ describe('task dynamic pricing', () => {
       },
     })
 
-    assert.equal(isUnconfiguredTaskUsageModel(model), false)
-    assert.equal(getDynamicPricingSummary(model, summaryOptions), null)
-    assert.equal(isTokenBasedModel(model), false)
+    expect(isUnconfiguredTaskUsageModel(model)).toBe(false)
+    expect(getDynamicPricingSummary(model, summaryOptions)).toBe(null)
+    expect(isTokenBasedModel(model)).toBe(false)
   })
 
   test('labels task token usage prices without changing chat token units', () => {
@@ -247,14 +229,14 @@ describe('task dynamic pricing', () => {
 
     const summary = getDynamicPricingSummary(model, summaryOptions)
 
-    assert.ok(summary)
+    if (!summary) expect.fail('Expected summary to be present')
     const tokenEntry = summary.primaryEntries[0]
-    assert.ok(tokenEntry)
-    assert.equal(tokenEntry.unit, 'token')
-    assert.equal(tokenEntry.value, 9.8)
-    assert.equal(getDynamicPriceUnitLabelKey(tokenEntry), '1M token')
-    assert.equal(getTaskUsagePriceUnitLabelKey('token'), '1M token')
-    assert.equal(
+    if (!tokenEntry) expect.fail('Expected tokenEntry to be present')
+    expect(tokenEntry.unit).toBe('token')
+    expect(tokenEntry.value).toBe(9.8)
+    expect(getDynamicPriceUnitLabelKey(tokenEntry)).toBe('1M token')
+    expect(getTaskUsagePriceUnitLabelKey('token')).toBe('1M token')
+    expect(
       getDynamicPriceUnitLabelKey({
         key: 'p',
         field: 'inputPrice',
@@ -272,9 +254,8 @@ describe('task dynamic pricing', () => {
           shortLabel: 'Input',
           side: 'input',
         },
-      }),
-      null
-    )
+      })
+    ).toBe(null)
   })
 
   test('labels task credit usage prices as a direct per-credit rate', () => {
@@ -288,25 +269,25 @@ describe('task dynamic pricing', () => {
 
     const summary = getDynamicPricingSummary(model, summaryOptions)
 
-    assert.ok(summary)
+    if (!summary) expect.fail('Expected summary to be present')
     const creditEntry = summary.primaryEntries[0]
-    assert.ok(creditEntry)
-    assert.equal(creditEntry.unit, 'credit')
-    assert.equal(creditEntry.value, 0.14)
-    assert.equal(getDynamicPriceUnitLabelKey(creditEntry), 'credit')
-    assert.equal(getTaskUsagePriceUnitLabelKey('credit'), 'credit')
+    if (!creditEntry) expect.fail('Expected creditEntry to be present')
+    expect(creditEntry.unit).toBe('credit')
+    expect(creditEntry.value).toBe(0.14)
+    expect(getDynamicPriceUnitLabelKey(creditEntry)).toBe('credit')
+    expect(getTaskUsagePriceUnitLabelKey('credit')).toBe('credit')
   })
 
   test('leaves token models without a usage schema unchanged', () => {
     const model = pricingModel({})
 
-    assert.equal(hasTaskUsageSchema(model), false)
-    assert.equal(isUnconfiguredTaskUsageModel(model), false)
-    assert.equal(getBillingModeLabelKey(model), 'Token-based')
+    expect(hasTaskUsageSchema(model)).toBe(false)
+    expect(isUnconfiguredTaskUsageModel(model)).toBe(false)
+    expect(getBillingModeLabelKey(model)).toBe('Token-based')
   })
 
   test('preserves all billing-mode badge states', () => {
-    assert.equal(
+    expect(
       getBillingModeLabelKey(
         pricingModel({
           billing_mode: 'tiered_expr',
@@ -315,10 +296,9 @@ describe('task dynamic pricing', () => {
             seconds: { type: 'number', unit: 'second' },
           },
         })
-      ),
-      'Task billing'
-    )
-    assert.equal(
+      )
+    ).toBe('Task billing')
+    expect(
       getBillingModeLabelKey(
         pricingModel({
           billing_mode: 'tiered_expr',
@@ -327,10 +307,9 @@ describe('task dynamic pricing', () => {
             clips: { type: 'number', unit: 'count' },
           },
         })
-      ),
-      'Task billing'
-    )
-    assert.equal(
+      )
+    ).toBe('Task billing')
+    expect(
       getBillingModeLabelKey(
         pricingModel({
           billing_mode: 'tiered_expr',
@@ -339,10 +318,9 @@ describe('task dynamic pricing', () => {
             tokens: { type: 'number', unit: 'token' },
           },
         })
-      ),
-      'Task billing'
-    )
-    assert.equal(
+      )
+    ).toBe('Task billing')
+    expect(
       getBillingModeLabelKey(
         pricingModel({
           billing_mode: 'tiered_expr',
@@ -351,21 +329,18 @@ describe('task dynamic pricing', () => {
             units: { type: 'number', unit: 'credit' },
           },
         })
-      ),
-      'Task billing'
-    )
-    assert.equal(
+      )
+    ).toBe('Task billing')
+    expect(
       getBillingModeLabelKey(
         pricingModel({
           billing_mode: 'tiered_expr',
           billing_expr: 'tier("base", p * 2 + c * 8)',
         })
-      ),
-      'Dynamic Pricing'
-    )
-    assert.equal(getBillingModeLabelKey(pricingModel({})), 'Token-based')
-    assert.equal(
-      getBillingModeLabelKey(pricingModel({ quota_type: 1 })),
+      )
+    ).toBe('Dynamic Pricing')
+    expect(getBillingModeLabelKey(pricingModel({}))).toBe('Token-based')
+    expect(getBillingModeLabelKey(pricingModel({ quota_type: 1 }))).toBe(
       'Per Request'
     )
   })
@@ -379,14 +354,13 @@ describe('task dynamic pricing', () => {
       },
     })
     const tokenSummary = getDynamicPricingSummary(tokenModel, summaryOptions)
-    assert.ok(tokenSummary)
-    assert.equal(tokenSummary.primaryEntries[0]?.shortLabel, 'tokens')
-    assert.equal(tokenSummary.primaryEntries[0]?.labelKind, 'schema')
-    assert.equal(
-      tokenSummary.secondaryEntries[0]?.shortLabel,
+    if (!tokenSummary) expect.fail('Expected tokenSummary to be present')
+    expect(tokenSummary.primaryEntries[0]?.shortLabel).toBe('tokens')
+    expect(tokenSummary.primaryEntries[0]?.labelKind).toBe('schema')
+    expect(tokenSummary.secondaryEntries[0]?.shortLabel).toBe(
       'Additional charge'
     )
-    assert.equal(tokenSummary.secondaryEntries[0]?.labelKind, 'i18n')
+    expect(tokenSummary.secondaryEntries[0]?.labelKind).toBe('i18n')
 
     const multiFieldModel = pricingModel({
       billing_mode: 'tiered_expr',
@@ -401,11 +375,11 @@ describe('task dynamic pricing', () => {
       multiFieldModel,
       summaryOptions
     )
-    assert.ok(multiSummary)
-    assert.equal(multiSummary.primaryEntries.length, 2)
-    assert.ok(
+    if (!multiSummary) expect.fail('Expected multiSummary to be present')
+    expect(multiSummary.primaryEntries.length).toBe(2)
+    expect(
       multiSummary.primaryEntries.every((entry) => entry.labelKind === 'schema')
-    )
+    ).toBeTruthy()
 
     const chatSummary = getDynamicPricingSummary(
       pricingModel({
@@ -414,10 +388,10 @@ describe('task dynamic pricing', () => {
       }),
       summaryOptions
     )
-    assert.ok(chatSummary)
-    assert.ok(
+    if (!chatSummary) expect.fail('Expected chatSummary to be present')
+    expect(
       chatSummary.primaryEntries.every((entry) => entry.labelKind === 'i18n')
-    )
+    ).toBeTruthy()
   })
 
   test('returns the first evaluated usage example for a canonical task expression', () => {
@@ -435,9 +409,9 @@ describe('task dynamic pricing', () => {
 
     const example = getCardExamplePrice(model, summaryOptions)
 
-    assert.ok(example)
-    assert.equal(example.label, '720p · 5s')
-    assert.match(example.formatted, /1[.,]0584/)
+    if (!example) expect.fail('Expected example to be present')
+    expect(example.label).toBe('720p · 5s')
+    expect(example.formatted).toMatch(/1[.,]0584/)
   })
 
   test('returns null when the expression is not canonical or examples are missing', () => {
@@ -446,7 +420,7 @@ describe('task dynamic pricing', () => {
     }
     const examples = [{ label: '720p · 5s', facts: { tokens: 108000 } }]
 
-    assert.equal(
+    expect(
       getCardExamplePrice(
         pricingModel({
           billing_mode: 'tiered_expr',
@@ -456,10 +430,9 @@ describe('task dynamic pricing', () => {
           billing_usage_examples: examples,
         }),
         summaryOptions
-      ),
-      null
-    )
-    assert.equal(
+      )
+    ).toBe(null)
+    expect(
       getCardExamplePrice(
         pricingModel({
           billing_mode: 'tiered_expr',
@@ -467,9 +440,8 @@ describe('task dynamic pricing', () => {
           billing_usage_schema: schema,
         }),
         summaryOptions
-      ),
-      null
-    )
-    assert.equal(getCardExamplePrice(pricingModel({}), summaryOptions), null)
+      )
+    ).toBe(null)
+    expect(getCardExamplePrice(pricingModel({}), summaryOptions)).toBe(null)
   })
 })

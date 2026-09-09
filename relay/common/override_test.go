@@ -1,9 +1,7 @@
 package common
 
 import (
-	"encoding/json"
 	"fmt"
-	"reflect"
 	"testing"
 
 	common2 "github.com/QuantumNous/new-api/common"
@@ -31,10 +29,8 @@ func TestApplyParamOverrideTrimPrefix(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
 }
 
 func TestApplyParamOverrideTrimSuffix(t *testing.T) {
@@ -52,10 +48,8 @@ func TestApplyParamOverrideTrimSuffix(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
 }
 
 func TestApplyParamOverrideTrimNoop(t *testing.T) {
@@ -73,10 +67,8 @@ func TestApplyParamOverrideTrimNoop(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
 }
 
 func TestApplyParamOverrideMixedLegacyAndOperations(t *testing.T) {
@@ -94,10 +86,8 @@ func TestApplyParamOverrideMixedLegacyAndOperations(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.2,"top_p":0.95}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4","temperature":0.2,"top_p":0.95}`, string(out))
 }
 
 func TestApplyParamOverrideMixedLegacyAndOperationsConflictPrefersOperations(t *testing.T) {
@@ -115,10 +105,8 @@ func TestApplyParamOverrideMixedLegacyAndOperationsConflictPrefersOperations(t *
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"op-model","temperature":0.2}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"op-model","temperature":0.2}`, string(out))
 }
 
 func TestApplyParamOverrideTrimRequiresValue(t *testing.T) {
@@ -135,9 +123,7 @@ func TestApplyParamOverrideTrimRequiresValue(t *testing.T) {
 	}
 
 	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestApplyParamOverrideReplace(t *testing.T) {
@@ -156,10 +142,8 @@ func TestApplyParamOverrideReplace(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4o-mini","temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4o-mini","temperature":0.7}`, string(out))
 }
 
 func TestApplyParamOverrideRegexReplace(t *testing.T) {
@@ -178,10 +162,8 @@ func TestApplyParamOverrideRegexReplace(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"openai/gpt-4o-mini","temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"openai/gpt-4o-mini","temperature":0.7}`, string(out))
 }
 
 func TestApplyParamOverrideReplaceRequiresFrom(t *testing.T) {
@@ -198,9 +180,7 @@ func TestApplyParamOverrideReplaceRequiresFrom(t *testing.T) {
 	}
 
 	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestApplyParamOverrideRegexReplaceRequiresPattern(t *testing.T) {
@@ -217,9 +197,7 @@ func TestApplyParamOverrideRegexReplaceRequiresPattern(t *testing.T) {
 	}
 
 	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestApplyParamOverrideDelete(t *testing.T) {
@@ -234,17 +212,11 @@ func TestApplyParamOverrideDelete(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	var got map[string]any
-	if err := json.Unmarshal(out, &got); err != nil {
-		t.Fatalf("failed to unmarshal output JSON: %v", err)
-	}
-	if _, exists := got["temperature"]; exists {
-		t.Fatalf("expected temperature to be deleted")
-	}
+	require.NoError(t, common2.Unmarshal(out, &got))
+	require.NotContains(t, got, "temperature")
 }
 
 func TestApplyParamOverrideDeleteWildcardPath(t *testing.T) {
@@ -259,10 +231,8 @@ func TestApplyParamOverrideDeleteWildcardPath(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"tools":[{"type":"bash","custom":{"other":1}},{"type":"code","custom":{}},{"type":"noop","custom":{"other":2}}]}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"tools":[{"type":"bash","custom":{"other":1}},{"type":"code","custom":{}},{"type":"noop","custom":{"other":2}}]}`, string(out))
 }
 
 func TestApplyParamOverrideSetWildcardPath(t *testing.T) {
@@ -278,9 +248,7 @@ func TestApplyParamOverrideSetWildcardPath(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	var got struct {
 		Tools []struct {
@@ -289,19 +257,15 @@ func TestApplyParamOverrideSetWildcardPath(t *testing.T) {
 			} `json:"custom"`
 		} `json:"tools"`
 	}
-	if err := json.Unmarshal(out, &got); err != nil {
-		t.Fatalf("failed to unmarshal output JSON: %v", err)
-	}
+	require.NoError(t, common2.Unmarshal(out, &got))
 
-	if !lo.EveryBy(got.Tools, func(item struct {
+	require.True(t, lo.EveryBy(got.Tools, func(item struct {
 		Custom struct {
 			Enabled bool `json:"enabled"`
 		} `json:"custom"`
 	}) bool {
 		return item.Custom.Enabled
-	}) {
-		t.Fatalf("expected wildcard set to enable all tools, got: %s", string(out))
-	}
+	}), "expected wildcard set to enable all tools, got: %s", string(out))
 }
 
 func TestApplyParamOverrideTrimSpaceWildcardPath(t *testing.T) {
@@ -316,9 +280,7 @@ func TestApplyParamOverrideTrimSpaceWildcardPath(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	var got struct {
 		Tools []struct {
@@ -327,9 +289,7 @@ func TestApplyParamOverrideTrimSpaceWildcardPath(t *testing.T) {
 			} `json:"custom"`
 		} `json:"tools"`
 	}
-	if err := json.Unmarshal(out, &got); err != nil {
-		t.Fatalf("failed to unmarshal output JSON: %v", err)
-	}
+	require.NoError(t, common2.Unmarshal(out, &got))
 
 	names := lo.Map(got.Tools, func(item struct {
 		Custom struct {
@@ -338,9 +298,7 @@ func TestApplyParamOverrideTrimSpaceWildcardPath(t *testing.T) {
 	}, _ int) string {
 		return item.Custom.Name
 	})
-	if !reflect.DeepEqual(names, []string{"alpha", "beta", "gamma"}) {
-		t.Fatalf("unexpected names after wildcard trim_space: %v", names)
-	}
+	require.Equal(t, []string{"alpha", "beta", "gamma"}, names)
 }
 
 func TestApplyParamOverrideDeleteWildcardEqualsIndexedPaths(t *testing.T) {
@@ -365,16 +323,12 @@ func TestApplyParamOverrideDeleteWildcardEqualsIndexedPaths(t *testing.T) {
 	}
 
 	wildcardOut, err := ApplyParamOverride(input, wildcardOverride, nil)
-	if err != nil {
-		t.Fatalf("wildcard ApplyParamOverride returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	indexedOut, err := ApplyParamOverride(input, indexedOverride, nil)
-	if err != nil {
-		t.Fatalf("indexed ApplyParamOverride returned error: %v", err)
-	}
+	require.NoError(t, err)
 
-	assertJSONEqual(t, string(indexedOut), string(wildcardOut))
+	require.JSONEq(t, string(indexedOut), string(wildcardOut))
 }
 
 func TestApplyParamOverrideSetWildcardKeepOrigin(t *testing.T) {
@@ -391,9 +345,7 @@ func TestApplyParamOverrideSetWildcardKeepOrigin(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	var got struct {
 		Tools []struct {
@@ -402,9 +354,7 @@ func TestApplyParamOverrideSetWildcardKeepOrigin(t *testing.T) {
 			} `json:"custom"`
 		} `json:"tools"`
 	}
-	if err := json.Unmarshal(out, &got); err != nil {
-		t.Fatalf("failed to unmarshal output JSON: %v", err)
-	}
+	require.NoError(t, common2.Unmarshal(out, &got))
 
 	enabledValues := lo.Map(got.Tools, func(item struct {
 		Custom struct {
@@ -413,9 +363,7 @@ func TestApplyParamOverrideSetWildcardKeepOrigin(t *testing.T) {
 	}, _ int) bool {
 		return item.Custom.Enabled
 	})
-	if !reflect.DeepEqual(enabledValues, []bool{true, false, true}) {
-		t.Fatalf("unexpected enabled values after wildcard keep_origin set: %v", enabledValues)
-	}
+	require.Equal(t, []bool{true, false, true}, enabledValues)
 }
 
 func TestApplyParamOverrideTrimSpaceMultiWildcardPath(t *testing.T) {
@@ -430,9 +378,7 @@ func TestApplyParamOverrideTrimSpaceMultiWildcardPath(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	var got struct {
 		Tools []struct {
@@ -443,9 +389,7 @@ func TestApplyParamOverrideTrimSpaceMultiWildcardPath(t *testing.T) {
 			} `json:"custom"`
 		} `json:"tools"`
 	}
-	if err := json.Unmarshal(out, &got); err != nil {
-		t.Fatalf("failed to unmarshal output JSON: %v", err)
-	}
+	require.NoError(t, common2.Unmarshal(out, &got))
 
 	names := lo.FlatMap(got.Tools, func(tool struct {
 		Custom struct {
@@ -460,28 +404,7 @@ func TestApplyParamOverrideTrimSpaceMultiWildcardPath(t *testing.T) {
 			return item.Name
 		})
 	})
-	if !reflect.DeepEqual(names, []string{"alpha", "beta", "gamma"}) {
-		t.Fatalf("unexpected names after multi wildcard trim_space: %v", names)
-	}
-}
-
-func TestApplyParamOverrideSet(t *testing.T) {
-	input := []byte(`{"model":"gpt-4","temperature":0.7}`)
-	override := map[string]any{
-		"operations": []any{
-			map[string]any{
-				"path":  "temperature",
-				"mode":  "set",
-				"value": 0.1,
-			},
-		},
-	}
-
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.1}`, string(out))
+	require.Equal(t, []string{"alpha", "beta", "gamma"}, names)
 }
 
 func TestApplyParamOverrideSetWithDescriptionKeepsCompatibility(t *testing.T) {
@@ -507,17 +430,13 @@ func TestApplyParamOverrideSetWithDescriptionKeepsCompatibility(t *testing.T) {
 	}
 
 	outWithoutDesc, err := ApplyParamOverride(input, overrideWithoutDesc, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride without description returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	outWithDesc, err := ApplyParamOverride(input, overrideWithDesc, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride with description returned error: %v", err)
-	}
+	require.NoError(t, err)
 
-	assertJSONEqual(t, string(outWithoutDesc), string(outWithDesc))
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.1}`, string(outWithDesc))
+	require.JSONEq(t, string(outWithoutDesc), string(outWithDesc))
+	require.JSONEq(t, `{"model":"gpt-4","temperature":0.1}`, string(outWithDesc))
 }
 
 func TestApplyParamOverrideSetKeepOrigin(t *testing.T) {
@@ -534,10 +453,8 @@ func TestApplyParamOverrideSetKeepOrigin(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
 }
 
 func TestApplyParamOverrideMove(t *testing.T) {
@@ -553,10 +470,8 @@ func TestApplyParamOverrideMove(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"meta":{"x":1,"model":"gpt-4"}}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"meta":{"x":1,"model":"gpt-4"}}`, string(out))
 }
 
 func TestApplyParamOverrideMoveMissingSource(t *testing.T) {
@@ -572,9 +487,7 @@ func TestApplyParamOverrideMoveMissingSource(t *testing.T) {
 	}
 
 	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestApplyParamOverridePrependAppendString(t *testing.T) {
@@ -595,10 +508,8 @@ func TestApplyParamOverridePrependAppendString(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"openai/gpt-4-latest"}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"openai/gpt-4-latest"}`, string(out))
 }
 
 func TestApplyParamOverridePrependAppendArray(t *testing.T) {
@@ -619,10 +530,8 @@ func TestApplyParamOverridePrependAppendArray(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"arr":[0,1,2,3,4]}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"arr":[0,1,2,3,4]}`, string(out))
 }
 
 func TestApplyParamOverrideAppendObjectMergeKeepOrigin(t *testing.T) {
@@ -642,10 +551,8 @@ func TestApplyParamOverrideAppendObjectMergeKeepOrigin(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"obj":{"a":1,"b":3}}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"obj":{"a":1,"b":3}}`, string(out))
 }
 
 func TestApplyParamOverrideAppendObjectMergeOverride(t *testing.T) {
@@ -664,10 +571,8 @@ func TestApplyParamOverrideAppendObjectMergeOverride(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"obj":{"a":2,"b":3}}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"obj":{"a":2,"b":3}}`, string(out))
 }
 
 func TestApplyParamOverrideConditionORDefault(t *testing.T) {
@@ -695,10 +600,8 @@ func TestApplyParamOverrideConditionORDefault(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.1}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4","temperature":0.1}`, string(out))
 }
 
 func TestApplyParamOverrideConditionAND(t *testing.T) {
@@ -727,10 +630,8 @@ func TestApplyParamOverrideConditionAND(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.1}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4","temperature":0.1}`, string(out))
 }
 
 func TestApplyParamOverrideConditionInvert(t *testing.T) {
@@ -754,10 +655,8 @@ func TestApplyParamOverrideConditionInvert(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
 }
 
 func TestApplyParamOverrideConditionPassMissingKey(t *testing.T) {
@@ -781,10 +680,8 @@ func TestApplyParamOverrideConditionPassMissingKey(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.1}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.1}`, string(out))
 }
 
 func TestApplyParamOverrideConditionFromContext(t *testing.T) {
@@ -810,10 +707,8 @@ func TestApplyParamOverrideConditionFromContext(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.1}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.1}`, string(out))
 }
 
 func TestApplyParamOverrideNegativeIndexPath(t *testing.T) {
@@ -829,10 +724,8 @@ func TestApplyParamOverrideNegativeIndexPath(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"arr":[{"model":"a"},{"model":"c"}]}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"arr":[{"model":"a"},{"model":"c"}]}`, string(out))
 }
 
 func TestApplyParamOverrideRegexReplaceInvalidPattern(t *testing.T) {
@@ -851,9 +744,7 @@ func TestApplyParamOverrideRegexReplaceInvalidPattern(t *testing.T) {
 	}
 
 	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestApplyParamOverrideCopy(t *testing.T) {
@@ -871,10 +762,8 @@ func TestApplyParamOverrideCopy(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","original_model":"gpt-4","temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4","original_model":"gpt-4","temperature":0.7}`, string(out))
 }
 
 func TestApplyParamOverrideCopyMissingSource(t *testing.T) {
@@ -892,9 +781,7 @@ func TestApplyParamOverrideCopyMissingSource(t *testing.T) {
 	}
 
 	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestApplyParamOverrideCopyRequiresFromTo(t *testing.T) {
@@ -910,9 +797,7 @@ func TestApplyParamOverrideCopyRequiresFromTo(t *testing.T) {
 	}
 
 	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestApplyParamOverrideEnsurePrefix(t *testing.T) {
@@ -930,10 +815,8 @@ func TestApplyParamOverrideEnsurePrefix(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"openai/gpt-4"}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"openai/gpt-4"}`, string(out))
 }
 
 func TestApplyParamOverrideEnsurePrefixNoop(t *testing.T) {
@@ -951,10 +834,8 @@ func TestApplyParamOverrideEnsurePrefixNoop(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"openai/gpt-4"}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"openai/gpt-4"}`, string(out))
 }
 
 func TestApplyParamOverrideEnsureSuffix(t *testing.T) {
@@ -972,10 +853,8 @@ func TestApplyParamOverrideEnsureSuffix(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4-latest"}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4-latest"}`, string(out))
 }
 
 func TestApplyParamOverrideEnsureSuffixNoop(t *testing.T) {
@@ -993,10 +872,8 @@ func TestApplyParamOverrideEnsureSuffixNoop(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4-latest"}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4-latest"}`, string(out))
 }
 
 func TestApplyParamOverrideEnsureRequiresValue(t *testing.T) {
@@ -1013,9 +890,7 @@ func TestApplyParamOverrideEnsureRequiresValue(t *testing.T) {
 	}
 
 	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestApplyParamOverrideTrimSpace(t *testing.T) {
@@ -1032,10 +907,8 @@ func TestApplyParamOverrideTrimSpace(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4"}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4"}`, string(out))
 }
 
 func TestApplyParamOverrideToLower(t *testing.T) {
@@ -1052,10 +925,8 @@ func TestApplyParamOverrideToLower(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4"}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4"}`, string(out))
 }
 
 func TestApplyParamOverrideToUpper(t *testing.T) {
@@ -1072,10 +943,8 @@ func TestApplyParamOverrideToUpper(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"GPT-4"}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"GPT-4"}`, string(out))
 }
 
 func TestApplyParamOverrideReturnError(t *testing.T) {
@@ -1109,22 +978,12 @@ func TestApplyParamOverrideReturnError(t *testing.T) {
 	}
 
 	_, err := ApplyParamOverride(input, override, ctx)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
+	require.Error(t, err)
 	returnErr, ok := AsParamOverrideReturnError(err)
-	if !ok {
-		t.Fatalf("expected ParamOverrideReturnError, got %T: %v", err, err)
-	}
-	if returnErr.StatusCode != 422 {
-		t.Fatalf("expected status 422, got %d", returnErr.StatusCode)
-	}
-	if returnErr.Code != "forced_bad_request" {
-		t.Fatalf("expected code forced_bad_request, got %s", returnErr.Code)
-	}
-	if !returnErr.SkipRetry {
-		t.Fatalf("expected skip_retry true")
-	}
+	require.True(t, ok)
+	require.Equal(t, 422, returnErr.StatusCode)
+	require.Equal(t, "forced_bad_request", returnErr.Code)
+	require.True(t, returnErr.SkipRetry)
 }
 
 func TestApplyParamOverridePruneObjectsByTypeString(t *testing.T) {
@@ -1154,10 +1013,8 @@ func TestApplyParamOverridePruneObjectsByTypeString(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{
+	require.NoError(t, err)
+	require.JSONEq(t, `{
 		"messages":[
 			{"role":"assistant","content":[
 				{"type":"output_text","text":"a"},
@@ -1193,10 +1050,8 @@ func TestApplyParamOverridePruneObjectsWhereAndPath(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{
+	require.NoError(t, err)
+	require.JSONEq(t, `{
 		"a":{"items":[{"type":"output_text","id":2}]},
 		"b":{"items":[{"type":"redacted_thinking","id":3},{"type":"output_text","id":4}]}
 	}`, string(out))
@@ -1213,9 +1068,7 @@ func TestApplyParamOverrideNormalizeThinkingSignatureUnsupported(t *testing.T) {
 	}
 
 	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestApplyParamOverrideConditionFromRetryAndLastErrorContext(t *testing.T) {
@@ -1254,10 +1107,8 @@ func TestApplyParamOverrideConditionFromRetryAndLastErrorContext(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.1}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.1}`, string(out))
 }
 
 func TestApplyParamOverrideConditionByUserAndGPTModel(t *testing.T) {
@@ -1395,10 +1246,8 @@ func TestApplyParamOverrideConditionFromRequestHeaders(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.1}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.1}`, string(out))
 }
 
 func TestApplyParamOverrideSetHeaderAndUseInLaterCondition(t *testing.T) {
@@ -1426,10 +1275,8 @@ func TestApplyParamOverrideSetHeaderAndUseInLaterCondition(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.1}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.1}`, string(out))
 }
 
 func TestApplyParamOverrideCopyHeaderFromRequestHeaders(t *testing.T) {
@@ -1462,10 +1309,8 @@ func TestApplyParamOverrideCopyHeaderFromRequestHeaders(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.1}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.1}`, string(out))
 }
 
 func TestApplyParamOverridePassHeadersSkipsMissingHeaders(t *testing.T) {
@@ -1485,21 +1330,13 @@ func TestApplyParamOverridePassHeadersSkipsMissingHeaders(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.7}`, string(out))
 
 	headers, ok := ctx["header_override"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected header_override context map")
-	}
-	if headers["session_id"] != "sess-123" {
-		t.Fatalf("expected session_id to be passed, got: %v", headers["session_id"])
-	}
-	if _, exists := headers["x-codex-beta-features"]; exists {
-		t.Fatalf("expected missing header to be skipped")
-	}
+	require.True(t, ok)
+	require.Equal(t, "sess-123", headers["session_id"])
+	require.NotContains(t, headers, "x-codex-beta-features")
 }
 
 func TestApplyParamOverrideCopyHeaderSkipsMissingSource(t *testing.T) {
@@ -1520,18 +1357,14 @@ func TestApplyParamOverrideCopyHeaderSkipsMissingSource(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.7}`, string(out))
 
 	headers, ok := ctx["header_override"].(map[string]any)
 	if !ok {
 		return
 	}
-	if _, exists := headers["x-upstream-auth"]; exists {
-		t.Fatalf("expected X-Upstream-Auth to be skipped when source header is missing")
-	}
+	require.NotContains(t, headers, "x-upstream-auth")
 }
 
 func TestApplyParamOverrideMoveHeaderSkipsMissingSource(t *testing.T) {
@@ -1552,18 +1385,14 @@ func TestApplyParamOverrideMoveHeaderSkipsMissingSource(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.7}`, string(out))
 
 	headers, ok := ctx["header_override"].(map[string]any)
 	if !ok {
 		return
 	}
-	if _, exists := headers["x-upstream-auth"]; exists {
-		t.Fatalf("expected X-Upstream-Auth to be skipped when source header is missing")
-	}
+	require.NotContains(t, headers, "x-upstream-auth")
 }
 
 func TestApplyParamOverrideSyncFieldsHeaderToJSON(t *testing.T) {
@@ -1584,10 +1413,8 @@ func TestApplyParamOverrideSyncFieldsHeaderToJSON(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","prompt_cache_key":"sess-123"}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4","prompt_cache_key":"sess-123"}`, string(out))
 }
 
 func TestApplyParamOverrideSyncFieldsJSONToHeader(t *testing.T) {
@@ -1604,18 +1431,12 @@ func TestApplyParamOverrideSyncFieldsJSONToHeader(t *testing.T) {
 	ctx := map[string]any{}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","prompt_cache_key":"cache-abc"}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4","prompt_cache_key":"cache-abc"}`, string(out))
 
 	headers, ok := ctx["header_override"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected header_override context map")
-	}
-	if headers["session_id"] != "cache-abc" {
-		t.Fatalf("expected session_id to be synced from prompt_cache_key, got: %v", headers["session_id"])
-	}
+	require.True(t, ok)
+	require.Equal(t, "cache-abc", headers["session_id"])
 }
 
 func TestApplyParamOverrideSyncFieldsNoChangeWhenBothExist(t *testing.T) {
@@ -1636,16 +1457,12 @@ func TestApplyParamOverrideSyncFieldsNoChangeWhenBothExist(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-4","prompt_cache_key":"cache-body"}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-4","prompt_cache_key":"cache-body"}`, string(out))
 
 	headers, _ := ctx["header_override"].(map[string]any)
 	if headers != nil {
-		if _, exists := headers["session_id"]; exists {
-			t.Fatalf("expected no override when both sides already have value")
-		}
+		require.NotContains(t, headers, "session_id")
 	}
 }
 
@@ -1662,9 +1479,7 @@ func TestApplyParamOverrideSyncFieldsInvalidTarget(t *testing.T) {
 	}
 
 	_, err := ApplyParamOverride(input, override, nil)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestApplyParamOverrideSetHeaderKeepOrigin(t *testing.T) {
@@ -1686,16 +1501,10 @@ func TestApplyParamOverrideSetHeaderKeepOrigin(t *testing.T) {
 	}
 
 	_, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
+	require.NoError(t, err)
 	headers, ok := ctx["header_override"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected header_override context map")
-	}
-	if headers["x-feature-flag"] != "legacy-value" {
-		t.Fatalf("expected keep_origin to preserve old value, got: %v", headers["x-feature-flag"])
-	}
+	require.True(t, ok)
+	require.Equal(t, "legacy-value", headers["x-feature-flag"])
 }
 
 func TestApplyParamOverrideSetHeaderMapRewritesCommaSeparatedHeader(t *testing.T) {
@@ -1719,17 +1528,11 @@ func TestApplyParamOverrideSetHeaderMapRewritesCommaSeparatedHeader(t *testing.T
 	}
 
 	_, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	headers, ok := ctx["header_override"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected header_override context map")
-	}
-	if headers["anthropic-beta"] != "computer-use-2025-01-24" {
-		t.Fatalf("expected anthropic-beta to keep only mapped value, got: %v", headers["anthropic-beta"])
-	}
+	require.True(t, ok)
+	require.Equal(t, "computer-use-2025-01-24", headers["anthropic-beta"])
 }
 
 func TestApplyParamOverrideSetHeaderMapDeleteWholeHeaderWhenAllTokensCleared(t *testing.T) {
@@ -1753,17 +1556,11 @@ func TestApplyParamOverrideSetHeaderMapDeleteWholeHeaderWhenAllTokensCleared(t *
 	}
 
 	_, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	headers, ok := ctx["header_override"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected header_override context map")
-	}
-	if _, exists := headers["anthropic-beta"]; exists {
-		t.Fatalf("expected anthropic-beta to be deleted when all mapped values are null")
-	}
+	require.True(t, ok)
+	require.NotContains(t, headers, "anthropic-beta")
 }
 
 func TestApplyParamOverrideSetHeaderMapAppendsTokens(t *testing.T) {
@@ -1786,18 +1583,12 @@ func TestApplyParamOverrideSetHeaderMapAppendsTokens(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.7}`, string(out))
 
 	headers, ok := ctx["header_override"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected header_override context map")
-	}
-	if headers["anthropic-beta"] != "computer-use-2025-01-24,context-1m-2025-08-07" {
-		t.Fatalf("expected anthropic-beta to append new token without duplicates, got: %v", headers["anthropic-beta"])
-	}
+	require.True(t, ok)
+	require.Equal(t, "computer-use-2025-01-24,context-1m-2025-08-07", headers["anthropic-beta"])
 }
 
 func TestApplyParamOverrideSetHeaderMapAppendsTokensWhenHeaderMissing(t *testing.T) {
@@ -1816,18 +1607,12 @@ func TestApplyParamOverrideSetHeaderMapAppendsTokensWhenHeaderMissing(t *testing
 
 	ctx := map[string]any{}
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.7}`, string(out))
 
 	headers, ok := ctx["header_override"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected header_override context map")
-	}
-	if headers["anthropic-beta"] != "context-1m-2025-08-07,computer-use-2025-01-24" {
-		t.Fatalf("expected anthropic-beta to be created from appended tokens, got: %v", headers["anthropic-beta"])
-	}
+	require.True(t, ok)
+	require.Equal(t, "context-1m-2025-08-07,computer-use-2025-01-24", headers["anthropic-beta"])
 }
 
 func TestApplyParamOverrideSetHeaderMapKeepOnlyDeclaredDropsUndeclaredTokens(t *testing.T) {
@@ -1852,18 +1637,12 @@ func TestApplyParamOverrideSetHeaderMapKeepOnlyDeclaredDropsUndeclaredTokens(t *
 	}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.7}`, string(out))
 
 	headers, ok := ctx["header_override"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected header_override context map")
-	}
-	if headers["anthropic-beta"] != "computer-use-2025-01-24,context-1m-2025-08-07" {
-		t.Fatalf("expected anthropic-beta to keep only declared tokens, got: %v", headers["anthropic-beta"])
-	}
+	require.True(t, ok)
+	require.Equal(t, "computer-use-2025-01-24,context-1m-2025-08-07", headers["anthropic-beta"])
 }
 
 func TestApplyParamOverrideSetHeaderMapKeepOnlyDeclaredDeletesHeaderWhenNothingDeclaredMatches(t *testing.T) {
@@ -1887,18 +1666,12 @@ func TestApplyParamOverrideSetHeaderMapKeepOnlyDeclaredDeletesHeaderWhenNothingD
 	}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.7}`, string(out))
 
 	headers, ok := ctx["header_override"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected header_override context map")
-	}
-	if _, exists := headers["anthropic-beta"]; exists {
-		t.Fatalf("expected anthropic-beta to be deleted when no declared tokens remain, got: %v", headers["anthropic-beta"])
-	}
+	require.True(t, ok)
+	require.NotContains(t, headers, "anthropic-beta")
 }
 
 func TestApplyParamOverrideConditionsObjectShorthand(t *testing.T) {
@@ -1925,10 +1698,8 @@ func TestApplyParamOverrideConditionsObjectShorthand(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverride(input, override, ctx)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.1}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.1}`, string(out))
 }
 
 func TestApplyParamOverrideWithRelayInfoSyncRuntimeHeaders(t *testing.T) {
@@ -1956,23 +1727,13 @@ func TestApplyParamOverrideWithRelayInfoSyncRuntimeHeaders(t *testing.T) {
 
 	input := []byte(`{"temperature":0.7}`)
 	out, err := ApplyParamOverrideWithRelayInfo(input, info)
-	if err != nil {
-		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"temperature":0.7}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"temperature":0.7}`, string(out))
 
-	if !info.UseRuntimeHeadersOverride {
-		t.Fatalf("expected runtime header override to be enabled")
-	}
-	if info.RuntimeHeadersOverride["x-keep-me"] != "keep" {
-		t.Fatalf("expected x-keep-me header to be preserved, got: %v", info.RuntimeHeadersOverride["x-keep-me"])
-	}
-	if info.RuntimeHeadersOverride["x-injected-by-param-override"] != "enabled" {
-		t.Fatalf("expected x-injected-by-param-override header to be set, got: %v", info.RuntimeHeadersOverride["x-injected-by-param-override"])
-	}
-	if _, exists := info.RuntimeHeadersOverride["x-delete-me"]; exists {
-		t.Fatalf("expected x-delete-me header to be deleted")
-	}
+	require.True(t, info.UseRuntimeHeadersOverride)
+	require.Equal(t, "keep", info.RuntimeHeadersOverride["x-keep-me"])
+	require.Equal(t, "enabled", info.RuntimeHeadersOverride["x-injected-by-param-override"])
+	require.NotContains(t, info.RuntimeHeadersOverride, "x-delete-me")
 }
 
 func TestApplyParamOverrideWithRelayInfoMixedLegacyAndOperations(t *testing.T) {
@@ -1997,20 +1758,12 @@ func TestApplyParamOverrideWithRelayInfoMixedLegacyAndOperations(t *testing.T) {
 	}
 
 	out, err := ApplyParamOverrideWithRelayInfo([]byte(`{"model":"gpt-5","temperature":0.7}`), info)
-	if err != nil {
-		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"model":"gpt-5","temperature":0.2}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"gpt-5","temperature":0.2}`, string(out))
 
-	if !info.UseRuntimeHeadersOverride {
-		t.Fatalf("expected runtime header override to be enabled")
-	}
-	if info.RuntimeHeadersOverride["x-static"] != "legacy-static" {
-		t.Fatalf("expected x-static to be preserved, got: %v", info.RuntimeHeadersOverride["x-static"])
-	}
-	if info.RuntimeHeadersOverride["originator"] != "Codex CLI" {
-		t.Fatalf("expected originator header to be passed, got: %v", info.RuntimeHeadersOverride["originator"])
-	}
+	require.True(t, info.UseRuntimeHeadersOverride)
+	require.Equal(t, "legacy-static", info.RuntimeHeadersOverride["x-static"])
+	require.Equal(t, "Codex CLI", info.RuntimeHeadersOverride["originator"])
 }
 
 func TestApplyParamOverrideWithRelayInfoMoveAndCopyHeaders(t *testing.T) {
@@ -2038,18 +1791,10 @@ func TestApplyParamOverrideWithRelayInfoMoveAndCopyHeaders(t *testing.T) {
 
 	input := []byte(`{"temperature":0.7}`)
 	_, err := ApplyParamOverrideWithRelayInfo(input, info)
-	if err != nil {
-		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
-	}
-	if _, exists := info.RuntimeHeadersOverride["x-legacy-trace"]; exists {
-		t.Fatalf("expected source header to be removed after move")
-	}
-	if info.RuntimeHeadersOverride["x-trace"] != "trace-123" {
-		t.Fatalf("expected x-trace to be set, got: %v", info.RuntimeHeadersOverride["x-trace"])
-	}
-	if info.RuntimeHeadersOverride["x-trace-backup"] != "trace-123" {
-		t.Fatalf("expected x-trace-backup to be copied, got: %v", info.RuntimeHeadersOverride["x-trace-backup"])
-	}
+	require.NoError(t, err)
+	require.NotContains(t, info.RuntimeHeadersOverride, "x-legacy-trace")
+	require.Equal(t, "trace-123", info.RuntimeHeadersOverride["x-trace"])
+	require.Equal(t, "trace-123", info.RuntimeHeadersOverride["x-trace-backup"])
 }
 
 func TestApplyParamOverrideWithRelayInfoSetHeaderMapRewritesAnthropicBeta(t *testing.T) {
@@ -2074,16 +1819,10 @@ func TestApplyParamOverrideWithRelayInfoSetHeaderMapRewritesAnthropicBeta(t *tes
 	}
 
 	_, err := ApplyParamOverrideWithRelayInfo([]byte(`{"temperature":0.7}`), info)
-	if err != nil {
-		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if !info.UseRuntimeHeadersOverride {
-		t.Fatalf("expected runtime header override to be enabled")
-	}
-	if info.RuntimeHeadersOverride["anthropic-beta"] != "computer-use-2025-01-24" {
-		t.Fatalf("expected anthropic-beta to be rewritten, got: %v", info.RuntimeHeadersOverride["anthropic-beta"])
-	}
+	require.True(t, info.UseRuntimeHeadersOverride)
+	require.Equal(t, "computer-use-2025-01-24", info.RuntimeHeadersOverride["anthropic-beta"])
 }
 
 func TestGetEffectiveHeaderOverrideUsesRuntimeOverrideAsFinalResult(t *testing.T) {
@@ -2101,12 +1840,8 @@ func TestGetEffectiveHeaderOverrideUsesRuntimeOverrideAsFinalResult(t *testing.T
 	}
 
 	effective := GetEffectiveHeaderOverride(info)
-	if effective["x-runtime"] != "runtime-only" {
-		t.Fatalf("expected x-runtime from runtime override, got: %v", effective["x-runtime"])
-	}
-	if _, exists := effective["x-static"]; exists {
-		t.Fatalf("expected runtime override to be final and not merge channel headers")
-	}
+	require.Equal(t, "runtime-only", effective["x-runtime"])
+	require.NotContains(t, effective, "x-static")
 }
 
 func TestRemoveDisabledFieldsSkipWhenChannelPassThroughEnabled(t *testing.T) {
@@ -2119,10 +1854,8 @@ func TestRemoveDisabledFieldsSkipWhenChannelPassThroughEnabled(t *testing.T) {
 	settings := dto.ChannelOtherSettings{}
 
 	out, err := RemoveDisabledFields([]byte(input), settings, true)
-	if err != nil {
-		t.Fatalf("RemoveDisabledFields returned error: %v", err)
-	}
-	assertJSONEqual(t, input, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, input, string(out))
 }
 
 func TestRemoveDisabledFieldsSkipWhenGlobalPassThroughEnabled(t *testing.T) {
@@ -2140,10 +1873,8 @@ func TestRemoveDisabledFieldsSkipWhenGlobalPassThroughEnabled(t *testing.T) {
 	settings := dto.ChannelOtherSettings{}
 
 	out, err := RemoveDisabledFields([]byte(input), settings, false)
-	if err != nil {
-		t.Fatalf("RemoveDisabledFields returned error: %v", err)
-	}
-	assertJSONEqual(t, input, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, input, string(out))
 }
 
 func TestRemoveDisabledFieldsDefaultFiltering(t *testing.T) {
@@ -2159,10 +1890,8 @@ func TestRemoveDisabledFieldsDefaultFiltering(t *testing.T) {
 	settings := dto.ChannelOtherSettings{}
 
 	out, err := RemoveDisabledFields([]byte(input), settings, false)
-	if err != nil {
-		t.Fatalf("RemoveDisabledFields returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"cache_control":{"type":"ephemeral"},"store":true}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"cache_control":{"type":"ephemeral"},"store":true}`, string(out))
 }
 
 func TestRemoveDisabledFieldsNoControlledFieldsKeepsBody(t *testing.T) {
@@ -2170,9 +1899,7 @@ func TestRemoveDisabledFieldsNoControlledFieldsKeepsBody(t *testing.T) {
 	settings := dto.ChannelOtherSettings{}
 
 	out, err := RemoveDisabledFields([]byte(input), settings, false)
-	if err != nil {
-		t.Fatalf("RemoveDisabledFields returned error: %v", err)
-	}
+	require.NoError(t, err)
 	require.Equal(t, input, string(out))
 }
 
@@ -2186,10 +1913,8 @@ func TestRemoveDisabledFieldsAllowInferenceGeo(t *testing.T) {
 	}
 
 	out, err := RemoveDisabledFields([]byte(input), settings, false)
-	if err != nil {
-		t.Fatalf("RemoveDisabledFields returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"inference_geo":"eu","store":true}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"inference_geo":"eu","store":true}`, string(out))
 }
 
 func TestRemoveDisabledFieldsAllowSpeed(t *testing.T) {
@@ -2202,10 +1927,8 @@ func TestRemoveDisabledFieldsAllowSpeed(t *testing.T) {
 	}
 
 	out, err := RemoveDisabledFields([]byte(input), settings, false)
-	if err != nil {
-		t.Fatalf("RemoveDisabledFields returned error: %v", err)
-	}
-	assertJSONEqual(t, `{"speed":"fast","store":true}`, string(out))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"speed":"fast","store":true}`, string(out))
 }
 
 func TestApplyParamOverrideWithRelayInfoRecordsOperationAuditInDebugMode(t *testing.T) {
@@ -2244,10 +1967,8 @@ func TestApplyParamOverrideWithRelayInfoRecordsOperationAuditInDebugMode(t *test
 		"temperature":0.7,
 		"metadata":{"target_model":"gpt-4.1-mini"}
 	}`), info)
-	if err != nil {
-		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
-	}
-	assertJSONEqual(t, `{
+	require.NoError(t, err)
+	require.JSONEq(t, `{
 		"model":"gpt-4.1-mini",
 		"temperature":0.1,
 		"service_tier":"flex",
@@ -2259,9 +1980,7 @@ func TestApplyParamOverrideWithRelayInfoRecordsOperationAuditInDebugMode(t *test
 		"set service_tier = flex",
 		"set temperature = 0.1",
 	}
-	if !reflect.DeepEqual(info.ParamOverrideAudit, expected) {
-		t.Fatalf("unexpected param override audit, got %#v", info.ParamOverrideAudit)
-	}
+	require.Equal(t, expected, info.ParamOverrideAudit)
 }
 
 func TestApplyParamOverrideWithRelayInfoRecordsOnlyKeyOperationsWhenDebugDisabled(t *testing.T) {
@@ -2295,16 +2014,12 @@ func TestApplyParamOverrideWithRelayInfoRecordsOnlyKeyOperationsWhenDebugDisable
 		"temperature":0.7,
 		"metadata":{"target_model":"gpt-4.1-mini"}
 	}`), info)
-	if err != nil {
-		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	expected := []string{
 		"copy metadata.target_model -> model",
 	}
-	if !reflect.DeepEqual(info.ParamOverrideAudit, expected) {
-		t.Fatalf("unexpected param override audit, got %#v", info.ParamOverrideAudit)
-	}
+	require.Equal(t, expected, info.ParamOverrideAudit)
 }
 
 func TestApplyParamOverrideWithRelayInfoRecordsConversationBodyOperationsWhenDebugDisabled(t *testing.T) {
@@ -2363,7 +2078,7 @@ func TestApplyParamOverrideWithRelayInfoRecordsConversationBodyOperationsWhenDeb
 		"temperature":0.7
 	}`), info)
 	require.NoError(t, err)
-	assertJSONEqual(t, `{
+	require.JSONEq(t, `{
 		"messages":[{"role":"user","content":"hi world"}],
 		"input":[{"role":"user","content":[{"type":"input_text","text":"rewritten response input"}]}],
 		"instructions":"new instruction",
@@ -2394,24 +2109,6 @@ func TestShouldAuditParamPathUsesFieldBoundaryPrefixMatching(t *testing.T) {
 	require.True(t, shouldAuditParamPath("systemInstruction.parts.0.text"))
 	require.False(t, shouldAuditParamPath("model_name"))
 	require.False(t, shouldAuditParamPath("message"))
-}
-
-func assertJSONEqual(t *testing.T, want, got string) {
-	t.Helper()
-
-	var wantObj any
-	var gotObj any
-
-	if err := json.Unmarshal([]byte(want), &wantObj); err != nil {
-		t.Fatalf("failed to unmarshal want JSON: %v", err)
-	}
-	if err := json.Unmarshal([]byte(got), &gotObj); err != nil {
-		t.Fatalf("failed to unmarshal got JSON: %v", err)
-	}
-
-	if !reflect.DeepEqual(wantObj, gotObj) {
-		t.Fatalf("json not equal\nwant: %s\ngot:  %s", want, got)
-	}
 }
 
 func TestApplyParamOverrideWithRelayInfoSynchronizesReasoningEffort(t *testing.T) {

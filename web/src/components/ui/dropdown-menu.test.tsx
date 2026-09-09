@@ -16,29 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 
 import { handleDropdownMenuItemSelect } from './dropdown-menu-events'
 
 function createMenuEvent() {
-  let defaultPrevented = false
-  let baseUIHandlerPrevented = false
-
-  return {
-    get defaultPrevented() {
-      return defaultPrevented
-    },
-    preventDefault() {
-      defaultPrevented = true
-    },
-    preventBaseUIHandler() {
-      baseUIHandlerPrevented = true
-    },
-    get baseUIHandlerPrevented() {
-      return baseUIHandlerPrevented
-    },
-  } as unknown as Parameters<typeof handleDropdownMenuItemSelect>[0] & {
-    baseUIHandlerPrevented: boolean
+  return Object.assign(new MouseEvent('click', { cancelable: true }), {
+    preventBaseUIHandler: vi.fn(),
+  }) as unknown as Parameters<typeof handleDropdownMenuItemSelect>[0] & {
+    preventBaseUIHandler: ReturnType<typeof vi.fn>
   }
 }
 
@@ -52,7 +38,7 @@ describe('DropdownMenuItem onSelect compatibility', () => {
     })
 
     expect(selected).toBe(true)
-    expect(event.baseUIHandlerPrevented).toBe(false)
+    expect(event.preventBaseUIHandler).not.toHaveBeenCalled()
   })
 
   test('keeps the Base UI menu open when onSelect prevents default', () => {
@@ -63,6 +49,6 @@ describe('DropdownMenuItem onSelect compatibility', () => {
     })
 
     expect(event.defaultPrevented).toBe(true)
-    expect(event.baseUIHandlerPrevented).toBe(true)
+    expect(event.preventBaseUIHandler).toHaveBeenCalled()
   })
 })

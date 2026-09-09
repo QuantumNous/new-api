@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 
 import type { ParsedTaskTier } from '../lib/billing-expr'
 import { isBreakdownTierMatched } from '../lib/breakdown-tier-match'
@@ -34,8 +33,8 @@ const uniformSeedanceExpr = 'tier("base", u("tokens") * 10 / 1000000)'
 
 function seedanceDisplayTiers(): ParsedTaskTier[] {
   const tiers = getTaskMatrixDisplayTiers(uniformSeedanceExpr, seedanceSchema)
-  assert.ok(tiers)
-  assert.equal(tiers.length, 8)
+  if (!tiers) expect.fail('Expected tiers to be present')
+  expect(tiers.length).toBe(8)
   return tiers
 }
 
@@ -55,30 +54,28 @@ describe('breakdown tier matched-row highlight', () => {
   test('highlights only the 720p·video row when a uniform matrix log matches base with those usage facts', () => {
     const tiers = seedanceDisplayTiers()
 
-    assert.deepEqual(
+    expect(
       matchedLabels(tiers, 'base', {
         resolution: '720p',
         video_input: 'video',
-      }),
-      ['720p·video']
-    )
+      })
+    ).toStrictEqual(['720p·video'])
   })
 
   test('does not highlight any row when a uniform matrix log matches base without usage facts', () => {
     const tiers = seedanceDisplayTiers()
 
-    assert.deepEqual(matchedLabels(tiers, 'base'), [])
+    expect(matchedLabels(tiers, 'base')).toStrictEqual([])
   })
 
   test('does not highlight any row when usage facts omit a condition field', () => {
     const tiers = seedanceDisplayTiers()
 
-    assert.deepEqual(
+    expect(
       matchedLabels(tiers, 'base', {
         resolution: '720p',
-      }),
-      []
-    )
+      })
+    ).toStrictEqual([])
   })
 
   test('highlights the labeled non-matrix row and does not facts-match another row', () => {
@@ -97,6 +94,6 @@ describe('breakdown tier matched-row highlight', () => {
       },
     ]
 
-    assert.deepEqual(matchedLabels(tiers, 'pro', { mode: 'std' }), ['pro'])
+    expect(matchedLabels(tiers, 'pro', { mode: 'std' })).toStrictEqual(['pro'])
   })
 })

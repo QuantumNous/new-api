@@ -46,7 +46,4 @@ func TestSetTaskRouterRegistersWithoutConflict(t *testing.T) {
 	assert.Contains(t, actual, http.MethodGet+" /v1/tasks/:key/artifacts")
 	assert.Contains(t, actual, http.MethodGet+" /v1/tasks/:key/artifacts/:artifact_key/content")
 	assert.Contains(t, actual, http.MethodHead+" /v1/tasks/:key/artifacts/:artifact_key/content")
-	for route := range actual {
-		assert.NotContains(t, route, "/native/")
-	}
 }

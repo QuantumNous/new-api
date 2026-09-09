@@ -86,9 +86,7 @@ func openTokenControllerTestDB(t *testing.T) *gorm.DB {
 
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("failed to open sqlite db: %v", err)
-	}
+	require.NoError(t, err, "failed to open sqlite db")
 	model.DB = db
 	model.LOG_DB = db
 
@@ -105,9 +103,7 @@ func openTokenControllerTestDB(t *testing.T) *gorm.DB {
 func migrateTokenControllerTestDB(t *testing.T, db *gorm.DB) {
 	t.Helper()
 
-	if err := db.AutoMigrate(&model.Token{}); err != nil {
-		t.Fatalf("failed to migrate token table: %v", err)
-	}
+	require.NoError(t, db.AutoMigrate(&model.Token{}), "failed to migrate token table")
 }
 
 func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
@@ -137,12 +133,10 @@ func openTokenControllerExternalDB(t *testing.T, dialect string, dsn string) (*g
 		dbType = common.DatabaseTypePostgreSQL
 		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	default:
-		t.Fatalf("unsupported dialect %q", dialect)
+		require.FailNowf(t, "unsupported dialect", "%q", dialect)
 	}
 	common.SetDatabaseTypes(dbType, dbType)
-	if err != nil {
-		t.Fatalf("failed to open %s db: %v", dialect, err)
-	}
+	require.NoError(t, err, "failed to open %s db", dialect)
 
 	model.DB = db
 	model.LOG_DB = db
@@ -181,9 +175,7 @@ func seedToken(t *testing.T, db *gorm.DB, userID int, name string, rawKey string
 		UnlimitedQuota: true,
 		Group:          "default",
 	}
-	if err := db.Create(token).Error; err != nil {
-		t.Fatalf("failed to create token: %v", err)
-	}
+	require.NoError(t, db.Create(token).Error, "failed to create token")
 	return token
 }
 
@@ -193,9 +185,7 @@ func newAuthenticatedContext(t *testing.T, method string, target string, body an
 	var requestBody *bytes.Reader
 	if body != nil {
 		payload, err := common.Marshal(body)
-		if err != nil {
-			t.Fatalf("failed to marshal request body: %v", err)
-		}
+		require.NoError(t, err, "failed to marshal request body")
 		requestBody = bytes.NewReader(payload)
 	} else {
 		requestBody = bytes.NewReader(nil)
@@ -215,9 +205,7 @@ func decodeAPIResponse(t *testing.T, recorder *httptest.ResponseRecorder) tokenA
 	t.Helper()
 
 	var response tokenAPIResponse
-	if err := common.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
-		t.Fatalf("failed to decode api response: %v", err)
-	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response), "failed to decode api response")
 	return response
 }
 
@@ -225,9 +213,7 @@ func getSQLiteColumnType(t *testing.T, db *gorm.DB, tableName string, columnName
 	t.Helper()
 
 	var columns []sqliteColumnInfo
-	if err := db.Raw("PRAGMA table_info(" + tableName + ")").Scan(&columns).Error; err != nil {
-		t.Fatalf("failed to inspect %s schema: %v", tableName, err)
-	}
+	require.NoError(t, db.Raw("PRAGMA table_info("+tableName+")").Scan(&columns).Error, "failed to inspect %s schema", tableName)
 
 	for _, column := range columns {
 		if column.Name == columnName {
@@ -235,7 +221,7 @@ func getSQLiteColumnType(t *testing.T, db *gorm.DB, tableName string, columnName
 		}
 	}
 
-	t.Fatalf("column %s not found in %s schema", columnName, tableName)
+	require.FailNowf(t, "column not found", "%s in %s schema", columnName, tableName)
 	return ""
 }
 
@@ -247,21 +233,17 @@ func getTokenKeyColumnType(t *testing.T, db *gorm.DB, dialect string) string {
 		return getSQLiteColumnType(t, db, "tokens", "key")
 	case "mysql":
 		var columnType string
-		if err := db.Raw(`SELECT COLUMN_TYPE FROM information_schema.columns
+		require.NoError(t, db.Raw(`SELECT COLUMN_TYPE FROM information_schema.columns
 			WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
-			"tokens", "key").Scan(&columnType).Error; err != nil {
-			t.Fatalf("failed to inspect mysql token key column: %v", err)
-		}
+			"tokens", "key").Scan(&columnType).Error, "failed to inspect mysql token key column")
 		return strings.ToLower(columnType)
 	case "postgres":
 		var dataType string
 		var maxLength sql.NullInt64
-		if err := db.Raw(`SELECT data_type, character_maximum_length
+		require.NoError(t, db.Raw(`SELECT data_type, character_maximum_length
 			FROM information_schema.columns
 			WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?`,
-			"tokens", "key").Row().Scan(&dataType, &maxLength); err != nil {
-			t.Fatalf("failed to inspect postgres token key column: %v", err)
-		}
+			"tokens", "key").Row().Scan(&dataType, &maxLength), "failed to inspect postgres token key column")
 		switch strings.ToLower(dataType) {
 		case "character varying":
 			return fmt.Sprintf("varchar(%d)", maxLength.Int64)
@@ -274,7 +256,7 @@ func getTokenKeyColumnType(t *testing.T, db *gorm.DB, dialect string) string {
 			return strings.ToLower(dataType)
 		}
 	default:
-		t.Fatalf("unsupported dialect %q", dialect)
+		require.FailNowf(t, "unsupported dialect", "%q", dialect)
 		return ""
 	}
 }
@@ -287,22 +269,18 @@ func getTokenAutoGroupsColumnType(t *testing.T, db *gorm.DB, dialect string) str
 		return getSQLiteColumnType(t, db, "tokens", "auto_groups")
 	case "mysql":
 		var columnType string
-		if err := db.Raw(`SELECT DATA_TYPE FROM information_schema.columns
+		require.NoError(t, db.Raw(`SELECT DATA_TYPE FROM information_schema.columns
 			WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
-			"tokens", "auto_groups").Scan(&columnType).Error; err != nil {
-			t.Fatalf("failed to inspect mysql token auto_groups column: %v", err)
-		}
+			"tokens", "auto_groups").Scan(&columnType).Error, "failed to inspect mysql token auto_groups column")
 		return strings.ToLower(columnType)
 	case "postgres":
 		var dataType string
-		if err := db.Raw(`SELECT data_type FROM information_schema.columns
+		require.NoError(t, db.Raw(`SELECT data_type FROM information_schema.columns
 			WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?`,
-			"tokens", "auto_groups").Scan(&dataType).Error; err != nil {
-			t.Fatalf("failed to inspect postgres token auto_groups column: %v", err)
-		}
+			"tokens", "auto_groups").Scan(&dataType).Error, "failed to inspect postgres token auto_groups column")
 		return strings.ToLower(dataType)
 	default:
-		t.Fatalf("unsupported dialect %q", dialect)
+		require.FailNowf(t, "unsupported dialect", "%q", dialect)
 		return ""
 	}
 }
@@ -313,13 +291,11 @@ func runTokenMigrationCompatibilityTest(t *testing.T, db *gorm.DB, dialect strin
 	legacyKey := strings.Repeat("a", 48)
 	longKey := strings.Repeat("b", 64)
 
-	if err := db.AutoMigrate(&legacyToken{}); err != nil {
-		t.Fatalf("failed to create legacy token schema: %v", err)
-	}
+	require.NoError(t, db.AutoMigrate(&legacyToken{}), "failed to create legacy token schema")
 	if managedTokensTable != nil {
 		*managedTokensTable = true
 	}
-	if err := db.Create(&legacyToken{
+	require.NoError(t, db.Create(&legacyToken{
 		UserId:             7,
 		Key:                legacyKey,
 		Status:             common.TokenStatusEnabled,
@@ -335,39 +311,21 @@ func runTokenMigrationCompatibilityTest(t *testing.T, db *gorm.DB, dialect strin
 		UsedQuota:          0,
 		Group:              "default",
 		CrossGroupRetry:    false,
-	}).Error; err != nil {
-		t.Fatalf("failed to seed legacy token row: %v", err)
-	}
+	}).Error, "failed to seed legacy token row")
 
-	if got := getTokenKeyColumnType(t, db, dialect); got != "char(48)" {
-		t.Fatalf("expected legacy key column type char(48), got %q", got)
-	}
+	require.Equal(t, "char(48)", getTokenKeyColumnType(t, db, dialect))
 
 	migrateTokenControllerTestDB(t, db)
 
-	if got := getTokenKeyColumnType(t, db, dialect); got != "varchar(128)" {
-		t.Fatalf("expected migrated key column type varchar(128), got %q", got)
-	}
-	if !db.Migrator().HasColumn(&model.Token{}, "auto_groups") {
-		t.Fatal("expected migration to add auto_groups column")
-	}
-	if got := getTokenAutoGroupsColumnType(t, db, dialect); got != "text" {
-		t.Fatalf("expected migrated auto_groups column type text, got %q", got)
-	}
+	require.Equal(t, "varchar(128)", getTokenKeyColumnType(t, db, dialect))
+	require.True(t, db.Migrator().HasColumn(&model.Token{}, "auto_groups"), "migration must add auto_groups")
+	require.Equal(t, "text", getTokenAutoGroupsColumnType(t, db, dialect))
 
 	var migratedToken model.Token
-	if err := db.First(&migratedToken, "name = ?", "legacy-token").Error; err != nil {
-		t.Fatalf("failed to load migrated token row: %v", err)
-	}
-	if migratedToken.Key != legacyKey {
-		t.Fatalf("expected migrated token key %q, got %q", legacyKey, migratedToken.Key)
-	}
-	if migratedToken.Name != "legacy-token" {
-		t.Fatalf("expected migrated token name to be preserved, got %q", migratedToken.Name)
-	}
-	if migratedToken.AutoGroups != "" {
-		t.Fatalf("expected legacy token to inherit global Auto groups, got %q", migratedToken.AutoGroups)
-	}
+	require.NoError(t, db.First(&migratedToken, "name = ?", "legacy-token").Error, "failed to load migrated token row")
+	require.Equal(t, legacyKey, migratedToken.Key)
+	require.Equal(t, "legacy-token", migratedToken.Name)
+	require.Empty(t, migratedToken.AutoGroups, "legacy token must inherit global Auto groups")
 
 	inserted := model.Token{
 		UserId:             8,
@@ -386,28 +344,18 @@ func runTokenMigrationCompatibilityTest(t *testing.T, db *gorm.DB, dialect strin
 		Group:              "default",
 		CrossGroupRetry:    false,
 	}
-	if err := db.Create(&inserted).Error; err != nil {
-		t.Fatalf("failed to insert long token after migration: %v", err)
-	}
+	require.NoError(t, db.Create(&inserted).Error, "failed to insert long token after migration")
 
 	var fetched model.Token
-	if err := db.First(&fetched, "id = ?", inserted.Id).Error; err != nil {
-		t.Fatalf("failed to fetch long token after migration: %v", err)
-	}
-	if fetched.Key != longKey {
-		t.Fatalf("expected long token key %q, got %q", longKey, fetched.Key)
-	}
+	require.NoError(t, db.First(&fetched, "id = ?", inserted.Id).Error, "failed to fetch long token after migration")
+	require.Equal(t, longKey, fetched.Key)
 }
 
 func TestTokenAutoMigrateUsesVarchar128KeyColumn(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 
-	if got := getTokenKeyColumnType(t, db, "sqlite"); got != "varchar(128)" {
-		t.Fatalf("expected key column type varchar(128), got %q", got)
-	}
-	if got := getSQLiteColumnType(t, db, "tokens", "auto_groups"); got != "text" {
-		t.Fatalf("expected auto_groups column type text, got %q", got)
-	}
+	require.Equal(t, "varchar(128)", getTokenKeyColumnType(t, db, "sqlite"))
+	require.Equal(t, "text", getSQLiteColumnType(t, db, "tokens", "auto_groups"))
 }
 
 func TestTokenMigrationFromChar48ToVarchar128(t *testing.T) {
@@ -444,23 +392,13 @@ func TestGetAllTokensMasksKeyInResponse(t *testing.T) {
 	GetAllTokens(ctx)
 
 	response := decodeAPIResponse(t, recorder)
-	if !response.Success {
-		t.Fatalf("expected success response, got message: %s", response.Message)
-	}
+	require.True(t, response.Success, "expected success response: %s", response.Message)
 
 	var page tokenPageResponse
-	if err := common.Unmarshal(response.Data, &page); err != nil {
-		t.Fatalf("failed to decode token page response: %v", err)
-	}
-	if len(page.Items) != 1 {
-		t.Fatalf("expected exactly one token, got %d", len(page.Items))
-	}
-	if page.Items[0].Key != token.GetMaskedKey() {
-		t.Fatalf("expected masked key %q, got %q", token.GetMaskedKey(), page.Items[0].Key)
-	}
-	if strings.Contains(recorder.Body.String(), token.Key) {
-		t.Fatalf("list response leaked raw token key: %s", recorder.Body.String())
-	}
+	require.NoError(t, common.Unmarshal(response.Data, &page), "failed to decode token page response")
+	require.Len(t, page.Items, 1)
+	require.Equal(t, token.GetMaskedKey(), page.Items[0].Key)
+	require.NotContains(t, recorder.Body.String(), token.Key, "response must not leak raw token key")
 }
 
 func TestSearchTokensMasksKeyInResponse(t *testing.T) {
@@ -471,23 +409,13 @@ func TestSearchTokensMasksKeyInResponse(t *testing.T) {
 	SearchTokens(ctx)
 
 	response := decodeAPIResponse(t, recorder)
-	if !response.Success {
-		t.Fatalf("expected success response, got message: %s", response.Message)
-	}
+	require.True(t, response.Success, "expected success response: %s", response.Message)
 
 	var page tokenPageResponse
-	if err := common.Unmarshal(response.Data, &page); err != nil {
-		t.Fatalf("failed to decode search response: %v", err)
-	}
-	if len(page.Items) != 1 {
-		t.Fatalf("expected exactly one search result, got %d", len(page.Items))
-	}
-	if page.Items[0].Key != token.GetMaskedKey() {
-		t.Fatalf("expected masked search key %q, got %q", token.GetMaskedKey(), page.Items[0].Key)
-	}
-	if strings.Contains(recorder.Body.String(), token.Key) {
-		t.Fatalf("search response leaked raw token key: %s", recorder.Body.String())
-	}
+	require.NoError(t, common.Unmarshal(response.Data, &page), "failed to decode search response")
+	require.Len(t, page.Items, 1)
+	require.Equal(t, token.GetMaskedKey(), page.Items[0].Key)
+	require.NotContains(t, recorder.Body.String(), token.Key, "response must not leak raw token key")
 }
 
 func TestGetTokenMasksKeyInResponse(t *testing.T) {
@@ -499,20 +427,12 @@ func TestGetTokenMasksKeyInResponse(t *testing.T) {
 	GetToken(ctx)
 
 	response := decodeAPIResponse(t, recorder)
-	if !response.Success {
-		t.Fatalf("expected success response, got message: %s", response.Message)
-	}
+	require.True(t, response.Success, "expected success response: %s", response.Message)
 
 	var detail tokenResponseItem
-	if err := common.Unmarshal(response.Data, &detail); err != nil {
-		t.Fatalf("failed to decode token detail response: %v", err)
-	}
-	if detail.Key != token.GetMaskedKey() {
-		t.Fatalf("expected masked detail key %q, got %q", token.GetMaskedKey(), detail.Key)
-	}
-	if strings.Contains(recorder.Body.String(), token.Key) {
-		t.Fatalf("detail response leaked raw token key: %s", recorder.Body.String())
-	}
+	require.NoError(t, common.Unmarshal(response.Data, &detail), "failed to decode token detail response")
+	require.Equal(t, token.GetMaskedKey(), detail.Key)
+	require.NotContains(t, recorder.Body.String(), token.Key, "response must not leak raw token key")
 }
 
 func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
@@ -535,20 +455,12 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 	UpdateToken(ctx)
 
 	response := decodeAPIResponse(t, recorder)
-	if !response.Success {
-		t.Fatalf("expected success response, got message: %s", response.Message)
-	}
+	require.True(t, response.Success, "expected success response: %s", response.Message)
 
 	var detail tokenResponseItem
-	if err := common.Unmarshal(response.Data, &detail); err != nil {
-		t.Fatalf("failed to decode token update response: %v", err)
-	}
-	if detail.Key != token.GetMaskedKey() {
-		t.Fatalf("expected masked update key %q, got %q", token.GetMaskedKey(), detail.Key)
-	}
-	if strings.Contains(recorder.Body.String(), token.Key) {
-		t.Fatalf("update response leaked raw token key: %s", recorder.Body.String())
-	}
+	require.NoError(t, common.Unmarshal(response.Data, &detail), "failed to decode token update response")
+	require.Equal(t, token.GetMaskedKey(), detail.Key)
+	require.NotContains(t, recorder.Body.String(), token.Key, "response must not leak raw token key")
 }
 
 func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
@@ -560,29 +472,19 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	GetTokenKey(authorizedCtx)
 
 	authorizedResponse := decodeAPIResponse(t, authorizedRecorder)
-	if !authorizedResponse.Success {
-		t.Fatalf("expected authorized key fetch to succeed, got message: %s", authorizedResponse.Message)
-	}
+	require.True(t, authorizedResponse.Success, "authorized key fetch must succeed: %s", authorizedResponse.Message)
 
 	var keyData tokenKeyResponse
-	if err := common.Unmarshal(authorizedResponse.Data, &keyData); err != nil {
-		t.Fatalf("failed to decode token key response: %v", err)
-	}
-	if keyData.Key != token.GetFullKey() {
-		t.Fatalf("expected full key %q, got %q", token.GetFullKey(), keyData.Key)
-	}
+	require.NoError(t, common.Unmarshal(authorizedResponse.Data, &keyData), "failed to decode token key response")
+	require.Equal(t, token.GetFullKey(), keyData.Key)
 
 	unauthorizedCtx, unauthorizedRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+strconv.Itoa(token.Id)+"/key", nil, 2)
 	unauthorizedCtx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
 	GetTokenKey(unauthorizedCtx)
 
 	unauthorizedResponse := decodeAPIResponse(t, unauthorizedRecorder)
-	if unauthorizedResponse.Success {
-		t.Fatalf("expected unauthorized key fetch to fail")
-	}
-	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
-		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
-	}
+	require.False(t, unauthorizedResponse.Success, "unauthorized key fetch must fail")
+	require.NotContains(t, unauthorizedRecorder.Body.String(), token.Key, "unauthorized response must not leak raw token key")
 }
 
 func TestAPITokenAuditDatabaseMatrix(t *testing.T) {
