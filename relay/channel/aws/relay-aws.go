@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	bedrockruntimeTypes "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
@@ -66,6 +68,10 @@ func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.
 		return nil, fmt.Errorf("new proxy http client failed: %w", err)
 	}
 
+	if info.ChannelOtherSettings.AwsKeyType == dto.AwsKeyTypeCredentialChain {
+		return newAwsCredentialChainClient(info, httpClient)
+	}
+
 	awsSecret := strings.Split(info.ApiKey, "|")
 	var client *bedrockruntime.Client
 	switch len(awsSecret) {
@@ -91,6 +97,77 @@ func newAwsClient(c *gin.Context, info *relaycommon.RelayInfo) (*bedrockruntime.
 	}
 
 	return client, nil
+}
+
+// awsCredentialChainProviders 按 "profile|region" 缓存凭据提供者。
+//
+// 默认凭据链的解析开销远高于静态密钥：它要读取共享配置文件，并且可能执行
+// credential_process 子进程或访问实例元数据服务。SDK 返回的提供者自带
+// aws.CredentialsCache，会在凭据过期前自动刷新，因此按渠道配置缓存一次即可，
+// 不能每个请求重新解析。
+var awsCredentialChainProviders sync.Map
+
+// parseAwsCredentialChainKey 解析 credential_chain 模式的渠道密钥。
+// 支持 "<region>" 与 "<profile>|<region>" 两种格式。
+func parseAwsCredentialChainKey(key string) (profile string, region string, err error) {
+	parts := strings.SplitN(key, "|", 2)
+	if len(parts) == 2 {
+		profile = strings.TrimSpace(parts[0])
+		region = strings.TrimSpace(parts[1])
+	} else {
+		region = strings.TrimSpace(parts[0])
+	}
+	if region == "" {
+		return "", "", errors.New("invalid aws credential chain key, should be in format of <region> or <profile>|<region>")
+	}
+	return profile, region, nil
+}
+
+// awsCredentialChainProvider 返回指定 profile 与 region 对应的凭据提供者。
+func awsCredentialChainProvider(profile, region string) (aws.CredentialsProvider, error) {
+	cacheKey := profile + "|" + region
+	if cached, ok := awsCredentialChainProviders.Load(cacheKey); ok {
+		return cached.(aws.CredentialsProvider), nil
+	}
+
+	options := []func(*awsconfig.LoadOptions) error{awsconfig.WithRegion(region)}
+	if profile != "" {
+		options = append(options, awsconfig.WithSharedConfigProfile(profile))
+	}
+	// 使用 context.Background 而非请求上下文：解析结果会被缓存复用，
+	// 不应随首个请求的取消而失效。
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background(), options...)
+	if err != nil {
+		return nil, fmt.Errorf("load aws credential chain failed: %w", err)
+	}
+	if cfg.Credentials == nil {
+		return nil, errors.New("aws credential chain resolved no credentials provider")
+	}
+
+	actual, _ := awsCredentialChainProviders.LoadOrStore(cacheKey, cfg.Credentials)
+	return actual.(aws.CredentialsProvider), nil
+}
+
+// newAwsCredentialChainClient 使用 AWS 默认凭据链构造 Bedrock 客户端。
+//
+// 凭据由部署环境提供（共享配置文件中的 credential_process 或 SSO、EC2 实例角色、
+// ECS 任务角色、EKS IRSA 等），渠道密钥中不含任何机密。
+func newAwsCredentialChainClient(info *relaycommon.RelayInfo, httpClient *http.Client) (*bedrockruntime.Client, error) {
+	profile, region, err := parseAwsCredentialChainKey(info.ApiKey)
+	if err != nil {
+		return nil, err
+	}
+
+	provider, err := awsCredentialChainProvider(profile, region)
+	if err != nil {
+		return nil, err
+	}
+
+	return bedrockruntime.New(bedrockruntime.Options{
+		Region:      region,
+		Credentials: provider,
+		HTTPClient:  httpClient,
+	}), nil
 }
 
 func doAwsClientRequest(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor, requestBody io.Reader) (any, error) {
