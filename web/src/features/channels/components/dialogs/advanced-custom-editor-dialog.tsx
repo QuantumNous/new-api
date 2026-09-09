@@ -1180,7 +1180,20 @@ onValueChange={onIncomingPathChange}
 className='h-9 max-w-full lg:max-w-[420px]'
 />
           </div>
+        </div>
+      ) : null}
 
+      <div className={cn('px-3 py-2', !hideHeader && 'border-t')}>
+        <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between'>
+          <p className='text-muted-foreground text-xs leading-relaxed'>
+            {isModelListGroup
+              ? t(
+                  'This route discovers upstream OpenAI models and cannot be split or matched by client model rules.'
+                )
+              : t(
+                  'Routes with the same incoming path are split by client model rules. Unmatched requests use the final fallback.'
+                )}
+          </p>
           {!isModelListGroup ? (
             <Button
               type='button'
@@ -1188,23 +1201,11 @@ className='h-9 max-w-full lg:max-w-[420px]'
               size='sm'
               onClick={onAddRoute}
             >
-              <Plus data-icon='inline-start' />
+              <Plus data-icon='inline-start' aria-hidden='true' />
               {t('Add split')}
             </Button>
           ) : null}
         </div>
-      ) : null}
-
-      <div className={cn('px-3 py-2', !hideHeader && 'border-t')}>
-        <p className='text-muted-foreground text-xs leading-relaxed'>
-          {isModelListGroup
-            ? t(
-                'This route discovers upstream OpenAI models and cannot be split or matched by client model rules.'
-              )
-            : t(
-                'Routes with the same incoming path are split by client model rules. Unmatched requests use the final fallback.'
-              )}
-        </p>
         {groupHasError && validationError ? (
           <p className='text-destructive mt-1 text-xs'>
             {validationError.routeIndex !== undefined
