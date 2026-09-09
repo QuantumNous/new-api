@@ -1,5 +1,47 @@
 import { ImageRequestError, readImageResponse } from './image-client.mjs'
 
+async function referenceImageURL(value) {
+  if (typeof value === 'string' && /^(https?:\/\/|data:image\/)/i.test(value)) return value
+  let bytes, mime = ''
+  if (typeof Blob !== 'undefined' && value instanceof Blob) {
+    bytes = new Uint8Array(await value.arrayBuffer()); mime = value.type
+  } else if (value instanceof Uint8Array) {
+    bytes = value
+  } else if (value instanceof ArrayBuffer) {
+    bytes = new Uint8Array(value)
+  } else {
+    throw new Error('参考图必须是 Blob/File、图片字节或 image_url，不能是空对象。')
+  }
+  if (!mime.startsWith('image/')) {
+    if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) mime = 'image/png'
+    else if (bytes[0] === 0xff && bytes[1] === 0xd8) mime = 'image/jpeg'
+    else if (bytes[0] === 0x52 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) mime = 'image/webp'
+    else throw new Error('无法识别参考图格式，请使用 PNG、JPEG 或 WebP。')
+  }
+  let encoded
+  if (typeof Buffer !== 'undefined') encoded = Buffer.from(bytes).toString('base64')
+  else {
+    let binary = ''
+    for (let i = 0; i < bytes.length; i += 32768) binary += String.fromCharCode(...bytes.subarray(i, i + 32768))
+    encoded = btoa(binary)
+  }
+  return `data:${mime};base64,${encoded}`
+}
+
+export async function prepareImageTaskRequest(request) {
+  const body = { ...request }
+  if (body.images !== undefined && body.images !== null) {
+    if (!Array.isArray(body.images)) throw new Error('images 必须是参考图数组。')
+    body.images = await Promise.all(body.images.map(async (value) => {
+      if (value && typeof value === 'object' && 'image_url' in value) {
+        return await referenceImageURL(value.image_url)
+      }
+      return await referenceImageURL(value)
+    }))
+  }
+  return body
+}
+
 async function taskRequest(url, apiKey, method, body, submissionId, signal) {
   const controller = new AbortController()
   const abort = () => controller.abort(signal?.reason)
@@ -38,15 +80,18 @@ function wait(ms, signal) {
  */
 export async function requestImageTask(endpoint, apiKey, request, options = {}) {
   const base = new URL(endpoint)
-  if (!base.pathname.endsWith('/v1/images/generations') && !base.pathname.endsWith('/v1/images/tasks')) {
-    throw new Error('Expected /v1/images/generations or /v1/images/tasks endpoint')
+  if (!base.pathname.endsWith('/v1/images/generations') && !base.pathname.endsWith('/v1/images/edits') && !base.pathname.endsWith('/v1/images/tasks')) {
+    throw new Error('Expected an Images API or image tasks endpoint')
   }
+  const editRequested = base.pathname.endsWith('/v1/images/edits')
   base.pathname = '/v1/images/tasks'
   base.search = ''
   base.hash = ''
   const cryptoAPI = options.crypto ?? globalThis.crypto
   const submissionId = options.submissionId ?? cryptoAPI?.randomUUID()
-  const requestBody = JSON.stringify(request)
+  const prepared = options.taskId ? request : await prepareImageTaskRequest(request)
+  if (!options.taskId && editRequested && !prepared.images?.length) throw new Error('图生图需要提供 images 参考图。')
+  const requestBody = JSON.stringify(prepared)
   let taskId = options.taskId
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if (!uuid.test(submissionId) || (taskId && !uuid.test(taskId))) throw new Error('Task and submission IDs must be UUIDs')

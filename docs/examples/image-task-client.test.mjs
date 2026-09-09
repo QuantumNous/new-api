@@ -1,9 +1,22 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { requestImageTask } from './image-task-client.mjs'
+import { requestImageTask, prepareImageTaskRequest } from './image-task-client.mjs'
 
 const id = 'a0a0a0a0-1234-4321-8765-123456789abc'
 const endpoint = 'https://example.test/v1/images/generations'
+
+test('Blob references survive JSON serialization and output parameters are preserved', async () => {
+  const blob = new Blob([new Uint8Array([137,80,78,71,13,10,26,10])], {type:'image/png'})
+  const request = {images:[blob],size:'960x1280',output_format:'jpeg',output_compression:100,quality:'low'}
+  const body = JSON.parse(JSON.stringify(await prepareImageTaskRequest(request)))
+  assert.equal(body.images[0],'data:image/png;base64,iVBORw0KGgo=')
+  assert.equal(body.size,'960x1280');assert.equal(body.output_format,'jpeg');assert.equal(body.output_compression,100);assert.equal(body.quality,'low')
+  assert.equal(request.images[0],blob)
+})
+
+test('already serialized empty Blob objects fail before creating a paid task', async () => {
+  await assert.rejects(prepareImageTaskRequest({images:[{}]}),/空对象/)
+})
 
 test('posts exactly once, polls, and returns unchanged Base64 JSON', async (t) => {
   const calls = []

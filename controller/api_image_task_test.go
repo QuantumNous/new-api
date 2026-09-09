@@ -154,6 +154,46 @@ func TestAPIImageTaskRejectsStreamAndOtherTokenResults(t *testing.T) {
 	bad := apiTaskCall(t, r, token, "POST", "/v1/images/tasks", uuid.NewString(), `{"model":"gpt-image-2","prompt":"test","stream":true}`)
 	assert.Equal(t, 400, bad.Code)
 	assert.Equal(t, 400, apiTaskCall(t, r, token, "POST", "/v1/images/tasks", "", `{"model":"gpt-image-2","prompt":"test"}`).Code)
+	assert.Equal(t, 400, apiTaskCall(t, r, token, "POST", "/v1/images/tasks", uuid.NewString(), `{"model":"gpt-image-2","prompt":"test","images":[{}]}`).Code)
+}
+
+func TestAPIImageTaskReferencesUseJSONEditRoute(t *testing.T) {
+	r, token, png := setupAPIImageTasks(t)
+	_, err := model.UpdateAgentProfile(81001, 1, 2, true, 0, false)
+	require.NoError(t, err)
+	var calls atomic.Int32
+	reference := "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		calls.Add(1)
+		assert.Equal(t, "/v1/images/edits", req.URL.Path)
+		var input struct {
+			Images []struct {
+				URL string `json:"image_url"`
+			}
+		}
+		raw, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+		require.NoError(t, common.Unmarshal(raw, &input))
+		require.Len(t, input.Images, 1)
+		assert.Equal(t, reference, input.Images[0].URL)
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := common.Marshal(map[string]any{"data": []map[string]string{{"b64_json": base64.StdEncoding.EncodeToString(png)}}})
+		_, _ = w.Write(body)
+	}))
+	defer upstream.Close()
+	service.InitHttpClient()
+	ch := model.Channel{Type: 1, Key: "fixture", Name: "edit-route-test", BaseURL: &upstream.URL, Models: "gpt-image-2", Group: "default", Status: 1}
+	require.NoError(t, ch.Insert())
+	body, err := common.Marshal(map[string]any{"model": "gpt-image-2", "prompt": "reference test", "images": []string{reference}})
+	require.NoError(t, err)
+	response := apiTaskCall(t, r, token, "POST", "/v1/images/tasks", uuid.NewString(), string(body))
+	require.Equal(t, 202, response.Code, response.Body.String())
+	task, err := model.ClaimAPIImageTask(time.Now().Unix())
+	require.NoError(t, err)
+	require.NotNil(t, task)
+	executeAPIImageTask(task)
+	assert.Equal(t, "succeeded", task.Status, task.Error)
+	assert.EqualValues(t, 1, calls.Load())
 }
 
 func TestAPIImageTasksDoNotAddLocalConcurrencyOrPendingLimits(t *testing.T) {

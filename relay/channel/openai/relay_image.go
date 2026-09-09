@@ -63,7 +63,12 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	for _, key := range []string{"ETag", "Content-MD5", "Digest", "Content-Digest", "Repr-Digest"} {
 		resp.Header.Del(key)
 	}
-	service.IOCopyBytesGracefully(c, resp, service.NormalizeImageJSONResponse(c.Request.Context(), clientBody))
+	clientBody = service.NormalizeImageJSONResponse(c.Request.Context(), clientBody)
+	if info != nil {
+		request, _ := info.Request.(*dto.ImageRequest)
+		clientBody = service.AddImageOutputWarnings(clientBody, request)
+	}
+	service.IOCopyBytesGracefully(c, resp, clientBody)
 
 	normalizeOpenAIUsage(&usageResp.Usage)
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)

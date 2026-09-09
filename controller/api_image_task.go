@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -57,6 +58,10 @@ func CreateAPIImageTask(c *gin.Context) {
 	}
 	if input.Stream != nil && *input.Stream {
 		apiImageTaskError(c, 400, "invalid_request", "Async tasks return JSON; stream must be false")
+		return
+	}
+	if _, err := service.ValidateJSONImageReferences(input.Images); err != nil {
+		apiImageTaskError(c, 400, "invalid_reference_image", err.Error())
 		return
 	}
 	count := 1
@@ -220,6 +225,7 @@ func getAPIImageRelay() *gin.Engine {
 			c.Next()
 		})
 		r.POST("/v1/images/generations", middleware.ModelRequestRateLimit(), middleware.Distribute(), func(c *gin.Context) { Relay(c, types.RelayFormatOpenAIImage) })
+		r.POST("/v1/images/edits", middleware.ModelRequestRateLimit(), middleware.Distribute(), func(c *gin.Context) { Relay(c, types.RelayFormatOpenAIImage) })
 		apiImageRelay = r
 	})
 	return apiImageRelay
@@ -247,7 +253,21 @@ func executeAPIImageTask(task *model.APIImageTask) {
 	defer cancel()
 	ctx = context.WithValue(ctx, apiImageTaskIdentity{}, task)
 	ctx = context.WithValue(ctx, common.RequestIdKey, task.RequestID)
-	req, err := http.NewRequestWithContext(ctx, "POST", "/v1/images/generations", bytes.NewReader(body))
+	var input struct {
+		Images json.RawMessage `json:"images"`
+	}
+	if common.Unmarshal(body, &input) != nil {
+		return
+	}
+	edits, err := service.ValidateJSONImageReferences(input.Images)
+	if err != nil {
+		return
+	}
+	requestPath := "/v1/images/generations"
+	if edits {
+		requestPath = "/v1/images/edits"
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", requestPath, bytes.NewReader(body))
 	if err != nil {
 		return
 	}

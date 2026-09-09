@@ -82,7 +82,8 @@ func NormalizeImageJSONResponse(ctx context.Context, body []byte) []byte {
 	if sharedSize != "" {
 		response["size"], _ = common.Marshal(sharedSize)
 	}
-	if string(response["output_format"]) == "null" && sharedFormat != "" {
+	response["output_format"] = json.RawMessage("null")
+	if sharedFormat != "" {
 		response["output_format"], _ = common.Marshal(sharedFormat)
 	}
 	var err error

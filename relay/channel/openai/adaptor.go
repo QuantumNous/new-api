@@ -444,6 +444,15 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesEdits:
 		if isJSONRequest(c) {
+			baseURL := ""
+			if info.ChannelMeta != nil {
+				baseURL = info.ChannelBaseUrl
+			}
+			images, err := service.AdaptJSONImageReferences(request.Images, baseURL)
+			if err != nil {
+				return nil, err
+			}
+			request.Images = images
 			return request, nil
 		}
 

@@ -43,7 +43,41 @@ return data;
 - `GET /v1/images/tasks/by-submission/:submission`：用于提交回应丢失时找回任务。返回 request_hash，可校验是否仍是同一请求。
 - `GET /v1/images/tasks/:id/result`：未完成返回 202；完成后返回原图片 JSON 或保存的错误 JSON，保留实际 HTTP 状态码。结果未知返回 409，过期返回 410。查询不会重新生成或重新扣费。
 
-仅支持 JSON 图片生成，暂不提供 multipart 编辑任务。最多 32 MiB 输入、每任务 1–20 张；API 任务不另设单用户并发、全局绘图池并发或待处理任务/图片数上限；已受理且未过期的任务会持续派发，上游限流仍作为实际错误返回，不自动重复生图。实际吞吐由上游、网络及服务器资源共同决定，不代表已验证可承载 800 并发。最大后台执行时间 20 分钟，结果保留 24 小时，提交编号保留共 7 天防止重复。结果文件使用约 49 MiB 的写入上限，过大或写入中断会标记结果未知，不能自动重新生成。
+支持 JSON 图片生成和带参考图的 JSON 图生图任务，暂不提供 multipart 任务上传。最多 32 MiB 输入、每任务 1–20 张；API 任务不另设单用户并发、全局绘图池并发或待处理任务/图片数上限；已受理且未过期的任务会持续派发，上游限流仍作为实际错误返回，不自动重复生图。实际吞吐由上游、网络及服务器资源共同决定，不代表已验证可承载 800 并发。最大后台执行时间 20 分钟，结果保留 24 小时，提交编号保留共 7 天防止重复。结果文件使用约 49 MiB 的写入上限，过大或写入中断会标记结果未知，不能自动重新生成。
+
+## 图生图与按请求适配
+
+客户统一传参考图 URL 数组：
+
+```js
+const body = {
+  model: 'gpt-image-2',
+  prompt: '保留参考商品外观，生成竖版商品展示图',
+  images: ['https://客户可公开访问的图片地址/reference.jpg'],
+  size: '960x1280',
+  quality: 'low', // 每次请求自己选；其他客户可传 high，不全站写死。
+  n: 1,
+};
+```
+
+继续使用 `requestImageTask`，不能改回直接等待最终结果的同步 fetch。函数可接受 `/v1/images/edits` 作为 endpoint 参数，实际仍通过任务接口提交和查询。后台检测到有效 images 后调用 `/v1/images/edits`；没有参考图时调用 `/v1/images/generations`。
+
+普通 HTTPS 图片 URL 应能被上游直接读取，不依赖客户浏览器 Cookie。服务端也接受 `[{image_url: '...'}]` 形式。新版客户端把引用归一为 URL 数组；兼容的 Blob/File 会先转换为 data URL，不会序列化成空对象。GoEasy 文档明确的是 URL 数组，优先使用 HTTPS URL；data URL 能否被实际供应商接受仍以供应商为准。序列化后整个请求受 32 MiB 限制。
+
+当前 OpenAI 类型渠道自动识别 GoEasy 官方域名（goeasyapi.xyz 及其子域名）并发送字符串数组；CPA/其他 OpenAI 兼容 JSON 编辑路径使用 image_url 对象数组。通道启用“原样透传”时会绕过适配；当前 GoEasy/CPA 通道未启用该选项。对新供应商或自定义 GoEasy 代理域名，应先核对其协议，不能假定完全通用。
+
+`size` 和 `quality` 原样发给上游。**不把 960x1280 偷换成 1024x1365，不默认裁剪、拉伸或转码。** 新版不包含此前暂停的裁剪草稿。
+
+返回 `size`/宽高/格式始终描述真实图片，Base64 图片内容保留。显式请求尺寸时增加：
+
+- `requested_size`：请求尺寸。
+- `data[i].size_matches_request`：是否精确匹配宽高；无法识别时为 null。
+- `data[i].aspect_ratio_matches_request`：比例是否接近请求，允许 0.5% 的像素舍入误差；无法识别时为 null。
+- `output_warnings`：可能包含 image_size_mismatch、image_aspect_ratio_mismatch 或 image_dimensions_unverified。
+
+显式请求 quality 时增加 requested_quality 和 quality_report_matches_request；该匹配仅比较上游返回的质量声明，**不代表已经测量或证明画质**。上游未报告质量时为 null，不伪装成请求值；报告不同值时添加 image_quality_report_mismatch。
+
+这些是附加提示，成功图片仍可使用，不会因尺寸/比例/质量声明不符而自动再生成或重复扣费。客户可将 output_warnings 展示在自己的界面。历史任务保持原结果；改变参数或增加参考图应创建新业务任务，不能复用旧任务编号要求重新生成。
 
 ## 计费与故障行为
 
