@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: 'latest'
+      source_ref:
+        description: 'Git ref to check out (branch, tag, or SHA). Defaults to the tag input for tags, or the workflow ref otherwise.'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   build_single_arch:
@@ -39,9 +44,10 @@ jobs:
 
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
+          ref: ${{ github.event.inputs.source_ref || github.event.inputs.tag || github.ref }}
 
       - name: Resolve tag & write VERSION
         id: version
@@ -61,13 +67,13 @@ jobs:
           echo "Building tag: ${TAG} for ${{ matrix.arch }}"
 
       - name: Set up QEMU (For cross-compilation)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Log in to GitHub Container Registry (GHCR)
-        uses: docker/login-action@v3
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -75,13 +81,13 @@ jobs:
 
       - name: Extract metadata (labels)
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/${{ github.repository }}
 
       - name: Build & push
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           platforms: ${{ matrix.platform }}
@@ -101,14 +107,26 @@ jobs:
           echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
+      - name: Install cosign
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign image with cosign
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        run: cosign sign --yes ghcr.io/${{ github.repository }}@${{ steps.build.outputs.digest }}
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+
   create_manifests:
     name: Create multi-arch manifests
     needs: [build_single_arch]
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
 
     permissions:
       packages: write
       contents: read
+      id-token: write
 
     steps:
       - name: Set version
@@ -118,7 +136,7 @@ jobs:
           echo "TAG=${TAG}" >> $GITHUB_ENV
 
       - name: Log in to GitHub Container Registry (GHCR)
-        uses: docker/login-action@v3
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -142,6 +160,16 @@ jobs:
             -t ${REPO_IMAGE}:latest \
             ${REPO_IMAGE}:latest-amd64 \
             ${REPO_IMAGE}:latest-arm64
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign manifests with cosign
+        run: |
+          cosign sign --yes ghcr.io/${{ github.repository }}:${TAG}
+          cosign sign --yes ghcr.io/${{ github.repository }}:latest
+        env:
+          COSIGN_EXPERIMENTAL: "1"
 
       - name: Manifest summary
         run: |
