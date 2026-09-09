@@ -32,16 +32,16 @@ func createOverdueOrphanSubscription(t *testing.T, userId int, suffix string) Us
 	return sub
 }
 
-func TestExpireDueSubscriptionsSkipsUsersWithMissingUserRow(t *testing.T) {
+func TestExpireDueSubscriptionsExpiresSubscriptionsWithMissingUserRow(t *testing.T) {
 	db, healthyUser, healthySub := setupSubscriptionLockOrderTest(t)
 	require.NoError(t, db.Model(&healthySub).Update("end_time", time.Now().Unix()-1).Error)
 	// A lower id makes the orphan sort first, so the healthy user is only
-	// reached if the skip does not abort the batch.
+	// reached if the orphan does not abort the batch.
 	orphanSub := createOverdueOrphanSubscription(t, healthyUser.Id-1, "expire")
 
 	count, err := ExpireDueSubscriptions(10)
 	require.NoError(t, err)
-	assert.Equal(t, 1, count)
+	assert.Equal(t, 2, count)
 
 	var reloadedHealthy UserSubscription
 	require.NoError(t, db.First(&reloadedHealthy, healthySub.Id).Error)
@@ -50,9 +50,16 @@ func TestExpireDueSubscriptionsSkipsUsersWithMissingUserRow(t *testing.T) {
 	require.NoError(t, db.First(&reloadedUser, healthyUser.Id).Error)
 	assert.Equal(t, "starter", reloadedUser.Group)
 
+	// The orphan must reach its terminal state so it leaves the candidate set.
 	var reloadedOrphan UserSubscription
 	require.NoError(t, db.First(&reloadedOrphan, orphanSub.Id).Error)
-	assert.Equal(t, "active", reloadedOrphan.Status)
+	assert.Equal(t, "expired", reloadedOrphan.Status)
+
+	// Self-healing: a later sweep finds no candidates, so the anomaly is not
+	// reported again on every scheduler tick.
+	count, err = ExpireDueSubscriptions(10)
+	require.NoError(t, err)
+	assert.Zero(t, count)
 }
 
 func TestAdminSubscriptionMutationsSucceedWhenUserRowIsMissing(t *testing.T) {

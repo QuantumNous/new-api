@@ -1338,17 +1338,17 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 	sort.Ints(userIds)
 	for _, userId := range userIds {
 		cacheGroup := ""
-		userMissing := false
 		err := DB.Transaction(func(tx *gorm.DB) error {
 			if _, err := serializeSubscriptionUserTx(tx, userId); err != nil {
-				// A subscription can outlive its user row: deleting a user does
-				// not remove user_subscriptions. Such an orphan reappears in
-				// every batch, so aborting here would stop the sweep forever.
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					userMissing = true
-					return nil
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return err
 				}
-				return err
+				// A subscription can outlive its user row: deleting a user does
+				// not remove user_subscriptions. With no user row to lock the
+				// user -> subscription lock order is vacuous, so expiry
+				// proceeds; leaving the rows active would put them in every
+				// later batch forever.
+				common.SysError(fmt.Sprintf("expiring overdue subscriptions of user %d whose user row is gone", userId))
 			}
 			res := tx.Model(&UserSubscription{}).
 				Where("user_id = ? AND status = ? AND end_time > 0 AND end_time <= ?", userId, "active", now).
@@ -1414,10 +1414,6 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 		})
 		if err != nil {
 			return expiredCount, err
-		}
-		if userMissing {
-			common.SysError(fmt.Sprintf("subscription expiry skipped for user %d: overdue active subscriptions exist but the user row is gone", userId))
-			continue
 		}
 		if cacheGroup != "" {
 			refreshSubscriptionUserGroupCache(userId, "subscription expiration")
