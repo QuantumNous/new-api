@@ -50,6 +50,7 @@ func GetAgentCustomerLogs(c *gin.Context) {
 		writeAgentError(c, err)
 		return
 	}
+	sanitizeLogsForRequester(c, logs)
 	model.FormatUserLogsForRequester(logs, page.Offset)
 	writeAgentQueryPage(c, page, total, logs)
 }

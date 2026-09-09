@@ -7,9 +7,30 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
+
+// sanitizeLogsForRequester replaces the channel's actual upstream URL with
+// its display URL inside log.Content and log.Other for every log in the
+// slice. Skips work for super admin requesters.
+func sanitizeLogsForRequester(c *gin.Context, logs []*model.Log) {
+	if isRoot(c) {
+		return
+	}
+	for i := range logs {
+		if logs[i] == nil || logs[i].ChannelId <= 0 {
+			continue
+		}
+		if logs[i].Content != "" {
+			logs[i].Content = service.SanitizeForChannel(logs[i].ChannelId, logs[i].Content)
+		}
+		if logs[i].Other != "" {
+			logs[i].Other = service.SanitizeForChannel(logs[i].ChannelId, logs[i].Other)
+		}
+	}
+}
 
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
@@ -33,6 +54,7 @@ func GetAllLogs(c *gin.Context) {
 	} else {
 		model.FormatRootLogs(logs)
 	}
+	sanitizeLogsForRequester(c, logs)
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
@@ -55,6 +77,7 @@ func GetUserLogs(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	sanitizeLogsForRequester(c, logs)
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
@@ -94,6 +117,7 @@ func GetLogByKey(c *gin.Context) {
 		})
 		return
 	}
+	sanitizeLogsForRequester(c, logs)
 	c.JSON(200, gin.H{
 		"success": true,
 		"message": "",
