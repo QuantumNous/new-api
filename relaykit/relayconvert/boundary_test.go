@@ -1,10 +1,7 @@
 package relayconvert
 
-// boundary_test.go enforces the relaykit extraction dependency boundary
-// (plans/relaykit-extraction-plan.md): packages that will move into the
-// relaykit module must not grow imports of host-only packages. Entries in
-// allowedViolations are the known couplings scheduled for removal in
-// Phase 1/2 — shrink this list, never grow it.
+// boundary_test.go keeps the independent relaykit module free of host-only
+// packages and Gin.
 
 import (
 	"go/parser"
@@ -13,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const modulePrefix = "github.com/QuantumNous/new-api/"
@@ -35,11 +35,6 @@ var forbiddenPrefixes = []string{
 // hostModuleExceptions are host-prefix imports that are actually the kit's
 // own packages (the kit module path nests under the host path).
 const kitModulePrefix = modulePrefix + "relaykit/"
-
-// Known pre-existing couplings, removed phase by phase. Key: "dir|import".
-// All initial violations have been cleared; keep the map so future
-// exemptions (if ever needed) are explicit and reviewed.
-var allowedViolations = map[string]bool{}
 
 func TestRelaykitBoundary(t *testing.T) {
 	root := repoRoot(t)
@@ -66,35 +61,26 @@ func TestRelaykitBoundary(t *testing.T) {
 					if strings.HasPrefix(importPath, kitModulePrefix) {
 						continue
 					}
-					if allowedViolations[dir+"|"+importPath] {
-						continue
-					}
 					rel, _ := filepath.Rel(root, path)
-					t.Errorf("%s imports %q — forbidden inside future relaykit package %s (see plans/relaykit-extraction-plan.md)", rel, importPath, dir)
+					assert.Failf(t, "forbidden relaykit import", "%s imports %q — forbidden inside relaykit package %s", rel, importPath, dir)
 				}
 			}
 			return nil
 		})
-		if err != nil {
-			t.Fatalf("walking %s: %v", dir, err)
-		}
+		require.NoError(t, err, "walking %s", dir)
 	}
 }
 
 func repoRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatal("go.mod not found above test directory")
-		}
+		require.NotEqual(t, dir, parent, "go.mod not found above test directory")
 		dir = parent
 	}
 }

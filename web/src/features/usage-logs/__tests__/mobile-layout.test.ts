@@ -16,24 +16,46 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'vitest'
+import {
+  getCoreRowModel,
+  useReactTable,
+  type ColumnDef,
+} from '@tanstack/react-table'
+import { render, renderHook, screen } from '@testing-library/react'
+import { createElement } from 'react'
+import { expect, test } from 'vitest'
 
-import { TASK_MOBILE_SUMMARY_FIELDS } from '../lib/task-mobile-layout'
+import { UsageLogsMobileList } from '../components/usage-logs-mobile-card'
 
-describe('task log mobile layout', () => {
-  test('keeps plugin, channel, duration, progress, and artifacts visible in the summary', () => {
-    assert.deepEqual(
-      TASK_MOBILE_SUMMARY_FIELDS.map((field) => field.id),
-      [
-        'submit_time',
-        'user',
-        'plugin',
-        'channel_id',
-        'duration',
-        'progress',
-        'artifacts',
-      ]
-    )
-  })
+test('task mobile summary displays each available field', () => {
+  const row = {
+    submit_time: '2026-09-09 12:00',
+    user: 'alice',
+    plugin: 'video-plugin',
+    channel_id: 'channel-42',
+    duration: '12 seconds',
+    progress: '100%',
+    artifacts: 'video.mp4',
+  }
+  const { result } = renderHook(() =>
+    useReactTable<typeof row>({
+      data: [row],
+      columns: Object.keys(row).map<ColumnDef<typeof row>>((accessorKey) => ({
+        accessorKey,
+        cell: (context) => context.getValue<string>(),
+      })),
+      getCoreRowModel: getCoreRowModel(),
+    })
+  )
+
+  render(
+    createElement(UsageLogsMobileList<typeof row>, {
+      table: result.current,
+      logCategory: 'task',
+    })
+  )
+
+  for (const value of Object.values(row)) {
+    expect(screen.getByText(value)).toBeVisible()
+  }
 })

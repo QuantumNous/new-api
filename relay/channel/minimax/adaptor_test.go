@@ -1,18 +1,20 @@
 package minimax
 
 import (
-	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetRequestURLForImageGeneration(t *testing.T) {
@@ -26,14 +28,10 @@ func TestGetRequestURLForImageGeneration(t *testing.T) {
 	}
 
 	got, err := GetRequestURL(info)
-	if err != nil {
-		t.Fatalf("GetRequestURL returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	want := "https://api.minimax.chat/v1/image_generation"
-	if got != want {
-		t.Fatalf("GetRequestURL() = %q, want %q", got, want)
-	}
+	require.Equal(t, want, got)
 }
 
 func TestConvertImageRequest(t *testing.T) {
@@ -44,44 +42,29 @@ func TestConvertImageRequest(t *testing.T) {
 		RelayMode:       relayconstant.RelayModeImagesGenerations,
 		OriginModelName: "image-01",
 	}
+	n := uint(2)
 	request := dto.ImageRequest{
 		Model:          "image-01",
 		Prompt:         "a red fox in snowfall",
 		Size:           "1536x1024",
 		ResponseFormat: "url",
-		N:              uintPtr(2),
+		N:              &n,
 	}
 
 	got, err := adaptor.ConvertImageRequest(gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New()), info, request)
-	if err != nil {
-		t.Fatalf("ConvertImageRequest returned error: %v", err)
-	}
+	require.NoError(t, err)
 
-	body, err := json.Marshal(got)
-	if err != nil {
-		t.Fatalf("json.Marshal returned error: %v", err)
-	}
+	body, err := common.Marshal(got)
+	require.NoError(t, err)
 
 	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		t.Fatalf("json.Unmarshal returned error: %v", err)
-	}
+	require.NoError(t, common.Unmarshal(body, &payload))
 
-	if payload["model"] != "image-01" {
-		t.Fatalf("model = %#v, want %q", payload["model"], "image-01")
-	}
-	if payload["prompt"] != request.Prompt {
-		t.Fatalf("prompt = %#v, want %q", payload["prompt"], request.Prompt)
-	}
-	if payload["n"] != float64(2) {
-		t.Fatalf("n = %#v, want 2", payload["n"])
-	}
-	if payload["aspect_ratio"] != "3:2" {
-		t.Fatalf("aspect_ratio = %#v, want %q", payload["aspect_ratio"], "3:2")
-	}
-	if payload["response_format"] != "url" {
-		t.Fatalf("response_format = %#v, want %q", payload["response_format"], "url")
-	}
+	require.Equal(t, "image-01", payload["model"])
+	require.Equal(t, request.Prompt, payload["prompt"])
+	require.Equal(t, float64(2), payload["n"])
+	require.Equal(t, "3:2", payload["aspect_ratio"])
+	require.Equal(t, "url", payload["response_format"])
 }
 
 func TestDoResponseForImageGeneration(t *testing.T) {
@@ -98,40 +81,15 @@ func TestDoResponseForImageGeneration(t *testing.T) {
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     make(http.Header),
-		Body:       httptest.NewRecorder().Result().Body,
+		Body:       io.NopCloser(strings.NewReader(`{"data":{"image_urls":["https://example.com/minimax.png"]}}`)),
 	}
-	resp.Body = ioNopCloser(`{"data":{"image_urls":["https://example.com/minimax.png"]}}`)
 
 	adaptor := &Adaptor{}
 	usage, err := adaptor.DoResponse(c, resp, info)
-	if err != nil {
-		t.Fatalf("DoResponse returned error: %v", err)
-	}
-	if usage == nil {
-		t.Fatalf("DoResponse returned nil usage")
-	}
+	require.Nil(t, err)
+	require.NotNil(t, usage)
 
 	body := recorder.Body.String()
-	if !strings.Contains(body, `"url":"https://example.com/minimax.png"`) {
-		t.Fatalf("response body = %s, want OpenAI image response with image URL", body)
-	}
-	if strings.Contains(body, `"image_urls"`) {
-		t.Fatalf("response body = %s, should not expose raw MiniMax image_urls payload", body)
-	}
-}
-
-type nopReadCloser struct {
-	*strings.Reader
-}
-
-func (n nopReadCloser) Close() error {
-	return nil
-}
-
-func ioNopCloser(body string) nopReadCloser {
-	return nopReadCloser{Reader: strings.NewReader(body)}
-}
-
-func uintPtr(v uint) *uint {
-	return &v
+	require.Contains(t, body, `"url":"https://example.com/minimax.png"`)
+	require.NotContains(t, body, `"image_urls"`)
 }

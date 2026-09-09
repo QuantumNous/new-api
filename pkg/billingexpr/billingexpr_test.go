@@ -18,44 +18,26 @@ const claudeExpr = `p <= 200000 ? tier("standard", p * 1.5 + c * 7.5) : tier("lo
 
 func TestClaude_StandardTier(t *testing.T) {
 	cost, trace, err := billingexpr.RunExpr(claudeExpr, billingexpr.TokenParams{P: 100000, C: 5000})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 100000*1.5 + 5000*7.5
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
-	if trace.MatchedTier != "standard" {
-		t.Errorf("tier = %q, want %q", trace.MatchedTier, "standard")
-	}
+	assert.InDelta(t, want, cost, 1e-6)
+	assert.Equal(t, "standard", trace.MatchedTier)
 }
 
 func TestClaude_LongContextTier(t *testing.T) {
 	cost, trace, err := billingexpr.RunExpr(claudeExpr, billingexpr.TokenParams{P: 300000, C: 10000})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 300000*3.0 + 10000*11.25
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
-	if trace.MatchedTier != "long_context" {
-		t.Errorf("tier = %q, want %q", trace.MatchedTier, "long_context")
-	}
+	assert.InDelta(t, want, cost, 1e-6)
+	assert.Equal(t, "long_context", trace.MatchedTier)
 }
 
 func TestClaude_BoundaryExact(t *testing.T) {
 	cost, trace, err := billingexpr.RunExpr(claudeExpr, billingexpr.TokenParams{P: 200000, C: 1000})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 200000*1.5 + 1000*7.5
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
-	if trace.MatchedTier != "standard" {
-		t.Errorf("tier = %q, want %q", trace.MatchedTier, "standard")
-	}
+	assert.InDelta(t, want, cost, 1e-6)
+	assert.Equal(t, "standard", trace.MatchedTier)
 }
 
 // ---------------------------------------------------------------------------
@@ -72,44 +54,26 @@ const glmExpr = `
 
 func TestGLM_Tier1(t *testing.T) {
 	cost, trace, err := billingexpr.RunExpr(glmExpr, billingexpr.TokenParams{P: 15000, C: 100})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := (15000.0*2 + 100.0*8) / 1000000
-	if math.Abs(cost-want) > 1e-10 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
-	if trace.MatchedTier != "tier1_short" {
-		t.Errorf("tier = %q, want %q", trace.MatchedTier, "tier1_short")
-	}
+	assert.InDelta(t, want, cost, 1e-10)
+	assert.Equal(t, "tier1_short", trace.MatchedTier)
 }
 
 func TestGLM_Tier2(t *testing.T) {
 	cost, trace, err := billingexpr.RunExpr(glmExpr, billingexpr.TokenParams{P: 15000, C: 500})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := (15000.0*3 + 500.0*14) / 1000000
-	if math.Abs(cost-want) > 1e-10 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
-	if trace.MatchedTier != "tier2_long_output" {
-		t.Errorf("tier = %q, want %q", trace.MatchedTier, "tier2_long_output")
-	}
+	assert.InDelta(t, want, cost, 1e-10)
+	assert.Equal(t, "tier2_long_output", trace.MatchedTier)
 }
 
 func TestGLM_Tier3(t *testing.T) {
 	cost, trace, err := billingexpr.RunExpr(glmExpr, billingexpr.TokenParams{P: 50000, C: 100})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := (50000.0*4 + 100.0*16) / 1000000
-	if math.Abs(cost-want) > 1e-10 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
-	if trace.MatchedTier != "tier3_long_input" {
-		t.Errorf("tier = %q, want %q", trace.MatchedTier, "tier3_long_input")
-	}
+	assert.InDelta(t, want, cost, 1e-10)
+	assert.Equal(t, "tier3_long_input", trace.MatchedTier)
 }
 
 // ---------------------------------------------------------------------------
@@ -118,16 +82,10 @@ func TestGLM_Tier3(t *testing.T) {
 
 func TestSimpleExpr_NoTier(t *testing.T) {
 	cost, trace, err := billingexpr.RunExpr("p * 0.5 + c * 1.0", billingexpr.TokenParams{P: 1000, C: 500})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 1000*0.5 + 500*1.0
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
-	if trace.MatchedTier != "" {
-		t.Errorf("tier should be empty, got %q", trace.MatchedTier)
-	}
+	assert.InDelta(t, want, cost, 1e-6)
+	assert.Equal(t, "", trace.MatchedTier)
 }
 
 // ---------------------------------------------------------------------------
@@ -136,13 +94,9 @@ func TestSimpleExpr_NoTier(t *testing.T) {
 
 func TestMathHelpers(t *testing.T) {
 	cost, _, err := billingexpr.RunExpr("max(p, c) * 0.5 + min(p, c) * 0.1", billingexpr.TokenParams{P: 300, C: 500})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 500*0.5 + 300*0.1
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
+	assert.InDelta(t, want, cost, 1e-6)
 }
 
 func TestRequestProbeHelpers(t *testing.T) {
@@ -153,13 +107,9 @@ func TestRequestProbeHelpers(t *testing.T) {
 			Body: []byte(`{"service_tier":"fast"}`),
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 1000*0.5 + 500*1.0*2
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
+	assert.InDelta(t, want, cost, 1e-6)
 }
 
 func TestHeaderProbeHelper(t *testing.T) {
@@ -172,13 +122,9 @@ func TestHeaderProbeHelper(t *testing.T) {
 			},
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 1000*0.5 + 500*1.0*2
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
+	assert.InDelta(t, want, cost, 1e-6)
 }
 
 func TestParamProbeNestedBool(t *testing.T) {
@@ -189,13 +135,9 @@ func TestParamProbeNestedBool(t *testing.T) {
 			Body: []byte(`{"stream_options":{"fast_mode":true}}`),
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 150.0
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
+	assert.InDelta(t, want, cost, 1e-6)
 }
 
 func TestParamProbeArrayLength(t *testing.T) {
@@ -206,13 +148,9 @@ func TestParamProbeArrayLength(t *testing.T) {
 			Body: []byte(`{"messages":[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]}`),
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 120.0
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
+	assert.InDelta(t, want, cost, 1e-6)
 }
 
 func TestRequestProbeMissingFieldReturnsNil(t *testing.T) {
@@ -223,12 +161,8 @@ func TestRequestProbeMissingFieldReturnsNil(t *testing.T) {
 			Body: []byte(`{"service_tier":"standard"}`),
 		},
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cost != 2 {
-		t.Errorf("cost = %f, want 2", cost)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, float64(2), cost)
 }
 
 func TestRequestProbeMultipleRulesTraceAllFactors(t *testing.T) {
@@ -303,13 +237,9 @@ func TestRequestProbeInternalTraceFunctionIsReserved(t *testing.T) {
 
 func TestCeilFloor(t *testing.T) {
 	cost, _, err := billingexpr.RunExpr("ceil(p / 1000) * 0.5", billingexpr.TokenParams{P: 1500})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := math.Ceil(1500.0/1000) * 0.5
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
+	assert.InDelta(t, want, cost, 1e-6)
 }
 
 // ---------------------------------------------------------------------------
@@ -318,12 +248,8 @@ func TestCeilFloor(t *testing.T) {
 
 func TestZeroTokens(t *testing.T) {
 	cost, _, err := billingexpr.RunExpr(claudeExpr, billingexpr.TokenParams{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cost != 0 {
-		t.Errorf("cost should be 0 for zero tokens, got %f", cost)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, float64(0), cost)
 }
 
 // ---------------------------------------------------------------------------
@@ -351,9 +277,7 @@ func TestQuotaRound(t *testing.T) {
 	}
 	for _, tt := range tests {
 		got := billingexpr.QuotaRound(tt.in)
-		if got != tt.want {
-			t.Errorf("QuotaRound(%f) = %d, want %d", tt.in, got, tt.want)
-		}
+		assert.Equal(t, tt.want, got)
 	}
 }
 
@@ -376,20 +300,12 @@ func TestComputeTieredQuota_Basic(t *testing.T) {
 	}
 
 	result, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{P: 300000, C: 10000})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	wantBefore := (300000*3.0 + 10000*11.25) / 1_000_000 * 500_000
-	if math.Abs(result.ActualQuotaBeforeGroup-wantBefore) > 1e-6 {
-		t.Errorf("before group: got %f, want %f", result.ActualQuotaBeforeGroup, wantBefore)
-	}
-	if result.MatchedTier != "long_context" {
-		t.Errorf("tier = %q, want %q", result.MatchedTier, "long_context")
-	}
-	if !result.CrossedTier {
-		t.Error("expected crossed_tier=true (estimated standard, actual long_context)")
-	}
+	assert.InDelta(t, wantBefore, result.ActualQuotaBeforeGroup, 1e-6)
+	assert.Equal(t, "long_context", result.MatchedTier)
+	assert.True(t, result.CrossedTier, "expected crossed_tier=true (estimated standard, actual long_context)")
 }
 
 func TestComputeTieredQuota_SameTier(t *testing.T) {
@@ -407,18 +323,12 @@ func TestComputeTieredQuota_SameTier(t *testing.T) {
 	}
 
 	result, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{P: 80000, C: 2000})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	wantBefore := (80000*1.5 + 2000*7.5) / 1_000_000 * 500_000
 	wantAfter := billingexpr.QuotaRound(wantBefore * 1.5)
-	if result.ActualQuotaAfterGroup != wantAfter {
-		t.Errorf("after group: got %d, want %d", result.ActualQuotaAfterGroup, wantAfter)
-	}
-	if result.CrossedTier {
-		t.Error("expected crossed_tier=false (both standard)")
-	}
+	assert.Equal(t, wantAfter, result.ActualQuotaAfterGroup)
+	assert.False(t, result.CrossedTier, "expected crossed_tier=false (both standard)")
 }
 
 // ---------------------------------------------------------------------------
@@ -427,36 +337,42 @@ func TestComputeTieredQuota_SameTier(t *testing.T) {
 
 func TestCompileError(t *testing.T) {
 	_, _, err := billingexpr.RunExpr("invalid +-+ syntax", billingexpr.TokenParams{})
-	if err == nil {
-		t.Error("expected compile error")
-	}
+	assert.Error(t, err)
 }
 
 // ---------------------------------------------------------------------------
 // Compile Cache
 // ---------------------------------------------------------------------------
 
-func TestCompileCache_SameResult(t *testing.T) {
-	r1, _, err := billingexpr.RunExpr("p * 0.5", billingexpr.TokenParams{P: 100})
-	if err != nil {
-		t.Fatal(err)
-	}
-	r2, _, err := billingexpr.RunExpr("p * 0.5", billingexpr.TokenParams{P: 100})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r1 != r2 {
-		t.Errorf("cached and uncached results differ: %f != %f", r1, r2)
-	}
-}
-
-func TestInvalidateCache(t *testing.T) {
+func TestCompileCacheAndInvalidationPreserveRequestResults(t *testing.T) {
+	const expression = `tier("base", p * 0.5) * (param("fast") == true ? 2 : 1)`
 	billingexpr.InvalidateCache()
-	r1, _, _ := billingexpr.RunExpr("p * 0.5", billingexpr.TokenParams{P: 100})
-	billingexpr.InvalidateCache()
-	r2, _, _ := billingexpr.RunExpr("p * 0.5", billingexpr.TokenParams{P: 100})
-	if r1 != r2 {
-		t.Errorf("post-invalidate results differ: %f != %f", r1, r2)
+	t.Cleanup(billingexpr.InvalidateCache)
+	for _, tc := range []struct {
+		name       string
+		invalidate bool
+		prompt     float64
+		body       string
+		want       float64
+		matched    bool
+	}{
+		{"cold", false, 100, `{"fast":true}`, 100, true},
+		{"cached", false, 300, `{"fast":false}`, 150, false},
+		{"invalidated", true, 100, `{"fast":true}`, 100, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.invalidate {
+				billingexpr.InvalidateCache()
+			}
+			cost, trace, err := billingexpr.RunExprWithRequest(expression,
+				billingexpr.TokenParams{P: tc.prompt}, billingexpr.RequestInput{Body: []byte(tc.body)})
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, cost)
+			assert.Equal(t, "base", trace.MatchedTier)
+			assert.Equal(t, []billingexpr.RequestRuleTrace{
+				{Cond: `param("fast") == true`, Multiplier: 2, Matched: tc.matched},
+			}, trace.RequestRules)
+		})
 	}
 }
 
@@ -467,13 +383,9 @@ func TestInvalidateCache(t *testing.T) {
 func TestExprHashString_Deterministic(t *testing.T) {
 	h1 := billingexpr.ExprHashString("p * 0.5")
 	h2 := billingexpr.ExprHashString("p * 0.5")
-	if h1 != h2 {
-		t.Error("hash should be deterministic")
-	}
+	assert.Equal(t, h2, h1)
 	h3 := billingexpr.ExprHashString("p * 0.6")
-	if h1 == h3 {
-		t.Error("different expressions should have different hashes")
-	}
+	assert.NotEqual(t, h3, h1)
 }
 
 // ---------------------------------------------------------------------------
@@ -485,31 +397,19 @@ const claudeWithCacheExpr = `p <= 200000 ? tier("standard", p * 1.5 + c * 7.5 + 
 func TestCachePresent_StandardTier(t *testing.T) {
 	params := billingexpr.TokenParams{P: 100000, C: 5000, CR: 50000, CC: 10000}
 	cost, trace, err := billingexpr.RunExpr(claudeWithCacheExpr, params)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 100000*1.5 + 5000*7.5 + 50000*0.15 + 10000*1.875
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
-	if trace.MatchedTier != "standard" {
-		t.Errorf("tier = %q, want %q", trace.MatchedTier, "standard")
-	}
+	assert.InDelta(t, want, cost, 1e-6)
+	assert.Equal(t, "standard", trace.MatchedTier)
 }
 
 func TestCachePresent_LongContextTier(t *testing.T) {
 	params := billingexpr.TokenParams{P: 300000, C: 10000, CR: 100000, CC: 20000}
 	cost, trace, err := billingexpr.RunExpr(claudeWithCacheExpr, params)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 300000*3.0 + 10000*11.25 + 100000*0.3 + 20000*3.75
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
-	if trace.MatchedTier != "long_context" {
-		t.Errorf("tier = %q, want %q", trace.MatchedTier, "long_context")
-	}
+	assert.InDelta(t, want, cost, 1e-6)
+	assert.Equal(t, "long_context", trace.MatchedTier)
 }
 
 // ---------------------------------------------------------------------------
@@ -519,16 +419,10 @@ func TestCachePresent_LongContextTier(t *testing.T) {
 func TestCacheAbsent_ZeroCacheTokens(t *testing.T) {
 	params := billingexpr.TokenParams{P: 100000, C: 5000}
 	cost, trace, err := billingexpr.RunExpr(claudeWithCacheExpr, params)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 100000*1.5 + 5000*7.5
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f (cache terms should be 0)", cost, want)
-	}
-	if trace.MatchedTier != "standard" {
-		t.Errorf("tier = %q, want %q", trace.MatchedTier, "standard")
-	}
+	assert.InDelta(t, want, cost, 1e-6)
+	assert.Equal(t, "standard", trace.MatchedTier)
 }
 
 // ---------------------------------------------------------------------------
@@ -540,25 +434,17 @@ const claudeCacheSplitExpr = `tier("default", p * 1.5 + c * 7.5 + cr * 0.15 + cc
 func TestMixedCacheFields(t *testing.T) {
 	params := billingexpr.TokenParams{P: 100000, C: 5000, CR: 10000, CC: 5000, CC1h: 2000}
 	cost, _, err := billingexpr.RunExpr(claudeCacheSplitExpr, params)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 100000*1.5 + 5000*7.5 + 10000*0.15 + 5000*2.0 + 2000*3.0
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
+	assert.InDelta(t, want, cost, 1e-6)
 }
 
 func TestMixedCacheFields_AllCacheZero(t *testing.T) {
 	params := billingexpr.TokenParams{P: 100000, C: 5000}
 	cost, _, err := billingexpr.RunExpr(claudeCacheSplitExpr, params)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 100000*1.5 + 5000*7.5
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f (all cache zero)", cost, want)
-	}
+	assert.InDelta(t, want, cost, 1e-6)
 }
 
 // ---------------------------------------------------------------------------
@@ -568,16 +454,10 @@ func TestMixedCacheFields_AllCacheZero(t *testing.T) {
 func TestBackwardCompat_OldExprWithTokenParams(t *testing.T) {
 	params := billingexpr.TokenParams{P: 100000, C: 5000, CR: 99999, CC: 88888}
 	cost, trace, err := billingexpr.RunExpr(claudeExpr, params)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 100000*1.5 + 5000*7.5
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f (old expr ignores cache fields)", cost, want)
-	}
-	if trace.MatchedTier != "standard" {
-		t.Errorf("tier = %q, want %q", trace.MatchedTier, "standard")
-	}
+	assert.InDelta(t, want, cost, 1e-6)
+	assert.Equal(t, "standard", trace.MatchedTier)
 }
 
 // ---------------------------------------------------------------------------
@@ -600,20 +480,12 @@ func TestComputeTieredQuota_WithCache(t *testing.T) {
 
 	params := billingexpr.TokenParams{P: 100000, C: 5000, CR: 50000, CC: 10000}
 	result, err := billingexpr.ComputeTieredQuota(snap, params)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	wantBefore := (100000*1.5 + 5000*7.5 + 50000*0.15 + 10000*1.875) / 1_000_000 * 500_000
-	if math.Abs(result.ActualQuotaBeforeGroup-wantBefore) > 1e-6 {
-		t.Errorf("before group: got %f, want %f", result.ActualQuotaBeforeGroup, wantBefore)
-	}
-	if result.MatchedTier != "standard" {
-		t.Errorf("tier = %q, want %q", result.MatchedTier, "standard")
-	}
-	if result.CrossedTier {
-		t.Error("expected crossed_tier=false (same tier)")
-	}
+	assert.InDelta(t, wantBefore, result.ActualQuotaBeforeGroup, 1e-6)
+	assert.Equal(t, "standard", result.MatchedTier)
+	assert.False(t, result.CrossedTier, "expected crossed_tier=false (same tier)")
 }
 
 func TestComputeTieredQuota_WithCacheCrossTier(t *testing.T) {
@@ -632,21 +504,13 @@ func TestComputeTieredQuota_WithCacheCrossTier(t *testing.T) {
 
 	params := billingexpr.TokenParams{P: 300000, C: 10000, CR: 50000, CC: 10000}
 	result, err := billingexpr.ComputeTieredQuota(snap, params)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	wantBefore := (300000*3.0 + 10000*11.25 + 50000*0.3 + 10000*3.75) / 1_000_000 * 500_000
 	wantAfter := billingexpr.QuotaRound(wantBefore * 2.0)
-	if math.Abs(result.ActualQuotaBeforeGroup-wantBefore) > 1e-6 {
-		t.Errorf("before group: got %f, want %f", result.ActualQuotaBeforeGroup, wantBefore)
-	}
-	if result.ActualQuotaAfterGroup != wantAfter {
-		t.Errorf("after group: got %d, want %d", result.ActualQuotaAfterGroup, wantAfter)
-	}
-	if !result.CrossedTier {
-		t.Error("expected crossed_tier=true (estimated standard, actual long_context)")
-	}
+	assert.InDelta(t, wantBefore, result.ActualQuotaBeforeGroup, 1e-6)
+	assert.Equal(t, wantAfter, result.ActualQuotaAfterGroup)
+	assert.True(t, result.CrossedTier, "expected crossed_tier=true (estimated standard, actual long_context)")
 }
 
 // ---------------------------------------------------------------------------
@@ -664,19 +528,11 @@ func TestComputeTieredQuota_BasicSettlement(t *testing.T) {
 	}
 
 	result, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{P: 3000, C: 2000})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// exprOutput = 5000; quota = 5000 / 1M * 500K = 2500
-	if math.Abs(result.ActualQuotaBeforeGroup-2500) > 1e-6 {
-		t.Errorf("before group = %f, want 2500", result.ActualQuotaBeforeGroup)
-	}
-	if result.ActualQuotaAfterGroup != 2500 {
-		t.Errorf("after group = %d, want 2500", result.ActualQuotaAfterGroup)
-	}
-	if result.MatchedTier != "default" {
-		t.Errorf("tier = %q, want default", result.MatchedTier)
-	}
+	assert.InDelta(t, 2500, result.ActualQuotaBeforeGroup, 1e-6)
+	assert.Equal(t, 2500, result.ActualQuotaAfterGroup)
+	assert.Equal(t, "default", result.MatchedTier)
 }
 
 func TestComputeTieredQuota_WithGroupRatio(t *testing.T) {
@@ -690,13 +546,9 @@ func TestComputeTieredQuota_WithGroupRatio(t *testing.T) {
 	}
 
 	result, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{P: 1000, C: 500})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// exprOutput = 1500; quotaBeforeGroup = 750; afterGroup = round(750 * 2.0) = 1500
-	if result.ActualQuotaAfterGroup != 1500 {
-		t.Errorf("after group = %d, want 1500", result.ActualQuotaAfterGroup)
-	}
+	assert.Equal(t, 1500, result.ActualQuotaAfterGroup)
 }
 
 func TestComputeTieredQuota_ZeroTokens(t *testing.T) {
@@ -710,12 +562,8 @@ func TestComputeTieredQuota_ZeroTokens(t *testing.T) {
 	}
 
 	result, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.ActualQuotaAfterGroup != 0 {
-		t.Errorf("after group = %d, want 0", result.ActualQuotaAfterGroup)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 0, result.ActualQuotaAfterGroup)
 }
 
 func TestComputeTieredQuota_RoundingEdge(t *testing.T) {
@@ -729,13 +577,9 @@ func TestComputeTieredQuota_RoundingEdge(t *testing.T) {
 	}
 
 	result, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{P: 3})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// 3 * 0.5 = 1.5 (expr); quota = 1.5 / 1M * 500K = 0.75; round(0.75) = 1
-	if result.ActualQuotaAfterGroup != 1 {
-		t.Errorf("after group = %d, want 1 (round 0.75 up)", result.ActualQuotaAfterGroup)
-	}
+	assert.Equal(t, 1, result.ActualQuotaAfterGroup)
 }
 
 func TestComputeTieredQuota_RoundingEdgeDown(t *testing.T) {
@@ -749,13 +593,9 @@ func TestComputeTieredQuota_RoundingEdgeDown(t *testing.T) {
 	}
 
 	result, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{P: 3})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// 3 * 0.4 = 1.2 (expr); quota = 1.2 / 1M * 500K = 0.6; round(0.6) = 1
-	if result.ActualQuotaAfterGroup != 1 {
-		t.Errorf("after group = %d, want 1 (round 0.6 up)", result.ActualQuotaAfterGroup)
-	}
+	assert.Equal(t, 1, result.ActualQuotaAfterGroup)
 }
 
 func TestComputeTieredQuotaWithRequest_ProbeAffectsQuota(t *testing.T) {
@@ -771,28 +611,18 @@ func TestComputeTieredQuotaWithRequest_ProbeAffectsQuota(t *testing.T) {
 
 	// Without request: normal tier
 	r1, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{P: 1000})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// normal: p*2 = 2000; quota = 2000 / 1M * 500K = 1000
-	if r1.ActualQuotaAfterGroup != 1000 {
-		t.Errorf("normal = %d, want 1000", r1.ActualQuotaAfterGroup)
-	}
+	assert.Equal(t, 1000, r1.ActualQuotaAfterGroup)
 
 	// With request: fast tier
 	r2, err := billingexpr.ComputeTieredQuotaWithRequest(snap, billingexpr.TokenParams{P: 1000}, billingexpr.RequestInput{
 		Body: []byte(`{"fast":true}`),
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// fast: p*4 = 4000; quota = 4000 / 1M * 500K = 2000
-	if r2.ActualQuotaAfterGroup != 2000 {
-		t.Errorf("fast = %d, want 2000", r2.ActualQuotaAfterGroup)
-	}
-	if !r2.CrossedTier {
-		t.Error("expected CrossedTier = true when probe changes tier")
-	}
+	assert.Equal(t, 2000, r2.ActualQuotaAfterGroup)
+	assert.True(t, r2.CrossedTier, "expected CrossedTier = true when probe changes tier")
 }
 
 func TestComputeTieredQuota_BoundaryTierCrossing(t *testing.T) {
@@ -808,30 +638,16 @@ func TestComputeTieredQuota_BoundaryTierCrossing(t *testing.T) {
 
 	// At boundary: small, p*1 = 100000; quota = 100000 / 1M * 500K = 50000
 	r1, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{P: 100000})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r1.MatchedTier != "small" {
-		t.Errorf("at boundary: tier = %s, want small", r1.MatchedTier)
-	}
-	if r1.ActualQuotaAfterGroup != 50000 {
-		t.Errorf("at boundary: quota = %d, want 50000", r1.ActualQuotaAfterGroup)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "small", r1.MatchedTier)
+	assert.Equal(t, 50000, r1.ActualQuotaAfterGroup)
 
 	// Past boundary: large, p*2 = 200002; quota = 200002 / 1M * 500K = 100001
 	r2, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{P: 100001})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if r2.MatchedTier != "large" {
-		t.Errorf("past boundary: tier = %s, want large", r2.MatchedTier)
-	}
-	if r2.ActualQuotaAfterGroup != 100001 {
-		t.Errorf("past boundary: quota = %d, want 100001", r2.ActualQuotaAfterGroup)
-	}
-	if !r2.CrossedTier {
-		t.Error("expected CrossedTier = true")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "large", r2.MatchedTier)
+	assert.Equal(t, 100001, r2.ActualQuotaAfterGroup)
+	assert.True(t, r2.CrossedTier, "expected CrossedTier = true")
 }
 
 // ---------------------------------------------------------------------------
@@ -841,82 +657,54 @@ func TestComputeTieredQuota_BoundaryTierCrossing(t *testing.T) {
 func TestTimeFunctions_ValidTimezone(t *testing.T) {
 	exprStr := `tier("default", p) * (hour("UTC") >= 0 ? 1 : 1)`
 	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 100})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cost != 100 {
-		t.Errorf("cost = %f, want 100", cost)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, float64(100), cost)
 }
 
 func TestTimeFunctions_AllFunctionsCompile(t *testing.T) {
 	exprStr := `tier("default", p) * (hour("Asia/Shanghai") >= 0 ? 1 : 1) * (minute("UTC") >= 0 ? 1 : 1) * (weekday("UTC") >= 0 ? 1 : 1) * (month("UTC") >= 1 ? 1 : 1) * (day("UTC") >= 1 ? 1 : 1)`
 	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 500})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cost != 500 {
-		t.Errorf("cost = %f, want 500", cost)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, float64(500), cost)
 }
 
 func TestTimeFunctions_InvalidTimezone(t *testing.T) {
 	exprStr := `tier("default", p) * (hour("Invalid/Zone") >= 0 ? 1 : 2)`
 	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 100})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// Invalid timezone falls back to UTC; hour is 0-23, so condition is always true
-	if cost != 100 {
-		t.Errorf("cost = %f, want 100 (fallback to UTC)", cost)
-	}
+	assert.Equal(t, float64(100), cost)
 }
 
 func TestTimeFunctions_EmptyTimezone(t *testing.T) {
 	exprStr := `tier("default", p) * (hour("") >= 0 ? 1 : 2)`
 	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 100})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cost != 100 {
-		t.Errorf("cost = %f, want 100 (empty tz -> UTC)", cost)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, float64(100), cost)
 }
 
 func TestTimeFunctions_NightDiscountPattern(t *testing.T) {
 	exprStr := `tier("default", p * 2 + c * 10) * (hour("UTC") >= 21 || hour("UTC") < 6 ? 0.5 : 1)`
 	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 1000, C: 500})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// Base = 1000*2 + 500*10 = 7000; multiplier is either 0.5 or 1 depending on current UTC hour
-	if cost != 7000 && cost != 3500 {
-		t.Errorf("cost = %f, want 7000 or 3500", cost)
-	}
+	assert.Contains(t, []float64{7000, 3500}, cost)
 }
 
 func TestTimeFunctions_WeekdayRange(t *testing.T) {
 	exprStr := `tier("default", p) * (weekday("UTC") >= 0 && weekday("UTC") <= 6 ? 1 : 999)`
 	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 100})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// weekday is always 0-6, so multiplier is always 1
-	if cost != 100 {
-		t.Errorf("cost = %f, want 100", cost)
-	}
+	assert.Equal(t, float64(100), cost)
 }
 
 func TestTimeFunctions_MonthDayPattern(t *testing.T) {
 	exprStr := `tier("default", p) * (month("Asia/Shanghai") == 1 && day("Asia/Shanghai") == 1 ? 0.5 : 1)`
 	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 1000})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// Either 1000 (not Jan 1) or 500 (Jan 1) — both are valid
-	if cost != 1000 && cost != 500 {
-		t.Errorf("cost = %f, want 1000 or 500", cost)
-	}
+	assert.Contains(t, []float64{1000, 500}, cost)
 }
 
 // ---------------------------------------------------------------------------
@@ -926,49 +714,33 @@ func TestTimeFunctions_MonthDayPattern(t *testing.T) {
 func TestImageTokenVariable(t *testing.T) {
 	exprStr := `tier("base", p * 2 + c * 10 + img * 5)`
 	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 1000, C: 500, Img: 200})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// 1000*2 + 500*10 + 200*5 = 2000 + 5000 + 1000 = 8000
-	if math.Abs(cost-8000) > 1e-6 {
-		t.Errorf("cost = %f, want 8000", cost)
-	}
+	assert.InDelta(t, 8000, cost, 1e-6)
 }
 
 func TestAudioTokenVariables(t *testing.T) {
 	exprStr := `tier("base", p * 2 + c * 10 + ai * 50 + ao * 100)`
 	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 1000, C: 500, AI: 100, AO: 50})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// 1000*2 + 500*10 + 100*50 + 50*100 = 2000 + 5000 + 5000 + 5000 = 17000
-	if math.Abs(cost-17000) > 1e-6 {
-		t.Errorf("cost = %f, want 17000", cost)
-	}
+	assert.InDelta(t, 17000, cost, 1e-6)
 }
 
 func TestImageAudioVariables(t *testing.T) {
 	exprStr := `tier("base", p * 1 + img * 3 + ai * 5 + ao * 10)`
 	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 100, Img: 50, AI: 20, AO: 10})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// 100*1 + 50*3 + 20*5 + 10*10 = 100 + 150 + 100 + 100 = 450
-	if math.Abs(cost-450) > 1e-6 {
-		t.Errorf("cost = %f, want 450", cost)
-	}
+	assert.InDelta(t, 450, cost, 1e-6)
 }
 
 func TestImageAudioZero(t *testing.T) {
 	exprStr := `tier("base", p * 2 + img * 5 + ai * 50 + ao * 100)`
 	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 1000})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// img, ai, ao default to 0
-	if math.Abs(cost-2000) > 1e-6 {
-		t.Errorf("cost = %f, want 2000", cost)
-	}
+	assert.InDelta(t, 2000, cost, 1e-6)
 }
 
 // ---------------------------------------------------------------------------
@@ -980,66 +752,42 @@ const lenTieredExpr = `len <= 200000 ? tier("standard", p * 3 + c * 15 + cr * 0.
 func TestLen_StandardTier(t *testing.T) {
 	params := billingexpr.TokenParams{P: 80000, C: 5000, Len: 100000, CR: 20000}
 	cost, trace, err := billingexpr.RunExpr(lenTieredExpr, params)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 80000*3 + 5000*15 + 20000*0.3
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
-	if trace.MatchedTier != "standard" {
-		t.Errorf("tier = %q, want standard", trace.MatchedTier)
-	}
+	assert.InDelta(t, want, cost, 1e-6)
+	assert.Equal(t, "standard", trace.MatchedTier)
 }
 
 func TestLen_LongContextTier(t *testing.T) {
 	// p is low (cache subtracted), but len is high (full context)
 	params := billingexpr.TokenParams{P: 50000, C: 5000, Len: 300000, CR: 250000}
 	cost, trace, err := billingexpr.RunExpr(lenTieredExpr, params)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := 50000*6 + 5000*22.5 + 250000*0.6
-	if math.Abs(cost-want) > 1e-6 {
-		t.Errorf("cost = %f, want %f", cost, want)
-	}
-	if trace.MatchedTier != "long_context" {
-		t.Errorf("tier = %q, want long_context (len=300000 > 200000)", trace.MatchedTier)
-	}
+	assert.InDelta(t, want, cost, 1e-6)
+	assert.Equal(t, "long_context", trace.MatchedTier)
 }
 
 func TestLen_BoundaryExact(t *testing.T) {
 	params := billingexpr.TokenParams{P: 100000, C: 1000, Len: 200000, CR: 100000}
 	_, trace, err := billingexpr.RunExpr(lenTieredExpr, params)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if trace.MatchedTier != "standard" {
-		t.Errorf("tier = %q, want standard (len=200000 <= 200000)", trace.MatchedTier)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "standard", trace.MatchedTier)
 }
 
 func TestLen_BoundaryPlusOne(t *testing.T) {
 	params := billingexpr.TokenParams{P: 100000, C: 1000, Len: 200001, CR: 100001}
 	_, trace, err := billingexpr.RunExpr(lenTieredExpr, params)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if trace.MatchedTier != "long_context" {
-		t.Errorf("tier = %q, want long_context (len=200001 > 200000)", trace.MatchedTier)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "long_context", trace.MatchedTier)
 }
 
 func TestLen_ZeroDefaultsToZero(t *testing.T) {
 	// len defaults to 0 when not set
 	params := billingexpr.TokenParams{P: 1000, C: 500}
 	_, trace, err := billingexpr.RunExpr(lenTieredExpr, params)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if trace.MatchedTier != "standard" {
-		t.Errorf("tier = %q, want standard (len=0 <= 200000)", trace.MatchedTier)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "standard", trace.MatchedTier)
 }
 
 // ---------------------------------------------------------------------------

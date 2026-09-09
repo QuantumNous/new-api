@@ -16,9 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
 
-import { describe, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 
 import {
   deriveInstallState,
@@ -95,48 +94,44 @@ function installedPlugin(
 
 describe('marketplace source path resolution', () => {
   test('resolves a relative path against the directory holding the index', () => {
-    assert.equal(
+    expect(
       resolvePluginSourceUrl(
         'https://host.example/x/index.json',
         'plugins/tasks/doubao/1.0.0/plugin.js'
-      ),
-      'https://host.example/x/plugins/tasks/doubao/1.0.0/plugin.js'
-    )
+      )
+    ).toBe('https://host.example/x/plugins/tasks/doubao/1.0.0/plugin.js')
   })
 
   test('resolves against a root index without dropping the path', () => {
-    assert.equal(
-      resolvePluginSourceUrl(OFFICIAL_INDEX_URL, 'x/1.0.0/plugin.js'),
-      'https://www.newapi.ai/api/v1/plugins/x/1.0.0/plugin.js'
-    )
+    expect(
+      resolvePluginSourceUrl(OFFICIAL_INDEX_URL, 'x/1.0.0/plugin.js')
+    ).toBe('https://www.newapi.ai/api/v1/plugins/x/1.0.0/plugin.js')
   })
 
   test('resolves a root-relative path against the index origin', () => {
-    assert.equal(
+    expect(
       resolvePluginSourceUrl(
         'https://host.example/x/index.json',
         '/other/plugin.js'
-      ),
-      'https://host.example/other/plugin.js'
-    )
+      )
+    ).toBe('https://host.example/other/plugin.js')
   })
 
   test('rejects a path that resolves to a different origin', () => {
-    assert.equal(
+    expect(
       resolvePluginSourceUrl(
         'https://host.example/x/index.json',
         'https://evil.example/plugin.js'
-      ),
-      null
-    )
+      )
+    ).toBe(null)
   })
 
   test('rejects an empty path', () => {
-    assert.equal(resolvePluginSourceUrl(OFFICIAL_INDEX_URL, '  '), null)
+    expect(resolvePluginSourceUrl(OFFICIAL_INDEX_URL, '  ')).toBe(null)
   })
 
   test('rejects an index URL that is not a valid absolute URL', () => {
-    assert.equal(resolvePluginSourceUrl('not-a-url', 'plugin.js'), null)
+    expect(resolvePluginSourceUrl('not-a-url', 'plugin.js')).toBe(null)
   })
 })
 
@@ -158,10 +153,10 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.deepEqual(
-      index.plugins.map((plugin) => plugin.key),
-      ['no-kind', 'task-kind']
-    )
+    expect(index.plugins.map((plugin) => plugin.key)).toStrictEqual([
+      'no-kind',
+      'task-kind',
+    ])
   })
 
   test('drops a plugin whose only version declares an unsupported kind', () => {
@@ -175,7 +170,7 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.deepEqual(index.plugins, [])
+    expect(index.plugins).toStrictEqual([])
   })
 
   test('carries the optional allowedHosts and auth declarations through', () => {
@@ -197,10 +192,10 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.deepEqual(index.plugins[0].versions[0].allowedHosts, [
+    expect(index.plugins[0].versions[0].allowedHosts).toStrictEqual([
       'ark.cn-beijing.volces.com',
     ])
-    assert.equal(index.plugins[0].versions[0].auth, 'api_key')
+    expect(index.plugins[0].versions[0].auth).toBe('api_key')
   })
 
   test('falls back to the first listed version when latest names an absent version', () => {
@@ -214,7 +209,7 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.equal(index.plugins[0].latest, '1.0.0')
+    expect(index.plugins[0].latest).toBe('1.0.0')
   })
 
   test('skips malformed plugin entries instead of failing the whole source', () => {
@@ -231,28 +226,23 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.deepEqual(
-      index.plugins.map((plugin) => plugin.key),
-      ['ok']
-    )
+    expect(index.plugins.map((plugin) => plugin.key)).toStrictEqual(['ok'])
   })
 
   test('rejects an index version newer than this gateway understands', () => {
-    assert.throws(
-      () => parseMarketplaceIndex({ indexVersion: 2, plugins: [] }),
-      /unsupported indexVersion 2/
-    )
+    expect(() =>
+      parseMarketplaceIndex({ indexVersion: 2, plugins: [] })
+    ).toThrow(/unsupported indexVersion 2/)
   })
 
   test('rejects a payload with no indexVersion', () => {
-    assert.throws(
-      () => parseMarketplaceIndex({ plugins: [] }),
+    expect(() => parseMarketplaceIndex({ plugins: [] })).toThrow(
       /missing indexVersion/
     )
   })
 
   test('rejects a non-object payload', () => {
-    assert.throws(() => parseMarketplaceIndex('<html>'), /not an object/)
+    expect(() => parseMarketplaceIndex('<html>')).toThrow(/not an object/)
   })
 
   test('keeps a present icon string after trim', () => {
@@ -267,7 +257,7 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.equal(index.plugins[0].icon, 'Sora.Color')
+    expect(index.plugins[0].icon).toBe('Sora.Color')
   })
 
   test('omits icon when the field is absent', () => {
@@ -281,7 +271,7 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.equal(index.plugins[0].icon, undefined)
+    expect(index.plugins[0].icon).toBe(undefined)
   })
 
   test('drops a non-string icon', () => {
@@ -296,7 +286,7 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.equal(index.plugins[0].icon, undefined)
+    expect(index.plugins[0].icon).toBe(undefined)
   })
 
   test('keeps a bare string description from a legacy index', () => {
@@ -311,7 +301,7 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.equal(index.plugins[0].description, 'Video generation via Kling API')
+    expect(index.plugins[0].description).toBe('Video generation via Kling API')
   })
 
   test('keeps a LocalizedText object description from a current index', () => {
@@ -329,7 +319,7 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.deepEqual(index.plugins[0].description, {
+    expect(index.plugins[0].description).toStrictEqual({
       en: 'Video generation via Kling API',
       zh: '可灵视频生成',
     })
@@ -347,7 +337,7 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.equal(index.plugins[0].description, undefined)
+    expect(index.plugins[0].description).toBe(undefined)
   })
 
   test('drops an icon longer than 128 characters', () => {
@@ -362,7 +352,7 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.equal(index.plugins[0].icon, undefined)
+    expect(index.plugins[0].icon).toBe(undefined)
   })
 
   test('drops an inline data URI icon so logos only come from sidecar files', () => {
@@ -377,7 +367,7 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.equal(index.plugins[0].icon, undefined)
+    expect(index.plugins[0].icon).toBe(undefined)
   })
 
   test('drops a remote http icon so the marketplace page cannot beacon the author', () => {
@@ -392,7 +382,7 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.equal(index.plugins[0].icon, undefined)
+    expect(index.plugins[0].icon).toBe(undefined)
   })
 
   test('keeps an iconFile entry pointing at an svg or png and drops other extensions', () => {
@@ -413,11 +403,11 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.deepEqual(index.plugins[0].iconFile, {
+    expect(index.plugins[0].iconFile).toStrictEqual({
       path: 'plugins/tasks/incho/icon.svg',
       sha256: 'abc',
     })
-    assert.equal(index.plugins[1].iconFile, undefined)
+    expect(index.plugins[1].iconFile).toBe(undefined)
   })
 
   test('keeps a version baseUrl after trim and omits a blank one', () => {
@@ -438,120 +428,110 @@ describe('marketplace index parsing', () => {
         },
       ],
     })
-    assert.equal(index.plugins[0].versions[0].baseUrl, 'http://127.0.0.1:8000')
-    assert.equal(index.plugins[0].versions[1].baseUrl, undefined)
+    expect(index.plugins[0].versions[0].baseUrl).toBe('http://127.0.0.1:8000')
+    expect(index.plugins[0].versions[1].baseUrl).toBe(undefined)
   })
 })
 
 describe('install state derivation', () => {
   test('reports not installed when no local plugin shares the key', () => {
-    assert.deepEqual(deriveInstallState(marketplacePlugin(), []), {
+    expect(deriveInstallState(marketplacePlugin(), [])).toStrictEqual({
       status: 'not_installed',
     })
   })
 
   test('reports up to date when the installed version equals latest', () => {
-    assert.deepEqual(
+    expect(
       deriveInstallState(marketplacePlugin(), [
         installedPlugin('doubao', '1.2.0'),
-      ]),
-      { status: 'up_to_date', installedVersion: '1.2.0' }
-    )
+      ])
+    ).toStrictEqual({ status: 'up_to_date', installedVersion: '1.2.0' })
   })
 
   test('reports upgradable when an older listed version is installed', () => {
-    assert.deepEqual(
+    expect(
       deriveInstallState(marketplacePlugin(), [
         installedPlugin('doubao', '1.0.0'),
-      ]),
-      {
-        status: 'upgradable',
-        installedVersion: '1.0.0',
-        latestVersion: '1.2.0',
-      }
-    )
+      ])
+    ).toStrictEqual({
+      status: 'upgradable',
+      installedVersion: '1.0.0',
+      latestVersion: '1.2.0',
+    })
   })
 
   test('reports diverged when the installed version is absent from the index', () => {
-    assert.deepEqual(
+    expect(
       deriveInstallState(marketplacePlugin(), [
         installedPlugin('doubao', '3.0.0-local'),
-      ]),
-      {
-        status: 'diverged',
-        installedVersion: '3.0.0-local',
-        latestVersion: '1.2.0',
-      }
-    )
+      ])
+    ).toStrictEqual({
+      status: 'diverged',
+      installedVersion: '3.0.0-local',
+      latestVersion: '1.2.0',
+    })
   })
 
   test('ignores installed plugins with a different key', () => {
-    assert.deepEqual(
+    expect(
       deriveInstallState(marketplacePlugin(), [
         installedPlugin('kling', '1.2.0'),
-      ]),
-      { status: 'not_installed' }
-    )
+      ])
+    ).toStrictEqual({ status: 'not_installed' })
   })
 })
 
 describe('marketplace built-in version', () => {
   test('factory-served built-in version is the installed meta version', () => {
-    assert.equal(
+    expect(
       marketplaceBuiltInVersion(
         installedPlugin('doubao', '1.0.0', { source: 'factory' })
-      ),
-      '1.0.0'
-    )
+      )
+    ).toBe('1.0.0')
   })
 
   test('overridden factory built-in version comes from factory_meta', () => {
-    assert.equal(
+    expect(
       marketplaceBuiltInVersion(
         installedPlugin('doubao', '1.2.0', {
           source: 'override_over_factory',
           factory_meta: factoryMeta('doubao', '1.0.0'),
         })
-      ),
-      '1.0.0'
-    )
+      )
+    ).toBe('1.0.0')
   })
 })
 
 describe('stale factory override', () => {
   test('is stale when override version differs from built-in', () => {
-    assert.equal(
+    expect(
       isStaleFactoryOverride(
         installedPlugin('doubao', '1.2.0', {
           source: 'override_over_factory',
           factory_meta: factoryMeta('doubao', '1.0.0'),
         })
-      ),
-      true
-    )
+      )
+    ).toBe(true)
   })
 
   test('is not stale when override version matches built-in', () => {
-    assert.equal(
+    expect(
       isStaleFactoryOverride(
         installedPlugin('doubao', '1.0.0', {
           source: 'override_over_factory',
           factory_meta: factoryMeta('doubao', '1.0.0'),
         })
-      ),
-      false
-    )
+      )
+    ).toBe(false)
   })
 
   test('is not stale for factory-served or third-party plugins', () => {
-    assert.equal(
+    expect(
       isStaleFactoryOverride(
         installedPlugin('doubao', '1.0.0', { source: 'factory' })
-      ),
-      false
-    )
-    assert.equal(
-      isStaleFactoryOverride(installedPlugin('doubao', '1.0.0')),
+      )
+    ).toBe(false)
+    expect(isStaleFactoryOverride(installedPlugin('doubao', '1.0.0'))).toBe(
       false
     )
   })
@@ -559,17 +539,13 @@ describe('stale factory override', () => {
 
 describe('marketplace version lookup', () => {
   test('finds the entry matching a version', () => {
-    assert.equal(
-      findMarketplaceVersion(marketplacePlugin(), '1.0.0')?.path,
+    expect(findMarketplaceVersion(marketplacePlugin(), '1.0.0')?.path).toBe(
       'plugins/tasks/doubao/1.0.0/plugin.js'
     )
   })
 
   test('returns undefined for an unknown version', () => {
-    assert.equal(
-      findMarketplaceVersion(marketplacePlugin(), '9.9.9'),
-      undefined
-    )
+    expect(findMarketplaceVersion(marketplacePlugin(), '9.9.9')).toBe(undefined)
   })
 })
 
@@ -579,7 +555,7 @@ describe('source integrity and trust labels', () => {
   }
 
   test('treats a source as verified only when every version carries a hash', () => {
-    assert.equal(
+    expect(
       indexHasIntegrityHashes(
         index([
           marketplacePlugin({
@@ -589,13 +565,12 @@ describe('source integrity and trust labels', () => {
             ],
           }),
         ])
-      ),
-      true
-    )
+      )
+    ).toBe(true)
   })
 
   test('treats a partially hashed source as unverified', () => {
-    assert.equal(
+    expect(
       indexHasIntegrityHashes(
         index([
           marketplacePlugin({
@@ -605,26 +580,24 @@ describe('source integrity and trust labels', () => {
             ],
           }),
         ])
-      ),
-      false
-    )
+      )
+    ).toBe(false)
   })
 
   test('treats an empty index as unverified rather than trivially verified', () => {
-    assert.equal(indexHasIntegrityHashes(index([])), false)
+    expect(indexHasIntegrityHashes(index([]))).toBe(false)
   })
 
   test('labels both built-in index URLs as official sources', () => {
-    assert.equal(isDefaultMarketplaceSource(OFFICIAL_INDEX_URL), true)
-    assert.equal(isDefaultMarketplaceSource(` ${OFFICIAL_INDEX_URL} `), true)
-    assert.equal(isDefaultMarketplaceSource(GITHUB_MARKETPLACE_INDEX_URL), true)
+    expect(isDefaultMarketplaceSource(OFFICIAL_INDEX_URL)).toBe(true)
+    expect(isDefaultMarketplaceSource(` ${OFFICIAL_INDEX_URL} `)).toBe(true)
+    expect(isDefaultMarketplaceSource(GITHUB_MARKETPLACE_INDEX_URL)).toBe(true)
   })
 
   test('labels any other index URL as third-party', () => {
-    assert.equal(
-      isDefaultMarketplaceSource('https://mirror.example/index.json'),
-      false
-    )
+    expect(
+      isDefaultMarketplaceSource('https://mirror.example/index.json')
+    ).toBe(false)
   })
 })
 
@@ -639,10 +612,12 @@ describe('marketplace display metadata', () => {
         marketplacePlugin({ key: 'alpha', sortPriority: 20 }),
       ],
     })
-    assert.deepEqual(
-      index.plugins.map((plugin) => plugin.key),
-      ['alpha', 'beta', 'zero', 'low']
-    )
+    expect(index.plugins.map((plugin) => plugin.key)).toStrictEqual([
+      'alpha',
+      'beta',
+      'zero',
+      'low',
+    ])
   })
 
   test.each([1.5, '2', null, Number.NaN, Infinity, -2147483649, 2147483648])(
@@ -652,7 +627,7 @@ describe('marketplace display metadata', () => {
         indexVersion: 1,
         plugins: [{ ...marketplacePlugin(), sortPriority }],
       })
-      assert.equal(index.plugins[0].sortPriority, 0)
+      expect(index.plugins[0].sortPriority).toBe(0)
     }
   )
 
@@ -663,7 +638,7 @@ describe('marketplace display metadata', () => {
         indexVersion: 1,
         plugins: [marketplacePlugin({ sortPriority })],
       })
-      assert.equal(index.plugins[0].sortPriority, sortPriority)
+      expect(index.plugins[0].sortPriority).toBe(sortPriority)
     }
   )
 
@@ -673,7 +648,7 @@ describe('marketplace display metadata', () => {
       indexVersion: 1,
       plugins: [marketplacePlugin({ website })],
     })
-    assert.equal(index.plugins[0].website, website)
+    expect(index.plugins[0].website).toBe(website)
   })
 
   test.each([
@@ -692,7 +667,7 @@ describe('marketplace display metadata', () => {
       indexVersion: 1,
       plugins: [marketplacePlugin({ website })],
     })
-    assert.equal(index.plugins.length, 1)
-    assert.equal(index.plugins[0].website, undefined)
+    expect(index.plugins.length).toBe(1)
+    expect(index.plugins[0].website).toBe(undefined)
   })
 })

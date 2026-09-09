@@ -16,9 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
 
-import { describe, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 
 import {
   encodePluginIconFile,
@@ -30,29 +29,28 @@ import {
 
 describe('pluginIconMediaType', () => {
   test('maps svg and png extensions case-insensitively and rejects everything else', () => {
-    assert.equal(pluginIconMediaType('icon.svg'), 'image/svg+xml')
-    assert.equal(pluginIconMediaType('ICON.PNG'), 'image/png')
-    assert.equal(pluginIconMediaType('icon.jpg'), null)
-    assert.equal(pluginIconMediaType('plugin.js'), null)
+    expect(pluginIconMediaType('icon.svg')).toBe('image/svg+xml')
+    expect(pluginIconMediaType('ICON.PNG')).toBe('image/png')
+    expect(pluginIconMediaType('icon.jpg')).toBe(null)
+    expect(pluginIconMediaType('plugin.js')).toBe(null)
   })
 })
 
 describe('encodePluginIconFile', () => {
   test('encodes an svg file as the data URI the gateway stores', async () => {
     const file = new File(['<svg/>'], 'icon.svg', { type: '' })
-    assert.equal(
-      await encodePluginIconFile(file),
+    expect(await encodePluginIconFile(file)).toBe(
       'data:image/svg+xml;base64,PHN2Zy8+'
     )
   })
 
   test('rejects a file that is not svg or png', async () => {
     const file = new File(['x'], 'icon.gif', { type: 'image/gif' })
-    await assert.rejects(encodePluginIconFile(file), (error: unknown) => {
-      assert.ok(error instanceof PluginIconFileError)
-      assert.equal(error.reason, 'unsupported_type')
-      return true
-    })
+    await expect(encodePluginIconFile(file)).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof PluginIconFileError &&
+        error.reason === 'unsupported_type'
+    )
   })
 
   test('rejects a file over the size cap before reading it', async () => {
@@ -60,11 +58,10 @@ describe('encodePluginIconFile', () => {
       [new Uint8Array(MAX_PLUGIN_ICON_BYTES + 1)],
       'icon.png'
     )
-    await assert.rejects(encodePluginIconFile(file), (error: unknown) => {
-      assert.ok(error instanceof PluginIconFileError)
-      assert.equal(error.reason, 'too_large')
-      return true
-    })
+    await expect(encodePluginIconFile(file)).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof PluginIconFileError && error.reason === 'too_large'
+    )
   })
 })
 
@@ -89,48 +86,43 @@ describe('fetchPluginIconDataUri', () => {
           }),
       }
     )
-    assert.equal(result, 'data:image/svg+xml;base64,PHN2Zy8+')
+    expect(result).toBe('data:image/svg+xml;base64,PHN2Zy8+')
   })
 
   test('keeps the logo when the index digest matches and drops it on a mismatch', async () => {
     const url = 'https://raw.example/plugins/tasks/incho/icon.svg'
-    assert.equal(
+    expect(
       await fetchPluginIconDataUri(url, {
         sha256:
           'd4dc56669143034f31aa309635d4113d9ad76a02b1739da22c965ed2049be9e6',
         fetchImpl: async () => okResponse('<svg/>'),
-      }),
-      'data:image/svg+xml;base64,PHN2Zy8+'
-    )
-    assert.equal(
+      })
+    ).toBe('data:image/svg+xml;base64,PHN2Zy8+')
+    expect(
       await fetchPluginIconDataUri(url, {
         sha256: 'deadbeef',
         fetchImpl: async () => okResponse('<svg/>'),
-      }),
-      null
-    )
+      })
+    ).toBe(null)
   })
 
   test('returns null for a non-image path, a failed response, or a network error', async () => {
-    assert.equal(
+    expect(
       await fetchPluginIconDataUri('https://raw.example/icon.js', {
         fetchImpl: async () => okResponse('x'),
-      }),
-      null
-    )
-    assert.equal(
+      })
+    ).toBe(null)
+    expect(
       await fetchPluginIconDataUri('https://raw.example/icon.svg', {
         fetchImpl: async () => new Response('', { status: 404 }),
-      }),
-      null
-    )
-    assert.equal(
+      })
+    ).toBe(null)
+    expect(
       await fetchPluginIconDataUri('https://raw.example/icon.svg', {
         fetchImpl: async () => {
           throw new TypeError('offline')
         },
-      }),
-      null
-    )
+      })
+    ).toBe(null)
   })
 })

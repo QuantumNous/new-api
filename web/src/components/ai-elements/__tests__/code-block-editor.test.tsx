@@ -16,14 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { cleanup, render } from '@testing-library/react'
-import { afterEach, describe, expect, test } from 'vitest'
+import { render } from '@testing-library/react'
+import { describe, expect, test } from 'vitest'
 
 import { CodeBlockEditor } from '../code-block'
-
-afterEach(() => {
-  cleanup()
-})
 
 function editorTree(value: string) {
   // A fresh inline onKeyDown per call mirrors PlaygroundMessageEditor, which

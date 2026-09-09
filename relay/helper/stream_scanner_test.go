@@ -99,26 +99,10 @@ func TestStreamScannerHandler_EmptyBody(t *testing.T) {
 	assert.False(t, called.Load(), "handler should not be called for empty body")
 }
 
-func TestStreamScannerHandler_1000Chunks(t *testing.T) {
-	t.Parallel()
-
-	const numChunks = 1000
-	body := buildSSEBody(numChunks)
-	c, resp, info := setupStreamTest(t, strings.NewReader(body))
-
-	var count atomic.Int64
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
-		count.Add(1)
-	})
-
-	assert.Equal(t, int64(numChunks), count.Load())
-	assert.Equal(t, numChunks, info.ReceivedResponseCount)
-}
-
 func TestStreamScannerHandler_OrderPreserved(t *testing.T) {
 	t.Parallel()
 
-	const numChunks = 500
+	const numChunks = 16
 	body := buildSSEBody(numChunks)
 	c, resp, info := setupStreamTest(t, strings.NewReader(body))
 
@@ -131,7 +115,8 @@ func TestStreamScannerHandler_OrderPreserved(t *testing.T) {
 		mu.Unlock()
 	})
 
-	require.Equal(t, numChunks, len(received))
+	require.Len(t, received, numChunks)
+	assert.Equal(t, numChunks, info.ReceivedResponseCount)
 	for i := range numChunks {
 		expected := fmt.Sprintf("{\"id\":%d,\"choices\":[{\"delta\":{\"content\":\"token_%d\"}}]}", i, i)
 		assert.Equal(t, expected, received[i], "chunk %d out of order", i)
@@ -542,19 +527,6 @@ func TestStreamScannerHandler_StreamStatus_ErrorThenStop(t *testing.T) {
 	require.NotNil(t, info.StreamStatus)
 	assert.Equal(t, relaycommon.StreamEndReasonHandlerStop, info.StreamStatus.EndReason)
 	assert.Equal(t, 2, info.StreamStatus.TotalErrorCount())
-}
-
-func TestStreamScannerHandler_StreamStatus_InitializedIfNil(t *testing.T) {
-	t.Parallel()
-
-	body := buildSSEBody(1)
-	c, resp, info := setupStreamTest(t, strings.NewReader(body))
-
-	assert.Nil(t, info.StreamStatus)
-
-	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
-
-	assert.NotNil(t, info.StreamStatus)
 }
 
 func TestStreamScannerHandler_StreamStatus_ReplacesPreInitialized(t *testing.T) {

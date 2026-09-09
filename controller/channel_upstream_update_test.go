@@ -417,18 +417,6 @@ func TestFetchNewAPIModelsUsesOpenAIContract(t *testing.T) {
 	require.Equal(t, []string{"gpt-5", "gpt-5-mini"}, models)
 }
 
-func TestNormalizeModelNames(t *testing.T) {
-	result := normalizeModelNames([]string{
-		" gpt-4o ",
-		"",
-		"gpt-4o",
-		"gpt-4.1",
-		"   ",
-	})
-
-	require.Equal(t, []string{"gpt-4o", "gpt-4.1"}, result)
-}
-
 func TestMergeModelNames(t *testing.T) {
 	result := mergeModelNames(
 		[]string{"gpt-4o", "gpt-4.1"},

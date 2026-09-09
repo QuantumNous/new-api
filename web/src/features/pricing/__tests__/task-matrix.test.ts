@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 
 import { parseTaskTiersFromExpr } from '../lib/billing-expr'
 import {
@@ -77,7 +76,7 @@ function createNonUniformMatrix(): TaskMatrixConfig {
 
 describe('task matrix enum combinations', () => {
   test('enumerates fields lexicographically and values in declaration order with the first field slowest', () => {
-    assert.deepEqual(getTaskEnumCombinations(doubleEnumSchema), [
+    expect(getTaskEnumCombinations(doubleEnumSchema)).toStrictEqual([
       { mode: 'std', quality: 'high' },
       { mode: 'std', quality: 'low' },
       { mode: 'pro', quality: 'high' },
@@ -86,7 +85,7 @@ describe('task matrix enum combinations', () => {
   })
 
   test('returns one empty combination for a number-only schema', () => {
-    assert.deepEqual(getTaskEnumCombinations(numberOnlySchema), [{}])
+    expect(getTaskEnumCombinations(numberOnlySchema)).toStrictEqual([{}])
   })
 })
 
@@ -100,7 +99,7 @@ describe('uniform task matrix conversion', () => {
       })),
     }
 
-    assert.deepEqual(taskMatrixToTiers(config, doubleEnumSchema), [
+    expect(taskMatrixToTiers(config, doubleEnumSchema)).toStrictEqual([
       {
         label: 'base',
         conditions: [],
@@ -125,52 +124,51 @@ describe('uniform task matrix conversion', () => {
       singleEnumSchema
     )
 
-    assert.equal(matrixExpression, visualExpression)
+    expect(matrixExpression).toBe(visualExpression)
   })
 })
 
 describe('non-uniform task matrix conversion', () => {
   test('expands canonical rows with full ordered conditions and the final row as else', () => {
-    assert.deepEqual(
-      taskMatrixToTiers(createNonUniformMatrix(), doubleEnumSchema),
-      [
-        {
-          label: 'std·high',
-          conditions: [
-            { field: 'mode', value: 'std' },
-            { field: 'quality', value: 'high' },
-          ],
-          constant: 0.1,
-          unitPrices: { seconds: 0.2 },
-        },
-        {
-          label: 'std·low',
-          conditions: [
-            { field: 'mode', value: 'std' },
-            { field: 'quality', value: 'low' },
-          ],
-          constant: 0.2,
-          unitPrices: { seconds: 0.3 },
-        },
-        {
-          label: 'pro·high',
-          conditions: [
-            { field: 'mode', value: 'pro' },
-            { field: 'quality', value: 'high' },
-          ],
-          constant: 0.3,
-          unitPrices: { seconds: 0.4 },
-        },
-        {
-          label: 'pro·low',
-          conditions: [],
-          constant: 0.4,
-          unitPrices: { seconds: 0.5 },
-        },
-      ]
-    )
-    assert.equal(taskMatrixRowLabel({ quality: 'low', mode: 'pro' }), 'pro·low')
-    assert.equal(taskMatrixRowLabel({}), 'base')
+    expect(
+      taskMatrixToTiers(createNonUniformMatrix(), doubleEnumSchema)
+    ).toStrictEqual([
+      {
+        label: 'std·high',
+        conditions: [
+          { field: 'mode', value: 'std' },
+          { field: 'quality', value: 'high' },
+        ],
+        constant: 0.1,
+        unitPrices: { seconds: 0.2 },
+      },
+      {
+        label: 'std·low',
+        conditions: [
+          { field: 'mode', value: 'std' },
+          { field: 'quality', value: 'low' },
+        ],
+        constant: 0.2,
+        unitPrices: { seconds: 0.3 },
+      },
+      {
+        label: 'pro·high',
+        conditions: [
+          { field: 'mode', value: 'pro' },
+          { field: 'quality', value: 'high' },
+        ],
+        constant: 0.3,
+        unitPrices: { seconds: 0.4 },
+      },
+      {
+        label: 'pro·low',
+        conditions: [],
+        constant: 0.4,
+        unitPrices: { seconds: 0.5 },
+      },
+    ])
+    expect(taskMatrixRowLabel({ quality: 'low', mode: 'pro' })).toBe('pro·low')
+    expect(taskMatrixRowLabel({})).toBe('base')
   })
 })
 
@@ -188,10 +186,9 @@ describe('task matrix round trips', () => {
       doubleEnumSchema
     )
 
-    assert.deepEqual(
-      tryParseTaskMatrixConfig(expression, doubleEnumSchema),
-      config
-    )
+    expect(
+      tryParseTaskMatrixConfig(expression, doubleEnumSchema)
+    ).toStrictEqual(config)
   })
 
   test('preserves a non-uniform matrix through expression generation and recognition', () => {
@@ -201,10 +198,9 @@ describe('task matrix round trips', () => {
       doubleEnumSchema
     )
 
-    assert.deepEqual(
-      tryParseTaskMatrixConfig(expression, doubleEnumSchema),
-      config
-    )
+    expect(
+      tryParseTaskMatrixConfig(expression, doubleEnumSchema)
+    ).toStrictEqual(config)
   })
 })
 
@@ -214,7 +210,7 @@ describe('permuted complete task partitions', () => {
       'u("mode") == "pro" ? tier("legacy-pro", u("seconds") * 0.8) : tier("legacy-std", u("seconds") * 0.4)'
     const matrix = tryParseTaskMatrixConfig(expression, singleEnumSchema)
 
-    assert.deepEqual(matrix, {
+    expect(matrix).toStrictEqual({
       rows: [
         {
           combination: { mode: 'std' },
@@ -228,98 +224,90 @@ describe('permuted complete task partitions', () => {
         },
       ],
     })
-    assert.ok(matrix)
+    if (!matrix) expect.fail('Expected matrix to be present')
     const normalizedExpression = generateTaskExprFromConfig(
       { tiers: taskMatrixToTiers(matrix, singleEnumSchema) },
       singleEnumSchema
     )
-    assert.deepEqual(
-      tryParseTaskMatrixConfig(normalizedExpression, singleEnumSchema),
-      matrix
-    )
+    expect(
+      tryParseTaskMatrixConfig(normalizedExpression, singleEnumSchema)
+    ).toStrictEqual(matrix)
   })
 })
 
 describe('flat task expression recognition', () => {
   test('expands one flat tier across every enum combination', () => {
-    assert.deepEqual(
+    expect(
       tryParseTaskMatrixConfig(
         'tier("base", u("seconds") * 0.4)',
         singleEnumSchema
-      ),
-      {
-        rows: [
-          {
-            combination: { mode: 'std' },
-            constant: 0,
-            unitPrices: { seconds: 0.4 },
-          },
-          {
-            combination: { mode: 'pro' },
-            constant: 0,
-            unitPrices: { seconds: 0.4 },
-          },
-        ],
-      }
-    )
+      )
+    ).toStrictEqual({
+      rows: [
+        {
+          combination: { mode: 'std' },
+          constant: 0,
+          unitPrices: { seconds: 0.4 },
+        },
+        {
+          combination: { mode: 'pro' },
+          constant: 0,
+          unitPrices: { seconds: 0.4 },
+        },
+      ],
+    })
   })
 
   test('recognizes one flat tier as the number-only matrix row', () => {
-    assert.deepEqual(
+    expect(
       tryParseTaskMatrixConfig(
         'tier("base", u("seconds") * 0.4)',
         numberOnlySchema
-      ),
-      {
-        rows: [
-          {
-            combination: {},
-            constant: 0,
-            unitPrices: { seconds: 0.4 },
-          },
-        ],
-      }
-    )
+      )
+    ).toStrictEqual({
+      rows: [
+        {
+          combination: {},
+          constant: 0,
+          unitPrices: { seconds: 0.4 },
+        },
+      ],
+    })
   })
 })
 
 describe('task matrix recognition rejection matrix', () => {
   test('rejects expressions outside the task tier grammar', () => {
-    assert.equal(
-      tryParseTaskMatrixConfig('u("seconds") * 0.4', singleEnumSchema),
-      null
-    )
-    assert.equal(
+    expect(
+      tryParseTaskMatrixConfig('u("seconds") * 0.4', singleEnumSchema)
+    ).toBe(null)
+    expect(
       tryParseTaskMatrixConfig(
         'u("seconds") > 30 ? tier("long", u("seconds") * 0.3) : tier("short", u("seconds") * 0.4)',
         singleEnumSchema
-      ),
-      null
-    )
-    assert.equal(
+      )
+    ).toBe(null)
+    expect(
       tryParseTaskMatrixConfig(
         'price("base", u("seconds") * 0.4)',
         singleEnumSchema
-      ),
-      null
-    )
+      )
+    ).toBe(null)
   })
 
   test('rejects undeclared usage fields and enum values', () => {
-    assert.equal(
+    expect(
       tryParseTaskMatrixConfig(
         'tier("base", u("unknown") * 0.4)',
         singleEnumSchema
-      ),
-      null
-    )
-    assert.equal(
+      )
+    ).toBe(null)
+    expect(
       tryParseTaskMatrixConfig(
         'u("mode") == "ultra" ? tier("ultra", u("seconds") * 0.8) : tier("base", u("seconds") * 0.4)',
         singleEnumSchema
-      ),
-      null
-    )
+      )
+    ).toBe(null)
   })
 
   test('rejects a tier condition that omits an enum field', () => {
@@ -331,7 +319,7 @@ describe('task matrix recognition rejection matrix', () => {
     const expression =
       'u("mode") == "std" ? tier("std", u("seconds") * 0.4) : tier("pro", u("seconds") * 0.8)'
 
-    assert.equal(tryParseTaskMatrixConfig(expression, schema), null)
+    expect(tryParseTaskMatrixConfig(expression, schema)).toBe(null)
   })
 
   test('rejects duplicate conditions for one enum field in a tier', () => {
@@ -343,7 +331,7 @@ describe('task matrix recognition rejection matrix', () => {
     const expression =
       'u("mode") == "std" && u("mode") == "pro" ? tier("std", u("seconds") * 0.4) : tier("pro", u("seconds") * 0.8)'
 
-    assert.equal(tryParseTaskMatrixConfig(expression, schema), null)
+    expect(tryParseTaskMatrixConfig(expression, schema)).toBe(null)
   })
 
   test('rejects duplicate combinations across tiers', () => {
@@ -354,7 +342,7 @@ describe('task matrix recognition rejection matrix', () => {
     const expression =
       'u("mode") == "std" ? tier("one", u("seconds") * 0.4) : u("mode") == "std" ? tier("two", u("seconds") * 0.6) : tier("base", u("seconds") * 0.8)'
 
-    assert.equal(tryParseTaskMatrixConfig(expression, schema), null)
+    expect(tryParseTaskMatrixConfig(expression, schema)).toBe(null)
   })
 
   test('rejects tier counts below or above the combination count', () => {
@@ -367,12 +355,10 @@ describe('task matrix recognition rejection matrix', () => {
     const excessExpression =
       'u("mode") == "std" ? tier("std", u("seconds") * 0.4) : u("mode") == "pro" ? tier("pro", u("seconds") * 0.6) : tier("extra", u("seconds") * 0.8)'
 
-    assert.equal(
-      tryParseTaskMatrixConfig(partialExpression, threeValueSchema),
+    expect(tryParseTaskMatrixConfig(partialExpression, threeValueSchema)).toBe(
       null
     )
-    assert.equal(
-      tryParseTaskMatrixConfig(excessExpression, singleEnumSchema),
+    expect(tryParseTaskMatrixConfig(excessExpression, singleEnumSchema)).toBe(
       null
     )
   })
@@ -380,14 +366,14 @@ describe('task matrix recognition rejection matrix', () => {
   test('rejects a conditional expression without an unconditioned final tier', () => {
     const expression = 'u("mode") == "std" ? tier("std", u("seconds") * 0.4)'
 
-    assert.equal(tryParseTaskMatrixConfig(expression, singleEnumSchema), null)
+    expect(tryParseTaskMatrixConfig(expression, singleEnumSchema)).toBe(null)
   })
 
   test('rejects multiple tiers when the schema has no enum fields', () => {
     const expression =
       'u("mode") == "std" ? tier("std", u("seconds") * 0.4) : tier("base", u("seconds") * 0.8)'
 
-    assert.equal(tryParseTaskMatrixConfig(expression, numberOnlySchema), null)
+    expect(tryParseTaskMatrixConfig(expression, numberOnlySchema)).toBe(null)
   })
 })
 
@@ -398,6 +384,13 @@ describe('task matrix grammar cross-check', () => {
     const expression = generateTaskExprFromConfig({ tiers }, doubleEnumSchema)
     const grammarTiers = parseTaskTiersFromExpr(expression, doubleEnumSchema)
     const combinations = getTaskEnumCombinations(doubleEnumSchema)
+    const expectedRows = [
+      { label: 'std·high', total: 0.1 + 3 * 0.2 },
+      { label: 'std·low', total: 0.2 + 3 * 0.3 },
+      { label: 'pro·high', total: 0.3 + 3 * 0.4 },
+      { label: 'pro·low', total: 0.4 + 3 * 0.5 },
+    ]
+    expect(grammarTiers).toStrictEqual(tiers)
 
     for (const [matchedRowIndex, combination] of combinations.entries()) {
       const sample: Record<string, number | string> = {
@@ -405,30 +398,11 @@ describe('task matrix grammar cross-check', () => {
         seconds: 3,
       }
       const result = evaluateTaskVisualConfig({ tiers }, sample)
-      const grammarTier =
-        grammarTiers
-          .slice(0, -1)
-          .find((tier) =>
-            tier.conditions.every(
-              (condition) => sample[condition.field] === condition.value
-            )
-          ) ?? grammarTiers.at(-1)
-      assert.ok(result)
-      assert.ok(grammarTier)
-      const grammarTotal =
-        grammarTier.constant +
-        Object.entries(grammarTier.unitPrices).reduce(
-          (total, [field, unitPrice]) =>
-            total + Number(sample[field]) * unitPrice,
-          0
-        )
-
-      assert.equal(result.total, grammarTotal)
-      assert.equal(result.tier.label, grammarTier.label)
-      assert.equal(
-        grammarTier.label,
-        taskMatrixRowLabel(combinations[matchedRowIndex])
-      )
+      if (!result) expect.fail('Expected result to be present')
+      const expected = expectedRows[matchedRowIndex]
+      expect(result.total).toBe(expected.total)
+      expect(result.tier.label).toBe(expected.label)
+      expect(taskMatrixRowLabel(combination)).toBe(expected.label)
     }
   })
 })
@@ -456,10 +430,10 @@ describe('uniform task matrix preview highlighting', () => {
     )
     const result = evaluateTaskVisualConfig({ tiers }, sample)
 
-    assert.ok(result)
-    assert.equal(result.total, 0.1 + 3 * 0.4)
-    assert.equal(result.tier.label, 'base')
-    assert.equal(matchedRowIndex, 3)
-    assert.equal(taskMatrixRowLabel(combinations[matchedRowIndex]), 'pro·low')
+    if (!result) expect.fail('Expected result to be present')
+    expect(result.total).toBe(0.1 + 3 * 0.4)
+    expect(result.tier.label).toBe('base')
+    expect(matchedRowIndex).toBe(3)
+    expect(taskMatrixRowLabel(combinations[matchedRowIndex])).toBe('pro·low')
   })
 })

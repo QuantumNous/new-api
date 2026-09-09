@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 
 import { resolveTaskDetailAccess } from '../lib/task-details'
 import type { TaskLog } from '../types'
@@ -58,17 +57,17 @@ const task: TaskLog = {
 
 describe('task detail access', () => {
   test('does not expose elevated fields in a self view', () => {
-    assert.deepEqual(resolveTaskDetailAccess(task, false, false), {})
+    expect(resolveTaskDetailAccess(task, false, false)).toStrictEqual({})
   })
 
   test('gives admins plugin identity without root diagnostics', () => {
-    assert.deepEqual(resolveTaskDetailAccess(task, true, false), {
+    expect(resolveTaskDetailAccess(task, true, false)).toStrictEqual({
       plugin: task.admin_info?.task_plugin,
     })
   })
 
   test('adds runtime and upstream diagnostics for root', () => {
-    assert.deepEqual(resolveTaskDetailAccess(task, true, true), {
+    expect(resolveTaskDetailAccess(task, true, true)).toStrictEqual({
       plugin: task.admin_info?.task_plugin,
       runtime: task.root_info?.task_plugin,
       upstreamTaskId: 'upstream-private',
