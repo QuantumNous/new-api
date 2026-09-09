@@ -38,6 +38,7 @@ function PopoverContent({
   collisionPadding,
   collisionBoundary,
   collisionAvoidance,
+  positionMethod = 'absolute',
   ...props
 }: PopoverPrimitive.Popup.Props &
   Pick<
@@ -49,6 +50,7 @@ function PopoverContent({
     | 'collisionPadding'
     | 'collisionBoundary'
     | 'collisionAvoidance'
+    | 'positionMethod'
   >) {
   return (
     <PopoverPrimitive.Portal>
@@ -60,6 +62,7 @@ function PopoverContent({
         collisionPadding={collisionPadding}
         collisionBoundary={collisionBoundary}
         collisionAvoidance={collisionAvoidance}
+        positionMethod={positionMethod}
         className='isolate z-50'
       >
         <PopoverPrimitive.Popup
