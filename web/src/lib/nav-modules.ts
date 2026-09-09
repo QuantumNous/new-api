@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { QueryClient } from '@tanstack/react-query'
 
-import { ensureStatus, readCachedStatus } from '@/lib/status-query'
+import { readCachedStatus, statusQueryOptions } from '@/lib/status-query'
 
 export type ModuleAccess = { enabled: boolean; requireAuth: boolean }
 
@@ -174,12 +174,9 @@ export function getModuleAccess(module: HeaderNavModule): ModuleAccess {
  * Reads through the shared `['status']` cache, so a guard on a fresh page load
  * reuses the request already started during boot instead of issuing its own.
  *
- * This does not force a network round trip: a warm cache resolves immediately,
- * and a stale entry resolves from cache while a refresh runs in the background.
- * A guard can therefore act on status that is up to one `staleTime` old — see
- * `ensureStatus` for the exact resolution rules. That is deliberate; these
- * guards only decide navigation, and the backend still authorizes every
- * request behind them.
+ * Fresh entries resolve immediately. Stale or invalidated entries await a
+ * shared refresh before deciding navigation; a background refresh cannot undo
+ * a redirect already made by a guard. The backend still authorizes requests.
  *
  * On failure this fails closed, reporting the module as disabled and
  * auth-required.
@@ -189,7 +186,7 @@ export async function getModuleAccessForGuard(
   module: HeaderNavModule
 ): Promise<ModuleAccess> {
   try {
-    const status = await ensureStatus(queryClient)
+    const status = await queryClient.fetchQuery(statusQueryOptions)
     return getModuleAccessFromStatus(status, module)
   } catch {
     return { enabled: false, requireAuth: true }

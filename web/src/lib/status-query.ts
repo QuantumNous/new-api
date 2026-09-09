@@ -161,16 +161,17 @@ export const statusQueryOptions = queryOptions({
 /**
  * Await status from the shared cache.
  *
- * Use this from router `beforeLoad` guards. Concurrent callers share one
- * in-flight request, so the boot path costs a single `/api/status` round trip
- * no matter how many guards and components ask for it.
+ * Use this when a cached snapshot can be shown during a background refresh,
+ * such as system configuration loading. Concurrent callers share one request.
+ * Navigation guards use `fetchQuery(statusQueryOptions)` instead, because
+ * redirects must wait for stale or invalidated access flags to refresh.
  *
  * Resolution rules, which are `ensureQueryData`'s and not `staleTime`'s:
  * - No cached entry: fetches and awaits the response.
  * - Cached entry, fresh: resolves from cache, no network.
  * - Cached entry, stale: resolves from cache *immediately* and kicks off a
- *   background refresh (`revalidateIfStale`). Guards never block on a
- *   revalidation, so a stale entry can be read once before the refresh lands.
+ *   background refresh (`revalidateIfStale`). Consumers must subscribe to the
+ *   updated query or system-config store to observe the refreshed data.
  *
  * The React Query cache is memory-only (no persister is installed), so a hard
  * reload always starts from an empty cache and fetches.
