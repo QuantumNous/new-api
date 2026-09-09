@@ -20,6 +20,8 @@ import { useTranslation } from 'react-i18next'
 
 import { QuotaDetailsPopover } from '@/components/quota-details-popover'
 import { StatusBadge } from '@/components/status-badge'
+import { Progress } from '@/components/ui/progress'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatQuotaWithCurrency, getCurrencyDisplay } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 import { useSystemConfigStore } from '@/stores/system-config-store'
@@ -30,48 +32,82 @@ type UserQuotaCellProps = {
 }
 
 export function UserQuotaCell(props: UserQuotaCellProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   useSystemConfigStore((state) => state.config.currency)
 
   const { meta: currency } = getCurrencyDisplay()
   const quotaUnit = currency.kind === 'tokens' ? t('Tokens') : currency.symbol
   const hasQuota = props.remaining !== 0 || props.used !== 0
+  const total = props.used + props.remaining
+  const hasProgress = total > 0
+  const percentage = hasProgress
+    ? Math.min(100, Math.max(0, (props.remaining / total) * 100))
+    : 0
   const formattedRemaining = formatQuotaWithCurrency(props.remaining, {
     showSymbol: false,
   })
   const formattedUsed = formatQuotaWithCurrency(props.used, {
     showSymbol: false,
   })
+  const formattedTotal = formatQuotaWithCurrency(total, { showSymbol: false })
+  const formattedPercentage = new Intl.NumberFormat(
+    toIntlLocale(i18n.resolvedLanguage || i18n.language),
+    { maximumFractionDigits: 1 }
+  ).format(percentage)
+  let progressColor = 'text-emerald-500'
+  if (props.remaining <= 0) progressColor = 'text-rose-500'
+  else if (percentage <= 10) progressColor = 'text-rose-500'
+  else if (percentage <= 30) progressColor = 'text-amber-500'
+
+  const details = [
+    { label: t('Available Balance'), value: formattedRemaining },
+    { label: t('Total Used'), value: formattedUsed },
+    { label: t('Current total quota'), value: formattedTotal },
+  ]
+  if (hasProgress) {
+    details.push({
+      label: t('Remaining percentage'),
+      value: `${formattedPercentage}%`,
+    })
+  }
 
   return (
     <QuotaDetailsPopover
       title={`${t('Quota')} (${quotaUnit})`}
       triggerLabel={
         hasQuota
-          ? `${t('Available Balance')} ${formattedRemaining}; ${t('Used amount')} ${formattedUsed}`
+          ? `${t('Available Balance')} ${formattedRemaining}; ${t('Total Used')} ${formattedUsed}; ${t('Current total quota')} ${formattedTotal}`
           : t('No Quota')
       }
-      details={[
-        { label: t('Available Balance'), value: formattedRemaining },
-        { label: t('Total Used'), value: formattedUsed },
-      ]}
+      details={details}
+      className={cn('space-y-1.5', !hasQuota && 'min-h-11')}
+      triggerClassName={!hasQuota ? 'min-h-11 h-full' : undefined}
+      afterTrigger={
+        hasProgress && (
+          <Progress
+            value={percentage}
+            aria-label={t('Remaining percentage')}
+            className={cn(
+              'w-full [&_[data-slot=progress-indicator]]:bg-current',
+              progressColor
+            )}
+          />
+        )
+      }
     >
       {hasQuota ? (
-        <span className='grid min-w-0 grid-cols-1 gap-y-1 text-sm tabular-nums'>
+        <span className='grid w-full min-w-0 grid-cols-2 gap-x-4 text-sm tabular-nums'>
           <span
             className={cn(
+              'min-w-0 truncate font-medium',
               props.remaining < 0 && 'text-destructive',
               props.remaining === 0 && 'text-muted-foreground'
             )}
           >
             {formattedRemaining}
           </span>
-          <span
-            data-table-text='secondary'
-            className='text-muted-foreground flex items-baseline gap-1 text-xs font-normal'
-          >
-            <span>{t('Used amount')}</span>
-            <span>{formattedUsed}</span>
+          <span className='text-muted-foreground min-w-0 truncate text-right'>
+            {formattedTotal}
           </span>
         </span>
       ) : (
@@ -79,7 +115,7 @@ export function UserQuotaCell(props: UserQuotaCellProps) {
           label={t('No Quota')}
           variant='neutral'
           copyable={false}
-          className='-ml-1.5 font-normal'
+          className='bg-muted/50 -ml-1.5 h-full min-h-11 w-full justify-start rounded-4xl px-3 font-normal'
         />
       )}
     </QuotaDetailsPopover>
