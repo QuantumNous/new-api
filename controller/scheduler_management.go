@@ -267,7 +267,11 @@ func GetSchedulerMonitor(c *gin.Context) {
 		}
 		result["nodes"] = append(result["nodes"].([]gin.H), node)
 		if config.Token != "" && result["observability"] == nil && node["reachable"].(bool) {
-			req, _ := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, baseURL+"/admin/observability", nil)
+			monitorURL := baseURL + "/admin/observability"
+			if query := c.Request.URL.Query(); len(query) > 0 {
+				monitorURL += "?" + query.Encode()
+			}
+			req, _ := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, monitorURL, nil)
 			req.Header.Set("Authorization", "Bearer "+config.Token)
 			if response, requestErr := client.Do(req); requestErr == nil {
 				defer response.Body.Close()

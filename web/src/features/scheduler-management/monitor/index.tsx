@@ -62,12 +62,15 @@ function formatCapacity(
 export function SchedulerMonitorPage() {
   const { t } = useTranslation()
   const [monitor, setMonitor] = useState<SchedulerMonitor | null>(null)
+  const [model, setModel] = useState('')
+  const [channel, setChannel] = useState('')
+  const [endpoint, setEndpoint] = useState('')
   const load = useCallback(
     () =>
-      void getSchedulerMonitor()
+      void getSchedulerMonitor({ model, channel_id: channel, endpoint_id: endpoint })
         .then((response) => setMonitor(response.data))
         .catch(() => toast.error(t('Failed to load scheduler monitor'))),
-    [t]
+    [channel, endpoint, model, t]
   )
   useEffect(() => {
     load()
@@ -131,6 +134,11 @@ export function SchedulerMonitorPage() {
             <CardTitle>{t('Endpoint details')}</CardTitle>
           </CardHeader>
           <CardContent>
+            <div className='mb-4 flex flex-wrap gap-2'>
+              <input className='rounded-md border px-3 py-2 text-sm' placeholder={t('Model')} value={model} onChange={(e) => setModel(e.target.value)} />
+              <input className='rounded-md border px-3 py-2 text-sm' placeholder={t('Channel ID')} value={channel} onChange={(e) => setChannel(e.target.value)} />
+              <input className='rounded-md border px-3 py-2 text-sm' placeholder={t('Endpoint')} value={endpoint} onChange={(e) => setEndpoint(e.target.value)} />
+            </div>
             {endpoints.length === 0 ? (
               <p className='text-muted-foreground text-sm'>
                 {t('No endpoint data')}

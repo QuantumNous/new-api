@@ -110,9 +110,11 @@ export async function updateSchedulerConfig(
   return response.data
 }
 
-export async function getSchedulerMonitor() {
+export async function getSchedulerMonitor(filters?: { model?: string; endpoint_id?: string; channel_id?: string }) {
+  const params = new URLSearchParams()
+  Object.entries(filters ?? {}).forEach(([key, value]) => value && params.set(key, value))
   const response = await api.get<{ success: boolean; data: SchedulerMonitor }>(
-    '/api/scheduler/monitor'
+    `/api/scheduler/monitor${params.toString() ? `?${params.toString()}` : ''}`
   )
   return response.data
 }
