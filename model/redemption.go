@@ -184,14 +184,21 @@ func RedeemWithAgent(key string, userId int) (quota int, agentUserId int, err er
 		if result.RowsAffected == 0 {
 			return errors.New("该兑换码已被使用")
 		}
+		if redemption.Quota == 0 {
+			// Zero-value legacy codes are still consumed, but there is
+			// nothing to credit; upstream's wallet guard rejects <= 0.
+			return nil
+		}
 		return creditTopUpQuota(tx, userId, redemption.Quota, nil)
 	})
 	if err != nil {
 		common.SysError("redemption failed: " + err.Error())
 		return 0, 0, ErrRedeemFailed
 	}
-	syncCreditUserQuotaCache(userId, redemption.Quota, "redemption")
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
+	if redemption.Quota > 0 {
+		syncCreditUserQuotaCache(userId, redemption.Quota, "redemption")
+		RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
+	}
 	return redemption.Quota, redemption.AgentUserId, nil
 }
 
