@@ -23,6 +23,7 @@ import {
   MATCH_EQ,
   MATCH_GTE,
   MATCH_RANGE,
+  parseTiersFromExpr,
   type RequestCondition,
   type RequestRuleGroup,
   type TimeCondition,
@@ -214,5 +215,31 @@ describe('time range round-trip stability', () => {
     const parsed = tryParseRequestRuleExpr(expr)
     expect(parsed).not.toBeNull()
     expect(buildRequestRuleExpr(parsed ?? [])).toBe(expr)
+  })
+})
+
+describe('time conditions in tier pricing', () => {
+  test('parses time-conditioned tiers into structured pricing rows', () => {
+    const tiers = parseTiersFromExpr(
+      'hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 18 ? tier("高峰时段", p * 3.5 + cr * 0.15 + c * 9.5) : tier("空闲时段", p * 2 + cr * 0.1 + c * 5)'
+    )
+
+    expect(tiers).toHaveLength(2)
+    expect(tiers.map((tier) => tier.label)).toEqual(['高峰时段', '空闲时段'])
+    expect(tiers[0].inputPrice).toBe(3.5)
+    expect(tiers[0].cacheReadPrice).toBe(0.15)
+    expect(tiers[0].outputPrice).toBe(9.5)
+    expect(tiers[0].conditions).toEqual([
+      {
+        source: 'time',
+        timeFunc: 'hour',
+        timezone: 'Asia/Shanghai',
+        mode: MATCH_RANGE,
+        value: '',
+        rangeStart: '9',
+        rangeEnd: '18',
+      },
+    ])
+    expect(tiers[1].conditions).toEqual([])
   })
 })
