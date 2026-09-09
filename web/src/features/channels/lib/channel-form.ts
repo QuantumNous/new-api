@@ -890,6 +890,7 @@ export function transformFormDataToUpdatePayload(
 
   // Send explicit empty strings for nullable fields so GORM updates can clear them.
   payload.base_url = normalizeBaseUrl(formData.base_url) || ''
+  payload.actual_base_url = normalizeBaseUrl(formData.actual_base_url) || ''
   payload.openai_organization = formData.openai_organization || ''
   payload.test_model = formData.test_model || ''
   payload.tag = formData.tag || ''
