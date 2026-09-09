@@ -69,7 +69,7 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 	return rootUser.Id, nil
 }
 
-func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
+func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool, keyIndex *int) testResult {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -168,7 +168,12 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	group, _ := model.GetUserGroup(testUserID, false)
 	c.Set("group", group)
 
-	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, testModel)
+	var newAPIError *types.NewAPIError
+	if keyIndex == nil {
+		newAPIError = middleware.SetupContextForSelectedChannel(c, channel, testModel)
+	} else {
+		newAPIError = middleware.SetupContextForSelectedChannelKey(c, channel, testModel, *keyIndex)
+	}
 	if newAPIError != nil {
 		return testResult{
 			context:     c,
@@ -874,7 +879,7 @@ func TestChannel(c *gin.Context) {
 	if c.Request != nil {
 		requestCtx = c.Request.Context()
 	}
-	result := testChannel(requestCtx, channel, testUserID, testModel, endpointType, isStream)
+	result := testChannel(requestCtx, channel, testUserID, testModel, endpointType, isStream, nil)
 	if result.localErr != nil {
 		resp := gin.H{
 			"success": false,
@@ -918,10 +923,64 @@ type channelTestSummary struct {
 }
 
 func testChannelForHealthCheck(ctx context.Context, channel *model.Channel, testUserID int, allowDisable bool, disableThreshold int64) channelTestSummary {
+	// Normal selection cannot choose a key after every key has been auto-disabled,
+	// so recovery checks probe those keys explicitly and leave manual disables alone.
+	if channel.Status == common.ChannelStatusAutoDisabled && channel.ChannelInfo.IsMultiKey {
+		keyIndexes := multiKeyRecoveryIndexes(channel)
+		if len(keyIndexes) > 0 {
+			keySummary := channelTestSummary{}
+			for _, keyIndex := range keyIndexes {
+				result := testChannelKeyForHealthCheck(ctx, channel, testUserID, allowDisable, disableThreshold, &keyIndex)
+				keySummary.Tested += result.Tested
+				keySummary.Succeeded += result.Succeeded
+				keySummary.Failed += result.Failed
+				keySummary.Disabled += result.Disabled
+				keySummary.Enabled += result.Enabled
+				if ctx.Err() != nil {
+					break
+				}
+			}
+			summary := channelTestSummary{}
+			if keySummary.Tested > 0 {
+				summary.Tested = 1
+				if keySummary.Succeeded > 0 {
+					summary.Succeeded = 1
+				} else {
+					summary.Failed = 1
+				}
+			}
+			if keySummary.Disabled > 0 {
+				summary.Disabled = 1
+			}
+			if keySummary.Enabled > 0 {
+				summary.Enabled = 1
+			}
+			return summary
+		}
+	}
+	return testChannelKeyForHealthCheck(ctx, channel, testUserID, allowDisable, disableThreshold, nil)
+}
+
+func multiKeyRecoveryIndexes(channel *model.Channel) []int {
+	if channel == nil || channel.Status != common.ChannelStatusAutoDisabled ||
+		!channel.ChannelInfo.IsMultiKey || !channel.ChannelInfo.MultiKeyAutoRecovery {
+		return nil
+	}
+	keys := channel.GetKeys()
+	indexes := make([]int, 0, len(keys))
+	for index := range keys {
+		if channel.ChannelInfo.MultiKeyStatusList[index] == common.ChannelStatusAutoDisabled {
+			indexes = append(indexes, index)
+		}
+	}
+	return indexes
+}
+
+func testChannelKeyForHealthCheck(ctx context.Context, channel *model.Channel, testUserID int, allowDisable bool, disableThreshold int64, keyIndex *int) channelTestSummary {
 	summary := channelTestSummary{}
 	isChannelEnabled := channel.Status == common.ChannelStatusEnabled
 	tik := time.Now()
-	result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel))
+	result := testChannel(ctx, channel, testUserID, "", "", shouldUseStreamForAutomaticChannelTest(channel), keyIndex)
 	milliseconds := time.Since(tik).Milliseconds()
 	if ctx.Err() != nil {
 		return summary

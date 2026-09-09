@@ -94,7 +94,8 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
       if (props.isEditing && props.currentRow) {
         const payload = transformFormDataToUpdatePayload(
           data,
-          props.currentRow.id
+          props.currentRow.id,
+          props.isMultiKeyChannel
         )
         if (!data.key?.trim()) {
           delete payload.key
