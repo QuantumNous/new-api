@@ -1,7 +1,6 @@
 package vertex
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -9,16 +8,16 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
-	"github.com/QuantumNous/new-api/setting/reasoning"
-	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
@@ -56,15 +55,16 @@ type Adaptor struct {
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
-	// Vertex AI does not support functionResponse.id; keep it stripped here for consistency.
+	// Vertex AI's generateContent schema does not expose the Gemini API's
+	// function-call identity fields. Strip both sides at this provider boundary.
 	if model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled {
-		removeFunctionResponseID(request)
+		removeFunctionCallIDs(request)
 	}
 	geminiAdaptor := gemini.Adaptor{}
 	return geminiAdaptor.ConvertGeminiRequest(c, info, request)
 }
 
-func removeFunctionResponseID(request *dto.GeminiChatRequest) {
+func removeFunctionCallIDs(request *dto.GeminiChatRequest) {
 	if request == nil {
 		return
 	}
@@ -76,10 +76,10 @@ func removeFunctionResponseID(request *dto.GeminiChatRequest) {
 			}
 			for j := range request.Contents[i].Parts {
 				part := &request.Contents[i].Parts[j]
-				if part.FunctionResponse == nil {
-					continue
+				if part.FunctionCall != nil {
+					part.FunctionCall.ID = ""
 				}
-				if len(part.FunctionResponse.ID) > 0 {
+				if part.FunctionResponse != nil && len(part.FunctionResponse.ID) > 0 {
 					part.FunctionResponse.ID = nil
 				}
 			}
@@ -88,12 +88,16 @@ func removeFunctionResponseID(request *dto.GeminiChatRequest) {
 
 	if len(request.Requests) > 0 {
 		for i := range request.Requests {
-			removeFunctionResponseID(&request.Requests[i])
+			removeFunctionCallIDs(&request.Requests[i])
 		}
 	}
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	claudeAdaptor := claude.Adaptor{}
+	if _, err := claudeAdaptor.ConvertClaudeRequest(c, info, request); err != nil {
+		return nil, err
+	}
 	if v, ok := claudeModelMap[info.UpstreamModelName]; ok {
 		c.Set("request_model", v)
 	} else {
@@ -170,21 +174,6 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	suffix := ""
 	if a.RequestMode == RequestModeGemini {
-		if model_setting.GetGeminiSettings().ThinkingAdapterEnabled &&
-			!model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) {
-			// 新增逻辑：处理 -thinking-<budget> 格式
-			if strings.Contains(info.UpstreamModelName, "-thinking-") {
-				parts := strings.Split(info.UpstreamModelName, "-thinking-")
-				info.UpstreamModelName = parts[0]
-			} else if strings.HasSuffix(info.UpstreamModelName, "-thinking") { // 旧的适配
-				info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-thinking")
-			} else if strings.HasSuffix(info.UpstreamModelName, "-nothinking") {
-				info.UpstreamModelName = strings.TrimSuffix(info.UpstreamModelName, "-nothinking")
-			} else if baseModel, level, ok := reasoning.TrimEffortSuffix(info.UpstreamModelName); ok && level != "" {
-				info.UpstreamModelName = baseModel
-			}
-		}
-
 		if info.IsStream {
 			suffix = "streamGenerateContent?alt=sse"
 		} else {
@@ -267,7 +256,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 		if len(request.ExtraBody) > 0 {
 			var extra map[string]any
-			if err := json.Unmarshal(request.ExtraBody, &extra); err == nil {
+			if err := common.Unmarshal(request.ExtraBody, &extra); err == nil {
 				if n, ok := extra["n"].(float64); ok && n > 0 {
 					imgReq.N = lo.ToPtr(uint(n))
 				}
@@ -289,18 +278,29 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		return a.ConvertImageRequest(c, info, imgReq)
 	}
 	if a.RequestMode == RequestModeClaude {
-		claudeReq, err := claude.RequestOpenAI2ClaudeMessage(c, *request)
+		result, err := service.ConvertRequest(c, info, types.RelayFormatClaude, request)
 		if err != nil {
 			return nil, err
+		}
+		claudeReq, ok := result.Value.(*dto.ClaudeRequest)
+		if !ok {
+			return nil, fmt.Errorf("expected Anthropic Messages request, got %T", result.Value)
 		}
 		vertexClaudeReq := copyRequest(claudeReq, anthropicVersion)
 		c.Set("request_model", claudeReq.Model)
 		info.UpstreamModelName = claudeReq.Model
 		return vertexClaudeReq, nil
 	} else if a.RequestMode == RequestModeGemini {
-		geminiRequest, err := gemini.CovertOpenAI2Gemini(c, *request, info)
+		result, err := service.ConvertRequest(c, info, types.RelayFormatGemini, request)
 		if err != nil {
 			return nil, err
+		}
+		geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
+		if !ok {
+			return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
+		}
+		if model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled {
+			removeFunctionCallIDs(geminiRequest)
 		}
 		c.Set("request_model", request.Model)
 		return geminiRequest, nil

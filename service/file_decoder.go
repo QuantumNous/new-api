@@ -13,7 +13,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/types"
+	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -43,8 +43,8 @@ func GetFileTypeFromUrl(c *gin.Context, url string, reason ...string) (string, e
 	}
 
 	if cd := response.Header.Get("Content-Disposition"); cd != "" {
-		parts := strings.Split(cd, ";")
-		for _, part := range parts {
+		parts := strings.SplitSeq(cd, ";")
+		for part := range parts {
 			part = strings.TrimSpace(part)
 			if strings.HasPrefix(strings.ToLower(part), "filename=") {
 				name := strings.TrimSpace(strings.TrimPrefix(part, "filename="))

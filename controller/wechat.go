@@ -1,19 +1,21 @@
 package controller
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type wechatLoginResponse struct {
@@ -40,7 +42,7 @@ func getWeChatIdByCode(code string) (string, error) {
 	}
 	defer httpResponse.Body.Close()
 	var res wechatLoginResponse
-	err = json.NewDecoder(httpResponse.Body).Decode(&res)
+	err = common.DecodeJson(httpResponse.Body, &res)
 	if err != nil {
 		return "", err
 	}
@@ -127,6 +129,15 @@ type wechatBindRequest struct {
 }
 
 func WeChatBind(c *gin.Context) {
+	identity, ok := middleware.GetSessionAuthIdentity(c)
+	if !ok {
+		writeSecurityOperationError(c, service.ErrAuthTokenInvalid)
+		return
+	}
+	succeeded, notificationFailed := false, false
+	defer func() {
+		recordUserSecurityAudit(c, identity.UserID, "user.binding_bind", map[string]any{"provider": "wechat", "success": succeeded, "notification_failed": notificationFailed})
+	}()
 	if !common.WeChatAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "管理员未开启通过微信登录以及注册",
@@ -142,7 +153,15 @@ func WeChatBind(c *gin.Context) {
 		})
 		return
 	}
-	code := req.Code
+	code := strings.TrimSpace(req.Code)
+	context, err := common.Marshal(service.AccountBindingContext{Provider: "wechat", Code: code})
+	if err != nil {
+		writeSecurityOperationError(c, err)
+		return
+	}
+	if middleware.RequireSecurityProof(c, service.VerificationOperation{Scope: service.VerificationScopeAccountBind, Context: context}) == nil {
+		return
+	}
 	wechatId, err := getWeChatIdByCode(code)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -158,25 +177,24 @@ func WeChatBind(c *gin.Context) {
 		})
 		return
 	}
-	session := sessions.Default(c)
-	id := session.Get("id")
-	user := model.User{
-		Id: id.(int),
-	}
-	err = user.FillUserById()
-	if err != nil {
-		common.ApiError(c, err)
+	// 只更新绑定列，避免完整用户快照覆盖并发的封禁、降权或分组变更。
+	if err := model.DB.Transaction(func(tx *gorm.DB) error {
+		return model.UpdateUserBindColumnForSessionWithTx(tx, identity, "wechat_id", wechatId)
+	}); err != nil {
+		writeSecurityOperationError(c, err)
 		return
 	}
-	user.WeChatId = wechatId
-	err = user.Update(false)
+	succeeded = true
+	user, err := model.GetUserById(identity.UserID, false)
 	if err != nil {
-		common.ApiError(c, err)
+		writeSecurityOperationError(c, err)
 		return
 	}
+	notificationFailed = service.NotifyAccountSecurityChange(user.Email, "WeChat account linked") != nil
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data":    gin.H{"notification_warning": notificationFailed},
 	})
 	return
 }

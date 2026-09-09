@@ -36,15 +36,7 @@ func GetSetup(c *gin.Context) {
 		return
 	}
 	setup.RootInit = model.RootUserExists()
-	if common.UsingMySQL {
-		setup.DatabaseType = "mysql"
-	}
-	if common.UsingPostgreSQL {
-		setup.DatabaseType = "postgres"
-	}
-	if common.UsingSQLite {
-		setup.DatabaseType = "sqlite"
-	}
+	setup.DatabaseType = string(common.MainDatabaseType())
 	c.JSON(200, gin.H{
 		"success": true,
 		"data":    setup,
@@ -93,16 +85,16 @@ func PostSetup(c *gin.Context) {
 			return
 		}
 
-		if len(req.Password) < 8 {
+		if err := common.ValidateNewAccountPassword(req.Password); err != nil {
 			c.JSON(200, gin.H{
 				"success": false,
-				"message": "密码长度至少为8个字符",
+				"message": err.Error(),
 			})
 			return
 		}
 
 		// Create root user
-		hashedPassword, err := common.Password2Hash(req.Password)
+		hashedPassword, err := common.HashAccountPassword(req.Password)
 		if err != nil {
 			c.JSON(200, gin.H{
 				"success": false,

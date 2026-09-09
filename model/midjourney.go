@@ -23,6 +23,9 @@ type Midjourney struct {
 	Quota       int    `json:"quota"`
 	Buttons     string `json:"buttons"`
 	Properties  string `json:"properties"`
+
+	TokenId          int `json:"-" gorm:"default:0"`
+	BillingChannelId int `json:"-" gorm:"default:0"`
 }
 
 // TaskQueryParams 用于包含所有搜索条件的结构体，可以根据需求添加更多字段
@@ -101,6 +104,19 @@ func GetAllUnFinishTasks() []*Midjourney {
 	return tasks
 }
 
+// HasUnfinishedMidjourneyTasks reports whether at least one Midjourney task is
+// still in progress. It is a cheap existence check (LIMIT 1) used to decide
+// whether the midjourney_poll system task needs to run; when no task is pending
+// the scheduler skips creating a row entirely.
+func HasUnfinishedMidjourneyTasks() bool {
+	var id int
+	err := DB.Model(&Midjourney{}).
+		Where("progress != ?", "100%").
+		Limit(1).
+		Pluck("id", &id).Error
+	return err == nil && id != 0
+}
+
 func GetByOnlyMJId(mjId string) *Midjourney {
 	var mj *Midjourney
 	var err error
@@ -155,6 +171,19 @@ func (midjourney *Midjourney) Update() error {
 	var err error
 	err = DB.Save(midjourney).Error
 	return err
+}
+
+func (midjourney *Midjourney) UpdateBillingState() error {
+	return DB.Model(midjourney).
+		Select("quota", "token_id", "billing_channel_id").
+		Updates(midjourney).Error
+}
+
+func (midjourney *Midjourney) GetBillingChannelId() int {
+	if midjourney.BillingChannelId > 0 {
+		return midjourney.BillingChannelId
+	}
+	return midjourney.ChannelId
 }
 
 // UpdateWithStatus performs a conditional UPDATE guarded by fromStatus (CAS).
