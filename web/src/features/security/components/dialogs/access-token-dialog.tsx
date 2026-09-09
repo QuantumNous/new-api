@@ -24,6 +24,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
+import { AccessTokenPrompt } from '../access-token-prompt'
+
 export function AccessTokenDialog(props: {
   token: string
   onClose: () => void
@@ -39,7 +41,7 @@ export function AccessTokenDialog(props: {
       description={t(
         "Save this token now. You won't be able to view it again after closing this dialog."
       )}
-      contentClassName='sm:max-w-md'
+      contentClassName='sm:max-w-xl'
       contentHeight='auto'
       footer={<Button onClick={props.onClose}>{t('Close')}</Button>}
     >
@@ -61,6 +63,7 @@ export function AccessTokenDialog(props: {
           />
         </div>
       </div>
+      <AccessTokenPrompt token={props.token} />
     </Dialog>
   )
 }
