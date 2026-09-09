@@ -95,6 +95,7 @@ type RelayInfo struct {
 	//SendLastReasoningResponse bool
 	IsStream               bool
 	IsGeminiBatchEmbedding bool
+	IsGeminiCountTokens    bool
 	IsPlayground           bool
 	UsePrice               bool
 	RelayMode              int

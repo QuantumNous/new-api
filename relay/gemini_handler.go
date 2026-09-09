@@ -258,3 +258,61 @@ func GeminiEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPI
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	return nil
 }
+
+// GeminiCountTokensHandler 处理 /v1beta/models/{model}:countTokens。
+//
+// countTokens 只统计 token，不做推理，上游也不按生成计费。此前该 action 没有独立
+// 分支，GetRequestURL 会把它改写成 generateContent，导致真的跑了一次生成：响应体
+// 变成 generateContent 结构（没有 totalTokens）、延迟从秒级变成几十秒，并且产生了
+// 本不该存在的输出 token 计费。
+//
+// 这里原样转发请求体、原样回传上游响应，不做格式转换，也不结算配额。
+func GeminiCountTokensHandler(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
+	info.InitChannelMeta(c)
+	info.IsGeminiCountTokens = true
+
+	// countTokens 的模型名只出现在 URL 上，请求体里没有 model 字段，因此传 nil
+	if err := helper.ModelMappedHelper(c, info, nil); err != nil {
+		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
+	}
+
+	adaptor := GetAdaptor(info.ApiType)
+	if adaptor == nil {
+		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
+	}
+	adaptor.Init(info)
+
+	// 请求体与上游同构，原样转发以免丢字段（systemInstruction / tools / generateContentRequest 等）
+	bodyStorage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+	}
+
+	resp, err := adaptor.DoRequest(c, info, bodyStorage)
+	if err != nil {
+		logger.LogError(c, "do gemini countTokens request failed: "+err.Error())
+		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
+	}
+
+	httpResp, ok := resp.(*http.Response)
+	if !ok || httpResp == nil {
+		return types.NewError(fmt.Errorf("invalid response type from adaptor"), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+	}
+	defer httpResp.Body.Close()
+
+	statusCodeMappingStr := c.GetString("status_code_mapping")
+	if httpResp.StatusCode != http.StatusOK {
+		newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
+		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		return newAPIError
+	}
+
+	respBody, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+	}
+
+	// 不调用 PostTextConsumeQuota：countTokens 不产生生成用量
+	service.IOCopyBytesGracefully(c, httpResp, respBody)
+	return nil
+}

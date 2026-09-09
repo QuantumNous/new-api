@@ -174,6 +174,9 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	suffix := ""
 	if a.RequestMode == RequestModeGemini {
+		if info.IsGeminiCountTokens {
+			return a.getRequestUrl(info, info.UpstreamModelName, "countTokens")
+		}
 		if info.IsStream {
 			suffix = "streamGenerateContent?alt=sse"
 		} else {
