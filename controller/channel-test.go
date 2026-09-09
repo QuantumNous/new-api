@@ -138,6 +138,12 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			requestPath = "/v1/images/generations"
 		}
 
+		// Huawei MaaS 图像生成/编辑模型
+		if channel.Type == constant.ChannelTypeHuaweiMaaS &&
+			(strings.Contains(strings.ToLower(testModel), "qwen-image") || strings.Contains(strings.ToLower(testModel), "qwen_image")) {
+			requestPath = "/v1/images/generations"
+		}
+
 		// responses-only models
 		if strings.Contains(strings.ToLower(testModel), "codex") {
 			requestPath = "/v1/responses"

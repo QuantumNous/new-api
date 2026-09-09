@@ -428,6 +428,9 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		} else {
 			url = fmt.Sprintf("%s/v1/models", baseURL)
 		}
+	case constant.ChannelTypeHuaweiMaaS:
+		// Huawei MaaS lists models under /v2/models with an OpenAI-style body.
+		url = fmt.Sprintf("%s/v2/models", baseURL)
 	default:
 		url = fmt.Sprintf("%s/v1/models", baseURL)
 	}
