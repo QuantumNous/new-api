@@ -1,5 +1,7 @@
 # 图片参数不符合请求的核对记录
 
+这是修改前的历史核对记录。后台 JSON 图生图和两种参考图结构适配现已发布，当前行为见 [API 图片后台任务](image-tasks.md)；用户后续要求保留原生图片与原样尺寸，裁剪/转码草稿未发布且已移除。
+
 用户截图的 created=1788926141 对应北京时间 2026-09-09 11:55:41，匹配任务 `75c64a31-6db9-4725-a290-32a693fc09d9`，渠道 2“我的CPA”。保存结果为 PNG、1254x1254、quality=low。同批任务 `0ae84fab-15af-4a7e-8921-d529b7e9b038` 走渠道 1 GoEasy，结果 PNG、1086x1448、quality=null。
 
 两个渠道的 param_override 均为空。中转 ImageRequest 定义并保留 size、quality、output_format、output_compression、images。回归用例已改为用户截图的 size=960x1280、output_format=jpeg、output_compression=100、quality=low，完整走任务保存、后台派发、OpenAI 适配器后，模拟上游收到四个字段均与请求一致，测试通过。成功任务的原始请求文件已按原逻辑清理，因此没有将这项模拟验证冒称为该历史请求的网络抓包。
