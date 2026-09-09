@@ -30,6 +30,7 @@ var verificationMap map[string]verificationValue
 var verificationMapMaxSize = 10
 var VerificationValidMinutes = 10
 
+// GenerateVerificationCode returns a random verification code of the requested length.
 func GenerateVerificationCode(length int) string {
 	code := uuid.New().String()
 	code = strings.Replace(code, "-", "", -1)
@@ -50,6 +51,8 @@ end
 return 0
 `
 
+// RegisterVerificationCodeWithKey stores a verification code in Redis when available,
+// falling back to the process-local store if Redis is disabled or the write fails.
 func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
 	if redisVerificationEnabled() {
 		if err := storeVerificationCodeInRedis(verificationRedisKey(key, purpose), code); err == nil {
@@ -63,6 +66,7 @@ func RegisterVerificationCodeWithKey(key string, code string, purpose string) {
 	storeVerificationCodeInMemory(key, code, purpose)
 }
 
+// storeVerificationCodeInRedis stores a code with the configured verification TTL without logging the code value.
 func storeVerificationCodeInRedis(redisKey string, code string) error {
 	if DebugEnabled {
 		SysLog(fmt.Sprintf("Redis SET verification code: key=%s, expiration=%v", redisKey, verificationTTL()))
@@ -70,6 +74,7 @@ func storeVerificationCodeInRedis(redisKey string, code string) error {
 	return RDB.Set(context.Background(), redisKey, code, verificationTTL()).Err()
 }
 
+// storeVerificationCodeInMemory writes a code to the process-local fallback store and prunes expired entries when needed.
 func storeVerificationCodeInMemory(key string, code string, purpose string) {
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
@@ -82,6 +87,7 @@ func storeVerificationCodeInMemory(key string, code string, purpose string) {
 	}
 }
 
+// VerifyCodeWithKey checks a verification code, consuming password-reset codes on a successful match.
 func VerifyCodeWithKey(key string, code string, purpose string) bool {
 	if purpose == PasswordResetPurpose {
 		matched, err := ConsumeVerificationCodeWithKey(key, code, purpose)
@@ -106,6 +112,7 @@ func VerifyCodeWithKey(key string, code string, purpose string) bool {
 	return verifyCodeInMemory(key, code, purpose)
 }
 
+// verifyCodeInMemory checks a non-expired code in the process-local fallback store.
 func verifyCodeInMemory(key string, code string, purpose string) bool {
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
@@ -117,6 +124,7 @@ func verifyCodeInMemory(key string, code string, purpose string) bool {
 	return verificationCodeEqual(value.code, code)
 }
 
+// ConsumeVerificationCodeWithKey atomically verifies and removes a one-time code from Redis or the local fallback store.
 func ConsumeVerificationCodeWithKey(key string, code string, purpose string) (bool, error) {
 	if redisVerificationEnabled() {
 		matched, err := consumeVerificationCodeFromRedis(verificationRedisKey(key, purpose), code)
@@ -136,6 +144,7 @@ func ConsumeVerificationCodeWithKey(key string, code string, purpose string) (bo
 	return consumeVerificationCodeInMemory(key, code, purpose), nil
 }
 
+// consumeVerificationCodeFromRedis uses a Lua script to compare and delete a code atomically.
 func consumeVerificationCodeFromRedis(redisKey string, code string) (bool, error) {
 	if DebugEnabled {
 		SysLog(fmt.Sprintf("Redis consume verification code: key=%s", redisKey))
@@ -147,6 +156,7 @@ func consumeVerificationCodeFromRedis(redisKey string, code string) (bool, error
 	return result == 1, nil
 }
 
+// consumeVerificationCodeInMemory verifies and removes a non-expired code from the local fallback store.
 func consumeVerificationCodeInMemory(key string, code string, purpose string) bool {
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
@@ -162,6 +172,7 @@ func consumeVerificationCodeInMemory(key string, code string, purpose string) bo
 	return true
 }
 
+// DeleteKey removes a verification code from Redis and the local fallback store, returning any Redis deletion error.
 func DeleteKey(key string, purpose string) error {
 	var redisErr error
 	if redisVerificationEnabled() {
@@ -175,30 +186,35 @@ func DeleteKey(key string, purpose string) error {
 	return redisErr
 }
 
+// deleteVerificationCodeFromMemory removes a code from the process-local fallback store.
 func deleteVerificationCodeFromMemory(key string, purpose string) {
 	verificationMutex.Lock()
 	defer verificationMutex.Unlock()
 	delete(verificationMap, purpose+key)
 }
 
+// redisVerificationEnabled reports whether a usable Redis client is configured for verification storage.
 func redisVerificationEnabled() bool {
 	return RedisEnabled && RDB != nil
 }
 
+// verificationTTL returns the configured verification-code lifetime.
 func verificationTTL() time.Duration {
 	return time.Duration(VerificationValidMinutes) * time.Minute
 }
 
+// verificationRedisKey derives a purpose-scoped Redis key without exposing the user identifier in plaintext.
 func verificationRedisKey(key string, purpose string) string {
 	sum := sha256.Sum256([]byte(purpose + ":" + key))
 	return "verification:" + purpose + ":" + hex.EncodeToString(sum[:])
 }
 
+// verificationCodeEqual compares verification codes in constant time.
 func verificationCodeEqual(value string, code string) bool {
 	return subtle.ConstantTimeCompare([]byte(value), []byte(code)) == 1
 }
 
-// no lock inside, so the caller must lock the verificationMap before calling!
+// removeExpiredPairs deletes expired entries from verificationMap; callers must hold verificationMutex.
 func removeExpiredPairs() {
 	now := time.Now()
 	for key := range verificationMap {
