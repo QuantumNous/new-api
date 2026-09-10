@@ -141,6 +141,130 @@ func newAwsStreamResponse(request *http.Request, body io.ReadCloser) *http.Respo
 	}
 }
 
+// TestNewAwsClientAuthentication 使用 t 验证两种凭据格式生成的 SDK 认证头及无效格式错误，函数无返回值
+func TestNewAwsClientAuthentication(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		apiKey           string
+		keyType          dto.AwsKeyType
+		wantAuth         string
+		wantAuthContains []string
+		wantErr          bool
+	}{
+		{
+			name:     "api key bearer",
+			apiKey:   "test-api-key|us-east-1",
+			keyType:  dto.AwsKeyTypeApiKey,
+			wantAuth: "Bearer test-api-key",
+		},
+		{
+			name:             "access key signature",
+			apiKey:           "access-key|secret-key|us-east-1",
+			keyType:          dto.AwsKeyTypeAKSK,
+			wantAuthContains: []string{"AWS4-HMAC-SHA256 ", "Credential=access-key/", "/us-east-1/bedrock/aws4_request"},
+		},
+		{name: "missing region", apiKey: "test-api-key", keyType: dto.AwsKeyTypeApiKey, wantErr: true},
+		{name: "too many parts", apiKey: "a|b|c|d", keyType: dto.AwsKeyTypeAKSK, wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c := newAwsTestContext(httptest.NewRecorder(), context.Background())
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+				ApiKey:               test.apiKey,
+				ChannelOtherSettings: dto.ChannelOtherSettings{AwsKeyType: test.keyType},
+			}}
+
+			client, err := newAwsClient(c, info)
+			if test.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, client)
+				return
+			}
+			require.NoError(t, err)
+
+			var authorization string
+			var requestHost string
+			var requestPath string
+			_, err = client.InvokeModel(context.Background(), newAwsInvokeModelInput(), func(options *bedrockruntime.Options) {
+				options.BaseEndpoint = aws.String("https://bedrock.test")
+				options.HTTPClient = awsHTTPClientFunc(func(request *http.Request) (*http.Response, error) {
+					authorization = request.Header.Get("Authorization")
+					requestHost = request.URL.Host
+					requestPath = request.URL.Path
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Status:     "200 OK",
+						Header:     http.Header{"Content-Type": []string{"application/json"}},
+						Body:       io.NopCloser(bytes.NewBufferString(`{}`)),
+						Request:    request,
+					}, nil
+				})
+				options.Retryer = aws.NopRetryer{}
+			})
+			require.NoError(t, err)
+			assert.Equal(t, "bedrock.test", requestHost)
+			assert.Equal(t, "/model/"+awsTestModel+"/invoke", requestPath)
+			if test.wantAuth != "" {
+				assert.Equal(t, test.wantAuth, authorization)
+				assert.NotContains(t, authorization, "|us-east-1")
+			}
+			for _, expected := range test.wantAuthContains {
+				assert.Contains(t, authorization, expected)
+			}
+		})
+	}
+}
+
+// TestAdaptorDoRequestUsesSdk 使用 t 验证所有 AWS 密钥格式及流式模式均构造 SDK 请求，函数无返回值
+func TestAdaptorDoRequestUsesSdk(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		apiKey   string
+		keyType  dto.AwsKeyType
+		isStream bool
+	}{
+		{name: "api key non-stream", apiKey: "test-api-key|us-east-1", keyType: dto.AwsKeyTypeApiKey},
+		{name: "api key stream", apiKey: "test-api-key|us-east-1", keyType: dto.AwsKeyTypeApiKey, isStream: true},
+		{name: "access key non-stream", apiKey: "access-key|secret-key|us-east-1", keyType: dto.AwsKeyTypeAKSK},
+		{name: "access key stream", apiKey: "access-key|secret-key|us-east-1", keyType: dto.AwsKeyTypeAKSK, isStream: true},
+		{name: "legacy api key", apiKey: "test-api-key|us-east-1"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c := newAwsTestContext(httptest.NewRecorder(), context.Background())
+			info := &relaycommon.RelayInfo{
+				IsStream:        test.isStream,
+				OriginModelName: awsTestModel,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ApiKey:               test.apiKey,
+					UpstreamModelName:    awsTestModel,
+					ChannelOtherSettings: dto.ChannelOtherSettings{AwsKeyType: test.keyType},
+				},
+			}
+			adaptor := &Adaptor{}
+			adaptor.Init(info)
+
+			result, err := adaptor.DoRequest(c, info, bytes.NewBufferString(`{"messages":[{"role":"user","content":"hello"}],"max_tokens":128}`))
+			require.NoError(t, err)
+			assert.Nil(t, result)
+			require.NotNil(t, adaptor.AwsClient)
+			if test.isStream {
+				_, ok := adaptor.AwsReq.(*bedrockruntime.InvokeModelWithResponseStreamInput)
+				assert.True(t, ok)
+			} else {
+				_, ok := adaptor.AwsReq.(*bedrockruntime.InvokeModelInput)
+				assert.True(t, ok)
+			}
+		})
+	}
+}
+
 func TestDoAwsClientRequest_AppliesRuntimeHeaderOverrideToAnthropicBeta(t *testing.T) {
 	t.Parallel()
 
