@@ -174,6 +174,9 @@ describe('agent API request isolation', () => {
     try {
       await getAdminAgentOrders({ agent_user_id: 42 })
       expect(captured).toBeTruthy()
+      if (!captured) {
+        throw new Error('expected captured request')
+      }
       expect((captured.params as Record<string, unknown>).agent_user_id).toBe(42)
     } finally {
       api.defaults.adapter = originalAdapter
