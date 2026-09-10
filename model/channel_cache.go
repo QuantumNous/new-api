@@ -120,9 +120,22 @@ func GetRandomSatisfiedChannel(
 	retry int,
 	filters []dto.ChannelFilter,
 ) (*Channel, error) {
+	channel, _, err := GetRandomSatisfiedChannelWithPriorityPlan(group, model, retry, filters, nil)
+	return channel, err
+}
+
+// GetRandomSatisfiedChannelWithPriorityPlan selects from a request-stable
+// priority order while still using the current eligible channels at that level.
+func GetRandomSatisfiedChannelWithPriorityPlan(
+	group string,
+	model string,
+	retry int,
+	filters []dto.ChannelFilter,
+	priorityPlan []int64,
+) (*Channel, []int64, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry, filters)
+		return getChannelWithPriorityPlan(group, model, retry, filters, priorityPlan)
 	}
 
 	channelSyncLock.RLock()
@@ -138,34 +151,27 @@ func GetRandomSatisfiedChannel(
 	}
 
 	if len(channels) == 0 {
-		return nil, nil
+		return nil, priorityPlan, nil
 	}
 
-	if len(channels) == 1 {
-		if channel, ok := channelsIDM[channels[0]]; ok {
-			return channel, nil
-		}
-		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
-	}
-
-	uniquePriorities := make(map[int]bool)
+	uniquePriorities := make(map[int64]struct{})
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
-			uniquePriorities[int(channel.GetPriority())] = true
+			uniquePriorities[channel.GetPriority()] = struct{}{}
 		} else {
-			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
+			return nil, priorityPlan, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
 		}
 	}
-	var sortedUniquePriorities []int
+	var sortedUniquePriorities []int64
 	for priority := range uniquePriorities {
 		sortedUniquePriorities = append(sortedUniquePriorities, priority)
 	}
-	sort.Sort(sort.Reverse(sort.IntSlice(sortedUniquePriorities)))
-
-	if retry >= len(uniquePriorities) {
-		retry = len(uniquePriorities) - 1
+	sort.Slice(sortedUniquePriorities, func(i, j int) bool { return sortedUniquePriorities[i] > sortedUniquePriorities[j] })
+	targetPriority, resolvedPlan, ok := resolveChannelPriority(sortedUniquePriorities, retry, priorityPlan)
+	priorityPlan = resolvedPlan
+	if !ok {
+		return nil, priorityPlan, nil
 	}
-	targetPriority := int64(sortedUniquePriorities[retry])
 
 	// get the priority for the given retry number
 	var sumWeight = 0
@@ -177,12 +183,12 @@ func GetRandomSatisfiedChannel(
 				targetChannels = append(targetChannels, channel)
 			}
 		} else {
-			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
+			return nil, priorityPlan, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
 		}
 	}
 
 	if len(targetChannels) == 0 {
-		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+		return nil, priorityPlan, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
 	}
 
 	// smoothing factor and adjustment
@@ -209,11 +215,45 @@ func GetRandomSatisfiedChannel(
 	for _, channel := range targetChannels {
 		randomWeight -= channel.GetWeight()*smoothingFactor + smoothingAdjustment
 		if randomWeight < 0 {
-			return channel, nil
+			return channel, priorityPlan, nil
 		}
 	}
 	// return null if no channel is not found
-	return nil, errors.New("channel not found")
+	return nil, priorityPlan, errors.New("channel not found")
+}
+
+// GetSatisfiedChannelPriorities returns the currently eligible priority order
+// using the same cache, normalized-model, and filter rules as channel selection.
+func GetSatisfiedChannelPriorities(group string, model string, filters []dto.ChannelFilter) ([]int64, error) {
+	if !common.MemoryCacheEnabled {
+		return getChannelPriorities(group, model, filters)
+	}
+
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	channels, _ := filterCandidateIDs(group2model2channels[group][model], model, filters)
+	if len(channels) == 0 {
+		normalizedModel := ratio_setting.RoutingMatchModelName(model)
+		channels, _ = filterCandidateIDs(group2model2channels[group][normalizedModel], model, filters)
+	}
+
+	priorities := make([]int64, 0)
+	seen := make(map[int64]struct{})
+	for _, channelID := range channels {
+		channel, ok := channelsIDM[channelID]
+		if !ok {
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelID)
+		}
+		priority := channel.GetPriority()
+		if _, ok := seen[priority]; ok {
+			continue
+		}
+		seen[priority] = struct{}{}
+		priorities = append(priorities, priority)
+	}
+	sort.Slice(priorities, func(i, j int) bool { return priorities[i] > priorities[j] })
+	return priorities, nil
 }
 
 func CacheGetChannel(id int) (*Channel, error) {

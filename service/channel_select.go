@@ -36,12 +36,53 @@ func AppendTaskPluginIdentityFilter(c *gin.Context, pluginKey string) {
 }
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	RequestPath  string
-	Retry        *int
-	resetNextTry bool
+	Ctx           *gin.Context
+	TokenGroup    string
+	ModelName     string
+	RequestPath   string
+	Retry         *int
+	priorityPlans map[string][]int64
+	resetNextTry  bool
+}
+
+func (p *RetryParam) getPriorityPlan(group string) []int64 {
+	if p == nil || group == "" {
+		return nil
+	}
+	if p.priorityPlans == nil && p.Ctx != nil {
+		if plans, ok := common.GetContextKeyType[map[string][]int64](p.Ctx, constant.ContextKeyChannelPriorityPlans); ok {
+			p.priorityPlans = plans
+		}
+	}
+	if p.priorityPlans == nil {
+		p.priorityPlans = make(map[string][]int64)
+		if p.Ctx != nil {
+			common.SetContextKey(p.Ctx, constant.ContextKeyChannelPriorityPlans, p.priorityPlans)
+		}
+	}
+	return p.priorityPlans[group]
+}
+
+func (p *RetryParam) setPriorityPlan(group string, priorities []int64) {
+	if p == nil || group == "" || priorities == nil {
+		return
+	}
+	p.getPriorityPlan(group)
+	p.priorityPlans[group] = priorities
+}
+
+// PrepareChannelPriorityPlan captures the priority order for a channel that
+// was selected outside the normal distributor path, such as affinity routing.
+func PrepareChannelPriorityPlan(param *RetryParam, group string) error {
+	if param == nil || group == "" || param.getPriorityPlan(group) != nil {
+		return nil
+	}
+	priorities, err := model.GetSatisfiedChannelPriorities(group, param.ModelName, GetChannelConstraints(param.Ctx).Filters)
+	if err != nil {
+		return err
+	}
+	param.setPriorityPlan(group, priorities)
+	return nil
 }
 
 func (p *RetryParam) GetRetry() int {
@@ -141,12 +182,15 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(
+			var priorityPlan []int64
+			channel, priorityPlan, _ = model.GetRandomSatisfiedChannelWithPriorityPlan(
 				autoGroup,
 				param.ModelName,
 				priorityRetry,
 				filters,
+				param.getPriorityPlan(autoGroup),
 			)
+			param.setPriorityPlan(autoGroup, priorityPlan)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -184,12 +228,15 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(
+		var priorityPlan []int64
+		channel, priorityPlan, err = model.GetRandomSatisfiedChannelWithPriorityPlan(
 			param.TokenGroup,
 			param.ModelName,
 			param.GetRetry(),
 			filters,
+			param.getPriorityPlan(param.TokenGroup),
 		)
+		param.setPriorityPlan(param.TokenGroup, priorityPlan)
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}

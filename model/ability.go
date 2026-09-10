@@ -111,30 +111,30 @@ func GetChannel(
 	retry int,
 	filters []dto.ChannelFilter,
 ) (*Channel, error) {
+	channel, _, err := getChannelWithPriorityPlan(group, model, retry, filters, nil)
+	return channel, err
+}
+
+func getChannelWithPriorityPlan(
+	group string,
+	model string,
+	retry int,
+	filters []dto.ChannelFilter,
+	priorityPlan []int64,
+) (*Channel, []int64, error) {
 	var abilities []Ability
 	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).Order("priority DESC, weight DESC").Find(&abilities).Error
 	if err != nil {
-		return nil, err
+		return nil, priorityPlan, err
 	}
 	abilities = filterAbilitiesByConstraints(abilities, model, filters)
 	if len(abilities) > 0 {
-		priorities := make([]int64, 0)
-		seen := make(map[int64]bool)
-		for _, ability := range abilities {
-			priority := int64(0)
-			if ability.Priority != nil {
-				priority = *ability.Priority
-			}
-			if !seen[priority] {
-				seen[priority] = true
-				priorities = append(priorities, priority)
-			}
+		priorities := abilityPriorities(abilities)
+		targetPriority, resolvedPlan, ok := resolveChannelPriority(priorities, retry, priorityPlan)
+		priorityPlan = resolvedPlan
+		if !ok {
+			return nil, priorityPlan, nil
 		}
-		sort.Slice(priorities, func(i, j int) bool { return priorities[i] > priorities[j] })
-		if retry >= len(priorities) {
-			retry = len(priorities) - 1
-		}
-		targetPriority := priorities[retry]
 		abilities = lo.Filter(abilities, func(ability Ability, _ int) bool {
 			return ability.Priority == nil && targetPriority == 0 || ability.Priority != nil && *ability.Priority == targetPriority
 		})
@@ -157,10 +157,37 @@ func GetChannel(
 			}
 		}
 	} else {
-		return nil, nil
+		return nil, priorityPlan, nil
 	}
 	err = DB.First(&channel, "id = ?", channel.Id).Error
-	return &channel, err
+	return &channel, priorityPlan, err
+}
+
+func getChannelPriorities(group string, model string, filters []dto.ChannelFilter) ([]int64, error) {
+	var abilities []Ability
+	if err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).
+		Order("priority DESC, weight DESC").Find(&abilities).Error; err != nil {
+		return nil, err
+	}
+	return abilityPriorities(filterAbilitiesByConstraints(abilities, model, filters)), nil
+}
+
+func abilityPriorities(abilities []Ability) []int64 {
+	priorities := make([]int64, 0)
+	seen := make(map[int64]struct{})
+	for _, ability := range abilities {
+		priority := int64(0)
+		if ability.Priority != nil {
+			priority = *ability.Priority
+		}
+		if _, ok := seen[priority]; ok {
+			continue
+		}
+		seen[priority] = struct{}{}
+		priorities = append(priorities, priority)
+	}
+	sort.Slice(priorities, func(i, j int) bool { return priorities[i] > priorities[j] })
+	return priorities
 }
 
 // filterAbilitiesByConstraints applies the same ChannelSatisfiesFilters
