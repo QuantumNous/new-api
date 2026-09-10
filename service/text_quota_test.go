@@ -254,7 +254,10 @@ func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	require.Equal(t, messageSummary.CacheCreationTokens5m, chatSummary.CacheCreationTokens5m)
 	require.Equal(t, messageSummary.CacheCreationTokens1h, chatSummary.CacheCreationTokens1h)
 	require.True(t, chatSummary.IsClaudeUsageSemantic)
+	require.True(t, chatSummary.PromptTokensExcludeCache)
 	require.Equal(t, 1488, chatSummary.Quota)
+	require.Equal(t, 1150, chatSummary.consumeLogPromptTokens())
+	require.Equal(t, 1150, messageSummary.consumeLogPromptTokens())
 }
 
 func TestCalculateTextQuotaSummaryUsesSplitClaudeCacheCreationRatios(t *testing.T) {
@@ -384,6 +387,8 @@ func TestCalculateTextQuotaSummaryUsesClaudeBillingUsageBeforeTopLevelUsage(t *t
 	require.Equal(t, 12, summary.CacheCreationTokens5m)
 	require.Equal(t, 8, summary.CacheCreationTokens1h)
 	require.Equal(t, 118, summary.Quota)
+	require.True(t, summary.PromptTokensExcludeCache)
+	require.Equal(t, 120, summary.consumeLogPromptTokens())
 }
 
 func TestCalculateTextQuotaSummaryUsesGeminiBillingUsageBeforeTopLevelUsage(t *testing.T) {
@@ -700,6 +705,8 @@ func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testi
 
 	// 62 + 3544*0.1 + 586*1.25 + 95*5 = 1624.9 => 1624
 	require.Equal(t, 1624, summary.Quota)
+	require.True(t, summary.PromptTokensExcludeCache)
+	require.Equal(t, 4192, summary.consumeLogPromptTokens())
 }
 
 func TestCalculateTextQuotaSummaryBillsOpenAICacheWriteTokens(t *testing.T) {
@@ -755,6 +762,49 @@ func TestCalculateTextQuotaSummaryBillsOpenAICacheWriteTokens(t *testing.T) {
 		require.Equal(t, 3616, summary.CacheCreationTokens)
 		// max(3619-2921-3616, 0) + 2921*0.1 + 3616*1.25 + 36*2 = 4884.1 => 4884
 		require.Equal(t, 4884, summary.Quota)
+		require.False(t, summary.PromptTokensExcludeCache)
+		require.Equal(t, 3619, summary.consumeLogPromptTokens())
+	})
+}
+
+func TestConsumeLogPromptTokensNormalizesCacheAcrossSemantics(t *testing.T) {
+	t.Run("openai semantic keeps prompt_tokens that already include cache", func(t *testing.T) {
+		summary := textQuotaSummary{
+			PromptTokens:        70397,
+			CacheTokens:         67584,
+			CacheCreationTokens: 0,
+		}
+		require.Equal(t, 70397, summary.consumeLogPromptTokens())
+	})
+
+	t.Run("anthropic semantic adds cache read and write back to prompt_tokens", func(t *testing.T) {
+		summary := textQuotaSummary{
+			PromptTokens:             2,
+			CacheTokens:              589733,
+			CacheCreationTokens:      1088,
+			PromptTokensExcludeCache: true,
+		}
+		require.Equal(t, 590823, summary.consumeLogPromptTokens())
+	})
+
+	t.Run("anthropic semantic without cache is unchanged", func(t *testing.T) {
+		summary := textQuotaSummary{
+			PromptTokens:             1200,
+			PromptTokensExcludeCache: true,
+		}
+		require.Equal(t, 1200, summary.consumeLogPromptTokens())
+	})
+
+	t.Run("anthropic split 5m/1h cache writes use billed write total", func(t *testing.T) {
+		summary := textQuotaSummary{
+			PromptTokens:             100,
+			CacheTokens:              0,
+			CacheCreationTokens:      0,
+			CacheCreationTokens5m:    2,
+			CacheCreationTokens1h:    3,
+			PromptTokensExcludeCache: true,
+		}
+		require.Equal(t, 105, summary.consumeLogPromptTokens())
 	})
 }
 
@@ -867,6 +917,8 @@ func TestCalculateTextQuotaSummaryKeepsPrePRClaudeOpenRouterBilling(t *testing.T
 	require.True(t, summary.IsClaudeUsageSemantic)
 	require.Equal(t, 172, summary.PromptTokens)
 	require.Equal(t, 798, summary.Quota)
+	require.True(t, summary.PromptTokensExcludeCache)
+	require.Equal(t, 2604, summary.consumeLogPromptTokens())
 }
 
 func TestComposeTieredTextQuotaKeepsToolCallSurcharges(t *testing.T) {
