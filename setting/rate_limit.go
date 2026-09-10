@@ -23,6 +23,12 @@ var ModelRequestRateLimitDurationMinutes = 1
 var ModelRequestRateLimitCount = 0
 var ModelRequestRateLimitSuccessCount = 1000
 var ModelRequestRateLimitGroup = map[string][2]int{}
+
+// 超限惩罚开关：命中限流后按连续超限次数延迟拒绝，避免客户端毫秒级重试打满 CPU
+var ModelRequestRateLimitPenaltyEnabled = true
+
+// 熔断冷却开关：连续超限达到阈值后，在冷却期内直接拒绝，不再访问限流计数器
+var ModelRequestRateLimitCooldownEnabled = true
 var ModelRequestRateLimitMutex sync.RWMutex
 
 func ModelRequestRateLimitGroup2JSONString() string {
