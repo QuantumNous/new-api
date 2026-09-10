@@ -41,7 +41,7 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 		return nil, err
 	}
 
-	tools, err := responsesRequestToolsToChat(req.Tools)
+	tools, err := ChatToolsFromResponsesTools(req.Tools)
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +296,7 @@ func responsesFunctionCallItemToChatToolCall(item map[string]any) (dto.ToolCallR
 		ID:   responsesCallID(item),
 		Type: "function",
 		Function: dto.FunctionRequest{
-			Name:      name,
+			Name:      QualifyResponsesFunctionCallName(item, name),
 			Arguments: responsesArgumentsString(item["arguments"]),
 		},
 	}, nil

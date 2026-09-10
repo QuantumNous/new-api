@@ -858,5 +858,6 @@ func (s *ChatToResponsesStreamState) event(eventType string, payload dto.Respons
 		s.nextSequenceNumber++
 		payload.SequenceNumber = &sequenceNumber
 	}
+	SplitNamespacedStreamPayload(&payload)
 	return responsesStreamEvent(eventType, payload)
 }

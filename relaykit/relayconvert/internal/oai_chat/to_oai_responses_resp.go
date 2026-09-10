@@ -100,6 +100,7 @@ func ChatCompletionsResponseToResponsesResponse(resp *dto.OpenAITextResponse, id
 		out.Output = append(out.Output, toolOutput)
 	}
 
+	SplitNamespacedResponse(out)
 	return out, usage, nil
 }
 
