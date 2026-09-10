@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"reflect"
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -125,9 +126,17 @@ func normalizeGeminiSchemaConst(schema map[string]interface{}) {
 	if !ok {
 		return
 	}
-	if _, hasEnum := schema["enum"]; !hasEnum {
-		schema["enum"] = []interface{}{constValue}
+	values := []interface{}{constValue}
+	if existing, ok := schema["enum"].([]interface{}); ok {
+		values = []interface{}{}
+		for _, value := range existing {
+			if reflect.DeepEqual(value, constValue) {
+				values = []interface{}{constValue}
+				break
+			}
+		}
 	}
+	schema["enum"] = values
 }
 
 func normalizeGeminiSchemaAnyOf(schema map[string]interface{}) {
