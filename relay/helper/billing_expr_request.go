@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"maps"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -14,9 +15,7 @@ func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.Re
 	if info != nil && info.BillingRequestInput != nil {
 		input := cloneRequestInput(*info.BillingRequestInput)
 		merged := cloneStringMap(info.RequestHeaders)
-		for k, v := range input.Headers {
-			merged[k] = v
-		}
+		maps.Copy(merged, input.Headers)
 		input.Headers = merged
 		return input, nil
 	}

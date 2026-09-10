@@ -22,11 +22,23 @@ For commercial licensing, please contact support@quantumnous.com
  * Parses the dynamic billing expression format so that the pricing breakdown
  * UI can be rendered from the same backend expressions.
  *
- * The grammar is intentionally narrow: we only support the shapes that the
- * server emits (tiered pricing + request-rule conditional multipliers), so
- * the regular expressions are exact rather than tolerant of arbitrary
- * expression syntax.
+ * Display adapters intentionally accept fewer shapes than the shared
+ * simulator. Existing ordered-tier, task-unit and request-rule contracts
+ * stay intact; executable custom expressions do not imply fixed unit prices.
  */
+
+import type { BillingUsageSchema } from '../types'
+import {
+  readTokenTierChain,
+  readTaskTierChain,
+  readTimeTokenPricing,
+  type TokenTier,
+} from './billing-expression/display'
+import { compileBillingExpression } from './billing-expression/parser'
+import {
+  splitExpressionAtTopLevel,
+  unwrapExpressionParens,
+} from './billing-expression/structure'
 
 // ---------------------------------------------------------------------------
 // Variable registry
@@ -160,11 +172,6 @@ export const BILLING_CACHE_VAR_MAP = BILLING_EXTRA_VARS.map((v) => ({
   exprVar: v.key,
 }))
 
-const BILLING_VAR_REGEX = new RegExp(
-  `\\b(${BILLING_PRICING_VARS.map((v) => v.key).join('|')})\\s*\\*\\s*([\\d.eE+-]+)`,
-  'g'
-)
-
 // ---------------------------------------------------------------------------
 // Request rule constants
 // ---------------------------------------------------------------------------
@@ -226,6 +233,14 @@ export type RequestCondition = TimeCondition | ParamHeaderCondition
 export type RequestRuleGroup = {
   conditions: RequestCondition[]
   multiplier: string
+  conditionText?: string
+  matched?: boolean
+}
+
+export type RequestRuleTrace = {
+  cond: string
+  multiplier: number
+  matched: boolean
 }
 
 export type TierCondition = {
@@ -235,81 +250,86 @@ export type TierCondition = {
 }
 
 export type ParsedTier = {
+  billingUnit?: 'token' | 'request'
+  fixedPrice?: number
+  conditionText?: string
   label: string
   conditions: TierCondition[]
   [field: string]: unknown
+}
+
+export type TaskTierCondition = {
+  field: string
+  value: string
+}
+
+export type ParsedTaskTier = {
+  label: string
+  conditions: TaskTierCondition[]
+  constant: number
+  unitPrices: Record<string, number>
 }
 
 // ---------------------------------------------------------------------------
 // Tier parser
 // ---------------------------------------------------------------------------
 
-function stripExprVersion(exprStr: string): { version: number; body: string } {
-  if (!exprStr) return { version: 1, body: '' }
-  const m = exprStr.match(/^v(\d+):([\s\S]*)$/)
-  if (m) return { version: Number(m[1]), body: m[2] }
-  return { version: 1, body: exprStr }
-}
-
-function parseTierBody(bodyStr: string): Record<string, number> {
-  const coeffs: Record<string, number> = {}
-  const re = new RegExp(BILLING_VAR_REGEX.source, 'g')
-  let m
-  while ((m = re.exec(bodyStr)) !== null) {
-    if (!(m[1] in coeffs)) coeffs[m[1]] = Number(m[2])
+function mapTokenTier(
+  tier: TokenTier & { conditionText?: string }
+): ParsedTier {
+  return {
+    label: tier.label,
+    conditions: tier.conditions,
+    ...(tier.billingUnit === 'request'
+      ? { billingUnit: tier.billingUnit, fixedPrice: tier.fixedPrice }
+      : {}),
+    ...(tier.conditionText ? { conditionText: tier.conditionText } : {}),
+    ...Object.fromEntries(
+      Object.entries(tier.prices).map(([key, price]) => [
+        BILLING_VAR_KEY_TO_FIELD[key],
+        price,
+      ])
+    ),
   }
-  const tier: Record<string, number> = {}
-  for (const [varName, field] of Object.entries(BILLING_VAR_KEY_TO_FIELD)) {
-    tier[field] = coeffs[varName] || 0
-  }
-  return tier
 }
 
 export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
   if (!exprStr) return []
-  try {
-    const { body } = stripExprVersion(exprStr)
-    const condGroup =
-      `((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)` +
-      `(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`
-    const tierRe = new RegExp(
-      `(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*([^)]+)\\)`,
-      'g'
-    )
-    const tiers: ParsedTier[] = []
-    let m
-    while ((m = tierRe.exec(body)) !== null) {
-      const condStr = m[1] || ''
-      const conditions: TierCondition[] = []
-      if (condStr) {
-        for (const cp of condStr.split(/\s*&&\s*/)) {
-          const cm = cp.trim().match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/)
-          if (cm) {
-            conditions.push({
-              var: cm[1] as TierCondition['var'],
-              op: cm[2] as TierCondition['op'],
-              value: Number(cm[3]),
-            })
-          }
-        }
-      }
-      const tier = parseTierBody(m[3]) as ParsedTier
-      tier.label = m[2]
-      tier.conditions = conditions
-      tiers.push(tier)
-    }
-    return tiers
-  } catch {
-    return []
-  }
+  const compiled = compileBillingExpression(exprStr)
+  if (compiled.status !== 'ready') return []
+  const canonical = readTokenTierChain(compiled.ast)
+  if (canonical) return canonical.map(mapTokenTier)
+  return readTimeTokenPricing(exprStr)?.tiers.map(mapTokenTier) ?? []
+}
+
+/** Current-time selection is exclusively for summaries; detail and log callers retain all rows. */
+export function getCurrentTimePricingTiers(
+  exprStr: string,
+  now: Date
+): ParsedTier[] | null {
+  return (
+    readTimeTokenPricing(exprStr, now)?.currentTiers.map(mapTokenTier) ?? null
+  )
+}
+
+export function parseTaskTiersFromExpr(
+  exprStr: string,
+  schema: BillingUsageSchema | null | undefined,
+  includeBooleanConditions = false
+): ParsedTaskTier[] {
+  if (!exprStr || !schema || Object.keys(schema).length === 0) return []
+  const { billingExpr } = splitBillingExprAndRequestRules(exprStr)
+  const compiled = compileBillingExpression(billingExpr)
+  if (compiled.status !== 'ready') return []
+  return readTaskTierChain(compiled.ast, schema, includeBooleanConditions) ?? []
 }
 
 export function normalizeTierLabel(label: string | undefined): string {
   if (!label) return ''
   return label
-    .replace(/<[=＝]?|≤|＜[=＝]?/g, '<')
-    .replace(/>[=＝]?|≥|＞[=＝]?/g, '>')
-    .replace(/\s+/g, '')
+    .replaceAll(/<[=＝]?|≤|＜[=＝]?/g, '<')
+    .replaceAll(/>[=＝]?|≥|＞[=＝]?/g, '>')
+    .replaceAll(/\s+/g, '')
     .toLowerCase()
 }
 
@@ -318,39 +338,11 @@ export function normalizeTierLabel(label: string | undefined): string {
 // ---------------------------------------------------------------------------
 
 function splitTopLevelMultiply(expr: string): string[] {
-  const parts: string[] = []
-  let start = 0
-  let depth = 0
-  for (let index = 0; index < expr.length; index += 1) {
-    const char = expr[index]
-    if (char === '(') depth += 1
-    if (char === ')') depth -= 1
-    if (depth === 0 && expr.slice(index, index + 3) === ' * ') {
-      parts.push(expr.slice(start, index).trim())
-      start = index + 3
-      index += 2
-    }
-  }
-  parts.push(expr.slice(start).trim())
-  return parts.filter(Boolean)
+  return splitExpressionAtTopLevel(expr, '*')
 }
 
 function splitTopLevelAnd(expr: string): string[] {
-  const parts: string[] = []
-  let start = 0
-  let depth = 0
-  for (let i = 0; i < expr.length; i += 1) {
-    const c = expr[i]
-    if (c === '(') depth += 1
-    if (c === ')') depth -= 1
-    if (depth === 0 && expr.slice(i, i + 4) === ' && ') {
-      parts.push(expr.slice(start, i).trim())
-      start = i + 4
-      i += 3
-    }
-  }
-  parts.push(expr.slice(start).trim())
-  return parts.filter(Boolean)
+  return splitExpressionAtTopLevel(expr, '&&')
 }
 
 function parseExprLiteral(raw: string): string | null {
@@ -364,25 +356,44 @@ function parseExprLiteral(raw: string): string | null {
   }
 }
 
+// Time function value domains. Values outside these ranges are invalid for
+// the corresponding time function (e.g. hour() is 0-23) and would otherwise
+// produce always-true conditions like hour >= -1 || hour < -5.
+const TIME_FUNC_RANGES: Record<TimeFunc, [number, number]> = {
+  hour: [0, 23],
+  minute: [0, 59],
+  weekday: [0, 6],
+  month: [1, 12],
+  day: [1, 31],
+}
+
+function isTimeValueInRange(timeFunc: TimeFunc, text: string): boolean {
+  if (!NUMERIC_LITERAL_REGEX.test(text)) return false
+  const value = Number(text)
+  if (!Number.isInteger(value)) return false
+  const [min, max] = TIME_FUNC_RANGES[timeFunc]
+  return value >= min && value <= max
+}
+
 function tryParseTimeCondition(expr: string): RequestCondition | null {
   let m = expr.match(
-    /^(hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) \|\| \1\("\2"\) < ([\d.eE+-]+)$/
+    /^(hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) (?:&&|\|\|) \1\("\2"\) < ([\d.eE+-]+)$/
   )
-  if (m) {
-    return {
-      source: 'time',
-      timeFunc: m[1] as TimeFunc,
-      timezone: m[2],
-      mode: MATCH_RANGE,
-      value: '',
-      rangeStart: m[3],
-      rangeEnd: m[4],
-    }
+  if (!m) {
+    m = expr.match(
+      /^\((hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) (?:&&|\|\|) \1\("\2"\) < ([\d.eE+-]+)\)$/
+    )
   }
-  m = expr.match(
-    /^\((hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) \|\| \1\("\2"\) < ([\d.eE+-]+)\)$/
-  )
   if (m) {
+    // Reject invalid bounds at parse time too: an unparseable rule keeps the
+    // editor in raw mode, while a leniently parsed one would be silently
+    // dropped when the visual editor rebuilds the expression.
+    if (
+      !isTimeValueInRange(m[1] as TimeFunc, m[3]) ||
+      !isTimeValueInRange(m[1] as TimeFunc, m[4])
+    ) {
+      return null
+    }
     return {
       source: 'time',
       timeFunc: m[1] as TimeFunc,
@@ -397,6 +408,7 @@ function tryParseTimeCondition(expr: string): RequestCondition | null {
     /^(hour|minute|weekday|month|day)\("([^"]+)"\) (==|>=|<) ([\d.eE+-]+)$/
   )
   if (m) {
+    if (!isTimeValueInRange(m[1] as TimeFunc, m[4])) return null
     const opMap: Record<string, string> = {
       '==': MATCH_EQ,
       '>=': MATCH_GTE,
@@ -426,24 +438,26 @@ function tryParseRequestCondition(expr: string): RequestCondition | null {
   if (m) return { source: 'param', path: m[1], mode: MATCH_EXISTS, value: '' }
 
   m = expr.match(/^has\(header\("([^"]+)"\), ((?:"(?:[^"\\]|\\.)*"))\)$/)
-  if (m)
+  if (m) {
     return {
       source: 'header',
       path: m[1],
       mode: MATCH_CONTAINS,
       value: JSON.parse(m[2]) as string,
     }
+  }
 
   m = expr.match(
     /^param\("([^"]+)"\) != nil && has\(param\("([^"]+)"\), ((?:"(?:[^"\\]|\\.)*"))\)$/
   )
-  if (m && m[1] === m[2])
+  if (m && m[1] === m[2]) {
     return {
       source: 'param',
       path: m[1],
       mode: MATCH_CONTAINS,
       value: JSON.parse(m[3]) as string,
     }
+  }
 
   m = expr.match(
     /^param\("([^"]+)"\) != nil && param\("([^"]+)"\) (>|>=|<|<=) ([\d.eE+-]+)$/
@@ -473,22 +487,78 @@ function tryParseRequestCondition(expr: string): RequestCondition | null {
   return null
 }
 
+function tryParseTimeRangePair(
+  lower: string,
+  upper: string
+): RequestCondition | null {
+  const a = tryParseTimeCondition(lower)
+  const b = tryParseTimeCondition(upper)
+  if (!a || !b || a.source !== 'time' || b.source !== 'time') return null
+  const ta = a as TimeCondition
+  const tb = b as TimeCondition
+  if (ta.timeFunc !== tb.timeFunc || ta.timezone !== tb.timezone) return null
+  if (ta.mode !== MATCH_GTE || tb.mode !== MATCH_LT) return null
+  return {
+    source: 'time',
+    timeFunc: ta.timeFunc,
+    timezone: ta.timezone,
+    mode: MATCH_RANGE,
+    value: '',
+    rangeStart: ta.value,
+    rangeEnd: tb.value,
+  }
+}
+
+function tryParseRequestConditions(
+  conditionStr: string
+): RequestCondition[] | null {
+  // A single time range like hour(tz) >= 9 && hour(tz) < 12 must stay one
+  // MATCH_RANGE condition instead of being split into two scalar conditions.
+  const wholeTimeCond = tryParseTimeCondition(conditionStr.trim())
+  if (wholeTimeCond) return [wholeTimeCond]
+
+  const andParts = splitTopLevelAnd(conditionStr)
+  const conditions: RequestCondition[] = []
+  for (let i = 0; i < andParts.length; i += 1) {
+    const part = andParts[i].trim()
+    // Adjacent matching time bounds (fn >= X && fn < Y) form one range; merge
+    // them so the visual editor keeps a single MATCH_RANGE row even when
+    // other conditions follow in the same group.
+    const next = i + 1 < andParts.length ? andParts[i + 1].trim() : ''
+    const merged = next ? tryParseTimeRangePair(part, next) : null
+    if (merged) {
+      conditions.push(merged)
+      i += 1
+      continue
+    }
+    const condition = tryParseRequestCondition(part)
+    if (!condition) return null
+    conditions.push(condition)
+  }
+  return conditions.length > 0 ? conditions : null
+}
+
 function tryParseRuleGroupFactor(part: string): RequestRuleGroup | null {
   const m = part.match(/^\((.+) \? ([\d.eE+-]+) : 1\)$/s)
   if (!m) return null
 
-  const conditionStr = m[1]
-  const multiplier = m[2]
+  const conditions = tryParseRequestConditions(m[1])
+  if (!conditions) return null
+  return { conditions, multiplier: m[2] }
+}
 
-  const andParts = splitTopLevelAnd(conditionStr)
-  const conditions: RequestCondition[] = []
-  for (const ap of andParts) {
-    const cond = tryParseRequestCondition(ap.trim())
-    if (!cond) return null
-    conditions.push(cond)
-  }
-  if (conditions.length === 0) return null
-  return { conditions, multiplier }
+export function requestRuleGroupsFromTrace(
+  requestRules: RequestRuleTrace[]
+): RequestRuleGroup[] {
+  return requestRules.map((rule) => {
+    const conditionText = rule.cond.trim()
+    return {
+      conditions: tryParseRequestConditions(conditionText) || [],
+      multiplier: String(rule.multiplier),
+      conditionText,
+      matched: rule.matched,
+    }
+  })
 }
 
 export function tryParseRequestRuleExpr(
@@ -511,23 +581,8 @@ export function tryParseRequestRuleExpr(
 // Combine / split billing expr and request rules
 // ---------------------------------------------------------------------------
 
-function hasFullOuterParens(expr: string): boolean {
-  if (!expr.startsWith('(') || !expr.endsWith(')')) return false
-  let depth = 0
-  for (let i = 0; i < expr.length; i += 1) {
-    if (expr[i] === '(') depth += 1
-    if (expr[i] === ')') depth -= 1
-    if (depth === 0 && i < expr.length - 1) return false
-  }
-  return depth === 0
-}
-
 function unwrapOuterParens(expr: string): string {
-  let current = (expr || '').trim()
-  while (hasFullOuterParens(current)) {
-    current = current.slice(1, -1).trim()
-  }
-  return current
+  return unwrapExpressionParens(expr)
 }
 
 export function splitBillingExprAndRequestRules(expr: string): {
@@ -642,12 +697,12 @@ function isTimeFunc(value: unknown): value is TimeFunc {
 export function normalizeCondition(
   cond: Partial<RequestCondition> | null | undefined
 ): RequestCondition {
-  const source =
-    cond?.source === 'time'
-      ? 'time'
-      : cond?.source === 'header'
-        ? 'header'
-        : 'param'
+  let source: RequestCondition['source'] = 'param'
+  if (cond?.source === 'time') {
+    source = 'time'
+  } else if (cond?.source === 'header') {
+    source = 'header'
+  }
 
   if (source === 'time') {
     const timeCond = cond as Partial<TimeCondition> | null | undefined
@@ -704,13 +759,21 @@ function buildTimeConditionExpr(cond: TimeCondition): string {
   if (mode === MATCH_RANGE) {
     const s = normalized.rangeStart.trim()
     const e = normalized.rangeEnd.trim()
-    if (!NUMERIC_LITERAL_REGEX.test(s) || !NUMERIC_LITERAL_REGEX.test(e)) {
+    if (!isTimeValueInRange(timeFunc, s) || !isTimeValueInRange(timeFunc, e)) {
       return ''
     }
-    return `${fn} >= ${s} || ${fn} < ${e}`
+    // Overnight range (start > end) crosses the day boundary, e.g. 21-6.
+    // A within-day range (start <= end), e.g. 9-12, must use && so the
+    // condition is not a tautology that always applies the multiplier.
+    const sNum = Number(s)
+    const eNum = Number(e)
+    if (sNum > eNum) {
+      return `${fn} >= ${s} || ${fn} < ${e}`
+    }
+    return `${fn} >= ${s} && ${fn} < ${e}`
   }
   const v = normalized.value.trim()
-  if (!NUMERIC_LITERAL_REGEX.test(v)) return ''
+  if (!isTimeValueInRange(timeFunc, v)) return ''
   const opMap: Record<string, string> = {
     [MATCH_EQ]: '==',
     [MATCH_GTE]: '>=',

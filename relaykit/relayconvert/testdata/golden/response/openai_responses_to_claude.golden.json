@@ -4,6 +4,10 @@
   "role": "assistant",
   "content": [
     {
+      "type": "thinking",
+      "thinking": "Deep thought."
+    },
+    {
       "type": "text",
       "text": "The answer is 42."
     },

@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -367,14 +369,8 @@ func SearchChannels(c *gin.Context) {
 	}
 
 	total := len(channelData)
-	startIdx := (page - 1) * pageSize
-	if startIdx > total {
-		startIdx = total
-	}
-	endIdx := startIdx + pageSize
-	if endIdx > total {
-		endIdx = total
-	}
+	startIdx := min((page-1)*pageSize, total)
+	endIdx := min(startIdx+pageSize, total)
 
 	pagedData := channelData[startIdx:endIdx]
 
@@ -420,25 +416,24 @@ func GetChannel(c *gin.Context) {
 // 此函数依赖 SecureVerificationRequired 中间件，确保用户已通过安全验证
 func GetChannelKey(c *gin.Context) {
 	channelId, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiError(c, fmt.Errorf("渠道ID格式错误: %v", err))
+	if err != nil || channelId <= 0 {
+		common.ApiErrorMsg(c, "渠道ID格式错误")
 		return
 	}
 
 	// 获取渠道信息（包含密钥）
 	channel, err := model.GetChannelById(channelId, true)
-	if err != nil {
-		common.ApiError(c, fmt.Errorf("获取渠道信息失败: %v", err))
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		common.ApiErrorI18n(c, i18n.MsgChannelNotExists)
 		return
 	}
-
-	if channel == nil {
-		common.ApiError(c, fmt.Errorf("渠道不存在"))
+	if err != nil {
+		writeSecurityOperationError(c, err)
 		return
 	}
 
 	// 记录操作审计日志（高危：查看渠道密钥）
-	recordManageAudit(c, "channel.key_view", map[string]interface{}{
+	recordManageAudit(c, "channel.key_view", map[string]any{
 		"id":   channelId,
 		"name": channel.Name,
 	})
@@ -447,27 +442,10 @@ func GetChannelKey(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "获取成功",
-		"data": map[string]interface{}{
+		"data": map[string]any{
 			"key": channel.Key,
 		},
 	})
-}
-
-// validateTwoFactorAuth 统一的2FA验证函数
-func validateTwoFactorAuth(twoFA *model.TwoFA, code string) bool {
-	// 尝试验证TOTP
-	if cleanCode, err := common.ValidateNumericCode(code); err == nil {
-		if isValid, _ := twoFA.ValidateTOTPAndUpdateUsage(cleanCode); isValid {
-			return true
-		}
-	}
-
-	// 尝试验证备用码
-	if isValid, err := twoFA.ValidateBackupCodeAndUpdateUsage(code); err == nil && isValid {
-		return true
-	}
-
-	return false
 }
 
 // validateChannel 通用的渠道校验函数
@@ -479,6 +457,29 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	// 校验 channel settings
 	if err := channel.ValidateSettings(); err != nil {
 		return fmt.Errorf("渠道额外设置[channel setting] 格式错误：%s", err.Error())
+	}
+	if channel.Type == constant.ChannelTypeTaskPlugin {
+		pluginKey := strings.TrimSpace(channel.GetSetting().TaskPluginKey)
+		if pluginKey == "" {
+			return fmt.Errorf("task plugin key is required")
+		}
+		if len(pluginKey) > 30 {
+			return fmt.Errorf("task plugin key must not exceed 30 characters")
+		}
+		plugin, ok := jsplugin.DefaultRegistry.Get(pluginKey)
+		if !ok {
+			return fmt.Errorf("task plugin %q is not registered", pluginKey)
+		}
+		if channel.BaseURL == nil || strings.TrimSpace(*channel.BaseURL) == "" {
+			// The plugin default is persisted onto the channel instead of being
+			// resolved per request, so the destination host stays an auditable
+			// channel property that only an administrator edit can change.
+			if plugin.Meta.BaseURL == "" {
+				return fmt.Errorf("base URL is required for task plugin channels")
+			}
+			defaultBaseURL := plugin.Meta.BaseURL
+			channel.BaseURL = &defaultBaseURL
+		}
 	}
 
 	if channel.Type == constant.ChannelTypeNewAPI && strings.TrimSpace(channel.GetBaseURL()) == "" {
@@ -581,7 +582,7 @@ func getVertexArrayKeys(keys string) ([]string, error) {
 	if keys == "" {
 		return nil, nil
 	}
-	var keyArray []interface{}
+	var keyArray []any
 	err := common.Unmarshal([]byte(keys), &keyArray)
 	if err != nil {
 		return nil, fmt.Errorf("批量添加 Vertex AI 必须使用标准的JsonArray格式，例如[{key1}, {key2}...]，请检查输入: %w", err)
@@ -617,6 +618,18 @@ func AddChannel(c *gin.Context) {
 		return
 	}
 
+	if addChannelRequest.Channel != nil && addChannelRequest.Channel.Type == constant.ChannelTypeTaskPlugin &&
+		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.TaskPluginBind) {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "task plugin channels require the task_plugin.bind permission",
+		})
+		return
+	}
+
+	baseURLFromPluginDefault := addChannelRequest.Channel != nil &&
+		addChannelRequest.Channel.Type == constant.ChannelTypeTaskPlugin &&
+		(addChannelRequest.Channel.BaseURL == nil || strings.TrimSpace(*addChannelRequest.Channel.BaseURL) == "")
 	// 使用统一的校验函数
 	if err := validateChannel(addChannelRequest.Channel, true); err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -645,7 +658,7 @@ func AddChannel(c *gin.Context) {
 			addChannelRequest.Channel.Key = strings.Join(array, "\n")
 		} else {
 			cleanKeys := make([]string, 0)
-			for _, key := range strings.Split(addChannelRequest.Channel.Key, "\n") {
+			for key := range strings.SplitSeq(addChannelRequest.Channel.Key, "\n") {
 				if key == "" {
 					continue
 				}
@@ -701,11 +714,15 @@ func AddChannel(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	recordManageAudit(c, "channel.create", map[string]interface{}{
+	createAudit := map[string]any{
 		"name":  addChannelRequest.Channel.Name,
 		"type":  addChannelRequest.Channel.Type,
 		"count": len(channels),
-	})
+	}
+	if baseURLFromPluginDefault {
+		createAudit["base_url_source"] = "plugin_default"
+	}
+	recordManageAudit(c, "channel.create", createAudit)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -736,7 +753,7 @@ func DeleteChannel(c *gin.Context) {
 	} else {
 		service.InvalidateProxyClient(channelProxy)
 	}
-	recordManageAudit(c, "channel.delete", map[string]interface{}{
+	recordManageAudit(c, "channel.delete", map[string]any{
 		"id":   id,
 		"name": channelName,
 	})
@@ -757,7 +774,7 @@ func DeleteDisabledChannel(c *gin.Context) {
 	if rows > 0 {
 		service.ResetProxyClientCache()
 	}
-	recordManageAudit(c, "channel.delete_disabled", map[string]interface{}{
+	recordManageAudit(c, "channel.delete_disabled", map[string]any{
 		"count": rows,
 	})
 	c.JSON(http.StatusOK, gin.H{
@@ -796,7 +813,7 @@ func DisableTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
-	recordManageAudit(c, "channel.tag_disable", map[string]interface{}{
+	recordManageAudit(c, "channel.tag_disable", map[string]any{
 		"tag": channelTag.Tag,
 	})
 	c.JSON(http.StatusOK, gin.H{
@@ -822,7 +839,7 @@ func EnableTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
-	recordManageAudit(c, "channel.tag_enable", map[string]interface{}{
+	recordManageAudit(c, "channel.tag_enable", map[string]any{
 		"tag": channelTag.Tag,
 	})
 	c.JSON(http.StatusOK, gin.H{
@@ -882,7 +899,7 @@ func EditTagChannels(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
-	recordManageAudit(c, "channel.tag_edit", map[string]interface{}{
+	recordManageAudit(c, "channel.tag_edit", map[string]any{
 		"tag": channelTag.Tag,
 	})
 	c.JSON(http.StatusOK, gin.H{
@@ -916,7 +933,7 @@ func DeleteChannelBatch(c *gin.Context) {
 	if deletedCount > 0 {
 		service.ResetProxyClientCache()
 	}
-	recordManageAudit(c, "channel.delete_batch", map[string]interface{}{
+	recordManageAudit(c, "channel.delete_batch", map[string]any{
 		"count": deletedCount,
 	})
 	c.JSON(http.StatusOK, gin.H{
@@ -964,6 +981,17 @@ func UpdateChannel(c *gin.Context) {
 	}
 	clearChannelReadOnlyFields(&channel, requestData)
 
+	if channel.Type == constant.ChannelTypeTaskPlugin &&
+		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.TaskPluginBind) {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "task plugin channels require the task_plugin.bind permission",
+		})
+		return
+	}
+
+	baseURLFromPluginDefault := channel.Type == constant.ChannelTypeTaskPlugin &&
+		(channel.BaseURL == nil || strings.TrimSpace(*channel.BaseURL) == "")
 	// 使用统一的校验函数
 	if err := validateChannel(&channel.Channel, false); err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -1046,8 +1074,8 @@ func UpdateChannel(c *gin.Context) {
 					}
 				} else {
 					// 普通渠道的处理
-					inputKeys := strings.Split(channel.Key, "\n")
-					for _, key := range inputKeys {
+					inputKeys := strings.SplitSeq(channel.Key, "\n")
+					for key := range inputKeys {
 						key = strings.TrimSpace(key)
 						if key != "" {
 							newKeys = append(newKeys, key)
@@ -1109,11 +1137,15 @@ func UpdateChannel(c *gin.Context) {
 	if channel.Key != "" && channel.Key != originChannel.Key {
 		changedFields = append(changedFields, "key")
 	}
-	recordManageAudit(c, "channel.update", map[string]interface{}{
+	updateAudit := map[string]any{
 		"id":             channel.Id,
 		"name":           channel.Name,
 		"changed_fields": changedFields,
-	})
+	}
+	if baseURLFromPluginDefault {
+		updateAudit["base_url_source"] = "plugin_default"
+	}
+	recordManageAudit(c, "channel.update", updateAudit)
 	channel.Key = ""
 	clearChannelInfo(&channel.Channel)
 	c.JSON(http.StatusOK, gin.H{
@@ -1139,7 +1171,7 @@ func UpdateChannelStatus(c *gin.Context) {
 	if changed {
 		model.InitChannelCache()
 	}
-	recordManageAudit(c, "channel.status_update", map[string]interface{}{
+	recordManageAudit(c, "channel.status_update", map[string]any{
 		"id":      id,
 		"status":  req.Status,
 		"changed": changed,
@@ -1166,7 +1198,7 @@ func BatchUpdateChannelStatus(c *gin.Context) {
 	if changedCount > 0 {
 		model.InitChannelCache()
 	}
-	recordManageAudit(c, "channel.status_update_batch", map[string]interface{}{
+	recordManageAudit(c, "channel.status_update_batch", map[string]any{
 		"count":  changedCount,
 		"total":  len(req.Ids),
 		"status": req.Status,
@@ -1299,7 +1331,7 @@ func FetchModels(c *gin.Context) {
 			baseURL = strings.TrimSpace(*req.BaseURL)
 		}
 		if baseURL == "" {
-			baseURL = constant.ChannelBaseURLs[req.Type]
+			baseURL = constant.GetChannelBaseURL(req.Type)
 		}
 
 		key := strings.TrimSpace(req.Key)
@@ -1344,7 +1376,7 @@ func BatchSetChannelTag(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
-	recordManageAudit(c, "channel.tag_batch_set", map[string]interface{}{
+	recordManageAudit(c, "channel.tag_batch_set", map[string]any{
 		"count": len(channelBatch.Ids),
 	})
 	c.JSON(http.StatusOK, gin.H{
@@ -1424,6 +1456,11 @@ func CopyChannel(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取渠道信息失败，请稍后重试"})
 		return
 	}
+	if origin.Type == constant.ChannelTypeTaskPlugin &&
+		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.TaskPluginBind) {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "task plugin channels require the task_plugin.bind permission"})
+		return
+	}
 
 	// clone channel
 	clone := *origin // shallow copy is sufficient as we will overwrite primitives
@@ -1450,7 +1487,7 @@ func CopyChannel(c *gin.Context) {
 		return
 	}
 	model.InitChannelCache()
-	recordManageAudit(c, "channel.copy", map[string]interface{}{
+	recordManageAudit(c, "channel.copy", map[string]any{
 		"sourceId": id,
 		"id":       clone.Id,
 		"name":     clone.Name,
@@ -1525,7 +1562,7 @@ func ManageMultiKeys(c *gin.Context) {
 	if request.Action == "get_key_status" {
 		markAuditLogged(c)
 	} else {
-		recordManageAudit(c, "channel.multi_key_manage", map[string]interface{}{
+		recordManageAudit(c, "channel.multi_key_manage", map[string]any{
 			"action": request.Action,
 			"id":     channel.Id,
 		})
@@ -1623,10 +1660,7 @@ func ManageMultiKeys(c *gin.Context) {
 
 		// Calculate range for current page
 		start := (page - 1) * pageSize
-		end := start + pageSize
-		if end > filteredTotal {
-			end = filteredTotal
-		}
+		end := min(start+pageSize, filteredTotal)
 
 		// Get the page data
 		var pageKeyStatusList []KeyStatus
@@ -2010,7 +2044,7 @@ func OllamaPullModel(c *gin.Context) {
 		return
 	}
 
-	baseURL := constant.ChannelBaseURLs[channel.Type]
+	baseURL := constant.GetChannelBaseURL(channel.Type)
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
 	}
@@ -2073,7 +2107,7 @@ func OllamaPullModelStream(c *gin.Context) {
 		return
 	}
 
-	baseURL := constant.ChannelBaseURLs[channel.Type]
+	baseURL := constant.GetChannelBaseURL(channel.Type)
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
 	}
@@ -2155,7 +2189,7 @@ func OllamaDeleteModel(c *gin.Context) {
 		return
 	}
 
-	baseURL := constant.ChannelBaseURLs[channel.Type]
+	baseURL := constant.GetChannelBaseURL(channel.Type)
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
 	}
@@ -2204,7 +2238,7 @@ func OllamaVersion(c *gin.Context) {
 		return
 	}
 
-	baseURL := constant.ChannelBaseURLs[channel.Type]
+	baseURL := constant.GetChannelBaseURL(channel.Type)
 	if channel.GetBaseURL() != "" {
 		baseURL = channel.GetBaseURL()
 	}

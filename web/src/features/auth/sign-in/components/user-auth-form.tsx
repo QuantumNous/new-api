@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
-import axios from 'axios'
 import { Loader2, LogIn, KeyRound } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -49,15 +48,15 @@ import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import { beginPasskeyLogin, finishPasskeyLogin } from '@/features/auth/passkey'
 import type { AuthFormProps } from '@/features/auth/types'
 import { useStatus } from '@/hooks/use-status'
-import { isAuthBundle } from '@/lib/api'
+import { handleServerError } from '@/lib/handle-server-error'
 import {
   buildAssertionResult,
   prepareCredentialRequestOptions,
   isPasskeySupported as detectPasskeySupport,
 } from '@/lib/passkey'
-import { getServerErrorMessageKey } from '@/lib/server-error-message'
+import { AuthOperationError } from '@/lib/secure-verification'
+import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
-import { useAuthStore } from '@/stores/auth-store'
 
 export function UserAuthForm({
   className,
@@ -72,6 +71,7 @@ export function UserAuthForm({
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false)
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
+  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
   const loginFailedMessage = t('Login failed')
 
@@ -83,6 +83,10 @@ export function UserAuthForm({
     (status?.password_login_enabled ??
       status?.data?.password_login_enabled ??
       true) !== false
+  const passwordLoginEncryptionEnabled =
+    (status?.password_login_encryption_enabled ??
+      status?.data?.password_login_encryption_enabled ??
+      false) === true
   const {
     isTurnstileEnabled,
     turnstileSiteKey,
@@ -90,10 +94,7 @@ export function UserAuthForm({
     setTurnstileToken,
     validateTurnstile,
   } = useTurnstile()
-  const { handleLoginSuccess, redirectTo2FA } = useAuthRedirect()
-  const setPending2FAFlowToken = useAuthStore(
-    (state) => state.auth.setPending2FAFlowToken
-  )
+  const { handleLoginResult } = useAuthRedirect()
 
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
@@ -158,33 +159,31 @@ export function UserAuthForm({
 
     if (!validateTurnstile()) return
 
+    const submittedTurnstileToken = turnstileToken
+    if (isTurnstileEnabled) {
+      setTurnstileToken('')
+      setTurnstileWidgetKey((current) => current + 1)
+    }
+
     setIsLoading(true)
     try {
       const res = await login({
         username: data.username,
         password: data.password,
-        turnstile: turnstileToken,
+        turnstile: submittedTurnstileToken,
+        passwordEncryptionEnabled: passwordLoginEncryptionEnabled,
       })
 
       if (res.success) {
-        if (res.data && 'require_2fa' in res.data && res.data.require_2fa) {
-          if (!res.data.flow_token) {
-            throw new Error(t('Login flow expired. Please sign in again.'))
-          }
-          setPending2FAFlowToken(res.data.flow_token)
-          redirectTo2FA()
-          return
+        form.setValue('password', '')
+        if (await handleLoginResult(res.data, redirectTo)) {
+          toast.success(t('Welcome back!'))
         }
-
-        if (!isAuthBundle(res.data)) {
-          throw new Error(t('Login failed'))
-        }
-        await handleLoginSuccess(res.data, redirectTo)
-        toast.success(t('Welcome back!'))
+      } else {
+        handleServerError(createServerError(res, loginFailedMessage))
       }
     } catch (error: unknown) {
-      if (axios.isAxiosError(error)) return
-      toast.error(error instanceof Error ? error.message : loginFailedMessage)
+      handleServerError(AuthOperationError.from(error, loginFailedMessage))
     } finally {
       setIsLoading(false)
     }
@@ -216,17 +215,18 @@ export function UserAuthForm({
     setIsWeChatSubmitting(true)
     try {
       const res = await wechatLoginByCode(wechatCode)
-      if (res?.success && isAuthBundle(res.data)) {
-        await handleLoginSuccess(res.data, redirectTo)
-        toast.success(t('Signed in via WeChat'))
+      if (res?.success) {
         handleWeChatDialogChange(false)
+        if (await handleLoginResult(res.data, redirectTo)) {
+          toast.success(t('Signed in via WeChat'))
+        }
       } else {
-        if (getServerErrorMessageKey(res)) return
-        toast.error(res?.message || loginFailedMessage)
+        handleServerError(createServerError(res, loginFailedMessage))
       }
     } catch (error: unknown) {
-      if (getServerErrorMessageKey(error)) return
-      toast.error(loginFailedMessage)
+      handleServerError(
+        new AuthOperationError(loginFailedMessage, undefined, { cause: error })
+      )
     } finally {
       setIsWeChatSubmitting(false)
     }
@@ -252,8 +252,7 @@ export function UserAuthForm({
     try {
       const begin = await beginPasskeyLogin()
       if (!begin.success) {
-        if (getServerErrorMessageKey(begin)) return
-        throw new Error(begin.message || t('Failed to start Passkey login'))
+        throw createServerError(begin, t('Failed to start Passkey login'))
       }
 
       const publicKey = prepareCredentialRequestOptions(
@@ -280,24 +279,21 @@ export function UserAuthForm({
 
       const finish = await finishPasskeyLogin(flowToken, assertion)
       if (!finish.success) {
-        if (getServerErrorMessageKey(finish)) return
-        throw new Error(finish.message || t('Failed to complete Passkey login'))
+        throw createServerError(finish, t('Failed to complete Passkey login'))
       }
 
-      if (!isAuthBundle(finish.data)) {
-        throw new Error(t('Missing user data from Passkey login response'))
+      if (await handleLoginResult(finish.data, redirectTo)) {
+        toast.success(t('Signed in with Passkey'))
       }
-
-      await handleLoginSuccess(finish.data, redirectTo)
-      toast.success(t('Signed in with Passkey'))
     } catch (error: unknown) {
-      if (getServerErrorMessageKey(error)) return
       if (error instanceof DOMException && error.name === 'NotAllowedError') {
         toast.info(t('Passkey login was cancelled or timed out'))
       } else if (error instanceof Error) {
-        toast.error(error.message)
+        handleServerError(AuthOperationError.from(error))
       } else {
-        toast.error(t('Passkey login failed'))
+        handleServerError(
+          AuthOperationError.from(error, t('Passkey login failed'))
+        )
       }
     } finally {
       setIsPasskeyLoading(false)
@@ -408,8 +404,10 @@ export function UserAuthForm({
             {isTurnstileEnabled && (
               <div className='mt-2'>
                 <Turnstile
+                  key={turnstileWidgetKey}
                   siteKey={turnstileSiteKey}
                   onVerify={setTurnstileToken}
+                  onExpire={() => setTurnstileToken('')}
                 />
               </div>
             )}

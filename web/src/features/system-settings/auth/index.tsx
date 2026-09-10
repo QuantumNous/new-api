@@ -48,6 +48,8 @@ const defaultAuthSettings: AuthSettings = {
   'oidc.token_endpoint': '',
   'oidc.user_info_endpoint': '',
   TelegramOAuthEnabled: false,
+  'telegram.client_id': '',
+  'telegram.client_secret': '',
   TelegramBotToken: '',
   TelegramBotName: '',
   LinuxDOOAuthEnabled: false,

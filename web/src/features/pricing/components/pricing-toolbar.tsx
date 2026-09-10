@@ -16,10 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ArrowUpDown, Check, Filter, Grid2X2, Table2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { ArrowUpDown, Check, Filter } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DataTableViewModeToggle } from '@/components/data-table'
 import {
   sideDrawerContentClassName,
   sideDrawerFormClassName,
@@ -30,6 +31,7 @@ import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -40,28 +42,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 
-import {
-  VIEW_MODES,
-  getSortLabels,
-  type SortOption,
-  type ViewMode,
-} from '../constants'
+import { getSortLabels, type SortOption, type ViewMode } from '../constants'
 import type { PricingModel, PricingVendor, TokenUnit } from '../types'
 import { PricingSidebar } from './pricing-sidebar'
-
-type SegmentOption = {
-  value: string
-  label?: string
-  icon?: React.ComponentType<{ className?: string }>
-  tooltip?: string
-}
 
 export interface PricingToolbarProps {
   filteredCount: number
@@ -94,80 +80,14 @@ export interface PricingToolbarProps {
   onClearFilters: () => void
 }
 
-function SegmentedControl(props: {
-  options: SegmentOption[]
-  value: string
-  onChange: (value: string) => void
-  ariaLabel: string
-}) {
-  return (
-    <div
-      role='group'
-      aria-label={props.ariaLabel}
-      className='bg-muted/60 inline-flex h-8 items-center rounded-lg border p-0.5'
-    >
-      {props.options.map((option) => {
-        const Icon = option.icon
-        const isActive = option.value === props.value
-        const button = (
-          <button
-            key={option.value}
-            type='button'
-            onClick={() => props.onChange(option.value)}
-            aria-pressed={isActive}
-            className={cn(
-              'inline-flex h-full items-center justify-center rounded-md text-xs font-medium transition-all',
-              Icon && !option.label ? 'w-7' : 'gap-1.5 px-3',
-              isActive
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            {Icon && <Icon className='size-3.5' />}
-            {option.label}
-          </button>
-        )
-
-        if (!option.tooltip) {
-          return button
-        }
-
-        return (
-          <Tooltip key={option.value}>
-            <TooltipTrigger render={button}></TooltipTrigger>
-            <TooltipContent side='bottom' className='text-xs'>
-              {option.tooltip}
-            </TooltipContent>
-          </Tooltip>
-        )
-      })}
-    </div>
-  )
-}
-
 export function PricingToolbar(props: PricingToolbarProps) {
   const { t } = useTranslation()
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const sortLabels = getSortLabels(t)
 
-  const handleTokenUnitChange = useCallback(
-    (value: string) => props.onTokenUnitChange(value as TokenUnit),
-    [props]
-  )
-
-  const handleViewModeChange = useCallback(
-    (value: string) => props.onViewModeChange(value as ViewMode),
-    [props]
-  )
-
-  const handleRechargePriceChange = useCallback(
-    (value: string) => props.onRechargePriceChange(value === 'recharge'),
-    [props]
-  )
-
   return (
-    <div className='rounded-xl border p-3'>
-      <div className='flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between'>
+    <div className='bg-card rounded-xl border p-3'>
+      <div className='flex flex-wrap items-center justify-between gap-3'>
         <div className='flex items-center gap-2'>
           <Button
             type='button'
@@ -190,35 +110,44 @@ export function PricingToolbar(props: PricingToolbarProps) {
               {props.filteredCount.toLocaleString()}
             </span>
             <span>{props.filteredCount === 1 ? t('model') : t('models')}</span>
-            {props.hasActiveFilters && props.totalCount && (
-              <span className='text-muted-foreground/60 text-xs'>
-                / {props.totalCount.toLocaleString()}
-              </span>
-            )}
+            {props.totalCount != null &&
+              props.filteredCount !== props.totalCount && (
+                <span className='text-muted-foreground/60 text-xs'>
+                  / {props.totalCount.toLocaleString()}
+                </span>
+              )}
           </div>
         </div>
 
-        <div className='flex flex-wrap items-center gap-2'>
-          <div className='hidden items-center gap-2 sm:flex'>
-            <SegmentedControl
-              options={[
-                { value: 'standard', label: t('Standard') },
-                { value: 'recharge', label: t('Recharge') },
-              ]}
-              value={props.showRechargePrice ? 'recharge' : 'standard'}
-              onChange={handleRechargePriceChange}
-              ariaLabel={t('Price display mode')}
-            />
-            <SegmentedControl
-              options={[
-                { value: 'M', label: '/1M' },
-                { value: 'K', label: '/1K' },
-              ]}
-              value={props.tokenUnit}
-              onChange={handleTokenUnitChange}
-              ariaLabel={t('Token unit')}
-            />
-          </div>
+        <div className='flex min-w-0 flex-wrap items-center gap-2'>
+          <ToggleGroup
+            value={[props.showRechargePrice ? 'recharge' : 'standard']}
+            onValueChange={(values) => {
+              if (values.length > 0) {
+                props.onRechargePriceChange(values[0] === 'recharge')
+              }
+            }}
+            variant='outline'
+            size='sm'
+            aria-label={t('Price display mode')}
+          >
+            <ToggleGroupItem value='standard'>{t('Standard')}</ToggleGroupItem>
+            <ToggleGroupItem value='recharge'>{t('Recharge')}</ToggleGroupItem>
+          </ToggleGroup>
+          <ToggleGroup
+            value={[props.tokenUnit]}
+            onValueChange={(values) => {
+              if (values[0] === 'M' || values[0] === 'K') {
+                props.onTokenUnitChange(values[0])
+              }
+            }}
+            variant='outline'
+            size='sm'
+            aria-label={t('Token unit')}
+          >
+            <ToggleGroupItem value='M'>/1M</ToggleGroupItem>
+            <ToggleGroupItem value='K'>/1K</ToggleGroupItem>
+          </ToggleGroup>
 
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -235,47 +164,36 @@ export function PricingToolbar(props: PricingToolbarProps) {
               <span>{sortLabels[props.sortBy as SortOption] || t('Sort')}</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end' className='w-44'>
-              {Object.entries(sortLabels).map(([value, label]) => (
-                <DropdownMenuItem
-                  key={value}
-                  onClick={() => props.onSortChange(value)}
-                  className='gap-2'
-                >
-                  <Check
-                    className={cn(
-                      'size-4 shrink-0',
-                      props.sortBy === value ? 'opacity-100' : 'opacity-0'
-                    )}
-                  />
-                  {label}
-                </DropdownMenuItem>
-              ))}
+              <DropdownMenuGroup>
+                {Object.entries(sortLabels).map(([value, label]) => (
+                  <DropdownMenuItem
+                    key={value}
+                    onClick={() => props.onSortChange(value)}
+                    className='gap-2'
+                  >
+                    <Check
+                      className={cn(
+                        'size-4 shrink-0',
+                        props.sortBy === value ? 'opacity-100' : 'opacity-0'
+                      )}
+                    />
+                    {label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <SegmentedControl
-            options={[
-              {
-                value: VIEW_MODES.CARD,
-                icon: Grid2X2,
-                tooltip: t('Card view'),
-              },
-              {
-                value: VIEW_MODES.TABLE,
-                icon: Table2,
-                tooltip: t('Table view'),
-              },
-            ]}
+          <DataTableViewModeToggle
             value={props.viewMode}
-            onChange={handleViewModeChange}
-            ariaLabel={t('View mode')}
+            onChange={props.onViewModeChange}
           />
         </div>
       </div>
 
       <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
         <SheetContent
-          side='right'
+          side='left'
           className={sideDrawerContentClassName('sm:max-w-md')}
         >
           <SheetHeader className={sideDrawerHeaderClassName()}>

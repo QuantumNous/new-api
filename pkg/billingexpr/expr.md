@@ -12,7 +12,7 @@ The expression is the billing contract between the administrator and the system.
 
 2. **Variables are opt-in** — `p` (prompt) and `c` (completion) are the base. Cache (`cr`, `cc`, `cc1h`), image (`img`), and audio (`ai`, `ao`) variables are optional. If omitted, those tokens are included in `p`/`c` and priced at their rate. The system automatically detects which variables the expression uses (via AST introspection) and adjusts token normalization accordingly.
 
-3. **Prices are real prices** — Expression coefficients are actual $/1M tokens prices as published by providers. No ratio conversion, no `/2` convention. `p * 2.5` means $2.50 per 1M prompt tokens.
+3. **Prices are real prices** — Token coefficients are actual $/1M tokens prices as published by providers. `p * 2.5` means $2.50 per 1M prompt tokens; `fixed(0.01)` means $0.01 per request. No ratio conversion or `/2` convention is required.
 
 4. **Upstream-agnostic** — The expression doesn't need to know whether the upstream API is OpenAI-format (prompt_tokens includes cache) or Claude-format (input_tokens excludes cache). The system normalizes token counts before evaluation based on the upstream response format.
 
@@ -76,6 +76,7 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 | Function | Signature | Purpose |
 |----------|-----------|---------|
 | `tier` | `tier(name, value) → float64` | Records which pricing tier matched; must wrap the cost expression |
+| `fixed` | `fixed(amount) → float64` | A USD price per request, used only as the complete price in `tier(name, fixed(amount))` |
 | `param` | `param(path) → any` | Reads a JSON path from the request body (uses gjson) |
 | `header` | `header(key) → string` | Reads a request header value |
 | `has` | `has(source, substr) → bool` | Substring check |
@@ -96,6 +97,11 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 # Simple flat pricing
 tier("base", p * 2.5 + c * 15 + cr * 0.25)
 
+# Conditional per-request pricing, with token pricing for the fallback
+len <= 32000
+  ? tier("short", fixed(0.01))
+  : tier("long", p * 2 + c * 8)
+
 # Multi-tier (Claude Sonnet style) — use len for tier conditions
 len <= 200000
   ? tier("standard", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6)
@@ -108,6 +114,40 @@ tier("base", p * 2 + c * 8 + img * 2.5)
 tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)
 ```
 
+### Fixed Request Prices
+
+`tier("request", fixed(0.01))` replaces all token charges in the selected leaf
+with a $0.01 base price for one successful HTTP/SSE request. Other leaves may
+still use token pricing. Group ratios and request multipliers continue to apply;
+existing tool surcharges are calculated separately and added as before. A stream
+does not incur a fixed fee per chunk. Realtime and task usage expressions reject
+`fixed()` before upstream submission or reservation.
+
+The amount must be a finite, non-negative numeric literal whose v1 scaled value
+is finite. Explicit `fixed(0)` is valid and stays free. Expressions using `fixed`
+must consist of a conditional pricing tree and the standard request multiplier
+factors described below, with each leaf wrapped in `tier()`. Adding fixed and
+token charges in one leaf, adding multiple tiers together, or multiplying a
+fixed price by tokens is rejected. Validation examines the original AST,
+including branches that optimization or short-circuiting would skip. Existing
+expressions without `fixed()` retain their original grammar and behavior.
+
+`fixed(amount)` returns `amount * 1,000,000` internally, preserving v1's existing
+quota conversion and rounding. Pre-consume matches conditions using estimates;
+settlement reevaluates against actual or existing locally estimated usage and
+reconciles any change of branch through the normal billing session. Missing
+upstream usage retains the existing estimation path; an actual request-priced
+branch can charge even with zero tokens. Failures retain the normal refund
+policy. Settlement evaluation errors retain the reservation and its estimated
+billing unit.
+
+Evaluation results expose `billing_unit` (`token` or `request`) and, for a
+request-priced leaf, `fixed_price` in USD before multipliers. Pre-consume snapshots
+carry `estimated_billing_unit` and `estimated_fixed_price`; consume logs append
+the actual values to `other`. An explicit zero price is present in these fields.
+Older snapshots and logs need no migration. The expression remains the sole
+pricing configuration.
+
 ### Request Rules (appended after `|||`)
 
 Request-conditional multipliers are appended to the expression after a `|||` separator:
@@ -116,7 +156,110 @@ Request-conditional multipliers are appended to the expression after a `|||` sep
 tier("base", p * 5 + c * 25)|||when(header("anthropic-beta") has "fast-mode") * 6
 ```
 
-These are parsed and applied separately by the request rule system.
+These factors are stored as ordinary multiplication in the final expression (for example, `(tier(...)) * (condition ? 6 : 1)`) and run in the same billing program.
+
+### Request Rule Tracing
+
+At compile time, the engine instruments ternary factors with this exact shape:
+
+```
+<request-probe condition> ? <numeric literal> : 1
+```
+
+The condition must reference at least one request probe (`param`, `header`, `hour`, `minute`, `weekday`, `month`, or `day`). Both branches must be numeric literals and the fallback must equal `1`. Other conditionals, including `(condition ? 2 : 1.5)`, are evaluated normally but are not traced. Integer-only factors use an integer-preserving trace callback, so instrumentation does not change expressions that require an integer operand (for example, `%`). The internal trace callback names are reserved and cannot be used in stored expressions.
+
+The compiled cache stores the canonical condition and multiplier for every instrumented node. Each run starts with the full detected rule list marked as unmatched; callbacks mark rules that actually evaluate true. Rules skipped by normal expression short-circuiting remain unmatched. This keeps the expression's numeric result unchanged and avoids reparsing it on each request.
+
+Settlement copies the actual run's traces into the consume log as:
+
+```json
+{
+  "request_rules": [
+    { "cond": "param(\"service_tier\") == \"fast\"", "multiplier": 2, "matched": true }
+  ]
+}
+```
+
+The usage-log UI treats `request_rules` as the authoritative rule list and renders directly from it. It parses `cond` only to produce a friendly label and falls back to the canonical condition text when that parser does not recognize the condition. Pricing pages without log context continue to parse the stored expression for display.
+
+---
+
+## Task Usage Expressions
+
+Task plugins can expose validated, provider-specific billing facts through
+`meta.usageSchema`. Expressions read those facts with `u("key")`. A literal key
+must be declared by the plugin schema before the expression can be saved.
+Numeric facts are finite, non-negative values in the declared canonical unit
+(`second`, `count`, `token`, or `credit`); enum facts are exact strings from the
+declared value list. The schema description is display-only metadata and never
+affects evaluation. `token` is the host unit for upstream billing tokens (for
+example doubao `usage.completion_tokens`). `credit` is the host unit for vendor
+resource-pack units (for example kling `final_unit_deduction`). Both share the
+int32 quota bound, not the 3600-second / 128-count limits.
+
+Task usage billing has a deliberately different conversion rule from token
+billing:
+
+```
+task quota = expression output in USD * QuotaPerUnit * groupRatio
+token quota = expression output in $/1M tokens / 1,000,000 * QuotaPerUnit * groupRatio
+```
+
+In other words, a task expression already returns the request's dollar cost.
+For example, `u("seconds") * 0.4` means $0.40 per second. Engine semantics do
+not divide task output by one million.
+
+The visual editor generates, and public pricing displays recognize, exactly
+these canonical task shapes. Expressions outside these shapes remain valid in
+raw mode but fall back to the special-expression display:
+
+```
+# Flat unit pricing
+tier("base", u("seconds") * 0.4)
+
+# Enum tiers (conditions may combine enum comparisons with &&)
+u("mode") == "pro"
+  ? tier("pro", u("seconds") * 0.8)
+  : tier("std", u("seconds") * 0.4)
+
+# Optional constant plus multiple numeric usage terms
+tier("base", 0.1 + u("seconds") * 0.4 + u("clips") * 0.05)
+
+# Upstream token overlay (doubao Seedance tokens)
+# The editor takes a $/1M token input and emits the / 1000000 literal.
+# Engine semantics are unchanged: the expression still returns USD.
+tier("base", u("tokens") * 9.8 / 1000000)
+
+# Vendor credit overlay (kling resource-pack units)
+# The coefficient is the real $/credit price; no /1M scale.
+tier("base", u("units") * 0.14)
+```
+
+The tier body is an optional non-negative constant plus one or more
+`u("<number field>") * <unit price>` terms. Token-unit fields use the
+canonical scaled shape `u("<field>") * <dollars per 1M tokens> / 1000000`.
+Credit, second, and count fields keep the bare `u("<field>") * <unit price>`
+shape. Tier conditions are equality checks
+between declared enum fields and values, optionally joined by `&&`, with
+chained ternaries following the same ordering rules as token tiers. Numeric
+range tiers are not part of the current canonical shape. Request rules after
+`|||` remain orthogonal and use the same syntax as token expressions.
+
+Before saving, the host compiles every expression, rejects literal `u()` keys
+that the selected task plugin did not declare, and smoke-tests usage vectors.
+Every numeric field is exercised at 0, 1, and its host-owned unit ceiling
+(`second` 3600, `count` 128, `token`/`credit` int32 max). Enum values are exercised as a
+Cartesian product. Smoke vectors are capped at
+64, reducing oversized enum dimensions to their first and last values. Every
+evaluated result must be finite and non-negative.
+
+Submission evaluates the expression with request-derived usage facts and
+freezes both the expression and those facts in the billing snapshot. On
+completion, the host overlays completion facts on the frozen submission facts
+key by key, so measured values replace estimates while facts omitted by the
+completion hook retain their submission values. The same expression is then
+evaluated again; a changed fact can therefore produce a settlement delta and a
+different matched tier. Evaluation failure keeps the pre-consumed charge.
 
 ---
 
@@ -182,9 +325,9 @@ After the upstream response returns with actual token usage:
 
 **Files**: `service/log_info_generate.go`, `web/src/helpers/render.jsx`
 
-Backend: `InjectTieredBillingInfo()` adds `billing_mode`, `expr_b64` (base64 expression), and `matched_tier` to the log's `other` JSON.
+Backend: `InjectTieredBillingInfo()` adds `billing_mode`, `expr_b64` (base64 expression), `matched_tier`, and the structured `request_rules` trace list to the log's `other` JSON.
 
-Frontend: Detects `billing_mode === "tiered_expr"`, decodes `expr_b64`, parses tiers via shared `parseTiersFromExpr()`, and renders pricing breakdown.
+Frontend: Detects `billing_mode === "tiered_expr"`, decodes `expr_b64`, parses tiers via shared `parseTiersFromExpr()`, and renders request multipliers from `request_rules` when present. Without log traces, it falls back to parsing the stored expression.
 
 ---
 

@@ -16,241 +16,328 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import i18next from 'i18next'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { toast } from 'sonner'
+import { useCallback, useEffect, useReducer, useRef } from 'react'
+
+import { AuthOperationError } from '@/lib/secure-verification'
+import type { AuthBundle } from '@/stores/auth-store'
 
 import {
-  extractVerificationInfo,
-  isVerificationRequiredError,
-} from '@/lib/secure-verification'
-
-import { checkVerificationMethods, verify } from '../api'
+  checkVerificationMethods,
+  getLoginVerificationRequirements,
+  verify,
+  verifyLogin,
+} from '../api'
 import type {
+  RequestVerificationOptions,
+  RequestLoginVerificationOptions,
+  VerificationRequest,
+  LoginChallenge,
   SecureVerificationState,
-  StartVerificationOptions,
-  UseSecureVerificationOptions,
-  VerificationMethod,
-  VerificationMethods,
+  SecurityProof,
+  VerificationInput,
+  VerificationRequirements,
 } from '../types'
 
-type ApiCall = ((proofToken?: string) => Promise<unknown>) | null
+type VerificationAction =
+  | { type: 'reset' }
+  | { type: 'loading'; request: VerificationRequest }
+  | { type: 'loaded'; requirements: VerificationRequirements }
+  | { type: 'input'; input: VerificationInput }
+  | { type: 'submit' }
+  | { type: 'error'; error: string }
 
-interface InternalState extends SecureVerificationState {
-  apiCall: ApiCall
-}
-
-const defaultMethods: VerificationMethods = {
-  has2FA: false,
-  hasPasskey: false,
-  passkeySupported: false,
-}
-
-const initialState: InternalState = {
-  method: null,
-  loading: false,
-  code: '',
-  title: undefined,
-  description: undefined,
-  apiCall: null,
-}
-
-export function useSecureVerification(
-  options: UseSecureVerificationOptions = {}
-) {
-  const { onSuccess, onError, successMessage, autoReset = true } = options
-
-  const [methods, setMethods] = useState<VerificationMethods>(defaultMethods)
-  const [state, setState] = useState<InternalState>(initialState)
-  const [open, setOpen] = useState(false)
-
-  const fetchVerificationMethods = useCallback(async () => {
-    const result = await checkVerificationMethods()
-    setMethods(result)
-    return result
-  }, [])
-
-  useEffect(() => {
-    fetchVerificationMethods()
-  }, [fetchVerificationMethods])
-
-  const reset = useCallback(() => {
-    setState(initialState)
-    setOpen(false)
-  }, [])
-
-  const startVerification = useCallback(
-    async (
-      apiCall: (proofToken?: string) => Promise<unknown>,
-      config: StartVerificationOptions
-    ) => {
-      const { preferredMethod, scope, title, description } = config
-      const availableMethods = await fetchVerificationMethods()
-
-      if (!availableMethods.has2FA && !availableMethods.hasPasskey) {
-        toast.error(
-          i18next.t(
-            'Please enable Two-factor Authentication or Passkey before proceeding'
-          )
-        )
-        onError?.(
-          new Error(
-            'No verification methods available. Enable 2FA or Passkey to continue.'
-          )
-        )
-        return false
+function verificationReducer(
+  state: SecureVerificationState,
+  action: VerificationAction
+): SecureVerificationState {
+  switch (action.type) {
+    case 'reset':
+      return { phase: 'idle' }
+    case 'loading':
+      return { phase: 'loading', request: action.request }
+    case 'loaded': {
+      if (state.phase !== 'loading') return state
+      const methods = action.requirements.methods.filter(
+        (option) => option.available
+      )
+      const preferred =
+        methods.find((option) => option.method === 'passkey') ?? methods[0]
+      let input: VerificationInput | null = null
+      switch (preferred?.method) {
+        case '2fa':
+          input = { method: '2fa', code: '' }
+          break
+        case 'password':
+          input = { method: 'password', password: '' }
+          break
+        case 'passkey':
+          input = { method: 'passkey' }
+          break
+        case 'oauth':
+          input = {
+            method: 'oauth',
+            provider: action.requirements.oauth_providers[0]?.slug ?? '',
+          }
+          break
       }
-
-      let defaultMethod: VerificationMethod | null = preferredMethod ?? null
+      return {
+        phase: 'ready',
+        request: state.request,
+        requirements: action.requirements,
+        input,
+      }
+    }
+    case 'input':
       if (
-        (defaultMethod === 'passkey' &&
-          (!availableMethods.hasPasskey ||
-            !availableMethods.passkeySupported)) ||
-        (defaultMethod === '2fa' && !availableMethods.has2FA)
-      ) {
-        defaultMethod = null
-      }
-      if (!defaultMethod) {
-        if (availableMethods.hasPasskey && availableMethods.passkeySupported) {
-          defaultMethod = 'passkey'
-        } else if (availableMethods.has2FA) {
-          defaultMethod = '2fa'
-        }
-      }
-
-      setState((prev) => ({
-        ...prev,
-        apiCall,
-        method: defaultMethod,
-        scope,
-        title,
-        description,
-      }))
-      setOpen(true)
-      return true
-    },
-    [fetchVerificationMethods, onError]
-  )
-
-  const executeVerification = useCallback(
-    async (method?: VerificationMethod, code?: string) => {
-      if (!state.apiCall) {
-        toast.error(i18next.t('Verification is not configured properly'))
-        return
-      }
-
-      const actualMethod = method ?? state.method
-      if (!actualMethod) {
-        toast.error(i18next.t('Select a verification method first'))
-        return
-      }
-
-      setState((prev) => ({ ...prev, loading: true }))
-
-      try {
-        if (!state.scope) {
-          throw new Error(i18next.t('Verification scope is missing'))
-        }
-        const proof = await verify(
-          actualMethod,
-          state.scope,
-          code ?? state.code
+        state.phase !== 'ready' ||
+        !state.requirements.methods.some(
+          (option) => option.method === action.input.method && option.available
         )
-        const result = await state.apiCall(proof.proof_token)
-
-        if (successMessage) {
-          toast.success(successMessage)
-        }
-
-        onSuccess?.(result, actualMethod)
-
-        if (autoReset) {
-          reset()
-        }
-
-        return result
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : i18next.t('Verification failed')
-        toast.error(message)
-        onError?.(error)
-        throw error
-      } finally {
-        setState((prev) => ({ ...prev, loading: false }))
+      ) {
+        return state
       }
-    },
-    [state, successMessage, onSuccess, onError, autoReset, reset]
+      return { ...state, input: action.input, error: undefined }
+    case 'submit': {
+      if (state.phase !== 'ready') return state
+      let input = state.input
+      if (input?.method === 'password') {
+        input = { method: 'password', password: '' }
+      }
+      if (input?.method === '2fa') input = { method: '2fa', code: '' }
+      return { ...state, phase: 'verifying', input, error: undefined }
+    }
+    case 'error':
+      if (state.phase === 'idle') return state
+      if (state.phase === 'loading' || state.phase === 'error') {
+        return { phase: 'error', request: state.request, error: action.error }
+      }
+      return { ...state, phase: 'ready', error: action.error }
+  }
+}
+
+interface PendingVerificationBase {
+  controller: AbortController
+  reject: (error: unknown) => void
+  submitting: boolean
+}
+
+type PendingVerification = PendingVerificationBase &
+  (
+    | {
+        kind: 'operation'
+        request: RequestVerificationOptions
+        resolve: (proof: SecurityProof | null) => void
+        initialPassword?: string
+      }
+    | {
+        kind: 'login'
+        request: RequestLoginVerificationOptions
+        resolve: (bundle: AuthBundle | null) => void
+        initialPassword?: never
+      }
   )
 
-  const setCode = useCallback((code: string) => {
-    setState((prev) => ({ ...prev, code }))
-  }, [])
-
-  const switchMethod = useCallback((method: VerificationMethod) => {
-    setState((prev) => ({ ...prev, method, code: '' }))
-  }, [])
+export function useSecureVerification() {
+  const [state, dispatch] = useReducer(verificationReducer, { phase: 'idle' })
+  const pending = useRef<PendingVerification | null>(null)
 
   const cancel = useCallback(() => {
-    reset()
-  }, [reset])
+    const current = pending.current
+    pending.current = null
+    current?.controller.abort()
+    if (current) current.initialPassword = undefined
+    current?.resolve(null)
+    dispatch({ type: 'reset' })
+  }, [])
 
-  const withVerification = useCallback(
-    async (
-      apiCall: (proofToken?: string) => Promise<unknown>,
-      config: StartVerificationOptions
-    ) => {
-      try {
-        return await apiCall()
-      } catch (error) {
-        if (isVerificationRequiredError(error)) {
-          const info = extractVerificationInfo(error)
-          toast.info(info.message)
-          await startVerification(apiCall, config)
-          return null
+  useEffect(() => cancel, [cancel])
+
+  const loadRequirements = useCallback(async (current: PendingVerification) => {
+    dispatch({ type: 'loading', request: current.request })
+    try {
+      const requirements =
+        current.kind === 'login'
+          ? await getLoginVerificationRequirements(
+              current.request.challenge,
+              current.controller.signal
+            )
+          : await checkVerificationMethods(
+              current.request.scope,
+              current.controller.signal
+            )
+      if (pending.current !== current) return
+      const initialPassword = current.initialPassword
+      current.initialPassword = undefined
+      if (
+        current.kind === 'operation' &&
+        initialPassword !== undefined &&
+        requirements.methods.length === 1 &&
+        requirements.methods[0].method === 'password' &&
+        requirements.methods[0].available
+      ) {
+        try {
+          const proof = await verify(
+            { method: 'password', password: initialPassword },
+            current.request,
+            requirements.password_encryption_enabled,
+            current.controller.signal
+          )
+          if (pending.current !== current) return
+          pending.current = null
+          dispatch({ type: 'reset' })
+          current.resolve(proof)
+        } catch (error) {
+          if (pending.current !== current) return
+          pending.current = null
+          dispatch({ type: 'reset' })
+          current.reject(error)
         }
-        throw error
+        return
       }
+      if (
+        current.kind === 'operation' &&
+        requirements.methods.length === 1 &&
+        requirements.methods[0].method === 'session' &&
+        requirements.methods[0].available
+      ) {
+        const proof = await verify(
+          { method: 'session' },
+          current.request,
+          requirements.password_encryption_enabled,
+          current.controller.signal
+        )
+        if (pending.current !== current) return
+        pending.current = null
+        dispatch({ type: 'reset' })
+        current.resolve(proof)
+        return
+      }
+      if (pending.current === current) {
+        dispatch({ type: 'loaded', requirements })
+      }
+    } catch (error) {
+      if (pending.current === current) {
+        dispatch({
+          type: 'error',
+          error: AuthOperationError.from(error).message,
+        })
+      }
+    }
+  }, [])
+
+  const requestVerification = useCallback(
+    (
+      request: RequestVerificationOptions,
+      initialPassword?: string
+    ): Promise<SecurityProof | null> => {
+      if (pending.current) return Promise.resolve(null)
+      return new Promise((resolve, reject) => {
+        const current: PendingVerification = {
+          kind: 'operation',
+          request: structuredClone(request),
+          resolve,
+          reject,
+          initialPassword,
+          controller: new AbortController(),
+          submitting: false,
+        }
+        pending.current = current
+        void loadRequirements(current)
+      })
     },
-    [startVerification]
+    [loadRequirements]
   )
 
-  const canUseMethod = useCallback(
-    (method: VerificationMethod) => {
-      if (method === '2fa') return methods.has2FA
-      if (method === 'passkey') {
-        return methods.hasPasskey && methods.passkeySupported
-      }
-      return false
+  const requestLoginVerification = useCallback(
+    (challenge: LoginChallenge): Promise<AuthBundle | null> => {
+      if (pending.current) return Promise.resolve(null)
+      return new Promise((resolve, reject) => {
+        const current: PendingVerification = {
+          kind: 'login',
+          request: {
+            scope: 'auth.login',
+            challenge: structuredClone(challenge),
+          },
+          resolve,
+          reject,
+          controller: new AbortController(),
+          submitting: false,
+        }
+        pending.current = current
+        void loadRequirements(current)
+      })
     },
-    [methods]
+    [loadRequirements]
   )
 
-  const recommendedMethod = useMemo<VerificationMethod | null>(() => {
-    if (methods.hasPasskey && methods.passkeySupported) return 'passkey'
-    if (methods.has2FA) return '2fa'
-    return null
-  }, [methods])
+  const executeVerification = useCallback(async () => {
+    const current = pending.current
+    if (
+      !current ||
+      current.submitting ||
+      state.phase !== 'ready' ||
+      !state.input
+    ) {
+      return
+    }
+    current.submitting = true
+    const input = state.input
+    dispatch({ type: 'submit' })
+    try {
+      if (current.kind === 'login') {
+        const bundle = await verifyLogin(
+          input,
+          current.request.challenge,
+          current.controller.signal
+        )
+        if (pending.current !== current) return
+        current.resolve(bundle)
+      } else {
+        const proof = await verify(
+          input,
+          current.request,
+          state.requirements.password_encryption_enabled,
+          current.controller.signal
+        )
+        if (pending.current !== current) return
+        current.resolve(proof)
+      }
+      pending.current = null
+      dispatch({ type: 'reset' })
+    } catch (error) {
+      if (pending.current !== current) return
+      const failure = AuthOperationError.from(error)
+      if (failure.code === 'AUTH_CANCELLED') {
+        cancel()
+        return
+      }
+      dispatch({ type: 'error', error: failure.message })
+    } finally {
+      current.submitting = false
+    }
+  }, [cancel, state])
+
+  const retry = useCallback(() => {
+    if (pending.current && state.phase === 'error') {
+      void loadRequirements(pending.current)
+    }
+  }, [loadRequirements, state.phase])
+  const setInput = useCallback(
+    (input: VerificationInput) => dispatch({ type: 'input', input }),
+    []
+  )
 
   return {
-    open,
-    setOpen,
-    methods,
-    state,
-    startVerification,
-    executeVerification,
+    requestVerification,
+    requestLoginVerification,
     cancel,
-    reset,
-    setCode,
-    switchMethod,
-    withVerification,
-    fetchVerificationMethods,
-    canUseMethod,
-    recommendedMethod,
-    hasAnyMethod: methods.has2FA || methods.hasPasskey,
-    isLoading: state.loading,
-    currentMethod: state.method,
-    code: state.code,
+    isActive: state.phase !== 'idle',
+    dialogProps: {
+      state,
+      onCancel: cancel,
+      onRetry: retry,
+      onInputChange: setInput,
+      onVerify: executeVerification,
+    },
   }
 }

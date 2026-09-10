@@ -8,6 +8,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
 
 const (
@@ -76,8 +77,19 @@ func ResponsesRequestToChatCompletionsRequest(req *dto.OpenAIResponsesRequest) (
 		ThinkingBudget:       req.ThinkingBudget,
 	}
 
-	if req.Reasoning != nil {
-		out.ReasoningEffort = req.Reasoning.Effort
+	out.FrequencyPenalty, err = responsesRawFloat(req.FrequencyPenalty)
+	if err != nil {
+		return nil, fmt.Errorf("invalid frequency_penalty: %w", err)
+	}
+	out.PresencePenalty, err = responsesRawFloat(req.PresencePenalty)
+	if err != nil {
+		return nil, fmt.Errorf("invalid presence_penalty: %w", err)
+	}
+
+	if reasoningIntent, err := reasoning.FromOpenAIResponses(req); err != nil {
+		return nil, reasoning.AsClientError(err)
+	} else if err := reasoning.ApplyToOpenAIChat(out, reasoningIntent); err != nil {
+		return nil, reasoning.AsClientError(err)
 	}
 	if req.ServiceTier != "" {
 		out.ServiceTier, _ = kitutil.Marshal(req.ServiceTier)
@@ -525,6 +537,17 @@ func responseToolOutputToChatContent(value any) any {
 		}
 		return string(raw)
 	}
+}
+
+func responsesRawFloat(raw json.RawMessage) (*float64, error) {
+	if !rawJSONPresent(raw) {
+		return nil, nil
+	}
+	var value float64
+	if err := kitutil.Unmarshal(raw, &value); err != nil {
+		return nil, err
+	}
+	return &value, nil
 }
 
 func responsesJSONString(raw json.RawMessage) (string, error) {

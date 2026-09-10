@@ -168,7 +168,7 @@ func UpdatePasskeyAssertionState(userID int, credential *webauthn.Credential, la
 	credentialID := base64.StdEncoding.EncodeToString(credential.ID)
 	result := DB.Model(&PasskeyCredential{}).
 		Where("user_id = ? AND credential_id = ?", userID, credentialID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"sign_count":      credential.Authenticator.SignCount,
 			"clone_warning":   credential.Authenticator.CloneWarning,
 			"user_present":    credential.Flags.UserPresent,
@@ -201,10 +201,26 @@ func upsertPasskeyCredentialWithTx(tx *gorm.DB, credential *PasskeyCredential) e
 // UpsertPasskeyCredentialWithAuthVersion is reserved for enrollment changes;
 // assertion sign-count updates must use UpdatePasskeyAssertionState.
 func UpsertPasskeyCredentialWithAuthVersion(credential *PasskeyCredential) error {
+	return upsertPasskeyCredentialWithAuthVersion(credential, nil)
+}
+
+func RegisterPasskeyForSession(identity AuthSessionIdentity, credential *PasskeyCredential) error {
+	return upsertPasskeyCredentialWithAuthVersion(credential, &identity)
+}
+
+func upsertPasskeyCredentialWithAuthVersion(credential *PasskeyCredential, identity *AuthSessionIdentity) error {
 	if credential == nil || credential.UserID <= 0 {
 		return fmt.Errorf("Passkey 保存失败，请重试")
 	}
 	if err := DB.Transaction(func(tx *gorm.DB) error {
+		if identity != nil {
+			if identity.UserID != credential.UserID {
+				return ErrUserSessionInactive
+			}
+			if err := ValidateAuthSessionWithTx(tx, *identity); err != nil {
+				return err
+			}
+		}
 		if _, err := IncrementUserAuthVersionWithTx(tx, credential.UserID); err != nil {
 			return err
 		}
@@ -216,10 +232,23 @@ func UpsertPasskeyCredentialWithAuthVersion(credential *PasskeyCredential) error
 }
 
 func DeletePasskeyByUserIDWithAuthVersion(userID int) error {
+	return deletePasskeyWithAuthVersion(userID, nil)
+}
+
+func DeletePasskeyForSession(identity AuthSessionIdentity) error {
+	return deletePasskeyWithAuthVersion(identity.UserID, &identity)
+}
+
+func deletePasskeyWithAuthVersion(userID int, identity *AuthSessionIdentity) error {
 	if userID == 0 {
 		return fmt.Errorf("删除失败，请重试")
 	}
 	if err := DB.Transaction(func(tx *gorm.DB) error {
+		if identity != nil {
+			if err := ValidateAuthSessionWithTx(tx, *identity); err != nil {
+				return err
+			}
+		}
 		var credential PasskeyCredential
 		if err := lockForUpdate(tx).Where("user_id = ?", userID).First(&credential).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {

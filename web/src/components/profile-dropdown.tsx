@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useNavigate } from '@tanstack/react-router'
-import { User, Wallet, LogOut, Settings } from 'lucide-react'
+import { User, Wallet, LogOut, Settings, ShieldCheck } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -48,6 +48,7 @@ export function ProfileDropdown() {
   const { displayName, roleLabel } = useUserDisplay(user)
   const isSuperAdmin = user?.role === ROLE.SUPER_ADMIN
   const isWalletVisible = useIsSidebarModuleVisible('/wallet')
+  const isSecurityVisible = useIsSidebarModuleVisible('/security')
   const avatarName = user?.username || displayName
   const avatarFallback = getUserAvatarFallback(avatarName)
   const avatarFallbackStyle = useMemo(
@@ -106,6 +107,13 @@ export function ProfileDropdown() {
             <User className='size-4' />
             {t('Profile')}
           </DropdownMenuItem>
+
+          {isSecurityVisible && (
+            <DropdownMenuItem onClick={() => navigate({ to: '/security' })}>
+              <ShieldCheck className='size-4' />
+              {t('Security & Access')}
+            </DropdownMenuItem>
+          )}
 
           {isWalletVisible && (
             <DropdownMenuItem onClick={() => navigate({ to: '/wallet' })}>

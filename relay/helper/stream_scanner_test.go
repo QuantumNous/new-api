@@ -48,7 +48,7 @@ func setupStreamTest(t *testing.T, body io.Reader) (*gin.Context, *http.Response
 
 func buildSSEBody(n int) string {
 	var b strings.Builder
-	for i := 0; i < n; i++ {
+	for i := range n {
 		fmt.Fprintf(&b, "data: {\"id\":%d,\"choices\":[{\"delta\":{\"content\":\"token_%d\"}}]}\n", i, i)
 	}
 	b.WriteString("data: [DONE]\n")
@@ -132,7 +132,7 @@ func TestStreamScannerHandler_OrderPreserved(t *testing.T) {
 	})
 
 	require.Equal(t, numChunks, len(received))
-	for i := 0; i < numChunks; i++ {
+	for i := range numChunks {
 		expected := fmt.Sprintf("{\"id\":%d,\"choices\":[{\"delta\":{\"content\":\"token_%d\"}}]}", i, i)
 		assert.Equal(t, expected, received[i], "chunk %d out of order", i)
 	}
@@ -181,7 +181,7 @@ func TestStreamScannerHandler_SkipsNonDataLines(t *testing.T) {
 	b.WriteString("event: message\n")
 	b.WriteString("id: 12345\n")
 	b.WriteString("retry: 5000\n")
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		fmt.Fprintf(&b, "data: payload_%d\n", i)
 		b.WriteString(": interleaved comment\n")
 	}
@@ -299,7 +299,7 @@ func TestStreamScannerHandler_PingSentDuringSlowUpstream(t *testing.T) {
 	pr, pw := io.Pipe()
 	go func() {
 		defer pw.Close()
-		for i := 0; i < 4; i++ {
+		for i := range 4 {
 			fmt.Fprintf(pw, "data: chunk_%d\n", i)
 			time.Sleep(400 * time.Millisecond)
 		}
@@ -400,7 +400,7 @@ func TestStreamScannerHandler_StreamStatus_EOFWithoutDone(t *testing.T) {
 	t.Parallel()
 
 	var b strings.Builder
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		fmt.Fprintf(&b, "data: {\"id\":%d}\n", i)
 	}
 	c, resp, info := setupStreamTest(t, strings.NewReader(b.String()))
@@ -526,7 +526,7 @@ func TestStreamScannerHandler_StreamStatus_ErrorThenStop(t *testing.T) {
 	// Use a large body without [DONE] to avoid race between scanner's [DONE]
 	// and handler's Stop on the sync.Once EndReason.
 	var b strings.Builder
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		fmt.Fprintf(&b, "data: {\"id\":%d}\n", i)
 	}
 	c, resp, info := setupStreamTest(t, strings.NewReader(b.String()))

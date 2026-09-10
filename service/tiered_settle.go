@@ -180,10 +180,20 @@ func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenP
 		return true, quota, nil
 	}
 
-	// Surface any int32 saturation from settlement onto RelayInfo so the
+	// Surface any single-request saturation from settlement onto RelayInfo so the
 	// consume log records it under admin_info, regardless of which caller
 	// (text, audio, WSS) consumes the returned quota. First non-nil wins.
 	noteQuotaClamp(relayInfo, tr.Clamp)
 
 	return true, tr.ActualQuotaAfterGroup, &tr
+}
+
+// A failed evaluation retains the reservation and its estimated billing unit.
+// Successful evaluations always use the actual branch, including zero prices.
+func isFixedPriceSettlement(info *relaycommon.RelayInfo, result *billingexpr.TieredResult) bool {
+	if result != nil {
+		return result.BillingUnit == billingexpr.BillingUnitRequest
+	}
+	snap := info.TieredBillingSnapshot
+	return snap != nil && snap.BillingMode == "tiered_expr" && snap.EstimatedBillingUnit == billingexpr.BillingUnitRequest
 }

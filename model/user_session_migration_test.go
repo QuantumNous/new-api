@@ -60,7 +60,10 @@ func (recorder *migrationSQLRecorder) schemaMutations() []string {
 		if strings.HasPrefix(normalized, "ALTER TABLE") ||
 			strings.HasPrefix(normalized, "CREATE TABLE") ||
 			strings.HasPrefix(normalized, "DROP TABLE") ||
-			strings.HasPrefix(normalized, "RENAME TABLE") {
+			strings.HasPrefix(normalized, "RENAME TABLE") ||
+			strings.HasPrefix(normalized, "CREATE INDEX") ||
+			strings.HasPrefix(normalized, "CREATE UNIQUE INDEX") ||
+			strings.HasPrefix(normalized, "DROP INDEX") {
 			mutations = append(mutations, statement)
 		}
 	}

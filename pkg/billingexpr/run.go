@@ -26,11 +26,11 @@ func RunExpr(exprStr string, params TokenParams) (float64, TraceResult, error) {
 }
 
 func RunExprWithRequest(exprStr string, params TokenParams, request RequestInput) (float64, TraceResult, error) {
-	prog, err := CompileFromCache(exprStr)
+	entry, err := compileEntryFromCacheByHash(exprStr, ExprHashString(exprStr))
 	if err != nil {
 		return 0, TraceResult{}, err
 	}
-	return runProgram(prog, params, request)
+	return runProgram(entry.prog, entry.requestRules, params, request)
 }
 
 // RunExprByHash is like RunExpr but accepts a pre-computed hash for the cache
@@ -41,18 +41,21 @@ func RunExprByHash(exprStr, hash string, params TokenParams) (float64, TraceResu
 }
 
 func RunExprByHashWithRequest(exprStr, hash string, params TokenParams, request RequestInput) (float64, TraceResult, error) {
-	prog, err := CompileFromCacheByHash(exprStr, hash)
+	entry, err := compileEntryFromCacheByHash(exprStr, hash)
 	if err != nil {
 		return 0, TraceResult{}, err
 	}
-	return runProgram(prog, params, request)
+	return runProgram(entry.prog, entry.requestRules, params, request)
 }
 
-func runProgram(prog *vm.Program, params TokenParams, request RequestInput) (float64, TraceResult, error) {
-	trace := TraceResult{}
+func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, params TokenParams, request RequestInput) (float64, TraceResult, error) {
+	trace := TraceResult{
+		BillingUnit:  BillingUnitToken,
+		RequestRules: append([]RequestRuleTrace(nil), requestRules...),
+	}
 	headers := normalizeHeaders(request.Headers)
 
-	env := map[string]interface{}{
+	env := map[string]any{
 		"p":     params.P,
 		"c":     params.C,
 		"len":   params.Len,
@@ -68,10 +71,33 @@ func runProgram(prog *vm.Program, params TokenParams, request RequestInput) (flo
 			trace.Cost = value
 			return value
 		},
+		"fixed": func(amount float64) float64 {
+			trace.BillingUnit = BillingUnitRequest
+			trace.FixedPrice = &amount
+			return amount * 1_000_000
+		},
+		requestRuleTraceFunction: func(ruleIndex int, matched bool, multiplier float64) float64 {
+			if matched && ruleIndex >= 0 && ruleIndex < len(trace.RequestRules) {
+				trace.RequestRules[ruleIndex].Matched = true
+			}
+			if matched {
+				return multiplier
+			}
+			return 1
+		},
+		requestRuleTraceIntFunction: func(ruleIndex int, matched bool, multiplier int) int {
+			if matched && ruleIndex >= 0 && ruleIndex < len(trace.RequestRules) {
+				trace.RequestRules[ruleIndex].Matched = true
+			}
+			if matched {
+				return multiplier
+			}
+			return 1
+		},
 		"header": func(key string) string {
 			return headers[strings.ToLower(strings.TrimSpace(key))]
 		},
-		"param": func(path string) interface{} {
+		"param": func(path string) any {
 			path = strings.TrimSpace(path)
 			if path == "" || len(request.Body) == 0 {
 				return nil
@@ -82,7 +108,13 @@ func runProgram(prog *vm.Program, params TokenParams, request RequestInput) (flo
 			}
 			return result.Value()
 		},
-		"has": func(source interface{}, substr string) bool {
+		"u": func(name string) any {
+			if request.Usage == nil {
+				return nil
+			}
+			return request.Usage[strings.TrimSpace(name)]
+		},
+		"has": func(source any, substr string) bool {
 			if source == nil || substr == "" {
 				return false
 			}

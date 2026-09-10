@@ -173,3 +173,11 @@ export function getLobeIcon(
 
   return <IconComponent {...props} />
 }
+
+// The selector uses the same installed icon registry as the renderer.
+export function getLobeIconNames(): string[] {
+  const names = LobeIcons.toc.flatMap((icon) =>
+    icon.param.hasColor ? [icon.id, `${icon.id}.Color`] : [icon.id]
+  )
+  return [...new Set([...names, ...Object.keys(CUSTOM_ICONS)])].sort()
+}

@@ -16,187 +16,258 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ShieldCheck, KeyRound, Loader2 } from 'lucide-react'
-import { useMemo } from 'react'
+import { KeyRound, Loader2, ShieldCheck } from 'lucide-react'
+import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import type {
   SecureVerificationState,
+  VerificationInput,
   VerificationMethod,
-  VerificationMethods,
 } from '../types'
 
 interface SecureVerificationDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  methods: VerificationMethods
   state: SecureVerificationState
-  onVerify: (method: VerificationMethod, code?: string) => void | Promise<void>
+  onVerify: () => void | Promise<void>
   onCancel: () => void
-  onCodeChange: (code: string) => void
-  onMethodChange: (method: VerificationMethod) => void
+  onRetry: () => void
+  onInputChange: (input: VerificationInput) => void
 }
 
-export function SecureVerificationDialog({
-  open,
-  onOpenChange,
-  methods,
-  state,
-  onVerify,
-  onCancel,
-  onCodeChange,
-  onMethodChange,
-}: SecureVerificationDialogProps) {
+const methodLabels: Record<VerificationMethod, string> = {
+  '2fa': 'Authenticator code',
+  passkey: 'Passkey',
+  password: 'Password',
+  oauth: 'Linked account',
+  session: 'Login session',
+}
+
+export function SecureVerificationDialog(props: SecureVerificationDialogProps) {
   const { t } = useTranslation()
-  const availableTabs: VerificationMethod[] = useMemo(() => {
-    const tabs: VerificationMethod[] = []
-    if (methods.has2FA) tabs.push('2fa')
-    if (methods.hasPasskey && methods.passkeySupported) tabs.push('passkey')
-    return tabs
-  }, [methods])
-
-  const activeMethod =
-    state.method ?? (availableTabs.length > 0 ? availableTabs[0] : null)
-
-  const title =
-    state.title ??
-    (availableTabs.length
-      ? 'Additional verification required'
-      : 'Verification unavailable')
-
-  const description =
-    state.description ??
-    (availableTabs.length
-      ? 'Confirm your identity before accessing this sensitive action.'
-      : 'Enable Two-factor Authentication or Passkey in your profile settings to continue.')
-
-  const handleVerify = () => {
-    if (!activeMethod) return
-    const payload = activeMethod === '2fa' ? state.code : undefined
-    onVerify(activeMethod, payload)
+  const inputId = useId()
+  const state = props.state
+  if (state.phase === 'idle') return null
+  const ready =
+    state.phase === 'ready' || state.phase === 'verifying' ? state : null
+  const input = ready?.input
+  const verifying = state.phase === 'verifying'
+  const login = state.request.scope === 'auth.login'
+  const acceptsBackupCode =
+    state.request.scope !== '2fa.backup_codes.regenerate'
+  let canVerify = state.phase === 'ready' && Boolean(input)
+  if (input?.method === 'password') {
+    canVerify = canVerify && input.password.length > 0
   }
+  if (input?.method === '2fa') {
+    canVerify = canVerify && input.code.trim().length >= 6
+  }
+  if (input?.method === 'oauth') {
+    canVerify = canVerify && Boolean(input.provider)
+  }
+  const error = 'error' in state ? state.error : undefined
+  const formId = `${inputId}-form`
 
-  const verifyDisabled =
-    state.loading ||
-    (activeMethod === '2fa' && (!state.code.trim() || state.code.length < 6))
+  const selectMethod = (method: string) => {
+    switch (method) {
+      case '2fa':
+        props.onInputChange({ method, code: '' })
+        break
+      case 'password':
+        props.onInputChange({ method, password: '' })
+        break
+      case 'passkey':
+        props.onInputChange({ method })
+        break
+      case 'oauth':
+        props.onInputChange({
+          method,
+          provider: ready?.requirements.oauth_providers[0]?.slug ?? '',
+        })
+        break
+    }
+  }
 
   return (
     <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
+      open
+      onOpenChange={(open) => {
+        if (!open) props.onCancel()
+      }}
       title={
         <>
-          <ShieldCheck className='text-primary h-5 w-5' />
-          {title}
+          <ShieldCheck className='size-5' />
+          {state.request.title ??
+            (login ? t('Complete sign-in') : t('Security verification'))}
         </>
       }
-      description={description}
-      contentClassName='top-[8vh] max-w-[calc(100%-1.5rem)] translate-y-0 overflow-hidden border-none shadow-xl sm:top-1/2 sm:max-w-md sm:translate-y-[-50%] sm:rounded-xl'
-      headerClassName='border-b pb-4 text-left'
-      titleClassName='flex items-center gap-2 text-lg font-semibold'
-      descriptionClassName='text-left'
+      description={
+        state.request.description ??
+        (login
+          ? t('Verify your identity to finish signing in.')
+          : t('Confirm your identity before accessing this sensitive action.'))
+      }
+      contentClassName='sm:max-w-md'
       contentHeight='auto'
-      bodyClassName='px-1 py-1'
-      showCloseButton={!state.loading}
-      footerClassName='bg-muted/30 border-t px-6 py-4 sm:flex-row sm:justify-end'
+      titleClassName='flex items-center gap-2'
       footer={
         <>
-          <Button
-            type='button'
-            variant='outline'
-            disabled={state.loading}
-            onClick={onCancel}
-          >
+          <Button type='button' variant='outline' onClick={props.onCancel}>
             {t('Cancel')}
           </Button>
-          <Button
-            type='button'
-            onClick={handleVerify}
-            disabled={availableTabs.length === 0 || verifyDisabled}
-          >
-            {state.loading && <Loader2 className='h-4 w-4 animate-spin' />}
-            {t('Verify')}
-          </Button>
+          {state.phase === 'error' ? (
+            <Button type='button' onClick={props.onRetry}>
+              {t('Retry')}
+            </Button>
+          ) : (
+            <Button type='submit' form={formId} disabled={!canVerify}>
+              {verifying && <Loader2 className='size-4 animate-spin' />}
+              {t('Verify')}
+            </Button>
+          )}
         </>
       }
     >
-      {availableTabs.length === 0 ? (
-        <div className='grid place-items-center gap-4 text-center'>
-          <div className='bg-muted flex h-16 w-16 items-center justify-center rounded-2xl'>
-            <ShieldCheck className='text-muted-foreground h-8 w-8' />
-          </div>
-          <p className='text-muted-foreground text-sm'>
-            {t(
-              'Enable Two-factor Authentication or Passkey in your profile to unlock sensitive operations.'
-            )}
-          </p>
+      {state.phase === 'loading' && (
+        <div role='status' className='flex items-center gap-2 py-4'>
+          <Loader2 className='size-4 animate-spin' />
+          {t('Loading verification methods...')}
         </div>
-      ) : (
-        <Tabs
-          value={activeMethod ?? availableTabs[0]}
-          onValueChange={(value) => onMethodChange(value as VerificationMethod)}
-          className='gap-4'
+      )}
+      {error && (
+        <p role='alert' className='text-destructive text-sm'>
+          {t(error)}
+        </p>
+      )}
+      {ready && (
+        <form
+          id={formId}
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (canVerify) void props.onVerify()
+          }}
+          className='space-y-4 py-2'
         >
-          <TabsList>
-            {methods.has2FA && (
-              <TabsTrigger value='2fa'>{t('Authenticator code')}</TabsTrigger>
-            )}
-            {methods.hasPasskey && methods.passkeySupported && (
-              <TabsTrigger value='passkey'>{t('Passkey')}</TabsTrigger>
-            )}
-          </TabsList>
-
-          <TabsContent value='2fa' className='space-y-3'>
-            <p className='text-muted-foreground text-sm'>
-              {t(
-                'Enter the 6-digit Time-based One-Time Password or 8-character backup code from your authenticator app.'
+          {!input ? (
+            <div className='space-y-2 text-sm'>
+              <p>{t('No verification method is available for this action.')}</p>
+              {ready.requirements.methods.map(
+                (option) =>
+                  option.reason && (
+                    <p className='text-muted-foreground' key={option.method}>
+                      {t(option.reason)}
+                    </p>
+                  )
               )}
-            </p>
-            <Input
-              inputMode='numeric'
-              maxLength={8}
-              value={state.code}
-              onChange={(event) => onCodeChange(event.target.value)}
-              placeholder={t('Enter verification code')}
-              disabled={state.loading}
-              autoFocus={activeMethod === '2fa'}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !verifyDisabled) {
-                  event.preventDefault()
-                  handleVerify()
-                }
-              }}
-            />
-          </TabsContent>
-
-          <TabsContent value='passkey' className='space-y-4'>
-            <div className='bg-muted/50 flex items-center justify-center rounded-lg p-4'>
-              <div className='text-muted-foreground flex items-center gap-3'>
-                <KeyRound className='text-primary h-6 w-6' />
-                <div className='text-left text-sm'>
-                  <p className='text-foreground font-medium'>
-                    {t('Use your Passkey')}
-                  </p>
-                  <p>
-                    {t(
-                      'We will prompt your device to confirm using biometrics or your hardware key.'
-                    )}
-                  </p>
-                </div>
-              </div>
             </div>
-            {!methods.passkeySupported && (
-              <p className='text-destructive text-sm'>
-                {t('This device does not support Passkey verification.')}
-              </p>
-            )}
-          </TabsContent>
-        </Tabs>
+          ) : (
+            <Tabs value={input.method} onValueChange={selectMethod}>
+              <TabsList>
+                {ready.requirements.methods.map((option) => (
+                  <TabsTrigger
+                    key={option.method}
+                    value={option.method}
+                    disabled={!option.available || verifying}
+                  >
+                    {t(methodLabels[option.method])}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <TabsContent value='password' className='space-y-2'>
+                <Label htmlFor={inputId}>{t('Password')}</Label>
+                <Input
+                  id={inputId}
+                  type='password'
+                  autoComplete='current-password'
+                  autoFocus
+                  disabled={verifying}
+                  value={input.method === 'password' ? input.password : ''}
+                  onChange={(event) =>
+                    props.onInputChange({
+                      method: 'password',
+                      password: event.target.value,
+                    })
+                  }
+                />
+              </TabsContent>
+              <TabsContent value='2fa' className='space-y-2'>
+                <Label htmlFor={inputId}>
+                  {acceptsBackupCode
+                    ? t('Authenticator code or backup code')
+                    : t('Authenticator code')}
+                </Label>
+                <Input
+                  id={inputId}
+                  autoComplete='one-time-code'
+                  maxLength={acceptsBackupCode ? 9 : 6}
+                  autoFocus
+                  disabled={verifying}
+                  value={input.method === '2fa' ? input.code : ''}
+                  onChange={(event) =>
+                    props.onInputChange({
+                      method: '2fa',
+                      code: event.target.value,
+                    })
+                  }
+                />
+                <p className='text-muted-foreground text-sm'>
+                  {acceptsBackupCode
+                    ? t(
+                        'Enter the 6-digit authenticator code or an unused backup code.'
+                      )
+                    : t('Enter the 6-digit authenticator code.')}
+                </p>
+              </TabsContent>
+              <TabsContent value='passkey'>
+                <p className='text-muted-foreground flex items-center gap-2 text-sm'>
+                  <KeyRound className='size-5' />
+                  {t(
+                    'We will prompt your device to confirm using biometrics or your hardware key.'
+                  )}
+                </p>
+              </TabsContent>
+              <TabsContent value='oauth' className='space-y-2'>
+                <p className='text-muted-foreground text-sm'>
+                  {t(
+                    'Continue with an account already linked to your profile.'
+                  )}
+                </p>
+                <div className='flex flex-wrap gap-2'>
+                  {ready.requirements.oauth_providers.map((provider) => (
+                    <Button
+                      key={provider.slug}
+                      type='button'
+                      variant={
+                        input.method === 'oauth' &&
+                        input.provider === provider.slug
+                          ? 'default'
+                          : 'outline'
+                      }
+                      aria-pressed={
+                        input.method === 'oauth' &&
+                        input.provider === provider.slug
+                      }
+                      disabled={verifying}
+                      onClick={() =>
+                        props.onInputChange({
+                          method: 'oauth',
+                          provider: provider.slug,
+                        })
+                      }
+                    >
+                      {provider.name}
+                    </Button>
+                  ))}
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
+        </form>
       )}
     </Dialog>
   )

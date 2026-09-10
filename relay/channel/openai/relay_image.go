@@ -275,7 +275,7 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 		}
 	}
 
-	for i := int64(0); i < imageCount; i++ {
+	for i := range imageCount {
 		image := gjson.GetBytes(responseBody, "data."+strconv.FormatInt(i, 10))
 		payload := []byte(`{"type":"image_generation.completed"}`)
 		payload, err = sjson.SetBytes(payload, "created_at", created)

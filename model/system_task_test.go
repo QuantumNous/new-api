@@ -350,3 +350,34 @@ func TestSystemTaskUpdatesRequireUnexpiredLock(t *testing.T) {
 	assert.Equal(t, SystemTaskStatusRunning, reloaded.Status)
 	assert.Empty(t, reloaded.State)
 }
+
+func TestUpdateSystemTaskStateIdenticalPayloadDoesNotLoseLock(t *testing.T) {
+	// SQLite reports matched rows for unchanged UPDATEs, so this case passed
+	// even before the fix. The MySQL regression is covered by
+	// TestUpdateSystemTaskStateIdenticalPayloadDoesNotLoseLockConfiguredDatabases.
+	truncateTables(t)
+	runUpdateSystemTaskStateIdenticalPayloadKeepsLock(t, SystemTaskTypeLogCleanup)
+}
+
+func runUpdateSystemTaskStateIdenticalPayloadKeepsLock(t *testing.T, taskType string) {
+	t.Helper()
+	// Two persists in the same second so MySQL's unchanged-row UPDATE returns 0.
+
+	task, err := CreateSystemTask(taskType, nil, nil)
+	require.NoError(t, err)
+
+	runnerID := "runner-a"
+	_, claimed, err := ClaimSystemTask(task.ID, taskType, runnerID, common.GetTimestamp()+60)
+	require.NoError(t, err)
+	require.True(t, claimed)
+
+	state := testSystemTaskState{Total: 10, Processed: 10, Progress: 100, Remaining: 0}
+	require.NoError(t, UpdateSystemTaskState(task.TaskID, runnerID, state))
+	require.NoError(t, UpdateSystemTaskState(task.TaskID, runnerID, state), "identical state persist must not be treated as lock loss")
+
+	require.NoError(t, FinishSystemTask(task.TaskID, runnerID, SystemTaskStatusSucceeded, map[string]int64{"deleted_count": 10}, ""))
+	finished, err := GetSystemTaskByTaskID(task.TaskID)
+	require.NoError(t, err)
+	require.NotNil(t, finished)
+	assert.Equal(t, SystemTaskStatusSucceeded, finished.Status)
+}
