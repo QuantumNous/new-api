@@ -193,8 +193,19 @@ if [[ -n "$compose_file" ]]; then
 		fi
 	fi
 
-	service_block="$(printf '%s\n' "$resolved" |
-		sed -n -E "/^[[:space:]]+${service}:[[:space:]]*$/,/^[[:space:]]{1,4}[a-zA-Z0-9_.-]+:[[:space:]]*$/p")"
+	# Extracted by indentation rather than by a sed line range: compose sorts the
+	# normalised keys alphabetically, so a range that ends at the next "key:" line
+	# stops at "environment:" and never reaches "image:". The block ends where the
+	# indentation returns to the service level.
+	service_block="$(printf '%s\n' "$resolved" | awk -v svc="$service" '
+		{ n = match($0, /[^ \t]/); indent = (n > 0) ? n - 1 : -1 }
+		!inblock && indent >= 0 && $0 ~ ("^[ \t]*" svc ":[ \t]*$") { inblock = 1; base = indent; next }
+		inblock {
+			if (indent < 0) next
+			if (indent <= base) exit
+			print
+		}
+	')"
 	if [[ -z "$service_block" ]]; then
 		available="$("${compose[@]}" -f "$compose_file" config --services 2>/dev/null | paste -sd, - || true)"
 		die "service '$service' is not in $compose_file (found: ${available:-none}); pass --service"
