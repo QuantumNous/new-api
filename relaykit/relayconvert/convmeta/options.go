@@ -31,6 +31,15 @@ type Options struct {
 	// PreserveEffortTail reports real model IDs whose names already end in an
 	// effort-like token (for example qwen-max). Nil means "never preserve".
 	PreserveEffortTail func(modelName string) bool
+
+	ResponsesToChatTools map[string]ResponsesToolIdentity
+}
+
+type ResponsesToolIdentity struct {
+	Kind        string
+	Name        string
+	Namespace   string
+	ServerLabel string
 }
 
 type ClaudeOptions struct {
