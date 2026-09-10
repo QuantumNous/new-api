@@ -1,0 +1,317 @@
+# proxy — prompt audit sidecar for new-api
+
+Records the prompts users submit to a new-api instance, **without modifying
+new-api itself**.
+
+`proxy` is a transparent reverse proxy that sits in front of new-api. It
+buffers each relay request body, extracts the prompt text, resolves the calling
+user, and writes an audit row asynchronously. The response is streamed straight
+through untouched.
+
+```
+clients / Nginx ──▶ prompt-audit :3001 ──▶ new-api :3000   (official image, unmodified)
+                          │ async
+                          └──▶ prompt_audit_logs
+```
+
+## Why a sidecar instead of middleware
+
+The requirement was to add auditing without touching existing code and without
+disturbing future upstream upgrades. In-process middleware cannot satisfy that:
+
+- new-api has no relay-level plugin or hook mechanism.
+- `main.go` builds the gin engine as a **local variable** and every `Use(...)`
+  is a literal call, so there is no seam an added file could hook. Registering a
+  gin middleware on the `/v1` relay chain requires editing `router/relay-router.go`.
+- Hijacking internal package variables from an `init()` would "work", but when
+  upstream renames something the audit trail **fails silently** — the worst
+  possible failure mode for a compliance feature.
+
+A sidecar has none of those problems:
+
+| Property | Result |
+|---|---|
+| Files modified in new-api | **none** — this directory is the only new path |
+| Upgrading new-api | bump the image tag; no rebuild, no merge conflict |
+| Coupling to upstream internals | none — only the public HTTP API shape and two `tokens` columns |
+| Failure visibility | the proxy is a process with a health check, so failure is observable |
+
+## How records are correlated with new-api's own logs
+
+`middleware.RequestId()` always generates its own id and ignores inbound headers,
+so the proxy cannot inject a correlation id. It does not need to: new-api writes
+that id back on the **response** as `X-Oneapi-Request-Id`. The proxy reads it off
+the response and stores it, which makes the audit row joinable to `logs`:
+
+```sql
+SELECT a.created_at, a.username, a.model, a.prompt_text,
+       l.prompt_tokens, l.completion_tokens, l.quota
+FROM prompt_audit_logs a
+LEFT JOIN logs l ON l.request_id = a.request_id
+ORDER BY a.created_at DESC
+LIMIT 50;
+```
+
+If new-api is configured with a separate `LOG_SQL_DSN`, `logs` lives in another
+database and the join has to happen in your query layer instead.
+
+## Identity resolution
+
+`tokens.key` is stored in plain text with a unique index, so the proxy resolves
+the caller with two read-only lookups (`tokens`, then `users`), cached with a TTL.
+Key normalisation mirrors new-api's `TokenAuth` exactly — strip `Bearer `, strip
+`sk-`, keep the segment before the first `-` — and covers the OpenAI
+(`Authorization`), Claude (`x-api-key`) and Gemini (`x-goog-api-key`, `?key=`)
+conventions. The key itself is never stored.
+
+Set `identity.enabled: false` to skip this and keep the audit database fully
+decoupled from new-api's schema.
+
+## Deploy
+
+The proxy runs as its **own Compose project**, deliberately not as part of
+new-api's. It is built from source on the target host — no image registry needed:
+
+```bash
+git pull
+cd proxy
+./deploy.sh
+```
+
+`deploy.sh` wraps the Compose commands below and adds the checks that are easy to
+skip by hand: it refuses a config whose `max_body_bytes` is low enough to record
+incomplete prompts, waits for the container to report healthy, and then prints the
+effective configuration the process logged at startup — a stale mounted file or an
+unnoticed `PROXY_*` override otherwise looks exactly like a broken audit pipeline.
+`--config` and `--compose-file` point it at an orchestration directory outside this
+repo; `--goproxy` passes a Go module mirror through to the build; `--no-build`
+restarts without rebuilding. The equivalent by hand:
+
+```bash
+docker compose -f docker-compose.sidecar.yml up -d --build
+```
+
+Then send traffic to port **3001** instead of 3000.
+
+The build needs to download Go modules. `go.sum` is committed so the resolution is
+deterministic and the dependency layer stays cached, but the host still has to
+reach a module proxy. Where `proxy.golang.org` is unreachable, pass a mirror:
+
+```bash
+docker compose -f docker-compose.sidecar.yml build --build-arg GOPROXY=https://goproxy.cn,direct
+```
+
+For a host with no outbound access at all, commit a `vendor/` directory
+(`go mod vendor`) and add `-mod=vendor` to the build.
+
+Only this sidecar is built. **new-api itself should keep running its official
+prebuilt image** — nothing in new-api is modified, so building it from a fork costs
+a full Bun frontend build plus a Go build while producing a functionally identical
+artifact, and gives up upstream's tested image. Pin its tag rather than using
+`latest`.
+
+There is intentionally **no `docker-compose.override.yml`**. Compose auto-loads
+that filename for every `docker compose` command, which would mean a plain
+`docker compose up -d` intended just to restart new-api also starts this proxy —
+and a failed sidecar build would abort new-api's own upgrade. Keeping the sidecar
+in a separate project leaves `up`, `restart`, `down` and `pull` on new-api behaving
+exactly as they did before, and rollback is
+`docker compose -f docker-compose.sidecar.yml down`.
+
+> ⚠️ new-api's own compose file publishes it on 3000, and this proxy cannot change
+> that. Restrict 3000 at the network layer (firewall, or reverse-proxy only 3001)
+> or callers can reach new-api directly and bypass auditing.
+
+Check status:
+
+```bash
+curl -s http://localhost:3001/proxy/healthz
+```
+
+## Configuration
+
+See [`config.yaml`](config.yaml) for the annotated set. Anything sensitive can
+come from the environment instead: `PROXY_LISTEN`, `PROXY_UPSTREAM`,
+`PROXY_NODE_NAME`, `PROXY_DB_DRIVER`, `PROXY_DB_DSN`.
+
+The one setting worth deciding deliberately:
+
+- `fail_open: true` (default) — **availability first.** Relay traffic is never
+  delayed or rejected because of auditing. Records that cannot be written are
+  spooled to disk and replayed.
+- `fail_open: false` — **compliance first** ("no audit, no service"). The proxy
+  refuses to start without a working audit database and answers `503` when the
+  audit buffer is saturated.
+
+Prompts are sensitive data. `store_raw_body` is off by default so only extracted
+prompt text is kept, and `redact_patterns` masks matches before anything is
+persisted.
+
+### `prompt_scope` — what counts as "the prompt"
+
+Agent clients resend their entire system prompt and conversation history on every
+turn. Measured on a real Codex `/v1/responses` request:
+
+| part of the extracted text | bytes | share |
+|---|---|---|
+| `developer` (the client's own instructions and tool docs) | 40735 | 93.2% |
+| `user` (all 14 turns of history) | 2481 | 5.7% |
+| `assistant` | 261 | 0.6% |
+
+The input the user actually typed that turn was **6 bytes** of 43714 — and the
+same 43 KB is stored again on every turn.
+
+- `last_user` (default) — only the final user message. One row is one thing the
+  user submitted, with no duplication across turns.
+- `user_only` — every user-authored message, dropping developer, system and
+  assistant text. Still repeats history each turn.
+- `all` — everything, prefixed with each segment's role. For forensic use.
+
+The restrictive scopes deliberately **discard the system/developer prompt**, which
+matters if an audit has to establish which instructions were in force or has to
+investigate injection through developer messages. Choose accordingly.
+
+Formats where the user's input carries no role at all — an image request's
+`prompt`, a rerank `query`, an embedding `input` — are attributed to the user, so
+they survive every scope.
+
+Scoping is driven by the API format, not by the client, so it works for any tool
+speaking one of those formats. One client shape needs special handling: **the
+Anthropic format returns tool results as `role: "user"` messages** holding
+`tool_result` blocks, which is what Claude Code and similar agents do. Tool blocks
+are therefore attributed to a `tool` role regardless of the message they arrive in,
+so an agent's file contents and command output are never recorded as the user's
+prompt. In an agent loop the user-scoped result is the request the user actually
+made, repeated on each iteration. OpenAI's chat format already uses `role: "tool"`,
+and the Responses format keeps results in fields that are never followed.
+
+`max_prompt_bytes` and `max_raw_body_bytes` are **byte** limits, not character
+limits, because that is what the database column enforces — MySQL `TEXT` holds
+65535 bytes, and an oversized value fails its insert. Both are clamped to 60000
+bytes (logged when it happens). Long CJK conversations are exactly the case a
+character-based cap would get wrong, since one character can cost three bytes.
+
+Every startup logs the effective configuration, including which values an
+environment variable overrode. A stale config file or an unnoticed override is
+otherwise indistinguishable from a bug in the audit pipeline.
+
+## Reliability model
+
+Recording never blocks a relay request:
+
+1. `Enqueue` writes into a bounded channel; if it is full the record is dropped
+   and counted (reported in logs and on the health endpoint).
+2. A single worker batches inserts on size or interval.
+3. If the batch insert fails, the rows are retried **individually**, so one bad
+   record (an oversized prompt, say) cannot cost every other record that happened
+   to share its batch. Only the rows that still fail are written to the spool
+   directory as JSONL and replayed periodically.
+
+Retries reset primary keys, so a batch that was partially committed before
+failing can produce duplicate rows. That is deliberate: for an audit trail a
+duplicate is recoverable and a missing row is not.
+
+## Client IP, TLS, and new-api's 429s
+
+Inserting a hop in front of new-api changes two things it is sensitive to, and
+both surface as **429** rather than as anything that names the real cause.
+
+`httputil.ReverseProxy` **strips** every inbound `X-Forwarded-*` header from the
+outbound request before the rewrite hook runs, and `SetXForwarded` then rebuilds
+them from this hop alone. Left at that, new-api receives an
+`X-Forwarded-For` holding only this proxy's peer — the Nginx in front of it —
+so `c.ClientIP()` resolves to that one address for **every** user, and these
+per-IP limiters become a single shared budget for the whole deployment
+(`common/init.go`):
+
+| Limiter | Routes | Default |
+|---|---|---|
+| `CriticalRateLimit` | `/api/user/login`, `/api/user/register`, `/api/user/auth/refresh`, `/api/user/auth/logout`, `/api/ratio_config`, `/api/oauth/*`, top-up | **20 / 20 min** |
+| `GlobalWebRateLimit` | web routes | 120 / 3 min |
+| `GlobalAPIRateLimit` | all of `/api/*` | 360 / 3 min |
+
+Twenty logins per twenty minutes for an entire company is reached quickly, which
+is why the symptom is "logins started returning 429 a while after the sidecar
+went in". The same strip downgrades `X-Forwarded-Proto` to this hop's plain
+`http`, and new-api derives the expected WebAuthn origin from that header
+(`service/passkey/service.go`), so passkey logins fail and their retries eat the
+same budget.
+
+The rewrite hook therefore restores the inbound `X-Forwarded-For` chain,
+`X-Forwarded-Proto` and `X-Forwarded-Host` after calling `SetXForwarded`, making
+new-api see exactly what it saw before this hop existed
+(`TestForwardedHeadersReachUpstream`). Those values are only as trustworthy as
+the entry point, which is why port 3001 must be reachable from the front door
+only.
+
+Two things still have to be right in **new-api's own** configuration:
+
+- `TRUSTED_PROXIES` must cover the address this proxy connects from, or gin
+  ignores `X-Forwarded-For` entirely and the collapse described above happens
+  anyway. Leaving it unset keeps new-api's RFC 1918 defaults, which cover a
+  private-network sidecar.
+- With `SESSION_COOKIE_SECURE=true`, `SessionCookieOriginGuard` on
+  `/api/user/auth/refresh` and `/api/user/auth/logout` compares the browser
+  `Origin` against `request.Host` with a scheme taken from `request.TLS`, which
+  is nil on this plain-HTTP hop. An HTTPS deployment must list its exact browser
+  origins in `SESSION_COOKIE_TRUSTED_URL`; otherwise refresh answers 403, the
+  frontend re-authenticates in a loop, and the loop exhausts the login budget.
+
+Verify attribution from new-api's own data — these must be browser and client
+addresses, not the proxy's or Nginx's:
+
+```sql
+SELECT ip, COUNT(*) FROM logs WHERE type = 7 GROUP BY ip ORDER BY 2 DESC LIMIT 10;
+```
+
+A 429 from the per-IP limiters has an **empty body** and a `Retry-After` header
+(`middleware/rate-limit.go`). The two 429s that carry a JSON body are different
+problems: the per-user model request limit (`您已达到请求数限制…`,
+`middleware/model-rate-limit.go`, disabled by default) and
+`AUTH_SESSION_ISSUANCE_LIMIT` (100 logins per user per 24 h,
+`service/auth_session.go`).
+
+## Limitations
+
+- **Request side only.** Responses are not captured, which is what keeps SSE and
+  WebSocket relaying completely untouched.
+- Multipart endpoints (`/v1/audio/transcriptions`, `/v1/audio/translations`) are
+  not audited by default — their bodies are binary, not prompts.
+- Request bodies of any size are audited in full: the body is inspected as it
+  streams upstream, one message at a time, so peak memory is one message rather
+  than the whole request. `max_body_bytes` is only a ceiling for absurd payloads —
+  a body that outgrows it is still forwarded untouched, but inspection stops there
+  and the row is marked `truncated`.
+- Very long conversations are kept under a retention budget while streaming, and
+  text the configured `prompt_scope` will not keep is discarded as it arrives. If
+  the budget is still exceeded, the oldest text is evicted and the row is marked
+  `truncated`; what survives is the end of the conversation — where the input the
+  user just submitted is. A prompt over `max_prompt_bytes` is likewise cut from the
+  front, so the newest input is never the part that is lost.
+- Compressed request bodies (`Content-Encoding: gzip` / `deflate`) are decoded
+  **for auditing only** — a copy is decompressed for extraction while the bytes
+  forwarded upstream stay byte-identical. Other encodings (e.g. `br`) are recorded
+  without extraction.
+- If the audit database is unreachable **at startup** with `fail_open: true`, the
+  proxy runs in spool-only mode until it is restarted, because `AutoMigrate` has
+  not run yet.
+
+## Development
+
+This module is independently buildable and **must not import any package from
+the root new-api module**:
+
+```bash
+cd proxy
+GOWORK=off go build ./...
+GOWORK=off go test ./...
+```
+
+Dependency versions are pinned to the same versions the root module uses so the
+shared module cache is reused. Because the module cannot import the root
+module's `common` package, it uses `encoding/json` directly; the project rule
+requiring `common.Marshal`/`common.Unmarshal` applies to the root module only.
+
+`go.sum` is generated on first `go mod tidy` / `docker build`. Commit it once a
+Go toolchain is available, then optimise the Dockerfile back to a cached
+`COPY go.mod go.sum ./` + `go mod download` layer.
