@@ -148,7 +148,7 @@ func (s *ResponsesToChatStreamState) applyResponseMetadata(response *dto.OpenAIR
 		s.Model = response.Model
 	}
 	if response.CreatedAt != 0 {
-		s.Created = int64(response.CreatedAt)
+		s.Created = response.CreatedAt.Int64()
 	}
 	if response.Usage != nil {
 		s.Usage = dto.MergeUsageNonZero(s.Usage, UsageFromResponsesUsage(response.Usage))
