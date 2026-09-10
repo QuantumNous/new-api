@@ -21,8 +21,26 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# On the deployment host the sidecar has its own directory next to new-api's,
+# with this repository checked out under new-api-source-code:
+#
+#   <root>/new-api-proxy/docker-compose.yml     the deployment
+#   <root>/new-api-source-code/new-api/proxy/   this directory
+#
+# so that layout is preferred when present, and the in-repo sidecar file is the
+# fallback for a local or one-off run. Either can be overridden with
+# --compose-file.
 compose_file="$script_dir/docker-compose.sidecar.yml"
+for candidate in "$script_dir/../../new-api-proxy/docker-compose.yml" "$script_dir/../../new-api-proxy/docker-compose.yaml"; do
+	if [[ -f "$candidate" ]]; then
+		compose_file="$candidate"
+		break
+	fi
+done
 config_file="$script_dir/config.docker.yaml"
+if [[ -f "${compose_file%/*}/config.yaml" ]]; then
+	config_file="${compose_file%/*}/config.yaml"
+fi
 service="prompt-audit"
 goproxy=""
 build=true
