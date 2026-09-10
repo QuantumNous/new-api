@@ -97,17 +97,14 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if resp != nil {
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
-		if httpResp.StatusCode != http.StatusOK {
-			if httpResp.StatusCode == http.StatusCreated && info.ApiType == constant.APITypeReplicate {
-				// replicate channel returns 201 Created when using Prefer: wait, treat it as success.
-				httpResp.StatusCode = http.StatusOK
-			} else {
-				newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-				// reset status code 重置状态码
-				service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-				return newAPIError
-			}
+		normalizedStatusCode, accepted := normalizeImageResponseStatus(httpResp.StatusCode, info.ApiType)
+		if !accepted {
+			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
+			// reset status code 重置状态码
+			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			return newAPIError
 		}
+		httpResp.StatusCode = normalizedStatusCode
 	}
 
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
@@ -148,4 +145,18 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
 	return nil
+}
+
+func normalizeImageResponseStatus(statusCode int, apiType int) (int, bool) {
+	if statusCode == http.StatusOK {
+		return http.StatusOK, true
+	}
+	if apiType == constant.APITypeReplicate &&
+		(statusCode == http.StatusCreated || statusCode == http.StatusAccepted) {
+		// Replicate can return 201 when the prediction finishes during the
+		// synchronous wait, or 202 when it remains pending. Both responses
+		// must reach the adaptor so pending predictions can be polled.
+		return http.StatusOK, true
+	}
+	return statusCode, false
 }
