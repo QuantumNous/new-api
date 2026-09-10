@@ -37,7 +37,12 @@ const STATUS_RELATED_KEYS = new Set([
   'general_setting.custom_currency_symbol',
   'general_setting.custom_currency_exchange_rate',
   'oidc.display_name',
+  'agent_setting.enabled',
 ])
+
+export function isStatusRelatedOption(key: string): boolean {
+  return STATUS_RELATED_KEYS.has(key)
+}
 
 export function useUpdateOption() {
   const queryClient = useQueryClient()
@@ -50,7 +55,7 @@ export function useUpdateOption() {
         queryClient.invalidateQueries({ queryKey: ['system-options'] })
 
         // If updating frontend-display-related config, also refresh status
-        if (STATUS_RELATED_KEYS.has(variables.key)) {
+        if (isStatusRelatedOption(variables.key)) {
           queryClient.invalidateQueries({ queryKey: ['status'] })
           try {
             window.localStorage.removeItem('status')

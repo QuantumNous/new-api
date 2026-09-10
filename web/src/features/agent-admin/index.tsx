@@ -61,7 +61,7 @@ export function AgentAdmin(props: AgentAdminProps) {
   const scope = user?.id ?? 0
   const systemSwitchState = getAgentSystemSwitchState({
     canMutate: access.canMutate,
-    hasAuthoritativeStatus: Boolean(status.status),
+    hasAuthoritativeStatus: status.hasAuthoritativeData,
     statusError: Boolean(status.error),
   })
   const changeTab = (tab: AgentAdminSearch['tab']) =>
@@ -91,7 +91,7 @@ export function AgentAdmin(props: AgentAdminProps) {
         value: enabled,
       })
       if (result.success) {
-        await Promise.resolve()
+        await status.refetch()
       }
     } catch {
       // useUpdateOption owns the user-facing error toast.
@@ -137,7 +137,7 @@ export function AgentAdmin(props: AgentAdminProps) {
                   <Button
                     type='button'
                     variant='outline'
-                    onClick={() => Promise.resolve()}
+                    onClick={() => void status.refetch()}
                   >
                     {t('Retry')}
                   </Button>
@@ -152,7 +152,7 @@ export function AgentAdmin(props: AgentAdminProps) {
                     <Switch
                       aria-label={t('Agent system')}
                       checked={status.status?.agent_enabled === true}
-                      disabled={updateOption.isPending || status.loading}
+                      disabled={updateOption.isPending || status.isFetching}
                       onCheckedChange={(enabled) => {
                         void setAgentSystemEnabled(enabled)
                       }}
