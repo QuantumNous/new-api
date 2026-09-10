@@ -16,7 +16,30 @@ import (
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
+
+func normalizeResponsesOutputItemAdded(data string, event dto.ResponsesStreamResponse) (string, error) {
+	if event.Type != dto.ResponsesOutputTypeItemAdded || event.Item == nil {
+		return data, nil
+	}
+
+	var missingCollectionPath string
+	switch event.Item.Type {
+	case "reasoning":
+		missingCollectionPath = "item.summary"
+	case "message":
+		missingCollectionPath = "item.content"
+	default:
+		return data, nil
+	}
+	if gjson.Get(data, missingCollectionPath).Exists() {
+		return data, nil
+	}
+
+	return sjson.SetRaw(data, missingCollectionPath, "[]")
+}
 
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
@@ -86,7 +109,13 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sr.Error(err)
 			return
 		}
-		sendResponsesStreamData(c, streamResponse, data)
+		normalizedData, err := normalizeResponsesOutputItemAdded(data, streamResponse)
+		if err != nil {
+			logger.LogError(c, "failed to normalize responses output item: "+err.Error())
+			sr.Error(err)
+			return
+		}
+		sendResponsesStreamData(c, streamResponse, normalizedData)
 		switch streamResponse.Type {
 		case "response.completed", "response.done":
 			if streamResponse.Response != nil {
