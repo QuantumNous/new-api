@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,6 +87,67 @@ func TestListModelsSupportsOpenAIAndGeminiAuthentication(t *testing.T) {
 			if test.expectedObject != "" {
 				assert.Equal(t, test.expectedObject, payload["object"])
 			}
+		})
+	}
+}
+
+func TestMidjourneyImageRequiresSignedURL(t *testing.T) {
+	setupRelayRouterTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Midjourney{}))
+
+	engine := gin.New()
+	SetRelayRouter(engine)
+
+	const mjId = "1234567890"
+	// The URL the server hands to the task owner or an admin.
+	signed, err := url.Parse(service.BuildMjImageForwardURL(mjId))
+	require.NoError(t, err)
+	validSig := signed.Query().Get("sig")
+	require.NotEmpty(t, validSig)
+
+	tests := []struct {
+		name       string
+		target     string
+		wantStatus int
+		wantErr    string
+	}{
+		{
+			name:       "no signature is rejected",
+			target:     "/mj/image/" + mjId,
+			wantStatus: http.StatusForbidden,
+			wantErr:    "invalid_image_signature",
+		},
+		{
+			name:       "wrong signature is rejected",
+			target:     "/mj/image/" + mjId + "?sig=deadbeef",
+			wantStatus: http.StatusForbidden,
+			wantErr:    "invalid_image_signature",
+		},
+		{
+			name:       "signature minted for another task is rejected",
+			target:     "/mj/image/9999?sig=" + validSig,
+			wantStatus: http.StatusForbidden,
+			wantErr:    "invalid_image_signature",
+		},
+		{
+			name:       "valid signature passes the gate",
+			target:     signed.RequestURI(),
+			wantStatus: http.StatusBadRequest,
+			wantErr:    "midjourney_task_not_found",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodGet, test.target, nil)
+
+			engine.ServeHTTP(recorder, request)
+
+			assert.Equal(t, test.wantStatus, recorder.Code)
+			var payload map[string]any
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+			assert.Equal(t, test.wantErr, payload["error"])
 		})
 	}
 }
