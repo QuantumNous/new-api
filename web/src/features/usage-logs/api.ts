@@ -27,7 +27,9 @@ import type {
   GetLogStatsResponse,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
+  GetUsageRankingResponse,
   TaskArtifactsResponse,
+  UsageRankingParams,
   UserInfo,
 } from './types'
 
@@ -85,6 +87,19 @@ export const getLogStats = (params: GetLogStatsParams = {}) =>
 export const getUserLogStats = (
   params: Omit<GetLogStatsParams, 'username' | 'channel'> = {}
 ) => fetchLogStats('/api/log', params, false)
+
+export async function getUsageRanking(
+  params: UsageRankingParams = {}
+): Promise<GetUsageRankingResponse> {
+  const queryParams = buildQueryParams({
+    p: 1,
+    page_size: 20,
+    sort_by: 'quota',
+    ...params,
+  })
+  const response = await api.get(`/api/log/ranking?${queryParams}`)
+  return response.data
+}
 
 export async function getUserInfo(
   userId: number

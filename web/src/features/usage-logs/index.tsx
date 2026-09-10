@@ -17,14 +17,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { getRouteApi, useNavigate } from '@tanstack/react-router'
-import { useCallback, useMemo } from 'react'
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
 import type { NavGroup } from '@/components/layout/types'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
 import {
@@ -42,6 +45,11 @@ import {
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 const TASK_LOG_SECTIONS = ['drawing', 'task'] as const
+const UsageRankingView = lazy(() =>
+  import('./components/ranking/usage-ranking-view').then((module) => ({
+    default: module.UsageRankingView,
+  }))
+)
 
 const SECTION_META: Record<UsageLogsSectionId, { titleKey: string }> = {
   common: {
@@ -58,6 +66,10 @@ const SECTION_META: Record<UsageLogsSectionId, { titleKey: string }> = {
 function UsageLogsContent() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const isRoot = useAuthStore(
+    (state) => state.auth.user?.role === ROLE.SUPER_ADMIN
+  )
+  const [commonView, setCommonView] = useState<'details' | 'ranking'>('details')
   const params = route.useParams()
   const activeCategory: UsageLogsSectionId =
     params.section && isUsageLogsSectionId(params.section)
@@ -117,10 +129,18 @@ function UsageLogsContent() {
     [setViewScope]
   )
 
+  const handleCommonViewChange = useCallback((view: string) => {
+    if (view === 'details' || view === 'ranking') {
+      setCommonView(view)
+    }
+  }, [])
+
   const pageMeta =
     activeCategory === 'common' ? SECTION_META.common : SECTION_META.task
   const showTaskSwitcher =
     activeCategory !== 'common' && visibleSections.length > 1
+  const showCommonSwitcher = activeCategory === 'common' && isRoot
+  const showRanking = showCommonSwitcher && commonView === 'ranking'
 
   return (
     <>
@@ -151,8 +171,34 @@ function UsageLogsContent() {
                 </TabsList>
               </Tabs>
             )}
+            {showCommonSwitcher && (
+              <Tabs value={commonView} onValueChange={handleCommonViewChange}>
+                <TabsList>
+                  <TabsTrigger value='details'>{t('Log Details')}</TabsTrigger>
+                  <TabsTrigger value='ranking'>{t('Ranking')}</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
             <div className='min-h-0 flex-1'>
-              <UsageLogsTable logCategory={activeCategory} />
+              {showRanking ? (
+                <Suspense
+                  fallback={
+                    <div className='flex h-full flex-col gap-3'>
+                      <div className='grid grid-cols-2 gap-2 lg:grid-cols-4'>
+                        {[0, 1, 2, 3].map((index) => (
+                          <Skeleton key={index} className='h-20 rounded-xl' />
+                        ))}
+                      </div>
+                      <Skeleton className='h-24 rounded-xl' />
+                      <Skeleton className='min-h-56 flex-1 rounded-xl' />
+                    </div>
+                  }
+                >
+                  <UsageRankingView />
+                </Suspense>
+              ) : (
+                <UsageLogsTable logCategory={activeCategory} />
+              )}
             </div>
           </div>
         </SectionPageLayout.Content>
