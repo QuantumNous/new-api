@@ -42,6 +42,7 @@ image="${NEW_API_IMAGE:-new-api-local}"
 version=""
 compose_dir="$script_dir/../../new-api"
 service="new-api"
+service_explicit=false
 build=true
 build_only=false
 push=false
@@ -77,6 +78,7 @@ while [[ $# -gt 0 ]]; do
 		;;
 	--service)
 		service="${2:?--service needs a name}"
+		service_explicit=true
 		shift 2
 		;;
 	--build-only)
@@ -179,6 +181,17 @@ $dry_run && echo "deploy: DRY RUN — nothing will be built, pushed or restarted
 if [[ -n "$compose_file" ]]; then
 	resolved="$("${compose[@]}" -f "$compose_file" config 2>/dev/null || true)"
 	[[ -n "$resolved" ]] || die "docker compose could not parse $compose_file"
+
+	# Deployments name this service after their own topology - new-api-master in
+	# a master/slave setup - so an unambiguous single match is adopted rather
+	# than made a required argument. Anything ambiguous still asks.
+	if ! $service_explicit && ! printf '%s\n' "$resolved" | grep -qE "^[[:space:]]+${service}:[[:space:]]*$"; then
+		matches="$("${compose[@]}" -f "$compose_file" config --services 2>/dev/null | grep -E "^${service}" || true)"
+		if [[ "$(printf '%s\n' "$matches" | grep -c .)" == "1" ]]; then
+			service="$(printf '%s\n' "$matches" | head -n1)"
+			echo "deploy: service     = $service (matched in $compose_file)"
+		fi
+	fi
 
 	service_block="$(printf '%s\n' "$resolved" |
 		sed -n -E "/^[[:space:]]+${service}:[[:space:]]*$/,/^[[:space:]]{1,4}[a-zA-Z0-9_.-]+:[[:space:]]*$/p")"
