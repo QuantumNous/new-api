@@ -158,7 +158,7 @@ func TestVertexEmbeddingHandlerConvertsPredictResponse(t *testing.T) {
 	require.Equal(t, 6, converted.PromptTokens)
 }
 
-func TestVertexEmbeddingHandlerFallsBackForNonPositiveTokenCount(t *testing.T) {
+func TestVertexEmbeddingHandlerValidatesTokenCount(t *testing.T) {
 	t.Parallel()
 
 	for _, tokenCount := range []int{0, -1} {
@@ -177,6 +177,13 @@ func TestVertexEmbeddingHandlerFallsBackForNonPositiveTokenCount(t *testing.T) {
 			}
 
 			usage, apiErr := VertexEmbeddingHandler(c, info, resp)
+			if tokenCount < 0 {
+				require.Nil(t, usage)
+				require.NotNil(t, apiErr)
+				require.Equal(t, http.StatusBadGateway, apiErr.StatusCode)
+				require.Empty(t, recorder.Body.String())
+				return
+			}
 			require.Nil(t, apiErr)
 			require.Equal(t, 7, usage.PromptTokens)
 			require.Equal(t, 7, usage.TotalTokens)

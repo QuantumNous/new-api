@@ -36,7 +36,10 @@ func VertexEmbeddingHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	}
 
 	promptTokens := prediction.Embeddings.Statistics.TokenCount
-	if promptTokens <= 0 {
+	if promptTokens < 0 {
+		return nil, types.NewOpenAIError(errors.New("Vertex embedding response contains a negative token count"), types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+	}
+	if promptTokens == 0 {
 		promptTokens = info.GetEstimatePromptTokens()
 	}
 	usage := dto.Usage{
