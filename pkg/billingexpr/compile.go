@@ -8,6 +8,7 @@ import (
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/ast"
+	"github.com/expr-lang/expr/parser"
 	"github.com/expr-lang/expr/vm"
 )
 
@@ -114,6 +115,7 @@ type cachedEntry struct {
 	usedUsageKeys map[string]bool
 	requestRules  []RequestRuleTrace
 	version       int
+	fixedPricing  bool
 }
 
 var (
@@ -134,6 +136,7 @@ var compileEnvPrototypeV1 = map[string]any{
 	"ai":         float64(0),
 	"ao":         float64(0),
 	"tier":       func(string, float64) float64 { return 0 },
+	"fixed":      func(float64) float64 { return 0 },
 	"_trace":     func(int, bool, float64) float64 { return 1 },
 	"_trace_int": func(int, bool, int) int { return 1 },
 	"header":     func(string) string { return "" },
@@ -188,6 +191,21 @@ func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
 	cacheMu.RUnlock()
 
 	version, body := ParseExprVersion(exprStr)
+	// Validate before optimization so unreachable fixed-price branches cannot
+	// bypass validation or a host's unsupported-protocol checks.
+	tree, err := parser.Parse(body)
+	if err != nil {
+		return nil, fmt.Errorf("expr compile error: %w", err)
+	}
+	fixedPricing := ast.Find(tree.Node, func(node ast.Node) bool {
+		identifier, ok := node.(*ast.IdentifierNode)
+		return ok && identifier.Value == "fixed"
+	}) != nil
+	if fixedPricing {
+		if err := validateFixedPricingTree(tree.Node); err != nil {
+			return nil, fmt.Errorf("expr compile error: %w", err)
+		}
+	}
 	patcher := &requestRulePatcher{}
 	prog, err := expr.Compile(body, expr.Env(getCompileEnv(version)), expr.Patch(patcher), expr.AsFloat64())
 	if patcher.restrictedIdentifier != "" {
@@ -203,6 +221,7 @@ func compileEntryFromCacheByHash(exprStr, hash string) (*cachedEntry, error) {
 		usedUsageKeys: extractUsedUsageKeys(prog),
 		requestRules:  patcher.requestRules,
 		version:       version,
+		fixedPricing:  fixedPricing,
 	}
 	cacheMu.Lock()
 	if len(cache) >= maxCacheSize {

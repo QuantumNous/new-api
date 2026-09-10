@@ -323,8 +323,20 @@ func InjectTieredBillingInfo(other *model.LogOther, relayInfo *relaycommon.Relay
 	other.SetPublic("expr_b64", base64.StdEncoding.EncodeToString([]byte(snap.ExprString)))
 	if result != nil {
 		other.SetPublic("matched_tier", result.MatchedTier)
+		if result.BillingUnit != "" {
+			other.SetPublic("billing_unit", result.BillingUnit)
+		}
+		if result.FixedPrice != nil {
+			other.SetPublic("fixed_price", *result.FixedPrice)
+		}
 		if len(result.RequestRules) > 0 {
 			other.SetPublic("request_rules", result.RequestRules)
+		}
+	} else if snap.EstimatedBillingUnit != "" {
+		other.SetPublic("matched_tier", snap.EstimatedTier)
+		other.SetPublic("billing_unit", snap.EstimatedBillingUnit)
+		if snap.EstimatedFixedPrice != nil {
+			other.SetPublic("fixed_price", *snap.EstimatedFixedPrice)
 		}
 	}
 }

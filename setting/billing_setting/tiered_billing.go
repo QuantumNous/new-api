@@ -166,6 +166,9 @@ func SmokeTestTaskExpr(exprStr string, schema map[string]jsplugin.UsageFieldSche
 	if _, err := billingexpr.CompileFromCache(exprStr); err != nil {
 		return err
 	}
+	if billingexpr.UsesFixedPricing(exprStr) {
+		return fmt.Errorf("fixed pricing is not supported for task usage expressions")
+	}
 	for key := range billingexpr.UsedUsageKeys(exprStr) {
 		if _, declared := schema[key]; !declared {
 			return fmt.Errorf("usage key %q is not declared by the task plugin", key)

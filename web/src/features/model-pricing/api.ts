@@ -22,12 +22,12 @@ import {
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query'
-import { isAxiosError } from 'axios'
 import { t } from 'i18next'
 
 import type { BillingUsageSchema } from '@/features/pricing/types'
 import { api } from '@/lib/api'
 import { ROLE } from '@/lib/roles'
+import { createServerError } from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
@@ -68,7 +68,7 @@ export async function getModelPricing(
   for (const name of names) params.append('model', name)
   const res = await api.get('/api/option/model_pricing', { params })
   if (!res.data.success) {
-    throw new Error(res.data.message || t('Failed to load model pricing'))
+    throw createServerError(res.data, t('Failed to load model pricing'))
   }
   return res.data.data
 }
@@ -94,19 +94,9 @@ export async function invalidateModelPricing(client: QueryClient) {
 
 export async function saveModelPricing(changes: ModelPricingChange[]) {
   if (!changes.length) return
-  try {
-    const res = await api.patch('/api/option/model_pricing', { changes })
-    if (!res.data.success) {
-      throw new Error(res.data.message || t('Failed to save model pricing'))
-    }
-  } catch (error) {
-    if (
-      isAxiosError<{ message?: string }>(error) &&
-      error.response?.data.message
-    ) {
-      throw new Error(error.response.data.message, { cause: error })
-    }
-    throw error
+  const res = await api.patch('/api/option/model_pricing', { changes })
+  if (!res.data.success) {
+    throw createServerError(res.data, t('Failed to save model pricing'))
   }
 }
 

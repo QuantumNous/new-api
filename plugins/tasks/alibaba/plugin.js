@@ -1,3 +1,28 @@
+// Protocol capabilities, not prices. Keep defaults and validation shared by
+// native requests, compatibility protocols, and submission billing facts.
+const WAN_MODELS = {
+  "wan3.0-video": { kind: "all", resolutions: ["480P", "720P", "1080P"], defaultResolution: "1080P", maxDuration: 30 },
+  "wan3.0-video-prime": { kind: "all", resolutions: ["480P", "720P", "1080P"], defaultResolution: "1080P", maxDuration: 30 },
+  "wan2.7-t2v": { kind: "t2v", resolutions: ["720P", "1080P"], defaultResolution: "1080P", maxDuration: 15 },
+  "wan2.7-i2v": { kind: "media", resolutions: ["720P", "1080P"], defaultResolution: "1080P", maxDuration: 15 },
+  "wan2.6-t2v": { kind: "size", resolutions: ["720P", "1080P"], defaultResolution: "1080P", maxDuration: 15 },
+  "wan2.6-t2v-us": { kind: "size", resolutions: ["720P", "1080P"], defaultResolution: "1080P", durations: [5, 10, 15] },
+  "wan2.6-i2v": { kind: "image", resolutions: ["720P", "1080P"], defaultResolution: "1080P", maxDuration: 15 },
+  "wan2.6-i2v-flash": { kind: "image", resolutions: ["720P", "1080P"], defaultResolution: "1080P", maxDuration: 15 },
+  "wan2.6-i2v-us": { kind: "image", resolutions: ["720P", "1080P"], defaultResolution: "1080P", durations: [5, 10, 15] },
+  "wan2.5-t2v-preview": { kind: "size", resolutions: ["480P", "720P", "1080P"], defaultResolution: "1080P", durations: [5, 10] },
+  "wan2.5-i2v-preview": { kind: "image", resolutions: ["480P", "720P", "1080P"], defaultResolution: "1080P", durations: [5, 10] },
+  "wan2.2-t2v-plus": { kind: "size", resolutions: ["480P", "1080P"], defaultResolution: "1080P", durations: [5] },
+  "wan2.2-i2v-flash": { kind: "image", resolutions: ["480P", "720P", "1080P"], defaultResolution: "720P", durations: [5] },
+  "wan2.2-i2v-plus": { kind: "image", resolutions: ["480P", "1080P"], defaultResolution: "1080P", durations: [5] },
+  "wan2.2-kf2v-flash": { kind: "frames", resolutions: ["480P", "720P", "1080P"], defaultResolution: "720P", durations: [5] },
+  "wan2.2-s2v": { kind: "speech", resolutions: ["480P", "720P"], defaultResolution: "480P" },
+  "wanx2.1-t2v-plus": { kind: "size", resolutions: ["720P"], defaultResolution: "720P", durations: [5] },
+  "wanx2.1-t2v-turbo": { kind: "size", resolutions: ["480P", "720P"], defaultResolution: "720P", durations: [5] },
+  "wanx2.1-i2v-plus": { kind: "image", resolutions: ["720P"], defaultResolution: "720P", durations: [5] },
+  "wanx2.1-i2v-turbo": { kind: "image", resolutions: ["480P", "720P"], defaultResolution: "720P", durations: [3, 4, 5] },
+};
+
 export const meta = {
   apiVersion: 1,
   key: "alibaba",
@@ -7,24 +32,38 @@ export const meta = {
     en: "Alibaba Cloud Bailian Wanxiang video generation (text-to-video and image-to-video)",
     zh: "阿里云百炼万相视频生成（文生视频、图生视频）",
   },
-  version: "1.1.1",
+  version: "1.2.0",
   author: { name: "QuantumNous" },
   channelTypes: [17],
+  // Literal metadata also supports the dashboard's static script preview.
   models: [
     "wan3.0-video",
     "wan3.0-video-prime",
-    "wan2.7-i2v",
     "wan2.7-t2v",
+    "wan2.7-t2v-2026-04-25",
+    "wan2.7-t2v-2026-06-12",
+    "wan2.7-i2v",
+    "wan2.7-i2v-2026-04-25",
+    "wan2.6-t2v",
+    "wan2.6-t2v-us",
+    "wan2.6-i2v",
+    "wan2.6-i2v-flash",
+    "wan2.6-i2v-us",
     "wan2.5-t2v-preview",
     "wan2.5-i2v-preview",
+    "wan2.2-t2v-plus",
     "wan2.2-i2v-flash",
     "wan2.2-i2v-plus",
+    "wan2.2-kf2v-flash",
+    "wan2.2-s2v",
+    "wanx2.1-t2v-plus",
+    "wanx2.1-t2v-turbo",
     "wanx2.1-i2v-plus",
     "wanx2.1-i2v-turbo",
   ],
   fetchMode: "per_task",
   usageSchema: {
-    // Requested video duration in seconds.
+    // Billable seconds: output duration, or input + output for Wan3.
     seconds: {
       type: "number",
       unit: "second",
@@ -39,6 +78,7 @@ export const meta = {
   },
   routes: [
     { method: "POST", path: "/ali/api/v1/services/aigc/video-generation/video-synthesis", type: "submit", decode: "createVideoTask", render: "taskCreated" },
+    { method: "POST", path: "/ali/api/v1/services/aigc/image2video/video-synthesis", type: "submit", decode: "createVideoTask", render: "taskCreated" },
     { method: "GET", path: "/ali/api/v1/tasks/:task_id", type: "query", render: "taskStatus" },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
@@ -64,129 +104,214 @@ function secondImage(req) {
   return "";
 }
 
-const SIZE_TO_RESOLUTION = {
-  "832*480": "480P",
-  "480*832": "480P",
-  "624*624": "480P",
-  "1280*720": "720P",
-  "720*1280": "720P",
-  "960*960": "720P",
-  "1088*832": "720P",
-  "832*1088": "720P",
-  "1920*1080": "1080P",
-  "1080*1920": "1080P",
-  "1440*1440": "1080P",
-  "1632*1248": "1080P",
-  "1248*1632": "1080P",
+const LEGACY_SIZES = {
+  "480P": { "16:9": "832*480", "9:16": "480*832", "1:1": "624*624" },
+  "720P": { "16:9": "1280*720", "9:16": "720*1280", "1:1": "960*960", "4:3": "1088*832", "3:4": "832*1088" },
+  "1080P": { "16:9": "1920*1080", "9:16": "1080*1920", "1:1": "1440*1440", "4:3": "1632*1248", "3:4": "1248*1632" },
 };
+
+// Wan2.7 changed the pixel sizes for 4:3 and 3:4. Legacy sizes remain valid
+// compatibility inputs, but never replace the target model's native sizes.
+const MODERN_SIZES = {
+  "720P": { "16:9": "1280*720", "9:16": "720*1280", "1:1": "960*960", "4:3": "1104*832", "3:4": "832*1104" },
+  "1080P": { "16:9": "1920*1080", "9:16": "1080*1920", "1:1": "1440*1440", "4:3": "1648*1248", "3:4": "1248*1648" },
+};
+
+function modelKey(model) {
+  return String(model || "").replace(/-\d{4}-\d{2}-\d{2}$/, "").replace(/^wan2\.1-/, "wanx2.1-");
+}
+
+function modelProfile(model) {
+  const key = modelKey(model);
+  if (!Object.prototype.hasOwnProperty.call(WAN_MODELS, key)) throw new Error("unsupported Wan model: " + model);
+  return WAN_MODELS[key];
+}
+
+function objectValue(value, name) {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== "object" || Array.isArray(value)) throw new Error(name + " must be an object");
+  return value;
+}
 
 // The host rejects negative canonical duration/seconds facts before any hook
 // runs, so wan3.0's "-1 = smart duration" sentinel travels as a boolean marker.
-function normalizeAutoDuration(req) {
-  let auto = req.auto_duration === true;
+function normalizeRequest(value) {
+  const req = Object.assign({}, value);
+  const metadata = objectValue(req.metadata, "metadata");
+  const parameters = Object.assign({}, objectValue(metadata.parameters, "metadata.parameters"));
+  if (req.metadata !== undefined) {
+    req.metadata = Object.assign({}, metadata, { parameters: parameters });
+    objectValue(metadata.input, "metadata.input");
+  }
+  const duration = parameters.duration ?? req.duration ?? req.seconds ?? (req.auto_duration === true ? -1 : undefined);
   for (const key of ["duration", "seconds"]) {
-    if (Number(req[key]) === -1) {
-      auto = true;
-      delete req[key];
-    }
+    if (Number(req[key]) === -1) delete req[key];
   }
-  const parameters = req.metadata && req.metadata.parameters;
-  if (parameters && Number(parameters.duration) === -1) {
-    auto = true;
-    delete parameters.duration;
-  }
-  if (auto) req.auto_duration = true;
+  if (Number(parameters.duration) === -1) delete parameters.duration;
+  if (Number(duration) === -1) {
+    req.auto_duration = true;
+    delete req.duration;
+    delete req.seconds;
+  } else delete req.auto_duration;
+  // These fields are checked against usageSchema before the converter runs.
+  if (req.resolution != null) req.resolution = normalizeResolution(req.resolution);
+  if (parameters.resolution != null) parameters.resolution = normalizeResolution(parameters.resolution);
   return req;
 }
 
 function normalizeResolution(value) {
-  let resolution = String(value || "").toUpperCase();
+  let resolution = trimmed(value).toUpperCase();
+  if (!resolution) return "";
   if (!resolution.endsWith("P")) resolution += "P";
   return resolution;
+}
+
+function videoSize(value) {
+  const size = trimmed(value).replace(/x/i, "*");
+  if (!size.includes("*")) return { resolution: normalizeResolution(size) };
+  for (const sizes of [LEGACY_SIZES, MODERN_SIZES]) {
+    for (const resolution of Object.keys(sizes)) {
+      for (const ratio of Object.keys(sizes[resolution])) {
+        if (sizes[resolution][ratio] === size) return { resolution: resolution, ratio: ratio };
+      }
+    }
+  }
+  throw new Error("invalid size: " + size);
+}
+
+function videoAction(req) {
+  const input = objectValue((req.metadata || {}).input, "metadata.input");
+  for (const source of [req, input]) {
+    if (firstImage(source) || trimmed(source.img_url) || trimmed(source.image_url) || trimmed(source.first_frame_url) || (Array.isArray(source.media) && source.media.length))
+      return "image_to_video";
+  }
+  return "text_to_video";
 }
 
 function convert(ctx) {
   const req = ctx.requestBody;
   const upstreamModel = ctx.upstreamModel || req.model;
-  const input = { prompt: req.prompt || "" };
+  const profile = modelProfile(upstreamModel);
+  const metadata = objectValue(req.metadata, "metadata");
+  if (metadata.model !== undefined && metadata.model !== upstreamModel) throw new Error("can't change model with metadata");
+  const input = {};
+  for (const key of ["prompt", "negative_prompt", "img_url", "image_url", "first_frame_url", "last_frame_url", "audio_url", "template", "media"]) {
+    if (req[key] !== undefined) input[key] = req[key];
+  }
   const image = firstImage(req);
-  if (image) input.img_url = image;
-  const parameters = { prompt_extend: true, duration: 5 };
+  if (image && input.img_url === undefined) input.img_url = image;
+  Object.assign(input, objectValue(metadata.input, "metadata.input"));
+  const nativeParameters = objectValue(metadata.parameters, "metadata.parameters");
+  const parameters = profile.kind === "speech" ? {} : { prompt_extend: true };
+  for (const key of ["resolution", "ratio", "prompt_extend", "watermark", "audio", "seed", "shot_type"]) {
+    if (req[key] !== undefined) parameters[key] = req[key];
+  }
+  Object.assign(parameters, nativeParameters);
+  for (const key of ["prompt_extend", "watermark", "audio"]) {
+    if (parameters[key] != null && typeof parameters[key] !== "boolean") throw new Error(key + " must be a boolean");
+  }
+  if (parameters.seed != null && (!Number.isInteger(parameters.seed) || parameters.seed < (profile.kind === "all" ? -1 : 0) || parameters.seed > 2147483647))
+    throw new Error("seed must be an integer between " + (profile.kind === "all" ? -1 : 0) + " and 2147483647");
 
-  if (req.size) {
-    if (String(upstreamModel).includes("t2v") && !String(req.size).includes("*")) throw new Error("invalid size: " + req.size + ", example: 1920*1080");
-    if (String(req.size).includes("*")) parameters.size = req.size;
-    else parameters.resolution = normalizeResolution(req.size);
-  } else if (String(upstreamModel).includes("t2v")) {
-    parameters.size = String(upstreamModel).startsWith("wan2.5") || String(upstreamModel).startsWith("wan2.2") ? "1920*1080" : "1280*720";
-  } else if (
-    String(upstreamModel).startsWith("wan2.6") ||
-    String(upstreamModel).startsWith("wan2.5") ||
-    String(upstreamModel).startsWith("wan2.2-i2v-plus") ||
-    String(upstreamModel).startsWith("wan3.0")
-  ) {
-    parameters.resolution = "1080P";
+  const sizeValue = nativeParameters.size ?? req.size;
+  const size = sizeValue == null || sizeValue === "" ? {} : videoSize(sizeValue);
+  let resolution = normalizeResolution(parameters.resolution ?? size.resolution ?? profile.defaultResolution);
+  let ratio = parameters.ratio ?? size.ratio ?? (profile.kind === "all" ? "adaptive" : "16:9");
+  // In the legacy T2V protocol the explicit native size is authoritative.
+  if (profile.kind === "size" && nativeParameters.size != null && nativeParameters.size !== "") {
+    resolution = size.resolution;
+    ratio = size.ratio ?? parameters.ratio ?? "16:9";
+  }
+  if (!profile.resolutions.includes(resolution)) throw new Error(upstreamModel + " resolution must be one of " + profile.resolutions.join(", "));
+  if (profile.kind === "size" || profile.kind === "t2v" || profile.kind === "all") {
+    const ratios = ["16:9", "9:16", "1:1", "4:3", "3:4"];
+    if (profile.kind === "all") ratios.push("adaptive");
+    if (!ratios.includes(ratio)) throw new Error(upstreamModel + " ratio must be one of " + ratios.join(", "));
+  }
+  if (profile.kind === "size") {
+    const pixelSize = LEGACY_SIZES[resolution][ratio];
+    if (!pixelSize) throw new Error("unsupported ratio for " + resolution + ": " + ratio);
+    parameters.size = pixelSize;
+    delete parameters.resolution;
+    delete parameters.ratio;
   } else {
-    parameters.resolution = "720P";
+    parameters.resolution = resolution;
+    delete parameters.size;
+    if (profile.kind === "t2v" || profile.kind === "all") parameters.ratio = ratio;
+    else delete parameters.ratio; // Image-derived aspect ratios are not configurable.
   }
 
-  if (req.auto_duration === true) {
-    if (!String(upstreamModel).startsWith("wan3.0")) throw new Error("duration -1 (smart duration) is only supported by wan3.0 models");
-    parameters.duration = -1;
-  } else if (Number(req.duration) > 0) parameters.duration = Number(req.duration);
-  else if (req.seconds) {
-    const seconds = Number(req.seconds);
-    if (!Number.isInteger(seconds)) throw new Error("convert seconds to int failed");
-    parameters.duration = seconds > 0 ? seconds : 5;
+  const rawDuration = nativeParameters.duration ?? (req.auto_duration === true ? -1 : (req.duration ?? req.seconds));
+  if (rawDuration != null && ((typeof rawDuration !== "number" && typeof rawDuration !== "string") || String(rawDuration).trim() === ""))
+    throw new Error("duration must be a number");
+  const duration = rawDuration == null ? 5 : Number(rawDuration);
+  if (duration === -1 && profile.kind !== "all") throw new Error("duration -1 (smart duration) is only supported by wan3.0 models");
+  if (profile.kind === "speech") {
+    if (rawDuration != null && (!Number.isFinite(duration) || duration <= 0 || duration >= 20)) throw new Error("wan2.2-s2v duration must be positive and less than 20 seconds; output follows the audio");
+    delete parameters.duration;
+  } else {
+    if (profile.durations) {
+      if (!profile.durations.includes(duration)) throw new Error(upstreamModel + " duration must be one of " + profile.durations.join(", "));
+    } else if (!(profile.kind === "all" && duration === -1) && (!Number.isInteger(duration) || duration < 2 || duration > profile.maxDuration)) {
+      throw new Error(upstreamModel + " duration must be " + (profile.kind === "all" ? "-1 or " : "") + "an integer between 2 and " + profile.maxDuration);
+    }
+    parameters.duration = duration;
   }
 
-  const metadata = req.metadata || {};
-  Object.assign(input, metadata.input || {});
-  Object.assign(parameters, metadata.parameters || {});
-  const model = metadata.model === undefined ? upstreamModel : metadata.model;
-  if (model !== upstreamModel) throw new Error("can't change model with metadata");
-  const body = { model: model, input: input, parameters: parameters };
-
-  if (String(model).startsWith("wan2.7-i2v") || String(model).startsWith("wan3.0-video")) {
-    if (!Array.isArray(input.media) || input.media.length === 0) {
+  if (profile.kind === "media" || profile.kind === "all") {
+    if (input.media !== undefined && !Array.isArray(input.media)) throw new Error("input.media must be an array");
+    if (!input.media || input.media.length === 0) {
       input.media = [];
       const first = trimmed(input.first_frame_url) || trimmed(input.img_url) || firstImage(req);
       const last = trimmed(input.last_frame_url) || secondImage(req);
       if (first) input.media.push({ type: "first_frame", url: first });
       if (last) input.media.push({ type: "last_frame", url: last });
-      if (String(model).startsWith("wan2.7-i2v") && trimmed(input.audio_url)) input.media.push({ type: "driving_audio", url: input.audio_url });
+      if (trimmed(input.audio_url)) input.media.push({ type: profile.kind === "media" ? "driving_audio" : "reference_audio", url: input.audio_url });
     }
-    if (String(model).startsWith("wan2.7-i2v") && input.media.length === 0)
-      throw new Error("wan2.7-i2v requires image, images, input_reference, or input.media");
-    if (String(model).startsWith("wan3.0-video")) {
-      if (input.media.length === 0) delete input.media;
-      if (!trimmed(input.prompt) && !(Array.isArray(input.media) && input.media.length)) throw new Error("wan3.0-video requires prompt or input.media");
-      if (parameters.size) {
-        const mapped = SIZE_TO_RESOLUTION[parameters.size];
-        if (!mapped) throw new Error("invalid size: " + parameters.size + ", wan3.0 accepts resolution 480P, 720P, or 1080P");
-        parameters.resolution = mapped;
-        delete parameters.size;
-      }
-      if (!parameters.resolution) parameters.resolution = "1080P";
-      if (!parameters.ratio) parameters.ratio = "adaptive";
-      const duration = Number(parameters.duration);
-      if (duration !== -1 && (!Number.isInteger(duration) || duration < 2 || duration > 30))
-        throw new Error("wan3.0 duration must be -1 or an integer between 2 and 30");
+    const counts = {};
+    const limits =
+      profile.kind === "media"
+        ? { first_frame: 1, last_frame: 1, driving_audio: 1, first_clip: 1 }
+        : { first_frame: 1, last_frame: 1, reference_image: 10, reference_video: 5, reference_audio: 5, file: 1, link: 1 };
+    for (const media of input.media) {
+      if (!media || !Object.prototype.hasOwnProperty.call(limits, media.type) || !trimmed(media.url)) throw new Error("invalid input.media type or url");
+      counts[media.type] = (counts[media.type] || 0) + 1;
+      if (counts[media.type] > limits[media.type]) throw new Error("too many input.media entries for " + media.type);
     }
+    if (profile.kind === "media") {
+      if ((!counts.first_frame && !counts.first_clip) || (counts.first_clip && (counts.first_frame || counts.driving_audio)))
+        throw new Error("wan2.7-i2v requires first_frame or first_clip with a supported media combination");
+    } else {
+      const frames = counts.first_frame || counts.last_frame;
+      const references = counts.reference_image || counts.reference_video || counts.reference_audio || counts.file || counts.link;
+      if ((frames && references) || (counts.file && counts.link) || (counts.last_frame && !counts.first_frame)) throw new Error("unsupported wan3.0 input.media combination");
+      if (!trimmed(input.prompt) && !input.media.length) throw new Error("wan3.0-video requires prompt or input.media");
+    }
+    if (!input.media.length) delete input.media;
     delete input.img_url;
     delete input.first_frame_url;
     delete input.last_frame_url;
     delete input.audio_url;
+  } else if (profile.kind === "frames") {
+    input.first_frame_url = trimmed(input.first_frame_url) || trimmed(input.img_url);
+    if (!input.first_frame_url) throw new Error(upstreamModel + " requires first_frame_url or image");
+    if (!input.last_frame_url && secondImage(req)) input.last_frame_url = secondImage(req);
+    delete input.img_url;
+  } else if (profile.kind === "speech") {
+    input.image_url = trimmed(input.image_url) || trimmed(input.img_url);
+    if (!input.image_url || !trimmed(input.audio_url)) throw new Error("wan2.2-s2v requires image_url and audio_url");
+    delete input.img_url;
+    if (!trimmed(input.prompt)) delete input.prompt;
+  } else if (profile.kind === "image") {
+    if (!trimmed(input.img_url)) throw new Error(upstreamModel + " requires img_url or image");
+  } else if (!trimmed(input.prompt)) {
+    throw new Error("input is required");
   }
-  if (!parameters.prompt_extend) delete parameters.prompt_extend;
-  if (!parameters.watermark) delete parameters.watermark;
-  if (!parameters.seed) delete parameters.seed;
-  for (const key of ["resolution", "size", "ratio"]) if (!parameters[key]) delete parameters[key];
-  return body;
+  return { model: upstreamModel, input: input, parameters: parameters };
 }
 
 function resolutionRatio(body) {
-  let resolution = body.parameters.size ? SIZE_TO_RESOLUTION[body.parameters.size] : normalizeResolution(body.parameters.resolution);
+  const resolution = body.parameters.size ? videoSize(body.parameters.size).resolution : body.parameters.resolution;
   const ratios = {
     "wan3.0-video": { "480P": 1, "720P": 2, "1080P": 4 },
     "wan3.0-video-prime": { "480P": 1, "720P": 2, "1080P": 4 },
@@ -199,7 +324,8 @@ function resolutionRatio(body) {
     "wan2.2-i2v-flash": { "480P": 1, "720P": 2 },
     "wan2.2-s2v": { "480P": 1, "720P": 1.8 },
   };
-  return ratios[body.model] ? { key: "resolution-" + resolution, value: ratios[body.model][resolution] } : null;
+  const model = modelKey(body.model);
+  return ratios[model] ? { key: "resolution-" + resolution, value: ratios[model][resolution] } : null;
 }
 
 function responsesInput(req) {
@@ -250,12 +376,14 @@ function responsesVideoText(ctx) {
 
 export function buildSubmitRequest(ctx) {
   const body = convert(ctx);
+  const kind = modelProfile(body.model).kind;
+  const service = kind === "frames" || kind === "speech" ? "image2video" : "video-generation";
   return {
-    url: ctx.baseUrl + "/api/v1/services/aigc/video-generation/video-synthesis",
+    url: ctx.baseUrl + "/api/v1/services/aigc/" + service + "/video-synthesis",
     method: "POST",
     headers: { Authorization: "Bearer " + ctx.apiKey, "Content-Type": "application/json", "X-DashScope-Async": "enable" },
     body: body,
-    action: firstImage(ctx.requestBody) || (body.input && Array.isArray(body.input.media) && body.input.media.length) ? "image_to_video" : "text_to_video",
+    action: videoAction(body.input),
   };
 }
 
@@ -268,16 +396,20 @@ export function parseSubmitResponse(ctx, resp) {
 
 export function extractUsage(ctx) {
   const body = convert(ctx);
-  const duration = Number(body.parameters.duration);
-  const seconds = Math.min(duration === -1 ? 30 : duration, 3600);
+  const kind = modelProfile(body.model).kind;
+  const hasVideo = (body.input.media || []).some(function (media) {
+    return media.type === "reference_video";
+  });
+  let seconds = body.parameters.duration;
+  if (kind === "speech") seconds = 20;
+  else if (kind === "all" && (hasVideo || seconds === -1)) seconds = 30;
   if (ctx.usagePurpose === "billing_ratios") {
     const ratios = { seconds: seconds };
     const resolution = resolutionRatio(body);
     if (resolution && resolution.value !== undefined) ratios[resolution.key] = resolution.value;
     return ratios;
   }
-  let resolution = body.parameters.size ? SIZE_TO_RESOLUTION[body.parameters.size] : normalizeResolution(body.parameters.resolution);
-  if (!["480P", "720P", "1080P"].includes(resolution)) resolution = String(body.model).startsWith("wan3.0") ? "1080P" : "720P";
+  const resolution = body.parameters.size ? videoSize(body.parameters.size).resolution : body.parameters.resolution;
   return { seconds: seconds, resolution: resolution };
 }
 
@@ -285,10 +417,24 @@ export function extractUsageOnComplete(task, taskResult, body) {
   const output = (body && body.output) || {};
   const usage = (body && body.usage) || {};
   const facts = {};
-  const seconds = Number(usage.output_video_duration || usage.duration || output.duration || output.duration_seconds || 0);
-  if (Number.isFinite(seconds) && seconds > 0) facts.seconds = Math.min(seconds, 3600);
-  const resolution = normalizeResolution(usage.SR || output.resolution || "");
-  if (["480P", "720P", "1080P"].includes(resolution)) facts.resolution = resolution;
+  const model = modelKey(task && (task.upstreamModel || task.model));
+  if (model === "wan3.0-video" || model === "wan3.0-video-prime" || (!model && usage.input_video_duration != null)) {
+    const inputSeconds = usage.input_video_duration;
+    const outputSeconds = usage.output_video_duration ?? usage.duration;
+    // Partial Wan3 statistics cannot establish the total billable duration.
+    // Keep the reservation when either side is missing. Invalid supplied facts
+    // reach the host validator unchanged, which logs and rejects them.
+    if (inputSeconds != null && outputSeconds != null) {
+      if (typeof inputSeconds !== "number" || !Number.isFinite(inputSeconds) || inputSeconds < 0) facts.seconds = inputSeconds;
+      else if (typeof outputSeconds !== "number" || !Number.isFinite(outputSeconds) || outputSeconds < 0) facts.seconds = outputSeconds;
+      else facts.seconds = inputSeconds + outputSeconds;
+    }
+  } else {
+    const seconds = usage.duration ?? usage.output_video_duration ?? output.duration ?? output.duration_seconds;
+    if (seconds != null) facts.seconds = seconds;
+  }
+  const resolution = usage.SR ?? output.resolution;
+  if (resolution != null) facts.resolution = normalizeResolution(resolution);
   return facts;
 }
 
@@ -300,7 +446,7 @@ export function parseTaskResult(ctx, body) {
   const output = body.output || {};
   if (output.task_status === "PENDING") return { status: "QUEUED" };
   if (output.task_status === "RUNNING") return { status: "IN_PROGRESS" };
-  if (output.task_status === "SUCCEEDED") return { status: "SUCCESS", url: output.video_url || "" };
+  if (output.task_status === "SUCCEEDED") return { status: "SUCCESS", url: videoURL(body) };
   if (["FAILED", "CANCELED", "UNKNOWN"].includes(output.task_status)) {
     let reason = body.message || "";
     if (!reason && output.message) reason = "task failed, code: " + (output.code || "") + " , message: " + output.message;
@@ -316,41 +462,40 @@ function artifactData(ctx) {
   return data;
 }
 
+function videoURL(body) {
+  const output = (body && body.output) || {};
+  return trimmed(output.video_url) || trimmed((output.results || {}).video_url);
+}
+
 export function listArtifacts(task) {
-  const output = artifactData(task).output || {};
-  return task.status === "SUCCESS" && trimmed(output.video_url) ? [{ key: "video", type: "video" }] : [];
+  return task.status === "SUCCESS" && videoURL(artifactData(task)) ? [{ key: "video", type: "video" }] : [];
 }
 
 export function buildContentRequest(ctx) {
   if (ctx.artifactKey !== "video") throw new Error("artifact_not_found");
-  const url = trimmed((artifactData(ctx).output || {}).video_url);
+  const url = videoURL(artifactData(ctx));
   if (!url) throw new Error("artifact_not_found");
   return { url: url, method: ctx.clientRequest.method, credentialless: true };
 }
 
 export const native = {
   createVideoTask: function (ctx) {
-    if (!ctx.body || ctx.body.kind !== "json" || !ctx.body.value || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
+    if (!ctx.body || ctx.body.kind !== "json" || !ctx.body.value || typeof ctx.body.value !== "object" || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
     const req = ctx.body.value,
-      input = req.input || {},
-      parameters = req.parameters || {};
+      input = objectValue(req.input, "input"),
+      parameters = objectValue(req.parameters, "parameters");
     const requestBody = {
       model: req.model,
-      prompt: input.prompt || "",
-      image: input.img_url,
-      duration: parameters.duration,
-      size: parameters.size || parameters.resolution,
+      metadata: { input: input, parameters: parameters },
     };
-    const hasMedia = Array.isArray(input.media) && input.media.length > 0;
-    if (hasMedia || String(req.model).startsWith("wan3.0")) {
-      requestBody.metadata = { input: hasMedia ? { media: input.media } : {}, parameters: Object.assign({}, parameters) };
-    }
-    normalizeAutoDuration(requestBody);
+    if (input.prompt !== undefined) requestBody.prompt = input.prompt;
+    const image = input.img_url || input.image_url || input.first_frame_url;
+    if (image !== undefined) requestBody.image = image;
     return {
       kind: "submit",
       model: req.model,
-      action: input.img_url || hasMedia ? "image_to_video" : "text_to_video",
-      requestBody: requestBody,
+      action: videoAction(requestBody),
+      requestBody: normalizeRequest(requestBody),
     };
   },
   taskCreated: function (ctx, task) {
@@ -378,7 +523,7 @@ export const protocols = {
       if (req.input !== undefined && typeof req.input !== "string" && !Array.isArray(req.input)) throw new Error("input must be a string or array");
       const input = responsesInput(req);
       const prompt = input.prompt || trimmed(req.prompt);
-      const requestBody = { model: model, prompt: prompt };
+      let requestBody = { model: model, prompt: prompt };
       if (trimmed(req.image)) requestBody.image = trimmed(req.image);
       if (req.images !== undefined && !Array.isArray(req.images)) throw new Error("images must be an array");
       const images = [];
@@ -386,16 +531,21 @@ export const protocols = {
       for (const image of input.images) if (!images.includes(image)) images.push(image);
       if (images.length) requestBody.images = images;
       if (trimmed(req.input_reference)) requestBody.input_reference = trimmed(req.input_reference);
-      for (const key of ["size", "duration", "seconds"]) {
+      for (const key of [
+        "size", "resolution", "ratio", "duration", "seconds", "auto_duration",
+        "prompt_extend", "watermark", "audio", "seed", "shot_type", "negative_prompt",
+        "img_url", "image_url", "first_frame_url", "last_frame_url", "audio_url", "template", "media",
+      ]) {
         if (Object.prototype.hasOwnProperty.call(req, key)) requestBody[key] = req[key];
       }
       if (Object.prototype.hasOwnProperty.call(req, "metadata")) requestBody.metadata = req.metadata;
-      normalizeAutoDuration(requestBody);
-      const hasMetaMedia = req.metadata && req.metadata.input && Array.isArray(req.metadata.input.media) && req.metadata.input.media.length > 0;
-      const upstream = String(ctx.upstreamModel || model);
-      const acceptsImageOnly = upstream.includes("i2v") || upstream.startsWith("wan3.0");
-      if (!prompt && !hasMetaMedia && !(acceptsImageOnly && firstImage(requestBody))) throw new Error("input is required");
-      return { kind: "submit", model: model, action: firstImage(requestBody) || hasMetaMedia ? "image_to_video" : "text_to_video", requestBody: requestBody };
+      requestBody = normalizeRequest(requestBody);
+      const action = videoAction(requestBody);
+      const profile = WAN_MODELS[modelKey(ctx.upstreamModel || model)];
+      const nativeInput = objectValue((requestBody.metadata || {}).input, "metadata.input");
+      if (!trimmed(nativeInput.prompt ?? prompt) && (action === "text_to_video" || (profile && (profile.kind === "size" || profile.kind === "t2v"))))
+        throw new Error("input is required");
+      return { kind: "submit", model: model, action: action, requestBody: requestBody };
     },
     renderEvents: function (ctx, task, previousState) {
       const status = String(task.status || "UNKNOWN").toUpperCase();
@@ -468,12 +618,20 @@ export const protocols = {
         if (req.seconds !== undefined) req.seconds = Number(req.seconds);
         else if (req.duration !== undefined) req.seconds = Number(req.duration);
         if (req.duration !== undefined) req.duration = Number(req.duration);
+        if (req.seed !== undefined) req.seed = Number(req.seed);
+        for (const key of ["prompt_extend", "watermark", "audio", "auto_duration"]) {
+          if (req[key] === undefined) continue;
+          if (req[key] !== "true" && req[key] !== "false") throw new Error(key + " must be true or false");
+          req[key] = req[key] === "true";
+        }
       } else throw new Error("JSON or multipart body required");
-      const requestBody = normalizeAutoDuration(Object.assign({}, req, { model: ctx.model }));
+      if (!req || typeof req !== "object" || Array.isArray(req)) throw new Error("request body must be an object");
+      if (req.images !== undefined && !Array.isArray(req.images)) throw new Error("images must be an array");
+      const requestBody = normalizeRequest(Object.assign({}, req, { model: ctx.model }));
       return {
         kind: "submit",
         model: ctx.model,
-        action: firstImage(requestBody) ? "image_to_video" : "text_to_video",
+        action: videoAction(requestBody),
         requestBody: requestBody,
       };
     },

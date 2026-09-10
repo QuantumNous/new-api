@@ -98,7 +98,7 @@ func TestAlibabaWan3(t *testing.T) {
 		parameters := roundTrip(t, value)["body"].(map[string]any)["parameters"].(map[string]any)
 		assert.Equal(t, "720P", parameters["resolution"])
 		assert.NotContains(t, parameters, "size")
-		assert.Equal(t, "adaptive", parameters["ratio"])
+		assert.Equal(t, "16:9", parameters["ratio"])
 
 		_, callErr = plugin.Engine.Call(t.Context(), "buildSubmitRequest", submitCtx("wan3.0-video", "wan3.0-video", map[string]any{"model": "wan3.0-video", "prompt": "a cat", "size": "1000*1000"}))
 		require.ErrorContains(t, callErr, "invalid size")

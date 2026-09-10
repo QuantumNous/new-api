@@ -21,7 +21,6 @@ import { Code2, Eye, RotateCcw, Save } from 'lucide-react'
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import { JsonCodeEditor } from '@/components/json-code-editor'
 import { LearnMore } from '@/components/learn-more'
@@ -37,6 +36,8 @@ import {
 } from '@/components/ui/form'
 import { Switch } from '@/components/ui/switch'
 import { getEnabledModels } from '@/features/channels/api'
+import { handleServerError } from '@/lib/handle-server-error'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import {
   SettingsForm,
@@ -182,7 +183,7 @@ export const ModelRatioForm = memo(function ModelRatioForm({
 
   const enabledModelsQuery = useQuery({
     queryKey: ['enabled-models'],
-    queryFn: getEnabledModels,
+    queryFn: async () => requireServerSuccess(await getEnabledModels()),
     enabled: isUnsetVariant,
   })
 
@@ -195,8 +196,17 @@ export const ModelRatioForm = memo(function ModelRatioForm({
 
   useEffect(() => {
     if (!enabledModelsError) return
-    toast.error(enabledModelsErrorMessage || t('Failed to load enabled models'))
-  }, [enabledModelsError, enabledModelsErrorMessage, t])
+    handleServerError(
+      enabledModelsQuery.error ?? enabledModelsQuery.data,
+      t('Failed to load enabled models')
+    )
+  }, [
+    enabledModelsError,
+    enabledModelsErrorMessage,
+    enabledModelsQuery.error,
+    enabledModelsQuery.data,
+    t,
+  ])
 
   const handleFieldChange = useCallback(
     (field: keyof ModelFormValues, value: string) => {

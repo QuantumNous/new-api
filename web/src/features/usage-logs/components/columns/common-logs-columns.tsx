@@ -245,7 +245,11 @@ function buildTypeDetailSegments(
               'cacheCreate1hPrice',
             ].includes(entry.field)
         )
-        .map((entry) => `${t(entry.shortLabel)} ${formatPrice(entry.price)}`)
+        .map((entry) =>
+          entry.unit === 'request'
+            ? `${tieredSummary.tier.label || t('Default')} · ${t(entry.shortLabel)} ${formatPriceCompact(entry.price)}/${t('request')}`
+            : `${t(entry.shortLabel)} ${formatPrice(entry.price)}`
+        )
       if (otherEntries.length > 0) {
         segments.push({
           text: otherEntries.join(' · '),

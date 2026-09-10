@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import {
   getTaskPluginEnabledOption,
@@ -67,7 +68,7 @@ export function TaskPlugins() {
       queryClient.setQueryData(['task-plugin-enabled'], enabled)
       toast.success(t('Task plugin setting updated'))
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => handleServerError(error),
   })
   const openUpload = (key?: string) => {
     setUploadKey(key ?? null)
@@ -108,9 +109,7 @@ export function TaskPlugins() {
               </PopoverTrigger>
               <PopoverContent align='end' className='w-80'>
                 <div className='space-y-2 text-sm'>
-                  <p className='font-medium'>
-                    {t('Enable task plugins')}
-                  </p>
+                  <p className='font-medium'>{t('Enable task plugins')}</p>
                   <p className='text-muted-foreground'>
                     {t(
                       'When disabled, the entire task plugin system stops serving, including factory and custom plugins.'

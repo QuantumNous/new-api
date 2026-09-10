@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import { Label } from '@/components/ui/label'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { createServerError } from '@/lib/server-error-message'
 
 import { getVendors } from '../../api'
 import { vendorsQueryKeys } from '../../lib'
@@ -57,7 +58,7 @@ export function VendorOperationDialog(props: {
     queryFn: async () => {
       const response = await getVendors({ page_size: 1000 })
       if (!response.success) {
-        throw new Error(response.message || t('Failed to load vendors'))
+        throw createServerError(response, t('Failed to load vendors'))
       }
       return response
     },

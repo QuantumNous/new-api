@@ -129,6 +129,30 @@ function renderPreview(other: LogOtherData, isAdmin = true) {
 
 test.each([
   {
+    name: 'fixed expression zero price',
+    other: {
+      billing_mode: 'tiered_expr',
+      billing_unit: 'request' as const,
+      fixed_price: 0,
+      matched_tier: 'free',
+      expr_b64: btoa('tier("free", fixed(0))'),
+    },
+    expected: 'free · Per-call $0/request',
+  },
+  {
+    name: 'fixed expression trace outside the display grammar',
+    other: {
+      billing_mode: 'tiered_expr',
+      billing_unit: 'request' as const,
+      fixed_price: 0.01,
+      matched_tier: 'priority',
+      expr_b64: btoa(
+        'param("fast") == true ? tier("priority", fixed(0.01)) : tier("tokens", p * 2)'
+      ),
+    },
+    expected: 'priority · Per-call $0.01/request',
+  },
+  {
     name: 'per-call',
     other: { model_price: 0.25 },
     expected: 'Per-call · $0.25',

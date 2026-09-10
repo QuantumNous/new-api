@@ -199,7 +199,9 @@ test.each(['server', 'network'])(
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
     await waitFor(() =>
       expect(document.body).toHaveTextContent(
-        'Failed to delete 2 redemption codes'
+        failure === 'server'
+          ? 'Failed to delete 2 redemption codes'
+          : 'Network unavailable'
       )
     )
     expect(dialog).toHaveAccessibleName('Delete 2 redemption codes?')

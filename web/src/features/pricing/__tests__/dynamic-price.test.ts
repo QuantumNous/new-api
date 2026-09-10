@@ -20,6 +20,7 @@ import assert from 'node:assert/strict'
 
 import { describe, expect, test } from 'vitest'
 
+import { parseTiersFromExpr } from '../lib/billing-expr'
 import { getBillingModeLabelKey } from '../lib/billing-mode'
 import {
   getCardExamplePrice,
@@ -53,6 +54,111 @@ const summaryOptions = {
 }
 
 describe('expression price summaries', () => {
+  test('keeps request prices unchanged by token units and separates mixed billing units', () => {
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr:
+        'len < 1000 ? tier("request", fixed(0.01)) : tier("tokens", p * 2 + c * 8)',
+    })
+    const thousand = getDynamicPricingSummary(model, { tokenUnit: 'K' })
+    const million = getDynamicPricingSummary(model, { tokenUnit: 'M' })
+    const request = thousand?.primaryEntries.find(
+      (entry) => entry.unit === 'request'
+    )
+    expect(request?.value).toBe(0.01)
+    expect(request?.formatted).toBe(
+      million?.primaryEntries.find((entry) => entry.unit === 'request')
+        ?.formatted
+    )
+    expect(thousand?.primaryEntries.map((entry) => entry.unit)).toEqual([
+      'token',
+      'token',
+      'request',
+    ])
+    expect(thousand?.isMixedBilling).toBe(true)
+    expect(
+      thousand?.primaryEntries.every(
+        (entry) => entry.formattedRange === undefined
+      )
+    ).toBe(true)
+    const free = getDynamicPricingSummary(
+      pricingModel({
+        billing_mode: 'tiered_expr',
+        billing_expr: 'tier("free", fixed(0))',
+      }),
+      { tokenUnit: 'M' }
+    )
+    expect(free?.primaryEntries).toHaveLength(1)
+    expect(free?.primaryEntries[0].value).toBe(0)
+  })
+  const timeExpression =
+    'weekday("Asia/Shanghai") >= 1 && weekday("Asia/Shanghai") <= 5 && ((hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 12) || (hour("Asia/Shanghai") >= 14 && hour("Asia/Shanghai") < 18)) ? tier("peak", p * 3 + cr * 0.1 + c * 9) : tier("off_peak", p * 1.5 + cr * 0.05 + c * 4.5)'
+
+  test.each([
+    ['2026-09-07T09:00:00+08:00', 'peak', [3, 9]],
+    ['2026-09-07T12:00:00+08:00', 'off_peak', [1.5, 4.5]],
+    ['2026-09-12T09:00:00+08:00', 'off_peak', [1.5, 4.5]],
+  ])(
+    'adds current-period selection at %s without removing detail rows',
+    (now, tier, prices) => {
+      const summary = getDynamicPricingSummary(
+        pricingModel({
+          billing_mode: 'tiered_expr',
+          billing_expr: timeExpression,
+        }),
+        { tokenUnit: 'M', now: new Date(now) }
+      )
+      expect(summary?.tier?.label).toBe(tier)
+      expect(summary?.primaryEntries.map((entry) => entry.value)).toEqual(
+        prices
+      )
+      expect(summary?.tiers.map((entry) => entry.label)).toEqual([
+        'peak',
+        'off_peak',
+      ])
+      expect(summary?.isTimePricing).toBe(true)
+      expect(
+        parseTiersFromExpr(timeExpression).every((entry) =>
+          entry.conditionText?.includes('Asia/Shanghai')
+        )
+      ).toBe(true)
+    }
+  )
+
+  test('keeps the first token tier inside a time branch and leaves request multipliers separate', () => {
+    const base =
+      'hour("UTC") < 12 ? (len < 1000 ? tier("first", p * 4 + c * 12) : tier("cheaper", p * 2 + c * 6)) : tier("night", p * 1 + c * 3)'
+    const summary = getDynamicPricingSummary(
+      pricingModel({
+        billing_mode: 'tiered_expr',
+        billing_expr: `(${base}) * (header("tier") == "fast" ? 2 : 1)`,
+      }),
+      { tokenUnit: 'M', now: new Date('2026-09-07T10:00:00Z') }
+    )
+    expect(summary?.tier?.label).toBe('first')
+    expect(summary?.primaryEntries.map((entry) => entry.value)).toEqual([4, 12])
+    expect(summary?.hasRequestRules).toBe(true)
+    expect(
+      summary?.primaryEntries.every((entry) => !entry.formattedRange)
+    ).toBe(true)
+  })
+  test('keeps the first token tier even when a later tier is cheaper', () => {
+    const summary = getDynamicPricingSummary(
+      pricingModel({
+        billing_mode: 'tiered_expr',
+        billing_expr:
+          'len < 1000 ? tier("first", p * 4 + c * 12) : tier("cheaper", p * 2 + c * 6)',
+      }),
+      { tokenUnit: 'M' }
+    )
+    expect(summary?.tier?.label).toBe('first')
+    expect(summary?.primaryEntries.map((entry) => entry.value)).toEqual([4, 12])
+    expect(
+      summary?.primaryEntries.every(
+        (entry) => entry.formattedRange === undefined
+      )
+    ).toBe(true)
+  })
   test('preserves a versioned parenthesized base price and its request rule', () => {
     const summary = getDynamicPricingSummary(
       pricingModel({

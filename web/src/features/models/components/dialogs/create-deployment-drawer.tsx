@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Combobox } from '@/components/ui/combobox'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo } from 'react'
@@ -35,6 +34,7 @@ import {
 import { JsonCodeEditor } from '@/components/json-code-editor'
 import { MultiSelect } from '@/components/multi-select'
 import { Button } from '@/components/ui/button'
+import { Combobox } from '@/components/ui/combobox'
 import {
   Form,
   FormControl,
@@ -44,7 +44,14 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Sheet,
   SheetClose,
@@ -54,6 +61,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { handleServerError } from '@/lib/handle-server-error'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import {
   checkClusterNameAvailability,
@@ -136,7 +145,7 @@ export function CreateDeploymentDrawer({
 
   const { data: hardwareTypesData, isLoading: isLoadingHardware } = useQuery({
     queryKey: ['deployment-hardware-types'],
-    queryFn: getHardwareTypes,
+    queryFn: async () => requireServerSuccess(await getHardwareTypes()),
     enabled: open,
   })
 
@@ -165,11 +174,13 @@ export function CreateDeploymentDrawer({
 
   const { data: replicasData, isLoading: isLoadingReplicas } = useQuery({
     queryKey: ['deployment-available-replicas', hardwareId, gpuCount],
-    queryFn: () =>
-      getAvailableReplicas({
-        hardware_id: hardwareId,
-        gpu_count: gpuCount,
-      }),
+    queryFn: async () =>
+      requireServerSuccess(
+        await getAvailableReplicas({
+          hardware_id: hardwareId,
+          gpu_count: gpuCount,
+        })
+      ),
     enabled: open && Boolean(hardwareId) && gpuCount > 0,
   })
 
@@ -190,7 +201,7 @@ export function CreateDeploymentDrawer({
         map.set(key, { label: String(name), value: key })
       }
     })
-    return Array.from(map.values())
+    return [...map.values()]
   }, [replicasData])
 
   const { data: priceData, isLoading: _isLoadingPrice } = useQuery({
@@ -203,15 +214,17 @@ export function CreateDeploymentDrawer({
       locationIds,
       currency,
     ],
-    queryFn: () =>
-      estimatePrice({
-        location_ids: locationIds,
-        hardware_id: hardwareId,
-        gpus_per_container: gpuCount,
-        duration_hours: durationHours,
-        replica_count: replicaCount,
-        currency: currency || 'usdc',
-      }),
+    queryFn: async () =>
+      requireServerSuccess(
+        await estimatePrice({
+          location_ids: locationIds,
+          hardware_id: hardwareId,
+          gpus_per_container: gpuCount,
+          duration_hours: durationHours,
+          replica_count: replicaCount,
+          currency: currency || 'usdc',
+        })
+      ),
     enabled:
       open &&
       Boolean(hardwareId) &&
@@ -226,7 +239,7 @@ export function CreateDeploymentDrawer({
     queryFn: async () => {
       const name = (resourceName || '').trim()
       if (!name) return null
-      return await checkClusterNameAvailability(name)
+      return requireServerSuccess(await checkClusterNameAvailability(name))
     },
     enabled: open && Boolean(resourceName && resourceName.trim().length > 0),
     staleTime: 10_000,
@@ -326,10 +339,10 @@ export function CreateDeploymentDrawer({
         onOpenChange(false)
         return
       }
-      toast.error(data?.message || t('Failed to create deployment'))
+      handleServerError(data, t('Failed to create deployment'))
     },
     onError: (err: Error) => {
-      toast.error(err.message || t('Failed to create deployment'))
+      handleServerError(err, t('Failed to create deployment'))
     },
   })
 
@@ -411,13 +424,18 @@ export function CreateDeploymentDrawer({
                     </FormControl>
                     {open && field.value?.trim() ? (
                       <div className='text-muted-foreground text-xs'>
-                        {isCheckingName
-                          ? t('Checking name...')
-                          : nameAvailable === true
-                            ? t('Name is available')
-                            : nameAvailable === false
-                              ? t('Name is not available')
-                              : ''}
+                        {isCheckingName && t('Checking name...')}
+                        {!isCheckingName &&
+                          nameAvailable === true &&
+                          t('Name is available')}
+                        {!isCheckingName &&
+                          !(nameAvailable === true) &&
+                          nameAvailable === false &&
+                          t('Name is not available')}
+                        {!isCheckingName &&
+                          !(nameAvailable === true) &&
+                          !(nameAvailable === false) &&
+                          ''}
                       </div>
                     ) : null}
                     <FormMessage />
@@ -453,19 +471,19 @@ export function CreateDeploymentDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Hardware type')}</FormLabel>
-                      <FormControl><Combobox
-options={[
-                          ...hardwareOptions.map((opt) => ({
+                      <FormControl>
+                        <Combobox
+                          options={hardwareOptions.map((opt) => ({
                             value: opt.value,
                             label: opt.label,
-                          })),
-                        ]}
-value={field.value}
-onValueChange={(v) => field.onChange(v)}
-disabled={isLoadingHardware}
-className='w-full'
-placeholder={t('Select')}
-/></FormControl>
+                          }))}
+                          value={field.value}
+                          onValueChange={(v) => field.onChange(v)}
+                          disabled={isLoadingHardware}
+                          className='w-full'
+                          placeholder={t('Select')}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -187,3 +187,13 @@ func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenP
 
 	return true, tr.ActualQuotaAfterGroup, &tr
 }
+
+// A failed evaluation retains the reservation and its estimated billing unit.
+// Successful evaluations always use the actual branch, including zero prices.
+func isFixedPriceSettlement(info *relaycommon.RelayInfo, result *billingexpr.TieredResult) bool {
+	if result != nil {
+		return result.BillingUnit == billingexpr.BillingUnitRequest
+	}
+	snap := info.TieredBillingSnapshot
+	return snap != nil && snap.BillingMode == "tiered_expr" && snap.EstimatedBillingUnit == billingexpr.BillingUnitRequest
+}

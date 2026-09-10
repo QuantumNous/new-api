@@ -21,7 +21,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { useSecureVerification } from '@/features/auth/secure-verification'
+import { handleServerError } from '@/lib/handle-server-error'
 import { AuthOperationError } from '@/lib/secure-verification'
+import { createServerError } from '@/lib/server-error-message'
 
 import { getChannelKey } from '../api'
 
@@ -72,13 +74,13 @@ export function useChannelKeyDisclosure(
       )
       if (operation.current !== current) return
       if (!res.success) {
-        throw new Error(res.message || t('Failed to fetch channel key'))
+        throw createServerError(res, t('Failed to fetch channel key'))
       }
       setDisclosedKey({ channelId, key: res.data?.key ?? '' })
       toast.success(t('Channel key unlocked'))
     } catch (error) {
       if (operation.current === current && !current.signal.aborted) {
-        toast.error(t(AuthOperationError.from(error).message))
+        handleServerError(AuthOperationError.from(error))
       }
     } finally {
       if (operation.current === current) {

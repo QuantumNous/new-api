@@ -37,6 +37,38 @@ import type { PricingModel, BillingUsageSchema } from '../types'
 
 vi.mock('@visactor/react-vchart', () => ({ VChart: () => null }))
 
+it('shows an explicit free request price alongside token prices with distinct units', () => {
+  render(
+    <DynamicPricingBreakdown
+      billingExpr='len < 1000 ? tier("free", fixed(0)) : tier("tokens", p * 2 + c * 8)'
+      matchedTierLabel='free'
+    />
+  )
+  expect(screen.getAllByText('$0/request').length).toBeGreaterThan(0)
+  expect(screen.getAllByText('Input / 1M token').length).toBeGreaterThan(0)
+  expect(screen.getAllByText('Price per request').length).toBeGreaterThan(0)
+})
+
+it('renders weekday and hour conditions as time windows instead of expression source', () => {
+  const condition =
+    'weekday("Asia/Shanghai") >= 1 && weekday("Asia/Shanghai") <= 5 && ((hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 12) || (hour("Asia/Shanghai") >= 14 && hour("Asia/Shanghai") < 18))'
+  render(
+    <DynamicPricingBreakdown
+      billingExpr={`${condition} ? tier("peak", p * 3 + c * 9 + cr * 0.1) : tier("off_peak", p * 1.5 + c * 4.5 + cr * 0.05)`}
+    />
+  )
+  expect(
+    screen.getAllByText('Mon–Fri 09:00–12:00 or 14:00–18:00 (Asia/Shanghai)')
+      .length
+  ).toBeGreaterThan(0)
+  expect(
+    screen.getAllByText(
+      'Outside these times: Mon–Fri 09:00–12:00 or 14:00–18:00 (Asia/Shanghai)'
+    ).length
+  ).toBeGreaterThan(0)
+  expect(screen.queryByText(/weekday\(/)).not.toBeInTheDocument()
+})
+
 const model: PricingModel = {
   id: 1,
   model_name: 'incho_music',

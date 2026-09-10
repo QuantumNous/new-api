@@ -52,6 +52,7 @@ import { resolveChatUrl, type ChatPreset } from '@/features/chat/lib/chat-links'
 import { sendToFluent } from '@/features/chat/lib/send-to-fluent'
 import { encodeChannelConnectionInfo } from '@/lib/channel-connection-info'
 import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { updateApiKeyStatus } from '../api'
 import { API_KEY_STATUS, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
@@ -155,10 +156,10 @@ export function DataTableRowActions<TData>({
         toast.success(message)
         triggerRefresh()
       } else {
-        toast.error(result.message || t(ERROR_MESSAGES.STATUS_UPDATE_FAILED))
+        handleServerError(result, t(ERROR_MESSAGES.STATUS_UPDATE_FAILED))
       }
-    } catch {
-      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+    } catch (error) {
+      handleServerError(error, t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsTogglingStatus(false)
     }

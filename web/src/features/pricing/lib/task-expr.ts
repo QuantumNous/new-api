@@ -21,12 +21,13 @@ import type {
   BillingUsageFieldSchema,
   BillingUsageSchema,
 } from '../types'
-
-export const TASK_TOKEN_PRICE_SCALE = 1_000_000
 import {
   parseTaskTiersFromExpr,
   splitBillingExprAndRequestRules,
 } from './billing-expr'
+import { evaluateBillingExpression } from './billing-expression/runtime'
+
+export const TASK_TOKEN_PRICE_SCALE = 1_000_000
 
 export type TaskVisualCondition = {
   field: string
@@ -300,10 +301,8 @@ export function evaluateTaskVisualConfig(
   if (!Number.isFinite(constant) || constant < 0) return null
 
   const parts: TaskPreviewResult['parts'] = []
-  let total = 0
   if (constant > 0) {
     parts.push({ kind: 'constant', amount: constant })
-    total += constant
   }
 
   for (const [field, rawUnitPrice] of Object.entries(matchedTier.unitPrices)) {
@@ -319,11 +318,24 @@ export function evaluateTaskVisualConfig(
         : quantity * unitPrice
     if (!Number.isFinite(amount)) return null
     parts.push({ kind: 'usage', field, amount, quantity, unitPrice })
-    total += amount
   }
 
-  if (!Number.isFinite(total)) return null
-  return { tier: matchedTier, total, parts }
+  // Keep visual row selection and itemization, but share expression arithmetic
+  // and unit semantics with raw simulation. Zero-price fields remain optional.
+  const terms = [String(constant)]
+  const normalizedUsage = { ...sample }
+  for (const part of parts) {
+    if (part.kind !== 'usage' || !part.field) continue
+    normalizedUsage[part.field] = part.quantity ?? 0
+    const scale = schema?.[part.field]?.unit === 'token' ? ' / 1000000' : ''
+    terms.push(`u(${JSON.stringify(part.field)}) * ${part.unitPrice}${scale}`)
+  }
+  const result = evaluateBillingExpression(
+    `tier(${JSON.stringify(matchedTier.label)}, ${terms.join(' + ')})`,
+    { usage: normalizedUsage }
+  )
+  if (result.status !== 'success') return null
+  return { tier: matchedTier, total: result.cost, parts }
 }
 
 export function evaluateTaskUsageExamples(

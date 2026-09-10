@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api, type ApiRequestConfig } from '@/lib/api'
+import { createServerError } from '@/lib/server-error-message'
 
 import type {
   ApiResponse,
@@ -60,7 +61,7 @@ function requireSuccess<T>(response: ApiResponse<T>): T {
     if (data?.channels && typeof data.in_flight_count === 'number') {
       throw new TaskPluginUsageError(response.message, data)
     }
-    throw new Error(response.message)
+    throw createServerError(response)
   }
   return response.data
 }

@@ -20,7 +20,6 @@ import { useQuery } from '@tanstack/react-query'
 import { getRouteApi } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
 import {
   DISABLED_ROW_DESKTOP,
@@ -30,6 +29,7 @@ import {
 } from '@/components/data-table'
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { createServerError } from '@/lib/server-error-message'
 
 import { getRedemptions, searchRedemptions } from '../api'
 import {
@@ -108,15 +108,14 @@ export function RedemptionsTable() {
           : await getRedemptions(params)
 
       if (!result.success) {
-        toast.error(
-          result.message ||
-            t(
-              hasFilter || hasStatusFilter
-                ? ERROR_MESSAGES.SEARCH_FAILED
-                : ERROR_MESSAGES.LOAD_FAILED
-            )
+        throw createServerError(
+          result,
+          t(
+            hasFilter || hasStatusFilter
+              ? ERROR_MESSAGES.SEARCH_FAILED
+              : ERROR_MESSAGES.LOAD_FAILED
+          )
         )
-        return { items: [], total: 0 }
       }
 
       return {

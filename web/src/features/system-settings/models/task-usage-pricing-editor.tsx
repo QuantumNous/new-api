@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { AlertTriangle } from 'lucide-react'
 import { memo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -73,6 +74,7 @@ import type {
 } from '@/features/pricing/types'
 
 import { formatPricingNumber } from './pricing-format'
+import { RequestSimulation } from './request-simulation'
 import { TaskPricingMatrix } from './task-pricing-matrix'
 
 type TaskUsagePricingEditorProps = {
@@ -106,17 +108,7 @@ function TaskBillingPreview(props: TaskBillingPreviewProps) {
     ? evaluateTaskVisualConfig(props.config, props.sample, props.usageSchema)
     : null
 
-  if (!result) {
-    return (
-      <div className='bg-muted/30 rounded-md border p-3'>
-        <p className='text-muted-foreground text-xs'>
-          {t('Preview is unavailable for custom expressions.')}
-        </p>
-      </div>
-    )
-  }
-
-  const formulaParts = result.parts.map((part) => {
+  const formulaParts = (result?.parts ?? []).map((part) => {
     if (part.kind === 'constant') {
       return `${t('Additional charge')}: ${formatPricingAmount(part.amount, props.currency)}`
     }
@@ -135,7 +127,7 @@ function TaskBillingPreview(props: TaskBillingPreviewProps) {
     formulaParts.length > 0
       ? formulaParts.join(' + ')
       : formatPricingAmount(0, props.currency)
-  const formula = `${formulaLeft} = ${formatPricingAmount(result.total, props.currency)}`
+  const formula = `${formulaLeft} = ${formatPricingAmount(result?.total ?? 0, props.currency)}`
 
   return (
     <div className='bg-muted/30 flex flex-col gap-3 rounded-md border p-3'>
@@ -245,21 +237,27 @@ function TaskBillingPreview(props: TaskBillingPreviewProps) {
           ))}
         </div>
       ) : null}
-      <div className='border-primary/50 bg-primary/10 flex flex-col gap-2 rounded-md border p-3 text-sm'>
-        <Badge variant='outline' className='text-xs'>
-          {t('Current pricing conditions')}:{' '}
-          {taskPricingConditions(
-            enumFields.map(([field]) => ({
-              field,
-              value: String(props.sample[field] ?? ''),
-            })),
-            props.usageSchema,
-            i18n.language,
-            t
-          ) || t('All requests')}
-        </Badge>
-        <code className='font-mono text-xs break-words'>{formula}</code>
-      </div>
+      {result ? (
+        <div className='border-primary/50 bg-primary/10 flex flex-col gap-2 rounded-md border p-3 text-sm'>
+          <Badge variant='outline' className='text-xs'>
+            {t('Current pricing conditions')}:{' '}
+            {taskPricingConditions(
+              enumFields.map(([field]) => ({
+                field,
+                value: String(props.sample[field] ?? ''),
+              })),
+              props.usageSchema,
+              i18n.language,
+              t
+            ) || t('All requests')}
+          </Badge>
+          <code className='font-mono text-xs break-words'>{formula}</code>
+        </div>
+      ) : (
+        <p className='text-muted-foreground text-xs'>
+          {t('Preview is unavailable for custom expressions.')}
+        </p>
+      )}
     </div>
   )
 }
@@ -373,9 +371,15 @@ export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
         split.billingExpr,
         props.usageSchema
       )
-      const nextRows = (
-        parsed ?? createDefaultTaskMatrixConfig(props.usageSchema)
-      ).rows
+      if (!parsed) {
+        toast.error(
+          t(
+            'This expression cannot be edited visually without losing information.'
+          )
+        )
+        return
+      }
+      const nextRows = parsed.rows
       setMatrixRows(nextRows)
       props.onBillingExprChange(
         generateTaskExprFromConfig(
@@ -648,6 +652,23 @@ export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
           </div>
         )}
       </div>
+      <RequestSimulation
+        expression={
+          editorMode === 'raw'
+            ? rawExpr
+            : combineBillingExpr(
+                generateTaskExprFromConfig(
+                  { tiers: visualTiers },
+                  props.usageSchema
+                ),
+                props.requestRuleExpr
+              )
+        }
+        usage={previewSample}
+        usageSchema={props.usageSchema}
+        currency={props.currency}
+        mode='task'
+      />
     </div>
   )
 })

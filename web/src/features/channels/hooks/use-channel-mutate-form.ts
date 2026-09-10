@@ -25,8 +25,10 @@ import {
   ADMIN_PERMISSION_RESOURCES,
   hasPermission,
 } from '@/lib/admin-permissions'
-import { useAuthStore } from '@/stores/auth-store'
+import { handleServerError } from '@/lib/handle-server-error'
+import { createServerError } from '@/lib/server-error-message'
 import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { createChannel, updateChannel } from '../api'
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
@@ -71,31 +73,6 @@ export function stripSensitiveUpdateFields(
   return sanitized
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function getErrorMessage(error: unknown): string | undefined {
-  if (error instanceof Error && typeof error.message === 'string') {
-    return error.message
-  }
-
-  if (!isRecord(error)) return undefined
-
-  const response = error.response
-  if (isRecord(response)) {
-    const data = response.data
-    if (isRecord(data)) {
-      const message = data.message
-      if (typeof message === 'string') return message
-    }
-  }
-
-  const message = error.message
-  if (typeof message === 'string') return message
-  return undefined
-}
-
 export function useChannelMutateForm(props: UseChannelMutateFormParams) {
   const { t } = useTranslation()
   const currentUser = useAuthStore((s) => s.auth.user)
@@ -130,14 +107,14 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
                 ...safePayload,
                 key_mode: data.key_mode,
               }
-          : safePayload
+            : safePayload
 
         const response = await updateChannel(
           props.currentRow.id,
           payloadWithKeyMode
         )
         if (!response.success) {
-          throw new Error(response.message || t(ERROR_MESSAGES.UPDATE_FAILED))
+          throw createServerError(response, t(ERROR_MESSAGES.UPDATE_FAILED))
         }
         return SUCCESS_MESSAGES.UPDATED
       }
@@ -145,7 +122,7 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
       const payload = transformFormDataToCreatePayload(data)
       const response = await createChannel(payload)
       if (!response.success) {
-        throw new Error(response.message || t(ERROR_MESSAGES.CREATE_FAILED))
+        throw createServerError(response, t(ERROR_MESSAGES.CREATE_FAILED))
       }
       return SUCCESS_MESSAGES.CREATED
     },
@@ -154,7 +131,7 @@ export function useChannelMutateForm(props: UseChannelMutateFormParams) {
       props.onSuccess()
     },
     onError: (error: unknown) => {
-      toast.error(getErrorMessage(error) || t(ERROR_MESSAGES.CREATE_FAILED))
+      handleServerError(error, t(ERROR_MESSAGES.CREATE_FAILED))
     },
   })
 }

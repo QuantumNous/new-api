@@ -98,6 +98,7 @@ function MarketplaceInstallContent(
     ],
     enabled: Boolean(entry),
     retry: false,
+    meta: { errorToast: false },
     queryFn: async () => {
       if (!entry) throw new Error('missing marketplace entry')
       const url = resolvePluginSourceUrl(target.source.index_url, entry.path)

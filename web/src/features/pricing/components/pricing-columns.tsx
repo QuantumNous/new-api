@@ -28,16 +28,9 @@ import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
-import { DEFAULT_TOKEN_UNIT } from '../constants'
-import {
-  getDynamicDisplayGroupRatio,
-  getDynamicPricingSummary,
-  isUnconfiguredTaskUsageModel,
-} from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
-import { isTokenBasedModel } from '../lib/model-helpers'
-import { formatPrice, stripTrailingZeros } from '../lib/price'
 import type { PricingModel } from '../types'
+import { CachedPriceCell } from './cached-price-cell'
 import { ModelBillingModeBadge } from './model-billing-mode-badge'
 import { ModelPriceCell, type ModelPriceCellOptions } from './model-price-cell'
 
@@ -51,15 +44,6 @@ export function usePricingColumns(
   options: PricingColumnsOptions = {}
 ): ColumnDef<PricingModel>[] {
   const { t } = useTranslation()
-  const {
-    tokenUnit = DEFAULT_TOKEN_UNIT,
-    priceRate = 1,
-    usdExchangeRate = 1,
-    showRechargePrice = false,
-    selectedGroup,
-  } = options
-
-  const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
 
   return [
     // Model column
@@ -115,80 +99,9 @@ export function usePricingColumns(
     {
       id: 'cached_price',
       header: t('Cached'),
-      cell: ({ row }) => {
-        const model = row.original
-        const dynamicSummary = getDynamicPricingSummary(model, {
-          tokenUnit,
-          showRechargePrice,
-          priceRate,
-          usdExchangeRate,
-          groupRatioMultiplier: getDynamicDisplayGroupRatio(
-            model,
-            selectedGroup
-          ),
-        })
-
-        if (dynamicSummary) {
-          if (dynamicSummary.isSpecialExpression) {
-            return (
-              <span className='text-muted-foreground/50 text-xs'>
-                {t('Special billing expression')}
-              </span>
-            )
-          }
-
-          const cacheEntry = dynamicSummary.entries.find(
-            (entry) => entry.field === 'cacheReadPrice'
-          )
-          if (!cacheEntry) {
-            return <span className='text-muted-foreground/30 text-xs'>—</span>
-          }
-
-          return (
-            <div className='max-w-full min-w-0'>
-              <span className='font-mono text-sm tabular-nums'>
-                {stripTrailingZeros(cacheEntry.formatted)}
-              </span>
-              <div className='text-muted-foreground/50 text-[10px]'>
-                / {tokenUnitLabel}
-              </div>
-            </div>
-          )
-        }
-
-        if (isUnconfiguredTaskUsageModel(model)) {
-          return <span className='text-muted-foreground/30 text-xs'>—</span>
-        }
-
-        const isTokenBased = isTokenBasedModel(model)
-
-        if (!isTokenBased || model.cache_ratio == null) {
-          return <span className='text-muted-foreground/30 text-xs'>—</span>
-        }
-
-        const cachedPrice = stripTrailingZeros(
-          formatPrice(
-            model,
-            'cache',
-            tokenUnit,
-            showRechargePrice,
-            priceRate,
-            usdExchangeRate,
-            selectedGroup
-          )
-        )
-
-        return (
-          <div className='max-w-full min-w-0'>
-            <span className='font-mono text-sm tabular-nums'>
-              {cachedPrice}
-            </span>
-            <div className='text-muted-foreground/50 text-[10px]'>
-              / {tokenUnitLabel}
-            </div>
-          </div>
-        )
-      },
+      cell: ({ row }) => (
+        <CachedPriceCell model={row.original} options={options} />
+      ),
       size: 110,
       enableSorting: false,
     },

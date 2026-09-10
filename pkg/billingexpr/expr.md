@@ -12,7 +12,7 @@ The expression is the billing contract between the administrator and the system.
 
 2. **Variables are opt-in** — `p` (prompt) and `c` (completion) are the base. Cache (`cr`, `cc`, `cc1h`), image (`img`), and audio (`ai`, `ao`) variables are optional. If omitted, those tokens are included in `p`/`c` and priced at their rate. The system automatically detects which variables the expression uses (via AST introspection) and adjusts token normalization accordingly.
 
-3. **Prices are real prices** — Expression coefficients are actual $/1M tokens prices as published by providers. No ratio conversion, no `/2` convention. `p * 2.5` means $2.50 per 1M prompt tokens.
+3. **Prices are real prices** — Token coefficients are actual $/1M tokens prices as published by providers. `p * 2.5` means $2.50 per 1M prompt tokens; `fixed(0.01)` means $0.01 per request. No ratio conversion or `/2` convention is required.
 
 4. **Upstream-agnostic** — The expression doesn't need to know whether the upstream API is OpenAI-format (prompt_tokens includes cache) or Claude-format (input_tokens excludes cache). The system normalizes token counts before evaluation based on the upstream response format.
 
@@ -76,6 +76,7 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 | Function | Signature | Purpose |
 |----------|-----------|---------|
 | `tier` | `tier(name, value) → float64` | Records which pricing tier matched; must wrap the cost expression |
+| `fixed` | `fixed(amount) → float64` | A USD price per request, used only as the complete price in `tier(name, fixed(amount))` |
 | `param` | `param(path) → any` | Reads a JSON path from the request body (uses gjson) |
 | `header` | `header(key) → string` | Reads a request header value |
 | `has` | `has(source, substr) → bool` | Substring check |
@@ -96,6 +97,11 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 # Simple flat pricing
 tier("base", p * 2.5 + c * 15 + cr * 0.25)
 
+# Conditional per-request pricing, with token pricing for the fallback
+len <= 32000
+  ? tier("short", fixed(0.01))
+  : tier("long", p * 2 + c * 8)
+
 # Multi-tier (Claude Sonnet style) — use len for tier conditions
 len <= 200000
   ? tier("standard", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6)
@@ -107,6 +113,40 @@ tier("base", p * 2 + c * 8 + img * 2.5)
 # Multimodal with audio
 tier("base", p * 0.43 + c * 3.06 + img * 0.78 + ai * 3.81 + ao * 15.11)
 ```
+
+### Fixed Request Prices
+
+`tier("request", fixed(0.01))` replaces all token charges in the selected leaf
+with a $0.01 base price for one successful HTTP/SSE request. Other leaves may
+still use token pricing. Group ratios and request multipliers continue to apply;
+existing tool surcharges are calculated separately and added as before. A stream
+does not incur a fixed fee per chunk. Realtime and task usage expressions reject
+`fixed()` before upstream submission or reservation.
+
+The amount must be a finite, non-negative numeric literal whose v1 scaled value
+is finite. Explicit `fixed(0)` is valid and stays free. Expressions using `fixed`
+must consist of a conditional pricing tree and the standard request multiplier
+factors described below, with each leaf wrapped in `tier()`. Adding fixed and
+token charges in one leaf, adding multiple tiers together, or multiplying a
+fixed price by tokens is rejected. Validation examines the original AST,
+including branches that optimization or short-circuiting would skip. Existing
+expressions without `fixed()` retain their original grammar and behavior.
+
+`fixed(amount)` returns `amount * 1,000,000` internally, preserving v1's existing
+quota conversion and rounding. Pre-consume matches conditions using estimates;
+settlement reevaluates against actual or existing locally estimated usage and
+reconciles any change of branch through the normal billing session. Missing
+upstream usage retains the existing estimation path; an actual request-priced
+branch can charge even with zero tokens. Failures retain the normal refund
+policy. Settlement evaluation errors retain the reservation and its estimated
+billing unit.
+
+Evaluation results expose `billing_unit` (`token` or `request`) and, for a
+request-priced leaf, `fixed_price` in USD before multipliers. Pre-consume snapshots
+carry `estimated_billing_unit` and `estimated_fixed_price`; consume logs append
+the actual values to `other`. An explicit zero price is present in these fields.
+Older snapshots and logs need no migration. The expression remains the sole
+pricing configuration.
 
 ### Request Rules (appended after `|||`)
 

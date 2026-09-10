@@ -54,6 +54,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { formatTimestampToDate } from '@/lib/format'
+import { createServerError } from '@/lib/server-error-message'
 
 import { createVendor, getVendor, updateVendor } from '../../api'
 import { vendorsQueryKeys } from '../../lib'
@@ -87,7 +88,7 @@ export function VendorMutateDialog(props: {
       if (!id) throw new Error(t('Select a saved vendor.'))
       const response = await getVendor(id)
       if (!response.success || !response.data) {
-        throw new Error(response.message || t('Failed to load vendor'))
+        throw createServerError(response, t('Failed to load vendor'))
       }
       return response.data
     },
@@ -116,7 +117,7 @@ export function VendorMutateDialog(props: {
         ? await updateVendor({ ...values, id })
         : await createVendor(values)
       if (!response.success) {
-        throw new Error(response.message || t('Operation failed'))
+        throw createServerError(response, t('Operation failed'))
       }
       return response.data
     },

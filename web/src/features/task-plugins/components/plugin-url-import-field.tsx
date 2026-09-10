@@ -52,6 +52,7 @@ type PluginUrlImportFieldProps = {
 export function PluginUrlImportField(props: PluginUrlImportFieldProps) {
   const { t } = useTranslation()
   const importMutation = useMutation({
+    meta: { errorToast: false },
     mutationFn: async () => {
       const normalized = normalizePluginSourceUrl(props.value)
       if (!normalized) {

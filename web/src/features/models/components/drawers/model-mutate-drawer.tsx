@@ -18,7 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AxiosError } from 'axios'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -65,6 +64,11 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { ModelPricingPanel } from '@/features/model-pricing/model-pricing-panel'
+import {
+  requireServerSuccess,
+  createServerError,
+  getServerErrorMessage,
+} from '@/lib/server-error-message'
 
 import { createModel, updateModel, getModel, getVendors } from '../../api'
 import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
@@ -120,7 +124,8 @@ export function ModelMutateDrawer(props: {
   })
   const vendorsQuery = useQuery({
     queryKey: vendorsQueryKeys.list(),
-    queryFn: () => getVendors({ page_size: 1000 }),
+    queryFn: async () =>
+      requireServerSuccess(await getVendors({ page_size: 1000 })),
     enabled: props.open,
   })
   const vendors = vendorsQuery.data?.data?.items ?? []
@@ -133,7 +138,7 @@ export function ModelMutateDrawer(props: {
       if (!currentRow?.id) throw new Error(t('Model ID is required'))
       const response = await getModel(currentRow.id)
       if (!response.success || !response.data) {
-        throw new Error(response.message || t('Failed to load model'))
+        throw createServerError(response, t('Failed to load model'))
       }
       return response.data
     },
@@ -182,6 +187,7 @@ export function ModelMutateDrawer(props: {
   }, [props.open, currentRow, isEditing, modelQuery.data, form])
 
   const save = useMutation({
+    meta: { errorToast: false },
     onMutate: () => form.clearErrors('root.server'),
     mutationFn: async (values: ModelFormValues) => {
       if (pricingDirty && values.model_name !== currentRow?.model_name) {
@@ -194,7 +200,7 @@ export function ModelMutateDrawer(props: {
         ? await updateModel({ ...payload, id: currentRow.id })
         : await createModel(payload)
       if (!response.success) {
-        throw new Error(response.message || t('Operation failed'))
+        throw createServerError(response, t('Operation failed'))
       }
       return response
     },
@@ -218,12 +224,8 @@ export function ModelMutateDrawer(props: {
       if (!pricingDirty) props.onOpenChange(false)
     },
     onError: (error) => {
-      const message =
-        error instanceof AxiosError
-          ? error.response?.data?.message || error.message
-          : error.message
       form.setError('root.server', {
-        message: message || t('Operation failed'),
+        message: getServerErrorMessage(error, t('Operation failed')),
       })
     },
   })

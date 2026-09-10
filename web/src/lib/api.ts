@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/http-client'
 import { authRequestOptions, authResult } from '@/lib/secure-verification'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 export {
   applyAuthBundle,
@@ -71,7 +72,7 @@ export async function getUserGroups(): Promise<{
 
 export async function getStatus() {
   const res = await api.get('/api/status')
-  return res.data?.data as Record<string, unknown>
+  return requireServerSuccess(res.data)?.data as Record<string, unknown>
 }
 
 export async function getNotice(): Promise<{

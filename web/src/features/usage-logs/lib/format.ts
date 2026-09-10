@@ -312,7 +312,12 @@ export function resolveMatchedTier(
 export interface TieredBillingSummary {
   tiers: ParsedTier[]
   tier: ParsedTier
-  priceEntries: Array<{ field: string; shortLabel: string; price: number }>
+  priceEntries: Array<{
+    field: string
+    shortLabel: string
+    price: number
+    unit?: 'request'
+  }>
 }
 
 /**
@@ -342,7 +347,53 @@ export function getTieredBillingSummary(
     splitBillingExprAndRequestRules(exprStr).billingExpr
   )
   const tier = resolveMatchedTier(tiers, other.matched_tier)
+  if (
+    other.billing_unit === 'request' &&
+    typeof other.fixed_price === 'number' &&
+    Number.isFinite(other.fixed_price) &&
+    other.fixed_price >= 0
+  ) {
+    const fixedPrice = other.fixed_price
+    const actualTier = tiers.find(
+      (entry) =>
+        normalizeTierLabel(entry.label) ===
+          normalizeTierLabel(other.matched_tier) &&
+        entry.billingUnit === 'request' &&
+        entry.fixedPrice === fixedPrice
+    ) ?? {
+      label: other.matched_tier || '',
+      conditions: [],
+      billingUnit: 'request' as const,
+      fixedPrice,
+    }
+    return {
+      tiers,
+      tier: actualTier,
+      priceEntries: [
+        {
+          field: 'fixedPrice',
+          shortLabel: 'Per-call',
+          price: fixedPrice,
+          unit: 'request',
+        },
+      ],
+    }
+  }
   if (!tier) return null
+  if (tier.billingUnit === 'request' && typeof tier.fixedPrice === 'number') {
+    return {
+      tiers,
+      tier,
+      priceEntries: [
+        {
+          field: 'fixedPrice',
+          shortLabel: 'Per-call',
+          price: tier.fixedPrice,
+          unit: 'request',
+        },
+      ],
+    }
+  }
 
   const cacheTokensPresent = hasAnyCacheTokens(other)
 

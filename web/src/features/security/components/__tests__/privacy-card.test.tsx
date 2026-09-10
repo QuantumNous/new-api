@@ -93,7 +93,7 @@ describe('privacy settings', () => {
     const { onUpdate } = renderPrivacy()
     await user.click(screen.getByRole('switch', { name: 'Record IP Address' }))
     await user.click(screen.getByRole('button', { name: 'Save Settings' }))
-    expect(await screen.findByText('Failed to update settings')).toBeVisible()
+    expect(await screen.findByText('offline')).toBeVisible()
     expect(put).not.toHaveBeenCalled()
     expect(onUpdate).not.toHaveBeenCalled()
     expect(

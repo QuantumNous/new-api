@@ -1,8 +1,10 @@
 package service
 
 import (
+	"fmt"
 	"math"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -18,10 +20,189 @@ import (
 	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
+
+// The configured DSNs must point at isolated test databases. Each dialect runs
+// the real reservation, settlement and log paths with the same billing cases.
+func TestFixedPriceBillingDatabaseMatrix(t *testing.T) {
+	for _, dialect := range []struct {
+		name common.DatabaseType
+		env  string
+	}{
+		{common.DatabaseTypeSQLite, ""},
+		{common.DatabaseTypeMySQL, "TEST_FIXED_MYSQL_DSN"},
+		{common.DatabaseTypePostgreSQL, "TEST_FIXED_POSTGRES_DSN"},
+	} {
+		t.Run(string(dialect.name), func(t *testing.T) {
+			var driver gorm.Dialector = sqlite.Open(":memory:")
+			if dialect.env != "" {
+				dsn := os.Getenv(dialect.env)
+				if dsn == "" {
+					t.Skip(dialect.env + " is not configured")
+				}
+				if dialect.name == common.DatabaseTypeMySQL {
+					driver = mysql.Open(dsn)
+				} else {
+					driver = postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
+				}
+			}
+			db, err := gorm.Open(driver, &gorm.Config{})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			sqlDB.SetMaxOpenConns(1)
+			t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+			oldDB, oldLogDB := model.DB, model.LOG_DB
+			oldMainType, oldLogType := common.MainDatabaseType(), common.LogDatabaseType()
+			model.DB, model.LOG_DB = db, db
+			common.SetDatabaseTypes(dialect.name, dialect.name)
+			t.Cleanup(func() { model.DB, model.LOG_DB = oldDB, oldLogDB; common.SetDatabaseTypes(oldMainType, oldLogType) })
+			require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}, &model.Log{}))
+			versionQuery := "select version()"
+			if dialect.name == common.DatabaseTypeSQLite {
+				versionQuery = "select sqlite_version()"
+			}
+			var version string
+			require.NoError(t, db.Raw(versionQuery).Scan(&version).Error)
+			t.Logf("database: %s", version)
+			runFixedPriceAccountingCases(t, db)
+		})
+	}
+}
+
+func runFixedPriceAccountingCases(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	const mixed = `len <= 32000 ? tier("short", fixed(0.01)) : tier("long", p * 2)`
+	const flat = `tier("request", fixed(0.01))`
+	const startingQuota = 2_000_000
+	operation_setting.SetToolPriceForTest("fixed_billing_tool", 4)
+	t.Cleanup(func() { operation_setting.DeleteToolPriceForTest("fixed_billing_tool") })
+	for index, tc := range []struct {
+		name, expression                          string
+		estimate                                  int
+		usage                                     *dto.Usage
+		audio, stream, refund, insufficient, tool bool
+		groupRatio                                float64
+		want                                      int
+		unit                                      billingexpr.BillingUnit
+	}{
+		{name: "missing usage charges once", expression: flat, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "zero usage charges once", expression: flat, usage: &dto.Usage{}, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "stream charges once", expression: flat, stream: true, usage: &dto.Usage{PromptTokens: 100, CompletionTokens: 20, TotalTokens: 120}, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "audio zero usage charges once", expression: flat, audio: true, usage: &dto.Usage{}, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "audio missing usage charges once", expression: flat, audio: true, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "token reservation refunds to fixed price", expression: mixed, estimate: 50000, usage: &dto.Usage{PromptTokens: 100, TotalTokens: 100}, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "fixed reservation settles token fallback", expression: mixed, estimate: 100, usage: &dto.Usage{PromptTokens: 50000, TotalTokens: 50000}, want: 50000, unit: billingexpr.BillingUnitToken},
+		{name: "missing usage uses estimated token fallback", expression: mixed, estimate: 50000, want: 50000, unit: billingexpr.BillingUnitToken},
+		{name: "evaluation error retains fixed reservation metadata", expression: `p == 50 ? tier("error", param("missing") * p) : tier("request", fixed(0.01))`, estimate: 100, usage: &dto.Usage{PromptTokens: 50, TotalTokens: 50}, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "explicit zero remains free", expression: `tier("free", fixed(0))`, usage: &dto.Usage{PromptTokens: 100, TotalTokens: 100}, unit: billingexpr.BillingUnitRequest},
+		{name: "multipliers and separate tool surcharge", expression: flat + ` * (param("fast") == true ? 2 : 1)`, groupRatio: 1.5, tool: true, want: 18000, unit: billingexpr.BillingUnitRequest},
+		{name: "failed request refunds exactly once", expression: flat, refund: true},
+		{name: "insufficient wallet never reserves tokens", expression: flat, insufficient: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			quota := startingQuota
+			if tc.insufficient {
+				quota = 1
+			}
+			user := model.User{Username: fmt.Sprintf("fixed_billing_%d", index), Quota: quota, Status: common.UserStatusEnabled}
+			require.NoError(t, db.Create(&user).Error)
+			token := model.Token{UserId: user.Id, Key: fmt.Sprintf("fixed-billing-test-%d", index), Name: "fixed-billing", RemainQuota: startingQuota, Status: common.TokenStatusEnabled}
+			require.NoError(t, db.Create(&token).Error)
+			channel := model.Channel{Name: "fixed-billing", Key: "unused", Status: common.ChannelStatusEnabled}
+			require.NoError(t, db.Create(&channel).Error)
+			t.Cleanup(func() {
+				require.NoError(t, db.Where("user_id = ?", user.Id).Delete(&model.Log{}).Error)
+				require.NoError(t, db.Unscoped().Delete(&token).Error)
+				require.NoError(t, db.Unscoped().Delete(&user).Error)
+				require.NoError(t, db.Unscoped().Delete(&channel).Error)
+			})
+			group := tc.groupRatio
+			if group == 0 {
+				group = 1
+			}
+			request := &billingexpr.RequestInput{Body: []byte(`{"fast":true}`)}
+			cost, trace, err := billingexpr.RunExprWithRequest(tc.expression, billingexpr.TokenParams{P: float64(tc.estimate), Len: float64(tc.estimate)}, *request)
+			require.NoError(t, err)
+			reservation, err := billingexpr.QuotaRoundStrict(cost / 1_000_000 * common.QuotaPerUnit * group)
+			require.NoError(t, err)
+			snapshot := &billingexpr.BillingSnapshot{BillingMode: "tiered_expr", ExprString: tc.expression, ExprHash: billingexpr.ExprHashString(tc.expression), QuotaPerUnit: common.QuotaPerUnit, GroupRatio: group, EstimatedTier: trace.MatchedTier, EstimatedBillingUnit: trace.BillingUnit, EstimatedFixedPrice: trace.FixedPrice, EstimatedQuotaAfterGroup: reservation}
+			info := &relaycommon.RelayInfo{UserId: user.Id, TokenId: token.Id, TokenKey: token.Key, ChannelMeta: &relaycommon.ChannelMeta{ChannelId: channel.Id}, OriginModelName: "fixed-test", UsingGroup: "default", UserGroup: "default", UserSetting: dto.UserSetting{BillingPreference: "wallet_only"}, ForcePreConsume: true, StartTime: time.Now(), IsStream: tc.stream, RelayFormat: types.RelayFormatOpenAI, PriceData: hosttypes.PriceData{GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: group}}, TieredBillingSnapshot: snapshot, BillingRequestInput: request}
+			info.SetEstimatePromptTokens(tc.estimate)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			apiErr := PreConsumeBilling(ctx, reservation, info)
+			if tc.insufficient {
+				require.NotNil(t, apiErr)
+				assert.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+			} else {
+				require.Nil(t, apiErr)
+				held, err := model.GetUserQuota(user.Id, true)
+				require.NoError(t, err)
+				assert.Equal(t, startingQuota-reservation, held)
+				if tc.refund {
+					refunded := make(chan struct{}, 1)
+					const callback = "fixed_billing_refund_observed"
+					require.NoError(t, db.Callback().Update().After("gorm:commit_or_rollback_transaction").Register(callback, func(tx *gorm.DB) {
+						if tx.Statement.Table == "tokens" && tx.Error == nil {
+							select {
+							case refunded <- struct{}{}:
+							default:
+							}
+						}
+					}))
+					t.Cleanup(func() { require.NoError(t, db.Callback().Update().Remove(callback)) })
+					info.Billing.Refund(ctx)
+					info.Billing.Refund(ctx)
+					select {
+					case <-refunded:
+					case <-time.After(5 * time.Second):
+						t.Fatal("refund did not finish")
+					}
+				} else {
+					if tc.tool {
+						info.ResponsesUsageInfo = &relaycommon.ResponsesUsageInfo{BuiltInTools: map[string]*relaycommon.BuildInToolInfo{"fixed_billing_tool": {CallCount: 1}}}
+					}
+					if tc.audio {
+						PostAudioConsumeQuota(ctx, info, tc.usage, "")
+					} else {
+						PostTextConsumeQuota(ctx, info, tc.usage, nil)
+					}
+					require.NoError(t, info.Billing.Settle(tc.want), "a repeated settlement must not charge again")
+					var log model.Log
+					require.NoError(t, db.Where("user_id = ?", user.Id).Take(&log).Error)
+					assert.Equal(t, tc.want, log.Quota)
+					assert.Equal(t, tc.stream, log.IsStream)
+					assert.NotContains(t, log.Content, "无法扣费")
+					var other map[string]any
+					require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+					assert.Equal(t, string(tc.unit), other["billing_unit"])
+					if tc.unit == billingexpr.BillingUnitRequest {
+						assert.Contains(t, other, "fixed_price")
+					} else {
+						assert.NotContains(t, other, "fixed_price")
+					}
+				}
+			}
+			require.NoError(t, db.First(&user, user.Id).Error)
+			require.NoError(t, db.First(&token, token.Id).Error)
+			assert.Equal(t, quota-tc.want, user.Quota)
+			assert.Equal(t, startingQuota-tc.want, token.RemainQuota)
+			assert.Equal(t, tc.want, user.UsedQuota)
+			assert.Equal(t, tc.want, token.UsedQuota)
+			if !tc.refund && !tc.insufficient {
+				assert.Equal(t, 1, user.RequestCount)
+			}
+		})
+	}
+}
 
 func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	gin.SetMode(gin.TestMode)

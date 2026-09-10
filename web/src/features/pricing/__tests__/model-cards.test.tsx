@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createJSONStorage } from 'zustand/middleware'
@@ -80,6 +87,40 @@ afterEach(() => {
 })
 
 describe('model cards', () => {
+  it('shows fixed prices per request in both token display units', () => {
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr: 'tier("request", fixed(0.01))',
+    })
+    const { rerender } = render(
+      <ModelCard model={model} onClick={vi.fn()} tokenUnit='K' />
+    )
+    expect(screen.getByText('$0.01')).toBeVisible()
+    expect(screen.getByText('/ request')).toBeVisible()
+    rerender(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
+    expect(screen.getByText('$0.01')).toBeVisible()
+    expect(screen.queryByText('/ 1M')).not.toBeInTheDocument()
+  })
+  it('updates the current time tier at a minute boundary and after returning to the page', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T08:59:59+08:00'))
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr:
+        'hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 12 ? tier("peak", p * 3 + c * 9) : tier("off_peak", p * 1.5 + c * 4.5)',
+    })
+    render(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
+    expect(screen.getByText('Current period price')).toBeVisible()
+    expect(screen.getByText('$1.5')).toBeVisible()
+    act(() => vi.advanceTimersByTime(1000))
+    expect(screen.getByText('$3')).toBeVisible()
+    act(() => {
+      vi.setSystemTime(new Date('2026-09-07T12:00:00+08:00'))
+      fireEvent(document, new Event('visibilitychange'))
+    })
+    expect(screen.getByText('$1.5')).toBeVisible()
+  })
+
   it('copies the complete long model name without opening details', async () => {
     const user = userEvent.setup()
     const onClick = vi.fn()

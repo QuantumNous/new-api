@@ -27,6 +27,7 @@ import type {
 } from '../types'
 import {
   BILLING_PRICING_VARS,
+  getCurrentTimePricingTiers,
   parseTaskTiersFromExpr,
   parseTiersFromExpr,
   splitBillingExprAndRequestRules,
@@ -50,6 +51,7 @@ export type DynamicPriceOptions = {
   usdExchangeRate?: number
   groupRatioMultiplier?: number
   usageSchema?: BillingUsageSchema
+  now?: Date
 }
 
 export type DynamicPriceLabelKind = 'i18n' | 'schema'
@@ -87,6 +89,8 @@ export type DynamicPricingSummary = {
   primaryEntries: DynamicPriceEntry[]
   secondaryEntries: DynamicPriceEntry[]
   isTaskUsage: boolean
+  isTimePricing?: boolean
+  isMixedBilling?: boolean
 }
 
 export function getTaskUsageQuantityUnitLabelKey(
@@ -246,6 +250,24 @@ export function getDynamicPriceEntries(
   options: DynamicPriceOptions
 ): DynamicPriceEntry[] {
   if (!tier) return []
+  if (
+    !isTaskPricingTier(tier) &&
+    tier.billingUnit === 'request' &&
+    typeof tier.fixedPrice === 'number'
+  ) {
+    return [
+      {
+        key: 'fixed',
+        field: 'fixedPrice',
+        label: 'Price per request',
+        shortLabel: 'Per-call',
+        labelKind: 'i18n',
+        value: tier.fixedPrice,
+        formatted: formatTaskUsageUnitPrice(tier.fixedPrice, options),
+        unit: 'request',
+      },
+    ]
+  }
 
   if (isTaskPricingTier(tier) && options.usageSchema) {
     const usageEntries: DynamicPriceEntry[] = getTaskNumberFields(
@@ -316,11 +338,36 @@ export function getDynamicPricingSummary(
 
   const tiers = getDynamicPricingTiers(model)
   const isTaskUsage = isTaskUsagePricingModel(model)
-  const tier = isTaskUsage ? (tiers.at(-1) ?? null) : (tiers[0] ?? null)
+  const baseExpression = splitBillingExprAndRequestRules(
+    model.billing_expr || ''
+  ).billingExpr
+  const timeTiers = isTaskUsage
+    ? null
+    : getCurrentTimePricingTiers(baseExpression, options.now ?? new Date())
+  const summaryTiers = timeTiers ?? tiers
+  const tier = isTaskUsage
+    ? (summaryTiers.at(-1) ?? null)
+    : (summaryTiers[0] ?? null)
   let entries = getDynamicPriceEntries(tier, {
     ...options,
     usageSchema: model.billing_usage_schema,
   })
+  let isMixedBilling = false
+  if (!isTaskUsage) {
+    const tokenTier = summaryTiers.find(
+      (item) => !isTaskPricingTier(item) && item.billingUnit !== 'request'
+    )
+    const requestTier = summaryTiers.find(
+      (item) => !isTaskPricingTier(item) && item.billingUnit === 'request'
+    )
+    if (tokenTier && requestTier) {
+      isMixedBilling = true
+      entries = [
+        ...getDynamicPriceEntries(tokenTier, options),
+        ...getDynamicPriceEntries(requestTier, options),
+      ]
+    }
+  }
   if (isTaskUsage) {
     const priceRanges = new Map<string, { min: number; max: number }>()
     for (const [field] of getTaskNumberFields(model.billing_usage_schema)) {
@@ -358,11 +405,19 @@ export function getDynamicPricingSummary(
     entries,
     primaryEntries: isTaskUsage
       ? entries.filter((entry) => entry.unit !== 'request')
-      : entries.filter((entry) => PRIMARY_DYNAMIC_FIELDS.has(entry.field)),
+      : entries.filter(
+          (entry) =>
+            entry.unit === 'request' || PRIMARY_DYNAMIC_FIELDS.has(entry.field)
+        ),
     secondaryEntries: isTaskUsage
       ? entries.filter((entry) => entry.unit === 'request')
-      : entries.filter((entry) => !PRIMARY_DYNAMIC_FIELDS.has(entry.field)),
+      : entries.filter(
+          (entry) =>
+            entry.unit !== 'request' && !PRIMARY_DYNAMIC_FIELDS.has(entry.field)
+        ),
     isTaskUsage,
+    isTimePricing: timeTiers !== null,
+    ...(isMixedBilling ? { isMixedBilling } : {}),
   }
 }
 

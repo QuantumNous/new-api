@@ -50,6 +50,7 @@ func RunExprByHashWithRequest(exprStr, hash string, params TokenParams, request 
 
 func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, params TokenParams, request RequestInput) (float64, TraceResult, error) {
 	trace := TraceResult{
+		BillingUnit:  BillingUnitToken,
 		RequestRules: append([]RequestRuleTrace(nil), requestRules...),
 	}
 	headers := normalizeHeaders(request.Headers)
@@ -69,6 +70,11 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, params TokenP
 			trace.MatchedTier = name
 			trace.Cost = value
 			return value
+		},
+		"fixed": func(amount float64) float64 {
+			trace.BillingUnit = BillingUnitRequest
+			trace.FixedPrice = &amount
+			return amount * 1_000_000
 		},
 		requestRuleTraceFunction: func(ruleIndex int, matched bool, multiplier float64) float64 {
 			if matched && ruleIndex >= 0 && ruleIndex < len(trace.RequestRules) {

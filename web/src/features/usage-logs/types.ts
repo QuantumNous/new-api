@@ -201,6 +201,8 @@ export interface LogOtherData {
   // expression; the matched tier and request-rule traces come from the actual
   // settlement run.
   billing_mode?: string
+  billing_unit?: 'token' | 'request'
+  fixed_price?: number
   expr_b64?: string
   matched_tier?: string
   request_rules?: RequestRuleTrace[]

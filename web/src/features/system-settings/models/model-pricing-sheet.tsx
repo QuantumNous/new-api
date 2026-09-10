@@ -27,6 +27,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -114,6 +115,7 @@ type ModelPricingEditorPanelProps = Omit<
 > & {
   className?: string
   embedded?: boolean
+  scrollHeader?: ReactNode
 }
 
 export type ModelPricingEditorPanelHandle = {
@@ -177,6 +179,7 @@ export const ModelPricingEditorPanel = forwardRef<
     usageSchema,
     onDirtyChange,
     embedded = false,
+    scrollHeader,
   },
   ref
 ) {
@@ -606,6 +609,11 @@ export const ModelPricingEditorPanel = forwardRef<
     ref,
     () => ({
       commitDraft: async () => {
+        if (
+          formElementRef.current?.querySelector('[data-billing-invalid="true"]')
+        ) {
+          return null
+        }
         const amounts =
           formElementRef.current?.querySelectorAll<HTMLInputElement>(
             'input[data-pricing-amount]'
@@ -656,6 +664,9 @@ export const ModelPricingEditorPanel = forwardRef<
             }
             className='@container/pricing-editor min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-6'
           >
+            {scrollHeader && (
+              <div className='mb-4 space-y-3'>{scrollHeader}</div>
+            )}
             <div className='grid min-w-0 items-start gap-4 @min-[960px]/pricing-editor:grid-cols-[minmax(0,1fr)_260px]'>
               <FieldGroup className='min-w-0'>
                 {warnings.length > 0 && (
