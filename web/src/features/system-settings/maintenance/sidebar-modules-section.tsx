@@ -136,6 +136,10 @@ export function SidebarModulesSection({
         title: t('Security & Access'),
         description: t('Manage your security settings and account access'),
       },
+      agent: {
+        title: t('Agent workspace'),
+        description: t('Purchase and manage package redemption codes.'),
+      },
     },
     admin: {
       channel: {
@@ -161,6 +165,10 @@ export function SidebarModulesSection({
       subscription: {
         title: t('Subscription Management'),
         description: t('Manage subscription plans and pricing.'),
+      },
+      agent_management: {
+        title: t('Agent management'),
+        description: t('Manage agents, point balances, offers, and codes.'),
       },
     },
   }
