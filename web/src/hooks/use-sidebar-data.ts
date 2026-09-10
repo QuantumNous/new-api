@@ -40,6 +40,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
+import { useAgentAccess } from '@/features/agents/hooks/use-agent-access'
 import { ROLE } from '@/lib/roles'
 
 /**
@@ -50,6 +51,7 @@ import { ROLE } from '@/lib/roles'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
+  const agentAccess = useAgentAccess()
 
   return {
     navGroups: [
@@ -99,23 +101,6 @@ export function useSidebarData(): SidebarData {
             icon: ClipboardList,
           },
           {
-            title: t('Usage ranking'),
-            url: '/usage-ranking',
-            icon: ListTodo,
-            requiredRole: ROLE.SUPER_ADMIN,
-          },
-          {
-            title: t('Agent workspace'),
-            url: '/agents',
-            icon: Users,
-          },
-          {
-            title: t('Agent management'),
-            url: '/agent-admin',
-            icon: ServerCog,
-            requiredRole: ROLE.ADMIN,
-          },
-          {
             title: t('Task Logs'),
             url: '/usage-logs/task',
             activeUrls: ['/usage-logs/drawing'],
@@ -133,6 +118,15 @@ export function useSidebarData(): SidebarData {
             url: '/wallet',
             icon: Wallet,
           },
+          ...(agentAccess.globallyEnabled && agentAccess.hasAccess
+            ? [
+                {
+                  title: t('Agent workspace'),
+                  url: '/agents',
+                  icon: Users,
+                },
+              ]
+            : []),
           {
             title: t('Profile'),
             url: '/profile',
@@ -173,6 +167,12 @@ export function useSidebarData(): SidebarData {
             title: t('Subscriptions'),
             url: '/subscriptions',
             icon: CreditCard,
+          },
+          {
+            title: t('Agent management'),
+            url: '/agent-admin',
+            icon: ServerCog,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('System Info'),
