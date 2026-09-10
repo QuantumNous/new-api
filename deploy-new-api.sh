@@ -172,12 +172,38 @@ $dry_run && echo "deploy: DRY RUN — nothing will be built, pushed or restarted
 
 # Rebuilding an image the deployment does not reference is the one failure that
 # leaves no trace: compose restarts happily and keeps running upstream's image.
+#
+# The reference is read from compose's own normalised output rather than the
+# handwritten file, because indentation, anchors, extends and multiple -f files
+# all change what the raw text looks like while compose sees one resolved value.
 if [[ -n "$compose_file" ]]; then
-	referenced="$(sed -n -E "/^[[:space:]]{2}${service}:[[:space:]]*$/,/^[[:space:]]{2}[a-zA-Z0-9_-]+:[[:space:]]*$/p" "$compose_file" |
-		sed -n -E 's/^[[:space:]]*image:[[:space:]]*([^#[:space:]]+).*/\1/p' | head -n1)"
-	if [[ -z "$referenced" ]]; then
-		echo "deploy: warning: no image: line found for service '$service' in $compose_file" >&2
-		echo "        if it builds from source instead, --no-build and compose build are the right tools" >&2
+	resolved="$("${compose[@]}" -f "$compose_file" config 2>/dev/null || true)"
+	[[ -n "$resolved" ]] || die "docker compose could not parse $compose_file"
+
+	service_block="$(printf '%s\n' "$resolved" |
+		sed -n -E "/^[[:space:]]+${service}:[[:space:]]*$/,/^[[:space:]]{1,4}[a-zA-Z0-9_.-]+:[[:space:]]*$/p")"
+	if [[ -z "$service_block" ]]; then
+		available="$("${compose[@]}" -f "$compose_file" config --services 2>/dev/null | paste -sd, - || true)"
+		die "service '$service' is not in $compose_file (found: ${available:-none}); pass --service"
+	fi
+	referenced="$(printf '%s\n' "$service_block" |
+		sed -n -E 's/^[[:space:]]*image:[[:space:]]*"?([^"#[:space:]]+)"?.*/\1/p' | head -n1)"
+	builds_from_source=false
+	printf '%s\n' "$service_block" | grep -qE '^[[:space:]]*(build|context):' && builds_from_source=true
+
+	if $builds_from_source; then
+		# compose owns the build in this shape, and building a second image here
+		# would leave two candidates for which one is actually deployed.
+		echo "deploy: $compose_file builds '$service' from source itself." >&2
+		echo "        Use compose for the build instead of this script:" >&2
+		echo "" >&2
+		echo "            ${compose[*]} -f $compose_file up -d --build $service" >&2
+		echo "" >&2
+		echo "        Or point the compose file at image: $image:latest and rerun." >&2
+		$force || exit 1
+		echo "deploy: continuing anyway (--force)" >&2
+	elif [[ -z "$referenced" ]]; then
+		die "service '$service' in $compose_file declares neither image: nor build:"
 	elif [[ "$referenced" != "$image:$version" && "$referenced" != "$image:latest" && "$referenced" != "$image" ]]; then
 		echo "deploy: $compose_file runs '$referenced', not the image being built ('$image')." >&2
 		echo "        Restarting would keep the old image. Set it to:" >&2
