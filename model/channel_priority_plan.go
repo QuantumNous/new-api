@@ -21,13 +21,9 @@ func resolveChannelPriority(currentPriorities []int64, retry int, priorityPlan [
 		available[priority] = struct{}{}
 	}
 
-	if retry < 0 {
-		retry = 0
-	}
-	if retry >= len(priorityPlan) {
-		retry = len(priorityPlan) - 1
-	}
-	for i := retry; i < len(priorityPlan); i++ {
+	liveRetry := max(retry, 0)
+	planRetry := min(liveRetry, len(priorityPlan)-1)
+	for i := planRetry; i < len(priorityPlan); i++ {
 		if _, ok := available[priorityPlan[i]]; ok {
 			return priorityPlan[i], priorityPlan, true
 		}
@@ -43,8 +39,6 @@ func resolveChannelPriority(currentPriorities []int64, retry int, priorityPlan [
 	// example when exact-model channels disappear and normalized-model fallback
 	// takes over. If none of the snapshotted levels survives, retain availability
 	// by applying the legacy retry index to the new live set.
-	if retry >= len(currentPriorities) {
-		retry = len(currentPriorities) - 1
-	}
-	return currentPriorities[retry], priorityPlan, true
+	liveRetry = min(liveRetry, len(currentPriorities)-1)
+	return currentPriorities[liveRetry], priorityPlan, true
 }
