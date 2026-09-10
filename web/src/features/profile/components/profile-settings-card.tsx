@@ -16,17 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Link2, Settings } from 'lucide-react'
-import { useState } from 'react'
+import { Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TitledCard } from '@/components/ui/titled-card'
 
 import type { UserProfile } from '../types'
-import { AccountBindingsTab } from './tabs/account-bindings-tab'
 import { NotificationTab } from './tabs/notification-tab'
 
 // ============================================================================
@@ -45,7 +42,6 @@ export function ProfileSettingsCard({
   onProfileUpdate,
 }: ProfileSettingsCardProps) {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState('bindings')
 
   if (loading) {
     return (
@@ -55,8 +51,7 @@ export function ProfileSettingsCard({
           <Skeleton className='mt-2 h-4 w-48' />
         </CardHeader>
         <CardContent className='space-y-4 p-3 sm:p-5'>
-          <Skeleton className='h-10 w-full' />
-          {['bindings', 'preferences', 'notifications'].map((key) => (
+          {['notifications', 'threshold', 'preferences'].map((key) => (
             <Skeleton key={key} className='h-20 w-full' />
           ))}
         </CardContent>
@@ -67,41 +62,12 @@ export function ProfileSettingsCard({
   return (
     <TitledCard
       title={t('Settings')}
-      description={t('Configure your account preferences and integrations')}
+      description={t('Settings & Preferences')}
       icon={<Settings className='h-4 w-4' />}
       iconTone='info'
       disableHoverEffect
     >
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className='grid w-full grid-cols-2 items-stretch gap-1 rounded-xl p-1 group-data-horizontal/tabs:h-10'>
-          <TabsTrigger
-            value='bindings'
-            className='h-full gap-2 rounded-lg px-3 py-0 leading-none'
-          >
-            <Link2 className='h-4 w-4' />
-            <span className='hidden sm:inline'>{t('Account Bindings')}</span>
-            <span className='sm:hidden'>{t('Bindings')}</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value='settings'
-            className='h-full gap-2 rounded-lg px-3 py-0 leading-none'
-          >
-            <Settings className='h-4 w-4' />
-            <span className='hidden sm:inline'>
-              {t('Settings & Preferences')}
-            </span>
-            <span className='sm:hidden'>{t('Settings')}</span>
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value='bindings' className='mt-4 sm:mt-6'>
-          <AccountBindingsTab profile={profile} onUpdate={onProfileUpdate} />
-        </TabsContent>
-
-        <TabsContent value='settings' className='mt-4 sm:mt-6'>
-          <NotificationTab profile={profile} onUpdate={onProfileUpdate} />
-        </TabsContent>
-      </Tabs>
+      <NotificationTab profile={profile} onUpdate={onProfileUpdate} />
     </TitledCard>
   )
 }

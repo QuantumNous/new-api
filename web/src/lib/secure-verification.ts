@@ -16,56 +16,71 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { AxiosError } from 'axios'
+import axios from 'axios'
 
-export interface VerificationRequiredInfo {
-  code?: string
-  message: string
-  required: boolean
+import {
+  getServerErrorMessageKey,
+  safeServerErrorMessage,
+} from './server-error-message'
+
+export class AuthOperationError extends Error {
+  readonly [safeServerErrorMessage] = true
+  constructor(
+    message: string,
+    readonly code?: string,
+    options?: ErrorOptions
+  ) {
+    super(message, options)
+    this.name = 'AuthOperationError'
+  }
+
+  static from(
+    error: unknown,
+    fallback = 'Verification failed. Please try again.'
+  ): AuthOperationError {
+    if (error instanceof AuthOperationError) return error
+    if (axios.isAxiosError<{ message?: string; code?: string }>(error)) {
+      return new AuthOperationError(
+        getServerErrorMessageKey(error) ||
+          (error.response && error.response.status >= 500
+            ? 'Please try again later.'
+            : undefined) ||
+          error.response?.data?.message ||
+          error.message ||
+          fallback,
+        error.response?.data?.code,
+        { cause: error }
+      )
+    }
+    return new AuthOperationError(
+      error instanceof Error ? error.message : fallback,
+      undefined,
+      { cause: error }
+    )
+  }
 }
 
-/**
- * Determine whether an Axios error indicates secure verification is required.
- */
-export function isVerificationRequiredError(
-  error: unknown
-): error is AxiosError {
-  if (!error || typeof error !== 'object') return false
-  const axiosError = error as AxiosError<{ code?: string }>
-  const status = axiosError.response?.status
-  if (status !== 403) return false
-
-  const code = axiosError.response?.data?.code
-  if (!code) return false
-
-  const verificationCodes = new Set([
-    'VERIFICATION_REQUIRED',
-    'VERIFICATION_EXPIRED',
-    'VERIFICATION_INVALID',
-    'SECURITY_PROOF_REQUIRED',
-    'SECURITY_PROOF_EXPIRED',
-    'SECURITY_PROOF_INVALID',
-    'SECURITY_PROOF_SCOPE_MISMATCH',
-    'SECURITY_PROOF_METHOD_MISMATCH',
-  ])
-
-  return verificationCodes.has(code)
+export const authRequestOptions = {
+  skipBusinessError: true,
+  skipErrorHandler: true,
 }
 
-/**
- * Extract verification requirement info from an Axios error.
- */
-export function extractVerificationInfo(
-  error: unknown
-): VerificationRequiredInfo {
-  const axiosError = error as AxiosError<{ code?: string; message?: string }>
-  const code = axiosError.response?.data?.code
-  const message =
-    axiosError.response?.data?.message ?? 'Secure verification is required'
-
-  return {
-    code,
-    message,
-    required: true,
+export async function authResult<T>(
+  request: Promise<{
+    data: { success: boolean; message?: string; code?: string; data?: T }
+  }>,
+  fallback = 'Verification failed. Please try again.'
+): Promise<T> {
+  try {
+    const { data: response } = await request
+    if (!response.success || response.data === undefined) {
+      throw new AuthOperationError(
+        getServerErrorMessageKey(response) || response.message || fallback,
+        response.code
+      )
+    }
+    return response.data
+  } catch (error) {
+    throw AuthOperationError.from(error, fallback)
   }
 }

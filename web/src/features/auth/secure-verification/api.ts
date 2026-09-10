@@ -16,176 +16,353 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import i18next from 'i18next'
-
-import type { ApiResponse } from '@/features/auth/types'
-import { api, get2FAStatus } from '@/lib/api'
+import { api, isAuthBundle } from '@/lib/api'
+import { buildOAuthAuthorizationUrl } from '@/lib/oauth'
 import {
   buildAssertionResult,
+  isPasskeySupported,
   prepareCredentialRequestOptions,
-  isPasskeySupported as detectPasskeySupport,
 } from '@/lib/passkey'
+import {
+  AuthOperationError,
+  authRequestOptions,
+  authResult,
+} from '@/lib/secure-verification'
+import type { AuthBundle } from '@/stores/auth-store'
 
+import { createOAuthAuthorization } from '../api'
+import { openOAuthPopup } from '../lib/oauth-popup'
+import { encryptPassword } from '../lib/password-encryption'
 import {
   beginPasskeyVerification,
   finishPasskeyVerification,
-  getPasskeyStatus,
-} from '../passkey'
+} from '../passkey/api'
+import type { SystemStatus } from '../types'
 import type {
   SecurityProof,
+  LoginChallenge,
   SecurityProofScope,
-  VerificationMethod,
-  VerificationMethods,
+  VerificationInput,
+  VerificationOperation,
+  VerificationRequirements,
 } from './types'
 
-/**
- * Fetch available verification methods for the current user.
- */
-export async function checkVerificationMethods(): Promise<VerificationMethods> {
-  try {
-    const [twoFAResponse, passkeyResponse, passkeySupported] =
-      await Promise.all([
-        get2FAStatus(),
-        getPasskeyStatus(),
-        detectPasskeySupport(),
-      ])
+export async function checkVerificationMethods(
+  scope: SecurityProofScope,
+  signal?: AbortSignal
+): Promise<VerificationRequirements> {
+  const [requirements, passkeySupported] = await Promise.all([
+    authResult<VerificationRequirements>(
+      api.get('/api/verify/methods', {
+        ...authRequestOptions,
+        params: { scope },
+        signal,
+        disableDuplicate: true,
+      })
+    ),
+    isPasskeySupported(),
+  ])
+  return withDeviceAvailability(requirements, passkeySupported)
+}
 
-    const has2FA =
-      Boolean(twoFAResponse?.success) && Boolean(twoFAResponse?.data?.enabled)
-    const hasPasskey =
-      Boolean(passkeyResponse?.success) &&
-      Boolean(passkeyResponse?.data?.enabled)
-
-    return {
-      has2FA,
-      hasPasskey,
-      passkeySupported,
-    }
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('[Secure Verification] Failed to check methods', error)
-    return {
-      has2FA: false,
-      hasPasskey: false,
-      passkeySupported: false,
-    }
+function withDeviceAvailability(
+  requirements: VerificationRequirements,
+  passkeySupported: boolean
+): VerificationRequirements {
+  return {
+    ...requirements,
+    methods: requirements.methods.map((option) => {
+      if (
+        option.method === 'passkey' &&
+        option.available &&
+        !passkeySupported
+      ) {
+        return {
+          ...option,
+          available: false,
+          reason: 'This device does not support Passkey verification.',
+        }
+      }
+      return option
+    }),
   }
 }
 
-/**
- * Execute a verification flow based on the method type.
- */
+export function isLoginChallenge(value: unknown): value is LoginChallenge {
+  if (!value || typeof value !== 'object') return false
+  const challenge = value as Partial<LoginChallenge>
+  return (
+    challenge.require_verification === true &&
+    typeof challenge.flow_token === 'string' &&
+    challenge.flow_token.length > 0 &&
+    typeof challenge.expires_at === 'number' &&
+    Number.isFinite(challenge.expires_at) &&
+    Array.isArray(challenge.methods) &&
+    challenge.methods.length > 0 &&
+    challenge.methods.every(
+      (option) =>
+        option &&
+        (option.method === '2fa' || option.method === 'passkey') &&
+        typeof option.available === 'boolean'
+    )
+  )
+}
+
+export async function getLoginVerificationRequirements(
+  challenge: LoginChallenge,
+  signal: AbortSignal
+): Promise<VerificationRequirements> {
+  if (challenge.expires_at * 1000 <= Date.now()) {
+    throw new AuthOperationError(
+      'Login flow expired. Please sign in again.',
+      'AUTH_FLOW_INVALID'
+    )
+  }
+  const supported = await isPasskeySupported()
+  signal.throwIfAborted()
+  return withDeviceAvailability(
+    {
+      scope: 'auth.login',
+      methods: challenge.methods,
+      oauth_providers: [],
+      password_encryption_enabled: false,
+    },
+    supported
+  )
+}
+
+export async function verifyLogin(
+  input: VerificationInput,
+  challenge: LoginChallenge,
+  signal: AbortSignal
+): Promise<AuthBundle> {
+  if (challenge.expires_at * 1000 <= Date.now()) {
+    throw new AuthOperationError(
+      'Login flow expired. Please sign in again.',
+      'AUTH_FLOW_INVALID'
+    )
+  }
+  const options = { ...authRequestOptions, skipAuthRefresh: true, signal }
+  let result: unknown
+  if (input.method === '2fa') {
+    result = await authResult(
+      api.post(
+        '/api/user/login/verify',
+        {
+          flow_token: challenge.flow_token,
+          method: '2fa',
+          code: input.code.trim(),
+        },
+        options
+      )
+    )
+  } else if (input.method === 'passkey') {
+    const begin = await authResult<{ flow_token: string; options: unknown }>(
+      api.post(
+        '/api/user/login/passkey/begin',
+        { flow_token: challenge.flow_token },
+        options
+      )
+    )
+    if (!begin.flow_token) {
+      throw new AuthOperationError('Verification flow expired')
+    }
+    const assertion = await requestPasskeyAssertion(begin.options, signal)
+    result = await authResult(
+      api.post(
+        '/api/user/login/passkey/finish',
+        {
+          flow_token: challenge.flow_token,
+          passkey_flow_token: begin.flow_token,
+          credential: assertion,
+        },
+        options
+      )
+    )
+  } else {
+    throw new AuthOperationError(
+      'This verification method is not allowed for this action.'
+    )
+  }
+  signal.throwIfAborted()
+  if (!isAuthBundle(result)) throw new AuthOperationError('Login failed')
+  return result
+}
+
 export async function verify(
-  method: VerificationMethod,
-  scope: SecurityProofScope,
-  code?: string
+  input: VerificationInput,
+  operation: VerificationOperation,
+  passwordEncryptionEnabled: boolean,
+  signal: AbortSignal
 ): Promise<SecurityProof> {
-  switch (method) {
-    case '2fa':
-      return verifyTwoFA(scope, code)
-    case 'passkey':
-      return verifyPasskey(scope)
-    default:
-      throw new Error(
-        i18next.t('Unsupported verification method: {{method}}', { method })
-      )
-  }
-}
-
-/**
- * Perform 2FA verification flow.
- */
-async function verifyTwoFA(
-  scope: SecurityProofScope,
-  code?: string | null
-): Promise<SecurityProof> {
-  const trimmed = code?.trim()
-  if (!trimmed) {
-    throw new Error(
-      i18next.t('Please enter the verification code or backup code')
-    )
-  }
-
-  const res = await api.post<ApiResponse<SecurityProof>>('/api/verify', {
-    method: '2fa',
-    code: trimmed,
-    scope,
-  })
-
-  if (!res.data?.success) {
-    throw new Error(res.data?.message || i18next.t('Verification failed'))
-  }
-  if (!res.data.data?.proof_token) {
-    throw new Error(i18next.t('Verification proof was not returned'))
-  }
-  return res.data.data
-}
-
-/**
- * Perform Passkey verification flow.
- */
-async function verifyPasskey(
-  scope: SecurityProofScope
-): Promise<SecurityProof> {
-  if (typeof navigator === 'undefined' || !navigator.credentials) {
-    throw new Error(
-      i18next.t('Passkey verification is not supported in this environment')
-    )
-  }
-
   try {
-    const beginResponse = await beginPasskeyVerification(scope)
-    if (!beginResponse.success) {
-      throw new Error(
-        beginResponse.message || i18next.t('Failed to start verification')
-      )
+    const operationFields = {
+      scope: operation.scope,
+      ...(operation.context ? { context: operation.context } : {}),
     }
-
-    const publicKey = prepareCredentialRequestOptions(
-      beginResponse.data?.options ?? beginResponse.data
-    )
-    const flowToken = beginResponse.data?.flow_token
-    if (!flowToken) {
-      throw new Error(i18next.t('Verification flow expired'))
+    let proof: SecurityProof
+    switch (input.method) {
+      case 'session':
+        proof = await authResult<SecurityProof>(
+          api.post(
+            '/api/verify',
+            { method: 'session', ...operationFields },
+            {
+              ...authRequestOptions,
+              signal,
+            }
+          )
+        )
+        break
+      case '2fa':
+        proof = await authResult<SecurityProof>(
+          api.post(
+            '/api/verify',
+            {
+              method: input.method,
+              ...operationFields,
+              code: input.code.trim(),
+            },
+            { ...authRequestOptions, signal }
+          )
+        )
+        break
+      case 'password': {
+        const passwordFields = passwordEncryptionEnabled
+          ? await encryptPassword(input.password)
+          : { password: input.password }
+        signal.throwIfAborted()
+        proof = await authResult<SecurityProof>(
+          api.post(
+            '/api/verify',
+            { method: input.method, ...operationFields, ...passwordFields },
+            { ...authRequestOptions, signal }
+          )
+        )
+        break
+      }
+      case 'passkey':
+        proof = await verifyPasskey(operation, signal)
+        break
+      case 'oauth':
+        proof = await verifyOAuth(input.provider, operation, signal)
+        break
     }
+    signal.throwIfAborted()
+    if (
+      !proof.proof_token ||
+      proof.scope !== operation.scope ||
+      proof.method !== input.method ||
+      proof.expires_at * 1000 <= Date.now()
+    ) {
+      throw new AuthOperationError('Verification proof was not returned')
+    }
+    return proof
+  } catch (error) {
+    throw AuthOperationError.from(error)
+  }
+}
 
-    const credential = (await navigator.credentials.get({
+async function verifyPasskey(
+  operation: VerificationOperation,
+  signal: AbortSignal
+): Promise<SecurityProof> {
+  const begin = await beginPasskeyVerification(operation, signal)
+  if (!begin.flow_token) {
+    throw new AuthOperationError('Verification flow expired')
+  }
+  const assertion = await requestPasskeyAssertion(
+    begin.options ?? begin,
+    signal
+  )
+  return finishPasskeyVerification(begin.flow_token, assertion, signal)
+}
+
+async function requestPasskeyAssertion(
+  options: unknown,
+  signal: AbortSignal
+): Promise<Record<string, unknown>> {
+  const publicKey = prepareCredentialRequestOptions(options)
+  let credential: PublicKeyCredential | null
+  try {
+    credential = (await navigator.credentials.get({
       publicKey,
+      signal,
     })) as PublicKeyCredential | null
-
-    if (!credential) {
-      throw new Error(i18next.t('Passkey verification was cancelled'))
-    }
-
-    const assertion = buildAssertionResult(credential)
-    if (!assertion) {
-      throw new Error(i18next.t('Unable to build Passkey assertion'))
-    }
-
-    const finishResponse = await finishPasskeyVerification(flowToken, assertion)
-    if (!finishResponse.success) {
-      throw new Error(
-        finishResponse.message || i18next.t('Passkey verification failed')
-      )
-    }
-
-    if (!finishResponse.data?.proof_token) {
-      throw new Error(i18next.t('Verification proof was not returned'))
-    }
-    return finishResponse.data
-  } catch (error: unknown) {
+  } catch (error) {
     if (error instanceof DOMException && error.name === 'NotAllowedError') {
-      throw new Error(
-        i18next.t('Passkey verification was cancelled or timed out'),
-        { cause: error }
-      )
-    }
-    if (error instanceof DOMException && error.name === 'InvalidStateError') {
-      throw new Error(
-        i18next.t('Passkey verification is not available in the current state'),
-        { cause: error }
+      throw new AuthOperationError(
+        'Passkey verification was cancelled or timed out'
       )
     }
     throw error
+  }
+  signal.throwIfAborted()
+  if (!credential) {
+    throw new AuthOperationError(
+      'Passkey verification was cancelled',
+      'AUTH_CANCELLED'
+    )
+  }
+  const assertion = buildAssertionResult(credential)
+  if (!assertion) {
+    throw new AuthOperationError('Unable to build Passkey assertion')
+  }
+  return assertion
+}
+
+async function verifyOAuth(
+  provider: string,
+  operation: VerificationOperation,
+  signal: AbortSignal
+): Promise<SecurityProof> {
+  const exchange = await openOAuthPopup({
+    provider,
+    intent: 'verify',
+    signal,
+    prepare: async (popupSignal) => {
+      const [authorization, status] = await Promise.all([
+        createOAuthAuthorization(provider, 'verify', operation, popupSignal),
+        authResult<SystemStatus>(
+          api.get('/api/status', {
+            ...authRequestOptions,
+            signal: popupSignal,
+            disableDuplicate: true,
+          })
+        ),
+      ])
+      return {
+        state: authorization.state,
+        url:
+          authorization.authorizationUrl ??
+          buildOAuthAuthorizationUrl(provider, authorization.state, status),
+      }
+    },
+  })
+  try {
+    const callback = exchange.callback
+    const proof = await authResult<SecurityProof>(
+      api.get(`/api/oauth/${provider}`, {
+        ...authRequestOptions,
+        singleUseAuthorization: true,
+        disableDuplicate: true,
+        signal: exchange.signal,
+        params: {
+          state: callback.state,
+          code: callback.code,
+          error: callback.error,
+          error_description: callback.errorDescription,
+        },
+      })
+    )
+    exchange.signal.throwIfAborted()
+    exchange.finish({ success: true })
+    return proof
+  } catch (error) {
+    const failure = AuthOperationError.from(
+      exchange.signal.aborted ? exchange.signal.reason : error
+    )
+    exchange.finish({ success: false, message: failure.message })
+    throw failure
   }
 }

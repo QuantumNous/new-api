@@ -104,6 +104,8 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 	// rm max_output_tokens
 	request.MaxOutputTokens = nil
 	request.Temperature = nil
+	request.FrequencyPenalty = nil
+	request.PresencePenalty = nil
 	return request, nil
 }
 

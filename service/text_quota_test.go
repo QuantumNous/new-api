@@ -1,13 +1,16 @@
 package service
 
 import (
+	"fmt"
 	"math"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -17,10 +20,189 @@ import (
 	hosttypes "github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
+
+// The configured DSNs must point at isolated test databases. Each dialect runs
+// the real reservation, settlement and log paths with the same billing cases.
+func TestFixedPriceBillingDatabaseMatrix(t *testing.T) {
+	for _, dialect := range []struct {
+		name common.DatabaseType
+		env  string
+	}{
+		{common.DatabaseTypeSQLite, ""},
+		{common.DatabaseTypeMySQL, "TEST_FIXED_MYSQL_DSN"},
+		{common.DatabaseTypePostgreSQL, "TEST_FIXED_POSTGRES_DSN"},
+	} {
+		t.Run(string(dialect.name), func(t *testing.T) {
+			var driver gorm.Dialector = sqlite.Open(":memory:")
+			if dialect.env != "" {
+				dsn := os.Getenv(dialect.env)
+				if dsn == "" {
+					t.Skip(dialect.env + " is not configured")
+				}
+				if dialect.name == common.DatabaseTypeMySQL {
+					driver = mysql.Open(dsn)
+				} else {
+					driver = postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
+				}
+			}
+			db, err := gorm.Open(driver, &gorm.Config{})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			sqlDB.SetMaxOpenConns(1)
+			t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+			oldDB, oldLogDB := model.DB, model.LOG_DB
+			oldMainType, oldLogType := common.MainDatabaseType(), common.LogDatabaseType()
+			model.DB, model.LOG_DB = db, db
+			common.SetDatabaseTypes(dialect.name, dialect.name)
+			t.Cleanup(func() { model.DB, model.LOG_DB = oldDB, oldLogDB; common.SetDatabaseTypes(oldMainType, oldLogType) })
+			require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}, &model.Log{}))
+			versionQuery := "select version()"
+			if dialect.name == common.DatabaseTypeSQLite {
+				versionQuery = "select sqlite_version()"
+			}
+			var version string
+			require.NoError(t, db.Raw(versionQuery).Scan(&version).Error)
+			t.Logf("database: %s", version)
+			runFixedPriceAccountingCases(t, db)
+		})
+	}
+}
+
+func runFixedPriceAccountingCases(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	const mixed = `len <= 32000 ? tier("short", fixed(0.01)) : tier("long", p * 2)`
+	const flat = `tier("request", fixed(0.01))`
+	const startingQuota = 2_000_000
+	operation_setting.SetToolPriceForTest("fixed_billing_tool", 4)
+	t.Cleanup(func() { operation_setting.DeleteToolPriceForTest("fixed_billing_tool") })
+	for index, tc := range []struct {
+		name, expression                          string
+		estimate                                  int
+		usage                                     *dto.Usage
+		audio, stream, refund, insufficient, tool bool
+		groupRatio                                float64
+		want                                      int
+		unit                                      billingexpr.BillingUnit
+	}{
+		{name: "missing usage charges once", expression: flat, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "zero usage charges once", expression: flat, usage: &dto.Usage{}, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "stream charges once", expression: flat, stream: true, usage: &dto.Usage{PromptTokens: 100, CompletionTokens: 20, TotalTokens: 120}, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "audio zero usage charges once", expression: flat, audio: true, usage: &dto.Usage{}, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "audio missing usage charges once", expression: flat, audio: true, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "token reservation refunds to fixed price", expression: mixed, estimate: 50000, usage: &dto.Usage{PromptTokens: 100, TotalTokens: 100}, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "fixed reservation settles token fallback", expression: mixed, estimate: 100, usage: &dto.Usage{PromptTokens: 50000, TotalTokens: 50000}, want: 50000, unit: billingexpr.BillingUnitToken},
+		{name: "missing usage uses estimated token fallback", expression: mixed, estimate: 50000, want: 50000, unit: billingexpr.BillingUnitToken},
+		{name: "evaluation error retains fixed reservation metadata", expression: `p == 50 ? tier("error", param("missing") * p) : tier("request", fixed(0.01))`, estimate: 100, usage: &dto.Usage{PromptTokens: 50, TotalTokens: 50}, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "explicit zero remains free", expression: `tier("free", fixed(0))`, usage: &dto.Usage{PromptTokens: 100, TotalTokens: 100}, unit: billingexpr.BillingUnitRequest},
+		{name: "multipliers and separate tool surcharge", expression: flat + ` * (param("fast") == true ? 2 : 1)`, groupRatio: 1.5, tool: true, want: 18000, unit: billingexpr.BillingUnitRequest},
+		{name: "failed request refunds exactly once", expression: flat, refund: true},
+		{name: "insufficient wallet never reserves tokens", expression: flat, insufficient: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			quota := startingQuota
+			if tc.insufficient {
+				quota = 1
+			}
+			user := model.User{Username: fmt.Sprintf("fixed_billing_%d", index), Quota: quota, Status: common.UserStatusEnabled}
+			require.NoError(t, db.Create(&user).Error)
+			token := model.Token{UserId: user.Id, Key: fmt.Sprintf("fixed-billing-test-%d", index), Name: "fixed-billing", RemainQuota: startingQuota, Status: common.TokenStatusEnabled}
+			require.NoError(t, db.Create(&token).Error)
+			channel := model.Channel{Name: "fixed-billing", Key: "unused", Status: common.ChannelStatusEnabled}
+			require.NoError(t, db.Create(&channel).Error)
+			t.Cleanup(func() {
+				require.NoError(t, db.Where("user_id = ?", user.Id).Delete(&model.Log{}).Error)
+				require.NoError(t, db.Unscoped().Delete(&token).Error)
+				require.NoError(t, db.Unscoped().Delete(&user).Error)
+				require.NoError(t, db.Unscoped().Delete(&channel).Error)
+			})
+			group := tc.groupRatio
+			if group == 0 {
+				group = 1
+			}
+			request := &billingexpr.RequestInput{Body: []byte(`{"fast":true}`)}
+			cost, trace, err := billingexpr.RunExprWithRequest(tc.expression, billingexpr.TokenParams{P: float64(tc.estimate), Len: float64(tc.estimate)}, *request)
+			require.NoError(t, err)
+			reservation, err := billingexpr.QuotaRoundStrict(cost / 1_000_000 * common.QuotaPerUnit * group)
+			require.NoError(t, err)
+			snapshot := &billingexpr.BillingSnapshot{BillingMode: "tiered_expr", ExprString: tc.expression, ExprHash: billingexpr.ExprHashString(tc.expression), QuotaPerUnit: common.QuotaPerUnit, GroupRatio: group, EstimatedTier: trace.MatchedTier, EstimatedBillingUnit: trace.BillingUnit, EstimatedFixedPrice: trace.FixedPrice, EstimatedQuotaAfterGroup: reservation}
+			info := &relaycommon.RelayInfo{UserId: user.Id, TokenId: token.Id, TokenKey: token.Key, ChannelMeta: &relaycommon.ChannelMeta{ChannelId: channel.Id}, OriginModelName: "fixed-test", UsingGroup: "default", UserGroup: "default", UserSetting: dto.UserSetting{BillingPreference: "wallet_only"}, ForcePreConsume: true, StartTime: time.Now(), IsStream: tc.stream, RelayFormat: types.RelayFormatOpenAI, PriceData: hosttypes.PriceData{GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: group}}, TieredBillingSnapshot: snapshot, BillingRequestInput: request}
+			info.SetEstimatePromptTokens(tc.estimate)
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			apiErr := PreConsumeBilling(ctx, reservation, info)
+			if tc.insufficient {
+				require.NotNil(t, apiErr)
+				assert.Equal(t, types.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+			} else {
+				require.Nil(t, apiErr)
+				held, err := model.GetUserQuota(user.Id, true)
+				require.NoError(t, err)
+				assert.Equal(t, startingQuota-reservation, held)
+				if tc.refund {
+					refunded := make(chan struct{}, 1)
+					const callback = "fixed_billing_refund_observed"
+					require.NoError(t, db.Callback().Update().After("gorm:commit_or_rollback_transaction").Register(callback, func(tx *gorm.DB) {
+						if tx.Statement.Table == "tokens" && tx.Error == nil {
+							select {
+							case refunded <- struct{}{}:
+							default:
+							}
+						}
+					}))
+					t.Cleanup(func() { require.NoError(t, db.Callback().Update().Remove(callback)) })
+					info.Billing.Refund(ctx)
+					info.Billing.Refund(ctx)
+					select {
+					case <-refunded:
+					case <-time.After(5 * time.Second):
+						t.Fatal("refund did not finish")
+					}
+				} else {
+					if tc.tool {
+						info.ResponsesUsageInfo = &relaycommon.ResponsesUsageInfo{BuiltInTools: map[string]*relaycommon.BuildInToolInfo{"fixed_billing_tool": {CallCount: 1}}}
+					}
+					if tc.audio {
+						PostAudioConsumeQuota(ctx, info, tc.usage, "")
+					} else {
+						PostTextConsumeQuota(ctx, info, tc.usage, nil)
+					}
+					require.NoError(t, info.Billing.Settle(tc.want), "a repeated settlement must not charge again")
+					var log model.Log
+					require.NoError(t, db.Where("user_id = ?", user.Id).Take(&log).Error)
+					assert.Equal(t, tc.want, log.Quota)
+					assert.Equal(t, tc.stream, log.IsStream)
+					assert.NotContains(t, log.Content, "无法扣费")
+					var other map[string]any
+					require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+					assert.Equal(t, string(tc.unit), other["billing_unit"])
+					if tc.unit == billingexpr.BillingUnitRequest {
+						assert.Contains(t, other, "fixed_price")
+					} else {
+						assert.NotContains(t, other, "fixed_price")
+					}
+				}
+			}
+			require.NoError(t, db.First(&user, user.Id).Error)
+			require.NoError(t, db.First(&token, token.Id).Error)
+			assert.Equal(t, quota-tc.want, user.Quota)
+			assert.Equal(t, startingQuota-tc.want, token.RemainQuota)
+			assert.Equal(t, tc.want, user.UsedQuota)
+			assert.Equal(t, tc.want, token.UsedQuota)
+			if !tc.refund && !tc.insufficient {
+				assert.Equal(t, 1, user.RequestCount)
+			}
+		})
+	}
+}
 
 func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -283,6 +465,139 @@ func TestCalculateTextQuotaSummaryUsesOpenAIBillingUsageBeforeTopLevelUsage(t *t
 	require.Equal(t, 98, summary.Quota)
 }
 
+func TestCalculateTextQuotaSummaryUsesOpenAIResponsesInputTokenDetails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	relayInfo := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatOpenAI,
+		OriginModelName: "gpt-4o",
+		PriceData: hosttypes.PriceData{
+			ModelRatio:      1,
+			CompletionRatio: 2,
+			CacheRatio:      0.25,
+			GroupRatioInfo:  hosttypes.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+
+	responsesUsage := &dto.Usage{
+		InputTokens:  100,
+		OutputTokens: 10,
+		TotalTokens:  110,
+		InputTokensDetails: &dto.InputTokenDetails{
+			CachedTokens: 40,
+		},
+	}
+	convertedUsage := &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 10,
+		TotalTokens:      110,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 40,
+		},
+		BillingUsage: dto.NewOpenAIResponsesBillingUsage(responsesUsage),
+	}
+
+	effectiveUsage := effectiveBillingUsage(convertedUsage)
+	require.Equal(t, 40, effectiveUsage.PromptTokensDetails.CachedTokens)
+	require.Zero(t, convertedUsage.BillingUsage.OpenAIUsage.PromptTokensDetails.CachedTokens)
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, effectiveUsage)
+	require.Equal(t, 40, summary.CacheTokens)
+	// 60 uncached input + 40*0.25 cached input + 10*2 output = 90.
+	require.Equal(t, 90, summary.Quota)
+}
+
+func TestUsageFromOpenAIBillingUsageNormalizesCacheDetailsWithoutOverwritingCanonicalValues(t *testing.T) {
+	responsesUsage := &dto.Usage{
+		InputTokens:          100,
+		OutputTokens:         10,
+		PromptCacheHitTokens: 55,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 8,
+			TextTokens:   12,
+		},
+		InputTokensDetails: &dto.InputTokenDetails{
+			CachedTokens:         40,
+			CachedCreationTokens: 5,
+			CacheWriteTokens:     6,
+			TextTokens:           60,
+			ImageTokens:          7,
+			AudioTokens:          9,
+		},
+	}
+
+	billingUsage := dto.NewOpenAIResponsesBillingUsage(responsesUsage)
+	usage := effectiveBillingUsage(&dto.Usage{BillingUsage: billingUsage})
+
+	require.Equal(t, 8, usage.PromptTokensDetails.CachedTokens)
+	require.Equal(t, 5, usage.PromptTokensDetails.CachedCreationTokens)
+	require.Equal(t, 6, usage.PromptTokensDetails.CacheWriteTokens)
+	require.Equal(t, 12, usage.PromptTokensDetails.TextTokens)
+	require.Equal(t, 7, usage.PromptTokensDetails.ImageTokens)
+	require.Equal(t, 9, usage.PromptTokensDetails.AudioTokens)
+	require.Zero(t, billingUsage.OpenAIUsage.PromptTokensDetails.CachedCreationTokens)
+}
+
+func TestUsageFromOpenAIBillingUsageFallsBackToPromptCacheHitTokens(t *testing.T) {
+	usage := effectiveBillingUsage(&dto.Usage{
+		BillingUsage: dto.NewOpenAIChatBillingUsage(&dto.Usage{
+			PromptTokens:         100,
+			CompletionTokens:     10,
+			PromptCacheHitTokens: 35,
+		}),
+	})
+
+	require.Equal(t, 35, usage.PromptTokensDetails.CachedTokens)
+}
+
+func TestCalculateTextQuotaSummaryNormalizesOpenAIResponsesBillingUsageDetails(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	relayInfo := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatClaude,
+		OriginModelName: "gpt-5.6-sol",
+		PriceData: hosttypes.PriceData{
+			ModelRatio:         1,
+			CompletionRatio:    2,
+			CacheRatio:         0.5,
+			CacheCreationRatio: 2,
+			GroupRatioInfo:     hosttypes.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+
+	responsesDetails := dto.InputTokenDetails{
+		CachedTokens:     80,
+		CacheWriteTokens: 10,
+		TextTokens:       100,
+	}
+	usage := &dto.Usage{
+		PromptTokens:     999,
+		CompletionTokens: 999,
+		BillingUsage: dto.NewOpenAIResponsesBillingUsage(&dto.Usage{
+			InputTokens:        100,
+			OutputTokens:       10,
+			TotalTokens:        110,
+			InputTokensDetails: &responsesDetails,
+		}),
+	}
+
+	effectiveUsage := effectiveBillingUsage(usage)
+	summary := calculateTextQuotaSummary(ctx, relayInfo, effectiveUsage)
+
+	require.Equal(t, dto.BillingUsageSourceOAIResponses, effectiveUsage.UsageSource)
+	require.Equal(t, responsesDetails, effectiveUsage.PromptTokensDetails)
+	require.Equal(t, 100, summary.PromptTokens)
+	require.Equal(t, 10, summary.CompletionTokens)
+	require.Equal(t, 80, summary.CacheTokens)
+	require.Equal(t, 10, summary.CacheCreationTokens)
+	// (100-80-10) + 80*0.5 + 10*2 + 10*2 = 90
+	require.Equal(t, 90, summary.Quota)
+}
+
 func TestUsageBillingPathForLog(t *testing.T) {
 	require.Equal(t, usageBillingPathAnthropic, usageBillingPathForLog(true, &dto.Usage{
 		BillingUsage: dto.NewClaudeMessagesBillingUsage(&dto.ClaudeUsage{InputTokens: 1}),
@@ -312,20 +627,18 @@ func TestUsageBillingPathForLog(t *testing.T) {
 }
 
 func TestAppendUsageBillingPathForLogWritesAdminInfo(t *testing.T) {
-	other := map[string]interface{}{
-		"admin_info": map[string]interface{}{},
-	}
+	other := model.NewLogOther()
 	appendUsageBillingPathForLog(other, true, &dto.Usage{
 		BillingUsage: dto.NewClaudeMessagesBillingUsage(&dto.ClaudeUsage{InputTokens: 1}),
 	})
 
-	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	adminInfo, ok := other.Snapshot()["admin_info"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, usageBillingPathAnthropic, adminInfo["usage_billing_path"])
 
-	other = map[string]interface{}{}
+	other = model.NewLogOther()
 	appendUsageBillingPathForLog(other, true, nil)
-	adminInfo, ok = other["admin_info"].(map[string]interface{})
+	adminInfo, ok = other.Snapshot()["admin_info"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, usageBillingPathLocal, adminInfo["usage_billing_path"])
 }
@@ -688,9 +1001,9 @@ func TestComposeTieredTextQuotaErrorFallbackUsesPreConsumedQuota(t *testing.T) {
 // settlement both saturates the quota and records the clamp on RelayInfo, so
 // every consume path (text, audio, WSS) can surface it under admin_info.
 func TestTryTieredSettleRecordsClampOnOverflow(t *testing.T) {
-	// exprOutput = p * 1e9; quotaBeforeGroup = p*1e9 / 1e6 * 5e5 far exceeds
-	// MaxInt32 and must saturate.
-	exprStr := `tier("base", p * 1000000000)`
+	// exprOutput = p * 1e12; quotaBeforeGroup = p*1e12 / 1e6 * 5e5 far exceeds
+	// the supported single-request range and must saturate.
+	exprStr := `tier("base", p * 1000000000000)`
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName: "overflow-model",
 		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
@@ -706,7 +1019,7 @@ func TestTryTieredSettleRecordsClampOnOverflow(t *testing.T) {
 
 	require.True(t, ok)
 	require.NotNil(t, result)
-	require.Equal(t, math.MaxInt32, quota, "oversized settlement must clamp, never wrap negative")
+	require.Equal(t, common.MaxQuota, quota, "oversized settlement must clamp, never wrap negative")
 	require.NotNil(t, relayInfo.QuotaClamp, "clamp must be recorded on RelayInfo for admin auditing")
 	require.Equal(t, common.QuotaClampOverflow, relayInfo.QuotaClamp.Kind)
 }
@@ -958,6 +1271,38 @@ func TestCalculateTextToolCallSurchargeGeminiGoogleSearch(t *testing.T) {
 	assert.Equal(t, 14.0, summary.ToolSurchargeItems[0].Price)
 }
 
+func TestCalculateTextToolCallSurchargeGeminiFunctionCall(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	operation_setting.SetToolPriceForTest("gemini_surcharge_fn", 5.0)
+	t.Cleanup(func() {
+		operation_setting.DeleteToolPriceForTest("gemini_surcharge_fn")
+	})
+
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "gemini-2.5-flash",
+		ResponsesUsageInfo: &relaycommon.ResponsesUsageInfo{
+			BuiltInTools: map[string]*relaycommon.BuildInToolInfo{
+				"gemini_surcharge_fn": {CallCount: 2},
+			},
+		},
+	}
+	summary := &textQuotaSummary{ModelName: "gemini-2.5-flash", GroupRatio: 1}
+
+	surcharge := calculateTextToolCallSurcharge(ctx, relayInfo, summary)
+	expected := decimal.NewFromFloat(5.0 * 2 / 1000).Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+	assert.True(t, expected.Equal(surcharge), "got %s want %s", surcharge, expected)
+	require.Len(t, summary.ToolSurchargeItems, 1)
+	assert.Equal(t, "gemini_surcharge_fn", summary.ToolSurchargeItems[0].Name)
+	assert.Equal(t, 2, summary.ToolSurchargeItems[0].Count)
+	assert.Equal(t, 5.0, summary.ToolSurchargeItems[0].Price)
+
+	other := model.NewLogOther()
+	appendToolSurchargeLogInfo(other, summary.ToolSurchargeItems)
+	assert.Equal(t, summary.ToolSurchargeItems, other.Snapshot()["tool_surcharges"])
+}
+
 func TestCalculateTextToolCallSurchargeImageGenerationDefaultPrice(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -1049,15 +1394,16 @@ func TestAppendToolSurchargeLogInfoWritesOnlyStructuredFields(t *testing.T) {
 		{Name: dto.BuildInToolWebSearch, Count: 2, Price: 10},
 		{Name: dto.BuildInToolImageGeneration, Count: 1, Price: 150},
 	}
-	other := map[string]interface{}{}
+	other := model.NewLogOther()
 
 	appendToolSurchargeLogInfo(other, items)
 
-	assert.Equal(t, items, other["tool_surcharges"])
-	assert.NotContains(t, other, "web_search")
-	assert.NotContains(t, other, "web_search_call_count")
-	assert.NotContains(t, other, "web_search_price")
-	assert.NotContains(t, other, "file_search")
-	assert.NotContains(t, other, "image_generation_call")
-	assert.NotContains(t, other, "image_generation_call_price")
+	fields := other.Snapshot()
+	assert.Equal(t, items, fields["tool_surcharges"])
+	assert.NotContains(t, fields, "web_search")
+	assert.NotContains(t, fields, "web_search_call_count")
+	assert.NotContains(t, fields, "web_search_price")
+	assert.NotContains(t, fields, "file_search")
+	assert.NotContains(t, fields, "image_generation_call")
+	assert.NotContains(t, fields, "image_generation_call_price")
 }

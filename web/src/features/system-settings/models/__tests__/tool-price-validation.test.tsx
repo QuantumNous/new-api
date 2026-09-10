@@ -16,128 +16,49 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { after, describe, test } from 'node:test'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { fireEvent, render, screen } from '@testing-library/react'
+import i18next from 'i18next'
+import { beforeAll, describe, expect, test } from 'vitest'
 
-import { Window } from 'happy-dom'
-
-const domWindow = new Window()
-const domGlobals = [
-  'window',
-  'document',
-  'navigator',
-  'HTMLElement',
-  'HTMLInputElement',
-  'SVGElement',
-  'Node',
-  'Element',
-  'Event',
-  'CustomEvent',
-  'MutationObserver',
-  'requestAnimationFrame',
-  'cancelAnimationFrame',
-  'getComputedStyle',
-] as const
-
-for (const key of domGlobals) {
-  Object.defineProperty(globalThis, key, {
-    configurable: true,
-    value: domWindow[key],
-  })
-}
-
-const { act } = await import('react')
-const { createRoot } = await import('react-dom/client')
-const { QueryClient, QueryClientProvider } =
-  await import('@tanstack/react-query')
-const { createInstance } = await import('i18next')
-const { I18nextProvider, initReactI18next } = await import('react-i18next')
-const { ToolPriceSettings } = await import('../tool-price-settings')
-
-const i18n = createInstance()
-await i18n.use(initReactI18next).init({
-  lng: 'en',
-  resources: {
-    en: {
-      translation: {
-        'Price ($/1K calls)': 'Price ($/1K calls)',
-        'Please enter a valid number': 'Please enter a valid number',
-        'Tool identifier': 'Tool identifier',
-      },
-    },
-  },
-})
-
-const reactTestGlobals = globalThis as typeof globalThis & {
-  IS_REACT_ACT_ENVIRONMENT?: boolean
-}
-reactTestGlobals.IS_REACT_ACT_ENVIRONMENT = true
-
-function changeInputValue(input: HTMLInputElement, value: string) {
-  const valueSetter = Object.getOwnPropertyDescriptor(
-    domWindow.HTMLInputElement.prototype,
-    'value'
-  )?.set
-  assert.ok(valueSetter)
-  valueSetter.call(input, value)
-  input.dispatchEvent(
-    new domWindow.Event('input', { bubbles: true }) as unknown as Event
-  )
-}
+import { ToolPriceSettings } from '../tool-price-settings'
 
 describe('tool price validation', () => {
-  after(() => {
-    domWindow.close()
+  beforeAll(() => {
+    i18next.addResourceBundle('en', 'translation', {
+      'Price ($/1K calls)': 'Price ($/1K calls)',
+      'Please enter a valid number': 'Please enter a valid number',
+      'Tool identifier': 'Tool identifier',
+    })
   })
 
-  test('blocks an empty price without converting it to an explicit zero', async () => {
-    const container = document.createElement('div')
-    document.body.append(container)
-    const root = createRoot(container)
+  test('blocks an empty price without converting it to an explicit zero', () => {
     const queryClient = new QueryClient({
       defaultOptions: { mutations: { retry: false } },
     })
 
-    await act(async () => {
-      root.render(
-        <QueryClientProvider client={queryClient}>
-          <I18nextProvider i18n={i18n}>
-            <ToolPriceSettings defaultValue='{"web_search":10}' />
-          </I18nextProvider>
-        </QueryClientProvider>
-      )
-    })
-
-    const priceInput = container.querySelector<HTMLInputElement>(
-      'input[aria-label="Price ($/1K calls): web_search"]'
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ToolPriceSettings defaultValue='{"web_search":10}' />
+      </QueryClientProvider>
     )
-    assert.ok(priceInput)
 
-    await act(async () => {
-      changeInputValue(priceInput, '')
+    const priceInput = screen.getByRole('spinbutton', {
+      name: 'Price ($/1K calls): web_search',
     })
+    const saveButton = screen.getByRole('button', { name: 'Save tool prices' })
 
-    assert.equal(priceInput.getAttribute('aria-invalid'), 'true')
-    assert.equal(
-      priceInput.closest('[data-slot="field"]')?.querySelector('[role="alert"]')
-        ?.textContent,
-      'Please enter a valid number'
-    )
-    const saveButton = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Save tool prices'
-    )
-    assert.ok(saveButton)
-    assert.equal(saveButton.disabled, true)
+    fireEvent.change(priceInput, { target: { value: '' } })
 
-    await act(async () => {
-      changeInputValue(priceInput, '0')
-    })
+    expect(priceInput).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('Please enter a valid number')).toBeInTheDocument()
+    expect(saveButton).toBeDisabled()
 
-    assert.equal(priceInput.getAttribute('aria-invalid'), 'false')
-    assert.equal(saveButton.disabled, false)
+    fireEvent.change(priceInput, { target: { value: '0' } })
 
-    await act(async () => root.unmount())
-    container.remove()
+    expect(priceInput).toHaveAttribute('aria-invalid', 'false')
+    expect(saveButton).toBeEnabled()
+
     queryClient.clear()
   })
 })

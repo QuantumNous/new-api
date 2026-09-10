@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { positiveIntegerSchema } from '../../utils/numeric-field'
 
@@ -26,15 +25,15 @@ const schema = positiveIntegerSchema(t('Enter a positive integer'))
 
 describe('per-token Auto group limit validation', () => {
   test('accepts any positive integer without a product upper bound', () => {
-    assert.equal(schema.safeParse(1000).success, true)
+    expect(schema.safeParse(1000).success).toBe(true)
   })
 
   test('rejects zero, negative, and fractional limits', () => {
     for (const maxTokenAutoGroups of [0, -1, 1.5]) {
       const result = schema.safeParse(maxTokenAutoGroups)
-      assert.equal(result.success, false)
+      expect(result.success).toBe(false)
       if (result.success) continue
-      assert.equal(result.error.issues[0]?.message, 'Enter a positive integer')
+      expect(result.error.issues[0]?.message).toBe('Enter a positive integer')
     }
   })
 })
