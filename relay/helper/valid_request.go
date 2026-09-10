@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -121,6 +122,11 @@ func GetAndValidateEmbeddingRequest(c *gin.Context, relayMode int) (*dto.Embeddi
 // overflow the conversion and corrupt billing.
 const maxTokensLimit = math.MaxInt32 / 2
 
+type imageCountDeclaration struct {
+	name  string
+	value uint
+}
+
 func exceedsMaxTokensLimit(values ...*uint) bool {
 	for _, v := range values {
 		if lo.FromPtrOr(v, uint(0)) > maxTokensLimit {
@@ -128,6 +134,78 @@ func exceedsMaxTokensLimit(values ...*uint) bool {
 		}
 	}
 	return false
+}
+
+func imageCountDeclarationsFromObject(raw []byte, source string) ([]imageCountDeclaration, error) {
+	if common.GetJsonType(raw) != "object" {
+		return nil, fmt.Errorf("%s must be a JSON object", source)
+	}
+	var fields struct {
+		NumberOfImages *uint `json:"number_of_images"`
+		NumOutputs     *uint `json:"num_outputs"`
+	}
+	if err := common.Unmarshal(raw, &fields); err != nil {
+		return nil, fmt.Errorf("invalid %s: %w", source, err)
+	}
+
+	declarations := make([]imageCountDeclaration, 0, 2)
+	if fields.NumberOfImages != nil {
+		declarations = append(declarations, imageCountDeclaration{name: source + ".number_of_images", value: *fields.NumberOfImages})
+	}
+	if fields.NumOutputs != nil {
+		declarations = append(declarations, imageCountDeclaration{name: source + ".num_outputs", value: *fields.NumOutputs})
+	}
+	return declarations, nil
+}
+
+func normalizeImageRequestCount(imageRequest *dto.ImageRequest) error {
+	declarations := make([]imageCountDeclaration, 0, 4)
+	nativeInputRaw, hasNativeInput := imageRequest.Extra["input"]
+	if hasNativeInput {
+		nativeDeclarations, err := imageCountDeclarationsFromObject(nativeInputRaw, "input")
+		if err != nil {
+			return err
+		}
+		declarations = append(declarations, nativeDeclarations...)
+	} else {
+		if len(imageRequest.ExtraFields) > 0 {
+			extraDeclarations, err := imageCountDeclarationsFromObject(imageRequest.ExtraFields, "extra_fields")
+			if err != nil {
+				return err
+			}
+			declarations = append(declarations, extraDeclarations...)
+		}
+		for _, name := range []string{"number_of_images", "num_outputs"} {
+			raw, ok := imageRequest.Extra[name]
+			if !ok {
+				continue
+			}
+			var value uint
+			if err := common.Unmarshal(raw, &value); err != nil {
+				return fmt.Errorf("invalid %s: %w", name, err)
+			}
+			declarations = append(declarations, imageCountDeclaration{name: name, value: value})
+		}
+	}
+
+	effectiveName := "n"
+	for _, declaration := range declarations {
+		if declaration.value == 0 || declaration.value > dto.MaxImageN {
+			return fmt.Errorf("%s must be an integer between 1 and %d", declaration.name, dto.MaxImageN)
+		}
+		if imageRequest.N != nil && *imageRequest.N != 0 && *imageRequest.N != declaration.value {
+			if effectiveName == "n" {
+				return fmt.Errorf("n must match %s", declaration.name)
+			}
+			return fmt.Errorf("%s must match %s", declaration.name, effectiveName)
+		}
+		imageRequest.N = common.GetPointer(declaration.value)
+		effectiveName = declaration.name
+	}
+	if hasNativeInput && len(declarations) == 0 && imageRequest.N != nil && *imageRequest.N > 1 {
+		return errors.New("n greater than 1 requires input.number_of_images or input.num_outputs for Replicate native input")
+	}
+	return nil
 }
 
 func GetAndValidateResponsesRequest(c *gin.Context) (*dto.OpenAIResponsesRequest, error) {
@@ -235,6 +313,11 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		err := common.UnmarshalBodyReusable(c, imageRequest)
 		if err != nil {
 			return nil, err
+		}
+		if common.GetContextKeyInt(c, constant.ContextKeyChannelType) == constant.ChannelTypeReplicate {
+			if err := normalizeImageRequestCount(imageRequest); err != nil {
+				return nil, err
+			}
 		}
 
 		if imageRequest.Model == "" {
