@@ -194,6 +194,40 @@ func TestOaiResponsesHandlerIncompleteStatusCommitsZeroImageGeneration(t *testin
 	assert.Equal(t, 0, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration].CallCount)
 }
 
+func TestOaiResponsesHandlerRewritesServerOverloadWithoutErrorType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"status":"failed","error":{"code":"server_is_overloaded","message":"Selected model is at capacity."}}`)
+	var logBuffer bytes.Buffer
+	common.LogWriterMu.Lock()
+	oldWriter := gin.DefaultErrorWriter
+	gin.DefaultErrorWriter = &logBuffer
+	common.LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		common.LogWriterMu.Lock()
+		gin.DefaultErrorWriter = oldWriter
+		common.LogWriterMu.Unlock()
+	})
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set(common.RequestIdKey, "responses-overload-non-stream-test")
+	info := &relaycommon.RelayInfo{OriginModelName: "gpt-5.6-sol"}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+	}
+
+	_, apiErr := OaiResponsesHandler(c, info, resp)
+
+	require.NotNil(t, apiErr)
+	assert.Equal(t, "server_error", string(apiErr.GetErrorCode()))
+	assert.Equal(t, "Selected model is at capacity.", apiErr.Error())
+	assert.Empty(t, w.Body.String())
+	assert.Contains(t, logBuffer.String(), "intercepted upstream server_is_overloaded")
+	assert.Contains(t, logBuffer.String(), "responses-overload-non-stream-test")
+}
+
 func runResponsesImageBillingStream(t *testing.T, events ...string) *relaycommon.RelayInfo {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -264,4 +298,53 @@ func TestOaiResponsesStreamHandlerDoesNotCountPartialImageEvent(t *testing.T) {
 	)
 
 	assert.Equal(t, 0, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration].CallCount)
+}
+
+func TestOaiResponsesStreamHandlerRewritesServerOverloadForCodexRetry(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldTimeout
+	})
+
+	body := "data: " + `{"type":"response.failed","sequence_number":3,"response":{"id":"resp_overloaded","status":"failed","error":{"code":"server_is_overloaded","message":"Selected model is at capacity."}}}` + "\n\n"
+	var logBuffer bytes.Buffer
+	common.LogWriterMu.Lock()
+	oldWriter := gin.DefaultErrorWriter
+	gin.DefaultErrorWriter = &logBuffer
+	common.LogWriterMu.Unlock()
+	t.Cleanup(func() {
+		common.LogWriterMu.Lock()
+		gin.DefaultErrorWriter = oldWriter
+		common.LogWriterMu.Unlock()
+	})
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set(common.RequestIdKey, "responses-overload-rewrite-test")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5.6-sol",
+		DisablePing:     true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gpt-5.6-sol",
+		},
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+
+	_, apiErr := OaiResponsesStreamHandler(c, info, resp)
+
+	require.Nil(t, apiErr)
+	assert.Contains(t, w.Body.String(), `"code":"server_error"`)
+	assert.Contains(t, w.Body.String(), `"sequence_number":3`)
+	assert.Contains(t, w.Body.String(), "Selected model is at capacity.")
+	assert.NotContains(t, w.Body.String(), "server_is_overloaded")
+	assert.NotContains(t, w.Body.String(), `"type":""`)
+	assert.NotContains(t, w.Body.String(), `"param":""`)
+	assert.Contains(t, logBuffer.String(), "intercepted upstream server_is_overloaded SSE event")
+	assert.Contains(t, logBuffer.String(), "responses-overload-rewrite-test")
 }
