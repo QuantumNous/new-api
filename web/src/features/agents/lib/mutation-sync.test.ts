@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { QueryClient } from '@tanstack/react-query'
 
@@ -40,32 +39,27 @@ describe('agent mutation cache synchronization', () => {
 
     setAgentMutationBalance(queryClient, 41, '457.00')
 
-    assert.equal(
+    expect(
       queryClient.getQueryData<AgentOverview>(
         agentUserQueryKey(agentQueryKeys.overview, 41)
-      )?.balance,
-      '457.00'
-    )
-    assert.equal(
-      queryClient.getQueryData<AgentOverview>(agentAccessQueryKey(41))?.balance,
-      '457.00'
-    )
-    assert.equal(
+      )?.balance
+    ).toBe('457.00')
+    expect(
+      queryClient.getQueryData<AgentOverview>(agentAccessQueryKey(41))?.balance
+    ).toBe('457.00')
+    expect(
       queryClient.getQueryData<AgentOverview>(
         agentUserQueryKey(agentQueryKeys.overview, 41)
-      )?.daily_code_count,
-      10
-    )
-    assert.equal(
+      )?.daily_code_count
+    ).toBe(10)
+    expect(
       queryClient.getQueryData<AgentOverview>(
         agentUserQueryKey(agentQueryKeys.overview, 99)
-      ),
-      currentOverview
-    )
-    assert.equal(
-      queryClient.getQueryData(agentUserQueryKey(agentQueryKeys.overview, 7)),
-      undefined
-    )
+      )
+    ).toBe(currentOverview)
+    expect(
+      queryClient.getQueryData(agentUserQueryKey(agentQueryKeys.overview, 7))
+    ).toBe(undefined)
   })
 
   test('uses a complete server overview to reconcile both caches', async () => {
@@ -83,16 +77,14 @@ describe('agent mutation cache synchronization', () => {
 
     await refreshAgentMutationQueries(queryClient, 41, probe)
 
-    assert.deepEqual(
+    expect(
       queryClient.getQueryData<AgentOverview>(
         agentUserQueryKey(agentQueryKeys.overview, 41)
-      ),
-      serverOverview
-    )
-    assert.deepEqual(
-      queryClient.getQueryData<AgentOverview>(agentAccessQueryKey(41)),
-      serverOverview
-    )
+      )
+    ).toEqual(serverOverview)
+    expect(
+      queryClient.getQueryData<AgentOverview>(agentAccessQueryKey(41))
+    ).toEqual(serverOverview)
   })
 
   test('keeps the confirmed balance when background reconciliation fails', async () => {
@@ -109,15 +101,13 @@ describe('agent mutation cache synchronization', () => {
       throw new Error('temporary failure')
     })
 
-    assert.equal(
+    expect(
       queryClient.getQueryData<AgentOverview>(
         agentUserQueryKey(agentQueryKeys.overview, 41)
-      )?.balance,
-      '457.00'
-    )
-    assert.equal(
-      queryClient.getQueryData<AgentOverview>(agentAccessQueryKey(41))?.balance,
-      '457.00'
-    )
+      )?.balance
+    ).toBe('457.00')
+    expect(
+      queryClient.getQueryData<AgentOverview>(agentAccessQueryKey(41))?.balance
+    ).toBe('457.00')
   })
 })

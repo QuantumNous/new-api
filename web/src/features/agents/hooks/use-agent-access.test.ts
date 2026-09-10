@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { AxiosError, type InternalAxiosRequestConfig } from 'axios'
 
@@ -35,37 +34,35 @@ describe('agent access resolution', () => {
       isError: false,
       agentEnabled: true,
     }
-    assert.deepEqual(getAgentStatusAccessState({ ...base, isFetching: true }), {
+    expect(getAgentStatusAccessState({ ...base, isFetching: true })).toEqual({
       isAuthoritative: true,
       globallyEnabled: true,
     })
-    assert.deepEqual(getAgentStatusAccessState({ ...base, isError: true }), {
+    expect(getAgentStatusAccessState({ ...base, isError: true })).toEqual({
       isAuthoritative: true,
       globallyEnabled: true,
     })
   })
 
   test('does not treat placeholder or missing error status as authoritative', () => {
-    assert.deepEqual(
+    expect(
       getAgentStatusAccessState({
         hasStatusData: true,
         isPlaceholderData: true,
         isFetching: true,
         isError: false,
         agentEnabled: true,
-      }),
-      { isAuthoritative: false, globallyEnabled: false }
-    )
-    assert.deepEqual(
+      })
+    ).toEqual({ isAuthoritative: false, globallyEnabled: false })
+    expect(
       getAgentStatusAccessState({
         hasStatusData: false,
         isPlaceholderData: false,
         isFetching: false,
         isError: true,
         agentEnabled: false,
-      }),
-      { isAuthoritative: false, globallyEnabled: false }
-    )
+      })
+    ).toEqual({ isAuthoritative: false, globallyEnabled: false })
   })
 
   test('maps only explicit business denials to no access', async () => {
@@ -78,18 +75,17 @@ describe('agent access resolution', () => {
         success: false,
         message,
       }))
-      assert.equal(result, null)
+      expect(result).toBe(null)
     }
   })
 
   test('keeps unknown business failures in the error path', async () => {
-    await assert.rejects(
+    await expect(
       resolveAgentAccess(async () => ({
         success: false,
         message: 'database temporarily unavailable',
-      })),
-      /Agent access probe failed/
-    )
+      }))
+    ).rejects.toThrow(/Agent access probe failed/)
   })
 
   test('maps HTTP 403 to no access without retrying the probe', async () => {
@@ -113,7 +109,7 @@ describe('agent access resolution', () => {
       calls += 1
       throw error
     })
-    assert.equal(result, null)
-    assert.equal(calls, 1)
+    expect(result).toBe(null)
+    expect(calls).toBe(1)
   })
 })

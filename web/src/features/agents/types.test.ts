@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   adminAgentSchema,
@@ -31,7 +30,7 @@ import {
 
 describe('agent response contracts', () => {
   test('accepts quota zero and masked package-code inventory', () => {
-    assert.deepEqual(typedRedemptionSchema.parse({ type: 'quota', quota: 0 }), {
+    expect(typedRedemptionSchema.parse({ type: 'quota', quota: 0 })).toEqual({
       type: 'quota',
       quota: 0,
     })
@@ -51,8 +50,8 @@ describe('agent response contracts', () => {
       expired_at: 20,
       redeemed_at: 0,
     })
-    assert.equal(code.code_visible, false)
-    assert.equal(code.code, '')
+    expect(code.code_visible).toBe(false)
+    expect(code.code).toBe('')
   })
 
   test('accepts omitted admin display identity and failure envelopes', () => {
@@ -68,47 +67,44 @@ describe('agent response contracts', () => {
       created_at: 10,
       updated_at: 10,
     })
-    assert.equal(agent.username, undefined)
+    expect(agent.username).toBe(undefined)
 
-    assert.deepEqual(
+    expect(
       apiResponseSchema(agentOverviewSchema).parse({
         success: false,
         message: 'agent account not found',
-      }),
-      { success: false, message: 'agent account not found' }
-    )
+      })
+    ).toEqual({ success: false, message: 'agent account not found' })
   })
 })
 
 describe('agent request string boundaries', () => {
   test('measures idempotency keys in UTF-8 bytes', () => {
     const base = { plan_id: 1, quantity: 1 }
-    assert.equal(
+    expect(
       agentPurchaseRequestSchema.parse({
         ...base,
         idempotency_key: 'a'.repeat(96),
-      }).idempotency_key.length,
-      96
-    )
-    assert.equal(
+      }).idempotency_key.length
+    ).toBe(96)
+    expect(
       agentPurchaseRequestSchema.parse({
         ...base,
         idempotency_key: '😀'.repeat(24),
-      }).idempotency_key,
-      '😀'.repeat(24)
-    )
-    assert.throws(() =>
+      }).idempotency_key
+    ).toBe('😀'.repeat(24))
+    expect(() =>
       agentPurchaseRequestSchema.parse({
         ...base,
         idempotency_key: 'a'.repeat(97),
       })
-    )
-    assert.throws(() =>
+    ).toThrow()
+    expect(() =>
       agentPurchaseRequestSchema.parse({
         ...base,
         idempotency_key: '😀'.repeat(25),
       })
-    )
+    ).toThrow()
   })
 
   test('measures reasons in Unicode code points after trimming', () => {
@@ -121,12 +117,12 @@ describe('agent request string boundaries', () => {
       ...request,
       reason: `  ${'😀'.repeat(255)}  `,
     })
-    assert.equal([...parsed.reason].length, 255)
-    assert.throws(() =>
+    expect([...parsed.reason].length).toBe(255)
+    expect(() =>
       agentCreditAdjustmentRequestSchema.parse({
         ...request,
         reason: '😀'.repeat(256),
       })
-    )
+    ).toThrow()
   })
 })

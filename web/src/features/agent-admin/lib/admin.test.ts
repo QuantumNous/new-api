@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { agentAccessQueryKey } from '@/features/agents/hooks/use-agent-access'
 import {
@@ -63,18 +62,18 @@ function refundCode(
 
 describe('agent administration cache scope', () => {
   test('keeps mutation invalidation inside the signed-in admin and affected resource', () => {
-    assert.deepEqual(agentAdminQueryKeys.agentsRoot(41), [
+    expect(agentAdminQueryKeys.agentsRoot(41)).toEqual([
       'agent-admin',
       41,
       'agents',
     ])
-    assert.deepEqual(agentAdminQueryKeys.ledgerRoot(41, 9), [
+    expect(agentAdminQueryKeys.ledgerRoot(41, 9)).toEqual([
       'agent-admin',
       41,
       'ledger',
       9,
     ])
-    assert.deepEqual(agentAdminQueryKeys.codesRoot(41), [
+    expect(agentAdminQueryKeys.codesRoot(41)).toEqual([
       'agent-admin',
       41,
       'codes',
@@ -82,35 +81,35 @@ describe('agent administration cache scope', () => {
   })
 
   test('targets current agent workspace caches only when the mutation affects that user', () => {
-    assert.deepEqual(getAgentAdminInvalidationPlan('offer', 41, 0), [
+    expect(getAgentAdminInvalidationPlan('offer', 41, 0)).toEqual([
       agentAdminQueryKeys.offers(41),
       agentQueryKeys.offers,
     ])
-    assert.deepEqual(getAgentAdminInvalidationPlan('credit', 41, 9), [
+    expect(getAgentAdminInvalidationPlan('credit', 41, 9)).toEqual([
       agentAdminQueryKeys.agentsRoot(41),
       agentAdminQueryKeys.ledgerRoot(41, 9),
       agentAdminQueryKeys.reconciliation(41, 9),
     ])
-    assert.deepEqual(getAgentAdminInvalidationPlan('limit', 41, 41), [
+    expect(getAgentAdminInvalidationPlan('limit', 41, 41)).toEqual([
       agentAdminQueryKeys.agentsRoot(41),
       agentUserQueryKey(agentQueryKeys.overview, 41),
     ])
-    assert.deepEqual(getAgentAdminInvalidationPlan('lifecycle', 41, 9), [
+    expect(getAgentAdminInvalidationPlan('lifecycle', 41, 9)).toEqual([
       agentAdminQueryKeys.agentsRoot(41),
     ])
-    assert.deepEqual(getAgentAdminInvalidationPlan('lifecycle', 41, 41), [
+    expect(getAgentAdminInvalidationPlan('lifecycle', 41, 41)).toEqual([
       agentAdminQueryKeys.agentsRoot(41),
       agentUserQueryKey(agentQueryKeys.overview, 41),
       agentAccessQueryKey(41),
     ])
-    assert.deepEqual(getAgentAdminInvalidationPlan('credit', 41, 41), [
+    expect(getAgentAdminInvalidationPlan('credit', 41, 41)).toEqual([
       agentAdminQueryKeys.agentsRoot(41),
       agentAdminQueryKeys.ledgerRoot(41, 41),
       agentAdminQueryKeys.reconciliation(41, 41),
       agentUserQueryKey(agentQueryKeys.overview, 41),
       agentUserQueryKey(agentQueryKeys.creditLogs, 41),
     ])
-    assert.deepEqual(getAgentAdminInvalidationPlan('refund', 41, 41), [
+    expect(getAgentAdminInvalidationPlan('refund', 41, 41)).toEqual([
       agentAdminQueryKeys.codesRoot(41),
       agentAdminQueryKeys.ordersRoot(41),
       agentAdminQueryKeys.agentsRoot(41),
@@ -126,68 +125,63 @@ describe('agent administration cache scope', () => {
 
 describe('agent administration access', () => {
   test('allows admins to read and only super admins to mutate', () => {
-    assert.deepEqual(getAgentAdminAccess(undefined), {
+    expect(getAgentAdminAccess(undefined)).toEqual({
       canRead: false,
       canMutate: false,
     })
-    assert.deepEqual(getAgentAdminAccess(1), {
+    expect(getAgentAdminAccess(1)).toEqual({
       canRead: false,
       canMutate: false,
     })
-    assert.deepEqual(getAgentAdminAccess(10), {
+    expect(getAgentAdminAccess(10)).toEqual({
       canRead: true,
       canMutate: false,
     })
-    assert.deepEqual(getAgentAdminAccess(100), {
+    expect(getAgentAdminAccess(100)).toEqual({
       canRead: true,
       canMutate: true,
     })
   })
 
   test('never exposes the RootAuth feature switch to ordinary administrators', () => {
-    assert.equal(
+    expect(
       getAgentSystemSwitchState({
         canMutate: false,
         hasAuthoritativeStatus: true,
         statusError: false,
-      }),
-      'hidden'
-    )
-    assert.equal(
+      })
+    ).toBe('hidden')
+    expect(
       getAgentSystemSwitchState({
         canMutate: true,
         hasAuthoritativeStatus: false,
         statusError: false,
-      }),
-      'loading'
-    )
-    assert.equal(
+      })
+    ).toBe('loading')
+    expect(
       getAgentSystemSwitchState({
         canMutate: true,
         hasAuthoritativeStatus: false,
         statusError: true,
-      }),
-      'error'
-    )
-    assert.equal(
+      })
+    ).toBe('error')
+    expect(
       getAgentSystemSwitchState({
         canMutate: true,
         hasAuthoritativeStatus: true,
         statusError: true,
-      }),
-      'ready'
-    )
+      })
+    ).toBe('ready')
   })
 })
 
 describe('credit adjustment confirmation', () => {
   test('projects decimal point balances exactly without number arithmetic', () => {
-    assert.equal(
-      projectAgentBalance('9007199254740993.99', '0.02', 'credit'),
+    expect(projectAgentBalance('9007199254740993.99', '0.02', 'credit')).toBe(
       '9007199254740994.01'
     )
-    assert.equal(projectAgentBalance('10.00', '3.45', 'debit'), '6.55')
-    assert.equal(projectAgentBalance('1.00', '1.01', 'debit'), '-0.01')
+    expect(projectAgentBalance('10.00', '3.45', 'debit')).toBe('6.55')
+    expect(projectAgentBalance('1.00', '1.01', 'debit')).toBe('-0.01')
   })
 
   test('retains an idempotency key for retry and rotates on payload change', () => {
@@ -206,54 +200,49 @@ describe('credit adjustment confirmation', () => {
       uuid
     )
 
-    assert.equal(first.idempotencyKey, 'attempt-1')
-    assert.equal(retry.idempotencyKey, first.idempotencyKey)
-    assert.equal(changed.idempotencyKey, 'attempt-2')
+    expect(first.idempotencyKey).toBe('attempt-1')
+    expect(retry.idempotencyKey).toBe(first.idempotencyKey)
+    expect(changed.idempotencyKey).toBe('attempt-2')
   })
 })
 
 describe('offer and refund boundaries', () => {
   test('accepts only complete offer terms at server boundaries', () => {
-    assert.equal(
+    expect(
       validateAgentOfferDraft({
         unitPrice: '0.01',
         codeValidDays: '1',
         refundFeeBps: '0',
-      }),
-      true
-    )
-    assert.equal(
+      })
+    ).toBe(true)
+    expect(
       validateAgentOfferDraft({
         unitPrice: '1',
         codeValidDays: '3650',
         refundFeeBps: '10000',
-      }),
-      true
-    )
-    assert.equal(
+      })
+    ).toBe(true)
+    expect(
       validateAgentOfferDraft({
         unitPrice: '0',
         codeValidDays: '1',
         refundFeeBps: '0',
-      }),
-      false
-    )
-    assert.equal(
+      })
+    ).toBe(false)
+    expect(
       validateAgentOfferDraft({
         unitPrice: '1',
         codeValidDays: '3651',
         refundFeeBps: '0',
-      }),
-      false
-    )
-    assert.equal(
+      })
+    ).toBe(false)
+    expect(
       validateAgentOfferDraft({
         unitPrice: '1',
         codeValidDays: '2',
         refundFeeBps: '10001',
-      }),
-      false
-    )
+      })
+    ).toBe(false)
   })
 
   test('permits a special refund only for unused codes owned by one agent', () => {
@@ -261,24 +250,22 @@ describe('offer and refund boundaries', () => {
       [refundCode(11, 7, 1001), refundCode(12, 7, 1002)],
       1000
     )
-    assert.deepEqual(result, { agentUserID: 7, redemptionIDs: [11, 12] })
-    assert.equal(
+    expect(result).toEqual({ agentUserID: 7, redemptionIDs: [11, 12] })
+    expect(
       getAdminRefundSelection(
         [refundCode(11, 7, 1001), refundCode(12, 8, 1002)],
         1000
-      ),
-      null
-    )
-    assert.equal(
-      getAdminRefundSelection([refundCode(11, 7, 1001, 'used')], 1000),
-      null
-    )
+      )
+    ).toBe(null)
+    expect(
+      getAdminRefundSelection([refundCode(11, 7, 1001, 'used')], 1000)
+    ).toBe(null)
   })
 
   test('rejects unused codes at and before the expiry boundary', () => {
-    assert.equal(getAdminRefundSelection([refundCode(11, 7, 1000)], 1000), null)
-    assert.equal(getAdminRefundSelection([refundCode(11, 7, 999)], 1000), null)
-    assert.deepEqual(getAdminRefundSelection([refundCode(11, 7, 1001)], 1000), {
+    expect(getAdminRefundSelection([refundCode(11, 7, 1000)], 1000)).toBe(null)
+    expect(getAdminRefundSelection([refundCode(11, 7, 999)], 1000)).toBe(null)
+    expect(getAdminRefundSelection([refundCode(11, 7, 1001)], 1000)).toEqual({
       agentUserID: 7,
       redemptionIDs: [11],
     })
@@ -287,23 +274,21 @@ describe('offer and refund boundaries', () => {
 
 describe('agent administration URL state', () => {
   test('sanitizes invalid filters and preserves valid stable filters', () => {
-    assert.deepEqual(
+    expect(
       agentAdminSearchSchema.parse({
         tab: 'orders',
         p: 3,
         agent_user_id: 12,
         status: 'completed',
-      }),
-      { tab: 'orders', p: 3, agent_user_id: 12, status: 'completed' }
-    )
-    assert.deepEqual(
+      })
+    ).toEqual({ tab: 'orders', p: 3, agent_user_id: 12, status: 'completed' })
+    expect(
       agentAdminSearchSchema.parse({
         tab: 'unknown',
         p: -5,
         agent_user_id: Number.MAX_SAFE_INTEGER + 1,
         status: 'unknown',
-      }),
-      { tab: 'agents', p: 1 }
-    )
+      })
+    ).toEqual({ tab: 'agents', p: 1 })
   })
 })

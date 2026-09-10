@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import type {
   AxiosAdapter,
@@ -101,14 +100,14 @@ describe('agent API request isolation', () => {
       await getAgentCodes(codeParams)
       await exportAgentCodes(codeParams)
 
-      assert.equal(requests.length, 3)
+      expect(requests.length).toBe(3)
       for (const request of requests) {
         const params = request.params as Record<string, unknown>
-        assert.equal(Object.hasOwn(params, 'agent_user_id'), false)
-        assert.equal(Object.hasOwn(params, 'unexpected'), false)
+        expect(Object.hasOwn(params, 'agent_user_id')).toBe(false)
+        expect(Object.hasOwn(params, 'unexpected')).toBe(false)
       }
-      assert.equal((requests[0].params as Record<string, unknown>).plan_id, 7)
-      assert.equal((requests[1].params as Record<string, unknown>).order_id, 8)
+      expect((requests[0].params as Record<string, unknown>).plan_id).toBe(7)
+      expect((requests[1].params as Record<string, unknown>).order_id).toBe(8)
     } finally {
       api.defaults.adapter = originalAdapter
     }
@@ -147,18 +146,16 @@ describe('agent API request isolation', () => {
       await getAgentCustomers(customerParams)
       await getAgentCustomerLogs(logParams)
 
-      assert.equal(requests.length, 2)
+      expect(requests.length).toBe(2)
       for (const request of requests) {
         const params = request.params as Record<string, unknown>
-        assert.equal(Object.hasOwn(params, 'agent_user_id'), false)
-        assert.equal(Object.hasOwn(params, 'unexpected'), false)
+        expect(Object.hasOwn(params, 'agent_user_id')).toBe(false)
+        expect(Object.hasOwn(params, 'unexpected')).toBe(false)
       }
-      assert.equal(
-        (requests[0].params as Record<string, unknown>).sort_by,
+      expect((requests[0].params as Record<string, unknown>).sort_by).toBe(
         'remaining_quota'
       )
-      assert.equal(
-        (requests[1].params as Record<string, unknown>).model_name,
+      expect((requests[1].params as Record<string, unknown>).model_name).toBe(
         'gpt-5'
       )
     } finally {
@@ -176,11 +173,8 @@ describe('agent API request isolation', () => {
 
     try {
       await getAdminAgentOrders({ agent_user_id: 42 })
-      assert.ok(captured)
-      assert.equal(
-        (captured.params as Record<string, unknown>).agent_user_id,
-        42
-      )
+      expect(captured).toBeTruthy()
+      expect((captured.params as Record<string, unknown>).agent_user_id).toBe(42)
     } finally {
       api.defaults.adapter = originalAdapter
     }
@@ -199,10 +193,10 @@ describe('agent API request isolation', () => {
 
     try {
       const result = await getAgentAccessOverview()
-      assert.equal(result.success, false)
-      assert.equal(captured?.skipBusinessError, true)
-      assert.equal(captured?.skipErrorHandler, true)
-      assert.equal(captured?.disableDuplicate, true)
+      expect(result.success).toBe(false)
+      expect(captured?.skipBusinessError).toBe(true)
+      expect(captured?.skipErrorHandler).toBe(true)
+      expect(captured?.disableDuplicate).toBe(true)
     } finally {
       api.defaults.adapter = originalAdapter
     }
@@ -222,9 +216,9 @@ describe('agent API request isolation', () => {
 
     try {
       const result = await redeemTypedCode({ key: 'quota-code' })
-      assert.equal(result.success, true)
-      assert.equal(captured?.skipBusinessError, true)
-      assert.equal(captured?.skipErrorHandler, true)
+      expect(result.success).toBe(true)
+      expect(captured?.skipBusinessError).toBe(true)
+      expect(captured?.skipErrorHandler).toBe(true)
     } finally {
       api.defaults.adapter = originalAdapter
     }
@@ -245,13 +239,13 @@ describe('agent API request isolation', () => {
 
     try {
       const safe = await exportAgentCodes()
-      assert.equal(safe.filename, 'agent-codes-中文.csv')
+      expect(safe.filename).toBe('agent-codes-中文.csv')
       const basic = await exportAgentCodes()
-      assert.equal(basic.filename, 'agent-codes-july.csv')
+      expect(basic.filename).toBe('agent-codes-july.csv')
       const rejected = await exportAgentCodes()
-      assert.equal(rejected.filename, 'agent-codes.csv')
+      expect(rejected.filename).toBe('agent-codes.csv')
       const controlCharacter = await exportAgentCodes()
-      assert.equal(controlCharacter.filename, 'agent-codes.csv')
+      expect(controlCharacter.filename).toBe('agent-codes.csv')
     } finally {
       api.defaults.adapter = originalAdapter
     }

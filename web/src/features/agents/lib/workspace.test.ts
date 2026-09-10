@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import type { AgentCode } from '../types'
 import {
@@ -57,66 +56,63 @@ const code = (overrides: Partial<AgentCode> = {}): AgentCode => ({
 
 describe('agent workspace URL state', () => {
   test('normalizes invalid pagination and filter values to safe defaults', () => {
-    assert.deepEqual(
+    expect(
       agentWorkspaceSearchSchema.parse({
         tab: 'codes',
         p: -2,
         page_size: 999,
         plan_id: 0,
         code_status: 'unknown',
-      }),
-      {
-        tab: 'codes',
-        p: 1,
-        page_size: 20,
-      }
-    )
+      })
+    ).toEqual({
+      tab: 'codes',
+      p: 1,
+      page_size: 20,
+    })
   })
 
   test('accepts customer management and customer log URL state', () => {
-    assert.deepEqual(
+    expect(
       agentWorkspaceSearchSchema.parse({
         tab: 'customers',
         customer_keyword: 'alice',
         customer_sort_by: 'remaining_quota',
         customer_sort_order: 'asc',
-      }),
-      {
-        tab: 'customers',
-        customer_keyword: 'alice',
-        customer_sort_by: 'remaining_quota',
-        customer_sort_order: 'asc',
-      }
-    )
-    assert.deepEqual(
+      })
+    ).toEqual({
+      tab: 'customers',
+      customer_keyword: 'alice',
+      customer_sort_by: 'remaining_quota',
+      customer_sort_order: 'asc',
+    })
+    expect(
       agentWorkspaceSearchSchema.parse({
         tab: 'customer-logs',
         customer_id: 12,
         customer_username: 'alice',
         log_type: 2,
         model_name: 'gpt-5',
-      }),
-      {
-        tab: 'customer-logs',
-        customer_id: 12,
-        customer_username: 'alice',
-        log_type: 2,
-        model_name: 'gpt-5',
-      }
-    )
+      })
+    ).toEqual({
+      tab: 'customer-logs',
+      customer_id: 12,
+      customer_username: 'alice',
+      log_type: 2,
+      model_name: 'gpt-5',
+    })
   })
 
   test('round-trips date filters in the application-local calendar', () => {
     const timestamp = localDateInputToTimestamp('2026-07-20')
-    assert.notEqual(timestamp, undefined)
-    assert.equal(timestampToLocalDateInput(timestamp), '2026-07-20')
-    assert.equal(localDateInputToTimestamp(''), undefined)
+    expect(timestamp).not.toBe(undefined)
+    expect(timestampToLocalDateInput(timestamp)).toBe('2026-07-20')
+    expect(localDateInputToTimestamp('')).toBe(undefined)
   })
 })
 
 describe('agent route gate', () => {
   test('waits for authoritative status instead of denying from placeholder data', () => {
-    assert.equal(
+    expect(
       getAgentRouteGateState({
         statusEnabled: false,
         statusAuthoritative: false,
@@ -126,10 +122,9 @@ describe('agent route gate', () => {
         accessDenied: false,
         accessError: false,
         accessReady: false,
-      }),
-      'loading'
-    )
-    assert.equal(
+      })
+    ).toBe('loading')
+    expect(
       getAgentRouteGateState({
         statusEnabled: true,
         statusAuthoritative: true,
@@ -139,9 +134,8 @@ describe('agent route gate', () => {
         accessDenied: false,
         accessError: false,
         accessReady: true,
-      }),
-      'ready'
-    )
+      })
+    ).toBe('ready')
   })
 
   test('keeps authoritative status and access data ready during background refresh', () => {
@@ -155,12 +149,10 @@ describe('agent route gate', () => {
       accessError: false,
       accessReady: true,
     }
-    assert.equal(
-      getAgentRouteGateState({ ...ready, statusPending: true }),
+    expect(getAgentRouteGateState({ ...ready, statusPending: true })).toBe(
       'ready'
     )
-    assert.equal(
-      getAgentRouteGateState({ ...ready, accessError: true }),
+    expect(getAgentRouteGateState({ ...ready, accessError: true })).toBe(
       'ready'
     )
   })
@@ -176,30 +168,24 @@ describe('agent route gate', () => {
       accessError: false,
       accessReady: false,
     }
-    assert.equal(
+    expect(
       getAgentRouteGateState({
         ...base,
         statusAuthoritative: false,
         statusError: true,
-      }),
-      'error'
-    )
-    assert.equal(
-      getAgentRouteGateState({ ...base, accessError: true }),
-      'error'
-    )
-    assert.equal(
-      getAgentRouteGateState({ ...base, accessDenied: true }),
+      })
+    ).toBe('error')
+    expect(getAgentRouteGateState({ ...base, accessError: true })).toBe('error')
+    expect(getAgentRouteGateState({ ...base, accessDenied: true })).toBe(
       'denied'
     )
-    assert.equal(
+    expect(
       getAgentRouteGateState({
         ...base,
         statusEnabled: false,
         accessError: true,
-      }),
-      'denied'
-    )
+      })
+    ).toBe('denied')
   })
 
   test('retries both status and access after either gate failure', async () => {
@@ -213,18 +199,17 @@ describe('agent route gate', () => {
         accessRetries += 1
       }
     )
-    assert.equal(statusRetries, 1)
-    assert.equal(accessRetries, 1)
+    expect(statusRetries).toBe(1)
+    expect(accessRetries).toBe(1)
   })
 })
 
 describe('agent refund selection', () => {
   test('allows only visible, unused, unexpired inventory', () => {
-    assert.equal(isRefundableAgentCode(code(), 100), true)
-    assert.equal(isRefundableAgentCode(code({ expired_at: 100 }), 100), false)
-    assert.equal(isRefundableAgentCode(code({ status: 'used' }), 100), false)
-    assert.equal(
-      isRefundableAgentCode(code({ code_visible: false }), 100),
+    expect(isRefundableAgentCode(code(), 100)).toBe(true)
+    expect(isRefundableAgentCode(code({ expired_at: 100 }), 100)).toBe(false)
+    expect(isRefundableAgentCode(code({ status: 'used' }), 100)).toBe(false)
+    expect(isRefundableAgentCode(code({ code_visible: false }), 100)).toBe(
       false
     )
   })
@@ -232,15 +217,15 @@ describe('agent refund selection', () => {
   test('keeps cross-page IDs and enforces the 100-code ceiling', () => {
     let selected = new Set(Array.from({ length: 100 }, (_, index) => index + 1))
     const rejected = toggleRefundSelection(selected, 101, true)
-    assert.equal(rejected.changed, false)
-    assert.equal(rejected.selection.size, 100)
+    expect(rejected.changed).toBe(false)
+    expect(rejected.selection.size).toBe(100)
 
     selected = toggleRefundSelection(selected, 50, false).selection
     const accepted = toggleRefundSelection(selected, 101, true)
-    assert.equal(accepted.changed, true)
-    assert.equal(accepted.selection.has(1), true)
-    assert.equal(accepted.selection.has(101), true)
-    assert.equal(accepted.selection.size, 100)
+    expect(accepted.changed).toBe(true)
+    expect(accepted.selection.has(1)).toBe(true)
+    expect(accepted.selection.has(101)).toBe(true)
+    expect(accepted.selection.size).toBe(100)
   })
 })
 
@@ -251,15 +236,15 @@ describe('agent mutation stability', () => {
       () => generated.shift() ?? 'unexpected-key'
     )
 
-    assert.equal(store.keyFor('plan=1&quantity=2'), 'key-1')
-    assert.equal(store.keyFor('plan=1&quantity=2'), 'key-1')
-    assert.equal(store.keyFor('plan=2&quantity=2'), 'key-2')
+    expect(store.keyFor('plan=1&quantity=2')).toBe('key-1')
+    expect(store.keyFor('plan=1&quantity=2')).toBe('key-1')
+    expect(store.keyFor('plan=2&quantity=2')).toBe('key-2')
     store.complete()
-    assert.equal(store.keyFor('plan=2&quantity=2'), 'key-3')
+    expect(store.keyFor('plan=2&quantity=2')).toBe('key-3')
   })
 
   test('invalidates only the four agent read families', () => {
-    assert.deepEqual(agentMutationInvalidationKeys, [
+    expect(agentMutationInvalidationKeys).toEqual([
       ['agent', 'overview'],
       ['agent', 'orders'],
       ['agent', 'codes'],
@@ -272,39 +257,36 @@ describe('agent mutation stability', () => {
     const store = new AgentIdempotencyKeyStore(
       () => generated.shift() ?? 'unexpected-key'
     )
-    assert.equal(store.keyFor('refund=1'), 'key-1')
-    assert.equal(canChangeAgentDialogOpen(false, true), false)
-    assert.equal(canChangeAgentDialogOpen(false, false), true)
+    expect(store.keyFor('refund=1')).toBe('key-1')
+    expect(canChangeAgentDialogOpen(false, true)).toBe(false)
+    expect(canChangeAgentDialogOpen(false, false)).toBe(true)
     resetAgentDialogLifecycle(store)
-    assert.equal(store.keyFor('refund=1'), 'key-2')
+    expect(store.keyFor('refund=1')).toBe('key-2')
   })
 })
 
 describe('agent query presentation', () => {
   test('shows errors before empty states and allows retry', () => {
-    assert.equal(
-      getAgentQueryView({ loading: false, error: true, hasData: false }),
-      'error'
-    )
-    assert.equal(
-      getAgentQueryView({ loading: false, error: false, hasData: false }),
-      'empty'
-    )
+    expect(
+      getAgentQueryView({ loading: false, error: true, hasData: false })
+    ).toBe('error')
+    expect(
+      getAgentQueryView({ loading: false, error: false, hasData: false })
+    ).toBe('empty')
   })
 
   test('never retains user A page data for user B', () => {
     const page = { items: [{ id: 1 }], total: 1 }
-    assert.equal(retainSameAgentPage(2, 1, page), undefined)
-    assert.equal(retainSameAgentPage(1, 1, page), page)
-    assert.notDeepEqual(
-      agentUserQueryKey(['agent', 'codes'], 1, 1),
+    expect(retainSameAgentPage(2, 1, page)).toBe(undefined)
+    expect(retainSameAgentPage(1, 1, page)).toBe(page)
+    expect(agentUserQueryKey(['agent', 'codes'], 1, 1)).not.toEqual(
       agentUserQueryKey(['agent', 'codes'], 2, 1)
     )
   })
 
   test('revokes the CSV object URL even when the browser click fails', () => {
     const revoked: string[] = []
-    assert.throws(() =>
+    expect(() =>
       downloadAgentExport(
         { blob: new Blob(['code\n']), filename: 'agent-codes.csv' },
         {
@@ -315,7 +297,7 @@ describe('agent query presentation', () => {
           },
         }
       )
-    )
-    assert.deepEqual(revoked, ['blob:agent-codes'])
+    ).toThrow()
+    expect(revoked).toEqual(['blob:agent-codes'])
   })
 })

@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import type {
   AxiosAdapter,
@@ -83,8 +82,8 @@ describe('agent offer plan catalog', () => {
 
     try {
       const result = await getAgentAdminPlans()
-      assert.equal(result.success, true)
-      if (result.success) assert.equal(result.data[0].title, 'Pro')
+      expect(result.success).toBe(true)
+      if (result.success) expect(result.data[0].title).toBe('Pro')
     } finally {
       api.defaults.adapter = originalAdapter
     }
@@ -100,7 +99,7 @@ describe('agent offer plan catalog', () => {
       })
 
     try {
-      await assert.rejects(getAgentAdminPlans())
+      await expect(getAgentAdminPlans()).rejects.toThrow()
     } finally {
       api.defaults.adapter = originalAdapter
     }
