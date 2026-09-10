@@ -197,6 +197,128 @@ func TestStreamScannerHandler_SkipsNonDataLines(t *testing.T) {
 	assert.Equal(t, int64(100), count.Load())
 }
 
+func TestStreamScannerHandler_RelaysUpstreamCommentAfterData(t *testing.T) {
+	pr, pw := io.Pipe()
+	t.Cleanup(func() {
+		_ = pr.Close()
+		_ = pw.Close()
+	})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	resp := &http.Response{Body: pr}
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	firstHandled := make(chan struct{})
+	done := make(chan struct{})
+	var writeErr error
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+			writeErr = StringData(c, data)
+			if data == "first" {
+				close(firstHandled)
+			}
+		})
+		close(done)
+	}()
+
+	_, err := fmt.Fprint(pw, "data: first\n")
+	require.NoError(t, err)
+
+	select {
+	case <-firstHandled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first data frame")
+	}
+
+	_, err = fmt.Fprint(pw, ": upstream-private-heartbeat\n\ndata: [DONE]\n")
+	require.NoError(t, err)
+	require.NoError(t, pw.Close())
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for stream to finish")
+	}
+
+	require.NoError(t, writeErr)
+	assert.Contains(t, recorder.Body.String(), "data: first")
+	assert.Contains(t, recorder.Body.String(), ": PING\n\n")
+	assert.NotContains(t, recorder.Body.String(), "upstream-private-heartbeat")
+	assert.Equal(t, 1, info.ReceivedResponseCount)
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+}
+
+func TestStreamScannerHandler_SkipsUpstreamCommentBeforeData(t *testing.T) {
+	body := ": upstream-private-heartbeat\n\ndata: [DONE]\n"
+	c, resp, info := setupStreamTest(t, strings.NewReader(body))
+	info.DisablePing = true
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		_ = StringData(c, data)
+	})
+
+	assert.False(t, c.Writer.Written(), "a heartbeat must not commit the response before the first data frame")
+	assert.Equal(t, 0, info.ReceivedResponseCount)
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+}
+
+func TestStreamScannerHandler_PriorPingDoesNotUnlockUpstreamComment(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	require.NoError(t, PingData(c))
+	require.Equal(t, 1, strings.Count(recorder.Body.String(), ": PING\n\n"))
+
+	body := ": upstream-private-heartbeat\n\ndata: [DONE]\n"
+	resp := &http.Response{Body: io.NopCloser(strings.NewReader(body))}
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		_ = StringData(c, data)
+	})
+
+	assert.Equal(t, 1, strings.Count(recorder.Body.String(), ": PING\n\n"),
+		"a periodic ping must not make an upstream comment look like post-data traffic")
+	assert.NotContains(t, recorder.Body.String(), "upstream-private-heartbeat")
+	assert.Equal(t, 0, info.ReceivedResponseCount)
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+}
+
+func TestStreamScannerHandler_HeaderOnlyFlushDoesNotUnlockUpstreamComment(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	body := "data: first\n\n: upstream-private-heartbeat\n\ndata: [DONE]\n"
+	resp := &http.Response{Body: io.NopCloser(strings.NewReader(body))}
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		_ = FlushWriter(c)
+	})
+
+	assert.NotContains(t, recorder.Body.String(), ": PING\n\n",
+		"a header-only flush must not count as a downstream data frame")
+	assert.Equal(t, 1, info.ReceivedResponseCount)
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+}
+
 func TestStreamScannerHandler_DataWithExtraSpaces(t *testing.T) {
 	t.Parallel()
 
