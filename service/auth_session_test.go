@@ -269,7 +269,7 @@ func TestCleanupAuthArtifactsRemovesOnlyExpiredRecords(t *testing.T) {
 	}).Error)
 	require.NoError(t, model.DB.Create(&model.AuthFlow{
 		TokenHash: "expired-flow", Purpose: model.AuthFlowPurposeTwoFALogin,
-		ExpiresAt: oldExpiry,
+		ExpiresAt: now.Add(-(model.AuthFlowDefaultCleanupRetention + time.Hour)),
 	}).Error)
 	require.NoError(t, model.DB.Create(&model.AuthFlow{
 		TokenHash: "recent-flow", Purpose: model.AuthFlowPurposeTwoFALogin,
