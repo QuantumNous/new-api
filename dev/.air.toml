@@ -1,0 +1,24 @@
+# air 热加载配置（custom 分支本地开发用，docker 内运行）
+# mac + docker bind mount 下 fsnotify 不可靠，必须用 poll 轮询
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # 先建占位 dist 让 //go:embed web/dist 通过，再纯 Go 编译
+  cmd = "mkdir -p web/dist && [ -f web/dist/index.html ] || echo '<!doctype html><title>dev</title>use frontend dev server' > web/dist/index.html; go build -o ./tmp/new-api-dev ."
+  bin = "./tmp/new-api-dev"
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "web", "node_modules", ".git", "logs", "dev", "docs", "claude_docs", "data"]
+  exclude_regex = ["_test\\.go"]
+  delay = 1000
+  stop_on_error = true
+  send_interrupt = true
+  kill_delay = 2000
+  poll = true
+  poll_interval = 500
+
+[log]
+  time = true
+
+[misc]
+  clean_on_exit = false

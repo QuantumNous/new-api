@@ -12,6 +12,7 @@ on:
     tags:
       - '*'
       - '!*-alpha*'
+      - '!custom-v*'
 
 jobs:
   linux:

@@ -1,0 +1,56 @@
+# ============================================================
+# 你自己新增的镜像构建流程（独立于官方 workflow）
+# 作用：把 custom 分支的代码打包成 Docker 镜像，推到你自己的 GHCR
+# 好处：单独一个文件，不改官方任何东西，以后同步官方更新不会冲突
+# ============================================================
+name: Build my image (GHCR)
+
+on:
+  push:
+    branches: [custom]        # 每次把代码推到 custom 分支，自动构建一次
+    tags: ['custom-v*']       # 推送 custom-v* 版本标签时构建版本化镜像
+  workflow_dispatch:          # 也可以在 GitHub 的 Actions 页面手动点按钮触发
+
+jobs:
+  build:
+    name: Build & push to GHCR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write         # 推送镜像到 GHCR 所必需
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 准备镜像名与标签
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # 自动转小写 → ghcr.io/amoresdk/new-api
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/custom' }}
+            type=ref,event=tag
+            type=sha,format=short
+
+      - name: 配置 Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 登录 GHCR（用 GitHub 自带令牌，无需额外配置）
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 构建并推送镜像
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64    # 服务器若是 ARM 架构，改成：linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

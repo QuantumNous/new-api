@@ -1,0 +1,19 @@
+# 后端热加载镜像（custom 分支本地开发用）
+# 源码通过 bind mount 挂入 /build，air 监听 .go 变更自动重编译重启
+FROM golang:1.26.1-alpine
+
+RUN apk add --no-cache git tzdata && \
+    go install github.com/air-verse/air@latest
+
+ENV CGO_ENABLED=0 GOEXPERIMENT=greenteagc TZ=Asia/Shanghai
+
+WORKDIR /build
+
+# 预热依赖缓存到 /go/pkg/mod（运行时 bind mount 覆盖 /build 不影响该缓存），
+# 让 air 首次编译无需重新下载全部依赖
+COPY go.mod go.sum ./
+RUN go mod download
+
+EXPOSE 3000
+
+ENTRYPOINT ["air", "-c", "dev/.air.toml"]

@@ -1,0 +1,73 @@
+# custom 分支本地开发栈（端到端验收 + 后端热加载）
+# 与 new-api-main 完全隔离：独立 project 名 / 容器名 / 卷 / 网络 / 端口
+#
+# 用法（在项目根目录执行）：
+#   构建并启动后端+DB： docker compose -f dev/docker-compose.custom-dev.yml up -d --build
+#   启动前端 dev 服务（宿主机，HMR）：
+#     cd web && VITE_REACT_APP_SERVER_URL=http://localhost:3100 bun run dev -- --host 0.0.0.0 --port 5273
+#   验收地址： http://localhost:5273
+#   看后端热加载日志： docker compose -f dev/docker-compose.custom-dev.yml logs -f backend
+#   停止： docker compose -f dev/docker-compose.custom-dev.yml down
+#   重置数据： docker compose -f dev/docker-compose.custom-dev.yml down -v
+
+name: newapi-custom
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: dev/Dockerfile.air
+    image: newapi-custom-air:local
+    container_name: newapi-custom-backend
+    restart: unless-stopped
+    ports:
+      - "3100:3000"
+    volumes:
+      - ..:/build
+      - custom_dev_data:/data
+    environment:
+      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
+      - REDIS_CONN_STRING=redis://redis
+      - TZ=Asia/Shanghai
+      - PORT=3000
+      - GIN_MODE=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - custom-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: newapi-custom-redis
+    restart: unless-stopped
+    networks:
+      - custom-net
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: newapi-custom-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: new-api
+    volumes:
+      - custom_dev_pg:/var/lib/postgresql/data
+    networks:
+      - custom-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d new-api"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  custom_dev_data:
+  custom_dev_pg:
+
+networks:
+  custom-net:
+    driver: bridge
