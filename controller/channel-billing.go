@@ -300,6 +300,8 @@ func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
 	if err != nil {
 		return 0, err
 	}
+	// DeepSeek 余额按人民币计价，按汇率折算成美元存储
+	balance = balance / operation_setting.USDExchangeRate
 	channel.UpdateBalance(balance)
 	return balance, nil
 }
