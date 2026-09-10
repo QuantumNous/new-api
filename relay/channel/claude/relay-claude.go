@@ -231,11 +231,29 @@ func countClaudeStreamBillableTools(c *gin.Context, info *relaycommon.RelayInfo,
 	}
 }
 
+func hasClaudeStreamUsageEvidence(usage *dto.Usage) bool {
+	if usage == nil {
+		return false
+	}
+	return usage.PromptTokens != 0 ||
+		usage.CompletionTokens != 0 ||
+		usage.PromptTokensDetails.CachedTokens != 0 ||
+		usage.PromptTokensDetails.CachedCreationTokens != 0 ||
+		usage.ClaudeCacheCreation5mTokens != 0 ||
+		usage.ClaudeCacheCreation1hTokens != 0 ||
+		usage.BillingUsage != nil
+}
+
 func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo) {
 	if claudeInfo.Usage.PromptTokens == 0 {
 		//上游出错
 	}
-	if claudeInfo.Usage.CompletionTokens == 0 || !claudeInfo.Done {
+	abnormalZeroFrameWithoutUsage := info != nil &&
+		info.StreamStatus != nil &&
+		!info.StreamStatus.IsNormalEnd() &&
+		info.ReceivedResponseCount == 0 &&
+		!hasClaudeStreamUsageEvidence(claudeInfo.Usage)
+	if !abnormalZeroFrameWithoutUsage && (claudeInfo.Usage.CompletionTokens == 0 || !claudeInfo.Done) {
 		if common.DebugEnabled {
 			common.SysLog("claude response usage is not complete, maybe upstream error")
 		}
