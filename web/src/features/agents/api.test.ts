@@ -16,13 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'vitest'
-
 import type {
   AxiosAdapter,
   AxiosResponse,
   InternalAxiosRequestConfig,
 } from 'axios'
+import { describe, expect, test } from 'vitest'
 
 import { api } from '@/lib/api'
 
@@ -177,7 +176,9 @@ describe('agent API request isolation', () => {
       if (!captured) {
         throw new Error('expected captured request')
       }
-      expect((captured.params as Record<string, unknown>).agent_user_id).toBe(42)
+      expect((captured.params as Record<string, unknown>).agent_user_id).toBe(
+        42
+      )
     } finally {
       api.defaults.adapter = originalAdapter
     }

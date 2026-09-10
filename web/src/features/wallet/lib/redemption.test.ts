@@ -77,9 +77,7 @@ describe('wallet typed redemption', () => {
     expect(await executeRedemption('quota-code', deps)).toBe(true)
     expect(calls.formattedQuotas).toEqual([250_000])
     expect(calls.formattedDates).toEqual([])
-    expect(calls.successes).toEqual([
-      { type: 'quota', quota: 'quota:250000' },
-    ])
+    expect(calls.successes).toEqual([{ type: 'quota', quota: 'quota:250000' }])
     expect(calls.userRefreshes).toBe(1)
     expect(calls.subscriptionRefreshes).toBe(0)
   })

@@ -16,13 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'vitest'
-
 import type {
   AxiosAdapter,
   AxiosResponse,
   InternalAxiosRequestConfig,
 } from 'axios'
+import { describe, expect, test } from 'vitest'
 
 import { api } from '@/lib/api'
 
