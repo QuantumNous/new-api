@@ -41,6 +41,18 @@ func (l *InMemoryRateLimiter) clearExpiredItems() {
 	}
 }
 
+// CanRequest reports whether Request would allow key right now, without
+// recording anything. Parameter duration's unit is seconds.
+func (l *InMemoryRateLimiter) CanRequest(key string, maxRequestNum int, duration int64) bool {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	queue, ok := l.store[key]
+	if !ok || len(*queue) < maxRequestNum {
+		return true
+	}
+	return time.Now().Unix()-(*queue)[0] >= duration
+}
+
 // Request parameter duration's unit is seconds
 func (l *InMemoryRateLimiter) Request(key string, maxRequestNum int, duration int64) bool {
 	l.mutex.Lock()
