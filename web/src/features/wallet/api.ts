@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { redeemTypedCode } from '@/features/agents/api'
 import { api } from '@/lib/api'
 
 import type {
@@ -61,13 +62,12 @@ export async function getTopupInfo(): Promise<TopupInfoResponse> {
 }
 
 /**
- * Redeem a topup code
+ * Redeem a quota or subscription code through the unified strict contract.
  */
-export async function redeemTopupCode(
+export async function redeemCode(
   request: RedemptionRequest
 ): Promise<RedemptionResponse> {
-  const res = await api.post('/api/user/topup', request)
-  return res.data
+  return redeemTypedCode(request)
 }
 
 /**

@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Crown, RefreshCw, Sparkles, Check } from 'lucide-react'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -59,6 +66,10 @@ import type {
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import {
+  createLatestRequestGuard,
+  runLatestRequest,
+} from '../lib/latest-request'
 import type { PaymentMethod, TopupInfo } from '../types'
 
 interface SubscriptionPlansCardProps {
@@ -66,6 +77,10 @@ interface SubscriptionPlansCardProps {
   onAvailabilityChange?: (available: boolean) => void
   userQuota?: number
   onPurchaseSuccess?: () => void | Promise<void>
+}
+
+export type SubscriptionPlansCardHandle = {
+  refreshSubscriptions: () => Promise<void>
 }
 
 function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
@@ -92,12 +107,13 @@ function getBillingPreferenceLabel(
   }
 }
 
-export function SubscriptionPlansCard({
-  topupInfo,
-  onAvailabilityChange,
-  userQuota,
-  onPurchaseSuccess,
-}: SubscriptionPlansCardProps) {
+export const SubscriptionPlansCard = forwardRef<
+  SubscriptionPlansCardHandle,
+  SubscriptionPlansCardProps
+>(function SubscriptionPlansCard(
+  { topupInfo, onAvailabilityChange, userQuota, onPurchaseSuccess },
+  ref
+) {
   const { t } = useTranslation()
 
   const [plans, setPlans] = useState<PlanRecord[]>([])
@@ -114,6 +130,10 @@ export function SubscriptionPlansCard({
 
   const [purchaseOpen, setPurchaseOpen] = useState(false)
   const [selectedPlan, setSelectedPlan] = useState<PlanRecord | null>(null)
+  const [plansRequestGuard] = useState(createLatestRequestGuard)
+  const [subscriptionsRequestGuard] = useState(createLatestRequestGuard)
+  const [initializationRequestGuard] = useState(createLatestRequestGuard)
+  const [refreshIndicatorGuard] = useState(createLatestRequestGuard)
 
   const enableStripe = !!topupInfo?.enable_stripe_topup
   const enableCreem = !!topupInfo?.enable_creem_topup
@@ -125,47 +145,88 @@ export function SubscriptionPlansCard({
   )
 
   const fetchPlans = useCallback(async () => {
-    try {
-      const res = await getPublicPlans()
-      if (res.success) {
-        setPlans(res.data || [])
+    await runLatestRequest(
+      plansRequestGuard,
+      async () => {
+        try {
+          return await getPublicPlans()
+        } catch {
+          return null
+        }
+      },
+      (response) => {
+        if (response?.success) {
+          setPlans(response.data || [])
+        } else if (response === null) {
+          setPlans([])
+        }
       }
-    } catch {
-      setPlans([])
-    }
-  }, [])
+    )
+  }, [plansRequestGuard])
 
   const fetchSelfSubscription = useCallback(async () => {
-    try {
-      const res = await getSelfSubscriptionFull()
-      if (res.success && res.data) {
+    await runLatestRequest(
+      subscriptionsRequestGuard,
+      async () => {
+        try {
+          return await getSelfSubscriptionFull()
+        } catch {
+          return null
+        }
+      },
+      (res) => {
+        if (!res?.success || !res.data) return
         setBillingPreference(
           res.data.billing_preference || 'subscription_first'
         )
         setActiveSubscriptions(res.data.subscriptions || [])
         setAllSubscriptions(res.data.all_subscriptions || [])
       }
-    } catch {
-      // ignore
-    }
-  }, [])
+    )
+  }, [subscriptionsRequestGuard])
 
   useEffect(() => {
-    const init = async () => {
-      setLoading(true)
-      await Promise.all([fetchPlans(), fetchSelfSubscription()])
-      setLoading(false)
+    const guards = [
+      plansRequestGuard,
+      subscriptionsRequestGuard,
+      initializationRequestGuard,
+      refreshIndicatorGuard,
+    ]
+    for (const guard of guards) guard.activate()
+    return () => {
+      for (const guard of guards) guard.deactivate()
     }
-    init()
-  }, [fetchPlans, fetchSelfSubscription])
+  }, [
+    initializationRequestGuard,
+    plansRequestGuard,
+    refreshIndicatorGuard,
+    subscriptionsRequestGuard,
+  ])
+
+  useEffect(() => {
+    setLoading(true)
+    void runLatestRequest(
+      initializationRequestGuard,
+      () => Promise.all([fetchPlans(), fetchSelfSubscription()]),
+      () => undefined,
+      () => setLoading(false)
+    )
+  }, [fetchPlans, fetchSelfSubscription, initializationRequestGuard])
+
+  useImperativeHandle(
+    ref,
+    () => ({ refreshSubscriptions: fetchSelfSubscription }),
+    [fetchSelfSubscription]
+  )
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    try {
-      await fetchSelfSubscription()
-    } finally {
-      setRefreshing(false)
-    }
+    await runLatestRequest(
+      refreshIndicatorGuard,
+      fetchSelfSubscription,
+      () => undefined,
+      () => setRefreshing(false)
+    )
   }
 
   const handlePreferenceChange = async (pref: string) => {
@@ -660,4 +721,4 @@ export function SubscriptionPlansCard({
       />
     </>
   )
-}
+})

@@ -20,48 +20,64 @@ import i18next from 'i18next'
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 
-import { getSelf } from '@/lib/api'
 import { formatQuota } from '@/lib/format'
 
-import { redeemTopupCode } from '../api'
+import { redeemCode as redeemTypedCode } from '../api'
+import { executeRedemption, formatRedemptionEndTime } from '../lib/redemption'
 
 // ============================================================================
 // Redemption Hook
 // ============================================================================
 
-export function useRedemption() {
+type UseRedemptionOptions = {
+  refreshUser: () => void | Promise<void>
+  refreshSubscriptions: () => void | Promise<void>
+}
+
+export function useRedemption(options: UseRedemptionOptions) {
   const [redeeming, setRedeeming] = useState(false)
 
-  const redeemCode = useCallback(async (code: string): Promise<boolean> => {
-    if (!code || code.trim() === '') {
-      toast.error(i18next.t('Please enter a redemption code'))
-      return false
-    }
-
-    try {
-      setRedeeming(true)
-      const response = await redeemTopupCode({ key: code })
-
-      if (response.success && response.data) {
-        const quotaAdded = response.data
-        toast.success(
-          i18next.t('Redemption successful! Added: {{quota}}', {
-            quota: formatQuota(quotaAdded),
-          })
-        )
-        await getSelf()
-        return true
+  const redeemCode = useCallback(
+    async (code: string): Promise<boolean> => {
+      const key = code.trim()
+      if (!key) {
+        toast.error(i18next.t('Please enter a redemption code'))
+        return false
       }
 
-      toast.error(response.message || i18next.t('Redemption failed'))
-      return false
-    } catch (_error) {
-      toast.error(i18next.t('Redemption failed'))
-      return false
-    } finally {
-      setRedeeming(false)
-    }
-  }, [])
+      try {
+        setRedeeming(true)
+        return await executeRedemption(key, {
+          redeem: redeemTypedCode,
+          formatQuota,
+          formatEndTime: (endTime) =>
+            formatRedemptionEndTime(endTime, i18next.language),
+          notifySuccess: (notice) => {
+            if (notice.type === 'quota') {
+              toast.success(
+                i18next.t('Redemption successful! Added: {{quota}}', {
+                  quota: notice.quota,
+                })
+              )
+              return
+            }
+            toast.success(
+              i18next.t('Subscription redeemed: {{plan}} · expires {{date}}', {
+                plan: notice.planTitle,
+                date: notice.endDate,
+              })
+            )
+          },
+          notifyFailure: () => toast.error(i18next.t('Redemption failed')),
+          refreshUser: options.refreshUser,
+          refreshSubscriptions: options.refreshSubscriptions,
+        })
+      } finally {
+        setRedeeming(false)
+      }
+    },
+    [options.refreshSubscriptions, options.refreshUser]
+  )
 
   return {
     redeeming,

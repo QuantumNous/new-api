@@ -5062,6 +5062,7 @@
     "Subscription Plans": "訂閱套餐",
     "Subscription plans do NOT use the bound Product — each plan has its own dedicated Pancake product, set in the Subscriptions admin (or auto-minted via the \"+ Create\" button there).": "訂閱套餐不會使用已連結的產品。每個套餐都有獨立的 Pancake 產品，可在訂閱管理中設定，或透過其中的「+ 建立」按鈕自動生成。",
     "Subscription purchased successfully": "訂閱購買成功",
+    "Subscription redeemed: {{plan}} · expires {{date}}": "訂閱兌換成功：{{plan}} · 到期時間 {{date}}",
     "Subscriptions": "訂閱",
     "Subtract": "減少",
     "succeeded": "已成功",

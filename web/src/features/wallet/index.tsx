@@ -30,7 +30,10 @@ import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
-import { SubscriptionPlansCard } from './components/subscription-plans-card'
+import {
+  SubscriptionPlansCard,
+  type SubscriptionPlansCardHandle,
+} from './components/subscription-plans-card'
 import { WalletStatsCard } from './components/wallet-stats-card'
 import { DEFAULT_DISCOUNT_RATE, PAYMENT_TYPES } from './constants'
 import {
@@ -47,6 +50,10 @@ import {
   getMinTopupAmount,
   dispatchSelectedPayment,
 } from './lib'
+import {
+  createLatestRequestGuard,
+  runLatestRequest,
+} from './lib/latest-request'
 import type {
   UserWalletData,
   PaymentMethod,
@@ -79,6 +86,8 @@ export function Wallet(props: WalletProps) {
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+  const [userRequestGuard] = useState(createLatestRequestGuard)
+  const subscriptionPlansRef = useRef<SubscriptionPlansCardHandle>(null)
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
@@ -103,7 +112,6 @@ export function Wallet(props: WalletProps) {
     transferQuota,
     transferring,
   } = useAffiliate()
-  const { redeeming, redeemCode } = useRedemption()
   const { processing: creemProcessing, processCreemPayment } = useCreemPayment()
   const { processing: waffoProcessing, processWaffoPayment } = useWaffoPayment()
   const { processing: pancakeProcessing, processWaffoPancakePayment } =
@@ -111,23 +119,48 @@ export function Wallet(props: WalletProps) {
 
   // Fetch and refresh user data
   const fetchUser = useCallback(async () => {
-    try {
-      setUserLoading(true)
-      const response = await getSelf()
-      if (response.success && response.data) {
-        setUser(response.data as UserWalletData)
-      }
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to fetch user data:', error)
-    } finally {
-      setUserLoading(false)
+    setUserLoading(true)
+    await runLatestRequest(
+      userRequestGuard,
+      async () => {
+        try {
+          return { response: await getSelf(), error: undefined }
+        } catch (error) {
+          return { response: undefined, error }
+        }
+      },
+      (result) => {
+        if (result.error) {
+          // eslint-disable-next-line no-console
+          console.error('Failed to fetch user data:', result.error)
+          return
+        }
+        if (result.response?.success && result.response.data) {
+          setUser(result.response.data as UserWalletData)
+        }
+      },
+      () => setUserLoading(false)
+    )
+  }, [userRequestGuard])
+
+  const refreshSubscriptions = useCallback(async () => {
+    if (subscriptionPlansRef.current) {
+      await subscriptionPlansRef.current.refreshSubscriptions()
     }
   }, [])
 
+  const { redeeming, redeemCode } = useRedemption({
+    refreshUser: fetchUser,
+    refreshSubscriptions,
+  })
+
   useEffect(() => {
-    fetchUser()
-  }, [fetchUser])
+    userRequestGuard.activate()
+    void fetchUser()
+    return () => {
+      userRequestGuard.deactivate()
+    }
+  }, [fetchUser, userRequestGuard])
 
   useEffect(() => {
     if (props.initialShowHistory) {
@@ -218,7 +251,6 @@ export function Wallet(props: WalletProps) {
     const success = await redeemCode(redemptionCode)
     if (success) {
       setRedemptionCode('')
-      await fetchUser()
     }
   }
 
@@ -332,6 +364,7 @@ export function Wallet(props: WalletProps) {
               </div>
 
               <SubscriptionPlansCard
+                ref={subscriptionPlansRef}
                 topupInfo={topupInfo}
                 onAvailabilityChange={handleSubscriptionAvailabilityChange}
                 userQuota={user?.quota}
