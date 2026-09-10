@@ -19,7 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { z } from 'zod'
 
-import { sanitizeAuthRedirect } from '@/features/auth/lib/auth-redirect'
+import { resolveAgentAccess } from '@/features/agents/hooks/use-agent-access'
+import { resolvePostLoginTarget } from '@/features/auth/lib/post-login-redirect'
 import { SignIn } from '@/features/auth/sign-in'
 import { resolveAuthentication } from '@/lib/auth-session'
 import { useAuthStore } from '@/stores/auth-store'
@@ -40,9 +41,11 @@ export const Route = createFileRoute('/(auth)/sign-in')({
 
     // 如果已经有用户信息，说明已登录
     if (auth.user) {
-      const target =
-        sanitizeAuthRedirect(search?.redirect, window.location.origin) ??
-        '/dashboard'
+      const target = await resolvePostLoginTarget(
+        search?.redirect,
+        auth.user,
+        async () => (await resolveAgentAccess()) !== null
+      )
       throw redirect({ href: target, replace: true })
     }
   },

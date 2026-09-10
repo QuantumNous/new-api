@@ -20,10 +20,12 @@ import { useNavigate } from '@tanstack/react-router'
 import i18n from 'i18next'
 import { useCallback, useEffect, useRef } from 'react'
 
+import { resolveAgentAccess } from '@/features/agents/hooks/use-agent-access'
 import {
   getSavedLanguage,
   sanitizeAuthRedirect,
 } from '@/features/auth/lib/auth-redirect'
+import { resolvePostLoginTarget } from '@/features/auth/lib/post-login-redirect'
 import { applyAuthBundle, isAuthBundle } from '@/lib/api'
 import { AuthOperationError } from '@/lib/secure-verification'
 import { useAuthStore, type AuthBundle } from '@/stores/auth-store'
@@ -63,8 +65,11 @@ export function useAuthRedirect() {
         await i18n.changeLanguage(savedLang)
       }
 
-      const targetPath =
-        sanitizeAuthRedirect(redirectTo, window.location.origin) ?? '/dashboard'
+      const targetPath = await resolvePostLoginTarget(
+        redirectTo,
+        bundle.user,
+        async () => (await resolveAgentAccess()) !== null
+      )
       await navigate({ href: targetPath, replace: true })
     },
     [navigate, sessionID]
