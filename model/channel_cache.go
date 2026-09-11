@@ -58,6 +58,13 @@ func InitChannelCache() {
 		}
 		groups := strings.SplitSeq(channel.Group, ",")
 		for group := range groups {
+			// A group may have no row in the abilities table at all (direct DB edits,
+			// a channel whose ability rows failed to be written). The inner map is
+			// only pre-created from abilities above, so guard it here or the
+			// assignment below panics and the process crashes on every sync tick.
+			if _, ok := newGroup2model2channels[group]; !ok {
+				newGroup2model2channels[group] = make(map[string][]int)
+			}
 			models := channel.GetModels()
 			for _, model := range models {
 				if _, ok := newGroup2model2channels[group][model]; !ok {
