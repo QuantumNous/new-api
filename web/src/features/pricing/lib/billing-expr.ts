@@ -29,6 +29,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import type { BillingUsageSchema } from '../types'
 import {
+  isTimeCondition,
   readTokenTierChain,
   readTaskTierChain,
   readTimeTokenPricing,
@@ -577,6 +578,36 @@ export function tryParseRequestRuleExpr(
   return groups
 }
 
+/** Display-only time rules may retain raw conditions that the rule editor cannot rebuild. */
+export function parseRequestRuleExprForDisplay(
+  expr: string
+): RequestRuleGroup[] | null {
+  const editable = tryParseRequestRuleExpr(expr)
+  if (editable) return editable
+  if (compileBillingExpression(expr).status !== 'ready') return null
+
+  const groups: RequestRuleGroup[] = []
+  for (const part of splitTopLevelMultiply(expr)) {
+    const group = tryParseRuleGroupFactor(part)
+    if (group) {
+      groups.push(group)
+      continue
+    }
+    const compiled = compileBillingExpression(part)
+    if (compiled.status !== 'ready') return null
+    const rule = compiled.requestRules.find(
+      (entry) => entry.node === compiled.ast
+    )
+    if (!rule || !isTimeCondition(rule.condition)) return null
+    groups.push({
+      conditions: [],
+      conditionText: rule.cond,
+      multiplier: String(rule.multiplier),
+    })
+  }
+  return groups
+}
+
 // ---------------------------------------------------------------------------
 // Combine / split billing expr and request rules
 // ---------------------------------------------------------------------------
@@ -597,9 +628,12 @@ export function splitBillingExprAndRequestRules(expr: string): {
 
   const ruleParts: string[] = []
   const baseParts: string[] = []
+  const allowTimeRules = compileBillingExpression(trimmed).status === 'ready'
 
   parts.forEach((part) => {
-    const parsed = tryParseRequestRuleExpr(part)
+    const parsed = allowTimeRules
+      ? parseRequestRuleExprForDisplay(part)
+      : tryParseRequestRuleExpr(part)
     if (parsed && parsed.length > 0) {
       ruleParts.push(part)
     } else {

@@ -28,10 +28,10 @@ import type {
 import {
   BILLING_PRICING_VARS,
   getCurrentTimePricingTiers,
+  parseRequestRuleExprForDisplay,
   parseTaskTiersFromExpr,
   parseTiersFromExpr,
   splitBillingExprAndRequestRules,
-  tryParseRequestRuleExpr,
   type BillingVar,
   type ParsedTaskTier,
   type ParsedTier,
@@ -242,7 +242,7 @@ export function hasDynamicRequestRules(model: PricingModel): boolean {
   const { requestRuleExpr } = splitBillingExprAndRequestRules(
     model.billing_expr || ''
   )
-  return Boolean(tryParseRequestRuleExpr(requestRuleExpr || '')?.length)
+  return Boolean(parseRequestRuleExprForDisplay(requestRuleExpr || '')?.length)
 }
 
 export function getDynamicPriceEntries(

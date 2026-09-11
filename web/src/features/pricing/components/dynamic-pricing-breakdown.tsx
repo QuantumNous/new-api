@@ -34,10 +34,10 @@ import {
   MATCH_LT,
   MATCH_RANGE,
   SOURCE_TIME,
+  parseRequestRuleExprForDisplay,
   parseTiersFromExpr,
   requestRuleGroupsFromTrace,
   splitBillingExprAndRequestRules,
-  tryParseRequestRuleExpr,
   type ParsedTaskTier,
   type ParsedTier,
   type RequestCondition,
@@ -306,7 +306,7 @@ export function DynamicPricingBreakdown({
     const parsedRules =
       requestRules != null
         ? requestRuleGroupsFromTrace(requestRules)
-        : tryParseRequestRuleExpr(split.requestRuleExpr || '')
+        : parseRequestRuleExprForDisplay(split.requestRuleExpr || '')
     return {
       tiers: parsedTiers,
       ruleGroups: parsedRules || [],
