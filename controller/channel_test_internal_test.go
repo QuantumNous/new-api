@@ -466,3 +466,48 @@ func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), existing.TaskID)
 	require.Contains(t, recorder.Body.String(), "已有通道测试任务正在运行或等待中")
 }
+
+func TestChannelKeyIndexRejectsNonMultiKeyChannel(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	channel := &model.Channel{
+		Type:   constant.ChannelTypeOpenAI,
+		Name:   "single key channel",
+		Key:    "test-key",
+		Status: common.ChannelStatusEnabled,
+	}
+	require.NoError(t, db.Create(channel).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Params = gin.Params{{Key: "id", Value: fmt.Sprintf("%d", channel.Id)}}
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/channel/test?key_index=0", nil)
+	ctx.Set("id", 1)
+
+	TestChannel(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "channel is not a multi-key channel, cannot test a specific key")
+}
+
+func TestChannelKeyIndexOutOfRange(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	channel := &model.Channel{
+		Type:        constant.ChannelTypeOpenAI,
+		Name:        "multi key channel",
+		Key:         "key-1\nkey-2",
+		Status:      common.ChannelStatusEnabled,
+		ChannelInfo: model.ChannelInfo{IsMultiKey: true},
+	}
+	require.NoError(t, db.Create(channel).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Params = gin.Params{{Key: "id", Value: fmt.Sprintf("%d", channel.Id)}}
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/channel/test?key_index=5", nil)
+	ctx.Set("id", 1)
+
+	TestChannel(ctx)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "key index 5 out of range")
+}

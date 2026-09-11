@@ -860,6 +860,14 @@ func TestChannel(c *gin.Context) {
 	endpointType := c.Query("endpoint_type")
 	isStream, _ := strconv.ParseBool(c.Query("stream"))
 	testAllKeys, _ := strconv.ParseBool(c.Query("all_keys"))
+	testKeyIndex := -1
+	if keyIndexStr := c.Query("key_index"); keyIndexStr != "" {
+		testKeyIndex, err = strconv.Atoi(keyIndexStr)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	testUserID, err := resolveChannelTestUserID(c)
 	if err != nil {
 		common.ApiError(c, err)
@@ -869,6 +877,12 @@ func TestChannel(c *gin.Context) {
 	requestCtx := context.Background()
 	if c.Request != nil {
 		requestCtx = c.Request.Context()
+	}
+
+	// Normalize zero threshold to disabled value (same as scheduled testing)
+	disableThreshold := int64(common.ChannelDisableThreshold * 1000)
+	if disableThreshold == 0 {
+		disableThreshold = 10000000
 	}
 
 	// Test all keys in a multi-key channel
@@ -881,11 +895,6 @@ func TestChannel(c *gin.Context) {
 			})
 			return
 		}
-		disableThreshold := int64(common.ChannelDisableThreshold * 1000)
-		// Normalize zero threshold to disabled value (same as scheduled testing)
-		if disableThreshold == 0 {
-			disableThreshold = 10000000
-		}
 		summary := testChannelAllKeysForHealthCheck(requestCtx, channel, testUserID, true, disableThreshold)
 		tok := time.Now()
 		milliseconds := tok.Sub(tik).Milliseconds()
@@ -893,12 +902,12 @@ func TestChannel(c *gin.Context) {
 
 		if summary.Tested == 0 {
 			c.JSON(http.StatusOK, gin.H{
-				"success":  false,
-				"message":  "no keys available",
-				"time":     consumedTime,
-				"tested":   0,
+				"success":   false,
+				"message":   "no keys available",
+				"time":      consumedTime,
+				"tested":    0,
 				"succeeded": 0,
-				"failed":   0,
+				"failed":    0,
 			})
 			return
 		}
@@ -914,6 +923,80 @@ func TestChannel(c *gin.Context) {
 			"disabled":  summary.Disabled,
 			"enabled":   summary.Enabled,
 		})
+		return
+	}
+
+	// Test a specific key in a multi-key channel
+	if testKeyIndex >= 0 {
+		if !channel.ChannelInfo.IsMultiKey {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "channel is not a multi-key channel, cannot test a specific key",
+				"time":    0.0,
+			})
+			return
+		}
+		keys := channel.GetKeys()
+		if testKeyIndex >= len(keys) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": fmt.Sprintf("key index %d out of range", testKeyIndex),
+				"time":    0.0,
+			})
+			return
+		}
+
+		result := testChannelWithKeyIndex(requestCtx, channel, testUserID, testKeyIndex, shouldUseStreamForAutomaticChannelTest(channel))
+		milliseconds := result.responseTime
+		consumedTime := float64(milliseconds) / 1000.0
+
+		// Mirror the per-key disable/enable logic used by the all-keys flow.
+		newAPIError := result.newAPIError
+		shouldBanKey := newAPIError != nil && service.ShouldDisableChannel(newAPIError)
+		if common.AutomaticDisableChannelEnabled && !shouldBanKey {
+			if result.responseTime > disableThreshold {
+				err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(result.responseTime)/1000.0, float64(disableThreshold)/1000.0)
+				newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
+				shouldBanKey = true
+			}
+		}
+
+		if result.localErr == nil && newAPIError == nil {
+			// Key is healthy; re-enable it if it was previously disabled.
+			if statusList := channel.ChannelInfo.MultiKeyStatusList; statusList != nil {
+				if status, ok := statusList[testKeyIndex]; ok && status != common.ChannelStatusEnabled {
+					service.EnableChannel(channel.Id, keys[testKeyIndex], channel.Name)
+				}
+			}
+			go channel.UpdateResponseTime(milliseconds)
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "",
+				"time":    consumedTime,
+			})
+			return
+		}
+
+		// Disable the key if it should be banned.
+		if shouldBanKey && channel.GetAutoBan() {
+			processChannelError(result.context, *types.NewChannelError(channel.Id, channel.Type, channel.Name, true, common.GetContextKeyString(result.context, constant.ContextKeyChannelKey), channel.GetAutoBan()), newAPIError, nil)
+		}
+
+		resp := gin.H{
+			"success": false,
+			"message": "",
+			"time":    consumedTime,
+		}
+		if result.localErr != nil {
+			resp["message"] = result.localErr.Error()
+		} else if newAPIError != nil {
+			resp["message"] = newAPIError.Error()
+			resp["error_code"] = newAPIError.GetErrorCode()
+			if newAPIError.StatusCode > 0 {
+				resp["status_code"] = newAPIError.StatusCode
+			}
+		}
+		c.JSON(http.StatusOK, resp)
 		return
 	}
 
@@ -1055,8 +1138,8 @@ func testChannelAllKeysForHealthCheck(ctx context.Context, channel *model.Channe
 		index int
 	}
 	type keyResult struct {
-		index    int
-		result   channelKeyTestResult
+		index  int
+		result channelKeyTestResult
 	}
 
 	jobs := make(chan keyJob, len(keys))

@@ -53,6 +53,7 @@ import {
   disableAllMultiKeys,
   deleteDisabledMultiKeys,
   testChannelAllKeys,
+  testChannelKey,
 } from '../../api'
 import { MULTI_KEY_FILTER_OPTIONS } from '../../constants'
 import {
@@ -103,6 +104,7 @@ export function MultiKeyManageDialog({
     useState<MultiKeyConfirmAction | null>(null)
   const [isPerformingAction, setIsPerformingAction] = useState(false)
   const [isTestingAllKeys, setIsTestingAllKeys] = useState(false)
+  const [testingKeyIndex, setTestingKeyIndex] = useState<number | null>(null)
 
   // Reset and load data when dialog opens
   useEffect(() => {
@@ -205,6 +207,42 @@ export function MultiKeyManageDialog({
       )
     } finally {
       setIsTestingAllKeys(false)
+    }
+  }
+
+  const handleTestKey = async (keyIndex: number) => {
+    if (!currentRow) return
+
+    setTestingKeyIndex(keyIndex)
+    try {
+      const response = await testChannelKey(currentRow.id, keyIndex)
+      if (response.success) {
+        toast.success(t('Key test completed'))
+      } else {
+        // Build detailed error message
+        let errorMsg = response.message || t('Test failed')
+        const details: string[] = []
+        if (response.status_code) {
+          details.push(`HTTP ${response.status_code}`)
+        }
+        if (response.error_code) {
+          details.push(response.error_code)
+        }
+        if (details.length > 0) {
+          errorMsg += ` [${details.join(', ')}]`
+        }
+        toast.error(errorMsg)
+      }
+
+      // Always refresh state after test (auto disable/enable may change key status)
+      loadKeyStatus(currentPage, pageSize)
+      queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Test failed')
+      )
+    } finally {
+      setTestingKeyIndex(null)
     }
   }
 
@@ -493,6 +531,9 @@ export function MultiKeyManageDialog({
                         keyIndex={key.index}
                         status={key.status}
                         canDelete={canEditSensitive}
+                        isTesting={testingKeyIndex === key.index}
+                        disabled={testingKeyIndex !== null}
+                        onTest={handleTestKey}
                         onAction={setConfirmAction}
                       />
                     ),
