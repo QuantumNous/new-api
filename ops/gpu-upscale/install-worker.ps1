@@ -4,7 +4,7 @@ $runner=Join-Path $PSScriptRoot 'run-worker.ps1'
 if (!(Test-Path (Join-Path $PSScriptRoot 'config.json'))) { throw 'Missing private config.json' }
 $existing=Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
 if ($existing -and $existing.State -eq 'Running') {
-    if (Test-Path (Join-Path $PSScriptRoot 'worker-state\job.json')) { throw 'Worker is processing a job; wait before reinstalling' }
+    if (Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'worker-state') -Filter '*.json' -ErrorAction SilentlyContinue) { throw 'Worker is processing a job; wait before reinstalling' }
     Stop-ScheduledTask -TaskName $TaskName
     for ($attempt=0; $attempt -lt 20; $attempt++) {
         if ((Get-ScheduledTask -TaskName $TaskName).State -ne 'Running') { break }

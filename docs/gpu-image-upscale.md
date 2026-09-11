@@ -29,6 +29,10 @@ API 服务器保存短期超分任务；节点常驻并主动通过 HTTPS 领取
 
 在已安装 Real-ESRGAN 的 Windows 目录下建立 `relay-worker`，放入 `worker.py`、`run-worker.ps1`、`install-worker.ps1` 和下载后命名为 `config.json` 的私有配置。父目录应有 `upscale.py`、`.venv` 和 `engine`。
 
+流水线版本还需要同目录的 `pipeline.py`、`gpu_render.py`。最多保留 3 个节点在途任务，线程间只对 GPU 引擎加锁，下载、后处理和上传可与其他任务计算重叠。每个任务使用独立持久化 JSON、原子写入结果文件；上传重试复用结果。重启和安装前必须检查 `worker-state/*.json`，不能仅检查旧版 `job.json`。
+
+2026-09-12 单卡优化实测（既有 user-b467d84f 图片，不调用收费上游）：同一输入旧流程/新流程的本地处理耗时，2K 为 6.625/5.046 秒，4K 为 16.297/8.907 秒。逐像素 RGB 比较一致；4K 无损传输文件为 7,002,160/8,111,864 字节。新流程省掉输出 PNG 重存并使用 WebP lossless method=0，改善编码速度但增大文件，公网总耗时收益取决于链路速度。`engine_s` 包括引擎进程启动、计算及引擎 PNG 输出，不能称为纯 GPU 推理耗时。日志新增 download_s、gpu_wait_s、engine_s、encode_s、upload_ack_s、total_s；不将模拟测试或本地计时当作生产端到端吞吐证明。单卡流水线不代表支持 800 同时计算，服务器 4 个在途限制仍保留。
+
 管理员 PowerShell 执行 `install-worker.ps1`。任务名 `HardyImageUpscaleWorker`，使用当前用户的受限 S4U 任务，开机启动、退出重启，允许单实例。运行时阻止自动休眠，显示器可关闭；不更改永久电源计划。
 
 24 小时运行配置同时增加每 5 分钟重复触发。任务正常运行时由单实例策略忽略重复触发；进程意外退出且内置重启失效时，下一次触发会重新启动。内置重启间隔 1 分钟、最多 999 次，并启用 WakeToRun。Windows 插电状态的睡眠与休眠必须保持为“从不”；断电后能否自动开机仍由主板 BIOS 的 Restore on AC Power Loss 设置决定。

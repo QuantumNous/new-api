@@ -5,13 +5,12 @@ import logging
 import time
 import urllib.error
 import urllib.request
-import uuid
 import ctypes
 import msvcrt
 import os
 from pathlib import Path
-from PIL import Image
-from upscale import upscale
+from gpu_render import render
+from pipeline import Pipeline
 
 
 def main():
@@ -40,7 +39,6 @@ def main():
         msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
     except OSError as exc:
         raise SystemExit('Another upscale worker is already running') from exc
-    state = work / 'job.json'
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     connection_failed = False
 
@@ -61,67 +59,21 @@ def main():
                 raise ValueError('Response exceeds limit')
             return body
 
-    while True:
-        job = None
-        try:
-            if state.exists():
-                job = json.loads(state.read_text())
-            else:
-                body = request('/claim', b'')
+    pipeline = Pipeline(work, request, render)
+    try:
+        while True:
+            try:
+                pipeline.tick()
                 if connection_failed:
                     logging.info('Server connection restored; receiving tasks again')
                     connection_failed = False
-                if not body:
-                    time.sleep(2)
-                    continue
-                job = json.loads(body)
-                # Never allow server-provided paths or commands.
-                uuid.UUID(job['id'])
-                uuid.UUID(job['lease'])
-                if job['target'] not in (2048, 4096):
-                    raise ValueError('Invalid target')
-                state.write_text(json.dumps(job), encoding='utf-8')
-            inp, out = work/(job['id']+'.input.png'), work/(job['id']+'.output.png')
-            transport = work/(job['id']+'.transport.webp')
-            if not out.exists():
-                inp.write_bytes(request('/'+job['id']+'/input', lease=job['lease']))
-                try:
-                    upscale(inp, out, job['target'])
-                except Exception:
-                    request('/'+job['id']+'/fail', b'', job['lease'])
-                    state.unlink(missing_ok=True)
-                    inp.unlink(missing_ok=True)
-                    out.unlink(missing_ok=True)
-                    logging.error('GPU processing failed for job %s', job['id'])
-                    continue
-            if not transport.exists():
-                with Image.open(out) as im:
-                    im.save(transport, 'WEBP', lossless=True, method=4)
-            request('/'+job['id']+'/result', transport.read_bytes(), job['lease'])
-            state.unlink(missing_ok=True)
-            inp.unlink(missing_ok=True)
-            out.unlink(missing_ok=True)
-            transport.unlink(missing_ok=True)
-            logging.info('Completed job %s', job['id'])
-        except urllib.error.HTTPError as exc:
-            if job and exc.code in (413, 422):
-                try:
-                    request('/'+job['id']+'/fail', b'', job['lease'])
-                except Exception:
-                    time.sleep(5)
-                    continue
-            if job and exc.code in (404, 409, 410, 413, 422):
-                state.unlink(missing_ok=True)
-                (work/(job['id']+'.input.png')).unlink(missing_ok=True)
-                (work/(job['id']+'.output.png')).unlink(missing_ok=True)
-                (work/(job['id']+'.transport.webp')).unlink(missing_ok=True)
-            connection_failed = True
-            logging.warning('Worker HTTP status %s; retrying in 2 seconds', exc.code)
+            except Exception as exc:
+                connection_failed = True
+                logging.warning('Polling error (%s); retrying in 2 seconds', type(exc).__name__)
             time.sleep(2)
-        except Exception as exc:
-            connection_failed = True
-            logging.warning('Worker error (%s); retrying in 2 seconds', type(exc).__name__)
-            time.sleep(2)
+    finally:
+        pipeline.pool.shutdown(wait=True)
+        lock_file.close()
 
 
 if __name__ == '__main__':
