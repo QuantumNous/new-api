@@ -151,6 +151,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return fmt.Sprintf("%s/%s/models/%s:%s", info.ChannelBaseUrl, version, info.UpstreamModelName, action), nil
 	}
 
+	if info.IsGeminiCountTokens {
+		return fmt.Sprintf("%s/%s/models/%s:countTokens", info.ChannelBaseUrl, version, info.UpstreamModelName), nil
+	}
+
 	action := "generateContent"
 	if info.IsStream {
 		action = "streamGenerateContent?alt=sse"
