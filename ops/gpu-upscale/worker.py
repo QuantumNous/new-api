@@ -42,6 +42,7 @@ def main():
         raise SystemExit('Another upscale worker is already running') from exc
     state = work / 'job.json'
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    connection_failed = False
 
     def request(path, data=None, lease=None):
         headers = {
@@ -52,7 +53,9 @@ def main():
         if lease:
             headers['X-Upscale-Lease'] = lease
         req = urllib.request.Request(base + path, data=data, headers=headers)
-        with opener.open(req, timeout=600) as response:
+        # Polling must reconnect promptly; large image transfers need longer.
+        timeout = 15 if path == '/claim' else 120
+        with opener.open(req, timeout=timeout) as response:
             body = response.read(32 * 1024 * 1024 + 1)
             if len(body) > 32 * 1024 * 1024:
                 raise ValueError('Response exceeds limit')
@@ -65,6 +68,9 @@ def main():
                 job = json.loads(state.read_text())
             else:
                 body = request('/claim', b'')
+                if connection_failed:
+                    logging.info('Server connection restored; receiving tasks again')
+                    connection_failed = False
                 if not body:
                     time.sleep(2)
                     continue
@@ -109,11 +115,13 @@ def main():
                 (work/(job['id']+'.input.png')).unlink(missing_ok=True)
                 (work/(job['id']+'.output.png')).unlink(missing_ok=True)
                 (work/(job['id']+'.transport.webp')).unlink(missing_ok=True)
-            logging.warning('Worker HTTP status %s; retrying', exc.code)
-            time.sleep(5)
+            connection_failed = True
+            logging.warning('Worker HTTP status %s; retrying in 2 seconds', exc.code)
+            time.sleep(2)
         except Exception as exc:
-            logging.warning('Worker error (%s); retrying', type(exc).__name__)
-            time.sleep(5)
+            connection_failed = True
+            logging.warning('Worker error (%s); retrying in 2 seconds', type(exc).__name__)
+            time.sleep(2)
 
 
 if __name__ == '__main__':
