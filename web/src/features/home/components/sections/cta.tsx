@@ -18,8 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
-import { useStatus } from '@/hooks/use-status'
-
 import { HomeLink } from '../home-link'
 
 interface CTAProps {
@@ -31,9 +29,6 @@ const HOME_BRAND_NAME = 'Lighting'
 
 export function CTA(props: CTAProps) {
   const { t } = useTranslation()
-  const { status } = useStatus()
-  const docsUrl =
-    (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
 
   return (
     <section className='home-cta' id='contact'>
@@ -58,12 +53,6 @@ export function CTA(props: CTAProps) {
               {props.isAuthenticated
                 ? t('Go to Dashboard')
                 : t('Get integration plan')}
-            </HomeLink>
-            <HomeLink
-              href={docsUrl}
-              className='home-button home-button-secondary home-button-large'
-            >
-              {t('View API docs')}
             </HomeLink>
           </div>
         </div>

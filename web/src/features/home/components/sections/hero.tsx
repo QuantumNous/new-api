@@ -54,8 +54,6 @@ const HOME_LOGO = '/lighting-logo.png'
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
   const { status } = useStatus()
-  const docsUrl =
-    (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
   let configuredServerAddress = ''
   if (typeof status?.server_address === 'string') {
     configuredServerAddress = status.server_address
@@ -108,12 +106,6 @@ export function Hero(props: HeroProps) {
                 {t('Contact advisor')}
               </HomeLink>
             )}
-            <HomeLink
-              href={docsUrl}
-              className='home-button home-button-secondary home-button-large'
-            >
-              {t('View docs')}
-            </HomeLink>
           </div>
 
           <div className='home-proof-grid' aria-label={t('Platform facts')}>

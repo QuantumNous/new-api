@@ -25,8 +25,6 @@ import { HomeLink } from './home-link'
 export function HomeFooter() {
   const { t } = useTranslation()
   const { status } = useStatus()
-  const docsUrl =
-    (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
   const displayName = (status?.system_name as string | undefined) || 'Lighting'
   const currentYear = new Date().getFullYear()
 
@@ -57,9 +55,6 @@ export function HomeFooter() {
             <div className='home-footer-link-group'>
               <p className='home-footer-heading'>{t('Platform')}</p>
               <div className='home-footer-links'>
-                <HomeLink href={docsUrl} className='home-footer-link'>
-                  {t('Docs')}
-                </HomeLink>
                 <HomeLink href='/dashboard' className='home-footer-link'>
                   {t('Console')}
                 </HomeLink>
