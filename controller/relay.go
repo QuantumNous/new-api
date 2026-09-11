@@ -98,6 +98,10 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			safeError := newAPIError.MaskSensitiveErrorWithStatusCode()
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(safeError)))
 			metadata := map[string]any{"retry_count": c.GetInt("retry_count"), "use_channel": c.GetStringSlice("use_channel"), "status_code": newAPIError.StatusCode}
+			durationMS := 0
+			if startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime); !startTime.IsZero() {
+				durationMS = int(time.Since(startTime).Milliseconds())
+			}
 			traceID := c.GetString("trace_id")
 			if traceID == "" {
 				traceID = c.GetHeader("X-Trace-ID")
@@ -115,7 +119,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 					return relayInfo.OriginModelName
 				}
 				return ""
-			}(), Status: "error", Error: common.LocalLogPreview(safeError), Metadata: metadata})
+			}(), DurationMS: durationMS, Status: "error", Error: common.LocalLogPreview(safeError), Metadata: metadata})
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:

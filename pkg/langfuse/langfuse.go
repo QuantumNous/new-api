@@ -69,6 +69,7 @@ type Reporter struct {
 	stop      chan struct{}
 	wg        sync.WaitGroup
 	once      sync.Once
+	stateMu   sync.Mutex
 	workerCtx context.Context
 	cancel    context.CancelFunc
 	closed    atomic.Bool
@@ -201,6 +202,18 @@ func NewReporter(config Config) *Reporter {
 	if r.client == nil {
 		r.client = &http.Client{Timeout: config.Timeout}
 	}
+	clientCopy := *r.client
+	previousRedirectHandler := clientCopy.CheckRedirect
+	clientCopy.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if req.URL == nil || req.URL.Scheme != "https" {
+			return fmt.Errorf("refusing non-HTTPS Langfuse redirect")
+		}
+		if previousRedirectHandler != nil {
+			return previousRedirectHandler(req, via)
+		}
+		return nil
+	}
+	r.client = &clientCopy
 	if config.Enabled && config.PublicKey != "" && config.SecretKey != "" && config.SampleRate > 0 {
 		r.wg.Add(1)
 		go r.run()
@@ -210,7 +223,12 @@ func NewReporter(config Config) *Reporter {
 
 // Publish queues an event without blocking the caller when the queue is full.
 func (r *Reporter) Publish(event Event) {
-	if r == nil || !r.configured() || r.closed.Load() || !sample(r.config.SampleRate) {
+	if r == nil {
+		return
+	}
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+	if !r.configured() || r.closed.Load() || !sample(r.config.SampleRate) {
 		return
 	}
 	select {
@@ -262,9 +280,12 @@ func (r *Reporter) Close(ctx context.Context) error {
 	if r == nil || !r.configured() {
 		return nil
 	}
+	r.stateMu.Lock()
 	if !r.closed.CompareAndSwap(false, true) {
+		r.stateMu.Unlock()
 		return nil
 	}
+	r.stateMu.Unlock()
 	flushDone := make(chan struct{})
 	go func() {
 		_ = r.Flush(ctx)
@@ -404,7 +425,7 @@ func (r *Reporter) send(ctx context.Context, events []Event) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return &httpError{status: resp.StatusCode}
 	}

@@ -90,6 +90,27 @@ func TestReporterRejectsInsecureHost(t *testing.T) {
 	assert.Contains(t, err.Error(), "HTTPS")
 }
 
+func TestReporterRejectsHTTPRedirectBeforeSendingCredentials(t *testing.T) {
+	var targetCalled bool
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		targetCalled = true
+		assert.Empty(t, r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer target.Close()
+
+	source := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusFound)
+	}))
+	defer source.Close()
+
+	reporter := NewReporter(Config{Enabled: true, Host: source.URL, PublicKey: "p", SecretKey: "s", SampleRate: 1, HTTPClient: source.Client()})
+	err := reporter.send(context.Background(), []Event{{RequestID: "redirect"}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "non-HTTPS Langfuse redirect")
+	assert.False(t, targetCalled)
+}
+
 func TestReporterCloseIsIdempotent(t *testing.T) {
 	reporter := NewReporter(Config{Enabled: true, Host: "https://127.0.0.1:1", PublicKey: "p", SecretKey: "s", SampleRate: 1, QueueSize: 1, BatchSize: 1})
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
