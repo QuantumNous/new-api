@@ -34,7 +34,7 @@ def main():
     state = work / 'job.json'
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
-    def request(path, data=None, lease=None):
+    def request(path, data=None, lease=None, extra_headers=None):
         headers = {
             'Authorization': 'Bearer ' + token,
             'User-Agent': 'Hardy-GPU-Worker/1.0',
@@ -42,6 +42,8 @@ def main():
         }
         if lease:
             headers['X-Upscale-Lease'] = lease
+        if extra_headers:
+            headers.update(extra_headers)
         req = urllib.request.Request(base + path, data=data, headers=headers)
         with opener.open(req, timeout=600) as response:
             body = response.read(32 * 1024 * 1024 + 1)
@@ -74,13 +76,17 @@ def main():
                 uuid.UUID(job['lease'])
                 if job['target'] not in (2048, 4096):
                     raise ValueError('Invalid target')
+                if job.get('output_format') not in ('png', 'webp'):
+                    raise ValueError('Invalid output format')
                 state.write_text(json.dumps(job), encoding='utf-8')
             inp, out = work/(job['id']+'.input.png'), work/(job['id']+'.output.png')
             transport = work/(job['id']+'.transport.webp')
             if not out.exists():
                 inp.write_bytes(request('/'+job['id']+'/input', lease=job['lease']))
                 try:
-                    upscale(inp, out, job['target'])
+                    report = upscale(inp, out, job['target'])
+                    job['compute_ms'] = round(float(report['seconds']) * 1000)
+                    state.write_text(json.dumps(job), encoding='utf-8')
                 except Exception:
                     request('/'+job['id']+'/fail', b'', job['lease'])
                     state.unlink(missing_ok=True)
@@ -89,9 +95,16 @@ def main():
                     logging.error('GPU processing failed for job %s', job['id'])
                     continue
             if not transport.exists():
+                encode_started = time.monotonic()
                 with Image.open(out) as im:
-                    im.save(transport, 'WEBP', lossless=True, method=4)
-            request('/'+job['id']+'/result', transport.read_bytes(), job['lease'])
+                    im.save(transport, 'WEBP', quality=100, method=4)
+                job['encode_ms'] = round((time.monotonic() - encode_started) * 1000)
+                state.write_text(json.dumps(job), encoding='utf-8')
+            timings = {
+                'X-Upscale-Compute-Ms': str(max(0, int(job.get('compute_ms', 0)))),
+                'X-Upscale-Encode-Ms': str(max(0, int(job.get('encode_ms', 0)))),
+            }
+            request('/'+job['id']+'/result', transport.read_bytes(), job['lease'], timings)
             state.unlink(missing_ok=True)
             inp.unlink(missing_ok=True)
             out.unlink(missing_ok=True)

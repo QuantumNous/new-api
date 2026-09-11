@@ -73,14 +73,20 @@ func TestLiveGPUUpscaleWorker(t *testing.T) {
 	require.NoError(t, err)
 	for _, target := range []int{2048, 4096} {
 		started := time.Now()
-		result, err := service.UpscaleImageResponse(context.Background(), body, target)
+		result, err := service.UpscaleImageResponse(context.Background(), body, target, "webp")
 		require.NoError(t, err)
 		data, err := base64.StdEncoding.DecodeString(gjson.GetBytes(result, "data.0.b64_json").String())
 		require.NoError(t, err)
-		actual, _, err := image.DecodeConfig(bytes.NewReader(data))
+		actual, format, err := image.DecodeConfig(bytes.NewReader(data))
 		require.NoError(t, err)
 		require.Equal(t, target, actual.Width)
 		require.Equal(t, target*9/16, actual.Height)
-		t.Logf("Real GPU result %dx%d, end-to-end %s", actual.Width, actual.Height, time.Since(started).Round(time.Millisecond))
+		require.Equal(t, "webp", format)
+		timing := gjson.GetBytes(result, "data.0.upscale")
+		require.Equal(t, "webp-quality-100", timing.Get("transport").String())
+		require.Positive(t, timing.Get("compute_ms").Int())
+		require.Positive(t, timing.Get("encode_ms").Int())
+		require.Positive(t, timing.Get("transport_bytes").Int())
+		t.Logf("Real GPU result %dx%d, end-to-end %s, timing %s", actual.Width, actual.Height, time.Since(started).Round(time.Millisecond), timing.Raw)
 	}
 }
