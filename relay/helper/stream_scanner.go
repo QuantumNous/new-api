@@ -254,10 +254,15 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			if len(data) < 6 {
 				continue
 			}
-			if data[:5] != "data:" && data[:6] != "[DONE]" {
+			// 标准 SSE 帧以 "data:" 前缀下发;部分上游(如 Console Go 网关的某些
+			// 模型)直接输出无前缀的裸 JSON 行,如 {"type":"content_block_delta",...}。
+			// 二者都按数据帧转发;空对象 "{}" 心跳帧已被 len<6 提前过滤。
+			if data[:5] != "data:" && data[:6] != "[DONE]" && data[0] != '{' {
 				continue
 			}
-			data = data[5:]
+			if strings.HasPrefix(data, "data:") {
+				data = data[5:]
+			}
 			data = strings.TrimSpace(data)
 			if data == "" {
 				continue

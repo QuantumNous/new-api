@@ -211,6 +211,57 @@ func TestStreamScannerHandler_DataWithExtraSpaces(t *testing.T) {
 	assert.Equal(t, "{\"trimmed\":true}", got)
 }
 
+func TestStreamScannerHandler_BareJSONFrames(t *testing.T) {
+	t.Parallel()
+
+	// Some upstreams (e.g. the Console Go gateway for certain models) emit
+	// stream frames as bare JSON lines without the "data:" SSE prefix.
+	var b strings.Builder
+	for i := 0; i < 3; i++ {
+		b.WriteString("{}\n") // heartbeat frames, must be skipped
+	}
+	b.WriteString("{\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"hello\"}}\n")
+	b.WriteString("{\"type\":\"message_delta\"}\n")
+	// No [DONE]; stream ends by EOF.
+
+	c, resp, info := setupStreamTest(t, strings.NewReader(b.String()))
+
+	var mu sync.Mutex
+	var got []string
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		mu.Lock()
+		got = append(got, data)
+		mu.Unlock()
+	})
+
+	require.Equal(t, []string{
+		"{\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"hello\"}}",
+		"{\"type\":\"message_delta\"}",
+	}, got, "bare JSON frames should be forwarded, {} heartbeats skipped")
+}
+
+func TestStreamScannerHandler_MixedSSEAndBareJSON(t *testing.T) {
+	t.Parallel()
+
+	body := "data: {\"sse\":true}\n" +
+		"{\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"hi\"}}\n" +
+		"data: [DONE]\n"
+	c, resp, info := setupStreamTest(t, strings.NewReader(body))
+
+	var mu sync.Mutex
+	var got []string
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		mu.Lock()
+		got = append(got, data)
+		mu.Unlock()
+	})
+
+	require.Equal(t, []string{
+		"{\"sse\":true}",
+		"{\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"hi\"}}",
+	}, got, "both SSE-prefixed and bare JSON frames should be forwarded")
+}
+
 // TestStreamScannerHandler_ClientCancelAbortsUpstreamAndReturns pins the
 // disconnect contract: when the client goes away, the handler must return
 // promptly (all goroutines joined, so the gin.Context can never leak into a
