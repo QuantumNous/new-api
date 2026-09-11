@@ -54,6 +54,7 @@ function GatewayPluginIcon(props: PluginIconProps) {
     },
     staleTime: 5 * 60 * 1000,
     retry: false,
+    meta: { errorToast: false },
   })
   const [image, setImage] = useState<{ blob: Blob; src: string } | null>(null)
   useEffect(() => {

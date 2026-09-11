@@ -312,10 +312,7 @@ func WriteRefreshCookie(c *gin.Context, rawToken string) {
 			expiresAt = time.Unix(session.ExpiresAt, 0)
 		}
 	}
-	maxAge := int(time.Until(expiresAt) / time.Second)
-	if maxAge < 1 {
-		maxAge = 1
-	}
+	maxAge := max(int(time.Until(expiresAt)/time.Second), 1)
 	http.SetCookie(c.Writer, &http.Cookie{
 		Name:     RefreshCookieName,
 		Value:    rawToken,

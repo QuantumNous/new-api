@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math"
+	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -27,6 +30,7 @@ export function sign(ctx) {
     encoded: utils.base64(ctx.message),
   };
 }
+
 export const meta = { apiVersion: 1, key: "mock" };
 `, Options{
 		Key: "mock", Version: "1.0.0",
@@ -47,6 +51,152 @@ export const meta = { apiVersion: 1, key: "mock" };
 	meta, err := engine.Export(context.Background(), "meta")
 	require.NoError(t, err)
 	assert.Equal(t, map[string]any{"apiVersion": int64(1), "key": "mock"}, meta)
+}
+
+func TestEngineJSONCloneProducesIndependentNativeContainers(t *testing.T) {
+	engine, err := Compile(`
+export function clone(input) {
+  const result = utils.json.clone(input);
+  result.items.push({text:"appended"});
+  result.items[0].text = "changed";
+  return {result, array:Array.isArray(result.items),
+    prototype:Object.getPrototypeOf(result) === Object.prototype,
+    ownProto:Object.prototype.hasOwnProperty.call(result,"__proto__"),
+    available:utils.hasCapability("json-clone@1"), unavailable:utils.hasCapability("json-clone@2")};
+}
+export function invalid(kind) {
+  let value;
+  switch(kind) {
+    case "cycle": value={}; value.self=value; break;
+    case "function": value={run:function(){}}; break;
+    case "undefined": value={missing:undefined}; break;
+    case "nan": value=NaN; break;
+    case "bigint": value=1n; break;
+    case "date": value=new Date(); break;
+    case "sparse": value=[,1]; break;
+    case "size": value="<".repeat(200000); break;
+    case "nodes": value=new Array(32768).fill(0); break;
+  }
+  return utils.json.clone(value);
+}`, Options{})
+	require.NoError(t, err)
+	input := map[string]any{"items": []any{map[string]any{"text": "original"}}, "__proto__": map[string]any{"marker": "data"}, "zero": math.Copysign(0, -1)}
+	value, err := engine.Call(t.Context(), "clone", input)
+	require.NoError(t, err)
+	result := value.(map[string]any)
+	assert.Equal(t, true, result["array"])
+	assert.Equal(t, true, result["prototype"])
+	assert.Equal(t, true, result["ownProto"])
+	assert.Equal(t, true, result["available"])
+	assert.Equal(t, false, result["unavailable"])
+	cloned := result["result"].(map[string]any)
+	assert.Equal(t, []any{map[string]any{"text": "changed"}, map[string]any{"text": "appended"}}, cloned["items"])
+	assert.Equal(t, map[string]any{"marker": "data"}, cloned["__proto__"])
+	assert.True(t, math.Signbit(cloned["zero"].(float64)))
+	assert.Equal(t, []any{map[string]any{"text": "original"}}, input["items"])
+	for _, kind := range []string{"cycle", "function", "undefined", "nan", "bigint", "date", "sparse", "size", "nodes"} {
+		t.Run(kind, func(t *testing.T) {
+			_, err := engine.Call(t.Context(), "invalid", kind)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestJSONStateChangesAndEncodedLimits(t *testing.T) {
+	const changes = `[
+  [{"op":"set","path":[],"value":{"text":"<","parts":[],"nested":{"value":null}}}],
+  [{"op":"appendText","path":["text"],"value":"&\n\"图像😀\u2028"},
+   {"op":"append","path":["parts"],"value":{"text":"a","enabled":false}},
+   {"op":"set","path":["nested","value"],"value":[1,2]}],
+  [{"op":"appendText","path":["parts",0,"text"],"value":"b"},
+   {"op":"set","path":["nested","value",0],"value":0},
+   {"op":"set","path":["nested","a<b"],"value":{}}]
+]`
+	var frames []any
+	require.NoError(t, common.UnmarshalJsonStr(changes, &frames))
+	const expected = `{"text":"<&\n\"图像😀\u2028","parts":[{"text":"ab","enabled":false}],"nested":{"value":[0,2],"a<b":{}}}`
+	var want any
+	require.NoError(t, common.UnmarshalJsonStr(expected, &want))
+	encoded, err := common.Marshal(want)
+	require.NoError(t, err)
+	state := NewJSONState(len(encoded))
+	for _, frame := range frames {
+		require.NoError(t, state.Apply(t.Context(), frame))
+		_, err = state.Value()
+		require.NoError(t, err, "every intermediate frame must match the codec's actual byte size")
+	}
+	value, err := state.Value()
+	require.NoError(t, err)
+	assert.Equal(t, want, value)
+	// One extra byte fails at the update boundary and invalidates publication.
+	require.Error(t, state.Apply(t.Context(), []any{map[string]any{"op": "appendText", "path": []any{"text"}, "value": "x"}}))
+	_, err = state.Value()
+	require.Error(t, err)
+
+	t.Run("replacement releases byte and node budget", func(t *testing.T) {
+		state := NewJSONState(16)
+		for _, value := range []any{"abcdefghijklmn", map[string]any{}, []any{int64(0), false, nil}, []any(nil), map[string]any(nil)} {
+			require.NoError(t, state.Apply(t.Context(), []any{map[string]any{"op": "set", "path": []any{}, "value": value}}))
+			_, err := state.Value()
+			require.NoError(t, err)
+		}
+	})
+	t.Run("encoded limit includes HTML escaping", func(t *testing.T) {
+		state := NewJSONState(13)
+		require.NoError(t, state.Apply(t.Context(), []any{map[string]any{"op": "set", "path": []any{}, "value": "<"}}))
+		require.Error(t, state.Apply(t.Context(), []any{map[string]any{"op": "appendText", "path": []any{}, "value": "<"}}))
+	})
+	t.Run("invalid UTF-8 follows codec normalization", func(t *testing.T) {
+		state := NewJSONState(8)
+		require.NoError(t, state.Apply(t.Context(), []any{
+			map[string]any{"op": "set", "path": []any{}, "value": string([]byte{0xff})},
+			map[string]any{"op": "appendText", "path": []any{}, "value": string([]byte{0xfe})},
+		}))
+		value, err := state.Value()
+		require.NoError(t, err)
+		assert.Equal(t, "\ufffd\ufffd", value)
+	})
+	t.Run("request cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		state := NewJSONState(64)
+		require.ErrorIs(t, state.Apply(ctx, []any{}), context.Canceled)
+	})
+	t.Run("bounded operation and result complexity", func(t *testing.T) {
+		many := make([]any, 257)
+		for index := range many {
+			many[index] = map[string]any{"op": "set", "path": []any{}, "value": nil}
+		}
+		require.Error(t, NewJSONState(1024).Apply(t.Context(), many))
+		var deep any = nil
+		for range 33 {
+			deep = []any{deep}
+		}
+		for _, value := range []any{deep, make([]any, 32768), math.Inf(1)} {
+			state := NewJSONState(1 << 20)
+			require.Error(t, state.Apply(t.Context(), []any{map[string]any{"op": "set", "path": []any{}, "value": value}}))
+		}
+	})
+	for _, invalid := range []string{
+		`[{"op":"remove","path":[],"value":null}]`,
+		`[{"op":"set","path":[],"value":null,"extra":true}]`,
+		`[{"op":"set","path":["missing","child"],"value":1}]`,
+		`[{"op":"set","path":["parts",-1],"value":1}]`,
+		`[{"op":"set","path":["parts",0.5],"value":1}]`,
+		`[{"op":"set","path":["parts",100000000000000000000],"value":1}]`,
+		`[{"op":"appendText","path":["parts"],"value":"x"}]`,
+		`[{"op":"append","path":["text"],"value":"x"}]`,
+	} {
+		t.Run(invalid, func(t *testing.T) {
+			state := NewJSONState(1024)
+			require.NoError(t, state.Apply(t.Context(), frames[0]))
+			var changes any
+			require.NoError(t, common.UnmarshalJsonStr(invalid, &changes))
+			require.Error(t, state.Apply(t.Context(), changes))
+			_, err := state.Value()
+			require.Error(t, err)
+		})
+	}
 }
 
 func TestEngineConsoleLogUsesDebugLoggerAndRequestContext(t *testing.T) {
@@ -160,16 +310,83 @@ func TestCompileIgnoresSourceMapDirectives(t *testing.T) {
 
 func TestEngineInterruptsLongRunningHook(t *testing.T) {
 	t.Parallel()
-	engine, err := Compile(`export function run() { while (true) {} }`, Options{
+	engine, err := Compile(`let calls = 0; export function run(loop) { calls++; if (loop) { while (true) {} } return calls; }`, Options{
 		Key: "loop", Version: "1", Timeout: 20 * time.Millisecond,
 	})
 	require.NoError(t, err)
 
-	_, err = engine.Call(context.Background(), "run")
+	_, err = engine.Call(context.Background(), "run", true)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "timed out")
 	var hookErr *HookError
 	assert.False(t, errors.As(err, &hookErr), "timeouts must not be HookError")
+	value, err := engine.Call(context.Background(), "run", false)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), value, "an interrupted runtime must be discarded")
+}
+
+func TestEngineDoesNotReinitializeIdleRuntimeAfterGC(t *testing.T) {
+	var initialized atomic.Int64
+	engine, err := Compile(`console.log("initialized"); export function run(){return 42;}`, Options{
+		Log: func(string) { initialized.Add(1) },
+	})
+	require.NoError(t, err)
+	runtime.GC()
+	runtime.GC()
+	value, err := engine.Call(t.Context(), "run")
+	require.NoError(t, err)
+	assert.Equal(t, int64(42), value)
+	assert.Equal(t, int64(1), initialized.Load())
+}
+
+func TestEngineBoundsConcurrentCallsAndCancelsAnOccupiedRuntime(t *testing.T) {
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	defer close(release)
+	engine, err := Compile(`export function run(loop) { utils.unixNow(); if (loop) { while (true) {} } return 42; }`, Options{
+		Concurrency: 2,
+		Now: func() time.Time {
+			entered <- struct{}{}
+			<-release
+			return time.Unix(1, 0)
+		},
+	})
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	canceled := make(chan error, 1)
+	healthy := make(chan error, 1)
+	go func() { _, err := engine.Call(ctx, "run", true); canceled <- err }()
+	go func() { _, err := engine.Call(t.Context(), "run", false); healthy <- err }()
+	<-entered
+	<-entered
+	_, err = engine.CallPathWithAdmissionTimeout(t.Context(), time.Nanosecond, "run", nil, false)
+	require.ErrorIs(t, err, ErrCallAdmissionTimeout)
+	cancel()
+	release <- struct{}{}
+	release <- struct{}{}
+	require.ErrorIs(t, <-canceled, context.Canceled)
+	require.NoError(t, <-healthy)
+}
+
+func TestEnginePreservesMutableExportAndMemberBindings(t *testing.T) {
+	engine, err := Compile(`
+export let run = function(){return 1;};
+export const native = {render:function(){return 1;}};
+export function replace(){run=function(){return 2;};native.render=function(){return 3;};}
+`, Options{Concurrency: 1})
+	require.NoError(t, err)
+	value, err := engine.Call(t.Context(), "run")
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), value)
+	_, err = engine.Call(t.Context(), "replace")
+	require.NoError(t, err)
+	value, err = engine.Call(t.Context(), "run")
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), value)
+	value, err = engine.CallMember(t.Context(), "native", "render")
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), value)
 }
 
 func TestEngineHookErrorExtractsSanitizedJSMessage(t *testing.T) {

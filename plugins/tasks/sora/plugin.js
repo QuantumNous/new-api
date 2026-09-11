@@ -7,7 +7,7 @@ export const meta = {
     en: "OpenAI Sora video generation (text-to-video, image-to-video, and remix)",
     zh: "OpenAI Sora 视频生成（文生视频、图生视频、remix）",
   },
-  version: "1.0.2",
+  version: "1.0.3",
   channelTypes: [55, 1], // OpenAI-type channels natively serve sora with the same wire format
   author: { name: "QuantumNous" },
   models: ["sora-2", "sora-2-pro"],
@@ -309,6 +309,7 @@ protocols.openai_video = {
     };
   },
   render: function (ctx, task) {
+    if (task.data && typeof task.data === "object" && !Array.isArray(task.data)) return task.data;
     return legacyRenderers.openai_video(task);
   },
 };

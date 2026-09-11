@@ -1,6 +1,9 @@
 # Chinese (Traditional) translations
 # 中文（繁體）翻譯檔案
 
+# Task plugin messages
+task_plugin.unknown_meta_field: '外掛中繼資料包含未知欄位「{{.Field}}」。如果外掛來自官方市集，可能需要較新版本的 new-api。請嘗試更新 new-api 後重新安裝外掛。'
+
 # Common messages
 common.invalid_params: "無效的參數"
 common.database_error: "資料庫出錯，請聯繫管理員"

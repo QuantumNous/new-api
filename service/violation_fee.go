@@ -135,7 +135,7 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 	oai := apiErr.ToOpenAIError()
 
 	other := model.NewLogOther()
-	other.MergePublic(map[string]interface{}{
+	other.MergePublic(map[string]any{
 		"violation_fee":        true,
 		"violation_fee_code":   string(types.ErrorCodeViolationFeeGrokCSAM),
 		"fee_quota":            feeQuota,

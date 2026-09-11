@@ -136,7 +136,7 @@ func WeChatBind(c *gin.Context) {
 	}
 	succeeded, notificationFailed := false, false
 	defer func() {
-		recordUserSecurityAudit(c, identity.UserID, "user.binding_bind", map[string]interface{}{"provider": "wechat", "success": succeeded, "notification_failed": notificationFailed})
+		recordUserSecurityAudit(c, identity.UserID, "user.binding_bind", map[string]any{"provider": "wechat", "success": succeeded, "notification_failed": notificationFailed})
 	}()
 	if !common.WeChatAuthEnabled {
 		c.JSON(http.StatusOK, gin.H{

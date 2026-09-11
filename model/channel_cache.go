@@ -56,16 +56,14 @@ func InitChannelCache() {
 		if channel.Status != common.ChannelStatusEnabled {
 			continue // skip disabled channels
 		}
-		prefix := channel.GetOtherSettings().ModelPrefix
-		groups := strings.Split(channel.Group, ",")
-		for _, group := range groups {
+		groups := strings.SplitSeq(channel.Group, ",")
+		for group := range groups {
 			models := channel.GetModels()
 			for _, model := range models {
-				clientModel := channelModelClientName(model, prefix)
-				if _, ok := newGroup2model2channels[group][clientModel]; !ok {
-					newGroup2model2channels[group][clientModel] = make([]int, 0)
+				if _, ok := newGroup2model2channels[group][model]; !ok {
+					newGroup2model2channels[group][model] = make([]int, 0)
 				}
-				newGroup2model2channels[group][clientModel] = append(newGroup2model2channels[group][clientModel], channel.Id)
+				newGroup2model2channels[group][model] = append(newGroup2model2channels[group][model], channel.Id)
 			}
 		}
 	}

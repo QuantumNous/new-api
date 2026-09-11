@@ -52,7 +52,7 @@ export const CHANNEL_TYPES = {
   23: 'Tencent',
   24: 'Gemini',
   25: 'Moonshot',
-  26: 'Zhipu V4',
+  26: 'Zhipu GLM',
   27: 'Perplexity',
   31: 'LingYiWanWu',
   33: 'AWS',
@@ -86,10 +86,92 @@ export const CHANNEL_TYPES = {
   61: 'Task Plugin',
 } as const
 
+export type ChannelProviderPresentation = {
+  descriptionKey: string
+  detailKey?: string
+  badge?: { labelKey: string; tone: 'warning' | 'primary' }
+}
+
+// Display copy only; channel routing, availability and ordering remain independent.
+export const CHANNEL_PROVIDER_PRESENTATION: Partial<
+  Record<number, ChannelProviderPresentation>
+> = {
+  1: { descriptionKey: 'Connect to the OpenAI API or compatible services' },
+  2: { descriptionKey: 'Generate Midjourney images through MjProxy' },
+  3: { descriptionKey: 'Connect to OpenAI models deployed on Azure' },
+  4: { descriptionKey: 'Connect to local or self-hosted Ollama models' },
+  5: { descriptionKey: 'Generate Midjourney images through MjProxyPlus' },
+  7: { descriptionKey: 'Access model services through the OhMyGPT gateway' },
+  8: {
+    descriptionKey:
+      'Legacy full-URL integration; use Advanced Custom for new channels',
+    badge: { labelKey: 'Deprecated', tone: 'warning' },
+  },
+  14: { descriptionKey: 'Connect to the Anthropic API or compatible services' },
+  15: { descriptionKey: 'Access Baidu Qianfan models through the legacy API' },
+  16: { descriptionKey: 'Access Zhipu models through the legacy API' },
+  17: { descriptionKey: 'Connect to Alibaba Cloud Bailian model services' },
+  18: { descriptionKey: 'Connect to iFlytek Spark model services' },
+  19: { descriptionKey: 'Connect to 360 model services' },
+  20: {
+    descriptionKey: 'Access models from multiple providers through OpenRouter',
+  },
+  22: { descriptionKey: 'Connect to FastGPT applications' },
+  23: { descriptionKey: 'Connect to Tencent Hunyuan model services' },
+  24: { descriptionKey: 'Connect to models through the Google Gemini API' },
+  25: { descriptionKey: 'Connect to Moonshot AI model services' },
+  26: { descriptionKey: 'Access Zhipu models through the V4 API' },
+  27: { descriptionKey: 'Connect to Perplexity model services' },
+  31: { descriptionKey: 'Connect to LingYiWanWu model services' },
+  33: { descriptionKey: 'Access models through Amazon Bedrock' },
+  34: { descriptionKey: 'Connect to Cohere model services' },
+  35: { descriptionKey: 'Connect to MiniMax model services' },
+  36: { descriptionKey: 'Generate music and lyrics through SunoAPI' },
+  37: { descriptionKey: 'Connect to Dify applications and workflows' },
+  38: { descriptionKey: 'Connect to Jina embedding and reranking services' },
+  39: { descriptionKey: 'Access models through Cloudflare Workers AI' },
+  40: { descriptionKey: 'Connect to SiliconFlow model inference services' },
+  41: { descriptionKey: 'Access models through Google Cloud Vertex AI' },
+  42: { descriptionKey: 'Connect to Mistral AI model services' },
+  43: { descriptionKey: 'Connect to DeepSeek model services' },
+  44: { descriptionKey: 'Access model services through MokaAI' },
+  45: { descriptionKey: 'Connect to Volcengine Ark model services' },
+  46: { descriptionKey: 'Access Baidu Qianfan models through the V2 API' },
+  47: { descriptionKey: 'Connect to self-hosted models served by Xinference' },
+  48: { descriptionKey: 'Connect to xAI Grok model services' },
+  49: { descriptionKey: 'Connect to Coze bots' },
+  50: { descriptionKey: 'Connect to Kling video generation services' },
+  51: {
+    descriptionKey: 'Connect to Jimeng image and video generation services',
+  },
+  52: { descriptionKey: 'Connect to Vidu video generation services' },
+  53: { descriptionKey: 'Connect to Submodel model services' },
+  54: {
+    descriptionKey: 'Generate Doubao Seedance videos through Volcengine Ark',
+  },
+  55: { descriptionKey: 'Connect to OpenAI Sora video generation services' },
+  56: { descriptionKey: 'Access hosted model predictions through Replicate' },
+  57: { descriptionKey: 'Access Codex using ChatGPT subscription credentials' },
+  58: {
+    descriptionKey:
+      'Configure endpoint routing, authentication and protocol conversion for different upstream services',
+    detailKey:
+      "New API's flexible channel lets you configure upstream addresses and authentication per endpoint, choose native forwarding or supported protocol conversions, and configure model listing and balance queries independently",
+    badge: { labelKey: 'Flexible integration', tone: 'primary' },
+  },
+  59: { descriptionKey: 'Connect to model services through a Sub2API gateway' },
+  60: {
+    descriptionKey: 'Connect to model services from another New API instance',
+  },
+} satisfies Record<
+  Exclude<keyof typeof CHANNEL_TYPES, 0 | typeof CHANNEL_TYPE_TASK_PLUGIN>,
+  ChannelProviderPresentation
+>
+
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
-  1, 14, 33, 24, 43, 3, 41, 48, 60, 58, 61, 42, 34, 20, 4, 40, 27, 25, 17, 26,
-  15, 46, 23, 18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 59, 22, 21,
-  44, 2, 5, 36, 50, 51, 52, 53, 54, 55, 56,
+  1, 14, 24, 33, 43, 3, 41, 17, 45, 25, 26, 23, 48, 60, 58, 59, 61, 42, 34, 20,
+  4, 40, 27, 15, 46, 18, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 57, 22, 21, 44,
+  2, 5, 36, 50, 51, 52, 53, 54, 55, 56,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {
@@ -381,7 +463,7 @@ export const FIELD_DESCRIPTIONS = {
     'List of models supported by this channel. Use comma to separate multiple models.',
   GROUP: 'User groups that can access this channel. ',
   MODEL_MAPPING:
-    'Map request model names to actual provider model names (JSON format)',
+    'For this channel, map the model name in client requests to the model name sent upstream.',
   PRIORITY: 'Higher priority channels are selected first',
   WEIGHT: 'Used for load balancing. Higher weight = more requests',
   TEST_MODEL: 'Model to use when testing channel connectivity',

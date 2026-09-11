@@ -463,7 +463,7 @@ func AdminResetPasskey(c *gin.Context) {
 		return
 	}
 
-	recordManageAuditFor(c, user.Id, "user.reset_passkey", map[string]interface{}{
+	recordManageAuditFor(c, user.Id, "user.reset_passkey", map[string]any{
 		"username": user.Username,
 		"id":       user.Id,
 	})
@@ -628,7 +628,7 @@ func PasskeyVerifyFinish(c *gin.Context) {
 		return
 	}
 
-	recordUserSecurityAudit(c, user.Id, "user.security_verify", map[string]interface{}{"method": proof.Method, "scope": proof.Scope})
+	recordUserSecurityAudit(c, user.Id, "user.security_verify", map[string]any{"method": proof.Method, "scope": proof.Scope})
 	common.ApiSuccess(c, proof)
 }
 

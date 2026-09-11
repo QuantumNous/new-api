@@ -17,9 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
+
 import { describe, test } from 'vitest'
 
-import type { ParsedTaskTier } from '../lib/billing-expr'
+import { parseTiersFromExpr, type ParsedTaskTier } from '../lib/billing-expr'
 import { isBreakdownTierMatched } from '../lib/breakdown-tier-match'
 import { getTaskMatrixDisplayTiers } from '../lib/task-matrix-display'
 import type { BillingUsageSchema } from '../types'
@@ -52,6 +53,17 @@ function matchedLabels(
 }
 
 describe('breakdown tier matched-row highlight', () => {
+  test('uses the recorded unit and fixed price when token and request branches share a label', () => {
+    const tiers = parseTiersFromExpr(
+      'len < 1000 ? tier("base", p * 2) : tier("base", fixed(0.01))'
+    )
+    assert.equal(
+      tiers.filter((tier) =>
+        isBreakdownTierMatched(tier, tiers, 'base', undefined, 'request', 0.01)
+      ).length,
+      1
+    )
+  })
   test('highlights only the 720p·video row when a uniform matrix log matches base with those usage facts', () => {
     const tiers = seedanceDisplayTiers()
 

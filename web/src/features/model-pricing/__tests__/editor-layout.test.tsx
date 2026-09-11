@@ -33,6 +33,11 @@ import { SettingsPageProvider } from '@/features/system-settings/components/sett
 import { ModelPricingEditorPanel } from '@/features/system-settings/models/model-pricing-sheet'
 import { ModelRatioForm } from '@/features/system-settings/models/model-ratio-form'
 import { api } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth-store'
+import { usePricingPreferencesStore } from '@/stores/pricing-preferences-store'
+
+import { ModelPricingPanel } from '../model-pricing-panel'
+import type { PricingValues } from '../pricing'
 
 const clients: QueryClient[] = []
 const originalColumnVisibility = localStorage.getItem(
@@ -43,6 +48,7 @@ afterEach(() => {
   cleanup()
   for (const client of clients) client.clear()
   clients.length = 0
+  useAuthStore.getState().auth.setUser(null)
   if (originalColumnVisibility === null) {
     localStorage.removeItem('model-ratio-column-visibility')
   } else {
@@ -53,9 +59,128 @@ afterEach(() => {
   }
 })
 
+it.each(['none', 'standard', 'claude_ttl'] as const)(
+  'uses the %s cache profile consistently in current billing and draft previews',
+  async (mode) => {
+    const cacheWriteMode = mode
+    const effective = {
+      ModelRatio: 2,
+      CompletionRatio: 4,
+      CacheRatio: 1,
+      CreateCacheRatio: 1.25,
+      ImageRatio: 1,
+    }
+    const configured = { ModelRatio: 2 }
+    useAuthStore
+      .getState()
+      .auth.setUser({ id: 1, username: 'administrator', role: 100 })
+    usePricingPreferencesStore.setState({ currency: 'USD' })
+    vi.spyOn(api, 'get').mockImplementation(async (url) => ({
+      data: {
+        success: true,
+        data:
+          url === '/api/option/model_pricing'
+            ? {
+                entries: [
+                  {
+                    model_name: 'gpt-4o-custom',
+                    version: 'v1',
+                    configured,
+                    effective,
+                    cache_write_mode: cacheWriteMode,
+                  },
+                ],
+              }
+            : [],
+        vendors: [],
+      },
+    }))
+    vi.spyOn(api, 'post').mockResolvedValue({
+      data: {
+        success: true,
+        data: { effective, cache_write_mode: cacheWriteMode },
+      },
+    })
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    clients.push(client)
+    render(
+      <QueryClientProvider client={client}>
+        <ModelPricingPanel modelName='gpt-4o-custom' />
+      </QueryClientProvider>
+    )
+    const billing = await screen.findByRole('region', {
+      name: 'Current Billing',
+    })
+    expect(within(billing).getByText('16')).toBeVisible()
+    expect(within(billing).queryByText('Image input')).not.toBeInTheDocument()
+    const preview = screen.getByRole('complementary', { name: 'Preview' })
+    expect(await within(preview).findByText('$16')).toBeVisible()
+    expect(
+      within(preview).queryByText('Image input price')
+    ).not.toBeInTheDocument()
+    expect(
+      within(preview).queryByText('Cache read price')
+    ).not.toBeInTheDocument()
+    expect(
+      within(billing).queryByText('Cache read price')
+    ).not.toBeInTheDocument()
+    for (const panel of [billing, preview]) {
+      if (mode === 'none') {
+        expect(
+          within(panel).queryByText('Cache write price')
+        ).not.toBeInTheDocument()
+        expect(
+          within(panel).queryByText('Cache create (1h) price')
+        ).not.toBeInTheDocument()
+      } else {
+        expect(
+          within(panel).getByText(
+            mode === 'claude_ttl' ? 'Cache Creation (5m)' : 'Cache write price'
+          ).nextElementSibling
+        ).toHaveTextContent('$5')
+        if (mode === 'claude_ttl') {
+          expect(
+            within(panel).getByText('Cache create (1h) price')
+              .nextElementSibling
+          ).toHaveTextContent('$8')
+        } else {
+          expect(
+            within(panel).queryByText('Cache create (1h) price')
+          ).not.toBeInTheDocument()
+        }
+      }
+    }
+    expect(
+      screen.getByRole('textbox', { name: 'Completion price' })
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('textbox', { name: 'Cache read price' })
+    ).toBeDisabled()
+  }
+)
+
 function renderEditor(embedded = false) {
   vi.spyOn(api, 'get').mockResolvedValue({
     data: { success: true, data: [], vendors: [] },
+  })
+  vi.spyOn(api, 'post').mockImplementation(async (_url, request) => {
+    const pricing = (request as { pricing: PricingValues }).pricing
+    return {
+      data: {
+        success: true,
+        data: {
+          effective: {
+            ...pricing,
+            CompletionRatio: pricing.CompletionRatio ?? 1,
+            CacheRatio: pricing.CacheRatio ?? 1,
+            CreateCacheRatio: pricing.CreateCacheRatio ?? 1.25,
+            ImageRatio: pricing.ImageRatio ?? 1,
+          },
+        },
+      },
+    }
   })
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -124,10 +249,15 @@ it('updates the preview for explicit zero and disabled prices and explains depen
   const cache = screen.getByRole('textbox', { name: 'Cache read price' })
   await user.clear(cache)
   await user.type(cache, '0')
-  expect(within(preview).getByText('$0')).toBeVisible()
+  expect(await within(preview).findByText('$0')).toBeVisible()
   await user.click(screen.getByRole('switch', { name: 'Cache read price' }))
   expect(cache).toBeDisabled()
   expect(within(preview).queryByText('$0')).not.toBeInTheDocument()
+  await waitFor(() =>
+    expect(
+      within(preview).queryByText('Cache read price')
+    ).not.toBeInTheDocument()
+  )
   const audio = screen.getByRole('switch', { name: 'Audio output price' })
   expect(audio).toHaveAttribute('aria-disabled', 'true')
   expect(audio).toHaveAccessibleDescription(
@@ -156,6 +286,7 @@ function PricingFormFixture(props: {
     AudioCompletionRatio: '{}',
     BillingMode: '{}',
     BillingExpr: '{}',
+    PluginBillingExpr: '{}',
     ExposeRatioEnabled: false,
   }
   const [actionsContainer, setActionsContainer] =
@@ -245,7 +376,9 @@ it.each(['default', 'unset'] as const)(
       ).not.toBeInTheDocument()
     }
     await user.click(await screen.findByRole('button', { name: 'Edit' }))
-    await user.click(screen.getByRole('tab', { name: 'Per-request' }))
+    await user.click(
+      screen.getByRole('tab', { name: 'Per-request (deprecated)' })
+    )
     const price = screen.getByRole('textbox', { name: 'Fixed price' })
     await user.clear(price)
     await user.type(price, '0.25')

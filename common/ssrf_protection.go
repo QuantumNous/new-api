@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -197,12 +198,7 @@ func (p *SSRFProtection) isAllowedPort(port int) bool {
 		return true // 如果没有配置端口限制，则允许所有端口
 	}
 
-	for _, allowedPort := range p.AllowedPorts {
-		if port == allowedPort {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(p.AllowedPorts, port)
 }
 
 // isDomainWhitelisted 检查域名是否在白名单中
@@ -222,8 +218,8 @@ func isDomainListed(domain string, list []string) bool {
 			return true
 		}
 		// 通配符匹配 (*.example.com)
-		if strings.HasPrefix(item, "*.") {
-			suffix := strings.TrimPrefix(item, "*.")
+		if after, ok := strings.CutPrefix(item, "*."); ok {
+			suffix := after
 			if strings.HasSuffix(domain, "."+suffix) || domain == suffix {
 				return true
 			}

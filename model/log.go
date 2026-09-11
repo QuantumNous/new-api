@@ -211,7 +211,7 @@ func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo *
 // username 由调用方传入（登录流程已持有用户对象），避免额外的数据库查询。
 // content 为英文兜底文本（用于导出）；action+params 供前端本地化渲染。
 // other 包含 login_method、user_agent 等结构化信息。
-func RecordLoginLog(userId, actorRole int, username string, content string, ip string, action string, params map[string]interface{}, other AuditOther, request ...*gin.Context) {
+func RecordLoginLog(userId, actorRole int, username string, content string, ip string, action string, params map[string]any, other AuditOther, request ...*gin.Context) {
 	other.Op = &AuditOperation{Action: action, Params: params}
 	var c *gin.Context
 	if len(request) > 0 {
@@ -226,7 +226,7 @@ func RecordLoginLog(userId, actorRole int, username string, content string, ip s
 // action+params 写入 Other.op，供前端本地化渲染（普通用户可见，不含敏感信息）。
 // adminInfo 存放操作者身份（写入 Other.admin_info，普通用户查询时剥离）；
 // auditInfo 存放路由/方法/结果等中间件兜底信息（写入 Other.audit_info，普通用户查询时剥离）。
-func RecordOperationAuditLog(logUserId, actorRole int, content string, ip string, action string, params map[string]interface{}, adminInfo *AuditAdminInfo, auditInfo *AuditRequestInfo, request ...*gin.Context) {
+func RecordOperationAuditLog(logUserId, actorRole int, content string, ip string, action string, params map[string]any, adminInfo *AuditAdminInfo, auditInfo *AuditRequestInfo, request ...*gin.Context) {
 	username, _ := GetUsernameById(logUserId, false)
 	other := AuditOther{
 		Op:        &AuditOperation{Action: action, Params: params},
@@ -252,7 +252,7 @@ func RecordOperationAuditLog(logUserId, actorRole int, content string, ip string
 func RecordTopupLog(userId int, content string, callerIp string, paymentMethod string, callbackPaymentMethod string) {
 	username, _ := GetUsernameById(userId, false)
 	other := NewLogOther()
-	other.MergeAdmin(map[string]interface{}{
+	other.MergeAdmin(map[string]any{
 		"server_ip":               common.GetIp(),
 		"node_name":               common.NodeName,
 		"caller_ip":               callerIp,

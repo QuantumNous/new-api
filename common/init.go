@@ -213,8 +213,8 @@ func initConstantEnv() {
 	soraPatchStr := GetEnvOrDefaultString("TASK_PRICE_PATCH", "")
 	if soraPatchStr != "" {
 		var taskPricePatches []string
-		soraPatches := strings.Split(soraPatchStr, ",")
-		for _, patch := range soraPatches {
+		soraPatches := strings.SplitSeq(soraPatchStr, ",")
+		for patch := range soraPatches {
 			trimmedPatch := strings.TrimSpace(patch)
 			if trimmedPatch != "" {
 				taskPricePatches = append(taskPricePatches, trimmedPatch)
@@ -226,8 +226,8 @@ func initConstantEnv() {
 	// Initialize trusted redirect domains for URL validation
 	trustedDomainsStr := GetEnvOrDefaultString("TRUSTED_REDIRECT_DOMAINS", "")
 	var trustedDomains []string
-	domains := strings.Split(trustedDomainsStr, ",")
-	for _, domain := range domains {
+	domains := strings.SplitSeq(trustedDomainsStr, ",")
+	for domain := range domains {
 		trimmedDomain := strings.TrimSpace(domain)
 		if trimmedDomain != "" {
 			// Normalize domain to lowercase

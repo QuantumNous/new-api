@@ -8,36 +8,20 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 
 ## Tech Stack
 
-- **Backend**: Go 1.22+, Gin web framework, GORM v2 ORM
-- **Frontend**: React 19, TypeScript, Rsbuild, Base UI, Tailwind CSS
-- **Databases**: SQLite, MySQL, PostgreSQL (all three must be supported)
+- **Backend**: Go 1.25.1 (see each module’s `go.mod`), Gin web framework, GORM v2 ORM
+- **Frontend**: React 19, TypeScript, Rsbuild 2, TanStack Router/Query/Table, Zustand, Base UI, Tailwind CSS 4
+- **Databases**: SQLite, MySQL, PostgreSQL for the primary database (all three must be supported); a separately configured log database also supports ClickHouse
 - **Cache**: Redis (go-redis) + in-memory cache
-- **Auth**: JWT, WebAuthn/Passkeys, OAuth (GitHub, Discord, OIDC, etc.)
+- **Auth**: Browser sessions, API tokens and personal access tokens, JWT, WebAuthn/Passkeys, TOTP, OAuth/OIDC; Casbin authorization in `service/authz/`
+- **Extensions**: JavaScript task plugins executed by Sobek; Electron desktop wrapper
 - **Frontend package manager**: Bun (preferred over npm/yarn/pnpm)
 
 ## Architecture
 
-Layered architecture: Router -> Controller -> Service -> Model
-
-```
-router/        — HTTP routing (API, relay, dashboard, web)
-controller/    — Request handlers
-service/       — Business logic
-model/         — Data models and DB access (GORM)
-relay/         — AI API relay/proxy with provider adapters
-  relay/channel/ — Provider-specific adapters (openai/, claude/, gemini/, aws/, etc.)
-middleware/    — Auth, rate limiting, CORS, logging, distribution
-setting/       — Configuration management (ratio, model, operation, system, performance)
-common/        — Shared utilities (JSON, crypto, Redis, env, rate-limit, etc.)
-dto/           — Data transfer objects (request/response structs)
-constant/      — Constants (API types, channel types, context keys)
-types/         — Type definitions (relay formats, file sources, errors)
-i18n/          — Backend internationalization (go-i18n, en/zh)
-oauth/         — OAuth provider implementations
-pkg/           — Internal packages (cachex, ionet)
-web/           — Frontend (React 19, Rsbuild, Base UI, Tailwind)
-  src/i18n/    — Frontend internationalization (i18next, en/zh/zh-TW/fr/ru/ja/vi)
-```
+- The Go gateway handles management APIs, upstream relay, billing, and background tasks across `router/`, `middleware/`, `controller/`, `service/`, `model/`, and `relay/`.
+- `relaykit/` is an independent Go module for protocol DTOs and conversions; transport, authentication, database access, and billing stay in the host.
+- JavaScript task plugins live in `plugins/tasks/`, run through `pkg/jsplugin/`, and integrate with host task polling and settlement.
+- `web/` is the React frontend (see `web/AGENTS.md`); `electron/` is the desktop wrapper.
 
 ## Internationalization (i18n)
 
@@ -72,12 +56,28 @@ web/           — Frontend (React 19, Rsbuild, Base UI, Tailwind)
 
 ### Backend Rules
 
+**Modern Go conventions:** Apply these conventions to new or modified Go code, including tests and `relaykit/`, when they preserve behavior and improve readability. Use the Go version declared in the relevant module's `go.mod` as the compatibility baseline.
+
+- Use `any` instead of `interface{}`, including map values, slice elements, parameters, and return types.
+- For fixed-count loops, prefer `for i := range n`, or `for range n` when the index is unused. For slice indices, prefer `for i := range items`. Keep conventional loops when the bound changes during iteration or the loop needs a different start or step.
+- When split results are only traversed once without indexing or reuse, prefer `strings.SplitSeq` or `bytes.SplitSeq` over allocating a slice with `Split`.
+- Use `strings.Cut` when splitting at the first separator, and `strings.CutPrefix` / `strings.CutSuffix` when checking and removing a prefix or suffix. Avoid separate searches and manual slicing for the same operation.
+- Use `slices.Contains` / `slices.ContainsFunc` for membership checks and `slices.Sort` for natural ordering of ordered element types instead of equivalent hand-written loops or sort callbacks.
+- Use `maps.Copy` for shallow map copies and merges. Initialize the destination as needed, and preserve nil-versus-empty behavior and the order in which later values overwrite earlier ones. It does not replace a deep copy.
+- Use built-in `min` / `max` for simple bounds instead of equivalent conditional assignments. Preserve numeric semantics; these functions do not prevent overflow in their arguments or replace billing validation and safe quota conversion.
+- Use `strings.Builder` for repeated string concatenation in loops; retain direct concatenation for simple fixed expressions.
+- Use `reflect.TypeFor[T]()` when the type is known statically, and `reflect.Pointer` instead of `reflect.Ptr`. Keep `reflect.TypeOf` when the dynamic type of a value is required.
+- Prefer `sync.WaitGroup.Go` for the standard `Add(1)` / goroutine / deferred `Done()` pattern when its lifecycle and panic contract apply. Preserve existing recovery behavior; the function passed to `Go` must not panic.
+- Remove redundant loop-variable copies such as `tc := tc` when they exist only for pre-Go-1.22 closure capture. Retain copies needed for actual snapshot semantics or variables assigned outside the loop.
+- Remove ineffective `omitempty` tags on non-pointer struct fields only after confirming the active JSON encoder preserves the same output. Do not change field types or omission behavior as part of a style cleanup; optional relay scalar fields must still follow the pointer rules below.
+- Format modified Go files with `gofmt` and remove unused imports after these changes.
+
 **relaykit module independence:** The `relaykit/` Go module MUST remain independently buildable.
 
 - Code under `relaykit/` MUST NOT import or depend on packages from the root `new-api` module, or rely on root-only configuration, generated files, or workspace wiring.
 - Any change affecting `relaykit/` or its public APIs MUST be verified with `cd relaykit && GOWORK=off go build ./...`; a successful root-module build is not sufficient.
 
-**JSON package:** All JSON marshal/unmarshal operations MUST use the wrapper functions in `common/json.go`:
+**JSON package:** In the root Go module, all JSON marshal/unmarshal operations MUST use the wrapper functions in `common/json.go`:
 
 - `common.Marshal(v any) ([]byte, error)`
 - `common.Unmarshal(data []byte, v any) error`
@@ -86,6 +86,8 @@ web/           — Frontend (React 19, Rsbuild, Base UI, Tailwind)
 - `common.GetJsonType(data json.RawMessage) string`
 
 Do NOT directly import or call `encoding/json` in business code. `json.RawMessage`, `json.Number`, and other type definitions from `encoding/json` may still be referenced as types, but actual marshal/unmarshal calls must go through `common.*`.
+
+Inside `relaykit/`, use `kitutil.*` from `relaykit/relayconvert/kitutil/json.go`, never host `common`. Direct encoder calls belong only in codec implementations.
 
 **Database compatibility:** All database code MUST work with SQLite, MySQL >= 5.7.8, and PostgreSQL >= 9.6 simultaneously.
 
@@ -112,6 +114,13 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
 - For request structs parsed from client JSON and re-marshaled to upstream providers, optional scalar fields MUST use pointer types with `omitempty` (for example, `*int`, `*uint`, `*float64`, `*bool`).
 - Preserve explicit zero values in upstream relay request DTOs: absent client JSON fields must become `nil` and be omitted, while explicit `0`, `0.0`, or `false` values must remain non-`nil` and be sent upstream.
 - Avoid non-pointer scalars with `omitempty` for optional request parameters, because zero values will be silently dropped during marshal.
+
+**JavaScript task plugins (mandatory):**
+
+- Before implementing, modifying, or reviewing JavaScript task plugins or their host API/runtime, MUST read [Task Plugin API v1](docs/plugin-api/v1.md), including its description writing and translation conventions. When changing the plugin contract, also check `docs/plugin-api/v1.schema.json` and `docs/plugin-api/v1.d.ts` for consistency.
+- For numeric billing fields in `usageSchema` and `usageProfiles[].schema`, `description` MUST name the **billing subject + unit price**, because it labels the price input in the UI. For example, `image_count` uses `Image generation unit price` / `图片生成单价`, not `Generated image count` / `生成图片张数`; `seconds` uses `Video generation unit price` / `视频生成单价`. The field value remains a usage quantity, not a price.
+- Put units in `unit`. Keep protocol limits, usage sources, defaults, estimation, and settlement details in code comments or technical documentation. Descriptions must be short, equivalent across languages, and free of numeric prices and trailing punctuation. Follow the API document's separate wording rules for actions, booleans, and other enum conditions.
+- Review metadata wording explicitly before completing plugin work. These are authoring requirements; successful compilation, schema validation, or tests do not verify that descriptions follow them.
 
 **Billing expression system:** When working on tiered/dynamic billing (expression-based pricing), MUST read `pkg/billingexpr/expr.md` first. It documents the design philosophy, expression language, full architecture, token normalization rules, quota conversion, and expression versioning. All billing expression changes must follow that document.
 
@@ -143,7 +152,10 @@ Do NOT directly import or call `encoding/json` in business code. `json.RawMessag
 - Avoid hand-written assertion helpers unless they encode a reusable project-specific invariant.
 - When cleaning tests, preserve meaningful regression coverage. If a deleted test covered a real contract indirectly, replace it with a smaller test that asserts that contract directly.
 
-**Documentation files:** Do NOT add new files under `docs/` or any of its subdirectories unless the user explicitly requests it.
+**Documentation files:**
+
+- Do NOT add new files under `docs/` or any of its subdirectories unless the user explicitly requests it.
+- Do NOT create or generate documentation files in this repository's plugin directories under `plugins/`, including `plugins/tasks/<plugin>/` and their subdirectories. This includes README files, changelogs, usage guides, and other documentation files, regardless of format.
 
 ### Frontend Rules
 

@@ -257,10 +257,7 @@ func (s *ResponsesToChatStreamState) remainingAnnotationChunks(output *dto.Respo
 	for _, content := range output.Content {
 		annotations = append(annotations, content.Annotations...)
 	}
-	start := s.sentAnnotationCount - offset
-	if start < 0 {
-		start = 0
-	}
+	start := max(s.sentAnnotationCount-offset, 0)
 	if start >= len(annotations) {
 		return nil, nil
 	}
@@ -579,8 +576,8 @@ func (s *ResponsesToChatStreamState) flushAllPendingTools() []dto.ChatCompletion
 		tool := s.toolByKey[key]
 		if tool == nil {
 			callID := strings.TrimPrefix(key, "item:")
-			if strings.HasPrefix(key, "output:") {
-				callID = "call_output_" + strings.TrimPrefix(key, "output:")
+			if after, ok := strings.CutPrefix(key, "output:"); ok {
+				callID = "call_output_" + after
 			}
 			tool = &responsesStreamTool{
 				Key:    key,
@@ -597,8 +594,8 @@ func (s *ResponsesToChatStreamState) flushAllPendingTools() []dto.ChatCompletion
 				delete(s.pendingArgsByOutputIndex, outputIndex)
 			}
 		}
-		if strings.HasPrefix(key, "item:") {
-			itemID := strings.TrimPrefix(key, "item:")
+		if after, ok := strings.CutPrefix(key, "item:"); ok {
+			itemID := after
 			tool.Arguments += s.pendingArgsByItemID[itemID]
 			delete(s.pendingArgsByItemID, itemID)
 		}
@@ -660,7 +657,7 @@ type responsesBufferedItem struct {
 	Type                string
 	ID                  string
 	Text                strings.Builder
-	Annotations         []interface{}
+	Annotations         []any
 	ToolIndex           int
 	NeedsReasoningBreak bool
 }
@@ -694,7 +691,7 @@ func (a *ResponsesBufferedAccumulator) ProcessEvent(event *dto.ResponsesStreamRe
 		item.Text.WriteString(event.Delta)
 	case responsesEventOutputTextAnnotationAdded:
 		item := a.ensureItem(event, responsesOutputTypeMessage)
-		var annotation interface{}
+		var annotation any
 		if err := kitutil.Unmarshal(event.Annotation, &annotation); err == nil && annotation != nil {
 			item.Annotations = append(item.Annotations, annotation)
 		}

@@ -92,7 +92,7 @@ func responsesClaudeStopReason(resp *dto.OpenAIResponsesResponse, sawToolCall bo
 	return "end_turn"
 }
 
-func responsesAnnotationsToClaude(annotations []interface{}, text string) []json.RawMessage {
+func responsesAnnotationsToClaude(annotations []any, text string) []json.RawMessage {
 	citations := make([]json.RawMessage, 0, len(annotations))
 	for _, rawAnnotation := range annotations {
 		annotation, err := kitutil.Any2Type[map[string]any](rawAnnotation)

@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	builtinplugins "github.com/QuantumNous/new-api/plugins"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -1697,4 +1698,53 @@ func setupTaskPluginRouteDB(t *testing.T) {
 func insertTaskPluginRouteTask(t *testing.T, task *model.Task) {
 	t.Helper()
 	require.NoError(t, model.DB.Create(task).Error)
+}
+
+func TestPrepareTaskPluginEndpointFiltersEachSharedCandidate(t *testing.T) {
+	for _, tc := range []struct {
+		name, alpha, beta string
+		wantKeys          []string
+		wantError         string
+	}{
+		{name: "first decoder rejects", alpha: `throw new Error("alpha only accepts 720p")`, beta: `return {model:ctx.model,action:"beta",requestBody:{resolution:"1080p"}}`, wantKeys: []string{"decode-beta"}},
+		{name: "second decoder rejects", alpha: `return {model:ctx.model,action:"alpha"}`, beta: `throw new Error("beta rejects")`, wantKeys: []string{"decode-alpha"}},
+		{name: "both decoders accept", alpha: `return {model:ctx.model,action:"alpha"}`, beta: `return {model:ctx.model,action:"beta"}`, wantKeys: []string{"decode-alpha", "decode-beta"}},
+		{name: "all decoders reject", alpha: `throw new Error("alpha rejects first")`, beta: `throw new Error("beta rejects second")`, wantError: "decode-alpha: alpha rejects first; decode-beta: beta rejects second"},
+		{name: "duplicate failures are grouped", alpha: `throw new Error("unsupported resolution")`, beta: `throw new Error("unsupported resolution")`, wantError: "decode-alpha, decode-beta: unsupported resolution"},
+		{name: "invalid result is excluded", alpha: `return {kind:"query",model:ctx.model}`, beta: `return {model:ctx.model,action:"beta"}`, wantKeys: []string{"decode-beta"}},
+		{name: "rewritten model is excluded", alpha: `return {model:"another-model"}`, beta: `return {model:ctx.model,action:"beta"}`, wantKeys: []string{"decode-beta"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, spec := range []struct{ key, decode string }{{"decode-alpha", tc.alpha}, {"decode-beta", tc.beta}} {
+				_, err := jsplugin.DefaultRegistry.Register(taskResponsesPluginSource(spec.key, 0, `["decode-shared-model"]`, `["sync"]`, `renderFinal:function(){return {};}`, spec.decode), jsplugin.Options{})
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(spec.key)) })
+			}
+			var gotKeys []string
+			router := gin.New()
+			router.POST("/v1/responses", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+				pinned := c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint)
+				for _, candidate := range pinned.Candidates {
+					gotKeys = append(gotKeys, candidate.Plugin.Meta.Key)
+				}
+				assert.Equal(t, tc.wantKeys[0], pinned.Plugin.Meta.Key)
+				assert.Equal(t, tc.wantKeys[0], c.GetString("task_plugin_key"))
+				assert.Same(t, pinned.Plugin, c.MustGet(jsplugin.ContextKeyPinnedPlugin).(jsplugin.PinnedPlugin).Plugin)
+				assert.Equal(t, tc.wantKeys, service.GetChannelConstraints(c).Filters[0].TaskPluginKeys)
+				c.Status(http.StatusNoContent)
+			})
+			request := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"decode-shared-model","resolution":"1080p"}`))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+			if tc.wantError != "" {
+				assert.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Contains(t, recorder.Body.String(), tc.wantError)
+				assert.Empty(t, gotKeys)
+			} else {
+				assert.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
+				assert.Equal(t, tc.wantKeys, gotKeys)
+			}
+		})
+	}
 }

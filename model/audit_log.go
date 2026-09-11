@@ -116,7 +116,7 @@ func RecordAuditLog(c *gin.Context, entry AuditLog) {
 		logger.LogError(ctx, fmt.Sprintf("audit log write failed (request_id=%s): log database unavailable", entry.RequestId))
 		return
 	}
-	var row interface{} = &entry
+	var row any = &entry
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		encoded, err := common.Marshal(entry.Other)
 		if err != nil {

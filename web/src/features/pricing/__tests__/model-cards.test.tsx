@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createJSONStorage } from 'zustand/middleware'
@@ -28,6 +35,7 @@ import {
   useSystemConfigStore,
 } from '@/stores/system-config-store'
 
+import { CachedPriceCell } from '../components/cached-price-cell'
 import { ModelCard } from '../components/model-card'
 import { ModelCardGrid } from '../components/model-card-grid'
 import type { PricingModel } from '../types'
@@ -80,6 +88,58 @@ afterEach(() => {
 })
 
 describe('model cards', () => {
+  it('shows separate generic and image cache prices including a free image cache', () => {
+    render(
+      <CachedPriceCell
+        model={pricingModel({
+          billing_mode: 'tiered_expr',
+          billing_expr:
+            'tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 0 + c * 30)',
+        })}
+        options={{ tokenUnit: 'M' }}
+      />
+    )
+    expect(screen.getByText('Cache Read').parentElement).toHaveTextContent(
+      '$1.25'
+    )
+    expect(screen.getByText('Image Cache').parentElement).toHaveTextContent(
+      '$0'
+    )
+  })
+  it('shows fixed prices per request in both token display units', () => {
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr: 'tier("request", fixed(0.01))',
+    })
+    const { rerender } = render(
+      <ModelCard model={model} onClick={vi.fn()} tokenUnit='K' />
+    )
+    expect(screen.getByText('$0.01')).toBeVisible()
+    expect(screen.getByText('/ request')).toBeVisible()
+    rerender(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
+    expect(screen.getByText('$0.01')).toBeVisible()
+    expect(screen.queryByText('/ 1M')).not.toBeInTheDocument()
+  })
+  it('updates the current time tier at a minute boundary and after returning to the page', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T08:59:59+08:00'))
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr:
+        'hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 12 ? tier("peak", p * 3 + c * 9) : tier("off_peak", p * 1.5 + c * 4.5)',
+    })
+    render(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
+    expect(screen.getByText('Current period price')).toBeVisible()
+    expect(screen.getByText('$1.5')).toBeVisible()
+    act(() => vi.advanceTimersByTime(1000))
+    expect(screen.getByText('$3')).toBeVisible()
+    act(() => {
+      vi.setSystemTime(new Date('2026-09-07T12:00:00+08:00'))
+      fireEvent(document, new Event('visibilitychange'))
+    })
+    expect(screen.getByText('$1.5')).toBeVisible()
+  })
+
   it('copies the complete long model name without opening details', async () => {
     const user = userEvent.setup()
     const onClick = vi.fn()

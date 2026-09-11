@@ -1,5 +1,7 @@
 package i18n
 
+const MsgTaskPluginUnknownMetaField = "task_plugin.unknown_meta_field"
+
 // Message keys for i18n translations
 // Use these constants instead of hardcoded strings
 

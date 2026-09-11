@@ -119,8 +119,8 @@ func compiledThinkingBlacklist() ([]string, []*regexp.Regexp) {
 		if entry == "" {
 			continue
 		}
-		if strings.HasPrefix(entry, thinkingBlacklistRegexPrefix) {
-			pattern := strings.TrimPrefix(entry, thinkingBlacklistRegexPrefix)
+		if after, ok := strings.CutPrefix(entry, thinkingBlacklistRegexPrefix); ok {
+			pattern := after
 			if pattern == "" {
 				common.SysError(fmt.Sprintf("invalid thinking_model_blacklist regex %q: pattern is empty", entry))
 				continue
@@ -150,10 +150,8 @@ func ShouldPreserveThinkingSuffix(modelName string) bool {
 	}
 
 	exact, regexes := compiledThinkingBlacklist()
-	for _, entry := range exact {
-		if entry == target {
-			return true
-		}
+	if slices.Contains(exact, target) {
+		return true
 	}
 	for _, re := range regexes {
 		if re.MatchString(target) {

@@ -168,7 +168,7 @@ func UpdatePasskeyAssertionState(userID int, credential *webauthn.Credential, la
 	credentialID := base64.StdEncoding.EncodeToString(credential.ID)
 	result := DB.Model(&PasskeyCredential{}).
 		Where("user_id = ? AND credential_id = ?", userID, credentialID).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"sign_count":      credential.Authenticator.SignCount,
 			"clone_warning":   credential.Authenticator.CloneWarning,
 			"user_present":    credential.Flags.UserPresent,

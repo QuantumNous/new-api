@@ -131,6 +131,6 @@ func UniversalVerify(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	recordUserSecurityAudit(c, identity.UserID, "user.security_verify", map[string]interface{}{"method": proof.Method, "scope": proof.Scope})
+	recordUserSecurityAudit(c, identity.UserID, "user.security_verify", map[string]any{"method": proof.Method, "scope": proof.Scope})
 	common.ApiSuccess(c, proof)
 }

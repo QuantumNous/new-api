@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	sqlmysql "github.com/go-sql-driver/mysql"
-	"gorm.io/driver/clickhouse"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +12,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	sqlmysql "github.com/go-sql-driver/mysql"
+	"gorm.io/driver/clickhouse"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/middleware"
@@ -128,7 +129,7 @@ func TestAccessTokenAuditsResultsAndExcludesBrowserSessions(t *testing.T) {
 	router.GET("/rate-limited", func(c *gin.Context) { c.AbortWithStatusJSON(429, gin.H{"success": false}) }, middleware.UserAuth())
 	router.GET("/read/:id", middleware.UserAuth(), func(c *gin.Context) { c.JSON(200, gin.H{"success": true}) })
 	router.POST("/write", middleware.AdminAuth(), func(c *gin.Context) {
-		recordManageAudit(c, "option.update", map[string]interface{}{"key": "safe-setting"})
+		recordManageAudit(c, "option.update", map[string]any{"key": "safe-setting"})
 		c.JSON(200, gin.H{"success": true})
 	})
 	router.POST("/business-failure", middleware.AdminAuth(), func(c *gin.Context) { c.JSON(200, gin.H{"success": false, "message": "secret-response"}) })
@@ -202,7 +203,7 @@ func TestAuditIsolationVisibilityAndFailureContracts(t *testing.T) {
 	var payload struct {
 		Data struct {
 			Items []struct {
-				Other map[string]interface{} `json:"other"`
+				Other map[string]any `json:"other"`
 			}
 		}
 	}
@@ -343,7 +344,7 @@ func TestSecurityAndOperationEventsUseAuditTable(t *testing.T) {
 	for _, action := range []string{"user.passkey_register", "user.passkey_delete", "user.2fa_setup", "user.2fa_enable", "user.2fa_disable_self", "user.2fa_backup_codes", "user.security_verify"} {
 		recordUserSecurityAudit(c, user.Id, action, nil)
 	}
-	recordManageAudit(c, "option.update", map[string]interface{}{"key": "safe"})
+	recordManageAudit(c, "option.update", map[string]any{"key": "safe"})
 	recordSubscriptionResetUserLogs(c, &model.SubscriptionResetResult{ResetCount: 1, PlanId: 1, PlanTitle: "Plan", AffectedUserIds: []int{user.Id}}, &model.AuditAdminInfo{AdminID: user.Id})
 	for _, typ := range []int{model.LogTypeTopup, model.LogTypeConsume, model.LogTypeRefund, model.LogTypeSystem} {
 		model.RecordLog(user.Id, typ, "business entry")
@@ -536,7 +537,7 @@ func verifyAuditJSONStorage(t *testing.T) {
 	metadata := model.AuditOther{
 		Op: &model.AuditOperation{Action: "channel.update", Params: model.AuditFields{
 			"id": 42, "name": "渠道", "changed_fields": []string{}, "large_id": uint64(9007199254740993),
-			"extra": map[string]interface{}{"attempts": 0, "permitted": false, "ratio": 1.25, "targets": []int{1, 2}},
+			"extra": map[string]any{"attempts": 0, "permitted": false, "ratio": 1.25, "targets": []int{1, 2}},
 		}},
 		AdminInfo: &model.AuditAdminInfo{AdminID: 1},
 		AuditInfo: &model.AuditRequestInfo{Method: "PUT", Route: "/api/channel/", Path: "/api/channel/", Status: 200, Success: false},
@@ -586,7 +587,7 @@ func verifyAuditJSONStorage(t *testing.T) {
 	empty, err := common.Marshal(entries[0].Other)
 	require.NoError(t, err)
 	assert.JSONEq(t, `{}`, string(empty))
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		require.NoError(t, model.InitLogDB())
 	}
 	entries, total, err = model.GetAuditLogs(filter, 0, 20, common.RoleRootUser)
@@ -600,7 +601,7 @@ func verifyAuditJSONStorage(t *testing.T) {
 
 func TestAuditOtherDatabaseEncoding(t *testing.T) {
 	const payload = `{"op":{"action":"channel.update","params":{"id":9007199254740993,"nested":{"count":0,"enabled":false}}},"admin_info":{"admin_id":1,"admin_username":"root","admin_role":100,"auth_method":"session"},"audit_info":{"method":"PUT","route":"/api/channel/","path":"/api/channel/","status":200,"success":false},"root_info":{"generation":18446744073709551615}}`
-	for _, input := range []interface{}{payload, []byte(payload)} {
+	for _, input := range []any{payload, []byte(payload)} {
 		var other model.AuditOther
 		require.NoError(t, other.Scan(input))
 		require.NotNil(t, other.Op)
@@ -616,7 +617,7 @@ func TestAuditOtherDatabaseEncoding(t *testing.T) {
 		assert.JSONEq(t, payload, text)
 		assert.Contains(t, text, "9007199254740993")
 		assert.Contains(t, text, "18446744073709551615")
-		for _, empty := range []interface{}{nil, "", []byte(`null`), "{}"} {
+		for _, empty := range []any{nil, "", []byte(`null`), "{}"} {
 			require.NoError(t, other.Scan(input))
 			require.NoError(t, other.Scan(empty))
 			encoded, err = other.Value()
@@ -679,7 +680,7 @@ func TestAuditDatabaseMatrix(t *testing.T) {
 						require.NoError(t, db.Create(&releasedAuditUser{Username: "released-owner", Password: "placeholder", AccessToken: &legacy, AffCode: "released-aff", Quota: 1234}).Error)
 						require.NoError(t, db.Create(&releasedAuditLog{UserId: 1, Type: model.LogTypeLogin, Content: "historical login", CreatedAt: 100, RequestId: "legacy-request"}).Error)
 					}
-					for i := 0; i < 2; i++ {
+					for range 2 {
 						require.NoError(t, model.InitDB())
 						require.NoError(t, model.InitLogDB())
 					}

@@ -52,7 +52,7 @@ type RealtimeSession struct {
 	InputAudioFormat        string                  `json:"input_audio_format"`
 	OutputAudioFormat       string                  `json:"output_audio_format"`
 	InputAudioTranscription InputAudioTranscription `json:"input_audio_transcription"`
-	TurnDetection           interface{}             `json:"turn_detection"`
+	TurnDetection           any                     `json:"turn_detection"`
 	Tools                   []RealTimeTool          `json:"tools"`
 	ToolChoice              string                  `json:"tool_choice"`
 	Temperature             float64                 `json:"temperature"`

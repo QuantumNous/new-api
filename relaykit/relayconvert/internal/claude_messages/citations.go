@@ -30,8 +30,8 @@ func claudeCitationsToChat(raw json.RawMessage, text string, textOffset int) ([]
 		citedText := kitutil.Interface2String(citation["cited_text"])
 		if citedText != "" {
 			converted["cited_text"] = citedText
-			if index := strings.Index(text, citedText); index >= 0 {
-				startIndex := textOffset + utf8.RuneCountInString(text[:index])
+			if before, _, ok := strings.Cut(text, citedText); ok {
+				startIndex := textOffset + utf8.RuneCountInString(before)
 				converted["start_index"] = startIndex
 				converted["end_index"] = startIndex + utf8.RuneCountInString(citedText)
 			}

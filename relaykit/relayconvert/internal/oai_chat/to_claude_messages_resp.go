@@ -65,7 +65,7 @@ func startPendingToolBlocks(state *convmeta.ClaudeConvertInfo) []*dto.ClaudeResp
 				Id:    tool.ID,
 				Type:  "tool_use",
 				Name:  tool.Name,
-				Input: map[string]interface{}{},
+				Input: map[string]any{},
 			},
 		})
 		tool.Started = true
@@ -304,7 +304,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 							Id:    tool.ID,
 							Type:  "tool_use",
 							Name:  tool.Name,
-							Input: map[string]interface{}{},
+							Input: map[string]any{},
 						},
 					})
 					tool.Started = true
@@ -480,9 +480,9 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta
 			claudeContent.Type = "tool_use"
 			claudeContent.Id = toolUse.ID
 			claudeContent.Name = toolUse.Function.Name
-			mapParams := map[string]interface{}{}
+			mapParams := map[string]any{}
 			if strings.TrimSpace(toolUse.Function.Arguments) != "" {
-				var parsed map[string]interface{}
+				var parsed map[string]any
 				if err := kitutil.Unmarshal([]byte(toolUse.Function.Arguments), &parsed); err == nil && parsed != nil {
 					mapParams = parsed
 				}

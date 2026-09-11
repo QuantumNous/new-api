@@ -16,7 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { BillingUsageSchema } from '@/features/pricing/types'
+import type {
+  BillingUsageSchema,
+  BillingUsageExample,
+} from '@/features/pricing/types'
 
 export type TaskPluginProtocolClaim =
   | string
@@ -58,6 +61,11 @@ export type TaskPluginMeta = {
   routes?: TaskPluginRoute[]
   protocols?: TaskPluginProtocolClaim[]
   usageSchema?: BillingUsageSchema
+  usageProfiles?: {
+    models: string[]
+    schema: BillingUsageSchema
+    examples?: BillingUsageExample[]
+  }[]
 }
 
 export type TaskPluginRecord = {

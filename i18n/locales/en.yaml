@@ -1,5 +1,8 @@
 # English translations
 
+# Task plugin messages
+task_plugin.unknown_meta_field: 'Plugin metadata contains an unknown field "{{.Field}}". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.'
+
 # Common messages
 common.invalid_params: "Invalid parameters"
 common.database_error: "Database error, please contact the administrator"

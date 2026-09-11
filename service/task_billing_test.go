@@ -404,22 +404,22 @@ func TestTaskBillingOtherSeparatesPluginAndRootDiagnostics(t *testing.T) {
 	other := taskBillingOther(task).Snapshot()
 
 	assert.Equal(t, "task_public", other["task_id"])
-	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	adminInfo, ok := other["admin_info"].(map[string]any)
 	require.True(t, ok)
-	pluginInfo, ok := adminInfo["task_plugin"].(map[string]interface{})
+	pluginInfo, ok := adminInfo["task_plugin"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "document-parser", pluginInfo["key"])
 	assert.Equal(t, "1.2.3", pluginInfo["version"])
-	assert.Equal(t, map[string]interface{}{
+	assert.Equal(t, map[string]any{
 		"name": "Community Author",
 		"url":  "https://plugins.example/author",
 	}, pluginInfo["author"])
 
-	rootInfo, ok := other["root_info"].(map[string]interface{})
+	rootInfo, ok := other["root_info"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "upstream-private", rootInfo["upstream_task_id"])
 	assert.Equal(t, "node-a", rootInfo["node_name"])
-	runtimeInfo, ok := rootInfo["task_plugin"].(map[string]interface{})
+	runtimeInfo, ok := rootInfo["task_plugin"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, uint64(42), runtimeInfo["generation"])
 	assert.NotContains(t, runtimeInfo, "author")

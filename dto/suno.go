@@ -42,13 +42,13 @@ type SunoSong struct {
 }
 
 type SunoMetadata struct {
-	Tags                 string      `json:"tags"`
-	Prompt               string      `json:"prompt"`
-	GPTDescriptionPrompt interface{} `json:"gpt_description_prompt"`
-	AudioPromptID        interface{} `json:"audio_prompt_id"`
-	Duration             interface{} `json:"duration"`
-	ErrorType            interface{} `json:"error_type"`
-	ErrorMessage         interface{} `json:"error_message"`
+	Tags                 string `json:"tags"`
+	Prompt               string `json:"prompt"`
+	GPTDescriptionPrompt any    `json:"gpt_description_prompt"`
+	AudioPromptID        any    `json:"audio_prompt_id"`
+	Duration             any    `json:"duration"`
+	ErrorType            any    `json:"error_type"`
+	ErrorMessage         any    `json:"error_message"`
 }
 
 type SunoLyrics struct {

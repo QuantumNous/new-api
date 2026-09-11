@@ -92,7 +92,7 @@ func TestSecurityLoginCodeCompletesOnce(t *testing.T) {
 			router := gin.New()
 			router.POST("/api/user/login/verify", VerifyLogin)
 			router.POST("/api/user/login/2fa", Verify2FALogin)
-			for attempt := 0; attempt < 2; attempt++ {
+			for attempt := range 2 {
 				response := httptest.NewRecorder()
 				router.ServeHTTP(response, httptest.NewRequest("POST", test.path, strings.NewReader(string(body))))
 				var result securityEnrollmentResponse
@@ -241,12 +241,10 @@ func TestSecurityLoginPasskeyConcurrentCompletionCreatesOneSession(t *testing.T)
 	responses := make(chan *httptest.ResponseRecorder, 2)
 	var workers sync.WaitGroup
 	for _, body := range requests {
-		workers.Add(1)
-		go func() {
-			defer workers.Done()
+		workers.Go(func() {
 			<-start
 			responses <- securityEnrollmentRequest("POST", "/api/user/login/passkey/finish", body, "", service.AuthIdentity{}, LoginPasskeyFinish)
-		}()
+		})
 	}
 	close(start)
 	workers.Wait()

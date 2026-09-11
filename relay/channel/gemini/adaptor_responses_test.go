@@ -93,14 +93,14 @@ func TestConvertOpenAIResponsesRequestToGeminiFunctionCallConversation(t *testin
 	require.Len(t, got.Contents[0].Parts, 2)
 	require.NotNil(t, got.Contents[0].Parts[0].FunctionCall)
 	assert.Equal(t, "lookup", got.Contents[0].Parts[0].FunctionCall.FunctionName)
-	assert.Equal(t, map[string]interface{}{"q": "x"}, got.Contents[0].Parts[0].FunctionCall.Arguments)
+	assert.Equal(t, map[string]any{"q": "x"}, got.Contents[0].Parts[0].FunctionCall.Arguments)
 	assert.Equal(t, "I will call.", got.Contents[0].Parts[1].Text)
 
 	assert.Equal(t, "user", got.Contents[1].Role)
 	require.Len(t, got.Contents[1].Parts, 1)
 	require.NotNil(t, got.Contents[1].Parts[0].FunctionResponse)
 	assert.Equal(t, "lookup", got.Contents[1].Parts[0].FunctionResponse.Name)
-	assert.Equal(t, map[string]interface{}{"ok": true}, got.Contents[1].Parts[0].FunctionResponse.Response)
+	assert.Equal(t, map[string]any{"ok": true}, got.Contents[1].Parts[0].FunctionResponse.Response)
 }
 
 func TestConvertOpenAIResponsesRequestToGeminiSkipsCustomToolCalls(t *testing.T) {

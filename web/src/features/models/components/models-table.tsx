@@ -26,6 +26,7 @@ import { ErrorState } from '@/components/error-state'
 import { useModelPricing } from '@/features/model-pricing/api'
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getModels, searchModels, getVendors } from '../api'
 import { DEFAULT_PAGE_SIZE } from '../constants'
@@ -84,7 +85,8 @@ export function ModelsTable() {
   // Fetch vendors for filter
   const { data: vendorsData } = useQuery({
     queryKey: vendorsQueryKeys.list(),
-    queryFn: () => getVendors({ page_size: 1000 }),
+    queryFn: async () =>
+      requireServerSuccess(await getVendors({ page_size: 1000 })),
   })
 
   const vendors = useMemo(
@@ -139,22 +141,26 @@ export function ModelsTable() {
     }),
     queryFn: async () => {
       if (shouldSearch) {
-        return searchModels({
+        return requireServerSuccess(
+          await searchModels({
+            include_channel_models: true,
+            keyword: globalFilter,
+            vendor: activeVendorFilter,
+            status: statusFilterValue,
+            square_state: squareState,
+            sync_official: syncFilterValue,
+            p: pagination.pageIndex + 1,
+            page_size: pagination.pageSize,
+          })
+        )
+      }
+      return requireServerSuccess(
+        await getModels({
           include_channel_models: true,
-          keyword: globalFilter,
-          vendor: activeVendorFilter,
-          status: statusFilterValue,
-          square_state: squareState,
-          sync_official: syncFilterValue,
           p: pagination.pageIndex + 1,
           page_size: pagination.pageSize,
         })
-      }
-      return getModels({
-        include_channel_models: true,
-        p: pagination.pageIndex + 1,
-        page_size: pagination.pageSize,
-      })
+      )
     },
   })
 

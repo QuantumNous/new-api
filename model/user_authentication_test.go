@@ -142,11 +142,9 @@ func TestIncrementFailedAttemptsCountsConcurrentFailures(t *testing.T) {
 	errs := make(chan error, attempts)
 	var wg sync.WaitGroup
 	for range attempts {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			errs <- (&TwoFA{Id: twoFA.Id}).IncrementFailedAttempts()
-		}()
+		})
 	}
 	wg.Wait()
 	close(errs)
@@ -175,13 +173,11 @@ func TestValidateBackupCodeCanOnlySucceedOnce(t *testing.T) {
 	errs := make(chan error, attempts)
 	var wg sync.WaitGroup
 	for range attempts {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			valid, err := ValidateBackupCode(123, code)
 			results <- valid
 			errs <- err
-		}()
+		})
 	}
 	wg.Wait()
 	close(results)

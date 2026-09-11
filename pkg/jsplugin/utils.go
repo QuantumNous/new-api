@@ -1,6 +1,7 @@
 package jsplugin
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
@@ -30,6 +31,24 @@ type volcSignRequest struct {
 
 func injectGlobals(runtime *sobek.Runtime, identity func() string, now func() time.Time, logOutput func(string)) error {
 	utils := map[string]any{
+		"hasCapability": HasCapability,
+		"json": map[string]any{
+			"clone": func(call sobek.FunctionCall) sobek.Value {
+				if sobek.IsUndefined(call.Argument(0)) {
+					panic(runtime.NewTypeError("json.clone requires a JSON value"))
+				}
+				budget := &jsonStateBudget{ctx: context.Background(), bytes: MaxJSONToolBytes, nodes: maxJSONToolNodes}
+				value, err := newJSONStateNode(call.Argument(0), 0, budget)
+				if err != nil {
+					panic(runtime.NewTypeError("json.clone: %s", err))
+				}
+				cloned, err := value.jsValue(runtime)
+				if err != nil {
+					panic(runtime.NewGoError(err))
+				}
+				return cloned
+			},
+		},
 		"unixNow": func() int64 { return now().Unix() },
 		"jwtSignHS256": func(claims map[string]any, secret string) (string, error) {
 			return jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims(claims)).SignedString([]byte(secret))
