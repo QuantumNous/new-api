@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
@@ -56,6 +57,7 @@ import {
   ADMIN_PERMISSION_RESOURCES,
   hasPermission,
 } from '@/lib/admin-permissions'
+import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
@@ -84,6 +86,28 @@ export function ChannelsPrimaryButtons() {
   const [showConsistencyDialog, setShowConsistencyDialog] = useState(false)
   const [isRepairingConsistency, setIsRepairingConsistency] = useState(false)
   const currentUser = useAuthStore((s) => s.auth.user)
+  const [downloadingWorker, setDownloadingWorker] = useState(false)
+
+  const downloadWorkerConfig = async () => {
+    setDownloadingWorker(true)
+    try {
+      const response = await api.get('/api/image-upscale/worker-config', {
+        responseType: 'blob',
+      })
+      const url = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'hardy-upscale-config.json'
+      document.body.append(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch {
+      toast.error(t('Download failed'))
+    } finally {
+      setDownloadingWorker(false)
+    }
+  }
   const canEditSensitive = hasPermission(
     currentUser,
     ADMIN_PERMISSION_RESOURCES.CHANNEL,
@@ -148,6 +172,16 @@ export function ChannelsPrimaryButtons() {
         </div>
 
         {/* Create Channel */}
+        {currentUser?.role === 100 && (
+          <Button
+            size='sm'
+            variant='outline'
+            disabled={downloadingWorker}
+            onClick={downloadWorkerConfig}
+          >
+            {t('Download upscale worker configuration')}
+          </Button>
+        )}
         <Tooltip>
           <TooltipTrigger render={<span className='inline-flex' />}>
             <Button

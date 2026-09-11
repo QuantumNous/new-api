@@ -328,6 +328,11 @@ func InitResources() error {
 		}
 	}
 	model.InitOptionMap()
+	if common.IsMasterNode {
+		if err := model.InitImageUpscaleWorkerToken(); err != nil {
+			common.SysError(err.Error())
+		}
+	}
 
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()

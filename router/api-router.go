@@ -12,6 +12,7 @@ import (
 )
 
 func SetApiRouter(router *gin.Engine) {
+	router.GET("/api/image-upscale/worker-config", middleware.RootAuth(), middleware.DisableCache(), controller.DownloadImageUpscaleWorkerConfig)
 	apiRouter := router.Group("/api")
 	apiRouter.Use(middleware.RouteTag("api"))
 	apiRouter.Use(gzip.Gzip(gzip.DefaultCompression))

@@ -15,6 +15,12 @@ func SetRelayRouter(router *gin.Engine) {
 	router.Use(middleware.DecompressRequestMiddleware())
 	router.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	router.Use(middleware.StatsMiddleware())
+	upscaleWorker := router.Group("/internal/image-upscale", controller.ImageUpscaleWorkerAuth)
+	upscaleWorker.POST("/heartbeat", controller.ImageUpscaleWorkerHeartbeat)
+	upscaleWorker.POST("/claim", controller.ClaimImageUpscaleJob)
+	upscaleWorker.GET("/:id/input", controller.ImageUpscaleJobIO)
+	upscaleWorker.POST("/:id/result", controller.ImageUpscaleJobIO)
+	upscaleWorker.POST("/:id/fail", controller.ImageUpscaleJobIO)
 	// https://platform.openai.com/docs/api-reference/introduction
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.RouteTag("relay"))

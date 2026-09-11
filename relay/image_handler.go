@@ -43,6 +43,23 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
+	if service.ImageUpscaleTarget(info.OriginModelName) != 0 {
+		if info.ApiType != constant.APITypeOpenAI || service.ImageUpscaleTarget(request.Model) != 0 || model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled || len(info.ParamOverride) > 0 || strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data") {
+			return types.NewErrorWithStatusCode(fmt.Errorf("upscale models require a mapped OpenAI JSON channel without parameter overrides"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		if err := service.PrepareImageUpscaleRequest(request); err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		if !service.ImageUpscaleReady() {
+			return types.NewErrorWithStatusCode(fmt.Errorf("GPU upscale worker is offline"), types.ErrorCode("upscale_worker_offline"), http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+		}
+		release, available := service.ReserveImageUpscaleSlot()
+		if !available {
+			c.Header("Retry-After", "15")
+			return types.NewErrorWithStatusCode(fmt.Errorf("GPU upscale queue is busy; no image was generated"), types.ErrorCode("upscale_busy"), http.StatusTooManyRequests, types.ErrOptionWithSkipRetry())
+		}
+		defer release()
+	}
 
 	var requestBody io.Reader
 
@@ -110,6 +127,13 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		}
 	}
 
+	if service.ImageUpscaleTarget(info.OriginModelName) != 0 && info.IsStream {
+		if httpResp != nil {
+			service.CloseResponseBodyGracefully(httpResp)
+		}
+		c.Header("x-should-retry", "false")
+		return types.NewErrorWithStatusCode(fmt.Errorf("upstream unexpectedly returned a stream for an upscale request"), types.ErrorCode("image_upscale_failed"), http.StatusFailedDependency, types.ErrOptionWithSkipRetry())
+	}
 	usage, newAPIError := adaptor.DoResponse(c, httpResp, info)
 	if newAPIError != nil {
 		// reset status code 重置状态码

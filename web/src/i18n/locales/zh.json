@@ -1,5 +1,6 @@
 {
   "translation": {
+    "Download upscale worker configuration": "下载超分节点配置",
     "The service is temporarily unavailable or returned invalid data. Check task history before resubmitting image requests.": "服务暂时不可用或返回异常。生图请求请先查看任务记录，再决定是否重新提交。",
     "This price applies to the agent personally and initially to historical customers. Generated links keep their own prices.": "此价格适用于代理本人，首次开通时也用于已有客户。邀请链接及已绑定客户各自保留原定价。",
     "Enter an HTTPS account site URL": "请填写 HTTPS 上游账户站点地址",

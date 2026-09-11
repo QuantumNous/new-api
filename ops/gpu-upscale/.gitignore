@@ -1,0 +1,4 @@
+config.json
+worker-state/
+*.log
+__pycache__/
