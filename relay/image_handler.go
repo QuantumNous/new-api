@@ -44,10 +44,10 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	}
 	adaptor.Init(info)
 	if service.ImageUpscaleTarget(info.OriginModelName) != 0 {
-		if info.ApiType != constant.APITypeOpenAI || service.ImageUpscaleTarget(request.Model) != 0 || model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled || len(info.ParamOverride) > 0 || strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data") {
-			return types.NewErrorWithStatusCode(fmt.Errorf("upscale models require a mapped OpenAI JSON channel without parameter overrides"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		if info.ApiType != constant.APITypeOpenAI || service.ImageUpscaleTarget(request.Model) != 0 || model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled || len(info.ParamOverride) > 0 {
+			return types.NewErrorWithStatusCode(fmt.Errorf("upscale models require a mapped OpenAI channel without parameter overrides or pass-through"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
-		if err := service.PrepareImageUpscaleRequest(request); err != nil {
+		if err := prepareImageUpscaleRequest(c, request); err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
 		if !service.ImageUpscaleReady() {
@@ -171,5 +171,35 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	}
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
+	return nil
+}
+
+func prepareImageUpscaleRequest(c *gin.Context, request *dto.ImageRequest) error {
+	if err := service.PrepareImageUpscaleRequest(request); err != nil {
+		return err
+	}
+	if !strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data") {
+		return nil
+	}
+
+	form := c.Request.MultipartForm
+	if form == nil {
+		var err error
+		form, err = common.ParseMultipartFormReusable(c)
+		if err != nil {
+			return fmt.Errorf("failed to prepare upscale image edit: %w", err)
+		}
+		c.Request.MultipartForm = form
+	}
+	if form.Value == nil {
+		form.Value = make(map[string][]string)
+	}
+	form.Value["size"] = []string{request.Size}
+	form.Value["n"] = []string{"1"}
+	form.Value["stream"] = []string{"false"}
+	form.Value["response_format"] = []string{"b64_json"}
+	form.Value["output_format"] = []string{"png"}
+	delete(form.Value, "partial_images")
+	delete(form.Value, "output_compression")
 	return nil
 }
