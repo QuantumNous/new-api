@@ -65,6 +65,33 @@ func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other
 	}
 }
 
+// AppendRelayLogRequestInfo records request-side diagnostics shared by
+// successful consume logs and failed error logs: model mapping, conversion
+// chain, param override, stream status, and related public metadata.
+func AppendRelayLogRequestInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
+	if other == nil {
+		return
+	}
+	appendRequestPath(ctx, relayInfo, other)
+	if ctx != nil && common.GetContextKeyBool(ctx, constant.ContextKeySystemPromptOverride) {
+		other.SetPublic("is_system_prompt_overwritten", true)
+	}
+	if relayInfo == nil {
+		return
+	}
+	if relayInfo.ReasoningEffort != "" {
+		other.SetPublic("reasoning_effort", relayInfo.ReasoningEffort)
+	}
+	if relayInfo.HasChannelMeta() && relayInfo.IsModelMapped {
+		other.SetPublic("is_model_mapped", true)
+		other.SetPublic("upstream_model_name", relayInfo.UpstreamModelName)
+	}
+	appendRequestConversionChain(relayInfo, other)
+	appendFinalRequestFormat(relayInfo, other)
+	appendParamOverrideInfo(relayInfo, other)
+	appendStreamStatus(relayInfo, other)
+}
+
 // AppendRelayLogAdminInfo records relay routing and conversion diagnostics in
 // the admin-only scope shared by successful and failed request logs.
 func AppendRelayLogAdminInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
@@ -105,26 +132,9 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	other.SetPublic("model_price", modelPrice)
 	other.SetPublic("user_group_ratio", userGroupRatio)
 	other.SetPublic("frt", float64(relayInfo.FirstResponseTime.UnixMilli()-relayInfo.StartTime.UnixMilli()))
-	if relayInfo.ReasoningEffort != "" {
-		other.SetPublic("reasoning_effort", relayInfo.ReasoningEffort)
-	}
-	if relayInfo.IsModelMapped {
-		other.SetPublic("is_model_mapped", true)
-		other.SetPublic("upstream_model_name", relayInfo.UpstreamModelName)
-	}
-
-	isSystemPromptOverwritten := common.GetContextKeyBool(ctx, constant.ContextKeySystemPromptOverride)
-	if isSystemPromptOverwritten {
-		other.SetPublic("is_system_prompt_overwritten", true)
-	}
-
+	AppendRelayLogRequestInfo(ctx, relayInfo, other)
 	AppendRelayLogAdminInfo(ctx, relayInfo, other)
-	appendRequestPath(ctx, relayInfo, other)
-	appendRequestConversionChain(relayInfo, other)
-	appendFinalRequestFormat(relayInfo, other)
 	appendBillingInfo(relayInfo, other)
-	appendParamOverrideInfo(relayInfo, other)
-	appendStreamStatus(relayInfo, other)
 	return other
 }
 
@@ -149,13 +159,13 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other *model.LogOther)
 		"end_reason": string(ss.EndReason),
 	}
 	if ss.EndError != nil {
-		streamInfo["end_error"] = ss.EndError.Error()
+		streamInfo["end_error"] = common.MaskSensitiveInfo(ss.EndError.Error())
 	}
 	if ss.ErrorCount > 0 {
 		streamInfo["error_count"] = ss.ErrorCount
 		messages := make([]string, 0, len(ss.Errors))
 		for _, e := range ss.Errors {
-			messages = append(messages, e.Message)
+			messages = append(messages, common.MaskSensitiveInfo(e.Message))
 		}
 		streamInfo["errors"] = messages
 	}
