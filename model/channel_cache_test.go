@@ -8,24 +8,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 渠道启用但其分组在 abilities 表里没有任何记录时（直接改库、建渠道时写 abilities 半途失败），
-// 内存缓存重建曾对 nil map 赋值 panic，进程每个同步周期崩一次。
+// An enabled channel whose group has no row in the abilities table (direct DB
+// edits, ability rows that failed to be written) used to make InitChannelCache
+// panic with "assignment to entry in nil map" on every sync tick.
 func TestInitChannelCacheToleratesEnabledChannelWithoutAbilities(t *testing.T) {
-	require.NoError(t, DB.Exec("DELETE FROM abilities").Error)
-	require.NoError(t, DB.Exec("DELETE FROM channels").Error)
 	prevEnabled := common.MemoryCacheEnabled
 	common.MemoryCacheEnabled = true
-	t.Cleanup(func() {
-		common.MemoryCacheEnabled = prevEnabled
-		require.NoError(t, DB.Exec("DELETE FROM channels").Error)
-	})
 
-	orphan := &Channel{Type: 1, Key: "k", Status: common.ChannelStatusEnabled, Name: "orphan", Group: "orphan-group", Models: "m1"}
+	channelSyncLock.RLock()
+	prevGroup2model2channels := group2model2channels
+	prevChannelsIDM := channelsIDM
+	prevAdvancedCustomConfig := channel2advancedCustomConfig
+	channelSyncLock.RUnlock()
+
+	orphan := &Channel{
+		Type:   1,
+		Key:    "k",
+		Status: common.ChannelStatusEnabled,
+		Name:   "orphan-channel-without-abilities",
+		Group:  "orphan-group-without-abilities",
+		Models: "orphan-model-without-abilities",
+	}
 	require.NoError(t, DB.Create(orphan).Error)
+	t.Cleanup(func() {
+		require.NoError(t, DB.Delete(&Channel{}, orphan.Id).Error)
+		channelSyncLock.Lock()
+		group2model2channels = prevGroup2model2channels
+		channelsIDM = prevChannelsIDM
+		channel2advancedCustomConfig = prevAdvancedCustomConfig
+		channelSyncLock.Unlock()
+		common.MemoryCacheEnabled = prevEnabled
+	})
 
 	require.NotPanics(t, InitChannelCache)
 
 	channelSyncLock.RLock()
 	defer channelSyncLock.RUnlock()
-	assert.Equal(t, []int{orphan.Id}, group2model2channels["orphan-group"]["m1"], "渠道表是内存路由表的数据源，孤儿分组也应可路由")
+	assert.Equal(t, []int{orphan.Id}, group2model2channels[orphan.Group][orphan.Models],
+		"the channels table drives the in-memory routing table, so the orphan group must stay routable")
 }
