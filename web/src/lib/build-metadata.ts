@@ -168,3 +168,7 @@ export function installBuildMetadata(): void {
 export function getBuildRevision(): string {
   return computeBuildRevision()
 }
+
+export function getBuildVersion(): string | undefined {
+  return readEnvRevision()
+}
