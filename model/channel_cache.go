@@ -24,6 +24,11 @@ var channelsIDM map[int]*Channel                     // all channels include dis
 var channel2advancedCustomConfig map[int]*kitdto.AdvancedCustomConfig
 var channelSyncLock sync.RWMutex
 
+// InitChannelCache rebuilds the in-memory routing tables from the channels and
+// abilities tables: group -> model -> channel IDs, the channel lookup by ID and
+// the parsed Advanced Custom configs. It runs at startup and on every
+// SyncChannelCache tick; with the memory cache disabled it only refreshes the
+// derived pricing and task-alias views.
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
 		InvalidatePricingCache()
