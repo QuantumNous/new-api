@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -18,11 +17,6 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 )
-
-func imageUpscaleMetricHeader(c *gin.Context, name string) (int64, bool) {
-	value, err := strconv.ParseInt(c.GetHeader(name), 10, 64)
-	return value, err == nil && value >= 0 && value <= 10*60*1000
-}
 
 func DownloadImageUpscaleWorkerConfig(c *gin.Context) {
 	address, err := url.Parse(strings.TrimRight(system_setting.ServerAddress, "/"))
@@ -112,14 +106,11 @@ func ImageUpscaleJobIO(c *gin.Context) {
 		c.Status(204)
 		return
 	}
-	uploadStarted := time.Now()
 	body, err := io.ReadAll(io.LimitReader(c.Request.Body, service.MaxDrawingBytes+1))
-	uploadMs := time.Since(uploadStarted).Milliseconds()
 	if err != nil || int64(len(body)) > service.MaxDrawingBytes {
 		c.Status(413)
 		return
 	}
-	transportBytes := len(body)
 	config, format, err := image.DecodeConfig(bytes.NewReader(body))
 	if err != nil || (format != "png" && format != "webp") || config.Width != job.Width || config.Height != job.Height {
 		c.Status(422)
@@ -131,17 +122,7 @@ func ImageUpscaleJobIO(c *gin.Context) {
 		c.Status(422)
 		return
 	}
-	computeMs, ok := imageUpscaleMetricHeader(c, "X-Upscale-Compute-Ms")
-	if !ok {
-		c.Status(422)
-		return
-	}
-	encodeMs, ok := imageUpscaleMetricHeader(c, "X-Upscale-Encode-Ms")
-	if !ok {
-		c.Status(422)
-		return
-	}
-	if job.OutputFormat == "png" && format == "webp" {
+	if format == "webp" {
 		var encoded bytes.Buffer
 		if err = png.Encode(&encoded, decoded); err != nil {
 			c.Status(422)
@@ -152,24 +133,13 @@ func ImageUpscaleJobIO(c *gin.Context) {
 			return
 		}
 		body = encoded.Bytes()
-	} else if job.OutputFormat == "webp" && format != "webp" {
-		c.Status(422)
-		return
-	} else if job.OutputFormat != "png" && job.OutputFormat != "webp" {
-		c.Status(422)
-		return
 	}
 	path, _ := service.ImageUpscaleFile(job.Lease, ".output")
 	if err = os.WriteFile(path, body, 0600); err != nil {
 		c.Status(503)
 		return
 	}
-	finishedAtMs := time.Now().UnixMilli()
-	result := model.DB.Model(&model.ImageUpscaleJob{}).Where("id = ? AND lease = ? AND status = ? AND expires_at > ?", job.ID, job.Lease, "running", time.Now().Unix()).Updates(map[string]any{
-		"status": "succeeded", "finished_at_ms": finishedAtMs,
-		"compute_ms": computeMs, "encode_ms": encodeMs,
-		"upload_ms": uploadMs, "result_bytes": transportBytes,
-	})
+	result := model.DB.Model(&model.ImageUpscaleJob{}).Where("id = ? AND lease = ? AND status = ? AND expires_at > ?", job.ID, job.Lease, "running", time.Now().Unix()).Update("status", "succeeded")
 	if result.Error != nil {
 		c.Status(503)
 		return

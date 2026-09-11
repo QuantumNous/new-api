@@ -82,20 +82,8 @@ func ImageUpscaleReady() bool {
 	return len(DrawingOption("ImageUpscaleWorkerToken", "")) >= 32 && time.Now().Unix()-upscaleHeartbeat.Load() < 45
 }
 
-func ImageUpscaleOutputFormat(request *dto.ImageRequest) string {
-	if request == nil {
-		return "webp"
-	}
-	var format string
-	_ = common.Unmarshal(request.OutputFormat, &format)
-	if format == "png" || format == "webp" {
-		return format
-	}
-	return "webp"
-}
-
 // Validate before generating a paid upstream image. The initial contract is
-// one non-streamed image per request; clients can use durable image tasks.
+// one non-streamed PNG per request; clients can use durable image tasks.
 func PrepareImageUpscaleRequest(request *dto.ImageRequest) error {
 	if request.Stream != nil && *request.Stream {
 		return errors.New("upscale models require stream=false")
@@ -106,8 +94,8 @@ func PrepareImageUpscaleRequest(request *dto.ImageRequest) error {
 	var format, background string
 	_ = common.Unmarshal(request.OutputFormat, &format)
 	_ = common.Unmarshal(request.Background, &background)
-	if format != "" && format != "png" && format != "webp" {
-		return errors.New("upscale models currently output PNG or WebP")
+	if format != "" && format != "png" {
+		return errors.New("upscale models currently output PNG only")
 	}
 	if background == "transparent" {
 		return errors.New("transparent output is not supported by the upscale worker")
@@ -149,7 +137,7 @@ func ImageUpscaleFile(id, suffix string) (string, error) {
 	return filepath.Join(DrawingStorageDir(), "upscale", id+suffix), nil
 }
 
-func UpscaleImageResponse(ctx context.Context, body []byte, target int, outputFormat string) ([]byte, error) {
+func UpscaleImageResponse(ctx context.Context, body []byte, target int) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	body, err := EnsureImageBase64Response(ctx, body)
@@ -174,10 +162,7 @@ func UpscaleImageResponse(ctx context.Context, body []byte, target int, outputFo
 		return nil, errors.New("generated image dimensions cannot be upscaled")
 	}
 	factor := float64(target) / float64(max(config.Width, config.Height))
-	if outputFormat != "png" && outputFormat != "webp" {
-		return nil, errors.New("unsupported upscale output format")
-	}
-	job := model.ImageUpscaleJob{ID: uuid.NewString(), Status: "queued", Target: target, Width: int(math.Round(float64(config.Width) * factor)), Height: int(math.Round(float64(config.Height) * factor)), OutputFormat: outputFormat, CreatedAt: time.Now().Unix(), ExpiresAt: time.Now().Add(10 * time.Minute).Unix()}
+	job := model.ImageUpscaleJob{ID: uuid.NewString(), Status: "queued", Target: target, Width: int(math.Round(float64(config.Width) * factor)), Height: int(math.Round(float64(config.Height) * factor)), CreatedAt: time.Now().Unix(), ExpiresAt: time.Now().Add(10 * time.Minute).Unix()}
 	inputPath, _ := ImageUpscaleFile(job.ID, ".input")
 	if err = os.MkdirAll(filepath.Dir(inputPath), 0700); err != nil {
 		return nil, err
@@ -224,18 +209,7 @@ func UpscaleImageResponse(ctx context.Context, body []byte, target int, outputFo
 		return nil, err
 	}
 	delete(items[0], "url")
-	items[0]["upscale"], err = common.Marshal(map[string]any{
-		"method":          "realesrgan-x4plus",
-		"source_size":     fmt.Sprintf("%dx%d", config.Width, config.Height),
-		"target":          target,
-		"transport":       "webp-quality-100",
-		"queue_ms":        max(int64(0), job.ClaimedAtMs-job.CreatedAt*1000),
-		"worker_ms":       max(int64(0), job.FinishedAtMs-job.ClaimedAtMs),
-		"compute_ms":      job.ComputeMs,
-		"encode_ms":       job.EncodeMs,
-		"upload_ms":       job.UploadMs,
-		"transport_bytes": job.ResultBytes,
-	})
+	items[0]["upscale"], err = common.Marshal(map[string]any{"method": "realesrgan-x4plus", "source_size": fmt.Sprintf("%dx%d", config.Width, config.Height), "target": target})
 	if err != nil {
 		return nil, err
 	}

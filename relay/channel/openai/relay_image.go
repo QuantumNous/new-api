@@ -53,8 +53,7 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 	clientBody := responseBody
 	if info != nil && service.ImageUpscaleTarget(info.OriginModelName) != 0 {
 		target := service.ImageUpscaleTarget(info.OriginModelName)
-		request, _ := info.Request.(*dto.ImageRequest)
-		clientBody, err = service.UpscaleImageResponse(c.Request.Context(), clientBody, target, service.ImageUpscaleOutputFormat(request))
+		clientBody, err = service.UpscaleImageResponse(c.Request.Context(), clientBody, target)
 		if err != nil {
 			c.Header("x-should-retry", "false")
 			return nil, types.NewOpenAIError(err, types.ErrorCode("image_upscale_failed"), http.StatusFailedDependency, types.ErrOptionWithSkipRetry())

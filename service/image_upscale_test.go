@@ -11,16 +11,11 @@ import (
 func TestPrepareUpscaleUsesOneKAndPreservesAspectRatio(t *testing.T) {
 	for _, test := range []struct{ size, want string }{{"", "1024x1024"}, {"4096x2304", "1024x576"}, {"1536x2048", "768x1024"}, {"auto", "1024x1024"}} {
 		req := &dto.ImageRequest{Size: test.size, Prompt: "unchanged", Quality: "high", N: common.GetPointer(uint(1))}
-		assert.Equal(t, "webp", ImageUpscaleOutputFormat(req))
 		require.NoError(t, PrepareImageUpscaleRequest(req))
 		assert.Equal(t, test.want, req.Size)
 		assert.Equal(t, "unchanged", req.Prompt)
 		assert.Equal(t, "high", req.Quality)
 	}
-	pngRequest := &dto.ImageRequest{OutputFormat: []byte(`"png"`)}
-	webpRequest := &dto.ImageRequest{OutputFormat: []byte(`"webp"`)}
-	assert.Equal(t, "png", ImageUpscaleOutputFormat(pngRequest))
-	assert.Equal(t, "webp", ImageUpscaleOutputFormat(webpRequest))
 	for _, req := range []*dto.ImageRequest{{Size: "0x1024"}, {Size: "999999999999x1"}, {Size: "8192x1"}, {Stream: common.GetPointer(true)}, {N: common.GetPointer(uint(2))}, {OutputFormat: []byte(`"jpeg"`)}, {Background: []byte(`"transparent"`)}} {
 		assert.Error(t, PrepareImageUpscaleRequest(req))
 	}

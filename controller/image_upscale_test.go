@@ -94,7 +94,7 @@ func TestUpscaleRelayDeliversActualPixelsWithoutRegenerating(t *testing.T) {
 			response := httptest.NewRecorder()
 			go func() {
 				defer close(done)
-				req := httptest.NewRequest("POST", "/v1/images/generations", strings.NewReader(fmt.Sprintf(`{"model":%q,"prompt":"keep this prompt","size":"%dx%d","n":1,"output_format":"png"}`, tc.model, tc.target, tc.target)))
+				req := httptest.NewRequest("POST", "/v1/images/generations", strings.NewReader(fmt.Sprintf(`{"model":%q,"prompt":"keep this prompt","size":"%dx%d","n":1}`, tc.model, tc.target, tc.target)))
 				req.Header.Set("Content-Type", "application/json")
 				req.Header.Set("Authorization", "Bearer sk-"+token.Key)
 				r.ServeHTTP(response, req)
@@ -111,8 +111,6 @@ func TestUpscaleRelayDeliversActualPixelsWithoutRegenerating(t *testing.T) {
 					req.Header.Set("Authorization", "Bearer "+strings.Repeat("w", 48))
 				}
 				req.Header.Set("X-Upscale-Lease", lease)
-				req.Header.Set("X-Upscale-Compute-Ms", "8310")
-				req.Header.Set("X-Upscale-Encode-Ms", "2030")
 				w := httptest.NewRecorder()
 				worker.ServeHTTP(w, req)
 				return w
@@ -142,8 +140,6 @@ func TestUpscaleRelayDeliversActualPixelsWithoutRegenerating(t *testing.T) {
 				require.NoError(t, e)
 				assert.Equal(t, output.Bytes(), decoded)
 				assert.Equal(t, fmt.Sprintf("%dx%d", tc.target, tc.target), gjson.GetBytes(response.Body.Bytes(), "data.0.size").String())
-				assert.EqualValues(t, 8310, gjson.GetBytes(response.Body.Bytes(), "data.0.upscale.compute_ms").Int())
-				assert.EqualValues(t, 2030, gjson.GetBytes(response.Body.Bytes(), "data.0.upscale.encode_ms").Int())
 			}
 			require.Eventually(t, func() bool {
 				var saved model.Token
