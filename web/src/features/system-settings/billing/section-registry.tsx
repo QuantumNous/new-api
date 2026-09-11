@@ -20,6 +20,7 @@ import { parseCurrencyDisplayType } from '@/lib/currency'
 
 import { CheckinSettingsSection } from '../general/checkin-settings-section'
 import { PricingSection } from '../general/pricing-section'
+import { QuotaResetSection } from '../general/quota-reset-section'
 import { QuotaSettingsSection } from '../general/quota-settings-section'
 import { PaymentSettingsSection } from '../integrations/payment-settings-section'
 import { RatioSettingsCard } from '../models/ratio-settings-card'
@@ -197,6 +198,21 @@ const BILLING_SECTIONS = [
           enabled: settings['checkin_setting.enabled'],
           minQuota: settings['checkin_setting.min_quota'],
           maxQuota: settings['checkin_setting.max_quota'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'quota-reset',
+    titleKey: 'Quota Reset',
+    build: (settings: BillingSettings) => (
+      <QuotaResetSection
+        defaultValues={{
+          quota_reset_setting: {
+            enabled: settings['quota_reset_setting.enabled'],
+            period: settings['quota_reset_setting.period'],
+            reset_value: settings['quota_reset_setting.reset_value'],
+          },
         }}
       />
     ),

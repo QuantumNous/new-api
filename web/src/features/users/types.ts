@@ -59,6 +59,7 @@ export const userSchema = z.object({
   last_login_at: z.number().optional(),
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
+  setting: z.string().optional(),
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
@@ -143,6 +144,22 @@ export interface ManageUserQuotaPayload {
   action: 'add_quota'
   mode: QuotaAdjustMode
   value: number
+}
+
+export type QuotaResetPeriod = 'daily' | 'weekly' | 'monthly'
+
+export interface UpdateQuotaResetRulePayload {
+  user_id: number
+  rule: { period: QuotaResetPeriod; value: number } | null
+  opt_out: boolean
+}
+
+export interface RunQuotaResetNowResponse {
+  success: boolean
+  message?: string
+  data?: {
+    reset_count: number
+  }
 }
 
 // ============================================================================

@@ -16,16 +16,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Plus } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 
+import { QuotaResetRunDialog } from './quota-reset-run-dialog'
 import { useUsers } from './users-provider'
 
 export function UsersPrimaryButtons() {
   const { t } = useTranslation()
   const { setOpen, setCurrentRow } = useUsers()
+  const [quotaResetDialogOpen, setQuotaResetDialogOpen] = useState(false)
 
   const handleCreate = () => {
     setCurrentRow(null)
@@ -34,10 +37,22 @@ export function UsersPrimaryButtons() {
 
   return (
     <div className='flex gap-2'>
+      <Button
+        size='sm'
+        variant='outline'
+        onClick={() => setQuotaResetDialogOpen(true)}
+      >
+        <RefreshCw className='h-4 w-4' />
+        {t('Reset Quota Now')}
+      </Button>
       <Button size='sm' onClick={handleCreate}>
         <Plus className='h-4 w-4' />
         {t('Add User')}
       </Button>
+      <QuotaResetRunDialog
+        open={quotaResetDialogOpen}
+        onOpenChange={setQuotaResetDialogOpen}
+      />
     </div>
   )
 }

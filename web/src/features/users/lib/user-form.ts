@@ -44,6 +44,10 @@ export const userFormSchema = z.object({
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
     .optional(),
+  quota_reset_opt_out: z.boolean(),
+  quota_reset_rule_enabled: z.boolean(),
+  quota_reset_period: z.enum(['daily', 'weekly', 'monthly']),
+  quota_reset_value: z.number().min(0),
 })
 
 export type UserFormValues = z.infer<typeof userFormSchema>
@@ -62,6 +66,10 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   remark: '',
   // Filled against the backend catalog at render time; see UsersMutateDrawer.
   admin_permissions: {},
+  quota_reset_opt_out: false,
+  quota_reset_rule_enabled: false,
+  quota_reset_period: 'monthly',
+  quota_reset_value: 0,
 }
 
 // ============================================================================
@@ -113,6 +121,21 @@ export function transformFormDataToPayload(
  * the catalog at render time in UsersMutateDrawer.
  */
 export function transformUserToFormDefaults(user: User): UserFormValues {
+  let quotaResetRule: { period?: string; value?: number } | null = null
+  let quotaResetOptOut = false
+  if (user.setting) {
+    try {
+      const setting = JSON.parse(user.setting) as {
+        quota_reset_rule?: { period?: string; value?: number } | null
+        quota_reset_opt_out?: boolean
+      }
+      quotaResetRule = setting.quota_reset_rule ?? null
+      quotaResetOptOut = setting.quota_reset_opt_out ?? false
+    } catch {
+      quotaResetRule = null
+    }
+  }
+
   return {
     username: user.username,
     display_name: user.display_name,
@@ -122,5 +145,11 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     group: user.group || DEFAULT_GROUP,
     remark: user.remark || '',
     admin_permissions: user.admin_permissions ?? {},
+    quota_reset_opt_out: quotaResetOptOut,
+    quota_reset_rule_enabled: quotaResetRule != null,
+    quota_reset_period:
+      (quotaResetRule?.period as UserFormValues['quota_reset_period']) ??
+      'monthly',
+    quota_reset_value: quotaUnitsToDollars(quotaResetRule?.value ?? 0),
   }
 }

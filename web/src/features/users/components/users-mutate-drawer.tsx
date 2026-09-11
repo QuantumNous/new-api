@@ -30,6 +30,7 @@ import {
   sideDrawerFooterClassName,
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
+  sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -62,6 +63,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
   ADMIN_PERMISSION_ACTIONS,
@@ -81,6 +83,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import {
   createUser,
   updateUser,
+  updateUserQuotaResetRule,
   getUser,
   getGroups,
   getPermissionCatalog,
@@ -160,6 +163,7 @@ export function UsersMutateDrawer({
   const tokensOnly = currencyMeta.kind === 'tokens'
 
   const currentQuotaRaw = form.watch('quota_dollars') || 0
+  const quotaResetRuleEnabled = form.watch('quota_reset_rule_enabled')
   const selectedRole = form.watch('role')
   const canEditAdminPermissions = currentUser?.role === ROLE.SUPER_ADMIN
   const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
@@ -187,6 +191,31 @@ export function UsersMutateDrawer({
         : await createUser(payload)
 
       if (result.success) {
+        if (isUpdate && currentRow) {
+          const dirtyFields = form.formState.dirtyFields
+          const quotaResetDirty =
+            dirtyFields.quota_reset_opt_out ||
+            dirtyFields.quota_reset_rule_enabled ||
+            dirtyFields.quota_reset_period ||
+            dirtyFields.quota_reset_value
+          if (quotaResetDirty) {
+            const ruleResult = await updateUserQuotaResetRule({
+              user_id: currentRow.id,
+              rule: data.quota_reset_rule_enabled
+                ? {
+                    period: data.quota_reset_period,
+                    value: parseQuotaFromDollars(data.quota_reset_value),
+                  }
+                : null,
+              opt_out: data.quota_reset_opt_out,
+            })
+            if (!ruleResult.success) {
+              toast.error(
+                ruleResult.message || t('Failed to update quota reset rule')
+              )
+            }
+          }
+        }
         toast.success(
           isUpdate
             ? t(SUCCESS_MESSAGES.USER_UPDATED)
@@ -441,6 +470,139 @@ export function UsersMutateDrawer({
                       </FormItem>
                     )}
                   />
+                </SideDrawerSection>
+              )}
+
+              {/* Quota Reset Settings (Update only) */}
+              {isUpdate && (
+                <SideDrawerSection>
+                  <h3 className='text-sm font-medium'>{t('Quota Reset')}</h3>
+
+                  <FormField
+                    control={form.control}
+                    name='quota_reset_opt_out'
+                    render={({ field }) => (
+                      <FormItem className={sideDrawerSwitchItemClassName()}>
+                        <div className='flex flex-col gap-0.5'>
+                          <FormLabel className='!mt-0'>
+                            {t('Opt out of automatic quota reset')}
+                          </FormLabel>
+                          <FormDescription>
+                            {t(
+                              "When enabled, this user's quota is never reset automatically, even if a global or custom rule exists."
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='quota_reset_rule_enabled'
+                    render={({ field }) => (
+                      <FormItem className={sideDrawerSwitchItemClassName()}>
+                        <div className='flex flex-col gap-0.5'>
+                          <FormLabel className='!mt-0'>
+                            {t('Use a custom reset rule for this user')}
+                          </FormLabel>
+                          <FormDescription>
+                            {t(
+                              'When disabled, this user follows the global quota reset rule if one is configured.'
+                            )}
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  {quotaResetRuleEnabled && (
+                    <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                      <FormField
+                        control={form.control}
+                        name='quota_reset_period'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Reset Cycle')}</FormLabel>
+                            <Select
+                              items={[
+                                { value: 'daily', label: t('Daily') },
+                                { value: 'weekly', label: t('Weekly') },
+                                { value: 'monthly', label: t('Monthly') },
+                              ]}
+                              onValueChange={field.onChange}
+                              value={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent alignItemWithTrigger={false}>
+                                <SelectGroup>
+                                  <SelectItem value='daily'>
+                                    {t('Daily')}
+                                  </SelectItem>
+                                  <SelectItem value='weekly'>
+                                    {t('Weekly')}
+                                  </SelectItem>
+                                  <SelectItem value='monthly'>
+                                    {t('Monthly')}
+                                  </SelectItem>
+                                </SelectGroup>
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name='quota_reset_value'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              {t('Reset value ({{currency}})', {
+                                currency: currencyLabel,
+                              })}
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type='number'
+                                step={tokensOnly ? 1 : 0.000001}
+                                min={0}
+                                value={field.value}
+                                onChange={(e) =>
+                                  field.onChange(
+                                    Number.parseFloat(e.target.value) || 0
+                                  )
+                                }
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {t(
+                                'Quota amount users are reset to at each cycle'
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
                 </SideDrawerSection>
               )}
 

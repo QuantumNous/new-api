@@ -29,6 +29,8 @@ import type {
   UserFormData,
   ManageUserAction,
   ManageUserQuotaPayload,
+  UpdateQuotaResetRulePayload,
+  RunQuotaResetNowResponse,
   ApiResponse,
 } from './types'
 
@@ -137,6 +139,24 @@ export async function adjustUserQuota(
   payload: ManageUserQuotaPayload
 ): Promise<ApiResponse<Partial<User>>> {
   const res = await api.post('/api/user/manage', payload)
+  return res.data
+}
+
+/**
+ * Set or clear a user's dedicated quota reset rule and opt-out flag
+ */
+export async function updateUserQuotaResetRule(
+  payload: UpdateQuotaResetRulePayload
+): Promise<ApiResponse> {
+  const res = await api.post('/api/user/quota_reset_rule', payload)
+  return res.data
+}
+
+/**
+ * Immediately run the quota reset pass for all eligible users
+ */
+export async function runQuotaResetNow(): Promise<RunQuotaResetNowResponse> {
+  const res = await api.post('/api/user/quota_reset/run')
   return res.data
 }
 
