@@ -2,12 +2,12 @@
 import argparse
 import json
 import logging
-import threading
 import time
 import urllib.error
 import urllib.request
 import uuid
 import ctypes
+import msvcrt
 import os
 from pathlib import Path
 from PIL import Image
@@ -31,6 +31,15 @@ def main():
         ctypes.windll.kernel32.SetThreadExecutionState(0x80000001)
     work = Path(__file__).resolve().parent / 'worker-state'
     work.mkdir(exist_ok=True)
+    lock_file = (work / 'worker.lock').open('a+b')
+    if lock_file.seek(0, 2) == 0:
+        lock_file.write(b'0')
+        lock_file.flush()
+    lock_file.seek(0)
+    try:
+        msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+    except OSError as exc:
+        raise SystemExit('Another upscale worker is already running') from exc
     state = work / 'job.json'
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
@@ -49,15 +58,6 @@ def main():
                 raise ValueError('Response exceeds limit')
             return body
 
-    def heartbeat():
-        while True:
-            try:
-                request('/heartbeat', b'')
-            except Exception:
-                pass
-            time.sleep(10)
-
-    threading.Thread(target=heartbeat, daemon=True).start()
     while True:
         job = None
         try:
