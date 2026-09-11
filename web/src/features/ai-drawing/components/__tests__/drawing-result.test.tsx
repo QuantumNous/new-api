@@ -90,6 +90,28 @@ describe('drawing results', () => {
     await waitFor(() => expect(getDrawingZip).toHaveBeenCalledWith('batch-1'))
     await waitFor(() => expect(click).toHaveBeenCalledOnce())
   })
+  it('uses the available result width for one image and keeps the compact grid for multiple images', async () => {
+    const one: DrawingBatch = { ...batch, items: [batch.items[0]] }
+    const { rerender } = render(<DrawingResult {...props} batch={one} />)
+    await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument())
+    expect(screen.getByTestId('drawing-results')).toHaveAttribute(
+      'data-layout',
+      'single'
+    )
+    expect(screen.getByTestId('drawing-result-item')).toHaveClass(
+      'w-full',
+      'max-w-5xl'
+    )
+
+    rerender(<DrawingResult {...props} batch={batch} />)
+    expect(screen.getByTestId('drawing-results')).toHaveAttribute(
+      'data-layout',
+      'grid'
+    )
+    expect(screen.getAllByTestId('drawing-result-item')[0]).not.toHaveClass(
+      'max-w-5xl'
+    )
+  })
   it('removes an expired preview and disables further downloads without refreshing the page', async () => {
     vi.useFakeTimers()
     const one: DrawingBatch = {

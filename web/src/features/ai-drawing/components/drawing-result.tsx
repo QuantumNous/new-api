@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 import { getDrawingZip } from '../api'
 import { saveDrawingBlob } from '../lib/drawing'
@@ -104,14 +105,30 @@ export function DrawingResult(props: DrawingResultProps) {
             )}
           </div>
         ) : (
-          <div className='grid min-h-0 grid-cols-2 content-start items-start gap-3 overflow-y-auto sm:grid-cols-[repeat(auto-fill,9rem)]'>
+          <div
+            data-testid='drawing-results'
+            data-layout={items.length === 1 ? 'single' : 'grid'}
+            className={cn(
+              'grid min-h-0 content-start items-start gap-3 overflow-y-auto',
+              items.length === 1
+                ? 'grid-cols-1 justify-items-center'
+                : 'grid-cols-2 sm:grid-cols-[repeat(auto-fill,9rem)]'
+            )}
+          >
             {items.map((item) => (
-              <DrawingImageCard
+              <div
                 key={item.id}
-                item={item}
-                now={now}
-                ratio={props.batch?.ratio ?? '1:1'}
-              />
+                data-testid='drawing-result-item'
+                className={cn('min-w-0', {
+                  'w-full max-w-5xl': items.length === 1,
+                })}
+              >
+                <DrawingImageCard
+                  item={item}
+                  now={now}
+                  ratio={props.batch?.ratio ?? '1:1'}
+                />
+              </div>
             ))}
           </div>
         )}
