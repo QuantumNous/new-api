@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -65,7 +66,7 @@ func GetPerfMetrics(c *gin.Context) {
 		return
 	}
 
-	result.Groups = filterActiveGroups(result.Groups)
+	result.Groups = filterActiveGroups(result.Groups, c.GetString("group"))
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -73,10 +74,12 @@ func GetPerfMetrics(c *gin.Context) {
 	})
 }
 
-func filterActiveGroups(groups []perfmetrics.GroupResult) []perfmetrics.GroupResult {
+func filterActiveGroups(groups []perfmetrics.GroupResult, userGroup string) []perfmetrics.GroupResult {
 	activeRatios := ratio_setting.GetGroupRatioCopy()
+	usableGroups := service.GetUserUsableGroups(userGroup)
 	return lo.Filter(groups, func(g perfmetrics.GroupResult, _ int) bool {
-		_, ok := activeRatios[g.Group]
-		return ok || g.Group == "auto"
+		_, active := activeRatios[g.Group]
+		_, usable := usableGroups[g.Group]
+		return usable && (active || g.Group == "auto")
 	})
 }
