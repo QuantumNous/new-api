@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/pkg/langfuse"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
@@ -79,6 +80,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	var (
 		newAPIError *types.NewAPIError
 		ws          *websocket.Conn
+		relayInfo   *relaycommon.RelayInfo
 	)
 
 	if relayFormat == types.RelayFormatOpenAIRealtime {
@@ -93,7 +95,31 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	defer func() {
 		if newAPIError != nil {
-			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
+			safeError := newAPIError.MaskSensitiveErrorWithStatusCode()
+			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(safeError)))
+			metadata := map[string]any{"retry_count": c.GetInt("retry_count"), "use_channel": c.GetStringSlice("use_channel"), "status_code": newAPIError.StatusCode}
+			durationMS := 0
+			if startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime); !startTime.IsZero() {
+				durationMS = int(time.Since(startTime).Milliseconds())
+			}
+			traceID := c.GetString("trace_id")
+			if traceID == "" {
+				traceID = c.GetHeader("X-Trace-ID")
+			}
+			sessionID := c.GetString("session_id")
+			if sessionID == "" {
+				sessionID = c.GetHeader("X-Session-ID")
+			}
+			projectID := c.GetString("project_id")
+			if projectID == "" {
+				projectID = c.GetHeader("X-Project-ID")
+			}
+			langfuse.Publish(langfuse.Event{RequestID: requestId, TraceID: traceID, SessionID: sessionID, ProjectID: projectID, Model: func() string {
+				if relayInfo != nil {
+					return relayInfo.OriginModelName
+				}
+				return ""
+			}(), DurationMS: durationMS, Status: "error", Error: common.LocalLogPreview(safeError), Metadata: metadata})
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
@@ -122,7 +148,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, ws)
+	relayInfo, err = relaycommon.GenRelayInfo(c, relayFormat, request, ws)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
@@ -195,6 +221,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	for ; retryParam.GetRetry() <= common.RetryTimes; retryParam.IncreaseRetry() {
 		relayInfo.RetryIndex = retryParam.GetRetry()
+		c.Set("retry_count", relayInfo.RetryIndex)
 		channel, channelErr := getChannel(c, relayInfo, retryParam)
 		if channelErr != nil {
 			logger.LogError(c, channelErr.Error())

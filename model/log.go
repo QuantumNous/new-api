@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/pkg/langfuse"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -211,7 +213,7 @@ func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo *
 // username 由调用方传入（登录流程已持有用户对象），避免额外的数据库查询。
 // content 为英文兜底文本（用于导出）；action+params 供前端本地化渲染。
 // other 包含 login_method、user_agent 等结构化信息。
-func RecordLoginLog(userId, actorRole int, username string, content string, ip string, action string, params map[string]any, other AuditOther, request ...*gin.Context) {
+func RecordLoginLog(userId, actorRole int, username string, content string, ip string, action string, params map[string]interface{}, other AuditOther, request ...*gin.Context) {
 	other.Op = &AuditOperation{Action: action, Params: params}
 	var c *gin.Context
 	if len(request) > 0 {
@@ -226,7 +228,7 @@ func RecordLoginLog(userId, actorRole int, username string, content string, ip s
 // action+params 写入 Other.op，供前端本地化渲染（普通用户可见，不含敏感信息）。
 // adminInfo 存放操作者身份（写入 Other.admin_info，普通用户查询时剥离）；
 // auditInfo 存放路由/方法/结果等中间件兜底信息（写入 Other.audit_info，普通用户查询时剥离）。
-func RecordOperationAuditLog(logUserId, actorRole int, content string, ip string, action string, params map[string]any, adminInfo *AuditAdminInfo, auditInfo *AuditRequestInfo, request ...*gin.Context) {
+func RecordOperationAuditLog(logUserId, actorRole int, content string, ip string, action string, params map[string]interface{}, adminInfo *AuditAdminInfo, auditInfo *AuditRequestInfo, request ...*gin.Context) {
 	username, _ := GetUsernameById(logUserId, false)
 	other := AuditOther{
 		Op:        &AuditOperation{Action: action, Params: params},
@@ -252,7 +254,7 @@ func RecordOperationAuditLog(logUserId, actorRole int, content string, ip string
 func RecordTopupLog(userId int, content string, callerIp string, paymentMethod string, callbackPaymentMethod string) {
 	username, _ := GetUsernameById(userId, false)
 	other := NewLogOther()
-	other.MergeAdmin(map[string]any{
+	other.MergeAdmin(map[string]interface{}{
 		"server_ip":               common.GetIp(),
 		"node_name":               common.NodeName,
 		"caller_ip":               callerIp,
@@ -336,6 +338,33 @@ type RecordConsumeLogParams struct {
 	Other            *LogOther `json:"other"`
 }
 
+func langfuseEventFromConsumeLog(c *gin.Context, log *Log) langfuse.Event {
+	event := langfuse.Event{
+		RequestID: log.RequestId, UserID: strconv.Itoa(log.UserId), Model: log.ModelName,
+		InputTokens: log.PromptTokens, OutputTokens: log.CompletionTokens,
+		TotalTokens: log.PromptTokens + log.CompletionTokens, Quota: log.Quota,
+		DurationMS: log.UseTime * 1000, IsStream: log.IsStream, Status: "success",
+		Metadata: map[string]any{"username": log.Username, "token_name": log.TokenName, "token_id": log.TokenId, "channel_id": log.ChannelId, "channel_name": log.ChannelName, "group": log.Group, "upstream_request_id": log.UpstreamRequestId},
+	}
+	if c != nil {
+		event.TraceID = c.GetString("trace_id")
+		if event.TraceID == "" {
+			event.TraceID = c.GetHeader("X-Trace-ID")
+		}
+		event.SessionID = c.GetString("session_id")
+		if event.SessionID == "" {
+			event.SessionID = c.GetHeader("X-Session-ID")
+		}
+		event.ProjectID = c.GetString("project_id")
+		if event.ProjectID == "" {
+			event.ProjectID = c.GetHeader("X-Project-ID")
+		}
+		event.Metadata["retry_count"] = c.GetInt("retry_count")
+		event.Metadata["use_channel"] = c.GetStringSlice("use_channel")
+	}
+	return event
+}
+
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
 	if !common.LogConsumeEnabled {
 		return
@@ -382,6 +411,8 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	err := createLog(log)
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
+	} else {
+		langfuse.Publish(langfuseEventFromConsumeLog(c, log))
 	}
 	if common.DataExportEnabled {
 		LogQuotaData(QuotaDataLogParams{
