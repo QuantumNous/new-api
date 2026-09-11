@@ -27,7 +27,9 @@ type quotaResetRunAPIResponse struct {
 
 func TestQuotaResetRunRouteRequiresRootRole(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	previousRedisEnabled := common.RedisEnabled
 	common.RedisEnabled = false
+	t.Cleanup(func() { common.RedisEnabled = previousRedisEnabled })
 
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", t.Name())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
