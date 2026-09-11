@@ -53,6 +53,7 @@ export default defineConfig(({ envMode }) => {
       },
     },
     source: {
+      define: env.publicVars,
       entry: {
         index: './src/main.tsx',
       },
