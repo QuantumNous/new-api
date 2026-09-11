@@ -21,13 +21,16 @@ func TestInitChannelCacheToleratesEnabledChannelWithoutAbilities(t *testing.T) {
 	prevAdvancedCustomConfig := channel2advancedCustomConfig
 	channelSyncLock.RUnlock()
 
+	// The package-level in-memory DB is shared by every model test, so give the
+	// fixture route keys that cannot collide with rows left by other tests.
+	suffix := common.GetUUID()
 	orphan := &Channel{
 		Type:   1,
 		Key:    "k",
 		Status: common.ChannelStatusEnabled,
-		Name:   "orphan-channel-without-abilities",
-		Group:  "orphan-group-without-abilities",
-		Models: "orphan-model-without-abilities",
+		Name:   "orphan-channel-without-abilities-" + suffix,
+		Group:  "orphan-group-without-abilities-" + suffix,
+		Models: "orphan-model-without-abilities-" + suffix,
 	}
 	require.NoError(t, DB.Create(orphan).Error)
 	t.Cleanup(func() {
