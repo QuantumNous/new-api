@@ -157,7 +157,6 @@ func (p *GenericOAuthProvider) ExchangeToken(ctx context.Context, code string, c
 	}
 
 	bodyStr := string(body)
-	logger.LogDebug(ctx, "[OAuth-Generic-%s] ExchangeToken response body: %s", p.config.Slug, bodyStr[:min(len(bodyStr), 500)])
 
 	// Try to parse as JSON first
 	var tokenResponse struct {
@@ -207,6 +206,18 @@ func (p *GenericOAuthProvider) ExchangeToken(ctx context.Context, code string, c
 }
 
 func (p *GenericOAuthProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAuthUser, error) {
+	if token == nil {
+		return nil, NewOAuthError(i18n.MsgOAuthGetUserErr, map[string]any{"Provider": p.config.Name})
+	}
+	if p.config.IdentitySource == model.CustomOAuthIdentitySourceIDToken {
+		claims, err := verifyCustomOAuthIDToken(ctx, p.config, token.IDToken)
+		if err != nil {
+			logger.LogError(ctx, fmt.Sprintf("[OAuth-Generic-%s] ID token validation failed: %s", p.config.Slug, err.Error()))
+			return nil, NewOAuthError(i18n.MsgOAuthGetUserErr, map[string]any{"Provider": p.config.Name})
+		}
+		return p.userFromIdentityDocument(ctx, string(claims))
+	}
+
 	logger.LogDebug(ctx, "[OAuth-Generic-%s] GetUserInfo: fetching user info from %s", p.config.Slug, p.config.UserInfoEndpoint)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", p.config.UserInfoEndpoint, nil)
@@ -243,8 +254,10 @@ func (p *GenericOAuthProvider) GetUserInfo(ctx context.Context, token *OAuthToke
 	}
 
 	bodyStr := string(body)
-	logger.LogDebug(ctx, "[OAuth-Generic-%s] GetUserInfo response body: %s", p.config.Slug, bodyStr[:min(len(bodyStr), 500)])
+	return p.userFromIdentityDocument(ctx, bodyStr)
+}
 
+func (p *GenericOAuthProvider) userFromIdentityDocument(ctx context.Context, bodyStr string) (*OAuthUser, error) {
 	// Extract fields using gjson (supports JSONPath-like syntax)
 	userId := gjson.Get(bodyStr, p.config.UserIdField).String()
 	username := gjson.Get(bodyStr, p.config.UsernameField).String()

@@ -297,6 +297,8 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		&GroupHealth{},
+		&ModelHealth{},
 		&SystemInstance{},
 		&SystemTask{},
 		&SystemTaskLock{},

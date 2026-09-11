@@ -16,24 +16,41 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { cn } from '@/lib/utils'
 
-interface ConnectionLineProps {
-  direction?: 'left' | 'right'
+export type HealthLevel = 'excellent' | 'good' | 'warning' | 'critical'
+
+export interface StatusModel {
+  model: string
+  group: string
+  availability: number
+  latency_ms: number
+  level: HealthLevel
+  channel_id?: number
+  ok: boolean
+  error_code?: number
+  error_msg?: string
+  has_active: boolean
+  passive_requests?: number
+  passive_success?: number
 }
 
-/**
- * Connection line between gateway and icon columns
- */
-export function ConnectionLine({ direction = 'left' }: ConnectionLineProps) {
-  const gradientClass =
-    direction === 'left'
-      ? 'from-amber-500/60 to-amber-500/20'
-      : 'from-amber-500/20 to-amber-500/60'
+export interface StatusGroup {
+  group: string
+  availability: number
+  avg_latency_ms: number
+  total_probes: number
+  ok_probes: number
+  level: HealthLevel
+  models: StatusModel[]
+}
 
-  return (
-    <div className='hidden lg:block'>
-      <div className={cn('h-[2px] w-24 bg-gradient-to-r', gradientClass)} />
-    </div>
-  )
+export interface StatusCheckData {
+  announcement: string
+  groups: StatusGroup[]
+}
+
+export interface StatusCheckResponse {
+  success: boolean
+  message?: string
+  data: StatusCheckData
 }

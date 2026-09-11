@@ -6,6 +6,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// MaxPageSize caps page_size used as SQL LIMIT; a single request must not
+// pull an unbounded row set into memory.
+const MaxPageSize = 100
+
+// MaxPage caps the page number so (page-1)*pageSize cannot overflow into a
+// negative SQL OFFSET.
+const MaxPage = 100000
+
 type PageInfo struct {
 	Page     int `json:"page"`      // page num 页码
 	PageSize int `json:"page_size"` // page size 页大小
@@ -74,8 +82,17 @@ func GetPageQuery(c *gin.Context) *PageInfo {
 		}
 	}
 
-	if pageInfo.PageSize > 100 {
-		pageInfo.PageSize = 100
+	if pageInfo.PageSize > MaxPageSize {
+		pageInfo.PageSize = MaxPageSize
+	}
+	if pageInfo.PageSize < 1 {
+		pageInfo.PageSize = 1
+	}
+	if pageInfo.Page > MaxPage {
+		pageInfo.Page = MaxPage
+	}
+	if pageInfo.Page < 1 {
+		pageInfo.Page = 1
 	}
 
 	return pageInfo

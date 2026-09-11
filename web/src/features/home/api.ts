@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { HomePageContentResponse } from './types'
+import type { HomePageContentResponse, LandingModelsResponse } from './types'
 
 // ============================================================================
 // Home Page APIs
@@ -30,5 +30,14 @@ import type { HomePageContentResponse } from './types'
  */
 export async function getHomePageContent(): Promise<HomePageContentResponse> {
   const res = await api.get('/api/home_page_content')
+  return res.data
+}
+
+/**
+ * Get the admin-configured landing model groups (JSON string, parsed by the
+ * consumer). Falls back to an empty string when unset.
+ */
+export async function getLandingModels(): Promise<LandingModelsResponse> {
+  const res = await api.get('/api/landing_models')
   return res.data
 }

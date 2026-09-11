@@ -201,6 +201,11 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "PhantomCheckEnabled":
+		if option.Value == "true" && common.PhantomServiceURL == "" {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "无法启用 Phantom 校验，请先填入 Phantom 服务地址！"})
+			return
+		}
 	case "TurnstileCheckEnabled":
 		if option.Value == "true" && common.TurnstileSiteKey == "" {
 			c.JSON(http.StatusOK, gin.H{

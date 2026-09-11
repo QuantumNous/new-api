@@ -16,225 +16,127 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CherryStudio } from '@lobehub/icons'
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, BookOpen } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 
-import { HeroTerminalDemo } from '../hero-terminal-demo'
+import { RotatingPolyhedron } from '../rotating-polyhedron'
 
-interface HeroProps {
+type HeroProps = {
   className?: string
   isAuthenticated?: boolean
 }
 
-// Stylized three-dots indicator representing "More"
-const MoreIcon = () => (
-  <svg
-    className='text-muted-foreground/60 group-hover:text-foreground size-6 shrink-0 transition-colors'
-    viewBox='0 0 24 24'
-    fill='none'
-    xmlns='http://www.w3.org/2000/svg'
-  >
-    <circle cx='6' cy='12' r='2' fill='currentColor' />
-    <circle cx='12' cy='12' r='2' fill='currentColor' />
-    <circle cx='18' cy='12' r='2' fill='currentColor' />
-  </svg>
-)
-
 export function Hero(props: HeroProps) {
   const { t } = useTranslation()
-  const docsUrl = '/docs'
-
-  const renderDocsButton = () => {
-    const isExternal = docsUrl.startsWith('http')
-    if (isExternal) {
-      return (
-        <Button
-          variant='outline'
-          className='group border-border/50 hover:border-border hover:bg-muted/50 inline-flex h-11 items-center gap-1.5 rounded-lg px-5 text-sm font-medium'
-          render={
-            <a href={docsUrl} target='_blank' rel='noopener noreferrer' />
-          }
-        >
-          <BookOpen className='text-muted-foreground/80 group-hover:text-foreground size-4 transition-colors duration-200' />
-          <span>{t('Docs')}</span>
-        </Button>
-      )
-    }
-    return (
-      <Button
-        variant='outline'
-        className='group border-border/50 hover:border-border hover:bg-muted/50 inline-flex h-11 items-center gap-1.5 rounded-lg px-5 text-sm font-medium'
-        render={<Link to={docsUrl} />}
-      >
-        <BookOpen className='text-muted-foreground/80 group-hover:text-foreground size-4 transition-colors duration-200' />
-        <span>{t('Docs')}</span>
-      </Button>
-    )
-  }
+  const isAuthenticated = props.isAuthenticated === true
 
   return (
-    <section className='relative z-10 overflow-hidden px-6 pt-24 pb-16 md:pt-32 md:pb-24 lg:pt-36 lg:pb-28'>
-      {/* Radial gradient background */}
+    <section className='relative isolate overflow-hidden px-6 pt-20 pb-20 sm:px-10 sm:pt-24 sm:pb-24 lg:px-14 lg:pt-24 lg:pb-28'>
+      {/* Ambient primary wash + hairline grid, both following the landing tone. */}
       <div
-        aria-hidden
-        className='pointer-events-none absolute inset-0 -z-10 opacity-25 dark:opacity-[0.12]'
-        style={{
-          background: [
-            'radial-gradient(ellipse 60% 50% at 20% 20%, oklch(0.72 0.18 250 / 80%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 50% 40% at 80% 15%, oklch(0.65 0.15 200 / 60%) 0%, transparent 70%)',
-            'radial-gradient(ellipse 40% 35% at 40% 80%, oklch(0.70 0.12 280 / 40%) 0%, transparent 70%)',
-          ].join(', '),
-        }}
+        aria-hidden='true'
+        className='landing-glow pointer-events-none absolute top-[-16rem] left-1/2 -z-10 h-[38rem] w-[120%] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--primary)_9%,transparent),transparent)]'
       />
-      {/* Grid pattern */}
       <div
-        aria-hidden
-        className='absolute inset-0 -z-10 bg-[linear-gradient(to_right,var(--border)_1px,transparent_1px),linear-gradient(to_bottom,var(--border)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_30%,black_20%,transparent_100%)] bg-[size:4rem_4rem] opacity-[0.08]'
+        aria-hidden='true'
+        className='landing-grid pointer-events-none absolute inset-0 -z-10 [background-image:linear-gradient(var(--foreground)_1px,transparent_1px),linear-gradient(90deg,var(--foreground)_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_70%_50%_at_50%_0%,black,transparent)] [background-size:56px_56px] opacity-[0.04]'
       />
 
-      <div className='mx-auto grid max-w-6xl grid-cols-1 items-start gap-12 lg:grid-cols-12 lg:gap-8'>
-        {/* Left Column: Title, description, action buttons and application support */}
-        <div className='flex flex-col items-start text-left lg:col-span-6'>
-          {/* Top Pill Badge */}
-          <div
-            className='landing-animate-fade-up mb-5 inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-[11px] font-medium text-primary opacity-0 shadow-xs'
-            style={{ animationDelay: '0ms' }}
-          >
-            <span className='relative flex size-1.5'>
-              <span className='bg-primary/45 absolute inline-flex h-full w-full animate-ping rounded-full opacity-75' />
-              <span className='bg-primary relative inline-flex size-1.5 rounded-full' />
-            </span>
-            <span>{t('ReX API · Unified AI Gateway')}</span>
-          </div>
+      <div className='mx-auto max-w-7xl'>
+        <h1 className='landing-animate-fade-up max-w-[16ch] font-serif text-[clamp(3rem,7.5vw,6.5rem)] leading-[0.98] font-medium tracking-[-0.03em] opacity-0'>
+          {t('One router,')}
+          <br />
+          {t('more ways to build.')}
+        </h1>
 
-          <h1
-            className='landing-animate-fade-up text-[clamp(2.25rem,4.5vw,3.25rem)] leading-[1.1] font-semibold tracking-[-0.04em]'
-            style={{ animationDelay: '60ms' }}
-          >
-            {t('让模型接入')}
-            <br />
-            <span className='text-primary'>{t('回到一条清晰的路径')}</span>
-          </h1>
-          <p
-            className='landing-animate-fade-up text-muted-foreground/80 mt-5 max-w-xl text-base leading-relaxed opacity-0 md:text-[15px]'
-            style={{ animationDelay: '120ms' }}
-          >
-            {t(
-              'ReX API 是面向自托管场景的统一 AI 网关。用一套熟悉的接口管理模型、渠道、密钥、用量和权限。'
-            )}
-          </p>
+        <div className='mt-12 grid items-center gap-14 lg:mt-16 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12'>
+          <div className='landing-animate-fade-up max-w-xl opacity-0 [animation-delay:140ms]'>
+            <p className='text-muted-foreground font-serif text-lg leading-8 sm:text-xl sm:leading-9'>
+              {t(
+                'Access models from nearly every provider at a lower cost. Each model has more than one path: choose a group for the task, then select the model.'
+              )}
+            </p>
 
-          <div
-            className='landing-animate-fade-up mt-8 flex flex-wrap items-center gap-3 opacity-0'
-            style={{ animationDelay: '180ms' }}
-          >
-            {props.isAuthenticated ? (
-              <>
+            <div className='mt-9 flex flex-wrap items-center gap-3'>
+              {isAuthenticated ? (
                 <Button
-                  className='group h-11 rounded-lg px-5 text-sm font-medium'
+                  className='group h-12 rounded-full px-7 text-base font-medium'
                   render={<Link to='/dashboard' />}
                 >
                   {t('Go to Dashboard')}
-                  <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
+                  <ArrowRight className='ml-1.5 size-4 transition-transform group-hover:translate-x-0.5' />
                 </Button>
-                {renderDocsButton()}
-              </>
-            ) : (
-              <>
+              ) : (
                 <Button
-                  className='group h-11 rounded-lg px-5 text-sm font-medium'
+                  className='group h-12 rounded-full px-7 text-base font-medium'
                   render={<Link to='/sign-up' />}
                 >
-                  {t('Get Started')}
-                  <ArrowRight className='ml-1.5 size-4 transition-transform duration-200 group-hover:translate-x-0.5' />
+                  {t('Create account')}
+                  <ArrowRight className='ml-1.5 size-4 transition-transform group-hover:translate-x-0.5' />
                 </Button>
-                <Button
-                  variant='outline'
-                  className='border-border/50 hover:border-border hover:bg-muted/50 h-11 rounded-lg px-5 text-sm font-medium'
-                  render={<Link to='/pricing' />}
-                >
-                  {t('View Pricing')}
-                </Button>
-                {renderDocsButton()}
-              </>
-            )}
+              )}
+              <Button
+                variant='outline'
+                className='border-border/70 h-12 rounded-full px-7 text-base font-medium'
+                render={<Link to='/pricing' />}
+              >
+                {t('View pricing')}
+              </Button>
+            </div>
           </div>
 
-          {/* Supported Apps (参考图二样式，进行卡片化和信息扩充设计，增加视觉高度) */}
-          <div
-            className='landing-animate-fade-up mt-10 w-full max-w-xl opacity-0'
-            style={{ animationDelay: '240ms' }}
-          >
-            <div className='mb-4 flex flex-col gap-1'>
-              <span className='text-muted-foreground/50 text-[10px] font-bold tracking-[0.15em] uppercase'>
-                {t('常用客户端')}
-              </span>
-              <p className='text-muted-foreground/60 text-xs leading-relaxed'>
-                {t(
-                  '配置网关地址和 API 密钥后，即可使用兼容 OpenAI 协议的客户端接入。'
-                )}
-              </p>
-            </div>
-            <div className='flex flex-wrap items-center gap-3'>
-              {/* Cherry Studio */}
-              <a
-                href='https://cherry-ai.com'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='group border-border/40 bg-muted/15 text-foreground/80 hover:border-border hover:bg-muted/30 hover:text-foreground flex items-center gap-3 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
-              >
-                <CherryStudio.Color size={24} className='shrink-0' />
-                <span>Cherry Studio</span>
-              </a>
-
-              {/* CC Switch */}
-              <a
-                href='https://ccswitch.io'
-                target='_blank'
-                rel='noopener noreferrer'
-                className='group border-border/40 bg-muted/15 text-foreground/80 hover:border-border hover:bg-muted/30 hover:text-foreground flex items-center gap-3 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'
-              >
-                <img
-                  src='https://ccswitch.io/favicon.png'
-                  alt='CC Switch'
-                  className='size-6 shrink-0 rounded-md object-contain'
-                  onError={(e) => {
-                    // Fallback to a styled text avatar if the remote favicon fails to load in sandbox or local environments
-                    e.currentTarget.style.display = 'none'
-                    const fallback = e.currentTarget.nextSibling as HTMLElement
-                    if (fallback) fallback.style.display = 'flex'
-                  }}
-                />
-                <span
-                  style={{ display: 'none' }}
-                  className='size-6 shrink-0 items-center justify-center rounded-md bg-blue-500/10 text-[10px] font-bold text-blue-600 dark:bg-blue-400/10 dark:text-blue-400'
-                >
-                  CC
-                </span>
-                <span>CC Switch</span>
-              </a>
-
-              {/* "更多" */}
-              <div className='group border-border/40 bg-muted/15 text-foreground/55 hover:border-border hover:bg-muted/30 hover:text-foreground flex cursor-default items-center gap-2.5 rounded-full border px-5 py-2.5 text-sm font-medium shadow-[0_1px_2.5px_rgba(0,0,0,0.01)] backdrop-blur-xs transition-all duration-300 hover:scale-[1.02]'>
-                <MoreIcon />
-                <span>{t('More Apps')}</span>
-              </div>
-            </div>
+          <div className='landing-animate-fade-up landing-float relative mx-auto w-full max-w-[24rem] opacity-0 [animation-delay:200ms] sm:max-w-[28rem] lg:mx-0 lg:max-w-[30rem]'>
+            <RotatingPolyhedron label={t('Rotating 3D gateway routing core')} />
           </div>
         </div>
 
-        {/* Right Column: Hero Terminal API Demo */}
-        <div
-          className='landing-animate-fade-up flex w-full justify-center opacity-0 lg:col-span-6'
-          style={{ animationDelay: '320ms' }}
-        >
-          <HeroTerminalDemo className='mt-8 lg:mt-0' />
+        {/* Telemetry data stream — a scrolling mono strip that fills the hero
+            footer space with mechanical movement. */}
+        <div className='landing-animate-fade-in border-border/60 mt-16 overflow-hidden border-y opacity-0 [animation-delay:320ms]'>
+          <div className='rt-ticker text-muted-foreground/70 flex w-max items-center gap-8 py-2.5 font-mono text-[10px] tracking-[0.18em] uppercase'>
+            <TickerRow />
+          </div>
         </div>
       </div>
     </section>
+  )
+}
+
+const TELEMETRY = [
+  'RTT 38MS',
+  'CH 04',
+  'MODEL gpt-4o',
+  '200 OK',
+  'TOKEN 1.2K',
+  'UPSTREAM openai',
+  'LAT 99.98%',
+  'RPS 412',
+  'QUOTA 84%',
+  'NODE cn-east-1',
+  'BALANCE OK',
+  'ROUTE default',
+]
+
+function TickerRow() {
+  // Repeat the sequence 3x so the seamless loop has enough width.
+  return (
+    <>
+      {Array.from({ length: 3 }, (_, k) => (
+        <span key={k} className='flex items-center gap-8' aria-hidden={k > 0}>
+          {TELEMETRY.map((item) => (
+            <span
+              key={item}
+              className='flex items-center gap-8 whitespace-nowrap'
+            >
+              {item}
+              <span className='text-border'>/</span>
+            </span>
+          ))}
+        </span>
+      ))}
+    </>
   )
 }

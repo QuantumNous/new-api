@@ -37,3 +37,12 @@ export interface HomePageContentResult {
   isLoaded: boolean
   isUrl: boolean
 }
+
+/**
+ * Response from landing models config API
+ */
+export interface LandingModelsResponse {
+  success: boolean
+  message?: string
+  data?: string
+}

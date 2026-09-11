@@ -54,7 +54,7 @@ export function formatBackupCode(value: string): string {
 
   // Add hyphen after 4th character
   if (cleaned.length > 4) {
-    return `${cleaned.slice(0, 4)  }-${  cleaned.slice(4)}`
+    return `${cleaned.slice(0, 4)}-${cleaned.slice(4)}`
   }
 
   return cleaned

@@ -261,7 +261,15 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 				continue
 			}
 			field.Set(fresh.Elem())
-		case reflect.Slice, reflect.Struct:
+		case reflect.Slice:
+			if field.Type().Elem().Kind() == reflect.String && setStringSliceConfigField(field, strValue) {
+				continue
+			}
+			err := json.Unmarshal([]byte(strValue), field.Addr().Interface())
+			if err != nil {
+				continue
+			}
+		case reflect.Struct:
 			err := json.Unmarshal([]byte(strValue), field.Addr().Interface())
 			if err != nil {
 				continue
@@ -270,6 +278,33 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 	}
 
 	return nil
+}
+
+// setStringSliceConfigField accepts both the canonical JSON string array and
+// historical numeric arrays written by older settings forms. Values converge
+// to strings so port lists like [80,443] keep working after the type change.
+func setStringSliceConfigField(field reflect.Value, raw string) bool {
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	decoder.UseNumber()
+	var values []interface{}
+	if err := decoder.Decode(&values); err != nil {
+		return false
+	}
+	converted := reflect.MakeSlice(field.Type(), 0, len(values))
+	for _, value := range values {
+		var text string
+		switch typed := value.(type) {
+		case string:
+			text = typed
+		case json.Number:
+			text = typed.String()
+		default:
+			return false
+		}
+		converted = reflect.Append(converted, reflect.ValueOf(text).Convert(field.Type().Elem()))
+	}
+	field.Set(converted)
+	return true
 }
 
 // ConfigToMap 将配置对象转换为map（导出函数）

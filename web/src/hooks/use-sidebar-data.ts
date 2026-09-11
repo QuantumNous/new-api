@@ -19,13 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   Activity,
   Box,
-  Cable,
   CreditCard,
   FileText,
   FlaskConical,
   Key,
   LayoutDashboard,
   ListTodo,
+  Mail,
   MessageSquare,
   Radio,
   ServerCog,
@@ -34,7 +34,6 @@ import {
   User,
   Users,
   Wallet,
-  Wrench,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -99,6 +98,12 @@ export function useSidebarData(): SidebarData {
             configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
             icon: ListTodo,
           },
+          {
+            title: t('Channel Status'),
+            url: '/status',
+            icon: Radio,
+            requiredRole: ROLE.ADMIN,
+          },
         ],
       },
       {
@@ -123,27 +128,14 @@ export function useSidebarData(): SidebarData {
         items: [
           {
             title: t('Kiro-Go'),
-            url: 'http://127.0.0.1:8080/admin',
+            url: 'http://139.224.75.133:3030/admin',
             icon: ServerCog,
             requiredRole: ROLE.ADMIN,
           },
           {
-            title: t('Kiro-Rs-Tool'),
-            url: 'http://127.0.0.1:8990/admin',
-            icon: Cable,
-            requiredRole: ROLE.ADMIN,
-          },
-          {
-            title: t('Codex Pool'),
-            url: 'http://127.0.0.1:8090/',
-            icon: Box,
-            requiredRole: ROLE.ADMIN,
-          },
-          {
-            title: t('AI Tools'),
-            url: '/tools/openai-pool',
-            activeUrls: ['/tools'],
-            icon: Wrench,
+            title: t('Moemail'),
+            url: 'https://mail.j1ao.vip',
+            icon: Mail,
             requiredRole: ROLE.ADMIN,
           },
           {

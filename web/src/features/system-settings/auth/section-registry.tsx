@@ -109,6 +109,8 @@ const AUTH_SECTIONS = [
           TurnstileCheckEnabled: settings.TurnstileCheckEnabled,
           TurnstileSiteKey: settings.TurnstileSiteKey,
           TurnstileSecretKey: settings.TurnstileSecretKey,
+          PhantomCheckEnabled: settings.PhantomCheckEnabled,
+          PhantomServiceURL: settings.PhantomServiceURL,
         }}
       />
     ),

@@ -29,6 +29,10 @@ For commercial licensing, please contact support@quantumnous.com
 
 @import './theme.css';
 @import './theme-presets.css';
+/* Landing theme isolation: scoped `data-landing-tone` palette + surface
+ * ladder that follows only `prefers-color-scheme`, decoupled from the user's
+ * global theme settings. See landing-theme.css for the full design note. */
+@import './landing-theme.css';
 
 /* Shiki dual themes: token colors follow dark theme (pre background stays `bg-background` on the block) */
 @layer components {

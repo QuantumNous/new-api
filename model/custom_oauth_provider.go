@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -20,6 +21,11 @@ type accessConditionItem struct {
 	Op    string `json:"op"`
 	Value any    `json:"value"`
 }
+
+const (
+	CustomOAuthIdentitySourceUserInfo = "userinfo"
+	CustomOAuthIdentitySourceIDToken  = "id_token"
+)
 
 var supportedAccessPolicyOps = map[string]struct{}{
 	"eq":           {},
@@ -48,6 +54,9 @@ type CustomOAuthProvider struct {
 	AuthorizationEndpoint string `json:"authorization_endpoint" gorm:"type:varchar(512)"`                // Authorization URL
 	TokenEndpoint         string `json:"token_endpoint" gorm:"type:varchar(512)"`                        // Token exchange URL
 	UserInfoEndpoint      string `json:"user_info_endpoint" gorm:"type:varchar(512)"`                    // User info URL
+	IdentitySource        string `json:"identity_source" gorm:"type:varchar(32)"`                         // userinfo or id_token
+	Issuer                string `json:"issuer" gorm:"type:varchar(512)"`                                 // Expected ID token issuer
+	JWKSURI               string `json:"jwks_uri" gorm:"type:varchar(512)"`                               // ID token signing key set
 	Scopes                string `json:"scopes" gorm:"type:varchar(256);default:'openid profile email'"` // OAuth scopes
 
 	// Field mapping configuration (supports JSONPath via gjson)
@@ -172,8 +181,24 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 	if provider.TokenEndpoint == "" {
 		return errors.New("token endpoint is required")
 	}
-	if provider.UserInfoEndpoint == "" {
-		return errors.New("user info endpoint is required")
+	provider.IdentitySource = strings.ToLower(strings.TrimSpace(provider.IdentitySource))
+	if provider.IdentitySource == "" {
+		provider.IdentitySource = CustomOAuthIdentitySourceUserInfo
+	}
+	switch provider.IdentitySource {
+	case CustomOAuthIdentitySourceUserInfo:
+		if provider.UserInfoEndpoint == "" {
+			return errors.New("user info endpoint is required")
+		}
+	case CustomOAuthIdentitySourceIDToken:
+		if err := validateCustomOAuthIDTokenURL("issuer", provider.Issuer); err != nil {
+			return err
+		}
+		if err := validateCustomOAuthIDTokenURL("jwks uri", provider.JWKSURI); err != nil {
+			return err
+		}
+	default:
+		return errors.New("identity source must be userinfo or id_token")
 	}
 
 	// Set defaults for field mappings if empty
@@ -202,6 +227,14 @@ func validateCustomOAuthProvider(provider *CustomOAuthProvider) error {
 		}
 	}
 
+	return nil
+}
+
+func validateCustomOAuthIDTokenURL(name, rawURL string) error {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.Fragment != "" {
+		return fmt.Errorf("%s must be an absolute HTTPS URL without credentials or fragment", name)
+	}
 	return nil
 }
 

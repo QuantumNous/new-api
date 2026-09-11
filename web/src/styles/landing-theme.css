@@ -1,0 +1,320 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+/*
+ * Landing theme isolation.
+ *
+ * The public landing page keeps its own appearance, decoupled from the user's
+ * global theme settings (`data-theme-preset` on <body> and the `.light`/`.dark`
+ * classes on <html>). A visitor's choice of light/dark or preset must never
+ * leak into the landing, and a choice made on the landing must never persist
+ * to the app.
+ *
+ * Mechanism: the `Home` component wraps the landing in a container carrying
+ * `data-landing-tone="<tone>"`. Everything below lives in that scope:
+ *
+ *   1. A fixed neutral surface ladder that follows ONLY `prefers-color-scheme`
+ *      (light = cool white, dark = warm near-black). No `.light`/`.dark`
+ *      classes are touched.
+ *   2. `--primary`, `--secondary`, and `--ring` are injected per tone, copied
+ *      from the matching presets in theme-presets.css. Keep the two files in
+ *      sync when a preset palette changes.
+ *   3. Derived surfaces (`--card`, `--muted`, `--border`, ...) are mixed from
+ *      the tone's primary at low concentration, so switching tone re-tints the
+ *      whole page instead of only a button.
+ *
+ * `'default'` is always set explicitly on the wrapper (never left unset), so a
+ * guest never inherits the global body preset by accident.
+ */
+
+/* ── Landing scale ────────────────────────────────────────────────────────
+ * The landing page renders at browser 100%. Earlier experiments used
+ * `zoom: 1.25` then `zoom: 1.125`; both made layout, hit-testing, and
+ * screenshots disagree with the rest of the app, so the scale is gone.
+ */
+[data-landing-tone] {
+  --background: oklch(0.995 0.001 250);
+  --foreground: oklch(0.19 0.01 255);
+  --card: color-mix(in oklch, var(--primary) 2.5%, var(--background));
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+  --secondary: color-mix(in oklch, var(--primary) 10%, var(--background));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in oklch, var(--primary) 6%, var(--background));
+  --muted-foreground: color-mix(
+    in oklch,
+    var(--foreground) 62%,
+    var(--primary)
+  );
+  --accent: color-mix(in oklch, var(--primary) 10%, var(--background));
+  --accent-foreground: var(--foreground);
+  --input: color-mix(in oklch, var(--primary) 18%, var(--background));
+  --border: color-mix(in oklch, var(--primary) 14%, var(--background));
+  --ring: var(--primary);
+  --primary-foreground: oklch(0.995 0.001 250);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-landing-tone] {
+    --background: oklch(0.19 0.01 255);
+    --foreground: oklch(0.96 0.005 250);
+    --card: color-mix(in oklch, var(--primary) 9%, var(--background));
+    --card-foreground: var(--foreground);
+    --popover: oklch(0.23 0.012 255);
+    --popover-foreground: var(--foreground);
+    --secondary: color-mix(in oklch, var(--primary) 16%, var(--background));
+    --secondary-foreground: var(--foreground);
+    --muted: color-mix(in oklch, var(--primary) 11%, var(--background));
+    --muted-foreground: color-mix(
+      in oklch,
+      var(--foreground) 72%,
+      var(--primary)
+    );
+    --accent: color-mix(in oklch, var(--primary) 16%, var(--background));
+    --accent-foreground: var(--foreground);
+    --input: color-mix(in oklch, var(--primary) 26%, var(--background));
+    --border: color-mix(in oklch, var(--primary) 20%, var(--background));
+    --ring: var(--primary);
+    --primary-foreground: oklch(0.19 0.01 255);
+  }
+}
+
+/* ── Tones ────────────────────────────────────────────────────────────────
+ * `--primary` / `--secondary` / `--ring` copied from theme-presets.css.
+ * Dark variants swap to the preset's dark primary when the system prefers
+ * dark. Anthropic's warm cream surfaces are intentionally NOT copied here:
+ * the landing keeps one neutral surface ladder for all tones so switching
+ * tone re-tints the page rather than jumping between design worlds.
+ */
+
+/* Default (blue) */
+[data-landing-tone='default'] {
+  --primary: oklch(0.692 0.141 243.716);
+  --secondary: oklch(0.95 0 0);
+}
+@media (prefers-color-scheme: dark) {
+  [data-landing-tone='default'] {
+    --primary: oklch(0.54 0.142 248.516);
+    --secondary: oklch(0.335 0 0);
+  }
+}
+
+/* Underground (green) */
+[data-landing-tone='underground'] {
+  --primary: oklch(0.5315 0.0694 156.19);
+  --secondary: oklch(0.5748 0.0862 336.52);
+}
+@media (prefers-color-scheme: dark) {
+  [data-landing-tone='underground'] {
+    --primary: oklch(0.6147 0.0867 154.73);
+    --secondary: oklch(0.6624 0.0855 334.26);
+  }
+}
+
+/* Rose Garden */
+[data-landing-tone='rose-garden'] {
+  --primary: oklch(0.5827 0.2418 12.23);
+  --secondary: oklch(0.8131 0.1129 5.67);
+}
+@media (prefers-color-scheme: dark) {
+  [data-landing-tone='rose-garden'] {
+    --primary: oklch(0.6476 0.2348 10.36);
+    --secondary: oklch(0.8131 0.1129 5.67);
+  }
+}
+
+/* Lake View (teal) */
+[data-landing-tone='lake-view'] {
+  --primary: oklch(0.765 0.177 163.22);
+  --secondary: oklch(0.551 0.0899 200.52);
+}
+@media (prefers-color-scheme: dark) {
+  [data-landing-tone='lake-view'] {
+    --primary: oklch(0.765 0.177 163.22);
+    --secondary: oklch(0.551 0.0899 200.52);
+  }
+}
+
+/* Sunset Glow (amber) */
+[data-landing-tone='sunset-glow'] {
+  --primary: oklch(0.5591 0.1882 25.33);
+  --secondary: oklch(0.7938 0.1248 42.42);
+}
+@media (prefers-color-scheme: dark) {
+  [data-landing-tone='sunset-glow'] {
+    --primary: oklch(0.6387 0.1822 23.51);
+    --secondary: oklch(0.7938 0.1248 42.42);
+  }
+}
+
+/* Forest Whisper (green) */
+[data-landing-tone='forest-whisper'] {
+  --primary: oklch(0.5276 0.1072 182.22);
+  --secondary: oklch(0.5236 0.0505 250.18);
+}
+@media (prefers-color-scheme: dark) {
+  [data-landing-tone='forest-whisper'] {
+    --primary: oklch(0.5991 0.1318 180.39);
+    --secondary: oklch(0.6578 0.0485 247.35);
+  }
+}
+
+/* Ocean Breeze (indigo) */
+[data-landing-tone='ocean-breeze'] {
+  --primary: oklch(0.5461 0.2152 262.88);
+  --secondary: oklch(0.5854 0.2041 277.12);
+}
+@media (prefers-color-scheme: dark) {
+  [data-landing-tone='ocean-breeze'] {
+    --primary: oklch(0.623 0.188 259.81);
+    --secondary: oklch(0.5854 0.2041 277.12);
+  }
+}
+
+/* Lavender Dream (violet) */
+[data-landing-tone='lavender-dream'] {
+  --primary: oklch(0.5709 0.1808 306.89);
+  --secondary: oklch(0.811 0.0589 201.14);
+}
+@media (prefers-color-scheme: dark) {
+  [data-landing-tone='lavender-dream'] {
+    --primary: oklch(0.6359 0.1699 307.95);
+    --secondary: oklch(0.811 0.0589 201.14);
+  }
+}
+
+/* Anthropic (clay) — accent only, surfaces stay on the neutral ladder */
+[data-landing-tone='anthropic'] {
+  --primary: oklch(0.685 0.142 38);
+  --secondary: oklch(0.925 0.008 92);
+}
+@media (prefers-color-scheme: dark) {
+  [data-landing-tone='anthropic'] {
+    --primary: oklch(0.72 0.135 40);
+    --secondary: oklch(0.305 0.004 60);
+  }
+}
+
+/* Simple Large-font (mono ink) */
+[data-landing-tone='simple-large'] {
+  --primary: oklch(0.22 0 0);
+  --secondary: oklch(0.93 0 0);
+}
+@media (prefers-color-scheme: dark) {
+  [data-landing-tone='simple-large'] {
+    --primary: oklch(0.94 0 0);
+    --secondary: oklch(0.315 0 0);
+  }
+}
+
+/* ── Landing motion ───────────────────────────────────────────────────────
+ * Telemetry ticker: a seamless horizontal mono strip that scrolls endlessly
+ * to fill the hero footer with mechanical movement. Reduced-motion users get
+ * a static strip. */
+@keyframes rt-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-33.333%);
+  }
+}
+.rt-ticker {
+  animation: rt-ticker-scroll 24s linear infinite;
+  will-change: transform;
+}
+
+@keyframes landing-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: translate(-50%, 0) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, 6%) scale(1.08);
+  }
+}
+
+@keyframes landing-grid-drift {
+  from {
+    background-position:
+      0 0,
+      0 0;
+  }
+  to {
+    background-position:
+      56px 56px,
+      56px 56px;
+  }
+}
+
+@keyframes landing-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.landing-glow {
+  animation: landing-glow-pulse 9s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.landing-grid {
+  animation: landing-grid-drift 48s linear infinite;
+}
+
+.landing-float {
+  animation: landing-float 7.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+.landing-card-motion {
+  transition:
+    transform 280ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 280ms ease,
+    box-shadow 280ms ease;
+}
+
+.landing-card-motion:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in oklch, var(--primary) 34%, var(--border));
+  box-shadow: 0 22px 48px -32px
+    color-mix(in oklch, var(--primary) 55%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rt-ticker,
+  .landing-glow,
+  .landing-grid,
+  .landing-float {
+    animation: none;
+  }
+
+  .landing-card-motion,
+  .landing-card-motion:hover {
+    transition: none;
+    transform: none;
+  }
+}

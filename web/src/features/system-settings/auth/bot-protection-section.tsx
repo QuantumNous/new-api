@@ -47,6 +47,8 @@ const botProtectionSchema = z.object({
   TurnstileCheckEnabled: z.boolean(),
   TurnstileSiteKey: z.string().optional(),
   TurnstileSecretKey: z.string().optional(),
+  PhantomCheckEnabled: z.boolean(),
+  PhantomServiceURL: z.string().optional(),
 })
 
 type BotProtectionFormValues = z.infer<typeof botProtectionSchema>
@@ -144,6 +146,51 @@ export function BotProtectionSection({
                     {...field}
                   />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='PhantomCheckEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Enable Phantom')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Protect authentication and check-in with Phantom human verification'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='PhantomServiceURL'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Phantom Service URL')}</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder='https://phantom.example.com'
+                    autoComplete='off'
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'The Phantom service hosts the browser SDK and validates one-time proofs.'
+                  )}
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

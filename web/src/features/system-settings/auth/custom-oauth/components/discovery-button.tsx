@@ -61,6 +61,12 @@ export function DiscoveryButton(props: DiscoveryButtonProps) {
           shouldDirty: true,
         })
       }
+      if (disc.issuer) {
+        props.form.setValue('issuer', disc.issuer, { shouldDirty: true })
+      }
+      if (disc.jwks_uri) {
+        props.form.setValue('jwks_uri', disc.jwks_uri, { shouldDirty: true })
+      }
       if (disc.userinfo_endpoint) {
         props.form.setValue('user_info_endpoint', disc.userinfo_endpoint, {
           shouldDirty: true,

@@ -1,3 +1,4 @@
+import { SectionPageLayout } from '@/components/layout'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -16,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Main } from '@/components/layout'
 import {
   CardStaggerContainer,
   CardStaggerItem,
@@ -48,8 +48,8 @@ export function Profile() {
   const canConfigureSidebar = permissions?.sidebar_settings !== false
 
   return (
-    <Main>
-      <div className='min-h-0 flex-1 overflow-auto px-3 py-3 sm:px-4 sm:py-6'>
+    <SectionPageLayout>
+      <SectionPageLayout.Content>
         <CardStaggerContainer className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-6'>
           <CardStaggerItem>
             <ProfileHeader profile={profile} loading={loading} />
@@ -86,7 +86,7 @@ export function Profile() {
             </div>
           </CardStaggerItem>
         </CardStaggerContainer>
-      </div>
-    </Main>
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
   )
 }

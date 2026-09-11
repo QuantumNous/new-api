@@ -12,6 +12,7 @@ import (
 	"time"
 
 	common2 "github.com/QuantumNous/new-api/common"
+	rootconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
@@ -24,6 +25,31 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
+
+// limitReadCloser caps bytes read from an upstream response body and fails
+// closed: reads past the limit return an error instead of silent truncation,
+// and Close delegates to the wrapped body so transport resources release.
+type limitReadCloser struct {
+	rc  io.ReadCloser
+	n   int64
+	max int64
+}
+
+func (l *limitReadCloser) Read(p []byte) (int, error) {
+	if l.n >= l.max {
+		return 0, fmt.Errorf("upstream response body exceeds %d bytes", l.max)
+	}
+	if int64(len(p)) > l.max-l.n {
+		p = p[:l.max-l.n]
+	}
+	n, err := l.rc.Read(p)
+	l.n += int64(n)
+	return n, err
+}
+
+func (l *limitReadCloser) Close() error {
+	return l.rc.Close()
+}
 
 // applyUpstreamContentLength populates req.ContentLength when the upstream
 // body is wrapped in a BodyStorage (see relay/common/outbound_body.go).
@@ -513,6 +539,16 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 	if resp == nil {
 		return nil, errors.New("resp is nil")
+	}
+	// Cap non-stream upstream bodies: handlers read them fully with
+	// io.ReadAll, so an unbounded body from a misbehaving upstream would OOM
+	// the gateway. Streams are consumed incrementally and stay uncapped.
+	if !info.IsStream && resp.Body != nil {
+		maxBytes := int64(rootconstant.MaxRelayResponseMB) << 20
+		if maxBytes <= 0 {
+			maxBytes = 64 << 20
+		}
+		resp.Body = &limitReadCloser{rc: resp.Body, max: maxBytes}
 	}
 
 	if upID := resp.Header.Get(common2.RequestIdKey); upID != "" {

@@ -22,11 +22,21 @@ import { useTranslation } from 'react-i18next'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
 import { RichContent } from '@/components/rich-content'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useTheme } from '@/context/theme-provider'
 import { isLikelyHtml } from '@/lib/content-format'
+import { useLandingTone } from '@/lib/landing-theme'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { CTA, Features, Hero, HowItWorks, Stats } from './components'
+import {
+  Exclusive3D,
+  FreeToExplore,
+  Hero,
+  ModelCoverage,
+  ServiceRoutes,
+  Support,
+} from './components'
+import { LandingToneSwitch } from './components/landing-tone-switch'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -35,6 +45,7 @@ export function Home() {
   const { resolvedTheme } = useTheme()
   const { auth } = useAuthStore()
   const isAuthenticated = !!auth.user
+  const { tone } = useLandingTone()
   const { content, isLoaded, isUrl } = useHomePageContent()
 
   const syncIframePreferences = useCallback(() => {
@@ -61,9 +72,21 @@ export function Home() {
   if (!isLoaded) {
     return (
       <PublicLayout showMainContainer={false}>
-        <main className='flex min-h-screen items-center justify-center'>
-          <div className='text-muted-foreground'>{t('Loading...')}</div>
-        </main>
+        <div className='mx-auto max-w-7xl px-6 pt-20 pb-20 sm:px-10 sm:pt-24 sm:pb-24 lg:px-14 lg:pt-24 lg:pb-28'>
+          <div className='grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12'>
+            <div className='space-y-6'>
+              <Skeleton className='h-16 w-11/12 sm:h-24 sm:w-10/12' />
+              <Skeleton className='h-16 w-7/12 sm:h-24 sm:w-8/12' />
+              <Skeleton className='mt-8 h-5 w-10/12' />
+              <Skeleton className='h-5 w-7/12' />
+              <div className='mt-10 flex gap-3'>
+                <Skeleton className='h-12 w-32 rounded-full' />
+                <Skeleton className='h-12 w-28 rounded-full' />
+              </div>
+            </div>
+            <Skeleton className='aspect-square w-full max-w-[24rem] rounded-[2rem] sm:max-w-[28rem] lg:mx-0 lg:max-w-[30rem]' />
+          </div>
+        </div>
       </PublicLayout>
     )
   }
@@ -121,13 +144,34 @@ export function Home() {
   }
 
   return (
-    <PublicLayout showMainContainer={false}>
-      <Hero isAuthenticated={isAuthenticated} />
-      <Stats />
-      <Features />
-      <HowItWorks />
-      <CTA isAuthenticated={isAuthenticated} />
-      <Footer />
-    </PublicLayout>
+    <div
+      data-landing-tone={tone}
+      className='bg-background text-foreground min-h-svh'
+    >
+      {/* Mechanical noise grain — low-opacity film over the whole landing to
+          add physical texture and fill dead space without touching the
+          editorial layout. SVG feTurbulence keeps it dependency-free. */}
+      <div
+        aria-hidden='true'
+        className='pointer-events-none fixed inset-0 z-10 opacity-[0.05] mix-blend-multiply dark:mix-blend-screen'
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+        }}
+      />
+      <PublicLayout
+        showMainContainer={false}
+        showThemeSwitch={false}
+        headerProps={{ rightContent: <LandingToneSwitch /> }}
+      >
+        <Hero isAuthenticated={isAuthenticated} />
+        <ServiceRoutes />
+        <ModelCoverage />
+        <Exclusive3D />
+        <FreeToExplore />
+        <Support />
+        <Footer />
+      </PublicLayout>
+    </div>
   )
 }

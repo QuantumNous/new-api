@@ -363,12 +363,14 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 	// Set up new user
 	user.Username = provider.GetProviderPrefix() + strconv.Itoa(model.GetMaxUserId()+1)
 
-	if oauthUser.Username != "" {
-		if exists, err := model.CheckUserExistOrDeleted(oauthUser.Username, ""); err == nil && !exists {
-			// 防止索引退化
-			if len(oauthUser.Username) <= model.UserNameMaxLength {
-				user.Username = oauthUser.Username
-			}
+	username := strings.TrimSpace(oauthUser.Username)
+	if username != "" && len(username) <= model.UserNameMaxLength {
+		exists, err := model.CheckUserExistOrDeleted(username, "")
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			user.Username = username
 		}
 	}
 

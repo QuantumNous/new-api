@@ -3,6 +3,8 @@ package service
 import (
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -13,6 +15,59 @@ import (
 
 func formatNotifyType(channelId int, status int) string {
 	return fmt.Sprintf("%s_%d_%d", dto.NotifyTypeChannelUpdate, channelId, status)
+}
+
+// channelDisableErrorWindow/Threshold/MinDistinctUsers gate auto-disable on a
+// windowed multi-user error streak: without it, one request hitting an
+// upstream quota/rate-limit message disables the whole channel for every
+// user. Requiring several errors from distinct users in a short window keeps
+// genuinely broken channels converging while making single-account triggered
+// disables materially harder.
+const (
+	channelDisableErrorWindow      = 60 * time.Second
+	channelDisableErrorThreshold   = 3
+	channelDisableMinDistinctUsers = 2
+)
+
+type channelErrorStreak struct {
+	mu          sync.Mutex
+	windowStart time.Time
+	users       map[int]struct{}
+	count       int
+}
+
+var channelErrorStreaks sync.Map // channelID int -> *channelErrorStreak
+
+// RecordChannelErrorAndShouldDisable records an auto-ban-worthy error and
+// reports whether the disable threshold has been crossed.
+func RecordChannelErrorAndShouldDisable(channelID int, userID int) bool {
+	if userID <= 0 {
+		userID = -1
+	}
+	now := time.Now()
+	raw, _ := channelErrorStreaks.LoadOrStore(channelID, &channelErrorStreak{
+		windowStart: now,
+		users:       make(map[int]struct{}),
+	})
+	s := raw.(*channelErrorStreak)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if now.Sub(s.windowStart) > channelDisableErrorWindow {
+		s.windowStart = now
+		s.users = make(map[int]struct{})
+		s.count = 0
+	}
+	s.users[userID] = struct{}{}
+	s.count++
+	if s.count >= channelDisableErrorThreshold && len(s.users) >= channelDisableMinDistinctUsers {
+		return channelErrorStreaks.CompareAndDelete(channelID, s)
+	}
+	return false
+}
+
+// ClearChannelErrorStreak resets the disable gate after a successful request.
+func ClearChannelErrorStreak(channelID int) {
+	channelErrorStreaks.Delete(channelID)
 }
 
 // disable & notify

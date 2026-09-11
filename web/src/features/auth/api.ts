@@ -139,23 +139,23 @@ export async function githubOAuthStart(clientId: string, state: string) {
 
 // Get OAuth state for CSRF protection, with optional extra payload for PKCE etc.
 export async function createOAuthFlow(
-	provider: string,
-	intent: 'login' | 'bind',
-	extra?: Record<string, string>
+  provider: string,
+  intent: 'login' | 'bind',
+  extra?: Record<string, string>
 ): Promise<string> {
-	const aff = intent === 'login' ? getAffiliateCode() : ''
-	const res = await api.post(
-		'/api/oauth/state',
-		{ provider, intent, aff: aff || undefined, ...extra },
-		{ skipAuthRefresh: intent === 'login' }
-	)
-	if (res.data?.success) {
-		if (typeof res.data.data === 'string') return res.data.data
-		if (typeof res.data.data?.flow_token === 'string') {
-			return res.data.data.flow_token
-		}
-	}
-	throw new Error(res.data?.message || 'Failed to initialize OAuth')
+  const aff = intent === 'login' ? getAffiliateCode() : ''
+  const res = await api.post(
+    '/api/oauth/state',
+    { provider, intent, aff: aff || undefined, ...extra },
+    { skipAuthRefresh: intent === 'login' }
+  )
+  if (res.data?.success) {
+    if (typeof res.data.data === 'string') return res.data.data
+    if (typeof res.data.data?.flow_token === 'string') {
+      return res.data.data.flow_token
+    }
+  }
+  throw new Error(res.data?.message || 'Failed to initialize OAuth')
 }
 
 // WeChat login by authorization code

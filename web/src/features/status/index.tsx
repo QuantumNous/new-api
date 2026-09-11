@@ -16,44 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  Zap,
-  Shield,
-  Globe,
-  Code,
-  Gauge,
-  DollarSign,
-  Users,
-  HeartHandshake,
-  type LucideIcon,
-} from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
-/**
- * Map of icon names to Lucide icon components
- */
-const ICON_MAP: Record<string, LucideIcon> = {
-  Zap,
-  Shield,
-  Globe,
-  Code,
-  Gauge,
-  DollarSign,
-  Users,
-  HeartHandshake,
-}
+import { SectionPageLayout } from '@/components/layout'
 
-/**
- * Get a Lucide icon component by name
- */
-export function getFeatureIcon(
-  iconName: string,
-  className?: string
-): React.ReactNode {
-  const Icon = ICON_MAP[iconName]
-  if (!Icon) {
-    // eslint-disable-next-line no-console
-    console.warn(`Icon "${iconName}" not found in icon map`)
-    return null
-  }
-  return <Icon className={className} />
+import { StatusPanel } from './components/status-panel'
+
+export function Status() {
+  const { t } = useTranslation()
+
+  return (
+    <SectionPageLayout>
+      <SectionPageLayout.Title>
+        <span className='truncate'>{t('Channel Status')}</span>
+      </SectionPageLayout.Title>
+      <SectionPageLayout.Content>
+        <StatusPanel />
+      </SectionPageLayout.Content>
+    </SectionPageLayout>
+  )
 }

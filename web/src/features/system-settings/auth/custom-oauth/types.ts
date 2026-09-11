@@ -33,6 +33,9 @@ export interface CustomOAuthProvider {
   authorization_endpoint: string
   token_endpoint: string
   user_info_endpoint: string
+  identity_source?: 'userinfo' | 'id_token'
+  issuer?: string
+  jwks_uri?: string
   scopes: string
   user_id_field: string
   username_field: string
@@ -49,35 +52,64 @@ export interface CustomOAuthProvider {
 // Form Schema
 // ============================================================================
 
-export const customOAuthFormSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  slug: z
-    .string()
-    .min(1, 'Slug is required')
-    .regex(
-      /^[a-z0-9-]+$/,
-      'Slug must only contain lowercase letters, numbers, and hyphens'
-    ),
-  icon: z.string().optional().default(''),
-  enabled: z.boolean().default(true),
-  client_id: z.string().min(1, 'Client ID is required'),
-  client_secret: z.string().optional().default(''),
-  authorization_endpoint: z
-    .string()
-    .min(1, 'Authorization endpoint is required'),
-  token_endpoint: z.string().min(1, 'Token endpoint is required'),
-  user_info_endpoint: z.string().min(1, 'User info endpoint is required'),
-  scopes: z.string().optional().default(''),
-  user_id_field: z.string().min(1, 'User ID field is required'),
-  username_field: z.string().optional().default(''),
-  display_name_field: z.string().optional().default(''),
-  email_field: z.string().optional().default(''),
-  well_known: z.string().optional().default(''),
-  auth_style: z.number().int().min(0).max(2).default(0),
-  access_policy: z.string().optional().default(''),
-  access_denied_message: z.string().optional().default(''),
-  pkce_required: z.boolean().default(false),
-})
+export const customOAuthFormSchema = z
+  .object({
+    name: z.string().min(1, 'Name is required'),
+    slug: z
+      .string()
+      .min(1, 'Slug is required')
+      .regex(
+        /^[a-z0-9-]+$/,
+        'Slug must only contain lowercase letters, numbers, and hyphens'
+      ),
+    icon: z.string().optional().default(''),
+    enabled: z.boolean().default(true),
+    client_id: z.string().min(1, 'Client ID is required'),
+    client_secret: z.string().optional().default(''),
+    authorization_endpoint: z
+      .string()
+      .min(1, 'Authorization endpoint is required'),
+    token_endpoint: z.string().min(1, 'Token endpoint is required'),
+    user_info_endpoint: z.string().default(''),
+    identity_source: z.enum(['userinfo', 'id_token']).default('userinfo'),
+    issuer: z.string().default(''),
+    jwks_uri: z.string().default(''),
+    scopes: z.string().optional().default(''),
+    user_id_field: z.string().min(1, 'User ID field is required'),
+    username_field: z.string().optional().default(''),
+    display_name_field: z.string().optional().default(''),
+    email_field: z.string().optional().default(''),
+    well_known: z.string().optional().default(''),
+    auth_style: z.number().int().min(0).max(2).default(0),
+    access_policy: z.string().optional().default(''),
+    access_denied_message: z.string().optional().default(''),
+    pkce_required: z.boolean().default(false),
+  })
+  .superRefine((values, ctx) => {
+    if (values.identity_source === 'userinfo' && !values.user_info_endpoint) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['user_info_endpoint'],
+        message: 'User info endpoint is required',
+      })
+    }
+    if (values.identity_source === 'id_token') {
+      if (!values.issuer) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['issuer'],
+          message: 'Issuer is required',
+        })
+      }
+      if (!values.jwks_uri) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['jwks_uri'],
+          message: 'JWKS URI is required',
+        })
+      }
+    }
+  })
 
 export type CustomOAuthFormValues = z.infer<typeof customOAuthFormSchema>
 
@@ -93,6 +125,8 @@ export interface DiscoveryResponse {
     discovery?: {
       authorization_endpoint?: string
       token_endpoint?: string
+      issuer?: string
+      jwks_uri?: string
       userinfo_endpoint?: string
       scopes_supported?: string[]
     }
@@ -110,6 +144,9 @@ export interface OAuthPreset {
   authorization_endpoint: string
   token_endpoint: string
   user_info_endpoint: string
+  identity_source: 'userinfo' | 'id_token'
+  issuer?: string
+  jwks_uri?: string
   scopes: string
   user_id_field: string
   username_field: string
@@ -127,6 +164,9 @@ export const OAUTH_PRESETS: OAuthPreset[] = [
     authorization_endpoint: '/oauth2/authorize',
     token_endpoint: '/oauth2/token',
     user_info_endpoint: '/userinfo',
+    identity_source: 'id_token',
+    issuer: 'https://pass.linearteam.top',
+    jwks_uri: 'https://pass.linearteam.top/oauth2/jwks',
     scopes: 'openid profile email',
     user_id_field: 'sub',
     username_field: 'preferred_username',
@@ -142,6 +182,7 @@ export const OAUTH_PRESETS: OAuthPreset[] = [
     authorization_endpoint: '/login/oauth/authorize',
     token_endpoint: '/login/oauth/access_token',
     user_info_endpoint: '/api/v3/user',
+    identity_source: 'userinfo',
     scopes: 'user:email',
     user_id_field: 'id',
     username_field: 'login',
@@ -156,6 +197,7 @@ export const OAUTH_PRESETS: OAuthPreset[] = [
     authorization_endpoint: '/oauth/authorize',
     token_endpoint: '/oauth/token',
     user_info_endpoint: '/api/v4/user',
+    identity_source: 'userinfo',
     scopes: 'openid profile email',
     user_id_field: 'id',
     username_field: 'username',
@@ -170,6 +212,7 @@ export const OAUTH_PRESETS: OAuthPreset[] = [
     authorization_endpoint: '/login/oauth/authorize',
     token_endpoint: '/login/oauth/access_token',
     user_info_endpoint: '/api/v1/user',
+    identity_source: 'userinfo',
     scopes: 'openid profile email',
     user_id_field: 'id',
     username_field: 'login',
@@ -184,6 +227,7 @@ export const OAUTH_PRESETS: OAuthPreset[] = [
     authorization_endpoint: '/apps/oauth2/authorize',
     token_endpoint: '/apps/oauth2/api/v1/token',
     user_info_endpoint: '/ocs/v2.php/cloud/user?format=json',
+    identity_source: 'userinfo',
     scopes: 'openid profile email',
     user_id_field: 'ocs.data.id',
     username_field: 'ocs.data.id',
@@ -198,6 +242,7 @@ export const OAUTH_PRESETS: OAuthPreset[] = [
     authorization_endpoint: '/realms/{realm}/protocol/openid-connect/auth',
     token_endpoint: '/realms/{realm}/protocol/openid-connect/token',
     user_info_endpoint: '/realms/{realm}/protocol/openid-connect/userinfo',
+    identity_source: 'userinfo',
     scopes: 'openid profile email',
     user_id_field: 'sub',
     username_field: 'preferred_username',
@@ -212,6 +257,7 @@ export const OAUTH_PRESETS: OAuthPreset[] = [
     authorization_endpoint: '/application/o/authorize/',
     token_endpoint: '/application/o/token/',
     user_info_endpoint: '/application/o/userinfo/',
+    identity_source: 'userinfo',
     scopes: 'openid profile email',
     user_id_field: 'sub',
     username_field: 'preferred_username',
@@ -226,6 +272,7 @@ export const OAUTH_PRESETS: OAuthPreset[] = [
     authorization_endpoint: '/oauth2/auth',
     token_endpoint: '/oauth2/token',
     user_info_endpoint: '/userinfo',
+    identity_source: 'userinfo',
     scopes: 'openid profile email',
     user_id_field: 'sub',
     username_field: 'preferred_username',

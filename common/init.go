@@ -29,6 +29,18 @@ func printHelp() {
 	fmt.Println("Usage: rexapi [--port <port>] [--log-dir <log directory>] [--version] [--help]")
 }
 
+func validateConfiguredSecret(name, secret string) error {
+	if len(secret) < 32 {
+		return fmt.Errorf("%s must be at least 32 characters", name)
+	}
+
+	switch strings.ToLower(secret) {
+	case "random_string", "change_me", "changeme", "secret", "replace-with-a-random-secret-from-your-secret-store", "replace-with-an-independent-random-secret-from-your-secret-store":
+		return fmt.Errorf("%s must not use a default placeholder value", name)
+	}
+	return nil
+}
+
 func InitEnv() {
 	flag.Parse()
 
@@ -49,16 +61,17 @@ func InitEnv() {
 
 	if os.Getenv("SESSION_SECRET") != "" {
 		ss := os.Getenv("SESSION_SECRET")
-		if ss == "random_string" {
-			log.Println("WARNING: SESSION_SECRET is set to the default value 'random_string', please change it to a random string.")
-			log.Println("警告：SESSION_SECRET被设置为默认值'random_string'，请修改为随机字符串。")
-			log.Fatal("Please set SESSION_SECRET to a random string.")
-		} else {
-			SessionSecret = ss
+		if err := validateConfiguredSecret("SESSION_SECRET", ss); err != nil {
+			log.Fatal(err)
 		}
+		SessionSecret = ss
 	}
 	if os.Getenv("CRYPTO_SECRET") != "" {
-		CryptoSecret = os.Getenv("CRYPTO_SECRET")
+		cs := os.Getenv("CRYPTO_SECRET")
+		if err := validateConfiguredSecret("CRYPTO_SECRET", cs); err != nil {
+			log.Fatal(err)
+		}
+		CryptoSecret = cs
 	} else {
 		CryptoSecret = SessionSecret
 	}
@@ -177,6 +190,7 @@ func initConstantEnv() {
 	constant.StreamingTimeout = GetEnvOrDefault("STREAMING_TIMEOUT", 300)
 	constant.DifyDebug = GetEnvOrDefaultBool("DIFY_DEBUG", true)
 	constant.MaxFileDownloadMB = GetEnvOrDefault("MAX_FILE_DOWNLOAD_MB", 64)
+	constant.MaxRelayResponseMB = GetEnvOrDefault("MAX_RELAY_RESPONSE_MB", 64)
 	constant.StreamScannerMaxBufferMB = GetEnvOrDefault("STREAM_SCANNER_MAX_BUFFER_MB", 128)
 	// MaxRequestBodyMB 请求体最大大小（解压后），用于防止超大请求/zip bomb导致内存暴涨
 	constant.MaxRequestBodyMB = GetEnvOrDefault("MAX_REQUEST_BODY_MB", 128)

@@ -52,6 +52,7 @@ const _systemInfoSchema = z.object({
   Footer: z.string().optional(),
   About: z.string().optional(),
   HomePageContent: z.string().optional(),
+  LandingModels: z.string().optional(),
   legal: z.object({
     user_agreement: z.string().optional(),
     privacy_policy: z.string().optional(),
@@ -80,6 +81,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     Footer: normalizeValue(defaultValues.Footer),
     About: normalizeValue(defaultValues.About),
     HomePageContent: normalizeValue(defaultValues.HomePageContent),
+    LandingModels: normalizeValue(defaultValues.LandingModels),
     legal: {
       user_agreement: normalizeValue(defaultValues.legal?.user_agreement),
       privacy_policy: normalizeValue(defaultValues.legal?.privacy_policy),
@@ -95,6 +97,7 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
     Footer: z.string().optional(),
     About: z.string().optional(),
     HomePageContent: z.string().optional(),
+    LandingModels: z.string().optional(),
     legal: z.object({
       user_agreement: z.string().optional(),
       privacy_policy: z.string().optional(),
@@ -259,6 +262,34 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                       <FormDescription>
                         {t(
                           'Content displayed on the home page (supports Markdown)'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </SettingsFormGridItem>
+
+              <SettingsFormGridItem span='full'>
+                <FormField
+                  control={form.control}
+                  name='LandingModels'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Landing Models')}</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder={t(
+                            'JSON with serviceRoutes and coverage arrays'
+                          )}
+                          rows={6}
+                          className='font-mono text-xs'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'JSON configuration for the landing page model groups and coverage table. Leave empty to use defaults.'
                         )}
                       </FormDescription>
                       <FormMessage />

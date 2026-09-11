@@ -27,6 +27,9 @@ type CustomOAuthProviderResponse struct {
 	AuthorizationEndpoint string `json:"authorization_endpoint"`
 	TokenEndpoint         string `json:"token_endpoint"`
 	UserInfoEndpoint      string `json:"user_info_endpoint"`
+	IdentitySource        string `json:"identity_source"`
+	Issuer                string `json:"issuer"`
+	JWKSURI               string `json:"jwks_uri"`
 	Scopes                string `json:"scopes"`
 	UserIdField           string `json:"user_id_field"`
 	UsernameField         string `json:"username_field"`
@@ -58,6 +61,9 @@ func toCustomOAuthProviderResponse(p *model.CustomOAuthProvider) *CustomOAuthPro
 		AuthorizationEndpoint: p.AuthorizationEndpoint,
 		TokenEndpoint:         p.TokenEndpoint,
 		UserInfoEndpoint:      p.UserInfoEndpoint,
+		IdentitySource:        p.IdentitySource,
+		Issuer:                p.Issuer,
+		JWKSURI:               p.JWKSURI,
 		Scopes:                p.Scopes,
 		UserIdField:           p.UserIdField,
 		UsernameField:         p.UsernameField,
@@ -123,7 +129,10 @@ type CreateCustomOAuthProviderRequest struct {
 	ClientSecret          string `json:"client_secret" binding:"required"`
 	AuthorizationEndpoint string `json:"authorization_endpoint" binding:"required"`
 	TokenEndpoint         string `json:"token_endpoint" binding:"required"`
-	UserInfoEndpoint      string `json:"user_info_endpoint" binding:"required"`
+	UserInfoEndpoint      string `json:"user_info_endpoint"`
+	IdentitySource        string `json:"identity_source"`
+	Issuer                string `json:"issuer"`
+	JWKSURI               string `json:"jwks_uri"`
 	Scopes                string `json:"scopes"`
 	UserIdField           string `json:"user_id_field"`
 	UsernameField         string `json:"username_field"`
@@ -197,7 +206,14 @@ func FetchCustomOAuthDiscovery(c *gin.Context) {
 		return
 	}
 
-	var discovery map[string]any
+	var discovery struct {
+		Issuer                string   `json:"issuer"`
+		AuthorizationEndpoint string   `json:"authorization_endpoint"`
+		TokenEndpoint         string   `json:"token_endpoint"`
+		JWKSURI               string   `json:"jwks_uri"`
+		UserInfoEndpoint      string   `json:"userinfo_endpoint"`
+		ScopesSupported       []string `json:"scopes_supported"`
+	}
 	if err = common.DecodeJson(resp.Body, &discovery); err != nil {
 		common.ApiErrorMsg(c, "解析 Discovery 配置失败: "+err.Error())
 		return
@@ -243,6 +259,9 @@ func CreateCustomOAuthProvider(c *gin.Context) {
 		AuthorizationEndpoint: req.AuthorizationEndpoint,
 		TokenEndpoint:         req.TokenEndpoint,
 		UserInfoEndpoint:      req.UserInfoEndpoint,
+		IdentitySource:        req.IdentitySource,
+		Issuer:                req.Issuer,
+		JWKSURI:               req.JWKSURI,
 		Scopes:                req.Scopes,
 		UserIdField:           req.UserIdField,
 		UsernameField:         req.UsernameField,
@@ -280,7 +299,10 @@ type UpdateCustomOAuthProviderRequest struct {
 	ClientSecret          string  `json:"client_secret"` // Optional: if empty, keep existing
 	AuthorizationEndpoint string  `json:"authorization_endpoint"`
 	TokenEndpoint         string  `json:"token_endpoint"`
-	UserInfoEndpoint      string  `json:"user_info_endpoint"`
+	UserInfoEndpoint      *string `json:"user_info_endpoint"`
+	IdentitySource        *string `json:"identity_source"`
+	Issuer                *string `json:"issuer"`
+	JWKSURI               *string `json:"jwks_uri"`
 	Scopes                string  `json:"scopes"`
 	UserIdField           string  `json:"user_id_field"`
 	UsernameField         string  `json:"username_field"`
@@ -355,8 +377,17 @@ func UpdateCustomOAuthProvider(c *gin.Context) {
 	if req.TokenEndpoint != "" {
 		provider.TokenEndpoint = req.TokenEndpoint
 	}
-	if req.UserInfoEndpoint != "" {
-		provider.UserInfoEndpoint = req.UserInfoEndpoint
+	if req.UserInfoEndpoint != nil {
+		provider.UserInfoEndpoint = *req.UserInfoEndpoint
+	}
+	if req.IdentitySource != nil {
+		provider.IdentitySource = *req.IdentitySource
+	}
+	if req.Issuer != nil {
+		provider.Issuer = *req.Issuer
+	}
+	if req.JWKSURI != nil {
+		provider.JWKSURI = *req.JWKSURI
 	}
 	if req.Scopes != "" {
 		provider.Scopes = req.Scopes

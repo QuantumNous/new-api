@@ -11,6 +11,8 @@ logs
 web/dist
 web/node_modules
 .env
+.env.*
+!.env.example
 one-api
 new-api
 /__debug_bin*

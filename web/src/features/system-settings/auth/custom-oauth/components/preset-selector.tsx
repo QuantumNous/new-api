@@ -58,6 +58,13 @@ export function PresetSelector(props: PresetSelectorProps) {
     props.form.setValue('pkce_required', preset.pkce_required ?? false, {
       shouldDirty: true,
     })
+    props.form.setValue('identity_source', preset.identity_source, {
+      shouldDirty: true,
+    })
+    props.form.setValue('issuer', preset.issuer ?? '', { shouldDirty: true })
+    props.form.setValue('jwks_uri', preset.jwks_uri ?? '', {
+      shouldDirty: true,
+    })
     props.form.setValue('scopes', preset.scopes, { shouldDirty: true })
     props.form.setValue('user_id_field', preset.user_id_field, {
       shouldDirty: true,

@@ -2,6 +2,7 @@ package openai
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
@@ -25,6 +26,18 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	clientConn := info.ClientWs
 	targetConn := info.TargetWs
 
+	// An idle connection (no client messages, no pings) must not be held
+	// forever: bound message size and enforce a read deadline refreshed on
+	// activity so keep-alive clients stay alive while dead ones release.
+	const realtimeReadLimit = 8 << 20
+	const realtimeReadTimeout = 90 * time.Second
+	clientConn.SetReadLimit(realtimeReadLimit)
+	clientConn.SetPongHandler(func(string) error {
+		return clientConn.SetReadDeadline(time.Now().Add(realtimeReadTimeout))
+	})
+	targetConn.SetReadLimit(realtimeReadLimit)
+	targetConn.SetReadDeadline(time.Now().Add(realtimeReadTimeout))
+
 	clientClosed := make(chan struct{})
 	targetClosed := make(chan struct{})
 	sendChan := make(chan []byte, 100)
@@ -46,6 +59,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 			case <-c.Done():
 				return
 			default:
+				_ = clientConn.SetReadDeadline(time.Now().Add(realtimeReadTimeout))
 				_, message, err := clientConn.ReadMessage()
 				if err != nil {
 					if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
@@ -106,6 +120,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 			case <-c.Done():
 				return
 			default:
+				_ = targetConn.SetReadDeadline(time.Now().Add(realtimeReadTimeout))
 				_, message, err := targetConn.ReadMessage()
 				if err != nil {
 					if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
@@ -209,6 +224,11 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 		logger.LogError(c, "realtime error: "+err.Error())
 	case <-c.Done():
 	}
+
+	// Unblock whichever reader is still parked in ReadMessage instead of
+	// leaving it to wait out the read deadline.
+	_ = clientConn.Close()
+	_ = targetConn.Close()
 
 	if usage.TotalTokens != 0 {
 		_ = preConsumeUsage(c, info, usage, sumUsage)

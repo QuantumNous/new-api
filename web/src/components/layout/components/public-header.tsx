@@ -71,6 +71,7 @@ export function PublicHeader(props: PublicHeaderProps) {
     homeUrl = '/',
     showAuthButtons = true,
     showNotifications = true,
+    rightContent,
   } = props
 
   const { t } = useTranslation()
@@ -258,10 +259,10 @@ export function PublicHeader(props: PublicHeaderProps) {
 
               {(showLanguageSwitcher ||
                 showThemeSwitch ||
-                showNotifications) && (
-                <div className='bg-border/40 mx-2 h-4 w-px' />
-              )}
+                showNotifications ||
+                rightContent) && <div className='bg-border/40 mx-2 h-4 w-px' />}
 
+              {rightContent}
               {showLanguageSwitcher && <LanguageSwitcher />}
               {showThemeSwitch && <ThemeSwitch />}
               {showNotifications && (

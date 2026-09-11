@@ -70,8 +70,9 @@ const SECURITY_SECTIONS = [
             settings['fetch_setting.ip_filter_mode'],
           'fetch_setting.domain_list': settings['fetch_setting.domain_list'],
           'fetch_setting.ip_list': settings['fetch_setting.ip_list'],
-          'fetch_setting.allowed_ports':
-            settings['fetch_setting.allowed_ports'],
+          'fetch_setting.allowed_ports': (
+            settings['fetch_setting.allowed_ports'] ?? []
+          ).map((port) => String(port)),
           'fetch_setting.apply_ip_filter_for_domain':
             settings['fetch_setting.apply_ip_filter_for_domain'],
         }}

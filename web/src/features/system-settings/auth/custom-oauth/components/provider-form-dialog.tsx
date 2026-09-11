@@ -95,6 +95,9 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
       authorization_endpoint: '',
       token_endpoint: '',
       user_info_endpoint: '',
+      identity_source: 'userinfo',
+      issuer: '',
+      jwks_uri: '',
       scopes: '',
       user_id_field: '',
       username_field: '',
@@ -108,6 +111,10 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
     },
   })
   const watchedSlug = useWatch({ control: form.control, name: 'slug' })
+  const identitySource = useWatch({
+    control: form.control,
+    name: 'identity_source',
+  })
   const callbackPath = watchedSlug?.trim() || '{slug}'
   const callbackUrl = buildOAuthCallbackUrl(
     props.serverAddress,
@@ -127,6 +134,9 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
         authorization_endpoint: props.provider.authorization_endpoint,
         token_endpoint: props.provider.token_endpoint,
         user_info_endpoint: props.provider.user_info_endpoint,
+        identity_source: props.provider.identity_source ?? 'userinfo',
+        issuer: props.provider.issuer || '',
+        jwks_uri: props.provider.jwks_uri || '',
         scopes: props.provider.scopes || '',
         user_id_field: props.provider.user_id_field,
         username_field: props.provider.username_field || '',
@@ -507,20 +517,100 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
 
             <FormField
               control={form.control}
-              name='user_info_endpoint'
+              name='identity_source'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('User Info Endpoint')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder='https://provider.com/api/user'
-                      {...field}
-                    />
-                  </FormControl>
+                  <FormLabel>{t('Identity Source')}</FormLabel>
+                  <Select
+                    items={[
+                      { value: 'userinfo', label: t('UserInfo Endpoint') },
+                      { value: 'id_token', label: t('Verified ID Token') },
+                    ]}
+                    value={field.value}
+                    onValueChange={(value) =>
+                      value !== null && field.onChange(value)
+                    }
+                  >
+                    <FormControl>
+                      <SelectTrigger className='w-full'>
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent alignItemWithTrigger={false}>
+                      <SelectGroup>
+                        <SelectItem value='userinfo'>
+                          {t('UserInfo Endpoint')}
+                        </SelectItem>
+                        <SelectItem value='id_token'>
+                          {t('Verified ID Token')}
+                        </SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    {identitySource === 'id_token'
+                      ? t('Map user fields from a signature-verified ID token.')
+                      : t(
+                          'Map user fields from the UserInfo endpoint response.'
+                        )}
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            {identitySource === 'id_token' && (
+              <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
+                <FormField
+                  control={form.control}
+                  name='issuer'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Issuer')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder='https://provider.com' {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name='jwks_uri'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('JWKS URI')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder='https://provider.com/.well-known/jwks.json'
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+
+            {identitySource === 'userinfo' && (
+              <FormField
+                control={form.control}
+                name='user_info_endpoint'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('User Info Endpoint')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='https://provider.com/api/user'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
