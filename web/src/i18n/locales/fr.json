@@ -5459,7 +5459,7 @@
     "This will delete all channel affinity cache entries still in memory.": "Cela supprimera toutes les entrées de cache d'affinité de canal encore en mémoire.",
     "This will delete temporary cache files that have not been used for more than 10 minutes": "Cela supprimera les fichiers de cache temporaires inutilisés depuis plus de 10 minutes",
     "This will extend the deployment by the specified hours.": "Cela prolongera le déploiement du nombre d'heures spécifié.",
-    "This will immediately apply quota reset rules to all eligible users, reclaiming any unused quota balance. This action cannot be undone.": "Cette action appliquera immédiatement les règles de réinitialisation du quota à tous les utilisateurs éligibles, récupérant tout solde de quota inutilisé. Cette action est irréversible.",
+    "This will immediately apply quota reset rules to all eligible users. This action cannot be undone.": "Cette action appliquera immédiatement les règles de réinitialisation du quota à tous les utilisateurs éligibles. Cette action est irréversible.",
     "This will immediately invalidate your existing access token. Any applications or scripts using it will stop working.": "Cela invalidera immédiatement votre jeton d'accès actuel. Les applications ou scripts qui l'utilisent cesseront de fonctionner.",
     "This will permanently delete all manually and automatically disabled channels. This action cannot be undone.": "Cela supprimera définitivement tous les canaux désactivés manuellement et automatiquement. Cette action ne peut pas être annulée.",
     "This will permanently delete API key": "Cela supprimera définitivement la clé API",

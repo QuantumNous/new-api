@@ -155,7 +155,6 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.POST("/", controller.CreateUser)
 				adminRoute.POST("/manage", controller.ManageUser)
 				adminRoute.POST("/quota_reset_rule", controller.UpdateUserQuotaResetRule)
-				adminRoute.POST("/quota_reset/run", controller.RunQuotaResetNow)
 				adminRoute.PUT("/", controller.UpdateUser)
 				adminRoute.DELETE("/:id", controller.DeleteUser)
 				adminRoute.DELETE("/:id/reset_passkey", controller.AdminResetPasskey)
@@ -163,6 +162,12 @@ func SetApiRouter(router *gin.Engine) {
 				// Admin 2FA routes
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
+			}
+
+			rootRoute := userRoute.Group("/")
+			rootRoute.Use(middleware.RootAuth())
+			{
+				rootRoute.POST("/quota_reset/run", controller.RunQuotaResetNow)
 			}
 		}
 

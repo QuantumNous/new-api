@@ -5459,7 +5459,7 @@
     "This will delete all channel affinity cache entries still in memory.": "这将删除内存中所有的渠道亲和性缓存条目。",
     "This will delete temporary cache files that have not been used for more than 10 minutes": "这将删除超过 10 分钟未使用的临时缓存文件",
     "This will extend the deployment by the specified hours.": "这将通过指定的小时数延长部署。",
-    "This will immediately apply quota reset rules to all eligible users, reclaiming any unused quota balance. This action cannot be undone.": "此操作将立即对所有符合条件的用户执行额度重置规则，并收回其未使用的额度余额，且不可撤销。",
+    "This will immediately apply quota reset rules to all eligible users. This action cannot be undone.": "此操作将立即对所有符合条件的用户执行额度重置规则，且不可撤销。",
     "This will immediately invalidate your existing access token. Any applications or scripts using it will stop working.": "这会立即使现有访问令牌失效。任何正在使用它的应用程序或脚本都将停止工作。",
     "This will permanently delete all manually and automatically disabled channels. This action cannot be undone.": "这将永久删除所有手动禁用和自动禁用的渠道。此操作无法撤销。",
     "This will permanently delete API key": "这将永久删除 API 密钥",

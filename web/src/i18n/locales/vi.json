@@ -5459,7 +5459,7 @@
     "This will delete all channel affinity cache entries still in memory.": "Thao tác này sẽ xóa tất cả mục bộ nhớ đệm ưu tiên kênh còn trong bộ nhớ.",
     "This will delete temporary cache files that have not been used for more than 10 minutes": "Thao tác này sẽ xóa các tệp bộ nhớ đệm tạm không được sử dụng hơn 10 phút",
     "This will extend the deployment by the specified hours.": "Thao tác này sẽ kéo dài triển khai thêm số giờ được chỉ định.",
-    "This will immediately apply quota reset rules to all eligible users, reclaiming any unused quota balance. This action cannot be undone.": "Thao tác này sẽ ngay lập tức áp dụng quy tắc đặt lại hạn mức cho tất cả người dùng đủ điều kiện, thu hồi số dư hạn mức chưa sử dụng. Hành động này không thể hoàn tác.",
+    "This will immediately apply quota reset rules to all eligible users. This action cannot be undone.": "Thao tác này sẽ ngay lập tức áp dụng quy tắc đặt lại hạn mức cho tất cả người dùng đủ điều kiện. Hành động này không thể hoàn tác.",
     "This will immediately invalidate your existing access token. Any applications or scripts using it will stop working.": "Thao tác này sẽ vô hiệu hóa ngay token truy cập hiện có. Mọi ứng dụng hoặc tập lệnh đang sử dụng token đó sẽ ngừng hoạt động.",
     "This will permanently delete all manually and automatically disabled channels. This action cannot be undone.": "Thao tác này sẽ xóa vĩnh viễn tất cả các kênh bị tắt thủ công và tự động. Hành động này không thể hoàn tác.",
     "This will permanently delete API key": "Thao tác này sẽ xóa vĩnh viễn khóa API",

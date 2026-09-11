@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { runQuotaResetNow } from '../api'
 import { useUsers } from './users-provider'
@@ -51,7 +52,7 @@ export function QuotaResetRunDialog(props: QuotaResetRunDialogProps) {
         toast.error(result.message || t('Request failed'))
       }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : t('Request failed'))
+      handleServerError(e, t('Request failed'))
     } finally {
       setLoading(false)
     }
@@ -63,7 +64,7 @@ export function QuotaResetRunDialog(props: QuotaResetRunDialogProps) {
       onOpenChange={props.onOpenChange}
       title={t('Reset Quota Now')}
       desc={t(
-        'This will immediately apply quota reset rules to all eligible users, reclaiming any unused quota balance. This action cannot be undone.'
+        'This will immediately apply quota reset rules to all eligible users. This action cannot be undone.'
       )}
       destructive
       confirmText={t('Confirm')}

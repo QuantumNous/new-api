@@ -9,8 +9,10 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func setGlobalQuotaReset(t *testing.T, enabled bool, period string, value int) {
@@ -427,6 +429,23 @@ func TestQuotaResetTick(t *testing.T) {
 
 		assert.Equal(t, 123, getQuotaResetUser(t, 9002).Quota)
 		assert.False(t, lastTick.Before(before))
+	})
+
+	t.Run("failed pass still advances lastTick without replay", func(t *testing.T) {
+		truncate(t)
+		setGlobalQuotaReset(t, true, operation_setting.QuotaResetPeriodDaily, 700)
+
+		brokenDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+		require.NoError(t, err)
+		previousDB := model.DB
+		model.DB = brokenDB
+		t.Cleanup(func() { model.DB = previousDB })
+
+		lastTick = time.Now().Add(-25 * time.Hour)
+		before := time.Now()
+		quotaResetTick()
+
+		assert.False(t, lastTick.Before(before), "lastTick must advance even when the reset pass fails")
 	})
 
 	t.Run("reentrant tick skips without advancing lastTick", func(t *testing.T) {

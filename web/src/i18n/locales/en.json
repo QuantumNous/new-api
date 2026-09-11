@@ -5459,7 +5459,7 @@
     "This will delete all channel affinity cache entries still in memory.": "This will delete all channel affinity cache entries still in memory.",
     "This will delete temporary cache files that have not been used for more than 10 minutes": "This will delete temporary cache files that have not been used for more than 10 minutes",
     "This will extend the deployment by the specified hours.": "This will extend the deployment by the specified hours.",
-    "This will immediately apply quota reset rules to all eligible users, reclaiming any unused quota balance. This action cannot be undone.": "This will immediately apply quota reset rules to all eligible users, reclaiming any unused quota balance. This action cannot be undone.",
+    "This will immediately apply quota reset rules to all eligible users. This action cannot be undone.": "This will immediately apply quota reset rules to all eligible users. This action cannot be undone.",
     "This will immediately invalidate your existing access token. Any applications or scripts using it will stop working.": "This will immediately invalidate your existing access token. Any applications or scripts using it will stop working.",
     "This will permanently delete all manually and automatically disabled channels. This action cannot be undone.": "This will permanently delete all manually and automatically disabled channels. This action cannot be undone.",
     "This will permanently delete API key": "This will permanently delete API key",

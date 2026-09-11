@@ -5459,7 +5459,7 @@
     "This will delete all channel affinity cache entries still in memory.": "メモリ内のすべてのチャネルアフィニティキャッシュエントリが削除されます。",
     "This will delete temporary cache files that have not been used for more than 10 minutes": "10分以上使用されていない一時キャッシュファイルが削除されます",
     "This will extend the deployment by the specified hours.": "これにより、デプロイメントを指定された時間分延長します。",
-    "This will immediately apply quota reset rules to all eligible users, reclaiming any unused quota balance. This action cannot be undone.": "この操作は、対象となるすべてのユーザーにクォータリセットルールを直ちに適用し、未使用のクォータ残高を回収します。この操作は元に戻せません。",
+    "This will immediately apply quota reset rules to all eligible users. This action cannot be undone.": "この操作は、対象となるすべてのユーザーにクォータリセットルールを直ちに適用します。この操作は元に戻せません。",
     "This will immediately invalidate your existing access token. Any applications or scripts using it will stop working.": "既存のアクセストークンは直ちに無効になります。使用中のアプリケーションやスクリプトは動作しなくなります。",
     "This will permanently delete all manually and automatically disabled channels. This action cannot be undone.": "手動および自動で無効化されたすべてのチャネルを完全に削除します。この操作は元に戻せません。",
     "This will permanently delete API key": "これによりAPIキーが完全に削除されます",
