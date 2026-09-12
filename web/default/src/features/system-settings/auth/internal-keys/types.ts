@@ -19,10 +19,9 @@ export const internalKeyFormSchema = z.object({
   key_id: z
     .string()
     .trim()
-    .min(1, 'Key ID is required')
     .max(64, 'Key ID must be at most 64 characters')
     .regex(
-      /^[A-Za-z0-9_-]+$/,
+      /^[A-Za-z0-9_-]*$/,
       'Key ID can only contain letters, digits, hyphens and underscores'
     ),
   name: z.string().trim().max(128, 'Name must be at most 128 characters'),

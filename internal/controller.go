@@ -38,6 +38,10 @@ func addInternalKey(c *gin.Context) {
 	internalKey.KeyId = strings.TrimSpace(internalKey.KeyId)
 	internalKey.Name = strings.TrimSpace(internalKey.Name)
 	customKey := strings.TrimSpace(internalKey.Key)
+	// 密钥 ID 留空则自动生成，名称作为人工配置的标识。
+	if internalKey.KeyId == "" {
+		internalKey.KeyId = "key-" + common.GetRandomString(12)
+	}
 	if !ValidateInternalKeyKeyId(internalKey.KeyId) {
 		common.ApiErrorI18n(c, i18n.MsgInternalKeyKeyIdInvalid)
 		return

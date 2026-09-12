@@ -147,7 +147,9 @@ export function InternalKeyFormDialog(props: InternalKeyFormDialogProps) {
                   <Input
                     {...field}
                     disabled={isEditing}
-                    placeholder='crm-system'
+                    placeholder={
+                      isEditing ? undefined : t('Leave blank to auto-generate')
+                    }
                   />
                 </FormControl>
                 <FormDescription>
