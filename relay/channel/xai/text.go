@@ -44,6 +44,21 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	helper.SetEventStreamHeaders(c)
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		// xAI-compatible upstreams may report errors as SSE data events, e.g.
+		// `data: {"error": {...}}`. Such an event is not a completion chunk:
+		// re-marshaling it via streamResponseXAI2OpenAI would emit a fieldless,
+		// invalid chunk (empty id/object, null choices) that strict clients
+		// reject. Forward the error event to the client unchanged instead.
+		var errPayload dto.GeneralErrorResponse
+		if err := common.UnmarshalJsonStr(data, &errPayload); err == nil && len(errPayload.Error) > 0 {
+			if sendErr := helper.StringData(c, data); sendErr != nil {
+				common.SysLog(sendErr.Error())
+				sr.Error(sendErr)
+			}
+			sr.Stop(nil)
+			return
+		}
+
 		var xAIResp *dto.ChatCompletionsStreamResponse
 		if err := common.UnmarshalJsonStr(data, &xAIResp); err != nil {
 			common.SysLog("error unmarshalling stream response: " + err.Error())
