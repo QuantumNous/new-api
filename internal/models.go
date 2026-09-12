@@ -68,8 +68,10 @@ func InternalKeyKeyIdExists(keyId string) (bool, error) {
 }
 
 // ValidateInternalKey authenticates an internal system call by key id + key.
-// Key comparison is constant-time, and every failure sleeps randomly to blunt
-// timing attacks on either half of the pair.
+// Key comparison is constant-time and happens before the status check, so the
+// enabled/disabled state of a key id is not revealed without the correct key;
+// every failure sleeps randomly to blunt timing attacks on either half of the
+// pair.
 func ValidateInternalKey(keyId string, key string) (*InternalKey, error) {
 	internalKey := &InternalKey{}
 	err := model.DB.Where("key_id = ?", keyId).First(internalKey).Error
@@ -80,13 +82,13 @@ func ValidateInternalKey(keyId string, key string) (*InternalKey, error) {
 		}
 		return nil, fmt.Errorf("%w: %v", model.ErrDatabase, err)
 	}
-	if internalKey.Status != InternalKeyStatusEnabled {
-		common.RandomSleep()
-		return nil, ErrInternalKeyDisabled
-	}
 	if subtle.ConstantTimeCompare([]byte(internalKey.Key), []byte(key)) != 1 {
 		common.RandomSleep()
 		return nil, ErrInternalKeyInvalid
+	}
+	if internalKey.Status != InternalKeyStatusEnabled {
+		common.RandomSleep()
+		return nil, ErrInternalKeyDisabled
 	}
 	// best effort: record last successful use
 	if err := model.DB.Model(internalKey).Update("accessed_time", common.GetTimestamp()).Error; err != nil {

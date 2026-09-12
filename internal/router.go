@@ -19,8 +19,10 @@ func RegisterRoutes(api *gin.RouterGroup) {
 		internalKeyRoutes.DELETE("/:id", deleteInternalKey)
 	}
 
-	// 内部系统调用入口，通过 X-Key-Id / X-Key 请求头鉴权。
+	// 内部系统调用入口，通过 X-Key-Id / X-Key 请求头鉴权；
+	// CriticalRateLimit 先于鉴权执行，防止对密钥对的在线爆破。
 	internalRoutes := api.Group("/internal")
+	internalRoutes.Use(middleware.CriticalRateLimit())
 	internalRoutes.Use(InternalAuth())
 	{
 		internalRoutes.GET("/ping", internalAuthCheck)

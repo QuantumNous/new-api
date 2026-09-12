@@ -24,8 +24,12 @@ export function useInternalKeys() {
 export function useCreateInternalKey() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: { key_id: string; name: string; key?: string }) =>
-      createInternalKey(data),
+    mutationFn: (data: {
+      key_id: string
+      name: string
+      status: number
+      key?: string
+    }) => createInternalKey(data),
     onSuccess: (res) => {
       if (res.success) {
         toast.success(i18next.t('Internal key created'))

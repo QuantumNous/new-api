@@ -68,7 +68,11 @@ func addInternalKey(c *gin.Context) {
 	}
 	internalKey.Key = customKey
 	internalKey.Id = 0
-	internalKey.Status = InternalKeyStatusEnabled
+	// 仅当请求显式携带禁用状态时才以禁用创建，缺省视为启用。
+	if internalKey.Status != InternalKeyStatusDisabled {
+		internalKey.Status = InternalKeyStatusEnabled
+	}
+	internalKey.AccessedTime = 0
 	internalKey.CreatedTime = common.GetTimestamp()
 	if err := internalKey.Insert(); err != nil {
 		common.ApiError(c, err)

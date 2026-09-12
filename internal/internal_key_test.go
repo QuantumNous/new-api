@@ -1,11 +1,14 @@
 package internal
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,4 +88,41 @@ func TestValidateInternalKeyAuthenticatesConfiguredPair(t *testing.T) {
 	require.NoError(t, disabled.Insert())
 	_, err = ValidateInternalKey("off-system", "another-secret-456")
 	assert.ErrorIs(t, err, ErrInternalKeyDisabled)
+
+	// A wrong key must report invalid credentials even on a disabled key id,
+	// so key state is not revealed without the correct key.
+	_, err = ValidateInternalKey("off-system", "wrong-secret")
+	assert.ErrorIs(t, err, ErrInternalKeyInvalid)
+}
+
+func TestAddInternalKeyHonorsRequestedStatus(t *testing.T) {
+	setupTestDB(t)
+	gin.SetMode(gin.TestMode)
+
+	post := func(t *testing.T, body string) *InternalKey {
+		t.Helper()
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/internal_key/", strings.NewReader(body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		addInternalKey(c)
+		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+		var resp struct {
+			Success bool         `json:"success"`
+			Message string       `json:"message"`
+			Data    *InternalKey `json:"data"`
+		}
+		require.NoError(t, common.UnmarshalJsonStr(w.Body.String(), &resp))
+		require.True(t, resp.Success)
+		return resp.Data
+	}
+
+	created := post(t, `{"key_id":"crm","name":"CRM","status":2}`)
+	assert.Equal(t, InternalKeyStatusDisabled, created.Status)
+	stored, err := GetInternalKeyById(created.Id)
+	require.NoError(t, err)
+	assert.Equal(t, InternalKeyStatusDisabled, stored.Status)
+
+	defaulted := post(t, `{"key_id":"bi","name":"BI"}`)
+	assert.Equal(t, InternalKeyStatusEnabled, defaulted.Status)
 }

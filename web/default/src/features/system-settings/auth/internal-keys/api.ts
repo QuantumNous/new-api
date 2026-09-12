@@ -16,6 +16,7 @@ export async function getInternalKeys(): Promise<ApiResponse<InternalKey[]>> {
 export async function createInternalKey(data: {
   key_id: string
   name: string
+  status: number
   key?: string
 }): Promise<ApiResponse<InternalKey>> {
   const res = await api.post('/api/internal_key/', data)

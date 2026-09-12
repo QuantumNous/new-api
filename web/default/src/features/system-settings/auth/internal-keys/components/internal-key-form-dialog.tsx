@@ -90,6 +90,9 @@ export function InternalKeyFormDialog(props: InternalKeyFormDialogProps) {
       const res = await createKey.mutateAsync({
         key_id: values.key_id,
         name: values.name,
+        status: values.enabled
+          ? INTERNAL_KEY_STATUS.ENABLED
+          : INTERNAL_KEY_STATUS.DISABLED,
         key: values.key === '' ? undefined : values.key,
       })
       if (res.success) {
