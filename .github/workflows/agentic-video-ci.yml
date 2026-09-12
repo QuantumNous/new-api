@@ -38,12 +38,13 @@ jobs:
           mkdir -p web/dist
           touch web/dist/index.html
 
-      - name: Test affected packages
-        run: go test ./relay/channel/gemini ./relay/channel/vertex
 
-      - name: Test relaykit DTOs independently
+      - name: Vet root module
+        run: go vet ./...
+
+      - name: Vet relaykit independently
         working-directory: relaykit
-        run: go test ./dto
+        run: go vet ./...
 
       - name: Build root module
         run: go build ./...
@@ -52,9 +53,37 @@ jobs:
         working-directory: relaykit
         run: go build ./...
 
+      - name: Test root and relaykit modules
+        run: make test
+
+  frontend:
+    name: Frontend typecheck and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.0'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun run test
+
   docker:
     name: Docker build
-    needs: backend
+    needs: [backend, frontend]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
