@@ -138,6 +138,7 @@ import {
   CHANNEL_STATUS_LABELS,
   CHANNEL_TYPE_OPTIONS,
   CHANNEL_TYPE_TASK_PLUGIN,
+  CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_WARNINGS,
   ERROR_MESSAGES,
   FIELD_PASSTHROUGH_TYPES,
@@ -3597,13 +3598,20 @@ export function ChannelMutateDrawer({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel
-                      required={currentType === CHANNEL_TYPE_TASK_PLUGIN}
+                      required={
+                        currentType === CHANNEL_TYPE_TASK_PLUGIN ||
+                        currentType === CHANNEL_TYPE_VLLM
+                      }
                     >
                       {t('Base URL')}
                     </FormLabel>
                     <FormControl>
                       <Input
-                        placeholder={t(FIELD_PLACEHOLDERS.BASE_URL)}
+                        placeholder={t(
+                          currentType === CHANNEL_TYPE_VLLM
+                            ? 'vLLM server address, without /v1'
+                            : FIELD_PLACEHOLDERS.BASE_URL
+                        )}
                         {...field}
                       />
                     </FormControl>

@@ -109,6 +109,12 @@ type GeneralOpenAIRequest struct {
 	ReasoningSplit json.RawMessage `json:"reasoning_split,omitempty"`
 	// vLLM
 	ThinkingTokenBudget json.RawMessage `json:"thinking_token_budget,omitempty"`
+	IncludeReasoning    json.RawMessage `json:"include_reasoning,omitempty"`
+	MinP                json.RawMessage `json:"min_p,omitempty"`
+	RepetitionPenalty   json.RawMessage `json:"repetition_penalty,omitempty"`
+	StructuredOutputs   json.RawMessage `json:"structured_outputs,omitempty"`
+	// CacheSalt           json.RawMessage `json:"cache_salt,omitempty"`
+	ReturnTokenIds json.RawMessage `json:"return_token_ids,omitempty"`
 
 	// Internal conversion state; never serialized to an upstream protocol.
 	ReasoningConversion *ReasoningConversionState `json:"-"`
@@ -386,6 +392,9 @@ type StreamOptions struct {
 	// IncludeObfuscation is only for /v1/responses stream payload.
 	// This field is filtered by default and can be enabled via channel setting allow_include_obfuscation.
 	IncludeObfuscation bool `json:"include_obfuscation,omitempty"`
+	// ContinuousUsageStats is a vLLM stream_options extension that emits
+	// usage on intermediate chunks. Optional so an explicit false is kept.
+	// ContinuousUsageStats *bool `json:"continuous_usage_stats,omitempty"`
 }
 
 func (r *GeneralOpenAIRequest) GetMaxTokens() uint {
@@ -1029,6 +1038,8 @@ type OpenAIResponsesRequest struct {
 	// qwen
 	EnableThinking json.RawMessage `json:"enable_thinking,omitempty"`
 	ThinkingBudget json.RawMessage `json:"thinking_budget,omitempty"`
+	// vLLM
+	ChatTemplateKwargs json.RawMessage `json:"chat_template_kwargs,omitempty"`
 	// perplexity
 	Preset json.RawMessage `json:"preset,omitempty"`
 
