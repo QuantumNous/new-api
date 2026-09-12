@@ -76,7 +76,7 @@ type NormalizedSSRFValues = {
   'fetch_setting.ip_filter_mode': boolean
   'fetch_setting.domain_list': string[]
   'fetch_setting.ip_list': string[]
-  'fetch_setting.allowed_ports': number[]
+  'fetch_setting.allowed_ports': string[]
   'fetch_setting.apply_ip_filter_for_domain': boolean
 }
 
@@ -88,7 +88,7 @@ type SSRFSectionProps = {
     'fetch_setting.ip_filter_mode': boolean
     'fetch_setting.domain_list': string[]
     'fetch_setting.ip_list': string[]
-    'fetch_setting.allowed_ports': number[]
+    'fetch_setting.allowed_ports': string[]
     'fetch_setting.apply_ip_filter_for_domain': boolean
   }
 }
@@ -102,8 +102,8 @@ const splitLines = (value: string) =>
 const parsePorts = (value: string) =>
   value
     .split(',')
-    .map((item) => Number.parseInt(item.trim(), 10))
-    .filter((port) => Number.isFinite(port))
+    .map((item) => item.trim())
+    .filter(Boolean)
 
 const buildFormDefaults = (
   defaults: SSRFSectionProps['defaultValues']
