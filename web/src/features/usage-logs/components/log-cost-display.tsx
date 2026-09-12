@@ -36,12 +36,7 @@ import type { LogOtherData } from '../types'
 interface LogCostDisplayProps {
   quota: number
   other: LogOtherData | null
-}
-
-function splitQuotaDisplay(value: string): { prefix: string; amount: string } {
-  const match = value.match(/^([^0-9+\-.,\s]+)(.+)$/)
-  if (!match) return { prefix: '', amount: value }
-  return { prefix: match[1], amount: match[2] }
+  showWalletSource?: boolean
 }
 
 function ToolSurchargeMarker() {
@@ -79,65 +74,42 @@ function ToolSurchargeMarker() {
   )
 }
 
-function QuotaBadge(props: { quota: number }) {
-  const quotaDisplay = splitQuotaDisplay(formatLogQuota(props.quota))
-
-  return (
-    <span className='border-border/80 bg-muted/60 inline-flex h-6 w-fit items-center rounded-md border px-2 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums'>
-      {quotaDisplay.prefix ? (
-        <span className='mr-1'>{quotaDisplay.prefix}</span>
-      ) : null}
-      <span>{quotaDisplay.amount}</span>
-    </span>
-  )
-}
-
-function SubscriptionBadge(props: { quota: number }) {
-  const { t } = useTranslation()
-
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <StatusBadge
-            label={t('Subscription')}
-            variant='success'
-            size='sm'
-            copyable={false}
-            className='cursor-help'
-          />
-        }
-      />
-      <TooltipContent>
-        <span>
-          {t('Deducted by subscription')}: {formatLogQuota(props.quota)}
-        </span>
-      </TooltipContent>
-    </Tooltip>
-  )
-}
-
 export function LogCostDisplay(props: LogCostDisplayProps) {
+  const { t } = useTranslation()
   const isSubscription = props.other?.billing_source === 'subscription'
   const showToolSurcharge = hasToolSurcharge(props.other)
+  const quota = isSubscription
+    ? (props.other?.subscription_consumed ?? props.quota)
+    : props.quota
+  let source: string | undefined
 
-  if (!isSubscription && !showToolSurcharge) {
-    return (
-      <div className='flex flex-col gap-0.5'>
-        <QuotaBadge quota={props.quota} />
-      </div>
-    )
+  if (isSubscription) {
+    source = t('Subscription')
+  } else if (
+    props.showWalletSource &&
+    props.other?.billing_source === 'wallet'
+  ) {
+    source = t('Wallet')
   }
 
   return (
     <TooltipProvider>
-      <div className='inline-flex items-center gap-1'>
-        {isSubscription ? (
-          <SubscriptionBadge quota={props.quota} />
-        ) : (
-          <QuotaBadge quota={props.quota} />
-        )}
-        {showToolSurcharge ? <ToolSurchargeMarker /> : null}
+      <div className='flex w-fit flex-col items-start gap-0.5'>
+        <div className='flex items-center gap-1.5'>
+          <span className='text-foreground text-sm leading-5 font-semibold whitespace-nowrap tabular-nums'>
+            {formatLogQuota(quota)}
+          </span>
+          {showToolSurcharge ? <ToolSurchargeMarker /> : null}
+        </div>
+        {source ? (
+          <StatusBadge
+            label={source}
+            type='text'
+            variant={isSubscription ? 'success' : 'neutral'}
+            size='sm'
+            copyable={false}
+          />
+        ) : null}
       </div>
     </TooltipProvider>
   )
