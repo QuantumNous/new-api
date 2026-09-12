@@ -387,3 +387,13 @@ const (
 	MsgEnterpriseCannotDistributeToSelf = "enterprise.cannot_distribute_to_self"
 	MsgEnterpriseQuotaRecordListFailed  = "enterprise.quota_record_list_failed"
 )
+
+// Internal key messages
+const (
+	MsgInternalKeyInvalidCredentials = "internal_key.invalid_credentials"
+	MsgInternalKeyDisabled           = "internal_key.disabled"
+	MsgInternalKeyKeyIdInvalid       = "internal_key.key_id_invalid"
+	MsgInternalKeyKeyIdDuplicate     = "internal_key.key_id_duplicate"
+	MsgInternalKeyKeyInvalid         = "internal_key.key_invalid"
+	MsgInternalKeyNameTooLong        = "internal_key.name_too_long"
+)

@@ -331,3 +331,11 @@ enterprise.invalid_member: "成員識別碼無效"
 enterprise.duplicate_member: "成員識別碼重複"
 enterprise.cannot_distribute_to_self: "不能給自己下發額度"
 enterprise.quota_record_list_failed: "載入額度下發記錄失敗"
+
+# 內部密鑰訊息
+internal_key.invalid_credentials: "密鑰 ID 或密鑰無效"
+internal_key.disabled: "內部密鑰已被停用"
+internal_key.key_id_invalid: "密鑰 ID 只能包含 1-64 位字母、數字、中劃線或下劃線"
+internal_key.key_id_duplicate: "密鑰 ID 已存在"
+internal_key.key_invalid: "密鑰長度須為 8-128 個字元"
+internal_key.name_too_long: "名稱最長 128 個字元"
