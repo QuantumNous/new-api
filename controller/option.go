@@ -475,6 +475,23 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "quota_reset_setting.period":
+		if !operation_setting.IsValidQuotaResetPeriod(option.Value.(string)) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "无效的重置周期，可选值：daily、weekly、monthly",
+			})
+			return
+		}
+	case "quota_reset_setting.reset_value":
+		resetValue, err := strconv.Atoi(option.Value.(string))
+		if err != nil || resetValue < 0 {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "重置值必须是不小于 0 的整数",
+			})
+			return
+		}
 	}
 	if model.IsPasskeyDomainOption(option.Key) {
 		change, updateErr := model.UpdatePasskeyDomainOptions(map[string]string{option.Key: option.Value.(string)}, false, "")

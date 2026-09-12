@@ -221,6 +221,18 @@ export interface AffiliateTransferRequest {
 }
 
 /**
+ * Effective quota reset rule, present only when a reset rule is active
+ */
+export interface QuotaResetInfo {
+  /** Reset cadence */
+  period: 'daily' | 'weekly' | 'monthly'
+  /** Quota (internal units) the balance resets to */
+  reset_value: number
+  /** Next reset time, Unix seconds */
+  next_reset_time: number
+}
+
+/**
  * User wallet data
  */
 export interface UserWalletData {
@@ -242,6 +254,8 @@ export interface UserWalletData {
   aff_count: number
   /** User group */
   group: string
+  /** Effective quota reset rule, absent when none is active */
+  quota_reset?: QuotaResetInfo
 }
 
 /**

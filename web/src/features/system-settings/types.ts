@@ -366,6 +366,9 @@ export type BillingSettings = {
   'checkin_setting.enabled': boolean
   'checkin_setting.min_quota': number
   'checkin_setting.max_quota': number
+  'quota_reset_setting.enabled': boolean
+  'quota_reset_setting.period': 'daily' | 'weekly' | 'monthly'
+  'quota_reset_setting.reset_value': number
 }
 
 export type OperationsSettings = {

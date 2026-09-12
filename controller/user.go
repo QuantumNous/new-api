@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
@@ -490,7 +491,7 @@ func buildSelfUserData(user *model.User) map[string]any {
 	userSetting := user.GetSetting()
 	permissions := calculateUserPermissions(user.Role)
 	permissions["admin_permissions"] = authz.Capabilities(user.Id, user.Role)
-	return map[string]any{
+	data := map[string]any{
 		"id":                user.Id,
 		"username":          user.Username,
 		"display_name":      user.DisplayName,
@@ -518,6 +519,14 @@ func buildSelfUserData(user *model.User) map[string]any {
 		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":       permissions,
 	}
+	if period, value, ok := service.ResolveQuotaResetRule(user.Status, userSetting); ok {
+		data["quota_reset"] = map[string]any{
+			"period":          period,
+			"reset_value":     value,
+			"next_reset_time": service.NextQuotaResetTime(period, time.Now()).Unix(),
+		}
+	}
+	return data
 }
 
 // 计算用户权限的辅助函数
@@ -1380,6 +1389,9 @@ func UpdateUserSetting(c *gin.Context) {
 		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
 		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
 		RecordIpLog:                      req.RecordIpLog,
+		// 仅管理员端点可写的字段，自服务保存时原样保留
+		QuotaResetRule:   existingSettings.QuotaResetRule,
+		QuotaResetOptOut: existingSettings.QuotaResetOptOut,
 	}
 
 	// 如果是webhook类型,添加webhook相关设置
@@ -1419,4 +1431,59 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	common.ApiSuccessI18n(c, i18n.MsgSettingSaved, nil)
+}
+
+type UpdateUserQuotaResetRuleRequest struct {
+	UserId int                 `json:"user_id"`
+	Rule   *dto.QuotaResetRule `json:"rule"`
+	OptOut bool                `json:"opt_out"`
+}
+
+func UpdateUserQuotaResetRule(c *gin.Context) {
+	var req UpdateUserQuotaResetRuleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if req.Rule != nil && (!operation_setting.IsValidQuotaResetPeriod(req.Rule.Period) || req.Rule.Value < 0) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	targetUser, err := model.GetUserById(req.UserId, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !canManageTargetRole(c.GetInt("role"), targetUser.Role) {
+		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
+		return
+	}
+
+	setting := targetUser.GetSetting()
+	setting.QuotaResetRule = req.Rule
+	setting.QuotaResetOptOut = req.OptOut
+	if err := model.UpdateUserSetting(targetUser.Id, setting); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	params := map[string]any{"opt_out": req.OptOut}
+	if req.Rule != nil {
+		params["rule"] = fmt.Sprintf("%s:%d", req.Rule.Period, req.Rule.Value)
+	}
+	recordManageAuditFor(c, targetUser.Id, "user.quota_reset_rule", params)
+
+	common.ApiSuccessI18n(c, i18n.MsgUpdateSuccess, nil)
+}
+
+func RunQuotaResetNow(c *gin.Context) {
+	count, err := service.RunQuotaResetPass(nil, service.QuotaResetTriggerManual)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	recordManageAuditFor(c, c.GetInt("id"), "user.quota_reset_run", map[string]any{"count": count})
+	common.ApiSuccess(c, gin.H{"reset_count": count})
 }
