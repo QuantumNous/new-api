@@ -26,6 +26,8 @@ import {
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { createInstance } from 'i18next'
+import { I18nextProvider } from 'react-i18next'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
@@ -153,6 +155,38 @@ it.each([
     expect(get.mock.calls.some(([url]) => url.includes('update_balance'))).toBe(
       false
     )
+  }
+)
+
+it.each([
+  { language: 'zhCN', locale: 'zh-CN' },
+  { language: 'zhTW', locale: 'zh-TW' },
+])(
+  'formats status numbers and timestamps for $language',
+  async ({ language, locale }) => {
+    const i18n = createInstance()
+    await i18n.init({
+      lng: language,
+      resources: {
+        [language]: { translation: { 'vLLM status': 'vLLM status' } },
+      },
+    })
+    const data = fixture()
+    vi.spyOn(api, 'get').mockResolvedValue({
+      data: { success: true, data },
+    })
+
+    render(<I18nextProvider i18n={i18n}>{panel()}</I18nextProvider>)
+
+    expect(
+      await screen.findByText('Max context tokens: 1,048,576')
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        `Last updated: ${new Date(data.sampled_at).toLocaleString(locale)}`,
+        { collapseWhitespace: false }
+      )
+    ).toBeInTheDocument()
   }
 )
 

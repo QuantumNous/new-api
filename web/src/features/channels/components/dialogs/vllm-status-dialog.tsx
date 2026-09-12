@@ -27,6 +27,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { toIntlLocale } from '@/i18n/languages'
 import {
   ADMIN_PERMISSION_ACTIONS,
   ADMIN_PERMISSION_RESOURCES,
@@ -102,14 +103,15 @@ export function VLLMStatusDialog(props: VLLMStatusDialogProps) {
   const snapshot = query.data?.snapshot
   const metrics = snapshot?.metrics ?? []
   const recent = query.data?.recent
-  const number = new Intl.NumberFormat(i18n.language, {
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const number = new Intl.NumberFormat(locale, {
     maximumFractionDigits: 2,
   })
-  const percent = new Intl.NumberFormat(i18n.language, {
+  const percent = new Intl.NumberFormat(locale, {
     style: 'percent',
     maximumFractionDigits: 2,
   })
-  const seconds = new Intl.NumberFormat(i18n.language, {
+  const seconds = new Intl.NumberFormat(locale, {
     style: 'unit',
     unit: 'second',
     maximumFractionDigits: 2,
@@ -341,7 +343,7 @@ export function VLLMStatusDialog(props: VLLMStatusDialogProps) {
             </span>
             <span>
               {t('Last updated')}:{' '}
-              {new Date(snapshot.sampled_at).toLocaleString(i18n.language)}
+              {new Date(snapshot.sampled_at).toLocaleString(locale)}
             </span>
           </div>
           <dl className='grid grid-cols-2 gap-2 text-sm sm:grid-cols-4'>
