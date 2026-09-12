@@ -48,18 +48,21 @@ export function QuotaDetailsPopover(props: QuotaDetailsPopoverProps) {
               variant='ghost'
               aria-label={props.triggerLabel}
               className={cn(
-                'h-auto w-full min-w-0 justify-start px-0 py-0.5 text-left font-normal hover:bg-transparent aria-expanded:bg-transparent',
+                'h-auto w-full min-w-0 flex-col items-stretch justify-start px-0 py-0.5 text-left font-normal hover:bg-transparent aria-expanded:bg-transparent',
                 props.triggerClassName
               )}
             />
           }
         >
-          {props.children}
+          <div className='h-full w-full min-w-0 space-y-1.5'>
+            {props.children}
+            {props.afterTrigger}
+          </div>
         </PopoverTrigger>
-        {props.afterTrigger}
       </div>
       <PopoverContent
         align='start'
+        positionMethod='fixed'
         className='w-72 max-w-[calc(100vw-2rem)] gap-3 p-3'
       >
         <PopoverTitle>{props.title}</PopoverTitle>

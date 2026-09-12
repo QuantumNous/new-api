@@ -134,7 +134,7 @@ afterEach(() => {
     .setConfig({ currency: { ...DEFAULT_CURRENCY_CONFIG } })
 })
 
-it('shows balance above secondary usage text and opens quota details on click', async () => {
+it('shows balance, total quota, and a remaining progress bar', async () => {
   render(
     <I18nextProvider i18n={i18n}>
       <QuotaTable remaining={1900} used={1100} />
@@ -150,24 +150,25 @@ it('shows balance above secondary usage text and opens quota details on click', 
   expect(
     within(cells[0]).queryByText('Available Balance')
   ).not.toBeInTheDocument()
-  expect(within(cells[0]).getByText('0.0022')).toBeInTheDocument()
-  expect(screen.getByText('0.0038').parentElement).toHaveClass('grid-cols-1')
-  expect(screen.getByText('Used amount').parentElement).toHaveAttribute(
-    'data-table-text',
-    'secondary'
-  )
-  expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
-  expect(screen.queryByText('0.006')).not.toBeInTheDocument()
+  expect(within(cells[0]).getByText('0.006')).toBeInTheDocument()
+  expect(screen.getByText('0.0038').parentElement).toHaveClass('w-full')
+  expect(screen.getByText('0.006')).toHaveClass('text-right')
+  const progress = screen.getByRole('progressbar')
+  expect(progress).toHaveValue(63.33333333333333)
   const trigger = screen.getByRole('button', {
-    name: 'Available Balance 0.0038; Used amount 0.0022',
+    name: 'Available Balance 0.0038; Total Used 0.0022; Current total quota 0.006',
   })
+  expect(progress.closest('button')).toBe(trigger)
   await userEvent.click(trigger)
   const detail = await screen.findByRole('dialog', { name: 'Quota ($)' })
+  expect(detail.parentElement).toHaveStyle({ position: 'fixed' })
+  expect(progress).toBeVisible()
   expect(within(detail).getByText('Available Balance')).toBeInTheDocument()
   expect(within(detail).getByText('Total Used')).toBeInTheDocument()
+  expect(within(detail).getByText('Current total quota')).toBeInTheDocument()
   expect(within(detail).getByText('0.0038')).toBeInTheDocument()
   expect(within(detail).getByText('0.0022')).toBeInTheDocument()
-  expect(within(detail).queryByRole('progressbar')).not.toBeInTheDocument()
+  expect(within(detail).getByText('0.006')).toBeInTheDocument()
   await userEvent.keyboard('{Escape}')
   await waitFor(() =>
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -184,11 +185,19 @@ it.each([0, 500000])(
       </I18nextProvider>
     )
     if (used === 0) {
-      expect(screen.getAllByRole('cell')[0]).toHaveTextContent(/^No Quota$/)
+      const noQuotaCell = screen.getAllByRole('cell')[0]
+      expect(noQuotaCell).toHaveTextContent(/^No Quota$/)
       expect(screen.queryByText('Used amount')).not.toBeInTheDocument()
-      await userEvent.click(screen.getByRole('button', { name: 'No Quota' }))
+      const noQuotaTrigger = screen.getByRole('button', { name: 'No Quota' })
+      expect(noQuotaTrigger).toHaveClass('h-full', 'min-h-11')
+      expect(
+        within(noQuotaCell)
+          .getByText('No Quota')
+          .closest('[data-slot="status-badge"]')
+      ).toHaveClass('h-full', 'min-h-11', 'w-full')
+      await userEvent.click(noQuotaTrigger)
       const detail = await screen.findByRole('dialog', { name: 'Quota ($)' })
-      expect(within(detail).getAllByText('0')).toHaveLength(2)
+      expect(within(detail).getAllByText('0')).toHaveLength(3)
       return
     }
     expect(screen.queryByText('No Quota')).not.toBeInTheDocument()
@@ -208,7 +217,7 @@ it('preserves negative balances in details opened with the keyboard', async () =
     </I18nextProvider>
   )
   expect(screen.getByText('-1')).toHaveClass('text-destructive')
-  expect(screen.getByText('2')).toBeInTheDocument()
+  expect(screen.getByText('1')).toBeInTheDocument()
   await userEvent.tab()
   await userEvent.keyboard('{Enter}')
   const detail = await screen.findByRole('dialog')
@@ -240,7 +249,7 @@ it('shows the custom symbol only in the column header', () => {
     within(screen.getAllByRole('cell')[0]).getByText('0.0038')
   ).toBeInTheDocument()
   expect(
-    within(screen.getAllByRole('cell')[0]).getByText('0.0022')
+    within(screen.getAllByRole('cell')[0]).getByText('0.006')
   ).toBeInTheDocument()
 })
 
@@ -330,7 +339,7 @@ it('sends balance sorting to the server and keeps invitation details on two line
   expect(screen.getByText(/Invited 2 users · Earnings:/)).toBeInTheDocument()
 })
 
-it('shows balance above usage on mobile cards in Chinese', async () => {
+it('shows balance and total quota with a progress bar on mobile cards in Chinese', async () => {
   const originalMatchMedia = window.matchMedia
   vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
     ...originalMatchMedia(query),
@@ -341,9 +350,9 @@ it('shows balance above usage on mobile cards in Chinese', async () => {
   try {
     await renderUsersList()
     expect(screen.getByText('可用余额 ($)')).toBeInTheDocument()
-    expect(screen.getByText('已用')).toBeInTheDocument()
     expect(screen.getByText('0.0038')).toBeInTheDocument()
-    expect(screen.getByText('0.0022')).toBeInTheDocument()
+    expect(screen.getByText('0.006')).toBeInTheDocument()
+    expect(screen.getByRole('progressbar')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     await userEvent.click(
       screen.getByRole('button', { name: /可用余额 0.0038/ })
@@ -409,7 +418,7 @@ it('updates the header unit and converted amounts together when currency setting
     within(screen.getAllByRole('cell')[0]).getByText('7')
   ).toBeInTheDocument()
   expect(
-    within(screen.getAllByRole('cell')[0]).getByText('14')
+    within(screen.getAllByRole('cell')[0]).getByText('21')
   ).toBeInTheDocument()
   for (const cell of screen.getAllByRole('cell')) {
     expect(cell).not.toHaveTextContent('¥')
@@ -432,6 +441,6 @@ it('labels raw quota mode as tokens without introducing a currency symbol', () =
     within(screen.getAllByRole('cell')[0]).getByText('100')
   ).toBeInTheDocument()
   expect(
-    within(screen.getAllByRole('cell')[0]).getByText('200')
+    within(screen.getAllByRole('cell')[0]).getByText('300')
   ).toBeInTheDocument()
 })
