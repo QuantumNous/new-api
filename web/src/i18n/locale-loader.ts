@@ -16,15 +16,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import type { Resource } from 'i18next'
 
-export const Route = createFileRoute('/_authenticated/system-settings/auth/')({
-  beforeLoad: async () => {
-    const { AUTH_DEFAULT_SECTION } =
-      await import('@/features/system-settings/auth/section-registry.tsx')
-    throw redirect({
-      to: '/system-settings/auth/$section',
-      params: { section: AUTH_DEFAULT_SECTION },
-    })
-  },
-})
+const localeLoaders = {
+  en: () => import('./locales/en.json'),
+  zhCN: () => import('./locales/zh.json'),
+  fr: () => import('./locales/fr.json'),
+  ru: () => import('./locales/ru.json'),
+  ja: () => import('./locales/ja.json'),
+  vi: () => import('./locales/vi.json'),
+  zhTW: () => import('./locales/zh-TW.json'),
+} as const
+
+export const supportedInterfaceLanguages = Object.keys(localeLoaders)
+
+export async function loadInterfaceLanguage(
+  language: string
+): Promise<Resource[string]> {
+  const loader =
+    localeLoaders[language as keyof typeof localeLoaders] ?? localeLoaders.en
+  const locale = await loader()
+  return locale.default
+}

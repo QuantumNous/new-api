@@ -16,36 +16,37 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import i18n from 'i18next'
+import i18n, { type BackendModule } from 'i18next'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { initReactI18next } from 'react-i18next'
 
 import { convertDetectedLanguage } from './languages'
-import en from './locales/en.json'
-import fr from './locales/fr.json'
-import ja from './locales/ja.json'
-import ru from './locales/ru.json'
-import vi from './locales/vi.json'
-import zhTW from './locales/zh-TW.json'
-import zhCN from './locales/zh.json'
+import {
+  loadInterfaceLanguage,
+  supportedInterfaceLanguages,
+} from './locale-loader'
 
-export const resources = {
-  en,
-  zhCN,
-  fr,
-  ru,
-  ja,
-  vi,
-  zhTW,
-} as const
+const lazyLocaleBackend: BackendModule = {
+  type: 'backend',
+  init: () => undefined,
+  read: (language, namespace, callback) => {
+    const handleResource = (
+      resource: Awaited<ReturnType<typeof loadInterfaceLanguage>>
+    ) => callback(null, resource[namespace])
+    const handleError = (error: unknown) =>
+      callback(error instanceof Error ? error : String(error), null)
 
-i18n
+    void loadInterfaceLanguage(language).then(handleResource, handleError)
+  },
+}
+
+await i18n
   .use(LanguageDetector)
+  .use(lazyLocaleBackend)
   .use(initReactI18next)
   .init({
-    resources,
     fallbackLng: 'en',
-    supportedLngs: ['en', 'zhCN', 'fr', 'ru', 'ja', 'vi', 'zhTW'],
+    supportedLngs: supportedInterfaceLanguages,
     load: 'currentOnly',
     nsSeparator: false, // Allow literal colons in keys (e.g., URLs, labels)
     debug: import.meta.env.DEV,
