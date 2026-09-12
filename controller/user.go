@@ -1280,6 +1280,17 @@ type UpdateUserSettingRequest struct {
 	RecordIpLog                      bool    `json:"record_ip_log"`
 }
 
+// isValidNotifyURLScheme returns true when the URL uses http or https.
+// url.ParseRequestURI alone would accept non-http(s) schemes such as
+// file://, gopher://, or data://, so this explicit scheme check closes that gap.
+func isValidNotifyURLScheme(rawURL string) bool {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	return parsed.Scheme == "http" || parsed.Scheme == "https"
+}
+
 func UpdateUserSetting(c *gin.Context) {
 	var req UpdateUserSettingRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1305,8 +1316,15 @@ func UpdateUserSetting(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgSettingWebhookEmpty)
 			return
 		}
-		// 验证URL格式
+		if !isValidNotifyURLScheme(req.WebhookUrl) {
+			common.ApiErrorI18n(c, i18n.MsgSettingWebhookInvalid)
+			return
+		}
 		if _, err := url.ParseRequestURI(req.WebhookUrl); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgSettingWebhookInvalid)
+			return
+		}
+		if err := service.ValidateSSRFProtectedFetchURL(req.WebhookUrl); err != nil {
 			common.ApiErrorI18n(c, i18n.MsgSettingWebhookInvalid)
 			return
 		}
@@ -1327,14 +1345,16 @@ func UpdateUserSetting(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgSettingBarkUrlEmpty)
 			return
 		}
-		// 验证URL格式
+		if !isValidNotifyURLScheme(req.BarkUrl) {
+			common.ApiErrorI18n(c, i18n.MsgSettingBarkUrlInvalid)
+			return
+		}
 		if _, err := url.ParseRequestURI(req.BarkUrl); err != nil {
 			common.ApiErrorI18n(c, i18n.MsgSettingBarkUrlInvalid)
 			return
 		}
-		// 检查是否是HTTP或HTTPS
-		if !strings.HasPrefix(req.BarkUrl, "https://") && !strings.HasPrefix(req.BarkUrl, "http://") {
-			common.ApiErrorI18n(c, i18n.MsgSettingUrlMustHttp)
+		if err := service.ValidateSSRFProtectedFetchURL(req.BarkUrl); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgSettingBarkUrlInvalid)
 			return
 		}
 	}
@@ -1349,14 +1369,16 @@ func UpdateUserSetting(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgSettingGotifyTokenEmpty)
 			return
 		}
-		// 验证URL格式
+		if !isValidNotifyURLScheme(req.GotifyUrl) {
+			common.ApiErrorI18n(c, i18n.MsgSettingGotifyUrlInvalid)
+			return
+		}
 		if _, err := url.ParseRequestURI(req.GotifyUrl); err != nil {
 			common.ApiErrorI18n(c, i18n.MsgSettingGotifyUrlInvalid)
 			return
 		}
-		// 检查是否是HTTP或HTTPS
-		if !strings.HasPrefix(req.GotifyUrl, "https://") && !strings.HasPrefix(req.GotifyUrl, "http://") {
-			common.ApiErrorI18n(c, i18n.MsgSettingUrlMustHttp)
+		if err := service.ValidateSSRFProtectedFetchURL(req.GotifyUrl); err != nil {
+			common.ApiErrorI18n(c, i18n.MsgSettingGotifyUrlInvalid)
 			return
 		}
 	}
