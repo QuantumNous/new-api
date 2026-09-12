@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
@@ -27,6 +29,63 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 	if err := relayconvert.ApplyGeminiThinkingConfigChecked(request, info); err != nil {
 		return nil, err
 	}
+	// GenerateContent currently rejects replaying Agentic media tool traces.
+	// Keep the original video, text and non-media tools. Strip media navigation
+	// fields and optional non-function signatures from subsequent model history.
+	hasAgenticVideo := false
+	// ID-only traces cannot be attributed safely when other tools are enabled.
+	var tools []map[string]any
+	allowUntypedTrace := len(request.Tools) == 0 || (common.Unmarshal(request.Tools, &tools) == nil && len(tools) == 0)
+	contents := make([]dto.GeminiChatContent, 0, len(request.Contents))
+	for _, content := range request.Contents {
+		if content.Role == "user" || content.Role == "" {
+			for _, part := range content.Parts {
+				if part.MediaProcessing == nil || !strings.EqualFold(*part.MediaProcessing, "AGENTIC") {
+					continue
+				}
+				if (part.FileData != nil && (strings.HasPrefix(part.FileData.MimeType, "video/") || strings.Contains(part.FileData.FileUri, "youtube.com/") || strings.Contains(part.FileData.FileUri, "youtu.be/"))) ||
+					(part.InlineData != nil && strings.HasPrefix(part.InlineData.MimeType, "video/")) {
+					hasAgenticVideo = true
+				}
+			}
+		}
+		if hasAgenticVideo && content.Role == "model" {
+			parts := make([]dto.GeminiPart, 0, len(content.Parts))
+			removed := false
+			for _, part := range content.Parts {
+				// Signatures outside functionCall parts are optional. Vertex may emit
+				// opaque media signatures without the associated tool payload, and
+				// replaying those signatures fails validation.
+				if part.FunctionCall == nil && len(part.ThoughtSignature) > 0 {
+					part.ThoughtSignature = nil
+					removed = true
+				}
+				isMediaTrace := false
+				if isAgenticMediaTrace(part.ToolCall, allowUntypedTrace) {
+					part.ToolCall = nil
+					isMediaTrace = true
+				}
+				if isAgenticMediaTrace(part.ToolResponse, allowUntypedTrace) {
+					part.ToolResponse = nil
+					isMediaTrace = true
+				}
+				if isMediaTrace {
+					removed = true
+				}
+				if !reflect.ValueOf(part).IsZero() {
+					parts = append(parts, part)
+				}
+			}
+			if removed {
+				if len(parts) == 0 {
+					continue
+				}
+				content.Parts = parts
+			}
+		}
+		contents = append(contents, content)
+	}
+	request.Contents = contents
 	if len(request.Contents) > 0 {
 		for i, content := range request.Contents {
 			if i == 0 {
@@ -44,6 +103,25 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 	return request, nil
+}
+
+// Untyped traces are recognized only in their observed ID-only form. Unknown
+// tools and future payloads must not be mistaken for media navigation.
+func isAgenticMediaTrace(data []byte, allowUntyped bool) bool {
+	var fields map[string]any
+	if len(data) == 0 || common.Unmarshal(data, &fields) != nil {
+		return false
+	}
+	for _, key := range []string{"toolType", "tool_type"} {
+		if value, ok := fields[key]; ok && value != "MEDIA_PROCESSING" {
+			return false
+		}
+	}
+	if fields["toolType"] == "MEDIA_PROCESSING" || fields["tool_type"] == "MEDIA_PROCESSING" {
+		return true
+	}
+	id, ok := fields["id"].(string)
+	return allowUntyped && len(fields) == 1 && ok && id != ""
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {

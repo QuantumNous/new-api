@@ -281,6 +281,26 @@ type GeminiFileData struct {
 	FileUri  string `json:"fileUri,omitempty"`
 }
 
+func (d *GeminiFileData) UnmarshalJSON(data []byte) error {
+	type Alias GeminiFileData
+	var aux struct {
+		Alias
+		MimeTypeSnake string `json:"mime_type"`
+		FileUriSnake  string `json:"file_uri"`
+	}
+	if err := kitutil.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	*d = GeminiFileData(aux.Alias)
+	if aux.MimeTypeSnake != "" {
+		d.MimeType = aux.MimeTypeSnake
+	}
+	if aux.FileUriSnake != "" {
+		d.FileUri = aux.FileUriSnake
+	}
+	return nil
+}
+
 type GeminiPart struct {
 	Text             string                  `json:"text,omitempty"`
 	Thought          bool                    `json:"thought,omitempty"`
@@ -289,20 +309,32 @@ type GeminiPart struct {
 	ThoughtSignature json.RawMessage         `json:"thoughtSignature,omitempty"`
 	FunctionResponse *GeminiFunctionResponse `json:"functionResponse,omitempty"`
 	// Optional. Media resolution for the input media.
-	MediaResolution     json.RawMessage                `json:"mediaResolution,omitempty"`
+	MediaResolution json.RawMessage `json:"mediaResolution,omitempty"`
+	MediaProcessing *string         `json:"mediaProcessing,omitempty"`
+	// Preserve server-executed tool traces for native responses and decoding.
+	// Upstream adaptors may remove non-replayable media traces from history.
+	ToolCall            json.RawMessage                `json:"toolCall,omitempty"`
+	ToolResponse        json.RawMessage                `json:"toolResponse,omitempty"`
 	VideoMetadata       json.RawMessage                `json:"videoMetadata,omitempty"`
 	FileData            *GeminiFileData                `json:"fileData,omitempty"`
 	ExecutableCode      *GeminiPartExecutableCode      `json:"executableCode,omitempty"`
 	CodeExecutionResult *GeminiPartCodeExecutionResult `json:"codeExecutionResult,omitempty"`
 }
 
-// UnmarshalJSON custom unmarshaler for GeminiPart to support snake_case and camelCase for InlineData
+// UnmarshalJSON accepts both SDK and REST spellings of media and navigation parts.
 func (p *GeminiPart) UnmarshalJSON(data []byte) error {
 	// Alias to avoid recursion during unmarshalling
 	type Alias GeminiPart
 	var aux struct {
 		Alias
-		InlineDataSnake *GeminiInlineData `json:"inline_data,omitempty"` // snake_case variant
+		InlineDataSnake       *GeminiInlineData `json:"inline_data,omitempty"` // snake_case variant
+		FileDataSnake         *GeminiFileData   `json:"file_data,omitempty"`
+		MediaProcessingSnake  *string           `json:"media_processing,omitempty"`
+		MediaResolutionSnake  json.RawMessage   `json:"media_resolution,omitempty"`
+		VideoMetadataSnake    json.RawMessage   `json:"video_metadata,omitempty"`
+		ThoughtSignatureSnake json.RawMessage   `json:"thought_signature,omitempty"`
+		ToolCallSnake         json.RawMessage   `json:"tool_call,omitempty"`
+		ToolResponseSnake     json.RawMessage   `json:"tool_response,omitempty"`
 	}
 
 	if err := kitutil.Unmarshal(data, &aux); err != nil {
@@ -318,7 +350,27 @@ func (p *GeminiPart) UnmarshalJSON(data []byte) error {
 	} else if aux.InlineData != nil { // Fallback to camelCase from Alias
 		p.InlineData = aux.InlineData
 	}
-	// Other fields like Text, FunctionCall etc. are already populated via aux.Alias
+	if aux.FileDataSnake != nil {
+		p.FileData = aux.FileDataSnake
+	}
+	if aux.MediaProcessingSnake != nil {
+		p.MediaProcessing = aux.MediaProcessingSnake
+	}
+	if aux.MediaResolutionSnake != nil {
+		p.MediaResolution = aux.MediaResolutionSnake
+	}
+	if aux.VideoMetadataSnake != nil {
+		p.VideoMetadata = aux.VideoMetadataSnake
+	}
+	if aux.ThoughtSignatureSnake != nil {
+		p.ThoughtSignature = aux.ThoughtSignatureSnake
+	}
+	if aux.ToolCallSnake != nil {
+		p.ToolCall = aux.ToolCallSnake
+	}
+	if aux.ToolResponseSnake != nil {
+		p.ToolResponse = aux.ToolResponseSnake
+	}
 
 	return nil
 }
