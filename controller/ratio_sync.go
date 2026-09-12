@@ -18,9 +18,9 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
-
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
@@ -224,13 +224,24 @@ func FetchUpstreamRatios(c *gin.Context) {
 
 	if len(req.Upstreams) > 0 {
 		for _, u := range req.Upstreams {
-			if strings.HasPrefix(u.BaseURL, "http") {
-				if u.Endpoint == "" {
-					u.Endpoint = defaultEndpoint
-				}
-				u.BaseURL = strings.TrimRight(u.BaseURL, "/")
-				upstreams = append(upstreams, u)
+			if !strings.HasPrefix(u.BaseURL, "http") {
+				continue
 			}
+			if err := service.ValidateSSRFProtectedFetchURL(u.BaseURL); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": fmt.Sprintf("upstream base_url %q failed validation: %v", u.BaseURL, err)})
+				return
+			}
+			if strings.HasPrefix(u.Endpoint, "http") {
+				if err := service.ValidateSSRFProtectedFetchURL(u.Endpoint); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": fmt.Sprintf("upstream endpoint %q failed validation: %v", u.Endpoint, err)})
+					return
+				}
+			}
+			if u.Endpoint == "" {
+				u.Endpoint = defaultEndpoint
+			}
+			u.BaseURL = strings.TrimRight(u.BaseURL, "/")
+			upstreams = append(upstreams, u)
 		}
 	} else if len(req.ChannelIDs) > 0 {
 		intIds := make([]int, 0, len(req.ChannelIDs))
