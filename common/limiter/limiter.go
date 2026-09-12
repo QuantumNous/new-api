@@ -14,7 +14,7 @@ import (
 var rateLimitScript string
 
 type RedisLimiter struct {
-	client         *redis.Client
+	client         redis.UniversalClient
 	limitScriptSHA string
 }
 
@@ -23,7 +23,7 @@ var (
 	once     sync.Once
 )
 
-func New(ctx context.Context, r *redis.Client) *RedisLimiter {
+func New(ctx context.Context, r redis.UniversalClient) *RedisLimiter {
 	once.Do(func() {
 		// 预加载脚本
 		limitSHA, err := r.ScriptLoad(ctx, rateLimitScript).Result()
