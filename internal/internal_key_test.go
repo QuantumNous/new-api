@@ -1,13 +1,33 @@
-package model
+package internal
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
+
+// setupTestDB points model.DB at a fresh in-memory SQLite database migrated
+// for internal key tests, mirroring the enterprise module's test setup.
+func setupTestDB(t *testing.T) {
+	t.Helper()
+	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
+	common.RedisEnabled = false
+
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, db.AutoMigrate(&InternalKey{}))
+
+	model.DB = db
+}
 
 func TestValidateInternalKeyKeyIdFormat(t *testing.T) {
 	tests := []struct {
@@ -32,17 +52,13 @@ func TestValidateInternalKeyKeyIdFormat(t *testing.T) {
 }
 
 func TestValidateInternalKeyAuthenticatesConfiguredPair(t *testing.T) {
-	require.NoError(t, DB.AutoMigrate(&InternalKey{}))
-	require.NoError(t, DB.Where("1 = 1").Delete(&InternalKey{}).Error)
-	t.Cleanup(func() {
-		require.NoError(t, DB.Where("1 = 1").Delete(&InternalKey{}).Error)
-	})
+	setupTestDB(t)
 
 	internalKey := &InternalKey{
 		KeyId:       "test-system",
 		Key:         "test-secret-value-123",
 		Name:        "test",
-		Status:      common.InternalKeyStatusEnabled,
+		Status:      InternalKeyStatusEnabled,
 		CreatedTime: common.GetTimestamp(),
 	}
 	require.NoError(t, internalKey.Insert())
@@ -63,7 +79,7 @@ func TestValidateInternalKeyAuthenticatesConfiguredPair(t *testing.T) {
 	disabled := &InternalKey{
 		KeyId:       "off-system",
 		Key:         "another-secret-456",
-		Status:      common.InternalKeyStatusDisabled,
+		Status:      InternalKeyStatusDisabled,
 		CreatedTime: common.GetTimestamp(),
 	}
 	require.NoError(t, disabled.Insert())

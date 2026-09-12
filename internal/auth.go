@@ -1,4 +1,4 @@
-package middleware
+package internal
 
 import (
 	"errors"
@@ -31,7 +31,7 @@ func InternalAuth() func(c *gin.Context) {
 			c.Abort()
 			return
 		}
-		internalKey, err := model.ValidateInternalKey(keyId, key)
+		internalKey, err := ValidateInternalKey(keyId, key)
 		if err != nil {
 			if errors.Is(err, model.ErrDatabase) {
 				common.SysLog("InternalAuth ValidateInternalKey database error: " + err.Error())

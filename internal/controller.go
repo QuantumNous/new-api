@@ -1,4 +1,4 @@
-package controller
+package internal
 
 import (
 	"net/http"
@@ -8,13 +8,12 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
-	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
 )
 
-func GetAllInternalKeys(c *gin.Context) {
-	keys, err := model.GetAllInternalKeys()
+func getAllInternalKeys(c *gin.Context) {
+	keys, err := GetAllInternalKeys()
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -30,8 +29,8 @@ func validateInternalKeyName(name string) bool {
 	return utf8.RuneCountInString(name) <= 128
 }
 
-func AddInternalKey(c *gin.Context) {
-	internalKey := model.InternalKey{}
+func addInternalKey(c *gin.Context) {
+	internalKey := InternalKey{}
 	if err := c.ShouldBindJSON(&internalKey); err != nil {
 		common.ApiError(c, err)
 		return
@@ -39,7 +38,7 @@ func AddInternalKey(c *gin.Context) {
 	internalKey.KeyId = strings.TrimSpace(internalKey.KeyId)
 	internalKey.Name = strings.TrimSpace(internalKey.Name)
 	customKey := strings.TrimSpace(internalKey.Key)
-	if !model.ValidateInternalKeyKeyId(internalKey.KeyId) {
+	if !ValidateInternalKeyKeyId(internalKey.KeyId) {
 		common.ApiErrorI18n(c, i18n.MsgInternalKeyKeyIdInvalid)
 		return
 	}
@@ -49,12 +48,12 @@ func AddInternalKey(c *gin.Context) {
 	}
 	switch {
 	case customKey == "":
-		customKey = common.GetRandomString(model.InternalKeySecretLength)
-	case len(customKey) < model.InternalKeySecretMinLength || len(customKey) > model.InternalKeySecretMaxLength:
+		customKey = common.GetRandomString(internalKeySecretLength)
+	case len(customKey) < internalKeySecretMinLength || len(customKey) > internalKeySecretMaxLength:
 		common.ApiErrorI18n(c, i18n.MsgInternalKeyKeyInvalid)
 		return
 	}
-	exists, err := model.InternalKeyKeyIdExists(internalKey.KeyId)
+	exists, err := InternalKeyKeyIdExists(internalKey.KeyId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -65,16 +64,12 @@ func AddInternalKey(c *gin.Context) {
 	}
 	internalKey.Key = customKey
 	internalKey.Id = 0
-	internalKey.Status = common.InternalKeyStatusEnabled
+	internalKey.Status = InternalKeyStatusEnabled
 	internalKey.CreatedTime = common.GetTimestamp()
 	if err := internalKey.Insert(); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	recordManageAudit(c, "internal_key.create", map[string]interface{}{
-		"key_id": internalKey.KeyId,
-		"name":   internalKey.Name,
-	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -82,13 +77,13 @@ func AddInternalKey(c *gin.Context) {
 	})
 }
 
-func UpdateInternalKey(c *gin.Context) {
-	internalKey := model.InternalKey{}
+func updateInternalKey(c *gin.Context) {
+	internalKey := InternalKey{}
 	if err := c.ShouldBindJSON(&internalKey); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	cleanKey, err := model.GetInternalKeyById(internalKey.Id)
+	cleanKey, err := GetInternalKeyById(internalKey.Id)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -99,13 +94,13 @@ func UpdateInternalKey(c *gin.Context) {
 		return
 	}
 	newKey := strings.TrimSpace(internalKey.Key)
-	if newKey != "" && (len(newKey) < model.InternalKeySecretMinLength || len(newKey) > model.InternalKeySecretMaxLength) {
+	if newKey != "" && (len(newKey) < internalKeySecretMinLength || len(newKey) > internalKeySecretMaxLength) {
 		common.ApiErrorI18n(c, i18n.MsgInternalKeyKeyInvalid)
 		return
 	}
 	cleanKey.Name = name
 	// 0 表示请求未携带状态，保持原状态不变；合法值为启用/禁用两种。
-	if internalKey.Status == common.InternalKeyStatusEnabled || internalKey.Status == common.InternalKeyStatusDisabled {
+	if internalKey.Status == InternalKeyStatusEnabled || internalKey.Status == InternalKeyStatusDisabled {
 		cleanKey.Status = internalKey.Status
 	}
 	fields := []string{"name", "status"}
@@ -117,12 +112,6 @@ func UpdateInternalKey(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	recordManageAudit(c, "internal_key.update", map[string]interface{}{
-		"key_id":      cleanKey.KeyId,
-		"name":        cleanKey.Name,
-		"status":      cleanKey.Status,
-		"key_rotated": newKey != "",
-	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -130,27 +119,22 @@ func UpdateInternalKey(c *gin.Context) {
 	})
 }
 
-func DeleteInternalKey(c *gin.Context) {
+func deleteInternalKey(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	keyId := c.Query("key_id")
-	if err := model.DeleteInternalKeyById(id); err != nil {
+	if err := DeleteInternalKeyById(id); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	recordManageAudit(c, "internal_key.delete", map[string]interface{}{
-		"id":     id,
-		"key_id": keyId,
-	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 	})
 }
 
-// InternalAuthCheck is a lightweight endpoint protected by InternalAuth, so
+// internalAuthCheck is a lightweight endpoint protected by InternalAuth, so
 // internal systems can verify their key pair and administrators can confirm a
 // pair works.
-func InternalAuthCheck(c *gin.Context) {
+func internalAuthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

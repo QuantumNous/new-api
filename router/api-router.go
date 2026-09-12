@@ -3,6 +3,7 @@ package router
 import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/enterprise"
+	"github.com/QuantumNous/new-api/internal"
 	"github.com/QuantumNous/new-api/middleware"
 
 	// Import oauth package to register providers via init()
@@ -267,21 +268,8 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
 
-		internalKeyRoute := apiRouter.Group("/internal_key")
-		internalKeyRoute.Use(middleware.RootAuth())
-		{
-			internalKeyRoute.GET("/", controller.GetAllInternalKeys)
-			internalKeyRoute.POST("/", controller.AddInternalKey)
-			internalKeyRoute.PUT("/", controller.UpdateInternalKey)
-			internalKeyRoute.DELETE("/:id", controller.DeleteInternalKey)
-		}
-
-		// 内部系统调用入口，通过 X-Key-Id / X-Key 请求头鉴权。
-		internalRoute := apiRouter.Group("/internal")
-		internalRoute.Use(middleware.InternalAuth())
-		{
-			internalRoute.GET("/ping", controller.InternalAuthCheck)
-		}
+		// 内部系统鉴权密钥管理与内部调用接口，集中在 internal 包维护。
+		internal.RegisterRoutes(apiRouter)
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
 		// Legacy synchronous direct-delete route used only by the classic frontend.

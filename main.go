@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/enterprise"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/internal"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
@@ -320,6 +321,10 @@ func InitResources() error {
 	}
 	if err = enterprise.AutoMigrate(); err != nil {
 		common.FatalLog("failed to migrate enterprise module: " + err.Error())
+		return err
+	}
+	if err = internal.AutoMigrate(); err != nil {
+		common.FatalLog("failed to migrate internal module: " + err.Error())
 		return err
 	}
 	if err = authz.Init(model.DB); err != nil {
