@@ -51,6 +51,10 @@ var defaultOpenaiSettings = GlobalSettings{
 	ThinkingModelBlacklist: []string{
 		"moonshotai/kimi-k2-thinking",
 		"kimi-k2-thinking",
+		// Gemini 3.x official model names end in compute-tier suffixes
+		// (-high/-medium/-low/...) that collide with legacy thinking aliases.
+		// Preserve them so model mapping and upstream routing stay intact.
+		"re:^gemini-3\\.\\d+-(flash|pro)-(high|medium|low|minimal|max|xhigh)$",
 	},
 	EffortTailModelIDs: []string{
 		"gpt-5.1-codex-max",

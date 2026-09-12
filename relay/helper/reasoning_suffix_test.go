@@ -120,6 +120,25 @@ func TestApplyReasoningModelSuffixBlacklistDoesNotTrim(t *testing.T) {
 	assert.Nil(t, info.ReasoningConversion)
 }
 
+func TestApplyReasoningModelSuffixKeepsGemini3ComputeTierAfterMapping(t *testing.T) {
+	// Regression: gemini-3.8-flash-high is an official Google model name
+	// whose -high suffix collides with legacy thinking aliases. After model
+	// mapping sets UpstreamModelName to it, ApplyReasoningModelSuffix must
+	// NOT strip the suffix and revert to gemini-3.8-flash.
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gemini-3.8-flash",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gemini-3.8-flash-high",
+			IsModelMapped:     true,
+		},
+	}
+
+	mustApplyReasoningModelSuffix(t, info)
+	assert.Equal(t, "gemini-3.8-flash-high", info.UpstreamModelName,
+		"compute-tier suffix must not be stripped from official Gemini 3.x model names")
+	assert.Nil(t, info.ReasoningConversion)
+}
+
 func TestApplyReasoningModelSuffixModifierOverridesExplicitConflict(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		OriginModelName: "claude-3-7-sonnet-thinking",

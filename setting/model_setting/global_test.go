@@ -42,3 +42,22 @@ func TestShouldPreserveThinkingSuffixExactAndRegex(t *testing.T) {
 	assert.True(t, ShouldPreserveThinkingSuffix("beta@sha256:abc"))
 	assert.False(t, ShouldPreserveThinkingSuffix("alpha@sha256:abc"))
 }
+
+func TestShouldPreserveThinkingSuffixGemini3ComputeTier(t *testing.T) {
+	// Gemini 3.x official model names end in compute-tier suffixes that
+	// collide with legacy thinking aliases. The default blacklist must
+	// preserve them so model mapping and upstream routing stay intact.
+	assert.True(t, ShouldPreserveThinkingSuffix("gemini-3.8-flash-high"),
+		"gemini-3.8-flash-high is an official model name, not a thinking alias")
+	assert.True(t, ShouldPreserveThinkingSuffix("gemini-3.8-pro-high"))
+	assert.True(t, ShouldPreserveThinkingSuffix("gemini-3.5-flash-medium"))
+	assert.True(t, ShouldPreserveThinkingSuffix("gemini-3.8-flash-low"))
+
+	// Gemini 2.x legacy thinking aliases must NOT be preserved.
+	assert.False(t, ShouldPreserveThinkingSuffix("gemini-2.5-pro-high"),
+		"gemini-2.5-pro-high is a legacy thinking alias, not an official model name")
+
+	// Models without a compute-tier suffix are unaffected.
+	assert.False(t, ShouldPreserveThinkingSuffix("gemini-3.8-flash"))
+	assert.False(t, ShouldPreserveThinkingSuffix("gemini-3.8-pro"))
+}
