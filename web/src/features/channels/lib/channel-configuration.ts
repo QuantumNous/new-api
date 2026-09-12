@@ -57,6 +57,7 @@ const CONFIGURATION_BLOCKS = {
       'force_format',
       'thinking_to_content',
       'pass_through_body_enabled',
+      'responses_websocket_enabled',
       'system_prompt',
       'system_prompt_override',
     ],
@@ -148,6 +149,8 @@ export function getChannelConfigurationState(
       (values.type === 1 && values.force_format) ||
       values.thinking_to_content ||
       values.pass_through_body_enabled ||
+      ((values.type === 1 || values.type === 57) &&
+        values.responses_websocket_enabled) ||
       values.system_prompt?.trim() ||
       values.system_prompt_override
     ),

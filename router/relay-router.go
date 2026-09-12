@@ -70,6 +70,11 @@ func SetRelayRouter(router *gin.Engine) {
 	relayV1Router.Use(middleware.RouteTag("relay"))
 	relayV1Router.Use(middleware.SystemPerformanceCheck())
 	relayV1Router.Use(middleware.TokenAuth())
+	{
+		// Responses WebSocket route. Channel selection happens after the first
+		// response.create event; each event runs the ordinary request limiter.
+		relayV1Router.GET("/responses", controller.ResponsesWebSocket)
+	}
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
 	{
 		// WebSocket 路由（统一到 Relay）
