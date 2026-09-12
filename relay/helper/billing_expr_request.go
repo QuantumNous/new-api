@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -30,6 +31,39 @@ func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.Re
 		return billingexpr.RequestInput{}, err
 	}
 	input.Body = bodyBytes
+	return input, nil
+}
+
+// ResolveImageBillingRequestInput freezes only the validated scalar image
+// parameters needed by pricing. Image files, prompts and base64 payloads are
+// deliberately excluded, including for multipart edits.
+func ResolveImageBillingRequestInput(c *gin.Context, info *relaycommon.RelayInfo, input billingexpr.RequestInput) (billingexpr.RequestInput, error) {
+	request, ok := info.Request.(*dto.ImageRequest)
+	if !ok {
+		return input, nil
+	}
+	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
+	if info.ChannelMeta != nil {
+		channelType = info.ChannelType
+	}
+	count, err := request.ImageCount(channelType == constant.ChannelTypeAli)
+	if err != nil {
+		return input, err
+	}
+	topLevelCount, err := request.ImageCount(false)
+	if err != nil {
+		return input, err
+	}
+	body := map[string]any{"model": request.Model, "n": topLevelCount, "size": request.Size, "quality": request.Quality}
+	if request.BillingParameters != nil {
+		body["parameters"] = request.BillingParameters
+	}
+	encoded, err := common.Marshal(body)
+	if err != nil {
+		return input, err
+	}
+	input.Body = encoded
+	input.ImageCount = &count
 	return input, nil
 }
 
@@ -63,6 +97,10 @@ func readIncomingBillingExprBody(c *gin.Context) ([]byte, error) {
 func cloneRequestInput(src billingexpr.RequestInput) billingexpr.RequestInput {
 	input := billingexpr.RequestInput{
 		Headers: cloneStringMap(src.Headers),
+	}
+	if src.ImageCount != nil {
+		count := *src.ImageCount
+		input.ImageCount = &count
 	}
 	if len(src.Body) > 0 {
 		input.Body = append([]byte(nil), src.Body...)

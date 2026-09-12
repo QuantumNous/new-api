@@ -24,7 +24,11 @@ import {
 } from '@tanstack/react-query'
 import { t } from 'i18next'
 
-import type { BillingUsageSchema } from '@/features/pricing/types'
+import { pluginExpressionsEqual } from '@/features/pricing/lib/plugin-pricing'
+import type {
+  BillingUsageSchema,
+  BillingUsageExample,
+} from '@/features/pricing/types'
 import { api } from '@/lib/api'
 import { ROLE } from '@/lib/roles'
 import { createServerError } from '@/lib/server-error-message'
@@ -35,13 +39,33 @@ import {
   pricingValuesByModel,
   type PricingOptions,
   type PricingValues,
+  type CacheWriteMode,
+  type LegacyBillingDetails,
 } from './pricing'
 
-export type ModelPricingEntry = {
+export type ModelPricingDescription = {
+  billing_details?: LegacyBillingDetails
+  effective: PricingValues
+  cache_write_mode?: CacheWriteMode
+}
+
+export type ModelPricingPluginVariant = {
+  plugin_key: string
+  plugin_name: string
+  icon?: string
+  usage_schema: BillingUsageSchema
+  usage_examples?: BillingUsageExample[]
+  configured: string
+  effective: string
+  compatible: boolean
+  stale?: boolean
+}
+
+export type ModelPricingEntry = ModelPricingDescription & {
+  plugin_variants?: ModelPricingPluginVariant[]
   model_name: string
   version: string
   configured: PricingValues
-  effective: PricingValues
   usage_schema?: BillingUsageSchema
 }
 
@@ -55,6 +79,44 @@ export type ModelPricingChange = {
   expected_version: string
   pricing: PricingValues
   reset?: boolean
+}
+
+export type ModelPricingConversion = Partial<ModelPricingDescription> & {
+  expression?: string
+  unsupported_reason?: string
+}
+
+export async function previewModelPricingConversion(request: {
+  model_name: string
+  pricing: PricingValues
+}): Promise<ModelPricingConversion> {
+  const response = await api.post('/api/option/model_pricing/convert', request)
+  if (!response.data.success) {
+    throw createServerError(
+      response.data,
+      t('Failed to prepare pricing conversion')
+    )
+  }
+  return response.data.data
+}
+
+export async function previewModelPricing(request: {
+  model_name: string
+  pricing: PricingValues
+}): Promise<{
+  effective: PricingValues
+  cacheWriteMode?: CacheWriteMode
+  billingDetails?: LegacyBillingDetails
+}> {
+  const response = await api.post('/api/option/model_pricing/preview', request)
+  if (!response.data.success) {
+    throw createServerError(response.data, t('Failed to load model pricing'))
+  }
+  return {
+    effective: response.data.data.effective,
+    cacheWriteMode: response.data.data.cache_write_mode,
+    billingDetails: response.data.data.billing_details,
+  }
 }
 
 export function useCanEditModelPricing() {
@@ -86,6 +148,7 @@ export function useModelPricing(names: string[] = [], enabled = true) {
 export async function invalidateModelPricing(client: QueryClient) {
   await Promise.all([
     client.invalidateQueries({ queryKey: ['model-pricing-config'] }),
+    client.invalidateQueries({ queryKey: ['model-pricing-preview'] }),
     client.invalidateQueries({ queryKey: ['system-options'] }),
     client.invalidateQueries({ queryKey: ['pricing'] }),
     client.invalidateQueries({ queryKey: ['models'] }),
@@ -124,15 +187,19 @@ export function buildPricingChanges(
   for (const name of new Set([...previous.keys(), ...next.keys()])) {
     const oldValues = previous.get(name) ?? {}
     const newValues = next.get(name) ?? {}
-    const dirty = PRICING_KEYS.filter(
-      (key) => oldValues[key] !== newValues[key]
+    const dirty = PRICING_KEYS.filter((key) =>
+      key === 'billing_setting.plugin_billing_expr'
+        ? !pluginExpressionsEqual(oldValues[key], newValues[key])
+        : oldValues[key] !== newValues[key]
     )
     if (!dirty.length) continue
     const entry = entries.get(name)
     const pricing = { ...entry?.configured }
     for (const key of dirty) {
       delete pricing[key]
-      if (newValues[key] !== undefined) pricing[key] = newValues[key]
+      if (newValues[key] !== undefined) {
+        Object.assign(pricing, { [key]: newValues[key] })
+      }
     }
     if (newValues['billing_setting.billing_mode'] === 'tiered_expr') {
       pricing['billing_setting.billing_mode'] = 'tiered_expr'

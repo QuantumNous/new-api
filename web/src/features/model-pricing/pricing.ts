@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { t } from 'i18next'
 
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
+import { splitPluginBillingExprKey } from '@/features/pricing/lib/plugin-pricing'
 import type { PricingModel } from '@/features/pricing/types'
 import type { ModelRatioData } from '@/features/system-settings/models/model-pricing-core'
 import {
@@ -39,13 +40,32 @@ export const PRICING_KEYS = [
   'AudioCompletionRatio',
   'billing_setting.billing_mode',
   'billing_setting.billing_expr',
+  'billing_setting.plugin_billing_expr',
 ] as const
 export type PricingKey = (typeof PRICING_KEYS)[number]
-export type PricingValues = Partial<Record<PricingKey, number | string>>
+export type PricingValues = Partial<
+  Record<
+    Exclude<PricingKey, 'billing_setting.plugin_billing_expr'>,
+    number | string
+  >
+> & {
+  'billing_setting.plugin_billing_expr'?: Record<string, string>
+}
 export type PricingOptions = Record<PricingKey, string>
 
+export type CacheWriteMode = 'none' | 'standard' | 'claude_ttl'
+
+export type LegacyBillingDetails = {
+  audio_input_price?: number
+  audio_output_price?: number
+  audio_text_branches?: boolean
+  image_count?: boolean
+  request_rules?: { condition: string; multiplier: number }[]
+}
+
 export function modelPricingDisplay(
-  entry: Pick<ModelPricingEntry, 'model_name' | 'effective' | 'usage_schema'>
+  entry: Pick<ModelPricingEntry, 'model_name' | 'effective' | 'usage_schema'> &
+    Partial<Pick<ModelPricingEntry, 'configured' | 'cache_write_mode'>>
 ): PricingModel {
   const values = entry.effective
   return {
@@ -62,13 +82,22 @@ export function modelPricingDisplay(
     model_price:
       values.ModelPrice === undefined ? undefined : Number(values.ModelPrice),
     cache_ratio:
-      values.CacheRatio === undefined ? undefined : Number(values.CacheRatio),
+      values.CacheRatio === undefined || Number(values.CacheRatio) === 1
+        ? undefined
+        : Number(values.CacheRatio),
     create_cache_ratio:
-      values.CreateCacheRatio === undefined
+      values.CreateCacheRatio === undefined ||
+      !(
+        entry.cache_write_mode === 'standard' ||
+        entry.cache_write_mode === 'claude_ttl' ||
+        entry.configured?.CreateCacheRatio !== undefined
+      )
         ? undefined
         : Number(values.CreateCacheRatio),
     image_ratio:
-      values.ImageRatio === undefined ? undefined : Number(values.ImageRatio),
+      values.ImageRatio === undefined || Number(values.ImageRatio) === 1
+        ? undefined
+        : Number(values.ImageRatio),
     audio_ratio:
       values.AudioRatio === undefined ? undefined : Number(values.AudioRatio),
     audio_completion_ratio:
@@ -106,6 +135,9 @@ export function pricingOptions(
       let value = values[key]
       if (key === 'billing_setting.billing_mode') value ??= values.BillingMode
       if (key === 'billing_setting.billing_expr') value ??= values.BillingExpr
+      if (key === 'billing_setting.plugin_billing_expr') {
+        value ??= values.PluginBillingExpr
+      }
       return [key, typeof value === 'string' ? value : '{}']
     })
   ) as PricingOptions
@@ -123,6 +155,7 @@ export function pricingRows(options: PricingOptions): ModelPricingSnapshot[] {
     audioCompletionRatio: options.AudioCompletionRatio,
     billingMode: options['billing_setting.billing_mode'],
     billingExpr: options['billing_setting.billing_expr'],
+    pluginBillingExpr: options['billing_setting.plugin_billing_expr'],
   })
 }
 
@@ -131,20 +164,45 @@ export function pricingRow(
   values: PricingValues
 ): ModelRatioData {
   const options = Object.fromEntries(
-    PRICING_KEYS.map((key) => [
-      key,
-      JSON.stringify(values[key] === undefined ? {} : { [name]: values[key] }),
-    ])
+    PRICING_KEYS.map((key) => {
+      if (key === 'billing_setting.plugin_billing_expr') {
+        return [
+          key,
+          JSON.stringify(
+            Object.fromEntries(
+              Object.entries(values[key] ?? {}).map(([plugin, expression]) => [
+                `${plugin}::${name}`,
+                expression,
+              ])
+            )
+          ),
+        ]
+      }
+      return [
+        key,
+        JSON.stringify(
+          values[key] === undefined ? {} : { [name]: values[key] }
+        ),
+      ]
+    })
   ) as PricingOptions
-  const row = pricingRows(options)[0]
+  const row = pricingRows(options).find((entry) => entry.name === name)
   let billingMode: ModelRatioData['billingMode'] = 'per-token'
   if (row?.billingMode === 'tiered_expr') billingMode = 'tiered_expr'
   else if (row?.price) billingMode = 'per-request'
-  return { ...row, name, billingMode }
+  return {
+    ...row,
+    name,
+    billingMode,
+    pluginBillingExpr: values['billing_setting.plugin_billing_expr'],
+  }
 }
 
 export function pricingFromDraft(data: ModelRatioData): PricingValues {
   const values: PricingValues = {
+    ...(data.pluginBillingExpr === undefined
+      ? {}
+      : { 'billing_setting.plugin_billing_expr': data.pluginBillingExpr }),
     'billing_setting.billing_mode':
       data.billingMode === 'tiered_expr' ? 'tiered_expr' : 'ratio',
   }
@@ -178,7 +236,18 @@ export function applyPricingDraft(
   data: ModelRatioData,
   names: string[] = [data.name]
 ): PricingOptions {
-  return applyPricingValues(options, pricingFromDraft(data), names)
+  const values = pricingFromDraft(data)
+  if (names.length === 1 && names[0] === data.name) {
+    return applyPricingValues(options, values, names)
+  }
+  // Provider bindings belong to each model. Copy only the shared model price
+  // to other models, while still committing the source provider draft.
+  const copied = { ...values }
+  delete copied['billing_setting.plugin_billing_expr']
+  const next = applyPricingValues(options, copied, names)
+  return names.includes(data.name)
+    ? applyPricingValues(next, values, [data.name])
+    : next
 }
 
 function applyPricingValues(
@@ -188,7 +257,25 @@ function applyPricingValues(
 ): PricingOptions {
   return Object.fromEntries(
     PRICING_KEYS.map((key) => {
-      const map = JSON.parse(options[key]) as Record<string, number | string>
+      const map = JSON.parse(options[key] ?? '{}') as Record<
+        string,
+        number | string
+      >
+      if (key === 'billing_setting.plugin_billing_expr') {
+        // Model-only imports and batch copies retain each target's provider prices.
+        if (values[key] === undefined) return [key, JSON.stringify(map)]
+        for (const name of names) {
+          for (const variant of Object.keys(map)) {
+            if (splitPluginBillingExprKey(variant)?.[1] === name) {
+              delete map[variant]
+            }
+          }
+          for (const [plugin, expression] of Object.entries(values[key])) {
+            map[`${plugin}::${name}`] = expression
+          }
+        }
+        return [key, JSON.stringify(map)]
+      }
       for (const name of names) {
         delete map[name]
         if (values[key] !== undefined) {
@@ -210,13 +297,24 @@ export function pricingValuesByModel(
 ): Map<string, PricingValues> {
   const models = new Map<string, PricingValues>()
   for (const key of PRICING_KEYS) {
-    const map: unknown = JSON.parse(options[key])
+    const map: unknown = JSON.parse(options[key] ?? '{}')
     if (map === null || typeof map !== 'object' || Array.isArray(map)) {
       throw new Error(t('Pricing must be a JSON object'))
     }
     for (const [name, value] of Object.entries(map)) {
       if (typeof value !== 'number' && typeof value !== 'string') {
         throw new Error(t('Invalid pricing value'))
+      }
+      if (key === 'billing_setting.plugin_billing_expr') {
+        const parts = splitPluginBillingExprKey(name)
+        if (!parts || typeof value !== 'string') {
+          throw new Error(t('Invalid pricing value'))
+        }
+        const [plugin, modelName] = parts
+        const model = models.get(modelName) ?? {}
+        model[key] = { ...model[key], [plugin]: value }
+        models.set(modelName, model)
+        continue
       }
       const model = models.get(name) ?? {}
       model[key] = value
@@ -249,7 +347,12 @@ export function applyPriceSyncSelections(
           .split('_')
           .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
           .join('') as PricingKey
-        if (PRICING_KEYS.includes(key)) next[key] = value
+        if (
+          PRICING_KEYS.includes(key) &&
+          key !== 'billing_setting.plugin_billing_expr'
+        ) {
+          next[key] = value
+        }
       }
     }
     const validated = pricingFromDraft(pricingRow(name, next))

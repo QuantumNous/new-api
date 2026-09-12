@@ -259,8 +259,9 @@ type OpenAIVideoResponse struct {
 }
 
 type InputTokenDetails struct {
-	CachedTokens         int `json:"cached_tokens"`
-	CachedCreationTokens int `json:"cached_creation_tokens,omitempty"`
+	CachedTokens         int                 `json:"cached_tokens"`
+	CachedTokensDetails  *CachedTokenDetails `json:"cached_tokens_details,omitempty"`
+	CachedCreationTokens int                 `json:"cached_creation_tokens,omitempty"`
 	// CacheWriteTokens is OpenAI's native cache-write count, reported as
 	// prompt_tokens_details.cache_write_tokens (Chat Completions) or
 	// input_tokens_details.cache_write_tokens (Responses). It is billed at the
@@ -269,6 +270,40 @@ type InputTokenDetails struct {
 	TextTokens       int `json:"text_tokens"`
 	AudioTokens      int `json:"audio_tokens"`
 	ImageTokens      int `json:"image_tokens"`
+}
+
+// CachedTokenDetails describes subsets of cached_tokens. Pointers distinguish
+// an unreported modality from an explicitly reported zero.
+type CachedTokenDetails struct {
+	TextTokens  *int `json:"text_tokens,omitempty"`
+	ImageTokens *int `json:"image_tokens,omitempty"`
+	AudioTokens *int `json:"audio_tokens,omitempty"`
+}
+
+func (d *CachedTokenDetails) HasTokens() bool {
+	return d != nil && (d.TextTokens != nil && *d.TextTokens != 0 ||
+		d.ImageTokens != nil && *d.ImageTokens != 0 || d.AudioTokens != nil && *d.AudioTokens != 0)
+}
+
+// Clone preserves presence information without sharing mutable usage fields.
+func (d InputTokenDetails) Clone() InputTokenDetails {
+	if d.CachedTokensDetails != nil {
+		cached := *d.CachedTokensDetails
+		if cached.TextTokens != nil {
+			value := *cached.TextTokens
+			cached.TextTokens = &value
+		}
+		if cached.ImageTokens != nil {
+			value := *cached.ImageTokens
+			cached.ImageTokens = &value
+		}
+		if cached.AudioTokens != nil {
+			value := *cached.AudioTokens
+			cached.AudioTokens = &value
+		}
+		d.CachedTokensDetails = &cached
+	}
+	return d
 }
 
 // CacheCreationTokensTotal returns the cache-write token count regardless of

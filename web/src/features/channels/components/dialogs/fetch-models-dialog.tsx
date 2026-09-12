@@ -17,38 +17,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, Search, Info, ChevronDown } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useState, useEffect, useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import { fetchUpstreamModels, updateChannel } from '../../api'
 import {
-  categorizeModels,
-  categorizeModelsWithRedirect,
   channelsQueryKeys,
   normalizeModelName,
   parseModelsString,
 } from '../../lib'
 import { useChannels } from '../channels-provider'
+import { UpstreamModelSelection } from '../upstream-model-selection'
 
 function normalizeModelNameList(models: readonly string[]): string[] {
   return [...new Set(models.map((m) => normalizeModelName(m)).filter(Boolean))]
@@ -92,8 +77,8 @@ export function FetchModelsDialog({
   const [isFetching, setIsFetching] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [fetchedModels, setFetchedModels] = useState<string[]>([])
+  const [candidateModels, setCandidateModels] = useState<string[]>([])
   const [selectedModels, setSelectedModels] = useState<string[]>([])
-  const [searchKeyword, setSearchKeyword] = useState('')
 
   // Parse existing models
   const existingModels = useMemo(
@@ -102,36 +87,16 @@ export function FetchModelsDialog({
     [existingModelsOverride, activeChannel?.models]
   )
 
-  // Categorize models with redirect models
-  const modelCategories = useMemo(
-    () => categorizeModelsWithRedirect(existingModels, redirectModels),
-    [existingModels, redirectModels]
+  const fetchedModelSet = new Set(normalizeModelNameList(fetchedModels))
+  const redirectSourceSet = new Set(
+    normalizeModelNameList(redirectSourceModels)
   )
-
-  const { classificationSet, redirectOnlySet } = modelCategories
-
-  const fetchedModelSet = useMemo(
-    () => new Set(normalizeModelNameList(fetchedModels)),
-    [fetchedModels]
+  const hasUnlistedModels = normalizeModelNameList([
+    ...candidateModels,
+    ...selectedModels,
+  ]).some(
+    (model) => !fetchedModelSet.has(model) && !redirectSourceSet.has(model)
   )
-
-  // Source keys in model_mapping are aliases, not real upstream IDs, so we
-  // must skip them when computing "removed upstream" entries to avoid false
-  // positives.
-  const redirectSourceKeysSet = useMemo(
-    () => new Set(normalizeModelNameList(redirectSourceModels)),
-    [redirectSourceModels]
-  )
-
-  const removedModels = useMemo(() => {
-    const kw = searchKeyword.toLowerCase().trim()
-    return normalizeModelNameList(selectedModels).filter((model) => {
-      if (fetchedModelSet.has(model)) return false
-      if (redirectSourceKeysSet.has(model)) return false
-      if (!kw) return true
-      return model.toLowerCase().includes(kw)
-    })
-  }, [fetchedModelSet, redirectSourceKeysSet, searchKeyword, selectedModels])
 
   useEffect(() => {
     if (open && (activeChannel || customFetcher)) {
@@ -148,6 +113,7 @@ export function FetchModelsDialog({
       if (customFetcher) {
         const list = await customFetcher()
         setFetchedModels(list)
+        setCandidateModels(existingModels)
         setSelectedModels(existingModels)
         toast.success(t('Fetched {{count}} models', { count: list.length }))
       } else if (activeChannel) {
@@ -155,6 +121,7 @@ export function FetchModelsDialog({
         if (response.success) {
           const list = Array.isArray(response.data) ? response.data : []
           setFetchedModels(list)
+          setCandidateModels(existingModels)
           setSelectedModels(existingModels)
           toast.success(t('Fetched {{count}} models', { count: list.length }))
         } else {
@@ -203,146 +170,15 @@ export function FetchModelsDialog({
 
   const handleClose = () => {
     setFetchedModels([])
+    setCandidateModels([])
     setSelectedModels([])
-    setSearchKeyword('')
     onOpenChange(false)
-  }
-
-  // Filter models by search
-  const filteredModels = useMemo(() => {
-    if (!searchKeyword) return fetchedModels
-    return fetchedModels.filter((model) =>
-      model.toLowerCase().includes(searchKeyword.toLowerCase())
-    )
-  }, [fetchedModels, searchKeyword])
-
-  const {
-    newModels,
-    existingFilteredModels,
-    newModelsByCategory,
-    existingModelsByCategory,
-  } = useMemo(() => {
-    const newModels: string[] = []
-    const existingFilteredModels: string[] = []
-
-    for (const model of filteredModels) {
-      if (classificationSet.has(normalizeModelName(model))) {
-        existingFilteredModels.push(model)
-      } else {
-        newModels.push(model)
-      }
-    }
-
-    return {
-      newModels,
-      existingFilteredModels,
-      newModelsByCategory: categorizeModels(newModels),
-      existingModelsByCategory: categorizeModels(existingFilteredModels),
-    }
-  }, [classificationSet, filteredModels])
-
-  // 厂商分类按 a-z 排序，Other 放最后，便于查找
-  const getSortedCategoryEntries = (
-    categories: Record<string, string[]>
-  ): [string, string[]][] =>
-    Object.entries(categories).sort(([a], [b]) => {
-      if (a === 'Other') return 1
-      if (b === 'Other') return -1
-      return a.localeCompare(b, undefined, { sensitivity: 'base' })
-    })
-
-  const toggleModel = (model: string) => {
-    setSelectedModels((prev) =>
-      prev.includes(model) ? prev.filter((m) => m !== model) : [...prev, model]
-    )
-  }
-
-  const toggleCategory = (categoryModels: string[], isChecked: boolean) => {
-    setSelectedModels((prev) => {
-      if (isChecked) {
-        const newSelected = [...prev]
-        categoryModels.forEach((model) => {
-          if (!newSelected.includes(model)) {
-            newSelected.push(model)
-          }
-        })
-        return newSelected
-      } else {
-        return prev.filter((m) => !categoryModels.includes(m))
-      }
-    })
-  }
-
-  const isCategorySelected = (categoryModels: string[]) => {
-    return categoryModels.every((m) => selectedModels.includes(m))
-  }
-
-  const renderModelCategory = (
-    categoryName: string,
-    categoryModels: string[]
-  ) => {
-    const allSelected = isCategorySelected(categoryModels)
-
-    return (
-      <Collapsible key={categoryName} defaultOpen>
-        <CollapsibleTrigger className='hover:bg-muted/50 flex w-full items-center justify-between rounded-lg border p-3'>
-          <div className='flex items-center gap-2'>
-            <ChevronDown className='h-4 w-4' />
-            <span className='font-medium'>
-              {categoryName} ({categoryModels.length})
-            </span>
-          </div>
-          <div className='flex items-center gap-2'>
-            <span className='text-muted-foreground text-sm'>
-              {categoryModels.filter((m) => selectedModels.includes(m)).length}{' '}
-              / {categoryModels.length} selected
-            </span>
-            <Checkbox
-              checked={allSelected}
-              onCheckedChange={(checked) =>
-                toggleCategory(categoryModels, !!checked)
-              }
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        </CollapsibleTrigger>
-        <CollapsibleContent className='px-4 py-2'>
-          <div className='grid grid-cols-2 gap-2'>
-            {categoryModels.map((model) => (
-              <div key={model} className='flex items-center space-x-2'>
-                <Checkbox
-                  id={model}
-                  checked={selectedModels.includes(model)}
-                  onCheckedChange={() => toggleModel(model)}
-                />
-                <Label
-                  htmlFor={model}
-                  className='flex cursor-pointer items-center gap-1.5 text-sm font-normal'
-                >
-                  <span>{model}</span>
-                  {redirectOnlySet.has(normalizeModelName(model)) && (
-                    <Tooltip>
-                      <TooltipTrigger
-                        render={<Info className='h-3.5 w-3.5 text-amber-500' />}
-                      />
-                      <TooltipContent>
-                        {t('From model redirect, not yet added to models list')}
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
-                </Label>
-              </div>
-            ))}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-    )
   }
 
   const showFooterActions =
     !!(activeChannel || customFetcher) &&
     !isFetching &&
-    (fetchedModels.length > 0 || removedModels.length > 0)
+    (fetchedModels.length > 0 || hasUnlistedModels)
 
   let dialogDescription: ReactNode = t('Fetch available models from upstream')
   if (activeChannel) {
@@ -359,13 +195,6 @@ export function FetchModelsDialog({
     )
   }
 
-  let defaultTab = 'existing'
-  if (newModels.length > 0) {
-    defaultTab = 'new'
-  } else if (removedModels.length > 0) {
-    defaultTab = 'removed'
-  }
-
   let dialogBody: ReactNode
   if (!activeChannel && !customFetcher) {
     dialogBody = (
@@ -379,7 +208,7 @@ export function FetchModelsDialog({
         <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
       </div>
     )
-  } else if (fetchedModels.length === 0 && removedModels.length === 0) {
+  } else if (fetchedModels.length === 0 && !hasUnlistedModels) {
     dialogBody = (
       <div className='text-muted-foreground py-8 text-center'>
         <p>{t('No models fetched yet.')}</p>
@@ -394,84 +223,14 @@ export function FetchModelsDialog({
     )
   } else {
     dialogBody = (
-      <div className='space-y-4'>
-        {/* Search Bar */}
-        <div className='relative'>
-          <Search className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
-          <Input
-            placeholder={t('Search models...')}
-            value={searchKeyword}
-            onChange={(e) => setSearchKeyword(e.target.value)}
-            className='pl-9'
-          />
-        </div>
-
-        {/* Tabs for New vs Existing vs Removed */}
-        <Tabs
-          key={`${activeChannel?.id ?? 'custom'}-${fetchedModels.length}-${removedModels.length}`}
-          defaultValue={defaultTab}
-        >
-          <TabsList
-            className={`grid w-full ${removedModels.length > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}
-          >
-            <TabsTrigger value='new' disabled={newModels.length === 0}>
-              {t('New Models ({{count}})', { count: newModels.length })}
-            </TabsTrigger>
-            <TabsTrigger
-              value='existing'
-              disabled={existingFilteredModels.length === 0}
-            >
-              {t('Existing Models ({{count}})', {
-                count: existingFilteredModels.length,
-              })}
-            </TabsTrigger>
-            {removedModels.length > 0 && (
-              <TabsTrigger value='removed'>
-                {t('Removed Models ({{count}})', {
-                  count: removedModels.length,
-                })}
-              </TabsTrigger>
-            )}
-          </TabsList>
-
-          <TabsContent
-            value='new'
-            className='max-h-96 space-y-2 overflow-y-auto'
-          >
-            {getSortedCategoryEntries(newModelsByCategory).map(
-              ([category, models]) => renderModelCategory(category, models)
-            )}
-          </TabsContent>
-
-          <TabsContent
-            value='existing'
-            className='max-h-96 space-y-2 overflow-y-auto'
-          >
-            {getSortedCategoryEntries(existingModelsByCategory).map(
-              ([category, models]) => renderModelCategory(category, models)
-            )}
-          </TabsContent>
-
-          {removedModels.length > 0 && (
-            <TabsContent
-              value='removed'
-              className='max-h-96 space-y-2 overflow-y-auto'
-            >
-              <p className='text-muted-foreground text-xs'>
-                {t(
-                  'These models are still in your selection but were not returned by the upstream listing. Entries that are only model_mapping source aliases are omitted. Toggle to adjust before saving.'
-                )}
-              </p>
-              {renderModelCategory(t('Removed'), removedModels)}
-            </TabsContent>
-          )}
-        </Tabs>
-
-        {/* Selection Summary */}
-        <div className='bg-muted/50 rounded-lg border p-3 text-sm'>
-          {t('{{n}} model(s) selected', { n: selectedModels.length })}
-        </div>
-      </div>
+      <UpstreamModelSelection
+        models={fetchedModels}
+        selected={selectedModels}
+        onChange={setSelectedModels}
+        existingModels={existingModels}
+        redirectModels={redirectModels}
+        redirectSourceModels={redirectSourceModels}
+      />
     )
   }
 

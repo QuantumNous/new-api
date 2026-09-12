@@ -26,6 +26,7 @@ import {
   getCardExamplePrice,
   getDynamicPriceUnitLabelKey,
   getDynamicPricingSummary,
+  getDynamicPricingTiers,
   getTaskUsagePriceUnitLabelKey,
   hasTaskUsageSchema,
   isUnconfiguredTaskUsageModel,
@@ -577,5 +578,222 @@ describe('task dynamic pricing', () => {
       null
     )
     assert.equal(getCardExamplePrice(pricingModel({}), summaryOptions), null)
+  })
+})
+
+describe('shared plugin price summaries', () => {
+  test('uses a single remaining provider override instead of the model price', () => {
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr: 'tier("default", u("seconds") * 0.1)',
+      billing_usage_schema: { seconds: { type: 'number', unit: 'second' } },
+      billing_plugin_variants: [
+        {
+          plugin_key: 'alpha',
+          plugin_name: 'Alpha',
+          billing_expr: 'tier("provider", u("seconds") * 0.8)',
+          billing_usage_schema: { seconds: { type: 'number', unit: 'second' } },
+        },
+      ],
+    })
+    expect(
+      getDynamicPricingSummary(model, summaryOptions)?.primaryEntries[0].value
+    ).toBe(0.8)
+    expect(getDynamicPricingTiers(model).map((tier) => tier.label)).toEqual([
+      'provider',
+    ])
+  })
+
+  test('keeps per-call providers priced alongside an expression override', () => {
+    const model = pricingModel({
+      quota_type: 1,
+      model_price: 0.25,
+      billing_plugin_variants: [
+        {
+          plugin_key: 'alpha',
+          plugin_name: 'Alpha',
+          billing_mode: 'ratio',
+          billing_expr: '',
+          billing_usage_schema: { images: { type: 'number', unit: 'count' } },
+        },
+        {
+          plugin_key: 'beta',
+          plugin_name: 'Beta',
+          billing_mode: 'tiered_expr',
+          billing_expr: 'tier("provider", u("images") * 0.8)',
+          billing_usage_schema: { images: { type: 'number', unit: 'count' } },
+        },
+      ],
+    })
+    const summary = getDynamicPricingSummary(model, summaryOptions)
+    expect(summary?.hasUnconfiguredProviders).toBe(false)
+    expect(summary?.primaryEntries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ unit: 'request', value: 0.25 }),
+        expect.objectContaining({ unit: 'count', value: 0.8 }),
+      ])
+    )
+    expect(
+      isUnconfiguredTaskUsageModel({
+        ...model,
+        billing_plugin_variants: model.billing_plugin_variants?.slice(0, 1),
+      })
+    ).toBe(false)
+  })
+
+  test('retains a later provider’s display unit when the first has no label', () => {
+    const model = pricingModel({
+      billing_plugin_variants: [
+        {
+          plugin_key: 'alpha',
+          plugin_name: 'Alpha',
+          billing_expr: 'tier("base", u("images") * 0.4)',
+          billing_usage_schema: { images: { type: 'number', unit: 'count' } },
+        },
+        {
+          plugin_key: 'beta',
+          plugin_name: 'Beta',
+          billing_expr: 'tier("base", u("images") * 0.8)',
+          billing_usage_schema: {
+            images: {
+              type: 'number',
+              unit: 'count',
+              unitLabel: { en: 'image', zh: '张' },
+            },
+          },
+        },
+      ],
+    })
+    expect(
+      getDynamicPricingSummary(model, summaryOptions)?.primaryEntries[0]
+    ).toMatchObject({
+      unitLabel: { en: 'image', zh: '张' },
+      minValue: 0.4,
+      maxValue: 0.8,
+    })
+  })
+
+  test('merges each provider’s tier ranges without changing task-unit conversion', () => {
+    const model = pricingModel({
+      billing_plugin_variants: [
+        {
+          plugin_key: 'alpha',
+          plugin_name: 'Alpha',
+          billing_expr:
+            'u("mode") == "pro" ? tier("pro", u("seconds") * 0.8) : tier("base", u("seconds") * 0.4)',
+          billing_usage_schema: {
+            seconds: { type: 'number', unit: 'second' },
+            mode: { enum: ['pro', 'base'] },
+          },
+        },
+        {
+          plugin_key: 'beta',
+          plugin_name: 'Beta',
+          billing_expr: 'tier("base", u("seconds") * 1.2)',
+          billing_usage_schema: { seconds: { type: 'number', unit: 'second' } },
+        },
+      ],
+    })
+    const summary = getDynamicPricingSummary(model, summaryOptions)
+    expect(summary?.providerCount).toBe(2)
+    expect(summary?.tierCount).toBe(3)
+    expect(summary?.hasUnconfiguredProviders).toBe(false)
+    expect(summary?.primaryEntries).toHaveLength(1)
+    expect(summary?.primaryEntries[0]).toMatchObject({
+      field: 'seconds',
+      minValue: 0.4,
+      maxValue: 1.2,
+      formattedRange: '$0.4 – $1.2',
+      unit: 'second',
+    })
+  })
+
+  test('retains separate field names and units and flags unconfigured providers', () => {
+    const model = pricingModel({
+      billing_plugin_variants: [
+        {
+          plugin_key: 'alpha',
+          plugin_name: 'Alpha',
+          billing_expr: 'tier("base", u("quantity") * 1)',
+          billing_usage_schema: {
+            quantity: { type: 'number', unit: 'second' },
+          },
+        },
+        {
+          plugin_key: 'beta',
+          plugin_name: 'Beta',
+          billing_expr: 'tier("base", u("quantity") * 2)',
+          billing_usage_schema: {
+            quantity: { type: 'number', unit: 'credit' },
+          },
+        },
+        {
+          plugin_key: 'gamma',
+          plugin_name: 'Gamma',
+          billing_expr: '',
+          billing_usage_schema: { images: { type: 'number', unit: 'count' } },
+        },
+      ],
+    })
+    const summary = getDynamicPricingSummary(model, summaryOptions)
+    expect(summary?.primaryEntries.map((entry) => entry.unit)).toEqual([
+      'second',
+      'credit',
+    ])
+    expect(
+      summary?.primaryEntries.every((entry) => !entry.formattedRange)
+    ).toBe(true)
+    expect(summary?.hasUnconfiguredProviders).toBe(true)
+    expect(isUnconfiguredTaskUsageModel(model)).toBe(false)
+    const empty = {
+      ...model,
+      billing_plugin_variants: model.billing_plugin_variants?.map(
+        (variant) => ({ ...variant, billing_expr: '' })
+      ),
+    }
+    expect(isUnconfiguredTaskUsageModel(empty)).toBe(true)
+    expect(
+      getDynamicPricingSummary(empty, summaryOptions)?.primaryEntries
+    ).toEqual([])
+  })
+
+  test('shows each provider’s first numeric field and chooses the first priced example', () => {
+    const model = pricingModel({
+      billing_plugin_variants: [
+        {
+          plugin_key: 'alpha',
+          plugin_name: 'Alpha',
+          billing_expr: '',
+          billing_usage_schema: { seconds: { type: 'number', unit: 'second' } },
+        },
+        {
+          plugin_key: 'beta',
+          plugin_name: 'Beta',
+          billing_expr: 'tier("base", u("credits") * 0.5 + u("extras") * 2)',
+          billing_usage_schema: {
+            credits: { type: 'number', unit: 'credit' },
+            extras: { type: 'number', unit: 'count' },
+          },
+          billing_usage_examples: [
+            { label: 'Beta sample', facts: { credits: 2, extras: 1 } },
+          ],
+        },
+        {
+          plugin_key: 'gamma',
+          plugin_name: 'Gamma',
+          billing_expr: 'tier("base", u("images") * 0.3)',
+          billing_usage_schema: { images: { type: 'number', unit: 'count' } },
+        },
+      ],
+    })
+    expect(
+      getDynamicPricingSummary(model, summaryOptions)
+        ?.primaryEntries.slice(0, 2)
+        .map((entry) => entry.field)
+    ).toEqual(['credits', 'images'])
+    expect(getCardExamplePrice(model, summaryOptions)).toEqual({
+      label: 'Beta sample',
+      formatted: '$3',
+    })
   })
 })

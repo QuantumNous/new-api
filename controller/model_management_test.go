@@ -14,8 +14,13 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -63,7 +68,7 @@ func modelManagementDB(t *testing.T, kind, dsn string) *gorm.DB {
 	for _, value := range restoreRatios {
 		require.NoError(t, value.restore("{}"))
 	}
-	config.UpdateConfigFromMap(config.GlobalConfig.Get("billing_setting"), map[string]string{"billing_mode": "{}", "billing_expr": "{}"})
+	config.UpdateConfigFromMap(config.GlobalConfig.Get("billing_setting"), map[string]string{"billing_mode": "{}", "billing_expr": "{}", "plugin_billing_expr": "{}"})
 	var version string
 	query := "SELECT version()"
 	if kind == "sqlite" {
@@ -75,7 +80,7 @@ func modelManagementDB(t *testing.T, kind, dsn string) *gorm.DB {
 		for _, value := range restoreRatios {
 			require.NoError(t, value.restore(value.value))
 		}
-		config.UpdateConfigFromMap(config.GlobalConfig.Get("billing_setting"), map[string]string{"billing_mode": previousConfig["billing_setting.billing_mode"], "billing_expr": previousConfig["billing_setting.billing_expr"]})
+		config.UpdateConfigFromMap(config.GlobalConfig.Get("billing_setting"), map[string]string{"billing_mode": previousConfig["billing_setting.billing_mode"], "billing_expr": previousConfig["billing_setting.billing_expr"], "plugin_billing_expr": previousConfig[billing_setting.PluginBillingExprOption]})
 		common.OptionMap = previousOptions
 		common.IsMasterNode, common.SQLitePath = previousMaster, previousSQLite
 		common.RedisEnabled, common.MemoryCacheEnabled = previousRedis, previousMemory
@@ -102,6 +107,369 @@ func modelManagementRequest(t *testing.T, handler gin.HandlerFunc, method, path 
 		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), output), recorder.Body.String())
 	}
 	return recorder
+}
+
+func TestModelPricingConversionDatabaseMatrix(t *testing.T) {
+	previousQuota := common.QuotaPerUnit
+	common.QuotaPerUnit = 500000
+	t.Cleanup(func() { common.QuotaPerUnit = previousQuota })
+	for _, dialect := range []struct{ kind, env string }{{"sqlite", ""}, {"mysql", "TEST_MYSQL_DSN"}, {"postgres", "TEST_POSTGRES_DSN"}} {
+		t.Run(dialect.kind, func(t *testing.T) {
+			if dialect.env != "" && os.Getenv(dialect.env) == "" {
+				t.Skip("set " + dialect.env + " to run this database")
+			}
+			db := modelManagementDB(t, dialect.kind, os.Getenv(dialect.env))
+			contract, err := os.ReadFile("../pkg/billingexpr/testdata/frontend_simulation.json")
+			require.NoError(t, err)
+			var fixtures []struct {
+				Name, Expression string
+				Conversion       *struct {
+					ModelName string              `json:"model_name"`
+					Pricing   model.PricingValues `json:"pricing"`
+				}
+			}
+			require.NoError(t, common.Unmarshal(contract, &fixtures))
+			for _, fixture := range fixtures {
+				if fixture.Conversion == nil {
+					continue
+				}
+				t.Run("frontend_contract/"+fixture.Name, func(t *testing.T) {
+					var response struct {
+						Success bool
+						Data    model.ModelPricingConversion
+					}
+					modelManagementRequest(t, PreviewModelPricingConversion, http.MethodPost, "/api/option/model_pricing/convert", fixture.Conversion, &response)
+					require.True(t, response.Success)
+					assert.Equal(t, fixture.Expression, response.Data.Expression)
+				})
+			}
+			// The preview must resolve the draft, even when the running process
+			// still has a different saved output multiplier for that model.
+			require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(`{"conversion-defaults":99}`))
+			for _, tc := range []struct {
+				name               string
+				draft              model.PricingValues
+				expression, reason string
+			}{
+				{"conversion-defaults", model.PricingValues{"ModelRatio": float64(2)}, `tier("base", p * 4 + c * 4)`, ""},
+				{"gpt-4-32k", model.PricingValues{"ModelRatio": 30.0, "CacheRatio": 1.0}, `tier("base", p * 60 + c * 120)`, ""},
+				{"conversion-free-cache", model.PricingValues{"ModelRatio": 0.0, "CacheRatio": 0.0}, `tier("base", p * 0 + c * 0 + cr * 0)`, ""},
+				{"claude-3-7-sonnet-20250219", model.PricingValues{"ModelRatio": float64(1.5), "CacheRatio": float64(0.1), "CreateCacheRatio": float64(1.25)}, `tier("base", p * 3 + c * 15 + cr * 0.3 + cc * 3.75 + cc1h * 6)`, ""},
+				{"conversion-image-default", model.PricingValues{"ModelRatio": float64(2), "ImageRatio": float64(1)}, `tier("base", p * 4 + c * 4)`, ""},
+				{"conversion-image-free", model.PricingValues{"ModelRatio": float64(2), "ImageRatio": float64(0)}, `tier("base", p * 4 + c * 4 + cr * 4 + img * 0)`, ""},
+				{"deepseek-chat", model.PricingValues{"ModelRatio": float64(0.135), "CacheRatio": float64(0.25)}, `tier("base", p * 0.27 + c * 0.27 + cr * 0.0675)`, ""},
+				{"gpt-4o-custom", model.PricingValues{"ModelRatio": float64(2)}, `tier("base", p * 4 + c * 16)`, ""},
+				{"gemini-2.5-pro-custom", model.PricingValues{"ModelRatio": float64(2)}, `tier("base", p * 4 + c * 32)`, ""},
+				{"vendor/claude-sonnet-4", model.PricingValues{"ModelRatio": float64(2), "CompletionRatio": float64(0)}, `tier("base", p * 4 + c * 0 + cr * 4 + cc * 5 + cc1h * 8)`, ""},
+				{"conversion-custom", model.PricingValues{"ModelRatio": float64(2), "CompletionRatio": float64(3), "CacheRatio": float64(0), "CreateCacheRatio": float64(1.5), "ImageRatio": float64(2)}, `tier("base", p * 4 + c * 12 + cr * 0 + cc * 6 + img * 8)`, ""},
+				{"deepseek-reasoner", model.PricingValues{"ModelRatio": 0.275, "CacheRatio": 0.25}, `tier("base", p * 0.55 + c * 0.55 + cr * 0.1375)`, ""},
+				{"gpt-5.6-sol", model.PricingValues{"ModelRatio": float64(2), "CompletionRatio": float64(2)}, `tier("base", p * 4 + c * 8)`, ""},
+				{"gpt-5.5", model.PricingValues{"ModelRatio": float64(2), "CompletionRatio": float64(2)}, `tier("base", p * 4 + c * 8)`, ""},
+				{"gpt-6-astra", model.PricingValues{"ModelRatio": float64(2), "CompletionRatio": float64(2)}, `tier("base", p * 4 + c * 8)`, ""},
+				{"conversion-free", model.PricingValues{"ModelPrice": float64(0)}, `tier("request", fixed(0))`, ""},
+				{"conversion-fixed", model.PricingValues{"ModelPrice": float64(0.25), "ModelRatio": float64(7)}, `tier("request", fixed(0.25))`, ""},
+				{"gpt-4o-2024-05-13", model.PricingValues{"ModelRatio": float64(2), "CompletionRatio": float64(99)}, `tier("base", p * 4 + c * 12)`, ""},
+				{"gpt-image-2", model.PricingValues{"ModelPrice": float64(1)}, `tier("image", fixed(1)) * image_count`, ""},
+				{"qwen-image-3.0-pro", model.PricingValues{"ModelPrice": float64(1)}, `tier("image", fixed(1)) * image_count`, ""},
+				{"wan2.7-image-pro", model.PricingValues{"ModelPrice": float64(1)}, "", "Task pricing must be converted manually using the task usage schema."},
+				{"video-summarizer", model.PricingValues{"ModelPrice": float64(1)}, `tier("request", fixed(1))`, ""},
+				{"sora-transcript-helper", model.PricingValues{"ModelPrice": float64(1)}, `tier("request", fixed(1))`, ""},
+				{"gpt-realtime", model.PricingValues{"ModelRatio": float64(1)}, "", "Realtime pricing must be converted manually."},
+				{"conversion-audio", model.PricingValues{"ModelRatio": float64(1), "AudioRatio": float64(2)}, `tier("base", p * 2 + c * 2 + ai * 4 + ao * 4)`, ""},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					before, err := model.GetModelPricingSnapshot([]string{tc.name})
+					require.NoError(t, err)
+					var response struct {
+						Success bool
+						Data    model.ModelPricingConversion
+					}
+					modelManagementRequest(t, PreviewModelPricingConversion, http.MethodPost, "/api/option/model_pricing/convert", map[string]any{"model_name": tc.name, "pricing": tc.draft}, &response)
+					require.True(t, response.Success)
+					assert.Equal(t, tc.expression, response.Data.Expression)
+					assert.Equal(t, tc.reason, response.Data.UnsupportedReason)
+					if tc.name == "claude-3-7-sonnet-20250219" {
+						// Both providers include images in input; Claude reports cache
+						// separately and does not report an image token breakdown.
+						for _, usage := range []dto.Usage{
+							{PromptTokens: 1000, CompletionTokens: 100, UsageSemantic: "openai", PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 200, CachedCreationTokens: 50, ImageTokens: 300}},
+							{PromptTokens: 750, CompletionTokens: 100, UsageSemantic: "anthropic", ClaudeCacheCreation5mTokens: 50, PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 200, CachedCreationTokens: 50}},
+						} {
+							tokens := service.BuildTieredTokenParams(&usage, usage.UsageSemantic == "anthropic", billingexpr.UsedVars(response.Data.Expression))
+							cost, _, err := billingexpr.RunExpr(response.Data.Expression, tokens)
+							require.NoError(t, err)
+							assert.Equal(t, float64(750), tokens.P)
+							assert.Equal(t, 3997.5, cost, "image input must remain billed exactly once")
+						}
+						usage := dto.Usage{PromptTokens: 750, CompletionTokens: 100, UsageSemantic: "anthropic", ClaudeCacheCreation5mTokens: 30, ClaudeCacheCreation1hTokens: 20, PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 200, CachedCreationTokens: 50}}
+						tokens := service.BuildTieredTokenParams(&usage, true, billingexpr.UsedVars(response.Data.Expression))
+						cost, _, err := billingexpr.RunExpr(response.Data.Expression, tokens)
+						require.NoError(t, err)
+						assert.Equal(t, 4042.5, cost, "mixed TTLs preserve both legacy cache-write prices")
+					}
+					if tc.name == "deepseek-chat" {
+						for _, usage := range []dto.Usage{
+							{PromptTokens: 1000, CompletionTokens: 100, PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 200}},
+							{PromptTokens: 800, CompletionTokens: 100, UsageSemantic: "anthropic", PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 200}},
+						} {
+							tokens := service.BuildTieredTokenParams(&usage, usage.UsageSemantic == "anthropic", billingexpr.UsedVars(response.Data.Expression))
+							cost, _, err := billingexpr.RunExpr(response.Data.Expression, tokens)
+							require.NoError(t, err)
+							assert.Equal(t, 256.5, cost, "cache reads remain billed across both response formats")
+						}
+					}
+					after, err := model.GetModelPricingSnapshot([]string{tc.name})
+					require.NoError(t, err)
+					assert.Equal(t, before.Entries, after.Entries, "preview must not write pricing")
+					if tc.expression == "" {
+						return
+					}
+					pricing := tc.draft
+					pricing["billing_setting.billing_mode"] = "tiered_expr"
+					pricing["billing_setting.billing_expr"] = tc.expression
+					change := model.ModelPricingChange{ModelName: tc.name, ExpectedVersion: before.Entries[0].Version, Pricing: pricing}
+					require.NoError(t, model.UpdateModelPricing([]model.ModelPricingChange{change}))
+					after, err = model.GetModelPricingSnapshot([]string{tc.name})
+					require.NoError(t, err)
+					assert.Equal(t, pricing, after.Entries[0].Configured)
+					assert.ErrorIs(t, model.UpdateModelPricing([]model.ModelPricingChange{change}), model.ErrModelPricingConflict)
+					change.ExpectedVersion = after.Entries[0].Version
+					change.Pricing["billing_setting.billing_mode"] = "ratio"
+					require.NoError(t, model.UpdateModelPricing([]model.ModelPricingChange{change}))
+					after, err = model.GetModelPricingSnapshot([]string{tc.name})
+					require.NoError(t, err)
+					assert.Equal(t, "ratio", after.Entries[0].Effective["billing_setting.billing_mode"])
+					if _, fixed := pricing["ModelPrice"]; !fixed {
+						var preview struct {
+							Success bool
+							Data    model.ModelPricingDescription
+						}
+						modelManagementRequest(t, PreviewModelPricing, http.MethodPost, "/api/option/model_pricing/preview", map[string]any{"model_name": tc.name, "pricing": pricing}, &preview)
+						require.True(t, preview.Success)
+						assert.Equal(t, after.Entries[0].Effective, preview.Data.Effective)
+						require.NotEmpty(t, response.Data.Effective)
+						for field, value := range response.Data.Effective {
+							assert.Equal(t, value, preview.Data.Effective[field], "conversion preview field %s", field)
+						}
+						cache, _ := ratio_setting.GetCacheRatio(tc.name)
+						createCache, _ := ratio_setting.GetCreateCacheRatio(tc.name)
+						image, _ := ratio_setting.GetImageRatio(tc.name)
+						assert.Equal(t, ratio_setting.GetCompletionRatio(tc.name), preview.Data.Effective["CompletionRatio"])
+						assert.Equal(t, cache, preview.Data.Effective["CacheRatio"])
+						assert.Equal(t, createCache, preview.Data.Effective["CreateCacheRatio"])
+						assert.Equal(t, image, preview.Data.Effective["ImageRatio"])
+					}
+				})
+			}
+			require.NoError(t, (&model.Channel{Name: "Mapped image", Models: "conversion-alias", Type: 1, ModelMapping: common.GetPointer(`{"conversion-alias":"conversion-hop","conversion-hop":"gpt-image-2"}`)}).Insert())
+			preview, err := model.PreviewModelPricingConversion("conversion-alias", model.PricingValues{"ModelPrice": float64(1)})
+			require.NoError(t, err)
+			assert.Equal(t, `tier("image", fixed(1)) * image_count`, preview.Expression)
+			assert.Empty(t, preview.UnsupportedReason)
+
+			t.Run("cache_writes_follow_configured_prices_and_claude_names", func(t *testing.T) {
+				for _, tc := range []struct {
+					name       string
+					configured *float64
+					mode       model.CacheWriteMode
+				}{
+					{"unrecognized-model", nil, model.CacheWriteNone},
+					{"gpt-5.6-terra", nil, model.CacheWriteNone},
+					{"gpt-5.6-terra", common.GetPointer(1.25), model.CacheWriteStandard},
+					{"vendor/claude-sonnet-4-6-high", nil, model.CacheWriteClaudeTTL},
+					{"custom-CLAUDE-alias", common.GetPointer(0.0), model.CacheWriteClaudeTTL},
+					{"deepseek-reasoner", common.GetPointer(0.0), model.CacheWriteStandard},
+					{"custom-cache", common.GetPointer(1.5), model.CacheWriteStandard},
+				} {
+					t.Run(tc.name+"/"+string(tc.mode), func(t *testing.T) {
+						draft := model.PricingValues{"ModelRatio": 2.0, "CompletionRatio": 2.0, "CacheRatio": 0.25, "billing_setting.billing_mode": "ratio"}
+						if tc.configured != nil {
+							draft["CreateCacheRatio"] = *tc.configured
+						}
+						var response struct {
+							Success bool
+							Data    model.ModelPricingConversion
+						}
+						modelManagementRequest(t, PreviewModelPricingConversion, http.MethodPost, "/api/option/model_pricing/convert", map[string]any{"model_name": tc.name, "pricing": draft}, &response)
+						require.True(t, response.Success)
+						require.NotEmpty(t, response.Data.Expression)
+						assert.Equal(t, tc.mode, response.Data.CacheWriteMode)
+						var prices struct {
+							Success bool
+							Data    model.ModelPricingDescription
+						}
+						modelManagementRequest(t, PreviewModelPricing, http.MethodPost, "/api/option/model_pricing/preview", map[string]any{"model_name": tc.name, "pricing": draft}, &prices)
+						require.True(t, prices.Success)
+						assert.Equal(t, response.Data.Effective, prices.Data.Effective)
+						assert.Equal(t, response.Data.CacheWriteMode, prices.Data.CacheWriteMode)
+						vars := billingexpr.UsedVars(response.Data.Expression)
+						assert.Equal(t, tc.mode != model.CacheWriteNone, vars["cc"])
+						assert.Equal(t, tc.mode == model.CacheWriteClaudeTTL, vars["cc1h"])
+						if tc.configured != nil && *tc.configured == 0 {
+							cost, _, err := billingexpr.RunExpr(response.Data.Expression, billingexpr.TokenParams{CC: 100, CC1h: 100})
+							require.NoError(t, err)
+							assert.Zero(t, cost, "explicit zero cache prices must stay free")
+						}
+					})
+				}
+				// The billing name remains authoritative for cache terms.
+				require.NoError(t, (&model.Channel{Name: "Cache alias", Type: 1, Models: "opaque-cache-alias", ModelMapping: common.GetPointer(`{"opaque-cache-alias":"claude-sonnet-4-6"}`)}).Insert())
+				alias, err := model.PreviewModelPricingConversion("opaque-cache-alias", model.PricingValues{"ModelRatio": 2.0})
+				require.NoError(t, err)
+				assert.Equal(t, `tier("base", p * 4 + c * 4)`, alias.Expression)
+			})
+
+			t.Run("same_price_cache_reads_preserve_overlapping_categories", func(t *testing.T) {
+				for _, tc := range []struct {
+					field, term             string
+					ratio                   float64
+					details                 dto.InputTokenDetails
+					cost, unpricedCacheCost float64
+				}{
+					{"CreateCacheRatio", "cc * 75", 1.25, dto.InputTokenDetails{CachedTokens: 800, CacheWriteTokens: 500}, 97500, 79500},
+					{"ImageRatio", "img * 120", 2, dto.InputTokenDetails{CachedTokens: 600, ImageTokens: 500}, 108000, 102000},
+				} {
+					t.Run(tc.field, func(t *testing.T) {
+						converted, err := model.PreviewModelPricingConversion("overlapping-cache", model.PricingValues{"ModelRatio": 30.0, "CompletionRatio": 2.0, "CacheRatio": 1.0, tc.field: tc.ratio})
+						require.NoError(t, err)
+						assert.Equal(t, `tier("base", p * 60 + c * 120 + cr * 60 + `+tc.term+`)`, converted.Expression)
+						usage := dto.Usage{PromptTokens: 1000, CompletionTokens: 100, PromptTokensDetails: tc.details}
+						params := service.BuildTieredTokenParams(&usage, false, billingexpr.UsedVars(converted.Expression))
+						cost, _, err := billingexpr.RunExpr(converted.Expression, params)
+						require.NoError(t, err)
+						assert.Equal(t, tc.cost, cost, "preserve the existing overlapping-category charge")
+						unpriced := `tier("base", p * 60 + c * 120 + ` + tc.term + `)`
+						params = service.BuildTieredTokenParams(&usage, false, billingexpr.UsedVars(unpriced))
+						cost, _, err = billingexpr.RunExpr(unpriced, params)
+						require.NoError(t, err)
+						assert.Equal(t, tc.unpricedCacheCost, cost, "existing expressions without cr retain their OpenAI normalization")
+					})
+				}
+			})
+			t.Run("media_prices_and_request_adjustments", func(t *testing.T) {
+				for _, quantity := range []string{"129", "-1", "0.5", "18446744073709551615"} {
+					recorder := httptest.NewRecorder()
+					ctx, _ := gin.CreateTestContext(recorder)
+					ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{"model":"z-image","parameters":{"n":`+quantity+`}}`))
+					ctx.Request.Header.Set("Content-Type", "application/json")
+					Relay(ctx, types.RelayFormatOpenAIImage)
+					assert.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+				}
+				conflicting, err := model.PreviewModelPricingConversion("gemini-2.5-flash-conflict", model.PricingValues{"ModelRatio": 0.15, "AudioRatio": 10.0})
+				require.NoError(t, err)
+				assert.Contains(t, conflicting.UnsupportedReason, "Gemini and OpenAI audio prices differ")
+				aliName := "z-image-media-conversion"
+				require.NoError(t, (&model.Channel{Name: aliName, Models: aliName, Type: 17, Status: common.ChannelStatusEnabled}).Insert())
+				aliConversion, err := model.PreviewModelPricingConversion(aliName, model.PricingValues{"ModelPrice": 0.04})
+				require.NoError(t, err)
+				require.Empty(t, aliConversion.UnsupportedReason)
+				quantity := 3
+				aliCost, _, err := billingexpr.RunExprWithRequest(aliConversion.Expression, billingexpr.TokenParams{}, billingexpr.RequestInput{ImageCount: &quantity, Body: []byte(`{"parameters":{"prompt_extend":true}}`)})
+				require.NoError(t, err)
+				assert.Equal(t, 240000.0, aliCost)
+				require.NoError(t, (&model.Channel{Name: "Different image rules", Models: aliName, Type: 1, Status: common.ChannelStatusEnabled}).Insert())
+				conflicting, err = model.PreviewModelPricingConversion(aliName, model.PricingValues{"ModelPrice": 0.04})
+				require.NoError(t, err)
+				assert.Contains(t, conflicting.UnsupportedReason, "different image request multipliers")
+				for _, tc := range []struct {
+					name    string
+					pricing model.PricingValues
+					usage   dto.Usage
+					want    float64
+				}{
+					{"gemini-2.5-flash", model.PricingValues{"ModelRatio": 0.15, "CompletionRatio": 2.0, "CacheRatio": 0.1}, dto.Usage{PromptTokens: 1000, CompletionTokens: 100, PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 100, AudioTokens: 200}}, 473},
+					{"gemini-2.5-flash-zero", model.PricingValues{"ModelRatio": 0.0}, dto.Usage{PromptTokens: 1000, PromptTokensDetails: dto.InputTokenDetails{AudioTokens: 200}}, 200},
+					{"media-audio", model.PricingValues{"ModelRatio": 1.0, "CompletionRatio": 3.0, "AudioRatio": 2.0, "AudioCompletionRatio": 4.0}, dto.Usage{PromptTokens: 1000, CompletionTokens: 100, PromptTokensDetails: dto.InputTokenDetails{TextTokens: 800, AudioTokens: 200}, CompletionTokenDetails: dto.OutputTokenDetails{TextTokens: 50, AudioTokens: 50}}, 3500},
+					{"media-free-audio", model.PricingValues{"ModelRatio": 1.0, "AudioRatio": 0.0}, dto.Usage{PromptTokens: 1000, CompletionTokens: 100, PromptTokensDetails: dto.InputTokenDetails{AudioTokens: 200}, CompletionTokenDetails: dto.OutputTokenDetails{AudioTokens: 100}}, 1600},
+					{"media-audio-cache", model.PricingValues{"ModelRatio": 1.0, "CompletionRatio": 3.0, "AudioRatio": 2.0, "CacheRatio": 0.1}, dto.Usage{PromptTokens: 1000, CompletionTokens: 100, PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 400, AudioTokens: 200}, CompletionTokenDetails: dto.OutputTokenDetails{AudioTokens: 50}}, 2900},
+					{"media-text-cache", model.PricingValues{"ModelRatio": 1.0, "CompletionRatio": 3.0, "AudioRatio": 2.0, "CacheRatio": 0.1}, dto.Usage{PromptTokens: 1000, CompletionTokens: 100, PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 400}}, 1880},
+					{"gemini-2.5-flash-overlap", model.PricingValues{"ModelRatio": 1.0}, dto.Usage{PromptTokens: 1000, PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 800, AudioTokens: 500}}, 2100},
+				} {
+					t.Run(tc.name, func(t *testing.T) {
+						converted, err := model.PreviewModelPricingConversion(tc.name, tc.pricing)
+						require.NoError(t, err)
+						require.Empty(t, converted.UnsupportedReason)
+						require.NotNil(t, converted.BillingDetails.AudioInputPrice)
+						params := service.BuildTieredTokenParams(&tc.usage, false, billingexpr.UsedVars(converted.Expression))
+						cost, _, err := billingexpr.RunExpr(converted.Expression, params)
+						require.NoError(t, err)
+						assert.InDelta(t, tc.want, cost, 1e-9)
+					})
+				}
+				converted, err := model.PreviewModelPricingConversion("dall-e-3", model.PricingValues{"ModelPrice": 0.04})
+				require.NoError(t, err)
+				require.Empty(t, converted.UnsupportedReason)
+				assert.NotContains(t, converted.Expression, "256x256")
+				assert.NotContains(t, converted.Expression, "512x512")
+				smallImage, err := model.PreviewModelPricingConversion("dall-e-2", model.PricingValues{"ModelPrice": 0.02})
+				require.NoError(t, err)
+				require.Empty(t, smallImage.UnsupportedReason)
+				assert.NotContains(t, smallImage.Expression, "1792")
+				smallCost, _, err := billingexpr.RunExprWithRequest(smallImage.Expression, billingexpr.TokenParams{}, billingexpr.RequestInput{Body: []byte(`{"size":"256x256"}`), ImageCount: &quantity})
+				require.NoError(t, err)
+				assert.Equal(t, 24000.0, smallCost)
+				for _, tc := range []struct {
+					size, quality string
+					count         int
+					cost          float64
+				}{
+					{"1024x1024", "standard", 3, 120000},
+					{"1024x1024", "hd", 2, 160000},
+					{"1024x1792", "hd", 3, 360000},
+				} {
+					body, err := common.Marshal(map[string]any{"size": tc.size, "quality": tc.quality})
+					require.NoError(t, err)
+					cost, _, err := billingexpr.RunExprWithRequest(converted.Expression, billingexpr.TokenParams{}, billingexpr.RequestInput{Body: body, ImageCount: &tc.count})
+					require.NoError(t, err)
+					assert.InDelta(t, tc.cost, cost, 1e-9)
+				}
+				for _, channelType := range []int{20, 58} {
+					name := fmt.Sprintf("gemini-3.5-flash-media-%d", channelType)
+					require.NoError(t, (&model.Channel{Name: name, Models: name, Type: channelType}).Insert())
+					require.NoError(t, db.Create(&model.Model{ModelName: name, Endpoints: `{"custom-text":"/v1/custom"}`}).Error)
+					converted, err := model.PreviewModelPricingConversion(name, model.PricingValues{"ModelRatio": 0.75, "CompletionRatio": 6.0, "CacheRatio": 0.1})
+					require.NoError(t, err)
+					assert.Empty(t, converted.UnsupportedReason)
+					assert.Equal(t, `tier("base", p * 1.5 + c * 9 + cr * 0.15)`, converted.Expression)
+					assert.Nil(t, converted.BillingDetails.AudioInputPrice)
+				}
+			})
+			require.NoError(t, db.Create(&model.Model{ModelName: "conversion-metadata", Endpoints: `{"image-generation":"/v1/images/generations"}`}).Error)
+			preview, err = model.PreviewModelPricingConversion("conversion-metadata", model.PricingValues{"ModelPrice": float64(1)})
+			require.NoError(t, err)
+			assert.Equal(t, `tier("image", fixed(1)) * image_count`, preview.Expression)
+			assert.Empty(t, preview.UnsupportedReason)
+			for _, tc := range []struct {
+				name, rule string
+				nameRule   int
+				endpoint   constant.EndpointType
+			}{
+				{"catalog-image-prefix-opaque", "catalog-image-prefix-", model.NameRulePrefix, constant.EndpointTypeImageGeneration},
+				{"opaque-catalog-image-suffix", "-catalog-image-suffix", model.NameRuleSuffix, constant.EndpointTypeImageGeneration},
+				{"before-catalog-image-middle-after", "catalog-image-middle", model.NameRuleContains, constant.EndpointTypeImageGeneration},
+				{"opaque-catalog-video", "opaque-catalog-video", model.NameRuleExact, constant.EndpointTypeOpenAIVideo},
+			} {
+				t.Run("endpoint_metadata/"+tc.name, func(t *testing.T) {
+					endpoints, err := common.Marshal(map[string]string{string(tc.endpoint): "/v1/fixture"})
+					require.NoError(t, err)
+					require.NoError(t, db.Create(&model.Model{ModelName: tc.rule, NameRule: tc.nameRule, Endpoints: string(endpoints)}).Error)
+					converted, err := model.PreviewModelPricingConversion(tc.name, model.PricingValues{"ModelPrice": 1.0})
+					require.NoError(t, err)
+					if tc.endpoint == constant.EndpointTypeOpenAIVideo {
+						assert.Empty(t, converted.Expression)
+						assert.Equal(t, "Video pricing must be converted manually.", converted.UnsupportedReason)
+					} else {
+						assert.Equal(t, `tier("image", fixed(1)) * image_count`, converted.Expression)
+					}
+				})
+			}
+			sora := &model.Channel{Name: "Opaque video route", Models: "opaque-video-route", Type: constant.ChannelTypeSora, Group: "a,b"}
+			require.NoError(t, sora.Insert())
+			video, err := model.PreviewModelPricingConversion("opaque-video-route", model.PricingValues{"ModelPrice": 1.0})
+			require.NoError(t, err)
+			assert.Equal(t, "Video pricing must be converted manually.", video.UnsupportedReason)
+		})
+	}
 }
 
 func TestModelManagementDatabaseMatrix(t *testing.T) {
@@ -1131,6 +1499,171 @@ func TestModelDeletionDatabaseMatrix(t *testing.T) {
 				_, err := model.DeleteModelMetadata(ids, true, false)
 				assert.Error(t, err)
 			}
+		})
+	}
+}
+
+func TestSharedModelPluginPricingDatabaseMatrix(t *testing.T) {
+	const name = "shared-model::priced"
+	const base = `tier("base", u("seconds") * 0.4)`
+	const variant = `tier("beta", u("credits") * 2)`
+	for _, dialect := range []struct{ kind, env string }{{"sqlite", ""}, {"mysql", "TEST_MYSQL_DSN"}, {"postgres", "TEST_POSTGRES_DSN"}} {
+		t.Run(dialect.kind, func(t *testing.T) {
+			if dialect.env != "" && os.Getenv(dialect.env) == "" {
+				t.Skip("set " + dialect.env + " to run this database")
+			}
+			db := modelManagementDB(t, dialect.kind, os.Getenv(dialect.env))
+			for _, spec := range []struct{ key, field, unit string }{{"matrix-alpha", "seconds", "second"}, {"matrix-beta", "credits", "credit"}} {
+				source := fmt.Sprintf(`
+		export const meta = {apiVersion:1,key:%q,name:%q,version:"1.0.0",author:{name:"Test"},models:[%q],fetchMode:"per_task",usageSchema:{%s:{type:"number",unit:%q}}};
+		export function buildSubmitRequest(){return {};}
+		export function parseSubmitResponse(){return {};}
+		export function buildQueryRequest(){return {};}
+		export function parseTaskResult(){return {};}
+		`, spec.key, spec.key, name, spec.field, spec.unit)
+				_, err := jsplugin.DefaultRegistry.Register(source, jsplugin.Options{})
+				require.NoError(t, err)
+				t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister(spec.key) })
+			}
+
+			// Representative existing options have no plugin-expression row.
+			baseJSON, err := common.Marshal(map[string]string{name: base})
+			require.NoError(t, err)
+			modeJSON, err := common.Marshal(map[string]string{name: "tiered_expr"})
+			require.NoError(t, err)
+			require.NoError(t, db.Create(&[]model.Option{
+				{Key: "ModelPrice", Value: `{"unrelated-model":0.75}`},
+				{Key: "billing_setting.billing_expr", Value: string(baseJSON)},
+				{Key: "billing_setting.billing_mode", Value: string(modeJSON)},
+			}).Error)
+			require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+				"billing_setting.billing_expr": string(baseJSON), "billing_setting.billing_mode": string(modeJSON),
+			}))
+			before, err := model.GetModelPricingSnapshot([]string{name})
+			require.NoError(t, err)
+			require.Len(t, before.Entries, 1)
+			require.Len(t, before.Entries[0].PluginVariants, 2)
+			assert.True(t, before.Entries[0].PluginVariants[0].Compatible)
+			assert.False(t, before.Entries[0].PluginVariants[1].Compatible)
+			assert.Equal(t, base, before.Entries[0].PluginVariants[1].Effective)
+			change := model.ModelPricingChange{ModelName: name, ExpectedVersion: before.Entries[0].Version, Pricing: model.PricingValues{
+				"billing_setting.billing_mode": "tiered_expr", "billing_setting.billing_expr": base,
+				billing_setting.PluginBillingExprOption: map[string]any{"matrix-beta": variant},
+			}}
+			require.NoError(t, model.UpdateModelPricing([]model.ModelPricingChange{change}))
+			loaded, err := model.GetModelPricingSnapshot([]string{name})
+			require.NoError(t, err)
+			assert.Equal(t, change.Pricing, loaded.Entries[0].Configured)
+			require.Len(t, loaded.Entries[0].PluginVariants, 2)
+			assert.True(t, loaded.Entries[0].PluginVariants[0].Compatible)
+			assert.Equal(t, base, loaded.Entries[0].PluginVariants[0].Effective)
+			assert.True(t, loaded.Entries[0].PluginVariants[1].Compatible)
+			assert.Equal(t, variant, loaded.Entries[0].PluginVariants[1].Configured)
+			var flat map[string]string
+			require.NoError(t, common.UnmarshalJsonStr(loaded.Options[billing_setting.PluginBillingExprOption], &flat))
+			assert.Equal(t, map[string]string{"matrix-beta::" + name: variant}, flat)
+			all, err := model.GetModelPricingSnapshot(nil)
+			require.NoError(t, err)
+			for _, entry := range all.Entries {
+				assert.NotEqual(t, "matrix-beta::"+name, entry.ModelName)
+			}
+			unrelated, err := model.GetModelPricingSnapshot([]string{"unrelated-model"})
+			require.NoError(t, err)
+			assert.Equal(t, float64(0.75), unrelated.Entries[0].Configured["ModelPrice"])
+			assert.NotContains(t, billing_setting.GetPricingSyncData(map[string]any{}), "plugin_billing_expr")
+			assert.NotContains(t, billing_setting.GetPricingSyncData(map[string]any{})["billing_expr"], "matrix-beta::"+name)
+			// Restart/re-read is idempotent; a second save based on its version succeeds.
+			require.NoError(t, db.AutoMigrate(&model.Option{}))
+			change.ExpectedVersion = loaded.Entries[0].Version
+			require.NoError(t, model.UpdateModelPricing([]model.ModelPricingChange{change}))
+			repeated, err := model.GetModelPricingSnapshot([]string{name})
+			require.NoError(t, err)
+			assert.Equal(t, loaded.Entries[0].Version, repeated.Entries[0].Version)
+			// Changing only the provider price changes the model version.
+			change.Pricing[billing_setting.PluginBillingExprOption] = map[string]any{"matrix-beta": `tier("free", u("credits") * 0)`}
+			require.NoError(t, model.UpdateModelPricing([]model.ModelPricingChange{change}))
+			updated, err := model.GetModelPricingSnapshot([]string{name})
+			require.NoError(t, err)
+			assert.NotEqual(t, loaded.Entries[0].Version, updated.Entries[0].Version)
+			assert.ErrorIs(t, model.UpdateModelPricing([]model.ModelPricingChange{change}), model.ErrModelPricingConflict)
+			// The legacy option API validates the full draft and cannot drop a required override.
+			response := modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: billing_setting.PluginBillingExprOption, Value: `{}`}, nil)
+			assert.Contains(t, response.Body.String(), `"success":false`)
+			assert.Contains(t, response.Body.String(), "matrix-beta")
+			afterFailure, err := model.GetModelPricingSnapshot([]string{name})
+			require.NoError(t, err)
+			assert.Equal(t, updated.Entries[0].Version, afterFailure.Entries[0].Version)
+			// Model-level legacy saves also skip providers with a stored override.
+			response = modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: "billing_setting.billing_expr", Value: string(baseJSON)}, nil)
+			assert.Contains(t, response.Body.String(), `"success":true`)
+			flat["matrix-beta::"+name] = variant
+			raw, err := common.Marshal(flat)
+			require.NoError(t, err)
+			response = modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: billing_setting.PluginBillingExprOption, Value: string(raw)}, nil)
+			assert.Contains(t, response.Body.String(), `"success":true`)
+			final, err := model.GetModelPricingSnapshot([]string{name})
+			require.NoError(t, err)
+			assert.Equal(t, variant, final.Entries[0].PluginVariants[1].Effective)
+			// A provider may disappear without making every legacy price save fail.
+			require.NoError(t, jsplugin.DefaultRegistry.Unregister("matrix-beta"))
+			stale, err := model.GetModelPricingSnapshot([]string{name})
+			require.NoError(t, err)
+			require.Len(t, stale.Entries[0].PluginVariants, 2)
+			assert.True(t, stale.Entries[0].PluginVariants[1].Stale)
+			assert.Equal(t, variant, stale.Entries[0].PluginVariants[1].Configured)
+			assert.Empty(t, stale.Entries[0].PluginVariants[1].Effective)
+			_, err = model.PreviewModelPricing(name, stale.Entries[0].Configured)
+			require.NoError(t, err)
+			ratioJSON, err := common.Marshal(map[string]float64{name: 2})
+			require.NoError(t, err)
+			response = modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: "ModelRatio", Value: string(ratioJSON)}, nil)
+			assert.Contains(t, response.Body.String(), `"success":true`)
+			response = modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: "billing_setting.billing_expr", Value: string(baseJSON)}, nil)
+			assert.Contains(t, response.Body.String(), `"success":true`)
+			final, err = model.GetModelPricingSnapshot([]string{name})
+			require.NoError(t, err)
+			assert.Equal(t, variant, final.Entries[0].PluginVariants[1].Configured)
+			// The versioned save also preserves an unchanged stale expression.
+			change = model.ModelPricingChange{ModelName: name, ExpectedVersion: final.Entries[0].Version, Pricing: final.Entries[0].Configured}
+			require.NoError(t, model.UpdateModelPricing([]model.ModelPricingChange{change}))
+			change.Pricing[billing_setting.PluginBillingExprOption] = map[string]any{"matrix-beta": "1"}
+			// Even if this process's cache is ahead of storage, a changed stale
+			// override is validated against the locked database value.
+			tamperedJSON, err := common.Marshal(map[string]string{"matrix-beta::" + name: "1"})
+			require.NoError(t, err)
+			require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{billing_setting.PluginBillingExprOption: string(tamperedJSON)}))
+			require.ErrorContains(t, model.UpdateModelPricing([]model.ModelPricingChange{change}), "does not declare this model")
+			require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{billing_setting.PluginBillingExprOption: final.Options[billing_setting.PluginBillingExprOption]}))
+			// Updating a plugin to stop declaring this model also leaves the
+			// stored override visible and inert, even with no active providers.
+			_, err = jsplugin.DefaultRegistry.Register(`
+export const meta = {apiVersion:1,key:"matrix-beta",name:"Beta updated",version:"2.0.0",author:{name:"Test"},models:["replacement-model"],fetchMode:"per_task",usageSchema:{credits:{type:"number",unit:"credit"}}};
+export function buildSubmitRequest(){return {};}
+export function parseSubmitResponse(){return {};}
+export function buildQueryRequest(){return {};}
+export function parseTaskResult(){return {};}
+`, jsplugin.Options{})
+			require.NoError(t, err)
+			require.NoError(t, jsplugin.DefaultRegistry.Unregister("matrix-alpha"))
+			stale, err = model.GetModelPricingSnapshot([]string{name})
+			require.NoError(t, err)
+			require.Len(t, stale.Entries[0].PluginVariants, 1)
+			assert.True(t, stale.Entries[0].PluginVariants[0].Stale)
+			assert.Equal(t, "Beta updated", stale.Entries[0].PluginVariants[0].PluginName)
+			require.NoError(t, model.UpdateModelPricingOptions(map[string]string{"ModelRatio": string(ratioJSON)}))
+			// Removing just the stale override succeeds and leaves other prices.
+			response = modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: billing_setting.PluginBillingExprOption, Value: `{}`}, nil)
+			assert.Contains(t, response.Body.String(), `"success":true`)
+			final, err = model.GetModelPricingSnapshot([]string{name})
+			require.NoError(t, err)
+			assert.Empty(t, final.Entries[0].PluginVariants)
+			assert.Equal(t, base, final.Entries[0].Configured["billing_setting.billing_expr"])
+			// A complete reset removes all provider keys, including models containing ::.
+			require.NoError(t, model.UpdateModelPricing([]model.ModelPricingChange{{ModelName: name, ExpectedVersion: final.Entries[0].Version, Reset: true}}))
+			final, err = model.GetModelPricingSnapshot([]string{name})
+			require.NoError(t, err)
+			assert.Empty(t, final.Entries[0].Configured)
+			assert.Equal(t, "{}", final.Options[billing_setting.PluginBillingExprOption])
 		})
 	}
 }

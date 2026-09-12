@@ -327,6 +327,44 @@ func TestRegistryDecodesAndValidatesUsageSchema(t *testing.T) {
 	})
 }
 
+func TestUsageUnitLabelContract(t *testing.T) {
+	source := routingTestPluginSource("unit-label", 0, `["model"]`, `usageSchema: {
+		images: {type: "number", unit: "count", unitLabel: {EN: " image ", zh: "张"}},
+		items: {type: "number", unit: "count", unitLabel: "item"},
+		legacy: {type: "number", unit: "count"}
+	},`, "")
+	registry := NewRegistry()
+	plugin, err := registry.Register(source, Options{})
+	require.NoError(t, err)
+	assert.Equal(t, LocalizedText{"en": "image", "zh": "张"}, plugin.Meta.UsageSchema["images"].UnitLabel)
+	assert.Equal(t, LocalizedText{"en": "item"}, plugin.Meta.UsageSchema["items"].UnitLabel)
+	assert.Nil(t, plugin.Meta.UsageSchema["legacy"].UnitLabel)
+	wire, err := common.Marshal(plugin.Meta.UsageSchema)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"images":{"type":"number","unit":"count","unitLabel":{"en":"image","zh":"张"}},"items":{"type":"number","unit":"count","unitLabel":{"en":"item"}},"legacy":{"type":"number","unit":"count"}}`, string(wire))
+	snapshot := registry.Snapshot()
+	snapshot.Override[0].UsageSchema["images"].UnitLabel["en"] = "Changed"
+	assert.Equal(t, "image", registry.Snapshot().Override[0].UsageSchema["images"].UnitLabel["en"])
+
+	for _, tc := range []struct{ name, field, message string }{
+		{"seconds", `{type:"number",unit:"second",unitLabel:"image"}`, "unitLabel requires a number field with count unit"},
+		{"tokens", `{type:"number",unit:"token",unitLabel:"image"}`, "unitLabel requires a number field with count unit"},
+		{"credits", `{type:"number",unit:"credit",unitLabel:"image"}`, "unitLabel requires a number field with count unit"},
+		{"boolean", `{type:"boolean",unitLabel:"image"}`, "unitLabel requires a number field with count unit"},
+		{"enum", `{enum:["a"],unitLabel:"image"}`, "unitLabel requires a number field with count unit"},
+		{"missing English", `{type:"number",unit:"count",unitLabel:{zh:"张"}}`, `must include a non-empty "en"`},
+		{"null", `{type:"number",unit:"count",unitLabel:null}`, "must be a string or object"},
+		{"empty", `{type:"number",unit:"count",unitLabel:" "}`, "non-empty string"},
+		{"invalid locale", `{type:"number",unit:"count",unitLabel:{en:"image",zh_CN:"张"}}`, "invalid locale"},
+		{"too long", `{type:"number",unit:"count",unitLabel:"` + strings.Repeat("x", 257) + `"}`, "must not exceed 256 characters"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := CompilePlugin(routingTestPluginSource("invalid-unit-label", 0, `["model"]`, "usageSchema: {value: "+tc.field+"},", ""), Options{})
+			require.ErrorContains(t, err, tc.message)
+		})
+	}
+}
+
 func TestUsageEnumLabelsContract(t *testing.T) {
 	source := routingTestPluginSource("enum-labels", 0, `["model"]`, `usageSchema: {
 		mode: {enum: ["none", "video", "other"], enumLabels: {none: "No video", video: {EN: " With video ", zh: "有参考视频"}}}
@@ -1055,6 +1093,139 @@ func TestPluginDisplayMetadata(t *testing.T) {
 			require.NoError(t, common.Unmarshal(encoded, &decoded))
 			assert.Equal(t, tc.priority, decoded.SortPriority)
 			assert.Equal(t, tc.website, decoded.Website)
+		})
+	}
+}
+
+func TestRegistryUsageProfilesReplaceDefaultsAndIsolateSnapshots(t *testing.T) {
+	source := routingTestPluginSource("usage-profiles", 0, `["image", "video", "default", "empty"]`, `
+usageSchema: {seconds: {type: "number", unit: "second"}},
+usageExamples: [{label: "default", facts: {seconds: 1}}],
+usageProfiles: [
+  {models: ["image"], schema: {image_count: {type: "number", unit: "count", unitLabel: {en: "image", zh: "张"}}}},
+  {models: ["video"], schema: {
+    seconds: {type: "number", unit: "second", description: {en: "Duration"}},
+    resolution: {enum: ["720P", "1080P"], enumLabels: {"720P": {en: "HD"}}}
+  }, examples: [{label: "HD video", facts: {seconds: 5, resolution: "720P"}}]},
+  {models: ["empty"], schema: {}}
+],`, "")
+	registry := NewRegistry()
+	plugin, err := registry.Register(source, Options{})
+	require.NoError(t, err)
+
+	for _, model := range []string{"image", "IMAGE"} {
+		schema, examples := plugin.Meta.UsageForModel(model)
+		assert.Equal(t, map[string]UsageFieldSchema{"image_count": {Type: "number", Unit: "count", UnitLabel: LocalizedText{"en": "image", "zh": "张"}}}, schema)
+		assert.Nil(t, examples, "profiles must not inherit unrelated default examples")
+	}
+	for _, model := range []string{"default", "unknown", ""} {
+		schema, examples := plugin.Meta.UsageForModel(model)
+		assert.Equal(t, plugin.Meta.UsageSchema, schema)
+		assert.Equal(t, plugin.Meta.UsageExamples, examples)
+	}
+	schema, examples := plugin.Meta.UsageForModel("empty")
+	assert.Empty(t, schema)
+	assert.Nil(t, examples)
+
+	snapshot := registry.Snapshot()
+	require.Len(t, snapshot.Override, 1)
+	profile := &snapshot.Override[0].UsageProfiles[1]
+	snapshot.Override[0].UsageProfiles[0].Schema["image_count"].UnitLabel["en"] = "Changed"
+	imageSchema, _ := registry.Snapshot().Override[0].UsageForModel("image")
+	assert.Equal(t, "image", imageSchema["image_count"].UnitLabel["en"])
+	profile.Models[0] = "changed"
+	profile.Schema["seconds"].Description["en"] = "Changed"
+	profile.Schema["resolution"].Enum[0] = "changed"
+	profile.Schema["resolution"].EnumLabels["720P"]["en"] = "Changed"
+	profile.Examples[0].Label = "Changed"
+	profile.Examples[0].Facts["seconds"] = 99
+	delete(profile.Schema, "seconds")
+
+	schema, examples = registry.Snapshot().Override[0].UsageForModel("video")
+	assert.Equal(t, "Duration", schema["seconds"].Description["en"])
+	assert.Equal(t, []string{"720P", "1080P"}, schema["resolution"].Enum)
+	assert.Equal(t, "HD", schema["resolution"].EnumLabels["720P"]["en"])
+	require.Len(t, examples, 1)
+	assert.Equal(t, "HD video", examples[0].Label)
+	assert.EqualValues(t, 5, examples[0].Facts["seconds"])
+
+	legacy, err := CompilePlugin(routingTestPluginSource("legacy-usage", 0, `["image"]`,
+		`usageSchema: {seconds: {type: "number", unit: "second"}},`, ""), Options{})
+	require.NoError(t, err)
+	schema, examples = legacy.Meta.UsageForModel("image")
+	assert.Equal(t, legacy.Meta.UsageSchema, schema)
+	assert.Nil(t, examples)
+}
+
+func TestRegistryRejectsInvalidUsageProfiles(t *testing.T) {
+	for _, tc := range []struct {
+		name, profiles, errorText string
+	}{
+		{"null", `null`, "usageProfiles must be an array"},
+		{"object", `{}`, "usageProfiles must be an array"},
+		{"invalid entry", `[null]`, "must be an object"},
+		{"unknown property", `[{models:["image"], schema:{}, extra:true}]`, "unknown field"},
+		{"missing models", `[{schema:{}}]`, "at least one model"},
+		{"empty models", `[{models:[], schema:{}}]`, "at least one model"},
+		{"unknown model", `[{models:["other"], schema:{}}]`, "not declared"},
+		{"noncanonical model", `[{models:[" image"], schema:{}}]`, "canonical names"},
+		{"wrong declared spelling", `[{models:["IMAGE"], schema:{}}]`, "not declared"},
+		{"duplicate models", `[{models:["image","IMAGE"], schema:{}}]`, "unique case-insensitively"},
+		{"overlapping profiles", `[{models:["image"], schema:{}}, {models:["image"], schema:{}}]`, "multiple profiles"},
+		{"missing schema", `[{models:["image"]}]`, "must be an object"},
+		{"invalid field", `[{models:["image"], schema:{n:{type:"number", unit:"invalid"}}}]`, "unit must be"},
+		{"noncanonical field", `[{models:["image"], schema:{" n":{type:"number", unit:"count"}}}]`, "canonical names"},
+		{"tokens need examples", `[{models:["image"], schema:{tokens:{type:"number", unit:"token"}}}]`, "usageExamples is required"},
+		{"examples use own schema", `[{models:["image"], schema:{n:{type:"number", unit:"count"}}, examples:[{label:"wrong", facts:{seconds:1}}]}]`, "usageProfiles[0]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := routingTestPluginSource("invalid-profile", 0, `["image", "video"]`,
+				`usageSchema: {seconds: {type:"number", unit:"second"}}, usageExamples: [{label:"default", facts:{seconds:1}}], usageProfiles: `+tc.profiles+`,`, "")
+			_, err := CompilePlugin(source, Options{})
+			require.ErrorContains(t, err, tc.errorText)
+		})
+	}
+
+	plugin, err := CompilePlugin(routingTestPluginSource("token-profile", 0, `["image"]`, `
+usageProfiles: [{models:["image"], schema:{tokens:{type:"number", unit:"token"}}, examples:[{label:"one token", facts:{tokens:1}}]}],`, ""), Options{})
+	require.NoError(t, err)
+	schema, examples := plugin.Meta.UsageForModel("image")
+	assert.Equal(t, "token", schema["tokens"].Unit)
+	require.Len(t, examples, 1)
+	assert.EqualValues(t, 1, examples[0].Facts["tokens"])
+	plugin.Meta.UsageProfiles[0].Schema = nil
+	require.ErrorContains(t, ValidateV1Meta(plugin.Meta), "schema must be an object")
+}
+
+func TestSubmitResponseTypesContract(t *testing.T) {
+	for _, tc := range []struct {
+		name, metadata, hook string
+		valid                bool
+	}{
+		{"legacy JSON", "", "", true},
+		{"SSE declared", `submitResponseTypes:["json","sse"],`, `export function parseSubmitEvent(){return {state:null,done:true};}`, true},
+		{"host JSON utility", `requiredCapabilities:["json-clone@1"],`, "", true},
+		{"SSE delta", `submitResponseTypes:["sse"],requiredCapabilities:["submit-sse-delta@1"],`, `export function parseSubmitEventDelta(){return {changes:[],state:null,done:true};}`, true},
+		{"SSE delta missing hook", `submitResponseTypes:["sse"],requiredCapabilities:["submit-sse-delta@1"],`, `export function parseSubmitEvent(){return {state:null,done:true};}`, false},
+		{"delta requires SSE", `requiredCapabilities:["submit-sse-delta@1"],`, "", false},
+		{"unsupported capability version", `requiredCapabilities:["json-clone@2"],`, "", false},
+		{"duplicate capability", `requiredCapabilities:["json-clone@1","json-clone@1"],`, "", false},
+		{"null capabilities", `requiredCapabilities:null,`, "", false},
+		{"missing hook", `submitResponseTypes:["sse"],`, "", false},
+		{"unknown type", `submitResponseTypes:["xml"],`, "", false},
+		{"duplicate", `submitResponseTypes:["json","json"],`, "", false},
+		{"empty", `submitResponseTypes:[],`, "", false},
+		{"null", `submitResponseTypes:null,`, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := routingTestPluginSource("submit-types", 0, `["model"]`, tc.metadata, "") + tc.hook
+			plugin, err := CompilePlugin(source, Options{})
+			if tc.valid {
+				require.NoError(t, err)
+				require.NoError(t, ValidateV1Meta(plugin.Meta))
+			} else {
+				require.Error(t, err)
+			}
 		})
 	}
 }

@@ -176,6 +176,7 @@ function readVisualPricing(node: ExpressionNode): VisualPricingNode | null {
       term.operator !== '*' ||
       term.left.kind !== 'variable' ||
       term.left.name === 'len' ||
+      term.left.name === 'image_count' ||
       term.right.kind !== 'literal' ||
       typeof term.right.value !== 'number' ||
       term.right.value < 0

@@ -222,5 +222,202 @@
     "tier": "today",
     "billingUnit": "request",
     "fixedPrice": 0.02
+  },
+  {
+    "name": "image count is distinct from requested n",
+    "expression": "tier(\"image\", fixed(0.04)) * image_count",
+    "imageCount": 2,
+    "body": {
+      "n": 3
+    },
+    "cost": 80000,
+    "tier": "image",
+    "billingUnit": "request",
+    "fixedPrice": 0.04
+  },
+  {
+    "name": "image count and quality adjustment",
+    "expression": "tier(\"image\", fixed(0.04)) * image_count * (param(\"quality\") == \"hd\" ? 2 : 1)",
+    "imageCount": 3,
+    "body": {
+      "quality": "hd"
+    },
+    "cost": 240000,
+    "tier": "image",
+    "billingUnit": "request",
+    "fixedPrice": 0.04,
+    "multipliers": [
+      2
+    ],
+    "matched": [
+      true
+    ]
+  },
+  {
+    "name": "free image count maximum",
+    "expression": "tier(\"image\", fixed(0)) * image_count",
+    "imageCount": 128,
+    "cost": 0,
+    "tier": "image",
+    "billingUnit": "request",
+    "fixedPrice": 0
+  },
+  {
+    "name": "default image quantity",
+    "expression": "tier(\"image\", fixed(0.04)) * image_count",
+    "cost": 40000,
+    "tier": "image",
+    "billingUnit": "request",
+    "fixedPrice": 0.04
+  },
+  {
+    "name": "audio pricing ignores text cache discounts",
+    "expression": "(ai > 0 || ao > 0) ? tier(\"audio\", max(len - ai, 0) * 2 + c * 6 + ai * 4 + ao * 4) : tier(\"base\", p * 2 + c * 6 + cr * 0.2)",
+    "tokens": {
+      "len": 1000,
+      "ai": 200,
+      "ao": 50,
+      "c": 50
+    },
+    "cost": 2900,
+    "tier": "audio",
+    "displayTiers": [
+      {
+        "label": "audio",
+        "conditions": [],
+        "prices": {
+          "p": 2,
+          "c": 6,
+          "ai": 4,
+          "ao": 4
+        },
+        "conditionText": "Audio requests"
+      },
+      {
+        "label": "base",
+        "conditions": [],
+        "prices": {
+          "p": 2,
+          "c": 6,
+          "cr": 0.2
+        },
+        "conditionText": "Text-only requests"
+      }
+    ],
+    "conversion": {
+      "model_name": "contract-audio",
+      "pricing": {
+        "ModelRatio": 1,
+        "CompletionRatio": 3,
+        "CacheRatio": 0.1,
+        "AudioRatio": 2
+      }
+    }
+  },
+  {
+    "name": "text requests retain configured cache discount",
+    "expression": "(ai > 0 || ao > 0) ? tier(\"audio\", max(len - ai, 0) * 2 + c * 6 + ai * 4 + ao * 4) : tier(\"base\", p * 2 + c * 6 + cr * 0.2)",
+    "tokens": {
+      "p": 600,
+      "c": 100,
+      "cr": 400,
+      "ai": 0,
+      "ao": 0
+    },
+    "cost": 1880,
+    "tier": "base",
+    "displayTiers": [
+      {
+        "label": "audio",
+        "conditions": [],
+        "prices": {
+          "p": 2,
+          "c": 6,
+          "ai": 4,
+          "ao": 4
+        },
+        "conditionText": "Audio requests"
+      },
+      {
+        "label": "base",
+        "conditions": [],
+        "prices": {
+          "p": 2,
+          "c": 6,
+          "cr": 0.2
+        },
+        "conditionText": "Text-only requests"
+      }
+    ]
+  },
+  {
+    "name": "audio display survives redundant parentheses",
+    "expression": "(ai > 0 || ao > 0) ? tier(\"audio\", max((len - ai), (0)) * 2 + c * 6 + ai * 4 + ao * 4) : tier(\"base\", p * 2 + c * 6 + cr * 0.2)",
+    "tokens": {
+      "len": 1000,
+      "ai": 200,
+      "ao": 50,
+      "c": 50
+    },
+    "cost": 2900,
+    "tier": "audio",
+    "displayTiers": [
+      {
+        "label": "audio",
+        "conditions": [],
+        "prices": {
+          "p": 2,
+          "c": 6,
+          "ai": 4,
+          "ao": 4
+        },
+        "conditionText": "Audio requests"
+      },
+      {
+        "label": "base",
+        "conditions": [],
+        "prices": {
+          "p": 2,
+          "c": 6,
+          "cr": 0.2
+        },
+        "conditionText": "Text-only requests"
+      }
+    ]
+  },
+  {
+    "name": "audio display survives commuted operands",
+    "expression": "(ao > 0 || ai > 0) ? tier(\"audio\", 2 * max(0, len - ai) + 6 * c + 4 * ai + ao * 4) : tier(\"base\", p * 2 + 6 * c + cr * 0.2)",
+    "tokens": {
+      "len": 1000,
+      "ai": 200,
+      "ao": 50,
+      "c": 50
+    },
+    "cost": 2900,
+    "tier": "audio",
+    "displayTiers": [
+      {
+        "label": "audio",
+        "conditions": [],
+        "prices": {
+          "p": 2,
+          "c": 6,
+          "ai": 4,
+          "ao": 4
+        },
+        "conditionText": "Audio requests"
+      },
+      {
+        "label": "base",
+        "conditions": [],
+        "prices": {
+          "p": 2,
+          "c": 6,
+          "cr": 0.2
+        },
+        "conditionText": "Text-only requests"
+      }
+    ]
   }
 ]

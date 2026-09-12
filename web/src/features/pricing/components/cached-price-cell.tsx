@@ -16,7 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
 import { useBillingTime } from '../hooks/use-billing-time'
@@ -46,15 +49,31 @@ export function CachedPriceCell(props: {
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
 
   const model = props.model
+  const currency = useSystemConfigStore((state) => state.config.currency)
   const billingTime = useBillingTime(model.billing_expr)
-  const dynamicSummary = getDynamicPricingSummary(model, {
-    now: billingTime === undefined ? undefined : new Date(billingTime),
-    tokenUnit,
-    showRechargePrice,
-    priceRate,
-    usdExchangeRate,
-    groupRatioMultiplier: getDynamicDisplayGroupRatio(model, selectedGroup),
-  })
+  const dynamicSummary = useMemo(
+    () =>
+      getDynamicPricingSummary(model, {
+        now: billingTime === undefined ? undefined : new Date(billingTime),
+        tokenUnit,
+        showRechargePrice,
+        priceRate,
+        usdExchangeRate,
+        groupRatioMultiplier: getDynamicDisplayGroupRatio(model, selectedGroup),
+      }),
+    // Currency is read indirectly by the price formatter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      model,
+      tokenUnit,
+      showRechargePrice,
+      priceRate,
+      usdExchangeRate,
+      selectedGroup,
+      billingTime,
+      currency,
+    ]
+  )
 
   if (dynamicSummary) {
     if (dynamicSummary.isSpecialExpression) {
@@ -65,18 +84,33 @@ export function CachedPriceCell(props: {
       )
     }
 
-    const cacheEntry = dynamicSummary.entries.find(
-      (entry) => entry.field === 'cacheReadPrice'
+    const cacheEntries = dynamicSummary.entries.filter(
+      (entry) =>
+        entry.field === 'cacheReadPrice' || entry.field === 'imageCachePrice'
     )
-    if (!cacheEntry) {
+    if (!cacheEntries.length) {
       return <span className='text-muted-foreground/30 text-xs'>—</span>
     }
 
     return (
       <div className='max-w-full min-w-0'>
-        <span className='font-mono text-sm tabular-nums'>
-          {stripTrailingZeros(cacheEntry.formatted)}
-        </span>
+        {cacheEntries.map((entry) => (
+          <div
+            key={entry.field}
+            className='flex flex-wrap items-baseline gap-x-1'
+          >
+            {(cacheEntries.length > 1 || entry.field === 'imageCachePrice') && (
+              <span className='text-muted-foreground text-xs'>
+                {entry.field === 'imageCachePrice'
+                  ? t('Image Cache')
+                  : t('Cache Read')}
+              </span>
+            )}
+            <span className='font-mono text-sm tabular-nums'>
+              {stripTrailingZeros(entry.formatted)}
+            </span>
+          </div>
+        ))}
         <div className='text-muted-foreground/50 text-[10px]'>
           / {tokenUnitLabel}
         </div>

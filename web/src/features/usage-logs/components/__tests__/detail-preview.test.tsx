@@ -22,7 +22,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { createInstance } from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import { afterAll, afterEach, beforeEach, expect, test, vi } from 'vitest'
@@ -271,6 +271,71 @@ test.each([
     expect(preview.textContent).toBe(expected)
   }
 )
+
+test('task log prices use localized unit labels from pricing metadata', async () => {
+  client.setQueryData(['pricing'], {
+    data: [
+      {
+        model_name: 'wan2.5-i2v-preview',
+        billing_usage_schema: {
+          images: {
+            type: 'number',
+            unit: 'count',
+            unitLabel: { en: 'image', zh: '张' },
+          },
+        },
+      },
+    ],
+    vendors: [],
+  })
+  const preview = renderPreview({
+    is_task: true,
+    billing_mode: 'tiered_expr',
+    expr_b64: btoa('tier("images", u("images") * 0.25)'),
+    matched_tier: 'images',
+  })
+  expect(preview).toHaveTextContent('images · images $0.25/image')
+  await act(() => i18n.changeLanguage('zh-CN'))
+  expect(
+    screen.getByRole('button', { name: /images · images/ })
+  ).toHaveTextContent('images · images $0.25/张')
+})
+
+test('task log prices select the executing provider’s schema', () => {
+  client.setQueryData(['pricing'], {
+    data: [
+      {
+        model_name: 'wan2.5-i2v-preview',
+        billing_usage_schema: { seconds: { type: 'number', unit: 'second' } },
+        billing_plugin_variants: [
+          {
+            plugin_key: 'beta',
+            plugin_name: 'Beta',
+            billing_expr: 'tier("images", u("images") * 0.25)',
+            billing_usage_schema: {
+              images: {
+                type: 'number',
+                unit: 'count',
+                unitLabel: { en: 'image' },
+              },
+            },
+          },
+        ],
+      },
+    ],
+    vendors: [],
+  })
+  const preview = renderPreview({
+    is_task: true,
+    billing_mode: 'tiered_expr',
+    expr_b64: btoa('tier("images", u("images") * 0.25)'),
+    matched_tier: 'images',
+    admin_info: {
+      task_plugin: { key: 'beta', name: 'Beta', version: '1.0.0' },
+    },
+  })
+  expect(preview).toHaveTextContent('images · images $0.25/image')
+})
 
 test.each(['missing schema', 'unsupported expression', 'unknown tier'])(
   'task pricing with %s shows an explicit unavailable summary',

@@ -10,7 +10,12 @@ import (
 // UsesFixedPricing includes unselected branches, even when compilation later
 // optimizes them away. Hosts use it to reject unsupported billing entrances.
 func UsesFixedPricing(expression string) bool {
-	entry, err := compileEntryFromCacheByHash(expression, ExprHashString(expression))
+	return UsesFixedPricingByHash(expression, ExprHashString(expression))
+}
+
+// UsesFixedPricingByHash avoids hashing an expression already in a snapshot.
+func UsesFixedPricingByHash(expression, hash string) bool {
+	entry, err := compileEntryFromCacheByHash(expression, hash)
 	return err == nil && entry.fixedPricing
 }
 
@@ -22,6 +27,9 @@ func containsPricingMarker(node ast.Node) bool {
 }
 
 func isRequestPriceMultiplier(node ast.Node) bool {
+	if identifier, ok := node.(*ast.IdentifierNode); ok && identifier.Value == "image_count" {
+		return true
+	}
 	conditional, ok := node.(*ast.ConditionalNode)
 	if !ok || !usesRequestProbe(conditional.Cond) || containsPricingMarker(conditional.Cond) {
 		return false

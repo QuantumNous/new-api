@@ -52,6 +52,15 @@ export function taskEnumLabel(
   return taskPriceLabel(definition?.enumLabels?.[value], value, language)
 }
 
+export function taskUsageUnitLabel(
+  definition: { unit?: string; unitLabel?: LocalizedTextValue } | undefined,
+  language: string,
+  fallback: string
+): string {
+  if (definition?.unit !== 'count') return fallback
+  return resolveLocalizedText(definition.unitLabel, language) || fallback
+}
+
 export function taskPricingConditions(
   conditions: TaskTierCondition[],
   schema: BillingUsageSchema | undefined,

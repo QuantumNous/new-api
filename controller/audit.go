@@ -1,8 +1,10 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -43,6 +45,11 @@ var auditContentTemplates = map[string]string{
 	"user.reset_passkey":        "Reset the user passkey",
 	"option.update":             "Updated system setting ${key}",
 
+	"option.passkey_domains":           "Updated Passkey domains: removed ${domains}; affected ${known}; unknown ${unknown}",
+	"option.passkey_domains_confirmed": "Confirmed removal of Passkey domains: ${domains}; affected ${known}; unknown ${unknown}",
+	"option.passkey_domains_blocked":   "Passkey domain change blocked: ${domains}; affected ${known}; unknown ${unknown}",
+	"option.passkey_domains_failed":    "Passkey domain update failed",
+
 	"channel.create":             "Created channel ${name} (type ${type}, count ${count})",
 	"channel.update":             "Updated channel ${name} (ID: ${id})",
 	"channel.delete":             "Deleted channel ${name} (ID: ${id})",
@@ -63,6 +70,33 @@ var auditContentTemplates = map[string]string{
 
 	"subscription.plan_reset":      "Reset active subscriptions for plan ${plan_id}",
 	"subscription.user_plan_reset": "Reset active plan ${plan_id} subscriptions for user ${target_user_id}",
+}
+
+func recordPasskeyDomainAudit(c *gin.Context, change *model.PasskeyDomainChange, confirmed bool, err error) {
+	confirmed = confirmed && err == nil && change != nil && len(change.RemovedRPIDs) > 0
+	params := map[string]any{"success": err == nil, "confirmed": confirmed}
+	if change != nil {
+		params["domains"] = strings.Join(change.RemovedRPIDs, ", ")
+		params["removed_rp_ids"] = change.RemovedRPIDs
+		params["known"] = change.AffectedCredentials
+		params["unknown"] = change.UnknownCredentials
+		params["previous_rp_id"] = change.PreviousRPID
+		params["effective_rp_id"] = change.EffectiveRPID
+	}
+	action := "option.passkey_domains"
+	if errors.Is(err, model.ErrPasskeyDomainRemovalConfirmation) {
+		action = "option.passkey_domains_blocked"
+	} else if err != nil {
+		action = "option.passkey_domains_failed"
+	} else if confirmed && change != nil && len(change.RemovedRPIDs) > 0 {
+		action = "option.passkey_domains_confirmed"
+	}
+	auditInfo := &model.AuditRequestInfo{
+		Method: c.Request.Method, Route: c.FullPath(), Path: c.FullPath(),
+		Status: c.Writer.Status(), Success: err == nil,
+	}
+	model.RecordOperationAuditLog(c.GetInt("id"), c.GetInt("role"), auditContentEN(action, params), c.ClientIP(), action, params, auditOperatorInfo(c), auditInfo, c)
+	markAuditLogged(c)
 }
 
 // auditContentEN 按 action 模板渲染英文兜底文本；未登记的 action 退回 action 本身。

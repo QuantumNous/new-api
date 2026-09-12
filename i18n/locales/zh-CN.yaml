@@ -1,6 +1,9 @@
 # Chinese (Simplified) translations
 # 中文（简体）翻译文件
 
+# Task plugin messages
+task_plugin.unknown_meta_field: '插件元数据包含未知字段“{{.Field}}”。如果插件来自官方市场，可能需要更高版本的 new-api。请尝试更新 new-api 后重新安装插件。'
+
 # Common messages
 common.invalid_params: "无效的参数"
 common.database_error: "数据库出错，请联系管理员"
@@ -193,6 +196,9 @@ passkey.login_abnormal: "Passkey 登录状态异常"
 passkey.update_failed: "Passkey 凭证更新失败"
 passkey.invalid_user_id: "无效的用户 ID"
 passkey.verify_failed: "Passkey 验证失败，请重试或联系管理员"
+passkey.rp_id_invalid: "通行密钥域名无效。请填写域名，不包含协议、端口、路径或通配符。"
+passkey.rp_id_unavailable: "此通行密钥域名无法在当前网站使用。请前往原网站或选择其他验证方式。"
+passkey.rp_id_removal_confirmation: "请核对受影响的通行密钥并确认删除域名。配置或影响范围发生变化后，需要重新确认。"
 
 # 2FA messages
 twofa.not_enabled: "用户未启用2FA"

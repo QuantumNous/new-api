@@ -2,9 +2,7 @@ package model
 
 import (
 	"fmt"
-	"maps"
 	"strings"
-
 	"sync"
 	"time"
 
@@ -17,7 +15,18 @@ import (
 	"github.com/QuantumNous/new-api/types"
 )
 
+type PricingPluginVariant struct {
+	PluginKey            string                               `json:"plugin_key"`
+	PluginName           string                               `json:"plugin_name"`
+	Icon                 string                               `json:"icon,omitempty"`
+	BillingExpr          string                               `json:"billing_expr"`
+	BillingMode          string                               `json:"billing_mode"`
+	BillingUsageSchema   map[string]jsplugin.UsageFieldSchema `json:"billing_usage_schema"`
+	BillingUsageExamples []jsplugin.UsageExample              `json:"billing_usage_examples,omitempty"`
+}
+
 type Pricing struct {
+	BillingPluginVariants  []PricingPluginVariant               `json:"billing_plugin_variants,omitempty"`
 	ModelName              string                               `json:"model_name"`
 	Description            string                               `json:"description,omitempty"`
 	Icon                   string                               `json:"icon,omitempty"`
@@ -375,36 +384,46 @@ func updatePricing() {
 				}
 			}
 		}
+		usageModel := model
 		plugin, ok := pluginGeneration.GetByModel(model)
 		if !ok {
 			if target, resolved := ResolveTaskModelAlias(pluginGeneration, model); resolved {
 				plugin, ok = pluginGeneration.Get(target.PluginKey)
+				usageModel = target.Declared
 			}
 		}
-		if ok && plugin != nil && len(plugin.Meta.UsageSchema) > 0 {
-			pricing.BillingUsageSchema = make(map[string]jsplugin.UsageFieldSchema, len(plugin.Meta.UsageSchema))
-			for key, field := range plugin.Meta.UsageSchema {
-				field.Enum = append([]string(nil), field.Enum...)
-				field.Description = maps.Clone(field.Description)
-				if field.EnumLabels != nil {
-					labels := make(map[string]jsplugin.LocalizedText, len(field.EnumLabels))
-					for value, label := range field.EnumLabels {
-						labels[value] = maps.Clone(label)
-					}
-					field.EnumLabels = labels
-				}
-				pricing.BillingUsageSchema[key] = field
+		if ok && plugin != nil {
+			usageSchema, usageExamples := plugin.Meta.UsageForModel(usageModel)
+			pricing.BillingUsageSchema = jsplugin.CloneUsageSchema(usageSchema)
+			pricing.BillingUsageExamples = jsplugin.CloneUsageExamples(usageExamples)
+		}
+		providers := pluginGeneration.PluginsByModel(model)
+		hasProviderOverride := false
+		for _, provider := range providers {
+			if _, configured := billing_setting.GetPluginBillingExpr(provider.Meta.Key, model); configured {
+				hasProviderOverride = true
+				break
 			}
-			if len(plugin.Meta.UsageExamples) > 0 {
-				pricing.BillingUsageExamples = make([]jsplugin.UsageExample, len(plugin.Meta.UsageExamples))
-				for index, example := range plugin.Meta.UsageExamples {
-					facts := make(map[string]any, len(example.Facts))
-					maps.Copy(facts, example.Facts)
-					pricing.BillingUsageExamples[index] = jsplugin.UsageExample{
-						Label: example.Label,
-						Facts: facts,
-					}
+		}
+		if hasProviderOverride || (len(providers) >= 2 && pricing.BillingMode == billing_setting.BillingModeTieredExpr) {
+			for _, provider := range providers {
+				schema, examples := provider.Meta.UsageForModel(model)
+				if schema == nil {
+					schema = map[string]jsplugin.UsageFieldSchema{}
 				}
+				expression, hasExpression := billing_setting.ResolveTaskBillingExpr(provider.Meta.Key, model, "")
+				mode := billing_setting.BillingModeRatio
+				if hasExpression || billing_setting.GetBillingMode(model) == billing_setting.BillingModeTieredExpr {
+					mode = billing_setting.BillingModeTieredExpr
+				}
+				if mode == billing_setting.BillingModeTieredExpr && !billing_setting.TaskExprCompatible(expression, schema) {
+					expression = ""
+				}
+				pricing.BillingPluginVariants = append(pricing.BillingPluginVariants, PricingPluginVariant{
+					PluginKey: provider.Meta.Key, PluginName: provider.Meta.Name, Icon: provider.Meta.Icon,
+					BillingExpr: expression, BillingMode: mode,
+					BillingUsageSchema: jsplugin.CloneUsageSchema(schema), BillingUsageExamples: jsplugin.CloneUsageExamples(examples),
+				})
 			}
 		}
 		pricingMap = append(pricingMap, pricing)

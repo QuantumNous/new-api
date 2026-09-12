@@ -1,5 +1,7 @@
 package i18n
 
+const MsgTaskPluginUnknownMetaField = "task_plugin.unknown_meta_field"
+
 // Message keys for i18n translations
 // Use these constants instead of hardcoded strings
 
@@ -219,11 +221,14 @@ const (
 
 // Passkey related messages
 const (
-	MsgPasskeyCreateFailed  = "passkey.create_failed"
-	MsgPasskeyLoginAbnormal = "passkey.login_abnormal"
-	MsgPasskeyUpdateFailed  = "passkey.update_failed"
-	MsgPasskeyInvalidUserId = "passkey.invalid_user_id"
-	MsgPasskeyVerifyFailed  = "passkey.verify_failed"
+	MsgPasskeyCreateFailed            = "passkey.create_failed"
+	MsgPasskeyLoginAbnormal           = "passkey.login_abnormal"
+	MsgPasskeyUpdateFailed            = "passkey.update_failed"
+	MsgPasskeyInvalidUserId           = "passkey.invalid_user_id"
+	MsgPasskeyVerifyFailed            = "passkey.verify_failed"
+	MsgPasskeyRPIDInvalid             = "passkey.rp_id_invalid"
+	MsgPasskeyRPIDUnavailable         = "passkey.rp_id_unavailable"
+	MsgPasskeyRPIDRemovalConfirmation = "passkey.rp_id_removal_confirmation"
 )
 
 // 2FA related messages

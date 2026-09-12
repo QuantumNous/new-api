@@ -18,11 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api, isAuthBundle } from '@/lib/api'
 import { buildOAuthAuthorizationUrl } from '@/lib/oauth'
-import {
-  buildAssertionResult,
-  isPasskeySupported,
-  prepareCredentialRequestOptions,
-} from '@/lib/passkey'
+import { isPasskeySupported } from '@/lib/passkey'
 import {
   AuthOperationError,
   authRequestOptions,
@@ -37,6 +33,12 @@ import {
   beginPasskeyVerification,
   finishPasskeyVerification,
 } from '../passkey/api'
+import {
+  requestPasskeyAssertion,
+  rememberPasskeyRPID,
+  type PasskeyDomains,
+} from '../passkey/assertion'
+import type { PasskeyOptionsPayload } from '../passkey/types'
 import type { SystemStatus } from '../types'
 import type {
   SecurityProof,
@@ -134,7 +136,8 @@ export async function getLoginVerificationRequirements(
 export async function verifyLogin(
   input: VerificationInput,
   challenge: LoginChallenge,
-  signal: AbortSignal
+  signal: AbortSignal,
+  onDomains?: (domains: PasskeyDomains) => void
 ): Promise<AuthBundle> {
   if (challenge.expires_at * 1000 <= Date.now()) {
     throw new AuthOperationError(
@@ -157,28 +160,35 @@ export async function verifyLogin(
       )
     )
   } else if (input.method === 'passkey') {
-    const begin = await authResult<{ flow_token: string; options: unknown }>(
-      api.post(
-        '/api/user/login/passkey/begin',
-        { flow_token: challenge.flow_token },
-        options
-      )
+    const passkey = await requestPasskeyAssertion(
+      (rpID) =>
+        authResult<PasskeyOptionsPayload>(
+          api.post(
+            '/api/user/login/passkey/begin',
+            {
+              flow_token: challenge.flow_token,
+              ...(rpID ? { rp_id: rpID } : {}),
+            },
+            options
+          )
+        ),
+      signal,
+      { rpID: input.rpID, onDomains }
     )
-    if (!begin.flow_token) {
-      throw new AuthOperationError('Verification flow expired')
-    }
-    const assertion = await requestPasskeyAssertion(begin.options, signal)
     result = await authResult(
       api.post(
         '/api/user/login/passkey/finish',
         {
           flow_token: challenge.flow_token,
-          passkey_flow_token: begin.flow_token,
-          credential: assertion,
+          passkey_flow_token: passkey.flowToken,
+          credential: passkey.assertion,
         },
         options
       )
     )
+    signal.throwIfAborted()
+    if (!isAuthBundle(result)) throw new AuthOperationError('Login failed')
+    rememberPasskeyRPID(passkey.rpID)
   } else {
     throw new AuthOperationError(
       'This verification method is not allowed for this action.'
@@ -193,7 +203,8 @@ export async function verify(
   input: VerificationInput,
   operation: VerificationOperation,
   passwordEncryptionEnabled: boolean,
-  signal: AbortSignal
+  signal: AbortSignal,
+  onDomains?: (domains: PasskeyDomains) => void
 ): Promise<SecurityProof> {
   try {
     const operationFields = {
@@ -242,7 +253,7 @@ export async function verify(
         break
       }
       case 'passkey':
-        proof = await verifyPasskey(operation, signal)
+        proof = await verifyPasskey(operation, signal, input.rpID, onDomains)
         break
       case 'oauth':
         proof = await verifyOAuth(input.provider, operation, signal)
@@ -265,50 +276,30 @@ export async function verify(
 
 async function verifyPasskey(
   operation: VerificationOperation,
-  signal: AbortSignal
+  signal: AbortSignal,
+  rpID?: string,
+  onDomains?: (domains: PasskeyDomains) => void
 ): Promise<SecurityProof> {
-  const begin = await beginPasskeyVerification(operation, signal)
-  if (!begin.flow_token) {
-    throw new AuthOperationError('Verification flow expired')
-  }
-  const assertion = await requestPasskeyAssertion(
-    begin.options ?? begin,
+  const passkey = await requestPasskeyAssertion(
+    (selected) => beginPasskeyVerification(operation, signal, selected),
+    signal,
+    { rpID, onDomains }
+  )
+  const proof = await finishPasskeyVerification(
+    passkey.flowToken,
+    passkey.assertion,
     signal
   )
-  return finishPasskeyVerification(begin.flow_token, assertion, signal)
-}
-
-async function requestPasskeyAssertion(
-  options: unknown,
-  signal: AbortSignal
-): Promise<Record<string, unknown>> {
-  const publicKey = prepareCredentialRequestOptions(options)
-  let credential: PublicKeyCredential | null
-  try {
-    credential = (await navigator.credentials.get({
-      publicKey,
-      signal,
-    })) as PublicKeyCredential | null
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'NotAllowedError') {
-      throw new AuthOperationError(
-        'Passkey verification was cancelled or timed out'
-      )
-    }
-    throw error
-  }
   signal.throwIfAborted()
-  if (!credential) {
-    throw new AuthOperationError(
-      'Passkey verification was cancelled',
-      'AUTH_CANCELLED'
-    )
+  if (
+    proof.proof_token &&
+    proof.method === 'passkey' &&
+    proof.scope === operation.scope &&
+    proof.expires_at * 1000 > Date.now()
+  ) {
+    rememberPasskeyRPID(passkey.rpID)
   }
-  const assertion = buildAssertionResult(credential)
-  if (!assertion) {
-    throw new AuthOperationError('Unable to build Passkey assertion')
-  }
-  return assertion
+  return proof
 }
 
 async function verifyOAuth(

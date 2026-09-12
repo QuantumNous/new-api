@@ -33,12 +33,13 @@ import (
 // the real reservation, settlement and log paths with the same billing cases.
 func TestFixedPriceBillingDatabaseMatrix(t *testing.T) {
 	for _, dialect := range []struct {
-		name common.DatabaseType
-		env  string
+		name   common.DatabaseType
+		env    string
+		logEnv string
 	}{
-		{common.DatabaseTypeSQLite, ""},
-		{common.DatabaseTypeMySQL, "TEST_FIXED_MYSQL_DSN"},
-		{common.DatabaseTypePostgreSQL, "TEST_FIXED_POSTGRES_DSN"},
+		{common.DatabaseTypeSQLite, "", ""},
+		{common.DatabaseTypeMySQL, "TEST_FIXED_MYSQL_DSN", "TEST_FIXED_MYSQL_LOG_DSN"},
+		{common.DatabaseTypePostgreSQL, "TEST_FIXED_POSTGRES_DSN", "TEST_FIXED_POSTGRES_LOG_DSN"},
 	} {
 		t.Run(string(dialect.name), func(t *testing.T) {
 			var driver gorm.Dialector = sqlite.Open(":memory:")
@@ -59,12 +60,28 @@ func TestFixedPriceBillingDatabaseMatrix(t *testing.T) {
 			require.NoError(t, err)
 			sqlDB.SetMaxOpenConns(1)
 			t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
+			logDB := db
+			if logDSN := os.Getenv(dialect.logEnv); logDSN != "" || dialect.name == common.DatabaseTypeSQLite {
+				var logDriver gorm.Dialector = sqlite.Open(":memory:")
+				if dialect.name == common.DatabaseTypeMySQL {
+					logDriver = mysql.Open(logDSN)
+				} else if dialect.name == common.DatabaseTypePostgreSQL {
+					logDriver = postgres.New(postgres.Config{DSN: logDSN, PreferSimpleProtocol: true})
+				}
+				logDB, err = gorm.Open(logDriver, &gorm.Config{})
+				require.NoError(t, err)
+				logSQL, err := logDB.DB()
+				require.NoError(t, err)
+				logSQL.SetMaxOpenConns(1)
+				t.Cleanup(func() { require.NoError(t, logSQL.Close()) })
+			}
 			oldDB, oldLogDB := model.DB, model.LOG_DB
 			oldMainType, oldLogType := common.MainDatabaseType(), common.LogDatabaseType()
-			model.DB, model.LOG_DB = db, db
+			model.DB, model.LOG_DB = db, logDB
 			common.SetDatabaseTypes(dialect.name, dialect.name)
 			t.Cleanup(func() { model.DB, model.LOG_DB = oldDB, oldLogDB; common.SetDatabaseTypes(oldMainType, oldLogType) })
-			require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}, &model.Log{}))
+			require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}))
+			require.NoError(t, logDB.AutoMigrate(&model.Log{}))
 			versionQuery := "select version()"
 			if dialect.name == common.DatabaseTypeSQLite {
 				versionQuery = "select sqlite_version()"
@@ -72,16 +89,19 @@ func TestFixedPriceBillingDatabaseMatrix(t *testing.T) {
 			var version string
 			require.NoError(t, db.Raw(versionQuery).Scan(&version).Error)
 			t.Logf("database: %s", version)
-			runFixedPriceAccountingCases(t, db)
+			runFixedPriceAccountingCases(t, db, logDB)
 		})
 	}
 }
 
-func runFixedPriceAccountingCases(t *testing.T, db *gorm.DB) {
+func runFixedPriceAccountingCases(t *testing.T, db, logDB *gorm.DB) {
 	t.Helper()
 	const mixed = `len <= 32000 ? tier("short", fixed(0.01)) : tier("long", p * 2)`
 	const flat = `tier("request", fixed(0.01))`
 	const startingQuota = 2_000_000
+	const imageExpression = `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)`
+	imageUsage := &dto.Usage{PromptTokens: 1000, CompletionTokens: 100, TotalTokens: 1100,
+		PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 300, ImageTokens: 600, CachedTokensDetails: &dto.CachedTokenDetails{ImageTokens: common.GetPointer(200)}}}
 	operation_setting.SetToolPriceForTest("fixed_billing_tool", 4)
 	t.Cleanup(func() { operation_setting.DeleteToolPriceForTest("fixed_billing_tool") })
 	for index, tc := range []struct {
@@ -89,9 +109,12 @@ func runFixedPriceAccountingCases(t *testing.T, db *gorm.DB) {
 		estimate                                  int
 		usage                                     *dto.Usage
 		audio, stream, refund, insufficient, tool bool
+		realtime, reserveInsufficient             bool
+		wallet, outboundImages                    int
 		groupRatio                                float64
 		want                                      int
 		unit                                      billingexpr.BillingUnit
+		requestedImages, actualImages             int
 	}{
 		{name: "missing usage charges once", expression: flat, want: 5000, unit: billingexpr.BillingUnitRequest},
 		{name: "zero usage charges once", expression: flat, usage: &dto.Usage{}, want: 5000, unit: billingexpr.BillingUnitRequest},
@@ -101,16 +124,30 @@ func runFixedPriceAccountingCases(t *testing.T, db *gorm.DB) {
 		{name: "token reservation refunds to fixed price", expression: mixed, estimate: 50000, usage: &dto.Usage{PromptTokens: 100, TotalTokens: 100}, want: 5000, unit: billingexpr.BillingUnitRequest},
 		{name: "fixed reservation settles token fallback", expression: mixed, estimate: 100, usage: &dto.Usage{PromptTokens: 50000, TotalTokens: 50000}, want: 50000, unit: billingexpr.BillingUnitToken},
 		{name: "missing usage uses estimated token fallback", expression: mixed, estimate: 50000, want: 50000, unit: billingexpr.BillingUnitToken},
-		{name: "evaluation error retains fixed reservation metadata", expression: `p == 50 ? tier("error", param("missing") * p) : tier("request", fixed(0.01))`, estimate: 100, usage: &dto.Usage{PromptTokens: 50, TotalTokens: 50}, want: 5000, unit: billingexpr.BillingUnitRequest},
+		{name: "evaluation error retains fixed reservation metadata", expression: `p == 50 ? tier("error", param("missing") * p + img_cr * 2) : tier("request", fixed(0.01))`, estimate: 100, usage: &dto.Usage{PromptTokens: 50, TotalTokens: 50}, want: 5000, unit: billingexpr.BillingUnitRequest},
 		{name: "explicit zero remains free", expression: `tier("free", fixed(0))`, usage: &dto.Usage{PromptTokens: 100, TotalTokens: 100}, unit: billingexpr.BillingUnitRequest},
 		{name: "multipliers and separate tool surcharge", expression: flat + ` * (param("fast") == true ? 2 : 1)`, groupRatio: 1.5, tool: true, want: 18000, unit: billingexpr.BillingUnitRequest},
 		{name: "failed request refunds exactly once", expression: flat, refund: true},
 		{name: "insufficient wallet never reserves tokens", expression: flat, insufficient: true},
+		{name: "image cache stream settles usage and refunds unused reservation", expression: imageExpression, estimate: 10000, usage: imageUsage, stream: true, want: 4113, unit: billingexpr.BillingUnitToken},
+		{name: "audio settlement records image cache billing inputs", expression: imageExpression, estimate: 10000, usage: imageUsage, audio: true, want: 4113, unit: billingexpr.BillingUnitToken},
+		{name: "realtime records actual expression inputs", expression: imageExpression, estimate: 10000, usage: imageUsage, realtime: true, want: 4000, unit: billingexpr.BillingUnitToken},
+		{name: "image cache insufficient wallet never reserves tokens", expression: imageExpression, estimate: 10000, insufficient: true},
+		{name: "image quantity refunds missing images", expression: `tier("image", fixed(0.04)) * image_count`, requestedImages: 3, actualImages: 2, want: 40000, unit: billingexpr.BillingUnitRequest},
+		{name: "image quantity keeps request when actual missing", expression: `tier("image", fixed(0.04)) * image_count`, requestedImages: 3, want: 60000, unit: billingexpr.BillingUnitRequest},
+		{name: "image quantity zero price stays free", expression: `tier("image", fixed(0)) * image_count`, requestedImages: 3, actualImages: 2, unit: billingexpr.BillingUnitRequest},
+		{name: "image quantity failure refunds reservation", expression: `tier("image", fixed(0.04)) * image_count`, requestedImages: 3, refund: true},
+		{name: "image quantity exceeds one-image wallet before submission", expression: `tier("image", fixed(0.04)) * image_count`, requestedImages: 4, wallet: 20000, insufficient: true},
+		{name: "image override reserves extra quantity", expression: `tier("image", fixed(0.04)) * image_count`, requestedImages: 1, outboundImages: 4, want: 80000, unit: billingexpr.BillingUnitRequest},
+		{name: "image override cannot exceed remaining wallet", expression: `tier("image", fixed(0.04)) * image_count`, requestedImages: 1, outboundImages: 4, wallet: 40000, reserveInsufficient: true, refund: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			quota := startingQuota
 			if tc.insufficient {
 				quota = 1
+			}
+			if tc.wallet > 0 {
+				quota = tc.wallet
 			}
 			user := model.User{Username: fmt.Sprintf("fixed_billing_%d", index), Quota: quota, Status: common.UserStatusEnabled}
 			require.NoError(t, db.Create(&user).Error)
@@ -119,7 +156,7 @@ func runFixedPriceAccountingCases(t *testing.T, db *gorm.DB) {
 			channel := model.Channel{Name: "fixed-billing", Key: "unused", Status: common.ChannelStatusEnabled}
 			require.NoError(t, db.Create(&channel).Error)
 			t.Cleanup(func() {
-				require.NoError(t, db.Where("user_id = ?", user.Id).Delete(&model.Log{}).Error)
+				require.NoError(t, logDB.Where("user_id = ?", user.Id).Delete(&model.Log{}).Error)
 				require.NoError(t, db.Unscoped().Delete(&token).Error)
 				require.NoError(t, db.Unscoped().Delete(&user).Error)
 				require.NoError(t, db.Unscoped().Delete(&channel).Error)
@@ -129,15 +166,23 @@ func runFixedPriceAccountingCases(t *testing.T, db *gorm.DB) {
 				group = 1
 			}
 			request := &billingexpr.RequestInput{Body: []byte(`{"fast":true}`)}
+			if tc.requestedImages > 0 {
+				request.ImageCount = &tc.requestedImages
+			}
 			cost, trace, err := billingexpr.RunExprWithRequest(tc.expression, billingexpr.TokenParams{P: float64(tc.estimate), Len: float64(tc.estimate)}, *request)
 			require.NoError(t, err)
 			reservation, err := billingexpr.QuotaRoundStrict(cost / 1_000_000 * common.QuotaPerUnit * group)
 			require.NoError(t, err)
 			snapshot := &billingexpr.BillingSnapshot{BillingMode: "tiered_expr", ExprString: tc.expression, ExprHash: billingexpr.ExprHashString(tc.expression), QuotaPerUnit: common.QuotaPerUnit, GroupRatio: group, EstimatedTier: trace.MatchedTier, EstimatedBillingUnit: trace.BillingUnit, EstimatedFixedPrice: trace.FixedPrice, EstimatedQuotaAfterGroup: reservation}
+			snapshot.EstimatedImageCount = trace.ImageCount
 			info := &relaycommon.RelayInfo{UserId: user.Id, TokenId: token.Id, TokenKey: token.Key, ChannelMeta: &relaycommon.ChannelMeta{ChannelId: channel.Id}, OriginModelName: "fixed-test", UsingGroup: "default", UserGroup: "default", UserSetting: dto.UserSetting{BillingPreference: "wallet_only"}, ForcePreConsume: true, StartTime: time.Now(), IsStream: tc.stream, RelayFormat: types.RelayFormatOpenAI, PriceData: hosttypes.PriceData{GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: group}}, TieredBillingSnapshot: snapshot, BillingRequestInput: request}
 			info.SetEstimatePromptTokens(tc.estimate)
 			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 			ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			if tc.expression == imageExpression {
+				ctx.Request.URL.Path = "/v1/images/generations"
+				info.RelayMode = relayconstant.RelayModeImagesGenerations
+			}
 			apiErr := PreConsumeBilling(ctx, reservation, info)
 			if tc.insufficient {
 				require.NotNil(t, apiErr)
@@ -146,7 +191,18 @@ func runFixedPriceAccountingCases(t *testing.T, db *gorm.DB) {
 				require.Nil(t, apiErr)
 				held, err := model.GetUserQuota(user.Id, true)
 				require.NoError(t, err)
-				assert.Equal(t, startingQuota-reservation, held)
+				assert.Equal(t, quota-reservation, held)
+				if tc.outboundImages > 0 {
+					reserveErr := PrepareImageBillingForRequest(ctx, info, tc.outboundImages, false)
+					if tc.reserveInsufficient {
+						require.NotNil(t, reserveErr)
+						assert.Equal(t, types.ErrorCodeInsufficientUserQuota, reserveErr.GetErrorCode())
+						assert.Equal(t, reservation, info.Billing.GetPreConsumedQuota())
+					} else {
+						require.Nil(t, reserveErr)
+						assert.Equal(t, tc.want, info.Billing.GetPreConsumedQuota())
+					}
+				}
 				if tc.refund {
 					refunded := make(chan struct{}, 1)
 					const callback = "fixed_billing_refund_observed"
@@ -167,23 +223,60 @@ func runFixedPriceAccountingCases(t *testing.T, db *gorm.DB) {
 						t.Fatal("refund did not finish")
 					}
 				} else {
+					info.UpdateImageCount(int64(tc.actualImages))
 					if tc.tool {
 						info.ResponsesUsageInfo = &relaycommon.ResponsesUsageInfo{BuiltInTools: map[string]*relaycommon.BuildInToolInfo{"fixed_billing_tool": {CallCount: 1}}}
 					}
-					if tc.audio {
+					if tc.realtime {
+						PostWssConsumeQuota(ctx, info, info.OriginModelName, &dto.RealtimeUsage{
+							InputTokens: tc.usage.PromptTokens, OutputTokens: tc.usage.CompletionTokens, TotalTokens: tc.usage.TotalTokens,
+						}, "")
+					} else if tc.audio {
 						PostAudioConsumeQuota(ctx, info, tc.usage, "")
 					} else {
 						PostTextConsumeQuota(ctx, info, tc.usage, nil)
 					}
 					require.NoError(t, info.Billing.Settle(tc.want), "a repeated settlement must not charge again")
 					var log model.Log
-					require.NoError(t, db.Where("user_id = ?", user.Id).Take(&log).Error)
+					require.NoError(t, logDB.Where("user_id = ?", user.Id).Take(&log).Error)
 					assert.Equal(t, tc.want, log.Quota)
 					assert.Equal(t, tc.stream, log.IsStream)
 					assert.NotContains(t, log.Content, "无法扣费")
 					var other map[string]any
 					require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
 					assert.Equal(t, string(tc.unit), other["billing_unit"])
+					if tc.requestedImages > 0 {
+						count := tc.actualImages
+						if count == 0 {
+							count = tc.requestedImages
+							if tc.outboundImages > 0 {
+								count = tc.outboundImages
+							}
+						}
+						assert.Equal(t, float64(count), other["image_count"])
+						assert.Equal(t, tc.requestedImages, *request.ImageCount, "actual count must not mutate the frozen request")
+					}
+					if tc.expression == imageExpression {
+						billable, ok := other["billing_tokens"].(map[string]any)
+						require.True(t, ok)
+						if tc.realtime {
+							assert.Equal(t, float64(0), other["image_cache_tokens"])
+							assert.Equal(t, float64(1000), billable["p"])
+							assert.Equal(t, float64(0), billable["cr"])
+							assert.Equal(t, float64(0), billable["img"])
+						} else {
+							if !tc.audio {
+								assert.Equal(t, float64(300), other["cache_tokens"])
+							}
+							assert.Equal(t, float64(200), other["image_cache_tokens"])
+							assert.Equal(t, float64(300), billable["p"])
+							assert.Equal(t, float64(100), billable["cr"])
+							assert.Equal(t, float64(400), billable["img"])
+						}
+					} else {
+						assert.NotContains(t, other, "billing_tokens")
+						assert.NotContains(t, other, "image_cache_tokens")
+					}
 					if tc.unit == billingexpr.BillingUnitRequest {
 						assert.Contains(t, other, "fixed_price")
 					} else {

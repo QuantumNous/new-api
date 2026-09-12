@@ -16,8 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
@@ -43,8 +45,11 @@ function Harness(props: {
   operation?: RequestVerificationOptions
 }) {
   const verification = useSecureVerification()
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  )
   return (
-    <>
+    <QueryClientProvider client={client}>
       <button
         type='button'
         onClick={async () =>
@@ -60,7 +65,7 @@ function Harness(props: {
         Protected action
       </button>
       <SecureVerificationDialog {...verification.dialogProps} />
-    </>
+    </QueryClientProvider>
   )
 }
 
@@ -81,8 +86,11 @@ function LoginHarness(props: {
   onResult: (bundle: AuthBundle | null) => void
 }) {
   const verification = useSecureVerification()
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  )
   return (
-    <>
+    <QueryClientProvider client={client}>
       <button
         type='button'
         onClick={async () =>
@@ -102,13 +110,15 @@ function LoginHarness(props: {
         Continue sign-in
       </button>
       <SecureVerificationDialog {...verification.dialogProps} />
-    </>
+    </QueryClientProvider>
   )
 }
 
 it('lets a pending login switch from Passkey to 2FA without using authenticated verification endpoints', async () => {
+  const get = vi
+    .spyOn(api, 'get')
+    .mockResolvedValue({ data: { success: true, data: {} } })
   vi.stubGlobal('PublicKeyCredential', class {})
-  const get = vi.spyOn(api, 'get')
   const bundle: AuthBundle = {
     access_token: 'verified-login',
     token_type: 'Bearer',
@@ -152,7 +162,7 @@ it('lets a pending login switch from Passkey to 2FA without using authenticated 
       signal: expect.any(AbortSignal),
     })
   )
-  expect(get).not.toHaveBeenCalled()
+  expect(get.mock.calls.every(([url]) => url === '/api/status')).toBe(true)
 })
 
 it.each(['success', 'cancel', 'retry'] as const)(

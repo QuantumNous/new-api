@@ -24,11 +24,14 @@ export const TOKEN_VARIABLES = [
   'cc',
   'cc1h',
   'img',
+  'img_cr',
   'img_o',
   'ai',
   'ao',
 ] as const
 export type TokenVariable = (typeof TOKEN_VARIABLES)[number]
+export const BILLING_VARIABLES = [...TOKEN_VARIABLES, 'image_count'] as const
+export type BillingVariable = (typeof BILLING_VARIABLES)[number]
 export const TIME_FUNCTIONS = [
   'hour',
   'minute',
@@ -62,7 +65,7 @@ export type ExpressionNode = (
       value: string | number | boolean | null
       integer?: boolean
     }
-  | { kind: 'variable'; name: TokenVariable }
+  | { kind: 'variable'; name: BillingVariable }
   | { kind: 'call'; name: string; args: ExpressionNode[] }
   | { kind: 'unary'; operator: string; operand: ExpressionNode }
   | {
@@ -107,7 +110,7 @@ export type CompiledBillingExpression = {
   source: string
   version: 1
   ast: ExpressionNode
-  variables: ReadonlySet<TokenVariable>
+  variables: ReadonlySet<BillingVariable>
   functions: ReadonlySet<string>
   requestRules: {
     node: ExpressionNode
@@ -122,6 +125,7 @@ export type ExpressionFailure = {
 }
 export type CompilationResult = CompiledBillingExpression | ExpressionFailure
 export type BillingSimulationContext = {
+  imageCount?: number
   /** Already normalized billable counts; no implicit cache subtraction. */
   tokens?: Partial<Record<TokenVariable, number>>
   /** Absent means unknown. An explicitly provided empty request means empty. */
@@ -137,6 +141,7 @@ export type BillingEvaluationResult =
       cost: number
       billingUnit: 'token' | 'request'
       fixedPrice?: number
+      imageCount?: number
       matchedTier: string
       requestRules: BillingRequestRule[]
     }
@@ -194,10 +199,10 @@ export function visitExpression(
 }
 
 export function expressionDependencies(node: ExpressionNode): {
-  variables: Set<TokenVariable>
+  variables: Set<BillingVariable>
   functions: Set<string>
 } {
-  const variables = new Set<TokenVariable>()
+  const variables = new Set<BillingVariable>()
   const functions = new Set<string>()
   visitExpression(node, (part) => {
     if (part.kind === 'variable') variables.add(part.name)

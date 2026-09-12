@@ -44,6 +44,8 @@ import {
   formatTaskUsageUnitPrice,
   getTaskUsagePriceUnitLabelKey,
 } from '@/features/pricing/lib/dynamic-price'
+import { pluginUsageSchema } from '@/features/pricing/lib/plugin-pricing'
+import { taskUsageUnitLabel } from '@/features/pricing/lib/task-price-display'
 import type { BillingUsageSchema } from '@/features/pricing/types'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
@@ -110,9 +112,10 @@ function buildDetailSegments(
   other: LogOtherData | null,
   t: (key: string, opts?: Record<string, unknown>) => string,
   isAdmin: boolean,
+  language: string,
   usageSchema?: BillingUsageSchema
 ): DetailSegment[] {
-  const segments = buildTypeDetailSegments(log, other, t, usageSchema)
+  const segments = buildTypeDetailSegments(log, other, t, language, usageSchema)
   const adminSegments: DetailSegment[] = []
   // Quota saturation is a rare, admin-only anomaly marker; surface it first
   // and in danger styling so it stands out on the related billing log. The
@@ -128,6 +131,7 @@ function buildTypeDetailSegments(
   log: UsageLog,
   other: LogOtherData | null,
   t: (key: string, opts?: Record<string, unknown>) => string,
+  language: string,
   usageSchema?: BillingUsageSchema
 ): DetailSegment[] {
   // Top-up, audit, and login logs can carry a localized operation descriptor.
@@ -188,9 +192,10 @@ function buildTypeDetailSegments(
     )
     if (tier) {
       const prices = Object.entries(tier.unitPrices).map(([field, price]) => {
-        const unit = usageSchema?.[field]?.unit
-        const unitKey = getTaskUsagePriceUnitLabelKey(unit)
-        return `${field} ${formatTaskUsageUnitPrice(price, { tokenUnit: 'M' })}/${t(unitKey)}`
+        const definition = usageSchema?.[field]
+        const unitKey = getTaskUsagePriceUnitLabelKey(definition?.unit)
+        const unitLabel = taskUsageUnitLabel(definition, language, t(unitKey))
+        return `${field} ${formatTaskUsageUnitPrice(price, { tokenUnit: 'M' })}/${unitLabel}`
       })
       if (tier.constant > 0) {
         prices.push(
@@ -246,8 +251,8 @@ function buildTypeDetailSegments(
             ].includes(entry.field)
         )
         .map((entry) =>
-          entry.unit === 'request'
-            ? `${tieredSummary.tier.label || t('Default')} · ${t(entry.shortLabel)} ${formatPriceCompact(entry.price)}/${t('request')}`
+          entry.unit
+            ? `${tieredSummary.tier.label || t('Default')} · ${t(entry.shortLabel)} ${formatPriceCompact(entry.price)}/${t(entry.unit)}`
             : `${t(entry.shortLabel)} ${formatPrice(entry.price)}`
         )
       if (otherEntries.length > 0) {
@@ -780,7 +785,7 @@ export function useCommonLogsColumns(
       accessorKey: 'content',
       header: t('Details'),
       cell: function DetailsCell({ row }) {
-        const { t } = useTranslation()
+        const { t, i18n } = useTranslation()
         const [dialogOpen, setDialogOpen] = useState(false)
         const log = row.original
         const other = parseLogOther(log.other)
@@ -790,14 +795,18 @@ export function useCommonLogsColumns(
             other?.is_task === true &&
             other.billing_mode === 'tiered_expr'
         )
-        const usageSchema = pricingData.models.find(
-          (model) => model.model_name === log.model_name
-        )?.billing_usage_schema
+        const usageSchema = pluginUsageSchema(
+          pricingData.models.find(
+            (model) => model.model_name === log.model_name
+          ),
+          other?.admin_info?.task_plugin?.key
+        )
         const segments = buildDetailSegments(
           log,
           other,
           t,
           isAdmin,
+          i18n.language,
           usageSchema
         )
         const primary = segments[0]

@@ -324,7 +324,7 @@ export function ModelMutateDrawer(props: {
                         name='model_name'
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t('Model Name *')}</FormLabel>
+                            <FormLabel required>{t('Model Name')}</FormLabel>
                             <FormControl>
                               <Input
                                 placeholder={t('gpt-4, claude-3-opus, etc.')}

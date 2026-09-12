@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type MigrationIdentityFields struct {
@@ -140,6 +141,48 @@ func TestMigrationSchemaStability(t *testing.T) {
 				require.NoError(t, db.Table(table).AutoMigrate(&migrationConstraintV1{}))
 				require.NoError(t, db.Table(table).Create(&migrationConstraintV1{Name: "existing"}).Error)
 			})
+
+			if dialect == "postgres" {
+				t.Run("renamed_unique_constraints", func(t *testing.T) {
+					const table = "migration_renamed_unique"
+					t.Cleanup(func() { _ = db.Migrator().DropTable(table) })
+					tableDB := db.Table(table).Session(&gorm.Session{})
+					require.NoError(t, tableDB.AutoMigrate(&migrationConstraintV1{}))
+					original := migrationConstraintV1{Name: "existing"}
+					require.NoError(t, tableDB.Create(&original).Error)
+					for _, name := range []string{"models_model_name_key", `imported "model" name`} {
+						require.NoError(t, db.Exec("ALTER TABLE ? ADD CONSTRAINT ? UNIQUE (name)", clause.Table{Name: table}, clause.Column{Name: name}).Error)
+					}
+					require.NoError(t, db.Exec("ALTER TABLE ? ADD CONSTRAINT keep_composite UNIQUE (id, name)", clause.Table{Name: table}).Error)
+					require.NoError(t, db.Exec("CREATE INDEX keep_name_lookup ON ? (name)", clause.Table{Name: table}).Error)
+					// A unique field must keep the old names and still reject duplicates.
+					require.NoError(t, tableDB.AutoMigrate(&migrationConstraintV2{}))
+					require.Error(t, tableDB.Create(&migrationConstraintV2{Name: "existing"}).Error)
+					require.NoError(t, db.Exec("CREATE TABLE migration_unique_reference (name varchar(64) REFERENCES migration_renamed_unique(name))").Error)
+					t.Cleanup(func() { _ = db.Migrator().DropTable("migration_unique_reference") })
+					require.NoError(t, db.Exec("INSERT INTO migration_unique_reference (name) VALUES (?)", "existing").Error)
+					require.Error(t, tableDB.AutoMigrate(&migrationConstraintV1{}), "dependent foreign keys must not be cascaded away")
+					for _, name := range []string{"models_model_name_key", `imported "model" name`} {
+						assert.True(t, tableDB.Migrator().HasConstraint(&migrationConstraintV1{}, name), "all old constraints must survive rollback")
+					}
+					var references int64
+					require.NoError(t, db.Table("migration_unique_reference").Count(&references).Error)
+					assert.EqualValues(t, 1, references)
+					require.NoError(t, db.Migrator().DropTable("migration_unique_reference"))
+					// Removing column uniqueness must resolve both actual constraint names.
+					require.NoError(t, tableDB.AutoMigrate(&migrationConstraintV1{}))
+					recorder.reset()
+					require.NoError(t, tableDB.AutoMigrate(&migrationConstraintV1{}))
+					assert.Empty(t, recorder.schemaMutations())
+					require.NoError(t, tableDB.Create(&migrationConstraintV1{Name: "existing"}).Error)
+					assert.True(t, tableDB.Migrator().HasConstraint(&migrationConstraintV1{}, "keep_composite"))
+					assert.True(t, tableDB.Migrator().HasIndex(&migrationConstraintV1{}, "keep_name_lookup"))
+					var rows []migrationConstraintV1
+					require.NoError(t, tableDB.Order("id").Find(&rows).Error)
+					require.Len(t, rows, 2)
+					assert.Equal(t, original, rows[0])
+				})
+			}
 
 			if dialect == "mysql" {
 				t.Run("decimal_default_and_real_changes", func(t *testing.T) {
