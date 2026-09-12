@@ -133,6 +133,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import {
   getAllModels,
   getChannel,
+  getChannelDefaultBaseURLs,
   getGroups,
   getPrefillGroups,
   getTaskPluginOptions,
@@ -454,6 +455,14 @@ export function ChannelMutateDrawer({
     null
   )
 
+  const { data: defaultBaseURLs } = useQuery({
+    queryKey: channelsQueryKeys.defaultBaseURLs(),
+    // Optional hints must not trigger the global error-page redirect.
+    queryFn: () => getChannelDefaultBaseURLs().catch(() => null),
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+  })
+
   // Fetch channel details if editing
   const {
     data: channelData,
@@ -511,6 +520,8 @@ export function ChannelMutateDrawer({
   const keyMode = formValues.key_mode
   const currentGroups = formValues.group
   const currentType = formValues.type
+  const baseUrlPlaceholder =
+    defaultBaseURLs?.[currentType] || t(FIELD_PLACEHOLDERS.BASE_URL)
   const currentStatus = formValues.status
   const currentBaseUrl = formValues.base_url
   const currentTaskPluginKey = formValues.task_plugin_key
@@ -3385,10 +3396,7 @@ if (isNewChannel) {
                   <FormItem>
                     <FormLabel>{t('Private Deployment URL')}</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder={t('e.g., https://fastgpt.run/api/openapi')}
-                        {...field}
-                      />
+                      <Input placeholder={baseUrlPlaceholder} {...field} />
                     </FormControl>
                     <FormDescription>
                       {t(
@@ -3674,12 +3682,7 @@ if (isNewChannel) {
                   <FormItem>
                     <FormLabel required>{t('API Base URL')}</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder={t(
-                          'e.g., https://ark.cn-beijing.volces.com'
-                        )}
-                        {...field}
-                      />
+                      <Input placeholder={baseUrlPlaceholder} {...field} />
                     </FormControl>
                     <FormDescription>
                       {t('Enter custom API endpoint URL')}
@@ -3726,10 +3729,7 @@ if (isNewChannel) {
                       {t('Base URL')}
                     </FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder={t(FIELD_PLACEHOLDERS.BASE_URL)}
-                        {...field}
-                      />
+                      <Input placeholder={baseUrlPlaceholder} {...field} />
                     </FormControl>
                     {currentType !== CHANNEL_TYPE_TASK_PLUGIN && (
                       <FormDescription>

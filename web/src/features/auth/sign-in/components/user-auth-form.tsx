@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from '@tanstack/react-router'
 import { Loader2, LogIn, KeyRound } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -46,14 +46,16 @@ import { loginFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
 import { beginPasskeyLogin, finishPasskeyLogin } from '@/features/auth/passkey'
+import {
+  requestPasskeyAssertion,
+  rememberPasskeyRPID,
+  type PasskeyDomains,
+} from '@/features/auth/passkey/assertion'
+import { PasskeyDomainSelector } from '@/features/auth/passkey/components/passkey-domain-selector'
 import type { AuthFormProps } from '@/features/auth/types'
 import { useStatus } from '@/hooks/use-status'
 import { handleServerError } from '@/lib/handle-server-error'
-import {
-  buildAssertionResult,
-  prepareCredentialRequestOptions,
-  isPasskeySupported as detectPasskeySupport,
-} from '@/lib/passkey'
+import { isPasskeySupported as detectPasskeySupport } from '@/lib/passkey'
 import { AuthOperationError } from '@/lib/secure-verification'
 import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
@@ -69,6 +71,12 @@ export function UserAuthForm({
   const [agreedToLegal, setAgreedToLegal] = useState(false)
   const [passkeySupported, setPasskeySupported] = useState(false)
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false)
+  const [passkeyDomains, setPasskeyDomains] = useState<PasskeyDomains | null>(
+    null
+  )
+  const [passkeyRPID, setPasskeyRPID] = useState<string>()
+  const passkeyOperation = useRef<AbortController | null>(null)
+  useEffect(() => () => passkeyOperation.current?.abort(), [])
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
   const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0)
@@ -248,44 +256,32 @@ export function UserAuthForm({
       return
     }
 
+    if (passkeyOperation.current) return
+    const controller = new AbortController()
+    passkeyOperation.current = controller
     setIsPasskeyLoading(true)
     try {
-      const begin = await beginPasskeyLogin()
-      if (!begin.success) {
-        throw createServerError(begin, t('Failed to start Passkey login'))
-      }
-
-      const publicKey = prepareCredentialRequestOptions(
-        begin.data?.options ?? begin.data
+      const passkey = await requestPasskeyAssertion(
+        (rpID) => beginPasskeyLogin(rpID, controller.signal),
+        controller.signal,
+        { rpID: passkeyRPID, onDomains: setPasskeyDomains }
       )
-      const flowToken = begin.data?.flow_token
-      if (!flowToken) {
-        throw new Error(t('Login flow expired. Please sign in again.'))
-      }
-
-      const credential = (await navigator.credentials.get({
-        publicKey,
-      })) as PublicKeyCredential | null
-
-      if (!credential) {
-        toast.info(t('Passkey login was cancelled'))
-        return
-      }
-
-      const assertion = buildAssertionResult(credential)
-      if (!assertion) {
-        throw new Error(t('Invalid Passkey response'))
-      }
-
-      const finish = await finishPasskeyLogin(flowToken, assertion)
+      const finish = await finishPasskeyLogin(
+        passkey.flowToken,
+        passkey.assertion,
+        controller.signal
+      )
+      controller.signal.throwIfAborted()
       if (!finish.success) {
         throw createServerError(finish, t('Failed to complete Passkey login'))
       }
 
+      rememberPasskeyRPID(passkey.rpID)
       if (await handleLoginResult(finish.data, redirectTo)) {
         toast.success(t('Signed in with Passkey'))
       }
     } catch (error: unknown) {
+      if (controller.signal.aborted) return
       if (error instanceof DOMException && error.name === 'NotAllowedError') {
         toast.info(t('Passkey login was cancelled or timed out'))
       } else if (error instanceof Error) {
@@ -296,6 +292,9 @@ export function UserAuthForm({
         )
       }
     } finally {
+      if (passkeyOperation.current === controller) {
+        passkeyOperation.current = null
+      }
       setIsPasskeyLoading(false)
     }
   }
@@ -318,6 +317,12 @@ export function UserAuthForm({
             )}
             {t('Sign in with Passkey')}
           </Button>
+          <PasskeyDomainSelector
+            domains={passkeyDomains}
+            value={passkeyRPID}
+            onChange={setPasskeyRPID}
+            disabled={passkeyButtonDisabled}
+          />
           {!passkeySupported && (
             <p className='text-muted-foreground text-xs'>
               {t('Passkey is not supported on this device.')}

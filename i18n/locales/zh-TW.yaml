@@ -196,6 +196,9 @@ passkey.login_abnormal: "Passkey 登錄狀態異常"
 passkey.update_failed: "Passkey 憑證更新失敗"
 passkey.invalid_user_id: "無效的使用者 ID"
 passkey.verify_failed: "Passkey 驗證失敗，請重試或聯繫管理員"
+passkey.rp_id_invalid: "通行金鑰網域無效。請填寫網域，不包含通訊協定、連接埠、路徑或萬用字元。"
+passkey.rp_id_unavailable: "此通行金鑰網域無法在目前網站使用。請前往原網站或選擇其他驗證方式。"
+passkey.rp_id_removal_confirmation: "請核對受影響的通行金鑰並確認刪除網域。設定或影響範圍變更後，需要重新確認。"
 
 # 2FA messages
 twofa.not_enabled: "使用者未啟用2FA"

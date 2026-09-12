@@ -135,6 +135,16 @@ export async function getChannelOps(): Promise<ChannelOpsResponse> {
   return res.data
 }
 
+export async function getChannelDefaultBaseURLs(): Promise<
+  Partial<Record<number, string>>
+> {
+  const response = await api.get<{
+    success: boolean
+    data: Partial<Record<number, string>>
+  }>('/api/channel/default_base_urls')
+  return requireServerSuccess(response.data).data
+}
+
 /**
  * Create new channel(s)
  * Supports single, batch, and multi-key modes

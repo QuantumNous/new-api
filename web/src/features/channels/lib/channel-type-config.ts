@@ -26,7 +26,6 @@ export interface ChannelTypeConfig {
   id: number
   name: string
   icon: string
-  defaultBaseUrl?: string
   requiresOrganization?: boolean
   requiresRegion?: boolean
   supportedModels?: string[]
@@ -50,10 +49,8 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     id: 1,
     name: CHANNEL_TYPES[1],
     icon: 'openai',
-    defaultBaseUrl: 'https://api.openai.com',
     requiresOrganization: true,
     hints: {
-      baseUrl: 'Default: https://api.openai.com',
       key: 'Format: sk-...',
       models: 'gpt-4,gpt-4-turbo,gpt-3.5-turbo',
     },
@@ -77,7 +74,6 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     id: 14,
     name: CHANNEL_TYPES[14],
     icon: 'anthropic',
-    defaultBaseUrl: 'https://api.anthropic.com',
     hints: {
       key: 'Format: sk-ant-...',
       models: 'claude-3-opus,claude-3-sonnet,claude-3-haiku',
@@ -107,7 +103,6 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     id: 43,
     name: CHANNEL_TYPES[43],
     icon: 'deepseek',
-    defaultBaseUrl: 'https://api.deepseek.com',
     hints: {
       key: 'DeepSeek API Key',
       models: 'deepseek-chat,deepseek-coder',
@@ -117,7 +112,6 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     id: 20,
     name: CHANNEL_TYPES[20],
     icon: 'openrouter',
-    defaultBaseUrl: 'https://openrouter.ai/api',
     hints: {
       key: 'OpenRouter API Key',
       models: 'Use model IDs from OpenRouter',
@@ -127,11 +121,9 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     id: 56,
     name: CHANNEL_TYPES[56],
     icon: 'replicate',
-    defaultBaseUrl: 'https://api.replicate.com',
     hints: {
       key: 'Replicate API Token',
       models: 'Replicate model IDs',
-      baseUrl: 'Default: https://api.replicate.com',
     },
   },
   58: {
@@ -191,13 +183,6 @@ export function requiresOrganization(type: number): boolean {
  */
 export function requiresRegion(type: number): boolean {
   return CHANNEL_TYPE_CONFIGS[type]?.requiresRegion || false
-}
-
-/**
- * Get default base URL for channel type
- */
-export function getDefaultBaseUrl(type: number): string {
-  return CHANNEL_TYPE_CONFIGS[type]?.defaultBaseUrl || ''
 }
 
 /**

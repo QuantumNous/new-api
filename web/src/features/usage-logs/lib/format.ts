@@ -485,6 +485,13 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'user.oauth_unbind': 'Removed an OAuth binding for the user',
   // System settings
   'option.update': 'Updated system setting {{key}}',
+  'option.passkey_domains':
+    'Updated Passkey domains: removed {{domains}}; affected {{known}}; unknown {{unknown}}',
+  'option.passkey_domains_confirmed':
+    'Confirmed removal of Passkey domains: {{domains}}; affected {{known}}; unknown {{unknown}}',
+  'option.passkey_domains_blocked':
+    'Passkey domain change blocked: {{domains}}; affected {{known}}; unknown {{unknown}}',
+  'option.passkey_domains_failed': 'Passkey domain update failed',
   'option.payment_compliance': 'Confirmed payment compliance',
   'option.reset_ratio': 'Reset model ratios',
   'option.clear_affinity_cache': 'Cleared channel affinity cache',

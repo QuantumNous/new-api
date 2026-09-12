@@ -24,13 +24,18 @@ import userEvent from '@testing-library/user-event'
 import { createInstance, type i18n } from 'i18next'
 import { useState } from 'react'
 import { I18nextProvider } from 'react-i18next'
+import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
 
 import { SettingsPageProvider } from '../../components/settings-page-context'
+import type { PasskeyDomainChange } from '../../types'
 import { PasskeySection } from '../passkey-section'
+
+const domainHint =
+  'Enter a domain such as example.com or localhost, without a protocol, port or path. Put addresses with ports in Allowed Passkey websites.'
 
 const defaults = {
   'passkey.enabled': true,
@@ -42,9 +47,30 @@ const defaults = {
   'passkey.attachment_preference': '' as const,
 }
 
+function domainResponse(overrides: Partial<PasskeyDomainChange> = {}) {
+  return {
+    data: {
+      success: true,
+      data: {
+        rp_id: 'example.com',
+        legacy_rp_ids: window.location.hostname,
+        origins: defaults['passkey.origins'],
+        previous_rp_id: window.location.hostname,
+        effective_rp_id: 'example.com',
+        removed_rp_ids: [],
+        affected_credentials: 0,
+        unknown_credentials: 0,
+        confirmation_required: false,
+        removal_confirmation: 'reviewed-domains',
+        ...overrides,
+      },
+    },
+  }
+}
+
 let testI18n: i18n
 
-function Fixture(props: { rpId?: string; origins?: string }) {
+function Fixture(props: { rpId?: string; origins?: string; legacy?: string }) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   const [client] = useState(
     () =>
@@ -64,6 +90,7 @@ function Fixture(props: { rpId?: string; origins?: string }) {
             defaultValues={{
               ...defaults,
               'passkey.rp_id': props.rpId ?? '',
+              'passkey.legacy_rp_ids': props.legacy ?? '',
               'passkey.origins': props.origins ?? defaults['passkey.origins'],
             }}
           />
@@ -88,30 +115,77 @@ beforeEach(async () => {
 })
 
 describe('Passkey website guidance', () => {
+  it('previews server impact and cancels domain removal without saving other settings', async () => {
+    const put = vi.spyOn(api, 'put').mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          rp_id: 'example.com',
+          legacy_rp_ids: '',
+          origins: defaults['passkey.origins'],
+          previous_rp_id: 'example.com',
+          effective_rp_id: 'example.com',
+          removed_rp_ids: ['www.example.com'],
+          affected_credentials: 2,
+          unknown_credentials: 7,
+          confirmation_required: true,
+          removal_confirmation: 'reviewed-impact',
+        },
+      },
+    })
+    const user = userEvent.setup()
+    render(<Fixture rpId='example.com' legacy='www.example.com' />)
+    await user.clear(
+      screen.getByRole('textbox', { name: 'Compatible Passkey domains' })
+    )
+    await user.type(
+      screen.getByRole('textbox', { name: 'Passkey display name' }),
+      ' changed'
+    )
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(
+      await within(dialog).findByText(
+        'Passkeys known to use removed domains: 2'
+      )
+    ).toBeVisible()
+    expect(
+      within(dialog).getByText(
+        'Passkeys with an unknown domain that may be affected: 7'
+      )
+    ).toBeVisible()
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(put.mock.calls[0]?.[1]).toMatchObject({ preview: true })
+  })
   it('shows the effective domain for a blank field without suggesting a change and restores focus', async () => {
     const put = vi.spyOn(api, 'put')
     const user = userEvent.setup()
     render(<Fixture />)
     const input = screen.getByRole('textbox', {
-      name: 'Passkey website domain',
+      name: 'Primary Passkey domain',
     })
     expect(input).toHaveValue('')
     await waitFor(() => expect(input).not.toHaveClass('border-amber-500'))
     expect(input).toHaveAccessibleDescription(
-      `The system currently uses: ${window.location.hostname}`
+      `${domainHint} The system currently uses: ${window.location.hostname}`
     )
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(
       screen.queryByText(/Passkeys only work on the website/)
     ).not.toBeInTheDocument()
-    const help = screen.getByRole('button', { name: 'Why set this?' })
+    const domains = screen.getByRole('group', { name: 'Passkey domains' })
+    const help = within(within(domains).getByRole('status')).getByRole(
+      'button',
+      { name: 'Why set this?' }
+    )
     help.focus()
     await user.keyboard('{Enter}')
     const dialog = screen.getByRole('dialog', {
-      name: 'Why set a website domain?',
+      name: 'How to set up Passkey domains',
     })
     expect(dialog).toHaveAccessibleDescription(
-      'Passkeys only work on the website they were created for. This helps prevent other websites from misusing them.'
+      'New Passkeys use the primary domain. Compatible domains keep existing Passkeys working.'
     )
     expect(
       await within(dialog).findByText(
@@ -135,7 +209,9 @@ describe('Passkey website guidance', () => {
     })
     const put = vi
       .spyOn(api, 'put')
-      .mockResolvedValue({ data: { success: true } })
+      .mockResolvedValue(
+        domainResponse({ previous_rp_id: 'example.com', legacy_rp_ids: '' })
+      )
     const user = userEvent.setup()
     render(<Fixture />)
     await user.click(screen.getByRole('button', { name: 'Why set this?' }))
@@ -146,7 +222,7 @@ describe('Passkey website guidance', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     )
     const input = screen.getByRole('textbox', {
-      name: 'Passkey website domain',
+      name: 'Primary Passkey domain',
     })
     expect(input).toHaveValue('example.com')
     expect(input).not.toHaveClass('border-amber-500')
@@ -156,12 +232,19 @@ describe('Passkey website guidance', () => {
     expect(put).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
     await waitFor(() =>
-      expect(put).toHaveBeenCalledWith('/api/option/', {
-        key: 'passkey.rp_id',
-        value: 'example.com',
-      })
+      expect(put).toHaveBeenCalledWith(
+        '/api/option/passkey/domains',
+        {
+          rp_id: 'example.com',
+          legacy_rp_ids: '',
+          origins: defaults['passkey.origins'],
+          preview: false,
+          removal_confirmation: 'reviewed-domains',
+        },
+        expect.any(Object)
+      )
     )
-    expect(put).toHaveBeenCalledTimes(1)
+    expect(put).toHaveBeenCalledTimes(2)
     await user.click(screen.getByRole('button', { name: 'Why set this?' }))
     expect(
       await screen.findByText('The system currently uses: example.com')
@@ -174,7 +257,7 @@ describe('Passkey website guidance', () => {
     await user.click(screen.getByRole('button', { name: 'Why set this?' }))
     expect(
       screen.getByText(
-        'If users already have Passkeys, changing this domain may require them to sign in another way and set up their Passkeys again.'
+        'When the primary domain changes, the previous domain is automatically kept in the compatible domains list.'
       )
     ).toBeVisible()
     await user.click(
@@ -198,7 +281,7 @@ describe('Passkey website guidance', () => {
       const user = userEvent.setup()
       render(<Fixture rpId={window.location.hostname} />)
       const input = screen.getByRole('textbox', {
-        name: 'Passkey website domain',
+        name: 'Primary Passkey domain',
       })
       expect(input).not.toHaveClass('border-amber-500')
       await user.clear(input)
@@ -208,7 +291,7 @@ describe('Passkey website guidance', () => {
         'focus-visible:border-amber-500'
       )
       expect(input).toHaveAccessibleDescription(
-        'This domain does not match the current website. Passkeys may not work here.'
+        `${domainHint} This domain does not match the current website. Passkeys may not work here.`
       )
       await user.clear(input)
       await user.type(input, window.location.hostname)
@@ -224,7 +307,7 @@ describe('Passkey website guidance', () => {
   it('keeps a matching parent domain unmarked and explains a missing website beside the website list', async () => {
     render(<Fixture rpId='example.com' />)
     expect(
-      screen.getByRole('textbox', { name: 'Passkey website domain' })
+      screen.getByRole('textbox', { name: 'Primary Passkey domain' })
     ).not.toHaveClass('border-amber-500')
     const websites = screen.getByRole('textbox', {
       name: 'Allowed Passkey websites',
@@ -240,24 +323,31 @@ describe('Passkey website guidance', () => {
   })
 
   it('disables filling while saving and enables it after the save finishes', async () => {
-    let finishSave!: (value: { data: { success: boolean } }) => void
-    vi.spyOn(api, 'put').mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          finishSave = resolve
-        })
-    )
+    const reply = domainResponse({
+      rp_id: window.location.hostname,
+      effective_rp_id: window.location.hostname,
+      legacy_rp_ids: '',
+    })
+    let finishSave!: (value: ReturnType<typeof domainResponse>) => void
+    vi.spyOn(api, 'put')
+      .mockResolvedValueOnce(reply)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishSave = resolve
+          })
+      )
     const user = userEvent.setup()
     render(<Fixture />)
     await user.type(
-      screen.getByRole('textbox', { name: 'Passkey website domain' }),
+      screen.getByRole('textbox', { name: 'Primary Passkey domain' }),
       window.location.hostname
     )
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
     await user.click(screen.getByRole('button', { name: 'Why set this?' }))
     const fill = screen.getByRole('button', { name: 'Keep existing domain' })
     expect(fill).toBeDisabled()
-    finishSave({ data: { success: true } })
+    finishSave(reply)
     await waitFor(() => expect(fill).toBeEnabled())
   })
 
@@ -266,15 +356,19 @@ describe('Passkey website guidance', () => {
     const user = userEvent.setup()
     render(<Fixture />)
     await waitFor(() =>
-      expect(
-        screen.getByRole('textbox', { name: '通行密钥使用的网站域名' })
-      ).not.toHaveClass('border-amber-500')
+      expect(screen.getByRole('textbox', { name: '主域名' })).not.toHaveClass(
+        'border-amber-500'
+      )
     )
     await user.click(screen.getByRole('button', { name: '为什么需要设置？' }))
     const dialog = screen.getByRole('dialog', {
-      name: '为什么要填写网站域名？',
+      name: '如何设置通行密钥域名',
     })
     expect(dialog).not.toHaveTextContent(/RP ID|Origins?|依赖方/)
+    expect(within(dialog).getByText('主域名')).toBeVisible()
+    expect(within(dialog).getByText('兼容的通行密钥域名')).toBeVisible()
+    expect(dialog).toHaveTextContent('每行填写一个已有通行密钥使用的域名')
+    expect(dialog).toHaveTextContent('无法在 example.com 使用')
     expect(
       within(dialog).getByRole('button', { name: '保留现有域名' })
     ).toBeVisible()
@@ -296,101 +390,186 @@ describe('Passkey website guidance', () => {
   })
 
   it('requires confirmation before replacing an automatically resolved domain and lets users cancel', async () => {
-    const put = vi
-      .spyOn(api, 'put')
-      .mockResolvedValue({ data: { success: true } })
+    const put = vi.spyOn(api, 'put').mockResolvedValue(domainResponse())
     const user = userEvent.setup()
     render(<Fixture />)
-    const input = screen.getByRole('textbox', {
-      name: 'Passkey website domain',
-    })
-    await waitFor(() =>
-      expect(input).toHaveAccessibleDescription(
-        `The system currently uses: ${window.location.hostname}`
-      )
+    await user.type(
+      screen.getByRole('textbox', { name: 'Primary Passkey domain' }),
+      'example.com'
     )
-    await user.type(input, 'example.com')
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
-    const dialog = screen.getByRole('alertdialog', {
+    const dialog = await screen.findByRole('alertdialog', {
       name: 'Change the Passkey domain?',
     })
     expect(dialog).toHaveTextContent(
       `Current domain: ${window.location.hostname}`
     )
     expect(dialog).toHaveTextContent('New domain: example.com')
-    expect(put).not.toHaveBeenCalled()
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(put.mock.calls[0]?.[1]).toMatchObject({ preview: true })
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
-    expect(put).not.toHaveBeenCalled()
+    expect(put).toHaveBeenCalledTimes(1)
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
-    await user.click(screen.getByRole('button', { name: 'Change domain' }))
-    await waitFor(() =>
-      expect(put).toHaveBeenCalledExactlyOnceWith('/api/option/', {
-        key: 'passkey.rp_id',
-        value: 'example.com',
-      })
+    await user.click(
+      await screen.findByRole('button', { name: 'Change domain' })
     )
     await waitFor(() =>
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     )
+    expect(put).toHaveBeenCalledTimes(3)
+    expect(put).toHaveBeenLastCalledWith(
+      '/api/option/passkey/domains',
+      {
+        rp_id: 'example.com',
+        legacy_rp_ids: '',
+        origins: defaults['passkey.origins'],
+        preview: false,
+        removal_confirmation: 'reviewed-domains',
+      },
+      expect.any(Object)
+    )
+    expect(
+      screen.getByRole('textbox', { name: 'Compatible Passkey domains' })
+    ).toHaveValue(window.location.hostname)
   })
 
-  it('warns before clearing an explicit domain back to automatic configuration', async () => {
-    const put = vi.spyOn(api, 'put')
+  it('shows the server resolved default before clearing an explicit domain', async () => {
+    const put = vi.spyOn(api, 'put').mockResolvedValue(
+      domainResponse({
+        rp_id: '',
+        previous_rp_id: 'example.com',
+        effective_rp_id: window.location.hostname,
+        legacy_rp_ids: 'example.com',
+      })
+    )
     const user = userEvent.setup()
     render(<Fixture rpId='example.com' />)
     await user.clear(
-      screen.getByRole('textbox', { name: 'Passkey website domain' })
+      screen.getByRole('textbox', { name: 'Primary Passkey domain' })
     )
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
-    const dialog = screen.getByRole('alertdialog', {
+    const dialog = await screen.findByRole('alertdialog', {
       name: 'Change the Passkey domain?',
     })
     expect(dialog).toHaveTextContent('Current domain: example.com')
-    expect(dialog).toHaveTextContent(
-      'New domain: Automatic from system website address'
-    )
-    expect(put).not.toHaveBeenCalled()
+    expect(dialog).toHaveTextContent(`New domain: ${window.location.hostname}`)
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(put.mock.calls[0]?.[1]).toMatchObject({ preview: true })
   })
 
-  it('still requires confirmation if the effective domain cannot be loaded', async () => {
+  it('uses the server preview when the public effective domain could not be loaded', async () => {
     vi.mocked(api.get).mockRejectedValue(new Error('Offline'))
-    const put = vi.spyOn(api, 'put')
+    const put = vi.spyOn(api, 'put').mockResolvedValue(domainResponse())
     const user = userEvent.setup()
     render(<Fixture />)
     await user.type(
-      screen.getByRole('textbox', { name: 'Passkey website domain' }),
+      screen.getByRole('textbox', { name: 'Primary Passkey domain' }),
       'example.com'
     )
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
-    expect(
-      screen.getByRole('alertdialog', { name: 'Change the Passkey domain?' })
-    ).toHaveTextContent('Current domain: Unknown')
-    expect(put).not.toHaveBeenCalled()
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      `Current domain: ${window.location.hostname}`
+    )
+    expect(put).toHaveBeenCalledTimes(1)
+    expect(put.mock.calls[0]?.[1]).toMatchObject({ preview: true })
   })
 
   it('keeps a failed domain change available for retry without an unhandled rejection', async () => {
-    const put = vi.spyOn(api, 'put').mockRejectedValueOnce(new Error('Offline'))
+    const errorToast = vi.spyOn(toast, 'error')
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValueOnce(domainResponse())
+      .mockRejectedValueOnce(new Error('Offline'))
+      .mockResolvedValue(domainResponse())
     const user = userEvent.setup()
     render(<Fixture rpId={window.location.hostname} />)
     const input = screen.getByRole('textbox', {
-      name: 'Passkey website domain',
+      name: 'Primary Passkey domain',
     })
     await user.clear(input)
     await user.type(input, 'example.com')
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
-    await user.click(screen.getByRole('button', { name: 'Change domain' }))
-    await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
+    await user.click(
+      await screen.findByRole('button', { name: 'Change domain' })
+    )
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(errorToast).toHaveBeenCalledTimes(1))
     expect(screen.getByRole('alertdialog')).toBeInTheDocument()
     await waitFor(() =>
       expect(
         screen.getByRole('button', { name: 'Change domain' })
       ).toBeEnabled()
     )
-    put.mockResolvedValue({ data: { success: true } })
     await user.click(screen.getByRole('button', { name: 'Change domain' }))
     await waitFor(() =>
       expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     )
-    expect(put).toHaveBeenCalledTimes(2)
+    expect(put).toHaveBeenCalledTimes(3)
+  })
+
+  it('requires a new confirmation when the affected credential count changes', async () => {
+    const errorToast = vi.spyOn(toast, 'error')
+    const first = domainResponse({
+      previous_rp_id: 'example.com',
+      legacy_rp_ids: '',
+      removed_rp_ids: ['www.example.com'],
+      affected_credentials: 1,
+      confirmation_required: true,
+    })
+    const updated = domainResponse({
+      ...first.data.data,
+      affected_credentials: 2,
+      removal_confirmation: 'updated-impact',
+    })
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce({
+        data: {
+          ...updated.data,
+          success: false,
+          code: 'PASSKEY_RP_ID_REMOVAL_CONFIRMATION_REQUIRED',
+          message: 'Review the updated impact before confirming again.',
+        },
+      })
+      .mockResolvedValueOnce(updated)
+    const user = userEvent.setup()
+    render(<Fixture rpId='example.com' legacy='www.example.com' />)
+    await user.clear(
+      screen.getByRole('textbox', { name: 'Compatible Passkey domains' })
+    )
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    const dialog = await screen.findByRole('alertdialog', {
+      name: 'Remove compatible Passkey domains?',
+    })
+    expect(dialog).toHaveTextContent('Passkeys known to use removed domains: 1')
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Remove domains' })
+    )
+    expect(
+      await within(dialog).findByText(
+        'Passkeys known to use removed domains: 2'
+      )
+    ).toBeVisible()
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(
+      'Review the updated impact before confirming again.'
+    )
+    await waitFor(() =>
+      expect(
+        within(dialog).getByRole('button', { name: 'Remove domains' })
+      ).toBeEnabled()
+    )
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Remove domains' })
+    )
+    await waitFor(() =>
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    )
+    expect(put).toHaveBeenCalledTimes(3)
+    expect(put.mock.calls[2]?.[1]).toMatchObject({
+      preview: false,
+      removal_confirmation: 'updated-impact',
+    })
+    expect(errorToast).not.toHaveBeenCalled()
   })
 })

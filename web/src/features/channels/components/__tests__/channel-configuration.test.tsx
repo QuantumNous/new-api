@@ -31,6 +31,7 @@ import { useState } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { api } from '@/lib/api'
+import { createAppQueryClient } from '@/lib/query-client'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -143,6 +144,19 @@ beforeEach(() => {
     if (url === '/api/channel/models') {
       return { data: { success: true, data: [{ id: 'custom-model' }] } }
     }
+    if (url === '/api/channel/default_base_urls') {
+      return {
+        data: {
+          success: true,
+          data: {
+            22: 'https://fastgpt.server.example/api/openapi',
+            24: 'https://gemini.server.example',
+            43: 'https://deepseek.server.example',
+            45: 'https://volcengine.server.example',
+          },
+        },
+      }
+    }
     if (url === '/api/group/') {
       return { data: { success: true, data: ['default', 'premium'] } }
     }
@@ -158,6 +172,119 @@ afterEach(() => {
   client.clear()
   useAuthStore.setState({ auth: originalAuth })
   vi.restoreAllMocks()
+})
+
+test('changing built-in providers updates server-provided URL placeholders without replacing the draft address', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness />)
+  await user.click(screen.getByRole('option', { name: /^DeepSeek / }))
+  const address = screen.getByRole('textbox', { name: 'Base URL' })
+  await waitFor(() =>
+    expect(address).toHaveAttribute(
+      'placeholder',
+      'https://deepseek.server.example'
+    )
+  )
+  expect(address).toHaveValue('')
+  await user.type(address, 'https://custom.example')
+
+  await user.click(screen.getByRole('button', { name: 'Change provider' }))
+  await user.click(screen.getByRole('option', { name: /^Gemini / }))
+  const geminiAddress = screen.getByRole('textbox', { name: 'Base URL' })
+  expect(geminiAddress).toHaveAttribute(
+    'placeholder',
+    'https://gemini.server.example'
+  )
+  expect(geminiAddress).toHaveValue('https://custom.example')
+  await user.clear(geminiAddress)
+  expect(geminiAddress).toHaveValue('')
+
+  await user.click(screen.getByRole('button', { name: 'Change provider' }))
+  await user.click(screen.getByRole('option', { name: /^New API / }))
+  expect(screen.getByRole('textbox', { name: 'Base URL' })).toHaveAttribute(
+    'placeholder',
+    'Leave empty to use default'
+  )
+})
+
+test.each([
+  {
+    type: 43,
+    label: /^Base URL$/,
+    url: 'https://deepseek.server.example',
+    savedUrl: '',
+  },
+  {
+    type: 22,
+    label: /^Private Deployment URL$/,
+    url: 'https://fastgpt.server.example/api/openapi',
+    savedUrl: '',
+  },
+  {
+    type: 45,
+    label: /^API Base URL/,
+    url: 'https://volcengine.server.example',
+    savedUrl: 'https://custom.example',
+  },
+])(
+  'editing type $type keeps the server URL placeholder out of the saved address',
+  async ({ type, label, url, savedUrl }) => {
+    editingChannel.type = type
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValue({ data: { success: true } })
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    await screen.findByDisplayValue('Existing channel')
+    if (type === 45) {
+      const addressLabel = screen.getByText('API Base URL')
+      for (let click = 0; click < 10; click++) {
+        fireEvent.click(addressLabel)
+      }
+    }
+    const address = screen.getByRole('textbox', { name: label })
+    await waitFor(() => expect(address).toHaveAttribute('placeholder', url))
+    expect(address).toHaveValue('https://saved.example')
+    await user.clear(address)
+    expect(address).toHaveValue('')
+    if (savedUrl) await user.type(address, savedUrl)
+    await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+    await waitFor(() => expect(put).toHaveBeenCalled())
+    expect(put.mock.calls[0]?.[1]).toMatchObject({ id: 42, base_url: savedUrl })
+  }
+)
+
+test('an unavailable default URL endpoint keeps the fallback placeholder and allows saving a custom address', async () => {
+  const onInternalServerError = vi.fn()
+  client = createAppQueryClient(onInternalServerError)
+  const originalGet = vi.mocked(api.get).getMockImplementation()
+  vi.mocked(api.get).mockImplementation(async (url, config) => {
+    if (url === '/api/channel/default_base_urls') {
+      throw Object.assign(new Error('Endpoint unavailable'), {
+        response: { status: 500 },
+      })
+    }
+    return originalGet?.(url, config)
+  })
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const address = screen.getByRole('textbox', { name: 'Base URL' })
+  expect(address).toHaveAttribute('placeholder', 'Leave empty to use default')
+  expect(address).toHaveValue('https://saved.example')
+  await user.clear(address)
+  await user.type(address, 'https://custom.example')
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  expect(put.mock.calls[0]?.[1]).toMatchObject({
+    id: 42,
+    base_url: 'https://custom.example',
+  })
+  expect(api.get).toHaveBeenCalledWith('/api/channel/default_base_urls')
+  expect(onInternalServerError).not.toHaveBeenCalled()
 })
 
 test('model mapping help opens on click, stays open after pointer exit, and closes without dismissing the channel', async () => {
@@ -439,7 +566,15 @@ test('without plugin binding permission only built-in providers are offered', ()
 })
 
 test('plugin loading failure can be retried while built-in providers remain selectable', async () => {
-  vi.mocked(api.get).mockRejectedValueOnce(new Error('Offline'))
+  const originalGet = vi.mocked(api.get).getMockImplementation()
+  let fail = true
+  vi.mocked(api.get).mockImplementation(async (url, config) => {
+    if (url === '/api/task_plugin_options' && fail) {
+      fail = false
+      throw new Error('Offline')
+    }
+    return originalGet?.(url, config)
+  })
   render(<ConfigurationHarness />)
   expect(await screen.findByText('Failed to load plugins')).toBeVisible()
   expect(screen.getByRole('option', { name: /^OpenAI / })).toBeVisible()

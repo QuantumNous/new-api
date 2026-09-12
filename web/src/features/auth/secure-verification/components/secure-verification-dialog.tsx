@@ -26,6 +26,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
+import type { PasskeyDomains } from '../../passkey/assertion'
+import { PasskeyDomainSelector } from '../../passkey/components/passkey-domain-selector'
 import type {
   SecureVerificationState,
   VerificationInput,
@@ -34,6 +36,7 @@ import type {
 
 interface SecureVerificationDialogProps {
   state: SecureVerificationState
+  passkeyDomains?: PasskeyDomains | null
   onVerify: () => void | Promise<void>
   onCancel: () => void
   onRetry: () => void
@@ -223,7 +226,15 @@ export function SecureVerificationDialog(props: SecureVerificationDialogProps) {
                     : t('Enter the 6-digit authenticator code.')}
                 </p>
               </TabsContent>
-              <TabsContent value='passkey'>
+              <TabsContent value='passkey' className='space-y-3'>
+                <PasskeyDomainSelector
+                  domains={props.passkeyDomains}
+                  value={input.method === 'passkey' ? input.rpID : undefined}
+                  onChange={(rpID) =>
+                    props.onInputChange({ method: 'passkey', rpID })
+                  }
+                  disabled={verifying}
+                />
                 <p className='text-muted-foreground flex items-center gap-2 text-sm'>
                   <KeyRound className='size-5' />
                   {t(
