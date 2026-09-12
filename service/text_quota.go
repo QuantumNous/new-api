@@ -68,6 +68,7 @@ type textQuotaSummary struct {
 	ToolCallSurchargeQuota   decimal.Decimal
 	FixedPriceBilling        bool
 	PromptTokensExcludeCache bool
+	OpenRouterClaudeBilling  bool
 }
 
 // hasBillableUsage reports whether this request should incur any charge.
@@ -95,6 +96,11 @@ func cacheWriteTokensTotal(summary textQuotaSummary) int {
 func (s textQuotaSummary) consumeLogPromptTokens() int {
 	if !s.PromptTokensExcludeCache {
 		return s.PromptTokens
+	}
+	if s.OpenRouterClaudeBilling {
+		// OpenRouter starts with total input. Restore exactly the cache counts
+		// removed for billing, not a larger total derived from split writes.
+		return s.PromptTokens + s.CacheTokens + s.CacheCreationTokens
 	}
 	return s.PromptTokens + s.CacheTokens + cacheWriteTokensTotal(s)
 }
@@ -277,11 +283,11 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.AudioTokens = usage.PromptTokensDetails.AudioTokens
 	legacyClaudeDerived := isLegacyClaudeDerivedOpenAIUsage(relayInfo, usage)
 	summary.PromptTokensExcludeCache = summary.IsClaudeUsageSemantic || legacyClaudeDerived
-	isOpenRouterClaudeBilling := relayInfo.ChannelMeta != nil &&
+	summary.OpenRouterClaudeBilling = relayInfo.ChannelMeta != nil &&
 		relayInfo.ChannelType == constant.ChannelTypeOpenRouter &&
 		summary.IsClaudeUsageSemantic
 
-	if isOpenRouterClaudeBilling {
+	if summary.OpenRouterClaudeBilling {
 		summary.PromptTokens -= summary.CacheTokens
 		isUsingCustomSettings := relayInfo.PriceData.UsePrice || hasCustomModelRatio(summary.ModelName, relayInfo.PriceData.ModelRatio)
 		if summary.CacheCreationTokens == 0 && relayInfo.PriceData.CacheCreationRatio != 1 && usage.Cost != 0 && !isUsingCustomSettings {
