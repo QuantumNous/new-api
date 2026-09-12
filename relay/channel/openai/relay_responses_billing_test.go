@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -264,4 +265,106 @@ func TestOaiResponsesStreamHandlerDoesNotCountPartialImageEvent(t *testing.T) {
 	)
 
 	assert.Equal(t, 0, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration].CallCount)
+}
+
+// runResponsesUsageStream drives OaiResponsesStreamHandler over the given SSE events and
+// returns the usage it reports. Unlike runResponsesImageBillingStream it makes no assertion
+// about image-generation tools, so it can be used for plain text/reasoning billing cases.
+func runResponsesUsageStream(t *testing.T, events ...string) *dto.Usage {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	// The handler falls back to counting the streamed output text when no usage was recorded.
+	// That path dereferences the default token encoder, so initialize it here; otherwise a
+	// regression in this area surfaces as a nil-pointer panic instead of a clear assertion.
+	service.InitTokenEncoders()
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldTimeout
+	})
+
+	var body strings.Builder
+	for _, event := range events {
+		body.WriteString("data: ")
+		body.WriteString(event)
+		body.WriteString("\n\n")
+	}
+	body.WriteString("data: [DONE]\n\n")
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set(common.RequestIdKey, "responses-usage-billing-test")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-5.1",
+		DisablePing:     true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gpt-5.1",
+		},
+	}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body.String())),
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+
+	usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	return usage
+}
+
+// A reasoning model truncated by max_output_tokens emits no response.output_text.delta, so the
+// output-text fallback cannot estimate anything. The terminal event is the only source of token
+// counts; dropping it bills the request as zero.
+func TestOaiResponsesStreamHandlerBillsUsageOnIncompleteWithoutTextDelta(t *testing.T) {
+	usage := runResponsesUsageStream(
+		t,
+		`{"type":"response.created","response":{"status":"in_progress"}}`,
+		`{"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":11,"output_tokens":64,"total_tokens":75}}}`,
+	)
+
+	assert.Equal(t, 11, usage.PromptTokens)
+	assert.Equal(t, 64, usage.CompletionTokens)
+	assert.Equal(t, 75, usage.TotalTokens)
+}
+
+// When text was streamed the handler could fall back to counting it, but the upstream numbers
+// are authoritative and must win over the local estimate.
+func TestOaiResponsesStreamHandlerPrefersUpstreamUsageOnIncomplete(t *testing.T) {
+	usage := runResponsesUsageStream(
+		t,
+		`{"type":"response.output_text.delta","delta":"partial answer"}`,
+		`{"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":7,"output_tokens":123,"total_tokens":130}}}`,
+	)
+
+	assert.Equal(t, 7, usage.PromptTokens)
+	assert.Equal(t, 123, usage.CompletionTokens)
+	assert.Equal(t, 130, usage.TotalTokens)
+}
+
+// Cancellation stops generation but the tokens produced up to that point are still charged
+// upstream, and the cancelled terminal event reports them.
+func TestOaiResponsesStreamHandlerBillsUsageOnCancelled(t *testing.T) {
+	usage := runResponsesUsageStream(
+		t,
+		`{"type":"response.cancelled","response":{"status":"cancelled","usage":{"input_tokens":5,"output_tokens":9,"total_tokens":14}}}`,
+	)
+
+	assert.Equal(t, 5, usage.PromptTokens)
+	assert.Equal(t, 9, usage.CompletionTokens)
+	assert.Equal(t, 14, usage.TotalTokens)
+}
+
+// Guard against a terminal event that carries no usage at all: the handler must not panic and
+// must leave the existing zero-usage path untouched.
+func TestOaiResponsesStreamHandlerIncompleteWithoutUsageStaysZero(t *testing.T) {
+	usage := runResponsesUsageStream(
+		t,
+		`{"type":"response.incomplete","response":{"status":"incomplete"}}`,
+	)
+
+	assert.Equal(t, 0, usage.PromptTokens)
+	assert.Equal(t, 0, usage.CompletionTokens)
+	assert.Equal(t, 0, usage.TotalTokens)
 }

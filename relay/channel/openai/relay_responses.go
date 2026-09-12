@@ -113,6 +113,17 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				imageCommitted = true
 			}
 		case "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
+			// These terminal events also carry the response object with upstream usage: the
+			// tokens were already produced and charged by the provider, so record them here as
+			// well. OaiResponsesHandler reads usage unconditionally on the non-streaming path;
+			// without this the streaming path drops it silently. The output-text fallback below
+			// cannot cover the gap when no response.output_text.delta was emitted (reasoning
+			// models, or truncation before the first text token), leaving the request billed as
+			// zero even though the terminal event reported real token counts.
+			if streamResponse.Response != nil && streamResponse.Response.Usage != nil {
+				incomingUsage := relayconvert.NormalizeResponsesUsage(streamResponse.Response.Usage)
+				usage = dto.MergeUsageNonZero(usage, incomingUsage)
+			}
 			if !imageCommitted {
 				imageCounter.Reset()
 				imageCounter.Commit(info)
