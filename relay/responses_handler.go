@@ -87,6 +87,11 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		}
 		requestBody = common.NewReplayableBodyReader(storage)
 	} else {
+		if info.RelayMode == relayconstant.RelayModeResponses {
+			if err := helper.ApplyResponsesSystemPrompt(c, info.ChannelSetting, request); err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+		}
 		convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 		if err != nil {
 			return newConvertRequestFailedError(c, info, err)

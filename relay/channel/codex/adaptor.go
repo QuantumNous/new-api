@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -55,41 +54,6 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
 	isCompact := info != nil && info.RelayMode == relayconstant.RelayModeResponsesCompact
 
-	if info != nil && info.ChannelSetting.SystemPrompt != "" {
-		systemPrompt := info.ChannelSetting.SystemPrompt
-
-		if len(request.Instructions) == 0 {
-			if b, err := common.Marshal(systemPrompt); err == nil {
-				request.Instructions = b
-			} else {
-				return nil, err
-			}
-		} else if info.ChannelSetting.SystemPromptOverride {
-			var existing string
-			if err := common.Unmarshal(request.Instructions, &existing); err == nil {
-				existing = strings.TrimSpace(existing)
-				if existing == "" {
-					if b, err := common.Marshal(systemPrompt); err == nil {
-						request.Instructions = b
-					} else {
-						return nil, err
-					}
-				} else {
-					if b, err := common.Marshal(systemPrompt + "\n" + existing); err == nil {
-						request.Instructions = b
-					} else {
-						return nil, err
-					}
-				}
-			} else {
-				if b, err := common.Marshal(systemPrompt); err == nil {
-					request.Instructions = b
-				} else {
-					return nil, err
-				}
-			}
-		}
-	}
 	// Codex backend requires the `instructions` field to be present.
 	// Keep it consistent with Codex CLI behavior by defaulting to an empty string.
 	if len(request.Instructions) == 0 {
