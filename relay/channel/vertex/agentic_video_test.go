@@ -47,7 +47,7 @@ func TestAgenticVideoRequestRoundTrip(t *testing.T) {
 			assert.JSONEq(t, `{"text":"Compare the videos"}`, string(data))
 			data, err = common.Marshal(out)
 			require.NoError(t, err)
-			assert.JSONEq(t, `{"contents":[{"role":"user","parts":[{"fileData":{"mimeType":"video/mp4","fileUri":"gs://bucket/lecture.mp4"},"mediaResolution":{"level":"MEDIA_RESOLUTION_LOW"},"mediaProcessing":"AGENTIC"},{"inlineData":{"mimeType":"video/mp4","data":"AAAA"},"mediaProcessing":"STATIC","videoMetadata":{"fps":0.5}},{"text":"Compare the videos"}]}]}`, string(data))
+			assert.JSONEq(t, `{"contents":[{"role":"user","parts":[{"fileData":{"mimeType":"video/mp4","fileUri":"gs://bucket/lecture.mp4"},"mediaResolution":{"level":"MEDIA_RESOLUTION_LOW"},"mediaProcessing":"AGENTIC"},{"inlineData":{"mimeType":"video/mp4","data":"AAAA"},"mediaProcessing":"STATIC","videoMetadata":{"fps":0.5}},{"text":"Compare the videos"}]}],"generationConfig":{}}`, string(data))
 		})
 	}
 }

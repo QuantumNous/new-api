@@ -68,6 +68,7 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 					isMediaTrace = true
 				}
 				if isMediaTrace {
+					part.ThoughtSignature = nil
 					removed = true
 				}
 				if !reflect.ValueOf(part).IsZero() {
