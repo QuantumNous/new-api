@@ -67,6 +67,11 @@ type textQuotaSummary struct {
 	ToolSurchargeItems     []ToolSurchargeItem
 	ToolCallSurchargeQuota decimal.Decimal
 	FixedPriceBilling      bool
+	// PromptTokensExcludeCache marks usage whose PromptTokens counts only the
+	// fresh (non-cached) input, with cache reads and cache writes reported
+	// separately. Anthropic-style usage works this way, while OpenAI-style
+	// PromptTokens already includes both.
+	PromptTokensExcludeCache bool
 }
 
 // hasBillableUsage reports whether this request should incur any charge.
@@ -86,6 +91,19 @@ func cacheWriteTokensTotal(summary textQuotaSummary) int {
 		return splitCacheWriteTokens
 	}
 	return summary.CacheCreationTokens
+}
+
+// logInputTokens is the total input token count recorded on the consume log.
+// It must mean the same thing for every provider, because the usage log UI, the
+// RPM/TPM and token-sum statistics and the data export all read it as the whole
+// input and show the cache counts as a breakdown of it. Anthropic-style usage
+// reports input_tokens without the cached and cache-written tokens, so the
+// input that was billed separately is added back here.
+func logInputTokens(summary textQuotaSummary) int {
+	if !summary.PromptTokensExcludeCache {
+		return summary.PromptTokens
+	}
+	return summary.PromptTokens + summary.CacheTokens + cacheWriteTokensTotal(summary)
 }
 
 func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) bool {
@@ -265,6 +283,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.ImageTokens = usage.PromptTokensDetails.ImageTokens
 	summary.AudioTokens = usage.PromptTokensDetails.AudioTokens
 	legacyClaudeDerived := isLegacyClaudeDerivedOpenAIUsage(relayInfo, usage)
+	summary.PromptTokensExcludeCache = summary.IsClaudeUsageSemantic || legacyClaudeDerived
 	isOpenRouterClaudeBilling := relayInfo.ChannelMeta != nil &&
 		relayInfo.ChannelType == constant.ChannelTypeOpenRouter &&
 		summary.IsClaudeUsageSemantic
@@ -537,7 +556,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
-		PromptTokens:     summary.PromptTokens,
+		PromptTokens:     logInputTokens(summary),
 		CompletionTokens: summary.CompletionTokens,
 		ModelName:        logModel,
 		TokenName:        summary.TokenName,
