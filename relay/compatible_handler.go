@@ -102,12 +102,14 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
-		if common.DebugEnabled {
-			if debugBytes, bErr := storage.Bytes(); bErr == nil {
-				logger.LogDebug(c, "requestBody: %s", debugBytes)
-			}
+		body, closer, overrideErr := buildPassthroughRequestBody(c, storage, info)
+		if overrideErr != nil {
+			return overrideErr
 		}
-		requestBody = common.NewReplayableBodyReader(storage)
+		if closer != nil {
+			defer closer.Close()
+		}
+		requestBody = body
 	} else {
 		convertedRequest, err := adaptor.ConvertOpenAIRequest(c, info, request)
 		if err != nil {
@@ -184,4 +186,34 @@ func TextHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types
 		service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), nil)
 	}
 	return nil
+}
+
+// buildPassthroughRequestBody builds the outbound body for the passthrough branch.
+// When the channel has param overrides configured they are applied to the raw
+// request body as well: the sjson-based merge edits JSON in place and keeps
+// unknown fields intact, so passthrough semantics (custom content blocks such as
+// video_url, provider-specific params) are preserved while the configured
+// overrides still take effect.
+func buildPassthroughRequestBody(c *gin.Context, storage common.BodyStorage, info *relaycommon.RelayInfo) (io.Reader, io.Closer, *types.NewAPIError) {
+	if len(info.ParamOverride) == 0 {
+		if common.DebugEnabled {
+			if debugBytes, bErr := storage.Bytes(); bErr == nil {
+				logger.LogDebug(c, "requestBody: %s", debugBytes)
+			}
+		}
+		return common.NewReplayableBodyReader(storage), nil, nil
+	}
+	bodyBytes, err := storage.Bytes()
+	if err != nil {
+		return nil, nil, types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+	bodyBytes, err = relaycommon.ApplyParamOverrideWithRelayInfo(bodyBytes, info)
+	if err != nil {
+		return nil, nil, newAPIErrorFromParamOverride(err)
+	}
+	body, closer, err := relaycommon.NewOutboundJSONBody(bodyBytes)
+	if err != nil {
+		return nil, nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+	}
+	return body, closer, nil
 }
