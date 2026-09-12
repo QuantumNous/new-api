@@ -314,12 +314,9 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		if !ok {
 			return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
 		}
-		converted, err := a.ConvertGeminiRequest(c, info, geminiRequest)
-		if err != nil {
-			return nil, err
+		if model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled {
+			removeFunctionCallIDs(geminiRequest)
 		}
-		geminiRequest = converted.(*dto.GeminiChatRequest)
-		info.Request = geminiRequest
 		c.Set("request_model", request.Model)
 		return geminiRequest, nil
 	} else if a.RequestMode == RequestModeOpenSource {
