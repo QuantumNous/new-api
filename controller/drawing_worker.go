@@ -144,7 +144,7 @@ func drawingRequestBody(batch *model.DrawingBatch, item *model.DrawingItem) (str
 	if err != nil {
 		return "", "", nil, err
 	}
-	prompt := item.Prompt + "\nGenerate exactly ONE standalone image for this task. Do not combine multiple requested pages into a collage."
+	prompt := item.Prompt
 	if !batch.HasReference {
 		body, err := common.Marshal(map[string]any{"model": batch.Model, "group": batch.Group, "prompt": prompt, "size": size, "n": 1, "response_format": "b64_json"})
 		return "/pg/images/generations", "application/json", bytes.NewReader(body), err
@@ -249,8 +249,6 @@ func executeDrawingItem(item *model.DrawingItem) {
 	}
 	if response.status < 200 || response.status >= 300 {
 		switch response.status {
-		case 400:
-			item.Error = "Model rejected the prompt, ratio or image parameters"
 		case 401, 403:
 			item.Error = "Model or group access denied"
 		case 402:

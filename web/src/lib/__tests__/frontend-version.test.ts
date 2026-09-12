@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, it, vi } from 'vitest'
 
-import { checkFrontendVersion } from '../frontend-version'
+import { checkFrontendVersion, frontendUpdateUrl } from '../frontend-version'
 
 function createStorage() {
   const values = new Map<string, string>()
@@ -29,6 +29,35 @@ function createStorage() {
 }
 
 describe('frontend version synchronization', () => {
+  it('bypasses an old cached entry without dropping the route or query, and stops reload loops', () => {
+    const next = frontendUpdateUrl(
+      'https://example.test/drawing?group=default#result',
+      'new'
+    )
+    expect(next).toBe(
+      'https://example.test/drawing?group=default&_app_build=new#result'
+    )
+    if (!next) throw new Error('Expected a versioned entry URL')
+    expect(frontendUpdateUrl(next, 'new')).toBeUndefined()
+    expect(frontendUpdateUrl(next, 'newer')).toContain('_app_build=newer')
+  })
+  it('updates even when browser storage is blocked', async () => {
+    const reload = vi.fn()
+    await checkFrontendVersion({
+      currentVersion: 'old',
+      fetchVersion: async () => 'new',
+      reload,
+      storage: {
+        getItem: () => {
+          throw new Error('blocked')
+        },
+        setItem: () => {
+          throw new Error('blocked')
+        },
+      },
+    })
+    expect(reload).toHaveBeenCalledWith('new')
+  })
   it('reloads once when the server runs a newer frontend build', async () => {
     const storage = createStorage()
     const reload = vi.fn()

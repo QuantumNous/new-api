@@ -92,7 +92,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		if newAPIError != nil {
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
-			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
+			message := common.ImageErrorMessage(c.Request.URL.Path, string(newAPIError.GetErrorCode()), newAPIError.Error())
+			newAPIError.SetMessage(common.MessageWithRequestId(message, requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
 				helper.WssError(c, ws, newAPIError.ToOpenAIError())
@@ -102,8 +103,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 					"error": newAPIError.ToClaudeError(),
 				})
 			default:
+				responseError := newAPIError.ToOpenAIError()
+				if common.ImageErrorMessage(c.Request.URL.Path, string(newAPIError.GetErrorCode()), responseError.Message) != responseError.Message {
+					responseError.Message = common.MessageWithRequestId(message, requestId)
+				}
 				c.JSON(newAPIError.StatusCode, gin.H{
-					"error": newAPIError.ToOpenAIError(),
+					"error": responseError,
 				})
 			}
 		}

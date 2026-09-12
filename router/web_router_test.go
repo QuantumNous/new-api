@@ -21,7 +21,7 @@ func (missingStaticTestFS) Open(string) (http.File, error) {
 func TestRecoverMissingJavaScriptChunkReloadsStaleClient(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	r.Use(recoverMissingStaticAsset(missingStaticTestFS{}))
+	r.Use(recoverMissingStaticAsset(missingStaticTestFS{}, "new-build"))
 	r.GET("/*path", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 
 	recorder := httptest.NewRecorder()
@@ -30,15 +30,17 @@ func TestRecoverMissingJavaScriptChunkReloadsStaleClient(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Contains(t, recorder.Header().Get("Content-Type"), "application/javascript")
 	require.Contains(t, recorder.Header().Get("Cache-Control"), "no-store")
-	require.Contains(t, recorder.Body.String(), "window.location.reload()")
-	require.Contains(t, recorder.Body.String(), "import.meta.url")
+	require.Contains(t, recorder.Body.String(), "window.location.replace(url.href)")
+	require.Contains(t, recorder.Body.String(), "new-build")
+	require.NotContains(t, recorder.Body.String(), "import.meta")
+	require.NotContains(t, recorder.Body.String(), "export")
 }
 
 func TestRecoverMissingStaticAssetDoesNotInterceptCurrentAsset(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	assets := existingStaticTestFS{paths: map[string]bool{"/static/js/current.js": true}}
-	r.Use(recoverMissingStaticAsset(assets))
+	r.Use(recoverMissingStaticAsset(assets, "new-build"))
 	r.GET("/*path", func(c *gin.Context) { c.String(http.StatusOK, "current") })
 
 	recorder := httptest.NewRecorder()

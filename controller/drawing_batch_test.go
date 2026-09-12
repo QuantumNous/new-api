@@ -216,6 +216,7 @@ func TestDrawingRealRelayBatchBillingAndRecovery(t *testing.T) {
 			defer r.MultipartForm.RemoveAll()
 			assert.Equal(t, "1", r.FormValue("n"))
 			assert.Equal(t, "864x1152", r.FormValue("size"))
+			assert.Equal(t, "Product", r.FormValue("prompt"), "forward the customer's prompt without appended instructions")
 			file, _, err := r.FormFile("image")
 			require.NoError(t, err)
 			data, err := io.ReadAll(file)
@@ -232,9 +233,10 @@ func TestDrawingRealRelayBatchBillingAndRecovery(t *testing.T) {
 			require.NoError(t, common.DecodeJson(r.Body, &payload))
 			assert.Equal(t, 1, payload.N)
 			assert.Equal(t, "864x1152", payload.Size)
+			assert.Contains(t, []string{"Product", "FORCE_FAILURE", "FORCE_UNKNOWN"}, payload.Prompt, "forward the exact submitted prompt")
 			if strings.Contains(payload.Prompt, "FORCE_FAILURE") {
 				w.WriteHeader(400)
-				_, _ = w.Write([]byte(`{"error":{"message":"fixture rejection","type":"invalid_request_error"}}`))
+				_, _ = w.Write([]byte(`{"error":{"message":"The image generation request was rejected by upstream safety checks.","type":"openai_error","code":"content_policy_violation"}}`))
 				return
 			}
 			if strings.Contains(payload.Prompt, "FORCE_UNKNOWN") {
@@ -329,6 +331,21 @@ func TestDrawingRealRelayBatchBillingAndRecovery(t *testing.T) {
 		expected := "succeeded"
 		if i == 4 {
 			expected = "failed"
+			assert.Equal(t, "Image generation failed; see usage log", item.Error)
+			responsePath, err := service.DrawingFile(item.ID, ".response")
+			require.NoError(t, err)
+			body, err := os.ReadFile(responsePath)
+			require.NoError(t, err)
+			var envelope struct {
+				Error struct {
+					Message string `json:"message"`
+					Code    string `json:"code"`
+				} `json:"error"`
+			}
+			require.NoError(t, common.Unmarshal(body, &envelope))
+			assert.Contains(t, envelope.Error.Message, "Image generation failed.")
+			assert.NotContains(t, envelope.Error.Message, "safety checks")
+			assert.Equal(t, "content_policy_violation", envelope.Error.Code)
 		}
 		if i == 6 {
 			expected = "unknown"

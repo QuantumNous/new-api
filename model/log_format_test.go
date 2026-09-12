@@ -8,6 +8,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestImageErrorLogsDisplayNeutralSummaryAndPreserveAdminEvidence(t *testing.T) {
+	const original = "status_code=400, upstream safety checks"
+	newLog := func() *Log {
+		return &Log{Type: LogTypeError, Content: original, Other: `{"request_path":"/pg/images/edits","error_code":"content_policy_violation","admin_info":{"use_channel":["1"]}}`}
+	}
+	admin := newLog()
+	formatImageErrorLog(admin, true)
+	require.Equal(t, "Image generation failed. Please contact support with the request ID.", admin.Content)
+	other, err := common.StrToMap(admin.Other)
+	require.NoError(t, err)
+	info := other["admin_info"].(map[string]interface{})
+	require.Equal(t, original, info["original_error"])
+	require.Contains(t, info, "use_channel")
+	user := newLog()
+	formatUserLogs([]*Log{user}, 0)
+	require.Equal(t, admin.Content, user.Content)
+	require.NotContains(t, user.Other, "original_error")
+	require.NotContains(t, user.Other, "admin_info")
+	untouched := &Log{Type: LogTypeError, Content: "invalid size", Other: `{"request_path":"/pg/images/edits","error_code":"invalid_request"}`}
+	formatImageErrorLog(untouched, true)
+	require.Equal(t, "invalid size", untouched.Content)
+}
+
 // TestFormatUserLogsStripsQuotaSaturation verifies the admin-only quota
 // saturation marker (nested under other.admin_info) is removed for non-admin
 // log views, since formatUserLogs strips the whole admin_info object.

@@ -29,12 +29,12 @@ interface VersionStorage {
 interface CheckFrontendVersionOptions {
   currentVersion: string | undefined
   fetchVersion: () => Promise<string | undefined>
-  reload: () => void
+  reload: (version: string) => void
   storage: VersionStorage
 }
 
 async function fetchServerVersion(): Promise<string | undefined> {
-  const response = await fetch('/api/status', {
+  const response = await fetch('/api/frontend-version', {
     cache: 'no-store',
     credentials: 'same-origin',
     headers: { Accept: 'application/json' },
@@ -56,13 +56,17 @@ export async function checkFrontendVersion(
   try {
     const serverVersion = await options.fetchVersion()
     if (!serverVersion || serverVersion === options.currentVersion) return
-    if (
-      options.storage.getItem(RELOADED_SERVER_VERSION_KEY) === serverVersion
-    ) {
-      return
+    try {
+      if (
+        options.storage.getItem(RELOADED_SERVER_VERSION_KEY) === serverVersion
+      ) {
+        return
+      }
+      options.storage.setItem(RELOADED_SERVER_VERSION_KEY, serverVersion)
+    } catch {
+      // The URL guard still bounds reloads when browser storage is disabled.
     }
-    options.storage.setItem(RELOADED_SERVER_VERSION_KEY, serverVersion)
-    options.reload()
+    options.reload(serverVersion)
   } catch {
     // A failed version check must not interrupt the current page.
   }
@@ -70,13 +74,36 @@ export async function checkFrontendVersion(
 
 let currentCheck: Promise<void> | undefined
 
+function currentFrontendVersion(): string | undefined {
+  return (
+    document.querySelector<HTMLMetaElement>('meta[name="frontend-version"]')
+      ?.content || getBuildVersion()
+  )
+}
+
+export function frontendUpdateUrl(
+  href: string,
+  version: string
+): string | undefined {
+  const url = new URL(href)
+  if (url.searchParams.get('_app_build') === version) return undefined
+  url.searchParams.set('_app_build', version)
+  return url.href
+}
+
 export function checkCurrentFrontendVersion(): Promise<void> {
   if (currentCheck) return currentCheck
   currentCheck = checkFrontendVersion({
-    currentVersion: getBuildVersion(),
+    currentVersion: currentFrontendVersion(),
     fetchVersion: fetchServerVersion,
-    reload: () => window.location.reload(),
-    storage: window.sessionStorage,
+    reload: (version) => {
+      const url = frontendUpdateUrl(window.location.href, version)
+      if (url) window.location.replace(url)
+    },
+    storage: {
+      getItem: (key) => window.sessionStorage.getItem(key),
+      setItem: (key, value) => window.sessionStorage.setItem(key, value),
+    },
   }).finally(() => {
     currentCheck = undefined
   })
@@ -84,7 +111,9 @@ export function checkCurrentFrontendVersion(): Promise<void> {
 }
 
 export function startFrontendVersionSync(): () => void {
-  if (typeof window === 'undefined' || !getBuildVersion()) return () => {}
+  if (typeof window === 'undefined' || !currentFrontendVersion()) {
+    return () => {}
+  }
 
   const check = () => void checkCurrentFrontendVersion()
   const checkWhenVisible = () => {

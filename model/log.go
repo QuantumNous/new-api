@@ -115,6 +115,7 @@ func assignDisplayLogIds(logs []*Log, startIdx int) {
 
 func formatUserLogs(logs []*Log, startIdx int) {
 	for i := range logs {
+		formatImageErrorLog(logs[i], false)
 		logs[i].ChannelName = ""
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
@@ -129,6 +130,32 @@ func formatUserLogs(logs []*Log, startIdx int) {
 		logs[i].Other = common.MapToJsonStr(otherMap)
 	}
 	assignDisplayLogIds(logs, startIdx)
+}
+
+func formatImageErrorLog(log *Log, admin bool) {
+	if log.Type != LogTypeError {
+		return
+	}
+	other, err := common.StrToMap(log.Other)
+	if err != nil || other == nil {
+		return
+	}
+	path, _ := other["request_path"].(string)
+	code, _ := other["error_code"].(string)
+	message := common.ImageErrorMessage(path, code, log.Content)
+	if message == log.Content {
+		return
+	}
+	if admin {
+		info, _ := other["admin_info"].(map[string]interface{})
+		if info == nil {
+			info = map[string]interface{}{}
+		}
+		info["original_error"] = log.Content
+		other["admin_info"] = info
+		log.Other = common.MapToJsonStr(other)
+	}
+	log.Content = message
 }
 
 func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
@@ -518,6 +545,7 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 
 	channelIds := types.NewSet[int]()
 	for _, log := range logs {
+		formatImageErrorLog(log, true)
 		if log.ChannelId != 0 {
 			channelIds.Add(log.ChannelId)
 		}
