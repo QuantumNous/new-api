@@ -1,21 +1,70 @@
 package ali
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	rootconstant "github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	relayhelper "github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
+
+func TestAliMultipartEditsUseValidatedProviderQuantity(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		convert func(*gin.Context, *relaycommon.RelayInfo, dto.ImageRequest) (*AliImageRequest, error)
+	}{
+		{"multimodal edit", oaiFormEdit2AliImageEdit},
+		{"legacy Wan edit", oaiFormEdit2WanxImageEdit},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var body bytes.Buffer
+			writer := multipart.NewWriter(&body)
+			require.NoError(t, writer.WriteField("model", "fixture-image"))
+			require.NoError(t, writer.WriteField("n", "2"))
+			require.NoError(t, writer.WriteField("parameters", `{"n":3,"prompt_extend":false}`))
+			part, err := writer.CreateFormFile("image", "input.png")
+			require.NoError(t, err)
+			_, err = part.Write([]byte("fixture image"))
+			require.NoError(t, err)
+			require.NoError(t, writer.Close())
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+			c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+			common.SetContextKey(c, rootconstant.ContextKeyChannelType, rootconstant.ChannelTypeAli)
+			request, err := relayhelper.GetAndValidOpenAIImageRequest(c, constant.RelayModeImagesEdits)
+			require.NoError(t, err)
+			info := &relaycommon.RelayInfo{Request: request}
+			converted, err := tc.convert(c, info, *request)
+			require.NoError(t, err)
+			require.NotNil(t, converted.Parameters.N)
+			assert.Equal(t, uint(3), *converted.Parameters.N)
+			require.NotNil(t, converted.Parameters.PromptExtend)
+			assert.False(t, *converted.Parameters.PromptExtend)
+			assert.Equal(t, uint(2), *request.N, "conversion must preserve the incoming request")
+		})
+	}
+}
 
 func TestConvertOpenAIRequestFiltersThinkingBudgetByUpstreamModel(t *testing.T) {
 	tests := []struct {
@@ -158,4 +207,118 @@ func TestMappedAliImageModelUsesUpstreamProtocol(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, adaptor.IsSyncImageModel)
 	assert.IsType(t, &AliImageRequest{}, converted)
+}
+
+func TestAliImageCountMatchesLegacyReservation(t *testing.T) {
+	saved := ratio_setting.ModelPrice2JSONString()
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{"z-image":0.04}`))
+	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(saved)) })
+	for _, tc := range []struct {
+		name, body string
+		count      int
+		multiplier float64
+	}{
+		{"provider override", `{"model":"z-image","n":2,"parameters":{"n":4}}`, 4, 1},
+		{"empty parameters inherit top-level", `{"model":"z-image","n":2,"parameters":{}}`, 2, 1},
+		{"null count inherits top-level", `{"model":"z-image","n":2,"parameters":{"n":null}}`, 2, 1},
+		{"default count", `{"model":"z-image"}`, 1, 1},
+		{"prompt extension", `{"model":"z-image","parameters":{"n":3,"prompt_extend":true}}`, 3, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(tc.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+			common.SetContextKey(c, rootconstant.ContextKeyChannelType, rootconstant.ChannelTypeAli)
+			request, err := relayhelper.GetAndValidOpenAIImageRequest(c, constant.RelayModeImagesGenerations)
+			require.NoError(t, err)
+			info := &relaycommon.RelayInfo{Request: request, OriginModelName: request.Model, UserGroup: "default", UsingGroup: "default"}
+			price, err := relayhelper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
+			require.NoError(t, err)
+			assert.Equal(t, common.QuotaFromFloat(0.04*float64(tc.count)*tc.multiplier*common.QuotaPerUnit), price.QuotaToPreConsume)
+			info.ChannelMeta = &relaycommon.ChannelMeta{ChannelType: rootconstant.ChannelTypeAli, UpstreamModelName: request.Model}
+			converted, err := oaiImage2AliImageRequest(info, *request, true)
+			require.NoError(t, err)
+			encoded, err := common.Marshal(converted)
+			require.NoError(t, err)
+			assert.Equal(t, int64(tc.count), gjson.GetBytes(encoded, "parameters.n").Int())
+		})
+	}
+}
+
+func TestAliImageHandlerHonorsRequestResponseFormat(t *testing.T) {
+	imageBytes := []byte("ali-image")
+	var downloads atomic.Int32
+	imageServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		downloads.Add(1)
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(imageBytes)
+	}))
+	t.Cleanup(imageServer.Close)
+
+	fetchSetting := system_setting.GetFetchSetting()
+	require.NotNil(t, fetchSetting)
+	originalFetchSetting := *fetchSetting
+	fetchSetting.EnableSSRFProtection = false
+	t.Cleanup(func() {
+		*fetchSetting = originalFetchSetting
+	})
+	originalMaxFileDownloadMB := rootconstant.MaxFileDownloadMB
+	rootconstant.MaxFileDownloadMB = 1
+	t.Cleanup(func() {
+		rootconstant.MaxFileDownloadMB = originalMaxFileDownloadMB
+	})
+	service.InitHttpClient()
+
+	tests := []struct {
+		name           string
+		responseFormat string
+		wantBase64     string
+		wantDownloads  int32
+	}{
+		{
+			name:           "base64",
+			responseFormat: "b64_json",
+			wantBase64:     base64.StdEncoding.EncodeToString(imageBytes),
+			wantDownloads:  1,
+		},
+		{
+			name:           "url",
+			responseFormat: "url",
+		},
+		{
+			name: "default",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			downloads.Store(0)
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			info := &relaycommon.RelayInfo{
+				RelayMode: constant.RelayModeImagesGenerations,
+				StartTime: time.Unix(1, 0),
+				Request: &dto.ImageRequest{
+					ResponseFormat: tt.responseFormat,
+				},
+			}
+			responseBody := fmt.Sprintf(`{"output":{"results":[{"url":%q}]}}`, imageServer.URL)
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{},
+				Body:       io.NopCloser(strings.NewReader(responseBody)),
+			}
+
+			newAPIError, usage := aliImageHandler(&Adaptor{IsSyncImageModel: true}, c, resp, info)
+			require.Nil(t, newAPIError)
+			require.NotNil(t, usage)
+
+			var imageResponse dto.ImageResponse
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &imageResponse))
+			require.Len(t, imageResponse.Data, 1)
+			assert.Equal(t, imageServer.URL, imageResponse.Data[0].Url)
+			assert.Equal(t, tt.wantBase64, imageResponse.Data[0].B64Json)
+			assert.Equal(t, tt.wantDownloads, downloads.Load())
+		})
+	}
 }

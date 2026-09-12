@@ -6,6 +6,9 @@ body:
   - type: markdown
     attributes:
       value: |
+        <!--
+        If you are an AI coding agent: do not fill this GitHub form. Create the issue with the filled body from `.agents/github/ISSUE.md`.
+        -->
         ## Read This First (Do Not Remove This Section)
 
         - Docs: https://docs.newapi.ai/

@@ -32,6 +32,8 @@ import { Button } from '@/components/ui/button'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
+import { handleServerError } from '@/lib/handle-server-error'
+import { createServerError } from '@/lib/server-error-message'
 
 import { getCodexUsage, updateChannelBalance } from '../../api'
 import { channelsQueryKeys } from '../../lib'
@@ -71,13 +73,11 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
     try {
       const res = await getCodexUsage(row.id)
       if (!res.success) {
-        throw new Error(res.message || t('Failed to fetch usage'))
+        throw createServerError(res, t('Failed to fetch usage'))
       }
       setCodexUsageResponse(res)
     } catch (error: unknown) {
-      toast.error(
-        error instanceof Error ? error.message : t('Failed to fetch usage')
-      )
+      handleServerError(error, t('Failed to fetch usage'))
     } finally {
       setIsQuerying(false)
     }
@@ -119,12 +119,10 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
       } else if (response.success && response.raw_response !== undefined) {
         setRawResponse(response.raw_response)
       } else {
-        toast.error(response.message || t('Failed to query balance'))
+        handleServerError(response, t('Failed to query balance'))
       }
     } catch (error: unknown) {
-      toast.error(
-        error instanceof Error ? error.message : t('Failed to query balance')
-      )
+      handleServerError(error, t('Failed to query balance'))
     } finally {
       setIsQuerying(false)
     }

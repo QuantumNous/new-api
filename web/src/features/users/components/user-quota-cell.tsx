@@ -18,81 +18,70 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
+import { QuotaDetailsPopover } from '@/components/quota-details-popover'
 import { StatusBadge } from '@/components/status-badge'
-import { Progress } from '@/components/ui/progress'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { formatQuota } from '@/lib/format'
+import { formatQuotaWithCurrency, getCurrencyDisplay } from '@/lib/currency'
 import { cn } from '@/lib/utils'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 type UserQuotaCellProps = {
-  used: number
   remaining: number
-}
-
-function getQuotaProgressColor(percentage: number): string {
-  if (percentage <= 10) return '[&_[data-slot=progress-indicator]]:bg-rose-500'
-  if (percentage <= 30) return '[&_[data-slot=progress-indicator]]:bg-amber-500'
-  return '[&_[data-slot=progress-indicator]]:bg-emerald-500'
+  used: number
 }
 
 export function UserQuotaCell(props: UserQuotaCellProps) {
   const { t } = useTranslation()
-  const total = props.used + props.remaining
-  const percentage = total > 0 ? (props.remaining / total) * 100 : 0
-  const formattedRemaining = formatQuota(props.remaining)
-  const formattedTotal = formatQuota(total)
+  useSystemConfigStore((state) => state.config.currency)
 
-  if (total === 0) {
-    return (
-      <StatusBadge
-        label={t('No Quota')}
-        variant='neutral'
-        copyable={false}
-        className='-ml-1.5'
-      />
-    )
-  }
+  const { meta: currency } = getCurrencyDisplay()
+  const quotaUnit = currency.kind === 'tokens' ? t('Tokens') : currency.symbol
+  const hasQuota = props.remaining !== 0 || props.used !== 0
+  const formattedRemaining = formatQuotaWithCurrency(props.remaining, {
+    showSymbol: false,
+  })
+  const formattedUsed = formatQuotaWithCurrency(props.used, {
+    showSymbol: false,
+  })
 
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <div className='w-full min-w-0 cursor-help space-y-1.5 overflow-hidden' />
-        }
-      >
-        <div className='grid min-w-0 grid-cols-2 gap-x-4 text-xs'>
-          <span className='min-w-0 truncate font-medium tabular-nums'>
+    <QuotaDetailsPopover
+      title={`${t('Quota')} (${quotaUnit})`}
+      triggerLabel={
+        hasQuota
+          ? `${t('Available Balance')} ${formattedRemaining}; ${t('Used amount')} ${formattedUsed}`
+          : t('No Quota')
+      }
+      details={[
+        { label: t('Available Balance'), value: formattedRemaining },
+        { label: t('Total Used'), value: formattedUsed },
+      ]}
+    >
+      {hasQuota ? (
+        <span className='grid min-w-0 grid-cols-1 gap-y-1 text-sm tabular-nums'>
+          <span
+            className={cn(
+              props.remaining < 0 && 'text-destructive',
+              props.remaining === 0 && 'text-muted-foreground'
+            )}
+          >
             {formattedRemaining}
           </span>
-          <span className='text-muted-foreground min-w-0 truncate text-right tabular-nums'>
-            {formattedTotal}
+          <span
+            data-table-text='secondary'
+            className='text-muted-foreground flex items-baseline gap-1 text-xs font-normal'
+          >
+            <span>{t('Used amount')}</span>
+            <span>{formattedUsed}</span>
           </span>
-        </div>
-        <Progress
-          value={percentage}
-          className={cn('h-1.5', getQuotaProgressColor(percentage))}
+        </span>
+      ) : (
+        <StatusBadge
+          label={t('No Quota')}
+          variant='neutral'
+          copyable={false}
+          className='-ml-1.5 font-normal'
         />
-      </TooltipTrigger>
-      <TooltipContent>
-        <div className='space-y-1 text-xs'>
-          <div>
-            {t('Used:')} {formatQuota(props.used)}
-          </div>
-          <div>
-            {t('Remaining:')} {formattedRemaining}
-          </div>
-          <div>
-            {t('Total:')} {formattedTotal}
-          </div>
-          <div>
-            {t('Percentage:')} {percentage.toFixed(1)}%
-          </div>
-        </div>
-      </TooltipContent>
-    </Tooltip>
+      )}
+    </QuotaDetailsPopover>
   )
 }

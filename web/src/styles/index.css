@@ -713,6 +713,18 @@ For commercial licensing, please contact support@quantumnous.com
   animation: auto-group-flow-border-travel 3.2s linear infinite;
 }
 
+.auto-group-flow-border-subtle {
+  padding: 1px;
+  background: conic-gradient(
+    from var(--auto-group-flow-angle),
+    transparent 0deg 300deg,
+    color-mix(in oklch, var(--primary) 30%, transparent) 318deg,
+    var(--primary) 348deg,
+    transparent 360deg
+  );
+  animation-duration: 3s;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .auto-group-flow-border {
     display: none;

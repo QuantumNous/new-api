@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 
 import { formatTimestampToDate } from '@/lib/format'
 
@@ -194,4 +194,35 @@ export function isModelEnabled(model: Model): boolean {
  */
 export function isModelSyncOfficial(model: Model): boolean {
   return model.sync_official === 1
+}
+
+// Keep table labels compact; the drawer and tooltip share the full explanation.
+export function getModelChannelState(model: Model) {
+  const available = model.bound_channels?.length ?? 0
+  const configured = model.configured_channel_count ?? available
+  if (configured === 0) {
+    if (model.name_rule !== 0) {
+      return {
+        label: 'No matching channels',
+        description: 'No configured channel models match this metadata rule.',
+      }
+    }
+    return {
+      label: 'Metadata only',
+      description:
+        'No channel is configured. This model will not appear in the model square.',
+    }
+  }
+  if (available === 0) {
+    return {
+      label: 'No available channels',
+      description:
+        'No channel is currently available. This model will not appear in the model square.',
+    }
+  }
+  return {
+    label: 'Available channels: {{count}}',
+    description:
+      'Listing also depends on metadata visibility and the user’s group access.',
+  }
 }

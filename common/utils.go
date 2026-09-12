@@ -188,7 +188,7 @@ func Seconds2Time(num int) (time string) {
 	return
 }
 
-func Interface2String(inter interface{}) string {
+func Interface2String(inter any) string {
 	switch inter.(type) {
 	case string:
 		return inter.(string)
@@ -208,7 +208,7 @@ func Interface2String(inter interface{}) string {
 	return fmt.Sprintf("%v", inter)
 }
 
-func UnescapeHTML(x string) interface{} {
+func UnescapeHTML(x string) any {
 	return template.HTML(x)
 }
 
