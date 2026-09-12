@@ -24,6 +24,11 @@ var channelsIDM map[int]*Channel                     // all channels include dis
 var channel2advancedCustomConfig map[int]*kitdto.AdvancedCustomConfig
 var channelSyncLock sync.RWMutex
 
+// InitChannelCache rebuilds the in-memory routing tables from the channels and
+// abilities tables: group -> model -> channel IDs, the channel lookup by ID and
+// the parsed Advanced Custom configs. It runs at startup and on every
+// SyncChannelCache tick; with the memory cache disabled it only refreshes the
+// derived pricing and task-alias views.
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
 		InvalidatePricingCache()
@@ -58,6 +63,13 @@ func InitChannelCache() {
 		}
 		groups := strings.SplitSeq(channel.Group, ",")
 		for group := range groups {
+			// A group may have no row in the abilities table at all (direct DB edits,
+			// a channel whose ability rows failed to be written). The inner map is
+			// only pre-created from abilities above, so guard it here or the
+			// assignment below panics and the process crashes on every sync tick.
+			if _, ok := newGroup2model2channels[group]; !ok {
+				newGroup2model2channels[group] = make(map[string][]int)
+			}
 			models := channel.GetModels()
 			for _, model := range models {
 				if _, ok := newGroup2model2channels[group][model]; !ok {
