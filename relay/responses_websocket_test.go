@@ -1,11 +1,13 @@
 package relay
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,7 +19,6 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -55,94 +56,6 @@ func TestNormalizeResponsesWSMaxOutputTokens(t *testing.T) {
 			})
 		}
 	}
-}
-
-func TestResponsesWSToolAndTerminalUsageAccounting(t *testing.T) {
-	operation_setting.SetToolPriceForTest("ws_priced_fn", 5)
-	t.Cleanup(func() { operation_setting.DeleteToolPriceForTest("ws_priced_fn") })
-	for _, tc := range []struct {
-		name       string
-		eventType  string
-		status     string
-		wantImages int
-	}{
-		{name: "completed deduplicates images", eventType: "response.completed", status: `"completed"`, wantImages: 1},
-		{name: "done deduplicates images", eventType: "response.done", wantImages: 1},
-		{name: "incomplete event clears pending images", eventType: "response.incomplete"},
-		{name: "failed response status clears pending images", eventType: "response.done", status: `"failed"`},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			state := &responsesWSCallState{
-				info: &relaycommon.RelayInfo{
-					OriginModelName: "gpt-5.1",
-					ResponsesUsageInfo: &relaycommon.ResponsesUsageInfo{BuiltInTools: map[string]*relaycommon.BuildInToolInfo{
-						dto.BuildInToolWebSearch: {ToolName: dto.BuildInToolWebSearch},
-					}},
-				},
-				usage: &dto.Usage{},
-			}
-			session := &responsesWSSession{current: state}
-			for _, event := range []string{
-				`{"type":"response.output_item.done","item":{"type":"web_search_call"}}`,
-				`{"type":"response.output_item.done","item":{"type":"file_search_call"}}`,
-				`{"type":"response.output_item.done","item":{"type":"function_call","name":"ws_priced_fn"}}`,
-				`{"type":"response.output_item.done","item":{"type":"function_call","name":"ws_unpriced_fn"}}`,
-				`{"type":"response.output_item.done","output_index":0,"item":{"id":"img_1","type":"image_generation_call","result":"image-data","status":"completed"}}`,
-			} {
-				session.observeUpstreamMessage([]byte(event))
-			}
-			response := &dto.OpenAIResponsesResponse{
-				Status: common.RawMessage(tc.status),
-				Usage:  &dto.Usage{InputTokens: 10, OutputTokens: 5, TotalTokens: 15, InputTokensDetails: &dto.InputTokenDetails{CachedTokens: 3}},
-				Output: []dto.ResponsesOutput{{ID: "img_1", Type: dto.ResponsesOutputTypeImageGenerationCall, Result: "image-data", Status: "completed"}},
-			}
-			response.Usage.BillingUsage = dto.NewOpenAIResponsesBillingUsage(response.Usage)
-			session.applyTerminalResponseUsage(state, response, tc.eventType)
-			finalizeResponsesWSUsage(state)
-			tools := state.info.ResponsesUsageInfo.BuiltInTools
-			for _, name := range []string{dto.BuildInToolWebSearch, dto.BuildInToolFileSearch, "ws_priced_fn"} {
-				require.Contains(t, tools, name)
-				assert.Equal(t, 1, tools[name].CallCount)
-			}
-			assert.NotContains(t, tools, dto.BuildInToolWebSearchPreview)
-			assert.NotContains(t, tools, "ws_unpriced_fn")
-			require.Contains(t, tools, dto.BuildInToolImageGeneration)
-			assert.Equal(t, tc.wantImages, tools[dto.BuildInToolImageGeneration].CallCount)
-			assert.Equal(t, 10, state.usage.PromptTokens)
-			assert.Equal(t, 5, state.usage.CompletionTokens)
-			assert.Equal(t, 15, state.usage.TotalTokens)
-			require.NotNil(t, state.usage.BillingUsage)
-			require.NotNil(t, state.usage.BillingUsage.OpenAIUsage)
-			require.NotNil(t, state.usage.BillingUsage.OpenAIUsage.InputTokensDetails)
-			assert.Equal(t, 3, state.usage.BillingUsage.OpenAIUsage.InputTokensDetails.CachedTokens)
-		})
-	}
-}
-
-func TestFinalizeResponsesWSUsagePreservesBillingSnapshot(t *testing.T) {
-	original := dto.NewOpenAIResponsesBillingUsage(&dto.Usage{
-		InputTokens: 10, TotalTokens: 10,
-		InputTokensDetails: &dto.InputTokenDetails{CachedTokens: 3},
-	})
-	state := &responsesWSCallState{
-		info:  &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gpt-4o"}},
-		usage: &dto.Usage{PromptTokens: 10, TotalTokens: 10, BillingUsage: original},
-	}
-	state.outputText.WriteString("hello")
-	finalizeResponsesWSUsage(state)
-	assert.Equal(t, 1, state.usage.CompletionTokens)
-	assert.Equal(t, 11, state.usage.TotalTokens)
-	require.NotNil(t, state.usage.BillingUsage)
-	assert.True(t, state.usage.BillingUsage.Estimated)
-	assert.Equal(t, dto.BillingUsageSourceOAIResponses, state.usage.BillingUsage.Source)
-	usage := state.usage.BillingUsage.OpenAIUsage
-	require.NotNil(t, usage)
-	assert.Equal(t, 1, usage.OutputTokens)
-	assert.Equal(t, 11, usage.TotalTokens)
-	require.NotNil(t, usage.InputTokensDetails)
-	assert.Equal(t, 3, usage.InputTokensDetails.CachedTokens)
-	assert.Zero(t, original.OpenAIUsage.OutputTokens)
-	assert.Equal(t, 10, original.OpenAIUsage.TotalTokens)
 }
 
 func TestSelectResponsesWSChannelHonorsPinsAndFilters(t *testing.T) {
@@ -228,8 +141,8 @@ func TestResponsesWSChannelRoutingRequiresExplicitOptIn(t *testing.T) {
 	enabled.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: false})
 	require.NoError(t, database.Model(enabled).Update("setting", enabled.Setting).Error)
 	model.InitChannelCache()
-	session := &responsesWSSession{c: c, lockedChannel: enabled, lockedModel: "ws-model"}
-	apiErr = session.handleResponseCreate(responsesWSCreateRequest{Request: dto.OpenAIResponsesRequest{Model: "ws-model"}}, "evt-next")
+	session := &responsesWSSession{lockedChannelID: enabled.Id, lockedModel: "ws-model"}
+	apiErr = session.restoreConnectionContext(c, "ws-model")
 	require.NotNil(t, apiErr)
 	assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
 	channel, apiErr = selectResponsesWSChannel(c, "ws-model", params)
@@ -406,33 +319,6 @@ func TestResponsesWSInvalidRequestErrorUsesBadRequestStatus(t *testing.T) {
 	}
 }
 
-func TestRemoveResponsesWSTransportFields(t *testing.T) {
-	payload := []byte(`{
-		"model": "gpt-5.3-codex-spark",
-		"stream": true,
-		"background": true,
-		"stream_options": {"include_usage": true},
-		"store": false
-	}`)
-
-	got, err := removeResponsesWSTransportFields(payload)
-	if err != nil {
-		t.Fatalf("removeResponsesWSTransportFields() error = %v", err)
-	}
-	var data map[string]any
-	if err := common.Unmarshal(got, &data); err != nil {
-		t.Fatalf("unmarshal result: %v", err)
-	}
-	for _, key := range []string{"stream", "background", "stream_options"} {
-		if _, ok := data[key]; ok {
-			t.Fatalf("transport field %q still present in %s", key, got)
-		}
-	}
-	if data["store"] != false {
-		t.Fatalf("store = %#v, want false", data["store"])
-	}
-}
-
 func TestToWebSocketURL(t *testing.T) {
 	tests := map[string]string{
 		"https://api.openai.com/v1/responses":             "wss://api.openai.com/v1/responses",
@@ -445,94 +331,6 @@ func TestToWebSocketURL(t *testing.T) {
 		if got := toWebSocketURL(input); got != want {
 			t.Fatalf("toWebSocketURL(%q) = %q, want %q", input, got, want)
 		}
-	}
-}
-
-func TestHandleTargetWriteFailureWithStateReleasesCurrentAndClearsTarget(t *testing.T) {
-	target, cleanup := newTestResponsesWSTarget(t)
-	defer cleanup()
-
-	var committed *bool
-	session := &responsesWSSession{target: target}
-	state := &responsesWSCallState{
-		info: &relaycommon.RelayInfo{},
-		commitRate: func(success bool) {
-			committed = &success
-		},
-	}
-	session.current = state
-
-	apiErr := session.handleTargetWriteFailureWithState(state, errors.New("write failed"))
-
-	if apiErr == nil {
-		t.Fatal("apiErr is nil")
-	}
-	if session.target != nil {
-		t.Fatal("target was not cleared")
-	}
-	if session.getCurrent() != nil {
-		t.Fatal("current response was not released")
-	}
-	if committed == nil || *committed {
-		t.Fatalf("commit success = %v, want false", committed)
-	}
-}
-
-func TestHandleControlEventWriteFailureSendsResponsesError(t *testing.T) {
-	clientConn, serverConn, cleanupClient := newTestWebSocketPair(t)
-	defer cleanupClient()
-	target, cleanupTarget := newTestResponsesWSTarget(t)
-	defer cleanupTarget()
-
-	session := &responsesWSSession{
-		client: serverConn,
-		target: target,
-	}
-	apiErr := session.handleControlEventWriteFailure(errors.New("write failed"))
-	if apiErr != nil {
-		t.Fatalf("handleControlEventWriteFailure() error = %v", apiErr)
-	}
-	if session.target != nil {
-		t.Fatal("target was not cleared")
-	}
-
-	if err := clientConn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatalf("set read deadline: %v", err)
-	}
-	_, payload, err := clientConn.ReadMessage()
-	if err != nil {
-		t.Fatalf("read responses error event: %v", err)
-	}
-	var data struct {
-		Type   string `json:"type"`
-		Status int    `json:"status"`
-	}
-	if err := common.Unmarshal(payload, &data); err != nil {
-		t.Fatalf("unmarshal result: %v", err)
-	}
-	if data.Type != "error" || data.Status == 0 {
-		t.Fatalf("unexpected error event: %s", payload)
-	}
-}
-
-func TestObserveUpstreamFailedReleasesCurrent(t *testing.T) {
-	var committed *bool
-	session := &responsesWSSession{}
-	state := &responsesWSCallState{
-		info: &relaycommon.RelayInfo{},
-		commitRate: func(success bool) {
-			committed = &success
-		},
-	}
-	session.current = state
-
-	session.observeUpstreamMessage([]byte(`{"type":"response.failed"}`))
-
-	if session.getCurrent() != nil {
-		t.Fatal("current response was not released")
-	}
-	if committed == nil || *committed {
-		t.Fatalf("commit success = %v, want false", committed)
 	}
 }
 
@@ -568,4 +366,78 @@ func newTestWebSocketPair(t *testing.T) (*websocket.Conn, *websocket.Conn, func(
 		server.Close()
 	}
 	return target, serverConn, cleanup
+}
+
+func TestResponsesWSMessageSizeLimit(t *testing.T) {
+	previous := constant.MaxRequestBodyMB
+	constant.MaxRequestBodyMB = 1
+	t.Cleanup(func() { constant.MaxRequestBodyMB = previous })
+	client, server, cleanup := newTestWebSocketPair(t)
+	defer cleanup()
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	var admitted atomic.Bool
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ResponsesWebSocketHelper(c, server, func(*http.Request, string, func(*gin.Context) *types.NewAPIError) *types.NewAPIError {
+			admitted.Store(true)
+			return nil
+		})
+	}()
+	_ = client.WriteMessage(websocket.TextMessage, []byte(strings.Repeat("x", (1<<20)+1)))
+	require.NoError(t, client.SetReadDeadline(time.Now().Add(5*time.Second)))
+	_, _, err := client.ReadMessage()
+	assert.True(t, websocket.IsCloseError(err, websocket.CloseMessageTooBig), "oversized message must be rejected before admission: %v", err)
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("websocket request did not exit after oversized message")
+	}
+	assert.False(t, admitted.Load())
+}
+
+func TestResponsesWSShutdownInterruptsBusyWriter(t *testing.T) {
+	client, server, cleanupClient := newTestWebSocketPair(t)
+	defer cleanupClient()
+	target, peer, cleanupTarget := newTestWebSocketPair(t)
+	defer cleanupTarget()
+	ctx, cancel := context.WithCancel(context.Background())
+	s := &responsesWSSession{ctx: ctx, cancel: cancel, client: server, target: target}
+	// A blocked network writer owns this lock. Closing the connection must
+	// remain possible so that writer can be interrupted.
+	s.targetWriteMu.Lock()
+	defer s.targetWriteMu.Unlock()
+	done := make(chan struct{})
+	go func() { s.shutdown(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("shutdown waited for the network writer")
+	}
+	require.NoError(t, peer.SetReadDeadline(time.Now().Add(time.Second)))
+	_, _, err := peer.ReadMessage()
+	assert.Error(t, err)
+	require.NoError(t, client.SetReadDeadline(time.Now().Add(time.Second)))
+	_, _, err = client.ReadMessage()
+	assert.Error(t, err)
+	assert.Nil(t, s.getTarget())
+}
+
+func TestResponsesWSPassthroughPreservesRawPricingParameters(t *testing.T) {
+	create, _, err := normalizeResponsesWSCreateEvent([]byte(`{"type":"response.create","generate":false,"response":{"model":"gpt-5.1","input":"hi","vendor":{"tier":"premium"},"stream":true}}`))
+	require.NoError(t, err)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(string(create.Body)))
+	c.Request.Header.Set("Content-Type", "application/json")
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, create.Request.Model)
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: true})
+	info := relaycommon.GenRelayInfoResponses(c, &create.Request)
+	payload, apiErr := buildResponsesWSCreatePayload(c, info, create.Request, create.Generate)
+	require.Nil(t, apiErr)
+	assert.JSONEq(t, `{"type":"response.create","generate":false,"model":"gpt-5.1","input":"hi","vendor":{"tier":"premium"}}`, string(payload))
+	storage, err := common.GetBodyStorage(c)
+	require.NoError(t, err)
+	require.NoError(t, storage.Close())
 }

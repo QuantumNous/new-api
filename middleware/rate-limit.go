@@ -35,7 +35,7 @@ end
 return {1, count, ttl}
 `
 
-var inMemoryRateLimiter = &common.InMemoryRateLimiter{}
+var inMemoryRateLimiter common.InMemoryRateLimiter
 
 var defNext = func(c *gin.Context) {
 	c.Next()
@@ -49,7 +49,7 @@ func redisUserRateLimitKey(mark string, userID int) string {
 	return fmt.Sprintf("%s:user:%s:%d", redisRateLimitNamespace, mark, userID)
 }
 
-func redisReplyInteger(value interface{}) (int64, error) {
+func redisReplyInteger(value any) (int64, error) {
 	switch typed := value.(type) {
 	case int64:
 		return typed, nil

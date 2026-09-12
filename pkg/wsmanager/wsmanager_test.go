@@ -2,10 +2,15 @@ package wsmanager
 
 import (
 	"context"
+	"os"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/alicebob/miniredis/v2"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -105,4 +110,79 @@ func TestPublishCloseChannelsNoopsWhenRedisDisabled(t *testing.T) {
 	}()
 
 	require.NoError(t, PublishCloseChannels(context.Background(), []int{10}, "test"), "publishing should no-op without Redis")
+}
+
+func TestRedisChannelCloseEventsStayWithinDatabase(t *testing.T) {
+	resetRegistryForTest()
+	previousEnabled, previousClient := common.RedisEnabled, common.RDB
+	t.Cleanup(func() {
+		common.RedisEnabled, common.RDB = previousEnabled, previousClient
+		resetRegistryForTest()
+	})
+	address := os.Getenv("TEST_WS_MANAGER_REDIS_ADDR")
+	if address == "" {
+		address = miniredis.RunT(t).Addr()
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
+	localPublisher := redis.NewClient(&redis.Options{Addr: address, DB: 0})
+	localSubscriber := redis.NewClient(&redis.Options{Addr: address, DB: 0})
+	otherPublisher := redis.NewClient(&redis.Options{Addr: address, DB: 1})
+	for _, client := range []*redis.Client{localPublisher, localSubscriber, otherPublisher} {
+		require.NoError(t, client.Ping(ctx).Err())
+		t.Cleanup(func() { require.NoError(t, client.Close()) })
+	}
+	if os.Getenv("TEST_WS_MANAGER_REDIS_ADDR") != "" {
+		info, err := localPublisher.Info(ctx, "server").Result()
+		require.NoError(t, err)
+		for line := range strings.SplitSeq(info, "\r\n") {
+			if strings.HasPrefix(line, "redis_version:") {
+				t.Log(line)
+			}
+		}
+	}
+	pubsub := localSubscriber.Subscribe(ctx, channelCloseTopic(localSubscriber.Options().DB))
+	t.Cleanup(func() { require.NoError(t, pubsub.Close()) })
+	_, err := pubsub.Receive(ctx)
+	require.NoError(t, err, "wait for subscription acknowledgement before publishing")
+	otherPubsub := otherPublisher.Subscribe(ctx, channelCloseTopic(otherPublisher.Options().DB))
+	t.Cleanup(func() { require.NoError(t, otherPubsub.Close()) })
+	_, err = otherPubsub.Receive(ctx)
+	require.NoError(t, err)
+
+	closed := make(chan int, 2)
+	Register(10, KindRealtime, func(string) { closed <- 10 })
+	Register(20, KindResponses, func(string) { closed <- 20 })
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		receiveChannelCloseEvents(ctx, pubsub.Channel(), "receiving-node")
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+
+	common.RedisEnabled, common.RDB = true, otherPublisher
+	require.NoError(t, PublishCloseChannels(ctx, []int{10}, "other database"))
+	otherEvent, err := otherPubsub.ReceiveMessage(ctx)
+	require.NoError(t, err)
+	var event closeEvent
+	require.NoError(t, common.Unmarshal([]byte(otherEvent.Payload), &event))
+	assert.Equal(t, []int{10}, event.ChannelIDs)
+	assert.Equal(t, "other database", event.Reason)
+	// The old global topic must not affect a namespaced receiver either.
+	require.NoError(t, localPublisher.Publish(ctx, redisChannel, otherEvent.Payload).Err())
+
+	common.RDB = localPublisher
+	require.NoError(t, PublishCloseChannels(ctx, []int{20}, "same database"))
+	select {
+	case channelID := <-closed:
+		assert.Equal(t, 20, channelID, "only the same-database broadcast may close a local connection")
+	case <-ctx.Done():
+		t.Fatal("same-database broadcast did not close its connection")
+	}
+	// Redis processes the preceding publications before this successful one,
+	// so the retained registration proves isolation without sleeps or polling.
+	assert.Equal(t, 1, CloseChannel(10, "test cleanup"))
 }

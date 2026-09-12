@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/go-redis/redis/v8"
 )
 
 const (
@@ -110,19 +111,25 @@ func CloseChannelsAndBroadcast(channelIDs []int, reason string) int {
 }
 
 func StartSubscriber(ctx context.Context) {
-	if !common.RedisEnabled || common.RDB == nil {
+	rdb := common.RDB
+	if !common.RedisEnabled || rdb == nil {
 		return
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	subscriberOnce.Do(func() {
-		go subscribe(ctx)
+		go func() {
+			pubsub := rdb.Subscribe(ctx, channelCloseTopic(rdb.Options().DB))
+			defer pubsub.Close()
+			receiveChannelCloseEvents(ctx, pubsub.Channel(), getOriginID())
+		}()
 	})
 }
 
 func PublishCloseChannels(ctx context.Context, channelIDs []int, reason string) error {
-	if !common.RedisEnabled || common.RDB == nil {
+	rdb := common.RDB
+	if !common.RedisEnabled || rdb == nil {
 		return nil
 	}
 	ids := uniqueChannelIDs(channelIDs)
@@ -137,14 +144,16 @@ func PublishCloseChannels(ctx context.Context, channelIDs []int, reason string) 
 	if err != nil {
 		return err
 	}
-	return common.RDB.Publish(ctx, redisChannel, payload).Err()
+	return rdb.Publish(ctx, channelCloseTopic(rdb.Options().DB), payload).Err()
 }
 
-func subscribe(ctx context.Context) {
-	pubsub := common.RDB.Subscribe(ctx, redisChannel)
-	defer pubsub.Close()
+func channelCloseTopic(database int) string {
+	// Redis Pub/Sub crosses logical databases, unlike the cache keys. Include
+	// the selected database so independent deployments cannot close each other.
+	return fmt.Sprintf("%s:db:%d", redisChannel, database)
+}
 
-	ch := pubsub.Channel()
+func receiveChannelCloseEvents(ctx context.Context, ch <-chan *redis.Message, origin string) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -158,7 +167,7 @@ func subscribe(ctx context.Context) {
 				common.SysLog(fmt.Sprintf("failed to unmarshal websocket close event: %v", err))
 				continue
 			}
-			if event.Origin == getOriginID() {
+			if event.Origin == origin {
 				continue
 			}
 			CloseChannels(event.ChannelIDs, event.Reason)
