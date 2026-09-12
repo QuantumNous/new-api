@@ -178,6 +178,17 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		}
 	}
 
+	// Terminal-state guard (#7059): if the upstream relay ended abnormally
+	// (connection reset, scanner error, timeout), emit an in-band relay
+	// failure chunk after the forwarded content so strict clients can
+	// distinguish a truncated stream from a successful one, then terminate
+	// with [DONE] without the normal completion envelope (a synthetic
+	// final usage chunk would make the failure look like a success).
+	if helper.EmitRelayFailureTerminal(c, info) {
+		helper.Done(c)
+		return usage, nil
+	}
+
 	if !containStreamUsage {
 		usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
 		usage.CompletionTokens += toolCount * 7
