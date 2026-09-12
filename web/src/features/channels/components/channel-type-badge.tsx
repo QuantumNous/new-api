@@ -30,6 +30,7 @@ import {
   hasPermission,
 } from '@/lib/admin-permissions'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -77,7 +78,7 @@ export function TaskPluginChannelBadge(props: { pluginKey?: string }) {
   )
   const query = useQuery({
     queryKey: ['task-plugin-options'],
-    queryFn: getTaskPluginOptions,
+    queryFn: async () => requireServerSuccess(await getTaskPluginOptions()),
     enabled: Boolean(props.pluginKey) && canBind,
     staleTime: 60 * 1000,
   })

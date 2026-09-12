@@ -143,3 +143,95 @@ describe('shared model pricing', () => {
     }
   })
 })
+
+it('tracks nested provider prices by model, preserves :: in model names, and ignores key order', () => {
+  const key = 'billing_setting.plugin_billing_expr'
+  const before = pricingOptions({
+    [key]: JSON.stringify({
+      'alpha::shared::model': 'u("seconds")',
+      'beta::shared::model': 'u("credits")',
+      'alpha::other': '1',
+    }),
+  })
+  const snapshot: ModelPricingConfig = {
+    options: before,
+    empty_version: 'empty',
+    entries: [
+      {
+        model_name: 'shared::model',
+        version: 'v1',
+        configured: { [key]: { alpha: 'u("seconds")', beta: 'u("credits")' } },
+        effective: {},
+      },
+    ],
+  }
+  const reordered = {
+    ...before,
+    [key]: JSON.stringify({
+      'alpha::other': '1',
+      'beta::shared::model': 'u("credits")',
+      'alpha::shared::model': 'u("seconds")',
+    }),
+  }
+  expect(buildPricingChanges(snapshot, before, reordered)).toEqual([])
+  const after = {
+    ...before,
+    [key]: JSON.stringify({
+      'beta::shared::model': 'u("credits") * 2',
+      'alpha::other': '1',
+    }),
+  }
+  expect(buildPricingChanges(snapshot, before, after)).toEqual([
+    {
+      model_name: 'shared::model',
+      expected_version: 'v1',
+      pricing: { [key]: { beta: 'u("credits") * 2' } },
+    },
+  ])
+  const draft = pricingRow('shared::model', snapshot.entries[0].configured)
+  expect(pricingFromDraft(draft)[key]).toEqual(
+    snapshot.entries[0].configured[key]
+  )
+  expect(
+    pricingRow('alpha::model', {
+      ModelPrice: 0.25,
+      'billing_setting.plugin_billing_expr': { beta: 'u("images")' },
+    })
+  ).toMatchObject({
+    name: 'alpha::model',
+    price: '0.25',
+    billingMode: 'per-request',
+  })
+})
+
+it('retains provider overrides during model-only price synchronization', () => {
+  const key = 'billing_setting.plugin_billing_expr'
+  const options = pricingOptions({
+    [key]: JSON.stringify({ 'alpha::example': 'u("seconds") * 2' }),
+  })
+  const after = applyPriceSyncSelections(options, {
+    example: { billing_expr: 'tier("base", u("seconds"))' },
+  })
+  expect(after[key]).toEqual(options[key])
+})
+
+it('commits source provider edits while preserving target providers during batch copy', () => {
+  const key = 'billing_setting.plugin_billing_expr'
+  const options = pricingOptions({
+    [key]: JSON.stringify({ 'alpha::source': '1', 'beta::target': '2' }),
+  })
+  const after = applyPricingDraft(
+    options,
+    {
+      name: 'source',
+      billingMode: 'tiered_expr',
+      billingExpr: 'tier("base", u("seconds"))',
+      pluginBillingExpr: { alpha: '3' },
+    },
+    ['source', 'target']
+  )
+  expect(JSON.parse(after[key])).toEqual({
+    'alpha::source': '3',
+    'beta::target': '2',
+  })
+})

@@ -40,6 +40,7 @@ import type {
 } from '@/features/system-settings/types'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
+import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 const TASK_LIMIT = 20
@@ -211,7 +212,7 @@ export function SystemTasksPanel() {
     queryFn: async () => {
       const res = await listSystemTasks(TASK_LIMIT)
       if (!res.success || !Array.isArray(res.data)) {
-        throw new Error(res.message || t('We could not load system tasks.'))
+        throw createServerError(res, t('We could not load system tasks.'))
       }
       return res.data
     },
@@ -285,13 +286,15 @@ export function SystemTasksPanel() {
       </div>
 
       <div aria-busy={tasksQuery.isFetching}>
-        {loading ? (
+        {loading && (
           <div className='space-y-2 p-4 sm:p-5'>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className='h-9 w-full rounded-md' />
-            ))}
+            <Skeleton className='h-9 w-full rounded-md' />
+            <Skeleton className='h-9 w-full rounded-md' />
+            <Skeleton className='h-9 w-full rounded-md' />
+            <Skeleton className='h-9 w-full rounded-md' />
           </div>
-        ) : tasksQuery.isError ? (
+        )}
+        {!loading && tasksQuery.isError && (
           <ErrorState
             title={t('We could not load system tasks.')}
             description={
@@ -304,7 +307,8 @@ export function SystemTasksPanel() {
             }}
             className='min-h-[260px]'
           />
-        ) : tasks.length === 0 ? (
+        )}
+        {!loading && !tasksQuery.isError && tasks.length === 0 && (
           <div className='px-4 py-10 text-center sm:px-5'>
             <div className='bg-muted mx-auto mb-3 flex size-10 items-center justify-center rounded-lg'>
               <ListChecks
@@ -316,7 +320,8 @@ export function SystemTasksPanel() {
               {t('No system tasks yet.')}
             </p>
           </div>
-        ) : (
+        )}
+        {!loading && !tasksQuery.isError && !(tasks.length === 0) && (
           <div className='space-y-4 p-4 sm:p-5'>
             <div>
               <div className='mb-2 flex items-center justify-between gap-3'>

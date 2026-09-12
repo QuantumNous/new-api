@@ -43,8 +43,20 @@ export function isBreakdownTierMatched(
   tier: BreakdownMatchTier,
   tiers: readonly BreakdownMatchTier[],
   matchedTierLabel?: string | null,
-  usageFacts?: Record<string, string | number>
+  usageFacts?: Record<string, string | number>,
+  billingUnit?: 'token' | 'request',
+  fixedPrice?: number
 ): boolean {
+  if (!('unitPrices' in tier) && billingUnit) {
+    if ((tier.billingUnit ?? 'token') !== billingUnit) return false
+    if (
+      billingUnit === 'request' &&
+      fixedPrice !== undefined &&
+      tier.fixedPrice !== fixedPrice
+    ) {
+      return false
+    }
+  }
   const normalizedMatchedTierLabel = normalizeTierLabel(
     matchedTierLabel ?? undefined
   )

@@ -542,11 +542,8 @@ func routePatternsIntersect(leftPath, rightPath string) bool {
 func routesGinCompatible(leftPath, rightPath string) bool {
 	left := parseRoutePattern(leftPath)
 	right := parseRoutePattern(rightPath)
-	limit := len(left)
-	if len(right) < limit {
-		limit = len(right)
-	}
-	for index := 0; index < limit; index++ {
+	limit := min(len(right), len(left))
+	for index := range limit {
 		leftSegment := left[index]
 		rightSegment := right[index]
 		if !leftSegment.dynamic && !rightSegment.dynamic {

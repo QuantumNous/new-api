@@ -55,12 +55,16 @@ export function DataTableBulkActions<TData>({
   const selectedIds = selectedRows.reduce<number[]>((ids, row) => {
     const id = (row.original as Model).id
 
-    if (typeof id === 'number') {
+    if (typeof id === 'number' && id > 0) {
       ids.push(id)
     }
 
     return ids
   }, [])
+
+  const hasMissingMetadata = selectedRows.some(
+    (row) => !(row.original as Model).id
+  )
 
   const selectedModels = selectedRows.map((row) => row.original as Model)
 
@@ -96,11 +100,36 @@ export function DataTableBulkActions<TData>({
         />
       )}
       <BulkActionsToolbar table={table} entityName='model'>
+        {hasMissingMetadata && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span
+                  tabIndex={0}
+                  aria-description={t(
+                    'Add metadata to all selected models first.'
+                  )}
+                  className='text-muted-foreground max-w-28 truncate text-xs'
+                />
+              }
+            >
+              {t('Missing metadata')}
+            </TooltipTrigger>
+            <TooltipContent>
+              {t('Add metadata to all selected models first.')}
+            </TooltipContent>
+          </Tooltip>
+        )}
         <Button
           variant='outline'
           size='icon'
           className='size-8'
-          title={t('Change vendor')}
+          disabled={hasMissingMetadata}
+          title={t(
+            hasMissingMetadata
+              ? 'Add metadata to all selected models first.'
+              : 'Change vendor'
+          )}
           aria-label={t('Change vendor')}
           onClick={() =>
             setVendorOperation({ action: 'assign', model_ids: selectedIds })
@@ -112,7 +141,12 @@ export function DataTableBulkActions<TData>({
           variant='outline'
           size='icon'
           className='size-8'
-          title={t('Clear vendor')}
+          disabled={hasMissingMetadata}
+          title={t(
+            hasMissingMetadata
+              ? 'Add metadata to all selected models first.'
+              : 'Clear vendor'
+          )}
           aria-label={t('Clear vendor')}
           onClick={() =>
             setVendorOperation({
@@ -130,6 +164,7 @@ export function DataTableBulkActions<TData>({
               <Button
                 variant='outline'
                 size='icon'
+                disabled={hasMissingMetadata}
                 onClick={handleEnableAll}
                 className='size-8'
                 aria-label={t('Show selected models in model square')}
@@ -143,7 +178,13 @@ export function DataTableBulkActions<TData>({
             </span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('Show selected models in model square')}</p>
+            <p>
+              {t(
+                hasMissingMetadata
+                  ? 'Add metadata to all selected models first.'
+                  : 'Show selected models in model square'
+              )}
+            </p>
           </TooltipContent>
         </Tooltip>
 
@@ -153,6 +194,7 @@ export function DataTableBulkActions<TData>({
               <Button
                 variant='outline'
                 size='icon'
+                disabled={hasMissingMetadata}
                 onClick={handleDisableAll}
                 className='size-8'
                 aria-label={t('Hide selected models from model square')}
@@ -166,7 +208,13 @@ export function DataTableBulkActions<TData>({
             </span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('Hide selected models from model square')}</p>
+            <p>
+              {t(
+                hasMissingMetadata
+                  ? 'Add metadata to all selected models first.'
+                  : 'Hide selected models from model square'
+              )}
+            </p>
           </TooltipContent>
         </Tooltip>
 
@@ -197,6 +245,7 @@ export function DataTableBulkActions<TData>({
               <Button
                 variant='destructive'
                 size='icon'
+                disabled={hasMissingMetadata}
                 onClick={() => setShowDeleteConfirm(true)}
                 className='size-8'
                 aria-label={t('Delete selected models')}
@@ -208,7 +257,13 @@ export function DataTableBulkActions<TData>({
             <span className='sr-only'>{t('Delete selected models')}</span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>{t('Delete selected models')}</p>
+            <p>
+              {t(
+                hasMissingMetadata
+                  ? 'Add metadata to all selected models first.'
+                  : 'Delete selected models'
+              )}
+            </p>
           </TooltipContent>
         </Tooltip>
       </BulkActionsToolbar>

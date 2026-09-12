@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/go-redis/redis/v8"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/pquerna/otp/totp"
@@ -142,11 +143,9 @@ func TestIncrementFailedAttemptsCountsConcurrentFailures(t *testing.T) {
 	errs := make(chan error, attempts)
 	var wg sync.WaitGroup
 	for range attempts {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			errs <- (&TwoFA{Id: twoFA.Id}).IncrementFailedAttempts()
-		}()
+		})
 	}
 	wg.Wait()
 	close(errs)
@@ -175,13 +174,11 @@ func TestValidateBackupCodeCanOnlySucceedOnce(t *testing.T) {
 	errs := make(chan error, attempts)
 	var wg sync.WaitGroup
 	for range attempts {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			valid, err := ValidateBackupCode(123, code)
 			results <- valid
 			errs <- err
-		}()
+		})
 	}
 	wg.Wait()
 	close(results)
@@ -264,6 +261,22 @@ func TestSecurityFactorMutationsAdvanceUserAuthVersion(t *testing.T) {
 
 func TestUpdatePasskeyAssertionStateCannotRewriteRegistrationIdentity(t *testing.T) {
 	truncateTables(t)
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	previousSettings := *system_setting.GetPasskeySettings()
+	domainKeys := map[string]any{"key": []string{"ServerAddress", "passkey.rp_id", "passkey.legacy_rp_ids", "passkey.origins"}}
+	var previousOptions []Option
+	require.NoError(t, DB.Where(domainKeys).Find(&previousOptions).Error)
+	t.Cleanup(func() {
+		*system_setting.GetPasskeySettings() = previousSettings
+		require.NoError(t, DB.Where(domainKeys).Delete(&Option{}).Error)
+		if len(previousOptions) > 0 {
+			require.NoError(t, DB.Create(&previousOptions).Error)
+		}
+	})
+	*system_setting.GetPasskeySettings() = system_setting.PasskeySettings{RPID: "example.com", Origins: "https://example.com"}
+	for _, option := range []Option{{Key: "passkey.rp_id", Value: "example.com"}, {Key: "passkey.legacy_rp_ids", Value: ""}, {Key: "passkey.origins", Value: "https://example.com"}} {
+		require.NoError(t, DB.Save(&option).Error)
+	}
 
 	user := User{Username: "passkey-assertion-state", Password: "password", AuthVersion: 1}
 	require.NoError(t, DB.Create(&user).Error)
@@ -296,7 +309,7 @@ func TestUpdatePasskeyAssertionStateCannotRewriteRegistrationIdentity(t *testing
 			CloneWarning: true,
 		},
 	}
-	require.NoError(t, UpdatePasskeyAssertionState(user.Id, validated, usedAt))
+	require.NoError(t, UpdatePasskeyAssertionState(user.Id, validated, usedAt, "example.com"))
 
 	var updated PasskeyCredential
 	require.NoError(t, DB.First(&updated, stored.ID).Error)
@@ -316,7 +329,7 @@ func TestUpdatePasskeyAssertionStateCannotRewriteRegistrationIdentity(t *testing
 	assert.Equal(t, usedAt.Unix(), updated.LastUsedAt.Unix())
 
 	validated.ID = []byte("another-credential")
-	assert.ErrorIs(t, UpdatePasskeyAssertionState(user.Id, validated, usedAt), ErrPasskeyNotFound)
+	assert.ErrorIs(t, UpdatePasskeyAssertionState(user.Id, validated, usedAt, "example.com"), ErrPasskeyNotFound)
 }
 
 func assertUserAuthVersion(t *testing.T, userID int, expected int64) {

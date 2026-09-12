@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import i18next from 'i18next'
 import { afterEach, beforeAll, describe, expect, test } from 'vitest'
 
@@ -64,7 +64,7 @@ function makeLog(other: LogOtherData): UsageLog {
   }
 }
 
-function renderDetails(other: LogOtherData): QueryClient {
+function renderDetails(other: LogOtherData, promptTokens = 0): QueryClient {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -79,7 +79,7 @@ function renderDetails(other: LogOtherData): QueryClient {
   render(
     <QueryClientProvider client={queryClient}>
       <DetailsDialog
-        log={makeLog(other)}
+        log={{ ...makeLog(other), prompt_tokens: promptTokens }}
         isAdmin={false}
         isRoot={false}
         open
@@ -95,7 +95,60 @@ function rowValue(label: string): string | null {
 }
 
 describe('usage facts billing details', () => {
+  test('shows the settled image count and a per-image price', () => {
+    const queryClient = renderDetails({
+      billing_mode: 'tiered_expr',
+      expr_b64: btoa('tier("image", fixed(0.04)) * image_count'),
+      billing_unit: 'request',
+      fixed_price: 0.04,
+      image_count: 2,
+      matched_tier: 'image',
+    })
+    expect(
+      screen.getByText('Billable image count').parentElement
+    ).toHaveTextContent('2')
+    expect(screen.getAllByText(/\/image/).length).toBeGreaterThan(0)
+    queryClient.clear()
+  })
   const queryClients: QueryClient[] = []
+
+  test('shows actual billable image and cache tokens while retaining the aggregate cache count', () => {
+    queryClients.push(
+      renderDetails(
+        {
+          billing_mode: 'tiered_expr',
+          expr_b64: btoa(
+            'tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)'
+          ),
+          matched_tier: 'standard',
+          cache_tokens: 300,
+          image_cache_tokens: 200,
+          billing_tokens: { p: 300, cr: 100, img: 400, img_cr: 200, c: 100 },
+        },
+        1000
+      )
+    )
+    const billable = within(
+      screen.getByRole('group', { name: 'Billable token breakdown' })
+    )
+    expect(
+      billable.getByText('Image Cache').nextElementSibling
+    ).toHaveTextContent('200')
+    expect(
+      billable.getByText('Cache Read').nextElementSibling
+    ).toHaveTextContent('100')
+    expect(billable.getByText('Image In').nextElementSibling).toHaveTextContent(
+      '400'
+    )
+    expect(
+      screen.getByText('Input Tokens').nextElementSibling
+    ).toHaveTextContent('1,000')
+    expect(
+      screen
+        .getAllByText('Cache Read')
+        .some((label) => label.nextElementSibling?.textContent === '300')
+    ).toBe(true)
+  })
 
   beforeAll(() => {
     i18next.addResourceBundle('en', 'translation', i18nKeys)

@@ -69,6 +69,79 @@ function renderModelActions(currentModel: Model = model, role = 100) {
 }
 
 describe('model pricing entry', () => {
+  it('saves pricing and opens connections for a channel model without creating metadata', async () => {
+    const channelModel = { ...model, id: 0, model_name: 'channel-only' }
+    let storedPrice = 1.5
+    const get = vi.spyOn(api, 'get').mockImplementation(async (url) => {
+      if (url === '/api/option/model_pricing') {
+        return {
+          data: {
+            success: true,
+            data: {
+              entries: [
+                {
+                  model_name: 'channel-only',
+                  version: 'v1',
+                  configured: { ModelPrice: storedPrice },
+                  effective: { ModelPrice: storedPrice },
+                },
+              ],
+              options: pricingOptions({}),
+              empty_version: 'empty',
+            },
+          },
+        }
+      }
+      return { data: { success: true, data: { items: [] } } }
+    })
+    const post = vi.spyOn(api, 'post')
+    const put = vi.spyOn(api, 'put')
+    const patch = vi.spyOn(api, 'patch').mockImplementation(async () => {
+      storedPrice = 0
+      return { data: { success: true } }
+    })
+    const client = renderModelActions(channelModel)
+    const user = userEvent.setup()
+    expect(screen.getByRole('button', { name: 'Add metadata' })).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Open menu' })
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Pricing' }))
+    expect(screen.getByRole('tab', { name: 'Pricing' })).not.toHaveAttribute(
+      'aria-disabled',
+      'true'
+    )
+    expect(
+      await screen.findByRole('button', { name: 'Save model prices' })
+    ).toBeVisible()
+    const price = await screen.findByPlaceholderText('0.01')
+    await user.clear(price)
+    await user.type(price, '0')
+    await user.click(screen.getByRole('button', { name: 'Save model prices' }))
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith('/api/option/model_pricing', {
+        changes: [
+          {
+            model_name: 'channel-only',
+            expected_version: 'v1',
+            pricing: { ModelPrice: 0, 'billing_setting.billing_mode': 'ratio' },
+            reset: false,
+          },
+        ],
+      })
+    )
+    expect(put).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('tab', { name: 'Channels and groups' }))
+    expect(
+      screen.getByText(
+        'Channel availability and group access are derived from enabled channels. Importing metadata does not create a callable channel.'
+      )
+    ).toBeVisible()
+    expect(get).not.toHaveBeenCalledWith('/api/models/0')
+    expect(post).not.toHaveBeenCalled()
+    client.clear()
+  })
+
   it('opens pricing directly, keeps it selected after metadata loads, and reopens Edit on metadata', async () => {
     let resolveDetail!: (value: Awaited<ReturnType<typeof api.get>>) => void
     const detail = new Promise<Awaited<ReturnType<typeof api.get>>>(

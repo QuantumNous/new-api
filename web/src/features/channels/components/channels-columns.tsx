@@ -53,6 +53,8 @@ import {
   getCurrencyLabel,
 } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
+import { handleServerError } from '@/lib/handle-server-error'
+import { createServerError } from '@/lib/server-error-message'
 import { truncateText } from '@/lib/utils'
 
 import { getCodexUsage, updateChannelBalance } from '../api'
@@ -437,14 +439,12 @@ export function BalanceCell({ channel }: { channel: Channel }) {
       try {
         const res = await getCodexUsage(channel.id)
         if (!res.success) {
-          throw new Error(res.message || t('Failed to fetch usage'))
+          throw createServerError(res, t('Failed to fetch usage'))
         }
         setCodexUsageResponse(res)
         setCodexUsageOpen(true)
       } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : t('Failed to fetch usage')
-        )
+        handleServerError(error, t('Failed to fetch usage'))
       } finally {
         setIsUpdating(false)
       }
@@ -470,12 +470,10 @@ export function BalanceCell({ channel }: { channel: Channel }) {
         setCurrentRow(channel)
         setRawBalanceResponse(response.raw_response)
       } else {
-        toast.error(response.message || t('Failed to update balance'))
+        handleServerError(response, t('Failed to update balance'))
       }
     } catch (error: unknown) {
-      toast.error(
-        error instanceof Error ? error.message : t('Failed to update balance')
-      )
+      handleServerError(error, t('Failed to update balance'))
     } finally {
       setIsUpdating(false)
     }
@@ -556,15 +554,11 @@ export function BalanceCell({ channel }: { channel: Channel }) {
           try {
             const res = await getCodexUsage(channel.id)
             if (!res.success) {
-              throw new Error(res.message || t('Failed to fetch usage'))
+              throw createServerError(res, t('Failed to fetch usage'))
             }
             setCodexUsageResponse(res)
           } catch (error) {
-            toast.error(
-              error instanceof Error
-                ? error.message
-                : t('Failed to fetch usage')
-            )
+            handleServerError(error, t('Failed to fetch usage'))
           } finally {
             setIsUpdating(false)
           }

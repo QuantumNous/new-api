@@ -1,12 +1,12 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -23,7 +23,6 @@ import (
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/alicebob/miniredis/v2"
-	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/websocket"
@@ -259,12 +258,45 @@ func TestResponsesWSRequestRunnerSharesRedisSuccessLimitWithHTTP(t *testing.T) {
 }
 
 type responsesWSBillingTest struct {
-	user         *model.User
-	token        *model.Token
-	client       *websocket.Conn
-	done         chan struct{}
-	upstreamDone chan struct{}
-	connections  atomic.Int32
+	user             *model.User
+	token            *model.Token
+	client           *websocket.Conn
+	done             chan struct{}
+	upstreamDone     chan struct{}
+	connections      atomic.Int32
+	metricsDone      chan struct{}
+	completedMetrics int64
+}
+
+type responsesWSMetricsHook struct {
+	done chan<- struct{}
+}
+
+func (responsesWSMetricsHook) BeforeProcess(ctx context.Context, _ redis.Cmder) (context.Context, error) {
+	return ctx, nil
+}
+
+func (responsesWSMetricsHook) AfterProcess(context.Context, redis.Cmder) error {
+	return nil
+}
+
+func (responsesWSMetricsHook) BeforeProcessPipeline(ctx context.Context, _ []redis.Cmder) (context.Context, error) {
+	return ctx, nil
+}
+
+func (hook responsesWSMetricsHook) AfterProcessPipeline(_ context.Context, commands []redis.Cmder) error {
+	for _, command := range commands {
+		args := command.Args()
+		if command.Name() != "hincrby" || len(args) < 3 {
+			continue
+		}
+		key, _ := args[1].(string)
+		if strings.HasPrefix(key, "perf:ws-billing:") && args[2] == "req" {
+			hook.done <- struct{}{}
+			break
+		}
+	}
+	return nil
 }
 
 func (fixture *responsesWSBillingTest) closeAndWait(t *testing.T) {
@@ -282,18 +314,20 @@ func (fixture *responsesWSBillingTest) closeAndWait(t *testing.T) {
 			t.Error("upstream connection was not closed")
 		}
 	}
-	// PostTextConsumeQuota submits metrics after settlement. Once the handler
-	// has exited there are no more submissions; CtxGo increments WorkerCount
-	// synchronously before starting a worker, which decrements only on exit.
+	// Each consume log submits one metrics sample. Its Redis pipeline is the
+	// last operation after reading shared settings, so waiting for this
+	// fixture's pipeline notifications avoids unrelated global pool workers.
+	var expectedMetrics int64
+	require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("type = ? AND token_id = ?", model.LogTypeConsume, fixture.token.Id).Count(&expectedMetrics).Error)
 	deadline := time.NewTimer(3 * time.Second)
 	defer deadline.Stop()
-	for gopool.WorkerCount() != 0 {
+	for fixture.completedMetrics < expectedMetrics {
 		select {
+		case <-fixture.metricsDone:
+			fixture.completedMetrics++
 		case <-deadline.C:
-			t.Error("background billing work did not finish before fixture cleanup")
+			t.Error("request metrics did not finish before fixture cleanup")
 			return
-		default:
-			runtime.Gosched()
 		}
 	}
 }
@@ -304,7 +338,13 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 	previousBatch, previousLogs, previousCount, previousQuota := common.BatchUpdateEnabled, common.LogConsumeEnabled, constant.CountToken, common.QuotaPerUnit
 	common.BatchUpdateEnabled, common.LogConsumeEnabled, constant.CountToken, common.QuotaPerUnit = false, true, false, 500000
 	saved := map[string]string{}
-	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error { saved[key] = value; return nil }))
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		switch key {
+		case "billing_setting.billing_mode", "billing_setting.billing_expr", "group_ratio_setting.group_ratio", "perf_metrics_setting.enabled":
+			saved[key] = value
+		}
+		return nil
+	}))
 	t.Cleanup(func() {
 		common.BatchUpdateEnabled, common.LogConsumeEnabled, constant.CountToken, common.QuotaPerUnit = previousBatch, previousLogs, previousCount, previousQuota
 		require.NoError(t, config.GlobalConfig.LoadFromDB(saved))
@@ -315,12 +355,18 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 		"billing_setting.billing_mode":    `{"ws-billing":"tiered_expr"}`,
 		"billing_setting.billing_expr":    string(expressions),
 		"group_ratio_setting.group_ratio": `{"default":1}`,
+		"perf_metrics_setting.enabled":    "true",
 	}))
 	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.Log{}))
 	require.NoError(t, model.DB.Model(user).Updates(map[string]any{"quota": 100000, "setting": `{"billing_preference":"wallet_only"}`}).Error)
 	require.NoError(t, model.DB.Model(token).Update("remain_quota", 3000).Error)
 
-	fixture := &responsesWSBillingTest{user: user, token: token, done: make(chan struct{}), upstreamDone: make(chan struct{})}
+	fixture := &responsesWSBillingTest{user: user, token: token, done: make(chan struct{}), upstreamDone: make(chan struct{}), metricsDone: make(chan struct{}, 4)}
+	redisServer := miniredis.RunT(t)
+	redisClient := redis.NewClient(&redis.Options{Addr: redisServer.Addr()})
+	redisClient.AddHook(responsesWSMetricsHook{done: fixture.metricsDone})
+	common.RDB, common.RedisEnabled = redisClient, true
+	t.Cleanup(func() { require.NoError(t, redisClient.Close()) })
 	var upstreamClosed sync.Once
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ws, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)

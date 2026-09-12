@@ -1322,14 +1322,14 @@ func deleteEmptyStrings(value map[string]any) {
 	}
 }
 
-func functionParametersMap(parameters any) (map[string]interface{}, error) {
+func functionParametersMap(parameters any) (map[string]any, error) {
 	if parameters == nil {
-		return map[string]interface{}{
+		return map[string]any{
 			"type":       "object",
-			"properties": map[string]interface{}{},
+			"properties": map[string]any{},
 		}, nil
 	}
-	converted, err := kitutil.Any2Type[map[string]interface{}](parameters)
+	converted, err := kitutil.Any2Type[map[string]any](parameters)
 	if err != nil {
 		return nil, err
 	}
@@ -1337,7 +1337,7 @@ func functionParametersMap(parameters any) (map[string]interface{}, error) {
 		converted["type"] = "object"
 	}
 	if converted["properties"] == nil {
-		converted["properties"] = map[string]interface{}{}
+		converted["properties"] = map[string]any{}
 	}
 	return converted, nil
 }

@@ -18,7 +18,7 @@ type ChannelAffinityRule struct {
 	ValueRegex string `json:"value_regex"`
 	TTLSeconds int    `json:"ttl_seconds"`
 
-	ParamOverrideTemplate map[string]interface{} `json:"param_override_template,omitempty"`
+	ParamOverrideTemplate map[string]any `json:"param_override_template,omitempty"`
 
 	SkipRetryOnFailure bool `json:"skip_retry_on_failure"`
 
@@ -81,11 +81,11 @@ var claudeCliPassThroughHeaders = []string{
 	"Anthropic-Version",
 }
 
-func buildPassHeaderTemplate(headers []string) map[string]interface{} {
+func buildPassHeaderTemplate(headers []string) map[string]any {
 	clonedHeaders := make([]string, 0, len(headers))
 	clonedHeaders = append(clonedHeaders, headers...)
-	return map[string]interface{}{
-		"operations": []map[string]interface{}{
+	return map[string]any{
+		"operations": []map[string]any{
 			{
 				"mode":        "pass_headers",
 				"value":       clonedHeaders,
@@ -95,11 +95,11 @@ func buildPassHeaderTemplate(headers []string) map[string]interface{} {
 	}
 }
 
-func buildCodexPassHeaderTemplate() map[string]interface{} {
+func buildCodexPassHeaderTemplate() map[string]any {
 	requestHeaders := make([]string, 0, len(codexCliPassThroughHeaders))
 	requestHeaders = append(requestHeaders, codexCliPassThroughHeaders...)
-	return map[string]interface{}{
-		"operations": []map[string]interface{}{
+	return map[string]any{
+		"operations": []map[string]any{
 			{
 				"mode":        "pass_headers",
 				"value":       requestHeaders,

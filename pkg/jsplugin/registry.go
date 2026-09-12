@@ -40,6 +40,11 @@ var pluginKeyPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
 var pluginVersionPattern = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
 var localeTagPattern = regexp.MustCompile(`^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$`)
 
+// ValidPluginKey checks the canonical identifier accepted by plugin manifests.
+func ValidPluginKey(key string) bool {
+	return len(key) <= 30 && pluginKeyPattern.MatchString(key)
+}
+
 // LocalizedText is locale-keyed display copy. Plugin source may use a bare
 // string (normalized to {"en": s}) or a map that must include "en". API
 // responses always emit an object.
@@ -79,25 +84,50 @@ func (t *LocalizedText) UnmarshalJSON(data []byte) error {
 }
 
 type Meta struct {
-	SortPriority  int                         `json:"sortPriority,omitempty"`
-	Website       string                      `json:"website,omitempty"`
-	APIVersion    int                         `json:"apiVersion"`
-	Key           string                      `json:"key"`
-	Name          string                      `json:"name"`
-	Icon          string                      `json:"icon,omitempty"`
-	Description   LocalizedText               `json:"description,omitempty"`
-	Version       string                      `json:"version"`
-	Author        AuthorMeta                  `json:"author"`
-	BaseURL       string                      `json:"baseUrl,omitempty"`
-	ChannelTypes  []int                       `json:"channelTypes,omitempty"`
-	Models        []string                    `json:"models"`
-	FetchMode     string                      `json:"fetchMode"`
-	AllowedHosts  []string                    `json:"allowedHosts"`
-	Routes        []Route                     `json:"routes"`
-	Protocols     []ProtocolClaim             `json:"protocols"`
-	UsageSchema   map[string]UsageFieldSchema `json:"usageSchema,omitempty"`
-	UsageExamples []UsageExample              `json:"usageExamples,omitempty"`
-	Auth          AuthMeta                    `json:"auth"`
+	RequiredCapabilities []string                    `json:"requiredCapabilities,omitempty"`
+	SubmitResponseTypes  []string                    `json:"submitResponseTypes,omitempty"`
+	SortPriority         int                         `json:"sortPriority,omitempty"`
+	Website              string                      `json:"website,omitempty"`
+	APIVersion           int                         `json:"apiVersion"`
+	Key                  string                      `json:"key"`
+	Name                 string                      `json:"name"`
+	Icon                 string                      `json:"icon,omitempty"`
+	Description          LocalizedText               `json:"description,omitempty"`
+	Version              string                      `json:"version"`
+	Author               AuthorMeta                  `json:"author"`
+	BaseURL              string                      `json:"baseUrl,omitempty"`
+	ChannelTypes         []int                       `json:"channelTypes,omitempty"`
+	Models               []string                    `json:"models"`
+	FetchMode            string                      `json:"fetchMode"`
+	AllowedHosts         []string                    `json:"allowedHosts"`
+	Routes               []Route                     `json:"routes"`
+	Protocols            []ProtocolClaim             `json:"protocols"`
+	UsageSchema          map[string]UsageFieldSchema `json:"usageSchema,omitempty"`
+	UsageExamples        []UsageExample              `json:"usageExamples,omitempty"`
+	UsageProfiles        []UsageProfile              `json:"usageProfiles,omitempty"`
+	Auth                 AuthMeta                    `json:"auth"`
+}
+
+// UsageProfile replaces the plugin's default usage metadata for its models.
+type UsageProfile struct {
+	Models   []string                    `json:"models"`
+	Schema   map[string]UsageFieldSchema `json:"schema"`
+	Examples []UsageExample              `json:"examples,omitempty"`
+}
+
+// UsageForModel returns read-only usage metadata for a declared model. Aliases
+// must be resolved by the host first; an unknown or ambiguous model uses the
+// plugin defaults. Profile examples never inherit the default examples.
+func (m Meta) UsageForModel(model string) (map[string]UsageFieldSchema, []UsageExample) {
+	folded := asciiFold(model)
+	for _, profile := range m.UsageProfiles {
+		for _, declared := range profile.Models {
+			if asciiFold(declared) == folded {
+				return profile.Schema, profile.Examples
+			}
+		}
+	}
+	return m.UsageSchema, m.UsageExamples
 }
 
 // ProtocolSupports reports whether the named protocol claim includes mode.
@@ -132,6 +162,7 @@ type AuthMeta struct {
 type UsageFieldSchema struct {
 	Type        string                   `json:"type,omitempty"`
 	Unit        string                   `json:"unit,omitempty"`
+	UnitLabel   LocalizedText            `json:"unitLabel,omitempty"`
 	Enum        []string                 `json:"enum,omitempty"`
 	Description LocalizedText            `json:"description,omitempty"`
 	EnumLabels  map[string]LocalizedText `json:"enumLabels,omitempty"`
@@ -264,6 +295,13 @@ func CompilePlugin(source string, options Options) (*LoadedPlugin, error) {
 	engine.key = meta.Key
 	engine.version = meta.Version
 	requiredHooks := []string{"buildSubmitRequest", "parseSubmitResponse", "parseTaskResult"}
+	if slices.Contains(meta.SubmitResponseTypes, "sse") {
+		if slices.Contains(meta.RequiredCapabilities, CapabilitySubmitSSEDelta) {
+			requiredHooks = append(requiredHooks, "parseSubmitEventDelta")
+		} else {
+			requiredHooks = append(requiredHooks, "parseSubmitEvent")
+		}
+	}
 	if meta.FetchMode == "batch" {
 		requiredHooks = append(requiredHooks, "buildBatchQueryRequest", "parseBatchResult")
 	} else {
@@ -791,6 +829,8 @@ func (r *Registry) Snapshot() RegistrySnapshot {
 }
 
 func cloneMeta(meta Meta) Meta {
+	meta.SubmitResponseTypes = slices.Clone(meta.SubmitResponseTypes)
+	meta.RequiredCapabilities = slices.Clone(meta.RequiredCapabilities)
 	meta.ChannelTypes = append([]int(nil), meta.ChannelTypes...)
 	meta.Models = append([]string(nil), meta.Models...)
 	meta.AllowedHosts = append([]string(nil), meta.AllowedHosts...)
@@ -806,31 +846,46 @@ func cloneMeta(meta Meta) Meta {
 	if meta.Description != nil {
 		meta.Description = maps.Clone(meta.Description)
 	}
-	if meta.UsageSchema != nil {
-		usageSchema := make(map[string]UsageFieldSchema, len(meta.UsageSchema))
-		for key, field := range meta.UsageSchema {
-			if field.Enum != nil {
-				field.Enum = append([]string{}, field.Enum...)
-			}
-			if field.Description != nil {
-				field.Description = maps.Clone(field.Description)
-			}
-			if field.EnumLabels != nil {
-				labels := make(map[string]LocalizedText, len(field.EnumLabels))
-				for value, label := range field.EnumLabels {
-					labels[value] = maps.Clone(label)
-				}
-				field.EnumLabels = labels
-			}
-			usageSchema[key] = field
-		}
-		meta.UsageSchema = usageSchema
+	meta.UsageSchema = CloneUsageSchema(meta.UsageSchema)
+	meta.UsageExamples = CloneUsageExamples(meta.UsageExamples)
+	meta.UsageProfiles = append([]UsageProfile(nil), meta.UsageProfiles...)
+	for index := range meta.UsageProfiles {
+		profile := &meta.UsageProfiles[index]
+		profile.Models = append([]string(nil), profile.Models...)
+		profile.Schema = CloneUsageSchema(profile.Schema)
+		profile.Examples = CloneUsageExamples(profile.Examples)
 	}
-	meta.UsageExamples = cloneUsageExamples(meta.UsageExamples)
 	return meta
 }
 
-func cloneUsageExamples(examples []UsageExample) []UsageExample {
+// CloneUsageSchema copies schema fields and localized metadata for independent readers.
+func CloneUsageSchema(schema map[string]UsageFieldSchema) map[string]UsageFieldSchema {
+	if schema == nil {
+		return nil
+	}
+	cloned := make(map[string]UsageFieldSchema, len(schema))
+	for key, field := range schema {
+		if field.Enum != nil {
+			field.Enum = append([]string{}, field.Enum...)
+		}
+		if field.Description != nil {
+			field.Description = maps.Clone(field.Description)
+		}
+		field.UnitLabel = maps.Clone(field.UnitLabel)
+		if field.EnumLabels != nil {
+			labels := make(map[string]LocalizedText, len(field.EnumLabels))
+			for value, label := range field.EnumLabels {
+				labels[value] = maps.Clone(label)
+			}
+			field.EnumLabels = labels
+		}
+		cloned[key] = field
+	}
+	return cloned
+}
+
+// CloneUsageExamples copies example facts for independent readers.
+func CloneUsageExamples(examples []UsageExample) []UsageExample {
 	if examples == nil {
 		return nil
 	}
@@ -904,6 +959,15 @@ func (r *Registry) resolveActiveOverrides(
 	return active
 }
 
+// UnknownMetaFieldError identifies a manifest field unsupported by this host.
+type UnknownMetaFieldError struct {
+	Field string
+}
+
+func (e *UnknownMetaFieldError) Error() string {
+	return fmt.Sprintf("plugin meta has unknown field %q", e.Field)
+}
+
 func decodeMeta(value any) (Meta, error) {
 	object, ok := value.(map[string]any)
 	if !ok {
@@ -911,9 +975,9 @@ func decodeMeta(value any) (Meta, error) {
 	}
 	for field := range object {
 		switch field {
-		case "sortPriority", "website", "apiVersion", "key", "name", "icon", "description", "version", "author", "baseUrl", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "routes", "protocols", "usageSchema", "usageExamples", "auth", "endpoints", "submitPaths", "actions":
+		case "requiredCapabilities", "submitResponseTypes", "sortPriority", "website", "apiVersion", "key", "name", "icon", "description", "version", "author", "baseUrl", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "routes", "protocols", "usageSchema", "usageExamples", "usageProfiles", "auth", "endpoints", "submitPaths", "actions":
 		default:
-			return Meta{}, fmt.Errorf("plugin meta has unknown field %q", field)
+			return Meta{}, &UnknownMetaFieldError{Field: field}
 		}
 	}
 	meta := Meta{}
@@ -978,6 +1042,27 @@ func decodeMeta(value any) (Meta, error) {
 	if meta.FetchMode, err = stringMetaField(object, "fetchMode"); err != nil {
 		return Meta{}, err
 	}
+	meta.SubmitResponseTypes = []string{"json"}
+	if _, present := object["submitResponseTypes"]; present {
+		meta.SubmitResponseTypes, err = strictStringSlice(object, "submitResponseTypes")
+		if err != nil {
+			return Meta{}, err
+		}
+		if len(meta.SubmitResponseTypes) == 0 {
+			return Meta{}, fmt.Errorf("submitResponseTypes must not be empty")
+		}
+		seen := make(map[string]bool)
+		for _, kind := range meta.SubmitResponseTypes {
+			if (kind != "json" && kind != "sse") || seen[kind] {
+				return Meta{}, fmt.Errorf("invalid or duplicate submitResponseTypes value %q", kind)
+			}
+			seen[kind] = true
+		}
+	}
+	meta.RequiredCapabilities, err = strictStringSlice(object, "requiredCapabilities")
+	if err != nil {
+		return Meta{}, err
+	}
 	meta.Models, err = strictStringSlice(object, "models")
 	if err != nil {
 		return Meta{}, err
@@ -1005,6 +1090,12 @@ func decodeMeta(value any) (Meta, error) {
 	}
 	if usageExamples, exists := object["usageExamples"]; exists {
 		meta.UsageExamples, err = decodeUsageExamples(usageExamples)
+		if err != nil {
+			return Meta{}, err
+		}
+	}
+	if usageProfiles, exists := object["usageProfiles"]; exists {
+		meta.UsageProfiles, err = decodeUsageProfiles(usageProfiles)
 		if err != nil {
 			return Meta{}, err
 		}
@@ -1058,6 +1149,16 @@ func ValidateV1Meta(meta Meta) error {
 }
 
 func normalizeV1Meta(meta *Meta) error {
+	seenCapabilities := make(map[string]bool, len(meta.RequiredCapabilities))
+	for _, name := range meta.RequiredCapabilities {
+		if !HasCapability(name) || seenCapabilities[name] {
+			return fmt.Errorf("unsupported or duplicate required capability %q", name)
+		}
+		if name == CapabilitySubmitSSEDelta && !slices.Contains(meta.SubmitResponseTypes, "sse") {
+			return fmt.Errorf("%s requires submitResponseTypes to include sse", name)
+		}
+		seenCapabilities[name] = true
+	}
 	if meta.SortPriority < math.MinInt32 || meta.SortPriority > math.MaxInt32 {
 		return fmt.Errorf("plugin meta sortPriority must be a signed 32-bit integer")
 	}
@@ -1077,7 +1178,7 @@ func normalizeV1Meta(meta *Meta) error {
 			if len(host) > 253 || host == "" {
 				return fmt.Errorf("plugin meta website must have a valid hostname")
 			}
-			for _, label := range strings.Split(host, ".") {
+			for label := range strings.SplitSeq(host, ".") {
 				if !websiteHostLabelPattern.MatchString(label) {
 					return fmt.Errorf("plugin meta website must have a valid ASCII hostname; use punycode for internationalized domains")
 				}
@@ -1132,11 +1233,11 @@ func normalizeV1Meta(meta *Meta) error {
 		}
 		meta.BaseURL = normalized
 	}
-	if !pluginKeyPattern.MatchString(meta.Key) {
-		return fmt.Errorf("plugin meta key must match %s", pluginKeyPattern)
-	}
 	if len(meta.Key) > 30 {
 		return fmt.Errorf("plugin meta key must not exceed 30 characters")
+	}
+	if !ValidPluginKey(meta.Key) {
+		return fmt.Errorf("plugin meta key must match %s", pluginKeyPattern)
 	}
 	if !pluginVersionPattern.MatchString(meta.Version) {
 		return fmt.Errorf("plugin meta version must be semver")
@@ -1258,7 +1359,44 @@ func normalizeV1Meta(meta *Meta) error {
 			}
 		}
 	}
-	for name, field := range meta.UsageSchema {
+	if err := validateUsageSchema(meta.UsageSchema); err != nil {
+		return err
+	}
+	if err := validateUsageExamples(meta.UsageSchema, meta.UsageExamples); err != nil {
+		return err
+	}
+	profileModels := make(map[string]struct{})
+	for index, profile := range meta.UsageProfiles {
+		if len(profile.Models) == 0 {
+			return fmt.Errorf("plugin meta usageProfiles[%d] models must contain at least one model", index)
+		}
+		if err := validateModelScope(profile.Models, fmt.Sprintf("usageProfiles[%d]", index)); err != nil {
+			return err
+		}
+		for _, model := range profile.Models {
+			if _, exists := models[model]; !exists {
+				return fmt.Errorf("plugin meta usageProfiles[%d] model %q is not declared in plugin meta models", index, model)
+			}
+			if _, duplicate := profileModels[model]; duplicate {
+				return fmt.Errorf("plugin meta usageProfiles model %q belongs to multiple profiles", model)
+			}
+			profileModels[model] = struct{}{}
+		}
+		if profile.Schema == nil {
+			return fmt.Errorf("plugin meta usageProfiles[%d] schema must be an object", index)
+		}
+		if err := validateUsageSchema(profile.Schema); err != nil {
+			return fmt.Errorf("plugin meta usageProfiles[%d]: %w", index, err)
+		}
+		if err := validateUsageExamples(profile.Schema, profile.Examples); err != nil {
+			return fmt.Errorf("plugin meta usageProfiles[%d]: %w", index, err)
+		}
+	}
+	return nil
+}
+
+func validateUsageSchema(schema map[string]UsageFieldSchema) error {
+	for name, field := range schema {
 		if strings.TrimSpace(name) == "" || strings.TrimSpace(name) != name {
 			return fmt.Errorf("plugin meta usageSchema keys must be non-empty canonical names")
 		}
@@ -1266,10 +1404,43 @@ func normalizeV1Meta(meta *Meta) error {
 			return err
 		}
 	}
-	if err := validateUsageExamples(meta.UsageSchema, meta.UsageExamples); err != nil {
-		return err
-	}
 	return nil
+}
+
+func decodeUsageProfiles(value any) ([]UsageProfile, error) {
+	items, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("plugin meta usageProfiles must be an array")
+	}
+	profiles := make([]UsageProfile, 0, len(items))
+	for index, item := range items {
+		object, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("plugin meta usageProfiles[%d] must be an object", index)
+		}
+		for key := range object {
+			if key != "models" && key != "schema" && key != "examples" {
+				return nil, fmt.Errorf("plugin meta usageProfiles[%d] has unknown field %q", index, key)
+			}
+		}
+		models, err := strictStringSlice(object, "models")
+		if err != nil {
+			return nil, fmt.Errorf("plugin meta usageProfiles[%d]: %w", index, err)
+		}
+		schema, err := decodeUsageSchema(object["schema"])
+		if err != nil {
+			return nil, fmt.Errorf("plugin meta usageProfiles[%d]: %w", index, err)
+		}
+		profile := UsageProfile{Models: models, Schema: schema}
+		if examples, exists := object["examples"]; exists {
+			profile.Examples, err = decodeUsageExamples(examples)
+			if err != nil {
+				return nil, fmt.Errorf("plugin meta usageProfiles[%d]: %w", index, err)
+			}
+		}
+		profiles = append(profiles, profile)
+	}
+	return profiles, nil
 }
 
 func decodeUsageSchema(value any) (map[string]UsageFieldSchema, error) {
@@ -1288,7 +1459,7 @@ func decodeUsageSchema(value any) (map[string]UsageFieldSchema, error) {
 		}
 		for key := range fieldObject {
 			switch key {
-			case "type", "unit", "enum", "description", "enumLabels":
+			case "type", "unit", "unitLabel", "enum", "description", "enumLabels":
 			default:
 				return nil, fmt.Errorf("plugin meta usageSchema field %q has unknown property %q", name, key)
 			}
@@ -1299,6 +1470,9 @@ func decodeUsageSchema(value any) (map[string]UsageFieldSchema, error) {
 			return nil, err
 		}
 		if field.Unit, err = stringMetaField(fieldObject, "unit"); err != nil {
+			return nil, err
+		}
+		if field.UnitLabel, err = localizedTextMetaField(fieldObject, "unitLabel", maxUsageFieldDescriptionRunes); err != nil {
 			return nil, err
 		}
 		if field.Description, err = localizedTextMetaField(fieldObject, "description", maxUsageFieldDescriptionRunes); err != nil {
@@ -1332,6 +1506,14 @@ func decodeUsageSchema(value any) (map[string]UsageFieldSchema, error) {
 }
 
 func validateUsageFieldSchema(name string, field UsageFieldSchema) error {
+	if field.UnitLabel != nil {
+		if field.Type != "number" || field.Unit != "count" || field.Enum != nil {
+			return fmt.Errorf("plugin meta usageSchema field %q unitLabel requires a number field with count unit", name)
+		}
+		if err := validateLocalizedText(field.UnitLabel, fmt.Sprintf("usageSchema field %q unitLabel", name), maxUsageFieldDescriptionRunes); err != nil {
+			return err
+		}
+	}
 	if err := validateLocalizedText(field.Description, fmt.Sprintf("usageSchema field %q description", name), maxUsageFieldDescriptionRunes); err != nil {
 		return err
 	}
@@ -1848,9 +2030,7 @@ func validateLocalizedText(text LocalizedText, name string, maxRunes int) error 
 	for locale := range text {
 		delete(text, locale)
 	}
-	for locale, value := range canonical {
-		text[locale] = value
-	}
+	maps.Copy(text, canonical)
 	return nil
 }
 

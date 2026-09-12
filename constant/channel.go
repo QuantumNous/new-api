@@ -63,6 +63,8 @@ const (
 
 )
 
+// ChannelBaseURLs 保存各渠道类型的内置默认 Base URL。
+// 非空值会通过 /api/channel/default_base_urls 下发到前端，作为渠道表单的 API 地址占位提示。
 var ChannelBaseURLs = []string{
 	"",                                    // 0
 	"https://api.openai.com",              // 1

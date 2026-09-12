@@ -21,6 +21,7 @@ import { isAxiosError } from 'axios'
 import { t } from 'i18next'
 
 import { api } from '@/lib/api'
+import { createServerError } from '@/lib/server-error-message'
 
 import type { Model, Vendor } from './types'
 
@@ -106,8 +107,9 @@ export async function previewVendorOperation(
 ): Promise<VendorOperationPreview> {
   const response = await api.post('/api/vendors/operations/preview', operation)
   if (!response.data.success) {
-    throw new Error(
-      response.data.message || t('Failed to preview vendor changes')
+    throw createServerError(
+      response.data,
+      t('Failed to preview vendor changes')
     )
   }
   return response.data.data
@@ -117,9 +119,7 @@ export async function applyVendorOperation(
 ): Promise<VendorOperationResult> {
   const response = await api.post('/api/vendors/operations', operation)
   if (!response.data.success) {
-    throw new Error(
-      response.data.message || t('Failed to apply vendor changes')
-    )
+    throw createServerError(response.data, t('Failed to apply vendor changes'))
   }
   return response.data.data
 }

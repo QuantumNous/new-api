@@ -11,11 +11,49 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestLegacyDalleValidationAndPricesRemainCompatible(t *testing.T) {
+	for _, tc := range []struct {
+		body, size, quality string
+		ratio               float64
+		invalid             bool
+	}{
+		{body: `{"model":"dall-e-2"}`, size: "1024x1024", ratio: 1},
+		{body: `{"model":"dall-e"}`, size: "1024x1024", ratio: 1},
+		{body: `{"model":"dall-e-3"}`, size: "1024x1024", quality: "standard", ratio: 1},
+		{body: `{"model":"dall-e-2","size":"256x256"}`, size: "256x256", ratio: 0.4},
+		{body: `{"model":"dall-e-2","size":"512x512","quality":"hd"}`, size: "512x512", quality: "hd", ratio: 0.45},
+		{body: `{"model":"dall-e-3","quality":"hd"}`, size: "1024x1024", quality: "hd", ratio: 2},
+		{body: `{"model":"dall-e-3","size":"1024x1792","quality":"hd"}`, size: "1024x1792", quality: "hd", ratio: 3},
+		{body: `{"model":"dall-e-3","size":"1792x1024"}`, size: "1792x1024", quality: "standard", ratio: 2},
+		{body: `{"model":"dall-e-3","size":"256x256"}`, invalid: true},
+		{body: `{"model":"dall-e-2","size":"1024x1792"}`, invalid: true},
+	} {
+		t.Run(tc.body, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewBufferString(tc.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+			request, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
+			if tc.invalid {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.size, request.Size)
+			assert.Equal(t, tc.quality, request.Quality)
+			assert.Equal(t, tc.ratio, request.GetTokenCountMeta().ImagePriceRatio)
+		})
+	}
+}
 
 // TestGetAndValidOpenAIImageRequestMultipartStream verifies multipart image
 // edit parsing: the stream field is parsed and validated, and the request body
@@ -61,6 +99,11 @@ func TestGetAndValidOpenAIImageRequestMultipartStream(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "true", url.Values(form.Value).Get("stream"))
 		require.Len(t, form.File["image"], 1)
+		billing, err := ResolveImageBillingRequestInput(c, &relaycommon.RelayInfo{Request: req}, billingexpr.RequestInput{})
+		require.NoError(t, err)
+		require.Equal(t, 1, *billing.ImageCount)
+		require.NotContains(t, string(billing.Body), "fake image")
+		require.NotContains(t, string(billing.Body), "edit this image")
 	})
 
 	t.Run("invalid stream value is rejected", func(t *testing.T) {
@@ -70,6 +113,44 @@ func TestGetAndValidOpenAIImageRequestMultipartStream(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid stream value")
 	})
+}
+
+func TestImageBillingRequestUsesValidatedProviderCount(t *testing.T) {
+	for _, tc := range []struct {
+		body           string
+		channel, count int
+		invalid        bool
+	}{
+		{`{"model":"z-image","n":2,"parameters":{"n":3,"prompt_extend":true}}`, constant.ChannelTypeAli, 3, false},
+		{`{"model":"gpt-image-2","n":2,"parameters":{"n":3}}`, constant.ChannelTypeOpenAI, 2, false},
+		{`{"model":"z-image","n":2,"parameters":{"n":129}}`, constant.ChannelTypeAli, 0, true},
+		{`{"model":"z-image","parameters":{"n":-1}}`, constant.ChannelTypeAli, 0, true},
+		{`{"model":"z-image","n":2,"parameters":{}}`, constant.ChannelTypeAli, 2, false},
+		{`{"model":"z-image","n":2,"parameters":{"n":null}}`, constant.ChannelTypeAli, 2, false},
+		{`{"model":"z-image","n":2,"parameters":{"n":0}}`, constant.ChannelTypeAli, 0, true},
+		{`{"model":"z-image","parameters":{"n":1.5}}`, constant.ChannelTypeAli, 0, true},
+		{`{"model":"z-image","parameters":{"n":18446744073686646784}}`, constant.ChannelTypeAli, 0, true},
+		{`{"model":"z-image","parameters":{"n":128}}`, constant.ChannelTypeAli, 128, false},
+		{`{"model":"z-image","n":0}`, constant.ChannelTypeAli, 1, false},
+		{`{"model":"gpt-image-2","n":2,"parameters":{"n":0}}`, constant.ChannelTypeOpenAI, 2, false},
+	} {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewBufferString(tc.body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		common.SetContextKey(c, constant.ContextKeyChannelType, tc.channel)
+		request, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
+		if tc.invalid {
+			require.Error(t, err)
+			continue
+		}
+		require.NoError(t, err)
+		input, err := ResolveImageBillingRequestInput(c, &relaycommon.RelayInfo{Request: request}, billingexpr.RequestInput{})
+		require.NoError(t, err)
+		require.Equal(t, tc.count, *input.ImageCount)
+		cost, _, err := billingexpr.RunExprWithRequest(`tier("image", fixed(0.04)) * image_count`, billingexpr.TokenParams{}, input)
+		require.NoError(t, err)
+		require.Equal(t, float64(tc.count)*40000, cost)
+	}
 }
 
 // TestGetAndValidOpenAIImageRequestNBounds guards the billing invariant that

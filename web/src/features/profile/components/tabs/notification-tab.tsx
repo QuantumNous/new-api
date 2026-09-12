@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { handleServerError } from '@/lib/handle-server-error'
 import { ROLE } from '@/lib/roles'
 
 import { updateUserSettings } from '../../api'
@@ -83,10 +84,10 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
         toast.success(t('Settings updated successfully'))
         onUpdate()
       } else {
-        toast.error(response.message || t('Failed to update settings'))
+        handleServerError(response, t('Failed to update settings'))
       }
-    } catch {
-      toast.error(t('Failed to update settings'))
+    } catch (error) {
+      handleServerError(error, t('Failed to update settings'))
     } finally {
       setLoading(false)
     }

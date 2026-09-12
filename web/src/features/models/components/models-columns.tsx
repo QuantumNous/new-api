@@ -26,23 +26,26 @@ import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip'
+import {
   useCanEditModelPricing,
   type ModelPricingConfig,
 } from '@/features/model-pricing/api'
-import { pricingRow } from '@/features/model-pricing/pricing'
-import {
-  getPriceDetail,
-  getPriceSummary,
-  isBasePricingUnset,
-} from '@/features/system-settings/models/model-pricing-snapshots'
+import { modelPricingDisplay } from '@/features/model-pricing/pricing'
+import { ModelPriceCell } from '@/features/pricing/components/model-price-cell'
 import { formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
 import { getNameRuleConfig } from '../constants'
 import { parseModelTags, formatEndpointsDisplay } from '../lib'
+import { getModelChannelState } from '../lib/model-utils'
 import type { Model, Vendor } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DescriptionCell } from './description-cell'
+import { ModelSquareStatus } from './model-square-status'
 import { useModels } from './models-provider'
 
 export function useModelsColumns(
@@ -99,7 +102,7 @@ export function useModelsColumns(
         const vendor = vendorMap.get(model.vendor_id ?? 0)
         const iconKey = model.icon || vendor?.icon || model.model_name[0]
         return (
-          <div className='flex max-w-[420px] min-w-0 items-start gap-2.5 py-1'>
+          <div className='flex max-w-[320px] min-w-0 items-start gap-2.5 py-1'>
             <span className='mt-1 flex size-6 shrink-0 items-center justify-center'>
               {getLobeIcon(iconKey, 24)}
             </span>
@@ -123,7 +126,9 @@ export function useModelsColumns(
               </div>
               <div className='text-muted-foreground mt-1 flex min-w-0 items-center gap-2 text-xs'>
                 <span className='truncate' title={vendor?.name}>
-                  {vendor?.name ?? t('No vendor')}
+                  {model.id > 0
+                    ? (vendor?.name ?? t('No vendor'))
+                    : t('Missing metadata')}
                 </span>
                 {model.name_rule !== 0 && (
                   <span className='shrink-0'>
@@ -140,6 +145,7 @@ export function useModelsColumns(
     {
       id: 'pricing',
       header: t('Pricing'),
+      meta: { label: t('Pricing') },
       size: 225,
       enableSorting: false,
       cell: ({ row }) => {
@@ -167,71 +173,69 @@ export function useModelsColumns(
           )
         }
         const entry = priceMap.get(row.original.model_name)
-        if (!entry) {
-          return (
-            <span className='text-muted-foreground text-sm'>
-              {t('Unset price')}
-            </span>
-          )
-        }
-        const price = {
-          ...pricingRow(row.original.model_name, entry.effective),
-          hasConflict: false,
-        }
         return (
-          <div className='space-y-1'>
-            <div className='text-sm tabular-nums'>
-              {getPriceSummary(price, t)}
-            </div>
-            {!isBasePricingUnset(price) && (
-              <div className='text-muted-foreground text-xs'>
-                {getPriceDetail(price, t)}
-                {price.billingMode === 'per-token' && ' · USD/1M'}
-              </div>
-            )}
-          </div>
+          <Button
+            variant='ghost'
+            className='h-auto w-full max-w-full min-w-0 justify-start px-0 py-1 text-left font-normal hover:bg-transparent'
+            aria-label={t('View pricing for {{model}}', {
+              model: row.original.model_name,
+            })}
+            onClick={() => {
+              setCurrentRow(row.original)
+              setOpen('price-model')
+            }}
+          >
+            <ModelPriceCell
+              model={modelPricingDisplay(
+                entry ?? { model_name: row.original.model_name, effective: {} }
+              )}
+              options={{ tokenUnit: 'M' }}
+              showExpression={false}
+            />
+          </Button>
         )
       },
     },
     {
-      accessorKey: 'status',
+      accessorKey: 'square_state',
       header: t('Model square visibility'),
       size: 115,
       enableSorting: false,
       meta: { mobileBadge: true },
-      cell: ({ row }) => (
-        <StatusBadge
-          variant={row.original.status === 1 ? 'success' : 'neutral'}
-          label={row.original.status === 1 ? t('Shown') : t('Not shown')}
-          copyable={false}
-        />
-      ),
+      cell: ({ row }) => <ModelSquareStatus model={row.original} />,
     },
     {
       id: 'connections',
       header: t('Channels and groups'),
       size: 180,
       enableSorting: false,
-      cell: ({ row }) => (
-        <div className='space-y-1 text-sm'>
-          <span
-            className={
-              row.original.bound_channels?.length ? '' : 'text-muted-foreground'
-            }
-          >
-            {row.original.bound_channels?.length
-              ? t('{{count}} available channels', {
-                  count: row.original.bound_channels.length,
-                })
-              : t('No available channels')}
-          </span>
-          <div className='text-muted-foreground text-xs'>
-            {t('{{count}} enabled groups', {
-              count: row.original.enable_groups?.length ?? 0,
-            })}
+      cell: ({ row }) => {
+        const state = getModelChannelState(row.original)
+        return (
+          <div className='min-w-0 text-sm'>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    tabIndex={0}
+                    title={t(state.description)}
+                    aria-description={t(state.description)}
+                    className='block whitespace-normal sm:truncate'
+                  />
+                }
+              >
+                {t('Channels {{channels}} · Groups {{groups}}', {
+                  channels: row.original.bound_channels?.length ?? 0,
+                  groups: row.original.enable_groups?.length ?? 0,
+                })}
+              </TooltipTrigger>
+              <TooltipContent role='tooltip'>
+                {t(state.description)}
+              </TooltipContent>
+            </Tooltip>
           </div>
-        </div>
-      ),
+        )
+      },
     },
     {
       accessorKey: 'tags',
@@ -242,6 +246,7 @@ export function useModelsColumns(
       cell: ({ row }) => (
         <BadgeListCell
           expandable
+          max={1}
           items={parseModelTags(row.original.tags ?? '').map((tag) => (
             <StatusBadge key={tag} label={tag} variant='neutral' size='sm' />
           ))}
@@ -250,14 +255,20 @@ export function useModelsColumns(
     },
     {
       accessorKey: 'sync_official',
-      header: t('Sync policy'),
+      header: () => (
+        <TruncatedCell className='max-w-[120px]'>
+          {t('Sync policy')}
+        </TruncatedCell>
+      ),
       size: 145,
       enableSorting: false,
-      meta: { mobileHidden: true },
+      meta: { mobileHidden: true, label: t('Sync policy') },
       cell: ({ row }) => (
-        <span className='text-muted-foreground text-sm'>
-          {row.original.sync_official ? t('Allow updates') : t('Keep local')}
-        </span>
+        <TruncatedCell className='text-muted-foreground max-w-[120px] text-sm'>
+          {row.original.id > 0 &&
+            (row.original.sync_official ? t('Allow updates') : t('Keep local'))}
+          {!row.original.id && '—'}
+        </TruncatedCell>
       ),
     },
     {
@@ -269,8 +280,17 @@ export function useModelsColumns(
       cell: ({ row }) => <DataTableRowActions row={row} />,
     },
     {
+      accessorKey: 'status',
+      header: t('Display policy'),
+      enableHiding: false,
+      enableSorting: false,
+      cell: ({ row }) =>
+        row.original.status === 1 ? t('Allowed') : t('Not listed'),
+    },
+    {
       accessorKey: 'id',
       header: t('ID'),
+      cell: ({ row }) => row.original.id || '—',
       size: 65,
       meta: { mobileHidden: true },
     },
@@ -329,14 +349,20 @@ export function useModelsColumns(
       accessorKey: 'created_time',
       header: t('Created'),
       size: 160,
-      cell: ({ row }) => formatTimestampToDate(row.original.created_time),
+      cell: ({ row }) =>
+        row.original.id
+          ? formatTimestampToDate(row.original.created_time)
+          : '—',
       meta: { mobileHidden: true },
     },
     {
       accessorKey: 'updated_time',
       header: t('Updated'),
       size: 160,
-      cell: ({ row }) => formatTimestampToDate(row.original.updated_time),
+      cell: ({ row }) =>
+        row.original.id
+          ? formatTimestampToDate(row.original.updated_time)
+          : '—',
       meta: { mobileHidden: true },
     },
   ]

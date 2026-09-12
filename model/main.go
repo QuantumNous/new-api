@@ -29,7 +29,7 @@ var logGroupCol string
 
 // jsonScanBytes 归一化 json 列的驱动返回值:不同驱动/协议模式下同一列可能
 // 以 []byte 或 string 返回,静默丢弃 string 会导致字段被清零而不报错。
-func jsonScanBytes(value interface{}) []byte {
+func jsonScanBytes(value any) []byte {
 	switch v := value.(type) {
 	case []byte:
 		return v
@@ -329,6 +329,9 @@ func migrateDB() error {
 	// Migrate model_limits column from varchar to text for existing tables
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
+	}
+	if err := migrateOptionPrimaryKey(DB); err != nil {
+		common.SysError("failed to migrate options primary key: " + err.Error())
 	}
 
 	err := DB.AutoMigrate(

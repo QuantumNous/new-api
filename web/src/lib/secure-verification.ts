@@ -18,9 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import axios from 'axios'
 
-import { getServerErrorMessageKey } from './server-error-message'
+import {
+  getServerErrorMessageKey,
+  safeServerErrorMessage,
+} from './server-error-message'
 
 export class AuthOperationError extends Error {
+  readonly [safeServerErrorMessage] = true
   constructor(
     message: string,
     readonly code?: string,

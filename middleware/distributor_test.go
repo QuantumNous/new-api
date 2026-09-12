@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
@@ -199,4 +200,31 @@ func TestNoAvailableChannelMessageNamesClaimingTaskPlugin(t *testing.T) {
 	generic := noAvailableChannelMessage(plain, "default", "gpt-4o")
 	assert.NotContains(t, generic, "task plugin")
 	assert.Contains(t, generic, "gpt-4o")
+}
+
+func TestSharedEndpointRebindsToSelectedType61Plugin(t *testing.T) {
+	registry := jsplugin.NewRegistry()
+	for _, key := range []string{"alpha", "beta"} {
+		source := strings.Replace(distributorEndpointPluginSource(key, 0), "channelTypes: [0],", "", 1)
+		_, err := registry.Register(source, jsplugin.Options{})
+		require.NoError(t, err)
+	}
+	generation := registry.Generation()
+	candidates := generation.LookupEndpointCandidates("POST", "/v1/responses", "task-model")
+	require.Len(t, candidates, 2)
+	c, _ := gin.CreateTestContext(nil)
+	c.Set(jsplugin.ContextKeyPinnedPlugin, jsplugin.PinnedPlugin{Generation: generation, Plugin: candidates[0].Plugin})
+	c.Set(jsplugin.ContextKeyPinnedEndpoint, jsplugin.PinnedEndpoint{Generation: generation, Plugin: candidates[0].Plugin, Protocol: candidates[0].Protocol, Operation: candidates[0].Operation, Model: "task-model", Candidates: candidates})
+	c.Set("expected_task_plugin_key", "alpha")
+	channel := &model.Channel{Id: 2, Type: constant.ChannelTypeTaskPlugin}
+	channel.SetSetting(dto.ChannelSettings{TaskPluginKey: "unrelated"})
+	assert.False(t, channelMatchesExpectedTaskPlugin(c, channel, "alpha"))
+	channel.SetSetting(dto.ChannelSettings{TaskPluginKey: "beta"})
+	require.Nil(t, SetupContextForSelectedChannel(c, channel, "task-model"))
+	assert.Equal(t, "beta", c.GetString("task_plugin_key"))
+	assert.Equal(t, "beta", c.GetString("expected_task_plugin_key"))
+	assert.Equal(t, "beta", c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint).Plugin.Meta.Key)
+	require.NoError(t, i18n.Init())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	assert.Contains(t, noAvailableChannelMessage(c, "default", "task-model"), "alpha, beta")
 }

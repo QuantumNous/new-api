@@ -33,7 +33,12 @@ export interface BoundChannel {
 /**
  * Model entity from API
  */
+export type ModelSquareState = 'visible' | 'unavailable' | 'hidden' | 'partial'
+
 export interface Model {
+  square_state?: ModelSquareState
+  has_metadata?: boolean
+  configured_channel_count?: number
   id: number
   model_name: string
   description?: string
@@ -89,6 +94,8 @@ export interface PrefillGroup {
  * Get models list parameters
  */
 export interface GetModelsParams {
+  square_state?: ModelSquareState
+  include_channel_models?: boolean
   p?: number
   page_size?: number
   vendor?: string // vendor ID to filter by
@@ -100,6 +107,8 @@ export interface GetModelsParams {
  * Search models parameters
  */
 export interface SearchModelsParams {
+  square_state?: ModelSquareState
+  include_channel_models?: boolean
   keyword?: string
   vendor?: string // vendor ID to filter by
   status?: string // filter by status

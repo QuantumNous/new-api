@@ -29,6 +29,7 @@ import {
   useCanEditModelPricing,
   invalidateModelPricing,
 } from '@/features/model-pricing/api'
+import { createServerError } from '@/lib/server-error-message'
 
 import { deleteModel, deleteModels } from '../../api'
 import type { Model } from '../../types'
@@ -67,7 +68,7 @@ export function ModelDeleteDialog(props: ModelDeleteDialogProps) {
               removePricing && canEditPricing
             )
       if (!response.success) {
-        throw new Error(response.message || t('Failed to delete model'))
+        throw createServerError(response, t('Failed to delete model'))
       }
       return response.data
     },

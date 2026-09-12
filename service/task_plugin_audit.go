@@ -55,20 +55,20 @@ func AppendTaskPluginAuditInfo(other *model.LogOther, snapshot *model.TaskPlugin
 	if other == nil || snapshot == nil || snapshot.Key == "" {
 		return
 	}
-	taskPlugin := map[string]interface{}{
+	taskPlugin := map[string]any{
 		"key":     snapshot.Key,
 		"name":    snapshot.Name,
 		"version": snapshot.Version,
 	}
 	if snapshot.Author != nil && snapshot.Author.Name != "" {
-		author := map[string]interface{}{"name": snapshot.Author.Name}
+		author := map[string]any{"name": snapshot.Author.Name}
 		if snapshot.Author.URL != "" {
 			author["url"] = snapshot.Author.URL
 		}
 		taskPlugin["author"] = author
 	}
 	other.SetAdmin("task_plugin", taskPlugin)
-	other.SetRoot("task_plugin", map[string]interface{}{
+	other.SetRoot("task_plugin", map[string]any{
 		"key":         snapshot.Key,
 		"version":     snapshot.Version,
 		"api_version": snapshot.APIVersion,

@@ -46,7 +46,6 @@ func extractOpenAIChatRequest(request any) (any, Set, error) {
 			return nil, Set{}, fmt.Errorf("invalid legacy functions: %w", err)
 		}
 		for _, function := range functions {
-			function := function
 			set.Definitions = append(set.Definitions, Definition{
 				Kind:      KindFunction,
 				Execution: ExecutionClient,

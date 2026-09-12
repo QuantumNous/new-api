@@ -30,6 +30,7 @@ import {
 import { ErrorState } from '@/components/error-state'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { createServerError } from '@/lib/server-error-message'
 
 import { searchModels } from '../api'
 import { getNameRuleConfig } from '../constants'
@@ -63,7 +64,7 @@ export function VendorLinkedModels({
     queryFn: async () => {
       const response = await searchModels(params)
       if (!response.success) {
-        throw new Error(response.message || t('Failed to load models'))
+        throw createServerError(response, t('Failed to load models'))
       }
       return response.data
     },

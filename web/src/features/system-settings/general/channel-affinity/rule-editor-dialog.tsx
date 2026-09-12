@@ -273,7 +273,7 @@ export function RuleEditorDialog(props: Props) {
         className='min-w-0 space-y-4 overflow-x-clip'
       >
         <div className='grid gap-1.5'>
-          <Label>{t('Name')} *</Label>
+          <Label required>{t('Name')}</Label>
           <Input
             placeholder='prefer-by-conversation-id'
             {...form.register('name', { required: true })}
@@ -282,7 +282,7 @@ export function RuleEditorDialog(props: Props) {
 
         <div className='grid gap-3 sm:grid-cols-2'>
           <div className='grid gap-1.5'>
-            <Label>{t('Model Regex (one per line)')} *</Label>
+            <Label required>{t('Model Regex (one per line)')}</Label>
             <Textarea
               rows={4}
               placeholder={'^gpt-4o.*$\n^claude-3.*$'}

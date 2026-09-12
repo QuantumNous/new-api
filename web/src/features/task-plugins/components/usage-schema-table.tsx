@@ -26,7 +26,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { taskEnumLabel } from '@/features/pricing/lib/task-price-display'
+import {
+  taskEnumLabel,
+  taskUsageUnitLabel,
+} from '@/features/pricing/lib/task-price-display'
 import type { BillingUsageSchema } from '@/features/pricing/types'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
@@ -78,7 +81,13 @@ export function UsageSchemaTable(props: UsageSchemaTableProps) {
                 {name}
               </TableCell>
               <TableCell>{t(getUsageTypeLabelKey(definition.type))}</TableCell>
-              <TableCell>{formatUsageUnit(definition.unit, t)}</TableCell>
+              <TableCell>
+                {taskUsageUnitLabel(
+                  definition,
+                  i18n.language,
+                  formatUsageUnit(definition.unit, t)
+                )}
+              </TableCell>
               <TableCell className='max-w-64 font-mono text-xs break-words whitespace-normal'>
                 {definition.enum
                   ?.map((value) => {

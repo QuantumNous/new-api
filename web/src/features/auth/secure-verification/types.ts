@@ -71,7 +71,7 @@ export interface VerificationRequirements {
 export type VerificationInput =
   | { method: '2fa'; code: string }
   | { method: 'password'; password: string }
-  | { method: 'passkey' }
+  | { method: 'passkey'; rpID?: string }
   | { method: 'oauth'; provider: string }
   | { method: 'session' }
 

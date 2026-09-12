@@ -13,7 +13,7 @@ type GeminiChatRequest struct {
 	Requests           []GeminiChatRequest        `json:"requests,omitempty"` // For batch requests
 	Contents           []GeminiChatContent        `json:"contents"`
 	SafetySettings     []GeminiChatSafetySettings `json:"safetySettings,omitempty"`
-	GenerationConfig   GeminiChatGenerationConfig `json:"generationConfig,omitempty"`
+	GenerationConfig   GeminiChatGenerationConfig `json:"generationConfig"`
 	Tools              json.RawMessage            `json:"tools,omitempty"`
 	ToolConfig         *ToolConfig                `json:"toolConfig,omitempty"`
 	SystemInstructions *GeminiChatContent         `json:"systemInstruction,omitempty"`
@@ -258,12 +258,12 @@ type GeminiPartialArg struct {
 }
 
 type GeminiFunctionResponse struct {
-	Name         string                 `json:"name"`
-	Response     map[string]interface{} `json:"response"`
-	WillContinue json.RawMessage        `json:"willContinue,omitempty"`
-	Scheduling   json.RawMessage        `json:"scheduling,omitempty"`
-	Parts        json.RawMessage        `json:"parts,omitempty"`
-	ID           json.RawMessage        `json:"id,omitempty"`
+	Name         string          `json:"name"`
+	Response     map[string]any  `json:"response"`
+	WillContinue json.RawMessage `json:"willContinue,omitempty"`
+	Scheduling   json.RawMessage `json:"scheduling,omitempty"`
+	Parts        json.RawMessage `json:"parts,omitempty"`
+	ID           json.RawMessage `json:"id,omitempty"`
 }
 
 type GeminiPartExecutableCode struct {

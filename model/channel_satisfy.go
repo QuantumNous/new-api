@@ -1,6 +1,8 @@
 package model
 
 import (
+	"slices"
+
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
@@ -62,10 +64,5 @@ func isChannelEnabledForGroupModelDB(group string, modelName string, channelID i
 }
 
 func isChannelIDInList(list []int, channelID int) bool {
-	for _, id := range list {
-		if id == channelID {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(list, channelID)
 }

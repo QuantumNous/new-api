@@ -123,7 +123,7 @@ func TestOaiResponsesToChatStreamHandlerConvertsClaudeSSETerminalsAndUsage(t *te
 	assert.Equal(t, 1, strings.Count(got, "event: message_stop\n"))
 
 	messageDeltaFrame := ""
-	for _, frame := range strings.Split(got, "\n\n") {
+	for frame := range strings.SplitSeq(got, "\n\n") {
 		if strings.HasPrefix(frame, "event: message_delta\n") {
 			messageDeltaFrame = frame
 			break

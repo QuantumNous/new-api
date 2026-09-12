@@ -18,15 +18,47 @@
       {"type": "object", "additionalProperties": false, "required": ["name", "supports"], "properties": {"name": {"const": "openai_responses"}, "supports": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["stream", "sync", "background"]}}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}},
       {"type": "object", "additionalProperties": false, "required": ["name"], "properties": {"name": {"const": "openai_video"}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}}
     ]}},
-    "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}}, "usageSchema": {"type": "object", "additionalProperties": {"$ref": "#/$defs/usageField"}}, "usageExamples": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "facts"], "properties": {"label": {"type": "string"}, "facts": {"type": "object"}}}}, "auth": {}
+    "submitResponseTypes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["json", "sse"]}},
+    "requiredCapabilities": {"type": "array", "uniqueItems": true, "items": {"enum": ["json-clone@1", "submit-sse-delta@1"]}},
+    "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}}, "usageSchema": {"type": "object", "additionalProperties": {"$ref": "#/$defs/usageField"}}, "usageExamples": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "facts"], "properties": {"label": {"type": "string"}, "facts": {"type": "object"}}}}, "usageProfiles": {"type": "array", "items": {"$ref": "#/$defs/usageProfile"}}, "auth": {}
   },
+  "allOf": [{"if": {"required": ["requiredCapabilities"], "properties": {"requiredCapabilities": {"contains": {"const": "submit-sse-delta@1"}}}}, "then": {"required": ["submitResponseTypes"], "properties": {"submitResponseTypes": {"contains": {"const": "sse"}}}}}],
   "$defs": {
+    "jsonChange": {
+      "type": "object", "additionalProperties": false, "required": ["op", "path", "value"],
+      "properties": {
+        "op": {"enum": ["set", "append", "appendText"]},
+        "path": {"type": "array", "maxItems": 32, "items": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 0}]}},
+        "value": true
+      },
+      "allOf": [{"if": {"properties": {"op": {"const": "appendText"}}}, "then": {"properties": {"value": {"type": "string"}}}}]
+    },
+    "submitEventDeltaResult": {
+      "type": "object", "additionalProperties": false, "required": ["changes", "state", "done"],
+      "properties": {
+        "changes": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/jsonChange"}},
+        "state": true,
+        "done": {"type": "boolean"}
+      }
+    },
+    "usageProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["models", "schema"],
+      "properties": {
+        "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "schema": {"type": "object", "additionalProperties": {"$ref": "#/$defs/usageField"}},
+        "examples": {"type": "array", "maxItems": 16, "items": {"$ref": "#/properties/usageExamples/items"}}
+      },
+      "description": "Complete usage metadata for declared models. The host validates model membership, unique profile ownership and examples, including required token-unit examples."
+    },
     "usageField": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "type": {"enum": ["number", "boolean"]},
         "unit": {"enum": ["second", "count", "token", "credit"]},
+        "unitLabel": {"$ref": "#/$defs/usageLabel", "description": "Optional localized display unit for number fields with count unit. Does not change usage quantities or billing."},
         "enum": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
         "description": {"$ref": "#/$defs/usageLabel"},
         "enumLabels": {
@@ -35,6 +67,7 @@
           "description": "Optional display names keyed by declared enum values; the host validates membership. Missing entries display the original value."
         }
       },
+      "allOf": [{"if": {"required": ["unitLabel"]}, "then": {"required": ["type", "unit"], "properties": {"type": {"const": "number"}, "unit": {"const": "count"}}}}],
       "oneOf": [
         {"required": ["enum"], "not": {"anyOf": [{"required": ["type"]}, {"required": ["unit"]}]}},
         {"required": ["type", "unit"], "properties": {"type": {"const": "number"}}, "not": {"anyOf": [{"required": ["enum"]}, {"required": ["enumLabels"]}]}},

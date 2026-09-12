@@ -493,8 +493,7 @@ func apiKeyFromWebSocketSubprotocol(protocols string) (string, bool) {
 		return "", false
 	}
 	const insecureAPIKeyPrefix = "openai-insecure-api-key."
-	parts := strings.Split(protocols, ",")
-	for _, part := range parts {
+	for part := range strings.SplitSeq(protocols, ",") {
 		part = strings.TrimSpace(part)
 		if strings.HasPrefix(part, insecureAPIKeyPrefix) {
 			key := strings.TrimPrefix(part, insecureAPIKeyPrefix)

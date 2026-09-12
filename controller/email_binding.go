@@ -25,7 +25,7 @@ func EmailBindStart(c *gin.Context) {
 	}
 	succeeded, notificationFailed := false, false
 	defer func() {
-		recordUserSecurityAudit(c, identity.UserID, "user.binding_start", map[string]interface{}{"provider": "email", "success": succeeded, "notification_failed": notificationFailed})
+		recordUserSecurityAudit(c, identity.UserID, "user.binding_start", map[string]any{"provider": "email", "success": succeeded, "notification_failed": notificationFailed})
 	}()
 	var request emailBindRequest
 	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
@@ -63,7 +63,7 @@ func EmailBindResend(c *gin.Context) {
 	}
 	succeeded := false
 	defer func() {
-		recordUserSecurityAudit(c, identity.UserID, "user.email_binding_resend", map[string]interface{}{"success": succeeded})
+		recordUserSecurityAudit(c, identity.UserID, "user.email_binding_resend", map[string]any{"success": succeeded})
 	}()
 	var request emailBindRequest
 	if err := common.DecodeJson(c.Request.Body, &request); err != nil || request.FlowToken == "" {
@@ -87,7 +87,7 @@ func EmailBind(c *gin.Context) {
 	}
 	succeeded, notificationFailed := false, false
 	defer func() {
-		recordUserSecurityAudit(c, identity.UserID, "user.binding_bind", map[string]interface{}{"provider": "email", "success": succeeded, "notification_failed": notificationFailed})
+		recordUserSecurityAudit(c, identity.UserID, "user.binding_bind", map[string]any{"provider": "email", "success": succeeded, "notification_failed": notificationFailed})
 	}()
 	var request emailBindRequest
 	if err := common.DecodeJson(c.Request.Body, &request); err != nil || request.FlowToken == "" {

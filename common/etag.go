@@ -10,7 +10,7 @@ import (
 type digestAnchor struct{}
 
 func modulePath() string {
-	return reflect.TypeOf(digestAnchor{}).PkgPath()
+	return reflect.TypeFor[digestAnchor]().PkgPath()
 }
 
 var digestSeed = func() (s [sha256.Size]byte) {

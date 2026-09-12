@@ -72,6 +72,12 @@ func PopSessionDataFlow(token, purpose string, identity model.AuthSessionIdentit
 		if err := common.UnmarshalJsonStr(flow.Payload, &payload); err != nil {
 			return err
 		}
+		if payload.SessionData.RelyingPartyID == "" || payload.SessionData.Expires.IsZero() {
+			return model.ErrAuthFlowInvalid
+		}
+		if !time.Now().Before(payload.SessionData.Expires) {
+			return model.ErrAuthFlowExpired
+		}
 		if purpose == model.AuthFlowPurposePasskeyLogin {
 			return nil
 		}

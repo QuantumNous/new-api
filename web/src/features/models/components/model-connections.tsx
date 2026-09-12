@@ -24,6 +24,7 @@ import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 
 import type { Model } from '../types'
+import { ModelSquareStatus } from './model-square-status'
 
 export function ModelConnections(props: { model: Model }) {
   const { t } = useTranslation()
@@ -34,6 +35,7 @@ export function ModelConnections(props: { model: Model }) {
           'Channel availability and group access are derived from enabled channels. Importing metadata does not create a callable channel.'
         )}
       </p>
+      <ModelSquareStatus model={props.model} detail />
       <section className='space-y-3'>
         <h3 className='font-medium'>{t('Bound Channels')}</h3>
         {props.model.bound_channels?.length ? (

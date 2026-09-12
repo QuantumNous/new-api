@@ -54,9 +54,12 @@ function FilterFixture() {
 }
 
 async function renderFilter() {
-  vi.spyOn(api, 'get').mockResolvedValue({
-    data: { success: true, data: { quota: 0, rpm: 0, tpm: 0 } },
-  })
+  vi.spyOn(api, 'get').mockImplementation(async (url) => ({
+    data: {
+      success: true,
+      data: url === '/api/user/self/groups' ? {} : { quota: 0, rpm: 0, tpm: 0 },
+    },
+  }))
   const root = createRootRoute()
   const auth = createRoute({ getParentRoute: () => root, id: '_authenticated' })
   const logs = createRoute({
@@ -77,7 +80,7 @@ async function renderFilter() {
       <RouterProvider router={router} />
     </QueryClientProvider>
   )
-  await screen.findByRole('combobox')
+  await screen.findByRole('combobox', { name: 'Type' })
   return router
 }
 
@@ -88,7 +91,7 @@ afterEach(() => {
 
 it('marks only retired log types as deprecated while keeping historical filters selectable', async () => {
   const router = await renderFilter()
-  await userEvent.click(screen.getByRole('combobox'))
+  await userEvent.click(screen.getByRole('combobox', { name: 'Type' }))
   for (const label of ['Manage', 'Login']) {
     expect(
       within(
@@ -111,12 +114,14 @@ it('marks only retired log types as deprecated while keeping historical filters 
     ).not.toBeInTheDocument()
   }
   await userEvent.click(screen.getByRole('option', { name: /^Manage/ }))
-  expect(screen.getByRole('combobox')).toHaveTextContent('Deprecated')
+  expect(screen.getByRole('combobox', { name: 'Type' })).toHaveTextContent(
+    'Deprecated'
+  )
   await userEvent.click(screen.getByRole('button', { name: 'Search' }))
   await waitFor(() =>
     expect(router.state.location.search).toMatchObject({ type: ['3'], page: 1 })
   )
-  await userEvent.click(screen.getByRole('combobox'))
+  await userEvent.click(screen.getByRole('combobox', { name: 'Type' }))
   await userEvent.click(screen.getByRole('option', { name: /^Login/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Search' }))
   await waitFor(() =>

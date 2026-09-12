@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { useSecureVerification } from '@/features/auth/secure-verification'
+import { handleServerError } from '@/lib/handle-server-error'
 import { AuthOperationError } from '@/lib/secure-verification'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -95,7 +96,7 @@ export function useAccessToken() {
       } catch (error) {
         if (currentOperation.current !== controller) return
         const failure = AuthOperationError.from(error)
-        if (failure.code !== 'AUTH_CANCELLED') toast.error(t(failure.message))
+        if (failure.code !== 'AUTH_CANCELLED') handleServerError(failure)
         void client.invalidateQueries({
           queryKey: ['security', 'access-token', 'status', userId],
         })

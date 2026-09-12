@@ -140,13 +140,13 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 					}
 					openAIMessage.SetMediaContent(systemMediaMessages)
 				} else {
-					systemStr := ""
+					var systemStr strings.Builder
 					for _, system := range systems {
 						if system.Text != nil {
-							systemStr += *system.Text
+							systemStr.WriteString(*system.Text)
 						}
 					}
-					openAIMessage.SetStringContent(systemStr)
+					openAIMessage.SetStringContent(systemStr.String())
 				}
 				openAIMessages = append(openAIMessages, openAIMessage)
 			}
@@ -230,7 +230,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 	return &openAIRequest, nil
 }
 
-func requestToJSONString(v interface{}) string {
+func requestToJSONString(v any) string {
 	b, err := kitutil.Marshal(v)
 	if err != nil {
 		return "{}"

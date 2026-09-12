@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, test } from 'vitest'
 
 const { createInstance } = await import('i18next')
@@ -61,93 +62,99 @@ function CellHarness(props: {
 }
 
 describe('API key group table cell', () => {
-  test('renders an unclipped ring and a localized Auto ratio when API data uses a nonlocalized string', () => {
+  test('keeps the group and compact localized multiplier together with one subtle flowing edge', () => {
     const { container } = render(
-      <CellHarness
-        group='auto'
-        ratio='自动'
-        crossGroupRetry
-        shouldReduceMotion={false}
-      />
+      <CellHarness group='auto' ratio='自动' crossGroupRetry />
     )
-
-    const badgeCell = container.querySelector<HTMLElement>(
-      '[data-api-key-group-cell="auto"]'
-    )
-    expect(badgeCell).toHaveClass('overflow-visible')
-    expect(badgeCell).not.toHaveClass('overflow-hidden')
-
-    const frames = container.querySelectorAll('[data-auto-group-frame]')
-    const movingRings = container.querySelectorAll(
-      '[data-auto-group-flow-border]'
-    )
-    expect(frames.length).toBe(1)
-    expect(movingRings.length).toBe(1)
-    for (const frame of frames) {
-      expect(frame).toHaveClass(
-        'relative',
-        'overflow-visible',
-        'rounded-4xl',
-        'p-px'
-      )
-    }
-
-    const ratio = container.querySelector<HTMLElement>(
-      '[data-auto-group-effect="ratio"]'
-    )
-    expect(ratio).toHaveTextContent('Auto Ratio')
-    expect(ratio).not.toHaveTextContent('x')
+    const group = screen.getByText('Cross-group')
+    const multiplier = screen
+      .getByText('Auto')
+      .closest<HTMLElement>('[data-slot="badge"]')
+    expect(group).toBeInTheDocument()
+    expect(multiplier).toHaveClass('h-5', 'min-w-12', 'rounded-md')
+    expect(multiplier).not.toHaveTextContent('Ratio')
     expect(container).not.toHaveTextContent('自动')
-    expect(container).toHaveTextContent('Cross-group')
-
-    const crossGroupBadge = [
-      ...container.querySelectorAll<HTMLElement>('[data-slot="status-badge"]'),
-    ].find((badge) => badge.textContent === 'Cross-group')
-    expect(crossGroupBadge).not.toBeUndefined()
-    expect(crossGroupBadge?.closest('[data-auto-group-frame]')).toBeNull()
+    expect(container.querySelector('[data-auto-group-frame]')).toBeNull()
+    const flow = container.querySelector('[data-auto-group-flow-border]')
+    expect(flow).toHaveClass('auto-group-flow-border-subtle')
+    expect(flow).toHaveAttribute('aria-hidden', 'true')
+    expect(group.closest('[data-api-key-group-cell]')).toContainElement(
+      multiplier
+    )
   })
 
-  test('keeps the static Auto ratio frame but omits its moving layer for reduced motion', () => {
+  test('keeps the automatic tag visible but static when reduced motion is requested', () => {
     const { container } = render(
       <CellHarness group='auto' ratio='Auto' shouldReduceMotion />
     )
-
-    expect(container.querySelectorAll('[data-auto-group-frame]').length).toBe(1)
-    expect(
-      container.querySelectorAll('[data-auto-group-flow-border]').length
-    ).toBe(0)
+    expect(screen.getByText('Auto')).toBeInTheDocument()
+    expect(container.querySelector('[data-auto-group-flow-border]')).toBeNull()
   })
 
-  test('shows only the cross-group badge when ratio data is unavailable', () => {
-    const { container } = render(
-      <CellHarness group='auto' shouldReduceMotion={false} />
-    )
-
-    expect(container.querySelectorAll('[data-auto-group-frame]').length).toBe(0)
-    expect(
-      container.querySelectorAll('[data-auto-group-flow-border]').length
-    ).toBe(0)
-    expect(container.querySelector('[data-auto-group-effect="ratio"]')).toBe(
-      null
-    )
-    expect(container).toHaveTextContent('Cross-group')
-    expect(container).not.toHaveTextContent('Auto')
-    expect(container).not.toHaveTextContent('Ratio')
+  test('does not invent a multiplier while automatic ratio data is unavailable', () => {
+    render(<CellHarness group='auto' />)
+    expect(screen.getByText('Cross-group')).toBeInTheDocument()
+    expect(screen.queryByText('Auto')).not.toBeInTheDocument()
   })
 
-  test('narrows normal group ratios to numbers and never applies Auto rings', () => {
-    const { container, rerender } = render(
-      <CellHarness group='vip' ratio='自动' shouldReduceMotion={false} />
+  test.each([
+    [0.8, 'bg-info/10', 'text-info', 'border-info/30'],
+    [1, 'bg-muted', 'text-muted-foreground', 'border-muted-foreground/30'],
+    [3, 'bg-warning/10', 'text-warning', 'border-warning/30'],
+  ])(
+    'preserves the original %s multiplier color in the compact layout',
+    (ratio, background, color, border) => {
+      const { container } = render(
+        <CellHarness group='default' ratio={ratio} />
+      )
+      const multiplier = screen.getByText(`${ratio}x`).parentElement
+      expect(multiplier).toHaveClass(
+        background,
+        color,
+        border,
+        'rounded-full',
+        'tabular-nums',
+        'h-5',
+        'min-w-12'
+      )
+      expect(
+        container.querySelector('[data-auto-group-flow-border]')
+      ).toBeNull()
+    }
+  )
+
+  test('labels the user group multiplier as inherited without inventing a numeric value', async () => {
+    render(<CellHarness group='' />)
+    expect(screen.getByText('User Group')).toBeInTheDocument()
+    expect(screen.getByText('Inherited')).toBeInTheDocument()
+    expect(screen.getByText('Inherited').parentElement).toHaveClass(
+      'border-muted-foreground/30',
+      'rounded-full'
     )
+    expect(screen.queryByText('1x')).not.toBeInTheDocument()
+    await userEvent.tab()
+    expect(await screen.findByText('Follow user group')).toBeVisible()
+  })
 
-    expect(container).toHaveTextContent('vip')
-    expect(container).not.toHaveTextContent('自动')
-    expect(container.querySelector('[data-auto-group-frame]')).toBe(null)
-    expect(container.querySelector('[data-auto-group-flow-border]')).toBe(null)
+  test('keeps a long group name and exact multiplier available through keyboard focus', async () => {
+    const groupName = 'production-with-a-very-long-custom-group-name'
+    render(<CellHarness group={groupName} ratio={12.345678} />)
+    expect(
+      screen.getByText(groupName).closest('[data-slot="tooltip-trigger"]')
+    ).toHaveClass('max-w-50')
+    expect(screen.getByText('12.345678x')).toBeInTheDocument()
+    await userEvent.tab()
+    expect(
+      await screen.findByText(groupName, {
+        selector: '[data-slot="tooltip-content"]',
+      })
+    ).toBeVisible()
+  })
 
-    rerender(<CellHarness group='vip' ratio={3} shouldReduceMotion={false} />)
-
-    expect(container).toHaveTextContent('3x')
-    expect(container.querySelector('[data-auto-group-frame]')).toBe(null)
+  test('never turns a string-valued normal group ratio into an automatic multiplier', () => {
+    render(<CellHarness group='vip' ratio='自动' />)
+    expect(screen.getByText('vip')).toBeInTheDocument()
+    expect(screen.queryByText('Auto')).not.toBeInTheDocument()
+    expect(screen.queryByText('自动')).not.toBeInTheDocument()
   })
 })

@@ -102,7 +102,7 @@ func TestCreateLoginSessionEnforcesActiveLimitAcrossAuthVersions(t *testing.T) {
 	common.UserSessionIssuanceLimit = 100
 	now := time.Now().Unix()
 	rows := make([]model.UserSession, 0, 49)
-	for i := 0; i < 49; i++ {
+	for i := range 49 {
 		authVersion := user.AuthVersion
 		if i == 0 {
 			authVersion++
@@ -216,7 +216,7 @@ func TestCleanupAuthArtifactsAlertsBeforeDeletingHourlyIssuance(t *testing.T) {
 	common.UserSessionIssuanceWindowSeconds = 1
 	now := time.Now()
 	boundaryRows := make([]model.UserSession, 0, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		boundaryRows = append(boundaryRows, model.UserSession{
 			SID: "hourly-boundary-" + string(rune('a'+i)), UserID: 1, Version: 1, UserAuthVersion: 1,
 			Status: model.UserSessionStatusActive, RefreshHash: "hash", LoginMethod: "password",
@@ -243,7 +243,7 @@ func TestCleanupAuthArtifactsAlertsBeforeDeletingHourlyIssuance(t *testing.T) {
 	assert.Zero(t, count)
 
 	exceededRows := make([]model.UserSession, 0, 3)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		exceededRows = append(exceededRows, model.UserSession{
 			SID: "hourly-exceeded-" + string(rune('a'+i)), UserID: 1, Version: 1, UserAuthVersion: 1,
 			Status: model.UserSessionStatusActive, RefreshHash: "hash", LoginMethod: "password",

@@ -214,6 +214,7 @@ function MarketplacePluginLogo(props: MarketplacePluginLogoProps) {
       fetchPluginIconDataUri(props.iconUrl, { sha256: props.sha256 }),
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
+    meta: { errorToast: false },
   })
   return (
     <PluginIcon

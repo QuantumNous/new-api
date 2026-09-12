@@ -64,7 +64,7 @@ func setupSecurityEnrollmentTest(t *testing.T) (*model.User, service.AuthIdentit
 	var version string
 	require.NoError(t, db.Raw(versionQuery).Scan(&version).Error)
 	t.Logf("database: %s %s", dialect, version)
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.TwoFA{}, &model.TwoFABackupCode{}, &model.PasskeyCredential{}, &model.AuthFlow{}, &model.UserOAuthBinding{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.TwoFA{}, &model.TwoFABackupCode{}, &model.PasskeyCredential{}, &model.AuthFlow{}, &model.UserOAuthBinding{}, &model.Option{}))
 	require.NoError(t, logDB.AutoMigrate(&model.AuditLog{}))
 	model.DB, model.LOG_DB = db, logDB
 	dbType := common.DatabaseTypeSQLite
@@ -1059,7 +1059,7 @@ func TestSecurityEnrollmentOAuthVerificationNeverChangesLoginOrBindings(t *testi
 	for _, scenario := range []string{"success", "different account", "binding changed", "session changed", "auth version changed", "provider disabled", "cancelled"} {
 		t.Run(scenario, func(t *testing.T) {
 			user, identity := setupSecurityEnrollmentTest(t)
-			require.NoError(t, model.DB.Model(user).Updates(map[string]interface{}{"password": "", "github_id": "linked-user", "email": "same@example.com"}).Error)
+			require.NoError(t, model.DB.Model(user).Updates(map[string]any{"password": "", "github_id": "linked-user", "email": "same@example.com"}).Error)
 			provider := &enrollmentOAuthProvider{externalID: "linked-user"}
 			oauth.Register("enrollment-oauth", provider)
 			t.Cleanup(func() { oauth.Unregister("enrollment-oauth") })

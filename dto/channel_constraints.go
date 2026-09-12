@@ -45,6 +45,7 @@ type ChannelFilter struct {
 	Kind                   ChannelFilterKind
 	RequestPath            string
 	TaskPluginKey          string
+	TaskPluginKeys         []string
 	TaskPluginChannelTypes []int
 }
 

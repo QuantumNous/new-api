@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { listDeployments } from './api'
 import { DeploymentAccessGuard } from './components/deployment-access-guard'
@@ -168,7 +169,8 @@ function DeploymentsSection() {
       const defaultParams = { p: 1, page_size: 10 }
       queryClient.prefetchQuery({
         queryKey: deploymentsQueryKeys.list(defaultParams),
-        queryFn: () => listDeployments(defaultParams),
+        queryFn: async () =>
+          requireServerSuccess(await listDeployments(defaultParams)),
         staleTime: 30 * 1000,
       })
     }

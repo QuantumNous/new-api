@@ -37,6 +37,10 @@ const modelsSearchSchema = z.object({
   filter: z.string().optional().catch(''),
   vendor: z.array(z.string()).optional().catch([]),
   status: z.array(z.string()).optional().catch([]),
+  square_state: z
+    .array(z.enum(['visible', 'unavailable', 'hidden', 'partial']))
+    .optional()
+    .catch([]),
   sync: z.array(z.string()).optional().catch([]),
   dPage: z.number().optional().catch(1),
   dPageSize: z.number().optional().catch(10),

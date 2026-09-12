@@ -212,7 +212,7 @@ func securityVerificationPolicy(scope string, state model.UserVerificationState)
 		if method == VerificationMethodTwoFA && state.TwoFALocked {
 			option.Available, option.Reason = false, ErrVerificationLocked.Error()
 		}
-		if !system_setting.GetPasskeySettings().Enabled && (method == VerificationMethodPasskey || scope == VerificationScopePasskeyRegister) {
+		if !system_setting.PasskeySettingsSnapshot().Enabled && (method == VerificationMethodPasskey || scope == VerificationScopePasskeyRegister) {
 			option.Available, option.Reason = false, "Passkey authentication is disabled."
 		}
 		options = append(options, option)
