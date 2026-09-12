@@ -19,6 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 // Static translation keys that don't get picked up by the t('...') regex.
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  'This operation is only supported for vLLM channels',
+  'Invalid vLLM server address',
+  'No enabled channel key',
+  'Invalid channel header override',
+  'Invalid channel proxy',
   'For this channel, map the model name in client requests to the model name sent upstream.',
   // Channel provider labels, descriptions and presentation badges.
   'Zhipu GLM',
@@ -74,6 +79,10 @@ export const STATIC_I18N_KEYS = [
   'Flexible integration',
   'Connect to model services through a Sub2API gateway',
   'Connect to model services from another New API instance',
+  'vLLM',
+  'Connect to self-hosted models served by vLLM',
+  'vLLM server address, without /v1',
+  'vLLM API key, or EMPTY if authentication is disabled',
 
   'Price per image',
   'Per image',

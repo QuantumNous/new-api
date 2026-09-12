@@ -20,6 +20,7 @@ import { getGroups as getUserGroups } from '@/features/users/api'
 import { api, type ApiRequestConfig } from '@/lib/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
+import type { VLLMStatus } from './lib/vllm-status'
 import type {
   AddChannelRequest,
   BatchDeleteParams,
@@ -48,6 +49,17 @@ const channelActionConfig = (
   skipBusinessError: true,
   skipErrorHandler: true,
 })
+
+export async function getVLLMStatus(
+  channelId: number,
+  signal?: AbortSignal
+): Promise<VLLMStatus> {
+  const response = await api.get<{ success: boolean; data: VLLMStatus }>(
+    `/api/channel/${channelId}/vllm/status`,
+    { signal, disableDuplicate: true }
+  )
+  return requireServerSuccess(response.data).data
+}
 
 export type TaskPluginOption = {
   sortPriority?: number

@@ -20,10 +20,15 @@ import { describe, expect, test } from 'vitest'
 
 import {
   CHANNEL_TYPE_NEW_API,
+  CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_OPTIONS,
   MODEL_FETCHABLE_TYPES,
 } from '../../constants'
-import { CHANNEL_FORM_DEFAULT_VALUES, channelFormSchema } from '../channel-form'
+import {
+  CHANNEL_FORM_DEFAULT_VALUES,
+  channelFormSchema,
+  transformFormDataToCreatePayload,
+} from '../channel-form'
 import { getChannelTypeConfig } from '../channel-type-config'
 import { getChannelTypeIcon, getKeyPromptForType } from '../channel-utils'
 
@@ -87,5 +92,52 @@ describe('New API channel', () => {
     })
 
     expect(result.success).toBe(true)
+  })
+})
+
+describe('vLLM channel', () => {
+  test('can be selected and discover served models', () => {
+    expect(CHANNEL_TYPE_OPTIONS).toContainEqual({
+      value: CHANNEL_TYPE_VLLM,
+      label: 'vLLM',
+    })
+    expect(MODEL_FETCHABLE_TYPES.has(CHANNEL_TYPE_VLLM)).toBe(true)
+    expect(getChannelTypeIcon(CHANNEL_TYPE_VLLM)).toBe('Vllm')
+    expect(getChannelTypeConfig(CHANNEL_TYPE_VLLM).icon).toBe('Vllm')
+    expect(getKeyPromptForType(CHANNEL_TYPE_VLLM)).toBe(
+      'vLLM API key, or EMPTY if authentication is disabled'
+    )
+  })
+
+  test('requires an upstream address and submits the served model name', () => {
+    const form = {
+      ...newAPIForm(''),
+      type: CHANNEL_TYPE_VLLM,
+      models: 'deepseek-v4-flash-vision-exp',
+      key: 'EMPTY',
+    }
+    const blank = channelFormSchema.safeParse(form)
+    expect(blank.success).toBe(false)
+    if (!blank.success) {
+      expect(blank.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            path: ['base_url'],
+            message: 'Base URL is required for this channel type',
+          }),
+        ])
+      )
+    }
+    const parsed = channelFormSchema.parse({
+      ...form,
+      base_url: 'http://vllm:8000/',
+    })
+    const payload = transformFormDataToCreatePayload(parsed)
+    expect(payload.channel).toMatchObject({
+      type: CHANNEL_TYPE_VLLM,
+      base_url: 'http://vllm:8000',
+      models: 'deepseek-v4-flash-vision-exp',
+      key: 'EMPTY',
+    })
   })
 })

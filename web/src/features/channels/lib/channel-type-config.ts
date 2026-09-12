@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CHANNEL_TYPES } from '../constants'
+import { CHANNEL_TYPES, CHANNEL_TYPE_VLLM } from '../constants'
 
 // ============================================================================
 // Channel Type Configuration
@@ -46,6 +46,16 @@ export interface ChannelTypeConfig {
  * Configuration for each channel type
  */
 export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
+  [CHANNEL_TYPE_VLLM]: {
+    id: CHANNEL_TYPE_VLLM,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_VLLM],
+    icon: 'Vllm',
+    hints: {
+      baseUrl: 'vLLM server address, without /v1',
+      key: 'vLLM API key, or EMPTY if authentication is disabled',
+      models: 'Models fetched from upstream /v1/models',
+    },
+  },
   1: {
     id: 1,
     name: CHANNEL_TYPES[1],
