@@ -77,8 +77,9 @@ func (info *RelayInfo) incrementBillableToolCall(name string) {
 // ImageGenerationCallCounter counts completed Responses image_generation_call
 // outputs with stream-safe identity deduplication.
 type ImageGenerationCallCounter struct {
-	seen  map[string]struct{}
+	seen  map[string]int
 	count int
+	tiers []ImageGenerationTier
 }
 
 // Observe records one completed final image output when billable.
@@ -97,6 +98,14 @@ func (c *ImageGenerationCallCounter) Observe(item *dto.ResponsesOutput, outputIn
 	case "failed", "cancelled", "canceled", "incomplete", "partial":
 		return
 	}
+	quality := strings.ToLower(strings.TrimSpace(item.Quality))
+	if quality == "auto" {
+		quality = ""
+	}
+	size := strings.ToLower(strings.TrimSpace(item.Size))
+	if size == "auto" {
+		size = ""
+	}
 
 	aliases := make([]string, 0, 4)
 	if item.ID != "" {
@@ -112,16 +121,33 @@ func (c *ImageGenerationCallCounter) Observe(item *dto.ResponsesOutput, outputIn
 	aliases = append(aliases, "result:"+hex.EncodeToString(sum[:]))
 
 	if c.seen == nil {
-		c.seen = make(map[string]struct{})
+		c.seen = make(map[string]int)
 	}
+	observedIndex := -1
 	for _, alias := range aliases {
-		if _, ok := c.seen[alias]; ok {
-			return
+		if index, ok := c.seen[alias]; ok {
+			observedIndex = index
+			break
 		}
 	}
-	for _, alias := range aliases {
-		c.seen[alias] = struct{}{}
+	if observedIndex >= 0 {
+		for _, alias := range aliases {
+			c.seen[alias] = observedIndex
+		}
+		if quality != "" {
+			c.tiers[observedIndex].Quality = quality
+		}
+		if size != "" {
+			c.tiers[observedIndex].Size = size
+		}
+		return
 	}
+
+	observedIndex = len(c.tiers)
+	for _, alias := range aliases {
+		c.seen[alias] = observedIndex
+	}
+	c.tiers = append(c.tiers, ImageGenerationTier{Quality: quality, Size: size})
 	c.count++
 }
 
@@ -132,6 +158,7 @@ func (c *ImageGenerationCallCounter) Reset() {
 	}
 	c.seen = nil
 	c.count = 0
+	c.tiers = nil
 }
 
 // Count returns the deduplicated completed image output count before commit capping.
@@ -165,13 +192,40 @@ func (c *ImageGenerationCallCounter) Commit(info *RelayInfo) {
 		count = dto.MaxImageN
 	}
 
+	requestQuality, requestSize := "", ""
+	if existing, ok := info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration]; ok && existing != nil {
+		requestQuality = strings.ToLower(strings.TrimSpace(existing.ImageGenerationQuality))
+		requestSize = strings.ToLower(strings.TrimSpace(existing.ImageGenerationSize))
+	}
+	if requestQuality == "auto" {
+		requestQuality = ""
+	}
+	if requestSize == "auto" {
+		requestSize = ""
+	}
+
+	tierCounts := make(map[ImageGenerationTier]int)
+	if c != nil {
+		for _, tier := range c.tiers[:count] {
+			if tier.Quality == "" {
+				tier.Quality = requestQuality
+			}
+			if tier.Size == "" {
+				tier.Size = requestSize
+			}
+			tierCounts[tier]++
+		}
+	}
+
 	if existing, ok := info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration]; ok && existing != nil {
 		existing.CallCount = count
+		existing.ImageGenerationTiers = tierCounts
 		return
 	}
 	info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration] = &BuildInToolInfo{
-		ToolName:  dto.BuildInToolImageGeneration,
-		CallCount: count,
+		ToolName:             dto.BuildInToolImageGeneration,
+		CallCount:            count,
+		ImageGenerationTiers: tierCounts,
 	}
 }
 
