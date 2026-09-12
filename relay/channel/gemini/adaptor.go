@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	commonconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
@@ -33,9 +34,6 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 	// Keep the original video, text and non-media tools. Strip media navigation
 	// fields and optional non-function signatures from subsequent model history.
 	hasAgenticVideo := false
-	// ID-only traces cannot be attributed safely when other tools are enabled.
-	var tools []map[string]any
-	allowUntypedTrace := len(request.Tools) == 0 || (common.Unmarshal(request.Tools, &tools) == nil && len(tools) == 0)
 	contents := make([]dto.GeminiChatContent, 0, len(request.Contents))
 	for _, content := range request.Contents {
 		if content.Role == "user" || content.Role == "" {
@@ -56,16 +54,16 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 				// Signatures outside functionCall parts are optional. Vertex may emit
 				// opaque media signatures without the associated tool payload, and
 				// replaying those signatures fails validation.
-				if part.FunctionCall == nil && len(part.ThoughtSignature) > 0 {
+				if info.GetChannelType() == commonconstant.ChannelTypeVertexAi && part.FunctionCall == nil && len(part.ThoughtSignature) > 0 {
 					part.ThoughtSignature = nil
 					removed = true
 				}
 				isMediaTrace := false
-				if isAgenticMediaTrace(part.ToolCall, allowUntypedTrace) {
+				if isAgenticMediaTrace(part.ToolCall) {
 					part.ToolCall = nil
 					isMediaTrace = true
 				}
-				if isAgenticMediaTrace(part.ToolResponse, allowUntypedTrace) {
+				if isAgenticMediaTrace(part.ToolResponse) {
 					part.ToolResponse = nil
 					isMediaTrace = true
 				}
@@ -107,7 +105,7 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 
 // Untyped traces are recognized only in their observed ID-only form. Unknown
 // tools and future payloads must not be mistaken for media navigation.
-func isAgenticMediaTrace(data []byte, allowUntyped bool) bool {
+func isAgenticMediaTrace(data []byte) bool {
 	var fields map[string]any
 	if len(data) == 0 || common.Unmarshal(data, &fields) != nil {
 		return false
@@ -121,7 +119,7 @@ func isAgenticMediaTrace(data []byte, allowUntyped bool) bool {
 		return true
 	}
 	id, ok := fields["id"].(string)
-	return allowUntyped && len(fields) == 1 && ok && id != ""
+	return len(fields) == 1 && ok && id != ""
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {

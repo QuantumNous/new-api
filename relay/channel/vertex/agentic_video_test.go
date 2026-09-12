@@ -45,6 +45,9 @@ func TestAgenticVideoRequestRoundTrip(t *testing.T) {
 			data, err := common.Marshal(parts[2])
 			require.NoError(t, err)
 			assert.JSONEq(t, `{"text":"Compare the videos"}`, string(data))
+			data, err = common.Marshal(out)
+			require.NoError(t, err)
+			assert.JSONEq(t, `{"contents":[{"role":"user","parts":[{"fileData":{"mimeType":"video/mp4","fileUri":"gs://bucket/lecture.mp4"},"mediaResolution":{"level":"MEDIA_RESOLUTION_LOW"},"mediaProcessing":"AGENTIC"},{"inlineData":{"mimeType":"video/mp4","data":"AAAA"},"mediaProcessing":"STATIC","videoMetadata":{"fps":0.5}},{"text":"Compare the videos"}]}]}`, string(data))
 		})
 	}
 }
@@ -52,30 +55,34 @@ func TestAgenticVideoRequestRoundTrip(t *testing.T) {
 func TestAgenticVideoHistoryCompatibility(t *testing.T) {
 	for _, vertex := range []bool{false, true} {
 		for _, tc := range []struct {
-			name, media, role, part, want string
+			name, media, role, part, geminiWant, vertexWant string
 		}{
-			{"opaque call", "AGENTIC", "model", `{"toolCall":{"id":"call_1"},"thoughtSignature":"sig"}`, ``},
-			{"opaque result", "AGENTIC", "model", `{"tool_response":{"id":"call_1"}}`, ``},
-			{"typed call", "AGENTIC", "model", `{"toolCall":{"toolType":"MEDIA_PROCESSING","args":{}},"text":"summary"}`, `{"text":"summary"}`},
-			{"typed result", "AGENTIC", "model", `{"tool_response":{"tool_type":"MEDIA_PROCESSING","response":{}}}`, ``},
-			{"static video", "STATIC", "model", `{"toolCall":{"id":"call_1"}}`, `{"toolCall":{"id":"call_1"}}`},
-			{"user content", "AGENTIC", "user", `{"toolCall":{"id":"call_1"}}`, `{"toolCall":{"id":"call_1"}}`},
-			{"unknown tool", "AGENTIC", "model", `{"toolCall":{"toolType":"OTHER","id":"call_1"}}`, `{"toolCall":{"toolType":"OTHER","id":"call_1"}}`},
-			{"unknown payload", "AGENTIC", "model", `{"toolCall":{"id":"call_1","args":{}}}`, `{"toolCall":{"id":"call_1","args":{}}}`},
-			{"function call", "AGENTIC", "model", `{"functionCall":{"name":"lookup","args":{}},"thoughtSignature":"required"}`, `{"functionCall":{"name":"lookup","args":{}},"thoughtSignature":"required"}`},
-			{"function result", "AGENTIC", "model", `{"functionResponse":{"name":"lookup","response":{}}}`, `{"functionResponse":{"name":"lookup","response":{}}}`},
-			{"vertex signature", "AGENTIC", "model", `{"thoughtSignature":"sig"}`, ``},
-			{"Google Search", "AGENTIC", "model", `{"toolCall":{"toolType":"GOOGLE_SEARCH","id":"s"},"thoughtSignature":"sig"}`, `{"toolCall":{"toolType":"GOOGLE_SEARCH","id":"s"}}`},
-			{"URL Context", "AGENTIC", "model", `{"toolResponse":{"tool_type":"URL_CONTEXT","id":"u"}}`, `{"toolResponse":{"tool_type":"URL_CONTEXT","id":"u"}}`},
-			{"code execution", "AGENTIC", "model", `{"executableCode":{"language":"PYTHON","code":"print(1)"},"thoughtSignature":"sig"}`, `{"executableCode":{"language":"PYTHON","code":"print(1)"}}`},
-			{"code result", "AGENTIC", "model", `{"codeExecutionResult":{"outcome":"OUTCOME_OK","output":"1"}}`, `{"codeExecutionResult":{"outcome":"OUTCOME_OK","output":"1"}}`},
+			{"opaque call", "AGENTIC", "model", `{"toolCall":{"id":"call_1"},"thoughtSignature":"sig"}`, ``, ``},
+			{"opaque result", "AGENTIC", "model", `{"tool_response":{"id":"call_1"}}`, ``, ``},
+			{"typed call", "AGENTIC", "model", `{"toolCall":{"toolType":"MEDIA_PROCESSING","args":{}},"text":"summary"}`, `{"text":"summary"}`, `{"text":"summary"}`},
+			{"typed result", "AGENTIC", "model", `{"tool_response":{"tool_type":"MEDIA_PROCESSING","response":{}}}`, ``, ``},
+			{"static video", "STATIC", "model", `{"toolCall":{"id":"call_1"}}`, `{"toolCall":{"id":"call_1"}}`, `{"toolCall":{"id":"call_1"}}`},
+			{"user content", "AGENTIC", "user", `{"toolCall":{"id":"call_1"}}`, `{"toolCall":{"id":"call_1"}}`, `{"toolCall":{"id":"call_1"}}`},
+			{"unknown tool", "AGENTIC", "model", `{"toolCall":{"toolType":"OTHER","id":"call_1"}}`, `{"toolCall":{"toolType":"OTHER","id":"call_1"}}`, `{"toolCall":{"toolType":"OTHER","id":"call_1"}}`},
+			{"unknown payload", "AGENTIC", "model", `{"toolCall":{"id":"call_1","args":{}}}`, `{"toolCall":{"id":"call_1","args":{}}}`, `{"toolCall":{"id":"call_1","args":{}}}`},
+			{"function call", "AGENTIC", "model", `{"functionCall":{"name":"lookup","args":{}},"thoughtSignature":"required"}`, `{"functionCall":{"name":"lookup","args":{}},"thoughtSignature":"required"}`, `{"functionCall":{"name":"lookup","args":{}},"thoughtSignature":"required"}`},
+			{"function result", "AGENTIC", "model", `{"functionResponse":{"name":"lookup","response":{}}}`, `{"functionResponse":{"name":"lookup","response":{}}}`, `{"functionResponse":{"name":"lookup","response":{}}}`},
+			{"signature only", "AGENTIC", "model", `{"thoughtSignature":"sig"}`, `{"thoughtSignature":"sig"}`, ``},
+			{"Google Search", "AGENTIC", "model", `{"toolCall":{"toolType":"GOOGLE_SEARCH","id":"s"},"thoughtSignature":"sig"}`, `{"toolCall":{"toolType":"GOOGLE_SEARCH","id":"s"},"thoughtSignature":"sig"}`, `{"toolCall":{"toolType":"GOOGLE_SEARCH","id":"s"}}`},
+			{"URL Context", "AGENTIC", "model", `{"toolResponse":{"tool_type":"URL_CONTEXT","id":"u"}}`, `{"toolResponse":{"tool_type":"URL_CONTEXT","id":"u"}}`, `{"toolResponse":{"tool_type":"URL_CONTEXT","id":"u"}}`},
+			{"code execution", "AGENTIC", "model", `{"executableCode":{"language":"PYTHON","code":"print(1)"},"thoughtSignature":"sig"}`, `{"executableCode":{"language":"PYTHON","code":"print(1)"},"thoughtSignature":"sig"}`, `{"executableCode":{"language":"PYTHON","code":"print(1)"}}`},
+			{"code result", "AGENTIC", "model", `{"codeExecutionResult":{"outcome":"OUTCOME_OK","output":"1"}}`, `{"codeExecutionResult":{"outcome":"OUTCOME_OK","output":"1"}}`, `{"codeExecutionResult":{"outcome":"OUTCOME_OK","output":"1"}}`},
 		} {
 			t.Run(tc.name+map[bool]string{false: "/gemini", true: "/vertex"}[vertex], func(t *testing.T) {
 				var request dto.GeminiChatRequest
 				require.NoError(t, common.UnmarshalJsonStr(`{"contents":[{"role":"user","parts":[{"file_data":{"file_uri":"gs://bucket/video.mp4","mime_type":"video/mp4"},"media_processing":"`+tc.media+`"}]},{"role":"`+tc.role+`","parts":[`+tc.part+`]},{"role":"user","parts":[{"text":"Explain the second scene"}]}]}`, &request))
 				original, err := common.Marshal(request.Contents[0])
 				require.NoError(t, err)
-				info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gemini-3.8-flash"}}
+				channelType := constant.ChannelTypeGemini
+				if vertex {
+					channelType = constant.ChannelTypeVertexAi
+				}
+				info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelType: channelType, UpstreamModelName: "gemini-3.8-flash"}}
 				if vertex {
 					_, err = (&Adaptor{}).ConvertGeminiRequest(nil, info, &request)
 				} else {
@@ -85,14 +92,18 @@ func TestAgenticVideoHistoryCompatibility(t *testing.T) {
 				video, err := common.Marshal(request.Contents[0])
 				require.NoError(t, err)
 				assert.JSONEq(t, string(original), string(video))
-				if tc.want == "" {
+				want := tc.geminiWant
+				if vertex {
+					want = tc.vertexWant
+				}
+				if want == "" {
 					require.Len(t, request.Contents, 2)
 				} else {
 					require.Len(t, request.Contents, 3)
 					require.Len(t, request.Contents[1].Parts, 1)
 					part, err := common.Marshal(request.Contents[1].Parts[0])
 					require.NoError(t, err)
-					assert.JSONEq(t, tc.want, string(part))
+					assert.JSONEq(t, want, string(part))
 				}
 				assert.Equal(t, "Explain the second scene", request.Contents[len(request.Contents)-1].Parts[0].Text)
 			})
@@ -100,17 +111,17 @@ func TestAgenticVideoHistoryCompatibility(t *testing.T) {
 	}
 }
 
-func TestAgenticVideoMixedToolsPreserveAmbiguousTraces(t *testing.T) {
+func TestAgenticVideoMixedToolsDropMediaTraces(t *testing.T) {
 	for _, tools := range []string{`[{"googleSearch":{}}]`, `[{"urlContext":{}}]`, `[{"codeExecution":{}}]`, `[{"functionDeclarations":[{"name":"lookup"}]}]`} {
 		var request dto.GeminiChatRequest
 		require.NoError(t, common.UnmarshalJsonStr(`{"tools":`+tools+`,"contents":[{"role":"user","parts":[{"inlineData":{"mimeType":"video/mp4","data":"AAAA"},"mediaProcessing":"AGENTIC"}]},{"role":"model","parts":[{"toolCall":{"id":"unknown"},"thoughtSignature":"keep"},{"toolResponse":{"id":"unknown"}},{"toolCall":{"toolType":"MEDIA_PROCESSING","id":"media"},"thoughtSignature":"remove"},{"text":"Summary","thoughtSignature":"text-sig"}]}]}`, &request))
 		info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gemini-3.8-flash"}}
 		_, err := (&gemini.Adaptor{}).ConvertGeminiRequest(nil, info, &request)
 		require.NoError(t, err)
-		require.Len(t, request.Contents[1].Parts, 3)
+		require.Len(t, request.Contents[1].Parts, 1)
 		data, err := common.Marshal(request.Contents[1].Parts)
 		require.NoError(t, err)
-		assert.JSONEq(t, `[{"toolCall":{"id":"unknown"}},{"toolResponse":{"id":"unknown"}},{"text":"Summary"}]`, string(data))
+		assert.JSONEq(t, `[{"text":"Summary","thoughtSignature":"text-sig"}]`, string(data))
 		assert.JSONEq(t, tools, string(request.Tools))
 	}
 }
@@ -127,24 +138,35 @@ func TestAgenticVideoVertexURL(t *testing.T) {
 			} {
 				var request dto.GeminiChatRequest
 				require.NoError(t, common.UnmarshalJsonStr(`{"contents":[{"parts":[`+tc.part+`]}]}`, &request))
+				apiKey := `{"project_id":"test-project"}`
+				projectPath := "/projects/test-project/locations/global"
+				keySuffix := ""
+				if keyType == dto.VertexKeyTypeAPIKey {
+					apiKey = "test-key"
+					projectPath = ""
+					keySuffix = "?key=test-key"
+				}
+				action := "generateContent"
+				if stream {
+					action = "streamGenerateContent?alt=sse"
+					if keySuffix != "" {
+						keySuffix = "&key=test-key"
+					}
+				}
 				info := &relaycommon.RelayInfo{Request: &request, IsStream: stream, ChannelMeta: &relaycommon.ChannelMeta{
-					UpstreamModelName: "gemini-3.8-flash", ApiKey: `{"project_id":"test-project"}`,
+					UpstreamModelName: "gemini-3.8-flash", ApiKey: apiKey,
 				}}
 				info.ChannelOtherSettings.VertexKeyType = keyType
 				adaptor := &Adaptor{}
 				adaptor.Init(info)
 				url, err := adaptor.GetRequestURL(info)
 				require.NoError(t, err)
-				assert.Contains(t, url, "/"+tc.version+"/")
+				expectedPath := "/" + tc.version + projectPath + "/publishers/google/models/gemini-3.8-flash:" + action + keySuffix
+				assert.Equal(t, "https://aiplatform.googleapis.com"+expectedPath, url)
 				info.ChannelBaseUrl = "https://vertex.example/v1/"
 				customURL, err := adaptor.GetRequestURL(info)
 				require.NoError(t, err)
-				assert.Contains(t, customURL, "https://vertex.example/"+tc.version+"/")
-				if stream {
-					assert.Contains(t, url, ":streamGenerateContent?alt=sse")
-				} else {
-					assert.Contains(t, url, ":generateContent")
-				}
+				assert.Equal(t, "https://vertex.example"+expectedPath, customURL)
 			}
 		}
 	}
