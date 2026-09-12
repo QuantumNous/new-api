@@ -1,0 +1,114 @@
+// Rstest Snapshot v1
+
+exports[`plugin-vue > should add vue-loader and VueLoaderPlugin correctly 1`] = `
+{
+  "test": /\\\\\\.vue\\$/,
+  "use": [
+    {
+      "loader": "<PNPM_INNER>/rspack-vue-loader/dist/index.js",
+      "options": {
+        "compilerOptions": {
+          "preserveWhitespace": false,
+        },
+        "experimentalInlineMatchResource": true,
+        "isServerBuild": undefined,
+      },
+    },
+  ],
+  "with": {
+    "type": {
+      "not": "text",
+    },
+  },
+}
+`;
+
+exports[`plugin-vue > should add vue-loader and VueLoaderPlugin correctly 2`] = `VueLoaderPlugin {}`;
+
+exports[`plugin-vue > should add vue-loader and VueLoaderPlugin correctly 3`] = `
+{
+  "alias": {
+    "@swc/helpers": "<PNPM_INNER>/@swc/helpers",
+  },
+  "extensions": [
+    ".ts",
+    ".tsx",
+    ".mjs",
+    ".js",
+    ".jsx",
+    ".json",
+    ".vue",
+  ],
+}
+`;
+
+exports[`plugin-vue > should allow to configure vueLoader options 1`] = `
+{
+  "test": /\\\\\\.vue\\$/,
+  "use": [
+    {
+      "loader": "<PNPM_INNER>/rspack-vue-loader/dist/index.js",
+      "options": {
+        "compilerOptions": {
+          "preserveWhitespace": false,
+        },
+        "experimentalInlineMatchResource": true,
+        "hotReload": false,
+        "isServerBuild": undefined,
+      },
+    },
+  ],
+  "with": {
+    "type": {
+      "not": "text",
+    },
+  },
+}
+`;
+
+exports[`plugin-vue > should allow to custom test condition 1`] = `
+{
+  "test": /\\\\\\.\\(vue\\|md\\)\\$/,
+  "use": [
+    {
+      "loader": "<PNPM_INNER>/rspack-vue-loader/dist/index.js",
+      "options": {
+        "compilerOptions": {
+          "preserveWhitespace": false,
+        },
+        "experimentalInlineMatchResource": true,
+        "isServerBuild": undefined,
+      },
+    },
+  ],
+  "with": {
+    "type": {
+      "not": "text",
+    },
+  },
+}
+`;
+
+exports[`plugin-vue > should define feature flags correctly 1`] = `
+DefinePlugin {
+  "_args": [
+    {
+      "__VUE_OPTIONS_API__": true,
+      "__VUE_PROD_DEVTOOLS__": false,
+      "__VUE_PROD_HYDRATION_MISMATCH_DETAILS__": false,
+      "import.meta.env": {
+        "ASSET_PREFIX": "\\"\\"",
+        "BASE_URL": "\\"/\\"",
+        "DEV": false,
+        "MODE": "\\"none\\"",
+        "PROD": false,
+        "SSR": false,
+      },
+      "process.env.ASSET_PREFIX": "\\"\\"",
+      "process.env.BASE_URL": "\\"/\\"",
+    },
+  ],
+  "affectedHooks": "compilation",
+  "name": "DefinePlugin",
+}
+`;

@@ -1,0 +1,12 @@
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"Multiple tools."}}}
+{"contentBlockStart":{"contentBlockIndex":1,"start":{"toolUse":{"toolUseId":"tool-1","name":"tool-a"}}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"toolUse":{"input":"{\"a\":\"1\"}"}}}}
+{"contentBlockStop":{"contentBlockIndex":1}}
+{"contentBlockStart":{"contentBlockIndex":2,"start":{"toolUse":{"toolUseId":"tool-2","name":"tool-b"}}}}
+{"contentBlockDelta":{"contentBlockIndex":2,"delta":{"toolUse":{"input":"{\"b\":\"2\"}"}}}}
+{"contentBlockStop":{"contentBlockIndex":2}}
+{"contentBlockDelta":{"contentBlockIndex":3,"delta":{"text":"Final JSON."}}}
+{"contentBlockStart":{"contentBlockIndex":4,"start":{"toolUse":{"toolUseId":"json-tool-id","name":"json"}}}}
+{"contentBlockDelta":{"contentBlockIndex":4,"delta":{"toolUse":{"input":"{\"final\":\"result\"}"}}}}
+{"contentBlockStop":{"contentBlockIndex":4}}
+{"messageStop":{"stopReason":"tool_use"}}

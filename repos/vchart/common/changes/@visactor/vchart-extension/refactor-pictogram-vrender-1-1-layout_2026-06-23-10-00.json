@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@visactor/vchart-extension",
+      "comment": "refactor: align pictogram SVG layout with VRender 1.1.0 bounds and transform semantics so registered SVG sources keep a stable fit and center during legend filtering, resize, and roam interactions",
+      "type": "patch"
+    }
+  ],
+  "packageName": "@visactor/vchart-extension",
+  "email": "openai@example.com"
+}

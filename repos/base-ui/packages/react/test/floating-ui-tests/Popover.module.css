@@ -1,0 +1,45 @@
+.Heading {
+  margin-bottom: 2rem;
+  font-size: 3rem;
+  font-weight: 700;
+}
+
+.Container {
+  margin-bottom: 1rem;
+  display: grid;
+  height: 20rem;
+  place-items: center;
+  border: 1px solid #94a3b8;
+  border-radius: 0.25rem;
+}
+
+@media (min-width: 1024px) {
+  .Container {
+    width: 40rem;
+  }
+}
+
+.Title {
+  margin-bottom: 8px;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.Description {
+  margin-bottom: 8px;
+}
+
+.CloseButton {
+  font-weight: 700;
+}
+
+.Floating {
+  border: 1px solid rgb(15 23 42 / 0.1);
+  border-radius: 0.25rem;
+  background: #fff;
+  background-clip: padding-box;
+  padding: 24px 16px;
+  box-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
+}

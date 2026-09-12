@@ -1,0 +1,11 @@
+<view wx:if="{{ spec }}" class="container">
+  <vchart
+    canvas-id="chart"
+    spec="{{ spec }}"
+    styles="{{ styles }}"
+    events="{{ events }}"
+    options="{{ options }}"
+    bind:chartinit="onChartInit"
+    bind:chartready="onChartReady"
+  />
+</view>

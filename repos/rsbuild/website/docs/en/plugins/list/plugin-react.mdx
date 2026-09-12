@@ -1,0 +1,356 @@
+---
+description: 'The React plugin provides support for React, integrating features such as JSX compilation and React Refresh.'
+---
+
+# React plugin
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-react" />
+
+The React plugin provides support for React, integrating features such as JSX compilation and React Refresh.
+
+## Quick start
+
+### Install plugin
+
+Run the following command:
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-react -D" />
+
+### Register plugin
+
+Register the plugin in Rsbuild config:
+
+```ts title="rsbuild.config.ts"
+import { pluginReact } from '@rsbuild/plugin-react';
+
+export default {
+  plugins: [pluginReact()],
+};
+```
+
+After registration, you can develop React directly.
+
+## Options
+
+### swcReactOptions
+
+Configure the behavior of SWC to transform React code, the same as SWC's [jsc.transform.react](https://swc.rs/docs/configuration/compilation#jsctransformreact) option.
+
+- **Type:**
+
+```ts
+interface ReactConfig {
+  pragma?: string;
+  pragmaFrag?: string;
+  throwIfNamespace?: boolean;
+  development?: boolean;
+  refresh?:
+    | boolean
+    | {
+        refreshReg?: string;
+        refreshSig?: string;
+        emitFullSignatures?: boolean;
+      };
+  runtime?: 'automatic' | 'classic' | 'preserve';
+  importSource?: string;
+}
+```
+
+- **Default:**
+
+```ts
+const isDev = process.env.NODE_ENV === 'development';
+const defaultOptions = {
+  development: isDev,
+  refresh: isDev,
+  runtime: 'automatic',
+};
+```
+
+### swcReactOptions.runtime
+
+Decides which runtime to use when transforming JSX.
+
+- **Type:** `'automatic' | 'classic' | 'preserve'`
+- **Default:** `'automatic'`
+
+#### automatic
+
+By default, Rsbuild uses `runtime: 'automatic'` to leverage the [new JSX runtime](https://legacy.reactjs.org/blog/2020/09/22/introducing-the-new-jsx-transform.html) introduced in React 17.
+
+This approach eliminates the need to manually import React in every file that uses JSX.
+
+:::tip
+React 16.14.0 and later versions support the new JSX runtime.
+:::
+
+#### classic
+
+For React versions prior to 16.14.0, set `runtime` to `'classic'`:
+
+```ts
+pluginReact({
+  swcReactOptions: {
+    runtime: 'classic',
+  },
+});
+```
+
+When using the classic JSX runtime, you must manually import React in your code:
+
+```jsx title="App.jsx"
+import React from 'react';
+
+function App() {
+  return <h1>Hello World</h1>;
+}
+```
+
+#### preserve
+
+Use `runtime: 'preserve'` to leave JSX syntax unchanged without transforming it, this is useful when you are building a library that expects JSX to be left as is.
+
+```ts
+pluginReact({
+  swcReactOptions: {
+    runtime: 'preserve',
+  },
+});
+```
+
+### swcReactOptions.importSource
+
+- **Type:** `string`
+- **Default:** `'react'`
+
+With `runtime` set to `'automatic'`, you can specify the JSX runtime import path through `importSource`.
+
+For example, when using [Emotion](https://emotion.sh/), you can set `importSource` to `'@emotion/react'`:
+
+```ts
+pluginReact({
+  swcReactOptions: {
+    importSource: '@emotion/react',
+  },
+});
+```
+
+> See [Customize JSX](/guide/framework/react#customize-jsx) for more details.
+
+### swcReactOptions.refresh
+
+- **Type:** `boolean`
+- **Default:** based on [fastRefresh](#fastrefresh) and [dev.hmr](/config/dev/hmr)
+
+Whether to enable [React Fast Refresh](https://npmjs.com/package/react-refresh).
+
+Most of the time, you should use the plugin's [fastRefresh](#fastrefresh) option to enable or disable Fast Refresh.
+
+### reactCompiler
+
+Enable or configure [React Compiler](https://react.dev/learn/react-compiler), which Rsbuild passes to Rspack's [`builtin:swc-loader`](https://rspack.rs/guide/tech/react#using-builtinswc-loader) as the `jsc.transform.reactCompiler` option.
+
+:::tip
+This option is only supported in `@rsbuild/core` v2.1.0 and later.
+:::
+
+- **Type:**
+
+```ts
+type ReactCompiler =
+  | boolean
+  | {
+      compilationMode?: 'infer' | 'syntax' | 'annotation' | 'all';
+      panicThreshold?: 'none' | 'critical_errors' | 'all_errors';
+      target?: '17' | '18' | '19';
+      noEmit?: boolean;
+      outputMode?: 'client' | 'ssr' | 'lint';
+      ignoreUseNoForget?: boolean;
+      flowSuppressions?: boolean;
+      enableReanimated?: boolean;
+      isDev?: boolean;
+      eslintSuppressionRules?: string[];
+      customOptOutDirectives?: string[];
+      gating?: {
+        source: string;
+        importSpecifierName: string;
+      };
+      dynamicGating?: {
+        source: string;
+      };
+    };
+```
+
+- **Default:** `undefined`
+
+Set `reactCompiler` to `true` to enable React Compiler with the default options:
+
+```ts
+pluginReact({
+  reactCompiler: true,
+});
+```
+
+For React 17 and 18 projects, install [`react-compiler-runtime`](https://npmjs.com/package/react-compiler-runtime) and set the compiler target:
+
+```ts
+pluginReact({
+  reactCompiler: {
+    target: '18',
+  },
+});
+```
+
+The `reactCompiler` options are aligned with the React Compiler configuration. For example, you can use [`compilationMode`](https://react.dev/reference/react-compiler/compilationMode) to control which functions are compiled:
+
+```ts
+pluginReact({
+  reactCompiler: {
+    compilationMode: 'annotation',
+  },
+});
+```
+
+For more options, refer to the official [React Compiler configuration documentation](https://react.dev/reference/react-compiler/configuration).
+
+### splitChunks
+
+When using Rsbuild's [default split chunks preset](/config/split-chunks#default), this plugin splits `react` and `react-router` related packages into separate chunks:
+
+- `lib-react.js`: includes `react`, `react-dom`, and their sub-dependencies (`scheduler`). In development, it also includes React Fast Refresh runtime packages (`react-refresh`, `@rspack/plugin-react-refresh`).
+- `lib-router.js`: includes `react-router`, `react-router-dom`, and their sub-dependencies (`history`, `@remix-run/router`).
+
+This option is used to control this behavior and determine whether the `react` and `router` related packages need to be split into separate chunks.
+
+- **Type:**
+
+```ts
+type SplitChunks =
+  | boolean
+  | {
+      react?: boolean;
+      router?: boolean;
+    };
+```
+
+- **Default:** `true` (equivalent to `{ react: true, router: true }`)
+
+For example, to disable all chunk splitting:
+
+```ts
+pluginReact({ splitChunks: false });
+```
+
+Or to disable only the `router` chunk splitting:
+
+```ts
+pluginReact({
+  splitChunks: {
+    react: true,
+    router: false,
+  },
+});
+```
+
+### enableProfiler
+
+- **Type:** `boolean`
+- **Default:** `false`
+
+When set to `true`, enables the React Profiler for performance analysis in production builds. Use the React DevTools to examine profiling results and identify potential performance optimizations. Profiling adds a slight overhead, so it is disabled by default in production mode.
+
+```ts title="rsbuild.config.ts"
+pluginReact({
+  // Only enable the profiler when REACT_PROFILER is true,
+  // as the option will increase the build time and add some small additional overhead.
+  enableProfiler: process.env.REACT_PROFILER === 'true',
+});
+```
+
+Set `REACT_PROFILER=true` when running build script:
+
+```json title="package.json"
+{
+  "scripts": {
+    "build:profiler": "REACT_PROFILER=true rsbuild build"
+  }
+}
+```
+
+As Windows does not support the above usage, you can also use [cross-env](https://npmjs.com/package/cross-env) to set environment variables. This ensures compatibility across different systems:
+
+```json title="package.json"
+{
+  "scripts": {
+    "build:profiler": "cross-env REACT_PROFILER=true rsbuild build"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.0"
+  }
+}
+```
+
+> See the [React docs](https://legacy.reactjs.org/docs/optimizing-performance.html#profiling-components-with-the-devtools-profiler) for details about profiling using the React DevTools.
+
+### reactRefreshOptions
+
+- **Type:**
+
+```ts
+type ReactRefreshOptions = {
+  // @link https://rspack.rs/config/module-rules#condition
+  test?: Rspack.RuleSetCondition;
+  include?: Rspack.RuleSetCondition;
+  exclude?: Rspack.RuleSetCondition;
+  library?: string;
+  forceEnable?: boolean;
+};
+```
+
+- **Default:**
+
+```js
+const defaultOptions = {
+  test: [/\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/],
+  include: [
+    // Same as Rsbuild's `source.include` configuration
+  ],
+  exclude: [
+    // Same as Rsbuild's `source.exclude` configuration
+  ],
+  resourceQuery: { not: /^\?raw$/ },
+};
+```
+
+Set the options for [@rspack/plugin-react-refresh](https://github.com/rstackjs/rspack-plugin-react-refresh). The passed value will be shallowly merged with the default value.
+
+- **Example:**
+
+```js
+pluginReact({
+  reactRefreshOptions: {
+    exclude: [/some-module-to-exclude/, /[\\/]node_modules[\\/]/],
+  },
+});
+```
+
+### fastRefresh
+
+- **Type:** `boolean`
+- **Default:** `true`
+
+Whether to enable [React Fast Refresh](https://npmjs.com/package/react-refresh) in development mode.
+
+If `fastRefresh` is set to `true`, `@rsbuild/plugin-react` will automatically register the [@rspack/plugin-react-refresh](https://github.com/rstackjs/rspack-plugin-react-refresh) plugin.
+
+To disable Fast Refresh, set it to `false`:
+
+```ts
+pluginReact({
+  fastRefresh: false,
+});
+```

@@ -1,0 +1,72 @@
+[
+  {
+    "type": "section-header",
+    "label": "Overview"
+  },
+  {
+    "type": "file",
+    "name": "index",
+    "label": "Config overview"
+  },
+  {
+    "type": "section-header",
+    "label": "Base options"
+  },
+  "root",
+  "mode",
+  "plugins",
+  "log-level",
+  "split-chunks",
+  "environments",
+  "custom-logger",
+  {
+    "type": "dir-section-header",
+    "name": "dev",
+    "label": "Dev options"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "resolve",
+    "label": "Resolve options"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "source",
+    "label": "Source options"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "output",
+    "label": "Output options"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "html",
+    "label": "HTML options"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "server",
+    "label": "Server options"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "security",
+    "label": "Security options"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "tools",
+    "label": "Tools options"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "performance",
+    "label": "Performance options"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "module-federation",
+    "label": "Module Federation options"
+  }
+]

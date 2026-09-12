@@ -1,0 +1,92 @@
+@layer components {
+  .ScrollAreaViewport {
+    height: 100%;
+
+    /* Scroll containers may be focusable */
+    &:focus-visible {
+      position: relative;
+      outline: 2px solid var(--gray-t2);
+      outline-offset: -1px;
+      z-index: 1;
+    }
+  }
+
+  .ScrollAreaScrollbar {
+    display: flex;
+    border-radius: 0.375rem;
+
+    opacity: 0;
+    transition: opacity 150ms 300ms;
+    pointer-events: none;
+
+    &[data-hovering],
+    &[data-scrolling] {
+      pointer-events: auto;
+    }
+
+    &[data-scrolling] {
+      opacity: 1;
+      transition-duration: 75ms;
+      transition-delay: 0ms;
+    }
+
+    @media (hover: hover) {
+      &:hover {
+        transition-duration: 75ms;
+        transition-delay: 25ms;
+        opacity: 1;
+      }
+    }
+
+    &::before {
+      content: '';
+      position: absolute;
+      border-radius: inherit;
+    }
+
+    &[data-orientation='horizontal'] {
+      align-items: center;
+      height: 1.25rem;
+      margin-inline: 0.5rem;
+
+      &::before {
+        height: 0.25rem;
+        inset-inline: 0;
+        background-color: var(--gray-c2);
+      }
+    }
+
+    &[data-orientation='vertical'] {
+      justify-content: center;
+      width: 1.25rem;
+      margin-block: 0.5rem;
+
+      &::before {
+        width: 0.25rem;
+        inset-block: 0;
+        background-color: var(--gray-c2);
+      }
+    }
+  }
+
+  .ScrollAreaThumb {
+    position: relative;
+    border-radius: inherit;
+    background-color: var(--gray-p2);
+
+    &[data-orientation='horizontal'] {
+      height: 0.25rem;
+    }
+
+    &[data-orientation='vertical'] {
+      width: 0.25rem;
+    }
+
+    /* Draggable area */
+    &::before {
+      content: '';
+      position: absolute;
+      inset: -0.5rem;
+    }
+  }
+}

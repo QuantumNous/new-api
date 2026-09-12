@@ -1,0 +1,41 @@
+{
+  "name": "base-ui-tanstack-start",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "build": "vite build",
+    "serve": "vite preview",
+    "lint": "eslint .",
+    "check": "prettier . --write && eslint . --fix",
+    "typescript": "tsc -b tsconfig.json"
+  },
+  "dependencies": {
+    "@base-ui/react": "latest",
+    "@base-ui/utils": "latest",
+    "@tanstack/react-devtools": "^0.10.0",
+    "@tanstack/react-router": "^1.168.3",
+    "@tanstack/react-router-devtools": "^1.166.11",
+    "@tanstack/react-start": "^1.167.6",
+    "@tanstack/router-plugin": "^1.167.4",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.7.0",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/devtools-vite": "^0.6.0",
+    "@tanstack/eslint-config": "^0.4.0",
+    "@types/node": "22.18.13",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^10.1.0",
+    "prettier": "^3.8.1",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "8.58.0",
+    "vite": "^8.0.1"
+  }
+}

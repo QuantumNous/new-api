@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "type": "module",
+  "browserslist": {
+    "production": [
+      "Chrome >= 40",
+      "Edge >= 79"
+    ]
+  }
+}

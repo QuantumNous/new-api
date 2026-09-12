@@ -1,0 +1,263 @@
+# Update Gateway Model Settings
+#
+# Regenerates the gateway model settings files
+# (packages/gateway/src/gateway-*-model-settings.ts) from the upstream
+# gateway model list and opens a PR for review on each release branch
+# (main, release-v6.0, release-v5.0).
+#
+# The generated PRs are how new models become available in
+# `@ai-sdk/gateway`. They surface as IDE autocomplete
+# suggestions when users type a model string.
+
+name: Update Gateway Model Settings
+
+on:
+  schedule:
+    # Run every weekday at 8:00 AM Pacific Time (4:00 PM UTC)
+    - cron: '0 16 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update-models:
+    name: Update Gateway Model Settings (${{ matrix.target-branch }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.repository_owner == 'vercel'
+    permissions:
+      contents: write
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target-branch: main
+            branch-prefix: update-gateway-models
+          - target-branch: release-v6.0
+            branch-prefix: update-gateway-models-v6
+          - target-branch: release-v5.0
+            branch-prefix: update-gateway-models-v5
+
+    steps:
+      - name: Configure Git
+        run: |
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ matrix.target-branch }}
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate model settings
+        id: generate-model-settings-script
+        run: |
+          cd packages/gateway
+          pnpm generate-model-settings
+
+      - name: Check for changes
+        id: check-changes
+        run: |
+          if git diff --quiet packages/gateway/src/gateway-*-model-settings.ts; then
+            echo "has-changes=false" >> "$GITHUB_OUTPUT"
+            echo "No changes detected in model settings"
+          else
+            echo "has-changes=true" >> "$GITHUB_OUTPUT"
+            echo "Changes detected in model settings"
+            git diff --stat packages/gateway/src/gateway-*-model-settings.ts
+          fi
+
+      - name: Create changeset
+        if: steps.check-changes.outputs.has-changes == 'true'
+        run: |
+          # Generate a random changeset filename with three random lowercase strings
+          # Format: xxxxx-yyyyy-zzzzz.md
+          WORD1=$(tr -dc 'a-z' < /dev/urandom | head -c 5)
+          WORD2=$(tr -dc 'a-z' < /dev/urandom | head -c 5)
+          WORD3=$(tr -dc 'a-z' < /dev/urandom | head -c 5)
+          CHANGESET_FILE=".changeset/${WORD1}-${WORD2}-${WORD3}.md"
+
+          if [ "${{ matrix.target-branch }}" == "release-v6.0" ] || [ "${{ matrix.target-branch }}" == "release-v5.0" ]; then
+            CHANGESET_TITLE="Backport: chore(provider/gateway): update gateway model settings files"
+          else
+            CHANGESET_TITLE="chore(provider/gateway): update gateway model settings files"
+          fi
+
+          cat > "$CHANGESET_FILE" << EOF
+          ---
+          '@ai-sdk/gateway': patch
+          ---
+
+          $CHANGESET_TITLE
+          EOF
+
+          echo "Created changeset: $CHANGESET_FILE"
+          cat "$CHANGESET_FILE"
+
+      - name: Create branch and push as signed commit
+        if: steps.check-changes.outputs.has-changes == 'true'
+        id: create-branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BASE_BRANCH: ${{ matrix.target-branch }}
+          BRANCH_PREFIX: ${{ matrix.branch-prefix }}
+        run: |
+          set -euo pipefail
+
+          BRANCH_NAME="${BRANCH_PREFIX}-$(date +%Y%m%d-%H%M)"
+          echo "branch-name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+
+          # Stage and commit locally so we have a HEAD to diff against the
+          # base branch tip. The local commit is never pushed; we extract
+          # its file changes and submit them via the GraphQL
+          # createCommitOnBranch mutation, which produces a signed commit
+          # attributed to the GITHUB_TOKEN owner.
+          git add .
+          git commit -m "chore(provider/gateway): update gateway model settings files"
+
+          PARENT_OID=$(git rev-parse "origin/${BASE_BRANCH}")
+          HEADLINE=$(git log -1 --format=%s HEAD)
+          BODY=$(git log -1 --format=%b HEAD)
+
+          ADDITIONS='[]'
+          while IFS= read -r -d '' path; do
+            [ -z "$path" ] && continue
+            CONTENT=$(base64 < "$path" | tr -d '\n')
+            ADDITIONS=$(jq -c --arg p "$path" --arg c "$CONTENT" '. + [{path: $p, contents: $c}]' <<<"$ADDITIONS")
+          done < <(git diff --no-renames --name-only --diff-filter=AM -z "${PARENT_OID}" HEAD)
+
+          DELETIONS='[]'
+          while IFS= read -r -d '' path; do
+            [ -z "$path" ] && continue
+            DELETIONS=$(jq -c --arg p "$path" '. + [{path: $p}]' <<<"$DELETIONS")
+          done < <(git diff --no-renames --name-only --diff-filter=D -z "${PARENT_OID}" HEAD)
+
+          # Create the remote branch at the base tip (or reset an orphaned
+          # branch from a prior run).
+          if gh api "repos/${REPO}/git/refs/heads/${BRANCH_NAME}" >/dev/null 2>&1; then
+            echo "Branch ${BRANCH_NAME} already exists on remote. Force-updating to ${PARENT_OID}."
+            gh api --method PATCH "repos/${REPO}/git/refs/heads/${BRANCH_NAME}" \
+              -f "sha=${PARENT_OID}" -F force=true >/dev/null
+          else
+            gh api --method POST "repos/${REPO}/git/refs" \
+              -f "ref=refs/heads/${BRANCH_NAME}" \
+              -f "sha=${PARENT_OID}" >/dev/null
+          fi
+
+          INPUT=$(jq -nc \
+            --arg repo "${REPO}" \
+            --arg branch "${BRANCH_NAME}" \
+            --arg expected "${PARENT_OID}" \
+            --arg headline "${HEADLINE}" \
+            --arg body "${BODY}" \
+            --argjson additions "${ADDITIONS}" \
+            --argjson deletions "${DELETIONS}" \
+            '{
+              branch: {repositoryNameWithOwner: $repo, branchName: $branch},
+              expectedHeadOid: $expected,
+              message: {headline: $headline, body: $body},
+              fileChanges: {additions: $additions, deletions: $deletions}
+            }')
+
+          jq -n --arg query 'mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid url } } }' \
+            --argjson variables "{\"input\": ${INPUT}}" \
+            '{query: $query, variables: $variables}' \
+            | gh api graphql --input -
+
+      - name: Create Pull Request
+        if: steps.check-changes.outputs.has-changes == 'true'
+        id: create-pr
+        run: |
+          if [ "${{ matrix.target-branch }}" == "release-v6.0" ]; then
+            PR_TITLE="Backport: chore(provider/gateway): update gateway model settings files v6"
+          elif [ "${{ matrix.target-branch }}" == "release-v5.0" ]; then
+            PR_TITLE="Backport: chore(provider/gateway): update gateway model settings files v5"
+          else
+            PR_TITLE="chore(provider/gateway): update gateway model settings files"
+          fi
+
+          WORKFLOW_FILE_URL="${{ github.server_url }}/${{ github.repository }}/blob/main/.github/workflows/update-model-settings.yml"
+          WORKFLOW_RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          PR_BODY=$(cat <<EOF
+          Automated update of the gateway model settings files.
+
+          Regenerated from the upstream gateway model list by [\`update-model-settings.yml\`]($WORKFLOW_FILE_URL) ([this run]($WORKFLOW_RUN_URL)). Merging this PR is what surfaces newly-released gateway models as IDE autocomplete suggestions when users type a model string with \`@ai-sdk/gateway\`.
+
+          See the workflow file for details on cadence and scope.
+          EOF
+          )
+
+          PR_URL=$(gh pr create \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY" \
+            --base "${{ matrix.target-branch }}" \
+            --head "${{ steps.create-branch.outputs.branch-name }}" \
+            --reviewer R-Taneja)
+
+          PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          echo "pr-url=$PR_URL" >> "$GITHUB_OUTPUT"
+          echo "pr-number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "pr-title=$PR_TITLE" >> "$GITHUB_OUTPUT"
+          echo "Changes updated, PR: $PR_URL"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: No changes
+        if: steps.check-changes.outputs.has-changes == 'false'
+        run: |
+          echo "No changes. Model settings are already up to date."
+
+  notify:
+    name: Send Slack Notification
+    runs-on: ubuntu-latest
+    needs: update-models
+    if: always() && github.repository_owner == 'vercel'
+    steps:
+      - name: Check for opened PRs
+        id: check-prs
+        run: |
+          PR_COUNT=$(gh api repos/vercel/ai/pulls \
+            --method GET \
+            -f state=open \
+            -f per_page=100 \
+            --jq '[.[] | select(.title | contains("chore(provider/gateway): update gateway model settings files"))] | length')
+          echo "Found $PR_COUNT open PRs"
+          echo "pr-count=$PR_COUNT" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Send Slack notification
+        run: |
+          if [ "${{ needs.update-models.result }}" == "failure" ]; then
+            curl "$SLACK_PULL_REQUEST_REVIEW_URL" -X POST -H "Content-Type: application/json" \
+              -d "{\"channel_id\": \"$CHANNEL_ID\", \"title\": \"Gateway model settings update failed. Please check the workflow.\", \"reviewer\": \"$REVIEWER\"}"
+          elif [ "$PR_COUNT" -gt 0 ]; then
+            curl "$SLACK_PULL_REQUEST_REVIEW_URL" -X POST -H "Content-Type: application/json" \
+              -d "{\"channel_id\": \"$CHANNEL_ID\", \"title\": \"Gateway model settings updated. $PR_COUNT PR(s) opened for review.\", \"reviewer\": \"$REVIEWER\", \"url\": \"$PR_URL\"}"
+          else
+            curl "$SLACK_PULL_REQUEST_REVIEW_URL" -X POST -H "Content-Type: application/json" \
+              -d "{\"channel_id\": \"$CHANNEL_ID\", \"title\": \"Gateway model settings update completed. No changes detected.\", \"reviewer\": \"$REVIEWER\"}"
+          fi
+        env:
+          SLACK_PULL_REQUEST_REVIEW_URL: ${{ secrets.SLACK_PULL_REQUEST_REVIEW_URL }}
+          PR_COUNT: ${{ steps.check-prs.outputs.pr-count }}
+          PR_URL: 'https://github.com/vercel/ai/pulls?q=is%3Apr+chore%28provider%2Fgateway%29%3A+update+gateway+model+settings+files+is%3Aopen'
+          CHANNEL_ID: 'C099VQB75TP'
+          REVIEWER: 'U074PVAPV4J'

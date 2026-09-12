@@ -1,0 +1,10 @@
+{"interaction":{"id":"v1_ChZWR3NIYW9wMXJLYWEyUS1odWIyd0FREhZWR3NIYW9wMXJLYWEyUS1odWIyd0FR","status":"in_progress","object":"interaction","model":"gemini-2.5-flash"},"event_type":"interaction.created"}
+{"interaction_id":"v1_ChZWR3NIYW9wMXJLYWEyUS1odWIyd0FREhZWR3NIYW9wMXJLYWEyUS1odWIyd0FR","status":"in_progress","event_type":"interaction.status_update"}
+{"index":0,"step":{"type":"thought"},"event_type":"step.start"}
+{"index":0,"delta":{"signature":"CiRlMjQ4MzBhNy01Y2Q2LTQyZmUtOTk4Yi1lZTUzOWU3MmI5YzM=","type":"thought_signature"},"event_type":"step.delta"}
+{"index":0,"event_type":"step.stop"}
+{"index":1,"step":{"type":"model_output"},"event_type":"step.start"}
+{"index":1,"delta":{"text":"The weather in San","type":"text"},"event_type":"step.delta"}
+{"index":1,"delta":{"text":" Francisco right now is sunny with a temperature of 27 degrees Celsius.","type":"text"},"event_type":"step.delta"}
+{"index":1,"event_type":"step.stop"}
+{"interaction":{"id":"v1_ChZWR3NIYW9wMXJLYWEyUS1odWIyd0FREhZWR3NIYW9wMXJLYWEyUS1odWIyd0FR","status":"completed","usage":{"total_tokens":180,"total_input_tokens":161,"input_tokens_by_modality":[{"modality":"text","tokens":161}],"total_cached_tokens":0,"total_output_tokens":19,"total_tool_use_tokens":0,"total_thought_tokens":0},"created":"2026-05-15T18:52:05Z","updated":"2026-05-15T18:52:05Z","service_tier":"standard","object":"interaction","model":"gemini-2.5-flash"},"event_type":"interaction.completed"}

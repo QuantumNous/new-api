@@ -1,0 +1,60 @@
+---
+description: 'Rsbuild JavaScript API 总览，介绍核心方法、实例接口、环境接口和服务端 API。'
+---
+
+# JavaScript API
+
+Rsbuild 提供了一整套 JavaScript API，以便于开发者基于 Rsbuild 开发上层的工具或框架。
+
+Rsbuild 的 JavaScript API 可以在 Node.js、Deno 或 Bun 中使用。
+
+## 接入示例
+
+下面是接入 Rsbuild JavaScript API 的基本示例。
+
+### 1. 安装 Rsbuild
+
+你需要安装 `@rsbuild/core` 包：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/core -D" />
+
+### 2. 创建 Rsbuild 实例
+
+你可以调用 [createRsbuild](/api/javascript-api/core#creatersbuild) 方法来创建一个 Rsbuild 实例对象：
+
+```ts
+import { createRsbuild } from '@rsbuild/core';
+
+const rsbuild = await createRsbuild();
+```
+
+`createRsbuild` 方法提供了一些选项，你可以在 [API - createRsbuild](/api/javascript-api/core#creatersbuild) 中进一步了解。
+
+### 3. 调用 Rsbuild 实例方法
+
+Rsbuild 实例提供了与构建相关的各个方法，你可以根据实际场景来进行使用。
+
+在本地开发场景，建议使用 [rsbuild.startDevServer](/api/javascript-api/instance#rsbuildstartdevserver) 方法，调用后会启动本地 dev server。
+
+```ts
+await rsbuild.startDevServer();
+```
+
+成功启动 dev server 后，可以看到以下日志信息：
+
+```
+  ➜  Local:    http://localhost:3000
+  ➜  Network:  use --host to expose
+```
+
+在生产环境部署场景，建议使用 [rsbuild.build](/api/javascript-api/instance#rsbuildbuild) 方法，调用后会构建出生产模式产物。
+
+```ts
+await rsbuild.build();
+```
+
+> 关于 Rsbuild 实例方法的更多介绍，请阅读 [Rsbuild Instance](/api/javascript-api/instance) 章节。
+
+通过以上三个步骤，你已经了解了 Rsbuild 基本的使用方法。接下来你可以通过 Rsbuild 插件和 Rsbuild 配置来对构建流程进行定制。

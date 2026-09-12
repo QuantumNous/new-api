@@ -1,0 +1,22 @@
+{"type":"message_start","message":{"model":"claude-sonnet-4-5-20250929","id":"msg_01Y6V41gqPaKWEw7iPouH7iW","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":69,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":2,"service_tier":"standard","inference_geo":"not_available"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":"","signature":""}}
+{"type":"ping"}
+{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"The previous"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" result"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" was"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" 925."}}
+{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" Now"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" I need to divide that"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" by 5.\n\n925"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":" ÷ 5 "}}
+{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"= 185"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"EvQBCkYICxgCKkAxhD4NUKFzudtZ6NzbZdEiBACIScTzqjPViM596iWLZIk4EFKYYBj3B6Ptl3b0dcQv/VeJBNbejNWIWRBn+KPNEgz6HWtKx7p+QRgKsEoaDGjsiqfht7gTRFYHiyIwD1VSmNqHxv3wy8KEMP+LYb/TC4UH3H97tuoaADARFFcA0phdfxnzKQxFnc9lwY+dKlzUsaKSUAFeu1bDL5ikZJ1vL0Fkz6JjoFke0L/wOJRIUDUlDUOFJ1tZ3ea7g6LGE/5hwuvWgLwewdcm64d+43l7F57XrOmqNd6flI2K/oPr/4yzNgvi/EhT6Ca17BgB"}}
+{"type":"content_block_stop","index":0}
+{"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"925"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ÷ 5 "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"= 185"}}
+{"type":"content_block_stop","index":1}
+{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":69,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":53},"context_management":{"applied_edits":[]}}
+{"type":"message_stop"}

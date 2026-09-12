@@ -1,0 +1,15 @@
+{
+  "extends": "../../../../.configs/tsconfig.base.json",
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "customConditions": ["@zod/source"],
+    "incremental": false,
+    "noEmit": true,
+    "types": ["node"],
+    "skipLibCheck": false,
+    "strict": true
+  },
+  "include": ["./**/*.ts"]
+}

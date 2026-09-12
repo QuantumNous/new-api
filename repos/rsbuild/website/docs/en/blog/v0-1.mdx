@@ -1,0 +1,62 @@
+---
+description: 'Rsbuild 0.1 introduces an Rspack-based build tool with faster builds, simpler configuration, and multi-framework support.'
+date: 2023-11-22 08:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Announcing Rsbuild 0.1
+
+_November 22, 2023_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-v0-1.png)
+
+We are pleased to announce **the release of** **[Rsbuild](https://github.com/web-infra-dev/rsbuild)** **0.1!**
+
+Rsbuild is an Rspack-based build tool, designed to be **an enhanced Rspack** **CLI** that is both more user friendly and out-of-the-box. Rsbuild is the ideal solution for those looking to migrate from webpack to Rspack. It significantly reduces configuration by 90% while offering a 10x build speed.
+
+### 🚀 Performance
+
+The build performance of Rsbuild is on par with native Rspack. Considering that Rsbuild includes more out-of-the-box features, its performance will be slightly lower than Rspack.
+
+Time to build a large web application:
+
+import { BenchmarkGraph } from '@components/Benchmark';
+
+<BenchmarkGraph />
+
+> The data is based on the benchmark built by the Farm team, more info in [build-tools-performance](https://github.com/rstackjs/build-tools-performance).
+
+### 🔥 Features
+
+Rsbuild has the following features:
+
+- **Easy to Configure**: One of the goals of Rsbuild is to provide out-of-the-box build capabilities for Rspack users, allowing developers to start a web project with zero configuration. In addition, Rsbuild provides semantic build configuration to reduce the learning curve for Rspack configuration.
+
+- **Performance Oriented**: Rsbuild integrates high-performance Rust-based tools from the community, including [Rspack](https://github.com/web-infra-dev/rspack), [SWC](https://swc.rs/) and [Lightning CSS](https://lightningcss.dev/), to deliver top-notch build speed and development experience. Compared to webpack-based tools like Create React App and Vue CLI, Rsbuild provides 5 to 10 times faster build performance and lighter dependencies.
+
+- **Plugin Ecosystem**: Rsbuild has a lightweight plugin system and includes a range of high-quality official plugins. Furthermore, Rsbuild is compatible with most webpack plugins and all Rspack plugins, allowing users to leverage existing community or in-house plugins in Rsbuild without the need for rewriting code.
+
+- **Stable Artifacts**: Rsbuild is designed with a strong focus on the stability of build artifacts. It ensures high consistency between artifacts in the development and production builds, and automatically completes syntax downgrading and polyfill injection. Rsbuild also provides plugins for type checking and artifact syntax validation to prevent quality and compatibility issues in production code.
+
+- **Framework Agnostic**: Rsbuild is not coupled with any front-end UI framework. It supports frameworks like React, Vue, Svelte, Solid and Preact through plugins, and plans to support more UI frameworks from the community in the future.
+
+### 💡 Next step
+
+Currently, Rsbuild is still evolving rapidly and plans to introduce many more powerful new features.
+
+For example, we are developing **Rsdoctor**, a robust build analysis tool that can be used with all Rspack and webpack projects. It will provide a visual user interface to help developers analyze build times, duplicate dependencies, code transformation processes, and more, making it easier to locate and resolve build issues.
+
+![Rsdoctor preview](https://assets.rspack.rs/rsbuild/assets/rsdoctor-preview.jpg)
+
+We will be releasing the first working version of Rsdoctor soon. Thereafter, Rsbuild will iterate in sync with Rspack, with plans to release version 1.0 in the first half of 2024.

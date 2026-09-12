@@ -1,0 +1,86 @@
+---
+description: 'If you want to know the differences between different decorators versions, you can refer to: How does this proposal compare to other versions of decorators?'
+---
+
+# source.decorators
+
+- **Type:**
+
+```ts
+type Decorators = {
+  version?: 'legacy' | '2022-03' | '2023-11';
+};
+```
+
+Used to configure the decorators syntax.
+
+## decorators.version
+
+- **Type:** `'legacy' | '2022-03' | '2023-11'`
+- **Default:** `'2023-11'`
+
+Specify the decorator syntax version to be used.
+
+In most cases, `2023-11` is the recommended choice:
+
+- `2023-11`: the latest supported Stage 3 decorators proposal and the default used by Rsbuild.
+- `2022-03`: the earlier Stage 3 proposal.
+- `legacy`: the legacy Stage 1 proposal, mainly for projects that still rely on `experimentalDecorators`.
+
+If you want to know the differences between different decorators versions, you can refer to: [How does this proposal compare to other versions of decorators?](https://github.com/tc39/proposal-decorators#how-does-this-proposal-compare-to-other-versions-of-decorators)
+
+### 2023-11
+
+`2023-11` corresponds to the November 2023 version of the Stage 3 decorator proposal.
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    decorators: {
+      version: '2023-11',
+    },
+  },
+};
+```
+
+> References: [tc39/proposal-decorators](https://github.com/tc39/proposal-decorators), [@babel/plugin-proposal-decorators](https://babeljs.io/docs/babel-plugin-proposal-decorators).
+
+### 2022-03
+
+`2022-03` corresponds to the Stage 3 decorator proposal, equivalent to the decorator syntax supported by TypeScript 5.0 by default.
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    decorators: {
+      version: '2022-03',
+    },
+  },
+};
+```
+
+> References: [JavaScript meta programming with the 2022-03 decorators API](https://2ality.com/2022/10/javascript-decorators.html), [TypeScript 5.0 Decorators](https://typescriptlang.org/docs/handbook/release-notes/typescript-5-0.html#decorators).
+
+### legacy
+
+Equivalent to TypeScript's `experimentalDecorators: true`.
+
+This is based on the legacy Stage 1 decorators proposal. It will not receive new feature updates, and Babel and TypeScript may behave differently in some edge cases. It is recommended to migrate to `2023-11` when possible.
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    decorators: {
+      version: 'legacy',
+    },
+  },
+};
+```
+
+> References: [A Complete Guide to TypeScript Decorators](https://mirone.me/a-complete-guide-to-typescript-decorator/), [TypeScript Decorators](https://typescriptlang.org/docs/handbook/decorators.html).
+
+## Version history
+
+| Version | Changes                                                                    |
+| ------- | -------------------------------------------------------------------------- |
+| v2.0.0  | Added `2023-11` version, default value changed from `2022-03` to `2023-11` |

@@ -1,0 +1,41 @@
+---
+description: '控制在指定端口被占用时，Rsbuild 是否直接抛出错误，而不是自动使用下一个可用端口。'
+---
+
+# server.strictPort
+
+- **类型：** `boolean`
+- **默认值：** `false`
+
+当端口被占用时，Rsbuild 会自动递增端口号，直至找到一个可用端口。
+
+如果你希望在端口被占用时抛出异常，可以将 `strictPort` 设置为 `true`。
+
+## 示例
+
+### 基础用法
+
+启用严格端口模式，确保在指定端口被占用时开发服务器会失败：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    strictPort: true,
+  },
+};
+```
+
+### 配合指定端口使用
+
+当你需要确保应用运行在特定端口上时：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    port: 3333,
+    strictPort: true,
+  },
+};
+```
+
+使用此配置，如果端口 3333 已被占用，Rsbuild 将抛出错误，而不是自动使用端口 3334。

@@ -1,0 +1,54 @@
+{
+  "name": "@benchmarks/memory-client-unique-location-churn-solid",
+  "projectType": "application",
+  "targets": {
+    "build:client": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": [
+        {
+          "projects": ["@tanstack/solid-router"],
+          "target": "build"
+        }
+      ],
+      "options": {
+        "command": "NODE_ENV=production vite build --config {projectRoot}/vite.config.ts"
+      }
+    },
+    "build:client:flame": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "dependsOn": [
+        {
+          "projects": ["@tanstack/solid-router"],
+          "target": "build"
+        }
+      ],
+      "options": {
+        "command": "NODE_ENV=production vite build --config {projectRoot}/vite.config.ts --sourcemap true"
+      }
+    },
+    "test:flame": {
+      "executor": "nx:run-commands",
+      "parallelism": false,
+      "cache": false,
+      "dependsOn": ["build:client:flame"],
+      "options": {
+        "command": "NODE_ENV=production node benchmarks/memory/run-flame.mjs {projectRoot}/memory.flame.ts {projectRoot}/dist",
+        "cwd": "."
+      }
+    },
+    "test:types:client": {
+      "executor": "nx:run-commands",
+      "dependsOn": [
+        {
+          "projects": ["@tanstack/solid-router"],
+          "target": "build"
+        }
+      ],
+      "options": {
+        "command": "tsc -p {projectRoot}/tsconfig.json --noEmit"
+      }
+    }
+  }
+}

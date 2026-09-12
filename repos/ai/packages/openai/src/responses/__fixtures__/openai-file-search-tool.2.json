@@ -1,0 +1,112 @@
+{
+  "id": "resp_0365d26c32c64c650068cabb02fea4819495862c2bc58440ad",
+  "object": "response",
+  "created_at": 1758116611,
+  "status": "completed",
+  "background": false,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5-mini-2025-08-07",
+  "output": [
+    {
+      "id": "rs_0365d26c32c64c650068cabb03bcc48194bfbd973152bca8f6",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "fs_0365d26c32c64c650068cabb04aa388194b53c59de50a3951e",
+      "type": "file_search_call",
+      "status": "completed",
+      "queries": [
+        "What is an embedding model according to this document?",
+        "What is an embedding model in the document?",
+        "definition of embedding model",
+        "embedding model explanation 'embedding model'"
+      ],
+      "results": [
+        {
+          "attributes": {},
+          "file_id": "file-Ebzhf8H4DPGPr9pUhr7n7v",
+          "filename": "ai.pdf",
+          "score": 0.9311,
+          "text": "AI 1\n\nAI\nGenerative artificial intelligence refers to models that predict and generate \nvarious types of outputs (such as text, images, or audio) based on whatʼs \nstatistically likely, pulling from patterns theyʼve learned from their training data. \nFor example:\n\nGiven a photo, a generative model can generate a caption.\n\nGiven an audio file, a generative model can generate a transcription.\n\nGiven a text description, a generative model can generate an image.\n\nA large language model LLM is a subset of generative models focused \nprimarily on text. An LLM takes a sequence of words as input and aims to \npredict the most likely sequence to follow. It assigns probabilities to potential \nnext sequences and then selects one. The model continues to generate \nsequences until it meets a specified stopping criterion.\n\nLLMs learn by training on massive collections of written text, which means they \nwill be better suited to some use cases than others. For example, a model \ntrained on GitHub data would understand the probabilities of sequences in \nsource code particularly well.\n\nHowever, it's crucial to understand LLMs' limitations. When asked about less \nknown or absent information, like the birthday of a personal relative, LLMs \nmight \"hallucinate\" or make up information. It's essential to consider how well-\nrepresented the information you need is in the model.\n\nAn embedding model is used to convert complex data (like words or images) \ninto a dense vector (a list of numbers) representation, known as an embedding. \nUnlike generative models, embedding models do not generate new text or data. \nInstead, they provide representations of semantic and synactic relationships \nbetween entities that can be used as input for other models or other natural \nlanguage processing tasks.\n\nIn the next section, you will learn about the difference between models \nproviders and models, and which ones are available in the AI SDK."
+        }
+      ]
+    },
+    {
+      "id": "rs_0365d26c32c64c650068cabb061740819491324d349d0f07ca",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "msg_0365d26c32c64c650068cabb0e66b081949f66f61dacef39f3",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [
+            {
+              "type": "file_citation",
+              "file_id": "file-Ebzhf8H4DPGPr9pUhr7n7v",
+              "filename": "ai.pdf",
+              "index": 350
+            }
+          ],
+          "logprobs": [],
+          "text": "According to the document, an embedding model converts complex data (like words or images) into a dense vector — a list of numbers — called an embedding. It does not generate new text or data; instead it encodes semantic and syntactic relationships between entities so those vector representations can be used as inputs for other models or NLP tasks ."
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "reasoning": {
+    "effort": "medium",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "file_search",
+      "filters": null,
+      "max_num_results": 20,
+      "ranking_options": {
+        "ranker": "auto",
+        "score_threshold": 0
+      },
+      "vector_store_ids": ["vs_68caad8bd5d88191ab766cf043d89a18"]
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 3678,
+    "input_tokens_details": {
+      "cached_tokens": 2304
+    },
+    "output_tokens": 536,
+    "output_tokens_details": {
+      "reasoning_tokens": 448
+    },
+    "total_tokens": 4214
+  },
+  "user": null,
+  "metadata": {}
+}

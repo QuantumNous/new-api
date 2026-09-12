@@ -1,0 +1,86 @@
+{
+  "direction": {
+    "key": "direction",
+    "oneDesc": "图表的方向配置。\n- 'vertical' 垂直布局，即常见的直角坐标系布局，x 轴位于底部，y 轴位于左侧。\n- 'horizontal' 水平布局，可理解为 x 轴和 y 轴位置互换。"
+  },
+  "markLine": {
+    "key": "markLine",
+    "oneDesc": "参考线配置"
+  },
+  "markArea": {
+    "key": "markArea",
+    "oneDesc": "参考区域配置"
+  },
+  "markPoint": {
+    "key": "markPoint",
+    "oneDesc": "参考点配置"
+  },
+  "padding": {
+    "key": "padding",
+    "oneDesc": "布局 padding的配置"
+  },
+  "reverse": {
+    "key": "reverse",
+    "oneDesc": "是否反向绘制"
+  },
+  "animationEnter": {
+    "key": "animationEnter",
+    "oneDesc": "数据更新 - 新增数据动画"
+  },
+  "animationUpdate": {
+    "key": "animationUpdate",
+    "oneDesc": "数据更新 - 数据更新动画"
+  },
+  "animationExit": {
+    "key": "animationExit",
+    "oneDesc": "数据更新 - 数据删除动画"
+  },
+  "valueField": {
+    "key": "valueField",
+    "oneDesc": "value字段"
+  },
+  "animationState": {
+    "key": "animationState",
+    "oneDesc": "状态切换动画"
+  },
+  "animationAppear": {
+    "key": "animationAppear",
+    "oneDesc": "图表入场动画\n支持配置图表内置不同动画效果"
+  },
+  "animationDisappear": {
+    "key": "animationDisappear",
+    "oneDesc": "图表退场动画"
+  },
+  "animationNormal": {
+    "key": "animationNormal",
+    "oneDesc": "循环动画"
+  },
+  "liquid": {
+    "key": "liquid",
+    "oneDesc": "水波图元配置.同时可以配置选中，hover等交互状态下的图元和鼠标的样式"
+  },
+  "liquidBackground": {
+    "key": "liquidBackground",
+    "oneDesc": "水波背景图元配置.同时可以配置选中，hover等交互状态下的图元和鼠标的样式"
+  },
+  "liquidOutline": {
+    "key": "liquidOutline",
+    "oneDesc": "水波外轮廓配置"
+  },
+  "maskShape": {
+    "key": "maskShape",
+    "oneDesc": "轮廓形状"
+  },
+  "outlineMargin": {
+    "key": "outlineMargin",
+    "oneDesc": "布局 padding的配置"
+  },
+  "outlinePadding": {
+    "key": "outlinePadding",
+    "oneDesc": "布局 padding的配置"
+  },
+  "indicatorSmartInvert": {
+    "key": "indicatorSmartInvert",
+    "oneDesc": "是否开启指标智能反色"
+  }
+}

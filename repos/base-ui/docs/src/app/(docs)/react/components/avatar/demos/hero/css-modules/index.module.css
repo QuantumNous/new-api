@@ -1,0 +1,37 @@
+.Root {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  vertical-align: middle;
+  border-radius: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+  font-weight: 400;
+  color: oklch(14.5% 0 0deg);
+  background-color: oklch(92.2% 0 0deg);
+  font-size: 0.875rem;
+  line-height: 1;
+  overflow: hidden;
+  height: 2rem;
+  width: 2rem;
+
+  @media (prefers-color-scheme: dark) {
+    color: white;
+    background-color: oklch(26.9% 0 0deg);
+  }
+}
+
+.Image {
+  object-fit: cover;
+  height: 100%;
+  width: 100%;
+}
+
+.Fallback {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  font-size: 0.875rem;
+}

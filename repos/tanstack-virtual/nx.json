@@ -1,0 +1,68 @@
+{
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "defaultBase": "main",
+  "nxCloudId": "65d1330edb0c1e7def5cb068",
+  "useInferencePlugins": false,
+  "parallel": 5,
+  "tui": {
+    "enabled": false
+  },
+  "namedInputs": {
+    "sharedGlobals": [
+      "{workspaceRoot}/.nvmrc",
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/tsconfig.json"
+    ],
+    "default": [
+      "sharedGlobals",
+      "{projectRoot}/**/*",
+      "!{projectRoot}/**/*.md"
+    ],
+    "production": [
+      "default",
+      "!{projectRoot}/tests/**/*",
+      "!{projectRoot}/eslint.config.js"
+    ]
+  },
+  "targetDefaults": {
+    "test:docs": {
+      "cache": true,
+      "inputs": ["{workspaceRoot}/docs/**/*"]
+    },
+    "test:knip": {
+      "cache": true,
+      "inputs": ["{workspaceRoot}/**/*"]
+    },
+    "test:sherif": {
+      "cache": true,
+      "inputs": ["{workspaceRoot}/**/package.json"]
+    },
+    "test:eslint": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production", "{workspaceRoot}/eslint.config.js"]
+    },
+    "test:lib": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production"],
+      "outputs": ["{projectRoot}/coverage"]
+    },
+    "test:types": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production"]
+    },
+    "build": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"],
+      "outputs": ["{projectRoot}/build", "{projectRoot}/dist"]
+    },
+    "test:build": {
+      "cache": true,
+      "dependsOn": ["build"],
+      "inputs": ["production"]
+    }
+  }
+}

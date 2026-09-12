@@ -1,0 +1,119 @@
+.Root {
+  display: flex;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.375rem;
+  background-color: var(--color-gray-50);
+  padding: 0.125rem;
+}
+
+.Trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.25rem;
+  color: var(--color-gray-900);
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none;
+}
+
+.Trigger:hover {
+  background-color: var(--color-gray-100);
+}
+
+.Trigger:active {
+  background-color: var(--color-gray-200);
+}
+
+.Trigger:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: -1px;
+}
+
+.Trigger:focus-visible:not(:hover) {
+  background-color: transparent;
+}
+
+.Trigger[data-popup-open] {
+  background-color: var(--color-gray-100);
+}
+
+.TriggerIcon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.Popup {
+  display: flex;
+  flex-direction: column;
+  transform-origin: var(--transform-origin);
+  border-radius: 0.375rem;
+  background-color: canvas;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+  outline: 1px solid var(--color-gray-200);
+  transition:
+    transform 150ms,
+    scale 150ms,
+    opacity 150ms;
+}
+
+.Popup[data-starting-style],
+.Popup[data-ending-style] {
+  scale: 0.9;
+  opacity: 0;
+}
+
+.Popup[data-instant] {
+  transition-duration: 0ms;
+}
+
+.Arrow[data-side='bottom'] {
+  top: -8px;
+}
+
+.Arrow[data-side='left'] {
+  right: -13px;
+  rotate: 90deg;
+}
+
+.Arrow[data-side='right'] {
+  left: -13px;
+  rotate: -90deg;
+}
+
+.Arrow[data-side='top'] {
+  bottom: -8px;
+  rotate: 180deg;
+}
+
+.ArrowFill {
+  fill: canvas;
+}
+
+.ArrowStrokeLight {
+  fill: var(--color-gray-200);
+}
+
+.ArrowStrokeDark {
+  @media (prefers-color-scheme: dark) {
+    fill: var(--color-gray-300);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .Popup {
+    box-shadow: none;
+    outline-color: var(--color-gray-300);
+    outline-offset: -1px;
+  }
+
+  .ArrowStrokeLight {
+    fill: none;
+  }
+}

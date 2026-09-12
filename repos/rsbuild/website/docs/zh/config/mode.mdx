@@ -1,0 +1,86 @@
+---
+description: '指定 Rsbuild 构建的模式，各个模式默认的行为和优化不同，比如 production 模式默认会压缩代码。'
+---
+
+# mode
+
+- **类型：** `'production' | 'development' | 'none'`
+- **版本：** `>= 1.0.0`
+
+指定 Rsbuild 构建的模式，各个模式默认的行为和优化不同，比如 `production` 模式默认会压缩代码。
+
+Rsbuild `mode` 的值也会传递给 Rspack 的 [mode](https://rspack.rs/zh/config/mode) 配置。
+
+:::tip
+`mode` 的值不会影响 `.env` 文件的加载结果，因为 `.env` 文件早于 Rsbuild 的配置文件被解析。
+
+Rsbuild CLI 支持使用 `--env-mode` 选项来指定 env 模式，详见 ["Env 模式"](/guide/advanced/env-vars#env-mode)。
+:::
+
+## 默认值
+
+`mode` 的默认值取决于 `process.env.NODE_ENV` 环境变量：
+
+- 如果 `NODE_ENV` 为 `production`，则默认值为 `production`。
+- 如果 `NODE_ENV` 为 `development`，则默认值为 `development`。
+- 如果 `NODE_ENV` 为其他值，则默认值为 `none`。
+
+如果你设置了 `mode` 的值，则 `NODE_ENV` 的值会被忽略。
+
+```ts title="rsbuild.config.ts"
+export default {
+  mode: 'production',
+};
+```
+
+### 命令行
+
+当你使用 Rsbuild 的命令行时：
+
+- `rsbuild` 会将 `NODE_ENV` 和 `mode` 的默认值设置为 `development`。
+- `rsbuild build` 和 `rsbuild preview` 会将 `NODE_ENV` 和 `mode` 的默认值设置为 `production`。
+
+### JavaScript API
+
+当你使用 Rsbuild 的 JavaScript API 时：
+
+- [rsbuild.startDevServer](/api/javascript-api/instance#rsbuildstartdevserver) 和 [rsbuild.createDevServer](/api/javascript-api/instance#rsbuildcreatedevserver) 会将 `NODE_ENV` 和 `mode` 的默认值设置为 `development`。
+- [rsbuild.build](/api/javascript-api/instance#rsbuildbuild) 和 [rsbuild.preview](/api/javascript-api/instance#rsbuildpreview) 会将 `NODE_ENV` 和 `mode` 的默认值设置为 `production`。
+
+## Development 模式
+
+当 `mode` 的值为 `development` 时：
+
+- 开启 HMR，注册 [HotModuleReplacementPlugin](https://rspack.rs/zh/plugins/webpack/hot-module-replacement-plugin)。
+- 生成 JavaScript 的 source map，不生成 CSS 的 source map，详见 [output.sourceMap](/config/output/source-map)。
+- 源代码中的 `process.env.NODE_ENV` 会被替换为 `'development'`。
+- 源代码中的 `import.meta.env.MODE` 会被替换为 `'development'`。
+- 源代码中的 `import.meta.env.DEV` 会被替换为 `true`。
+- 源代码中的 `import.meta.env.PROD` 会被替换为 `false`。
+- 使用 [dev.assetPrefix](/config/dev/asset-prefix) 的值作为静态资源的 URL 前缀。
+
+## Production 模式
+
+当 `mode` 的值为 `production` 时：
+
+- 开启 JavaScript 代码压缩，注册 [SwcJsMinimizerRspackPlugin](https://rspack.rs/zh/plugins/rspack/swc-js-minimizer-rspack-plugin)。
+- 开启 CSS 代码压缩，注册 [LightningCssMinimizerRspackPlugin](https://rspack.rs/zh/plugins/rspack/lightning-css-minimizer-rspack-plugin)。
+- 生成的 JavaScript 和 CSS 文件名会带有 hash 后缀，详见 [output.filenameHash](/config/output/filename-hash)。
+- 生成的 CSS Modules 类名更简短，详见 [cssModules.localIdentName](/config/output/css-modules#cssmoduleslocalidentname)。
+- 不生成 JavaScript 和 CSS 的 source map，详见 [output.sourceMap](/config/output/source-map)。
+- 源代码中的 `process.env.NODE_ENV` 会被替换为 `'production'`。
+- 源代码中的 `import.meta.env.MODE` 会被替换为 `'production'`。
+- 源代码中的 `import.meta.env.DEV` 会被替换为 `false`。
+- 源代码中的 `import.meta.env.PROD` 会被替换为 `true`。
+- 使用 [output.assetPrefix](/config/output/asset-prefix) 的值作为静态资源的 URL 前缀。
+
+## None 模式
+
+当 `mode` 的值为 `none` 时：
+
+- 不开启任何优化。
+- 源代码中的 `process.env.NODE_ENV` 不会被替换。
+- 源代码中的 `import.meta.env.MODE` 会被替换为 `'none'`。
+- 源代码中的 `import.meta.env.DEV` 会被替换为 `false`。
+- 源代码中的 `import.meta.env.PROD` 会被替换为 `false`。
+- 使用 [output.assetPrefix](/config/output/asset-prefix) 的值作为静态资源的 URL 前缀。

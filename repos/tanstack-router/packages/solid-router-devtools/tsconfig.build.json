@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "moduleResolution": "Bundler",
+    "rootDir": "src",
+    "outDir": "dist/source",
+    "noEmit": false,
+    "declaration": true,
+    "sourceMap": true,
+    "paths": {
+      "@tanstack/router-devtools-core": ["../../router-devtools-core/src"]
+    }
+  },
+  "include": ["src"]
+}

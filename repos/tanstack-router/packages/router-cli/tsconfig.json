@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["src", "vite.config.ts"],
+  "compilerOptions": {
+    "types": ["node"]
+  }
+}

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>React-VChart 诊断方案</title>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel Standalone (用于转译 JSX) -->
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+    
+    <!-- React-VChart -->
+    <script src="https://cdn.jsdelivr.net/npm/@visactor/react-vchart@2.0.13-alpha.8/build/index.min.js"></script>
+    
+    <!-- Monaco Editor CDN - 使用简化加载方式 -->
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <script>
+      // 配置 Monaco Editor 路径
+      require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+    </script>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+        background-color: #f8fafc;
+        min-height: 100vh;
+        padding: 24px;
+        color: #0f172a;
+      }
+      .page {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      header h1 {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        color: #1e293b;
+      }
+      header .problem-desc {
+        color: #475569;
+        line-height: 1.6;
+        font-size: 15px;
+      }
+
+      /* 通用 Section 样式 */
+      .section {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+      }
+      .section-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .section-header h2 {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1e293b;
+      }
+      .section-header .badge {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-weight: 500;
+      }
+      .section-body {
+        padding: 20px;
+      }
+
+      /* 代码编辑器容器 */
+      .code-editor {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        overflow: hidden;
+        min-height: 450px;
+      }
+      .code-editor .code-panel {
+        background: #1e293b;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .code-editor .preview-panel {
+        background: #fff;
+        border-left: 1px solid #e2e8f0;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+      }
+      .code-editor .preview-panel .chart-container {
+        flex: 1;
+        min-height: 400px;
+      }
+      .panel-header {
+        padding: 10px 16px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        flex-shrink: 0;
+      }
+      .code-panel .panel-header {
+        background: #0f172a;
+        color: #64748b;
+        border-bottom: 1px solid #334155;
+      }
+      .preview-panel .panel-header {
+        background: #f8fafc;
+        color: #64748b;
+        border-bottom: 1px solid #e2e8f0;
+        margin: -16px -16px 16px -16px;
+      }
+      
+      /* Monaco 编辑器容器 */
+      .monaco-editor-container {
+        flex: 1;
+        min-height: 400px;
+        overflow: hidden;
+      }
+
+      /* 问题回顾部分 */
+      .problem-section .badge { background: #fef3c7; color: #92400e; }
+      .problem-section .section-header { background: #fffbeb; }
+
+      /* 诊断分析部分 */
+      .diagnosis-section .badge { background: #e0e7ff; color: #3730a3; }
+      .diagnosis-section .section-header { background: #eef2ff; }
+      .diagnosis-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .diagnosis-item {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        background: #f8fafc;
+        border-radius: 8px;
+        border-left: 4px solid #6366f1;
+      }
+      .diagnosis-item .icon {
+        font-size: 20px;
+        flex-shrink: 0;
+      }
+      .diagnosis-item .label {
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 4px;
+      }
+      .diagnosis-item .content {
+        color: #475569;
+        line-height: 1.6;
+      }
+
+      /* 解决方案部分 */
+      .solutions-section .badge { background: #d1fae5; color: #065f46; }
+      .solutions-section .section-header { background: #ecfdf5; }
+      .solution-list {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      .solution-item {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .solution-item-header {
+        padding: 16px 20px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .solution-item-header h3 {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .solution-item-header .solution-badge {
+        background: #22c55e;
+        color: #fff;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 10px;
+        font-weight: 600;
+      }
+      .solution-item-body {
+        padding: 20px;
+      }
+      .solution-desc {
+        color: #475569;
+        line-height: 1.6;
+        margin-bottom: 16px;
+        padding: 12px 16px;
+        background: #f0fdf4;
+        border-radius: 8px;
+        border-left: 4px solid #22c55e;
+      }
+
+      /* 响应式 */
+      @media (max-width: 900px) {
+        .code-editor {
+          grid-template-columns: 1fr;
+        }
+        .code-editor .preview-panel {
+          border-left: none;
+          border-top: 1px solid #e2e8f0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <!-- 页面标题 -->
+      <header>
+        <h1>📊 React-VChart 问题诊断报告</h1>
+        <p class="problem-desc"><!-- PROBLEM_DESC -->用户描述的问题概述<!-- /PROBLEM_DESC --></p>
+      </header>
+
+      <!-- 占位区域，由 JS 动态渲染 -->
+      <div id="app"></div>
+    </main>
+
+    <script type="text/babel">
+      // 使用真实的 React-VChart 组件
+      const { BarChart, Bar, Axis, Legend, LineChart, Line, PieChart, Pie } = ReactVChart;
+
+      // ====== CONFIG_START ======
+      {{CONFIG_BLOCK}}
+      // ====== CONFIG_END ======
+
+      // 渲染页面
+      function App() {
+        const [problemComponent, setProblemComponent] = React.useState(null);
+        const [solutionComponents, setSolutionComponents] = React.useState({});
+        const [error, setError] = React.useState({});
+
+        // 编译 JSX 代码为 React 组件
+        const compileJSXToComponent = (code, key) => {
+          try {
+            // 使用 Babel 转译 JSX
+            const transformed = Babel.transform(code, {
+              presets: ['react'],
+              filename: 'component.jsx'
+            }).code;
+            
+            // 创建组件函数
+            const componentFunc = new Function(
+              'React',
+              'BarChart',
+              'Bar',
+              'LineChart',
+              'Line',
+              'PieChart',
+              'Pie',
+              'Axis',
+              'Legend',
+              `${transformed}\nreturn ChartComponent;`
+            );
+            
+            // 执行函数获取组件
+            const Component = componentFunc(
+              React,
+              BarChart,
+              Bar,
+              LineChart,
+              Line,
+              PieChart,
+              Pie,
+              Axis,
+              Legend
+            );
+            
+            setError(prev => ({ ...prev, [key]: null }));
+            return Component;
+          } catch (err) {
+            setError(prev => ({ ...prev, [key]: err.message }));
+            return null;
+          }
+        };
+
+        React.useEffect(() => {
+          // 初始化问题回顾组件
+          const ProblemComp = compileJSXToComponent(problemReview.code, 'problem');
+          setProblemComponent(() => ProblemComp);
+
+          // 初始化解决方案组件
+          const solComps = {};
+          solutions.forEach((sol, idx) => {
+            const SolComp = compileJSXToComponent(sol.code, `solution-${idx}`);
+            solComps[idx] = SolComp;
+          });
+          setSolutionComponents(solComps);
+
+          // 初始化 Monaco Editor。Monaco Editor 使用 AMD 模块系统，必须通过 require 异步加载。
+          require(['vs/editor/editor.main'], function () {
+            // 问题回顾编辑器
+            const problemEditor = monaco.editor.create(document.getElementById('editor-problem'), {
+              value: problemReview.code,
+              language: 'javascript',
+              theme: 'vs-dark',
+              fontSize: 13,
+              lineNumbers: 'on',
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              tabSize: 2,
+              wordWrap: 'on'
+            });
+
+            // 监听编辑器内容变化
+            let updateTimer = null;
+            problemEditor.onDidChangeModelContent(() => {
+              clearTimeout(updateTimer);
+              updateTimer = setTimeout(() => {
+                const code = problemEditor.getValue();
+                const Component = compileJSXToComponent(code, 'problem');
+                setProblemComponent(() => Component);
+              }, 800);
+            });
+            
+            // 解决方案编辑器
+            solutions.forEach((sol, idx) => {
+              const solutionEditor = monaco.editor.create(document.getElementById(`editor-solution-${idx}`), {
+                value: sol.code,
+                language: 'javascript',
+                theme: 'vs-dark',
+                fontSize: 13,
+                lineNumbers: 'on',
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                tabSize: 2,
+                wordWrap: 'on'
+              });
+
+              // 监听编辑器内容变化
+              let solUpdateTimer = null;
+              solutionEditor.onDidChangeModelContent(() => {
+                clearTimeout(solUpdateTimer);
+                solUpdateTimer = setTimeout(() => {
+                  const code = solutionEditor.getValue();
+                  const Component = compileJSXToComponent(code, `solution-${idx}`);
+                  setSolutionComponents(prev => ({ ...prev, [idx]: Component }));
+                }, 800);
+              });
+            });
+          });
+        }, []);
+
+        return (
+          <>
+            {/* 第一部分：问题回顾 */}
+            <section className="section problem-section">
+              <div className="section-header">
+                <h2>🔍 问题回顾</h2>
+                <span className="badge">原始代码</span>
+              </div>
+              <div className="section-body">
+                <div className="code-editor">
+                  <div className="code-panel">
+                    <div className="panel-header">📝 React 组件代码 <span style={{marginLeft:'auto',fontSize:'10px',opacity:0.7}}>可编辑</span></div>
+                    <div id="editor-problem" className="monaco-editor-container"></div>
+                  </div>
+                  <div className="preview-panel">
+                    <div className="panel-header">👁️ 效果预览</div>
+                    <div className="chart-container">
+                      {error.problem ? (
+                        <div style={{color:'#ef4444',padding:'20px',background:'#fef2f2',borderRadius:'8px',border:'1px solid #fee2e2'}}>
+                          <div style={{fontWeight:600,marginBottom:'8px'}}>⚠️ 代码编译失败</div>
+                          <div style={{fontSize:'13px',lineHeight:'1.6'}}>{error.problem}</div>
+                        </div>
+                      ) : problemComponent ? (
+                        React.createElement(problemComponent)
+                      ) : (
+                        <div style={{padding:'20px',color:'#94a3b8'}}>加载中...</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* 第二部分：诊断分析 */}
+            <section className="section diagnosis-section">
+              <div className="section-header">
+                <h2>🔬 诊断分析</h2>
+                <span className="badge">问题定位</span>
+              </div>
+              <div className="section-body">
+                <div className="diagnosis-list">
+                  <div className="diagnosis-item">
+                    <span className="icon">🎯</span>
+                    <div>
+                      <div className="label">问题定位</div>
+                      <div className="content">{diagnosis.problem}</div>
+                    </div>
+                  </div>
+                  <div className="diagnosis-item">
+                    <span className="icon">💡</span>
+                    <div>
+                      <div className="label">原因分析</div>
+                      <div className="content">{diagnosis.cause}</div>
+                    </div>
+                  </div>
+                  {diagnosis.suggestion && (
+                    <div className="diagnosis-item">
+                      <span className="icon">✨</span>
+                      <div>
+                        <div className="label">优化建议</div>
+                        <div className="content">{diagnosis.suggestion}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* 第三部分：解决方案 */}
+            <section className="section solutions-section">
+              <div className="section-header">
+                <h2>✅ 解决方案</h2>
+                <span className="badge">{solutions.length} 个方案</span>
+              </div>
+              <div className="section-body">
+                <div className="solution-list">
+                  {solutions.map((sol, idx) => (
+                    <div key={idx} className="solution-item">
+                      <div className="solution-item-header">
+                        <h3>
+                          <span className="solution-badge">方案 {idx + 1}</span>
+                          {sol.title}
+                        </h3>
+                      </div>
+                      <div className="solution-item-body">
+                        <div className="solution-desc">{sol.description}</div>
+                        <div className="code-editor">
+                          <div className="code-panel">
+                            <div className="panel-header">📝 React 组件代码 <span style={{marginLeft:'auto',fontSize:'10px',opacity:0.7}}>可编辑</span></div>
+                            <div id={`editor-solution-${idx}`} className="monaco-editor-container"></div>
+                          </div>
+                          <div className="preview-panel">
+                            <div className="panel-header">👁️ 效果预览</div>
+                            <div className="chart-container">
+                              {error[`solution-${idx}`] ? (
+                                <div style={{color:'#ef4444',padding:'20px',background:'#fef2f2',borderRadius:'8px',border:'1px solid #fee2e2'}}>
+                                  <div style={{fontWeight:600,marginBottom:'8px'}}>⚠️ 代码编译失败</div>
+                                  <div style={{fontSize:'13px',lineHeight:'1.6'}}>{error[`solution-${idx}`]}</div>
+                                </div>
+                              ) : solutionComponents[idx] ? (
+                                React.createElement(solutionComponents[idx])
+                              ) : (
+                                <div style={{padding:'20px',color:'#94a3b8'}}>加载中...</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </>
+        );
+      }
+
+      // 挂载 React 应用
+      const root = ReactDOM.createRoot(document.getElementById('app'));
+      root.render(<App />);
+    </script>
+  </body>
+</html>

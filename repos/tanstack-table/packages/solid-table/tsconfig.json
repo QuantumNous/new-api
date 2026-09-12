@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "rootDir": "./src",
+    "outDir": "./build/lib"
+  },
+  "include": ["src"]
+}

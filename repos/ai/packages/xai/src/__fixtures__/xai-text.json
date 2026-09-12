@@ -1,0 +1,38 @@
+{
+  "id": "2af5c888-e886-6dcb-7844-95f8fe010b00",
+  "object": "chat.completion",
+  "created": 1770774046,
+  "model": "grok-3-mini",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello",
+        "reasoning_content": "First, the user said: \"Say a single word.\" That's straightforward. They want me to respond with just one word.\n\nResponse: I'll go with \"Hello\" as it's a common greeting and keeps it simple.",
+        "refusal": null
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 1,
+    "total_tokens": 241,
+    "prompt_tokens_details": {
+      "text_tokens": 12,
+      "audio_tokens": 0,
+      "image_tokens": 0,
+      "cached_tokens": 2
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 228,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    },
+    "num_sources_used": 0,
+    "cost_in_usd_ticks": 1176500
+  },
+  "system_fingerprint": "fp_2a885414fb"
+}

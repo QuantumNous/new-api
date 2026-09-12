@@ -1,0 +1,32 @@
+{
+  "name": "tanstack-router-react-example-basic-ssr-streaming-file-based",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build",
+    "build:server": "vite build --ssr",
+    "serve": "NODE_ENV=production node server",
+    "debug": "node --inspect-brk server"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "^1.170.18",
+    "@tanstack/router-plugin": "^1.168.20",
+    "compression": "^1.8.0",
+    "express": "^5.2.1",
+    "get-port": "^7.1.0",
+    "node-fetch": "^3.3.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tanstack/react-router-devtools": "^1.167.0",
+    "@types/express": "^5.0.6",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.1",
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14"
+  }
+}

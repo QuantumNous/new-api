@@ -1,0 +1,6 @@
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"Let me generate"}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":" that JSON for you."}}}
+{"contentBlockStart":{"contentBlockIndex":1,"start":{"toolUse":{"toolUseId":"json-tool-id","name":"json"}}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"toolUse":{"input":"{\"value\":\"test\"}"}}}}
+{"contentBlockStop":{"contentBlockIndex":1}}
+{"messageStop":{"stopReason":"tool_use"}}

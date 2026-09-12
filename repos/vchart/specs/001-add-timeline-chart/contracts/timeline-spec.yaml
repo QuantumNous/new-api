@@ -1,0 +1,128 @@
+openapi: 3.0.3
+info:
+  title: Timeline Spec Contract
+  version: 1.0.0
+  description: Public configuration contract for Timeline chart specifications.
+paths:
+  /timeline/validate:
+    post:
+      summary: Validate a timeline chart spec
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimelineSpec'
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  errors:
+                    type: array
+                    items:
+                      type: string
+components:
+  schemas:
+    TimelineSpec:
+      type: object
+      required:
+        - type
+        - data
+        - layout
+      properties:
+        type:
+          type: string
+          enum: [timeline]
+        layout:
+          $ref: '#/components/schemas/TimelineLayout'
+        data:
+          $ref: '#/components/schemas/TimelineData'
+    TimelineLayout:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [horizontal, vertical, radial, s-curve]
+        options:
+          type: object
+          additionalProperties: true
+    TimelineData:
+      type: object
+      required:
+        - eventPoints
+      properties:
+        timePoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimePoint'
+        eventPoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventPoint'
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/Series'
+    TimePoint:
+      type: object
+      required:
+        - id
+        - time
+      properties:
+        id:
+          type: string
+        time:
+          oneOf:
+            - type: string
+            - type: number
+        label:
+          type: string
+        meta:
+          type: object
+          additionalProperties: true
+    EventPoint:
+      type: object
+      required:
+        - id
+        - time
+        - title
+      properties:
+        id:
+          type: string
+        time:
+          oneOf:
+            - type: string
+            - type: number
+        title:
+          type: string
+        description:
+          type: string
+        seriesId:
+          type: string
+        seriesName:
+          type: string
+        icon:
+          type: string
+        meta:
+          type: object
+          additionalProperties: true
+    Series:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        style:
+          type: object
+          additionalProperties: true

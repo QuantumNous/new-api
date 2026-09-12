@@ -1,0 +1,101 @@
+---
+description: 'The configs of html-rspack-plugin can be modified through tools.htmlPlugin.'
+---
+
+# tools.htmlPlugin
+
+- **Type:** `boolean | Object | Function`
+- **Default:**
+
+```js
+const defaultOptions = {
+  meta, // Corresponds to `html.meta` config
+  title, // Corresponds to `html.title` config
+  inject, // Corresponds to `html.inject` config
+  favicon, // Corresponds to `html.favicon` config
+  template, // Corresponds to `html.template` config
+  filename, // Generated based on `output.distPath` and `entryName`
+  templateParameters, // Corresponds to `html.templateParameters` config
+  chunks: [entryName],
+};
+```
+
+The configs of [html-rspack-plugin](https://github.com/rstackjs/html-rspack-plugin) can be modified through `tools.htmlPlugin`.
+
+Rsbuild internally implements HTML-related features based on [html-rspack-plugin](https://github.com/rstackjs/html-rspack-plugin). It is a fork of [html-webpack-plugin](https://github.com/jantimon/html-webpack-plugin), with the same features and options.
+
+:::tip
+If you need to modify options such as `title`, `template`, `templateParameters`, `meta`, it is recommended to use the corresponding HTML configurations provided by Rsbuild first, such as [html.title](/config/html/title), [html.template](/config/html/template) etc.
+
+This is because Rsbuild provides some internal optimization processing for these HTML configurations. For example, if the HTML template used by the current project already contains the `<title>` tag, then `html.title` will not take effect.
+:::
+
+## Object type
+
+When `tools.htmlPlugin` is `Object` type, the value will be merged with the default config via `Object.assign`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    htmlPlugin: {
+      scriptLoading: 'blocking',
+    },
+  },
+};
+```
+
+## Function type
+
+When `tools.htmlPlugin` is a Function:
+
+- The first parameter is the default config, which can be modified directly.
+- The second parameter is also an object, containing the entry name and the entry value.
+- The Function can return a new object as the final config.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    htmlPlugin(config, { entryName, entryValue }) {
+      if (entryName === 'main') {
+        config.scriptLoading = 'blocking';
+      }
+    },
+  },
+};
+```
+
+## Disable HTML
+
+Setting `tools.htmlPlugin` to `false` can disable the built-in `html-rspack-plugin` in Rsbuild, and no HTML files will be generated.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    htmlPlugin: false,
+  },
+};
+```
+
+## Example
+
+### Modify HTML file name
+
+The `filename` option can be used to modify the file name of the HTML output.
+
+For example, in production mode, a `hash` can be added to the file name:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    htmlPlugin(config, { entryName }) {
+      if (process.env.NODE_ENV === 'production') {
+        config.filename = `${entryName}.[contenthash:10].html`;
+      }
+    },
+  },
+};
+```
+
+## HTML minification
+
+Rsbuild currently does not minify HTML files. To minify HTML files, use the [rsbuild-plugin-html-minifier-terser plugin](https://github.com/rstackjs/rsbuild-plugin-html-minifier-terser).

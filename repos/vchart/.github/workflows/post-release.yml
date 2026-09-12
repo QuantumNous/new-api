@@ -1,0 +1,235 @@
+name: Post release after develop synced
+
+on:
+  repository_dispatch:
+    types: [develop-synced]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, e.g. 1.2.3'
+        required: true
+        type: string
+
+jobs:
+  post_release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Read version from event payload or workflow_dispatch input
+        id: meta
+        env:
+          PAYLOAD_VERSION: ${{ github.event.client_payload.version }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          VERSION="${PAYLOAD_VERSION:-${INPUT_VERSION:-}}"
+          if [ -z "${VERSION}" ]; then
+            echo "No version in repository_dispatch payload or workflow_dispatch input, skip post-release."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid post-release version: ${VERSION}"
+            exit 1
+          fi
+          echo "Using version: ${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout main
+        if: steps.meta.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Configure git remote for tag push
+        if: steps.meta.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+      - name: Fetch tags
+        if: steps.meta.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+
+      - name: Check existing tag and release
+        id: exist
+        if: steps.meta.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}"
+          TAG_EXISTS="false"
+          RELEASE_EXISTS="false"
+          git fetch origin main:refs/remotes/origin/main --depth=1
+          MAIN_SHA="$(git rev-parse origin/main)"
+
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists."
+            TAG_SHA="$(git rev-list -n 1 "${TAG}")"
+            if [ "${TAG_SHA}" != "${MAIN_SHA}" ]; then
+              echo "Existing tag ${TAG} points to ${TAG_SHA}, expected origin/main ${MAIN_SHA}."
+              exit 1
+            fi
+            TAG_EXISTS="true"
+          fi
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists, skip post-release."
+            RELEASE_EXISTS="true"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Release ${TAG} does not exist, continue post-release."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "tag_exists=${TAG_EXISTS}" >> "$GITHUB_OUTPUT"
+          echo "release_exists=${RELEASE_EXISTS}" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure main changelog exists
+        if: steps.meta.outputs.skip != 'true' && steps.exist.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          if [ ! -f "docs/assets/changelog/en/release.md" ]; then
+            echo "Error: docs/assets/changelog/en/release.md not found in main."
+            exit 1
+          fi
+
+      - name: Extract release body from main changelog
+        id: body
+        if: steps.meta.outputs.skip != 'true' && steps.exist.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+
+          const version = process.env.VERSION;
+          const changelogPath = 'docs/assets/changelog/en/release.md';
+          const content = fs.readFileSync(changelogPath, 'utf8');
+
+          function escapeRegExp(str) {
+            return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          }
+
+          const headerPattern = new RegExp('^#\\s*v?' + escapeRegExp(version) + '\\b', 'm');
+          const match = headerPattern.exec(content);
+
+          if (!match) {
+            console.error('No changelog block for version', version, 'found in main changelog.');
+            process.exit(1);
+          }
+
+          const startIndex = match.index;
+          const rest = content.slice(startIndex);
+
+          // Find the next release header after the current one.
+          const nextHeaderPattern = /^#\s*v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?[^\n]*$/gm;
+          let nextIndex = rest.length;
+          let m;
+          while ((m = nextHeaderPattern.exec(rest)) !== null) {
+            if (m.index > 0) {
+              nextIndex = m.index;
+              break;
+            }
+          }
+
+          const block = rest.slice(0, nextIndex).trimEnd() + '\n';
+          if (!block.trim()) {
+            console.error('Extracted changelog block is empty for version', version);
+            process.exit(1);
+          }
+          fs.writeFileSync('release-body.md', block, 'utf8');
+          NODE
+          echo "has_body=true" >> "$GITHUB_OUTPUT"
+
+      - name: Validate extracted release body
+        if: steps.meta.outputs.skip != 'true' && steps.exist.outputs.skip != 'true' && steps.body.outputs.has_body == 'true'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ ! -s "release-body.md" ]; then
+            echo "Error: release-body.md is missing or empty."
+            exit 1
+          fi
+
+          if ! grep -Eq "^#\\s*v?${VERSION}\\b" release-body.md; then
+            echo "Error: release-body.md does not start with expected version header v${VERSION}."
+            exit 1
+          fi
+
+          HEADER_COUNT="$(grep -Ec '^#\s*v?[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?\b' release-body.md || true)"
+          if [ "${HEADER_COUNT}" -ne 1 ]; then
+            echo "Error: extracted release body contains ${HEADER_COUNT} release headers, expected exactly 1."
+            exit 1
+          fi
+
+      - name: Verify gh identity
+        if: steps.meta.outputs.skip != 'true' && steps.exist.outputs.skip != 'true' && steps.body.outputs.has_body == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          gh api user -q '.login'
+
+      - name: Diagnose repository token permission
+        if: steps.meta.outputs.skip != 'true' && steps.exist.outputs.skip != 'true' && steps.body.outputs.has_body == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          LOGIN=$(gh api user -q '.login')
+          echo "PAT user: $LOGIN"
+          OWNER=${GITHUB_REPOSITORY%%/*}
+          REPO=${GITHUB_REPOSITORY#*/}
+          RESP=$(gh api "/repos/$OWNER/$REPO/collaborators/$LOGIN/permission" 2>&1 || true)
+          echo "$RESP"
+          if echo "$RESP" | grep -q '404'; then
+            echo "Not a collaborator (404), repository access may be restricted or PAT not authorized to org"
+          elif echo "$RESP" | grep -q '"permission":"write"'; then
+            echo "permission ok: write"
+          elif echo "$RESP" | grep -q '"permission":"admin"'; then
+            echo "permission ok: admin"
+          else
+            echo "permission insufficient: $RESP"
+          fi
+
+      - name: Create missing tag and GitHub Release
+        if: steps.meta.outputs.skip != 'true' && steps.exist.outputs.skip != 'true' && steps.body.outputs.has_body == 'true'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          GH_TOKEN: ${{ secrets.CREATE_TAG_RELEASE_TOKEN || github.token }}
+          TAG_EXISTS: ${{ steps.exist.outputs.tag_exists }}
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}"
+
+          if [ "${TAG_EXISTS}" != "true" ]; then
+            git fetch origin main:refs/remotes/origin/main --depth=1
+            MAIN_SHA="$(git rev-parse origin/main)"
+
+            echo "Creating tag ${TAG} at ${MAIN_SHA}"
+            git tag "${TAG}" "${MAIN_SHA}"
+            git push origin "${TAG}"
+          else
+            echo "Using existing tag ${TAG}."
+          fi
+
+          echo "Creating GitHub Release ${TAG}"
+          gh release create "${TAG}" \
+            --target "main" \
+            --title "${TAG}" \
+            --notes-file "release-body.md"

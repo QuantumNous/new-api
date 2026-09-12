@@ -1,0 +1,49 @@
+---
+description: 'Include additional files that should be treated as static assets.'
+---
+
+# source.assetsInclude
+
+- **Type:** [Rspack.RuleSetCondition](https://rspack.rs/config/module-rules#condition)
+- **Default:** `undefined`
+- **Version:** `>= 1.0.18`
+
+Include additional files that should be treated as static assets.
+
+By default, Rsbuild treats common file types such as images, fonts, audio, and video as static assets. Through the `source.assetsInclude` config, you can specify additional file types that should be treated as static assets. These added static assets are processed using the same rules as the built-in supported static assets, see [Static Assets](/guide/basic/static-assets).
+
+The value of `source.assetsInclude` is the same as the `test` option in Rspack loader. It can be a regular expression, string, array, logical condition, etc. For more details, see [Rspack RuleSetCondition](https://rspack.rs/config/module-rules#condition).
+
+## Example
+
+- Treating `.json5` files as static assets:
+
+```ts
+export default defineConfig({
+  source: {
+    assetsInclude: /\.json5$/,
+  },
+});
+```
+
+- Treating multiple file types as static assets:
+
+```ts
+export default defineConfig({
+  source: {
+    assetsInclude: [/\.json5$/, /\.gltf$/],
+  },
+});
+```
+
+- Treating specific files as static assets:
+
+```ts
+import path from 'node:path';
+
+export default defineConfig({
+  source: {
+    assetsInclude: path.resolve(__dirname, 'src/assets/foo.json5'),
+  },
+});
+```

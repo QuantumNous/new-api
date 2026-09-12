@@ -1,0 +1,148 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`core > renders a table with markup 1`] = `
+[
+  [
+    [
+      "Name",
+      "2",
+    ],
+    [
+      "Info",
+      "4",
+    ],
+  ],
+  [
+    [
+      "",
+      "1",
+    ],
+    [
+      "",
+      "1",
+    ],
+    [
+      "",
+      "1",
+    ],
+    [
+      "More Info",
+      "3",
+    ],
+  ],
+  [
+    [
+      "firstName",
+      "1",
+    ],
+    [
+      "<span>Last Name</span>",
+      "1",
+    ],
+    [
+      "Age",
+      "1",
+    ],
+    [
+      "<span>Visits</span>",
+      "1",
+    ],
+    [
+      "Status",
+      "1",
+    ],
+    [
+      "Profile Progress",
+      "1",
+    ],
+  ],
+]
+`;
+
+exports[`core > renders a table with markup 2`] = `
+[
+  [
+    "tanner",
+    "linsley",
+    "29",
+    "100",
+    "In Relationship",
+    "50",
+  ],
+  [
+    "derek",
+    "perkins",
+    "40",
+    "40",
+    "Single",
+    "80",
+  ],
+  [
+    "joe",
+    "bergevin",
+    "45",
+    "20",
+    "Complicated",
+    "10",
+  ],
+]
+`;
+
+exports[`core > renders a table with markup 3`] = `
+[
+  [
+    [
+      "firstName",
+      "1",
+    ],
+    [
+      "lastName",
+      "1",
+    ],
+    [
+      "age",
+      "1",
+    ],
+    [
+      "visits",
+      "1",
+    ],
+    [
+      "status",
+      "1",
+    ],
+    [
+      "progress",
+      "1",
+    ],
+  ],
+  [
+    [
+      "",
+      "1",
+    ],
+    [
+      "",
+      "1",
+    ],
+    [
+      "",
+      "1",
+    ],
+    [
+      "",
+      "3",
+    ],
+  ],
+  [
+    [
+      "Name",
+      "2",
+    ],
+    [
+      "Info",
+      "4",
+    ],
+  ],
+]
+`;

@@ -1,0 +1,111 @@
+{
+  "id": "resp_0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f",
+  "object": "response",
+  "created_at": 1771009000,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "completed_at": 1771009005,
+  "error": null,
+  "frequency_penalty": 0,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5.2-2025-12-11",
+  "output": [
+    {
+      "id": "sh_0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e50",
+      "type": "shell_call",
+      "status": "completed",
+      "action": {
+        "commands": ["echo 'Hello from container!' && uname -a"],
+        "max_output_length": null,
+        "timeout_ms": null
+      },
+      "call_id": "call_abc123def456ghi789jkl012",
+      "environment": {
+        "type": "container_reference",
+        "container_id": "cntr_aabbccdd11223344556677889900aabb"
+      }
+    },
+    {
+      "id": "sho_0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e51",
+      "type": "shell_call_output",
+      "status": "completed",
+      "call_id": "call_abc123def456ghi789jkl012",
+      "max_output_length": null,
+      "output": [
+        {
+          "outcome": {
+            "type": "exit",
+            "exit_code": 0
+          },
+          "stderr": "",
+          "stdout": "Hello from container!\nLinux container-host 6.1.0 #1 SMP x86_64 GNU/Linux\n"
+        }
+      ]
+    },
+    {
+      "id": "msg_0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e52",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "The command ran successfully in the container. Here's the output:\n\n- The echo command printed: \"Hello from container!\"\n- The system is running Linux (kernel 6.1.0) on an x86_64 architecture."
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "presence_penalty": 0,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": "none",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "shell",
+      "environment": {
+        "type": "container_reference",
+        "container_id": "cntr_aabbccdd11223344556677889900aabb"
+      }
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 200,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 120,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 320
+  },
+  "user": null,
+  "metadata": {}
+}

@@ -1,0 +1,57 @@
+[
+  {
+    "type": "dir-section-header",
+    "name": "start",
+    "label": "Start"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "framework",
+    "label": "Framework"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "basic",
+    "label": "Basic"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "configuration",
+    "label": "Configuration"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "styling",
+    "label": "Styling"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "advanced",
+    "label": "Advanced"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "optimization",
+    "label": "Optimization"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "upgrade",
+    "label": "Upgrade"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "migration",
+    "label": "Migration"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "debug",
+    "label": "Debug"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "faq",
+    "label": "FAQ"
+  }
+]

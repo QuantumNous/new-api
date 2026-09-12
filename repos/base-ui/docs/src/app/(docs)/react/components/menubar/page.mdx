@@ -1,0 +1,79 @@
+# Menubar
+
+<Subtitle>A menu bar providing commands and options for your application.</Subtitle>
+<Meta
+  name="description"
+  content="A menu bar providing commands and options for your application."
+/>
+
+import { DemoMenubarHero } from './demos/hero';
+
+<DemoMenubarHero />
+
+## Anatomy
+
+Import the component and assemble its parts:
+
+```jsx title="Anatomy"
+import { Menubar } from '@base-ui/react/menubar';
+import { Menu } from '@base-ui/react/menu';
+
+<Menubar>
+  <Menu.Root>
+    <Menu.Trigger />
+    <Menu.Portal>
+      <Menu.Backdrop />
+      <Menu.Positioner>
+        <Menu.Popup>
+          <Menu.Arrow />
+          <Menu.Item />
+          <Menu.LinkItem />
+          <Menu.Separator />
+
+          <Menu.SubmenuRoot>
+            <Menu.SubmenuTrigger />
+          </Menu.SubmenuRoot>
+
+          <Menu.Group>
+            <Menu.GroupLabel />
+          </Menu.Group>
+
+          <Menu.RadioGroup>
+            <Menu.RadioItem>
+              <Menu.RadioItemIndicator />
+            </Menu.RadioItem>
+          </Menu.RadioGroup>
+
+          <Menu.CheckboxItem>
+            <Menu.CheckboxItemIndicator />
+          </Menu.CheckboxItem>
+
+          <Menu.Viewport />
+        </Menu.Popup>
+      </Menu.Positioner>
+    </Menu.Portal>
+  </Menu.Root>
+</Menubar>;
+```
+
+## API reference
+
+import { TypesMenubar } from './types';
+
+<TypesMenubar />
+
+export const metadata = {
+  keywords: [
+    'React Menubar',
+    'Menubar Component',
+    'Application Menu Bar',
+    'App Menu',
+    'Navigation Bar',
+    'Command Bar',
+    'Desktop Style Menu',
+    'Keyboard Navigation Menu',
+    'Accessible Menubar',
+    'Headless React Components',
+    'Base UI',
+  ],
+};

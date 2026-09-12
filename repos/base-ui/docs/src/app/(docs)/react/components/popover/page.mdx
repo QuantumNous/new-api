@@ -1,0 +1,273 @@
+# Popover
+
+<Subtitle>An accessible popup anchored to a button.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled React popover component that displays an accessible popup anchored to a button."
+/>
+
+import { DemoPopoverHero } from './demos/hero';
+
+<DemoPopoverHero />
+
+## Anatomy
+
+Import the component and assemble its parts:
+
+```jsx title="Anatomy"
+import { Popover } from '@base-ui/react/popover';
+
+<Popover.Root>
+  <Popover.Trigger />
+  <Popover.Portal>
+    <Popover.Backdrop />
+    <Popover.Positioner>
+      <Popover.Popup>
+        <Popover.Arrow />
+        <Popover.Viewport>
+          <Popover.Title />
+          <Popover.Description />
+          <Popover.Close />
+        </Popover.Viewport>
+      </Popover.Popup>
+    </Popover.Positioner>
+  </Popover.Portal>
+</Popover.Root>;
+```
+
+## Examples
+
+### Opening on hover
+
+This example shows how you can configure the popover to open on hover using the `openOnHover` prop.
+
+You can use the `delay` prop to specify how long to wait (in milliseconds) before the popover opens on hover.
+
+import { DemoPopoverOpenOnHover } from './demos/open-on-hover';
+
+<DemoPopoverOpenOnHover />
+
+### Detached triggers
+
+A popover can be controlled by a trigger located either inside or outside the `<Popover.Root>` component.
+For simple, one-off interactions, place the `<Popover.Trigger>` inside `<Popover.Root>`, as shown in the example at the top of this page.
+
+However, if defining the popover's content next to its trigger is not practical, you can use a detached trigger.
+This involves placing the `<Popover.Trigger>` outside of `<Popover.Root>` and linking them with a `handle` created by the `Popover.createHandle()` function.
+
+```jsx title="Detached triggers"
+const demoPopover = Popover.createHandle();
+
+// @highlight
+// @highlight-text "handle={demoPopover}"
+<Popover.Trigger handle={demoPopover}>
+  Trigger
+</Popover.Trigger>
+
+// @highlight
+// @highlight-text "handle={demoPopover}"
+<Popover.Root handle={demoPopover}>
+  ...
+</Popover.Root>
+```
+
+import { DemoPopoverDetachedTriggersSimple } from './demos/detached-triggers-simple';
+
+<DemoPopoverDetachedTriggersSimple />
+
+### Multiple triggers
+
+A single popover can be opened by multiple trigger elements.
+You can achieve this by using the same `handle` for several detached triggers, or by placing multiple `<Popover.Trigger>` components inside a single `<Popover.Root>`.
+
+```jsx title="Multiple triggers within the Root part"
+<Popover.Root>
+  <Popover.Trigger>Trigger 1</Popover.Trigger>
+  <Popover.Trigger>Trigger 2</Popover.Trigger>
+  ...
+</Popover.Root>
+```
+
+```jsx title="Multiple detached triggers"
+const demoPopover = Popover.createHandle();
+
+<Popover.Trigger handle={demoPopover}>
+  Trigger 1
+</Popover.Trigger>
+
+<Popover.Trigger handle={demoPopover}>
+  Trigger 2
+</Popover.Trigger>
+
+<Popover.Root handle={demoPopover}>
+  ...
+</Popover.Root>
+```
+
+The popover can render different content depending on which trigger opened it.
+This is achieved by passing a `payload` to the `<Popover.Trigger>` and using the function-as-a-child pattern in `<Popover.Root>`.
+
+The payload can be strongly typed by providing a type argument to the `createHandle()` function:
+
+```jsx title="Detached triggers with payload"
+// @highlight
+const demoPopover = Popover.createHandle<{ text: string }>();
+
+// @highlight
+// @highlight-text "payload"
+<Popover.Trigger handle={demoPopover} payload={{ text: 'Trigger 1' }}>
+  Trigger 1
+</Popover.Trigger>
+
+// @highlight
+// @highlight-text "payload"
+<Popover.Trigger handle={demoPopover} payload={{ text: 'Trigger 2' }}>
+  Trigger 2
+</Popover.Trigger>
+
+<Popover.Root handle={demoPopover}>
+  {({ payload }) => ( // @highlight-text "payload"
+    <Popover.Portal>
+      <Popover.Positioner sideOffset={8}>
+        <Popover.Popup className={styles.Popup}>
+          <Popover.Arrow className={styles.Arrow}>
+            <ArrowSvg />
+          </Popover.Arrow>
+          <Popover.Title className={styles.Title}>Popover</Popover.Title>
+          {payload !== undefined && ( // @highlight-text "payload"
+            <Popover.Description className={styles.Description}>
+              This has been opened by {payload.text} {/* @highlight-text "payload" */}
+            </Popover.Description>
+          )}
+        </Popover.Popup>
+      </Popover.Positioner>
+    </Popover.Portal>
+  )}
+</Popover.Root>
+```
+
+### Controlled mode with multiple triggers
+
+You can control the popover's open state externally using the `open` and `onOpenChange` props on `<Popover.Root>`.
+This allows you to manage the popover's visibility based on your application's state.
+When using multiple triggers, you have to manage which trigger is active with the `triggerId` prop on `<Popover.Root>` and the `id` prop on each `<Popover.Trigger>`.
+
+Note that there is no separate `onTriggerIdChange` prop.
+Instead, the `onOpenChange` callback receives an additional argument, `eventDetails`, which contains the trigger element that initiated the state change.
+
+import { DemoPopoverDetachedTriggersControlled } from './demos/detached-triggers-controlled';
+
+<DemoPopoverDetachedTriggersControlled />
+
+### Animating the Popover
+
+You can animate a popover as it moves between different trigger elements.
+This includes animating its position, size, and content.
+
+#### Position and Size
+
+To animate the popover's position, apply CSS transitions to the `left`, `right`, `top`, and `bottom` properties of the **Positioner** part.
+To animate its size, transition the `width` and `height` of the **Popup** part.
+
+#### Content
+
+The popover also supports content transitions.
+This is useful when different triggers display different content within the same popover.
+
+To enable content animations, wrap the content in the `<Popover.Viewport>` part.
+This part provides features to create direction-aware animations.
+It renders a `div` with a `data-activation-direction` attribute (`left`, `right`, `up`, or `down`) that indicates the new trigger's position relative to the previous one.
+
+Inside the `<Popover.Viewport>`, the content is further wrapped in `div`s with data attributes to help with styling:
+
+- `data-current`: The currently visible content when no transitions are present or the incoming content.
+- `data-previous`: The outgoing content during a transition.
+
+You can use these attributes to style the enter and exit animations.
+
+import { DemoPopoverDetachedTriggersFull } from './demos/detached-triggers-full';
+
+<DemoPopoverDetachedTriggersFull />
+
+## API reference
+
+import { TypesPopover } from './types';
+
+### Root
+
+<TypesPopover.Root />
+
+### Trigger
+
+<TypesPopover.Trigger />
+
+### Backdrop
+
+<TypesPopover.Backdrop />
+
+### Portal
+
+<TypesPopover.Portal />
+
+### Positioner
+
+<TypesPopover.Positioner />
+
+### Popup
+
+<TypesPopover.Popup />
+
+### Arrow
+
+<TypesPopover.Arrow />
+
+### Title
+
+<TypesPopover.Title />
+
+### Description
+
+<TypesPopover.Description />
+
+### Close
+
+<TypesPopover.Close />
+
+### Viewport
+
+<TypesPopover.Viewport />
+
+## createHandle
+
+<TypesPopover.createHandle />
+
+[//]: # '@exclude-table-of-contents'
+
+### Handle
+
+<TypesPopover.Handle />
+
+export const metadata = {
+  keywords: [
+    'React Popover',
+    'Popover Component',
+    'Popover Menu',
+    'Popup Menu',
+    'Anchored Popup',
+    'Dropdown',
+    'Overlay',
+    'Floating Panel',
+    'Tooltip Alternative',
+    'Info Box',
+    'Callout',
+    'Popup Content',
+    'Detached Trigger Popover',
+    'Multi Trigger Popover',
+    'Hover Trigger Popover',
+    'Click Trigger Popover',
+    'Focus Trigger Popover',
+    'Animated Popover',
+    'Headless React Components',
+    'Base UI',
+  ],
+};

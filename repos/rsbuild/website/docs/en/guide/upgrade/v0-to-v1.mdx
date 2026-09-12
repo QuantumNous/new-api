@@ -1,0 +1,407 @@
+---
+description: 'This document lists all breaking changes from Rsbuild 0.7 to 1.0. Use it as a migration reference.'
+---
+
+# Upgrading from 0.x to v1
+
+This document lists all breaking changes from Rsbuild 0.7 to 1.0. Use it as a migration reference.
+
+> See [Breaking changes in Rsbuild v1.0.0](https://github.com/web-infra-dev/rsbuild/discussions/2508) for details.
+
+## [Important] Lightning CSS loader
+
+Rsbuild now enables [lightningcss-loader](https://rspack.rs/guide/features/builtin-lightningcss-loader) by default to transform CSS files. It replaces `autoprefixer` for adding vendor prefixes and delivers better performance.
+
+- `@rsbuild/plugin-lightningcss` is deprecated and no longer needed.
+- `tools.autoprefixer` config has been removed.
+
+Since Lightning CSS has some uncovered edge cases, you can still enable autoprefixer through a postcss config file:
+
+```js title="postcss.config.cjs"
+module.exports = {
+  plugins: {
+    autoprefixer: {},
+  },
+};
+```
+
+## [Important] output.polyfill
+
+Rsbuild v1 sets [output.polyfill](/config/output/polyfill) to `'off'` by default. This reduces polyfill code and generates smaller bundles.
+
+If your application needs polyfills, set `output.polyfill` to `'usage'` or `'entry'`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    polyfill: 'usage',
+  },
+};
+```
+
+## [Important] source.decorators
+
+Rsbuild now uses `2022-11` decorators version by default. This aligns Rsbuild's default behavior with TypeScript >= 5.0 and esbuild >= 0.21.0.
+
+For legacy decorators, add this config:
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  source: {
+    decorators: {
+      version: 'legacy',
+    },
+  },
+});
+```
+
+## [Important] output.targets
+
+:::tip
+Rsbuild v1 removes the `output.targets` option and target parameters from `source.alias`, `source.entry`, and other configs. Instead, use `environments` for more flexible multi-environment configuration.
+
+The `environments` option provides broader coverage and enables differentiated config across multiple environments. For details, see [Multiple-Environment Builds](/guide/advanced/environments).
+:::
+
+The `output.targets` config has been removed. Use [output.target](/config/output/target) and [environments](/config/environments) instead.
+
+- before:
+
+```js
+export default {
+  output: {
+    targets: ['web', 'node'],
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  environments: {
+    web: {
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+      },
+    },
+  },
+};
+```
+
+## source.alias
+
+Removed `target` param for `source.alias` function, use [environments](/config/environments) config instead.
+
+- before:
+
+```js
+export default {
+  source: {
+    alias: (alias, { target }) => {
+      if (target === 'node') {
+        alias['@common'] = './src/node/common';
+      } else if (target === 'web') {
+        alias['@common'] = './src/web/common';
+      }
+    },
+  },
+  output: {
+    targets: ['web', 'node'],
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  environments: {
+    web: {
+      source: {
+        alias: {
+          '@common': './src/web/common',
+        },
+      },
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      source: {
+        alias: {
+          '@common': './src/node/common',
+        },
+      },
+      output: {
+        target: 'node',
+      },
+    },
+  },
+};
+```
+
+## source.entry
+
+Removed function usage of `source.entry`, use [environments](/config/environments) config instead.
+
+- before:
+
+```js
+export default {
+  source: {
+    entry({ target }) {
+      if (target === 'web') {
+        return {
+          index: './src/index.client.js',
+        };
+      }
+      if (target === 'node') {
+        return {
+          index: './src/index.server.js',
+        };
+      }
+    },
+  },
+  output: {
+    targets: ['web', 'node'],
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  environments: {
+    web: {
+      source: {
+        entry: {
+          index: './src/index.client.js',
+        },
+      },
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      source: {
+        entry: {
+          index: './src/index.server.js',
+        },
+      },
+      output: {
+        target: 'node',
+      },
+    },
+  },
+};
+```
+
+## output.overrideBrowserslist
+
+`output.overrideBrowserslist` no longer supports `Record<RsbuildTarget, string[]` type, use [environments](/config/environments) config instead.
+
+- before:
+
+```js
+export default {
+  output: {
+    overrideBrowserslist: {
+      web: ['iOS >= 9', 'Android >= 4.4'],
+      node: ['node >= 20'],
+    },
+  },
+};
+```
+
+- after:
+
+```js
+export default defineConfig({
+  environments: {
+    web: {
+      output: {
+        overrideBrowserslist: ['iOS >= 9', 'Android >= 4.4'],
+      },
+    },
+    node: {
+      output: {
+        overrideBrowserslist: ['node >= 20'],
+      },
+    },
+  },
+});
+```
+
+## output.emitAssets
+
+`output.emitAssets` changed to boolean type, use [environments](/config/environments) config instead.
+
+- before:
+
+```js
+export default {
+  output: {
+    targets: ['web', 'node'],
+    emitAssets: ({ target }) => target !== 'node',
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  environments: {
+    web: {
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+        emitAssets: false,
+      },
+    },
+  },
+};
+```
+
+## output.distPath.server
+
+Removed `output.distPath.server`, use the [environments](/config/environments) config instead.
+
+```js
+export default {
+  environments: {
+    web: {
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+        distPath: {
+          root: 'dist/server',
+        },
+      },
+    },
+  },
+};
+```
+
+## output.minify.html
+
+Rsbuild v1 removed the `output.minify.html` and `output.minify.htmlOptions` options, and no longer minify the HTML files.
+
+Previously Rsbuild uses `html-minifier-terser` to minify the HTML files. But the performance of `html-minifier-terser` cannot meet the needs of Rsbuild applications, and in most cases, there is little benefit in compressing HTML.
+
+At this stage, Rsbuild will not built-in `html-minifier-terser`, so we provide a standalone [rsbuild-plugin-html-minifier-terser](https://github.com/rstackjs/rsbuild-plugin-html-minifier-terser) to support HTML minification.
+
+```ts title="rsbuild.config.ts"
+import { pluginHtmlMinifierTerser } from 'rsbuild-plugin-html-minifier-terser';
+
+export default {
+  plugins: [pluginHtmlMinifierTerser()],
+};
+```
+
+And we plan to use some faster Rust-based HTML minimizer in the future.
+
+## output.charset
+
+The default value of [output.charset](/config/output/charset) has been changed from `ascii` to `utf8`.
+
+To use `ascii`, add the following config:
+
+```ts
+export default {
+  output: {
+    charset: 'ascii',
+  },
+};
+```
+
+## dev.startUrl
+
+`dev.startUrl` has been renamed to [server.open](/config/server/open):
+
+```js
+export default {
+  // [!code --]
+  dev: {
+    startUrl: true, // [!code --]
+  }, // [!code --]
+  // [!code ++]
+  server: {
+    open: true, // [!code ++]
+  }, // [!code ++]
+};
+```
+
+## dev.client.port
+
+The default value of [dev.client.port](/config/dev/client) changed from `<port>` to `''` (use `location.port`).
+
+Use the previous value if you want to keep the behavior:
+
+```js
+export default {
+  dev: {
+    client: {
+      port: '<port>',
+    },
+  },
+};
+```
+
+## html.appIcon
+
+Previously, [html.appIcon](/config/html/app-icon) did not support for web app manifests, meaning it was only available on iOS.
+
+Now `html.appIcon` supports generating web app manifests, and the type of `html.appIcon` has been changed.
+
+- before:
+
+```js
+export default {
+  html: {
+    appIcon: './src/icon.png',
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  html: {
+    appIcon: {
+      icons: [{ src: './src/icon.png', size: 180 }],
+    },
+  },
+};
+```
+
+## Others
+
+Rsbuild 1.0 has made some adjustments and optimizations to plugins API and dev server API.
+
+Includes:
+
+- The `onBeforeBuild` hook supports triggering multiple times in watch mode.
+- Added `onBeforeEnvironmentCompile` and `onAfterEnvironmentCompile` hooks, which are triggered before/after executing the build of a single environment respectively.
+- Removed `api.getHtmlPaths` and replaced it with `environment.htmlPaths`.
+- Removed `api.context.entry` and replaced it with `environment.entry`.
+- Removed `api.context.targets` and replaced it with `environment.target`.
+- Removed `rsbuildServer.onHTTPUpgrade` and replaced it with `rsbuildServer.connectWebSocket`.

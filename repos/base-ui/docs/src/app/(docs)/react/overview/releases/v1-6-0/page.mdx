@@ -1,0 +1,194 @@
+# v1.6.0
+
+<Subtitle>Jun 18, 2026</Subtitle>
+<Meta name="description" content="v1.6.0 release notes. Jun 18, 2026." />
+
+## General changes
+
+- Correct inaccurate prop JSDoc ([#5036](https://github.com/mui/base-ui/pull/5036))
+- Update the hook value when store/arguments change ([#4866](https://github.com/mui/base-ui/pull/4866))
+- Restore viewport morphing after reopen for kept-mounted popups ([#5010](https://github.com/mui/base-ui/pull/5010))
+- Fix pseudo-element bounds in dev mode ([#5000](https://github.com/mui/base-ui/pull/5000))
+
+## Accordion
+
+- Fix trigger behavior bugs ([#4833](https://github.com/mui/base-ui/pull/4833))
+- Remove region role from `Accordion.Root` ([#4961](https://github.com/mui/base-ui/pull/4961))
+- Align keyboard navigation with APG ([#4965](https://github.com/mui/base-ui/pull/4965))
+
+## Alert Dialog
+
+- Fix programmatic focus return ([#4849](https://github.com/mui/base-ui/pull/4849))
+
+## Autocomplete
+
+- Keep ArrowLeft/ArrowRight on the input caret in grid mode ([#4948](https://github.com/mui/base-ui/pull/4948))
+- Document `open` requirement for the `inline` prop ([#5069](https://github.com/mui/base-ui/pull/5069))
+
+## Avatar
+
+- Fix image status edge cases ([#4835](https://github.com/mui/base-ui/pull/4835))
+
+## Checkbox
+
+- Fix parent group cancellation and indeterminate state ([#4941](https://github.com/mui/base-ui/pull/4941))
+- Ignore `data-focused` Field attribute when disabled ([#4998](https://github.com/mui/base-ui/pull/4998))
+- Fix extra `validate` fn calls ([#4911](https://github.com/mui/base-ui/pull/4911))
+
+## Checkbox Group
+
+- Fix parent group cancellation and indeterminate state ([#4941](https://github.com/mui/base-ui/pull/4941))
+- Fix parent checkbox with custom `validate` fn ([#4912](https://github.com/mui/base-ui/pull/4912))
+- Fix validation with multiple required checkboxes ([#4958](https://github.com/mui/base-ui/pull/4958))
+- Forward group ids ([#4997](https://github.com/mui/base-ui/pull/4997))
+
+## Collapsible
+
+- Fix trigger and panel state bugs ([#4848](https://github.com/mui/base-ui/pull/4848))
+
+## Combobox
+
+- Fix chip context error ([#4877](https://github.com/mui/base-ui/pull/4877))
+- Keep ArrowLeft/ArrowRight on the input caret in grid mode ([#4948](https://github.com/mui/base-ui/pull/4948))
+- Avoid re-rendering every item on each keystroke ([#4964](https://github.com/mui/base-ui/pull/4964))
+- Fix autofill and selected state edge cases ([#4972](https://github.com/mui/base-ui/pull/4972))
+- Document `open` requirement for the `inline` prop ([#5069](https://github.com/mui/base-ui/pull/5069))
+
+## Dialog
+
+- Fix confirmation return focus ([#5024](https://github.com/mui/base-ui/pull/5024))
+- Fix programmatic focus return ([#4849](https://github.com/mui/base-ui/pull/4849))
+- Fix positioning and viewport edge cases ([#4925](https://github.com/mui/base-ui/pull/4925))
+- Fix non-modal focus-out close and tabindex management ([#5030](https://github.com/mui/base-ui/pull/5030))
+
+## Drawer
+
+- Fix confirmation return focus ([#5024](https://github.com/mui/base-ui/pull/5024))
+- Improve swipe dismiss drag performance ([#4867](https://github.com/mui/base-ui/pull/4867))
+- Drive swipe gestures natively to stop per-frame re-rasterization ([#4980](https://github.com/mui/base-ui/pull/4980))
+- Add virtual keyboard provider ([#4353](https://github.com/mui/base-ui/pull/4353))
+- Commit swipe on primary-button release ([#5057](https://github.com/mui/base-ui/pull/5057))
+
+## Field
+
+- Fix form validation bugs ([#4873](https://github.com/mui/base-ui/pull/4873))
+- Reflect disabled `Field.Item` state in `Field.Label` ([#4916](https://github.com/mui/base-ui/pull/4916))
+- Reflect disabled `Field.Item` state in `Field.Description` ([#4960](https://github.com/mui/base-ui/pull/4960))
+- Fix valueMissing revalidation ([#4995](https://github.com/mui/base-ui/pull/4995))
+- Fix validation bugs ([#4894](https://github.com/mui/base-ui/pull/4894))
+
+## Fieldset
+
+- Fix disabled fieldset form bugs ([#4890](https://github.com/mui/base-ui/pull/4890))
+
+## Form
+
+- Fix form validation bugs ([#4873](https://github.com/mui/base-ui/pull/4873))
+
+## Menu
+
+- Fix submenu trigger interactions ([#4892](https://github.com/mui/base-ui/pull/4892))
+- Open submenus on hover after a plain delay ([#4990](https://github.com/mui/base-ui/pull/4990))
+- Fix controlled hover leave close ([#4893](https://github.com/mui/base-ui/pull/4893))
+- Fix positioning and viewport edge cases ([#4925](https://github.com/mui/base-ui/pull/4925))
+
+## Menubar
+
+- Fix vertical menu focus behavior ([#4922](https://github.com/mui/base-ui/pull/4922))
+
+## Meter
+
+- Sync value text with indicator ([#4904](https://github.com/mui/base-ui/pull/4904))
+
+## Navigation Menu
+
+- Preserve exit transition when controlled ([#4855](https://github.com/mui/base-ui/pull/4855))
+- Fix interaction, value, and styling-hook bugs ([#4942](https://github.com/mui/base-ui/pull/4942))
+
+## Number Field
+
+- Handle unreadable clipboard paste ([#4876](https://github.com/mui/base-ui/pull/4876))
+- Fix committed values and keyboard stepping ([#4905](https://github.com/mui/base-ui/pull/4905))
+- Respect Intl rounding options on blur ([#4804](https://github.com/mui/base-ui/pull/4804))
+- Fix formatter locale cache ([#4999](https://github.com/mui/base-ui/pull/4999))
+- Preserve numeric precision while keeping default display formatting ([#5040](https://github.com/mui/base-ui/pull/5040))
+- Fix input and scrub edge cases ([#5046](https://github.com/mui/base-ui/pull/5046))
+
+## OTP Field
+
+- 🚨 **Breaking change:** Unmark preview<br />
+  the namespace export is renamed `OTPFieldPreview` → `OTPField` and should be imported as: `{ OTPField } from '@base-ui/react/otp-field'` ([#5029](https://github.com/mui/base-ui/pull/5029))
+- Avoid password manager bubbles after first input ([#4868](https://github.com/mui/base-ui/pull/4868))
+
+## Popover
+
+- Fix controlled hover leave close ([#4893](https://github.com/mui/base-ui/pull/4893))
+- Fix programmatic focus return ([#4849](https://github.com/mui/base-ui/pull/4849))
+- Fix positioning and viewport edge cases ([#4925](https://github.com/mui/base-ui/pull/4925))
+- Fix non-modal focus-out close and tabindex management ([#5030](https://github.com/mui/base-ui/pull/5030))
+
+## Preview Card
+
+- Fix controlled hover leave close ([#4893](https://github.com/mui/base-ui/pull/4893))
+- Fix positioning and viewport edge cases ([#4925](https://github.com/mui/base-ui/pull/4925))
+- Keep inline preview anchored while open ([#4836](https://github.com/mui/base-ui/pull/4836))
+- Close when active trigger unmounts ([#4886](https://github.com/mui/base-ui/pull/4886))
+
+## Radio Group
+
+- Forward group ids ([#4997](https://github.com/mui/base-ui/pull/4997))
+- Fix selection on space key press ([#4930](https://github.com/mui/base-ui/pull/4930))
+- Fix disabled selected form submission ([#4926](https://github.com/mui/base-ui/pull/4926))
+- Honor canceled value changes ([#4996](https://github.com/mui/base-ui/pull/4996))
+
+## Scroll Area
+
+- Fix overflow and scrolling state ([#4936](https://github.com/mui/base-ui/pull/4936))
+- Add scrolling state to Thumb ([#4982](https://github.com/mui/base-ui/pull/4982))
+
+## Select
+
+- Fix autofill and selected state edge cases ([#4934](https://github.com/mui/base-ui/pull/4934))
+- Fix dirty state not clearing in multiple mode ([#4971](https://github.com/mui/base-ui/pull/4971))
+- Skip disabled items in typeahead and fix multiple-mode serialization ([#5025](https://github.com/mui/base-ui/pull/5025))
+
+## Slider
+
+- Fix extra `validate` fn calls ([#4911](https://github.com/mui/base-ui/pull/4911))
+- Fix interaction edge cases ([#4937](https://github.com/mui/base-ui/pull/4937))
+- Fix touchend listener accumulation leak ([#5070](https://github.com/mui/base-ui/pull/5070))
+
+## Switch
+
+- Fix extra `validate` fn calls ([#4911](https://github.com/mui/base-ui/pull/4911))
+
+## Tabs
+
+- Fix state edge cases ([#4935](https://github.com/mui/base-ui/pull/4935))
+- Fix suspended panel activation ([#4903](https://github.com/mui/base-ui/pull/4903))
+
+## Toast
+
+- Fix timer and limit edge cases ([#4933](https://github.com/mui/base-ui/pull/4933))
+
+## Toggle
+
+- Fix grouped cancelation and JSDoc ([#4940](https://github.com/mui/base-ui/pull/4940))
+
+## Toggle Group
+
+- Fix grouped cancelation and JSDoc ([#4940](https://github.com/mui/base-ui/pull/4940))
+- Remove invalid `aria-orientation` from `role="group"` element ([#4628](https://github.com/mui/base-ui/pull/4628))
+- Fix disabled state and roving focus bugs ([#4968](https://github.com/mui/base-ui/pull/4968))
+
+## Toolbar
+
+- Do not forward `disabled` to default toolbar button ([#4967](https://github.com/mui/base-ui/pull/4967))
+- Fix disabled state and roving focus bugs ([#4968](https://github.com/mui/base-ui/pull/4968))
+
+## Tooltip
+
+- Fix positioning and viewport edge cases ([#4925](https://github.com/mui/base-ui/pull/4925))
+- Fix provider delay group lifecycle ([#4887](https://github.com/mui/base-ui/pull/4887))
+- Reset preventUnmountOnClose on reopen ([#4885](https://github.com/mui/base-ui/pull/4885))
+- Close when active trigger unmounts ([#4886](https://github.com/mui/base-ui/pull/4886))

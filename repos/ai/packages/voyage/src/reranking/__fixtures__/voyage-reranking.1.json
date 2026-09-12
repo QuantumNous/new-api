@@ -1,0 +1,17 @@
+{
+  "object": "list",
+  "data": [
+    {
+      "relevance_score": 0.5703125,
+      "index": 1
+    },
+    {
+      "relevance_score": 0.255859375,
+      "index": 0
+    }
+  ],
+  "model": "rerank-2.5",
+  "usage": {
+    "total_tokens": 12
+  }
+}

@@ -1,0 +1,117 @@
+---
+description: 'Specify additional JavaScript files that need to be compiled by SWC.'
+---
+
+# source.include
+
+- **Type:** [Rspack.RuleSetCondition](https://rspack.rs/config/module-rules#condition)`[]`
+
+Specify additional JavaScript files that need to be compiled by [SWC](/guide/configuration/swc).
+
+## Default value
+
+By default, Rsbuild's built-in [swc-loader](https://rspack.rs/guide/features/builtin-swc-loader) compiles the following files:
+
+- TypeScript and JSX files in any directory, matching file extensions `.ts`, `.tsx`, `.jsx`, `.mts`, `.cts`.
+- JavaScript files that are not in the `node_modules` directory, matching file extensions `.js`, `.mjs`, `.cjs`.
+
+The default value of `source.include` can be expressed as:
+
+```ts
+const defaultInclude = [{ not: /[\\/]node_modules[\\/]/ }, /\.(?:ts|tsx|jsx|mts|cts)$/];
+```
+
+## Usage
+
+Through the `source.include` configuration, you can specify directories or modules that need to be compiled by Rsbuild. The usage of `source.include` is consistent with [rules[].include](https://rspack.rs/config/module-rules#rulesinclude) in Rspack, which supports passing in strings or regular expressions to match the module path.
+
+For example:
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  source: {
+    include: [path.resolve(__dirname, '../other-dir')],
+  },
+};
+```
+
+## Compile npm packages
+
+A typical usage scenario is to compile npm packages under node_modules, because some third-party dependencies have ESNext syntax, which may cause them to fail to run on older browsers. You can solve this problem by using this configuration to specify the dependencies that need to be compiled.
+
+:::tip
+If you are unsure which third-party dependencies in node_modules contain ESNext syntax, you can use the [@rsbuild/plugin-check-syntax](https://github.com/rstackjs/rsbuild-plugin-check-syntax) for checking. The plugin can help you find the modules that contain ESNext syntax.
+:::
+
+Take `query-string` as an example, you can add the following configuration:
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  source: {
+    include: [
+      // Method 1:
+      // Match by regular expression
+      // All paths containing `node_modules/query-string/` will be matched
+      /node_modules[\\/]query-string[\\/]/,
+      // Method 2:
+      // First get the path of the module by require.resolve
+      // Then pass path.dirname to point to the corresponding directory
+      path.dirname(require.resolve('query-string')),
+    ],
+  },
+};
+```
+
+The above two methods match the absolute paths of files using "path prefixes" and "regular expressions" respectively. It is worth noting that all referenced modules in the project will be matched. Therefore, you should avoid using overly loose values for matching to prevent compilation performance issues or compilation errors.
+
+:::tip
+In the regular expression example, we use `[\\/]` to match the path separator because different operating systems use different path separators. Using `[\\/]` ensures that the paths can be matched on macOS, Linux and Windows.
+:::
+
+## Compile sub dependencies
+
+When you compile an npm package via `source.include`, Rsbuild will only compile the matching module by default, not the **Sub Dependencies** of the module.
+
+Take `query-string` for example, it depends on the `decode-uri-component` package, which also has ESNext code, so you need to add the `decode-uri-component` package to `source.include` as well.
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    include: [/node_modules[\\/]query-string[\\/]/, /node_modules[\\/]decode-uri-component[\\/]/],
+  },
+};
+```
+
+## Matching symlink
+
+If you match a module that is symlinked to the current project, then you need to match the **real path** of the module, not the symlinked path.
+
+For example, if you symlink the `packages/foo` path in Monorepo to the `node_modules/foo` path of the current project, you need to match the `packages/foo` path, not the `node_modules/foo` path.
+
+## Compile node_modules
+
+In general, `source.include` should not be used to compile the entire `node_modules` directory. For example, the following configuration is not recommended:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    include: [/[\\/]node_modules[\\/]/],
+  },
+};
+```
+
+This is because most of the npm packages in `node_modules` are already compiled, and it is usually unnecessary to recompile them. Compiling the entire `node_modules` will increase compilation time and may cause unexpected errors in certain npm packages, such as `core-js`, which may result in runtime exceptions after compilation.
+
+If you are willing to accept the increase in compilation time, you can use the following configuration to compile all JavaScript files but exclude `core-js`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    include: [{ not: /[\\/]core-js[\\/]/ }],
+  },
+};
+```

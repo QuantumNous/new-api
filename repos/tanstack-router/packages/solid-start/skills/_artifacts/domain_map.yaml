@@ -1,0 +1,60 @@
+# domain_map.yaml
+# Library: @tanstack/solid-start
+# Version: 1.166.2
+# Date: 2026-03-08
+# Status: reviewed
+
+library:
+  name: '@tanstack/solid-start'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Solid bindings for TanStack Start. useServerFn hook,
+    tanstackStart Vite plugin, Solid-specific setup.
+  primary_framework: 'solid'
+
+domains:
+  - name: 'Solid Start Bindings'
+    slug: 'solid-start-bindings'
+    description: >-
+      Solid-specific full-stack framework bindings for TanStack
+      Start. Server function hooks, Vite plugin, and Solid
+      application setup.
+
+skills:
+  - name: 'Solid Start'
+    slug: 'solid-start'
+    domain: 'solid-start-bindings'
+    description: >-
+      Solid bindings for TanStack Start. useServerFn hook,
+      tanstackStart Vite plugin, Solid-specific setup.
+    type: framework
+    packages:
+      - '@tanstack/solid-start'
+    covers:
+      - useServerFn hook
+      - tanstackStart Vite plugin
+      - Solid-specific app setup
+      - Server function integration
+    tasks:
+      - 'Set up a Solid Start application'
+      - 'Use server functions with useServerFn'
+      - 'Configure tanstackStart Vite plugin'
+    failure_modes:
+      - mistake: 'Using react-start APIs in Solid context'
+        mechanism: >-
+          solid-start has its own useServerFn and tanstackStart
+          exports. Importing from @tanstack/react-start or
+          @tanstack/start causes type errors and runtime failures.
+        priority: HIGH
+        status: active
+
+      - mistake: 'Missing tanstackStart Vite plugin'
+        mechanism: >-
+          The tanstackStart Vite plugin is required for server
+          function compilation. Without it, server functions are
+          not properly transformed and fail at runtime.
+        priority: MEDIUM
+        status: active
+
+gaps: []

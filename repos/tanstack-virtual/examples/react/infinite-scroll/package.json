@@ -1,0 +1,23 @@
+{
+  "name": "tanstack-react-virtual-example-infinite-scroll",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview --port 3001",
+    "start": "vite"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.80.7",
+    "@tanstack/react-virtual": "^3.14.6",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.5.2",
+    "vite": "^6.4.2"
+  }
+}

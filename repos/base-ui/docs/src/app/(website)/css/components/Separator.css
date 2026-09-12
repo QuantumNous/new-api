@@ -1,0 +1,8 @@
+@layer components {
+  .Separator {
+    box-sizing: border-box;
+    height: 1px;
+    width: 32px;
+    background-color: var(--gray-s2);
+  }
+}

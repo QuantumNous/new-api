@@ -1,0 +1,55 @@
+---
+description: '将指定的文件或目录拷贝到构建输出目录中，基于 rspack.CopyRspackPlugin 实现。'
+---
+
+# output.copy
+
+- **类型：** `Rspack.CopyRspackPluginOptions | Rspack.CopyRspackPluginOptions['patterns']`
+- **默认值：** `undefined`
+
+将指定的文件或目录拷贝到构建输出目录中，基于 [rspack.CopyRspackPlugin](https://rspack.rs/zh/plugins/rspack/copy-rspack-plugin) 实现。
+
+> 配置项请参考：[rspack.CopyRspackPlugin](https://rspack.rs/zh/plugins/rspack/copy-rspack-plugin)。
+
+## 示例
+
+将 `./src/assets` 下的文件拷贝到 `./dist` 目录：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    copy: [
+      // `./src/assets/image.png` -> `./dist/image.png`
+      { from: './src/assets' },
+    ],
+  },
+};
+```
+
+将 `./src/assets` 下的文件拷贝到 `./dist/assets` 目录：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    copy: [
+      // `./src/assets/image.png` -> `./dist/assets/image.png`
+      { from: './src/assets', to: 'assets' },
+    ],
+  },
+};
+```
+
+在拷贝 `public` 下的文件到构建产物目录时，将忽略 `public/someDir` 目录：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    copy: [{ from: './public', globOptions: { ignore: ['**/someDir/**'] } }],
+  },
+  server: {
+    publicDir: {
+      copyOnBuild: false,
+    },
+  },
+};
+```

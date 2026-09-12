@@ -1,0 +1,98 @@
+---
+description: '在 生产模式 下，可以使用该选项设置静态资源的 URL 前缀，比如设置为 CDN 地址。'
+---
+
+# output.assetPrefix
+
+- **类型：** `string | 'auto'`
+- **默认值：** [server.base](/config/server/base)
+
+在 [生产模式](/config/mode) 下，可以使用该选项设置静态资源的 URL 前缀，比如设置为 CDN 地址。
+
+`assetPrefix` 会影响构建产物中绝大部分静态资源的 URL，包括 JavaScript 文件、CSS 文件、图片、视频等。如果指定了一个错误的值，则在加载这些资源时可能会出现 404 错误。
+
+该配置项仅用于 `production` 模式或 `none` 模式。在 `development` 模式下，请使用 [dev.assetPrefix](/config/dev/asset-prefix) 配置项进行设置。
+
+## 示例
+
+设置 `output.assetPrefix` 后，JavaScript、CSS、图片等静态资源的 URL 都会加上 `output.assetPrefix` 的值作为前缀。
+
+- 例如，设置为一个 CDN 地址：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    assetPrefix: 'https://cdn.example.com/assets/',
+  },
+};
+```
+
+构建后，HTML 产物中加载 JS bundle 的 URL 如下：
+
+```html
+<script defer src="https://cdn.example.com/assets/static/js/index.ebc4ff4fab.js"></script>
+```
+
+- 设置为相对路径：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    assetPrefix: './',
+  },
+};
+```
+
+构建后，HTML 产物中加载 JS bundle 的 URL 如下：
+
+```html
+<script defer src="./static/js/index.ebc4ff4fab.js"></script>
+```
+
+## 默认值
+
+`output.assetPrefix` 的默认值与 [server.base](/config/server/base) 相同。
+
+当 `server.base` 为 `/foo` 时，可通过 `http://localhost:3000/foo/` 访问到 `index.html` 及静态资源产物。
+
+需要注意的是，当自定义 `output.assetPrefix` 选项时，如果希望静态资源能够通过 Rsbuild 预览服务器正常访问，`output.assetPrefix` 应和 `server.base` 包含相同的 URL 前缀，如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    assetPrefix: '/foo/bar/',
+  },
+  server: {
+    base: '/foo',
+  },
+};
+```
+
+## 路径类型
+
+assetPrefix 可以设置为以下类型的路径：
+
+- **绝对路径**：这是最常见的做法，可以为指定服务器路径，比如 `/assets/`，或是设置为 CDN 路径，比如 `https://cdn.example.com/assets/`。
+- **相对路径**：比如 `./assets/`。
+- **'auto'**：Rspack 将自动计算路径，并生成基于文件所在位置的相对路径。
+
+:::tip
+通常不建议将 assetPrefix 设置为相对路径，因为当资源位于不同的路径深度时，使用相对路径可能会导致资源无法正确加载。
+:::
+
+## 对比 `publicPath`
+
+`output.assetPrefix` 的功能与 Rspack 的 [output.publicPath](https://rspack.rs/zh/config/output#outputpublicpath) 配置基本一致。
+
+它与原生配置的区别在于：
+
+- `output.assetPrefix` 仅在生产模式下生效。
+- `output.assetPrefix` 默认值与 [server.base](/config/server/base) 相同。
+- `output.assetPrefix` 默认会自动补全尾部的 `/`。
+- `output.assetPrefix` 的值会写入 [process.env.ASSET_PREFIX](/guide/advanced/env-vars#processenvasset_prefix) 环境变量（只能在 client 代码中访问）。
+
+## 动态 asset prefix
+
+使用 Rspack 提供的 `import.meta.rspackPublicPath` 变量，可以在 JavaScript 代码中动态设置静态资源 URL 的前缀。
+
+详见 [Rspack - 动态设置 publicPath](https://rspack.rs/zh/guide/features/asset-base-path#%E5%8A%A8%E6%80%81%E8%AE%BE%E7%BD%AE-publicpath)。

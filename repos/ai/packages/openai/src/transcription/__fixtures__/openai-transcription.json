@@ -1,0 +1,37 @@
+{
+  "task": "transcribe",
+  "language": "english",
+  "duration": 36.709999084472656,
+  "text": "Galileo was an American robotic space program that studied the planet Jupiter and its moons, as well as several other solar system bodies.",
+  "words": [
+    {
+      "word": "Galileo",
+      "start": 0,
+      "end": 0.6600000262260437
+    },
+    {
+      "word": "was",
+      "start": 0.6600000262260437,
+      "end": 0.8999999761581421
+    },
+    {
+      "word": "an",
+      "start": 0.8999999761581421,
+      "end": 1.1399999856948853
+    },
+    {
+      "word": "American",
+      "start": 1.1399999856948853,
+      "end": 1.5
+    },
+    {
+      "word": "robotic",
+      "start": 1.5,
+      "end": 2.0199999809265137
+    }
+  ],
+  "usage": {
+    "type": "duration",
+    "seconds": 37
+  }
+}

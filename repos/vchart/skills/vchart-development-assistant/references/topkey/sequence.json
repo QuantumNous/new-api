@@ -1,0 +1,18 @@
+{
+  "appendPadding": {
+    "key": "appendPadding",
+    "oneDesc": "可以为左边的title预留padding"
+  },
+  "dataZooms": {
+    "key": "dataZooms",
+    "oneDesc": "缩略轴配置"
+  },
+  "scrollBars": {
+    "key": "scrollBars",
+    "oneDesc": "滚动条配置"
+  },
+  "padding": {
+    "key": "padding",
+    "oneDesc": "布局 padding的配置"
+  }
+}

@@ -1,0 +1,170 @@
+---
+description: "Enable lazy compilation (compilation on demand), implemented based on Rspack's lazy compilation feature."
+---
+
+# dev.lazyCompilation
+
+- **Type:**
+
+```ts
+type LazyCompilationOptions =
+  | boolean
+  | {
+      /**
+       * Enable lazy compilation for entries.
+       */
+      entries?: boolean;
+      /**
+       * Enable lazy compilation for dynamic imports.
+       */
+      imports?: boolean;
+      /**
+       * Specify which imported modules should be lazily compiled.
+       */
+      test?: RegExp | ((m: Module) => boolean);
+      /**
+       * The path to a custom runtime code that overrides the default lazy compilation client.
+       */
+      client?: string;
+      /**
+       * Tells the client the server URL that needs to be requested.
+       */
+      serverUrl?: string;
+      /**
+       * Customize the prefix used for lazy compilation endpoint.
+       * @default "/lazy-compilation-using-"
+       */
+      prefix?: string;
+    };
+```
+
+- **Default:**
+
+```js
+const defaultOptions = {
+  imports: true,
+  entries: false,
+};
+```
+
+Enable lazy compilation (compilation on demand), implemented based on Rspack's [lazy compilation](https://rspack.rs/guide/features/lazy-compilation) feature.
+
+## Introduction
+
+Although Rspack itself has good performance, the overall build time can still be less than ideal when building applications with a large number of modules. This is because the modules in the application need to be compiled by various loaders, such as `postcss-loader`, `sass-loader`, `vue-loader`, etc., which introduce additional compilation overhead.
+
+Lazy compilation is an effective strategy to improve the startup performance of the development phase. Instead of compiling all modules at initialization, it compiles modules on demand as they are needed. This means that developers can quickly see the application running when starting the dev server, and build the required modules in batches. By compiling on demand, unnecessary compilation time can be reduced. As the project scales up, compilation time does not significantly increase, which greatly enhances the development experience.
+
+:::tip
+Lazy compilation is only effective for dev builds and does not affect production builds.
+:::
+
+## Example
+
+### Enable lazy compilation
+
+By default, Rsbuild already enables `imports` option, which means lazy compilation of dynamic imported modules.
+
+To enable full lazy compilation functionality, set `lazyCompilation` option to `true`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: true,
+  },
+};
+```
+
+This is equivalent to the following configuration:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: {
+      imports: true,
+      // If there is only one entry, Rsbuild will not enable the entries option by default
+      entries: true,
+    },
+  },
+};
+```
+
+### Disable lazy compilation
+
+To disable lazy compilation, set `lazyCompilation` to `false`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: false,
+  },
+};
+```
+
+### Entry modules
+
+Use `lazyCompilation.entries` to control whether to lazily compile entry modules:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: {
+      entries: true,
+    },
+  },
+};
+```
+
+With the `entries` option enabled, Rsbuild will not compile all pages when you start the dev server. Instead, it will only compile a specific page when you visit it.
+
+When lazily compiling entry modules, please note:
+
+- It only applies to multi-page applications (MPA) and does not optimize single-page applications (SPA).
+- When you visit a page, you need to wait for the page to finish compiling before you can see its content.
+
+### Async modules
+
+Use `lazyCompilation.imports` to control whether to lazily compile [dynamic imported](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import) modules.
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: {
+      imports: true,
+    },
+  },
+};
+```
+
+When the `imports` option is enabled, all async modules will only be compiled when requested. If your project is a single-page application (SPA) and you have split the routes using dynamic import, this will significantly speed up the startup time.
+
+### Server URL
+
+Use [lazyCompilation.serverUrl](https://rspack.rs/config/lazy-compilation#lazycompilationserverurl) to tell the client the server URL that needs to be requested.
+
+If `lazyCompilation.serverUrl` is not configured and `dev.client.host` or `dev.client.port` is specified, Rsbuild will use the `dev.client` URL as the default `serverUrl`.
+
+An explicitly configured `lazyCompilation.serverUrl` always takes priority over the default value inferred from `dev.client`.
+
+Example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: {
+      serverUrl: 'http://localhost:<port>',
+    },
+  },
+};
+```
+
+:::tip
+Rsbuild will replace the `<port>` placeholder with the actual port number the server is listening on.
+:::
+
+## Version history
+
+| Version | Changes                                                                   |
+| ------- | ------------------------------------------------------------------------- |
+| v1.3.0  | Added this option                                                         |
+| v1.5.0  | Changed default value from `false` to `{ imports: true, entries: false }` |

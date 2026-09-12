@@ -1,0 +1,35 @@
+{
+  "name": "tanstack-react-start-e2e-clerk-basic",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "dev:e2e": "vite dev",
+    "build": "exit 0; vite build",
+    "start": "node .output/server/index.mjs",
+    "test:e2e": "exit 0; rm -rf port*.txt; playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@clerk/tanstack-react-start": "^0.19.0",
+    "@tanstack/react-router": "workspace:^",
+    "@tanstack/react-router-devtools": "workspace:^",
+    "@tanstack/react-start": "workspace:^",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "redaxios": "^0.5.1",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14"
+  }
+}

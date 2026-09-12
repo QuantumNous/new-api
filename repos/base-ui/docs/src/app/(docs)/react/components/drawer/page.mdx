@@ -1,0 +1,452 @@
+# Drawer
+
+<Subtitle>A panel that slides in from the edge of the screen.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled React drawer component with swipe-to-dismiss gestures."
+/>
+
+import { DemoDrawerHero } from './demos/hero';
+
+<DemoDrawerHero />
+
+## Usage guidelines
+
+- **Drawer extends [Dialog](/react/components/dialog):** It adds gesture support, snap points, and indent effects. If you don't need these, use Dialog instead. A panel that slides in from the edge of the screen and doesn't need gesture support is a positioned Dialog.
+
+## Anatomy
+
+Import the component and assemble its parts:
+
+```jsx title="Anatomy"
+import { Drawer } from '@base-ui/react/drawer';
+
+<Drawer.Provider>
+  <Drawer.IndentBackground />
+  <Drawer.Indent>
+    <Drawer.Root>
+      <Drawer.Trigger />
+      <Drawer.SwipeArea />
+      <Drawer.Portal>
+        <Drawer.Backdrop />
+        <Drawer.Viewport>
+          <Drawer.Popup>
+            <Drawer.Content>
+              <Drawer.Title />
+              <Drawer.Description />
+              <Drawer.Close />
+            </Drawer.Content>
+          </Drawer.Popup>
+        </Drawer.Viewport>
+      </Drawer.Portal>
+    </Drawer.Root>
+  </Drawer.Indent>
+</Drawer.Provider>;
+```
+
+Drawer supports swipe gestures to dismiss. Set `swipeDirection` to control which direction dismisses the drawer. `<Drawer.Content>` allows text selection of its children without swipe interference when using a mouse pointer. Add `data-base-ui-swipe-ignore` to a descendant when you need to opt that element out of swipe dismissal for all input types.
+
+Use `<Drawer.VirtualKeyboardProvider>` when a bottom sheet contains form fields and you want Base UI to manage keyboard-aware focus and scroll handling for software keyboards. Drawers without this provider are unaffected.
+
+## Examples
+
+### State
+
+By default, Drawer is an uncontrolled component that manages its own state.
+
+```tsx title="Uncontrolled drawer"
+<Drawer.Root>
+  <Drawer.Trigger>Open</Drawer.Trigger>
+  <Drawer.Portal>
+    <Drawer.Viewport>
+      <Drawer.Popup>
+        <Drawer.Content>
+          <Drawer.Title>Example drawer</Drawer.Title>
+          <Drawer.Close>Close</Drawer.Close>
+        </Drawer.Content>
+      </Drawer.Popup>
+    </Drawer.Viewport>
+  </Drawer.Portal>
+</Drawer.Root>
+```
+
+Use `open` and `onOpenChange` props if you need to access or control the state of the drawer.
+
+```tsx title="Controlled drawer"
+const [open, setOpen] = React.useState(false);
+return (
+  <Drawer.Root open={open} onOpenChange={setOpen}>
+    <Drawer.Trigger>Open</Drawer.Trigger>
+    <Drawer.Portal>
+      <Drawer.Viewport>
+        <Drawer.Popup>
+          <Drawer.Content>
+            <Drawer.Title>Example drawer</Drawer.Title>
+            <Drawer.Close>Close</Drawer.Close>
+          </Drawer.Content>
+        </Drawer.Popup>
+      </Drawer.Viewport>
+    </Drawer.Portal>
+  </Drawer.Root>
+);
+```
+
+### Position
+
+Positioning is handled by your styles. `swipeDirection` defaults to `"down"` for bottom sheets. Use `"up"`, `"left"`, or `"right"` for other drawer positions.
+
+```tsx title="Swipe directions"
+<Drawer.Root swipeDirection="right">
+```
+
+import { DemoDrawerPosition } from './demos/position';
+
+<DemoDrawerPosition />
+
+### Nested drawers
+
+Use the `[data-nested-drawer-open]` selector and the `--nested-drawers` CSS variable to style drawers when a nested drawer is open.
+
+This demo stacks nested drawers using a constant peek so the frontmost drawer stays anchored to the bottom while the ones behind it are scaled down and lifted. It also uses the `--drawer-height` and `--drawer-frontmost-height` CSS variables to handle varying drawer heights.
+
+import { DemoDrawerNested } from './demos/nested';
+
+<DemoDrawerNested />
+
+### Snap points
+
+Use `snapPoints` to snap a bottom sheet drawer to preset heights. Numbers between 0 and 1 represent fractions of the viewport height, and numbers greater than 1 are treated as pixel values. String values support `px` and `rem` units (for example, `'148px'` or `'30rem'`).
+
+```tsx title="Snap points"
+const snapPoints = ['148px', 1];
+const [snapPoint, setSnapPoint] = React.useState<Drawer.Root.SnapPoint | null>(snapPoints[0]);
+
+<Drawer.Root snapPoints={snapPoints} snapPoint={snapPoint} onSnapPointChange={setSnapPoint}>
+  {/* ... */}
+</Drawer.Root>;
+```
+
+Apply the snap point offset in your styles when using vertical drawers:
+
+```css title="Snap point offset"
+.DrawerPopup {
+  transform: translateY(calc(var(--drawer-snap-point-offset) + var(--drawer-swipe-movement-y)));
+}
+```
+
+import { DemoDrawerSnapPoints } from './demos/snap-points';
+
+<DemoDrawerSnapPoints />
+
+By default, the drawer can skip snap points when swiping quickly. Specify the `snapToSequentialPoints` prop to disable velocity-based skipping so the snap target is determined by drag distance (you can still drag past multiple points).
+
+### Virtual keyboard aware
+
+Wrap a bottom sheet in `<Drawer.VirtualKeyboardProvider>` to make it react to software keyboards when it contains form controls. When the keyboard opens, the provider scrolls the body to keep the focused field visible.
+
+- **Keep the popup frame stable:** place header and footer content outside a plain scrollable body.
+- **Lift a pinned footer input:** if a footer contains its own input, reserve a footer slot below the scroll area and offset it by `var(--drawer-keyboard-inset, 0px)`. The demo switches the focused footer to `position: fixed` — positioned against the popup, since its `transform` contains fixed descendants — and adds the inset to its bottom padding.
+- **Always include the `0px` fallback:** the provider only sets `--drawer-keyboard-inset` while the keyboard is aligned, so a bare `var(--drawer-keyboard-inset)` is invalid before the first alignment and after cleanup.
+
+```tsx title="Virtual keyboard aware drawer"
+<Drawer.Root>
+  <Drawer.VirtualKeyboardProvider>{/* ... */}</Drawer.VirtualKeyboardProvider>
+</Drawer.Root>
+```
+
+import { DemoDrawerVirtualKeyboardAware } from './demos/virtual-keyboard-aware';
+
+<DemoDrawerVirtualKeyboardAware />
+
+### Indent effect
+
+Scale the background down when any drawer opens by wrapping your app in `<Drawer.Provider>` and use `<Drawer.IndentBackground>` + `<Drawer.Indent>` at the top of your tree. Any `<Drawer.Root>` within the provider notifies it when it mounts, which activates the indent parts (they receive `[data-active]` state attributes).
+
+import { DemoDrawerIndentProvider } from './demos/indent-provider';
+
+<DemoDrawerIndentProvider />
+
+### Non-modal
+
+Set `modal={false}` to opt out of focus trapping and `disablePointerDismissal` to keep the drawer open on outside clicks.
+
+import { DemoDrawerNonModal } from './demos/non-modal';
+
+<DemoDrawerNonModal />
+
+### Mobile navigation
+
+You can build a full-screen mobile navigation sheet using Drawer parts, including a flick-to-dismiss from the top gesture.
+
+import { DemoDrawerMobileNav } from './demos/mobile-nav';
+
+<DemoDrawerMobileNav />
+
+### Swipe to open
+
+Place `<Drawer.SwipeArea>` along the edge of the viewport to enable swipe-to-open gestures.
+
+import { DemoDrawerSwipeArea } from './demos/swipe-area';
+
+<DemoDrawerSwipeArea />
+
+### Close confirmation
+
+This example shows a nested confirmation dialog that opens if the text entered in the drawer is going to be discarded.
+
+To implement this, both the drawer and the confirmation dialog should be controlled. The confirmation dialog may be opened when the `onOpenChange` callback of the drawer receives a request to close while there is text in the textarea. This way, the confirmation is automatically shown when the user clicks the backdrop, presses the Esc key, clicks a close button, or dismisses the drawer with a swipe gesture.
+
+Use `eventDetails.cancel()` in `onOpenChange` to prevent the drawer from closing while the confirmation prompt is shown.
+
+import { DemoDrawerCloseConfirmation } from './demos/close-confirmation';
+
+<DemoDrawerCloseConfirmation />
+
+### Action sheet with separate destructive action
+
+This demo builds an action sheet with a grouped list of actions plus a separate destructive action button.
+
+import { DemoDrawerUncontained } from './demos/uncontained';
+
+<DemoDrawerUncontained />
+
+### Detached triggers
+
+A drawer can be controlled by a trigger located either inside or outside the `<Drawer.Root>` component. For simple, one-off interactions, place the `<Drawer.Trigger>` inside `<Drawer.Root>`.
+
+However, if defining the drawer's content next to its trigger is not practical, you can use a detached trigger. This involves placing the `<Drawer.Trigger>` outside of `<Drawer.Root>` and linking them with a `handle` created by the `Drawer.createHandle()` function.
+
+```jsx title="Detached triggers"
+const demoDrawer = Drawer.createHandle();
+
+// @highlight
+// @highlight-text "handle={demoDrawer}"
+<Drawer.Trigger handle={demoDrawer}>Open</Drawer.Trigger>
+
+// @highlight
+// @highlight-text "handle={demoDrawer}"
+<Drawer.Root handle={demoDrawer}>
+  ...
+</Drawer.Root>
+```
+
+The drawer can render different content depending on which trigger opened it. This is achieved by passing a `payload` to the `<Drawer.Trigger>` and using the function-as-a-child pattern in `<Drawer.Root>`.
+
+```jsx title="Detached triggers with payload"
+// @highlight
+const demoDrawer = Drawer.createHandle<{ title: string }>();
+
+// @highlight
+// @highlight-text "payload"
+<Drawer.Trigger handle={demoDrawer} payload={{ title: 'Profile' }}>
+  Profile
+</Drawer.Trigger>
+
+// @highlight
+// @highlight-text "payload"
+<Drawer.Trigger handle={demoDrawer} payload={{ title: 'Settings' }}>
+  Settings
+</Drawer.Trigger>
+
+<Drawer.Root handle={demoDrawer}>
+  {({ payload }) => ( // @highlight-text "payload"
+    <Drawer.Portal>
+      <Drawer.Popup>
+        <Drawer.Content>
+          <Drawer.Title>{payload?.title}</Drawer.Title> {/* @highlight-text "payload" */}
+        </Drawer.Content>
+      </Drawer.Popup>
+    </Drawer.Portal>
+  )}
+</Drawer.Root>
+```
+
+### Stacking and animations
+
+Use CSS transitions or animations to animate drawer opening, closing, swipe interactions, and nested stacking. The `data-starting-style` attribute is applied when a drawer starts to open, and `data-ending-style` is applied when it starts to close.
+
+The `--nested-drawers` CSS variable can be used to determine stack depth. The frontmost drawer has index `0`.
+
+```css title="Stack depth"
+.DrawerPopup {
+  --stack-step: 0.05;
+  --stack-scale: calc(1 - (var(--nested-drawers) * var(--stack-step)));
+  transform: translateY(var(--drawer-swipe-movement-y)) scale(var(--stack-scale));
+}
+```
+
+When stacked drawers have varying heights, use the `--drawer-height` and `--drawer-frontmost-height` variables to keep collapsed drawers aligned with the frontmost one.
+
+```css title="Variable-height stacking"
+.DrawerPopup {
+  --bleed: 3rem;
+  --stack-height: max(
+    0px,
+    calc(var(--drawer-frontmost-height, var(--drawer-height)) - var(--bleed))
+  );
+  height: var(--drawer-height, auto);
+}
+
+.DrawerPopup[data-nested-drawer-open] {
+  height: calc(var(--stack-height) + var(--bleed));
+  overflow: hidden;
+}
+```
+
+The `data-nested-drawer-open` attribute marks drawers behind the frontmost drawer. Use it with `data-nested-drawer-swiping` to dim or hide parent drawer content while keeping it visible during nested swipe interactions.
+
+```css title="Nested content visibility"
+.DrawerContent {
+  transition: opacity 300ms;
+}
+
+/* @highlight-text "data-nested-drawer-open" */
+.DrawerPopup[data-nested-drawer-open] .DrawerContent {
+  opacity: 0;
+}
+
+/* @highlight-text "data-nested-drawer-open" "data-nested-drawer-swiping" */
+.DrawerPopup[data-nested-drawer-open][data-nested-drawer-swiping] .DrawerContent {
+  opacity: 1;
+}
+```
+
+The `--drawer-swipe-movement-x`, `--drawer-swipe-movement-y`, and `--drawer-snap-point-offset` CSS variables can be used to create smooth drag and snap offsets:
+
+```css title="Swipe and snap offset"
+.DrawerPopup[data-swipe-direction='right'] {
+  /* @highlight-text "--drawer-swipe-movement-x" */
+  transform: translateX(var(--drawer-swipe-movement-x));
+}
+
+.DrawerPopup[data-swipe-direction='down'] {
+  transform: translateY(
+    /* @highlight-text "--drawer-swipe-movement-y" */
+    calc(var(--drawer-snap-point-offset) + var(--drawer-swipe-movement-y))
+  );
+}
+```
+
+The `data-swipe-direction` attribute can be used with `data-ending-style` to animate directional dismissal:
+
+```css title="Swipe dismissal direction"
+/* @highlight-text "data-swipe-direction" */
+.DrawerPopup[data-ending-style][data-swipe-direction='right'] {
+  transform: translateX(100%);
+}
+
+/* @highlight-text "data-swipe-direction" */
+.DrawerPopup[data-ending-style][data-swipe-direction='down'] {
+  transform: translateY(100%);
+}
+```
+
+Use `--drawer-swipe-progress` to fade the backdrop as the drawer is swiped, and `--drawer-swipe-strength` to scale release transition durations based on swipe velocity.
+
+```css title="Backdrop and release timing"
+.DrawerBackdrop {
+  --backdrop-opacity: 0.2;
+  opacity: calc(var(--backdrop-opacity) * (1 - var(--drawer-swipe-progress)));
+}
+
+.DrawerPopup[data-ending-style],
+.DrawerBackdrop[data-ending-style] {
+  transition-duration: calc(var(--drawer-swipe-strength) * 400ms);
+}
+
+.DrawerPopup[data-swiping],
+.DrawerBackdrop[data-swiping] {
+  transition-duration: 0ms;
+}
+```
+
+## API reference
+
+import { TypesDrawer } from './types';
+
+### Provider
+
+<TypesDrawer.Provider />
+
+### IndentBackground
+
+<TypesDrawer.IndentBackground />
+
+### Indent
+
+<TypesDrawer.Indent />
+
+### Root
+
+<TypesDrawer.Root />
+
+### Trigger
+
+<TypesDrawer.Trigger />
+
+### SwipeArea
+
+<TypesDrawer.SwipeArea />
+
+### VirtualKeyboardProvider
+
+<TypesDrawer.VirtualKeyboardProvider />
+
+### Portal
+
+<TypesDrawer.Portal />
+
+### Backdrop
+
+<TypesDrawer.Backdrop />
+
+### Viewport
+
+<TypesDrawer.Viewport />
+
+### Popup
+
+<TypesDrawer.Popup />
+
+### Content
+
+<TypesDrawer.Content />
+
+### Title
+
+<TypesDrawer.Title />
+
+### Description
+
+<TypesDrawer.Description />
+
+### Close
+
+<TypesDrawer.Close />
+
+## createHandle
+
+<TypesDrawer.createHandle />
+
+[//]: # '@exclude-table-of-contents'
+
+### Handle
+
+<TypesDrawer.Handle />
+
+export const metadata = {
+  keywords: [
+    'React Drawer',
+    'Drawer Component',
+    'Side Panel',
+    'Bottom Sheet',
+    'Swipe Dismiss Drawer',
+    'Offcanvas',
+    'Sliding Panel',
+    'Modal Drawer',
+    'Controlled Drawer State',
+    'Accessible Drawer',
+    'Headless React Components',
+    'Base UI',
+  ],
+};

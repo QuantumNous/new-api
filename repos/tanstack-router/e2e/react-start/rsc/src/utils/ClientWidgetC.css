@@ -1,0 +1,19 @@
+/* 
+ * Global CSS for ClientWidgetC - tests that unrendered RSC CSS is NOT loaded.
+ * If this CSS is loaded, it will turn [data-testid="serverb-note"] orange,
+ * which we can detect in tests.
+ */
+
+[data-testid='serverb-note'] {
+  background-color: #ffedd5 !important; /* orange-100 */
+  border: 3px solid #f97316 !important; /* orange-500 */
+  color: #9a3412 !important; /* orange-800 */
+}
+
+.client-widget-c {
+  background-color: #ffedd5;
+  border: 2px solid #f97316;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 8px 0;
+}

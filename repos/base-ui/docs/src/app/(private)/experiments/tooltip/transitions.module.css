@@ -1,0 +1,109 @@
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+@keyframes scaleOut {
+  to {
+    opacity: 0;
+    transform: scale(0);
+  }
+}
+
+.TooltipPopup {
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: black;
+  color: white;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 95%;
+  cursor: default;
+  transform-origin: var(--transform-origin);
+
+  &[data-instant] {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+
+  &[data-type='css-animation'] {
+    animation: scaleIn 0.2s forwards;
+
+    &[data-ending-style] {
+      animation: scaleOut 0.2s forwards;
+    }
+  }
+
+  &[data-type='css-animation-keep-mounted'] {
+    animation: scaleIn 0.2s forwards;
+
+    &[data-ending-style] {
+      animation: scaleOut 0.2s forwards;
+    }
+  }
+
+  &[data-type='css-transition'] {
+    transition-property: opacity, transform;
+    transition-duration: 0.2s;
+
+    &[data-ending-style] {
+      opacity: 0;
+      transform: scale(0);
+    }
+
+    &[data-starting-style] {
+      opacity: 0;
+      transform: scale(0.8);
+    }
+  }
+
+  &[data-type='css-transition-keep-mounted'] {
+    transition-property: opacity, transform;
+    transition-duration: 0.2s;
+
+    &[data-ending-style] {
+      opacity: 0;
+      transform: scale(0);
+    }
+
+    &[data-starting-style] {
+      opacity: 0;
+      transform: scale(0.8);
+    }
+  }
+
+  &[data-type='css-transition-starting-style'] {
+    transition-property: opacity, transform, visibility;
+    transition-duration: 0.2s;
+
+    @starting-style {
+      opacity: 0;
+      transform: scale(0.8);
+    }
+
+    &[data-ending-style] {
+      opacity: 0;
+      transform: scale(0);
+    }
+  }
+}
+
+.AnchorButton {
+  border: none;
+  background: #0072e6;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 16px;
+
+  &:focus-visible {
+    outline: 2px solid #3399ff;
+    outline-offset: 2px;
+  }
+
+  &:hover,
+  &[data-popup-open] {
+    background: #004c99;
+  }
+}

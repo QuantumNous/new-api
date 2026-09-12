@@ -1,0 +1,77 @@
+{
+  "id": "resp_551daeb1a02e4fcaf9ab76ed29f821a6db2df1883e55652c",
+  "object": "response",
+  "created_at": 1768900049,
+  "completed_at": 1768900162,
+  "status": "completed",
+  "incomplete_details": null,
+  "model": "mistralai/ministral-3-14b-reasoning",
+  "previous_response_id": null,
+  "instructions": null,
+  "output": [
+    {
+      "id": "rs_3l1z5wpifxkwxhj459ya7",
+      "type": "reasoning",
+      "status": "completed",
+      "summary": [],
+      "content": [
+        {
+          "type": "reasoning_text",
+          "text": "reasoning content"
+        }
+      ]
+    },
+    {
+      "id": "msg_p1y190hl7hj1xyfqr1cir",
+      "type": "message",
+      "role": "assistant",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "text content",
+          "annotations": [],
+          "logprobs": []
+        }
+      ]
+    }
+  ],
+  "error": null,
+  "tools": [],
+  "tool_choice": "auto",
+  "truncation": "auto",
+  "parallel_tool_calls": true,
+  "text": {
+    "format": {
+      "type": "text"
+    }
+  },
+  "top_p": 0.95,
+  "presence_penalty": 0,
+  "frequency_penalty": 1.1,
+  "top_logprobs": 0,
+  "temperature": 0.1,
+  "reasoning": {
+    "summary": null,
+    "effort": null
+  },
+  "usage": {
+    "input_tokens": 136,
+    "output_tokens": 3677,
+    "total_tokens": 3813,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens_details": {
+      "reasoning_tokens": 2456
+    }
+  },
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "store": true,
+  "background": false,
+  "service_tier": "default",
+  "metadata": {},
+  "safety_identifier": null,
+  "prompt_cache_key": null
+}

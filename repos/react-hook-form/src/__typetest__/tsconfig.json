@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "module": "es2015",
+    "target": "es2018",
+    "moduleResolution": "bundler",
+    "jsx": "react",
+    "esModuleInterop": true,
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "skipLibCheck": true,
+    "noEmit": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": ["./**/*.test-d.ts", "./__fixtures__/**/*.ts", "../**/*.ts"],
+  "exclude": ["../**/__tests__", "../**/*.test.ts", "../**/*.test.tsx"]
+}

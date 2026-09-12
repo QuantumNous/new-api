@@ -1,0 +1,120 @@
+# packages/start-client-core/skills/_artifacts/skill_tree.yaml
+library:
+  name: '@tanstack/start-client-core'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Framework-agnostic client-side core for TanStack Start.
+    Provides server functions, middleware, execution model,
+    server routes, and deployment configuration.
+generated_from:
+  domain_map: 'skills/_artifacts/domain_map.yaml'
+generated_at: '2026-03-08'
+
+skills:
+  # ── Start Core Skills ───────────────────────────────────────────
+  - name: 'Start Core'
+    slug: 'start-core'
+    type: 'core'
+    domain: 'project-setup'
+    path: 'skills/start-core/SKILL.md'
+    package: 'packages/start-client-core'
+    description: >-
+      Core overview for TanStack Start: tanstackStart() Vite plugin,
+      getRouter() factory, root route document shell (HeadContent,
+      Scripts, Outlet), client/server entry points, routeTree.gen.ts,
+      tsconfig configuration. Entry point for all Start skills.
+    sources:
+      - 'TanStack/router:docs/start/framework/react/build-from-scratch.md'
+      - 'TanStack/router:docs/start/framework/react/quick-start.md'
+      - 'TanStack/router:docs/start/framework/react/guide/routing.md'
+
+  - name: 'Server Functions'
+    slug: 'start-core/server-functions'
+    type: 'sub-skill'
+    domain: 'server-functions'
+    path: 'skills/start-core/server-functions/SKILL.md'
+    package: 'packages/start-client-core'
+    description: >-
+      createServerFn (GET/POST), validator (Zod or function),
+      useServerFn hook, server context utilities (getRequest,
+      getRequestHeader, setResponseHeader, setResponseStatus), error
+      handling (throw errors, redirect, notFound), streaming
+      (ReadableStream, async generators), FormData handling, file
+      organization (.functions.ts, .server.ts).
+    requires:
+      - 'start-core'
+    sources:
+      - 'TanStack/router:docs/start/framework/react/guide/server-functions.md'
+
+  - name: 'Middleware'
+    slug: 'start-core/middleware'
+    type: 'sub-skill'
+    domain: 'middleware-and-context'
+    path: 'skills/start-core/middleware/SKILL.md'
+    package: 'packages/start-client-core'
+    description: >-
+      createMiddleware, request middleware (.server only), server
+      function middleware (.client + .server), context passing via
+      next({ context }), sendContext for client-server transfer,
+      global middleware via createStart in src/start.ts, middleware
+      factories, method order enforcement.
+    requires:
+      - 'start-core'
+      - 'start-core/server-functions'
+    sources:
+      - 'TanStack/router:docs/start/framework/react/guide/middleware.md'
+
+  - name: 'Execution Model'
+    slug: 'start-core/execution-model'
+    type: 'sub-skill'
+    domain: 'execution-model'
+    path: 'skills/start-core/execution-model/SKILL.md'
+    package: 'packages/start-client-core'
+    description: >-
+      Isomorphic-by-default principle, environment boundary functions
+      (createServerFn, createServerOnlyFn, createClientOnlyFn,
+      createIsomorphicFn), ClientOnly component, useHydrated hook,
+      import protection, dead code elimination, environment variable
+      safety (VITE_ prefix, process.env).
+    requires:
+      - 'start-core'
+    sources:
+      - 'TanStack/router:docs/start/framework/react/guide/execution-model.md'
+      - 'TanStack/router:docs/start/framework/react/guide/environment-variables.md'
+
+  - name: 'Server Routes'
+    slug: 'start-core/server-routes'
+    type: 'sub-skill'
+    domain: 'server-routes'
+    path: 'skills/start-core/server-routes/SKILL.md'
+    package: 'packages/start-client-core'
+    description: >-
+      Server-side API endpoints using the server property on
+      createFileRoute, HTTP method handlers (GET, POST, PUT, DELETE),
+      createHandlers for per-handler middleware, handler context
+      (request, params, context), request body parsing, response
+      helpers, file naming for API routes.
+    requires:
+      - 'start-core'
+    sources:
+      - 'TanStack/router:docs/start/framework/react/guide/server-routes.md'
+
+  - name: 'Deployment'
+    slug: 'start-core/deployment'
+    type: 'sub-skill'
+    domain: 'deployment-and-rendering'
+    path: 'skills/start-core/deployment/SKILL.md'
+    package: 'packages/start-client-core'
+    description: >-
+      Deploy to Cloudflare Workers, Netlify, Vercel, Node.js/Docker,
+      Bun, Railway. Selective SSR (ssr option per route), SPA mode,
+      static prerendering, ISR with Cache-Control headers, SEO and
+      head management.
+    requires:
+      - 'start-core'
+    sources:
+      - 'TanStack/router:docs/start/framework/react/guide/hosting.md'
+      - 'TanStack/router:docs/start/framework/react/guide/selective-ssr.md'
+      - 'TanStack/router:docs/start/framework/react/guide/static-prerendering.md'
+      - 'TanStack/router:docs/start/framework/react/guide/full-stack-seo.md'

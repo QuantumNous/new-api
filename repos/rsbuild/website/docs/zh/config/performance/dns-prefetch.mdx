@@ -1,0 +1,42 @@
+---
+description: '当浏览器从（第三方）服务器请求资源时，必须先将该跨源域名解析为 IP 地址，然后浏览器才能发出请求。此过程称为 DNS 解析。虽然 DNS 缓存可以帮助减少此延迟，但 DNS 解析可能会给请求增加明显的延迟。'
+---
+
+# performance.dnsPrefetch
+
+- **Type:** `string[] | undefined`
+- **默认值：** `undefined`
+
+注入 [`<link rel="dns-prefetch">`](https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/rel/dns-prefetch) 标签到 HTML 文件中。
+
+## 何时使用
+
+当浏览器从（第三方）服务器请求资源时，必须先将该跨源域名解析为 IP 地址，然后浏览器才能发出请求。此过程称为 DNS 解析。虽然 DNS 缓存可以帮助减少此延迟，但 DNS 解析可能会给请求增加明显的延迟。
+
+配置 `dns-prefetch` 可以在请求资源之前解析域名，降低请求延迟，提升加载性能。
+
+更多信息请参考：[使用 dns-prefetch](https://developer.mozilla.org/zh-CN/docs/Web/Performance/dns-prefetch)。
+
+## 示例
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    dnsPrefetch: ['https://example.com'],
+  },
+};
+```
+
+在 HTML 中生成的标签为：
+
+```html
+<link rel="dns-prefetch" href="https://example.com" />
+```
+
+## 注意事项
+
+一般来说，网站不应该配置超过 10 个 DNS prefetch。
+
+使用过多的 DNS prefetch 可能会导致性能问题，因为浏览器对维持的 DNS 请求数量有限制。进行过多的 DNS 预解析，或者对最终没有使用的 domain 进行 DNS 预解析，会造成资源争用，并可能使浏览器运行效率降低。
+
+详见 [What Is a DNS Prefetch?](https://www.splunk.com/en_us/blog/learn/dns-prefetch.html)。

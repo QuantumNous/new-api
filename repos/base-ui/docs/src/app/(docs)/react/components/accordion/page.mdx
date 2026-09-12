@@ -1,0 +1,77 @@
+# Accordion
+
+<Subtitle>A set of collapsible panels with headings.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled React accordion component that displays a set of collapsible panels with headings."
+/>
+
+import { DemoAccordionHero } from './demos/hero';
+
+<DemoAccordionHero />
+
+## Anatomy
+
+Import the component and assemble its parts:
+
+```jsx title="Anatomy"
+import { Accordion } from '@base-ui/react/accordion';
+
+<Accordion.Root>
+  <Accordion.Item>
+    <Accordion.Header>
+      <Accordion.Trigger />
+    </Accordion.Header>
+    <Accordion.Panel />
+  </Accordion.Item>
+</Accordion.Root>;
+```
+
+## Examples
+
+### Open multiple panels
+
+You can set up the accordion to allow multiple panels to be open at the same time using the `multiple` prop.
+
+import { DemoAccordionMultiple } from './demos/multiple';
+
+<DemoAccordionMultiple />
+
+## API reference
+
+import { TypesAccordion } from './types';
+
+### Root
+
+<TypesAccordion.Root />
+
+### Item
+
+<TypesAccordion.Item />
+
+### Header
+
+<TypesAccordion.Header />
+
+### Trigger
+
+<TypesAccordion.Trigger />
+
+### Panel
+
+<TypesAccordion.Panel />
+
+export const metadata = {
+  keywords: [
+    'React Accordion',
+    'Accordion Component',
+    'Collapsible Content',
+    'Expandable Panel',
+    'Accessible Accordion',
+    'Multi-Panel UI',
+    'Disclosure Widget',
+    'FAQ Component',
+    'Headless React Components',
+    'Base UI',
+  ],
+};

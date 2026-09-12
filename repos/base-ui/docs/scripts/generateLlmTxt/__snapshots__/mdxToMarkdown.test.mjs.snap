@@ -1,0 +1,1143 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`mdxToMarkdown > should transform Accordion MDX content to markdown with metadata 1`] = `
+"# Accordion
+
+
+
+A high-quality, unstyled React accordion component that displays a set of collapsible panels with headings.
+
+## Demo
+
+### Tailwind
+
+This example shows how to implement the component using Tailwind CSS.
+
+\`\`\`tsx
+/* index.tsx */
+import * as React from 'react';
+import { Accordion } from '@base-ui/react/accordion';
+
+export default function ExampleAccordion() {
+  return (
+    <Accordion.Root className="flex w-full max-w-80 flex-col border border-neutral-950 text-neutral-950 dark:border-white dark:text-white">
+      <Accordion.Item>
+        <Accordion.Header>
+          <Accordion.Trigger className="group flex w-full items-center justify-between gap-4 bg-transparent px-3 py-2 text-left text-sm font-normal text-neutral-950 select-none hover:not-data-disabled:bg-neutral-100 focus-visible:relative focus-visible:z-1 focus-visible:outline-2 focus-visible:outline-neutral-950 dark:focus-visible:outline-white dark:text-white dark:hover:not-data-disabled:bg-neutral-800">
+            What is Base UI?
+            <PlusIcon className="shrink-0 transition-transform duration-100 ease-[ease-out] group-data-panel-open:rotate-45" />
+          </Accordion.Trigger>
+        </Accordion.Header>
+        <Accordion.Panel className="h-[var(--accordion-panel-height)] overflow-hidden text-sm transition-[height] duration-150 ease-[ease-out] data-ending-style:h-0 data-starting-style:h-0">
+          <div className="px-3 py-2">
+            Base UI is a library of high-quality unstyled React components for design systems and
+            web apps.
+          </div>
+        </Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item className="border-t border-neutral-950 dark:border-white">
+        <Accordion.Header>
+          <Accordion.Trigger className="group flex w-full items-center justify-between gap-4 bg-transparent px-3 py-2 text-left text-sm font-normal text-neutral-950 select-none hover:not-data-disabled:bg-neutral-100 focus-visible:relative focus-visible:z-1 focus-visible:outline-2 focus-visible:outline-neutral-950 dark:focus-visible:outline-white dark:text-white dark:hover:not-data-disabled:bg-neutral-800">
+            How do I get started?
+            <PlusIcon className="shrink-0 transition-transform duration-100 ease-[ease-out] group-data-panel-open:rotate-45" />
+          </Accordion.Trigger>
+        </Accordion.Header>
+        <Accordion.Panel className="h-[var(--accordion-panel-height)] overflow-hidden text-sm transition-[height] duration-150 ease-[ease-out] data-ending-style:h-0 data-starting-style:h-0">
+          <div className="px-3 py-2">
+            Head to the “Quick start” guide in the docs. If you’ve used unstyled libraries before,
+            you’ll feel at home.
+          </div>
+        </Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item className="border-t border-neutral-950 dark:border-white">
+        <Accordion.Header>
+          <Accordion.Trigger className="group flex w-full items-center justify-between gap-4 bg-transparent px-3 py-2 text-left text-sm font-normal text-neutral-950 select-none hover:not-data-disabled:bg-neutral-100 focus-visible:relative focus-visible:z-1 focus-visible:outline-2 focus-visible:outline-neutral-950 dark:focus-visible:outline-white dark:text-white dark:hover:not-data-disabled:bg-neutral-800">
+            Can I use it for my project?
+            <PlusIcon className="shrink-0 transition-transform duration-100 ease-[ease-out] group-data-panel-open:rotate-45" />
+          </Accordion.Trigger>
+        </Accordion.Header>
+        <Accordion.Panel className="h-[var(--accordion-panel-height)] overflow-hidden text-sm transition-[height] duration-150 ease-[ease-out] data-ending-style:h-0 data-starting-style:h-0">
+          <div className="px-3 py-2">Of course! Base UI is free and open source.</div>
+        </Accordion.Panel>
+      </Accordion.Item>
+    </Accordion.Root>
+  );
+}
+
+function PlusIcon(props: React.ComponentProps<'svg'>) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="square"
+      strokeLinejoin="round"
+      {...props}
+      style={{ display: 'block', ...props.style }}
+    >
+      <path d="M1.5 8h13M8 14.5v-13" />
+    </svg>
+  );
+}
+
+\`\`\`
+
+### CSS Modules
+
+This example shows how to implement the component using CSS Modules.
+
+\`\`\`css
+/* index.module.css */
+.Accordion {
+  box-sizing: border-box;
+  display: flex;
+  max-width: 20rem;
+  width: 100%;
+  flex-direction: column;
+  border: 1px solid oklch(14.5% 0 0deg);
+  color: oklch(14.5% 0 0deg);
+
+  @media (prefers-color-scheme: dark) {
+    border: 1px solid white;
+    color: white;
+  }
+}
+
+.Item {
+  & + & {
+    border-top: 1px solid oklch(14.5% 0 0deg);
+
+    @media (prefers-color-scheme: dark) {
+      border-top: 1px solid white;
+    }
+  }
+}
+
+.Header {
+  margin: 0;
+}
+
+.Trigger {
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
+  color: oklch(14.5% 0 0deg);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.25rem;
+  text-align: left;
+  -webkit-user-select: none;
+  user-select: none;
+
+  @media (prefers-color-scheme: dark) {
+    color: white;
+  }
+
+  @media (hover: hover) {
+    &:hover:not([data-disabled]) {
+      background-color: oklch(97% 0 0deg);
+
+      @media (prefers-color-scheme: dark) {
+        background-color: oklch(26.9% 0 0deg);
+      }
+    }
+  }
+
+  &:focus-visible {
+    position: relative;
+    outline: 2px solid oklch(14.5% 0 0deg);
+    z-index: 1;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}
+
+.Icon {
+  transition: transform 100ms ease-out;
+
+  [data-panel-open] > & {
+    transform: rotate(45deg);
+  }
+}
+
+.Panel {
+  box-sizing: border-box;
+  height: var(--accordion-panel-height);
+  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  transition: height 150ms ease-out;
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    height: 0;
+  }
+}
+
+.Content {
+  padding: 0.5rem 0.75rem;
+}
+
+\`\`\`
+
+\`\`\`tsx
+/* index.tsx */
+import * as React from 'react';
+import { Accordion } from '@base-ui/react/accordion';
+import styles from './index.module.css';
+
+export default function ExampleAccordion() {
+  return (
+    <Accordion.Root className={styles.Accordion}>
+      <Accordion.Item className={styles.Item}>
+        <Accordion.Header className={styles.Header}>
+          <Accordion.Trigger className={styles.Trigger}>
+            What is Base UI?
+            <PlusIcon className={styles.Icon} />
+          </Accordion.Trigger>
+        </Accordion.Header>
+        <Accordion.Panel className={styles.Panel}>
+          <div className={styles.Content}>
+            Base UI is a library of high-quality unstyled React components for design systems and
+            web apps.
+          </div>
+        </Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item className={styles.Item}>
+        <Accordion.Header className={styles.Header}>
+          <Accordion.Trigger className={styles.Trigger}>
+            How do I get started?
+            <PlusIcon className={styles.Icon} />
+          </Accordion.Trigger>
+        </Accordion.Header>
+        <Accordion.Panel className={styles.Panel}>
+          <div className={styles.Content}>
+            Head to the “Quick start” guide in the docs. If you’ve used unstyled libraries before,
+            you’ll feel at home.
+          </div>
+        </Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item className={styles.Item}>
+        <Accordion.Header className={styles.Header}>
+          <Accordion.Trigger className={styles.Trigger}>
+            Can I use it for my project?
+            <PlusIcon className={styles.Icon} />
+          </Accordion.Trigger>
+        </Accordion.Header>
+        <Accordion.Panel className={styles.Panel}>
+          <div className={styles.Content}>Of course! Base UI is free and open source.</div>
+        </Accordion.Panel>
+      </Accordion.Item>
+    </Accordion.Root>
+  );
+}
+
+function PlusIcon(props: React.ComponentProps<'svg'>) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="square"
+      strokeLinejoin="round"
+      {...props}
+      style={{ display: 'block', ...props.style }}
+    >
+      <path d="M1.5 8h13M8 14.5v-13" />
+    </svg>
+  );
+}
+
+\`\`\`
+
+## Anatomy
+
+Import the component and assemble its parts:
+
+\`\`\`jsx title="Anatomy"
+import { Accordion } from '@base-ui/react/accordion';
+
+<Accordion.Root>
+  <Accordion.Item>
+    <Accordion.Header>
+      <Accordion.Trigger />
+    </Accordion.Header>
+    <Accordion.Panel />
+  </Accordion.Item>
+</Accordion.Root>;
+\`\`\`
+
+## Examples
+
+### Open multiple panels
+
+You can set up the accordion to allow multiple panels to be open at the same time using the \`multiple\` prop.
+
+## Demo
+
+### Tailwind
+
+This example shows how to implement the component using Tailwind CSS.
+
+\`\`\`tsx
+/* index.tsx */
+import * as React from 'react';
+import { Accordion } from '@base-ui/react/accordion';
+
+export default function ExampleAccordion() {
+  return (
+    <Accordion.Root
+      multiple
+      className="flex w-full max-w-80 flex-col border border-neutral-950 text-neutral-950 dark:border-white dark:text-white"
+    >
+      <Accordion.Item>
+        <Accordion.Header>
+          <Accordion.Trigger className="group flex w-full items-center justify-between gap-4 bg-transparent px-3 py-2 text-left text-sm font-normal text-neutral-950 select-none hover:not-data-disabled:bg-neutral-100 focus-visible:relative focus-visible:z-1 focus-visible:outline-2 focus-visible:outline-neutral-950 dark:focus-visible:outline-white dark:text-white dark:hover:not-data-disabled:bg-neutral-800">
+            What is Base UI?
+            <PlusIcon className="shrink-0 transition-transform duration-100 ease-[ease-out] group-data-panel-open:rotate-45" />
+          </Accordion.Trigger>
+        </Accordion.Header>
+        <Accordion.Panel className="h-[var(--accordion-panel-height)] overflow-hidden text-sm transition-[height] duration-150 ease-[ease-out] data-ending-style:h-0 data-starting-style:h-0">
+          <div className="px-3 py-2">
+            Base UI is a library of high-quality unstyled React components for design systems and
+            web apps.
+          </div>
+        </Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item className="border-t border-neutral-950 dark:border-white">
+        <Accordion.Header>
+          <Accordion.Trigger className="group flex w-full items-center justify-between gap-4 bg-transparent px-3 py-2 text-left text-sm font-normal text-neutral-950 select-none hover:not-data-disabled:bg-neutral-100 focus-visible:relative focus-visible:z-1 focus-visible:outline-2 focus-visible:outline-neutral-950 dark:focus-visible:outline-white dark:text-white dark:hover:not-data-disabled:bg-neutral-800">
+            How do I get started?
+            <PlusIcon className="shrink-0 transition-transform duration-100 ease-[ease-out] group-data-panel-open:rotate-45" />
+          </Accordion.Trigger>
+        </Accordion.Header>
+        <Accordion.Panel className="h-[var(--accordion-panel-height)] overflow-hidden text-sm transition-[height] duration-150 ease-[ease-out] data-ending-style:h-0 data-starting-style:h-0">
+          <div className="px-3 py-2">
+            Head to the “Quick start” guide in the docs. If you’ve used unstyled libraries before,
+            you’ll feel at home.
+          </div>
+        </Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item className="border-t border-neutral-950 dark:border-white">
+        <Accordion.Header>
+          <Accordion.Trigger className="group flex w-full items-center justify-between gap-4 bg-transparent px-3 py-2 text-left text-sm font-normal text-neutral-950 select-none hover:not-data-disabled:bg-neutral-100 focus-visible:relative focus-visible:z-1 focus-visible:outline-2 focus-visible:outline-neutral-950 dark:focus-visible:outline-white dark:text-white dark:hover:not-data-disabled:bg-neutral-800">
+            Can I use it for my project?
+            <PlusIcon className="shrink-0 transition-transform duration-100 ease-[ease-out] group-data-panel-open:rotate-45" />
+          </Accordion.Trigger>
+        </Accordion.Header>
+        <Accordion.Panel className="h-[var(--accordion-panel-height)] overflow-hidden text-sm transition-[height] duration-150 ease-[ease-out] data-ending-style:h-0 data-starting-style:h-0">
+          <div className="px-3 py-2">Of course! Base UI is free and open source.</div>
+        </Accordion.Panel>
+      </Accordion.Item>
+    </Accordion.Root>
+  );
+}
+
+function PlusIcon(props: React.ComponentProps<'svg'>) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="square"
+      strokeLinejoin="round"
+      {...props}
+      style={{ display: 'block', ...props.style }}
+    >
+      <path d="M1.5 8h13M8 14.5v-13" />
+    </svg>
+  );
+}
+
+\`\`\`
+
+### CSS Modules
+
+This example shows how to implement the component using CSS Modules.
+
+\`\`\`css
+/* index.module.css */
+.Accordion {
+  box-sizing: border-box;
+  display: flex;
+  max-width: 20rem;
+  width: 100%;
+  flex-direction: column;
+  border: 1px solid oklch(14.5% 0 0deg);
+  color: oklch(14.5% 0 0deg);
+
+  @media (prefers-color-scheme: dark) {
+    border: 1px solid white;
+    color: white;
+  }
+}
+
+.Item {
+  & + & {
+    border-top: 1px solid oklch(14.5% 0 0deg);
+
+    @media (prefers-color-scheme: dark) {
+      border-top: 1px solid white;
+    }
+  }
+}
+
+.Header {
+  margin: 0;
+}
+
+.Trigger {
+  box-sizing: border-box;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
+  color: oklch(14.5% 0 0deg);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.25rem;
+  text-align: left;
+  -webkit-user-select: none;
+  user-select: none;
+
+  @media (prefers-color-scheme: dark) {
+    color: white;
+  }
+
+  @media (hover: hover) {
+    &:hover:not([data-disabled]) {
+      background-color: oklch(97% 0 0deg);
+
+      @media (prefers-color-scheme: dark) {
+        background-color: oklch(26.9% 0 0deg);
+      }
+    }
+  }
+
+  &:focus-visible {
+    position: relative;
+    outline: 2px solid oklch(14.5% 0 0deg);
+    z-index: 1;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}
+
+.Icon {
+  transition: transform 100ms ease-out;
+
+  [data-panel-open] > & {
+    transform: rotate(45deg);
+  }
+}
+
+.Panel {
+  box-sizing: border-box;
+  height: var(--accordion-panel-height);
+  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  transition: height 150ms ease-out;
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    height: 0;
+  }
+}
+
+.Content {
+  padding: 0.5rem 0.75rem;
+}
+
+\`\`\`
+
+\`\`\`tsx
+/* index.tsx */
+import * as React from 'react';
+import { Accordion } from '@base-ui/react/accordion';
+import styles from './index.module.css';
+
+export default function ExampleAccordion() {
+  return (
+    <Accordion.Root className={styles.Accordion} multiple>
+      <Accordion.Item className={styles.Item}>
+        <Accordion.Header className={styles.Header}>
+          <Accordion.Trigger className={styles.Trigger}>
+            What is Base UI?
+            <PlusIcon className={styles.Icon} />
+          </Accordion.Trigger>
+        </Accordion.Header>
+        <Accordion.Panel className={styles.Panel}>
+          <div className={styles.Content}>
+            Base UI is a library of high-quality unstyled React components for design systems and
+            web apps.
+          </div>
+        </Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item className={styles.Item}>
+        <Accordion.Header className={styles.Header}>
+          <Accordion.Trigger className={styles.Trigger}>
+            How do I get started?
+            <PlusIcon className={styles.Icon} />
+          </Accordion.Trigger>
+        </Accordion.Header>
+        <Accordion.Panel className={styles.Panel}>
+          <div className={styles.Content}>
+            Head to the “Quick start” guide in the docs. If you’ve used unstyled libraries before,
+            you’ll feel at home.
+          </div>
+        </Accordion.Panel>
+      </Accordion.Item>
+
+      <Accordion.Item className={styles.Item}>
+        <Accordion.Header className={styles.Header}>
+          <Accordion.Trigger className={styles.Trigger}>
+            Can I use it for my project?
+            <PlusIcon className={styles.Icon} />
+          </Accordion.Trigger>
+        </Accordion.Header>
+        <Accordion.Panel className={styles.Panel}>
+          <div className={styles.Content}>Of course! Base UI is free and open source.</div>
+        </Accordion.Panel>
+      </Accordion.Item>
+    </Accordion.Root>
+  );
+}
+
+function PlusIcon(props: React.ComponentProps<'svg'>) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="square"
+      strokeLinejoin="round"
+      {...props}
+      style={{ display: 'block', ...props.style }}
+    >
+      <path d="M1.5 8h13M8 14.5v-13" />
+    </svg>
+  );
+}
+
+\`\`\`
+
+## API reference
+
+### Root
+
+Groups all parts of the accordion.
+Renders a \`<div>\` element.
+
+**Root Props:**
+
+| Prop             | Type                                                                                                | Default      | Description                                                                                                                                                                                                 |
+| :--------------- | :-------------------------------------------------------------------------------------------------- | :----------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| defaultValue     | \`Value[]\`                                                                                           | -            | The uncontrolled value of the item(s) that should be initially expanded. To render a controlled accordion, use the \`value\` prop instead.                                                                    |
+| value            | \`Value[]\`                                                                                           | -            | The controlled value of the item(s) that should be expanded. To render an uncontrolled accordion, use the \`defaultValue\` prop instead.                                                                      |
+| onValueChange    | \`((value: Value[], eventDetails: Accordion.Root.ChangeEventDetails) => void)\`                       | -            | Event handler called when an accordion item is expanded or collapsed.&#xA;Provides the new value as an argument.                                                                                            |
+| hiddenUntilFound | \`boolean\`                                                                                           | \`false\`      | Allows the browser's built-in page search to find and expand the panel contents. Overrides the \`keepMounted\` prop and uses \`hidden="until-found"\`&#xA;to hide the element without removing it from the DOM. |
+| loopFocus        | \`boolean\`                                                                                           | -            | Deprecated following the [APG guidance update](https://github.com/w3c/aria-practices/pull/3434)&#xA;to remove roving focus. This prop no longer affects keyboard focus behavior.                            |
+| multiple         | \`boolean\`                                                                                           | \`false\`      | Whether multiple items can be open at the same time.                                                                                                                                                        |
+| disabled         | \`boolean\`                                                                                           | \`false\`      | Whether the component should ignore user interaction.                                                                                                                                                       |
+| orientation      | \`Orientation\`                                                                                       | \`'vertical'\` | Deprecated following the [APG guidance update](https://github.com/w3c/aria-practices/pull/3434)&#xA;to remove roving focus. This prop no longer affects keyboard focus behavior.                            |
+| className        | \`string \\| ((state: Accordion.Root.State<Value>) => string \\| undefined)\`                           | -            | CSS class applied to the element, or a function that&#xA;returns a class based on the component's state.                                                                                                    |
+| style            | \`React.CSSProperties \\| ((state: Accordion.Root.State<Value>) => React.CSSProperties \\| undefined)\` | -            | Style applied to the element, or a function that&#xA;returns a style object based on the component's state.                                                                                                 |
+| keepMounted      | \`boolean\`                                                                                           | \`false\`      | Whether to keep the element in the DOM while the panel is closed.&#xA;This prop is ignored when \`hiddenUntilFound\` is used.                                                                                 |
+| render           | \`ReactElement \\| ((props: HTMLProps, state: Accordion.Root.State<Value>) => ReactElement)\`          | -            | Allows you to replace the component's HTML element&#xA;with a different tag, or compose it with another component. Accepts a \`ReactElement\` or a function that returns the element to render.               |
+
+**Root Data Attributes:**
+
+| Attribute        | Type | Description                                 |
+| :--------------- | :--- | :------------------------------------------ |
+| data-orientation | -    | Indicates the orientation of the accordion. |
+| data-disabled    | -    | Present when the accordion is disabled.     |
+
+### Root.Props
+
+Re-export of [Root](#root) props.
+
+### Root.State
+
+\`\`\`typescript
+type AccordionRootState<TValue = any> = {
+  /** The current value. */
+  value: TValue[];
+  /** Whether the component should ignore user interaction. */
+  disabled: boolean;
+  /**
+   * The component orientation.
+   *
+   * Deprecated following the [APG guidance update](https://github.com/w3c/aria-practices/pull/3434)
+   * to remove roving focus.
+   *
+   * This state no longer affects keyboard focus behavior.
+   * @deprecated
+   */
+  orientation: Orientation;
+};
+\`\`\`
+
+### Root.ChangeEventReason
+
+\`\`\`typescript
+type AccordionRootChangeEventReason = 'trigger-press' | 'none';
+\`\`\`
+
+### Root.ChangeEventDetails
+
+\`\`\`typescript
+type AccordionRootChangeEventDetails = (
+  | { reason: 'trigger-press'; event: MouseEvent | PointerEvent | TouchEvent | KeyboardEvent }
+  | { reason: 'none'; event: Event }
+) & {
+  /** Cancels Base UI from handling the event. */
+  cancel: () => void;
+  /** Allows the event to propagate in cases where Base UI will stop the propagation. */
+  allowPropagation: () => void;
+  /** Indicates whether the event has been canceled. */
+  isCanceled: boolean;
+  /** Indicates whether the event is allowed to propagate. */
+  isPropagationAllowed: boolean;
+  /** The element that triggered the event, if applicable. */
+  trigger: Element | undefined;
+};
+\`\`\`
+
+### Root.Value
+
+\`\`\`typescript
+type AccordionRootValue<TValue = any> = TValue[];
+\`\`\`
+
+### Trigger
+
+A button that opens and closes the corresponding panel.
+Renders a \`<button>\` element.
+
+**Trigger Props:**
+
+| Prop         | Type                                                                                            | Default | Description                                                                                                                                                                                   |
+| :----------- | :---------------------------------------------------------------------------------------------- | :------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| nativeButton | \`boolean\`                                                                                       | \`true\`  | Whether the component renders a native \`<button>\` element when replacing it&#xA;via the \`render\` prop.&#xA;Set to \`false\` if the rendered element is not a button (for example, \`<div>\`).     |
+| className    | \`string \\| ((state: Accordion.Trigger.State) => string \\| undefined)\`                           | -       | CSS class applied to the element, or a function that&#xA;returns a class based on the component's state.                                                                                      |
+| style        | \`React.CSSProperties \\| ((state: Accordion.Trigger.State) => React.CSSProperties \\| undefined)\` | -       | Style applied to the element, or a function that&#xA;returns a style object based on the component's state.                                                                                   |
+| render       | \`ReactElement \\| ((props: HTMLProps, state: Accordion.Trigger.State) => ReactElement)\`          | -       | Allows you to replace the component's HTML element&#xA;with a different tag, or compose it with another component. Accepts a \`ReactElement\` or a function that returns the element to render. |
+
+**Trigger Data Attributes:**
+
+| Attribute       | Type | Description                                  |
+| :-------------- | :--- | :------------------------------------------- |
+| data-panel-open | -    | Present when the accordion panel is open.    |
+| data-disabled   | -    | Present when the accordion item is disabled. |
+
+### Trigger.Props
+
+Re-export of [Trigger](#trigger) props.
+
+### Trigger.State
+
+\`\`\`typescript
+type AccordionTriggerState = {
+  /** Whether the accordion item's panel is currently hidden. */
+  hidden: boolean;
+  /** The item index. */
+  index: number;
+  /** Whether the component is open. */
+  open: boolean;
+  /** The current value. */
+  value: any[];
+  /** Whether the component should ignore user interaction. */
+  disabled: boolean;
+  /**
+   * The component orientation.
+   *
+   * Deprecated following the [APG guidance update](https://github.com/w3c/aria-practices/pull/3434)
+   * to remove roving focus.
+   *
+   * This state no longer affects keyboard focus behavior.
+   * @deprecated
+   */
+  orientation: Orientation;
+};
+\`\`\`
+
+### Item
+
+Groups an accordion header with the corresponding panel.
+Renders a \`<div>\` element.
+
+**Item Props:**
+
+| Prop         | Type                                                                                         | Default | Description                                                                                                                                                                                                                 |
+| :----------- | :------------------------------------------------------------------------------------------- | :------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| value        | \`any\`                                                                                        | -       | A unique value that identifies this accordion item.&#xA;If no value is provided, a unique ID will be generated automatically.&#xA;Use when controlling the accordion programmatically, or to set an initial&#xA;open state. |
+| onOpenChange | \`((open: boolean, eventDetails: Accordion.Item.ChangeEventDetails) => void)\`                 | -       | Event handler called when the panel is opened or closed.                                                                                                                                                                    |
+| disabled     | \`boolean\`                                                                                    | \`false\` | Whether the component should ignore user interaction.                                                                                                                                                                       |
+| className    | \`string \\| ((state: Accordion.Item.State) => string \\| undefined)\`                           | -       | CSS class applied to the element, or a function that&#xA;returns a class based on the component's state.                                                                                                                    |
+| style        | \`React.CSSProperties \\| ((state: Accordion.Item.State) => React.CSSProperties \\| undefined)\` | -       | Style applied to the element, or a function that&#xA;returns a style object based on the component's state.                                                                                                                 |
+| render       | \`ReactElement \\| ((props: HTMLProps, state: Accordion.Item.State) => ReactElement)\`          | -       | Allows you to replace the component's HTML element&#xA;with a different tag, or compose it with another component. Accepts a \`ReactElement\` or a function that returns the element to render.                               |
+
+**\`value\` Prop Example:**
+
+\`\`\`tsx
+<Accordion.Root value={['a']}>
+  <Accordion.Item value="a" /> // initially open
+  <Accordion.Item value="b" /> // initially closed
+</Accordion.Root>
+\`\`\`
+
+**Item Data Attributes:**
+
+| Attribute     | Type     | Description                                  |
+| :------------ | :------- | :------------------------------------------- |
+| data-open     | -        | Present when the accordion item is open.     |
+| data-disabled | -        | Present when the accordion item is disabled. |
+| data-index    | \`number\` | Indicates the index of the accordion item.   |
+
+### Item.Props
+
+Re-export of [Item](#item) props.
+
+### Item.State
+
+\`\`\`typescript
+type AccordionItemState = {
+  /** Whether the accordion item's panel is currently hidden. */
+  hidden: boolean;
+  /** The item index. */
+  index: number;
+  /** Whether the component is open. */
+  open: boolean;
+  /** The current value. */
+  value: any[];
+  /** Whether the component should ignore user interaction. */
+  disabled: boolean;
+  /**
+   * The component orientation.
+   *
+   * Deprecated following the [APG guidance update](https://github.com/w3c/aria-practices/pull/3434)
+   * to remove roving focus.
+   *
+   * This state no longer affects keyboard focus behavior.
+   * @deprecated
+   */
+  orientation: Orientation;
+};
+\`\`\`
+
+### Item.ChangeEventReason
+
+\`\`\`typescript
+type AccordionItemChangeEventReason = 'trigger-press' | 'none';
+\`\`\`
+
+### Item.ChangeEventDetails
+
+\`\`\`typescript
+type AccordionItemChangeEventDetails = (
+  | { reason: 'trigger-press'; event: MouseEvent | PointerEvent | TouchEvent | KeyboardEvent }
+  | { reason: 'none'; event: Event }
+) & {
+  /** Cancels Base UI from handling the event. */
+  cancel: () => void;
+  /** Allows the event to propagate in cases where Base UI will stop the propagation. */
+  allowPropagation: () => void;
+  /** Indicates whether the event has been canceled. */
+  isCanceled: boolean;
+  /** Indicates whether the event is allowed to propagate. */
+  isPropagationAllowed: boolean;
+  /** The element that triggered the event, if applicable. */
+  trigger: Element | undefined;
+};
+\`\`\`
+
+### Header
+
+A heading that labels the corresponding panel.
+Renders an \`<h3>\` element.
+
+**Header Props:**
+
+| Prop      | Type                                                                                           | Default | Description                                                                                                                                                                                   |
+| :-------- | :--------------------------------------------------------------------------------------------- | :------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| className | \`string \\| ((state: Accordion.Header.State) => string \\| undefined)\`                           | -       | CSS class applied to the element, or a function that&#xA;returns a class based on the component's state.                                                                                      |
+| style     | \`React.CSSProperties \\| ((state: Accordion.Header.State) => React.CSSProperties \\| undefined)\` | -       | Style applied to the element, or a function that&#xA;returns a style object based on the component's state.                                                                                   |
+| render    | \`ReactElement \\| ((props: HTMLProps, state: Accordion.Header.State) => ReactElement)\`          | -       | Allows you to replace the component's HTML element&#xA;with a different tag, or compose it with another component. Accepts a \`ReactElement\` or a function that returns the element to render. |
+
+**Header Data Attributes:**
+
+| Attribute     | Type     | Description                                  |
+| :------------ | :------- | :------------------------------------------- |
+| data-open     | -        | Present when the accordion item is open.     |
+| data-disabled | -        | Present when the accordion item is disabled. |
+| data-index    | \`number\` | Indicates the index of the accordion item.   |
+
+### Header.Props
+
+Re-export of [Header](#header) props.
+
+### Header.State
+
+\`\`\`typescript
+type AccordionHeaderState = {
+  /** Whether the accordion item's panel is currently hidden. */
+  hidden: boolean;
+  /** The item index. */
+  index: number;
+  /** Whether the component is open. */
+  open: boolean;
+  /** The current value. */
+  value: any[];
+  /** Whether the component should ignore user interaction. */
+  disabled: boolean;
+  /**
+   * The component orientation.
+   *
+   * Deprecated following the [APG guidance update](https://github.com/w3c/aria-practices/pull/3434)
+   * to remove roving focus.
+   *
+   * This state no longer affects keyboard focus behavior.
+   * @deprecated
+   */
+  orientation: Orientation;
+};
+\`\`\`
+
+### Panel
+
+A collapsible panel with the accordion item contents.
+Renders a \`<div>\` element.
+
+**Panel Props:**
+
+| Prop             | Type                                                                                          | Default | Description                                                                                                                                                                                                 |
+| :--------------- | :-------------------------------------------------------------------------------------------- | :------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| hiddenUntilFound | \`boolean\`                                                                                     | \`false\` | Allows the browser's built-in page search to find and expand the panel contents. Overrides the \`keepMounted\` prop and uses \`hidden="until-found"\`&#xA;to hide the element without removing it from the DOM. |
+| className        | \`string \\| ((state: Accordion.Panel.State) => string \\| undefined)\`                           | -       | CSS class applied to the element, or a function that&#xA;returns a class based on the component's state.                                                                                                    |
+| style            | \`React.CSSProperties \\| ((state: Accordion.Panel.State) => React.CSSProperties \\| undefined)\` | -       | Style applied to the element, or a function that&#xA;returns a style object based on the component's state.                                                                                                 |
+| keepMounted      | \`boolean\`                                                                                     | \`false\` | Whether to keep the element in the DOM while the panel is closed.&#xA;This prop is ignored when \`hiddenUntilFound\` is used.                                                                                 |
+| render           | \`ReactElement \\| ((props: HTMLProps, state: Accordion.Panel.State) => ReactElement)\`          | -       | Allows you to replace the component's HTML element&#xA;with a different tag, or compose it with another component. Accepts a \`ReactElement\` or a function that returns the element to render.               |
+
+**Panel Data Attributes:**
+
+| Attribute           | Type     | Description                                  |
+| :------------------ | :------- | :------------------------------------------- |
+| data-open           | -        | Present when the accordion panel is open.    |
+| data-orientation    | -        | Indicates the orientation of the accordion.  |
+| data-disabled       | -        | Present when the accordion item is disabled. |
+| data-index          | \`number\` | Indicates the index of the accordion item.   |
+| data-starting-style | -        | Present when the panel is animating in.      |
+| data-ending-style   | -        | Present when the panel is animating out.     |
+
+**Panel CSS Variables:**
+
+| Variable                   | Type     | Description                   |
+| :------------------------- | :------- | :---------------------------- |
+| \`--accordion-panel-height\` | \`number\` | The accordion panel's height. |
+| \`--accordion-panel-width\`  | \`number\` | The accordion panel's width.  |
+
+### Panel.Props
+
+Re-export of [Panel](#panel) props.
+
+### Panel.State
+
+\`\`\`typescript
+type AccordionPanelState = {
+  /** The transition status of the component. */
+  transitionStatus: TransitionStatus;
+  /** Whether the accordion item's panel is currently hidden. */
+  hidden: boolean;
+  /** The item index. */
+  index: number;
+  /** Whether the component is open. */
+  open: boolean;
+  /** The current value. */
+  value: any[];
+  /** Whether the component should ignore user interaction. */
+  disabled: boolean;
+  /**
+   * The component orientation.
+   *
+   * Deprecated following the [APG guidance update](https://github.com/w3c/aria-practices/pull/3434)
+   * to remove roving focus.
+   *
+   * This state no longer affects keyboard focus behavior.
+   * @deprecated
+   */
+  orientation: Orientation;
+};
+\`\`\`
+
+## Additional Types
+
+### AccordionValue
+
+\`\`\`typescript
+type AccordionValue<Value = any> = Value[];
+\`\`\`
+
+## External Types
+
+### Orientation
+
+\`\`\`typescript
+type Orientation = 'horizontal' | 'vertical';
+\`\`\`
+
+## Export Groups
+
+- \`Accordion.Root\`: \`Accordion.Root\`, \`Accordion.Root.Value\`, \`Accordion.Root.State\`, \`Accordion.Root.Props\`, \`Accordion.Root.ChangeEventReason\`, \`Accordion.Root.ChangeEventDetails\`
+- \`Accordion.Item\`: \`Accordion.Item\`, \`Accordion.Item.State\`, \`Accordion.Item.Props\`, \`Accordion.Item.ChangeEventReason\`, \`Accordion.Item.ChangeEventDetails\`
+- \`Accordion.Header\`: \`Accordion.Header\`, \`Accordion.Header.State\`, \`Accordion.Header.Props\`
+- \`Accordion.Trigger\`: \`Accordion.Trigger\`, \`Accordion.Trigger.State\`, \`Accordion.Trigger.Props\`
+- \`Accordion.Panel\`: \`Accordion.Panel\`, \`Accordion.Panel.State\`, \`Accordion.Panel.Props\`
+- \`Default\`: \`AccordionValue\`, \`AccordionRootState\`, \`AccordionRootProps\`, \`AccordionRootChangeEventReason\`, \`AccordionRootChangeEventDetails\`, \`AccordionItemState\`, \`AccordionItemProps\`, \`AccordionItemChangeEventReason\`, \`AccordionItemChangeEventDetails\`, \`AccordionHeaderState\`, \`AccordionHeaderProps\`, \`AccordionTriggerState\`, \`AccordionTriggerProps\`, \`AccordionPanelState\`, \`AccordionPanelProps\`
+
+## Canonical Types
+
+Maps \`Canonical\`: \`Alias\` — Use Canonical when its namespace is already imported; otherwise use Alias.
+
+- \`Accordion.Root.State\`: \`AccordionRootState\`
+- \`Accordion.Root.Props\`: \`AccordionRootProps\`
+- \`Accordion.Root.ChangeEventReason\`: \`AccordionRootChangeEventReason\`
+- \`Accordion.Root.ChangeEventDetails\`: \`AccordionRootChangeEventDetails\`
+- \`Accordion.Item.State\`: \`AccordionItemState\`
+- \`Accordion.Item.Props\`: \`AccordionItemProps\`
+- \`Accordion.Item.ChangeEventReason\`: \`AccordionItemChangeEventReason\`
+- \`Accordion.Item.ChangeEventDetails\`: \`AccordionItemChangeEventDetails\`
+- \`Accordion.Header.State\`: \`AccordionHeaderState\`
+- \`Accordion.Header.Props\`: \`AccordionHeaderProps\`
+- \`Accordion.Trigger.State\`: \`AccordionTriggerState\`
+- \`Accordion.Trigger.Props\`: \`AccordionTriggerProps\`
+- \`Accordion.Panel.State\`: \`AccordionPanelState\`
+- \`Accordion.Panel.Props\`: \`AccordionPanelProps\`
+"
+`;
+
+exports[`mdxToMarkdown > should transform Direction Provider MDX content to markdown with metadata 1`] = `
+"# Direction Provider
+
+
+
+A direction provider component that enables RTL behavior for Base UI components.
+
+## Demo
+
+### Tailwind
+
+This example shows how to implement the component using Tailwind CSS.
+
+\`\`\`tsx
+/* index.tsx */
+import { Slider } from '@base-ui/react/slider';
+import { DirectionProvider } from '@base-ui/react/direction-provider';
+
+export default function ExampleDirectionProvider() {
+  return (
+    <div dir="rtl">
+      <DirectionProvider direction="rtl">
+        <Slider.Root defaultValue={25}>
+          <Slider.Control className="flex w-56 touch-none items-center py-3 select-none">
+            <Slider.Track className="h-1 w-full bg-neutral-200 select-none dark:bg-neutral-800">
+              <Slider.Indicator className="bg-neutral-950 select-none dark:bg-white" />
+              <Slider.Thumb className="size-4 border border-neutral-950 bg-white select-none has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-neutral-950 dark:has-[:focus-visible]:outline-white dark:border-white dark:bg-neutral-950" />
+            </Slider.Track>
+          </Slider.Control>
+        </Slider.Root>
+      </DirectionProvider>
+    </div>
+  );
+}
+
+\`\`\`
+
+### CSS Modules
+
+This example shows how to implement the component using CSS Modules.
+
+\`\`\`css
+/* index.module.css */
+.Control {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  width: 14rem;
+  padding-block: 0.75rem;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.Track {
+  width: 100%;
+  height: 0.25rem;
+  background-color: oklch(92.2% 0 0deg);
+  -webkit-user-select: none;
+  user-select: none;
+
+  @media (prefers-color-scheme: dark) {
+    background-color: oklch(26.9% 0 0deg);
+  }
+}
+
+.Indicator {
+  background-color: oklch(14.5% 0 0deg);
+  -webkit-user-select: none;
+  user-select: none;
+
+  @media (prefers-color-scheme: dark) {
+    background-color: white;
+  }
+}
+
+.Thumb {
+  box-sizing: border-box;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid oklch(14.5% 0 0deg);
+  background-color: white;
+  -webkit-user-select: none;
+  user-select: none;
+
+  @media (prefers-color-scheme: dark) {
+    border: 1px solid white;
+    background-color: oklch(14.5% 0 0deg);
+  }
+
+  &:has(:focus-visible) {
+    outline: 2px solid oklch(14.5% 0 0deg);
+    outline-offset: 2px;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}
+
+\`\`\`
+
+\`\`\`tsx
+/* index.tsx */
+import { DirectionProvider } from '@base-ui/react/direction-provider';
+import { Slider } from '@base-ui/react/slider';
+import styles from './index.module.css';
+
+export default function ExampleDirectionProvider() {
+  return (
+    <div dir="rtl">
+      <DirectionProvider direction="rtl">
+        <Slider.Root defaultValue={25}>
+          <Slider.Control className={styles.Control}>
+            <Slider.Track className={styles.Track}>
+              <Slider.Indicator className={styles.Indicator} />
+              <Slider.Thumb className={styles.Thumb} />
+            </Slider.Track>
+          </Slider.Control>
+        </Slider.Root>
+      </DirectionProvider>
+    </div>
+  );
+}
+
+\`\`\`
+
+## Anatomy
+
+Import the component and wrap it around your app:
+
+\`\`\`jsx title="Anatomy"
+import { DirectionProvider } from '@base-ui/react/direction-provider';
+
+// prettier-ignore
+<DirectionProvider>
+  {/* Your app or a group of components */}
+</DirectionProvider>
+\`\`\`
+
+\`<DirectionProvider>\` enables child Base UI components to adjust behavior based on RTL text direction, but does not affect HTML and CSS. The \`dir="rtl"\` HTML attribute or \`direction: rtl\` CSS style must be set additionally by your own application code.
+
+## API reference
+
+### DirectionProvider
+
+Enables RTL behavior for Base UI components.
+
+**DirectionProvider Props:**
+
+| Prop      | Type              | Default | Description                       |
+| :-------- | :---------------- | :------ | :-------------------------------- |
+| direction | \`TextDirection\`   | \`'ltr'\` | The reading direction of the text |
+| children  | \`React.ReactNode\` | -       | -                                 |
+
+### DirectionProvider.Props
+
+Re-export of [DirectionProvider](#directionprovider) props.
+
+### DirectionProvider.State
+
+\`\`\`typescript
+type DirectionProviderState = {};
+\`\`\`
+
+### useDirection
+
+**useDirection Return Value:**
+
+\`\`\`tsx
+type ReturnValue = TextDirection;
+\`\`\`
+
+## Additional Types
+
+### TextDirection
+
+\`\`\`typescript
+type TextDirection = 'ltr' | 'rtl';
+\`\`\`
+
+## Canonical Types
+
+Maps \`Canonical\`: \`Alias\` — Use Canonical when its namespace is already imported; otherwise use Alias.
+
+- \`DirectionProvider.Props\`: \`DirectionProviderProps\`
+
+Use this hook to read the current text direction. This is useful for wrapping portaled components that may be rendered outside your application root and are unaffected by the \`dir\` attribute set within.
+"
+`;

@@ -1,0 +1,154 @@
+---
+description: 'The Svelte plugin provides support for Svelte components (.svelte files). The plugin internally integrates svelte-loader.'
+---
+
+# Svelte plugin
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-svelte" />
+
+The Svelte plugin provides support for Svelte components (`.svelte` files). The plugin internally integrates [svelte-loader](https://github.com/sveltejs/svelte-loader).
+
+## Quick start
+
+### Install plugin
+
+Run the following command:
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-svelte -D" />
+
+:::tip
+`@rsbuild/plugin-svelte` v2 no longer supports Rsbuild 1.x or Svelte 4.x. If your project uses these versions, install `@rsbuild/plugin-svelte@1` instead.
+:::
+
+### Register plugin
+
+Register the plugin in Rsbuild config:
+
+```ts title="rsbuild.config.ts"
+import { pluginSvelte } from '@rsbuild/plugin-svelte';
+
+export default {
+  plugins: [pluginSvelte()],
+};
+```
+
+After registration, you can import `*.svelte` files in your code.
+
+## Options
+
+To customize the compilation behavior of Svelte, use the following options.
+
+### svelteLoaderOptions
+
+These options are passed to `svelte-loader`. For details, see the [svelte-loader documentation](https://github.com/sveltejs/svelte-loader).
+
+- **Type:** `SvelteLoaderOptions`
+- **Default:**
+
+```js
+const defaultOptions = {
+  compilerOptions: {
+    dev: isDev,
+  },
+  preprocess: require('svelte-preprocess')(),
+  emitCss: isProd && !rsbuildConfig.output.injectStyles,
+  hotReload: isDev && rsbuildConfig.dev.hmr,
+};
+```
+
+- **Example:**
+
+```ts
+pluginSvelte({
+  svelteLoaderOptions: {
+    preprocess: null,
+  },
+});
+```
+
+### preprocessOptions
+
+These options are passed to `svelte-preprocess`. For details, see the [svelte-preprocess documentation](https://github.com/sveltejs/svelte-preprocess/blob/c2107e529da9438ea5b8060aa471119940896e40/docs/preprocessing.md).
+
+- **Type:** `AutoPreprocessOptions`
+- **Default:** `undefined`
+
+```ts
+interface AutoPreprocessOptions {
+  globalStyle: { ... },
+  replace: { ... },
+  typescript: { ... },
+  scss: { ... },
+  sass: { ... },
+  less: { ... },
+  stylus: { ... },
+  babel: { ... },
+  postcss: { ... },
+  coffeescript: { ... },
+  pug: { ... },
+}
+```
+
+- **Example:**
+
+```ts
+pluginSvelte({
+  preprocessOptions: {
+    aliases: [
+      ['potato', 'potatoLanguage'],
+      ['pot', 'potatoLanguage'],
+    ],
+    /** Add a custom language preprocessor */
+    potatoLanguage({ content, filename, attributes }) {
+      const { code, map } = require('potato-language').render(content);
+      return { code, map };
+    },
+  },
+});
+```
+
+## Notes
+
+Currently, `svelte-loader` does not support HMR for Svelte v5, see [svelte-loader - Hot Reload](https://github.com/sveltejs/svelte-loader#hot-reload).
+
+### Alias handling in Less/Sass
+
+When using aliases to import Less or Sass files within Svelte components, you need to manually configure the preprocessor to handle alias resolution. Otherwise, you may encounter `"file not found"` errors.
+
+- **Example:**
+
+```ts title="rsbuild.config.ts"
+import { pluginSvelte } from '@rsbuild/plugin-svelte';
+
+export default {
+  plugins: [
+    pluginSvelte({
+      preprocessOptions: {
+        scss: {
+          importer: [
+            // Handle alias imports for SCSS files
+            (url, prev) => {
+              if (url.startsWith('@/')) {
+                return { file: url.replace('@/', 'src/') };
+              }
+              return null;
+            },
+          ],
+        },
+        less: {
+          // recommend simple alias handling for Less files
+          replace: [['@/style', 'style']],
+          // use less plugin to handle alias imports
+          plugins: [],
+        },
+      },
+    }),
+  ],
+};
+```
+
+This ensures that alias imports like `@import '@/styles/variables.scss'` or `@import '@/styles/variables.less'` are properly resolved within Svelte components.

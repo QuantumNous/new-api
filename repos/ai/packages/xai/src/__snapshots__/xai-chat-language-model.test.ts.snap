@@ -1,0 +1,468 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`XaiChatLanguageModel > doGenerate > text > should extract text content 1`] = `
+{
+  "content": [
+    {
+      "text": "Hello",
+      "type": "text",
+    },
+    {
+      "text": "First, the user said: "Say a single word." That's straightforward. They want me to respond with just one word.
+
+Response: I'll go with "Hello" as it's a common greeting and keeps it simple.",
+      "type": "reasoning",
+    },
+  ],
+  "finishReason": {
+    "raw": "stop",
+    "unified": "stop",
+  },
+  "request": {
+    "body": {
+      "logprobs": undefined,
+      "max_completion_tokens": undefined,
+      "messages": [
+        {
+          "content": "Hello",
+          "role": "user",
+        },
+      ],
+      "model": "grok-3",
+      "parallel_function_calling": undefined,
+      "reasoning_effort": undefined,
+      "response_format": undefined,
+      "search_parameters": undefined,
+      "seed": undefined,
+      "temperature": undefined,
+      "tool_choice": undefined,
+      "tools": undefined,
+      "top_logprobs": undefined,
+      "top_p": undefined,
+    },
+  },
+  "response": {
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "Hello",
+            "reasoning_content": "First, the user said: "Say a single word." That's straightforward. They want me to respond with just one word.
+
+Response: I'll go with "Hello" as it's a common greeting and keeps it simple.",
+            "refusal": null,
+            "role": "assistant",
+          },
+        },
+      ],
+      "created": 1770774046,
+      "id": "2af5c888-e886-6dcb-7844-95f8fe010b00",
+      "model": "grok-3-mini",
+      "object": "chat.completion",
+      "system_fingerprint": "fp_2a885414fb",
+      "usage": {
+        "completion_tokens": 1,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 228,
+          "rejected_prediction_tokens": 0,
+        },
+        "cost_in_usd_ticks": 1176500,
+        "num_sources_used": 0,
+        "prompt_tokens": 12,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2,
+          "image_tokens": 0,
+          "text_tokens": 12,
+        },
+        "total_tokens": 241,
+      },
+    },
+    "headers": {
+      "content-length": "827",
+      "content-type": "application/json",
+    },
+    "id": "2af5c888-e886-6dcb-7844-95f8fe010b00",
+    "modelId": "grok-3-mini",
+    "timestamp": 2026-02-11T01:40:46.000Z,
+  },
+  "usage": {
+    "inputTokens": {
+      "cacheRead": 2,
+      "cacheWrite": undefined,
+      "noCache": 10,
+      "total": 12,
+    },
+    "outputTokens": {
+      "reasoning": 228,
+      "text": 1,
+      "total": 229,
+    },
+    "raw": {
+      "completion_tokens": 1,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 228,
+        "rejected_prediction_tokens": 0,
+      },
+      "prompt_tokens": 12,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 2,
+        "image_tokens": 0,
+        "text_tokens": 12,
+      },
+      "total_tokens": 241,
+    },
+  },
+  "warnings": [],
+}
+`;
+
+exports[`XaiChatLanguageModel > doGenerate > tool call > should extract tool call content 1`] = `
+{
+  "content": [
+    {
+      "text": "First, the user is asking about the weather in San Francisco. I have a function available called "weather" that gets the weather for a location.
+
+The function requires a parameter: "location", which is a string. The user has provided "San Francisco" as the location, so that's clear and inferable.
+
+I should call this function to advance the user's request.",
+      "type": "reasoning",
+    },
+    {
+      "input": "{"location":"San Francisco"}",
+      "toolCallId": "call_93562515",
+      "toolName": "weather",
+      "type": "tool-call",
+    },
+  ],
+  "finishReason": {
+    "raw": "tool_calls",
+    "unified": "tool-calls",
+  },
+  "request": {
+    "body": {
+      "logprobs": undefined,
+      "max_completion_tokens": undefined,
+      "messages": [
+        {
+          "content": "Hello",
+          "role": "user",
+        },
+      ],
+      "model": "grok-3",
+      "parallel_function_calling": undefined,
+      "reasoning_effort": undefined,
+      "response_format": undefined,
+      "search_parameters": undefined,
+      "seed": undefined,
+      "temperature": undefined,
+      "tool_choice": undefined,
+      "tools": undefined,
+      "top_logprobs": undefined,
+      "top_p": undefined,
+    },
+  },
+  "response": {
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "message": {
+            "content": "",
+            "reasoning_content": "First, the user is asking about the weather in San Francisco. I have a function available called "weather" that gets the weather for a location.
+
+The function requires a parameter: "location", which is a string. The user has provided "San Francisco" as the location, so that's clear and inferable.
+
+I should call this function to advance the user's request.",
+            "refusal": null,
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "function": {
+                  "arguments": "{"location":"San Francisco"}",
+                  "name": "weather",
+                },
+                "id": "call_93562515",
+                "type": "function",
+              },
+            ],
+          },
+        },
+      ],
+      "created": 1770774041,
+      "id": "61c0468b-2a98-413e-f654-dbffcdbb62c1",
+      "model": "grok-3-mini",
+      "object": "chat.completion",
+      "system_fingerprint": "fp_2a885414fb",
+      "usage": {
+        "completion_tokens": 26,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 189,
+          "rejected_prediction_tokens": 0,
+        },
+        "cost_in_usd_ticks": 1399000,
+        "num_sources_used": 0,
+        "prompt_tokens": 291,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 244,
+          "image_tokens": 0,
+          "text_tokens": 291,
+        },
+        "total_tokens": 506,
+      },
+    },
+    "headers": {
+      "content-length": "1138",
+      "content-type": "application/json",
+    },
+    "id": "61c0468b-2a98-413e-f654-dbffcdbb62c1",
+    "modelId": "grok-3-mini",
+    "timestamp": 2026-02-11T01:40:41.000Z,
+  },
+  "usage": {
+    "inputTokens": {
+      "cacheRead": 244,
+      "cacheWrite": undefined,
+      "noCache": 47,
+      "total": 291,
+    },
+    "outputTokens": {
+      "reasoning": 189,
+      "text": 26,
+      "total": 215,
+    },
+    "raw": {
+      "completion_tokens": 26,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "reasoning_tokens": 189,
+        "rejected_prediction_tokens": 0,
+      },
+      "prompt_tokens": 291,
+      "prompt_tokens_details": {
+        "audio_tokens": 0,
+        "cached_tokens": 244,
+        "image_tokens": 0,
+        "text_tokens": 291,
+      },
+      "total_tokens": 506,
+    },
+  },
+  "warnings": [],
+}
+`;
+
+exports[`XaiChatLanguageModel > doStream > text > should stream text content 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": "7327b9f5-1c2f-0a15-3fef-c14a71c460d3",
+    "modelId": "grok-3-mini",
+    "timestamp": 2026-02-11T01:40:58.000Z,
+    "type": "response-metadata",
+  },
+  {
+    "id": "reasoning-7327b9f5-1c2f-0a15-3fef-c14a71c460d3",
+    "type": "reasoning-start",
+  },
+  {
+    "delta": "First",
+    "id": "reasoning-7327b9f5-1c2f-0a15-3fef-c14a71c460d3",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ",",
+    "id": "reasoning-7327b9f5-1c2f-0a15-3fef-c14a71c460d3",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " the",
+    "id": "reasoning-7327b9f5-1c2f-0a15-3fef-c14a71c460d3",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " user",
+    "id": "reasoning-7327b9f5-1c2f-0a15-3fef-c14a71c460d3",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " said",
+    "id": "reasoning-7327b9f5-1c2f-0a15-3fef-c14a71c460d3",
+    "type": "reasoning-delta",
+  },
+  {
+    "id": "reasoning-7327b9f5-1c2f-0a15-3fef-c14a71c460d3",
+    "type": "reasoning-end",
+  },
+  {
+    "id": "text-7327b9f5-1c2f-0a15-3fef-c14a71c460d3",
+    "type": "text-start",
+  },
+  {
+    "delta": "Hello",
+    "id": "text-7327b9f5-1c2f-0a15-3fef-c14a71c460d3",
+    "type": "text-delta",
+  },
+  {
+    "id": "text-7327b9f5-1c2f-0a15-3fef-c14a71c460d3",
+    "type": "text-end",
+  },
+  {
+    "finishReason": {
+      "raw": "stop",
+      "unified": "stop",
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": 11,
+        "cacheWrite": undefined,
+        "noCache": 1,
+        "total": 12,
+      },
+      "outputTokens": {
+        "reasoning": 290,
+        "text": 1,
+        "total": 291,
+      },
+      "raw": {
+        "completion_tokens": 1,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 290,
+          "rejected_prediction_tokens": 0,
+        },
+        "prompt_tokens": 12,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 11,
+          "image_tokens": 0,
+          "text_tokens": 12,
+        },
+        "total_tokens": 303,
+      },
+    },
+  },
+]
+`;
+
+exports[`XaiChatLanguageModel > doStream > tool call > should stream tool call content 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": "de9d896d-e946-b3a7-bb14-75ab33326930",
+    "modelId": "grok-3-mini",
+    "timestamp": 2026-02-11T01:41:04.000Z,
+    "type": "response-metadata",
+  },
+  {
+    "id": "reasoning-de9d896d-e946-b3a7-bb14-75ab33326930",
+    "type": "reasoning-start",
+  },
+  {
+    "delta": "First",
+    "id": "reasoning-de9d896d-e946-b3a7-bb14-75ab33326930",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": ",",
+    "id": "reasoning-de9d896d-e946-b3a7-bb14-75ab33326930",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " the",
+    "id": "reasoning-de9d896d-e946-b3a7-bb14-75ab33326930",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " user",
+    "id": "reasoning-de9d896d-e946-b3a7-bb14-75ab33326930",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " is",
+    "id": "reasoning-de9d896d-e946-b3a7-bb14-75ab33326930",
+    "type": "reasoning-delta",
+  },
+  {
+    "id": "reasoning-de9d896d-e946-b3a7-bb14-75ab33326930",
+    "type": "reasoning-end",
+  },
+  {
+    "id": "call_55117580",
+    "toolName": "weather",
+    "type": "tool-input-start",
+  },
+  {
+    "delta": "{"location":"San Francisco"}",
+    "id": "call_55117580",
+    "type": "tool-input-delta",
+  },
+  {
+    "id": "call_55117580",
+    "type": "tool-input-end",
+  },
+  {
+    "input": "{"location":"San Francisco"}",
+    "toolCallId": "call_55117580",
+    "toolName": "weather",
+    "type": "tool-call",
+  },
+  {
+    "finishReason": {
+      "raw": "tool_calls",
+      "unified": "tool-calls",
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": 290,
+        "cacheWrite": undefined,
+        "noCache": 1,
+        "total": 291,
+      },
+      "outputTokens": {
+        "reasoning": 196,
+        "text": 26,
+        "total": 222,
+      },
+      "raw": {
+        "completion_tokens": 26,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 196,
+          "rejected_prediction_tokens": 0,
+        },
+        "prompt_tokens": 291,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 290,
+          "image_tokens": 0,
+          "text_tokens": 291,
+        },
+        "total_tokens": 513,
+      },
+    },
+  },
+]
+`;

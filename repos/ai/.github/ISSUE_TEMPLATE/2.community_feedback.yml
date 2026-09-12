@@ -1,0 +1,46 @@
+name: Community Feedback
+description: Share feedback about the AI SDK community, or our contribution process.
+title: 'Feedback: '
+labels: ['community-feedback']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping us improve AI SDK for the community.
+
+        Use this issue type for feedback about the project, contribution process, maintenance automation, documentation experience, community resources, or other ideas that would make AI SDK better to use and contribute to.
+  - type: textarea
+    id: feedback
+    attributes:
+      label: Feedback
+      description: What would you like us to understand, improve, or consider?
+      placeholder: |
+        Share your feedback, idea, concern, or suggestion.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Add links, examples, or background that would help us understand the feedback.
+      placeholder: |
+        Links to issues, pull requests, discussions, docs pages, examples, or community projects.
+    validations:
+      required: false
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Suggested improvement
+      description: If you have a specific idea, what outcome would make this better?
+      placeholder: |
+        A policy change, documentation update, template improvement, community workflow, etc.
+    validations:
+      required: false
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our [Code of Conduct](https://community.vercel.com/guidelines).
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

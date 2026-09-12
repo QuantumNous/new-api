@@ -1,0 +1,114 @@
+---
+description: 'Configure the directory for output files. Rsbuild outputs files to the specified subdirectory according to file type.'
+---
+
+# output.distPath
+
+- **Type:**
+
+```ts
+type DistPathConfig =
+  | string
+  | {
+      root?: string;
+      html?: string;
+      favicon?: string;
+      js?: string;
+      jsAsync?: string;
+      css?: string;
+      cssAsync?: string;
+      svg?: string;
+      font?: string;
+      wasm?: string;
+      image?: string;
+      media?: string;
+      assets?: string;
+    };
+```
+
+- **Default:**
+
+```js
+const defaultDistPath = {
+  root: 'dist',
+  html: './',
+  favicon: './',
+  js: output.target === 'node' ? '' : 'static/js',
+  jsAsync: output.target === 'node' ? '' : 'static/js/async',
+  css: 'static/css',
+  cssAsync: 'static/css/async',
+  svg: 'static/svg',
+  font: 'static/font',
+  wasm: 'static/wasm',
+  image: 'static/image',
+  media: 'static/media',
+  assets: 'static/assets',
+};
+```
+
+Configure the directory for output files. Rsbuild outputs files to the specified subdirectory according to file type.
+
+- `string`: Set the root output directory to a specific path, equivalent to `distPath.root`.
+- `object`: Set the output directory for each file type.
+
+> See [Output files](/guide/basic/output-files) for more information.
+
+## File types
+
+`output.distPath` can be configured differently for different file types.
+
+Each `output.distPath` option controls different file types:
+
+- `root`: The root directory of all output files.
+- `html`: The output directory of HTML files.
+- `favicon`: The output directory of favicon files.
+- `js`: The output directory of JavaScript files.
+- `jsAsync`: The output directory of async JavaScript files, which by default are output to the `async` subdirectory of `distPath.js`.
+- `css`: The output directory of CSS style files.
+- `cssAsync`: The output directory of async CSS files, which by default are output to the `async` subdirectory of `distPath.css`.
+- `svg`: The output directory of SVG images.
+- `font`: The output directory of font files.
+- `wasm`: The output directory of WebAssembly files.
+- `image`: The output directory of non-SVG images.
+- `media`: The output directory of media assets, such as videos.
+- `assets`: The output directory of other static assets, such as the assets defined in [Extend Asset Types](/guide/basic/static-assets#extend-asset-types).
+
+## Root directory
+
+The `root` is the root directory of the build artifacts and can be specified as a relative or absolute path. If `root` is a relative path, it is appended to the project's root directory to form an absolute path.
+
+Other directories can only be specified as relative paths and will be output relative to the `root` directory.
+
+## Example
+
+The JavaScript files will be output to the `distPath.root` + `distPath.js` directory, which is `dist/static/js`.
+
+To output JavaScript files to the `build/resource/js` directory, add the following configuration:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    distPath: {
+      root: 'build',
+      js: 'resource/js',
+    },
+  },
+};
+```
+
+The above configuration will generate the following directory structure:
+
+```bash
+build
+├── resource
+│   └── js
+│       └── index.js
+└── index.html
+```
+
+## Version history
+
+| Version | Changes                                     |
+| ------- | ------------------------------------------- |
+| v1.4.13 | Added support for `distPath.favicon` option |
+| v1.6.0  | Added support for string type               |

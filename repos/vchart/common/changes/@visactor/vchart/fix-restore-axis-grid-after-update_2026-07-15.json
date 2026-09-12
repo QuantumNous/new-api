@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "comment": "fix: restore existing axis grid graphics when grid visibility is enabled again through updateSpec with animation disabled",
+      "type": "patch",
+      "packageName": "@visactor/vchart"
+    }
+  ],
+  "packageName": "@visactor/vchart",
+  "email": "lixuef1313@163.com"
+}

@@ -1,0 +1,39 @@
+# Ignore specific files
+.settings.xml
+.monitor
+.DS_Store
+*.orig
+npm-debug.log
+npm-debug.log.*
+*.dat
+.idea
+.vscode
+.eslintcache
+
+# Ignore various temporary files
+*~
+*.swp
+
+
+# Ignore various Node.js related directories and files
+node_modules
+node_modules/**/*
+coverage/**/*
+example/build/**/*
+dist/**/*
+.next
+yarn.lock
+out
+
+# ignore packaged releases
+*.tgz
+
+# vitest temp / cache files
+tsconfig.vitest-temp.json
+
+# Secrets & credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key

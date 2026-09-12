@@ -1,0 +1,74 @@
+{
+  "name": "@tanstack/react-virtual",
+  "version": "3.14.6",
+  "description": "Headless UI for virtualizing scrollable elements in React",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/virtual.git",
+    "directory": "packages/react-virtual"
+  },
+  "homepage": "https://tanstack.com/virtual",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "react",
+    "vue",
+    "solid",
+    "virtual",
+    "virtual-core",
+    "datagrid"
+  ],
+  "scripts": {
+    "clean": "premove ./dist ./coverage",
+    "test:eslint": "eslint ./src",
+    "test:types": "tsc",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm run test:lib --watch",
+    "test:build": "publint --strict",
+    "build": "vite build",
+    "test:e2e": "../../node_modules/.bin/playwright test"
+  },
+  "type": "module",
+  "types": "dist/esm/index.d.ts",
+  "main": "dist/cjs/index.cjs",
+  "module": "dist/esm/index.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@tanstack/virtual-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.2.16",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.5.2",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "resize-observer-polyfill": "^1.5.1"
+  },
+  "peerDependencies": {
+    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0",
+    "react-dom": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
+  }
+}

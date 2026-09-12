@@ -1,0 +1,206 @@
+{
+  "direction": {
+    "key": "direction",
+    "oneDesc": "图表的方向配置。\n- 'vertical' 垂直布局，即常见的直角坐标系布局，x 轴位于底部，y 轴位于左侧。\n- 'horizontal' 水平布局，可理解为 x 轴和 y 轴位置互换。"
+  },
+  "markLine": {
+    "key": "markLine",
+    "oneDesc": "参考线配置"
+  },
+  "markArea": {
+    "key": "markArea",
+    "oneDesc": "参考区域配置"
+  },
+  "markPoint": {
+    "key": "markPoint",
+    "oneDesc": "参考点配置"
+  },
+  "padding": {
+    "key": "padding",
+    "oneDesc": "布局 padding的配置"
+  },
+  "percent": {
+    "key": "percent",
+    "oneDesc": "开启后为百分比图表"
+  },
+  "name": {
+    "key": "name",
+    "oneDesc": "系列名称"
+  },
+  "id": {
+    "key": "id",
+    "oneDesc": "用户自定义的 series id"
+  },
+  "animation": {
+    "key": "animation",
+    "oneDesc": "是否开启系列动画"
+  },
+  "stack": {
+    "key": "stack",
+    "oneDesc": "是否对数据进行堆叠处理"
+  },
+  "animationEnter": {
+    "key": "animationEnter",
+    "oneDesc": "数据更新 - 新增数据动画"
+  },
+  "animationUpdate": {
+    "key": "animationUpdate",
+    "oneDesc": "数据更新 - 数据更新动画"
+  },
+  "animationExit": {
+    "key": "animationExit",
+    "oneDesc": "数据更新 - 数据删除动画"
+  },
+  "dataIndex": {
+    "key": "dataIndex",
+    "oneDesc": "系列关联的数据索引"
+  },
+  "sampling": {
+    "key": "sampling",
+    "oneDesc": "数据采样 - 采样方法"
+  },
+  "animationState": {
+    "key": "animationState",
+    "oneDesc": "状态切换动画"
+  },
+  "large": {
+    "key": "large",
+    "oneDesc": "是否开启大数据渲染模式，开启后会降低渲染的精度"
+  },
+  "largeThreshold": {
+    "key": "largeThreshold",
+    "oneDesc": "开启大数据渲染优化的阀值，对应的是data的长度;推荐 largeThreshold < progressiveThreshold"
+  },
+  "progressiveStep": {
+    "key": "progressiveStep",
+    "oneDesc": "分片长度"
+  },
+  "progressiveThreshold": {
+    "key": "progressiveThreshold",
+    "oneDesc": "开启分片渲染的阀值，对应的是单系列data的长度"
+  },
+  "support3d": {
+    "key": "support3d",
+    "oneDesc": "是否支持3d视角"
+  },
+  "regionIndex": {
+    "key": "regionIndex",
+    "oneDesc": "系列关联的region索引"
+  },
+  "regionId": {
+    "key": "regionId",
+    "oneDesc": "系列关联的region id"
+  },
+  "totalLabel": {
+    "key": "totalLabel",
+    "oneDesc": "堆叠汇总标签"
+  },
+  "animationAppear": {
+    "key": "animationAppear",
+    "oneDesc": "图表入场动画\n支持配置图表内置不同动画效果"
+  },
+  "animationDisappear": {
+    "key": "animationDisappear",
+    "oneDesc": "图表退场动画"
+  },
+  "animationNormal": {
+    "key": "animationNormal",
+    "oneDesc": "循环动画"
+  },
+  "xField": {
+    "key": "xField",
+    "oneDesc": "x轴字段"
+  },
+  "yField": {
+    "key": "yField",
+    "oneDesc": "y轴字段\ny轴字段\n运行双轴都为离散，连续。所以 yField 也可以像 xField 一样支持多维度"
+  },
+  "label": {
+    "key": "label",
+    "oneDesc": "标签配置"
+  },
+  "bar": {
+    "key": "bar",
+    "oneDesc": "柱图图元样式配置.同时可以配置选中，hover等交互状态下的柱子和对应鼠标的样式"
+  },
+  "barBackground": {
+    "key": "barBackground",
+    "oneDesc": "柱图中每根柱子背后的背景图元配置.同时可以配置选中，hover等交互状态下的背景图元和对应鼠标的样式"
+  },
+  "barWidth": {
+    "key": "barWidth",
+    "oneDesc": "柱体宽度，可以设置绝对的像素值，也可以使用百分比（如 '10%'）\n1. number 类型，表示像素值\n2. string 类型，百分比用法，如 '10%'，该值为对应最后一个分组字段对应的 scale 的 bandWidth 占比(因为柱子是等宽的，所以采用最后一层分组的 scale)"
+  },
+  "barMinWidth": {
+    "key": "barMinWidth",
+    "oneDesc": "柱体最小宽度，可以设置绝对的像素值，也可以使用百分比（如 '10%'）\n1. number 类型，表示像素值\n2. string 类型，百分比用法，如 '10%'，该值为对应最后一个分组字段对应的 scale 的 bandWidth 占比(因为柱子是等宽的，所以采用最后一层分组的 scale)"
+  },
+  "barMaxWidth": {
+    "key": "barMaxWidth",
+    "oneDesc": "柱体最大宽度，可以设置绝对的像素值，也可以使用百分比（如 '10%'）\n1. number 类型，表示像素值\n2. string 类型，百分比用法，如 '10%'，该值为对应最后一个分组字段对应的 scale 的 bandWidth 占比(因为柱子是等宽的，所以采用最后一层分组的 scale)"
+  },
+  "barGapInGroup": {
+    "key": "barGapInGroup",
+    "oneDesc": "分组柱图中各个分组内的柱子间距，可以设置绝对的像素值，也可以使用百分比（如 '10%'）。\n当存在多层分组时，可以使用数组来设置不同层级的间距，如 [10, '20%']，表示第一层分组的间距为 10px，第二层分组的间距为 '20%'。\n如果 barGapInGroup 的数组个数小于分组层数，则后面的分组间距使用最后一个值。\n1. number 类型，表示像素值\n2. string 类型，百分比用法，如 '10%'，该值为对应最后一个分组字段对应的 scale 的 bandWidth 占比(因为柱子是等宽的，所以采用最后一层分组的 scale)"
+  },
+  "barMinHeight": {
+    "key": "barMinHeight",
+    "oneDesc": "柱条最小高度，可用于防止某数据项的值过小的视觉调整。"
+  },
+  "stackCornerRadius": {
+    "key": "stackCornerRadius",
+    "oneDesc": "堆叠柱整体的圆角"
+  },
+  "x2Field": {
+    "key": "x2Field",
+    "oneDesc": "用于区间数据，声明区间末尾的数据字段。"
+  },
+  "y2Field": {
+    "key": "y2Field",
+    "oneDesc": "用于区间数据，声明区间末尾的数据字段。"
+  },
+  "zField": {
+    "key": "zField",
+    "oneDesc": "z轴字段\n用于3d散点图等"
+  },
+  "sortDataByAxis": {
+    "key": "sortDataByAxis",
+    "oneDesc": "是否将数据按照数轴排序"
+  },
+  "dataId": {
+    "key": "dataId",
+    "oneDesc": "系列关联的数据id"
+  },
+  "dataKey": {
+    "key": "dataKey",
+    "oneDesc": "dataKey用于绑定数据与Mark的关系, 该配置在动画中非常重要."
+  },
+  "seriesField": {
+    "key": "seriesField",
+    "oneDesc": "分组字段"
+  },
+  "stackOffsetSilhouette": {
+    "key": "stackOffsetSilhouette",
+    "oneDesc": "是否围绕中心轴偏移轮廓"
+  },
+  "invalidType": {
+    "key": "invalidType",
+    "oneDesc": "null，undefined等非法数据点连接方式。"
+  },
+  "extensionMark": {
+    "key": "extensionMark",
+    "oneDesc": "扩展mark"
+  },
+  "interactions": {
+    "key": "interactions",
+    "oneDesc": "其他需要按需注册的类型交互"
+  },
+  "activePoint": {
+    "key": "activePoint",
+    "oneDesc": "是否使用额外的 activePoint 显示交互点，可以在点隐藏时显示被交互的点"
+  },
+  "samplingFactor": {
+    "key": "samplingFactor",
+    "oneDesc": "数据采样 - 采样系数"
+  }
+}

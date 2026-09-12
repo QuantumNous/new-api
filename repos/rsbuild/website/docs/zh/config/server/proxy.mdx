@@ -1,0 +1,157 @@
+---
+description: '为开发服务器或预览服务器配置代理规则，把请求转发到指定服务。'
+---
+
+# server.proxy
+
+- **类型：**
+
+```ts
+import type { Options } from 'http-proxy-middleware';
+
+type ProxyOptions = Options & { bypass?: ProxyBypass };
+
+type ProxyConfig = ProxyOptions[] | Record<string, string | ProxyOptions>;
+```
+
+- **默认值：** `undefined`
+
+为开发服务器或预览服务器配置代理规则，把请求转发到指定服务。
+
+## 代理选项
+
+该功能基于 [http-proxy-middleware](https://github.com/chimurai/http-proxy-middleware) 实现。你可以使用 `http-proxy-middleware` 提供的 [全部选项](https://github.com/chimurai/http-proxy-middleware#options)，以及 Rsbuild 额外扩展的 [bypass](#bypass) 选项。
+
+Rsbuild 会默认将每条代理规则的 [`changeOrigin`](https://github.com/chimurai/http-proxy-middleware#httpxy-options) 设置为 `true`。其他代理选项遵循 `http-proxy-middleware` 的默认行为。设置 `changeOrigin: false` 可覆盖该默认值。
+
+## 示例
+
+### 基础用法
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: {
+      // http://localhost/api -> https://example.com/api
+      // http://localhost/api/foo -> https://example.com/api/foo
+      '/api': 'https://example.com',
+    },
+  },
+};
+```
+
+此时，`/api/users` 会被代理到 `https://example.com/api/users`。
+
+你也可以代理到本地服务：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: {
+      // http://localhost:3000/api -> http://localhost:3001/api
+      // http://localhost:3000/api/foo -> http://localhost:3001/api/foo
+      '/api': 'http://localhost:3001',
+    },
+  },
+};
+```
+
+### 重写路径
+
+通过 `pathRewrite` 可以重写请求路径，例如把 `/foo` 的请求改写为目标服务的 `/bar`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: {
+      // http://localhost:3000/foo -> https://example.com/bar
+      // http://localhost:3000/foo/baz -> https://example.com/bar/baz
+      '/foo': {
+        target: 'https://example.com',
+        pathRewrite: { '^/foo': '/bar' },
+      },
+    },
+  },
+};
+```
+
+### 代理 WebSocket 请求
+
+如果需要代理 WebSocket 请求，可将 `ws` 设为 `true`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: {
+      '/rsbuild-hmr': {
+        // 代理到 ws://localhost:3001/rsbuild-hmr
+        target: 'http://localhost:3001',
+        ws: true,
+      },
+    },
+  },
+};
+```
+
+### 路径过滤
+
+[pathFilter](https://github.com/chimurai/http-proxy-middleware/blob/master/recipes/pathFilter.md) 用于筛选需要代理的请求。参与匹配的 `path` 为请求 URL 的 pathname。
+
+例如，将 `/auth` 与 `/api` 的请求代理到目标服务：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: [
+      {
+        pathFilter: ['/auth', '/api'],
+        target: 'https://example.com',
+      },
+    ],
+  },
+};
+```
+
+## 额外选项
+
+### bypass
+
+- **类型：**
+
+```ts
+type ProxyBypass = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  proxyOptions: ProxyOptions,
+) => MaybePromise<string | undefined | null | boolean>;
+```
+
+有些场景下，你可能不想代理所有请求，可以通过 `bypass` 函数来绕过代理。
+
+在函数中，你可以访问到 request、response 和 proxy 选项。
+
+- 返回 `null` 或 `undefined` 会继续用代理处理请求。
+- 返回 `true` 会跳过代理并继续处理请求。
+- 返回 `false` 会返回 404 错误。
+- 返回一个具体的服务路径，会用该路径替代原请求路径。
+- 返回一个 Promise，可以异步处理请求。
+
+例如，你可能希望浏览器请求返回 HTML 页面，而 API 请求则继续代理转发，可以这样配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://example.com',
+        bypass(req, res, proxyOptions) {
+          if ((req.headers.accept || '').includes('html')) {
+            console.log('Skipping proxy for browser request.');
+            return '/index.html';
+          }
+        },
+      },
+    },
+  },
+};
+```

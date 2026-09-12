@@ -1,0 +1,57 @@
+---
+description: '代码分割是将代码拆分为多个 chunk 的过程，用于按需加载代码并提升性能。通过合理地拆分代码，可以减少首屏加载体积，加快页面加载速度。'
+---
+
+# 代码分割
+
+代码分割是将代码拆分为多个 chunk 的过程，用于按需加载代码并提升性能。通过合理地拆分代码，可以减少首屏加载体积，加快页面加载速度。
+
+:::tip
+chunk 通常对应一个构建后的资源文件，浏览器可以分别请求和缓存这些 chunk，而不是一次性加载全部代码。
+:::
+
+> 参考文档：[Rspack - 代码分割](https://rspack.rs/zh/guide/optimization/code-splitting)。
+
+## 使用动态 import
+
+通过使用 [动态 import](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import)，可以将首屏不需要的代码分割为异步的 chunks，并在需要时再加载。
+
+当 Rsbuild 解析到 `import()` 语法时，会自动将对应的模块拆分为新的 chunk，并在运行时按需加载。
+
+对于体积较大的模块，无论是本地模块还是第三方依赖，都可以通过动态 import 延迟加载：
+
+```js
+// 本地模块
+import('./bigModule.ts').then((bigModule) => {
+  console.log(bigModule);
+});
+
+// 第三方依赖
+import('some-package').then((somePackage) => {
+  console.log(somePackage);
+});
+```
+
+## Chunk 拆分
+
+Rsbuild 提供了 [splitChunks](/config/split-chunks) 选项来配置构建时的 chunk 拆分规则。该配置基于 Rspack 的 `optimization.splitChunks`，并在此基础上提供了一组开箱即用的预设。
+
+通过 `splitChunks`，你可以自定义 chunk 拆分规则，例如控制哪些模块被拆分到同一个 chunk 中，以及设置 chunk 的最小体积等条件，从而更好地平衡加载性能与请求数量。
+
+在下面的示例中，axios 会被单独拆分到一个名为 `axios.js` 的 chunk 中：
+
+```ts
+export default {
+  splitChunks: {
+    cacheGroups: {
+      axios: {
+        test: /[\\/]node_modules[\\/]axios[\\/]/,
+        name: 'axios',
+        chunks: 'all',
+      },
+    },
+  },
+};
+```
+
+更多选项与用法请参考 [splitChunks 文档](/config/split-chunks)。

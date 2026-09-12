@@ -1,0 +1,12 @@
+[
+  {
+    "type": "dir-section-header",
+    "name": "start",
+    "label": "Start"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "javascript-api",
+    "label": "APIs"
+  }
+]

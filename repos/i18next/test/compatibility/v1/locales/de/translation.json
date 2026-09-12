@@ -1,0 +1,11 @@
+{
+  "simple_de": "ok_from_de",
+  "xhr_simple_de": "xhr_ok_from_de",
+  "test": {
+    "simple_de": "ok_from_de"
+  },
+  "route": {
+    "key1": "key1_de",
+    "key2": "key2_de"
+  }
+}

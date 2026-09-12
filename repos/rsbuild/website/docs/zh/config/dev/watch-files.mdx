@@ -1,0 +1,162 @@
+---
+description: '监听指定文件和目录的变化。当文件发生变化时，可以触发页面的重新加载，或者触发 dev server 重新启动。'
+---
+
+# dev.watchFiles
+
+- **类型：**
+
+```ts
+type WatchFilesOptions = {
+  paths: string | string[];
+  type?: 'reload-page' | 'reload-server';
+  //  chokidar 选项
+  options?: ChokidarOptions;
+};
+
+type WatchFilesConfig = WatchFiles | WatchFiles[];
+```
+
+- **默认值：** `undefined`
+
+监听指定文件和目录的变化。当文件发生变化时，可以触发页面的重新加载，或者触发 dev server 重新启动。
+
+## paths
+
+- **类型：** `string | string[]`
+- **默认值：** `undefined`
+
+监视的文件或目录的路径，支持 glob 语法。可以是单个路径，也可以是多个路径组成的数组。
+
+- 监听单个文件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    watchFiles: {
+      paths: 'public/demo.txt',
+    },
+  },
+};
+```
+
+- 使用 glob 匹配多个文件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    watchFiles: {
+      paths: 'src/**/*.txt',
+    },
+  },
+};
+```
+
+- 监听多个文件路径：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    watchFiles: {
+      paths: ['src/**/*.txt', 'public/**/*'],
+    },
+  },
+};
+```
+
+## type
+
+- **类型：** `'reload-page' | 'reload-server'`
+- **默认值：** `'reload-page'`
+
+指定当文件发生变化时，是触发页面重新加载，还是触发 dev server 重新启动。
+
+### reload-page
+
+reload-page 表示当文件发生变化时，浏览器打开的页面会自动重新加载。如果未明确指定 type，Rsbuild 会默认采用 reload-page 行为。
+
+这可以用于监听一些静态资源文件的变化，例如 [public 目录](/config/server/public-dir) 下的文件。
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    watchFiles: {
+      type: 'reload-page',
+      paths: 'public/**/*',
+    },
+  },
+};
+```
+
+> 如果 [dev.hmr](/config/dev/hmr) 和 [dev.liveReload](/config/dev/live-reload) 都设置为 `false`，则页面将不会自动重新加载。
+
+### reload-server
+
+reload-server 表示当文件发生变化时，dev server 会自动重新启动。这可以用于监听一些配置文件的变化，例如被 `rsbuild.config.ts` 文件 import 的模块。
+
+例如，你在 `config` 目录下维护了一些公共配置文件，例如 `common.ts`，你希望当这些文件发生变化时，dev server 可以自动重新启动。示例配置：
+
+```ts title="rsbuild.config.ts"
+import { commonConfig } from './config/common';
+
+export default {
+  ...commonConfig,
+  dev: {
+    watchFiles: {
+      type: 'reload-server',
+      paths: ['./config/*.ts'],
+    },
+  },
+};
+```
+
+需要注意的是，reload-server 功能由 Rsbuild CLI 提供。如果你使用的是自定义 server 或基于 Rsbuild 封装的上层框架，目前暂不支持此配置。
+
+## options
+
+- **类型：** `ChokidarOptions`
+- **默认值：** `undefined`
+
+`watchFiles` 是基于 [chokidar v4](https://github.com/paulmillr/chokidar#getting-started) 实现的，你可以通过 `options` 传入 chokidar 的选项。
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    watchFiles: {
+      paths: 'src/**/*.txt',
+      options: {
+        usePolling: false,
+      },
+    },
+  },
+};
+```
+
+## 传入数组
+
+`dev.watchFiles` 支持传入一个数组，这允许你同时配置不同 `type` 的监听器，或是为不同的目录配置不同的 `watchOptions`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    watchFiles: [
+      {
+        type: 'reload-page',
+        paths: 'public/**/*',
+      },
+      {
+        type: 'reload-server',
+        paths: ['./config/*.ts'],
+      },
+    ],
+  },
+};
+```
+
+## 说明
+
+`watchFiles` 不适用于监听构建依赖的文件。当 Rsbuild 构建开始时，底层的 Rspack 默认会监听所有构建依赖，当这些文件发生变化时，会触发一次新的构建。
+
+如果你希望当某些文件变化时，不触发重新构建，可以使用 Rspack 的 [watchOptions.ignored](https://rspack.rs/zh/config/watch#watchoptionsignored) 配置项。
+
+> 详见 [模块热更新 - 文件监听](/guide/advanced/hmr#file-watching)。

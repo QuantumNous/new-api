@@ -1,0 +1,47 @@
+html {
+  font-family: sans-serif;
+  font-size: 14px;
+}
+
+table {
+  border: 1px solid lightgray;
+}
+
+tbody {
+  border-bottom: 1px solid lightgray;
+}
+
+th {
+  border-bottom: 1px solid lightgray;
+  border-right: 1px solid lightgray;
+  padding: 2px 4px;
+  text-align: left;
+}
+
+th div {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+th button {
+  padding: 1rem;
+  cursor: grab;
+}
+
+td {
+  border-right: 1px solid lightgray;
+  padding: 2px 4px;
+}
+
+td:last-child {
+  border-right: 0;
+}
+
+tfoot {
+  color: gray;
+}
+
+tfoot th {
+  font-weight: normal;
+}

@@ -1,0 +1,5 @@
+@layer utilities {
+  .bui-ws-nw {
+    white-space: nowrap;
+  }
+}

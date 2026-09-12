@@ -1,0 +1,51 @@
+---
+description: 'Rsbuild uses css-loader by default to handle CSS resources. You can modify the options of css-loader through tools.cssLoader.'
+---
+
+# tools.cssLoader
+
+- **Type:** `Object | Function`
+
+```js
+const defaultOptions = {
+  modules: rsbuildConfig.output.cssModules,
+  sourceMap: rsbuildConfig.output.sourceMap.css,
+};
+```
+
+Rsbuild uses [css-loader](https://github.com/webpack/css-loader) by default to handle CSS resources. You can modify the options of css-loader through `tools.cssLoader`.
+
+:::tip
+To modify the options related to CSS Modules, it is recommended to use the [output.cssModules](/config/output/css-modules) config first.
+:::
+
+### Object type
+
+When this value is an Object, it is merged with the default config via deep merge. For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    cssLoader: {
+      modules: {
+        exportOnlyLocals: true,
+      },
+    },
+  },
+};
+```
+
+### Function type
+
+When the value is a Function, the default config is passed in as the first parameter. You can modify the config object directly, or return an object as the final config. For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    cssLoader: (config) => {
+      config.modules.exportOnlyLocals = true;
+      return config;
+    },
+  },
+};
+```

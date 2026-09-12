@@ -1,0 +1,4 @@
+.the-a-class {
+  color: red;
+  background-image: url('@e2e/assets/icon.png?url');
+}

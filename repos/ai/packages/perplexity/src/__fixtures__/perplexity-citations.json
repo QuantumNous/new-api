@@ -1,0 +1,30 @@
+{
+  "id": "702738a1-c1e0-4a7f-b9ab-0f6fe1b13514",
+  "model": "sonar",
+  "created": 1770768226,
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 251,
+    "total_tokens": 261
+  },
+  "citations": [
+    "https://populationstat.com/united-states/san-francisco",
+    "https://en.wikipedia.org/wiki/San_Francisco",
+    "https://www.california-demographics.com/cities_by_population",
+    "https://wfin.com/fox-sports/pat-mcafee-says-san-francisco-wasnt-the-s-hole-he-thought-it-may-be-during-super-bowl-week/",
+    "https://fred.stlouisfed.org/series/CASANF0POP",
+    "https://worldpopulationreview.com/us-cities/california/san-francisco",
+    "https://worldpopulationreview.com/us-counties/california/san-francisco-county"
+  ],
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "The most recent estimates for San Francisco's city population (as of 2024-2026) range from **803,000 to 893,000**, with a consensus around **827,000-844,000** from authoritative U.S. data sources.[2][3][5][7]\n\nRecent figures include:\n- 827,526 (2024 estimate, consistent across Wikipedia, California Demographics, and FRED/St. Louis Fed data).[2][3][5]\n- 844,276 (San Francisco County 2026 projection).[7]\n- 803,876 (2026 city projection, noting a -1.45% annual decline).[6]\n- 893,000 (2026 city estimate from populationstat.com).[1]\n\nThese reflect post-2020 Census trends (873,965 in 2020), with population declining due to factors like high costs and migration, though some sources project modest metro-area growth to 3.3-4.7 million.[1][2] Federal sources like FRED (updated March 2025) provide the most reliable annual benchmarks, while projections vary by methodology.[5] For the latest official data, check U.S. Census Bureau updates beyond 2024."
+      },
+      "finish_reason": "stop"
+    }
+  ]
+}

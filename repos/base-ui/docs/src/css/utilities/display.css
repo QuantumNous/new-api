@@ -1,0 +1,87 @@
+@layer utilities {
+  .bui-d-n {
+    display: none;
+  }
+
+  .bui-d-b {
+    display: block;
+  }
+
+  .bui-d-if {
+    display: inline-flex;
+  }
+
+  .bui-d-f {
+    display: flex;
+  }
+
+  .bui-d-g {
+    display: grid;
+  }
+
+  .bui-d-c {
+    display: contents;
+  }
+
+  @media (min-width: 32rem) {
+    .bp0\:bui-d-b {
+      display: block;
+    }
+
+    .bp0\:bui-d-n {
+      display: none;
+    }
+  }
+
+  @media (min-width: 48rem) {
+    .bp2\:bui-d-n {
+      display: none;
+    }
+
+    .bp2\:bui-d-b {
+      display: block;
+    }
+
+    .bp2\:bui-d-if {
+      display: inline-flex;
+    }
+
+    .bp2\:bui-d-f {
+      display: flex;
+    }
+
+    .bp2\:bui-d-g {
+      display: grid;
+    }
+
+    .bp2\:bui-d-c {
+      display: contents;
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .bp3\:bui-d-n {
+      display: none;
+    }
+
+    .bp3\:bui-d-b {
+      display: block;
+    }
+
+    .bp3\:bui-d-if {
+      display: inline-flex;
+    }
+
+    .bp3\:bui-d-f {
+      display: flex;
+    }
+
+    .bp3\:bui-d-g {
+      display: grid;
+    }
+
+    .bp3\:bui-d-c {
+      display: contents;
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "usingComponents": {
+    "stage": "../../src/index"
+  }
+}

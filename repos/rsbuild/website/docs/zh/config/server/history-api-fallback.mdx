@@ -1,0 +1,137 @@
+---
+description: 'historyApiFallback 用于支持基于 history API 的路由，当用户访问不存在的路径时，自动返回指定的 HTML 文件，避免出现 404 错误。'
+---
+
+# server.historyApiFallback
+
+- **类型：** `boolean | HistoryApiFallbackOptions`
+- **默认值：** `false`
+
+`historyApiFallback` 用于支持基于 [history API](https://developer.mozilla.org/en-US/docs/Web/API/History_API) 的路由，当用户访问不存在的路径时，自动返回指定的 HTML 文件，避免出现 404 错误。
+
+当 Rsbuild 默认的 [页面路由](/guide/basic/server#page-routing) 行为无法满足你的需求时，例如，希望在访问 `/` 时可以访问 `main.html` ，你可以通过 `server.historyApiFallback` 配置项来实现这个功能。
+
+:::tip
+`server.historyApiFallback` 的优先级高于 [server.htmlFallback](/config/server/html-fallback)。
+:::
+
+## 示例
+
+将 `server.historyApiFallback` 设置为 `true` 时，所有未匹配到实际资源的 HTML GET 请求都会返回 `index.html`，从而保证单页应用的路由能够正常工作。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    historyApiFallback: true,
+  },
+};
+```
+
+当满足以下条件时，Rsbuild 会将请求的路径重定向到你指定的 [index](#index) 文件：
+
+- 请求方式为 `GET` 或 `HEAD`
+- 请求头包含 `text/html`
+- 请求路径中不包含 `.`，即不是直接的文件请求
+- 请求路径未匹配到 [rewrites](#rewrites) 中定义的任何模式
+
+## 选项
+
+`server.historyApiFallback` 也支持传入一个对象来自定义行为。
+
+### index
+
+- **类型：** `string`
+- **默认值：** `'index.html'`
+
+指定当启用 History API fallback 时返回的默认 HTML 文件。
+
+例如，设置 `historyApiFallback.index` 为 `main.html` 后，当用户访问未命中的路由时，服务器会自动返回 `main.html` 作为回退页面。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    entry: {
+      main: './src/index.ts',
+    },
+  },
+  server: {
+    historyApiFallback: {
+      index: '/main.html',
+    },
+  },
+};
+```
+
+### rewrites
+
+- **类型：**
+
+```ts
+type Rewrites = Array<{
+  from: RegExp;
+  to: string | ((context: HistoryApiFallbackContext) => string);
+}>;
+```
+
+- **默认值：** `[]`
+
+`rewrites` 用于在 History API fallback 发生时，自定义请求路径与页面文件之间的映射。
+
+仅当请求未命中任何静态资源（即进入 fallback 阶段）时，这些规则才会被应用。所有规则会按照数组中的顺序依次匹配并执行。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    historyApiFallback: {
+      rewrites: [
+        // 将根路径重定向到 landing 页面
+        { from: /^\/$/, to: '/views/landing.html' },
+        // 当访问 /subpage 开头的路径时，返回 subpage.html
+        { from: /^\/subpage/, to: '/views/subpage.html' },
+        // 其他所有路径返回自定义的 404 页面
+        { from: /./, to: '/views/404.html' },
+      ],
+    },
+  },
+};
+```
+
+:::tip
+如果你希望在非 fallback 场景下修改或转发请求，可以使用 [server.proxy](/config/server/proxy) 配置代理规则。
+:::
+
+### htmlAcceptHeaders
+
+- **类型：** `string[]`
+- **默认值：** `['text/html', '*/*']`
+
+用于覆盖匹配 HTML 内容请求时默认查询的 `Accepts:` 请求头。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    historyApiFallback: {
+      htmlAcceptHeaders: ['text/html', 'application/xhtml+xml'],
+    },
+  },
+};
+```
+
+### disableDotRule
+
+- **类型：** `boolean`
+- **默认值：** `false`
+
+默认情况下，路径中包含点（`.`）的请求会被视为直接的文件请求，不会被重定向。
+
+将 `disableDotRule` 设置为 `true` 后，这一行为会被关闭，此类请求也会被重定向。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    historyApiFallback: {
+      disableDotRule: true,
+    },
+  },
+};
+```

@@ -1,0 +1,10 @@
+{
+  "name": "@e2e/custom-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ./scripts/index.js",
+    "dev:pure": "node ./scripts/index.js pure"
+  }
+}

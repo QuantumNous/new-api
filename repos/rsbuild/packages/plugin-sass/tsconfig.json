@@ -1,0 +1,15 @@
+{
+  "extends": "@scripts/config/tsconfig-nodenext",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "composite": true,
+    "isolatedDeclarations": true
+  },
+  "references": [
+    {
+      "path": "../core"
+    }
+  ],
+  "include": ["src"]
+}

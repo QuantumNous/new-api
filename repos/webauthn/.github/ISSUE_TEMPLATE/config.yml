@@ -1,0 +1,10 @@
+---
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/go-webauthn/webauthn
+    about: Read the documentation
+  - name: Question/Other
+    url: https://github.com/go-webauthn/webauthn/discussions/new
+    about: Discuss other questions etc.
+...

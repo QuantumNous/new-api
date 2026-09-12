@@ -1,0 +1,14 @@
+// Rstest Snapshot v1
+
+exports[`plugin-wasm > should add wasm rule properly 1`] = `
+[
+  {
+    "dependency": "url",
+    "generator": {
+      "filename": "static/wasm/[contenthash:10].module.wasm",
+    },
+    "test": /\\\\\\.wasm\\$/,
+    "type": "asset/resource",
+  },
+]
+`;

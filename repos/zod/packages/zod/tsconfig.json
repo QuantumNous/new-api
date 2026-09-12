@@ -1,0 +1,10 @@
+{
+  "extends": "../../.configs/tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "customConditions": ["@zod/source"],
+    "noEmit": true,
+    "types": ["vitest", "recheck"]
+  },
+  "include": ["**/*.ts"],
+}

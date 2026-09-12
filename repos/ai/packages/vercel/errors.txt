@@ -1,0 +1,105 @@
+
+> @ai-sdk/vercel@0.0.0 test /Users/shaper/workspace/ai/packages/vercel
+> pnpm test:node && pnpm test:edge
+
+
+> @ai-sdk/vercel@0.0.0 test:node /Users/shaper/workspace/ai/packages/vercel
+> vitest --config vitest.node.config.js --run
+
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+ RUN  v2.1.4 /Users/shaper/workspace/ai/packages/vercel
+
+ ❯ src/vercel-provider.test.ts  (4 tests | 3 failed) 5ms
+   × VercelProvider > createVercel > should create a VercelProvider instance with default options 2ms
+     → Cannot read properties of undefined (reading 'headers')
+   × VercelProvider > createVercel > should create a VercelProvider instance with custom options 0ms
+     → Cannot read properties of undefined (reading 'headers')
+   × VercelProvider > should construct a language model with correct configuration 2ms
+     → expected "spy" to be called with arguments: [ 'vercel-chat-model', …(1) ]
+
+Received: 
+
+  1st spy call:
+
+  Array [
+    "vercel-chat-model",
+-   ObjectContaining {
+-     "defaultObjectGenerationMode": "json",
++   Object {
++     "fetch": undefined,
++     "headers": [Function getHeaders],
+      "provider": "vercel.chat",
++     "url": [Function url],
+    },
+  ]
+
+
+Number of calls: 1
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/vercel-provider.test.ts > VercelProvider > createVercel > should create a VercelProvider instance with default options
+TypeError: Cannot read properties of undefined (reading 'headers')
+ ❯ src/vercel-provider.test.ts:45:14
+     43|         OpenAICompatibleChatLanguageModelMock.mock.calls[0];
+     44|       const config = constructorCall[2];
+     45|       config.headers();
+       |              ^
+     46| 
+     47|       expect(loadApiKey).toHaveBeenCalledWith({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/vercel-provider.test.ts > VercelProvider > createVercel > should create a VercelProvider instance with custom options
+TypeError: Cannot read properties of undefined (reading 'headers')
+ ❯ src/vercel-provider.test.ts:66:14
+     64|         OpenAICompatibleChatLanguageModelMock.mock.calls[0];
+     65|       const config = constructorCall[2];
+     66|       config.headers();
+       |              ^
+     67| 
+     68|       expect(loadApiKey).toHaveBeenCalledWith({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/vercel-provider.test.ts > VercelProvider > should construct a language model with correct configuration
+AssertionError: expected "spy" to be called with arguments: [ 'vercel-chat-model', …(1) ]
+
+Received: 
+
+  1st spy call:
+
+  Array [
+    "vercel-chat-model",
+-   ObjectContaining {
+-     "defaultObjectGenerationMode": "json",
++   Object {
++     "fetch": undefined,
++     "headers": [Function getHeaders],
+      "provider": "vercel.chat",
++     "url": [Function url],
+    },
+  ]
+
+
+Number of calls: 1
+
+ ❯ src/vercel-provider.test.ts:91:51
+     89| 
+     90|     expect(model).toBeInstanceOf(OpenAICompatibleChatLanguageModel);
+     91|     expect(OpenAICompatibleChatLanguageModelMock).toHaveBeenCalledWith(
+       |                                                   ^
+     92|       modelId,
+     93|       expect.objectContaining({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 1 passed (4)
+   Start at  12:56:44
+   Duration  222ms (transform 32ms, setup 0ms, collect 32ms, tests 5ms, environment 0ms, prepare 35ms)
+
+ ELIFECYCLE  Command failed with exit code 1.
+ ELIFECYCLE  Test failed. See above for more details.

@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "jsx": "react-jsx",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true
+  },
+  "include": ["tests", "vitest.config.ts"]
+}

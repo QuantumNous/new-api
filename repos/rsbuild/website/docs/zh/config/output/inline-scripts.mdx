@@ -1,0 +1,181 @@
+---
+description: '用来控制是否用 script 标签将产物中的 script 文件（.js 文件）inline 到 HTML 中。'
+---
+
+# output.inlineScripts
+
+- **类型：**
+
+```ts
+type InlineChunkTestFunction = (params: { size: number; name: string }) => boolean;
+
+type InlineChunkTest = RegExp | InlineChunkTestFunction;
+
+type InlineChunkConfig =
+  boolean | InlineChunkTest | { enable?: boolean | 'auto'; test: InlineChunkTest };
+```
+
+- **默认值：** `false`
+
+用来控制是否用 `<script>` 标签将产物中的 script 文件（.js 文件）inline 到 HTML 中。
+
+注意，如果开启了这个选项，那么 script 文件将不会被写入产物目录中，而只会以 inline 脚本的形式存在于 HTML 文件中。
+
+## 示例
+
+默认情况下，我们有这样的产物文件：
+
+```bash
+dist/html/main/index.html
+dist/static/css/style.css
+dist/static/js/main.js
+```
+
+开启 `output.inlineScripts` 选项后：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineScripts: true,
+  },
+};
+```
+
+生产构建的产物文件将变成：
+
+```bash
+dist/html/main/index.html
+dist/static/css/style.css
+```
+
+同时，`dist/static/js/main.js` 文件将被 inline 到 `index.html` 中：
+
+```html
+<html>
+  <head>
+    <script>
+      // content of dist/static/js/main.js
+    </script>
+  </head>
+</html>
+```
+
+:::tip
+设置 `inlineScripts: true`，等价于将 [inlineScripts.enable](#enable) 设置为 `'auto'`，这表示仅在生产模式时开启内联。
+:::
+
+### script 标签位置
+
+在开启 `output.inlineScripts` 时，建议将 [html.inject](/config/html/inject) 设置为 `'body'`。
+
+因为 script 标签的默认插入位置是 `<head>` 标签，将插入位置修改为 `<body>` 标签后，可以保证 inlined script 能获取到 `<body>` 中的 DOM 元素。
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    inject: 'body', // [!code highlight]
+  },
+  output: {
+    inlineScripts: true,
+  },
+};
+```
+
+### 通过正则匹配
+
+当你需要内联产物中的一部分 JS 文件时，你可以将 `inlineScripts` 设置为一个正则表达式，匹配需要内联的 JS 文件的 URL。
+
+比如，将产物中的 `main.js` 内联到 HTML 中，你可以添加如下配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineScripts: /[\\/]main\.\w+\.js$/,
+  },
+};
+```
+
+:::tip
+生产模式的文件名中默认包含了一个 hash 值，比如 `static/js/main.18a568e5ab.js`。因此，在正则表达式中需要通过 `\w+` 来匹配 hash。
+:::
+
+### 通过函数匹配
+
+你也可以将 `output.inlineScripts` 设置为一个函数，函数接收以下参数：
+
+- `name`：文件名，比如 `static/js/main.18a568e5ab.js`。
+- `size`：文件大小，单位为 byte。
+
+比如，我们希望内联小于 10kB 的资源，可以添加如下配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineScripts({ size }) {
+      return size < 10 * 1000;
+    },
+  },
+};
+```
+
+### 异步 Chunks
+
+当你在 JavaScript 中使用 [dynamic import](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import) 时，Rspack 会生成一个异步 Chunk。默认情况下，`output.inlineScripts` 不会将异步 Chunk 内联到 HTML 中。
+
+如果你希望将异步 Chunks 内联到 HTML 中，你可以通过 [tools.rspack](/config/tools/rspack) 配置项来实现修改 Rspack 的默认行为，将 [module.parser.javascript.dynamicImportMode](https://rspack.rs/zh/config/module-parser#javascriptdynamicimportmode) 设置为 `'eager'`，此时 Rspack 不会为 dynamic import 生成单独的 JS 文件。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineScripts: true,
+  },
+  tools: {
+    rspack: {
+      module: {
+        parser: {
+          javascript: {
+            dynamicImportMode: 'eager',
+          },
+        },
+      },
+    },
+  },
+};
+```
+
+## 选项
+
+### enable
+
+- **类型：** `'auto' | boolean`
+- **默认值：** `false`
+
+是否启用内联。`'auto'` 表示在生产模式时开启，开发模式时关闭。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineScripts: {
+      enable: 'auto',
+      test: /[\\/]main\.\w+\.js$/,
+    },
+  },
+};
+```
+
+### test
+
+- **类型：** `RegExp | ((params: { size: number; name: string }) => boolean)`
+
+用来匹配需要内联的 JS 文件。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    inlineScripts: {
+      enable: true,
+      test: /[\\/]main\.\w+\.js$/,
+    },
+  },
+};
+```

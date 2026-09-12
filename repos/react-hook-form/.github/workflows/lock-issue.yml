@@ -1,0 +1,21 @@
+name: 'Lock Issues'
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0,6,12,18 * * *'
+
+permissions:
+  issues: write
+
+concurrency:
+  group: lock
+
+jobs:
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dessant/lock-threads@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-inactive-days: 60

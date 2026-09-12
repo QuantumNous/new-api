@@ -1,0 +1,29 @@
+name: Auto-merge Release PRs
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  enable-auto-merge:
+    name: Enable Auto-merge for Release PRs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Only run if PR is created by an app branch starts with changeset-release/
+    if: |
+      github.event.pull_request.user.type == 'Bot' &&
+      startsWith(github.event.pull_request.head.ref, 'changeset-release/')
+
+    steps:
+      - name: merge pull request
+        run: |
+          gh pr merge ${{ github.event.pull_request.number }} --auto --squash
+          gh pr review ${{ github.event.pull_request.number }} --approve
+        env:
+          # this should really be an app token. But for that we would need to register a secondary app,
+          # since the vercel=ai-sdk app already creates the pull request and it cannot approve its own pull requests.
+          GH_TOKEN: ${{ secrets.GR2M_PR_REVIEW_TOKEN }}
+          GH_REPO: ${{ github.repository }}

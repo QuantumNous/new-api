@@ -1,0 +1,74 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`simulateStreamingMiddleware > should handle empty text response 1`] = `
+[
+  {
+    "type": "start",
+  },
+  {
+    "request": {
+      "body": undefined,
+      "messages": undefined,
+    },
+    "type": "start-step",
+    "warnings": [],
+  },
+  {
+    "finishReason": "stop",
+    "performance": {
+      "effectiveOutputTokensPerSecond": 0,
+      "effectiveTotalTokensPerSecond": 0,
+      "inputTokensPerSecond": undefined,
+      "outputTokensPerSecond": undefined,
+      "responseTimeMs": 0,
+      "stepTimeMs": 0,
+      "timeBetweenOutputChunksMs": undefined,
+      "timeToFirstOutputMs": undefined,
+      "toolExecutionMs": {},
+    },
+    "providerMetadata": undefined,
+    "rawFinishReason": "stop",
+    "response": {
+      "headers": undefined,
+      "id": "id-6",
+      "modelId": "mock-model-id",
+      "timestamp": 2025-01-01T00:00:00.000Z,
+    },
+    "type": "finish-step",
+    "usage": {
+      "inputTokenDetails": {
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "noCacheTokens": 5,
+      },
+      "inputTokens": 5,
+      "outputTokenDetails": {
+        "reasoningTokens": 3,
+        "textTokens": 10,
+      },
+      "outputTokens": 10,
+      "raw": undefined,
+      "totalTokens": 15,
+    },
+  },
+  {
+    "finishReason": "stop",
+    "rawFinishReason": "stop",
+    "totalUsage": {
+      "inputTokenDetails": {
+        "cacheReadTokens": 0,
+        "cacheWriteTokens": 0,
+        "noCacheTokens": 5,
+      },
+      "inputTokens": 5,
+      "outputTokenDetails": {
+        "reasoningTokens": 3,
+        "textTokens": 10,
+      },
+      "outputTokens": 10,
+      "totalTokens": 15,
+    },
+    "type": "finish",
+  },
+]
+`;

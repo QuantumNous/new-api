@@ -1,0 +1,241 @@
+---
+description: '用于设置开启代码压缩，以及提供选项来配置压缩工具。'
+---
+
+# output.minify
+
+- **类型：**
+
+```ts
+type Minify =
+  | boolean
+  | {
+      js?: boolean | 'always';
+      jsOptions?: Rspack.SwcJsMinimizerRspackPluginOptions;
+      css?: boolean | 'always';
+      cssOptions?: Rspack.LightningcssMinimizerRspackPluginOptions;
+    };
+```
+
+- **默认值：**
+  - 当 [output.target](/config/output/target) 为 `web` 或 `web-worker` 时为 `true`。
+  - 当 [output.target](/config/output/target) 为 `node` 时为 `false`。
+
+用于设置开启代码压缩，以及提供选项来配置压缩工具。
+
+默认情况下，生产模式下的 `web` 和 `web-worker` 构建产物会自动压缩 JavaScript 和 CSS，以提升页面性能。`node` 目标在生产构建时默认不启用压缩，除非你显式开启。
+
+如果需要关闭压缩，可以将 `minify` 设置为 `false`；也可以通过 `minify` 选项的细粒度配置，控制代码压缩的行为和范围。
+
+:::tip
+Rsbuild 默认使用 [SWC](/guide/configuration/swc) 压缩 JS 代码，使用 [Lightning CSS](/guide/styling/css-usage#lightning-css) 压缩 CSS 代码。
+:::
+
+## 示例
+
+### 启用压缩
+
+为 `node` 目标开启代码压缩：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    minify: true,
+  },
+};
+```
+
+### 禁用压缩
+
+将 `minify` 设置为 `false` 可以禁用 JS 和 CSS 代码的压缩：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    minify: false,
+  },
+};
+```
+
+:::tip
+该用法通常用于代码调试和问题排查，不建议在生产模式禁用代码压缩，否则会导致页面性能显著下降。
+:::
+
+## 选项
+
+### minify.js
+
+- **类型：** `boolean | 'always'`
+- **默认值：** `true`
+
+是否开启对 JavaScript 代码的压缩：
+
+- `true`: 在生产模式下开启压缩。
+- `false`: 在所有模式下禁用压缩。
+- `'always'`: 在所有模式下开启压缩。
+
+例如禁用 JavaScript 压缩：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    minify: {
+      js: false,
+    },
+  },
+};
+```
+
+在开发和生产模式下开启 JavaScript 压缩：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    minify: {
+      js: 'always',
+    },
+  },
+};
+```
+
+### minify.jsOptions
+
+- **类型：** `Rspack.SwcJsMinimizerRspackPluginOptions`
+- **默认值：** `{}`
+
+`output.minify.jsOptions` 用于配置 SWC 的压缩选项，具体配置项请参考 [SwcJsMinimizerRspackPlugin 文档](https://rspack.rs/zh/plugins/rspack/swc-js-minimizer-rspack-plugin)。
+
+例如，关闭变量和函数名的重命名：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    minify: {
+      jsOptions: {
+        minimizerOptions: {
+          mangle: false,
+        },
+      },
+    },
+  },
+};
+```
+
+> 参考 [配置 SWC](/guide/configuration/swc) 了解更多。
+
+### minify.css
+
+- **类型：** `boolean | 'always'`
+- **默认值：** `true`
+
+是否开启对 CSS 代码的压缩：
+
+- `true`: 在生产模式下开启压缩。
+- `false`: 在所有模式下禁用压缩。
+- `'always'`: 在所有模式下开启压缩。
+
+例如禁用 CSS 压缩：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    minify: {
+      css: false,
+    },
+  },
+};
+```
+
+在开发和生产模式下开启 CSS 压缩：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    minify: {
+      css: 'always',
+    },
+  },
+};
+```
+
+### minify.cssOptions
+
+- **类型：** `Rspack.LightningcssMinimizerRspackPluginOptions`
+- **默认值：** 继承 [tools.lightningcssLoader](/config/tools/lightningcss-loader) 的值
+
+`output.minify.cssOptions` 用于配置 Lightning CSS 的压缩选项，具体配置项请参考 [LightningCssMinimizerRspackPlugin 文档](https://rspack.rs/zh/plugins/rspack/lightning-css-minimizer-rspack-plugin)。
+
+例如，关闭 `errorRecovery` 选项：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    minify: {
+      cssOptions: {
+        minimizerOptions: {
+          errorRecovery: false,
+        },
+      },
+    },
+  },
+};
+```
+
+:::tip
+当你在 [tools.lightningcssLoader](/config/tools/lightningcss-loader) 中配置了一些选项时，`output.minify.cssOptions` 会自动继承这些选项，这样可以确保开发环境和生产环境的 CSS 代码转换行为保持一致。
+:::
+
+## 切换压缩器 \{#switching-minifier}
+
+### JS 压缩器
+
+如果默认的 SWC 压缩器无法满足你的需求，你可以通过 [tools.bundlerChain](/config/tools/bundler-chain) 选项来切换到其他压缩器。
+
+例如，使用 [minimizer-webpack-plugin](https://github.com/webpack/minimizer-webpack-plugin) 插件来切换到 Terser 或 esbuild。
+
+- 使用 [terser](https://github.com/terser/terser) 压缩 JS 代码：
+
+```ts title="rsbuild.config.ts"
+import MinimizerPlugin from 'minimizer-webpack-plugin';
+
+export default {
+  tools: {
+    bundlerChain(chain, { CHAIN_ID }) {
+      chain.optimization.minimizer(CHAIN_ID.MINIMIZER.JS).use(MinimizerPlugin, [
+        {
+          // options
+        },
+      ]);
+    },
+  },
+};
+```
+
+- 使用 [esbuild](https://github.com/evanw/esbuild) 压缩 JS 代码时，需要安装 `esbuild` 包，并设置 `esbuildMinify`：
+
+```ts title="rsbuild.config.ts"
+import MinimizerPlugin from 'minimizer-webpack-plugin';
+
+export default {
+  tools: {
+    bundlerChain(chain, { CHAIN_ID }) {
+      chain.optimization.minimizer(CHAIN_ID.MINIMIZER.JS).use(MinimizerPlugin, [
+        {
+          minify: MinimizerPlugin.esbuildMinify,
+        },
+      ]);
+    },
+  },
+};
+```
+
+:::tip
+在使用自定义的 JS 压缩器时，`minify.jsOptions` 选项将不再生效。
+:::
+
+## 版本历史
+
+| 版本   | 变更内容                        |
+| ------ | ------------------------------- |
+| v2.0.0 | `node` 产物的默认值改为 `false` |

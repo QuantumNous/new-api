@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "comment": "feat: support theming conversion funnel arrow (line / symbol / text) via series.funnel.conversionArrow theme token",
+      "type": "minor",
+      "packageName": "@visactor/vchart"
+    }
+  ],
+  "packageName": "@visactor/vchart",
+  "email": "e@erlanzhou.com"
+}

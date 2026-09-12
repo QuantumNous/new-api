@@ -1,0 +1,19 @@
+{
+  "title": "Willkommen zu react und react-i18next",
+  "description.part1": "Um loszulegen, ändere <1>src/App.js</1> speicheren und neuladen.",
+  "description.part2": "Ändere die Sprachen zwischen deutsch und englisch mit Hilfe der beiden Schalter.",
+  "icu": "{numPersons, plural, =0 {keine Person} =1 {eine Person} other {# Personen}}",
+  "icu_and_trans": "Wir haben <0>{numPersons, plural, =0 {keine Person} =1 {eine Person} other {# Personen}}</0> eingeladen.",
+  "Welcome, {name}!": "Willkommen, {name}!",
+  "Welcome, <0>{name}</0>!": "Willkommen, <0>{name}</0>!",
+  "Trainers: {trainersCount, number}": "Trainer: {trainersCount, number}",
+  "Trainers: <0>{trainersCount, number}</0>!": "Trainer: <0>{trainersCount, number}</0>!",
+  "Caught on {catchDate, date, full}": "Gefangen am {catchDate, date, full}",
+  "Caught on <0>{catchDate, date, full}</0>!": "Gefangen am <0>{catchDate, date, full}</0>!",
+  "{gender, select,  male {He avoids bugs.} female {She avoids bugs.} other {They avoid bugs.}}": "{gender, select,  male {Er vermeidet Fehler.} female {Sie vermeidet Fehler.} other {Sie vermeiden Fehler.}}",
+  "{gender, select,  male {<0>He</0> avoids bugs.} female {<1>She</1> avoids bugs.} other {<2>They</2> avoid bugs.}}": "{gender, select,  male {<0>Er</0> vermeidet Fehler. } female {<1>Sie</1> vermeidet Fehler. } other {<2>Sie</2> vermeiden Fehler. }}",
+  "{itemsCount1, plural,  =0 {There is no item.} one {There is # item.} other {There are # items.}}": "{itemsCount1, plural,  =0 {Es hat keinen Gegenstand.} one {Es hat # Gegenstand.} other {Es hat # Gegenstände.}}",
+  "{itemsCount2, plural,  =0 {There is no item.} one {There is # item.} other {There are # items.}}": "{itemsCount2, plural,  =0 {Es hat keinen Gegenstand.} one {Es hat # Gegenstand.} other {Es hat # Gegenstände.}}",
+  "{itemsCount3, plural,  =0 {There is no item.} one {There is # item.} other {There are # items.}}": "{itemsCount3, plural,  =0 {Es hat keinen Gegenstand.} one {Es hat # Gegenstand.} other {Es hat # Gegenstände.}}",
+  "testKey": "{itemsCount3, plural,  =0 { Es hat <0>keinen</0> Gegenstand. } one { Es hat <1>#</1> Gegenstand. } other { Es het <2>#</2> Gegenstände. }}"
+}

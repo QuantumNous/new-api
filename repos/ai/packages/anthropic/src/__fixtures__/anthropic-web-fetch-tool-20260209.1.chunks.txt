@@ -1,0 +1,50 @@
+{"type":"message_start","message":{"model":"claude-sonnet-4-6","id":"msg_01VYExUoD2gEMU8ZX5j5XBEZ","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":3456,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":21,"service_tier":"standard","inference_geo":"global"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srvtoolu_01LKcA5qc1HwvLQSe3cLKmcK","name":"code_execution","input":{},"caller":{"type":"direct"}}}
+{"type":"ping"}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"code\": \"\\nimport json"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\\nresult"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":" = await web"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"_fetch("}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\\\"url\\\": \\\"https://example"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":".com\\\"})\\nif"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":" isinstance"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"(result, list):\\n    "}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"print(result"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"[0][\\\"content"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\\\"]"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"[:500"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"])"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\\nelse:\\n    print(result"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":")"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\\n"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"}"}}
+{"type":"content_block_stop","index":0}
+{"type":"content_block_start","index":1,"content_block":{"type":"server_tool_use","id":"srvtoolu_01SyXFZ4vqqE144ySoN6b5UG","name":"web_fetch","input":{"url":"https://example.com"},"caller":{"type":"code_execution_20260120","tool_id":"srvtoolu_01LKcA5qc1HwvLQSe3cLKmcK"}}}
+{"type":"content_block_stop","index":1}
+{"type":"content_block_start","index":2,"content_block":{"type":"web_fetch_tool_result","tool_use_id":"srvtoolu_01SyXFZ4vqqE144ySoN6b5UG","content":{"type":"web_fetch_result","url":"https://example.com","retrieved_at":"2026-03-03T15:05:04.091000+00:00","content":{"type":"document","source":{"type":"text","media_type":"text/plain","data":"Example Domain\n\n# Example Domain\n\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\n\n[Learn more](https://iana.org/domains/example)"},"title":"Example Domain"}},"caller":{"type":"code_execution_20260120","tool_id":"srvtoolu_01LKcA5qc1HwvLQSe3cLKmcK"}}}
+{"type":"content_block_stop","index":2}
+{"type":"content_block_start","index":3,"content_block":{"type":"code_execution_tool_result","tool_use_id":"srvtoolu_01LKcA5qc1HwvLQSe3cLKmcK","content":{"type":"code_execution_result","stdout":"{\"type\": \"web_fetch_result\", \"url\": \"https://example.com\", \"retrieved_at\": \"2026-03-03T15:05:04.091000+00:00\", \"content\": {\"type\": \"document\", \"source\": {\"type\": \"text\", \"media_type\": \"text/plain\", \"data\": \"Example Domain\\n\\n# Example Domain\\n\\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\\n\\n[Learn more](https://iana.org/domains/example)\"}, \"title\": \"Example Domain\"}}\n","stderr":"","return_code":0,"content":[],"abort_reason":null}}}
+{"type":"content_block_stop","index":3}
+{"type":"content_block_start","index":4,"content_block":{"type":"text","text":""}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"The"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":" page at"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":" **"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"example"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":".com** is"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":" a simple placeholder"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":" page explaining"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":" that the"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":" domain is reserved"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":" for use"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":" in illust"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"rative documentation"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":" examples and"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":" does"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":" not require prior"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":" permission to"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":" reference"}}
+{"type":"content_block_delta","index":4,"delta":{"type":"text_delta","text":"."}}
+{"type":"content_block_stop","index":4}
+{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null,"container":{"id":"container_011CYgdezfe66pcmCprMd28x","expires_at":"2026-03-03T19:38:14.861782Z"}},"usage":{"input_tokens":7172,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":144,"server_tool_use":{"web_search_requests":0,"web_fetch_requests":1}}}
+{"type":"message_stop"}

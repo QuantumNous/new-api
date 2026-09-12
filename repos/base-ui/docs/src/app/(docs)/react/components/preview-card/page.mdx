@@ -1,0 +1,250 @@
+# Preview Card
+
+<Subtitle>
+  A popup that appears when a link is hovered, showing a preview for sighted users.
+</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled React preview card component that appears when a link is hovered, showing a preview for sighted users."
+/>
+
+import { DemoPreviewCardHero } from './demos/hero';
+
+<DemoPreviewCardHero />
+<link
+  as="image"
+  rel="preload"
+  href="https://images.unsplash.com/photo-1619615391095-dfa29e1672ef?q=80&w=448&h=300"
+/>
+
+## Usage guidelines
+
+- **Popup content should reflect the link destination**: Avoid placing unique or essential information in the popup unless it is also available on the linked page, so all users can access the same information. Preview cards are a visual enhancement for sighted mouse and keyboard users and are not accessible to touch or screen reader users.
+
+## Anatomy
+
+Import the component and assemble its parts:
+
+```jsx title="Anatomy"
+import { PreviewCard } from '@base-ui/react/preview-card';
+
+<PreviewCard.Root>
+  <PreviewCard.Trigger />
+  <PreviewCard.Portal>
+    <PreviewCard.Backdrop />
+    <PreviewCard.Positioner>
+      <PreviewCard.Popup>
+        <PreviewCard.Arrow />
+        <PreviewCard.Viewport />
+      </PreviewCard.Popup>
+    </PreviewCard.Positioner>
+  </PreviewCard.Portal>
+</PreviewCard.Root>;
+```
+
+## Examples
+
+### Detached triggers
+
+A preview card can be controlled by a trigger located either inside or outside the `<PreviewCard.Root>` component.
+For simple, one-off interactions, place the `<PreviewCard.Trigger>` inside `<PreviewCard.Root>`, as shown in the example at the top of this page.
+
+However, if defining the preview card's content next to its trigger is not practical, you can use a detached trigger.
+This involves placing the `<PreviewCard.Trigger>` outside of `<PreviewCard.Root>` and linking them with a `handle` created by the `PreviewCard.createHandle()` function.
+
+```jsx title="Detached triggers"
+const demoPreviewCard = PreviewCard.createHandle();
+
+// @highlight
+// @highlight-text "handle={demoPreviewCard}"
+<PreviewCard.Trigger handle={demoPreviewCard} href="#">
+  Link
+</PreviewCard.Trigger>
+
+// @highlight
+// @highlight-text "handle={demoPreviewCard}"
+<PreviewCard.Root handle={demoPreviewCard}>
+  ...
+</PreviewCard.Root>;
+```
+
+import { DemoPreviewCardDetachedTriggersSimple } from './demos/detached-triggers-simple';
+
+<DemoPreviewCardDetachedTriggersSimple />
+
+### Multiple triggers
+
+A single preview card can be opened by multiple trigger elements.
+You can achieve this by using the same `handle` for several detached triggers, or by placing multiple `<PreviewCard.Trigger>` components inside a single `<PreviewCard.Root>`.
+
+```jsx title="Multiple triggers within the Root part"
+<PreviewCard.Root>
+  <PreviewCard.Trigger href="#">Trigger 1</PreviewCard.Trigger>
+  <PreviewCard.Trigger href="#">Trigger 2</PreviewCard.Trigger>
+  ...
+</PreviewCard.Root>
+```
+
+```jsx title="Multiple detached triggers"
+const demoPreviewCard = PreviewCard.createHandle();
+
+<PreviewCard.Trigger handle={demoPreviewCard} href="#">
+  Trigger 1
+</PreviewCard.Trigger>
+
+<PreviewCard.Trigger handle={demoPreviewCard} href="#">
+  Trigger 2
+</PreviewCard.Trigger>
+
+<PreviewCard.Root handle={demoPreviewCard}>
+  ...
+</PreviewCard.Root>
+```
+
+The preview card can render different content depending on which trigger opened it.
+This is achieved by passing a `payload` to the `<PreviewCard.Trigger>` and using the function-as-a-child pattern in `<PreviewCard.Root>`.
+
+The payload can be strongly typed by providing a type argument to the `createHandle()` function:
+
+```jsx title="Detached triggers with payload"
+// @highlight
+const demoPreviewCard = PreviewCard.createHandle<{ title: string }>();
+
+// @highlight
+// @highlight-text "payload"
+<PreviewCard.Trigger handle={demoPreviewCard} payload={{ title: 'Trigger 1' }} href="#">
+  Trigger 1
+</PreviewCard.Trigger>
+
+// @highlight
+// @highlight-text "payload"
+<PreviewCard.Trigger handle={demoPreviewCard} payload={{ title: 'Trigger 2' }} href="#">
+  Trigger 2
+</PreviewCard.Trigger>
+
+<PreviewCard.Root handle={demoPreviewCard}>
+  {({ payload }) => ( // @highlight-text "payload"
+    <PreviewCard.Portal>
+      <PreviewCard.Positioner sideOffset={8}>
+        <PreviewCard.Popup>
+          {payload !== undefined && ( // @highlight-text "payload"
+            <span>
+              Preview card opened by {payload.title} {/* @highlight-text "payload" */}
+            </span>
+          )}
+        </PreviewCard.Popup>
+      </PreviewCard.Positioner>
+    </PreviewCard.Portal>
+  )}
+</PreviewCard.Root>
+```
+
+### Controlled mode with multiple triggers
+
+You can control the preview card's open state externally using the `open` and `onOpenChange` props on `<PreviewCard.Root>`.
+This allows you to manage the preview card's visibility based on your application's state.
+When using multiple triggers, you have to manage which trigger is active with the `triggerId` prop on `<PreviewCard.Root>` and the `id` prop on each `<PreviewCard.Trigger>`.
+
+Note that there is no separate `onTriggerIdChange` prop.
+Instead, the `onOpenChange` callback receives an additional argument, `eventDetails`, which contains the trigger element that initiated the state change.
+
+import { DemoPreviewCardDetachedTriggersControlled } from './demos/detached-triggers-controlled';
+
+<DemoPreviewCardDetachedTriggersControlled />
+
+### Animating the Preview Card
+
+You can animate a preview card as it moves between different trigger elements.
+This includes animating its position, size, and content.
+
+#### Position and Size
+
+To animate the preview card's position, apply CSS transitions to the `left`, `right`, `top`, and `bottom` properties of the **Positioner** part.
+To animate its size, transition the `width` and `height` of the **Popup** part.
+
+#### Content
+
+The preview card also supports content transitions.
+This is useful when different triggers display different content within the same preview card.
+
+To enable content animations, wrap the content in the `<PreviewCard.Viewport>` part.
+This part provides features to create direction-aware animations.
+It renders a `div` with a `data-activation-direction` attribute (`left`, `right`, `up`, or `down`) that indicates the new trigger's position relative to the previous one.
+
+Inside the `<PreviewCard.Viewport>`, the content is further wrapped in `div`s with data attributes to help with styling:
+
+- `data-current`: The currently visible content when no transitions are present or the incoming content.
+- `data-previous`: The outgoing content during a transition.
+
+You can use these attributes to style the enter and exit animations.
+
+import { DemoPreviewCardDetachedTriggersFull } from './demos/detached-triggers-full';
+
+<DemoPreviewCardDetachedTriggersFull />
+
+## API reference
+
+import { TypesPreviewCard } from './types';
+
+### Root
+
+<TypesPreviewCard.Root />
+
+### Trigger
+
+<TypesPreviewCard.Trigger />
+
+### Portal
+
+<TypesPreviewCard.Portal />
+
+### Backdrop
+
+<TypesPreviewCard.Backdrop />
+
+### Positioner
+
+<TypesPreviewCard.Positioner />
+
+### Popup
+
+<TypesPreviewCard.Popup />
+
+### Viewport
+
+<TypesPreviewCard.Viewport />
+
+### Arrow
+
+<TypesPreviewCard.Arrow />
+
+## createHandle
+
+<TypesPreviewCard.createHandle />
+
+[//]: # '@exclude-table-of-contents'
+
+### Handle
+
+<TypesPreviewCard.Handle />
+
+export const metadata = {
+  keywords: [
+    'React Preview Card',
+    'Preview Card Component',
+    'Link Hover Preview',
+    'Hover Card React',
+    'Hover Card',
+    'Link Tooltip',
+    'URL Preview',
+    'Link Preview Popup',
+    'Content Preview',
+    'Accessible Preview Popup',
+    'Detached Trigger Preview Card',
+    'Multiple Preview Card Triggers',
+    'Animated Preview Card',
+    'Headless React Components',
+    'Link Preview UI',
+    'Base UI',
+  ],
+};

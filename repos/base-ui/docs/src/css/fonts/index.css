@@ -1,0 +1,41 @@
+@font-face {
+  font-family: 'die grotesk a';
+  font-weight: normal;
+  src: url('/fonts/die-grotesk-a-regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'die grotesk a';
+  font-weight: 700;
+  src: url('/fonts/die-grotesk-a-bold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'die grotesk b';
+  font-weight: normal;
+  src: url('/fonts/die-grotesk-b-regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'die grotesk b';
+  font-weight: 700;
+  src: url('/fonts/die-grotesk-b-bold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Paper Mono';
+  font-weight: normal;
+  src: url('/fonts/paper-mono.woff2') format('woff2');
+  font-variation-settings: 'wght' 415;
+  /* Reduce the size to balance with the sans-serif fonts */
+  size-adjust: calc(100% * 13.5 / 14);
+}
+
+@font-face {
+  font-family: 'Paper Mono';
+  font-weight: bold;
+  src: url('/fonts/paper-mono.woff2') format('woff2');
+  font-variation-settings: 'wght' 650;
+  /* Reduce the size to balance with the sans-serif fonts */
+  size-adjust: calc(100% * 13.5 / 14);
+}

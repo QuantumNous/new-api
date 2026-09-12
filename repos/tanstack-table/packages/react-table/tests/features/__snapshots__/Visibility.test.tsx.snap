@@ -1,0 +1,358 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`useReactTable > can toggle column visibility > 0 - after toggling all off 1`] = `
+{
+  "footers": [
+    [],
+  ],
+  "headers": [
+    [],
+  ],
+  "rows": [
+    [],
+    [],
+    [],
+  ],
+}
+`;
+
+exports[`useReactTable > can toggle column visibility > 1 - after toggling all on 1`] = `
+{
+  "footers": [
+    [
+      [
+        "firstName",
+        "1",
+      ],
+      [
+        "lastName",
+        "1",
+      ],
+      [
+        "age",
+        "1",
+      ],
+      [
+        "visits",
+        "1",
+      ],
+      [
+        "status",
+        "1",
+      ],
+      [
+        "progress",
+        "1",
+      ],
+    ],
+    [
+      [
+        "",
+        "1",
+      ],
+      [
+        "",
+        "1",
+      ],
+      [
+        "",
+        "1",
+      ],
+      [
+        "",
+        "3",
+      ],
+    ],
+    [
+      [
+        "Name",
+        "2",
+      ],
+      [
+        "Info",
+        "4",
+      ],
+    ],
+  ],
+  "headers": [
+    [
+      [
+        "Name",
+        "2",
+      ],
+      [
+        "Info",
+        "4",
+      ],
+    ],
+    [
+      [
+        "",
+        "1",
+      ],
+      [
+        "",
+        "1",
+      ],
+      [
+        "",
+        "1",
+      ],
+      [
+        "More Info",
+        "3",
+      ],
+    ],
+    [
+      [
+        "firstName",
+        "1",
+      ],
+      [
+        "<span>Last Name</span>",
+        "1",
+      ],
+      [
+        "Age",
+        "1",
+      ],
+      [
+        "<span>Visits</span>",
+        "1",
+      ],
+      [
+        "Status",
+        "1",
+      ],
+      [
+        "Profile Progress",
+        "1",
+      ],
+    ],
+  ],
+  "rows": [
+    [
+      "tanner",
+      "linsley",
+      "29",
+      "100",
+      "In Relationship",
+      "50",
+    ],
+    [
+      "derek",
+      "perkins",
+      "40",
+      "40",
+      "Single",
+      "80",
+    ],
+    [
+      "joe",
+      "bergevin",
+      "45",
+      "20",
+      "Complicated",
+      "10",
+    ],
+  ],
+}
+`;
+
+exports[`useReactTable > can toggle column visibility > 2 - after toggling firstName off 1`] = `
+{
+  "footers": [
+    [
+      [
+        "lastName",
+        "1",
+      ],
+      [
+        "age",
+        "1",
+      ],
+      [
+        "visits",
+        "1",
+      ],
+      [
+        "status",
+        "1",
+      ],
+      [
+        "progress",
+        "1",
+      ],
+    ],
+    [
+      [
+        "",
+        "1",
+      ],
+      [
+        "",
+        "1",
+      ],
+      [
+        "",
+        "3",
+      ],
+    ],
+    [
+      [
+        "Name",
+        "1",
+      ],
+      [
+        "Info",
+        "4",
+      ],
+    ],
+  ],
+  "headers": [
+    [
+      [
+        "Name",
+        "1",
+      ],
+      [
+        "Info",
+        "4",
+      ],
+    ],
+    [
+      [
+        "",
+        "1",
+      ],
+      [
+        "",
+        "1",
+      ],
+      [
+        "More Info",
+        "3",
+      ],
+    ],
+    [
+      [
+        "<span>Last Name</span>",
+        "1",
+      ],
+      [
+        "Age",
+        "1",
+      ],
+      [
+        "<span>Visits</span>",
+        "1",
+      ],
+      [
+        "Status",
+        "1",
+      ],
+      [
+        "Profile Progress",
+        "1",
+      ],
+    ],
+  ],
+  "rows": [
+    [
+      "linsley",
+      "29",
+      "100",
+      "In Relationship",
+      "50",
+    ],
+    [
+      "perkins",
+      "40",
+      "40",
+      "Single",
+      "80",
+    ],
+    [
+      "bergevin",
+      "45",
+      "20",
+      "Complicated",
+      "10",
+    ],
+  ],
+}
+`;
+
+exports[`useReactTable > can toggle column visibility > 3 - after toggling More Info off 1`] = `
+{
+  "footers": [
+    [
+      [
+        "firstName",
+        "1",
+      ],
+      [
+        "lastName",
+        "1",
+      ],
+      [
+        "age",
+        "1",
+      ],
+    ],
+    [
+      [
+        "Name",
+        "2",
+      ],
+      [
+        "Info",
+        "1",
+      ],
+    ],
+  ],
+  "headers": [
+    [
+      [
+        "Name",
+        "2",
+      ],
+      [
+        "Info",
+        "1",
+      ],
+    ],
+    [
+      [
+        "firstName",
+        "1",
+      ],
+      [
+        "<span>Last Name</span>",
+        "1",
+      ],
+      [
+        "Age",
+        "1",
+      ],
+    ],
+  ],
+  "rows": [
+    [
+      "tanner",
+      "linsley",
+      "29",
+    ],
+    [
+      "derek",
+      "perkins",
+      "40",
+    ],
+    [
+      "joe",
+      "bergevin",
+      "45",
+    ],
+  ],
+}
+`;

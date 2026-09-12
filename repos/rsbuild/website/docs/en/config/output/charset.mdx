@@ -1,0 +1,44 @@
+---
+description: 'The charset config sets the character encoding for output files, ensuring they display correctly across different environments.'
+---
+
+# output.charset
+
+- **Type:** `'ascii' | 'utf8'`
+- **Default:** `'utf8'`
+
+The `charset` config sets the [character encoding](https://developer.mozilla.org/en-US/docs/Glossary/Character_encoding) for output files, ensuring they display correctly across different environments.
+
+## UTF8
+
+By default, Rsbuild outputs files encoded in [UTF-8](https://developer.mozilla.org/en-US/docs/Glossary/UTF-8), the most common character encoding for web applications.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    charset: 'utf8', // This is the default
+  },
+};
+```
+
+When your web server returns resources, ensure it sends the correct [Content-Type](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type) response header so browsers can parse them correctly.
+
+## ASCII
+
+To use [ASCII](https://developer.mozilla.org/en-US/docs/Glossary/ASCII) encoding for output files, configure it like this:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    charset: 'ascii',
+  },
+};
+```
+
+With ASCII encoding, all non-ASCII characters are escaped with backslashes, making files slightly larger and harder to read.
+
+## Notes
+
+The `charset` option only affects files compiled with [SWC](/guide/configuration/swc), which includes JavaScript and TypeScript files by default. HTML and CSS files are not affected by this option.
+
+For HTML files, Rsbuild adds a `<meta charset="utf-8">` tag by default. You can change this using the [html.meta](/config/html/meta) option.

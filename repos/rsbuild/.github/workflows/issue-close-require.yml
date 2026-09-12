@@ -1,0 +1,27 @@
+name: Issue Close Require
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+
+permissions: {}
+
+jobs:
+  issue-close-require:
+    runs-on: ubuntu-latest
+    if: github.repository == 'web-infra-dev/rsbuild'
+    permissions:
+      issues: write
+    steps:
+      - name: Close inactive need reproduction issues
+        uses: actions/stale@eb5cf3af3ac0a1aa4c9c45633dd1ae542a27a899 # v10.3.0
+        with:
+          days-before-stale: -1
+          days-before-pr-close: -1
+          days-before-issue-close: 5
+          stale-issue-label: 'need reproduction'
+          remove-issue-stale-when-updated: false
+          close-issue-message: |
+            As the issue was labelled with `need reproduction`, but no response in 5 days. This issue will be closed. Feel free to comment and reopen it if you have any further questions. For background, see [Why reproductions are required](https://antfu.me/posts/why-reproductions-are-required).
+
+            由于该 issue 被标记为 "需要重现"，但在 5 天内没有回应，因此该 issue 将被关闭。如果你有任何进一步的问题，请随时发表评论并重新打开该 issue。背景请参考 [为什么需要最小重现](https://antfu.me/posts/why-reproductions-are-required-zh)。

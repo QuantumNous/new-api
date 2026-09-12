@@ -1,0 +1,167 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/rush.schema.json",
+  "rushVersion": "5.148.0",
+  "pnpmVersion": "10.7.0",
+  "nodeSupportedVersionRange": ">=18.18.0 <19.0.0 || >=20.0.0 <25.0.0",
+  "suppressNodeLtsWarning": true,
+  "ensureConsistentVersions": true,
+  "projectFolderMinDepth": 1,
+  "projectFolderMaxDepth": 2,
+  "allowMostlyStandardPackageNames": false,
+  "gitPolicy": {
+    "versionBumpCommitMessage": "Bump versions [skip ci]",
+    "changeLogUpdateCommitMessage": "Update changelogs [skip ci]"
+  },
+  "repository": {
+    "url": "https://github.com/VisActor/VChart",
+    "defaultBranch": "main",
+    "defaultRemote": "origin"
+  },
+  "allowedProjectTags": [
+    "tool",
+    "share",
+    "package",
+    "doc"
+  ],
+  "projects": [
+    {
+      "packageName": "@visactor/vchart-extension",
+      "projectFolder": "packages/vchart-extension",
+      "tags": [
+        "package"
+      ],
+      "shouldPublish": true,
+      "versionPolicyName": "vchartMain"
+    },
+    {
+      "packageName": "@visactor/vchart",
+      "projectFolder": "packages/vchart",
+      "tags": [
+        "package"
+      ],
+      "shouldPublish": true,
+      "versionPolicyName": "vchartMain"
+    },
+    {
+      "packageName": "@visactor/react-vchart",
+      "projectFolder": "packages/react-vchart",
+      "tags": [
+        "package"
+      ],
+      "shouldPublish": true,
+      "versionPolicyName": "vchartMain"
+    },
+    {
+      "packageName": "@visactor/openinula-vchart",
+      "projectFolder": "packages/openinula-vchart",
+      "tags": [
+        "package"
+      ],
+      "shouldPublish": true,
+      "versionPolicyName": "vchartMain"
+    },
+    {
+      "packageName": "@visactor/taro-vchart",
+      "projectFolder": "packages/taro-vchart",
+      "tags": [
+        "package"
+      ],
+      "shouldPublish": true,
+      "versionPolicyName": "vchartMain"
+    },
+    {
+      "packageName": "@visactor/lark-vchart",
+      "projectFolder": "packages/lark-vchart",
+      "shouldPublish": true,
+      "versionPolicyName": "vchartMain"
+    },
+    {
+      "packageName": "@visactor/wx-vchart",
+      "projectFolder": "packages/wx-vchart",
+      "shouldPublish": true,
+      "versionPolicyName": "vchartMain"
+    },
+    {
+      "packageName": "@visactor/vchart-schema",
+      "projectFolder": "packages/vchart-schema",
+      "shouldPublish": true,
+      "versionPolicyName": "vchartMain"
+    },
+    {
+      "packageName": "@visactor/vchart-types",
+      "projectFolder": "packages/vchart-types",
+      "shouldPublish": true,
+      "versionPolicyName": "vchartMain"
+    },
+    {
+      "packageName": "@visactor/vutils-extension",
+      "projectFolder": "packages/vutils-extension",
+      "tags": [
+        "package"
+      ],
+      "shouldPublish": true,
+      "versionPolicyName": "vchartMain"
+    },
+    {
+      "packageName": "@visactor/tt-vchart",
+      "projectFolder": "packages/tt-vchart",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@internal/bundler",
+      "projectFolder": "tools/bundler",
+      "tags": [
+        "tool"
+      ],
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@internal/typescript-json-schema",
+      "projectFolder": "tools/typescript-json-schema",
+      "tags": [
+        "tool"
+      ],
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@internal/story-player",
+      "projectFolder": "tools/story-player",
+      "tags": [
+        "tool"
+      ],
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@internal/bugserver-trigger",
+      "projectFolder": "tools/bugserver-trigger",
+      "tags": [
+        "tool"
+      ],
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@internal/eslint-config",
+      "projectFolder": "share/eslint-config",
+      "tags": [
+        "share"
+      ],
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@internal/ts-config",
+      "projectFolder": "share/ts-config",
+      "tags": [
+        "share"
+      ],
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@internal/docs",
+      "projectFolder": "docs",
+      "tags": [
+        "doc"
+      ],
+      "shouldPublish": false
+    }
+  ]
+}

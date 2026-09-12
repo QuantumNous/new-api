@@ -1,0 +1,24 @@
+{
+  "name": "v3-playground",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "upgrade": "node scripts/upgrade.mjs"
+  },
+  "dependencies": {
+    "next": "16.2.7",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "tailwindcss": "^3"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/react": "19.2.15",
+    "@types/react-dom": "19.2.3",
+    "autoprefixer": "^10.5.0",
+    "typescript": "^6.0.3"
+  }
+}

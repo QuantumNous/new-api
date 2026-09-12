@@ -1,0 +1,20 @@
+# This config file is very similar to common/config/rush/.npmrc, except that .npmrc-publish
+# is used by the "rush publish" command, as publishing often involves different credentials
+# and registries than other operations.
+#
+# Before invoking the package manager, Rush will copy this file to "common/temp/publish-home/.npmrc"
+# and then temporarily map that folder as the "home directory" for the current user account.
+# This enables the same settings to apply for each project folder that gets published.  The copied file
+# will omit any config lines that reference environment variables that are undefined in that session;
+# this avoids problems that would otherwise result due to a missing variable being replaced by
+# an empty string.
+#
+# * * * SECURITY WARNING * * *
+#
+# It is NOT recommended to store authentication tokens in a text file on a lab machine, because
+# other unrelated processes may be able to read the file.  Also, the file may persist indefinitely,
+# for example if the machine loses power.  A safer practice is to pass the token via an
+# environment variable, which can be referenced from .npmrc using ${} expansion.  For example:
+#
+//registry.npmjs.org/:_authToken=${NPM_AUTH_TOKEN}
+#

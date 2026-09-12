@@ -1,0 +1,7 @@
+{
+  "name": "@e2e/resolve-main-fields-package-foo",
+  "type": "module",
+  "main": "./main.js",
+  "module": "./module.js",
+  "custom": "./custom.js"
+}

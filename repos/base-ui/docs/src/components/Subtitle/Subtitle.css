@@ -1,0 +1,65 @@
+@layer components {
+  .Subtitle {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    font-size: var(--font-size-18);
+    line-height: 1.75rem;
+    text-wrap: pretty;
+    color: var(--gray-t1);
+    margin-bottom: 1.5rem;
+    gap: var(--space-16);
+  }
+
+  .MdH1 + .Subtitle {
+    margin-top: -0.75rem;
+  }
+
+  .SubtitleLinks {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: var(--space-24);
+    row-gap: 0;
+    max-width: 100%;
+  }
+
+  .SubtitleLink {
+    flex-shrink: 0;
+
+    &:focus-visible {
+      outline: none;
+    }
+  }
+
+  .SubtitleLinkText {
+    font-size: var(--font-size-14);
+    line-height: 1.25rem;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5em;
+    padding: 0.5em;
+    margin-inline: -0.5em;
+    color: var(--color-foreground);
+  }
+
+  .SubtitleLink:focus-visible .SubtitleLinkText {
+    outline: 2px solid var(--gray-t2);
+    outline-offset: -2px;
+    border-radius: var(--radius-4);
+  }
+
+  .SubtitleLink:hover .SubtitleLinkText {
+    @media (hover: hover) {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-thickness: 1px;
+      text-decoration-color: currentColor;
+    }
+  }
+
+  .SubtitleLinkText svg {
+    /* visually center the icon so we can baseline align it */
+    transform: translateY(3px);
+  }
+}

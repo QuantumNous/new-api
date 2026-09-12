@@ -1,0 +1,20 @@
+{
+  "name": "@router-solid-mono-solid-query/post-query",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build && tsc --noEmit"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@tanstack/solid-query": "^5.90.9",
+    "redaxios": "^0.5.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "vite-plugin-solid": "^2.11.11",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14"
+  }
+}

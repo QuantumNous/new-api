@@ -1,0 +1,37 @@
+.root {
+  --duration: 200ms;
+}
+
+.slowRoot {
+  --duration: 1000ms;
+}
+
+@keyframes slide-down {
+  from {
+    height: 0;
+  }
+
+  to {
+    height: var(--accordion-panel-height);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    height: var(--accordion-panel-height);
+  }
+
+  to {
+    height: 0;
+  }
+}
+
+.panel {
+  &[data-open] {
+    animation: slide-down var(--duration) ease-out;
+  }
+
+  &[data-closed] {
+    animation: slide-up var(--duration) ease-in;
+  }
+}

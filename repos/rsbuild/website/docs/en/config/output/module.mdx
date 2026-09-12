@@ -1,0 +1,80 @@
+---
+description: 'Whether to output JavaScript files in ES modules format.'
+---
+
+# output.module
+
+- **Type:** `boolean`
+- **Default:** `true` when `output.target` is `node`, otherwise `false`
+
+Whether to output JavaScript files in ES modules format.
+
+:::tip
+
+- This option is only available when [output.target](/config/output/target) is `'web'` or `'node'`.
+- If you need to build JavaScript libraries in ESM format, we recommend using [Rslib](https://rslib.rs), which is an out-of-the-box library development tool built on top of Rsbuild.
+
+:::
+
+## Web applications
+
+When building a web application, Rsbuild generates the output in the IIFE format by default.
+
+If you want to output ES Modules instead, set `output.module` to `true`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    module: true,
+  },
+};
+```
+
+:::tip
+When `output.module` is enabled, Rsbuild automatically adds `type="module"` to the generated `<script>` tags, meaning [html.scriptLoading](/config/html/script-loading) is set to `module`.
+:::
+
+## Node.js applications
+
+When building Node.js applications, Rsbuild outputs ES modules format by default. You can set `output.module` to `false` to output CommonJS format instead:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    module: false,
+  },
+};
+```
+
+### Running ESM bundles
+
+Choose either of the following approaches to run ESM bundles in Node.js:
+
+1. Set the `type` field in package.json to `'module'`:
+
+```json title="package.json"
+{
+  "type": "module"
+}
+```
+
+2. Change the output JavaScript file extension to `.mjs`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    filename: {
+      js: '[name].mjs',
+    },
+  },
+};
+```
+
+## Version history
+
+| Version | Changes                             |
+| ------- | ----------------------------------- |
+| v1.5.0  | Added this option                   |
+| v1.6.0  | Support for `target: 'web'`         |
+| v2.0.0  | Default to ESM for `target: 'node'` |

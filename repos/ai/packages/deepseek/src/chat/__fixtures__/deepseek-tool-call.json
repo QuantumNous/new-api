@@ -1,0 +1,43 @@
+{
+  "id": "7a630f5b-b7e6-4878-82f8-d77db164d42b",
+  "object": "chat.completion",
+  "created": 1764665845,
+  "model": "deepseek-reasoner",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "The user is asking for the weather in San Francisco. I have a weather tool available that can get weather information for a location. I should use this tool with the location parameter set to \"San Francisco\". Let me call the weather function.",
+        "tool_calls": [
+          {
+            "index": 0,
+            "id": "call_00_9V0vrf86Pc9aelHCJMZqnJBo",
+            "type": "function",
+            "function": {
+              "name": "weather",
+              "arguments": "{\"location\": \"San Francisco\"}"
+            }
+          }
+        ]
+      },
+      "logprobs": null,
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 339,
+    "completion_tokens": 92,
+    "total_tokens": 431,
+    "prompt_tokens_details": {
+      "cached_tokens": 320
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 48
+    },
+    "prompt_cache_hit_tokens": 320,
+    "prompt_cache_miss_tokens": 19
+  },
+  "system_fingerprint": "fp_eaab8d114b_prod0820_fp8_kvcache"
+}

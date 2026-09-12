@@ -1,0 +1,13 @@
+.dashboard {
+  border-left: 8px solid rgb(124, 58, 237);
+  background: rgb(245, 243, 255);
+  padding: 18px;
+}
+
+.kicker {
+  color: rgb(109, 40, 217);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

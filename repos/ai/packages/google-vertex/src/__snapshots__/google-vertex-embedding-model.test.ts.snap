@@ -1,0 +1,116 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`GoogleVertexEmbeddingModel > embedding > should return full result snapshot 1`] = `
+{
+  "embeddings": [
+    [
+      -0.017999587580561638,
+      -0.006893285550177097,
+      -0.036766719073057175,
+      -0.017558680847287178,
+      -0.019938766956329346,
+    ],
+    [
+      -0.06007182598114014,
+      0.004907649010419846,
+      -0.00690646655857563,
+      -0.007314121350646019,
+      -0.048464205116033554,
+    ],
+  ],
+  "response": {
+    "body": {
+      "metadata": {
+        "billableCharacterCount": 35,
+      },
+      "predictions": [
+        {
+          "embeddings": {
+            "statistics": {
+              "token_count": 5,
+              "truncated": false,
+            },
+            "values": [
+              -0.017999587580561638,
+              -0.006893285550177097,
+              -0.036766719073057175,
+              -0.017558680847287178,
+              -0.019938766956329346,
+            ],
+          },
+        },
+        {
+          "embeddings": {
+            "statistics": {
+              "token_count": 6,
+              "truncated": false,
+            },
+            "values": [
+              -0.06007182598114014,
+              0.004907649010419846,
+              -0.00690646655857563,
+              -0.007314121350646019,
+              -0.048464205116033554,
+            ],
+          },
+        },
+      ],
+    },
+    "headers": {
+      "content-length": "429",
+      "content-type": "application/json",
+    },
+  },
+  "usage": {
+    "tokens": 11,
+  },
+  "warnings": [],
+}
+`;
+
+exports[`GoogleVertexEmbeddingModel > response metadata > should expose the raw response 1`] = `
+{
+  "body": {
+    "metadata": {
+      "billableCharacterCount": 35,
+    },
+    "predictions": [
+      {
+        "embeddings": {
+          "statistics": {
+            "token_count": 5,
+            "truncated": false,
+          },
+          "values": [
+            -0.017999587580561638,
+            -0.006893285550177097,
+            -0.036766719073057175,
+            -0.017558680847287178,
+            -0.019938766956329346,
+          ],
+        },
+      },
+      {
+        "embeddings": {
+          "statistics": {
+            "token_count": 6,
+            "truncated": false,
+          },
+          "values": [
+            -0.06007182598114014,
+            0.004907649010419846,
+            -0.00690646655857563,
+            -0.007314121350646019,
+            -0.048464205116033554,
+          ],
+        },
+      },
+    ],
+  },
+  "headers": {
+    "content-length": "429",
+    "content-type": "application/json",
+    "test-header": "test-value",
+  },
+}
+`;

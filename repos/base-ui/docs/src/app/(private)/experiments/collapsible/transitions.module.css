@@ -1,0 +1,18 @@
+.root {
+  --icon-duration: var(--duration);
+}
+
+.panel {
+  height: var(--collapsible-panel-height);
+  transition: all var(--duration) ease-out;
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+.slowRoot {
+  --duration: 1800ms;
+}

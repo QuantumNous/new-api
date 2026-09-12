@@ -1,0 +1,10 @@
+{
+  "extends": "@scripts/config/tsconfig",
+  "compilerOptions": {
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "skipLibCheck": false,
+    "types": ["@rsbuild/core/types", "node"]
+  },
+  "include": ["index.ts"]
+}

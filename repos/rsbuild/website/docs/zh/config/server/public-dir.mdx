@@ -1,0 +1,210 @@
+---
+description: '默认情况下，Rsbuild 会将 public 目录作为静态资源服务的文件夹，该目录中的文件可在 server.base 路径下访问（默认 /）。'
+---
+
+# server.publicDir
+
+- **类型：**
+
+```ts
+type PublicDirOptions = {
+  name?: string;
+  copyOnBuild?: boolean | 'auto';
+  ignore?: string[];
+  watch?: boolean;
+};
+type PublicDir = false | PublicDirOptions | PublicDirOptions[];
+```
+
+- **默认值：**
+
+```js
+const defaultValue = {
+  name: 'public',
+  copyOnBuild: 'auto',
+  ignore: [],
+  watch: false,
+};
+```
+
+默认情况下，Rsbuild 会将 `public` 目录作为静态资源服务的文件夹，该目录中的文件可在 [server.base](/config/server/base) 路径下访问（默认 `/`）。
+
+> 相关文档：[public 目录](/guide/basic/static-assets#public-folder)。
+
+## 选项
+
+### name
+
+- **类型：** `string`
+- **默认值：** `'public'`
+
+public 目录名称。`name` 的值可以设置为相对路径或绝对路径，相对路径将会相对于项目根目录进行解析。
+
+- 相对路径示例：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    publicDir: {
+      name: '../some-public',
+    },
+  },
+};
+```
+
+- 绝对路径示例：
+
+```ts
+import path from 'node:path';
+
+export default {
+  server: {
+    publicDir: {
+      name: path.join(__dirname, '../some-public'),
+    },
+  },
+};
+```
+
+:::tip
+不建议将 `name` 设置为源代码目录（如 `src`）。因为 public 目录会在生产构建时被复制到输出目录，可能带来源代码泄露风险。
+
+如果需要使用该目录，也可以将 [copyOnBuild](#copyonbuild) 设置为 `false`，避免在构建产物中拷贝相关文件。
+:::
+
+### copyOnBuild
+
+- **类型：** `boolean | 'auto'`
+- **默认值：** `'auto'`
+
+在生产构建时，是否将文件从 public 目录复制到构建产物目录。
+
+- `true`: 复制文件。
+- `false`: 不复制文件。
+- `'auto'`: 当 [output.target](/config/output/target) 不是 `'node'` 时，会复制文件，否则不复制。
+
+:::tip
+在 dev 构建时，如果你需要拷贝一些静态资源到构建产物目录，可以使用 [output.copy](/config/output/copy) 选项代替。
+:::
+
+#### 禁用
+
+比如关闭 `copyOnBuild`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    publicDir: {
+      copyOnBuild: false,
+    },
+  },
+};
+```
+
+需要注意的是，将 `copyOnBuild` 的值为 false 后，如果执行 `rsbuild preview` 进行生产环境预览，将无法访问对应的静态资源文件。
+
+#### Node target
+
+默认情况下，当 [output.target](/config/output/target) 为 `'node'` 时，Rsbuild 不会复制 public 目录下的文件。
+
+你可以将 `copyOnBuild` 设置为 `true` 来为 `node` target 复制文件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+  },
+  server: {
+    publicDir: {
+      copyOnBuild: true,
+    },
+  },
+};
+```
+
+#### 多环境
+
+当执行 [多环境构建](/guide/advanced/environments) 时，Rsbuild 会将文件从 public 目录拷贝到各个环境的输出目录下。如果输出目录存在嵌套的情况，则只会拷贝文件到输出目录的根目录下。例如：
+
+- `web` 环境的构建产物目录设置为 `dist`，`web1` 环境的构建产物目录设置为 `dist/web1`。由于 `dist` 和 `dist/web1` 存在嵌套关系，此时，public 目录文件仅复制到 `dist` 目录下。
+- `esm` 环境的构建产物目录设置为 `dist/esm`，`cjs` 环境的构建产物目录设置为 `dist/cjs`。由于 `dist/esm` 和 `dist/cjs` 不存在嵌套关系，此时，public 目录文件将分别复制到 `dist/esm` 和 `dist/cjs` 目录下。
+
+### ignore
+
+- **类型：** `string[]`
+- **默认值：** `[]`
+
+用于在生产构建复制 `public` 目录时，指定需要忽略的文件或目录的 glob 匹配模式。
+
+该选项只影响构建阶段的复制行为，不会影响开发服务器对静态文件的访问。
+
+例如，在复制 `public` 目录时忽略 `foo.js`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    publicDir: {
+      ignore: ['**/foo.js'],
+    },
+  },
+};
+```
+
+### watch
+
+- **类型：** `boolean`
+- **默认值：** `false`
+
+是否监听 public 目录，并在文件发生变化时重新加载页面。
+
+设置 `watch` 为 `true` 后，开发服务器会监听指定公共目录下的文件变化，并在文件发生变化时重新加载页面：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    publicDir: {
+      watch: true,
+    },
+  },
+};
+```
+
+需要注意的是，`watch` 选项仅在开发模式下有效。如果 [dev.hmr](/config/dev/hmr) 和 [dev.liveReload](/config/dev/live-reload) 都设置为 false，则 `watch` 将被忽略。
+
+## 多目录
+
+`server.publicDir` 可以配置为一个数组，这允许你将多个目录作为静态资源服务的文件夹：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    publicDir: [
+      {
+        name: 'public',
+      },
+      {
+        name: 'assets',
+        watch: false,
+      },
+    ],
+  },
+};
+```
+
+## 禁用
+
+你可以将 `publicDir` 设置成 `false` 来禁用静态资源服务：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    publicDir: false,
+  },
+};
+```
+
+## 版本历史
+
+| 版本   | 变更内容           |
+| ------ | ------------------ |
+| v2.0.0 | 新增 `ignore` 选项 |

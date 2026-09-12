@@ -1,0 +1,9 @@
+Called when closing the dev server. Can be used to perform cleanup operations when the dev server is closed.
+
+Rsbuild CLI will automatically call this hook at the appropriate time, while users of the JavaScript API need to manually call the [server.close()](/api/javascript-api/instance#close-server) method to trigger this hook.
+
+- **Type:**
+
+```ts
+function onCloseDevServer(callback: () => Promise<void> | void): void;
+```

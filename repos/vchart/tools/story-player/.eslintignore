@@ -1,0 +1,6 @@
+dist
+build
+esm
+cjs
+node_modules
+coverage

@@ -1,0 +1,146 @@
+---
+description: 'Rsbuild 支持同时为多个环境构建产物。你可以使用 environments 为每个环境定义不同的 Rsbuild 配置。'
+---
+
+# environments
+
+Rsbuild 支持同时为多个环境构建产物。你可以使用 `environments` 为每个环境定义不同的 Rsbuild 配置。
+
+> 请查看 [多环境构建](/guide/advanced/environments) 了解更多。
+
+- **类型：**
+
+```ts
+type Environments = {
+  [name: string]: EnvironmentConfig;
+};
+```
+
+- **默认值：** `undefined`
+
+## 可用选项
+
+`EnvironmentConfig` 是 Rsbuild 配置的一个子集，支持大部分配置项。
+
+由于多个 environment 共享同一个 server 实例，以下选项暂不支持在 `EnvironmentConfig` 中配置：
+
+- `root`
+- `mode`
+- `logLevel`
+- `customLogger`
+- `environments`
+- `server.*`
+- `dev.watchFiles`
+- `dev.cliShortcuts`
+
+## 示例
+
+分别为 `web` (client) 和 `node` (SSR) 环境配置 Rsbuild：
+
+```ts title="rsbuild.config.ts"
+export default {
+  // 所有环境共享配置
+  resolve: {
+    alias: {
+      '@common': './src/common',
+    },
+  },
+  environments: {
+    // client 环境配置
+    web: {
+      source: {
+        entry: {
+          index: './src/index.client.js',
+        },
+      },
+      output: {
+        target: 'web',
+      },
+      resolve: {
+        alias: {
+          '@common1': './src/web/common1',
+        },
+      },
+    },
+    // SSR 环境配置
+    node: {
+      source: {
+        entry: {
+          index: './src/index.server.js',
+        },
+      },
+      output: {
+        target: 'node',
+        distPath: {
+          root: 'dist/server',
+        },
+      },
+      resolve: {
+        alias: {
+          '@common1': './src/ssr/common1',
+        },
+      },
+    },
+  },
+};
+```
+
+对于 `web` 环境，合并后的 Rsbuild 配置为：
+
+```js
+const webConfig = {
+  source: {
+    entry: {
+      index: './src/index.client.js',
+    },
+  },
+  output: {
+    target: 'web',
+  },
+  resolve: {
+    alias: {
+      '@common': './src/common',
+      '@common1': './src/web/common1',
+    },
+  },
+};
+```
+
+对于 `node` 环境，合并后的 Rsbuild 配置为：
+
+```js
+const nodeConfig = {
+  source: {
+    entry: {
+      index: './src/index.server.js',
+    },
+  },
+  output: {
+    target: 'node',
+    distPath: {
+      root: 'dist/server',
+    },
+  },
+  resolve: {
+    alias: {
+      '@common': './src/common',
+      '@common1': './src/ssr/common1',
+    },
+  },
+};
+```
+
+## Environment 名称
+
+由于 environment 名称会用于目录名和对象属性名，因此建议只包含字母、数字、`-`、`_` 和 `$`，使用其他字符时，Rsbuild 会输出 warning 进行提示。
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    someName: {}, // ✅
+    some_name: {}, // ✅
+    'some-name': {}, // ✅
+    'some:name': {}, // ❌
+  },
+};
+```

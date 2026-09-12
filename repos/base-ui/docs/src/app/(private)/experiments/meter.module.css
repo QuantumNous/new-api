@@ -1,0 +1,52 @@
+.Root {
+  --icon-size: 44px;
+  display: flex;
+  margin-top: 50dvh;
+}
+
+.Track {
+  position: relative;
+  width: 40px;
+  height: 26px;
+  border-radius: 5px;
+  border: 3px solid currentColor;
+  padding: 2px;
+  display: flex;
+
+  @media (prefers-color-scheme: dark) {
+    border-width: 1px;
+    padding: 3px;
+  }
+}
+
+.Track::after {
+  content: '';
+  background-color: currentColor;
+  position: absolute;
+  z-index: 1;
+  top: 3px;
+  right: -6px;
+  width: 3px;
+  height: 14px;
+  border-radius: 0 6px 6px 0;
+
+  @media (prefers-color-scheme: dark) {
+    top: 4px;
+    right: -4px;
+    height: 15px;
+    border-radius: 0 8px 7px 0;
+  }
+}
+
+.Icon {
+  position: absolute;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  transform: translate(-2px, -20%);
+}
+
+.Indicator {
+  background-color: rgb(40 205 65);
+  border-radius: 3px;
+  height: revert-layer !important;
+}

@@ -1,0 +1,185 @@
+---
+description: '为开发服务器和预览服务器配置 CORS 选项，基于 cors 中间件实现。'
+---
+
+# server.cors
+
+- **类型：** `boolean | import('cors').CorsOptions`
+- **默认值：**
+
+```ts
+const defaultAllowedOrigins =
+  /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/;
+
+const defaultOptions = {
+  // 默认允许：
+  // - localhost
+  // - 127.0.0.1
+  // - [::1]
+  origin: defaultAllowedOrigins,
+};
+```
+
+- **版本：** `>= 1.1.11`
+
+为开发服务器和预览服务器配置 [CORS](https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS) 选项，基于 [cors](https://github.com/expressjs/cors) 中间件实现。
+
+- `object`：启用 CORS 并使用指定的选项。
+- `true`：启用 CORS 并使用默认选项（允许所有 origin，不推荐）。
+- `false`：禁用 CORS。
+
+:::warning
+使用 `cors: true` 或 `cors.origin: '*'` 会使你的开发服务器对所有 origin 开放，这可能会危及源代码的安全性，建议使用 [origin](#origin) 选项指定一个受信任 origins 的白名单。
+:::
+
+## 示例
+
+- 为特定 origin 启用 CORS：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    cors: {
+      // 配置 `Access-Control-Allow-Origin` CORS 响应头
+      origin: 'https://example.com',
+    },
+  },
+};
+```
+
+- 保留 Rsbuild 默认的 origin 配置，并添加额外的 origin：
+
+```ts title="rsbuild.config.ts"
+// `defaultAllowedOrigins` 为 Rsbuild 默认的 origin 值
+import { defaultAllowedOrigins } from '@rsbuild/core';
+
+export default {
+  server: {
+    cors: {
+      origin: [defaultAllowedOrigins, 'https://example.com'],
+    },
+  },
+};
+```
+
+- 仅为开发服务器启用 CORS：
+
+```ts title="rsbuild.config.ts"
+const isDev = process.env.NODE_ENV === 'development';
+
+export default {
+  server: {
+    cors: isDev ? { origin: 'https://example.com' } : false,
+  },
+};
+```
+
+- 禁用 CORS：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    cors: false,
+  },
+};
+```
+
+- 为所有 origin 启用 CORS（不推荐）：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    // 等价于 `{ origin: '*' }`
+    cors: true,
+  },
+};
+```
+
+## 选项
+
+`cors` 选项可以是一个对象，与 [cors](https://github.com/expressjs/cors) 中间件的选项相同。
+
+默认配置等同于：
+
+```js
+const defaultCorsOptions = {
+  origin: '*',
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+};
+```
+
+### origin
+
+- **类型：**
+
+```ts
+type StaticOrigin = boolean | string | RegExp | Array<boolean | string | RegExp>;
+
+type CustomOrigin = (
+  requestOrigin: string | undefined,
+  callback: (err: Error | null, origin?: StaticOrigin) => void,
+) => void;
+
+type Origin = StaticOrigin | CustomOrigin;
+```
+
+`origin` 选项用于配置 `Access-Control-Allow-Origin` 头：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    cors: {
+      origin: 'https://example.com',
+    },
+  },
+};
+```
+
+通过数组指定多个允许的 origin：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    cors: {
+      origin: [
+        /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/,
+        'https://example.com',
+      ],
+    },
+  },
+};
+```
+
+使用正则表达式来允许所有匹配的 origin：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    cors: {
+      origin: /\.example\.com$/,
+    },
+  },
+};
+```
+
+将 `origin` 设置为函数，可以动态决定允许的 origin，函数接收两个参数：
+
+- `origin`：当前请求的 origin，`undefined` 表示该请求没有 origin。
+- `callback`：一个回调函数，用于设置允许的 origin。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    cors: {
+      origin: (origin, callback) => {
+        // loadMyOrigins is an example call to load a list of origins
+        loadMyOrigins((error, origins) => {
+          callback(error, origins);
+        });
+      },
+    },
+  },
+};
+```

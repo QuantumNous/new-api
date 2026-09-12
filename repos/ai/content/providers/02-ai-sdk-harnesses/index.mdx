@@ -1,0 +1,56 @@
+---
+title: AI SDK Harnesses
+description: Learn how to use AI SDK harness adapters.
+---
+
+# AI SDK Harnesses
+
+AI SDK harness adapters connect `HarnessAgent` to established agent runtimes.
+They are separate from model providers, but they expose AI SDK-compatible stream
+and response primitives.
+
+<IndexCards
+  cards={[
+    {
+      title: 'Claude Code',
+      description: 'Use Claude Code through the AI SDK harness abstraction.',
+      href: '/providers/ai-sdk-harnesses/claude-code',
+    },
+    {
+      title: 'Codex',
+      description: 'Use Codex through the AI SDK harness abstraction.',
+      href: '/providers/ai-sdk-harnesses/codex',
+    },
+    {
+      title: 'OpenCode',
+      description: 'Use OpenCode through the AI SDK harness abstraction.',
+      href: '/providers/ai-sdk-harnesses/opencode',
+    },
+    {
+      title: 'Pi',
+      description: 'Use Pi through the AI SDK harness abstraction.',
+      href: '/providers/ai-sdk-harnesses/pi',
+    },
+  ]}
+/>
+
+## Usage
+
+All harness adapters are used with `HarnessAgent`:
+
+```ts
+import { HarnessAgent } from '@ai-sdk/harness/agent';
+import { codex } from '@ai-sdk/harness-codex';
+import { createVercelSandbox } from '@ai-sdk/sandbox-vercel';
+
+const agent = new HarnessAgent({
+  harness: codex,
+  sandbox: createVercelSandbox({
+    runtime: 'node24',
+    ports: [4000],
+  }),
+});
+```
+
+Read the [Harnesses](/docs/ai-sdk-harnesses) documentation for sessions,
+tools, UI, and terminal usage.
