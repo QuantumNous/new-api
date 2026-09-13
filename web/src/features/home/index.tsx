@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
@@ -26,7 +26,7 @@ import { useTheme } from '@/context/theme-provider'
 import { isLikelyHtml } from '@/lib/content-format'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { CTA, Features, Hero, HowItWorks, Stats } from './components'
+import { CTA, Features, Hero, HomeNoticeDialog, HowItWorks, Stats } from './components'
 import { useHomePageContent } from './hooks'
 
 export function Home() {
@@ -68,46 +68,42 @@ export function Home() {
     )
   }
 
-  if (content) {
-    if (isUrl) {
-      return (
-        <PublicLayout showMainContainer={false}>
-          {/*
-            allow-top-navigation-by-user-activation: the custom home page URL is
-            admin-configured (trusted); this lets its target="_top" nav/menu links
-            navigate the top-level window on user click. The default sandbox blocks
-            this on desktop, while some mobile browsers allow it via allow-popups,
-            causing inconsistent behavior. This token only permits user-activated
-            top-level navigation and does NOT grant same-origin access.
-          */}
-          <iframe
-            ref={iframeRef}
-            src={content}
-            className='h-screen w-full border-none'
-            title={t('Custom Home Page')}
-            sandbox='allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts allow-top-navigation-by-user-activation'
-            onLoad={syncIframePreferences}
-          />
-        </PublicLayout>
-      )
-    }
+  let body: ReactNode
 
-    const contentIsHtml = isLikelyHtml(content)
-
-    if (contentIsHtml) {
-      return (
-        <PublicLayout showMainContainer={false}>
-          <RichContent
-            mode='html'
-            htmlVariant='isolated'
-            content={content}
-            className='custom-home-content'
-          />
-        </PublicLayout>
-      )
-    }
-
-    return (
+  if (content && isUrl) {
+    body = (
+      <PublicLayout showMainContainer={false}>
+        {/*
+          allow-top-navigation-by-user-activation: the custom home page URL is
+          admin-configured (trusted); this lets its target="_top" nav/menu links
+          navigate the top-level window on user click. The default sandbox blocks
+          this on desktop, while some mobile browsers allow it via allow-popups,
+          causing inconsistent behavior. This token only permits user-activated
+          top-level navigation and does NOT grant same-origin access.
+        */}
+        <iframe
+          ref={iframeRef}
+          src={content}
+          className='h-screen w-full border-none'
+          title={t('Custom Home Page')}
+          sandbox='allow-forms allow-popups allow-popups-to-escape-sandbox allow-scripts allow-top-navigation-by-user-activation'
+          onLoad={syncIframePreferences}
+        />
+      </PublicLayout>
+    )
+  } else if (content && isLikelyHtml(content)) {
+    body = (
+      <PublicLayout showMainContainer={false}>
+        <RichContent
+          mode='html'
+          htmlVariant='isolated'
+          content={content}
+          className='custom-home-content'
+        />
+      </PublicLayout>
+    )
+  } else if (content) {
+    body = (
       <PublicLayout>
         <div className='mx-auto max-w-6xl px-4 py-8'>
           <RichContent
@@ -118,16 +114,23 @@ export function Home() {
         </div>
       </PublicLayout>
     )
+  } else {
+    body = (
+      <PublicLayout showMainContainer={false}>
+        <Hero isAuthenticated={isAuthenticated} />
+        <Stats />
+        <Features />
+        <HowItWorks />
+        <CTA isAuthenticated={isAuthenticated} />
+        <Footer />
+      </PublicLayout>
+    )
   }
 
   return (
-    <PublicLayout showMainContainer={false}>
-      <Hero isAuthenticated={isAuthenticated} />
-      <Stats />
-      <Features />
-      <HowItWorks />
-      <CTA isAuthenticated={isAuthenticated} />
-      <Footer />
-    </PublicLayout>
+    <>
+      <HomeNoticeDialog />
+      {body}
+    </>
   )
 }
