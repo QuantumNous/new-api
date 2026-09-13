@@ -483,7 +483,7 @@ Token、Origin 校验和 PAT 契约见[用户鉴权与登录会话](./docs/authe
 
 <div align="center">
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Calcium-Ion/new-api&type=Date)](https://star-history.com/#Calcium-Ion/new-api&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=Calcium-Ion/new-api&type=Date)](https://star-history.dera.page/#Calcium-Ion/new-api&Date)
 
 </div>
 

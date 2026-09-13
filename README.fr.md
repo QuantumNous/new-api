@@ -483,7 +483,7 @@ Si les politiques de votre organisation ne permettent pas l'utilisation de logic
 
 <div align="center">
 
-[![Graphique de l'historique des étoiles](https://api.star-history.com/svg?repos=Calcium-Ion/new-api&type=Date)](https://star-history.com/#Calcium-Ion/new-api&Date)
+[![Graphique de l'historique des étoiles](https://star-history.dera.page/svg?repos=Calcium-Ion/new-api&type=Date)](https://star-history.dera.page/#Calcium-Ion/new-api&Date)
 
 </div>
 
