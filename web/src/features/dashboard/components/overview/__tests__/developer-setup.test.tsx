@@ -353,3 +353,111 @@ describe('developer setup guide', () => {
     expect(await screen.findByText('No models available')).toBeVisible()
   })
 })
+
+describe('setup key routing', () => {
+  it('loads models from the user group when the key inherits its group', async () => {
+    const auth = useAuthStore.getState().auth
+    expect(auth.user).not.toBeNull()
+    if (!auth.user) throw new Error('Missing authenticated user fixture')
+    auth.setUser({ ...auth.user, group: 'inherited' })
+    const userId = auth.user?.id
+    client.setQueryData(
+      ['dashboard', 'overview', 'api-keys', userId],
+      [
+        {
+          id: 42,
+          status: 1,
+          key: 'masked',
+          group: '',
+          model_limits_enabled: false,
+        },
+      ]
+    )
+    client.removeQueries({ queryKey: ['dashboard', 'overview', 'user-models'] })
+    vi.mocked(api.get).mockResolvedValue({
+      data: { success: true, data: ['example-model'] },
+    })
+    await renderApp(<DeveloperSetupGuide />, client)
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', {
+          name: 'Copy ready-to-run curl',
+        })
+      ).toBeEnabled()
+    )
+    expect(api.get).toHaveBeenCalledWith('/api/user/models', {
+      params: { group: 'inherited' },
+    })
+  })
+
+  it.each([
+    ['allowed-chat', ['blocked-chat', 'allowed-chat'], 'allowed-chat'],
+    ['', ['blocked-chat'], null],
+    [null, ['blocked-chat'], null],
+    ['unavailable-chat', ['blocked-chat'], null],
+    [
+      'gpt-4o-gizmo-*',
+      ['blocked-chat', 'gpt-4o-gizmo-demo'],
+      'gpt-4o-gizmo-demo',
+    ],
+    [
+      'gpt-4o-gizmo-demo',
+      ['blocked-chat', 'gpt-4o-gizmo-demo'],
+      'gpt-4o-gizmo-demo',
+    ],
+    [
+      'gemini-2.5-flash-lite-thinking-*',
+      ['gemini-2.5-flash-lite-thinking-128'],
+      'gemini-2.5-flash-lite-thinking-128',
+    ],
+  ])(
+    'applies allowlist %s to available models %j',
+    async (limits, models, expected) => {
+      const user = userEvent.setup()
+      const clipboard = vi
+        .spyOn(navigator.clipboard, 'writeText')
+        .mockResolvedValue()
+      const reveal = vi.spyOn(api, 'post').mockResolvedValue({
+        data: { success: true, data: { key: 'sk-test' } },
+      })
+      const id = useAuthStore.getState().auth.user?.id
+      client.setQueryData(
+        ['dashboard', 'overview', 'api-keys', id],
+        [
+          {
+            id: 42,
+            status: 1,
+            key: 'masked',
+            group: 'default',
+            model_limits_enabled: true,
+            model_limits: limits,
+          },
+        ]
+      )
+      client.setQueryData(
+        ['dashboard', 'overview', 'user-models', id, 'default'],
+        models
+      )
+      client.setQueryData(['pricing'], {
+        success: true,
+        data: models.map((model_name) => ({
+          model_name,
+          supported_endpoint_types: ['openai'],
+        })),
+      })
+      await renderApp(<DeveloperSetupGuide />, client)
+      const button = screen.getByRole('button', {
+        name: 'Copy ready-to-run curl',
+      })
+      if (expected) {
+        await waitFor(() => expect(button).toBeEnabled())
+        await user.click(button)
+        await waitFor(() => expect(clipboard).toHaveBeenCalled())
+        expect(clipboard.mock.calls[0][0]).toContain(JSON.stringify(expected))
+      } else {
+        expect(button).toBeDisabled()
+        expect(reveal).not.toHaveBeenCalled()
+      }
+    }
+  )
+})

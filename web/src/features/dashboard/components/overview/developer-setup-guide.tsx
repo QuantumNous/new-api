@@ -145,7 +145,9 @@ export function DeveloperSetupGuide() {
   const complete = completedCount === steps.length
   const expanded =
     manualExpanded ?? (keysQuery.isSuccess && Boolean(user) && !complete)
-  const selectedGroup = preferredKey?.group?.trim() ?? ''
+  const selectedGroup = preferredKey
+    ? preferredKey.group || user?.group || ''
+    : ''
   const modelsQuery = useQuery({
     queryKey: ['dashboard', 'overview', 'user-models', user?.id, selectedGroup],
     queryFn: async () => {
@@ -172,8 +174,29 @@ export function DeveloperSetupGuide() {
         )
         .map((item) => item.model_name)
     )
-    return modelsQuery.data?.find((candidate) => chatModels.has(candidate))
-  }, [modelsQuery.data, pricingQuery.data])
+    const allowedModels = preferredKey?.model_limits_enabled
+      ? new Set((preferredKey.model_limits ?? '').split(','))
+      : null
+    return modelsQuery.data?.find((candidate) => {
+      if (!chatModels.has(candidate)) return false
+      if (!allowedModels) return true
+      // Match middleware/distributor.go's FormatMatchingModelName contract.
+      let matchName = candidate
+      const thinkingFamily = [
+        'gemini-2.5-flash-lite',
+        'gemini-2.5-flash',
+        'gemini-2.5-pro',
+      ].find((prefix) => candidate.startsWith(prefix))
+      if (thinkingFamily && candidate.includes('-thinking-')) {
+        matchName = `${thinkingFamily}-thinking-*`
+      } else if (candidate.startsWith('gpt-4-gizmo')) {
+        matchName = 'gpt-4-gizmo-*'
+      } else if (candidate.startsWith('gpt-4o-gizmo')) {
+        matchName = 'gpt-4o-gizmo-*'
+      }
+      return allowedModels.has(candidate) || allowedModels.has(matchName)
+    })
+  }, [modelsQuery.data, pricingQuery.data, preferredKey])
   const ready = Boolean(preferredKey?.id && model)
   const environmentLoading =
     Boolean(preferredKey && selectedGroup) &&
