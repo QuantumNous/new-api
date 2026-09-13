@@ -22,7 +22,7 @@ export default defineConfig(({ envMode }) => {
     ''
   const normalizedPrefix =
     devPrefix && devPrefix !== '/'
-      ? '/' + devPrefix.replace(/^\/+/, '').replace(/\/+$/, '')
+      ? `/${devPrefix.replace(/^\/+/, '').replace(/\/+$/, '')}`
       : ''
   const devProxy = Object.fromEntries(
     (['/api', '/v1', '/mj', '/pg'] as const).map((key) => [

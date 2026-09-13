@@ -37,10 +37,7 @@ describe('http-client baseURL with route prefix', () => {
 
   beforeEach((): void => {
     vi.resetModules();
-    originalAdapter && (axios.defaults.adapter = vi.fn(adapterMock));
-    if (!originalAdapter) {
-      axios.defaults.adapter = vi.fn(adapterMock);
-    }
+    axios.defaults.adapter = vi.fn(adapterMock);
   });
 
   afterEach((): void => {
