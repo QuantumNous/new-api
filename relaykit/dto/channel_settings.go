@@ -2,6 +2,7 @@ package dto
 
 import (
 	"fmt"
+	"math/big"
 	"net/url"
 	"regexp"
 	"strings"
@@ -86,10 +87,83 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastRemovedModels  []string              `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string              `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
 	AdvancedCustom                        *AdvancedCustomConfig `json:"advanced_custom,omitempty"`
+	VideoSupplierCost                     *VideoSupplierCost    `json:"video_supplier_cost,omitempty"`
 	// ToolLossPolicy is a channel-level opt-in for request-phase conversion
 	// rejection. Empty follows the default allow policy. Accepted values:
 	// "", "allow", "safe", "strict".
 	ToolLossPolicy string `json:"tool_loss_policy,omitempty"`
+}
+
+var (
+	videoSupplierCurrencyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]{0,15}$`)
+	videoSupplierAmountPattern   = regexp.MustCompile(`^\d{1,12}(?:\.\d{1,6})?$`)
+)
+
+// VideoSupplierCost describes an operator's upstream video cost for channel
+// selection. Decimal strings avoid floating-point rounding. PerRequest and
+// PerSecond may be combined.
+type VideoSupplierCost struct {
+	Currency   string `json:"currency"`
+	PerRequest string `json:"per_request,omitempty"`
+	PerSecond  string `json:"per_second,omitempty"`
+}
+
+func parseVideoSupplierAmount(field, raw string) (*big.Rat, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return new(big.Rat), nil
+	}
+	if !videoSupplierAmountPattern.MatchString(raw) {
+		return nil, fmt.Errorf("video_supplier_cost.%s must be a non-negative decimal with at most 12 integer and 6 fractional digits", field)
+	}
+	amount, ok := new(big.Rat).SetString(raw)
+	if !ok {
+		return nil, fmt.Errorf("invalid video_supplier_cost.%s", field)
+	}
+	return amount, nil
+}
+
+func (c *VideoSupplierCost) Validate() error {
+	if c == nil {
+		return nil
+	}
+	if !videoSupplierCurrencyPattern.MatchString(strings.TrimSpace(c.Currency)) {
+		return fmt.Errorf("video_supplier_cost.currency must be 1-16 letters, digits, underscores, or hyphens and start with a letter")
+	}
+	if strings.TrimSpace(c.PerRequest) == "" && strings.TrimSpace(c.PerSecond) == "" {
+		return fmt.Errorf("video_supplier_cost requires per_request or per_second")
+	}
+	if _, err := parseVideoSupplierAmount("per_request", c.PerRequest); err != nil {
+		return err
+	}
+	if _, err := parseVideoSupplierAmount("per_second", c.PerSecond); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Estimate returns the configured upstream cost for a positive duration.
+func (c *VideoSupplierCost) Estimate(durationSeconds int) (*big.Rat, error) {
+	if c == nil {
+		return nil, fmt.Errorf("video_supplier_cost is required")
+	}
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	if durationSeconds <= 0 {
+		return nil, fmt.Errorf("video duration must be positive")
+	}
+	perRequest, err := parseVideoSupplierAmount("per_request", c.PerRequest)
+	if err != nil {
+		return nil, err
+	}
+	perSecond, err := parseVideoSupplierAmount("per_second", c.PerSecond)
+	if err != nil {
+		return nil, err
+	}
+	seconds := new(big.Rat).SetInt64(int64(durationSeconds))
+	variableCost := new(big.Rat).Mul(perSecond, seconds)
+	return new(big.Rat).Add(perRequest, variableCost), nil
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {

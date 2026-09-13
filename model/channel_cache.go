@@ -120,21 +120,30 @@ func GetRandomSatisfiedChannel(
 	retry int,
 	filters []dto.ChannelFilter,
 ) (*Channel, error) {
+	return GetRandomSatisfiedChannelWithOptions(group, model, retry, ChannelSelectionOptions{Filters: filters})
+}
+
+func GetRandomSatisfiedChannelWithOptions(
+	group string,
+	model string,
+	retry int,
+	options ChannelSelectionOptions,
+) (*Channel, error) {
 	// if memory cache is disabled, get channel directly from database
 	if !common.MemoryCacheEnabled {
-		return GetChannel(group, model, retry, filters)
+		return GetChannelWithOptions(group, model, retry, options)
 	}
 
 	channelSyncLock.RLock()
 	defer channelSyncLock.RUnlock()
 
 	// First, try to find channels with the exact model name.
-	channels, _ := filterCandidateIDs(group2model2channels[group][model], model, filters)
+	channels, _ := filterCandidateIDs(group2model2channels[group][model], model, options.Filters)
 
 	// If no channels found, try to find channels with the normalized model name.
 	if len(channels) == 0 {
 		normalizedModel := ratio_setting.RoutingMatchModelName(model)
-		channels, _ = filterCandidateIDs(group2model2channels[group][normalizedModel], model, filters)
+		channels, _ = filterCandidateIDs(group2model2channels[group][normalizedModel], model, options.Filters)
 	}
 
 	if len(channels) == 0 {
@@ -168,12 +177,10 @@ func GetRandomSatisfiedChannel(
 	targetPriority := int64(sortedUniquePriorities[retry])
 
 	// get the priority for the given retry number
-	var sumWeight = 0
 	var targetChannels []*Channel
 	for _, channelId := range channels {
 		if channel, ok := channelsIDM[channelId]; ok {
 			if channel.GetPriority() == targetPriority {
-				sumWeight += channel.GetWeight()
 				targetChannels = append(targetChannels, channel)
 			}
 		} else {
@@ -183,6 +190,13 @@ func GetRandomSatisfiedChannel(
 
 	if len(targetChannels) == 0 {
 		return nil, errors.New(fmt.Sprintf("no channel found, group: %s, model: %s, priority: %d", group, model, targetPriority))
+	}
+	targetChannels = excludePreviouslyTriedChannels(targetChannels, options.ExcludedChannelIDs)
+	targetChannels = keepLowestVideoCostChannels(targetChannels, options.VideoDurationSeconds)
+
+	var sumWeight int
+	for _, channel := range targetChannels {
+		sumWeight += channel.GetWeight()
 	}
 
 	// smoothing factor and adjustment

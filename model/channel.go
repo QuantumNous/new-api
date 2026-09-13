@@ -992,6 +992,11 @@ func (channel *Channel) ValidateSettings() error {
 	if err := channelOtherSettings.ValidateToolLossPolicy(); err != nil {
 		return err
 	}
+	if channelOtherSettings.VideoSupplierCost != nil {
+		if err := channelOtherSettings.VideoSupplierCost.Validate(); err != nil {
+			return err
+		}
+	}
 	if channel.Type == constant.ChannelTypeAdvancedCustom {
 		if channelOtherSettings.AdvancedCustom == nil {
 			return fmt.Errorf("advanced_custom is required")

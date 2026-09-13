@@ -113,6 +113,8 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 	filters := GetChannelConstraints(param.Ctx).Filters
+	selectionOptions := videoChannelSelectionOptions(param)
+	selectionOptions.Filters = filters
 
 	if param.TokenGroup == "auto" {
 		autoGroups := GetRequestAutoGroups(param.Ctx, userGroup)
@@ -143,11 +145,11 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(
+			channel, _ = model.GetRandomSatisfiedChannelWithOptions(
 				autoGroup,
 				param.ModelName,
 				priorityRetry,
-				filters,
+				selectionOptions,
 			)
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
@@ -186,11 +188,11 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
-		channel, err = model.GetRandomSatisfiedChannel(
+		channel, err = model.GetRandomSatisfiedChannelWithOptions(
 			param.TokenGroup,
 			param.ModelName,
 			param.GetRetry(),
-			filters,
+			selectionOptions,
 		)
 		if err != nil {
 			return nil, param.TokenGroup, err

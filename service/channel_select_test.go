@@ -2,10 +2,16 @@ package service
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -182,4 +188,98 @@ func TestSharedType61IdentityFilterContainsAllCandidateKeys(t *testing.T) {
 	assert.Equal(t, "alpha", filters[0].TaskPluginKey)
 	assert.Equal(t, []string{"alpha", "beta"}, filters[0].TaskPluginKeys)
 	assert.Empty(t, filters[0].TaskPluginChannelTypes)
+}
+
+func TestInferVideoDurationSeconds(t *testing.T) {
+	tests := []struct {
+		name   string
+		prompt string
+		want   int
+		ok     bool
+	}{
+		{name: "Chinese numeric", prompt: "生成一个7秒的竖屏视频", want: 7, ok: true},
+		{name: "Chinese number word", prompt: "请制作十秒视频", want: 10, ok: true},
+		{name: "English number", prompt: "make a 5-second cinematic video", want: 5, ok: true},
+		{name: "English word", prompt: "make a ten-second cinematic video", want: 10, ok: true},
+		{name: "duration label", prompt: "video duration: 12 seconds, portrait", want: 12, ok: true},
+		{name: "conflicting durations", prompt: "前5秒静止，然后生成7秒视频", ok: false},
+		{name: "era is not duration", prompt: "generate a video in 1920s film style", ok: false},
+		{name: "no explicit duration", prompt: "生成一个电影感视频", ok: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, ok := inferVideoDurationSeconds(test.prompt)
+			assert.Equal(t, test.ok, ok)
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
+func TestVideoRequestCostRoutingSelectsByStructuredOrPromptDuration(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	const modelName = "request-aware-video-model"
+	createChannelSelectAutoGroupsChannel(t, db, 2201, "default", modelName)
+	createChannelSelectAutoGroupsChannel(t, db, 2202, "default", modelName)
+
+	costs := map[int]*kitdto.VideoSupplierCost{
+		2201: {Currency: "CNY", PerSecond: "1"},
+		2202: {Currency: "CNY", PerRequest: "6"},
+	}
+	for channelID, cost := range costs {
+		var channel model.Channel
+		require.NoError(t, db.First(&channel, channelID).Error)
+		channel.SetOtherSettings(kitdto.ChannelOtherSettings{VideoSupplierCost: cost})
+		require.NoError(t, db.Model(&channel).Update("settings", channel.OtherSettings).Error)
+	}
+	model.InitChannelCache()
+
+	tests := []struct {
+		name          string
+		body          string
+		usedChannels  []string
+		wantChannelID int
+	}{
+		{
+			name:          "structured duration takes precedence over prompt",
+			body:          `{"model":"request-aware-video-model","prompt":"生成一个7秒视频","duration":5}`,
+			wantChannelID: 2201,
+		},
+		{
+			name:          "Chinese prompt seven seconds chooses fixed channel",
+			body:          `{"model":"request-aware-video-model","prompt":"生成一个7秒的竖屏视频"}`,
+			wantChannelID: 2202,
+		},
+		{
+			name:          "retry excludes failed cheapest channel",
+			body:          `{"model":"request-aware-video-model","prompt":"生成一个7秒的竖屏视频"}`,
+			usedChannels:  []string{"2202"},
+			wantChannelID: 2201,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			request := httptest.NewRequest(http.MethodPost, "/v1/videos", strings.NewReader(test.body))
+			request.Header.Set("Content-Type", "application/json")
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = request
+			ctx.Set("use_channel", test.usedChannels)
+			common.SetContextKey(ctx, constant.ContextKeyUserGroup, "default")
+
+			retry := 0
+			channel, selectedGroup, err := CacheGetRandomSatisfiedChannel(&RetryParam{
+				Ctx:         ctx,
+				TokenGroup:  "default",
+				ModelName:   modelName,
+				RequestPath: "/v1/videos",
+				Retry:       &retry,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, channel)
+			assert.Equal(t, "default", selectedGroup)
+			assert.Equal(t, test.wantChannelID, channel.Id)
+		})
+	}
 }

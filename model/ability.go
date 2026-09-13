@@ -111,12 +111,21 @@ func GetChannel(
 	retry int,
 	filters []dto.ChannelFilter,
 ) (*Channel, error) {
+	return GetChannelWithOptions(group, model, retry, ChannelSelectionOptions{Filters: filters})
+}
+
+func GetChannelWithOptions(
+	group string,
+	model string,
+	retry int,
+	options ChannelSelectionOptions,
+) (*Channel, error) {
 	var abilities []Ability
 	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, model, true).Order("priority DESC, weight DESC").Find(&abilities).Error
 	if err != nil {
 		return nil, err
 	}
-	abilities = filterAbilitiesByConstraints(abilities, model, filters)
+	abilities = filterAbilitiesByConstraints(abilities, model, options.Filters)
 	if len(abilities) > 0 {
 		priorities := make([]int64, 0)
 		seen := make(map[int64]bool)
@@ -139,6 +148,8 @@ func GetChannel(
 			return ability.Priority == nil && targetPriority == 0 || ability.Priority != nil && *ability.Priority == targetPriority
 		})
 	}
+	abilities = excludePreviouslyTriedAbilities(abilities, options.ExcludedChannelIDs)
+	abilities = keepLowestVideoCostAbilities(abilities, options.VideoDurationSeconds)
 	channel := Channel{}
 	if len(abilities) > 0 {
 		// Randomly choose one
