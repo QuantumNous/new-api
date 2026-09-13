@@ -71,7 +71,7 @@ func GetAuditLogs(c *gin.Context) {
 	}
 	filter := model.AuditLogFilter{Username: c.Query("username"), Category: c.Query("category"), TokenRef: c.Query("token_ref"), ExcludeTokenRef: c.Query("exclude_token_ref"), RequestId: c.Query("request_id")}
 	viewerRole := c.GetInt("role")
-	if c.FullPath() == "/api/audit/self" {
+	if common.StripRoutePrefix(c.FullPath()) == "/api/audit/self" {
 		filter.UserId = c.GetInt("id")
 		filter.Username = ""
 		filter.SelfView = true

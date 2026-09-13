@@ -15,7 +15,7 @@ func SystemPerformanceCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 仅检查 Relay 接口 (/v1, /v1beta 等)
 		// 这里简单判断路径前缀，可以根据实际路由调整
-		path := c.Request.URL.Path
+		path := common.StripRoutePrefix(c.Request.URL.Path)
 		if strings.HasPrefix(path, "/v1/messages") {
 			if err := checkSystemPerformance(); err != nil {
 				c.JSON(err.StatusCode, gin.H{

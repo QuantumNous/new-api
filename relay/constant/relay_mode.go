@@ -2,6 +2,8 @@ package constant
 
 import (
 	"strings"
+
+	"github.com/QuantumNous/new-api/common"
 )
 
 const (
@@ -53,6 +55,7 @@ const (
 
 func Path2RelayMode(path string) int {
 	relayMode := RelayModeUnknown
+	path = common.StripRoutePrefix(path)
 	if strings.HasPrefix(path, "/v1/chat/completions") || strings.HasPrefix(path, "/pg/chat/completions") {
 		relayMode = RelayModeChatCompletions
 	} else if strings.HasPrefix(path, "/v1/completions") {

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
@@ -110,7 +111,7 @@ func (l *taskArtifactAccessLimiter) acquire(ip, taskID, artifactKey string) (fun
 
 func redactTaskArtifactAccessQuery() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		path := c.Request.URL.Path
+		path := common.StripRoutePrefix(c.Request.URL.Path)
 		isArtifactContent := strings.HasPrefix(path, "/v1/tasks/") &&
 			strings.Contains(path, "/artifacts/") &&
 			strings.HasSuffix(path, "/content")

@@ -204,25 +204,26 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	} else {
 		// 根据请求路径自动检测
 		relayFormat = types.RelayFormatOpenAI
-		if c.Request.URL.Path == "/v1/embeddings" {
+		path := common.StripRoutePrefix(c.Request.URL.Path)
+		if path == "/v1/embeddings" {
 			relayFormat = types.RelayFormatEmbedding
 		}
-		if c.Request.URL.Path == "/v1/images/generations" {
+		if path == "/v1/images/generations" {
 			relayFormat = types.RelayFormatOpenAIImage
 		}
-		if c.Request.URL.Path == "/v1/messages" {
+		if path == "/v1/messages" {
 			relayFormat = types.RelayFormatClaude
 		}
-		if strings.Contains(c.Request.URL.Path, "/v1beta/models") {
+		if strings.Contains(path, "/v1beta/models") {
 			relayFormat = types.RelayFormatGemini
 		}
-		if c.Request.URL.Path == "/v1/rerank" || c.Request.URL.Path == "/rerank" {
+		if path == "/v1/rerank" || path == "/rerank" {
 			relayFormat = types.RelayFormatRerank
 		}
-		if c.Request.URL.Path == "/v1/responses" {
+		if path == "/v1/responses" {
 			relayFormat = types.RelayFormatOpenAIResponses
 		}
-		if strings.HasPrefix(c.Request.URL.Path, "/v1/responses/compact") {
+		if strings.HasPrefix(path, "/v1/responses/compact") {
 			relayFormat = types.RelayFormatOpenAIResponsesCompaction
 		}
 	}

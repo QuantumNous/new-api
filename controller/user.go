@@ -104,7 +104,7 @@ func loginMethodFromContext(c *gin.Context) string {
 	if method := c.GetString("login_method"); method != "" {
 		return method
 	}
-	switch c.FullPath() {
+	switch common.StripRoutePrefix(c.FullPath()) {
 	case "/api/user/login":
 		return "password"
 	case "/api/user/login/2fa":
