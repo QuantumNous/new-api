@@ -51,6 +51,7 @@ function resolveModelProvider(modelName: string): ModelProvider | null {
     hasAny([
       'gpt-',
       'chatgpt-',
+      'codex-',
       'text-embedding-',
       'omni-moderation',
       'dall-e',
