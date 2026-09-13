@@ -30,9 +30,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MarketingHeader } from '@/components/layout/components/marketing-header'
+import { RichContent } from '@/components/rich-content'
 import { useTheme } from '@/context/theme-provider'
 import { useGuideAddress } from '@/features/guide/use-guide-address'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { useStatus } from '@/hooks/use-status'
+import { useSystemConfig } from '@/hooks/use-system-config'
 import { PRODUCT_NAME } from '@/lib/product-brand'
 import { cn } from '@/lib/utils'
 
@@ -119,6 +122,8 @@ interface LandingPageProps {
 
 export function CiLandingPage(props: LandingPageProps) {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const { footerHtml } = useSystemConfig()
   const { resolvedTheme } = useTheme()
   const [revealed, setRevealed] = useState(false)
   const address = useGuideAddress()
@@ -415,6 +420,24 @@ export function CiLandingPage(props: LandingPageProps) {
             <div className='ci-siteFooterBrand'>
               <CiMark size={36} withWordmark />
               <p>{t('Professional AI model platform')}</p>
+              {footerHtml ? (
+                <RichContent
+                  mode='html'
+                  content={footerHtml}
+                  className='custom-footer min-w-0 text-sm'
+                />
+              ) : null}
+              {status?.user_agreement_enabled ||
+              status?.privacy_policy_enabled ? (
+                <div className='flex flex-wrap gap-x-4 gap-y-2 text-sm'>
+                  {status?.user_agreement_enabled ? (
+                    <a href='/user-agreement'>{t('User Agreement')}</a>
+                  ) : null}
+                  {status?.privacy_policy_enabled ? (
+                    <a href='/privacy-policy'>{t('Privacy Policy')}</a>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
             <p className='ci-attribution'>
               <span className='sr-only'>
