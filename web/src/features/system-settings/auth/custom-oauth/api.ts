@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { CustomOAuthProvider, DiscoveryResponse } from './types'
+import type { CustomOAuthProvider } from './types'
 
 // ============================================================================
 // Response Types
@@ -67,14 +67,5 @@ export async function deleteCustomOAuthProvider(
   id: number
 ): Promise<ApiResponse> {
   const res = await api.delete(`/api/custom-oauth-provider/${id}`)
-  return res.data
-}
-
-export async function discoverOIDCEndpoints(
-  wellKnownUrl: string
-): Promise<DiscoveryResponse> {
-  const res = await api.post('/api/custom-oauth-provider/discovery', {
-    well_known_url: wellKnownUrl,
-  })
   return res.data
 }
