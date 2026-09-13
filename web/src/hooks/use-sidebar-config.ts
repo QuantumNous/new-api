@@ -92,6 +92,12 @@ const mergeWithDefaultSidebarModules = (
   return merged
 }
 
+const DATA_DASHBOARD_URLS = new Set([
+  '/dashboard/models',
+  '/dashboard/flow',
+  '/dashboard/users',
+])
+
 /**
  * Mapping from URL to configuration keys
  */
@@ -278,6 +284,7 @@ export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
   const { status } = useStatus()
   const { auth } = useAuthStore()
   const pricingEnabled = parseHeaderNavModulesFromStatus(status).pricing.enabled
+  const dataDashboardEnabled = status?.enable_data_export === true
 
   const adminConfig = useMemo(
     () =>
@@ -305,11 +312,15 @@ export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
         .map((group) => ({
           ...group,
           items: filterNavItems(group.items, adminConfig, userConfig).filter(
-            (item) => item.url !== '/pricing' || pricingEnabled
+            (item) =>
+              (item.url !== '/pricing' || pricingEnabled) &&
+              (!item.url ||
+                !DATA_DASHBOARD_URLS.has(item.url) ||
+                dataDashboardEnabled)
           ),
         }))
         .filter((group) => group.items.length > 0), // Only show navigation groups with visible items
-    [navGroups, adminConfig, userConfig, pricingEnabled]
+    [navGroups, adminConfig, userConfig, pricingEnabled, dataDashboardEnabled]
   )
 
   return filteredNavGroups
