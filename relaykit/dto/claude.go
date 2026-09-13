@@ -330,9 +330,22 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 					texts = append(texts, string(b))
 				}
 			case "tool_result":
-				if media.Content != nil {
-					b, _ := kitutil.Marshal(media.Content)
-					texts = append(texts, string(b))
+				if media.IsStringContent() {
+					texts = append(texts, media.GetStringContent())
+					continue
+				}
+				for _, result := range media.ParseMediaContent() {
+					switch result.Type {
+					case "text":
+						texts = append(texts, result.GetText())
+					case "image":
+						if source := result.ToFileSource(); source != nil {
+							fileMeta = append(fileMeta, &types.FileMeta{
+								FileType: types.FileTypeImage,
+								Source:   source,
+							})
+						}
+					}
 				}
 			}
 		}
