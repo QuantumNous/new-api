@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { AxiosError } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
@@ -100,7 +101,21 @@ beforeEach(() => {
   api.defaults.adapter = async (config) => {
     const url = new URL(config.url ?? '', 'http://localhost')
     let data: unknown
-    if (url.pathname === '/api/user/self/groups') {
+    if (url.pathname === '/api/pricing') {
+      throw new AxiosError(
+        'Pricing disabled',
+        'ERR_BAD_REQUEST',
+        config,
+        undefined,
+        {
+          data: { success: false, message: 'Pricing disabled' },
+          status: 403,
+          statusText: 'Forbidden',
+          headers: {},
+          config,
+        }
+      )
+    } else if (url.pathname === '/api/user/self/groups') {
       data = {
         success: true,
         data: {
@@ -297,4 +312,19 @@ describe('terminal key management', () => {
     )
     await waitFor(() => expect(keys).toHaveLength(0))
   })
+})
+
+it('creates a key in an authorized group when the pricing endpoint returns 403', async () => {
+  client.removeQueries({ queryKey: ['pricing'] })
+  const user = userEvent.setup()
+  renderKeys()
+  await screen.findByText('existing')
+  await waitFor(() =>
+    expect(client.getQueryState(['pricing'])?.status).toBe('error')
+  )
+  const create = screen.getByRole('button', { name: 'Create key' })
+  expect(create).toBeEnabled()
+  await user.click(create)
+  await waitFor(() => expect(creates).toBe(1))
+  expect(keys[0].group).toBe('cheap')
 })

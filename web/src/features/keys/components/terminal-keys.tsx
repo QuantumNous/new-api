@@ -102,7 +102,8 @@ export function TerminalKeys() {
       .filter(
         (group) =>
           group.value !== 'auto' &&
-          selectedPricingModel?.enable_groups?.includes(group.value)
+          (!selectedPricingModel ||
+            selectedPricingModel.enable_groups?.includes(group.value))
       )
       .sort((a, b) => a.ratio - b.ratio)
   }, [groupsQuery.data, selectedPricingModel])
