@@ -18,7 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, it } from 'vitest'
 
-import { getRecordedUnitPrices } from '../request-details'
+import { LOG_TYPE_ENUM } from '../../constants'
+import { usageLogSchema } from '../../data/schema'
+import { isFailedRequest, getRecordedUnitPrices } from '../request-details'
 
 describe('recorded request unit prices', () => {
   it('derives cache-read and cache-write unit prices only from recorded ratios', () => {
@@ -104,4 +106,28 @@ describe('recorded request unit prices', () => {
       getRecordedUnitPrices({ violation_fee: true, model_ratio: 2 })
     ).toMatchObject({ mode: 'fee', input: null, output: null })
   })
+})
+
+describe('request outcomes', () => {
+  it.each([
+    [{ violation_fee: true, status_code: 400 }, true],
+    [{ violation_fee_code: 'penalty' }, true],
+    [{ violation_fee_marker: 'penalty' }, true],
+    [{}, false],
+  ])(
+    'classifies consume metadata %j with failed=%s while preserving charges',
+    (other, failed) => {
+      const log = usageLogSchema.parse({
+        id: 1,
+        user_id: 42,
+        created_at: 1000,
+        content: '',
+        type: LOG_TYPE_ENUM.CONSUME,
+        quota: 20,
+        other: JSON.stringify(other),
+      })
+      expect(isFailedRequest(log)).toBe(failed)
+      expect(log.quota).toBe(20)
+    }
+  )
 })

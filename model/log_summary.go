@@ -13,7 +13,8 @@ type LogSummaryTotals struct {
 	Requests           int64   `json:"requests"`
 	Succeeded          int64   `json:"succeeded"`
 	Failed             int64   `json:"failed"`
-	Quota              int64   `json:"quota"`
+	Quota              int64   `json:"quota"` // Wallet spending only.
+	SubscriptionQuota  int64   `json:"subscription_quota"`
 	Tokens             int64   `json:"tokens"`
 	SavedQuota         float64 `json:"saved_quota"`
 	ComparableRequests int64   `json:"comparable_requests"`
@@ -33,8 +34,9 @@ type UserLogSummary struct {
 // logs to the client or relying on database-specific JSON/date functions.
 func GetUserLogSummary(ctx context.Context, userID int, start, end int64, timezoneOffset int) (*UserLogSummary, error) {
 	query := LOG_DB.WithContext(ctx).Model(&Log{}).
-		Select("created_at", "type", "quota", "prompt_tokens", "completion_tokens", "is_stream", "other").
-		Where("user_id = ? AND created_at >= ? AND created_at <= ? AND type IN ?", userID, start, end, []int{LogTypeConsume, LogTypeError})
+		Select("id", "request_id", "created_at", "type", "quota", "prompt_tokens", "completion_tokens", "is_stream", "other").
+		Where("user_id = ? AND created_at >= ? AND created_at <= ? AND type IN ?", userID, start, end, []int{LogTypeConsume, LogTypeError}).
+		Order("request_id ASC, created_at ASC, id ASC")
 	rows, err := query.Rows()
 	if err != nil {
 		return nil, err
@@ -43,25 +45,32 @@ func GetUserLogSummary(ctx context.Context, userID int, start, end int64, timezo
 	result := &UserLogSummary{Daily: []DailyLogSummary{}}
 	days := make(map[string]*DailyLogSummary)
 	location := time.FixedZone("report", timezoneOffset*60)
+	// Keep only the current request outcome; ordered rows make retries adjacent.
+	var previousID string
+	var previousDay *DailyLogSummary
+	var previousFailed, previousConsume bool
 	for rows.Next() {
 		var log Log
 		if err := LOG_DB.ScanRows(rows, &log); err != nil {
 			return nil, err
 		}
 		var other struct {
-			GroupRatio         *float64 `json:"group_ratio"`
-			UserGroupRatio     *float64 `json:"user_group_ratio"`
-			FeeQuota           *float64 `json:"fee_quota"`
-			BillingSource      string   `json:"billing_source"`
-			ViolationFee       bool     `json:"violation_fee"`
-			ViolationFeeCode   string   `json:"violation_fee_code"`
-			ViolationFeeMarker string   `json:"violation_fee_marker"`
-			StreamStatus       struct {
+			GroupRatio           *float64 `json:"group_ratio"`
+			UserGroupRatio       *float64 `json:"user_group_ratio"`
+			FeeQuota             *float64 `json:"fee_quota"`
+			WalletQuotaDeducted  *int64   `json:"wallet_quota_deducted"`
+			SubscriptionConsumed *int64   `json:"subscription_consumed"`
+			BillingSource        string   `json:"billing_source"`
+			ViolationFee         bool     `json:"violation_fee"`
+			ViolationFeeCode     string   `json:"violation_fee_code"`
+			ViolationFeeMarker   string   `json:"violation_fee_marker"`
+			StreamStatus         struct {
 				Status string `json:"status"`
 			} `json:"stream_status"`
 		}
 		validOther := common.UnmarshalJsonStr(log.Other, &other) == nil
-		failed := log.Type == LogTypeError || (log.IsStream && other.StreamStatus.Status == "error")
+		violation := other.ViolationFee || other.ViolationFeeCode != "" || other.ViolationFeeMarker != ""
+		failed := log.Type == LogTypeError || violation || (log.IsStream && other.StreamStatus.Status == "error")
 		var saved float64
 		comparable := false
 		if validOther && log.Type == LogTypeConsume && other.BillingSource != "subscription" &&
@@ -88,15 +97,47 @@ func GetUserLogSummary(ctx context.Context, userID int, start, end int64, timezo
 			day = &DailyLogSummary{Date: date}
 			days[date] = day
 		}
-		for _, totals := range []*LogSummaryTotals{&result.LogSummaryTotals, &day.LogSummaryTotals} {
-			totals.Requests++
-			if failed {
-				totals.Failed++
-			} else {
-				totals.Succeeded++
+		sameRequest := log.RequestId != "" && log.RequestId == previousID
+		// A consume row is the settled outcome, even if an asynchronous retry
+		// error was persisted later. Among consume rows use the latest one.
+		replaceOutcome := !sameRequest || !previousConsume || log.Type == LogTypeConsume
+		if sameRequest && replaceOutcome {
+			for _, totals := range []*LogSummaryTotals{&result.LogSummaryTotals, &previousDay.LogSummaryTotals} {
+				totals.Requests--
+				if previousFailed {
+					totals.Failed--
+				} else {
+					totals.Succeeded--
+				}
 			}
+		}
+		if replaceOutcome {
+			for _, totals := range []*LogSummaryTotals{&result.LogSummaryTotals, &day.LogSummaryTotals} {
+				totals.Requests++
+				if failed {
+					totals.Failed++
+				} else {
+					totals.Succeeded++
+				}
+			}
+			previousID, previousDay = log.RequestId, day
+			previousFailed, previousConsume = failed, log.Type == LogTypeConsume
+		}
+		for _, totals := range []*LogSummaryTotals{&result.LogSummaryTotals, &day.LogSummaryTotals} {
 			if log.Type == LogTypeConsume {
-				totals.Quota += int64(log.Quota)
+				walletQuota := int64(log.Quota)
+				if other.BillingSource == "subscription" {
+					walletQuota = 0
+					subscriptionQuota := int64(log.Quota)
+					if other.SubscriptionConsumed != nil && *other.SubscriptionConsumed >= 0 {
+						subscriptionQuota = *other.SubscriptionConsumed
+					}
+					totals.SubscriptionQuota += subscriptionQuota
+				}
+				if other.WalletQuotaDeducted != nil && *other.WalletQuotaDeducted >= 0 {
+					walletQuota = *other.WalletQuotaDeducted
+				}
+				totals.Quota += walletQuota
 				totals.Tokens += int64(log.PromptTokens) + int64(log.CompletionTokens)
 			}
 			totals.SavedQuota += saved

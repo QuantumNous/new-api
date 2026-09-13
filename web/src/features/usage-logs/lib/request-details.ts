@@ -28,10 +28,11 @@ import {
 import { isPerCallBilling } from './utils'
 
 export function isFailedRequest(log: UsageLog): boolean {
+  const other = parseLogOther(log.other)
   return (
     log.type === LOG_TYPE_ENUM.ERROR ||
-    (log.is_stream &&
-      parseLogOther(log.other)?.stream_status?.status === 'error')
+    isViolationFeeLog(other) ||
+    (log.is_stream && other?.stream_status?.status === 'error')
   )
 }
 

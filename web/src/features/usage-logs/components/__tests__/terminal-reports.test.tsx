@@ -572,12 +572,12 @@ describe('terminal usage views', () => {
     ).toHaveAttribute('href', '/beginner-guide')
   })
 
-  it('shows distinct balance, daily usage and savings while reusing the daily summary on requests', async () => {
+  it('shows distinct balance, daily wallet spending and savings while reusing the daily summary on requests', async () => {
     const home = await renderApp(<TerminalHome />, client)
-    expect(await screen.findByText('Usage today')).toBeVisible()
+    expect(await screen.findByText('Wallet spending today')).toBeVisible()
     await waitFor(() =>
       expect(
-        screen.getByText('Usage today').closest('article')
+        screen.getByText('Wallet spending today').closest('article')
       ).toHaveTextContent('¥7')
     )
     expect(

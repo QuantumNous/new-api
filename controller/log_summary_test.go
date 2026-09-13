@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -83,7 +84,8 @@ func TestGetUserLogSummaryUsesRecordedRatesAndSkipsIncomparableCharges(t *testin
 	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
 	// A user override of zero denotes the legacy unset sentinel; use group 0.5.
 	assert.InDelta(t, 300+900, result.Data.SavedQuota, 0.001)
-	assert.EqualValues(t, 9000, result.Data.Quota)
+	assert.EqualValues(t, 8100, result.Data.Quota)
+	assert.EqualValues(t, 3, result.Data.Failed)
 }
 
 func TestGetUserLogSummaryRejectsInvalidWindows(t *testing.T) {
@@ -144,6 +146,80 @@ func TestGetUserLogsFiltersMultipleRequestTypes(t *testing.T) {
 			assert.Equal(t, 2, result.Data.Total)
 			require.Len(t, result.Data.Items, 1)
 			assert.Equal(t, expectedType, result.Data.Items[0].Type)
+		})
+	}
+}
+
+func TestLogSummaryRetryOutcomesAndCharges(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.Log{}))
+	const midnight int64 = 1704153600
+	logs := []model.Log{
+		{RequestId: "retry", Type: model.LogTypeError, CreatedAt: midnight - 1},
+		{RequestId: "retry", Type: model.LogTypeConsume, CreatedAt: midnight, Quota: 30},
+		{RequestId: "failed", Type: model.LogTypeError, CreatedAt: midnight},
+		{RequestId: "failed", Type: model.LogTypeError, CreatedAt: midnight + 1},
+		{RequestId: "fee", Type: model.LogTypeConsume, CreatedAt: midnight, Quota: 20, Other: `{"violation_fee":true,"status_code":400}`},
+		{Type: model.LogTypeError, CreatedAt: midnight},
+		{Type: model.LogTypeConsume, CreatedAt: midnight, Quota: 10},
+	}
+	for i := range logs {
+		logs[i].UserId = 42
+	}
+	require.NoError(t, db.Create(&logs).Error)
+	// Create hooks populate IDs; explicitly restore historical missing IDs.
+	require.NoError(t, db.Model(&model.Log{}).Where("id IN ?", []int{logs[5].Id, logs[6].Id}).Update("request_id", "").Error)
+	result, err := model.GetUserLogSummary(context.Background(), 42, midnight-10, midnight+10, 0)
+	require.NoError(t, err)
+	assert.EqualValues(t, 5, result.Requests)
+	assert.EqualValues(t, 2, result.Succeeded)
+	assert.EqualValues(t, 3, result.Failed)
+	assert.EqualValues(t, 60, result.Quota)
+	require.Len(t, result.Daily, 2)
+	assert.EqualValues(t, 5, result.Daily[0].Requests)
+	assert.Zero(t, result.Daily[1].Requests)
+}
+
+func TestLogSummarySubscriptionDoesNotIncreaseWalletSpending(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	require.NoError(t, db.AutoMigrate(&model.Log{}))
+	require.NoError(t, db.Create(&[]model.Log{
+		{UserId: 42, Type: model.LogTypeConsume, CreatedAt: 1000, Quota: 900, Other: `{"billing_source":"subscription","wallet_quota_deducted":0,"subscription_consumed":700}`},
+		{UserId: 42, Type: model.LogTypeConsume, CreatedAt: 1000, Quota: 100, Other: `{"billing_source":"subscription"}`},
+	}).Error)
+	result, err := model.GetUserLogSummary(context.Background(), 42, 1, 2000, 0)
+	require.NoError(t, err)
+	assert.Zero(t, result.Quota)
+	assert.EqualValues(t, 800, result.SubscriptionQuota)
+	require.Len(t, result.Daily, 1)
+	assert.EqualValues(t, 800, result.Daily[0].SubscriptionQuota)
+	assert.EqualValues(t, 2, result.Succeeded)
+}
+
+func TestLogSummarySettledOutcomeWinsOverRetryErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		other  string
+		failed int64
+	}{
+		{"success", "{}", 0},
+		{"stream failure", `{"stream_status":{"status":"error"}}`, 1},
+		{"charged rejection", `{"violation_fee":true}`, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupTokenControllerTestDB(t)
+			require.NoError(t, db.AutoMigrate(&model.Log{}))
+			require.NoError(t, db.Create(&[]model.Log{
+				{UserId: 42, RequestId: "retry", Type: model.LogTypeError, CreatedAt: 1000},
+				{UserId: 42, RequestId: "retry", Type: model.LogTypeConsume, CreatedAt: 1000, Quota: 20, IsStream: true, Other: tc.other},
+				{UserId: 42, RequestId: "retry", Type: model.LogTypeError, CreatedAt: 1001},
+			}).Error)
+			result, err := model.GetUserLogSummary(context.Background(), 42, 1, 2000, 0)
+			require.NoError(t, err)
+			assert.EqualValues(t, 1, result.Requests)
+			assert.Equal(t, tc.failed, result.Failed)
+			assert.Equal(t, 1-tc.failed, result.Succeeded)
+			assert.EqualValues(t, 20, result.Quota)
 		})
 	}
 }
