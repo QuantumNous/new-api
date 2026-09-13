@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-contrib/static"
 )
@@ -16,11 +17,14 @@ type embedFileSystem struct {
 }
 
 func (e *embedFileSystem) Exists(prefix string, path string) bool {
-	_, err := e.Open(path)
-	if err != nil {
-		return false
+	if p := strings.TrimPrefix(path, prefix); len(p) < len(path) {
+		_, err := e.Open(p)
+		if err != nil {
+			return false
+		}
+		return true
 	}
-	return true
+	return false
 }
 
 func (e *embedFileSystem) Open(name string) (http.File, error) {
