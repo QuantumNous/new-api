@@ -101,6 +101,17 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	}
 	defer service.CloseResponseBodyGracefully(resp)
 
+	clientCtx := c.Request.Context()
+	stopWatch := make(chan struct{})
+	defer close(stopWatch)
+	go func() {
+		select {
+		case <-clientCtx.Done():
+			service.CloseResponseBodyGracefully(resp)
+		case <-stopWatch:
+		}
+	}()
+
 	helper.SetEventStreamHeaders(c)
 	scanner := helper.NewStreamScanner(resp.Body)
 	usage := &dto.Usage{}
@@ -114,6 +125,9 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	}
 
 	for scanner.Scan() {
+		if clientCtx.Err() != nil {
+			return usage, nil
+		}
 		line := scanner.Text()
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -200,7 +214,7 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		helper.Done(c)
 		break
 	}
-	if err := scanner.Err(); err != nil && err != io.EOF {
+	if err := scanner.Err(); err != nil && err != io.EOF && clientCtx.Err() == nil {
 		logger.LogError(c, "ollama stream scan error: "+err.Error())
 	}
 	return usage, nil
