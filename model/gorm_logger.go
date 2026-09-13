@@ -52,7 +52,7 @@ type sanitizedLogWriter struct {
 	delegate *log.Logger
 }
 
-func (s *sanitizedLogWriter) Printf(format string, args ...interface{}) {
+func (s *sanitizedLogWriter) Printf(format string, args ...any) {
 	if !common.DebugEnabled {
 		for i, arg := range args {
 			if err, ok := arg.(error); ok {

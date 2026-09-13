@@ -45,6 +45,9 @@ func validUserInfo(username string, role int) bool {
 }
 
 func authHelper(c *gin.Context, minRole int) {
+	if _, started := c.Get(accessTokenAuditContextKey); !started {
+		defer finishAccessTokenAudit(c)
+	}
 	user, identity, useAccessToken, err := authenticateDashboardRequest(c)
 	if err != nil {
 		writeDashboardAuthError(c, err)
@@ -79,6 +82,9 @@ func authHelper(c *gin.Context, minRole int) {
 
 func TryUserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		if _, started := c.Get(accessTokenAuditContextKey); !started {
+			defer finishAccessTokenAudit(c)
+		}
 		user, identity, credentialKind, err := classifyDashboardCredential(c)
 		if err != nil {
 			writeDashboardAuthError(c, err)
@@ -172,6 +178,7 @@ func classifyDashboardCredential(c *gin.Context) (*model.UserBase, service.AuthI
 	if patUser == nil || patUser.Id <= 0 {
 		return nil, service.AuthIdentity{}, dashboardCredentialUnmatched, nil
 	}
+	beginAccessTokenAudit(c, patUser, raw)
 	user, err := model.GetUserCache(patUser.Id)
 	if err != nil {
 		return nil, service.AuthIdentity{}, dashboardCredentialPAT, err
@@ -358,8 +365,8 @@ func TokenAuth() func(c *gin.Context) {
 			// Sec-WebSocket-Protocol: realtime, openai-insecure-api-key.sk-xxx, openai-beta.realtime-v1
 			// read sk from Sec-WebSocket-Protocol
 			key := c.Request.Header.Get("Sec-WebSocket-Protocol")
-			parts := strings.Split(key, ",")
-			for _, part := range parts {
+			parts := strings.SplitSeq(key, ",")
+			for part := range parts {
 				part = strings.TrimSpace(part)
 				if strings.HasPrefix(part, "openai-insecure-api-key") {
 					key = strings.TrimPrefix(part, "openai-insecure-api-key.")

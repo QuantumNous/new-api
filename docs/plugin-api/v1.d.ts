@@ -1,4 +1,20 @@
 export type JSONValue = null | boolean | number | string | readonly JSONValue[] | {readonly [key: string]: JSONValue};
+export type HostCapability = "json-clone@1" | "submit-sse-delta@1";
+export type MutableJSON<T> = T extends readonly (infer Item)[] ? MutableJSON<Item>[] : T extends object ? {-readonly [Key in keyof T]: MutableJSON<T[Key]>} : T;
+export interface HostUtils {
+  hasCapability(name: string): boolean;
+  /** Independent native JS containers; at most 1 MiB encoded JSON, depth 32 and 32,768 nodes. */
+  json: {clone<T extends JSONValue>(value: T): MutableJSON<T>};
+  unixNow(): number;
+  uuid(): string;
+  hmacSHA256(message: string, secret: string): string;
+  jwtSignHS256(claims: Record<string, JSONValue>, secret: string): string;
+  base64(value: string): string;
+  base64URL(value: string): string;
+  base64URLDecode(value: string): string;
+  volcSignV4(request: {method: string; url: string; headers?: Record<string, string>; body?: string; accessKey: string; secretKey: string; region?: string; service?: string; timestamp?: number}): Record<string, string>;
+}
+declare global {const utils: HostUtils;}
 export type FileReference = Readonly<{ref: string; field: string; filename: string; mimeType: string; size: number}>;
 export type FilePlaceholder = Readonly<{__fileRef: string; encoding: "base64" | "dataUrl"; mimeType?: string; maxBytes?: number}>;
 export type DecodedBody =
@@ -20,12 +36,20 @@ export type ProtocolClaim =
   | {name: "openai_responses"; supports: readonly ResponsesMode[]; models?: readonly string[]}
   | {name: "openai_video"; models?: readonly string[]};
 export type LocalizedText = string | ({ en: string } & Record<string, string>);
-export type UsageFieldSchema = {type: "number"; unit: "second" | "count" | "token" | "credit"; description?: LocalizedText} | {type: "boolean"; description?: LocalizedText} | {enum: readonly string[]; description?: LocalizedText};
-export type UsageExample = {label: string; facts: Readonly<Record<string, string | number>>};
-export interface Meta {apiVersion: 1; key: string; name: string; icon?: string; description?: LocalizedText; version: string; author: {name: string; url?: string}; channelTypes?: readonly number[]; models: readonly string[]; fetchMode: "per_task" | "batch"; allowedHosts?: readonly string[]; routes?: readonly NativeRoute[]; protocols?: readonly ProtocolClaim[]; usageSchema?: Readonly<Record<string, UsageFieldSchema>>; usageExamples?: readonly UsageExample[]; auth?: "none" | "api_key" | "vertex_oauth" | {type: "none" | "api_key" | "oauth2_jwt"}}
+export type UsageFieldSchema =
+  | {type: "number"; unit: "count"; unitLabel?: LocalizedText; description?: LocalizedText}
+  | {type: "number"; unit: "second" | "token" | "credit"; unitLabel?: never; description?: LocalizedText}
+  | {type: "boolean"; unitLabel?: never; description?: LocalizedText}
+  | {enum: readonly string[]; unitLabel?: never; description?: LocalizedText; enumLabels?: Readonly<Record<string, LocalizedText>>};
+export type UsageExample = {label: string; facts: Readonly<Record<string, string | number | boolean>>};
+export type UsageProfile = {models: readonly string[]; schema: Readonly<Record<string, UsageFieldSchema>>; examples?: readonly UsageExample[]};
+export interface Meta {requiredCapabilities?: readonly HostCapability[]; submitResponseTypes?: readonly ("json" | "sse")[]; sortPriority?: number; website?: string; apiVersion: 1; key: string; name: string; icon?: string; description?: LocalizedText; version: string; author: {name: string; url?: string}; baseUrl?: string; channelTypes?: readonly number[]; models: readonly string[]; fetchMode: "per_task" | "batch"; allowedHosts?: readonly string[]; routes?: readonly NativeRoute[]; protocols?: readonly ProtocolClaim[]; usageSchema?: Readonly<Record<string, UsageFieldSchema>>; usageExamples?: readonly UsageExample[]; usageProfiles?: readonly UsageProfile[]; auth?: "none" | "api_key" | "vertex_oauth" | {type: "none" | "api_key" | "oauth2_jwt"}}
 export interface TaskView {task_id: string; status: string; progress?: string; fail_reason?: string; created_at?: number; updated_at?: number; data?: unknown; properties?: Record<string, unknown>}
 export interface DriverContext {requestBody: unknown; requestHeaders: Readonly<Record<string, string>>; action: string; model: string; upstreamModel: string; baseUrl: string; apiKey?: string; authHeader: string; files: readonly FileReference[]; publicTaskId: string; originTasks?: readonly {taskId: string; upstreamTaskId: string; action: string; status: string; data: unknown}[]}
-export interface RequestDescriptor {url: string; method?: string; headers?: Record<string, string>; /** JSON body may contain FilePlaceholder objects at any depth; the host replaces each with a Base64 or data-URL string. */ body?: unknown; credentialless?: boolean; action?: string; model?: string; rewriteModel?: string; bodyType?: "json" | "multipart"; parts?: readonly {name: string; value?: unknown; fileRef?: string; filename?: string}[]}
+export interface TaskQueryContext {taskId: string; publicTaskId: string; action: string; model: string; upstreamModel: string; baseUrl: string; apiKey?: string; authHeader: string; auth?: unknown; data: unknown; state: unknown}
+export interface BatchQueryContext {baseUrl: string; apiKey?: string; authHeader: string; auth?: unknown; tasks: readonly TaskQueryContext[]}
+export type HookHTTPResponse = {readonly status: number; readonly headers: Readonly<Record<string, string>>}
+export interface RequestDescriptor {responseType?: "json" | "sse"; url: string; method?: string; headers?: Record<string, string>; /** JSON body may contain FilePlaceholder objects at any depth; the host replaces each with a Base64 or data-URL string. */ body?: unknown; credentialless?: boolean; action?: string; model?: string; rewriteModel?: string; bodyType?: "json" | "multipart"; parts?: readonly {name: string; value?: unknown; fileRef?: string; filename?: string}[]}
 export interface UpstreamResponse {statusCode: number; headers: Readonly<Record<string, readonly string[]>>; body: unknown}
 export interface NormalizedTaskResult {taskId?: string; status: "NOT_START" | "SUBMITTED" | "QUEUED" | "IN_PROGRESS" | "SUCCESS" | "FAILURE" | "UNKNOWN"; progress?: string; reason?: string; url?: string; remoteUrl?: string; completionTokens?: number; totalTokens?: number}
 export interface TaskArtifact {key: string; type: "video" | "audio" | "image" | "file"; mimeType?: string}
@@ -36,13 +60,22 @@ export declare const protocols: {
   openai_video?: {decodeRequest(ctx: ProtocolDecodeContext): SubmitIntent; render(ctx: unknown, task: TaskView): unknown};
 };
 export declare function buildSubmitRequest(ctx: DriverContext): RequestDescriptor;
-export declare function parseSubmitResponse(ctx: DriverContext, response: UpstreamResponse): {taskId: string; taskData?: unknown; immediate?: NormalizedTaskResult};
-export declare function buildQueryRequest(ctx: DriverContext & {taskId: string}): RequestDescriptor;
-export declare function buildBatchQueryRequest(ctx: DriverContext, taskIds: readonly string[]): RequestDescriptor;
-export declare function parseTaskResult(ctx: DriverContext, body: unknown): NormalizedTaskResult;
-export declare function parseBatchResult(ctx: DriverContext, body: unknown): readonly (NormalizedTaskResult & {taskId: string; data?: unknown})[];
+export interface SubmitEvent {event: string; id: string; data: string}
+export type JSONPath = readonly (string | number)[];
+export type JSONChange =
+  | {op: "set" | "append"; path: JSONPath; value: JSONValue}
+  | {op: "appendText"; path: JSONPath; value: string};
+export interface SubmitEventDeltaResult {changes: readonly JSONChange[]; state: JSONValue; done: boolean}
+/** With submit-sse-delta@1, state is small control data; changes build the separate response body. */
+export declare function parseSubmitEventDelta(ctx: DriverContext, event: SubmitEvent, previousState: JSONValue | null): SubmitEventDeltaResult;
+export declare function parseSubmitEvent(ctx: DriverContext, event: SubmitEvent, previousState: JSONValue | null): {state: JSONValue; done: boolean};
+export declare function parseSubmitResponse(ctx: DriverContext, response: UpstreamResponse): {taskId: string; taskData?: unknown; immediate?: NormalizedTaskResult; state?: unknown};
+export declare function buildQueryRequest(ctx: TaskQueryContext): RequestDescriptor;
+export declare function buildBatchQueryRequest(ctx: BatchQueryContext, tasks: readonly TaskQueryContext[]): RequestDescriptor;
+export declare function parseTaskResult(ctx: TaskQueryContext, body: unknown, response: HookHTTPResponse): NormalizedTaskResult;
+export declare function parseBatchResult(ctx: BatchQueryContext, body: unknown, response: HookHTTPResponse): readonly (NormalizedTaskResult & {taskId: string; data?: unknown; state?: unknown})[];
 export declare function extractUsage(ctx: DriverContext & {usagePurpose?: "facts" | "billing_ratios"}): Readonly<Record<string, string | number | boolean>> | null;
 export declare function extractUsageOnSubmit(ctx: DriverContext, taskData: unknown): Readonly<Record<string, string | number | boolean>> | null;
-export declare function extractUsageOnComplete(task: TaskView, result: NormalizedTaskResult, data: unknown): Readonly<Record<string, string | number | boolean>> | null;
+export declare function extractUsageOnComplete(task: TaskQueryContext, result: NormalizedTaskResult, data: unknown): Readonly<Record<string, string | number | boolean>> | null;
 export declare function listArtifacts(task: {taskId: string; status: string; action: string; data: unknown; producerVersion: string}): readonly TaskArtifact[];
-export declare function buildContentRequest(ctx: DriverContext & {artifactKey: string; data: unknown; upstreamTaskId: string; clientRequest: {method: "GET" | "HEAD"; headers: Readonly<Record<string, string>>}}): RequestDescriptor;
+export declare function buildContentRequest(ctx: DriverContext & {artifactKey: string; data: unknown; state?: unknown; upstreamTaskId: string; clientRequest: {method: "GET" | "HEAD"; headers: Readonly<Record<string, string>>}}): RequestDescriptor;

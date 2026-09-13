@@ -20,8 +20,11 @@ import type {
   MarketplaceIndex,
   MarketplaceIndexVersion,
   MarketplacePlugin,
+  MarketplacePluginIcon,
   TaskPluginListItem,
 } from '../types'
+import { pluginProtocolClaimsSchema } from './plugin-meta-preview'
+import { getPluginWebsite } from './plugin-website'
 
 export const SUPPORTED_INDEX_VERSION = 1
 
@@ -89,7 +92,12 @@ export function parseMarketplaceIndex(payload: unknown): MarketplaceIndex {
   return {
     indexVersion,
     name: typeof raw.name === 'string' ? raw.name : '',
-    plugins,
+    plugins: plugins.sort((left, right) => {
+      const difference = (right.sortPriority ?? 0) - (left.sortPriority ?? 0)
+      if (difference !== 0) return difference
+      if (left.key === right.key) return 0
+      return left.key < right.key ? -1 : 1
+    }),
   }
 }
 
@@ -124,6 +132,10 @@ function parseMarketplacePlugin(entry: unknown): MarketplacePlugin | null {
           : undefined,
         kind: kind || undefined,
         allowedHosts: stringArray(rawVersion.allowedHosts),
+        baseUrl:
+          typeof rawVersion.baseUrl === 'string' && rawVersion.baseUrl.trim()
+            ? rawVersion.baseUrl.trim()
+            : undefined,
         auth: typeof rawVersion.auth === 'string' ? rawVersion.auth : undefined,
       })
     }
@@ -135,21 +147,55 @@ function parseMarketplacePlugin(entry: unknown): MarketplacePlugin | null {
     ? declaredLatest
     : versions[0].version
 
+  // `icon` is a LobeHub name or the text scheme, exactly what meta.icon admits.
+  // Inline data URIs and remote URLs are dropped: image logos ship as sidecar
+  // files declared in `iconFile`, and are only ever loaded from the index's own
+  // origin, so an index cannot turn the marketplace page into a beacon.
   let icon: string | undefined
   if (typeof raw.icon === 'string') {
     const trimmed = raw.icon.trim()
-    if (trimmed && trimmed.length <= 128) {
+    if (
+      trimmed &&
+      trimmed.length <= 128 &&
+      !trimmed.startsWith('data:') &&
+      !trimmed.includes('://')
+    ) {
       icon = trimmed
+    }
+  }
+  let iconFile: MarketplacePluginIcon | undefined
+  if (raw.iconFile && typeof raw.iconFile === 'object') {
+    const rawIconFile = raw.iconFile as Record<string, unknown>
+    const iconPath =
+      typeof rawIconFile.path === 'string' ? rawIconFile.path.trim() : ''
+    if (/\.(svg|png)$/i.test(iconPath)) {
+      iconFile = {
+        path: iconPath,
+        sha256:
+          typeof rawIconFile.sha256 === 'string'
+            ? rawIconFile.sha256.trim()
+            : undefined,
+      }
     }
   }
 
   return {
     key,
+    sortPriority:
+      typeof raw.sortPriority === 'number' &&
+      Number.isInteger(raw.sortPriority) &&
+      raw.sortPriority >= -2147483648 &&
+      raw.sortPriority <= 2147483647
+        ? raw.sortPriority
+        : 0,
+    website: getPluginWebsite(raw.website),
     name: typeof raw.name === 'string' && raw.name ? raw.name : key,
     icon,
+    iconFile,
     description: parseMarketplaceDescription(raw.description),
     channelTypes: numberArray(raw.channelTypes),
     models: stringArray(raw.models),
+    protocols: pluginProtocolClaimsSchema.safeParse(raw.protocols).data,
     latest,
     versions,
   }
@@ -173,8 +219,10 @@ function parseMarketplaceDescription(
 
 function stringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined
-  const items = value.filter((item): item is string => typeof item === 'string')
-  return items.length > 0 ? items : undefined
+  if (!value.every((item) => typeof item === 'string' && item.length > 0)) {
+    return undefined
+  }
+  return value
 }
 
 function numberArray(value: unknown): number[] | undefined {
@@ -232,25 +280,6 @@ export function deriveInstallState(
     installedVersion,
     latestVersion: plugin.latest,
   }
-}
-
-export type MarketplaceActionPolicy =
-  | { kind: 'install' }
-  | { kind: 'system_update' }
-
-/**
- * Factory-served plugins are compiled into the binary and must only update
- * with a system release. Marketplace install would create a permanent override
- * that shadows every future built-in update — that action is suppressed.
- * Overrides and third-party plugins still install/upgrade normally.
- */
-export function resolveMarketplaceActionPolicy(
-  installed?: TaskPluginListItem
-): MarketplaceActionPolicy {
-  if (installed?.source === 'factory') {
-    return { kind: 'system_update' }
-  }
-  return { kind: 'install' }
 }
 
 /**

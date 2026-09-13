@@ -55,6 +55,7 @@ import {
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import { getTaskArtifacts } from '../api'
@@ -311,7 +312,8 @@ function TaskArtifacts(props: TaskArtifactsProps) {
   const { t } = useTranslation()
   const artifactsQuery = useQuery({
     queryKey: ['usage-logs', 'task-artifacts', props.taskId],
-    queryFn: () => getTaskArtifacts(props.taskId),
+    queryFn: async () =>
+      requireServerSuccess(await getTaskArtifacts(props.taskId)),
     enabled: props.enabled,
     retry: false,
     staleTime: 30_000,

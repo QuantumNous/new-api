@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/go-redis/redis/v8"
 	"github.com/go-webauthn/webauthn/webauthn"
+	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -141,11 +143,9 @@ func TestIncrementFailedAttemptsCountsConcurrentFailures(t *testing.T) {
 	errs := make(chan error, attempts)
 	var wg sync.WaitGroup
 	for range attempts {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			errs <- (&TwoFA{Id: twoFA.Id}).IncrementFailedAttempts()
-		}()
+		})
 	}
 	wg.Wait()
 	close(errs)
@@ -165,20 +165,20 @@ func TestValidateBackupCodeCanOnlySucceedOnce(t *testing.T) {
 	user := User{Id: 123, Username: "backup-code-user", Password: "password", AuthVersion: 1}
 	require.NoError(t, DB.Create(&user).Error)
 	require.NoError(t, DB.Create(&TwoFA{UserId: user.Id, Secret: "secret", IsEnabled: false}).Error)
-	require.NoError(t, CreatePendingTwoFASetupBackupCodes(user.Id, []string{code}))
+	hashedCode, err := common.HashBackupCode(code)
+	require.NoError(t, err)
+	require.NoError(t, DB.Create(&TwoFABackupCode{UserId: user.Id, CodeHash: hashedCode}).Error)
 
 	const attempts = 2
 	results := make(chan bool, attempts)
 	errs := make(chan error, attempts)
 	var wg sync.WaitGroup
 	for range attempts {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			valid, err := ValidateBackupCode(123, code)
 			results <- valid
 			errs <- err
-		}()
+		})
 	}
 	wg.Wait()
 	close(results)
@@ -203,13 +203,17 @@ func TestValidateBackupCodeCanOnlySucceedOnce(t *testing.T) {
 func TestPendingTwoFASetupAPIsRejectEnabledFactor(t *testing.T) {
 	truncateTables(t)
 
-	user := User{Username: "enabled-twofa-guard", Password: "password", AuthVersion: 1}
+	user := User{Username: "enabled-twofa-guard", Password: "password", Status: common.UserStatusEnabled, AuthVersion: 1}
 	require.NoError(t, DB.Create(&user).Error)
 	twoFA := TwoFA{UserId: user.Id, Secret: "secret", IsEnabled: true}
 	require.NoError(t, DB.Create(&twoFA).Error)
 
-	require.Error(t, CreatePendingTwoFASetupBackupCodes(user.Id, []string{"ABCD-1234"}))
-	require.Error(t, twoFA.DeletePendingTwoFASetup())
+	session := UserSession{SID: "enabled-factor-session", UserID: user.Id, Version: 1, UserAuthVersion: 1, Status: UserSessionStatusActive, ExpiresAt: time.Now().Add(time.Hour).Unix()}
+	require.NoError(t, DB.Create(&session).Error)
+	identity := AuthSessionIdentity{UserID: user.Id, SessionID: session.SID, UserAuthVersion: 1, SessionVersion: 1}
+	authorization := &AuthFlowAuthorization{AuthSessionIdentity: identity, ProofID: 1, Scope: "2fa.setup", ContextHash: "setup-context", Method: "password"}
+	_, err := CreateTwoFAEnrollment(identity, authorization, "replacement-secret", []string{"ABCD-1234"}, time.Now().Add(time.Minute))
+	require.ErrorIs(t, err, ErrTwoFAAlreadyEnabled)
 
 	var stored TwoFA
 	require.NoError(t, DB.First(&stored, twoFA.Id).Error)
@@ -231,12 +235,17 @@ func TestSecurityFactorMutationsAdvanceUserAuthVersion(t *testing.T) {
 		AuthVersion: 1,
 	}
 	require.NoError(t, DB.Create(&user).Error)
-	twoFA := TwoFA{UserId: user.Id, Secret: "secret", IsEnabled: false}
-	require.NoError(t, DB.Create(&twoFA).Error)
-
-	require.NoError(t, twoFA.EnableWithAuthVersion())
+	session := UserSession{SID: "factor-version-session", UserID: user.Id, Version: 1, UserAuthVersion: 1, Status: UserSessionStatusActive, ExpiresAt: time.Now().Add(time.Hour).Unix()}
+	require.NoError(t, DB.Create(&session).Error)
+	identity := AuthSessionIdentity{UserID: user.Id, SessionID: session.SID, UserAuthVersion: 1, SessionVersion: 1}
+	authorization := &AuthFlowAuthorization{AuthSessionIdentity: identity, ProofID: 1, Scope: "2fa.setup", ContextHash: "setup-context", Method: "password"}
+	token, err := CreateTwoFAEnrollment(identity, authorization, "JBSWY3DPEHPK3PXP", []string{"ABCD-1234"}, time.Now().Add(time.Minute))
+	require.NoError(t, err)
+	code, err := totp.GenerateCode("JBSWY3DPEHPK3PXP", time.Now())
+	require.NoError(t, err)
+	require.NoError(t, EnableTwoFAEnrollment(identity, token, code))
 	assertUserAuthVersion(t, user.Id, 2)
-	assert.ErrorIs(t, twoFA.EnableWithAuthVersion(), ErrTwoFAAlreadyEnabled)
+	assert.ErrorIs(t, EnableTwoFAEnrollment(identity, token, code), ErrTwoFASetupInvalid)
 	assertUserAuthVersion(t, user.Id, 2)
 	require.NoError(t, ReplaceBackupCodesWithAuthVersion(user.Id, []string{"ABCD-1234"}))
 	assertUserAuthVersion(t, user.Id, 3)
@@ -252,6 +261,22 @@ func TestSecurityFactorMutationsAdvanceUserAuthVersion(t *testing.T) {
 
 func TestUpdatePasskeyAssertionStateCannotRewriteRegistrationIdentity(t *testing.T) {
 	truncateTables(t)
+	require.NoError(t, DB.AutoMigrate(&Option{}))
+	previousSettings := *system_setting.GetPasskeySettings()
+	domainKeys := map[string]any{"key": []string{"ServerAddress", "passkey.rp_id", "passkey.legacy_rp_ids", "passkey.origins"}}
+	var previousOptions []Option
+	require.NoError(t, DB.Where(domainKeys).Find(&previousOptions).Error)
+	t.Cleanup(func() {
+		*system_setting.GetPasskeySettings() = previousSettings
+		require.NoError(t, DB.Where(domainKeys).Delete(&Option{}).Error)
+		if len(previousOptions) > 0 {
+			require.NoError(t, DB.Create(&previousOptions).Error)
+		}
+	})
+	*system_setting.GetPasskeySettings() = system_setting.PasskeySettings{RPID: "example.com", Origins: "https://example.com"}
+	for _, option := range []Option{{Key: "passkey.rp_id", Value: "example.com"}, {Key: "passkey.legacy_rp_ids", Value: ""}, {Key: "passkey.origins", Value: "https://example.com"}} {
+		require.NoError(t, DB.Save(&option).Error)
+	}
 
 	user := User{Username: "passkey-assertion-state", Password: "password", AuthVersion: 1}
 	require.NoError(t, DB.Create(&user).Error)
@@ -284,7 +309,7 @@ func TestUpdatePasskeyAssertionStateCannotRewriteRegistrationIdentity(t *testing
 			CloneWarning: true,
 		},
 	}
-	require.NoError(t, UpdatePasskeyAssertionState(user.Id, validated, usedAt))
+	require.NoError(t, UpdatePasskeyAssertionState(user.Id, validated, usedAt, "example.com"))
 
 	var updated PasskeyCredential
 	require.NoError(t, DB.First(&updated, stored.ID).Error)
@@ -304,7 +329,7 @@ func TestUpdatePasskeyAssertionStateCannotRewriteRegistrationIdentity(t *testing
 	assert.Equal(t, usedAt.Unix(), updated.LastUsedAt.Unix())
 
 	validated.ID = []byte("another-credential")
-	assert.ErrorIs(t, UpdatePasskeyAssertionState(user.Id, validated, usedAt), ErrPasskeyNotFound)
+	assert.ErrorIs(t, UpdatePasskeyAssertionState(user.Id, validated, usedAt, "example.com"), ErrPasskeyNotFound)
 }
 
 func assertUserAuthVersion(t *testing.T, userID int, expected int64) {

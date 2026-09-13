@@ -8,7 +8,6 @@ import (
 )
 
 const prefillGroupNameIndex = "uk_prefill_name"
-const legacyPrefillGroupNameUnique = "idx_prefill_groups_name"
 
 type conflictingPrefillGroupUniqueness struct {
 	constraints []string
@@ -22,30 +21,6 @@ type prefillGroupNameIndexState struct {
 
 func (conflicts conflictingPrefillGroupUniqueness) empty() bool {
 	return len(conflicts.constraints) == 0 && len(conflicts.indexes) == 0
-}
-
-func (conflicts conflictingPrefillGroupUniqueness) validateAutomaticMigrationScope() error {
-	unexpectedConstraints := make([]string, 0)
-	for _, name := range conflicts.constraints {
-		if name != legacyPrefillGroupNameUnique {
-			unexpectedConstraints = append(unexpectedConstraints, name)
-		}
-	}
-	unexpectedIndexes := make([]string, 0)
-	for _, name := range conflicts.indexes {
-		if name != legacyPrefillGroupNameUnique {
-			unexpectedIndexes = append(unexpectedIndexes, name)
-		}
-	}
-	if len(unexpectedConstraints) == 0 && len(unexpectedIndexes) == 0 {
-		return nil
-	}
-	return fmt.Errorf(
-		"prefill_groups.name has unsupported global unique constraints %q and indexes %q; only legacy object %q can be migrated automatically to partial uniqueness",
-		unexpectedConstraints,
-		unexpectedIndexes,
-		legacyPrefillGroupNameUnique,
-	)
 }
 
 func inspectConflictingPrefillGroupUniqueness(db *gorm.DB, tableName string) (conflictingPrefillGroupUniqueness, error) {
@@ -124,9 +99,10 @@ WHERE index_meta.indrelid = to_regclass(?)
 	return prefillGroupNameIndexState{exists: state.Exists, valid: state.Valid}, nil
 }
 
-// migratePrefillGroupUniqueness replaces the known global PostgreSQL unique
-// object left by older GORM versions before AutoMigrate inspects the column.
-// Unknown conflicting objects are reported without being modified.
+// migratePrefillGroupUniqueness replaces global PostgreSQL uniqueness on name
+// before AutoMigrate inspects the column. Match the definition rather than the
+// object name, which can change across older schemas and database imports.
+// Composite, expression and partial indexes retain their separate semantics.
 func migratePrefillGroupUniqueness(db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("migrate prefill group uniqueness: database is nil")
@@ -147,10 +123,6 @@ func migratePrefillGroupUniqueness(db *gorm.DB) error {
 	if conflicts.empty() {
 		return nil
 	}
-	if err := conflicts.validateAutomaticMigrationScope(); err != nil {
-		return err
-	}
-
 	return db.Transaction(func(tx *gorm.DB) error {
 		migrator := tx.Migrator()
 		if !migrator.HasTable(&PrefillGroup{}) {
@@ -171,13 +143,23 @@ func migratePrefillGroupUniqueness(db *gorm.DB) error {
 		if conflicts.empty() {
 			return nil
 		}
-		if err := conflicts.validateAutomaticMigrationScope(); err != nil {
-			return err
-		}
-
 		if !migrator.HasColumn(&PrefillGroup{}, "DeletedAt") {
 			if err := migrator.AddColumn(&PrefillGroup{}, "DeletedAt"); err != nil {
 				return fmt.Errorf("add prefill groups deleted_at column: %w", err)
+			}
+		}
+
+		// A global index or constraint may already use the target index name.
+		// Drop it before creating the replacement under the exclusive table lock;
+		// the transaction restores all old objects if any migration step fails.
+		for _, constraintName := range conflicts.constraints {
+			if err := migrator.DropConstraint(&PrefillGroup{}, constraintName); err != nil {
+				return fmt.Errorf("drop conflicting prefill group constraint %q: %w", constraintName, err)
+			}
+		}
+		for _, indexName := range conflicts.indexes {
+			if err := migrator.DropIndex(&PrefillGroup{}, indexName); err != nil {
+				return fmt.Errorf("drop conflicting prefill group index %q: %w", indexName, err)
 			}
 		}
 
@@ -196,17 +178,6 @@ func migratePrefillGroupUniqueness(db *gorm.DB) error {
 		}
 		if !targetIndex.valid {
 			return fmt.Errorf("prefill group index %q has an unexpected definition", prefillGroupNameIndex)
-		}
-
-		for _, constraintName := range conflicts.constraints {
-			if err := migrator.DropConstraint(&PrefillGroup{}, constraintName); err != nil {
-				return fmt.Errorf("drop conflicting prefill group constraint %q: %w", constraintName, err)
-			}
-		}
-		for _, indexName := range conflicts.indexes {
-			if err := migrator.DropIndex(&PrefillGroup{}, indexName); err != nil {
-				return fmt.Errorf("drop conflicting prefill group index %q: %w", indexName, err)
-			}
 		}
 
 		return nil

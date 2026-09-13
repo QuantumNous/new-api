@@ -2,12 +2,17 @@ package middleware
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -146,4 +151,80 @@ export const protocols = {openai_responses: {
   renderFinal: function() { return {output: []}; },
 }};
 `, key, key, channelType)
+}
+
+func TestTokenModelLimitAllowsLegacyAliasAndModifierVariant(t *testing.T) {
+	aliasOnly := map[string]bool{"claude-3-7-sonnet-thinking": true}
+	assert.True(t, tokenModelLimitAllows(aliasOnly, "claude-3-7-sonnet-thinking"))
+	assert.False(t, tokenModelLimitAllows(aliasOnly, "claude-3-7-sonnet"))
+
+	baseOnly := map[string]bool{"claude-3-7-sonnet": true}
+	assert.True(t, tokenModelLimitAllows(baseOnly, "claude-3-7-sonnet@thinking:on"))
+	assert.True(t, tokenModelLimitAllows(baseOnly, "claude-3-7-sonnet-thinking"))
+
+	wildcard := map[string]bool{"gemini-2.5-flash-thinking-*": true}
+	assert.True(t, tokenModelLimitAllows(wildcard, "gemini-2.5-flash-thinking-8192"))
+}
+
+func TestTokenModelLimitAllowsExemptAtNameByFullName(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	original := append([]string(nil), settings.ThinkingModelBlacklist...)
+	t.Cleanup(func() { settings.ThinkingModelBlacklist = original })
+	settings.ThinkingModelBlacklist = append(original, "re:.*@sha256:.*")
+
+	fullOnly := map[string]bool{"opaque@sha256:deadbeef": true}
+	assert.True(t, tokenModelLimitAllows(fullOnly, "opaque@sha256:deadbeef"))
+
+	baseOnly := map[string]bool{"opaque": true}
+	assert.False(t, tokenModelLimitAllows(baseOnly, "opaque@sha256:deadbeef"))
+}
+
+func TestNoAvailableChannelMessageNamesClaimingTaskPlugin(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	registry := jsplugin.NewRegistry()
+	plugin, err := registry.Register(distributorTaskPluginSource("claimer", constant.ChannelTypeKling), jsplugin.Options{})
+	require.NoError(t, err)
+
+	pinned, _ := gin.CreateTestContext(nil)
+	pinned.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+	pinned.Request.Header.Set("Accept-Language", "en")
+	pinned.Set(jsplugin.ContextKeyPinnedPlugin, jsplugin.PinnedPlugin{Generation: registry.Generation(), Plugin: plugin})
+	message := noAvailableChannelMessage(pinned, "default", "kling-v1")
+	assert.Contains(t, message, `"claimer"`)
+	assert.Contains(t, message, "disable or override")
+	assert.Contains(t, message, "kling-v1")
+
+	plain, _ := gin.CreateTestContext(nil)
+	plain.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	plain.Request.Header.Set("Accept-Language", "en")
+	generic := noAvailableChannelMessage(plain, "default", "gpt-4o")
+	assert.NotContains(t, generic, "task plugin")
+	assert.Contains(t, generic, "gpt-4o")
+}
+
+func TestSharedEndpointRebindsToSelectedType61Plugin(t *testing.T) {
+	registry := jsplugin.NewRegistry()
+	for _, key := range []string{"alpha", "beta"} {
+		source := strings.Replace(distributorEndpointPluginSource(key, 0), "channelTypes: [0],", "", 1)
+		_, err := registry.Register(source, jsplugin.Options{})
+		require.NoError(t, err)
+	}
+	generation := registry.Generation()
+	candidates := generation.LookupEndpointCandidates("POST", "/v1/responses", "task-model")
+	require.Len(t, candidates, 2)
+	c, _ := gin.CreateTestContext(nil)
+	c.Set(jsplugin.ContextKeyPinnedPlugin, jsplugin.PinnedPlugin{Generation: generation, Plugin: candidates[0].Plugin})
+	c.Set(jsplugin.ContextKeyPinnedEndpoint, jsplugin.PinnedEndpoint{Generation: generation, Plugin: candidates[0].Plugin, Protocol: candidates[0].Protocol, Operation: candidates[0].Operation, Model: "task-model", Candidates: candidates})
+	c.Set("expected_task_plugin_key", "alpha")
+	channel := &model.Channel{Id: 2, Type: constant.ChannelTypeTaskPlugin}
+	channel.SetSetting(dto.ChannelSettings{TaskPluginKey: "unrelated"})
+	assert.False(t, channelMatchesExpectedTaskPlugin(c, channel, "alpha"))
+	channel.SetSetting(dto.ChannelSettings{TaskPluginKey: "beta"})
+	require.Nil(t, SetupContextForSelectedChannel(c, channel, "task-model"))
+	assert.Equal(t, "beta", c.GetString("task_plugin_key"))
+	assert.Equal(t, "beta", c.GetString("expected_task_plugin_key"))
+	assert.Equal(t, "beta", c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint).Plugin.Meta.Key)
+	require.NoError(t, i18n.Init())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	assert.Contains(t, noAvailableChannelMessage(c, "default", "task-model"), "alpha, beta")
 }

@@ -7,23 +7,28 @@ export const meta = {
     en: "Volcengine Jimeng video generation (text-to-video, image-to-video, and first-and-last-frame)",
     zh: "火山引擎即梦视频生成（文生视频、图生视频、首尾帧）",
   },
-  version: "1.0.0",
+  version: "1.0.2",
   author: { name: "QuantumNous" },
   channelTypes: [51],
   models: ["jimeng_vgfm_t2v_l20"],
   fetchMode: "per_task",
   usageSchema: {
+    // Requested video duration in seconds. S2.0 Pro is fixed at 5; 3.0 req_keys allow 5 or 10.
     seconds: {
       type: "number",
       unit: "second",
-      description: {
-        en: "Requested video duration in seconds. S2.0 Pro is fixed at 5; 3.0 req_keys allow 5 or 10.",
-        zh: "请求的视频时长，单位为秒。S2.0 Pro 固定为 5；3.0 req_keys 允许 5 或 10。",
-      },
+      description: { en: "Video generation unit price", zh: "视频生成单价" },
     },
+    // Product tier derived from the final outbound req_key.
     product: {
       enum: ["s2_pro", "v30_720p", "v30_1080p", "v30_pro"],
-      description: { en: "Product tier derived from the final outbound req_key.", zh: "由最终出站 req_key 推导出的产品档位。" },
+      enumLabels: {
+        s2_pro: { en: "S2.0 Pro", zh: "S2.0 Pro" },
+        v30_720p: { en: "3.0 720p", zh: "3.0 720p" },
+        v30_1080p: { en: "3.0 1080p", zh: "3.0 1080p" },
+        v30_pro: { en: "3.0 Pro", zh: "3.0 Pro" },
+      },
+      description: { en: "Product tier", zh: "产品档位" },
     },
   },
   usageExamples: [
@@ -270,10 +275,8 @@ function filePlaceholder(image) {
 }
 
 function queryReqKey(ctx) {
-  const data = (ctx && ctx.data) || {};
-  if (typeof data.req_key === "string" && data.req_key.trim()) return data.req_key.trim();
-  const req = (ctx && ctx.requestBody) || {};
-  if (typeof req.req_key === "string" && req.req_key.trim()) return req.req_key.trim();
+  const state = (ctx && ctx.state) || {};
+  if (typeof state.req_key === "string" && state.req_key.trim()) return state.req_key.trim();
   if (ctx && ctx.action === "image_to_video") return "jimeng_vgfm_i2v_l20";
   if (ctx && ctx.action === "first_tail_to_video") return "jimeng_i2v_first_tail_v30";
   return "jimeng_vgfm_t2v_l20";
@@ -349,7 +352,7 @@ export function parseSubmitResponse(ctx, resp) {
   const body = resp.body || {};
   if (body.code !== 10000) throw new Error(body.message || "jimeng submit failed");
   if (!body.data || !body.data.task_id) throw new Error("missing task_id");
-  return { taskId: body.data.task_id, taskData: Object.assign({}, body, { req_key: submitReqKey(ctx) }) };
+  return { taskId: body.data.task_id, taskData: Object.assign({}, body, { req_key: submitReqKey(ctx) }), state: { req_key: submitReqKey(ctx) } };
 }
 
 export function extractUsage(ctx) {
@@ -366,22 +369,20 @@ export function buildQueryRequest(ctx) {
 
 export function parseTaskResult(ctx, body) {
   const data = body.data || {};
-  let status = "";
-  let progress = "";
   if (body.code !== 10000) {
-    status = "FAILURE";
-    progress = "100%";
+    return { code: body.code || 0, status: "FAILURE", progress: "100%", reason: body.message || "" };
   }
   if (data.status === "in_queue") {
-    status = "QUEUED";
-    progress = "10%";
-  } else if (data.status === "done") {
-    status = "SUCCESS";
-    progress = "100%";
+    const result = { code: 0, status: "QUEUED", progress: "10%", reason: "" };
+    if (data.video_url) result.url = data.video_url;
+    return result;
   }
-  const result = { code: body.code === 10000 ? 0 : body.code || 0, status: status, progress: progress, reason: body.code === 10000 ? "" : body.message || "" };
-  if (data.video_url) result.url = data.video_url;
-  return result;
+  if (data.status === "done") {
+    const result = { code: 0, status: "SUCCESS", progress: "100%", reason: "" };
+    if (data.video_url) result.url = data.video_url;
+    return result;
+  }
+  return { code: 0, status: "UNKNOWN", reason: "unrecognized status: " + String(data.status || "") };
 }
 
 function artifactData(ctx) {

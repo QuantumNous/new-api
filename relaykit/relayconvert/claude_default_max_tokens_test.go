@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -80,6 +81,21 @@ func TestClaudeDefaultMaxTokensPresence(t *testing.T) {
 				require.NotNil(t, got.MaxTokens)
 				assert.Equal(t, clientMaxTokens, *got.MaxTokens)
 			})
+
+			t.Run("client zero same as absent, hook fills", func(t *testing.T) {
+				clientMaxTokens := uint(0)
+				got, err := converter.convert(t, claudeDefaultsMeta(func(string) int { return 512 }), &clientMaxTokens)
+				require.NoError(t, err)
+				require.NotNil(t, got.MaxTokens)
+				assert.Equal(t, uint(512), *got.MaxTokens)
+			})
+
+			t.Run("client zero same as absent, no hook fails", func(t *testing.T) {
+				clientMaxTokens := uint(0)
+				got, err := converter.convert(t, &convmeta.Values{}, &clientMaxTokens)
+				require.ErrorIs(t, err, sharedclaude.ErrMissingMaxTokens)
+				assert.Nil(t, got)
+			})
 		})
 	}
 }
@@ -88,12 +104,18 @@ func TestClaudeDefaultMaxTokensPresence(t *testing.T) {
 // "-thinking" request without max_tokens must keep converting even when no
 // DefaultMaxTokens hook is configured.
 func TestClaudeThinkingAdapterSatisfiesMaxTokensWithoutCallback(t *testing.T) {
-	meta := &convmeta.Values{Options: &convmeta.Options{
-		Claude: convmeta.ClaudeOptions{
-			ThinkingAdapterEnabled:                true,
-			ThinkingAdapterBudgetTokensPercentage: 0.8,
+	_, intent, found, err := reasoning.ParseClaudeModelSuffix("claude-test-thinking", true)
+	require.NoError(t, err)
+	require.True(t, found)
+	meta := &convmeta.Values{
+		ReasoningConversion: reasoning.StateFromIntent(intent),
+		Options: &convmeta.Options{
+			Claude: convmeta.ClaudeOptions{
+				ThinkingAdapterEnabled:                true,
+				ThinkingAdapterBudgetTokensPercentage: 0.8,
+			},
 		},
-	}}
+	}
 	got, err := OpenAIChatRequestToClaudeMessages(context.Background(), meta, dto.GeneralOpenAIRequest{
 		Model: "claude-test-thinking",
 		Messages: []dto.Message{

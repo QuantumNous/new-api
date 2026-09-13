@@ -31,7 +31,7 @@ func setupTaskPluginBindChannelTest(t *testing.T) {
 	sqlDB, err := database.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, database.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.CasbinRule{}, &model.AuthzRole{}, &model.Log{}, &model.User{}))
+	require.NoError(t, database.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.CasbinRule{}, &model.AuthzRole{}, &model.Log{}, &model.AuditLog{}, &model.User{}))
 	model.DB = database
 	model.LOG_DB = database
 	require.NoError(t, authz.Init(database))
@@ -128,4 +128,39 @@ export function parseTaskResult() { return {}; }
 	UpdateChannel(context)
 	assert.Contains(t, recorder.Body.String(), "task plugin channels require the task_plugin.bind permission")
 	assert.Contains(t, recorder.Body.String(), `"success":false`)
+}
+
+func TestAddChannelTaskPluginPersistsPluginDefaultBaseURLAndAuditsSource(t *testing.T) {
+	setupTaskPluginBindChannelTest(t)
+	for key, baseURLField := range map[string]string{"bind-default-url": `baseUrl: "http://10.0.0.5:8000/",`, "bind-no-default": ""} {
+		source := fmt.Sprintf(`
+export const meta = {apiVersion: 1, key: %q, name: "Bind", version: "1.0.0", author: {name: "Test"}, %s models: ["doc"], fetchMode: "per_task"};
+export function buildSubmitRequest() { return {}; }
+export function parseSubmitResponse() { return {}; }
+export function buildQueryRequest() { return {}; }
+export function parseTaskResult() { return {}; }
+`, key, baseURLField)
+		_, err := jsplugin.DefaultRegistry.Register(source, jsplugin.Options{})
+		require.NoError(t, err)
+		t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister(key) })
+	}
+	body := func(pluginKey string) string {
+		return fmt.Sprintf(`{"mode":"single","channel":{"type":61,"name":"%s","key":"sk","models":"doc","group":"default","setting":"{\"task_plugin_key\":\"%s\"}"}}`, pluginKey, pluginKey)
+	}
+
+	noDefault := postAddChannel(t, 1, common.RoleRootUser, body("bind-no-default"))
+	assert.Contains(t, noDefault.Body.String(), "base URL is required for task plugin channels")
+
+	filled := postAddChannel(t, 1, common.RoleRootUser, body("bind-default-url"))
+	require.Contains(t, filled.Body.String(), `"success":true`)
+	var created model.Channel
+	require.NoError(t, model.DB.Where("name = ?", "bind-default-url").First(&created).Error)
+	require.NotNil(t, created.BaseURL)
+	assert.Equal(t, "http://10.0.0.5:8000", *created.BaseURL, "the normalized plugin default is stored on the channel row")
+
+	var audits []model.AuditLog
+	require.NoError(t, model.LOG_DB.Where("action = ?", "channel.create").Find(&audits).Error)
+	encoded, err := common.Marshal(audits)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"base_url_source":"plugin_default"`)
 }

@@ -74,6 +74,7 @@ export function MarketplacePanel() {
     queryKey: ['task-plugin-marketplace', selectedSource?.index_url],
     enabled: Boolean(selectedSource),
     retry: false,
+    meta: { errorToast: false },
     queryFn: async (): Promise<MarketplaceIndex> => {
       if (!selectedSource) throw new Error('marketplace source is not selected')
       const response = await fetch(selectedSource.index_url)
@@ -259,6 +260,7 @@ function MarketplaceSourceSection(props: MarketplaceSourceSectionProps) {
               <MarketplacePluginCard
                 key={plugin.key}
                 plugin={plugin}
+                indexUrl={props.source.index_url}
                 installState={installState}
                 installed={props.installed.find(
                   (item) => item.meta.key === plugin.key

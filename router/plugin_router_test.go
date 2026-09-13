@@ -498,6 +498,9 @@ func TestPluginPathOwnershipIsExclusiveAcrossMethods(t *testing.T) {
 	beta := compileRouterPlugin(t, "beta-owner", "1.0.0", `[
 		{method: "POST", path: "/shared/jobs/:task_id", type: "submit"}
 	]`)
+	// Display priority must not change exclusive route ownership.
+	alpha.Meta.SortPriority = -100
+	beta.Meta.SortPriority = 100
 	handlers := testPluginRouteHandlers(func(c *gin.Context, _ *jsplugin.RoutingGeneration, binding jsplugin.RouteBinding) {
 		c.String(http.StatusOK, binding.Plugin.Meta.Key)
 	})
@@ -881,4 +884,34 @@ func performPluginRequest(handler http.Handler, method, path string) *httptest.R
 	request := httptest.NewRequest(method, path, strings.NewReader(""))
 	handler.ServeHTTP(recorder, request)
 	return recorder
+}
+
+func TestWebFallbackDoesNotCacheMissingAPIOrAssets(t *testing.T) {
+	outer := gin.New()
+	SetWebRouter(outer, WebAssets{IndexPage: []byte("dashboard")}, func(c *gin.Context) { c.Next() })
+	for _, path := range []string{"/api/user/token/status", "/api/audit/self?p=1", "/v1/missing", "/assets/missing.js"} {
+		t.Run(path, func(t *testing.T) {
+			response := performPluginRequest(outer, http.MethodGet, path)
+			assert.Equal(t, http.StatusNotFound, response.Code)
+			assert.Contains(t, response.Body.String(), "Invalid URL")
+			assert.Contains(t, response.Header().Get("Cache-Control"), "no-store")
+			assert.NotContains(t, response.Header().Get("Cache-Control"), "604800")
+		})
+	}
+	page := performPluginRequest(outer, http.MethodGet, "/security")
+	assert.Equal(t, http.StatusOK, page.Code)
+	assert.Equal(t, "dashboard", page.Body.String())
+	assert.Equal(t, "no-cache", page.Header().Get("Cache-Control"))
+}
+
+func TestSecurityRoutesDisableCachingBeforeAuthentication(t *testing.T) {
+	outer := gin.New()
+	SetApiRouter(outer)
+	for _, path := range []string{"/api/user/token/status", "/api/user/token", "/api/audit/self", "/api/audit"} {
+		t.Run(path, func(t *testing.T) {
+			response := performPluginRequest(outer, http.MethodGet, path)
+			assert.Equal(t, http.StatusUnauthorized, response.Code)
+			assert.Contains(t, response.Header().Get("Cache-Control"), "no-store")
+		})
+	}
 }

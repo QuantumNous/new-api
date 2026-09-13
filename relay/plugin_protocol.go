@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"sort"
 	"strconv"
@@ -835,9 +836,7 @@ func (m *PluginResponsesMachine) finalMetadata(pluginValue any) map[string]strin
 			metadata[key] = value
 		}
 	}
-	for key, value := range m.metadata {
-		metadata[key] = value
-	}
+	maps.Copy(metadata, m.metadata)
 	return metadata
 }
 
@@ -1003,9 +1002,7 @@ func (m *PluginResponsesMachine) event(event dto.PluginResponsesStreamEvent) dto
 
 func (m *PluginResponsesMachine) responseSnapshot(responseError *dto.PluginResponsesError) *dto.PluginResponsesResponse {
 	metadata := make(map[string]string, len(m.metadata))
-	for key, value := range m.metadata {
-		metadata[key] = value
-	}
+	maps.Copy(metadata, m.metadata)
 	outputs := make([]dto.PluginResponsesOutput, len(m.outputs))
 	for index, output := range m.outputs {
 		outputs[index] = output

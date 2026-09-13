@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Combobox } from '@/components/ui/combobox'
 import {
   AlertTriangle,
   ChevronDown,
@@ -41,14 +42,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const sectionCardClassName =
   'relative shadow-sm ring-0 before:pointer-events-none before:absolute before:inset-0 before:rounded-xl before:border before:border-border/90'
@@ -146,25 +140,14 @@ function GroupSelect(props: GroupSelectProps) {
   }, [props.options, props.value])
 
   return (
-    <Select
-      value={props.value === '' ? null : props.value}
-      onValueChange={(v) => {
-        if (typeof v === 'string' && v !== '') props.onValueChange(v)
-      }}
-    >
-      <SelectTrigger className={props.className}>
-        <SelectValue placeholder={props.placeholder} />
-      </SelectTrigger>
-      <SelectContent alignItemWithTrigger={false}>
-        <SelectGroup>
-          {knownOptions.map((name) => (
-            <SelectItem key={name} value={name}>
-              {name}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
+    <Combobox
+  options={knownOptions.map((name) => ({ value: name, label: name }))}
+  value={props.value}
+  onValueChange={(value) => { if (value) props.onValueChange(value) }}
+  className={props.className}
+  placeholder={props.placeholder}
+  aria-label={props.placeholder}
+/>
   )
 }
 

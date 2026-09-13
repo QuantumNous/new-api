@@ -165,8 +165,7 @@ func TestClaudeTargetStatefulStreamTerminalTail(t *testing.T) {
 					},
 				},
 			},
-			wantFinalizerTerminals: true,
-			wantStopReason:         "end_turn",
+			wantStopReason: "end_turn",
 		},
 	}
 
@@ -228,26 +227,10 @@ func TestClaudeTargetStatefulStreamTerminalTail(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		chunks := []*dto.ResponsesStreamResponse{
-			{
-				Type:  "response.output_text.delta",
-				Delta: "Hello",
-			},
-			{
-				Type: "response.completed",
-				Response: &dto.OpenAIResponsesResponse{
-					ID:     "resp-fixed",
-					Object: "response",
-					Model:  "upstream-model",
-					Status: []byte(`"completed"`),
-					Usage: &dto.Usage{
-						InputTokens:  4,
-						OutputTokens: 2,
-						TotalTokens:  6,
-					},
-				},
-			},
-		}
+		chunks := []*dto.ResponsesStreamResponse{{
+			Type:  "response.output_text.delta",
+			Delta: "Hello",
+		}}
 		for _, chunk := range chunks {
 			_, err := ConvertStreamResponseChunk(nil, info, state, chunk)
 			require.NoError(t, err)
