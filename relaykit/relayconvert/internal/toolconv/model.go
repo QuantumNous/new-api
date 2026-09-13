@@ -59,6 +59,8 @@ type Definition struct {
 	Execution  Execution
 	NativeType string
 	Name       string
+	Namespace  string
+	ServerName string
 	Function   *Function
 	WebSearch  *WebSearch
 	Raw        json.RawMessage
