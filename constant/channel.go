@@ -60,6 +60,7 @@ const (
 	ChannelTypeNewAPI         = 60
 	ChannelTypeTaskPlugin     = 61
 	ChannelTypeVLLM           = 62
+	ChannelTypeSGLang         = 63
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -128,6 +129,7 @@ var ChannelBaseURLs = []string{
 	"",                                          //60
 	"",                                          //61
 	"",                                          //62
+	"",                                          //63
 }
 
 func GetChannelBaseURL(channelType int) string {
@@ -197,6 +199,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeNewAPI:         "New API",
 	ChannelTypeTaskPlugin:     "Task Plugin",
 	ChannelTypeVLLM:           "vLLM",
+	ChannelTypeSGLang:         "SGLang",
 }
 
 func GetChannelTypeName(channelType int) string {
@@ -228,4 +231,14 @@ var ChannelSpecialBases = map[string]ChannelSpecialBase{
 		ClaudeBaseURL: "https://ark.cn-beijing.volces.com/api/coding",
 		OpenAIBaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3",
 	},
+}
+
+// IsAdvancedCustomChannel includes named channels backed by route presets.
+func IsAdvancedCustomChannel(channelType int) bool {
+	switch channelType {
+	case ChannelTypeAdvancedCustom, ChannelTypeVLLM, ChannelTypeSGLang:
+		return true
+	default:
+		return false
+	}
 }

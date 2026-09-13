@@ -20,33 +20,41 @@ import (
 	"github.com/prometheus/common/expfmt"
 )
 
-type vllmEndpointStatus struct {
+type inferenceEndpointStatus struct {
 	Status int    `json:"status"`
 	Error  string `json:"error,omitempty"`
 }
 
-type vllmModel struct {
+type inferenceModel struct {
 	ID          string `json:"id"`
 	Root        string `json:"root"`
 	MaxModelLen *int64 `json:"max_model_len"`
 }
 
-type vllmMetric struct {
+type inferenceMetric struct {
 	Name   string            `json:"name"`
 	Labels map[string]string `json:"labels"`
 	Value  float64           `json:"value"`
 }
 
-type vllmStatus struct {
-	SampledAt  int64                         `json:"sampled_at"`
-	Endpoints  map[string]vllmEndpointStatus `json:"endpoints"`
-	Version    string                        `json:"version"`
-	Models     []vllmModel                   `json:"models"`
-	Metrics    []vllmMetric                  `json:"metrics"`
-	RawMetrics string                        `json:"raw_metrics"`
+type inferenceStatus struct {
+	SampledAt  int64                              `json:"sampled_at"`
+	Endpoints  map[string]inferenceEndpointStatus `json:"endpoints"`
+	Version    string                             `json:"version"`
+	Models     []inferenceModel                   `json:"models"`
+	Metrics    []inferenceMetric                  `json:"metrics"`
+	RawMetrics string                             `json:"raw_metrics"`
 }
 
 func GetVLLMChannelStatus(c *gin.Context) {
+	getInferenceChannelStatus(c, constant.ChannelTypeVLLM)
+}
+
+func GetSGLangChannelStatus(c *gin.Context) {
+	getInferenceChannelStatus(c, constant.ChannelTypeSGLang)
+}
+
+func getInferenceChannelStatus(c *gin.Context, channelType int) {
 	c.Header("Cache-Control", "no-store")
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id <= 0 {
@@ -58,7 +66,11 @@ func GetVLLMChannelStatus(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "Channel not found"})
 		return
 	}
-	status, err := fetchVLLMStatus(c.Request.Context(), channel)
+	if channel.Type != channelType {
+		common.ApiError(c, errors.New("Channel type does not match the status endpoint"))
+		return
+	}
+	status, err := fetchInferenceStatus(c.Request.Context(), channel)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -66,16 +78,16 @@ func GetVLLMChannelStatus(c *gin.Context) {
 	common.ApiSuccess(c, status)
 }
 
-// fetchVLLMStatus reads only fixed paths on an operator-configured channel.
+// fetchInferenceStatus reads only fixed paths on an operator-configured channel.
 // Each endpoint can fail independently; upstream errors never echo credentials.
-func fetchVLLMStatus(ctx context.Context, channel *model.Channel) (*vllmStatus, error) {
-	if channel.Type != constant.ChannelTypeVLLM {
-		return nil, errors.New("This operation is only supported for vLLM channels")
+func fetchInferenceStatus(ctx context.Context, channel *model.Channel) (*inferenceStatus, error) {
+	if channel.Type != constant.ChannelTypeVLLM && channel.Type != constant.ChannelTypeSGLang {
+		return nil, errors.New("This operation is only supported for vLLM or SGLang channels")
 	}
 	baseURL := strings.TrimRight(strings.TrimSpace(channel.GetBaseURL()), "/")
 	parsedURL, err := url.Parse(baseURL)
 	if err != nil || parsedURL.Host == "" || parsedURL.User != nil || parsedURL.RawQuery != "" || parsedURL.Fragment != "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
-		return nil, errors.New("Invalid vLLM server address")
+		return nil, errors.New("Invalid inference server address")
 	}
 	key, _, keyErr := channel.GetNextEnabledKey()
 	if keyErr != nil {
@@ -100,9 +112,13 @@ func fetchVLLMStatus(ctx context.Context, channel *model.Channel) (*vllmStatus, 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	paths := []string{"/health", "/version", "/v1/models", "/metrics"}
+	versionPath, metricPrefix := "/version", "vllm:"
+	if channel.Type == constant.ChannelTypeSGLang {
+		versionPath, metricPrefix = "/server_info", "sglang:"
+	}
+	paths := []string{"/health", versionPath, "/v1/models", "/metrics"}
 	results := make([]struct {
-		vllmEndpointStatus
+		inferenceEndpointStatus
 		body []byte
 		at   int64
 	}, len(paths))
@@ -146,17 +162,19 @@ func fetchVLLMStatus(ctx context.Context, channel *model.Channel) (*vllmStatus, 
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return nil, context.Canceled
 	}
-	status := &vllmStatus{
+	status := &inferenceStatus{
 		SampledAt: time.Now().UnixMilli(),
-		Endpoints: make(map[string]vllmEndpointStatus, len(paths)),
-		Models:    []vllmModel{},
-		Metrics:   []vllmMetric{},
+		Endpoints: make(map[string]inferenceEndpointStatus, len(paths)),
+		Models:    []inferenceModel{},
+		Metrics:   []inferenceMetric{},
 	}
 	for i, path := range paths {
 		result := &results[i]
 		if result.Error == "" {
 			switch path {
-			case "/version":
+			case versionPath:
+				// /server_info includes the launch configuration. Decode only the
+				// version so API keys and other server settings never reach the browser.
 				var version struct {
 					Version string `json:"version"`
 				}
@@ -167,7 +185,7 @@ func fetchVLLMStatus(ctx context.Context, channel *model.Channel) (*vllmStatus, 
 				}
 			case "/v1/models":
 				var models struct {
-					Data []vllmModel `json:"data"`
+					Data []inferenceModel `json:"data"`
 				}
 				if err := common.Unmarshal(result.body, &models); err != nil || models.Data == nil {
 					result.Error = "invalid_response"
@@ -175,7 +193,7 @@ func fetchVLLMStatus(ctx context.Context, channel *model.Channel) (*vllmStatus, 
 					status.Models = models.Data
 				}
 			case "/metrics":
-				metrics, err := parseVLLMMetrics(string(result.body))
+				metrics, err := parseInferenceMetrics(string(result.body), metricPrefix)
 				if err != nil {
 					result.Error = "invalid_response"
 				} else {
@@ -185,20 +203,20 @@ func fetchVLLMStatus(ctx context.Context, channel *model.Channel) (*vllmStatus, 
 				}
 			}
 		}
-		status.Endpoints[path] = result.vllmEndpointStatus
+		status.Endpoints[path] = result.inferenceEndpointStatus
 	}
 	return status, nil
 }
 
-func parseVLLMMetrics(raw string) ([]vllmMetric, error) {
+func parseInferenceMetrics(raw string, prefix string) ([]inferenceMetric, error) {
 	var parser expfmt.TextParser
 	families, err := parser.TextToMetricFamilies(strings.NewReader(raw))
 	if err != nil {
 		return nil, err
 	}
-	metrics := []vllmMetric{}
+	metrics := []inferenceMetric{}
 	for name, family := range families {
-		if !strings.HasPrefix(name, "vllm:") && name != "process_start_time_seconds" {
+		if !strings.HasPrefix(name, prefix) && name != "process_start_time_seconds" {
 			continue
 		}
 		samples, err := expfmt.ExtractSamples(&expfmt.DecodeOptions{}, family)
@@ -217,7 +235,7 @@ func parseVLLMMetrics(raw string) ([]vllmMetric, error) {
 					labels[string(label)] = string(value)
 				}
 			}
-			metrics = append(metrics, vllmMetric{Name: name, Labels: labels, Value: value})
+			metrics = append(metrics, inferenceMetric{Name: name, Labels: labels, Value: value})
 		}
 	}
 	return metrics, nil

@@ -92,7 +92,7 @@ func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilte
 		if filter.RequestPath == "" {
 			return true
 		}
-		if ch.Type != constant.ChannelTypeAdvancedCustom {
+		if !constant.IsAdvancedCustomChannel(ch.Type) {
 			return true
 		}
 		config := ch.GetOtherSettings().AdvancedCustom

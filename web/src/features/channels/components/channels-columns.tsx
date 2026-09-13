@@ -62,6 +62,7 @@ import {
   CHANNEL_STATUS_CONFIG,
   CHANNEL_TYPE_TASK_PLUGIN,
   CHANNEL_TYPE_VLLM,
+  CHANNEL_TYPE_SGLANG,
   MODEL_FETCHABLE_TYPES,
 } from '../constants'
 import {
@@ -429,11 +430,15 @@ export function BalanceCell({ channel }: { channel: Channel }) {
 
   // Regular channel row: show used and remaining with click to update
   const variant = getBalanceVariant(balance)
+  const isInferenceChannel =
+    channel.type === CHANNEL_TYPE_VLLM || channel.type === CHANNEL_TYPE_SGLANG
+  const inferenceStatusLabel =
+    channel.type === CHANNEL_TYPE_SGLANG ? t('SGLang status') : t('vLLM status')
 
   const handleClickUpdate = async () => {
-    if (channel.type === CHANNEL_TYPE_VLLM) {
+    if (isInferenceChannel) {
       setCurrentRow(channel)
-      setOpen('vllm-status')
+      setOpen('inference-status')
       return
     }
     if (isUpdating) {
@@ -489,19 +494,19 @@ export function BalanceCell({ channel }: { channel: Channel }) {
     remainingBadgeLabel = t('Updating...')
   } else if (sensitiveVisible && channel.type === 57) {
     remainingBadgeLabel = t('Account Info')
-  } else if (sensitiveVisible && channel.type === CHANNEL_TYPE_VLLM) {
-    remainingBadgeLabel = t('vLLM status')
+  } else if (sensitiveVisible && isInferenceChannel) {
+    remainingBadgeLabel = inferenceStatusLabel
   }
   let remainingTooltipLabel = remainingLabel
   if (!sensitiveVisible) {
     remainingTooltipLabel = maskedRemainingLabel
   } else if (channel.type === 57) {
     remainingTooltipLabel = t('Click to view Codex usage')
-  } else if (channel.type === CHANNEL_TYPE_VLLM) {
-    remainingTooltipLabel = t('vLLM status')
+  } else if (isInferenceChannel) {
+    remainingTooltipLabel = inferenceStatusLabel
   }
   let remainingBadgeVariant: StatusBadgeProps['variant'] = variant
-  if (channel.type === 57 || channel.type === CHANNEL_TYPE_VLLM) {
+  if (channel.type === 57 || isInferenceChannel) {
     remainingBadgeVariant = 'info'
   } else if (isUpdating) {
     remainingBadgeVariant = 'neutral'
@@ -514,9 +519,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
       copyable={false}
       showDot={false}
       className='cursor-pointer'
-      onClick={
-        channel.type === CHANNEL_TYPE_VLLM ? undefined : handleClickUpdate
-      }
+      onClick={isInferenceChannel ? undefined : handleClickUpdate}
     />
   )
 
@@ -543,7 +546,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
         <Tooltip>
           <TooltipTrigger
             render={
-              channel.type === CHANNEL_TYPE_VLLM ? (
+              isInferenceChannel ? (
                 <Button
                   variant='ghost'
                   size='sm'
@@ -560,7 +563,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
           />
           <TooltipContent>
             <p>{remainingTooltipLabel}</p>
-            {channel.type !== 57 && channel.type !== CHANNEL_TYPE_VLLM && (
+            {channel.type !== 57 && !isInferenceChannel && (
               <p>{t('Click to update balance')}</p>
             )}
           </TooltipContent>

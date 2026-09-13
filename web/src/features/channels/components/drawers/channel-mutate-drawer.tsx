@@ -139,6 +139,7 @@ import {
   CHANNEL_TYPE_OPTIONS,
   CHANNEL_TYPE_TASK_PLUGIN,
   CHANNEL_TYPE_VLLM,
+  CHANNEL_TYPE_SGLANG,
   CHANNEL_TYPE_WARNINGS,
   ERROR_MESSAGES,
   FIELD_PASSTHROUGH_TYPES,
@@ -182,6 +183,7 @@ import {
   getChannelPluginExtensions,
   supportsChannelPluginExtensions,
 } from '../../lib/channel-plugin-extensions'
+import { getChannelTypeConfig } from '../../lib/channel-type-config'
 import {
   collectInvalidStatusCodeEntries,
   collectNewDisallowedStatusCodeRedirects,
@@ -3600,7 +3602,8 @@ export function ChannelMutateDrawer({
                     <FormLabel
                       required={
                         currentType === CHANNEL_TYPE_TASK_PLUGIN ||
-                        currentType === CHANNEL_TYPE_VLLM
+                        currentType === CHANNEL_TYPE_VLLM ||
+                        currentType === CHANNEL_TYPE_SGLANG
                       }
                     >
                       {t('Base URL')}
@@ -3608,8 +3611,11 @@ export function ChannelMutateDrawer({
                     <FormControl>
                       <Input
                         placeholder={t(
-                          currentType === CHANNEL_TYPE_VLLM
-                            ? 'vLLM server address, without /v1'
+                          [CHANNEL_TYPE_VLLM, CHANNEL_TYPE_SGLANG].includes(
+                            currentType
+                          )
+                            ? getChannelTypeConfig(currentType).hints
+                                ?.baseUrl || FIELD_PLACEHOLDERS.BASE_URL
                             : FIELD_PLACEHOLDERS.BASE_URL
                         )}
                         {...field}

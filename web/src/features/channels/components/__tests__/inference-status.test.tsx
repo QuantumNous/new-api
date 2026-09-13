@@ -34,19 +34,20 @@ import { api } from '@/lib/api'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { CHANNEL_TYPE_VLLM } from '../../constants'
-import type { VLLMStatus } from '../../lib/vllm-status'
+import { CHANNEL_TYPE_VLLM, CHANNEL_TYPE_SGLANG } from '../../constants'
+import type { InferenceStatus } from '../../lib/inference-status'
 import { channelSchema } from '../../types'
 import { ChannelRowActionsLayoutContext } from '../channel-row-actions-context'
 import { BalanceCell } from '../channels-columns'
 import { ChannelsDialogs } from '../channels-dialogs'
 import { ChannelsProvider } from '../channels-provider'
-import { VLLMStatusDialog } from '../dialogs/vllm-status-dialog'
+import { InferenceStatusDialog } from '../dialogs/inference-status-dialog'
+import { ChannelMutateDrawer } from '../drawers/channel-mutate-drawer'
 
 const originalAuth = useAuthStore.getState().auth
 let client: QueryClient
 
-function fixture(): VLLMStatus {
+function fixture(): InferenceStatus {
   return {
     sampled_at: 1000,
     endpoints: {
@@ -77,7 +78,8 @@ function panel(
 ) {
   return (
     <QueryClientProvider client={client}>
-      <VLLMStatusDialog
+      <InferenceStatusDialog
+        provider='vllm'
         key={channelId}
         channelId={channelId}
         channelName='Test vLLM'
@@ -106,23 +108,48 @@ afterEach(() => {
 })
 
 it.each([
-  { layout: 'table' as const, action: 'click' },
-  { layout: 'card' as const, action: 'Enter' },
-  { layout: 'card' as const, action: ' ' },
+  {
+    layout: 'table' as const,
+    action: 'click',
+    provider: 'vllm',
+    name: 'vLLM',
+    type: CHANNEL_TYPE_VLLM,
+  },
+  {
+    layout: 'table' as const,
+    action: 'click',
+    provider: 'sglang',
+    name: 'SGLang',
+    type: CHANNEL_TYPE_SGLANG,
+  },
+  {
+    layout: 'card' as const,
+    action: 'Enter',
+    provider: 'vllm',
+    name: 'vLLM',
+    type: CHANNEL_TYPE_VLLM,
+  },
+  {
+    layout: 'card' as const,
+    action: ' ',
+    provider: 'sglang',
+    name: 'SGLang',
+    type: CHANNEL_TYPE_SGLANG,
+  },
 ])(
-  'opens vLLM status from the balance cell in $layout view using $action',
-  async ({ layout, action }) => {
+  'opens $name status from the balance cell in $layout view using $action',
+  async ({ layout, action, provider, name, type }) => {
     const get = vi.spyOn(api, 'get').mockImplementation(async (url) => {
-      if (url === '/api/channel/42/vllm/status') {
+      if (url === `/api/channel/42/${provider}/status`) {
         return { data: { success: true, data: fixture() } }
       }
       return { data: { success: true, data: [] } }
     })
     const channel = channelSchema.parse({
       id: 42,
-      type: CHANNEL_TYPE_VLLM,
+      type,
       key: '',
-      name: 'Test vLLM',
+      name: `Test ${name}`,
       status: 1,
       created_time: 1,
       test_time: 0,
@@ -140,7 +167,7 @@ it.each([
         </ChannelsProvider>
       </QueryClientProvider>
     )
-    const entry = screen.getByRole('button', { name: 'vLLM status' })
+    const entry = screen.getByRole('button', { name: `${name} status` })
     expect(entry).toHaveAttribute('aria-haspopup', 'dialog')
     if (action === 'click') {
       await user.click(entry)
@@ -149,7 +176,7 @@ it.each([
       await user.keyboard(action === 'Enter' ? '{Enter}' : ' ')
     }
     expect(
-      await screen.findByRole('dialog', { name: 'vLLM status' })
+      await screen.findByRole('dialog', { name: `${name} status` })
     ).toBeInTheDocument()
     expect(await screen.findByText('served-model')).toBeInTheDocument()
     expect(get.mock.calls.some(([url]) => url.includes('update_balance'))).toBe(
@@ -286,13 +313,15 @@ it('polls while enabled and stops after disabling auto refresh or closing the pa
 })
 
 it('cancels requests on channel changes and ignores late results from the previous channel', async () => {
-  let finish!: (value: { data: { success: boolean; data: VLLMStatus } }) => void
+  let finish!: (value: {
+    data: { success: boolean; data: InferenceStatus }
+  }) => void
   let firstSignal: AbortSignal | undefined
-  const pending = new Promise<{ data: { success: boolean; data: VLLMStatus } }>(
-    (resolve) => {
-      finish = resolve
-    }
-  )
+  const pending = new Promise<{
+    data: { success: boolean; data: InferenceStatus }
+  }>((resolve) => {
+    finish = resolve
+  })
   vi.spyOn(api, 'get').mockImplementation((url, config) => {
     if (url === '/api/channel/42/vllm/status') {
       firstSignal = config?.signal as AbortSignal
@@ -335,3 +364,124 @@ it('disables channel mutations and tests for a read-only operator', async () => 
   expect(screen.getByRole('button', { name: 'Test Connection' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled()
 })
+
+it('shows SGLang metric names and keeps worker percentages separate', async () => {
+  const data = fixture()
+  data.version = '0.5.19'
+  data.endpoints = {
+    '/health': { status: 200 },
+    '/server_info': { status: 200 },
+    '/v1/models': { status: 200 },
+    '/metrics': { status: 200 },
+  }
+  data.metrics = [
+    { name: 'sglang:num_running_reqs', labels: {}, value: 3 },
+    { name: 'sglang:num_queue_reqs', labels: {}, value: 0 },
+    { name: 'sglang:token_usage', labels: { dp_rank: '0' }, value: 0.25 },
+    { name: 'sglang:token_usage', labels: { dp_rank: '1' }, value: 0.5 },
+    { name: 'sglang:cache_hit_rate', labels: { dp_rank: '0' }, value: 0.2 },
+    { name: 'sglang:cache_hit_rate', labels: { dp_rank: '1' }, value: 0.8 },
+    { name: 'sglang:inter_token_latency_seconds_sum', labels: {}, value: 4 },
+    {
+      name: 'sglang:inter_token_latency_seconds_count',
+      labels: {},
+      value: 2,
+    },
+  ]
+  const get = vi
+    .spyOn(api, 'get')
+    .mockResolvedValue({ data: { success: true, data } })
+  render(
+    <QueryClientProvider client={client}>
+      <InferenceStatusDialog
+        provider='sglang'
+        channelId={63}
+        channelName='SGLang'
+        onClose={vi.fn()}
+        onSyncModels={vi.fn()}
+        onTestChannel={vi.fn()}
+      />
+    </QueryClientProvider>
+  )
+  expect(await screen.findByText('0.5.19')).toBeInTheDocument()
+  const load = within(screen.getByRole('region', { name: 'Current load' }))
+  expect(load.getByText('3')).toBeInTheDocument()
+  expect(load.getByText('0')).toBeInTheDocument()
+  expect(load.getByText('50%')).toBeInTheDocument()
+  expect(
+    within(screen.getByRole('region', { name: 'Cumulative usage' })).getByText(
+      '2 sec'
+    )
+  ).toBeInTheDocument()
+  const workers = within(screen.getByRole('region', { name: 'Worker metrics' }))
+  expect(workers.getByText('20%')).toBeInTheDocument()
+  expect(workers.getByText('80%')).toBeInTheDocument()
+  expect(screen.queryByText('Awake engines')).not.toBeInTheDocument()
+  expect(get).toHaveBeenCalledWith(
+    '/api/channel/63/sglang/status',
+    expect.objectContaining({ signal: expect.any(AbortSignal) })
+  )
+  get.mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        ...data,
+        endpoints: {
+          ...data.endpoints,
+          '/metrics': { status: 404, error: 'http_error' },
+        },
+        metrics: [],
+      },
+    },
+  })
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Refresh' }))
+  expect(
+    await screen.findByText(
+      'Start SGLang with --enable-metrics to expose Prometheus metrics.'
+    )
+  ).toBeInTheDocument()
+  expect(screen.getByText('served-model')).toBeInTheDocument()
+})
+
+it.each([
+  { type: CHANNEL_TYPE_VLLM, editable: false },
+  { type: CHANNEL_TYPE_SGLANG, editable: false },
+  { type: 58, editable: true },
+])(
+  'limits the route editor to advanced custom channels: type $type',
+  async ({ type, editable }) => {
+    const channel = channelSchema.parse({
+      id: 42,
+      type,
+      key: '',
+      name: 'Inference',
+      base_url: 'https://inference.example',
+      models: 'served-model',
+      status: 1,
+      created_time: 1,
+      test_time: 0,
+      response_time: 0,
+      balance_updated_time: 0,
+      settings:
+        '{"advanced_custom":{"advanced_routes":[{"incoming_path":"/v1/chat/completions","upstream_path":"/v1/chat/completions","converter":"none"}]}}',
+    })
+    vi.spyOn(api, 'get').mockImplementation(async (url) => ({
+      data: { success: true, data: url === '/api/channel/42' ? channel : [] },
+    }))
+    render(
+      <QueryClientProvider client={client}>
+        <ChannelsProvider>
+          <ChannelMutateDrawer
+            open
+            onOpenChange={vi.fn()}
+            currentRow={channel}
+          />
+        </ChannelsProvider>
+      </QueryClientProvider>
+    )
+    expect(await screen.findByDisplayValue('Inference')).toBeInTheDocument()
+    expect(
+      Boolean(screen.queryByRole('button', { name: 'Configure routes' }))
+    ).toBe(editable)
+  }
+)

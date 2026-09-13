@@ -21,6 +21,7 @@ import { describe, expect, test } from 'vitest'
 import {
   CHANNEL_TYPE_NEW_API,
   CHANNEL_TYPE_VLLM,
+  CHANNEL_TYPE_SGLANG,
   CHANNEL_TYPE_OPTIONS,
   MODEL_FETCHABLE_TYPES,
 } from '../../constants'
@@ -95,24 +96,27 @@ describe('New API channel', () => {
   })
 })
 
-describe('vLLM channel', () => {
+describe.each([
+  { type: CHANNEL_TYPE_VLLM, name: 'vLLM', icon: 'Vllm' },
+  { type: CHANNEL_TYPE_SGLANG, name: 'SGLang', icon: 'SGLang' },
+])('$name channel', ({ type, name, icon }) => {
   test('can be selected and discover served models', () => {
     expect(CHANNEL_TYPE_OPTIONS).toContainEqual({
-      value: CHANNEL_TYPE_VLLM,
-      label: 'vLLM',
+      value: type,
+      label: name,
     })
-    expect(MODEL_FETCHABLE_TYPES.has(CHANNEL_TYPE_VLLM)).toBe(true)
-    expect(getChannelTypeIcon(CHANNEL_TYPE_VLLM)).toBe('Vllm')
-    expect(getChannelTypeConfig(CHANNEL_TYPE_VLLM).icon).toBe('Vllm')
-    expect(getKeyPromptForType(CHANNEL_TYPE_VLLM)).toBe(
-      'vLLM API key, or EMPTY if authentication is disabled'
+    expect(MODEL_FETCHABLE_TYPES.has(type)).toBe(true)
+    expect(getChannelTypeIcon(type)).toBe(icon)
+    expect(getChannelTypeConfig(type).icon).toBe(icon)
+    expect(getKeyPromptForType(type)).toBe(
+      `${name} API key, or EMPTY if authentication is disabled`
     )
   })
 
   test('requires an upstream address and submits the served model name', () => {
     const form = {
       ...newAPIForm(''),
-      type: CHANNEL_TYPE_VLLM,
+      type,
       models: 'deepseek-v4-flash-vision-exp',
       key: 'EMPTY',
     }
@@ -134,7 +138,7 @@ describe('vLLM channel', () => {
     })
     const payload = transformFormDataToCreatePayload(parsed)
     expect(payload.channel).toMatchObject({
-      type: CHANNEL_TYPE_VLLM,
+      type,
       base_url: 'http://vllm:8000',
       models: 'deepseek-v4-flash-vision-exp',
       key: 'EMPTY',

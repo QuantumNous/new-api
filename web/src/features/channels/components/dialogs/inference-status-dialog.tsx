@@ -36,14 +36,14 @@ import {
 import { getServerErrorMessage } from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { getVLLMStatus } from '../../api'
+import { getInferenceStatus } from '../../api'
 import {
-  vllmMean,
-  vllmMetricValue,
-  vllmRatio,
-  vllmRecentMetrics,
-  type VLLMStatus,
-} from '../../lib/vllm-status'
+  metricMean,
+  metricValue,
+  metricRatio,
+  recentMetrics,
+  type InferenceStatus,
+} from '../../lib/inference-status'
 
 type MetricRow = {
   label: string
@@ -51,7 +51,8 @@ type MetricRow = {
   unit?: 'percent' | 'seconds' | 'rate'
 }
 
-type VLLMStatusDialogProps = {
+type InferenceStatusDialogProps = {
+  provider: 'vllm' | 'sglang'
   channelId: number
   channelName: string
   onClose: () => void
@@ -60,12 +61,14 @@ type VLLMStatusDialogProps = {
 }
 
 // Mounted only while this channel's status dialog is open; unmount aborts the query.
-export function VLLMStatusDialog(props: VLLMStatusDialogProps) {
+export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
   const { t, i18n } = useTranslation()
+  const isSGLang = props.provider === 'sglang'
   const [autoRefresh, setAutoRefresh] = useState(true)
   const autoRefreshId = useId()
   const previous = useRef<
-    { channelId: number; snapshot: VLLMStatus } | undefined
+    | { channelId: number; provider: string; snapshot: InferenceStatus }
+    | undefined
   >(undefined)
   const user = useAuthStore((state) => state.auth.user)
   const canOperate = hasPermission(
@@ -81,16 +84,25 @@ export function VLLMStatusDialog(props: VLLMStatusDialogProps) {
       ADMIN_PERMISSION_ACTIONS.WRITE
     )
   const query = useQuery({
-    queryKey: ['channels', props.channelId, 'vllm-status'],
+    queryKey: ['channels', props.channelId, props.provider, 'inference-status'],
     queryFn: async ({ signal }) => {
-      const snapshot = await getVLLMStatus(props.channelId, signal)
+      const snapshot = await getInferenceStatus(
+        props.channelId,
+        props.provider,
+        signal
+      )
       signal.throwIfAborted()
       const last =
-        previous.current?.channelId === props.channelId
+        previous.current?.channelId === props.channelId &&
+        previous.current.provider === props.provider
           ? previous.current.snapshot
           : undefined
-      const recent = vllmRecentMetrics(snapshot, last)
-      previous.current = { channelId: props.channelId, snapshot }
+      const recent = recentMetrics(snapshot, last)
+      previous.current = {
+        channelId: props.channelId,
+        provider: props.provider,
+        snapshot,
+      }
       return { snapshot, recent }
     },
     refetchInterval: autoRefresh ? 5000 : false,
@@ -122,25 +134,44 @@ export function VLLMStatusDialog(props: VLLMStatusDialogProps) {
       rows: [
         {
           label: t('Running requests'),
-          value: vllmMetricValue(metrics, 'vllm:num_requests_running'),
+          value: metricValue(
+            metrics,
+            isSGLang ? 'sglang:num_running_reqs' : 'vllm:num_requests_running'
+          ),
         },
         {
           label: t('Waiting requests'),
-          value: vllmMetricValue(metrics, 'vllm:num_requests_waiting'),
+          value: metricValue(
+            metrics,
+            isSGLang ? 'sglang:num_queue_reqs' : 'vllm:num_requests_waiting'
+          ),
         },
         {
-          label: t('Peak KV cache usage'),
-          value:
-            vllmMetricValue(metrics, 'vllm:kv_cache_usage_perc', {}, 'max') ??
-            vllmMetricValue(metrics, 'vllm:gpu_cache_usage_perc', {}, 'max'),
+          label: isSGLang
+            ? t('Peak token pool usage')
+            : t('Peak KV cache usage'),
+          value: isSGLang
+            ? metricValue(metrics, 'sglang:token_usage', {}, 'max')
+            : (metricValue(metrics, 'vllm:kv_cache_usage_perc', {}, 'max') ??
+              metricValue(metrics, 'vllm:gpu_cache_usage_perc', {}, 'max')),
           unit: 'percent',
         },
-        {
-          label: t('Awake engines'),
-          value: vllmMetricValue(metrics, 'vllm:engine_sleep_state', {
-            sleep_state: 'awake',
-          }),
-        },
+        ...(isSGLang
+          ? [
+              {
+                label: t('Output token rate'),
+                value: metricValue(metrics, 'sglang:gen_throughput'),
+                unit: 'rate' as const,
+              },
+            ]
+          : [
+              {
+                label: t('Awake engines'),
+                value: metricValue(metrics, 'vllm:engine_sleep_state', {
+                  sleep_state: 'awake',
+                }),
+              },
+            ]),
       ],
     },
     {
@@ -150,57 +181,88 @@ export function VLLMStatusDialog(props: VLLMStatusDialogProps) {
       ),
       rows: [
         {
-          label: t('Finished requests'),
-          value: vllmMetricValue(metrics, 'vllm:request_success_total'),
+          label: isSGLang ? t('Processed requests') : t('Finished requests'),
+          value: metricValue(
+            metrics,
+            isSGLang
+              ? 'sglang:num_requests_total'
+              : 'vllm:request_success_total'
+          ),
         },
         {
           label: t('Input tokens'),
-          value: vllmMetricValue(metrics, 'vllm:prompt_tokens_total'),
+          value: metricValue(metrics, `${props.provider}:prompt_tokens_total`),
         },
         {
           label: t('Output tokens'),
-          value: vllmMetricValue(metrics, 'vllm:generation_tokens_total'),
-        },
-        {
-          label: t('Prefix cache hit rate'),
-          value: vllmRatio(
-            vllmMetricValue(metrics, 'vllm:prefix_cache_hits_total'),
-            vllmMetricValue(metrics, 'vllm:prefix_cache_queries_total')
+          value: metricValue(
+            metrics,
+            `${props.provider}:generation_tokens_total`
           ),
-          unit: 'percent',
         },
-        {
-          label: t('Speculative decoding acceptance rate'),
-          value: vllmRatio(
-            vllmMetricValue(
-              metrics,
-              'vllm:spec_decode_num_accepted_tokens_total'
-            ),
-            vllmMetricValue(metrics, 'vllm:spec_decode_num_draft_tokens_total')
-          ),
-          unit: 'percent',
-        },
+        ...(isSGLang
+          ? [
+              {
+                label: t('Cached tokens'),
+                value: metricValue(metrics, 'sglang:cached_tokens_total'),
+              },
+            ]
+          : [
+              {
+                label: t('Prefix cache hit rate'),
+                value: metricRatio(
+                  metricValue(metrics, 'vllm:prefix_cache_hits_total'),
+                  metricValue(metrics, 'vllm:prefix_cache_queries_total')
+                ),
+                unit: 'percent' as const,
+              },
+              {
+                label: t('Speculative decoding acceptance rate'),
+                value: metricRatio(
+                  metricValue(
+                    metrics,
+                    'vllm:spec_decode_num_accepted_tokens_total'
+                  ),
+                  metricValue(
+                    metrics,
+                    'vllm:spec_decode_num_draft_tokens_total'
+                  )
+                ),
+                unit: 'percent' as const,
+              },
+            ]),
         {
           label: t('Mean time to first token'),
-          value: vllmMean(metrics, 'vllm:time_to_first_token_seconds'),
+          value: metricMean(
+            metrics,
+            `${props.provider}:time_to_first_token_seconds`
+          ),
           unit: 'seconds',
         },
         {
           label: t('Mean request latency'),
-          value: vllmMean(metrics, 'vllm:e2e_request_latency_seconds'),
+          value: metricMean(
+            metrics,
+            `${props.provider}:e2e_request_latency_seconds`
+          ),
           unit: 'seconds',
         },
         {
           label: t('Mean queue time'),
-          value: vllmMean(metrics, 'vllm:request_queue_time_seconds'),
+          value: metricMean(
+            metrics,
+            isSGLang
+              ? 'sglang:queue_time_seconds'
+              : 'vllm:request_queue_time_seconds'
+          ),
           unit: 'seconds',
         },
         {
           label: t('Mean time per output token'),
-          value: vllmMean(
-            metrics,
-            'vllm:request_time_per_output_token_seconds'
-          ),
+          value: isSGLang
+            ? (metricMean(metrics, 'sglang:inter_token_latency_seconds') ??
+              metricMean(metrics, 'sglang:time_per_output_token_seconds'))
+            : metricMean(metrics, 'vllm:request_time_per_output_token_seconds'),
           unit: 'seconds',
         },
       ],
@@ -217,18 +279,21 @@ export function VLLMStatusDialog(props: VLLMStatusDialogProps) {
       rows: [
         {
           label: t('Input token rate'),
-          value: vllmRatio(
-            vllmMetricValue(recent?.metrics ?? [], 'vllm:prompt_tokens_total'),
+          value: metricRatio(
+            metricValue(
+              recent?.metrics ?? [],
+              `${props.provider}:prompt_tokens_total`
+            ),
             recent?.seconds
           ),
           unit: 'rate',
         },
         {
           label: t('Output token rate'),
-          value: vllmRatio(
-            vllmMetricValue(
+          value: metricRatio(
+            metricValue(
               recent?.metrics ?? [],
-              'vllm:generation_tokens_total'
+              `${props.provider}:generation_tokens_total`
             ),
             recent?.seconds
           ),
@@ -236,23 +301,41 @@ export function VLLMStatusDialog(props: VLLMStatusDialogProps) {
         },
         {
           label: t('Mean time to first token'),
-          value: vllmMean(
+          value: metricMean(
             recent?.metrics ?? [],
-            'vllm:time_to_first_token_seconds'
+            `${props.provider}:time_to_first_token_seconds`
           ),
           unit: 'seconds',
         },
         {
           label: t('Mean request latency'),
-          value: vllmMean(
+          value: metricMean(
             recent?.metrics ?? [],
-            'vllm:e2e_request_latency_seconds'
+            `${props.provider}:e2e_request_latency_seconds`
           ),
           unit: 'seconds',
         },
       ],
     },
   ]
+
+  if (isSGLang) {
+    // These SGLang values are per-worker gauges, not cumulative counters.
+    // Keep each labelled series rather than adding or averaging percentages.
+    const workerMetrics = metrics.filter((metric) =>
+      ['sglang:cache_hit_rate', 'sglang:spec_accept_rate'].includes(metric.name)
+    )
+    if (workerMetrics.length) {
+      groups.push({
+        title: t('Worker metrics'),
+        rows: workerMetrics.map((metric) => ({
+          label: `${metric.name === 'sglang:cache_hit_rate' ? t('Prefix cache hit rate') : t('Speculative decoding acceptance rate')} · ${JSON.stringify(metric.labels)}`,
+          value: metric.value,
+          unit: 'percent',
+        })),
+      })
+    }
+  }
 
   const handleExport = () => {
     if (!snapshot) return
@@ -262,7 +345,7 @@ export function VLLMStatusDialog(props: VLLMStatusDialogProps) {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `vllm-${props.channelId}-${snapshot.sampled_at}.json`
+    link.download = `${props.provider}-${props.channelId}-${snapshot.sampled_at}.json`
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -273,7 +356,7 @@ export function VLLMStatusDialog(props: VLLMStatusDialogProps) {
       onOpenChange={(open) => {
         if (!open) props.onClose()
       }}
-      title={t('vLLM status')}
+      title={isSGLang ? t('SGLang status') : t('vLLM status')}
       description={props.channelName}
       contentClassName='sm:max-w-3xl'
       bodyClassName='space-y-5'
@@ -317,10 +400,23 @@ export function VLLMStatusDialog(props: VLLMStatusDialogProps) {
           <Label htmlFor={autoRefreshId}>{t('Auto refresh (5s)')}</Label>
         </div>
       </div>
+      {isSGLang && snapshot?.endpoints['/metrics']?.error && (
+        <Alert>
+          <AlertDescription>
+            {t(
+              'Start SGLang with --enable-metrics to expose Prometheus metrics.'
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
       {query.isPending && <LoadingState />}
       {query.isError && !snapshot && (
         <ErrorState
-          title={t('Failed to load vLLM status')}
+          title={
+            isSGLang
+              ? t('Failed to load SGLang status')
+              : t('Failed to load vLLM status')
+          }
           description={getServerErrorMessage(query.error)}
           onRetry={() => void query.refetch()}
         />

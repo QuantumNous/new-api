@@ -20,7 +20,7 @@ import { getGroups as getUserGroups } from '@/features/users/api'
 import { api, type ApiRequestConfig } from '@/lib/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
-import type { VLLMStatus } from './lib/vllm-status'
+import type { InferenceStatus } from './lib/inference-status'
 import type {
   AddChannelRequest,
   BatchDeleteParams,
@@ -50,12 +50,13 @@ const channelActionConfig = (
   skipErrorHandler: true,
 })
 
-export async function getVLLMStatus(
+export async function getInferenceStatus(
   channelId: number,
+  provider: 'vllm' | 'sglang',
   signal?: AbortSignal
-): Promise<VLLMStatus> {
-  const response = await api.get<{ success: boolean; data: VLLMStatus }>(
-    `/api/channel/${channelId}/vllm/status`,
+): Promise<InferenceStatus> {
+  const response = await api.get<{ success: boolean; data: InferenceStatus }>(
+    `/api/channel/${channelId}/${provider}/status`,
     { signal, disableDuplicate: true }
   )
   return requireServerSuccess(response.data).data

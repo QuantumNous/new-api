@@ -75,14 +75,12 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeReplicate
 	case constant.ChannelTypeCodex:
 		apiType = constant.APITypeCodex
-	case constant.ChannelTypeAdvancedCustom:
+	case constant.ChannelTypeAdvancedCustom, constant.ChannelTypeVLLM, constant.ChannelTypeSGLang:
 		apiType = constant.APITypeAdvancedCustom
 	case constant.ChannelTypeSub2API:
 		apiType = constant.APITypeSub2API
 	case constant.ChannelTypeNewAPI:
 		apiType = constant.APITypeNewAPI
-	case constant.ChannelTypeVLLM:
-		apiType = constant.APITypeVLLM
 	}
 	if apiType == -1 {
 		// Task plugin channels are served by the task relay and must never

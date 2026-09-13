@@ -19,15 +19,15 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, it } from 'vitest'
 
 import {
-  vllmMean,
-  vllmMetricValue,
-  vllmRatio,
-  vllmRecentMetrics,
-  type VLLMMetric,
-  type VLLMStatus,
-} from '../vllm-status'
+  metricMean,
+  metricValue,
+  metricRatio,
+  recentMetrics,
+  type InferenceMetric,
+  type InferenceStatus,
+} from '../inference-status'
 
-function snapshot(at: number, metrics: VLLMMetric[]): VLLMStatus {
+function snapshot(at: number, metrics: InferenceMetric[]): InferenceStatus {
   return {
     sampled_at: at,
     endpoints: { '/metrics': { status: 200 } },
@@ -41,13 +41,13 @@ function snapshot(at: number, metrics: VLLMMetric[]): VLLMStatus {
 describe('vLLM metric summaries', () => {
   it('preserves real zeroes and leaves missing or invalid metrics unavailable', () => {
     const metrics = [{ name: 'running', labels: {}, value: 0 }]
-    expect(vllmMetricValue(metrics, 'running')).toBe(0)
-    expect(vllmMetricValue(metrics, 'missing')).toBeUndefined()
+    expect(metricValue(metrics, 'running')).toBe(0)
+    expect(metricValue(metrics, 'missing')).toBeUndefined()
     expect(
-      vllmMetricValue([{ name: 'bad', labels: {}, value: Number.NaN }], 'bad')
+      metricValue([{ name: 'bad', labels: {}, value: Number.NaN }], 'bad')
     ).toBeUndefined()
-    expect(vllmRatio(0, 100)).toBe(0)
-    expect(vllmRatio(0, 0)).toBeUndefined()
+    expect(metricRatio(0, 100)).toBe(0)
+    expect(metricRatio(0, 0)).toBeUndefined()
   })
 
   it('sums engine counters but uses peak occupancy and weighted histogram means', () => {
@@ -59,10 +59,10 @@ describe('vLLM metric summaries', () => {
       { name: 'latency_sum', labels: { engine: '1' }, value: 50 },
       { name: 'latency_count', labels: { engine: '1' }, value: 8 },
     ]
-    expect(vllmMetricValue(metrics, 'running')).toBe(4)
-    expect(vllmMetricValue(metrics, 'running', {}, 'max')).toBe(3)
-    expect(vllmMetricValue(metrics, 'running', { engine: '0' })).toBe(1)
-    expect(vllmMean(metrics, 'latency')).toBe(6)
+    expect(metricValue(metrics, 'running')).toBe(4)
+    expect(metricValue(metrics, 'running', {}, 'max')).toBe(3)
+    expect(metricValue(metrics, 'running', { engine: '0' })).toBe(1)
+    expect(metricMean(metrics, 'latency')).toBe(6)
   })
 
   it('computes counter deltas using elapsed sample time regardless of label order', () => {
@@ -80,16 +80,16 @@ describe('vLLM metric summaries', () => {
         value: 150,
       },
     ])
-    const recent = vllmRecentMetrics(current, previous)
+    const recent = recentMetrics(current, previous)
     expect(recent?.seconds).toBe(5)
     expect(
-      vllmRatio(
-        vllmMetricValue(recent?.metrics ?? [], 'vllm:generation_tokens_total'),
+      metricRatio(
+        metricValue(recent?.metrics ?? [], 'vllm:generation_tokens_total'),
         recent?.seconds
       )
     ).toBe(10)
-    expect(vllmRecentMetrics(current)).toBeUndefined()
-    expect(vllmRecentMetrics(previous, current)).toBeUndefined()
+    expect(recentMetrics(current)).toBeUndefined()
+    expect(recentMetrics(previous, current)).toBeUndefined()
   })
 
   it('restarts the window when one engine resets even if the combined total increases', () => {
@@ -101,10 +101,10 @@ describe('vLLM metric summaries', () => {
       { name: 'vllm:prompt_tokens_total', labels: { engine: '0' }, value: 0 },
       { name: 'vllm:prompt_tokens_total', labels: { engine: '1' }, value: 300 },
     ])
-    expect(vllmRecentMetrics(current, previous)).toBeUndefined()
+    expect(recentMetrics(current, previous)).toBeUndefined()
     current.metrics[0].value = 30
     expect(
-      vllmRecentMetrics(
+      recentMetrics(
         { ...current, sampled_at: 11000 },
         snapshot(6000, [
           {
@@ -127,16 +127,16 @@ describe('vLLM metric summaries', () => {
       { name: 'process_start_time_seconds', labels: {}, value: 1 },
     ])
     expect(
-      vllmRecentMetrics(
+      recentMetrics(
         snapshot(6000, [
           { name: 'process_start_time_seconds', labels: {}, value: 2 },
         ]),
         previous
       )
     ).toBeUndefined()
-    expect(vllmRecentMetrics(snapshot(6000, []), previous)).toBeUndefined()
+    expect(recentMetrics(snapshot(6000, []), previous)).toBeUndefined()
     expect(
-      vllmRecentMetrics(
+      recentMetrics(
         {
           ...previous,
           sampled_at: 6000,
