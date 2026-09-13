@@ -26,6 +26,7 @@ import {
   refreshAuthentication,
 } from '@/lib/auth-session'
 import { handleServerError } from '@/lib/handle-server-error'
+import { getRoutePrefix, joinRoutePrefix } from '@/lib/route-prefix'
 import {
   getServerErrorMessage,
   safeServerErrorMessage,
@@ -47,7 +48,7 @@ declare module 'axios' {
 export type ApiRequestConfig = AxiosRequestConfig
 
 export const api = axios.create({
-  baseURL: '',
+  baseURL: getRoutePrefix(),
   withCredentials: true,
   headers: {
     // no-store forbids storage; no-cache also revalidates any older cached response.
@@ -75,11 +76,10 @@ api.get = ((url: string, config: ApiRequestConfig = {}) => {
 }) as typeof api.get
 
 function redirectToSignIn(): void {
-  if (
-    typeof window !== 'undefined' &&
-    window.location.pathname !== '/sign-in'
-  ) {
-    window.location.replace('/sign-in')
+  if (typeof window === 'undefined') return
+  const target = joinRoutePrefix('/sign-in')
+  if (window.location.pathname !== target) {
+    window.location.replace(target)
   }
 }
 

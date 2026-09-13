@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { joinRoutePrefix } from './route-prefix'
+
 const legacyOrigin = 'https://legacy-route.invalid'
 
 const legacyConsoleRoutes: Record<string, string> = {
@@ -55,7 +57,7 @@ function normalizeLegacyPath(pathname: string): string {
 }
 
 function buildTargetHref(targetPath: string, source: URL): string {
-  const target = new URL(targetPath, legacyOrigin)
+  const target = new URL(joinRoutePrefix(targetPath), legacyOrigin)
   source.searchParams.forEach((value, key) => {
     target.searchParams.append(key, value)
   })

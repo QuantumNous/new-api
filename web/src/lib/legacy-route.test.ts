@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 
 import { resolveLegacyRoute } from './legacy-route'
 
@@ -87,5 +87,33 @@ describe('legacy frontend route migration', () => {
     )
     expect(resolveLegacyRoute('/dashboard')).toBe(null)
     expect(resolveLegacyRoute('/api/status')).toBe(null)
+  })
+
+  describe('with NEW_API_ROUTE_PREFIX', () => {
+    const originalPrefix = (globalThis as { __ROUTE_PREFIX__?: string })
+      .__ROUTE_PREFIX__
+
+    beforeEach(() => {
+      ;(window as { __ROUTE_PREFIX__?: string }).__ROUTE_PREFIX__ = '/proxy'
+    })
+
+    afterEach(() => {
+      if (originalPrefix === undefined) {
+        delete (window as { __ROUTE_PREFIX__?: string }).__ROUTE_PREFIX__
+      } else {
+        ;(window as { __ROUTE_PREFIX__?: string }).__ROUTE_PREFIX__ =
+          originalPrefix
+      }
+    })
+
+    test('prefixes the target path', () => {
+      expect(resolveLegacyRoute('/console/topup')).toBe('/proxy/wallet')
+    })
+
+    test('preserves search and hash while adding the prefix', () => {
+      expect(
+        resolveLegacyRoute('/console/setting?tab=payment#section')
+      ).toBe('/proxy/system-settings/billing/payment?tab=payment#section')
+    })
   })
 })
