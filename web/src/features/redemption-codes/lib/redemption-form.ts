@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
-import { z } from 'zod'
+import * as z from 'zod'
 
 import {
   parseQuotaFromDollars,
