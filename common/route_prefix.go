@@ -109,9 +109,7 @@ func JoinRoutePrefix(suffix string) string {
 		}
 		return p
 	}
-	if !strings.HasPrefix(suffix, "/") {
-		suffix = "/" + suffix
-	}
+	suffix = "/" + strings.TrimLeft(suffix, "/")
 	if p == "" {
 		return suffix
 	}

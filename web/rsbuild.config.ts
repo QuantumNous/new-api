@@ -72,6 +72,20 @@ export default defineConfig(({ envMode }) => {
     },
     html: {
       template: './index.html',
+      // Inject window.__ROUTE_PREFIX__ for `rsbuild dev` so getRoutePrefix()
+      // sees the same prefix as server.base / devProxy. Production injection
+      // is performed at runtime by main.go's InjectRoutePrefix when serving
+      // the embedded web/dist/index.html.
+      tags: normalizedPrefix
+        ? [
+            {
+              tag: 'script',
+              children: `window.__ROUTE_PREFIX__=${JSON.stringify(normalizedPrefix)};`,
+              head: true,
+              append: true,
+            },
+          ]
+        : [],
     },
     server: {
       host: '0.0.0.0',

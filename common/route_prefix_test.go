@@ -119,6 +119,7 @@ func TestJoinRoutePrefix(t *testing.T) {
 
 		assert.Equal(t, "/proxy/api/status", JoinRoutePrefix("/api/status"))
 		assert.Equal(t, "/proxy/api/status", JoinRoutePrefix("api/status"))
+		assert.Equal(t, "/proxy/api/status", JoinRoutePrefix("//api/status"))
 		assert.Equal(t, "/proxy", JoinRoutePrefix(""))
 	})
 }

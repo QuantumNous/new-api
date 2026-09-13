@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import axios from 'axios';
+import axios, { type AxiosAdapter } from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('http-client baseURL with route prefix', () => {
@@ -24,34 +24,26 @@ describe('http-client baseURL with route prefix', () => {
     .__ROUTE_PREFIX__;
   const originalAdapter = axios.defaults.adapter;
 
-  beforeEach(() => {
+  const adapterMock: AxiosAdapter = (config) => {
+    const url = `${config.baseURL ?? ''}${config.url ?? ''}`;
+    return Promise.resolve({
+      data: { url },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config,
+    });
+  };
+
+  beforeEach((): void => {
     vi.resetModules();
-    originalAdapter &&
-      (axios.defaults.adapter = vi.fn(async (config) => {
-        const url = `${config.baseURL ?? ''}${config.url ?? ''}`;
-        return {
-          data: { url },
-          status: 200,
-          statusText: 'OK',
-          headers: {},
-          config,
-        };
-      }));
+    originalAdapter && (axios.defaults.adapter = vi.fn(adapterMock));
     if (!originalAdapter) {
-      axios.defaults.adapter = vi.fn(async (config) => {
-        const url = `${config.baseURL ?? ''}${config.url ?? ''}`;
-        return {
-          data: { url },
-          status: 200,
-          statusText: 'OK',
-          headers: {},
-          config,
-        };
-      });
+      axios.defaults.adapter = vi.fn(adapterMock);
     }
   });
 
-  afterEach(() => {
+  afterEach((): void => {
     if (originalPrefix === undefined) {
       delete (window as { __ROUTE_PREFIX__?: string }).__ROUTE_PREFIX__;
     } else {
