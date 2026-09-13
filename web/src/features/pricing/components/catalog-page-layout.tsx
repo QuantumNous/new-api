@@ -26,6 +26,7 @@ import { useAuthStore } from '@/stores/auth-store'
 type CatalogPageLayoutProps = {
   children: React.ReactNode
   showMainContainer?: boolean
+  fullWidth?: boolean
 }
 
 export function CatalogPageLayout(props: CatalogPageLayoutProps) {
@@ -39,6 +40,9 @@ export function CatalogPageLayout(props: CatalogPageLayoutProps) {
         ) : null}
         <AuthenticatedLayout>
           <div
+            data-catalog-layout={
+              mode === 'developer' && props.fullWidth ? 'full-width' : undefined
+            }
             className={cn(
               mode === 'developer' &&
                 'min-h-0 flex-1 overflow-y-auto overscroll-contain',

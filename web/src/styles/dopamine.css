@@ -1878,6 +1878,14 @@ For commercial licensing, please contact support@quantumnous.com
     transparent;
 }
 
+@media (min-width: 1280px) {
+  [data-theme-content-layout='centered']
+    [data-slot='sidebar-inset']
+    > [data-catalog-layout='full-width'] {
+    max-width: none;
+  }
+}
+
 .dopa-console--easy .dopa-console-page {
   background: transparent;
 }

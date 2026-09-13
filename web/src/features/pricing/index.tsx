@@ -156,7 +156,7 @@ export function Pricing() {
 
   if (useTerminal) {
     return (
-      <CatalogPageLayout showMainContainer={false}>
+      <CatalogPageLayout showMainContainer={false} fullWidth>
         <TerminalModels />
       </CatalogPageLayout>
     )
@@ -169,7 +169,9 @@ export function Pricing() {
       </div>
     )
     return (
-      <CatalogPageLayout showMainContainer={false}>{loading}</CatalogPageLayout>
+      <CatalogPageLayout showMainContainer={false} fullWidth>
+        {loading}
+      </CatalogPageLayout>
     )
   }
 
@@ -311,7 +313,7 @@ export function Pricing() {
   )
 
   return (
-    <CatalogPageLayout showMainContainer={false}>
+    <CatalogPageLayout showMainContainer={false} fullWidth>
       {pricingInner}
     </CatalogPageLayout>
   )
