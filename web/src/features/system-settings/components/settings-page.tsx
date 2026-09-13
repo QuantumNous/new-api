@@ -17,10 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useParams } from '@tanstack/react-router'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SectionPageLayout } from '@/components/layout'
+import { BackToTopButton, SectionPageLayout } from '@/components/layout'
 
 import { useSystemOptions, getOptionValue } from '../hooks/use-system-options'
 import type { SystemOption } from '../types'
@@ -56,6 +56,7 @@ type SettingsPageFrameProps = {
 }
 
 function SettingsPageFrame(props: SettingsPageFrameProps) {
+  const contentRef = useRef<HTMLDivElement>(null)
   const [actionsContainer, setActionsContainer] =
     useState<HTMLDivElement | null>(null)
   const [titleStatusContainer, setTitleStatusContainer] =
@@ -83,8 +84,9 @@ function SettingsPageFrame(props: SettingsPageFrameProps) {
           />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
-          <div className='flex h-full min-h-0 w-full flex-col gap-4'>
+          <div ref={contentRef} className='flex w-full flex-col gap-4'>
             {props.children}
+            <BackToTopButton contentRef={contentRef} />
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>
