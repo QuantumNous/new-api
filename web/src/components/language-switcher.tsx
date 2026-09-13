@@ -67,7 +67,7 @@ export function LanguageSwitcher() {
             key={lang.code}
             onClick={() => handleChangeLanguage(lang.code)}
           >
-            {lang.label}
+            {t(`language.${lang.label}`)}
             <Check
               size={14}
               className={cn(
