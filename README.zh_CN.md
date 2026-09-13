@@ -320,6 +320,10 @@ docker run --name new-api -d --restart always \
 | `STREAMING_TIMEOUT` | 流式超时时间（秒）                                                    | `300` |
 | `STREAM_SCANNER_MAX_BUFFER_MB` | 流式扫描器单行最大缓冲（MB），图像生成等超大 `data:` 片段（如 4K 图片 base64）需适当调大 | `64` |
 | `MAX_REQUEST_BODY_MB` | 请求体最大大小（MB，**解压后**计；防止超大请求/zip bomb 导致内存暴涨），超过将返回 `413` | `32` |
+| `CLAUDE_ARCHIVE_ENABLED` | 是否将指定 Claude 模型的完整上下游请求/响应归档到磁盘 | `false` |
+| `CLAUDE_ARCHIVE_DIR` | Claude 归档目录（目录权限为 0700，文件权限为 0600） | `data/claude-archive` |
+| `CLAUDE_ARCHIVE_MAX_FILE_MB` | 单个渠道归档文件大小上限（单条记录不会拆分） | `100` |
+| `CLAUDE_ARCHIVE_SYNC` | 每条归档记录写入后是否执行 fsync | `false` |
 | `AZURE_DEFAULT_API_VERSION` | Azure API 版本                                                 | `2025-04-01-preview` |
 | `ERROR_LOG_ENABLED` | 错误日志开关                                                       | `false` |
 | `PYROSCOPE_URL` | Pyroscope 服务地址                                            | - |

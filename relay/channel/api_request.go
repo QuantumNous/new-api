@@ -13,6 +13,7 @@ import (
 
 	common2 "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/archive"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -327,9 +328,22 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		return nil, err
 	}
 	applyHeaderOverrideToRequest(req, headerOverride)
+	archiveSession, archiveErr := archive.DefaultManager().Begin(archive.Metadata{RequestID: info.RequestId, ChannelID: info.ChannelId, Model: info.OriginModelName, StartedAt: info.StartTime})
+	if archiveErr != nil {
+		logger.LogError(c, "failed to start Claude archive: "+archiveErr.Error())
+	}
+	if archiveSession != nil {
+		req.Body = archiveSession.WrapRequestBody(req.Body)
+	}
 	resp, err := doRequest(c, req, info)
 	if err != nil {
+		if archiveSession != nil {
+			archiveSession.Abort()
+		}
 		return nil, fmt.Errorf("do request failed: %w", err)
+	}
+	if archiveSession != nil {
+		resp.Body = archiveSession.WrapResponseBody(resp.Body, resp.StatusCode, req.Header, resp.Header)
 	}
 	return resp, nil
 }
