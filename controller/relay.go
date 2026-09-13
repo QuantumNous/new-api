@@ -219,6 +219,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
+		// 请求预清洗：修复客户端上下文压缩等原因产生的 tool/tool_calls 配对问题
+		//（孤儿 tool 删除、缺失响应补占位），仅在发现问题时改写请求
+		if relayFormat == types.RelayFormatOpenAI && relayInfo.RelayMode == relayconstant.RelayModeChatCompletions {
+			sanitizeChatToolPairing(c, relayInfo)
+		}
+
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
 			newAPIError = relay.WssHelper(c, relayInfo)
@@ -227,6 +233,55 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		case types.RelayFormatGemini:
 			newAPIError = geminiRelayHandler(c, relayInfo)
 		default:
+			newAPIError = relayHandler(c, relayInfo)
+		}
+
+		// context 超长自动恢复：裁剪历史消息后用同一渠道原地重试一次，实现用户无感知
+		if newAPIError != nil && relayFormat == types.RelayFormatOpenAI &&
+			relayInfo.RelayMode == relayconstant.RelayModeChatCompletions &&
+			tryContextOverflowRecovery(c, relayInfo, newAPIError) {
+			newAPIError = relayHandler(c, relayInfo)
+		}
+
+		// 上游 413（请求体字节超限，常见于会话累积大量 base64 图片）自动恢复：
+		// 剥离历史图片后用同一渠道原地重试一次
+		if newAPIError != nil && relayFormat == types.RelayFormatOpenAI &&
+			(relayInfo.RelayMode == relayconstant.RelayModeChatCompletions ||
+				relayInfo.RelayMode == relayconstant.RelayModeResponses ||
+				relayInfo.RelayMode == relayconstant.RelayModeResponsesCompact) &&
+			tryPayloadTooLargeRecovery(c, relayInfo, newAPIError) {
+			newAPIError = relayHandler(c, relayInfo)
+		}
+
+		// 剥离历史图片后仍 413（如单张超大参考图）时，压缩请求内图片后原地重试一次
+		if newAPIError != nil && relayFormat == types.RelayFormatOpenAI &&
+			(relayInfo.RelayMode == relayconstant.RelayModeChatCompletions ||
+				relayInfo.RelayMode == relayconstant.RelayModeResponses ||
+				relayInfo.RelayMode == relayconstant.RelayModeResponsesCompact) &&
+			tryPayloadTooLargeCompressRecovery(c, relayInfo, newAPIError) {
+			newAPIError = relayHandler(c, relayInfo)
+		}
+
+		// 上游"模型不支持图片输入"自动恢复：剥离请求中所有图片后原地重试，
+		// 用户无感，并通过占位文本与 X-Images-Removed 响应头提示
+		if newAPIError != nil && relayFormat == types.RelayFormatOpenAI &&
+			(relayInfo.RelayMode == relayconstant.RelayModeChatCompletions ||
+				relayInfo.RelayMode == relayconstant.RelayModeResponses ||
+				relayInfo.RelayMode == relayconstant.RelayModeResponsesCompact) &&
+			tryImageUnsupportedRecovery(c, relayInfo, newAPIError) {
+			newAPIError = relayHandler(c, relayInfo)
+			// 剥离图片后重试仍可能超长（图片 token 大，剔除后上下文仍超），
+			// 再尝试一次上下文裁剪恢复
+			if newAPIError != nil && relayInfo.RelayMode == relayconstant.RelayModeChatCompletions &&
+				tryContextOverflowRecovery(c, relayInfo, newAPIError) {
+				newAPIError = relayHandler(c, relayInfo)
+			}
+		}
+
+		// tool 配对错误兜底恢复：强制清洗后原地重试一次
+		if newAPIError != nil && relayFormat == types.RelayFormatOpenAI &&
+			relayInfo.RelayMode == relayconstant.RelayModeChatCompletions &&
+			tryToolPairingRecovery(c, relayInfo, newAPIError) {
 			newAPIError = relayHandler(c, relayInfo)
 		}
 

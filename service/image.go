@@ -6,6 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
+	"image/draw"
+	_ "image/gif"
+	"image/jpeg"
+	_ "image/png"
 	"io"
 	"net/http"
 	"strings"
@@ -13,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 
+	ximagedraw "golang.org/x/image/draw"
 	"golang.org/x/image/webp"
 )
 
@@ -191,4 +197,105 @@ func getImageConfig(reader io.Reader) (image.Config, string, error) {
 	}
 
 	return image.Config{}, "", err
+}
+
+// 413 Payload Too Large 恢复时对 base64 图片的压缩档位（降采样边长 + JPEG 质量）
+var bodyImageCompressSteps = []struct {
+	maxDim  int
+	quality int
+}{
+	{1536, 80},
+	{1024, 70},
+	{768, 65},
+	{512, 60},
+}
+
+// 超大图片解码会占用大量内存，超过该像素数（约 40MP）时跳过压缩
+const maxCompressImagePixels = 40_000_000
+
+// CompressImageDataURL 将 base64 data URL 图片降采样并重编码为 JPEG，
+// 用于上游 413 Payload Too Large 时缩减请求体体积。
+// 依次尝试多档压缩并返回体积最小的一档；解码失败、GIF 动画或
+// 压缩后没有变小则返回错误。
+func CompressImageDataURL(dataURL string) (string, error) {
+	idx := strings.Index(dataURL, ",")
+	if idx == -1 {
+		return "", errors.New("invalid data url")
+	}
+	raw, err := base64.StdEncoding.DecodeString(dataURL[idx+1:])
+	if err != nil {
+		return "", fmt.Errorf("failed to decode base64 image: %w", err)
+	}
+
+	img, format, err := image.Decode(bytes.NewReader(raw))
+	if err != nil {
+		// webp 需要显式解码
+		img, err = webp.Decode(bytes.NewReader(raw))
+		if err != nil {
+			return "", fmt.Errorf("failed to decode image: %w", err)
+		}
+		format = "webp"
+	}
+	if format == "gif" {
+		// 动图跳过压缩，避免丢失动画
+		return "", errors.New("gif animation is not compressed")
+	}
+
+	bounds := img.Bounds()
+	if int64(bounds.Dx())*int64(bounds.Dy()) > maxCompressImagePixels {
+		return "", fmt.Errorf("image too large to compress safely (%dx%d)", bounds.Dx(), bounds.Dy())
+	}
+
+	var best string
+	var bestLen int
+	for _, step := range bodyImageCompressSteps {
+		scaled := scaleImageToMaxDim(img, step.maxDim)
+		flat := flattenToWhite(scaled)
+		var buf bytes.Buffer
+		if err := jpeg.Encode(&buf, flat, &jpeg.Options{Quality: step.quality}); err != nil {
+			continue
+		}
+		newDataURL := "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
+		if best == "" || len(newDataURL) < bestLen {
+			best = newDataURL
+			bestLen = len(newDataURL)
+		}
+	}
+	if best == "" || bestLen >= len(dataURL) {
+		return "", errors.New("compressed image is not smaller")
+	}
+	return best, nil
+}
+
+// scaleImageToMaxDim 等比缩放到最长边不超过 maxDim（未超限时原样返回）
+func scaleImageToMaxDim(img image.Image, maxDim int) image.Image {
+	bounds := img.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+	if w <= maxDim && h <= maxDim {
+		return img
+	}
+	if w <= 0 || h <= 0 {
+		return img
+	}
+	ratio := float64(maxDim) / float64(max(w, h))
+	nw := int(float64(w) * ratio)
+	nh := int(float64(h) * ratio)
+	if nw < 1 {
+		nw = 1
+	}
+	if nh < 1 {
+		nh = 1
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, nw, nh))
+	ximagedraw.BiLinear.Scale(dst, dst.Bounds(), img, bounds, ximagedraw.Over, nil)
+	return dst
+}
+
+// flattenToWhite 将透明背景合成到白色底上，避免 PNG 透明区域转 JPEG 后变黑
+func flattenToWhite(img image.Image) image.Image {
+	bounds := img.Bounds()
+	dst := image.NewRGBA(bounds)
+	draw.Draw(dst, bounds, image.NewUniform(color.White), image.Point{}, draw.Src)
+	draw.Draw(dst, bounds, img, bounds.Min, draw.Over)
+	return dst
 }
