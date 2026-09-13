@@ -198,6 +198,7 @@ func main() {
 	middleware.SetUpLogger(server)
 	InjectUmamiAnalytics()
 	InjectGoogleAnalytics()
+	InjectRoutePrefix()
 
 	// 设置路由
 	router.SetRouter(server, router.WebAssets{
@@ -284,6 +285,30 @@ func InjectGoogleAnalytics() {
 	analyticsInject := []byte(analyticsInjectBuilder.String())
 	placeholder := []byte("<!--Google Analytics-->\n")
 	indexPage = bytes.ReplaceAll(indexPage, placeholder, analyticsInject)
+}
+
+// InjectRoutePrefix exposes the configured NEW_API_ROUTE_PREFIX to the
+// frontend bundle as window.__ROUTE_PREFIX__ so the SPA can build its
+// TanStack Router basepath and axios baseURL without a rebuild. The injected
+// value is JSON-encoded so forward slashes and quotes are safe.
+//
+// Static asset URLs are written into the HTML by Rsbuild's `server.base`
+// (which sets `output.assetPrefix`); we do not inject a `<base>` tag here
+// because that would double-prefix assets when server.base is configured.
+func InjectRoutePrefix() {
+	prefix := common.ResolveRoutePrefix()
+	encoded, err := common.Marshal(prefix)
+	if err != nil {
+		common.SysError("failed to encode route prefix for injection: " + err.Error())
+		return
+	}
+	builder := &strings.Builder{}
+	builder.WriteString("<script>window.__ROUTE_PREFIX__=")
+	builder.Write(encoded)
+	builder.WriteString(";</script>\n<!--Route Prefix QuantumNous-->\n")
+	inject := []byte(builder.String())
+	placeholder := []byte("<!--route prefix-->\n")
+	indexPage = bytes.ReplaceAll(indexPage, placeholder, inject)
 }
 
 func InitResources() error {

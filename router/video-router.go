@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetVideoRouter(router *gin.Engine) {
+func SetVideoRouter(router gin.IRouter) {
 	videoSharedRouter := router.Group("/v1")
 	videoSharedRouter.Use(middleware.RouteTag("relay"))
 	videoSharedRouter.Use(middleware.TokenAuth())

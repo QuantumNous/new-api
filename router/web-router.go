@@ -21,6 +21,7 @@ type WebAssets struct {
 
 func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.HandlerFunc) {
 	frontendFS := common.EmbedFolder(assets.BuildFS, "web/dist")
+	servePath := common.StaticServePath()
 
 	router.NoRoute(
 		pluginDispatcher,
@@ -29,9 +30,10 @@ func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.Han
 		middleware.AccessTokenAudit(),
 		middleware.GlobalWebRateLimit(),
 		middleware.Cache(),
-		static.Serve("/", frontendFS),
+		static.Serve(servePath, frontendFS),
 		func(c *gin.Context) {
-			if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {
+			path := common.StripRoutePrefix(c.Request.RequestURI)
+			if strings.HasPrefix(path, "/v1") || strings.HasPrefix(path, "/api") || strings.HasPrefix(path, "/assets") {
 				controller.RelayNotFound(c)
 				return
 			}

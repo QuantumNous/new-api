@@ -43,7 +43,7 @@ type pluginGenerationBuilder struct {
 	staticRoutes   []gin.RouteInfo
 	trustedProxies []string
 	routeHandlers  pluginRouteHandlers
-	registerRoute  func(*gin.Engine, jsplugin.RouteBinding, []gin.HandlerFunc)
+	registerRoute  func(gin.IRouter, jsplugin.RouteBinding, []gin.HandlerFunc)
 	configure      func(*gin.Engine) error
 }
 
@@ -71,8 +71,8 @@ func newPluginGenerationBuilder(staticRoutes []gin.RouteInfo, trustedProxies []s
 		trustedProxies: append([]string(nil), trustedProxies...),
 		routeHandlers:  handlers,
 	}
-	builder.registerRoute = func(engine *gin.Engine, binding jsplugin.RouteBinding, routeHandlers []gin.HandlerFunc) {
-		engine.Handle(binding.Route.Method, binding.Route.Path, routeHandlers...)
+	builder.registerRoute = func(target gin.IRouter, binding jsplugin.RouteBinding, routeHandlers []gin.HandlerFunc) {
+		target.Handle(binding.Route.Method, binding.Route.Path, routeHandlers...)
 	}
 	builder.configure = func(engine *gin.Engine) error {
 		return common.ConfigureTrustedProxies(engine, builder.trustedProxies)
@@ -291,9 +291,13 @@ func (b *pluginGenerationBuilder) buildInnerEngine(generation *jsplugin.RoutingG
 		c.AbortWithStatus(http.StatusMethodNotAllowed)
 	})
 
+	pluginTarget := gin.IRouter(engine)
+	if prefix := common.RoutePrefix(); prefix != "" {
+		pluginTarget = engine.Group(prefix)
+	}
 	for _, binding := range generation.Routes() {
 		currentPlugin = binding.Plugin.Meta.Key
-		b.registerRoute(engine, binding, b.routeHandlers(generation, binding))
+		b.registerRoute(pluginTarget, binding, b.routeHandlers(generation, binding))
 	}
 	currentPlugin = ""
 	return engine, "", nil

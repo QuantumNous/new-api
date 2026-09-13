@@ -11,7 +11,7 @@ import (
 // Gin requires every route sharing a path position to use the same wildcard
 // name, so the first segment is uniformly ":key"; it carries the plugin key
 // on submit routes and the task id on read routes.
-func SetTaskRouter(router *gin.Engine) {
+func SetTaskRouter(router gin.IRouter) {
 	taskSubmitRouter := router.Group("/v1/tasks")
 	taskSubmitRouter.Use(middleware.RouteTag("relay"), middleware.TokenAuth())
 	{

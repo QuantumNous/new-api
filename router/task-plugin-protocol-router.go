@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func SetTaskPluginProtocolRouter(router *gin.Engine) {
+func SetTaskPluginProtocolRouter(router gin.IRouter) {
 	for _, protocol := range pluginruntime.HostProtocols() {
 		for _, operation := range protocol.Operations {
 			for _, method := range operation.Methods {

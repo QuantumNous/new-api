@@ -13,12 +13,14 @@ import (
 )
 
 func SetRouter(router *gin.Engine, assets WebAssets) {
-	SetApiRouter(router)
-	SetDashboardRouter(router)
-	SetRelayRouter(router)
-	SetTaskPluginProtocolRouter(router)
-	SetVideoRouter(router)
-	SetTaskRouter(router)
+	common.ResolveRoutePrefix()
+	prefixed := PrefixedEngine(router)
+	SetApiRouter(prefixed)
+	SetDashboardRouter(prefixed)
+	SetRelayRouter(prefixed)
+	SetTaskPluginProtocolRouter(prefixed)
+	SetVideoRouter(prefixed)
+	SetTaskRouter(prefixed)
 	pluginDispatcher := SetPluginRouter(router)
 	frontendBaseUrl := os.Getenv("FRONTEND_BASE_URL")
 	if common.IsMasterNode && frontendBaseUrl != "" {

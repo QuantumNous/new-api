@@ -568,11 +568,11 @@ func TestGinRegistrationPanicRebuildsWithoutOffender(t *testing.T) {
 		},
 	))
 	normalRegister := builder.registerRoute
-	builder.registerRoute = func(engine *gin.Engine, binding jsplugin.RouteBinding, handlers []gin.HandlerFunc) {
+	builder.registerRoute = func(target gin.IRouter, binding jsplugin.RouteBinding, handlers []gin.HandlerFunc) {
 		if binding.Plugin.Meta.Key == "panic-beta" {
 			panic("registration failed")
 		}
-		normalRegister(engine, binding, handlers)
+		normalRegister(target, binding, handlers)
 	}
 	require.NoError(t, registry.SetGenerationPreparer(builder.prepare))
 	outer.NoRoute(
@@ -601,11 +601,11 @@ func TestGinRegistrationPanicReadmitsPluginBlockedByOffender(t *testing.T) {
 		},
 	))
 	normalRegister := builder.registerRoute
-	builder.registerRoute = func(engine *gin.Engine, binding jsplugin.RouteBinding, handlers []gin.HandlerFunc) {
+	builder.registerRoute = func(target gin.IRouter, binding jsplugin.RouteBinding, handlers []gin.HandlerFunc) {
 		if binding.Plugin.Meta.Key == "panic-owner-alpha" {
 			panic("registration failed")
 		}
-		normalRegister(engine, binding, handlers)
+		normalRegister(target, binding, handlers)
 	}
 	require.NoError(t, registry.SetGenerationPreparer(builder.prepare))
 	outer.NoRoute((&pluginRouteDispatcher{registry: registry}).dispatch)
@@ -635,11 +635,11 @@ func TestUpdatedRegistrationPanicRestoresIncumbent(t *testing.T) {
 	})
 	builder := newPluginGenerationBuilder(outer.Routes(), nil, handlers)
 	normalRegister := builder.registerRoute
-	builder.registerRoute = func(engine *gin.Engine, binding jsplugin.RouteBinding, routeHandlers []gin.HandlerFunc) {
+	builder.registerRoute = func(target gin.IRouter, binding jsplugin.RouteBinding, routeHandlers []gin.HandlerFunc) {
 		if binding.Plugin.Meta.Version == "2.0.0" {
 			panic("new version registration failed")
 		}
-		normalRegister(engine, binding, routeHandlers)
+		normalRegister(target, binding, routeHandlers)
 	}
 	require.NoError(t, registry.SetGenerationPreparer(builder.prepare))
 	outer.NoRoute((&pluginRouteDispatcher{registry: registry}).dispatch)
