@@ -295,7 +295,21 @@ func FetchUpstreamRatios(c *gin.Context) {
 		}
 		return dialer.DialContext(ctx, network, addr)
 	}
-	client := &http.Client{Transport: transport}
+	client := &http.Client{
+		Transport: transport,
+		// 初始 URL 已通过 ValidateSSRFProtectedFetchURL 校验，但上游可能 3xx
+		// 跳转到内网/私网地址；在每次重定向前按同一 SSRF 策略再校验一次，
+		// 与 service.checkProtectedFetchRedirect 行为保持一致。
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if err := service.ValidateSSRFProtectedFetchURL(req.URL.String()); err != nil {
+				return fmt.Errorf("redirect to %s blocked: %v", req.URL.String(), err)
+			}
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			return nil
+		},
+	}
 
 	for _, chn := range upstreams {
 		wg.Add(1)
