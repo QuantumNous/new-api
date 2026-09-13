@@ -504,15 +504,30 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	nowUnix := GetDBTimestamp()
 	now := time.Unix(nowUnix, 0)
-	endUnix, err := calcPlanEndTime(now, plan)
+	// 续费接续：同一套餐还有未到期的订阅时，新订阅从最晚那一段的到期时刻开始算，
+	// 而不是从付款当下重新起算，否则用户提前续费就白白损失掉重叠的那几天。
+	// 不同套餐（例如月卡未到期时另买日卡）保持并存，立刻生效。
+	var pendingSubs []UserSubscription
+	if err := lockForUpdate(tx).
+		Where("user_id = ? AND plan_id = ? AND status = ? AND end_time > ?", userId, plan.Id, "active", nowUnix).
+		Order("end_time desc, id desc").
+		Limit(1).
+		Find(&pendingSubs).Error; err != nil {
+		return nil, err
+	}
+	start := now
+	if len(pendingSubs) > 0 && pendingSubs[0].EndTime > nowUnix {
+		start = time.Unix(pendingSubs[0].EndTime, 0)
+	}
+	endUnix, err := calcPlanEndTime(start, plan)
 	if err != nil {
 		return nil, err
 	}
-	resetBase := now
+	resetBase := start
 	nextReset := calcNextResetTime(resetBase, plan, endUnix)
 	lastReset := int64(0)
 	if nextReset > 0 {
-		lastReset = now.Unix()
+		lastReset = start.Unix()
 	}
 	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
 	prevGroup := ""
@@ -538,7 +553,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 		PlanId:              plan.Id,
 		AmountTotal:         plan.TotalAmount,
 		AmountUsed:          0,
-		StartTime:           now.Unix(),
+		StartTime:           start.Unix(),
 		EndTime:             endUnix,
 		Status:              "active",
 		Source:              source,
@@ -869,7 +884,7 @@ func HasActiveUserSubscription(userId int) (bool, error) {
 	now := common.GetTimestamp()
 	var count int64
 	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+		Where("user_id = ? AND status = ? AND start_time <= ? AND end_time > ?", userId, "active", now, now).
 		Count(&count).Error; err != nil {
 		return false, err
 	}
@@ -886,8 +901,8 @@ func UserActiveSubscriptionsAllowWalletOverflow(userId int) (bool, error) {
 	now := common.GetTimestamp()
 	var strictCount int64
 	if err := DB.Model(&UserSubscription{}).
-		Where("user_id = ? AND status = ? AND end_time > ? AND allow_wallet_overflow = ?",
-			userId, "active", now, false).
+		Where("user_id = ? AND status = ? AND start_time <= ? AND end_time > ? AND allow_wallet_overflow = ?",
+			userId, "active", now, now, false).
 		Count(&strictCount).Error; err != nil {
 		return false, err
 	}
@@ -1332,8 +1347,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		}
 
 		var subs []UserSubscription
+		// start_time <= now：还没到生效时间的续费订阅不能被提前动用
 		if err := lockForUpdate(tx).
-			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", now).
+			Where("user_id = ? AND status = ? AND start_time <= ? AND end_time > ?", userId, "active", now, now).
 			Order("end_time asc, id asc").
 			Find(&subs).Error; err != nil {
 			return errors.New("no active subscription")
