@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 
@@ -159,4 +160,82 @@ func newSelfLogContext(target string) (*gin.Context, *httptest.ResponseRecorder)
 	ctx.Request = httptest.NewRequest(http.MethodGet, target, nil)
 	ctx.Set("id", 1)
 	return ctx, recorder
+}
+
+func TestTokenUsageModelSubstringFilter(t *testing.T) {
+	databases := selfLogFilterDatabases(t)
+	if dsn := os.Getenv("TEST_CLICKHOUSE_DSN"); dsn != "" {
+		databases = append(databases, selfLogFilterDatabase{name: "clickhouse", dsn: dsn, type_: common.DatabaseTypeClickHouse})
+	}
+	for _, database := range databases {
+		t.Run(database.name, func(t *testing.T) {
+			mainDatabase := database
+			if database.type_ == common.DatabaseTypeClickHouse {
+				mainDatabase = selfLogFilterDatabase{name: "sqlite", type_: common.DatabaseTypeSQLite}
+			}
+			db := setupSelfLogTokenFilterTest(t, mainDatabase)
+			seedSelfLogTokenFilterData(t, db)
+			if database.type_ == common.DatabaseTypeClickHouse {
+				_, dsn := newAuditTestDatabase(t, database.name, database.dsn)
+				previousMaster := common.IsMasterNode
+				common.IsMasterNode = true
+				t.Cleanup(func() { common.IsMasterNode = previousMaster })
+				t.Setenv("LOG_SQL_DSN", dsn)
+				t.Setenv("LOG_SQL_CLICKHOUSE_TTL_DAYS", "0")
+				require.NoError(t, model.InitLogDB())
+				db = model.LOG_DB
+			}
+			for _, log := range []*model.Log{
+				{UserId: 1, TokenId: 11, ModelName: "gpt-4o", CreatedAt: 700, Type: model.LogTypeConsume},
+				{UserId: 1, TokenId: 11, ModelName: "vendor/GPT-4.1", CreatedAt: 800, Type: model.LogTypeConsume},
+				{UserId: 1, TokenId: 11, ModelName: "claude-sonnet", CreatedAt: 900, Type: model.LogTypeConsume},
+				{UserId: 1, TokenId: 11, ModelName: `custom%_!\model`, CreatedAt: 1000, Type: model.LogTypeConsume},
+				{UserId: 1, TokenId: 13, ModelName: "gpt-4o", CreatedAt: 800, Type: model.LogTypeConsume},
+				{UserId: 2, TokenId: 21, ModelName: "gpt-4o", CreatedAt: 800, Type: model.LogTypeConsume},
+				{UserId: 1, TokenId: 11, ModelName: "gpt-4o", CreatedAt: 1100, Type: model.LogTypeConsume},
+				{UserId: 1, TokenId: 11, ModelName: "gpt-4o", CreatedAt: 850, Type: model.LogTypeError},
+			} {
+				require.NoError(t, db.Create(log).Error)
+			}
+			for _, tc := range []struct {
+				query string
+				page  string
+				total int
+				model string
+			}{
+				{query: "gpt", page: "1", total: 2, model: "vendor/GPT-4.1"},
+				{query: "GpT", page: "2", total: 2, model: "gpt-4o"},
+				{query: "4.1", page: "1", total: 1, model: "vendor/GPT-4.1"},
+				{query: "g", page: "1", total: 2, model: "vendor/GPT-4.1"},
+				{query: "%", page: "1", total: 1, model: `custom%_!\model`},
+				{query: "_", page: "1", total: 1, model: `custom%_!\model`},
+				{query: `!\`, page: "1", total: 1, model: `custom%_!\model`},
+				{query: "missing", page: "1"},
+				{query: "", page: "1", total: 4, model: `custom%_!\model`},
+			} {
+				t.Run(tc.query+"/"+tc.page, func(t *testing.T) {
+					ctx, recorder := newSelfLogContext("/api/log/self?token_id=11&type=2&start_timestamp=700&end_timestamp=1000&page_size=1&p=" + tc.page + "&model_name=" + url.QueryEscape(tc.query))
+					GetUserLogs(ctx)
+					require.Equal(t, http.StatusOK, recorder.Code)
+					var response struct {
+						Success bool `json:"success"`
+						Data    struct {
+							Total int         `json:"total"`
+							Items []model.Log `json:"items"`
+						} `json:"data"`
+					}
+					require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+					require.True(t, response.Success)
+					assert.Equal(t, tc.total, response.Data.Total)
+					if tc.total == 0 {
+						assert.Empty(t, response.Data.Items)
+						return
+					}
+					require.Len(t, response.Data.Items, 1)
+					assert.Equal(t, tc.model, response.Data.Items[0].ModelName)
+					assert.Equal(t, 11, response.Data.Items[0].TokenId)
+				})
+			}
+		})
+	}
 }

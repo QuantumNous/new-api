@@ -569,7 +569,16 @@ func GetUserLogsByTokenId(userId int, tokenId int, logType int, startTimestamp i
 		tx = LOG_DB.Where("logs.user_id = ? and logs.type = ?", userId, logType)
 	}
 
-	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
+	if tokenId > 0 && modelName != "" {
+		condition := "LOWER(logs.model_name) LIKE ? ESCAPE '!'"
+		escape := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_")
+		if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+			condition = "LOWER(logs.model_name) LIKE ?"
+			escape = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
+		}
+		pattern := "%" + escape.Replace(strings.ToLower(modelName)) + "%"
+		tx = tx.Where(condition, pattern)
+	} else if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
 		return nil, 0, err
 	}
 	if tokenName != "" {
