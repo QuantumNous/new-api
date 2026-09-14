@@ -53,12 +53,16 @@ export function quoteGroupUsage(
   groupRatio: number
 ): GroupUsageQuote {
   const ratio = parseGroupRatio(groupRatio)
-  const input = model.baseInputPrice * ratio
-  const output = model.baseOutputPrice * ratio
-  const cacheRead =
-    model.baseCacheReadPrice == null ? null : model.baseCacheReadPrice * ratio
+  const input = model.siteInputPrice
+  const output = model.siteOutputPrice
+  const cacheRead = model.siteCacheReadPrice
   const cacheHitInput =
     cacheRead == null ? null : input * 0.05 + cacheRead * 0.95
-  const savingsPercent = ratio >= 1 ? 0 : Math.floor((1 - ratio) * 100 + 1e-9)
-  return { input, output, cacheHitInput, savingsPercent, ratio }
+  return {
+    input,
+    output,
+    cacheHitInput,
+    savingsPercent: model.savingsPercent,
+    ratio,
+  }
 }

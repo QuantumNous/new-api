@@ -28,7 +28,10 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { GroupRatioPill } from '@/components/group-badge'
 import { TerminalPage } from '@/components/layout/components/terminal-page'
 import { buildModelCatalog } from '@/features/home/lib/catalog'
-import { formatPerMillionTokens } from '@/features/home/lib/pricing-savings'
+import {
+  buildSavingsQuote,
+  formatPerMillionTokens,
+} from '@/features/home/lib/pricing-savings'
 import { usePricingData } from '@/features/pricing/hooks'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getUserGroups } from '@/lib/api'
@@ -323,8 +326,16 @@ export function TerminalKeys() {
           ) : (
             <div className='ci-quoteGrid'>
               {groups.map((group) => {
-                const groupQuote = selectedModel?.quote
-                  ? quoteGroupUsage(selectedModel.quote, group.ratio)
+                const groupSavings =
+                  selectedModel?.quote && selectedPricingModel
+                    ? buildSavingsQuote(
+                        selectedPricingModel,
+                        priceRate,
+                        group.ratio
+                      )
+                    : null
+                const groupQuote = groupSavings
+                  ? quoteGroupUsage(groupSavings, group.ratio)
                   : null
                 const discount = describeGroupDiscount(group.ratio)
                 const selected = selectedGroup?.value === group.value

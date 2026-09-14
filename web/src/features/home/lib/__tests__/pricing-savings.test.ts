@@ -23,6 +23,7 @@ import type { PricingModel } from '@/features/pricing/types'
 import {
   buildSavingsCatalog,
   buildSavingsModels,
+  buildSavingsQuote,
   calculateSavingsEstimate,
   formatCnyAmount,
   formatTokenMillions,
@@ -97,6 +98,101 @@ describe('buildSavingsModels', () => {
     expect(models).toHaveLength(2)
   })
 
+  it('converts foreign references at 6.75 without changing live site prices', () => {
+    const quotes = buildSavingsCatalog(
+      [
+        makePricingModel('gpt-5', 4, {
+          completion_ratio: 3,
+          enable_groups: ['value'],
+          group_ratio: { value: 0.15 },
+        }),
+        makePricingModel('gpt-5.3-codex-spark', 0.875, {
+          completion_ratio: 1,
+          enable_groups: ['value'],
+          group_ratio: { value: 0.4 },
+        }),
+      ],
+      2
+    )
+    const synthetic = quotes.find((quote) => quote.modelName === 'gpt-5')
+    const publicStyle = quotes.find(
+      (quote) => quote.modelName === 'gpt-5.3-codex-spark'
+    )
+
+    expect(synthetic).toMatchObject({
+      baseInputPrice: 54,
+      baseOutputPrice: 162,
+      siteInputPrice: 2.4,
+      savingsPercent: 95,
+    })
+    expect(synthetic?.siteOutputPrice).toBeCloseTo(7.2)
+    expect(publicStyle).toMatchObject({
+      baseInputPrice: 11.8125,
+      savingsPercent: 88,
+    })
+    expect(publicStyle?.siteInputPrice).toBeCloseTo(1.4)
+
+    const [livePublicStyle] = buildSavingsCatalog(
+      [
+        makePricingModel('gpt-5.3-codex-spark', 0.875, {
+          completion_ratio: 1,
+          enable_groups: ['value'],
+          group_ratio: { value: 0.4 },
+        }),
+      ],
+      1
+    )
+    expect(livePublicStyle.baseInputPrice).toBe(11.8125)
+    expect(livePublicStyle.siteInputPrice).toBeCloseTo(0.7)
+    expect(livePublicStyle.savingsPercent).toBe(94)
+  })
+
+  it('keeps domestic references in CNY and unknown references on the recharge fallback', () => {
+    const [domestic, unknown] = buildSavingsCatalog(
+      [
+        makePricingModel('qwen-max', 4, {
+          enable_groups: ['value'],
+          group_ratio: { value: 0.15 },
+        }),
+        makePricingModel('private-model', 4, {
+          enable_groups: ['value'],
+          group_ratio: { value: 0.15 },
+        }),
+      ],
+      2
+    )
+
+    expect(domestic).toMatchObject({
+      baseInputPrice: 8,
+      siteInputPrice: 2.4,
+      savingsPercent: 70,
+    })
+    expect(unknown).toMatchObject({
+      baseInputPrice: 16,
+      siteInputPrice: 2.4,
+      savingsPercent: 85,
+    })
+  })
+
+  it('uses vendor metadata for aliases without changing the actual price', () => {
+    const [model] = buildSavingsCatalog(
+      [
+        makePricingModel('codex-auto-review', 1, {
+          vendor_name: 'OpenAI',
+          enable_groups: ['value'],
+          group_ratio: { value: 0.5 },
+        }),
+      ],
+      3
+    )
+
+    expect(model).toMatchObject({
+      baseInputPrice: 13.5,
+      siteInputPrice: 3,
+      savingsPercent: 77,
+    })
+  })
+
   it('uses live group and recharge ratios while excluding request pricing', () => {
     const models = buildSavingsModels(
       [
@@ -112,10 +208,10 @@ describe('buildSavingsModels', () => {
 
     expect(models).toHaveLength(1)
     expect(models[0]).toMatchObject({
-      baseInputPrice: 32,
-      baseOutputPrice: 96,
+      baseInputPrice: 54,
+      baseOutputPrice: 162,
       siteInputPrice: 16,
-      savingsPercent: 50,
+      savingsPercent: 70,
     })
     expect(models[0].siteOutputPrice).toBeCloseTo(48)
   })
@@ -123,7 +219,7 @@ describe('buildSavingsModels', () => {
   it('derives live cache read and write prices from the pricing ratios', () => {
     const [model] = buildSavingsCatalog(
       [
-        makePricingModel('cached-model', 1, {
+        makePricingModel('gpt-cached-model', 1, {
           completion_ratio: 4,
           cache_ratio: 0.1,
           create_cache_ratio: 1.25,
@@ -134,24 +230,21 @@ describe('buildSavingsModels', () => {
     )
 
     expect(model).toMatchObject({
-      baseInputPrice: 8,
-      baseOutputPrice: 32,
-      baseCacheWritePrice: 10,
+      baseInputPrice: 13.5,
+      baseOutputPrice: 54,
+      baseCacheWritePrice: 16.875,
       siteInputPrice: 4,
       siteOutputPrice: 16,
       siteCacheReadPrice: 0.4,
       siteCacheWritePrice: 5,
     })
-    expect(model.baseCacheReadPrice).toBeCloseTo(0.8)
+    expect(model.baseCacheReadPrice).toBeCloseTo(1.35)
   })
 
   it('returns no comparison rows when pricing has no valid token model', () => {
-    expect(
-      buildSavingsModels(
-        [makePricingModel('request-only', 1, { quota_type: 1 })],
-        1
-      )
-    ).toEqual([])
+    const requestModel = makePricingModel('request-only', 1, { quota_type: 1 })
+    expect(buildSavingsModels([requestModel], 1)).toEqual([])
+    expect(buildSavingsQuote(requestModel, 1, 0.5)).toBeNull()
   })
 
   it('keeps the complete live token catalog available to the calculator', () => {
@@ -184,6 +277,48 @@ describe('buildSavingsModels', () => {
       siteOutputPrice: 40,
       siteCacheReadPrice: 4,
     })
+  })
+
+  it('uses output as the savings reference when a supported expression has zero input', () => {
+    const [model] = buildSavingsCatalog(
+      [
+        makePricingModel('output-only-alias', 0, {
+          vendor_name: 'OpenAI',
+          billing_mode: 'tiered_expr',
+          billing_expr: 'tier("base", p * 0 + c * 20 + cr * 0 + cc * 0)',
+          group_ratio: { default: 0.4 },
+        }),
+      ],
+      1
+    )
+
+    expect(model).toMatchObject({
+      baseInputPrice: 0,
+      baseOutputPrice: 135,
+      baseCacheReadPrice: 0,
+      baseCacheWritePrice: 0,
+      siteInputPrice: 0,
+      siteOutputPrice: 8,
+      siteCacheReadPrice: 0,
+      siteCacheWritePrice: 0,
+      savingsPercent: 94,
+    })
+  })
+
+  it('rejects nonfinite and overflowing inputs instead of emitting invalid prices', () => {
+    const model = makePricingModel('gpt-5', 1)
+    expect(buildSavingsCatalog([model], Number.NaN)).toEqual([])
+    expect(buildSavingsCatalog([model], Number.POSITIVE_INFINITY)).toEqual([])
+    expect(buildSavingsQuote(model, 1, Number.NaN)).toBeNull()
+    expect(
+      buildSavingsQuote(model, Number.MAX_VALUE, Number.MAX_VALUE)
+    ).toBeNull()
+    expect(
+      buildSavingsCatalog(
+        [makePricingModel('gpt-overflow', Number.MAX_VALUE)],
+        1
+      )
+    ).toEqual([])
   })
 
   it.each([

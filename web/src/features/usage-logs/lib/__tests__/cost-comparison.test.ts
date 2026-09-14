@@ -19,9 +19,18 @@ For commercial licensing, please contact support@quantumnous.com
 import { describe, expect, it } from 'vitest'
 
 import type { LogOtherData } from '../../types'
-import { getLogCostComparison, getLogQuotaComparison } from '../cost-comparison'
+import {
+  getLogCostComparison,
+  getLogQuotaComparison,
+  OFFICIAL_PRICE_USD_TO_CNY as COST_COMPARISON_USD_TO_CNY,
+} from '../cost-comparison'
+import { OFFICIAL_PRICE_USD_TO_CNY } from '../model-provider'
 
 describe('recorded request price comparison', () => {
+  it('re-exports the shared official-price conversion constant', () => {
+    expect(COST_COMPARISON_USD_TO_CNY).toBe(OFFICIAL_PRICE_USD_TO_CNY)
+  })
+
   it.each([
     [
       'discounted group',

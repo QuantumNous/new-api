@@ -24,10 +24,28 @@ export interface ModelProvider {
   label: string
 }
 
-export function resolveModelProvider(modelName: string): ModelProvider | null {
-  const model = modelName.toLowerCase()
+// Fixed conversion for official-price comparisons; independent of wallet billing.
+export const OFFICIAL_PRICE_USD_TO_CNY = 6.75
+
+export function resolveModelProvider(
+  modelName: string,
+  vendorName?: string
+): ModelProvider | null {
+  return (
+    resolveProviderIdentifier(modelName, false) ??
+    (vendorName ? resolveProviderIdentifier(vendorName, true) : null)
+  )
+}
+
+function resolveProviderIdentifier(
+  identifier: string,
+  includeVendorLabels: boolean
+): ModelProvider | null {
+  const model = identifier.toLowerCase()
   const hasAny = (keywords: string[]) =>
     keywords.some((keyword) => model.includes(keyword))
+  const isVendor = (keywords: string[]) =>
+    includeVendorLabels && hasAny(keywords)
 
   if (
     hasAny([
@@ -39,33 +57,34 @@ export function resolveModelProvider(modelName: string): ModelProvider | null {
       'whisper',
       'tts-',
     ]) ||
-    /\bo[134](?:-|$)/.test(model)
+    /\bo[134](?:-|$)/.test(model) ||
+    isVendor(['openai'])
   ) {
     return { icon: 'OpenAI.Color', label: 'OpenAI', referenceCurrency: 'USD' }
   }
-  if (hasAny(['claude-', 'anthropic'])) {
+  if (hasAny(['claude-', 'anthropic']) || isVendor(['claude'])) {
     return { icon: 'Claude.Color', label: 'Claude', referenceCurrency: 'USD' }
   }
-  if (hasAny(['gemini-', 'learnlm-'])) {
+  if (hasAny(['gemini-', 'learnlm-']) || isVendor(['google'])) {
     return { icon: 'Gemini.Color', label: 'Gemini', referenceCurrency: 'USD' }
   }
-  if (hasAny(['grok-', 'xai-'])) {
+  if (hasAny(['grok-', 'xai-']) || isVendor(['xai'])) {
     return { icon: 'Grok.Color', label: 'Grok', referenceCurrency: 'USD' }
   }
-  if (hasAny(['deepseek-'])) {
+  if (hasAny(['deepseek-']) || isVendor(['deepseek'])) {
     return {
       icon: 'DeepSeek.Color',
       label: 'DeepSeek',
       referenceCurrency: 'CNY',
     }
   }
-  if (hasAny(['qwen', 'qwq-'])) {
+  if (hasAny(['qwen', 'qwq-']) || isVendor(['alibaba', 'tongyi'])) {
     return { icon: 'Qwen.Color', label: 'Qwen', referenceCurrency: 'CNY' }
   }
-  if (hasAny(['doubao-', 'volcengine'])) {
+  if (hasAny(['doubao-', 'volcengine']) || isVendor(['doubao'])) {
     return { icon: 'Doubao.Color', label: 'Doubao', referenceCurrency: 'CNY' }
   }
-  if (hasAny(['moonshot-', 'kimi-'])) {
+  if (hasAny(['moonshot-', 'kimi-']) || isVendor(['moonshot'])) {
     return {
       icon: 'Moonshot.Color',
       label: 'Moonshot',
@@ -75,19 +94,22 @@ export function resolveModelProvider(modelName: string): ModelProvider | null {
   if (hasAny(['minimax', 'abab'])) {
     return { icon: 'Minimax.Color', label: 'MiniMax', referenceCurrency: 'CNY' }
   }
-  if (hasAny(['glm-', 'chatglm', 'cogview', 'cogvideo'])) {
+  if (
+    hasAny(['glm-', 'chatglm', 'cogview', 'cogvideo']) ||
+    isVendor(['zhipu'])
+  ) {
     return { icon: 'Zhipu.Color', label: 'Zhipu', referenceCurrency: 'CNY' }
   }
-  if (hasAny(['mimo-'])) {
+  if (hasAny(['mimo-']) || isVendor(['xiaomi'])) {
     return { icon: 'XiaomiMiMo', label: 'MiMo', referenceCurrency: 'CNY' }
   }
-  if (hasAny(['ernie'])) {
+  if (hasAny(['ernie']) || isVendor(['baidu'])) {
     return { icon: 'Wenxin.Color', label: 'Baidu', referenceCurrency: 'CNY' }
   }
-  if (hasAny(['spark'])) {
+  if (hasAny(['spark']) || isVendor(['iflytek'])) {
     return { icon: 'Spark.Color', label: 'iFlyTek', referenceCurrency: 'CNY' }
   }
-  if (hasAny(['hunyuan'])) {
+  if (hasAny(['hunyuan']) || isVendor(['tencent'])) {
     return { icon: 'Hunyuan.Color', label: 'Tencent', referenceCurrency: 'CNY' }
   }
   if (hasAny(['baichuan'])) {
@@ -104,19 +126,19 @@ export function resolveModelProvider(modelName: string): ModelProvider | null {
       referenceCurrency: 'CNY',
     }
   }
-  if (hasAny(['step-'])) {
+  if (hasAny(['step-']) || isVendor(['stepfun'])) {
     return { icon: 'Stepfun.Color', label: 'StepFun', referenceCurrency: 'CNY' }
   }
-  if (hasAny(['yi-'])) {
+  if (hasAny(['yi-']) || isVendor(['lingyi'])) {
     return { icon: 'Yi.Color', label: 'Yi', referenceCurrency: 'CNY' }
   }
-  if (hasAny(['mistral-', 'mixtral-'])) {
+  if (hasAny(['mistral-', 'mixtral-']) || isVendor(['mistral'])) {
     return { icon: 'Mistral.Color', label: 'Mistral', referenceCurrency: 'USD' }
   }
-  if (hasAny(['llama-', 'meta-'])) {
+  if (hasAny(['llama-', 'meta-']) || isVendor(['meta'])) {
     return { icon: 'Meta.Color', label: 'Meta', referenceCurrency: 'USD' }
   }
-  if (hasAny(['command-', 'cohere-'])) {
+  if (hasAny(['command-', 'cohere-']) || isVendor(['cohere'])) {
     return { icon: 'Cohere.Color', label: 'Cohere', referenceCurrency: 'USD' }
   }
 

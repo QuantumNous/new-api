@@ -24,6 +24,10 @@ import {
 } from '@/features/pricing/lib/dynamic-price'
 import { getDisplayGroupRatio } from '@/features/pricing/lib/model-helpers'
 import type { PricingModel } from '@/features/pricing/types'
+import {
+  OFFICIAL_PRICE_USD_TO_CNY,
+  resolveModelProvider,
+} from '@/features/usage-logs/lib/model-provider'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatLocalCurrencyAmount } from '@/lib/currency'
 
@@ -298,14 +302,16 @@ function compareLatestModel(left: PricingModel, right: PricingModel): number {
 
 function toSavingsModel(
   model: PricingModel,
-  priceRate: number
+  priceRate: number,
+  groupRatio = getDisplayGroupRatio(model)
 ): SavingsModel | null {
-  const displayGroupRatio = Math.max(getDisplayGroupRatio(model), 0)
+  if (!Number.isFinite(groupRatio) || !Number.isFinite(priceRate)) return null
+  const displayGroupRatio = Math.max(groupRatio, 0)
   const normalizedPriceRate = Math.max(priceRate, 0.001)
-  let inputUSD = model.model_ratio * 2
-  let outputUSD = inputUSD * model.completion_ratio
-  let cacheReadUSD = getOptionalRatio(model.cache_ratio)
-  let cacheWriteUSD = getOptionalRatio(model.create_cache_ratio)
+  let inputPrice = model.model_ratio * 2
+  let outputPrice = inputPrice * model.completion_ratio
+  let cacheReadPrice = getOptionalRatio(model.cache_ratio)
+  let cacheWritePrice = getOptionalRatio(model.create_cache_ratio)
 
   if (isDynamicPricingModel(model)) {
     // Display summaries intentionally omit zero entries and may parse only
@@ -326,32 +332,57 @@ function toSavingsModel(
       if (!Number.isFinite(price)) return null
       prices.set(entry[1], price)
     }
-    inputUSD = prices.get('p') ?? 0
-    outputUSD = prices.get('c') ?? 0
-    cacheReadUSD = prices.get('cr') ?? null
-    cacheWriteUSD = prices.get('cc') ?? null
-    if (inputUSD <= 0 && outputUSD <= 0) return null
+    inputPrice = prices.get('p') ?? 0
+    outputPrice = prices.get('c') ?? 0
+    cacheReadPrice = prices.get('cr') ?? null
+    cacheWritePrice = prices.get('cc') ?? null
+    if (inputPrice <= 0 && outputPrice <= 0) return null
   } else {
-    cacheReadUSD = cacheReadUSD == null ? null : inputUSD * cacheReadUSD
-    cacheWriteUSD = cacheWriteUSD == null ? null : inputUSD * cacheWriteUSD
+    cacheReadPrice = cacheReadPrice == null ? null : inputPrice * cacheReadPrice
+    cacheWritePrice =
+      cacheWritePrice == null ? null : inputPrice * cacheWritePrice
   }
 
-  const baseInputPrice = inputUSD * normalizedPriceRate
-  const baseOutputPrice = outputUSD * normalizedPriceRate
-  const siteInputPrice = inputUSD * displayGroupRatio * normalizedPriceRate
-  const siteOutputPrice = outputUSD * displayGroupRatio * normalizedPriceRate
+  const referenceCurrency = resolveModelProvider(
+    model.model_name,
+    model.vendor_name
+  )?.referenceCurrency
+  let referencePriceRate = normalizedPriceRate
+  if (referenceCurrency === 'USD') {
+    referencePriceRate = OFFICIAL_PRICE_USD_TO_CNY
+  } else if (referenceCurrency === 'CNY') {
+    referencePriceRate = 1
+  }
+  const baseInputPrice = inputPrice * referencePriceRate
+  const baseOutputPrice = outputPrice * referencePriceRate
+  const siteInputPrice = inputPrice * displayGroupRatio * normalizedPriceRate
+  const siteOutputPrice = outputPrice * displayGroupRatio * normalizedPriceRate
   const baseCacheReadPrice =
-    cacheReadUSD == null ? null : cacheReadUSD * normalizedPriceRate
+    cacheReadPrice == null ? null : cacheReadPrice * referencePriceRate
   const baseCacheWritePrice =
-    cacheWriteUSD == null ? null : cacheWriteUSD * normalizedPriceRate
+    cacheWritePrice == null ? null : cacheWritePrice * referencePriceRate
   const siteCacheReadPrice =
-    cacheReadUSD == null
+    cacheReadPrice == null
       ? null
-      : cacheReadUSD * displayGroupRatio * normalizedPriceRate
+      : cacheReadPrice * displayGroupRatio * normalizedPriceRate
   const siteCacheWritePrice =
-    cacheWriteUSD == null
+    cacheWritePrice == null
       ? null
-      : cacheWriteUSD * displayGroupRatio * normalizedPriceRate
+      : cacheWritePrice * displayGroupRatio * normalizedPriceRate
+  if (
+    ![
+      baseInputPrice,
+      baseOutputPrice,
+      baseCacheReadPrice,
+      baseCacheWritePrice,
+      siteInputPrice,
+      siteOutputPrice,
+      siteCacheReadPrice,
+      siteCacheWritePrice,
+    ].every((price) => price == null || Number.isFinite(price))
+  ) {
+    return null
+  }
   const baseReferencePrice =
     baseInputPrice > 0 ? baseInputPrice : baseOutputPrice
   const siteReferencePrice =
@@ -428,18 +459,28 @@ export function buildSavingsModels(
     .map((candidate) => candidate.savings)
 }
 
+function isSavingsPricingModel(model: PricingModel): boolean {
+  return (
+    model.quota_type === 0 &&
+    (isDynamicPricingModel(model) ||
+      (Number.isFinite(model.model_ratio) &&
+        model.model_ratio > 0 &&
+        Number.isFinite(model.completion_ratio) &&
+        model.completion_ratio >= 0))
+  )
+}
+
 function getRankedPricingModels(models: PricingModel[]): PricingModel[] {
-  return models
-    .filter(
-      (model) =>
-        model.quota_type === 0 &&
-        (isDynamicPricingModel(model) ||
-          (Number.isFinite(model.model_ratio) &&
-            model.model_ratio > 0 &&
-            Number.isFinite(model.completion_ratio) &&
-            model.completion_ratio >= 0))
-    )
-    .sort(compareLatestModel)
+  return models.filter(isSavingsPricingModel).sort(compareLatestModel)
+}
+
+export function buildSavingsQuote(
+  model: PricingModel,
+  priceRate: number,
+  groupRatio?: number
+): SavingsModel | null {
+  if (!isSavingsPricingModel(model)) return null
+  return toSavingsModel(model, priceRate, groupRatio)
 }
 
 /** Build the complete live token-priced catalog used by the calculator. */
@@ -448,7 +489,7 @@ export function buildSavingsCatalog(
   priceRate: number
 ): SavingsModel[] {
   return getRankedPricingModels(models).flatMap((model) => {
-    const savings = toSavingsModel(model, priceRate)
+    const savings = buildSavingsQuote(model, priceRate)
     return savings ? [savings] : []
   })
 }

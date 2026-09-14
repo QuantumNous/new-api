@@ -53,7 +53,18 @@ describe('quoteGroupUsage', () => {
   it('keeps a zero-rate group free including cached input', () => {
     expect(parseGroupRatio(0)).toBe(0)
     expect(parseGroupRatio('0')).toBe(0)
-    expect(quoteGroupUsage(model, 0)).toEqual({
+    expect(
+      quoteGroupUsage(
+        {
+          ...model,
+          siteInputPrice: 0,
+          siteOutputPrice: 0,
+          siteCacheReadPrice: 0,
+          savingsPercent: 100,
+        },
+        0
+      )
+    ).toEqual({
       input: 0,
       output: 0,
       cacheHitInput: 0,
@@ -62,11 +73,23 @@ describe('quoteGroupUsage', () => {
     })
   })
 
-  it('scales list rates and estimates a 95% cache-hit input', () => {
-    const quote = quoteGroupUsage(model, 0.5)
+  it('uses an already constructed site quote for the selected group', () => {
+    const quote = quoteGroupUsage(
+      {
+        ...model,
+        baseInputPrice: 67.5,
+        baseOutputPrice: 135,
+        baseCacheReadPrice: 6.75,
+        siteInputPrice: 5,
+        siteOutputPrice: 10,
+        siteCacheReadPrice: 0.5,
+        savingsPercent: 92,
+      },
+      0.5
+    )
     expect(quote.input).toBe(5)
     expect(quote.output).toBe(10)
     expect(quote.cacheHitInput).toBeCloseTo(5 * 0.05 + 0.5 * 0.95)
-    expect(quote.savingsPercent).toBe(50)
+    expect(quote.savingsPercent).toBe(92)
   })
 })

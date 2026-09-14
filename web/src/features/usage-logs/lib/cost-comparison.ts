@@ -18,10 +18,10 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { LogOtherData } from '../types'
 import { isViolationFeeLog } from './format'
+import { OFFICIAL_PRICE_USD_TO_CNY } from './model-provider'
 import { isPerCallBilling } from './utils'
 
-// Fixed conversion for official-price comparisons; independent of wallet billing.
-export const OFFICIAL_PRICE_USD_TO_CNY = 6.75
+export { OFFICIAL_PRICE_USD_TO_CNY } from './model-provider'
 
 export type LogCostComparison = {
   baseCost: number

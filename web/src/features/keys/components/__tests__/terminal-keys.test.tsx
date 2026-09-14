@@ -74,11 +74,12 @@ beforeEach(() => {
   client.setQueryData(
     ['pricing'],
     {
-      vendors: [],
+      vendors: [{ id: 1, name: 'OpenAI' }],
       data: [
         {
           id: 1,
           model_name: 'standard-model',
+          vendor_id: 1,
           quota_type: 0,
           model_ratio: 1,
           completion_ratio: 2,
@@ -309,6 +310,10 @@ describe('terminal key management', () => {
     const card = screen.getByRole('button', { name: /Standard lane/ })
     expect(within(card).getByText('standard')).toBeVisible()
     expect(within(card).getByText('1x')).toBeVisible()
+    expect(within(card).getByText('¥2/M')).toBeVisible()
+    expect(within(card).getByText('¥4/M')).toBeVisible()
+    expect(within(card).queryByText('¥13.5/M')).not.toBeInTheDocument()
+    expect(within(card).getByText('Save about 85%')).toBeVisible()
 
     const row = screen.getByRole('row', { name: /existing/ })
     const groupCell = within(row).getAllByRole('cell')[2]
