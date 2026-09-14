@@ -6494,6 +6494,21 @@ html:lang(zh-TW) .ci-finalCta h2 i {
   border-top: 1px solid var(--ci-color-border-subtle);
   vertical-align: middle;
 }
+.ci-groupCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ci-groupName {
+  font-weight: 500;
+}
+.ci-groupDesc {
+  display: block;
+  margin-top: 4px;
+  color: var(--ci-color-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
 .ci-modelCell {
   display: flex;
   align-items: center;
@@ -6565,8 +6580,15 @@ html:lang(zh-TW) .ci-finalCta h2 i {
   box-shadow: 0 0 0 3px
     color-mix(in srgb, var(--ci-color-accent) 35%, transparent);
 }
-.ci-quoteCard strong {
-  font-size: 15px;
+.ci-quoteHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ci-quoteName {
+  font-size: 14px;
+  font-weight: 600;
 }
 .ci-quoteLane {
   color: var(--ci-color-text-muted);

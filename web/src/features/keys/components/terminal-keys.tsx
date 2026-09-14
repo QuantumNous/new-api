@@ -25,6 +25,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { GroupRatioPill } from '@/components/group-badge'
 import { TerminalPage } from '@/components/layout/components/terminal-page'
 import { buildModelCatalog } from '@/features/home/lib/catalog'
 import { formatPerMillionTokens } from '@/features/home/lib/pricing-savings'
@@ -90,23 +91,37 @@ export function TerminalKeys() {
     queryKey: ['user-groups'],
     queryFn: getUserGroups,
   })
-  const groups = useMemo<UserGroup[]>(() => {
-    const entries = Object.entries(groupsQuery.data?.data || {})
-    return entries
-      .map(([value, info]) => ({
-        value,
-        label: value,
-        desc: String(info.desc || value),
-        ratio: parseGroupRatio(info.ratio),
-      }))
-      .filter(
-        (group) =>
-          group.value !== 'auto' &&
-          (!selectedPricingModel ||
-            selectedPricingModel.enable_groups?.includes(group.value))
-      )
-      .sort((a, b) => a.ratio - b.ratio)
-  }, [groupsQuery.data, selectedPricingModel])
+  // Every group the account knows, including groups this page does not quote.
+  const groupMeta = useMemo(() => {
+    const meta: Record<string, { desc: string; ratio?: number }> = {}
+    for (const [value, info] of Object.entries(groupsQuery.data?.data || {})) {
+      const desc = typeof info.desc === 'string' ? info.desc.trim() : ''
+      const ratio = Number(info.ratio)
+      meta[value] = {
+        desc: desc && desc !== value ? desc : '',
+        ratio: Number.isFinite(ratio) && ratio >= 0 ? ratio : undefined,
+      }
+    }
+    return meta
+  }, [groupsQuery.data])
+  const groups = useMemo<UserGroup[]>(
+    () =>
+      Object.keys(groupMeta)
+        .map((value) => ({
+          value,
+          label: value,
+          desc: groupMeta[value].desc,
+          ratio: parseGroupRatio(groupMeta[value].ratio),
+        }))
+        .filter(
+          (group) =>
+            group.value !== 'auto' &&
+            (!selectedPricingModel ||
+              selectedPricingModel.enable_groups?.includes(group.value))
+        )
+        .sort((a, b) => a.ratio - b.ratio),
+    [groupMeta, selectedPricingModel]
+  )
   const selectedGroup =
     groups.find((group) => group.value === groupName) ?? groups[0] ?? null
 
@@ -321,11 +336,12 @@ export function TerminalKeys() {
                     onClick={() => setGroupName(group.value)}
                     aria-pressed={selected}
                   >
-                    <strong>{group.desc || group.label}</strong>
+                    <span className='ci-quoteHead'>
+                      <span className='ci-quoteName'>{group.label}</span>
+                      <GroupRatioPill ratio={group.ratio} />
+                    </span>
                     <span className='ci-quoteLane'>
-                      {group.label}
-                      {' · '}
-                      {discountLabel(t, discount)}
+                      {group.desc || discountLabel(t, discount)}
                     </span>
                     {groupQuote ? (
                       <dl>
@@ -439,33 +455,48 @@ export function TerminalKeys() {
               </tr>
             </thead>
             <tbody>
-              {keys.map((key) => (
-                <tr key={key.id}>
-                  <td>{key.name}</td>
-                  <td>
-                    <code>{key.key}</code>
-                  </td>
-                  <td>{key.group || t('Default')}</td>
-                  <td>
-                    <button
-                      type='button'
-                      className='ci-button ci-button--ghost ci-button--size-xs'
-                      disabled={copyMutation.isPending}
-                      onClick={() => copyMutation.mutate(key.id)}
-                    >
-                      <Copy size={14} /> {t('Copy')}
-                    </button>
-                    <button
-                      type='button'
-                      className='ci-button ci-button--ghost ci-button--size-xs'
-                      disabled={revoking}
-                      onClick={() => setRevokeTarget(key.id)}
-                    >
-                      {t('Revoke')}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {keys.map((key) => {
+                const meta = key.group ? groupMeta[key.group] : undefined
+                return (
+                  <tr key={key.id}>
+                    <td>{key.name}</td>
+                    <td>
+                      <code>{key.key}</code>
+                    </td>
+                    <td>
+                      <span className='ci-groupCell'>
+                        <span className='ci-groupName'>
+                          {key.group || t('Default')}
+                        </span>
+                        {meta?.ratio === undefined ? null : (
+                          <GroupRatioPill ratio={meta.ratio} />
+                        )}
+                      </span>
+                      {meta?.desc ? (
+                        <span className='ci-groupDesc'>{meta.desc}</span>
+                      ) : null}
+                    </td>
+                    <td>
+                      <button
+                        type='button'
+                        className='ci-button ci-button--ghost ci-button--size-xs'
+                        disabled={copyMutation.isPending}
+                        onClick={() => copyMutation.mutate(key.id)}
+                      >
+                        <Copy size={14} /> {t('Copy')}
+                      </button>
+                      <button
+                        type='button'
+                        className='ci-button ci-button--ghost ci-button--size-xs'
+                        disabled={revoking}
+                        onClick={() => setRevokeTarget(key.id)}
+                      >
+                        {t('Revoke')}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}

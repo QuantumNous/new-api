@@ -96,14 +96,28 @@ export function GroupBadge(props: GroupBadgeProps) {
   return (
     <span className='inline-flex max-w-full min-w-0 items-center gap-2 text-xs'>
       <span className='max-w-full min-w-0 overflow-hidden'>{badge}</span>
-      <span
-        className={cn(
-          'inline-flex h-5 shrink-0 items-center rounded-full px-1.5 font-mono text-xs leading-none font-medium tabular-nums',
-          getGroupRatioClassName(ratio)
-        )}
-      >
-        <span>{ratio}x</span>
-      </span>
+      <GroupRatioPill ratio={ratio} />
+    </span>
+  )
+}
+
+/** Billing multiplier for a group, tinted by discount / list price / markup. */
+export function GroupRatioPill({
+  ratio,
+  className,
+}: {
+  ratio: number
+  className?: string
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-flex h-5 shrink-0 items-center rounded-full px-1.5 font-mono text-xs leading-none font-medium tabular-nums',
+        getGroupRatioClassName(ratio),
+        className
+      )}
+    >
+      {ratio}x
     </span>
   )
 }

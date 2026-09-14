@@ -121,6 +121,7 @@ beforeEach(() => {
         data: {
           standard: { desc: 'Standard lane', ratio: 1 },
           cheap: { desc: 'Cheap lane', ratio: 0.5 },
+          auto: { desc: 'Auto routing', ratio: '自动' },
         },
       }
     } else if (config.method === 'get' && url.pathname === '/api/token/') {
@@ -294,6 +295,37 @@ describe('terminal key management', () => {
       'aria-pressed',
       'true'
     )
+  })
+
+  it('shows the group name with its billing multiplier in the quote cards and key list', async () => {
+    renderKeys()
+    const user = userEvent.setup()
+    await screen.findByText('existing')
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Model' }),
+      'standard-model'
+    )
+
+    const card = screen.getByRole('button', { name: /Standard lane/ })
+    expect(within(card).getByText('standard')).toBeVisible()
+    expect(within(card).getByText('1x')).toBeVisible()
+
+    const row = screen.getByRole('row', { name: /existing/ })
+    const groupCell = within(row).getAllByRole('cell')[2]
+    expect(within(groupCell).getByText('standard')).toBeVisible()
+    expect(within(groupCell).getByText('1x')).toBeVisible()
+    expect(within(groupCell).getByText('Standard lane')).toBeVisible()
+  })
+
+  it('omits the multiplier pill when a group has no numeric ratio', async () => {
+    keys = [key(1, 'existing'), { ...key(2, 'auto-key'), group: 'auto' }]
+    renderKeys()
+
+    const row = await screen.findByRole('row', { name: /auto-key/ })
+    const groupCell = within(row).getAllByRole('cell')[2]
+
+    expect(within(groupCell).getByText('auto')).toBeVisible()
+    expect(within(groupCell).queryByText(/x$/)).not.toBeInTheDocument()
   })
 
   it('waits for confirmation before revoking one key', async () => {
