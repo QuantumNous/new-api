@@ -329,7 +329,7 @@ func GetAndValidateTextRequest(c *gin.Context, relayMode int) (*dto.GeneralOpenA
 	if ExceedsMaxTokensLimit(textRequest.MaxTokens, textRequest.MaxCompletionTokens) {
 		return nil, errors.New("max_tokens is invalid")
 	}
-	if exceedsMaxTokensLimit(textRequest.MinTokens) {
+	if ExceedsMaxTokensLimit(textRequest.MinTokens) {
 		return nil, errors.New("min_tokens is invalid")
 	}
 	if textRequest.Model == "" {
