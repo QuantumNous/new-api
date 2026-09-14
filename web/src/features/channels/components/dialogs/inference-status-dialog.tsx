@@ -47,6 +47,7 @@ import {
 
 type MetricRow = {
   label: string
+  details?: string
   value: number | undefined
   unit?: 'percent' | 'seconds' | 'rate'
 }
@@ -329,7 +330,11 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
       groups.push({
         title: t('Worker metrics'),
         rows: workerMetrics.map((metric) => ({
-          label: `${metric.name === 'sglang:cache_hit_rate' ? t('Prefix cache hit rate') : t('Speculative decoding acceptance rate')} · ${JSON.stringify(metric.labels)}`,
+          label:
+            metric.name === 'sglang:cache_hit_rate'
+              ? t('Prefix cache hit rate')
+              : t('Speculative decoding acceptance rate'),
+          details: JSON.stringify(metric.labels),
           value: metric.value,
           unit: 'percent',
         })),
@@ -517,13 +522,20 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
                   }
                   return (
                     <div
-                      key={row.label}
-                      className='flex items-start justify-between gap-4 rounded-md border p-3 text-sm'
+                      key={`${row.label}:${row.details ?? ''}`}
+                      className='grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1 rounded-md border p-3 text-sm'
                     >
-                      <dt className='text-muted-foreground'>{row.label}</dt>
-                      <dd className='shrink-0 font-medium tabular-nums'>
+                      <dt className='text-muted-foreground break-words'>
+                        {row.label}
+                      </dt>
+                      <dd className='font-medium whitespace-nowrap tabular-nums'>
                         {value}
                       </dd>
+                      {row.details && (
+                        <dd className='text-muted-foreground col-span-2 break-all text-xs'>
+                          {row.details}
+                        </dd>
+                      )}
                     </div>
                   )
                 })}

@@ -28,7 +28,7 @@ import {
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
 import { I18nextProvider } from 'react-i18next'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, assert, beforeEach, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
 import { ROLE } from '@/lib/roles'
@@ -365,8 +365,15 @@ it('disables channel mutations and tests for a read-only operator', async () => 
   expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled()
 })
 
-it('shows SGLang metric names and keeps worker percentages separate', async () => {
+it('keeps SGLang worker values separate and wraps long labels below them', async () => {
   const data = fixture()
+  const workerLabels = {
+    engine_type: 'unified',
+    model_name: 'deepseek-v4.1-flash',
+    moe_ep_rank: '0',
+    pp_rank: '0',
+    tp_rank: '0',
+  }
   data.version = '0.5.19'
   data.endpoints = {
     '/health': { status: 200 },
@@ -379,8 +386,9 @@ it('shows SGLang metric names and keeps worker percentages separate', async () =
     { name: 'sglang:num_queue_reqs', labels: {}, value: 0 },
     { name: 'sglang:token_usage', labels: { dp_rank: '0' }, value: 0.25 },
     { name: 'sglang:token_usage', labels: { dp_rank: '1' }, value: 0.5 },
-    { name: 'sglang:cache_hit_rate', labels: { dp_rank: '0' }, value: 0.2 },
+    { name: 'sglang:cache_hit_rate', labels: workerLabels, value: 0.2 },
     { name: 'sglang:cache_hit_rate', labels: { dp_rank: '1' }, value: 0.8 },
+    { name: 'sglang:spec_accept_rate', labels: workerLabels, value: 0.99 },
     { name: 'sglang:inter_token_latency_seconds_sum', labels: {}, value: 4 },
     {
       name: 'sglang:inter_token_latency_seconds_count',
@@ -416,6 +424,15 @@ it('shows SGLang metric names and keeps worker percentages separate', async () =
   const workers = within(screen.getByRole('region', { name: 'Worker metrics' }))
   expect(workers.getByText('20%')).toBeInTheDocument()
   expect(workers.getByText('80%')).toBeInTheDocument()
+  expect(workers.getByText('99%')).toBeInTheDocument()
+  const workerCard = workers.getByText('20%').parentElement
+  assert(workerCard)
+  expect(within(workerCard).getByRole('term')).toHaveTextContent(
+    /^Prefix cache hit rate$/
+  )
+  expect(workerCard).toHaveClass('min-w-0')
+  const labels = within(workerCard).getByText(JSON.stringify(workerLabels))
+  expect(labels).toHaveClass('col-span-2', 'break-all')
   expect(screen.queryByText('Awake engines')).not.toBeInTheDocument()
   expect(get).toHaveBeenCalledWith(
     '/api/channel/63/sglang/status',
