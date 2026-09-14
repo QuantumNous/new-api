@@ -76,36 +76,48 @@ describe('download platform detection', () => {
 })
 
 describe('download URL resolution', () => {
-  it('uses partner files only for the exact partner hostname', () => {
-    expect(getDownloadUrl('windows', 'ai.yeschoy.io')).toBe(
-      'https://ergou.qzz.io/updates/releases/partner/0.4.18/yeschoy-0.4.18-partner-windows-x86_64-installer.exe'
-    )
-    expect(getDownloadUrl('macos', 'AI.YESCHOY.IO')).toBe(
-      'https://ergou.qzz.io/updates/releases/partner/0.4.18/yeschoy-0.4.18-partner-macos-universal-installer.dmg'
-    )
-    expect(getDownloadUrl('windows', 'ai.yeschoy.com')).toContain(
-      '/releases/partner/0.4.18/'
-    )
+  const official = {
+    windows:
+      'https://ergou.qzz.io/releases/official/yeschoy-windows-x86_64-installer.exe',
+    macos:
+      'https://ergou.qzz.io/releases/official/yeschoy-macos-universal-installer.dmg',
+  }
+  const partner = {
+    windows:
+      'https://ergou.qzz.io/releases/partner/yeschoy-windows-x86_64-installer.exe',
+    macos:
+      'https://ergou.qzz.io/releases/partner/yeschoy-macos-universal-installer.dmg',
+  }
 
-    for (const hostname of [
-      'yeschoy.io',
-      'yeschoy.com',
-      'www.ai.yeschoy.io',
-      'ai.yeschoy.com.example.com',
-      'localhost',
-      '',
-    ]) {
-      expect(getDownloadUrl('windows', hostname)).toContain(
-        '/releases/official/0.4.18/'
-      )
+  it.each([
+    ['ai.yeschoy.io', partner],
+    ['AI.YESCHOY.IO', partner],
+    ['ai.yeschoy.com', official],
+    ['yeschoy.io', official],
+    ['yeschoy.com', official],
+    ['www.ai.yeschoy.io', official],
+    ['ai.yeschoy.io.example.com', official],
+    ['ai.yeschoy.com.example.com', official],
+    ['localhost', official],
+    ['', official],
+  ])(
+    'resolves %s through the expected exact-host channel',
+    (hostname, urls) => {
+      expect(getDownloadUrl('windows', hostname)).toBe(urls.windows)
+      expect(getDownloadUrl('macos', hostname)).toBe(urls.macos)
     }
-  })
+  )
 
   it('returns a complete platform, channel, and URL result', () => {
     expect(resolveDownload(MACOS, 'example.com')).toEqual({
       platform: 'macos',
       channel: 'official',
-      url: 'https://ergou.qzz.io/updates/releases/official/0.4.18/yeschoy-0.4.18-official-macos-universal-installer.dmg',
+      url: official.macos,
+    })
+    expect(resolveDownload(WINDOWS, 'ai.yeschoy.io')).toEqual({
+      platform: 'windows',
+      channel: 'partner',
+      url: partner.windows,
     })
     expect(resolveDownload(IPAD_DESKTOP_UA, 'ai.yeschoy.io')).toBeNull()
   })

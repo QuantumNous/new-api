@@ -55,25 +55,29 @@ afterEach(() => {
 })
 
 describe('desktop client page', () => {
-  it('offers the official Windows installer while preserving both manual choices', async () => {
+  it('offers the stable official installers without an unverified version claim', async () => {
     await renderApp(<DesktopClientPage runtime={WINDOWS_RUNTIME} />, client)
 
+    const officialWindows =
+      'https://ergou.qzz.io/releases/official/yeschoy-windows-x86_64-installer.exe'
     expect(
       screen.getByRole('link', { name: 'Download for Windows' })
-    ).toHaveAttribute(
-      'href',
-      'https://ergou.qzz.io/updates/releases/official/0.4.18/yeschoy-0.4.18-official-windows-x86_64-installer.exe'
-    )
-    expect(screen.getAllByText(/v0\.4\.18/)).toHaveLength(2)
+    ).toHaveAttribute('href', officialWindows)
     expect(
       screen.getByRole('link', { name: 'Windows installer' })
-    ).toHaveAttribute('href', expect.stringContaining('/releases/official/'))
+    ).toHaveAttribute('href', officialWindows)
     expect(
       screen.getByRole('link', { name: 'Universal macOS DMG' })
-    ).toHaveAttribute('href', expect.stringContaining('/releases/official/'))
+    ).toHaveAttribute(
+      'href',
+      'https://ergou.qzz.io/releases/official/yeschoy-macos-universal-installer.dmg'
+    )
+    expect(screen.getByText('Windows 10 or later · x86_64')).toBeInTheDocument()
+    expect(screen.getByText('Intel and Apple silicon')).toBeInTheDocument()
+    expect(screen.queryByText(/v0\.4\.18/)).not.toBeInTheDocument()
   })
 
-  it('uses partner links for the exact partner hostname', async () => {
+  it('uses stable partner links for the exact partner hostname', async () => {
     await renderApp(
       <DesktopClientPage
         runtime={{ ...WINDOWS_RUNTIME, hostname: 'ai.yeschoy.io' }}
@@ -81,14 +85,20 @@ describe('desktop client page', () => {
       client
     )
 
-    for (const link of screen.getAllByRole('link', {
-      name: /Download for Windows|Windows installer|Universal macOS DMG/,
-    })) {
-      expect(link).toHaveAttribute(
-        'href',
-        expect.stringContaining('/releases/partner/0.4.18/')
-      )
-    }
+    const partnerWindows =
+      'https://ergou.qzz.io/releases/partner/yeschoy-windows-x86_64-installer.exe'
+    expect(
+      screen.getByRole('link', { name: 'Download for Windows' })
+    ).toHaveAttribute('href', partnerWindows)
+    expect(
+      screen.getByRole('link', { name: 'Windows installer' })
+    ).toHaveAttribute('href', partnerWindows)
+    expect(
+      screen.getByRole('link', { name: 'Universal macOS DMG' })
+    ).toHaveAttribute(
+      'href',
+      'https://ergou.qzz.io/releases/partner/yeschoy-macos-universal-installer.dmg'
+    )
   })
 
   it('guides unsupported systems to the manual download choices', async () => {

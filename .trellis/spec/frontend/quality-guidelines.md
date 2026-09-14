@@ -375,9 +375,10 @@ for signed-out visitors, the console top bar, and the sign-in header.
 `web/src/features/desktop-client/lib/downloads.ts` and the `/client` page.
 
 ### Contracts
-- `CLIENT_VERSION` and the four literal installer URLs in `DOWNLOAD_URLS` are the only place the client version lives; a release bump updates the constant and moves the `releases/<channel>/<version>/` folder and file names together.
-- Channel selection is exact hostname matching against `PARTNER_HOSTNAMES` (`ai.yeschoy.io`, plus the legacy `ai.yeschoy.com`); every other host resolves to the official installers.
-- Look-alike hosts (`www.ai.yeschoy.io`, `ai.yeschoy.com.example.com`) stay official, so the match must stay exact after lowercasing instead of becoming a suffix check.
+- `DOWNLOAD_URLS` owns four literal stable installer URLs: official and partner links for Windows x86_64 and universal macOS. Do not derive installer URLs from the request host or claim a version that stable filenames do not verify.
+- Channel selection is exact hostname matching against `PARTNER_HOSTNAMES`; only `ai.yeschoy.io` after lowercasing is partner. Every other host, including the legacy `ai.yeschoy.com`, apex domains, localhost, and look-alikes, resolves to the official installers.
+- Preserve Windows/macOS detection, click-time runtime rechecking, both explicit manual links, and accessible unsupported-system feedback. Mobile, iPad, Linux, and unknown systems must not receive a guessed automatic installer.
+- Manual choices retain platform, minimum-system, and architecture information without a pinned version label.
 
 ### Tests Required
-`downloads.test.ts` covers partner vs official host resolution and platform detection; `client-page.test.tsx` asserts the rendered installer hrefs and the version label.
+`downloads.test.ts` covers all four exact URLs, partner/official host edges, and platform detection. `client-page.test.tsx` asserts the rendered automatic/manual installer hrefs, unsupported-system behavior, and absence of an unverified version claim.
