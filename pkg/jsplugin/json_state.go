@@ -178,21 +178,15 @@ func newJSONStateNode(value any, depth int, budget *jsonStateBudget) (*jsonState
 			if len(scalar) > budget.bytes {
 				return nil, fmt.Errorf("JSON string exceeds size limit")
 			}
+			if !utf8.ValidString(scalar) {
+				value = string([]rune(scalar))
+			}
 		default:
 			return nil, fmt.Errorf("value must contain only JSON objects, arrays and scalars")
 		}
 		encoded, err := common.Marshal(value)
 		if err != nil {
 			return nil, err
-		}
-		if text, ok := value.(string); ok && !utf8.ValidString(text) {
-			if err = common.Unmarshal(encoded, &value); err != nil {
-				return nil, err
-			}
-			encoded, err = common.Marshal(value)
-			if err != nil {
-				return nil, err
-			}
 		}
 		if err = budget.spend(len(encoded), 0); err != nil {
 			return nil, err
@@ -336,18 +330,12 @@ func (s *JSONState) Apply(ctx context.Context, changes any) (err error) {
 			if !isText || !ok || len(text) > s.limit-s.root.bytes {
 				return fmt.Errorf("appendText requires strings within the state size limit")
 			}
+			if !utf8.ValidString(text) {
+				text = string([]rune(text))
+			}
 			encoded, err := common.Marshal(text)
 			if err != nil {
 				return err
-			}
-			if !utf8.ValidString(text) {
-				if err = common.Unmarshal(encoded, &text); err != nil {
-					return err
-				}
-				encoded, err = common.Marshal(text)
-				if err != nil {
-					return err
-				}
 			}
 			addedBytes = len(encoded) - 2
 			if addedBytes > s.limit-s.root.bytes {

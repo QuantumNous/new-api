@@ -23,6 +23,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
+import { STATUS_QUERY_KEY } from '@/lib/status-query'
 import type { AuthBundle } from '@/stores/auth-store'
 
 import { verify, verifyLogin } from '../../secure-verification/api'
@@ -66,7 +67,6 @@ function setupPasskeyNetwork() {
         url === '/api/status'
           ? {
               passkey_rp_ids: ['example.com', 'www.example.com'],
-              passkey_origins: 'https://example.com,https://www.example.com',
             }
           : {
               scope: operation.scope,
@@ -386,7 +386,6 @@ it('keeps case-sensitive historical domains selectable and labels the distinctio
       success: true,
       data: {
         passkey_rp_ids: ['www.example.com', 'WWW.example.com'],
-        passkey_origins: 'https://www.example.com',
       },
     },
   })
@@ -416,4 +415,33 @@ it('keeps case-sensitive historical domains selectable and labels the distinctio
     })
   )
   expect(changed).toHaveBeenCalledExactlyOnceWith('WWW.example.com')
+})
+
+it.each([
+  { rpIDs: ['api.example.com'], canSwitch: false },
+  { rpIDs: ['example.com'], canSwitch: false },
+  { rpIDs: ['example.com', 'www.example.com'], canSwitch: true },
+])('does not display origins from cached status with $rpIDs', async (test) => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  client.setQueryData(STATUS_QUERY_KEY, {
+    passkey_rp_ids: test.rpIDs,
+    passkey_origins: 'https://www.example.com,https://api.example.com',
+  })
+  const user = userEvent.setup()
+  render(
+    <QueryClientProvider client={client}>
+      <PasskeyDomainSelector onChange={vi.fn()} />
+    </QueryClientProvider>
+  )
+
+  if (test.canSwitch) {
+    await user.click(screen.getByRole('button'))
+    expect(screen.getByRole('combobox')).toBeVisible()
+  } else {
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  }
+  expect(screen.queryAllByRole('link')).toHaveLength(0)
+  expect(screen.queryByText('https://api.example.com')).not.toBeInTheDocument()
 })

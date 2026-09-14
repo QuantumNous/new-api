@@ -429,6 +429,7 @@ export function ChannelsTable() {
       cardGridClassName='grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3'
       applyHeaderSize
       toolbarProps={{
+        collapsibleOnMobile: true,
         searchPlaceholder: t('Filter by name, ID, or key...'),
         searchDebounceMs: 500,
         onReset: () => {
