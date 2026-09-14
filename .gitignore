@@ -45,4 +45,3 @@ service/openaicompat/chat_responses_live_local_test.go
 go.work
 go.work.sum
 
-/new-api-issue-audit
