@@ -30,6 +30,7 @@ import type React from 'react'
 
 import sglangLogo from '@/assets/brand-icons/sglang.svg'
 import { IconSub2api } from '@/assets/custom/icon-sub2api'
+import { IconWan } from '@/assets/custom/icon-wan'
 
 const CUSTOM_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   SGLang: (props) => (
@@ -43,6 +44,7 @@ const CUSTOM_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
     />
   ),
   Sub2API: IconSub2api,
+  Wan: IconWan,
 }
 
 /**
