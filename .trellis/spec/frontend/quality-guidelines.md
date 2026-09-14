@@ -144,6 +144,13 @@ look valid but use an incompatible model/endpoint pair.
 - Beginner-guide examples use masked keys such as `sk-****************` and
   runtime deployment addresses; they never reveal a stored key or hardcode the
   deployed host.
+- `useCaseRows[].toolIds` must reference existing `guideTools` ids. Picking a
+  use-case card narrows the tool wall to exactly those tools, ANDed with the
+  category filter, and scrolls to the wall; the visible clear chip restores the
+  unfiltered wall and the unsettled card state.
+- Steps shared by a switcher/aggregator tool (for example CC Switch) describe
+  "the target app you want to configure" and never name one client as the
+  required target. App-specific instructions belong to that app's own card.
 - Dynamic guide prose uses English i18n keys and must be enumerated by the guide
   localization test because a static `t('...')` extractor cannot see catalog
   data.
@@ -191,8 +198,9 @@ look valid but use an incompatible model/endpoint pair.
   entry and developer-header fallback remain `/guide`; operator-route tests
   assert `/guide` is developer-only and `/beginner-guide` is not.
 - Beginner-guide tests: 31 historical tools, category/search behavior, direct
-  tool dialog, runtime address substitution, masked keys, and unknown-tool
-  fallback.
+  tool dialog, runtime address substitution, masked keys, unknown-tool
+  fallback, and use-case cards that map to existing tools and narrow/restore the
+  wall.
 - Localization tests: every catalog/component key exists in all seven locales
   and preserves the English placeholder multiset.
 
@@ -233,6 +241,11 @@ Landing/auth/catalog pricing, key quote/revoke flows, and easy-console reporting
 - SavingsModel quote numbers already incorporate the recharge price. `formatPerMillionTokens` formats that local amount without applying another USD exchange conversion.
 - `getFullApiKey(id)` reveals only through the dedicated endpoint, rejects masked results and normalizes the sk- prefix. Successful creation must refresh keys even when reveal fails.
 - `revokeAllApiKeys()` collects all IDs before deleting bounded batches and verifies the final list is empty. Partial/error outcomes refresh the list and never show an all-revoked success.
+- Easy key quote cards and key rows show the group name on the first line with a
+  `GroupRatioPill` multiplier beside it and the group description underneath.
+  `auto` (whose API ratio is the literal `自动`) stays out of the quote cards,
+  and key rows omit the pill when no finite ratio is known, so the UI never
+  prints an invented `1x` for an unknown multiplier.
 - `useUsageSummary(7|10)` uses the authenticated complete summary. Requests keeps pagination; page-only filters are labeled. Home/wallet savings explicitly say 10 days. All three views share the same user/date/offset query cache; use a fixed current UTC offset so ten daily buckets stay within the API limit across DST changes.
 - Request rows compare recorded charged quota against the same price with group multiplier 1 via `getLogQuotaComparison`. Use the logged positive user override before group ratio; preserve zero fees, exclude subscription cash comparisons, and show an unavailable mark for missing/invalid rates. Show above-base charges as a surcharge, not savings.
 - `buildUsageReportCsv(rows)` exports numeric display amounts with a currency unit, or explicitly labeled raw quota in tokens mode.
