@@ -29,9 +29,11 @@ import * as LobeIcons from '@lobehub/icons'
 import type React from 'react'
 
 import { IconSub2api } from '@/assets/custom/icon-sub2api'
+import { IconWan } from '@/assets/custom/icon-wan'
 
 const CUSTOM_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   Sub2API: IconSub2api,
+  Wan: IconWan,
 }
 
 /**
@@ -172,4 +174,12 @@ export function getLobeIcon(
   }
 
   return <IconComponent {...props} />
+}
+
+// The selector uses the same installed icon registry as the renderer.
+export function getLobeIconNames(): string[] {
+  const names = LobeIcons.toc.flatMap((icon) =>
+    icon.param.hasColor ? [icon.id, `${icon.id}.Color`] : [icon.id]
+  )
+  return [...new Set([...names, ...Object.keys(CUSTOM_ICONS)])].sort()
 }

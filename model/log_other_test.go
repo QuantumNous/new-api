@@ -11,19 +11,19 @@ func TestLogOtherScopesAndMerges(t *testing.T) {
 	var other LogOther
 
 	assert.True(t, other.SetPublic("request_path", "/v1/chat/completions"))
-	other.MergePublic(map[string]interface{}{
+	other.MergePublic(map[string]any{
 		"zero": 0,
 	})
 	assert.True(t, other.SetAdmin("use_channel", []string{"channel-a"}))
-	other.MergeAdmin(map[string]interface{}{
+	other.MergeAdmin(map[string]any{
 		"rejected": false,
 	})
 	assert.True(t, other.SetRoot("upstream_request_id", "upstream-private"))
-	other.MergeRoot(map[string]interface{}{
+	other.MergeRoot(map[string]any{
 		"generation": 0,
 	})
 	assert.True(t, other.SetAudit("method", "POST"))
-	other.MergeAudit(map[string]interface{}{
+	other.MergeAudit(map[string]any{
 		"success": false,
 	})
 
@@ -59,10 +59,10 @@ func TestLogOtherRejectsSensitivePublicFields(t *testing.T) {
 	} {
 		assert.False(t, other.SetPublic(key, "must-not-leak"), key)
 	}
-	other.MergePublic(map[string]interface{}{
+	other.MergePublic(map[string]any{
 		"request_path": "/v1/responses",
 		"channel_name": "still-must-not-leak",
-		"admin_info":   map[string]interface{}{"secret": true},
+		"admin_info":   map[string]any{"secret": true},
 	})
 
 	require.JSONEq(t, `{"request_path":"/v1/responses"}`, other.JSONString())

@@ -85,7 +85,8 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.Use(middleware.Distribute())
 
 		// claude related routes
-		httpRouter.POST("/messages/count_tokens", controller.CountClaudeTokens)
+		// TODO: /messages/count_tokens is disabled. The current controller.CountClaudeTokens
+		// httpRouter.POST("/messages/count_tokens", controller.CountClaudeTokens)
 		httpRouter.POST("/messages", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatClaude)
 		})

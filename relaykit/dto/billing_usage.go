@@ -88,7 +88,8 @@ func HasOpenAIUsageTokens(usage *Usage) bool {
 		usage.ClaudeCacheCreation1hTokens != 0 {
 		return true
 	}
-	if usage.PromptTokensDetails.CachedTokens != 0 ||
+	if usage.PromptTokensDetails.CachedTokensDetails.HasTokens() ||
+		usage.PromptTokensDetails.CachedTokens != 0 ||
 		usage.PromptTokensDetails.CachedCreationTokens != 0 ||
 		usage.PromptTokensDetails.CacheWriteTokens != 0 ||
 		usage.PromptTokensDetails.TextTokens != 0 ||
@@ -105,7 +106,8 @@ func HasOpenAIUsageTokens(usage *Usage) bool {
 	if usage.InputTokensDetails == nil {
 		return false
 	}
-	return usage.InputTokensDetails.CachedTokens != 0 ||
+	return usage.InputTokensDetails.CachedTokensDetails.HasTokens() ||
+		usage.InputTokensDetails.CachedTokens != 0 ||
 		usage.InputTokensDetails.CachedCreationTokens != 0 ||
 		usage.InputTokensDetails.CacheWriteTokens != 0 ||
 		usage.InputTokensDetails.TextTokens != 0 ||
@@ -122,10 +124,7 @@ func NewEstimatedGeminiChatBillingUsage(usage *Usage) *BillingUsage {
 		return nil
 	}
 	reasoningTokens := usage.CompletionTokenDetails.ReasoningTokens
-	candidateTokens := usage.CompletionTokens - reasoningTokens
-	if candidateTokens < 0 {
-		candidateTokens = 0
-	}
+	candidateTokens := max(usage.CompletionTokens-reasoningTokens, 0)
 	totalTokens := usage.TotalTokens
 	if totalTokens == 0 {
 		totalTokens = usage.PromptTokens + usage.CompletionTokens
@@ -191,10 +190,7 @@ func CloneBillingUsageWithEstimatedCompletion(usage *BillingUsage, completionTok
 	case clone.GeminiUsageMetadata != nil:
 		metadata := clone.GeminiUsageMetadata
 		if metadata.CandidatesTokenCount == 0 {
-			candidateTokens := completionTokens - metadata.ThoughtsTokenCount
-			if candidateTokens < 0 {
-				candidateTokens = 0
-			}
+			candidateTokens := max(completionTokens-metadata.ThoughtsTokenCount, 0)
 			metadata.CandidatesTokenCount = candidateTokens
 			totalTokens := metadata.PromptTokenCount + metadata.ToolUsePromptTokenCount + metadata.CandidatesTokenCount + metadata.ThoughtsTokenCount
 			if metadata.TotalTokenCount < totalTokens {
@@ -366,10 +362,7 @@ func (usage *BillingUsage) canonicalGeminiUsage() *Usage {
 	if canonical.TotalTokens == 0 {
 		canonical.TotalTokens = canonical.PromptTokens + canonical.CompletionTokens
 	} else if canonical.CompletionTokens <= 0 {
-		canonical.CompletionTokens = canonical.TotalTokens - canonical.PromptTokens
-		if canonical.CompletionTokens < 0 {
-			canonical.CompletionTokens = 0
-		}
+		canonical.CompletionTokens = max(canonical.TotalTokens-canonical.PromptTokens, 0)
 	}
 	if canonical.PromptTokens > 0 && canonical.PromptTokensDetails.TextTokens == 0 && canonical.PromptTokensDetails.AudioTokens == 0 {
 		canonical.PromptTokensDetails.TextTokens = canonical.PromptTokens
@@ -394,8 +387,9 @@ func cloneOpenAIUsage(usage *Usage) *Usage {
 	}
 	clone := *usage
 	clone.BillingUsage = nil
+	clone.PromptTokensDetails = usage.PromptTokensDetails.Clone()
 	if usage.InputTokensDetails != nil {
-		inputTokensDetails := *usage.InputTokensDetails
+		inputTokensDetails := usage.InputTokensDetails.Clone()
 		clone.InputTokensDetails = &inputTokensDetails
 	}
 	return &clone

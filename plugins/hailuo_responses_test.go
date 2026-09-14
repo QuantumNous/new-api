@@ -205,7 +205,7 @@ func TestHailuoH3BuildSubmitRequest(t *testing.T) {
 func TestHailuoH3RejectsOutOfContractRequests(t *testing.T) {
 	plugin := loadHailuoPlugin(t)
 	tenReferenceImages := make([]any, 0, 10)
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		tenReferenceImages = append(tenReferenceImages, map[string]any{
 			"type": "image_url", "role": "reference_image", "image_url": map[string]any{"url": "u"},
 		})
@@ -372,7 +372,7 @@ func TestHailuoParseTaskResult(t *testing.T) {
 func TestHailuoExtractUsageFacts(t *testing.T) {
 	plugin := loadHailuoPlugin(t)
 	nineReferenceImages := make([]any, 0, 9)
-	for i := 0; i < 9; i++ {
+	for range 9 {
 		nineReferenceImages = append(nineReferenceImages, map[string]any{
 			"type": "image_url", "role": "reference_image", "image_url": map[string]any{"url": "image"},
 		})

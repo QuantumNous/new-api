@@ -161,6 +161,20 @@ func TestGenRelayInfoCapturesRequestReasoningEffort(t *testing.T) {
 	}
 }
 
+func TestGenRelayInfoKeepsOriginAndLeavesBillingUnset(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	const model = "qwen3.8-max@thinking:on@temperature:0.2"
+	ctx.Set("original_model", model)
+
+	info, err := GenRelayInfo(ctx, types.RelayFormatOpenAI, &dto.GeneralOpenAIRequest{Model: model}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, model, info.OriginModelName)
+	assert.Empty(t, info.BillingModelName)
+	assert.Equal(t, model, info.GetBillingModelName())
+}
+
 func TestInitChannelMetaRestoresRequestReasoningEffortForRetry(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())

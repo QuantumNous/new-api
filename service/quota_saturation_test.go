@@ -38,9 +38,9 @@ func TestAttachQuotaSaturationNestsUnderAdminInfo(t *testing.T) {
 	other.SetPublic("model_price", 0.004)
 	attachQuotaSaturation(ctx, relayInfo, other)
 
-	adminInfo, ok := other.Snapshot()["admin_info"].(map[string]interface{})
+	adminInfo, ok := other.Snapshot()["admin_info"].(map[string]any)
 	require.True(t, ok, "admin_info should be created")
-	sat, ok := adminInfo["quota_saturation"].(map[string]interface{})
+	sat, ok := adminInfo["quota_saturation"].(map[string]any)
 	require.True(t, ok, "quota_saturation should be nested under admin_info")
 	require.Equal(t, "QuotaFromDecimal", sat["op"])
 	require.Equal(t, common.QuotaClampOverflow, sat["kind"])
@@ -82,7 +82,7 @@ func TestAttachQuotaSaturationPreservesExistingAdminInfo(t *testing.T) {
 	other.SetAdmin("admin_username", "root")
 	attachQuotaSaturation(ctx, relayInfo, other)
 
-	adminInfo := other.Snapshot()["admin_info"].(map[string]interface{})
+	adminInfo := other.Snapshot()["admin_info"].(map[string]any)
 	require.Equal(t, "root", adminInfo["admin_username"], "existing admin_info fields preserved")
 	require.NotNil(t, adminInfo["quota_saturation"])
 }

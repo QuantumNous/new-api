@@ -16,11 +16,11 @@ import (
 
 // WebhookPayload webhook 通知的负载数据
 type WebhookPayload struct {
-	Type      string        `json:"type"`
-	Title     string        `json:"title"`
-	Content   string        `json:"content"`
-	Values    []interface{} `json:"values,omitempty"`
-	Timestamp int64         `json:"timestamp"`
+	Type      string `json:"type"`
+	Title     string `json:"title"`
+	Content   string `json:"content"`
+	Values    []any  `json:"values,omitempty"`
+	Timestamp int64  `json:"timestamp"`
 }
 
 // generateSignature 生成 webhook 签名

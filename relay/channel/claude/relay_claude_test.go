@@ -23,14 +23,14 @@ func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {
 	tests := []struct {
 		name string
 		args string
-		want map[string]interface{}
+		want map[string]any
 	}{
-		{name: "object", args: `{"q":"x"}`, want: map[string]interface{}{"q": "x"}},
-		{name: "empty", args: "", want: map[string]interface{}{}},
-		{name: "invalid", args: "{", want: map[string]interface{}{}},
-		{name: "null", args: "null", want: map[string]interface{}{}},
-		{name: "array", args: `["x"]`, want: map[string]interface{}{}},
-		{name: "string", args: `"x"`, want: map[string]interface{}{}},
+		{name: "object", args: `{"q":"x"}`, want: map[string]any{"q": "x"}},
+		{name: "empty", args: "", want: map[string]any{}},
+		{name: "invalid", args: "{", want: map[string]any{}},
+		{name: "null", args: "null", want: map[string]any{}},
+		{name: "array", args: `["x"]`, want: map[string]any{}},
+		{name: "string", args: `"x"`, want: map[string]any{}},
 	}
 
 	for _, tt := range tests {
@@ -342,7 +342,8 @@ func applyOpenAIChatReasoningThroughHandlerOrder(t *testing.T, original dto.Gene
 	outbound, err := common.DeepCopy(&original)
 	require.NoError(t, err)
 	require.NoError(t, helper.ModelMappedHelper(c, info, outbound))
-	require.NoError(t, helper.ApplyReasoningModelSuffix(info, outbound))
+	err = helper.ApplyReasoningModelSuffix(nil, info, outbound)
+	require.NoError(t, err)
 	return outbound, info
 }
 

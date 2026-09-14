@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type Table } from '@tanstack/react-table'
+import type { Table } from '@tanstack/react-table'
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
@@ -38,6 +38,7 @@ import { cn, getPageNumbers } from '@/lib/utils'
 
 type DataTablePaginationProps<TData> = {
   table: Table<TData>
+  compact?: boolean
 }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100] as const
@@ -48,6 +49,7 @@ const PAGE_SIZE_SELECT_ITEMS = PAGE_SIZE_OPTIONS.map((pageSize) => ({
 
 export function DataTablePagination<TData>({
   table,
+  compact = false,
 }: DataTablePaginationProps<TData>) {
   const { t } = useTranslation()
   const pagination = table.getState().pagination
@@ -56,6 +58,48 @@ export function DataTablePagination<TData>({
   const totalPages = table.getPageCount()
   const totalRows = table.getRowCount()
   const pageNumbers = getPageNumbers(currentPage, totalPages)
+  const pageItems = pageNumbers.map((page, index) => ({
+    page,
+    key: page === '...' ? `gap-after-${pageNumbers[index - 1]}` : String(page),
+  }))
+
+  if (compact) {
+    return (
+      <nav
+        aria-label={t('Page')}
+        className='flex w-full min-w-0 flex-wrap items-center justify-between gap-2 text-sm'
+      >
+        <span className='text-muted-foreground min-w-0 [overflow-wrap:anywhere]'>
+          {t('Total:')} {totalRows.toLocaleString()}
+        </span>
+        <div className='flex items-center gap-2'>
+          <Button
+            variant='outline'
+            size='icon'
+            className='size-11'
+            aria-label={t('Go to previous page')}
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            <ChevronLeftIcon />
+          </Button>
+          <span className='tabular-nums' aria-live='polite'>
+            {currentPage} / {Math.max(1, totalPages)}
+          </span>
+          <Button
+            variant='outline'
+            size='icon'
+            className='size-11'
+            aria-label={t('Go to next page')}
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            <ChevronRightIcon />
+          </Button>
+        </div>
+      </nav>
+    )
+  }
 
   return (
     <div
@@ -118,8 +162,8 @@ export function DataTablePagination<TData>({
             <ChevronLeftIcon className='h-4 w-4' />
           </Button>
 
-          {pageNumbers.map((pageNumber, index) => (
-            <div key={`${pageNumber}-${index}`} className='flex items-center'>
+          {pageItems.map(({ page: pageNumber, key }) => (
+            <div key={key} className='flex items-center'>
               {pageNumber === '...' ? (
                 <span className='text-muted-foreground/60 px-0.5 text-sm @lg/pagination:px-1'>
                   ...

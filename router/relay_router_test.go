@@ -89,20 +89,6 @@ func TestListModelsSupportsOpenAIAndGeminiAuthentication(t *testing.T) {
 	}
 }
 
-func TestRelayRouterRegistersClaudeTokenCountingEndpoint(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	engine := gin.New()
-	SetRelayRouter(engine)
-
-	for _, route := range engine.Routes() {
-		if route.Method == http.MethodPost && route.Path == "/v1/messages/count_tokens" {
-			return
-		}
-	}
-
-	t.Fatal("POST /v1/messages/count_tokens route is not registered")
-}
-
 func setupRelayRouterTestDB(t *testing.T) {
 	t.Helper()
 

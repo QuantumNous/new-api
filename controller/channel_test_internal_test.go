@@ -23,6 +23,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGetChannelDefaultBaseURLsUsesBuiltInDefaults(t *testing.T) {
+	originalBaseURLs := constant.ChannelBaseURLs
+	constant.ChannelBaseURLs = append([]string(nil), originalBaseURLs...)
+	constant.ChannelBaseURLs[constant.ChannelTypeDeepSeek] = "https://deepseek.server.example"
+	t.Cleanup(func() {
+		constant.ChannelBaseURLs = originalBaseURLs
+	})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/channel/default_base_urls", nil)
+	GetChannelDefaultBaseURLs(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success bool           `json:"success"`
+		Data    map[int]string `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	assert.Equal(t, "https://deepseek.server.example", response.Data[constant.ChannelTypeDeepSeek])
+	assert.Equal(t, "https://api.openai.com", response.Data[constant.ChannelTypeOpenAI])
+	assert.NotContains(t, response.Data, constant.ChannelTypeAzure)
+	assert.NotContains(t, response.Data, constant.ChannelTypeNewAPI)
+	assert.NotContains(t, response.Data, constant.ChannelTypeTaskPlugin)
+}
+
 func TestValidateChannelProxy(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -166,7 +193,7 @@ func TestCopyChannelRejectsInvalidLegacyProxySettings(t *testing.T) {
 
 func TestDeleteChannelResetsProxyCacheWhenPreReadFails(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
-	require.NoError(t, db.AutoMigrate(&model.Log{}))
+	require.NoError(t, db.AutoMigrate(&model.Log{}, &model.AuditLog{}))
 	service.ResetProxyClientCache()
 	t.Cleanup(service.ResetProxyClientCache)
 
@@ -189,7 +216,7 @@ func TestDeleteChannelResetsProxyCacheWhenPreReadFails(t *testing.T) {
 
 func TestDeleteChannelBatchReportsAndAuditsActualDeletedCount(t *testing.T) {
 	db := setupModelListControllerTestDB(t)
-	require.NoError(t, db.AutoMigrate(&model.Log{}))
+	require.NoError(t, db.AutoMigrate(&model.Log{}, &model.AuditLog{}))
 	channel := &model.Channel{Name: "existing", Key: "test-key"}
 	require.NoError(t, db.Create(channel).Error)
 
@@ -210,14 +237,16 @@ func TestDeleteChannelBatchReportsAndAuditsActualDeletedCount(t *testing.T) {
 	assert.True(t, response.Success)
 	assert.Equal(t, int64(1), response.Data)
 
-	var auditLog model.Log
+	var auditLog model.AuditLog
 	require.NoError(t, db.Order("id desc").First(&auditLog).Error)
 	var auditData struct {
 		Operation struct {
 			Params map[string]any `json:"params"`
 		} `json:"op"`
 	}
-	require.NoError(t, common.UnmarshalJsonStr(auditLog.Other, &auditData))
+	encodedAudit, err := common.Marshal(auditLog.Other)
+	require.NoError(t, err)
+	require.NoError(t, common.Unmarshal(encodedAudit, &auditData))
 	assert.Equal(t, float64(1), auditData.Operation.Params["count"])
 }
 

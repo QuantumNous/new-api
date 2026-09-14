@@ -37,6 +37,43 @@ func TestConvertClaudeRequestTreatsZeroMaxTokensAsUnset(t *testing.T) {
 	assert.Equal(t, uint(model_setting.GetClaudeSettings().GetDefaultMaxTokens(req.Model)), *converted.MaxTokens)
 }
 
+func TestConvertClaudeRequestPreservesNativeClaudeCodeThinking(t *testing.T) {
+	budget := 10000
+	maxTokens := uint(20000)
+	temperature := 0.7
+	topP := 0.9
+	req := &dto.ClaudeRequest{
+		Model:        "claude-opus-4-8",
+		MaxTokens:    &maxTokens,
+		Temperature:  &temperature,
+		TopP:         &topP,
+		Thinking:     &dto.Thinking{Type: "enabled", BudgetTokens: &budget},
+		OutputConfig: []byte(`{"effort":"high"}`),
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: "hello"},
+		},
+	}
+	info := &relaycommon.RelayInfo{
+		OriginModelName: req.Model,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: req.Model,
+		},
+	}
+
+	out, err := (&Adaptor{}).ConvertClaudeRequest(nil, info, req)
+	require.NoError(t, err)
+	converted, ok := out.(*dto.ClaudeRequest)
+	require.True(t, ok)
+	require.NotNil(t, converted.Thinking)
+	assert.Equal(t, "enabled", converted.Thinking.Type)
+	require.NotNil(t, converted.Thinking.BudgetTokens)
+	assert.Equal(t, budget, *converted.Thinking.BudgetTokens)
+	assert.Equal(t, temperature, *converted.Temperature)
+	assert.Equal(t, topP, *converted.TopP)
+	assert.JSONEq(t, `{"effort":"high"}`, string(converted.OutputConfig))
+	assert.Empty(t, info.ConversionDiagnostics())
+}
+
 func TestConvertClaudeRequestZeroMaxTokensStillRaisesThinkingBudget(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -59,7 +96,8 @@ func TestConvertClaudeRequestZeroMaxTokensStillRaisesThinkingBudget(t *testing.T
 	outbound, err := common.DeepCopy(original)
 	require.NoError(t, err)
 	require.NoError(t, helper.ModelMappedHelper(c, info, outbound))
-	require.NoError(t, helper.ApplyReasoningModelSuffix(info, outbound))
+	err = helper.ApplyReasoningModelSuffix(nil, info, outbound)
+	require.NoError(t, err)
 
 	out, err := (&Adaptor{}).ConvertClaudeRequest(nil, info, outbound)
 	require.NoError(t, err)

@@ -1,6 +1,7 @@
 package operation_setting
 
 import (
+	"maps"
 	"math"
 	"testing"
 
@@ -11,9 +12,7 @@ import (
 func preserveToolPrices(t *testing.T) {
 	t.Helper()
 	original := make(map[string]float64, len(toolPriceSetting.Prices))
-	for key, price := range toolPriceSetting.Prices {
-		original[key] = price
-	}
+	maps.Copy(original, toolPriceSetting.Prices)
 	t.Cleanup(func() {
 		toolPriceSetting.Prices = original
 		RebuildToolPriceIndex()

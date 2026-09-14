@@ -363,8 +363,8 @@ func FromOpenAIChat(req *dto.GeneralOpenAIRequest) (Intent, error) {
 		BudgetSource:    SourcePivot,
 	}
 	if req.ReasoningEffort != "" {
-		projectedEffort := OpenAIEffort(EffectiveEffort(pivot))
-		if Effort(req.ReasoningEffort) == projectedEffort {
+		pivotEffort := EffectiveEffort(pivot)
+		if Effort(req.ReasoningEffort) == pivotEffort {
 			intent.Effort = ""
 			intent.Mode = ModeUnset
 		}
@@ -384,7 +384,7 @@ func ApplyToOpenAIChat(req *dto.GeneralOpenAIRequest, intent Intent) error {
 		return err
 	}
 
-	if effort := OpenAIEffort(EffectiveEffort(intent)); effort != "" {
+	if effort := EffectiveEffort(intent); effort != "" {
 		req.ReasoningEffort = string(effort)
 	}
 
@@ -412,7 +412,7 @@ func ApplyToOpenAIResponses(req *dto.OpenAIResponsesRequest, intent Intent) erro
 		return err
 	}
 
-	if effort := OpenAIEffort(EffectiveEffort(intent)); effort != "" {
+	if effort := EffectiveEffort(intent); effort != "" {
 		summary := "detailed"
 		if effort == EffortNone || (intent.IncludeThoughts != nil && !*intent.IncludeThoughts) {
 			summary = ""
@@ -434,16 +434,6 @@ func ApplyToOpenAIResponses(req *dto.OpenAIResponsesRequest, intent Intent) erro
 	}
 	req.ReasoningConversion = state
 	return nil
-}
-
-// OpenAIEffort maps the canonical cross-provider vocabulary to the public
-// OpenAI reasoning_effort vocabulary. Claude/OpenRouter "max" has no direct
-// OpenAI equivalent and is represented by xhigh at that wire boundary.
-func OpenAIEffort(effort Effort) Effort {
-	if effort == EffortMax {
-		return EffortXHigh
-	}
-	return effort
 }
 
 func FromOpenAIResponses(req *dto.OpenAIResponsesRequest) (Intent, error) {
@@ -481,8 +471,8 @@ func FromOpenAIResponses(req *dto.OpenAIResponsesRequest) (Intent, error) {
 		BudgetSource:    SourcePivot,
 	}
 	if req.Reasoning != nil && req.Reasoning.Effort != "" {
-		projectedEffort := OpenAIEffort(EffectiveEffort(pivot))
-		if Effort(req.Reasoning.Effort) == projectedEffort {
+		pivotEffort := EffectiveEffort(pivot)
+		if Effort(req.Reasoning.Effort) == pivotEffort {
 			intent.Effort = ""
 			intent.Mode = ModeUnset
 		}

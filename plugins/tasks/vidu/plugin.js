@@ -7,25 +7,34 @@ export const meta = {
     en: "Shengshu Vidu video generation (text-to-video, image-to-video, first-and-last-frame, and reference-to-video)",
     zh: "生数 Vidu 视频生成（文生视频、图生视频、首尾帧、参考生视频）",
   },
-  version: "1.0.1",
+  version: "1.0.2",
   author: { name: "QuantumNous" },
   channelTypes: [52],
   models: ["viduq2", "viduq1", "vidu2.0", "vidu1.5"],
   fetchMode: "per_task",
   usageSchema: {
+    // estimated/actual Vidu credits
     credits: {
       type: "number",
       unit: "credit",
-      description: { en: "estimated/actual Vidu credits", zh: "预估/实际的 Vidu 积分" },
+      description: { en: "Vidu credit unit price", zh: "Vidu 积分单价" },
     },
+    // Requested video duration in seconds.
     duration: {
       type: "number",
       unit: "second",
-      description: { en: "Requested video duration in seconds.", zh: "请求的视频时长，单位为秒。" },
+      description: { en: "Video generation unit price", zh: "视频生成单价" },
     },
+    // Requested output video resolution.
     resolution: {
       enum: ["360p", "540p", "720p", "1080p"],
-      description: { en: "Requested output video resolution.", zh: "请求的输出视频分辨率。" },
+      enumLabels: {
+        "360p": { en: "360p", zh: "360p" },
+        "540p": { en: "540p", zh: "540p" },
+        "720p": { en: "720p", zh: "720p" },
+        "1080p": { en: "1080p", zh: "1080p" },
+      },
+      description: { en: "Output video resolution", zh: "输出视频分辨率" },
     },
   },
   // credits is 0 in examples because this plugin does not estimate vendor credits;

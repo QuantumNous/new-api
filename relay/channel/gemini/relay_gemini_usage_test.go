@@ -104,7 +104,7 @@ func TestGeminiChatStreamHandlerClaudeFirstFrameUsesUpstreamUsage(t *testing.T) 
 	require.Equal(t, 3868, usage.PromptTokens)
 
 	var startUsage, deltaUsage *dto.ClaudeUsage
-	for _, line := range strings.Split(recorder.Body.String(), "\n") {
+	for line := range strings.SplitSeq(recorder.Body.String(), "\n") {
 		payload, ok := strings.CutPrefix(strings.TrimSpace(line), "data: ")
 		if !ok {
 			continue

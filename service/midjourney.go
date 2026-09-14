@@ -278,7 +278,7 @@ func DoMidjourneyHttpRequest(c *gin.Context, timeout time.Duration, fullRequestU
 	//var requestBody io.Reader
 	//requestBody = c.Request.Body
 	// read request body to json, delete accountFilter and notifyHook
-	var mapResult map[string]interface{}
+	var mapResult map[string]any
 	// if get request, no need to read request body
 	if c.Request.Method != "GET" {
 		err := json.NewDecoder(c.Request.Body).Decode(&mapResult)

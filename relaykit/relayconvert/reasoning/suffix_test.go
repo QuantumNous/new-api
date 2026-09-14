@@ -133,6 +133,58 @@ func TestParseKnownProviderModelSuffix(t *testing.T) {
 		assert.Empty(t, effort)
 		assert.Equal(t, "vendor/qwen-max", base)
 	})
+
+	t.Run("preserve gpt-5.1-codex-max with callback", func(t *testing.T) {
+		t.Parallel()
+		preserve := func(name string) bool { return name == "gpt-5.1-codex-max" }
+		effort, base := ParseOpenAIReasoningEffortFromModelSuffix("gpt-5.1-codex-max", preserve)
+		assert.Empty(t, effort)
+		assert.Equal(t, "gpt-5.1-codex-max", base)
+	})
+
+	t.Run("splits gpt-5.1-codex-max without callback", func(t *testing.T) {
+		t.Parallel()
+		effort, base := ParseOpenAIReasoningEffortFromModelSuffix("gpt-5.1-codex-max", nil)
+		assert.Equal(t, "max", effort)
+		assert.Equal(t, "gpt-5.1-codex", base)
+	})
+}
+
+func TestParseThinkingModifier(t *testing.T) {
+	t.Parallel()
+
+	on, ok := ParseThinkingModifier("on")
+	require.True(t, ok)
+	assert.Equal(t, ModeEnabled, on.Mode)
+
+	adaptive, ok := ParseThinkingModifier("Adaptive")
+	require.True(t, ok)
+	assert.Equal(t, ModeAdaptive, adaptive.Mode)
+
+	off, ok := ParseThinkingModifier("off")
+	require.True(t, ok)
+	assert.Equal(t, ModeDisabled, off.Mode)
+	assert.Equal(t, EffortNone, off.Effort)
+
+	zero, ok := ParseThinkingModifier("0")
+	require.True(t, ok)
+	assert.Equal(t, ModeDisabled, zero.Mode)
+
+	budget, ok := ParseThinkingModifier("8192")
+	require.True(t, ok)
+	require.NotNil(t, budget.BudgetTokens)
+	assert.Equal(t, 8192, *budget.BudgetTokens)
+	assert.Equal(t, ModeEnabled, budget.Mode)
+
+	dynamic, ok := ParseThinkingModifier("-1")
+	require.True(t, ok)
+	require.NotNil(t, dynamic.BudgetTokens)
+	assert.Equal(t, -1, *dynamic.BudgetTokens)
+
+	_, ok = ParseThinkingModifier("-2")
+	assert.False(t, ok)
+	_, ok = ParseThinkingModifier("enabled")
+	assert.False(t, ok)
 }
 
 func intPtr(v int) *int {
