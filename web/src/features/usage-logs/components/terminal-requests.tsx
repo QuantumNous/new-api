@@ -40,7 +40,10 @@ import {
   getLogChargedQuota,
 } from '../lib/cost-comparison'
 import { parseLogOther } from '../lib/format'
-import { isFailedRequest } from '../lib/request-details'
+import {
+  collapseRequestOutcomes,
+  isFailedRequest,
+} from '../lib/request-details'
 import { isPerCallBilling } from '../lib/utils'
 import { TerminalRequestDetails } from './terminal-request-details'
 
@@ -84,14 +87,13 @@ export function TerminalRequests() {
       if (!result.success || !result.data) {
         throw new Error(result.message || t('Failed to load usage report'))
       }
+      const items = result.data.items.flatMap((item) => {
+        const parsed = usageLogSchema.safeParse(item)
+        return parsed.success && isVisibleLog(parsed.data) ? [parsed.data] : []
+      })
       return {
         total: result.data.total,
-        items: result.data.items.flatMap((item) => {
-          const parsed = usageLogSchema.safeParse(item)
-          return parsed.success && isVisibleLog(parsed.data)
-            ? [parsed.data]
-            : []
-        }),
+        items: collapseRequestOutcomes(items),
       }
     },
   })

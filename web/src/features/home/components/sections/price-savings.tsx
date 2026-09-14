@@ -82,7 +82,7 @@ function CatalogRow(props: { model: SavingsModel }) {
             ) : null}
           </div>
           <p className='text-muted-foreground truncate text-xs'>
-            {model.modelName} · {model.vendorName}
+            {model.vendorName}
           </p>
         </div>
       </div>

@@ -612,9 +612,7 @@ function Catalog(props: { models: CatalogEntry[] }) {
                               })}
                             </span>
                           ) : null}
-                          <small>
-                            {model.modelName} · {model.vendorName}
-                          </small>
+                          <small>{model.vendorName}</small>
                         </div>
                       </div>
                     </td>

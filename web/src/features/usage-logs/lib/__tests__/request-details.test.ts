@@ -20,7 +20,11 @@ import { describe, expect, it } from 'vitest'
 
 import { LOG_TYPE_ENUM } from '../../constants'
 import { usageLogSchema } from '../../data/schema'
-import { isFailedRequest, getRecordedUnitPrices } from '../request-details'
+import {
+  collapseRequestOutcomes,
+  isFailedRequest,
+  getRecordedUnitPrices,
+} from '../request-details'
 
 describe('recorded request unit prices', () => {
   it('derives cache-read and cache-write unit prices only from recorded ratios', () => {
@@ -130,4 +134,72 @@ describe('request outcomes', () => {
       expect(log.quota).toBe(20)
     }
   )
+})
+
+describe('retried request outcomes', () => {
+  const log = (overrides: Record<string, unknown>) =>
+    usageLogSchema.parse({
+      id: 1,
+      user_id: 42,
+      created_at: 1000,
+      content: '',
+      ...overrides,
+    })
+
+  it('drops the retry error row once the request settled with a charge', () => {
+    const logs = [
+      log({
+        id: 3,
+        type: LOG_TYPE_ENUM.CONSUME,
+        request_id: 'retry',
+        quota: 30,
+      }),
+      log({ id: 2, type: LOG_TYPE_ENUM.ERROR, request_id: 'retry' }),
+      log({ id: 1, type: LOG_TYPE_ENUM.ERROR, request_id: 'solo' }),
+    ]
+
+    expect(collapseRequestOutcomes(logs).map((item) => item.id)).toEqual([3, 1])
+  })
+
+  it('keeps the settled charge when the retry error was persisted later', () => {
+    const logs = [
+      log({ id: 3, type: LOG_TYPE_ENUM.ERROR, request_id: 'retry' }),
+      log({
+        id: 2,
+        type: LOG_TYPE_ENUM.CONSUME,
+        request_id: 'retry',
+        quota: 30,
+      }),
+    ]
+
+    expect(collapseRequestOutcomes(logs).map((item) => item.id)).toEqual([2])
+  })
+
+  it('keeps only the latest consume row of a repeated settlement', () => {
+    const logs = [
+      log({
+        id: 2,
+        type: LOG_TYPE_ENUM.CONSUME,
+        request_id: 'retry',
+        quota: 30,
+      }),
+      log({
+        id: 1,
+        type: LOG_TYPE_ENUM.CONSUME,
+        request_id: 'retry',
+        quota: 10,
+      }),
+    ]
+
+    expect(collapseRequestOutcomes(logs).map((item) => item.id)).toEqual([2])
+  })
+
+  it('keeps standalone failures and rows recorded without a request id', () => {
+    const logs = [
+      log({ id: 3, type: LOG_TYPE_ENUM.ERROR, request_id: '' }),
+      log({ id: 2, type: LOG_TYPE_ENUM.ERROR, request_id: 'solo' }),
+    ]
+
+    expect(collapseRequestOutcomes(logs).map((item) => item.id)).toEqual([3, 2])
+  })
 })

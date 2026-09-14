@@ -64,7 +64,7 @@ beforeEach(() => {
   client = new QueryClient({
     defaultOptions: { queries: { staleTime: Infinity } },
   })
-  client.setQueryData(['status'], {})
+  client.setQueryData(['status'], { enable_data_export: true })
 })
 
 afterEach(() => {
@@ -110,6 +110,7 @@ it('aligns developer site and sidebar destinations without exposing admin links'
 
 it('keeps all analytics destinations behind the existing dashboard module switch', async () => {
   client.setQueryData(['status'], {
+    enable_data_export: true,
     SidebarModulesAdmin: JSON.stringify({
       console: { enabled: true, detail: false, log: false },
     }),
