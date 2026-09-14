@@ -51,7 +51,6 @@ import type {
   CreemProduct,
   WaffoPayMethod,
 } from '../types'
-import { VoucherSection } from './voucher-section'
 import { CreemProductsSection } from './creem-products-section'
 
 interface RechargeFormCardProps {
@@ -504,8 +503,6 @@ export function RechargeFormCard({
           </div>
         )}
 
-      {/* Mezon Đồng Voucher Section */}
-      <VoucherSection />
 
       {/* Redemption Code Section */}
       {redemptionEnabled ? (

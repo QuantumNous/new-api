@@ -67,7 +67,6 @@ import { AnnouncementsPanel } from './announcements-panel'
 import { ApiInfoPanel } from './api-info-panel'
 import { FAQPanel } from './faq-panel'
 import { PerformanceHealthPanel } from './performance-health-panel'
-import { QuickSetupPanel } from './quick-setup-panel'
 import { SummaryCards } from './summary-cards'
 import { UptimePanel } from './uptime-panel'
 
@@ -788,7 +787,6 @@ export function OverviewDashboard() {
             </CardStaggerContainer>
           )}
 
-          <QuickSetupPanel />
 
           <SummaryCards />
 
