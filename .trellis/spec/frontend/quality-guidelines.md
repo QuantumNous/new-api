@@ -70,6 +70,17 @@ consume billing expressions, while sidebar sizing composes with Base UI state.
 - Savings supports a complete optional `v1:` single `tier` with a sum of finite
   nonnegative `p`, `c`, `cr`, `cc` coefficients. Preserve explicit zero cache
   prices; absence alone means regular-input fallback.
+- Live savings compares CNY with CNY. `resolveModelProvider(modelName,
+  vendorName?)` decides the reference currency, preferring model-name evidence
+  and using vendor metadata for known aliases. Recognized overseas models use
+  native USD reference prices multiplied once by the shared
+  `OFFICIAL_PRICE_USD_TO_CNY` (6.75); recognized Chinese models retain native
+  CNY reference prices and never receive that conversion. Fully unknown models
+  retain the recharge-rate fallback instead of being guessed overseas.
+- Actual site prices remain `native price × selected group ratio × recharge
+  price`. `buildSavingsQuote(model, priceRate, groupRatio?)` owns both reference
+  and site fields for the catalog and selected-group consumers; never derive a
+  selected-group site price by scaling a converted reference field.
 
 ### Validation & Error Matrix
 | Condition | Behavior |
@@ -77,18 +88,29 @@ consume billing expressions, while sidebar sizing composes with Base UI state.
 | Pricing disabled, anonymous private pricing, status unavailable | No pricing request |
 | Permitted public or signed-in preview | Fetch and display models |
 | Pricing access changes to 401 during request | Empty/error preview, no session rotation |
+| Recognized overseas model or known overseas vendor alias | Convert the reference once at 6.75; keep the site recharge/group formula unchanged |
+| Recognized Chinese model | Keep the native CNY reference; do not multiply by 6.75 |
+| Unknown model and vendor | Use the existing recharge-rate reference fallback |
 | Conditional, outer arithmetic, unsupported token dimensions | Exclude from estimator |
 | Explicit `cr * 0` / `cc * 0` | Free cache, never regular-input fallback |
+| Any computed quote field overflows to a non-finite value | Exclude the quote instead of emitting Infinity/NaN |
 
 ### Good / Base / Bad Cases
-- Good: `tier("base", p * 10 + c * 20 + cr * 0)` preserves a free cache.
-- Base: `tier("base", p * 10 + c * 20)` treats cache as regular input.
+- Good: an OpenAI native `$8/M` reference becomes `¥54/M`, while its site price
+  still uses the configured group and recharge factors.
+- Good: a Qwen native `¥8/M` reference remains `¥8/M`.
+- Base: `tier("base", p * 10 + c * 20)` treats omitted cache as input, and an
+  unknown private model retains the recharge-rate reference fallback.
 - Bad: `tier("base", p * 10 + c * 20) * 2` cannot use unscaled tier coefficients.
+- Bad: multiply every model by 6.75, or multiply a converted reference price by
+  a group ratio to reconstruct the site's actual price.
 
 ### Tests Required
 - Real pricing hook + HTTP boundary: restricted access, stale cached status,
   sign-out, and policy changes after the status check.
-- Savings: complete expression matching, zero vs omitted cache, finite prices.
+- Savings: overseas/domestic/unknown currency paths, vendor aliases, unchanged
+  site prices, selected groups, input/output/cache fields, overflow rejection,
+  complete expression matching, and zero vs omitted cache.
 - Real sidebar + stylesheet: expand/collapse/reopen in icon and offcanvas modes
   for sidebar, floating and inset variants. Expanded `inline-size` overrides
   must not match a collapsed gap and override the primitive's width utilities.
@@ -97,6 +119,10 @@ consume billing expressions, while sidebar sizing composes with Base UI state.
 - Wrong: infer estimator eligibility from `summary.tierCount === 1`; display
   summaries can omit zero entries and parse only part of the formula.
 - Correct: validate the entire supported formula and retain term presence.
+- Wrong: use one recharge/FX factor for both the official reference and actual
+  site price, which hides the overseas currency difference.
+- Correct: resolve the model reference currency once, convert only recognized
+  overseas references at 6.75, and calculate the site field independently.
 - Wrong: apply expanded `sidebar-gap` sizing regardless of `data-state`.
 - Correct: scope expanded geometry to `data-state="expanded"`.
 
@@ -238,7 +264,7 @@ Landing/auth/catalog pricing, key quote/revoke flows, and easy-console reporting
 
 ### Signatures and Contracts
 - `buildModelCatalog(models, priceRate)` retains every PricingModel and exposes an optional supported estimator quote. Do not filter discoverable models by calculator eligibility.
-- SavingsModel quote numbers already incorporate the recharge price. `formatPerMillionTokens` formats that local amount without applying another USD exchange conversion.
+- `SavingsModel` reference/site fields follow the public-preview currency contract above. Site fields already incorporate recharge and the selected group. `formatPerMillionTokens` formats an already-local amount without another USD conversion.
 - `getFullApiKey(id)` reveals only through the dedicated endpoint, rejects masked results and normalizes the sk- prefix. Successful creation must refresh keys even when reveal fails.
 - `revokeAllApiKeys()` collects all IDs before deleting bounded batches and verifies the final list is empty. Partial/error outcomes refresh the list and never show an all-revoked success.
 - Easy key quote cards and key rows show the group name on the first line with a
@@ -356,14 +382,15 @@ auth header (`AccessAuthLayout`), and console headers (`AppHeader`,
 | Condition | Expected behavior |
 | --- | --- |
 | Visitor signed out | Entry renders in the landing, public, auth, and status top bars |
-| Easy-console topbar | Lime `Get Help` button unchanged |
+| Easy-console topbar | Lime `Community` button keeps its existing layout |
 | Developer-console header | Entry sits between theme settings and the profile menu |
 | Narrow viewport | Label hidden below `lg`; the icon-only trigger stays tappable |
 | QR asset unavailable | Alt text still names the QQ group QR code |
 
 ### Tests Required
-`community-help.test.tsx` covers opening/closing the QR panel, the public header
-for signed-out visitors, the console top bar, and the sign-in header.
+`community-help.test.tsx` covers the translated `Community` label, chat icon,
+keyboard/outside dismissal, the public header for signed-out visitors, the
+console top bar, and the sign-in header.
 
 ### Wrong vs Correct
 - Wrong: keep the community QR only on the marketing card or the console shell.
