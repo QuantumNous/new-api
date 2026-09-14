@@ -17,7 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient } from '@tanstack/react-query'
-import { cleanup, screen } from '@testing-library/react'
+import { cleanup, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useGuideAddress } from '@/features/guide/use-guide-address'
@@ -76,10 +77,40 @@ describe('beginner guide page', () => {
 
   it('keeps the tool catalog usable when a requested tool is unknown', async () => {
     await renderApp(<BeginnerGuidePage toolId='missing-tool' />, client)
+    const tools = document.querySelector('#tools') as HTMLElement
 
     expect(
-      screen.getByRole('button', { name: /WorkBuddy \/ CodeBuddy/ })
+      within(tools).getByRole('button', { name: /WorkBuddy \/ CodeBuddy/ })
     ).toBeVisible()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('narrows the tool wall from a use-case card and restores it on clear', async () => {
+    const user = userEvent.setup()
+    await renderApp(<BeginnerGuidePage />, client)
+    const tools = document.querySelector('#tools') as HTMLElement
+
+    expect(
+      within(tools).getByRole('button', { name: /WorkBuddy \/ CodeBuddy/ })
+    ).toBeVisible()
+
+    await user.click(
+      screen.getByRole('button', { name: /Write code in the terminal/ })
+    )
+
+    expect(
+      within(tools).queryByRole('button', { name: /WorkBuddy \/ CodeBuddy/ })
+    ).not.toBeInTheDocument()
+    expect(
+      within(tools).getByRole('button', { name: /Claude Code/ })
+    ).toBeVisible()
+
+    await user.click(
+      within(tools).getByRole('button', { name: 'Clear filters' })
+    )
+
+    expect(
+      within(tools).getByRole('button', { name: /WorkBuddy \/ CodeBuddy/ })
+    ).toBeVisible()
   })
 })

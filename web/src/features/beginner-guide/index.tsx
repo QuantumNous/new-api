@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
 import { KeyRound } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TerminalPage } from '@/components/layout/components/terminal-page'
@@ -27,6 +27,7 @@ import { useGuideAddress } from '@/features/guide/use-guide-address'
 import { AddressKit } from './components/address-kit'
 import { Troubleshoot, UseCasePicker } from './components/help-sections'
 import { ToolExplorer } from './components/tool-explorer'
+import type { UseCaseRow } from './data'
 
 export type BeginnerGuidePageProps = {
   query?: string
@@ -36,6 +37,7 @@ export type BeginnerGuidePageProps = {
 export function BeginnerGuidePage(props: BeginnerGuidePageProps) {
   const { t } = useTranslation()
   const address = useGuideAddress()
+  const [pickedUseCase, setPickedUseCase] = useState<UseCaseRow | null>(null)
 
   useEffect(() => {
     const hash = window.location.hash.replace('#', '')
@@ -44,6 +46,13 @@ export function BeginnerGuidePage(props: BeginnerGuidePageProps) {
       .querySelector<HTMLElement>(`#${CSS.escape(hash)}`)
       ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [props.query, props.toolId])
+
+  const handleUseCasePick = (row: UseCaseRow) => {
+    setPickedUseCase(row)
+    document
+      .querySelector<HTMLElement>('#tools')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   return (
     <TerminalPage
@@ -76,7 +85,10 @@ export function BeginnerGuidePage(props: BeginnerGuidePageProps) {
 
         <section className='ci-panel' id='usecases'>
           <div className='ci-panelBody'>
-            <UseCasePicker />
+            <UseCasePicker
+              onPick={handleUseCasePick}
+              activeUseCase={pickedUseCase?.useCase}
+            />
           </div>
         </section>
 
@@ -94,6 +106,9 @@ export function BeginnerGuidePage(props: BeginnerGuidePageProps) {
               address={address}
               query={props.query}
               openToolId={props.toolId}
+              focusToolIds={pickedUseCase?.toolIds}
+              focusLabel={pickedUseCase ? t(pickedUseCase.useCase) : undefined}
+              onClearFocus={() => setPickedUseCase(null)}
             />
           </div>
         </section>

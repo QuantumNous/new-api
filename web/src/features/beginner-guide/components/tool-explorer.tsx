@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Check, Copy, Sparkles } from 'lucide-react'
+import { Check, Copy, Sparkles, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -55,6 +55,10 @@ interface ToolExplorerProps {
   address: GuideAddress
   query?: string
   openToolId?: string
+  /** Tool ids the surrounding page narrowed the wall to, if any. */
+  focusToolIds?: string[]
+  focusLabel?: string
+  onClearFocus?: () => void
 }
 
 /** Category-filtered wall of tool cards with a step-by-step detail dialog. */
@@ -62,6 +66,9 @@ export function ToolExplorer({
   address,
   query,
   openToolId,
+  focusToolIds,
+  focusLabel,
+  onClearFocus,
 }: ToolExplorerProps) {
   const { t } = useTranslation()
   const [category, setCategory] = useState<ToolCategory | 'all'>('all')
@@ -76,10 +83,12 @@ export function ToolExplorer({
   }, [openToolId])
 
   const tools = useMemo(() => {
-    const visibleTools =
-      category === 'all'
-        ? [...guideTools]
-        : guideTools.filter((tool) => tool.category === category)
+    const focused = focusToolIds?.length ? new Set(focusToolIds) : null
+    const visibleTools = guideTools.filter(
+      (tool) =>
+        (category === 'all' || tool.category === category) &&
+        (!focused || focused.has(tool.id))
+    )
     const filtered = needle
       ? visibleTools.filter((tool) => {
           const hay = [
@@ -96,10 +105,22 @@ export function ToolExplorer({
     return filtered.sort(
       (a, b) => Number(Boolean(b.recommended)) - Number(Boolean(a.recommended))
     )
-  }, [category, needle, t])
+  }, [category, focusToolIds, needle, t])
 
   return (
     <div className='flex flex-col gap-6'>
+      {focusLabel ? (
+        <button
+          type='button'
+          onClick={onClearFocus}
+          aria-label={t('Clear filters')}
+          className='border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors'
+        >
+          {focusLabel}
+          <X aria-hidden='true' className='size-3.5' />
+        </button>
+      ) : null}
+
       {/* Category pills */}
       <div
         className='dopa-tab-strip flex flex-wrap items-center gap-2'

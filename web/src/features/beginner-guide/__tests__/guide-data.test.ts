@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { describe, expect, it } from 'vitest'
 
-import { guideTools } from '../data'
+import { guideTools, useCaseRows } from '../data'
 
 describe('beginner guide tool catalog', () => {
   it('restores the complete historical tool catalog', () => {
@@ -34,5 +34,16 @@ describe('beginner guide tool catalog', () => {
       category: 'coding',
       status: 'blue',
     })
+  })
+
+  it('maps every use-case card to existing tool ids', () => {
+    const toolIds = new Set(guideTools.map((tool) => tool.id))
+
+    for (const row of useCaseRows) {
+      expect(row.toolIds.length, row.useCase).toBeGreaterThan(0)
+      for (const id of row.toolIds) {
+        expect(toolIds.has(id), `${row.useCase} -> ${id}`).toBe(true)
+      }
+    }
   })
 })

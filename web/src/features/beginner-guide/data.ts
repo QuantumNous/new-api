@@ -535,8 +535,8 @@ aider --model openai/YOUR_MODEL_ID`,
     status: 'yellow',
     summary: 'Switch endpoints, keys, and MCP settings across coding CLIs.',
     steps: [
-      'Install and start the target app at least once, preferably OpenCode, so CC Switch can find its configuration directory.',
-      'Open CC Switch and select OpenCode at the top.',
+      'Install and start the target app at least once, so CC Switch can find its configuration directory.',
+      'Open CC Switch and select the target app you want to configure at the top.',
       'Click + at the top right, then choose an app-specific provider rather than a universal provider.',
       'Choose the OpenAI Compatible preset, or Custom if that preset is unavailable.',
       'Enter your own sk-... key in API Key.',
@@ -715,6 +715,8 @@ export interface UseCaseRow {
   useCase: string
   tools: string
   difficulty: 'Easy' | 'Medium' | 'Advanced'
+  /** ids in {@link guideTools} this use case leads to. */
+  toolIds: string[]
 }
 
 export const useCaseRows: UseCaseRow[] = [
@@ -722,45 +724,54 @@ export const useCaseRows: UseCaseRow[] = [
     useCase: 'Office agents and local file tasks',
     tools: 'WorkBuddy / CodeBuddy',
     difficulty: 'Easy',
+    toolIds: ['workbuddy'],
   },
   {
     useCase: 'Translate web pages, PDFs, and subtitles',
     tools: 'Immersive Translate, FluentRead',
     difficulty: 'Easy',
+    toolIds: ['immersive-translate', 'fluent-read'],
   },
   {
     useCase: "Run tasks with DeepSeek's official agent",
     tools: 'DeepSeek Harness (DSH)',
     difficulty: 'Medium',
+    toolIds: ['dsh'],
   },
   {
     useCase: 'Code with Chinese developer tools',
     tools: 'Trae / TraeCode CLI',
     difficulty: 'Easy',
+    toolIds: ['trae'],
   },
   {
     useCase: 'Write code in the terminal',
     tools: 'Claude Code、Codex、Pi、OpenCode、Crush',
     difficulty: 'Medium',
+    toolIds: ['claude-code', 'codex', 'pi-agent', 'opencode', 'crush'],
   },
   {
     useCase: 'Write code in VS Code',
     tools: 'Cline、Roo Code、Kilo Code、Continue',
     difficulty: 'Easy',
+    toolIds: ['cline', 'roo-code', 'kilo-code', 'continue'],
   },
   {
     useCase: 'Switch configurations for several CLIs',
     tools: 'CC Switch',
     difficulty: 'Medium',
+    toolIds: ['cc-switch'],
   },
   {
     useCase: 'Host a team chat website',
     tools: 'Open WebUI、LobeChat、NextChat',
     difficulty: 'Medium',
+    toolIds: ['open-webui', 'lobechat', 'nextchat'],
   },
   {
     useCase: 'Build a knowledge base or workflow',
     tools: 'Dify、FastGPT、Flowise',
     difficulty: 'Advanced',
+    toolIds: ['dify', 'fastgpt', 'flowise'],
   },
 ]
