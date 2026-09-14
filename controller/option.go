@@ -294,34 +294,6 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
-	case "MezonTreasuryAddress":
-		addr := strings.TrimSpace(option.Value.(string))
-		option.Value = addr
-		if addr != "" && !service.IsValidMezonWalletAddress(addr) {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "Mezon treasury address must be a valid MMN wallet",
-			})
-			return
-		}
-	case "MezonProviderId":
-		providerId, parseErr := strconv.Atoi(strings.TrimSpace(option.Value.(string)))
-		if parseErr != nil || providerId < 0 {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "Mezon OAuth provider id must be a non-negative integer",
-			})
-			return
-		}
-		if providerId > 0 {
-			if _, lookupErr := model.GetCustomOAuthProviderById(providerId); lookupErr != nil {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": "Mezon OAuth provider does not exist",
-				})
-				return
-			}
-		}
 	case "GroupRatio":
 		err = ratio_setting.CheckGroupRatio(option.Value.(string))
 		if err != nil {

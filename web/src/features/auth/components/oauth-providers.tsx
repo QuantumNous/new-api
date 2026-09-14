@@ -26,7 +26,6 @@ import {
   IconTelegram,
   IconWeChat,
 } from '@/assets/brand-icons'
-import mezonLogo from '@/assets/mezon-logo.png'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -48,7 +47,6 @@ type ProviderButton = {
   onClick: () => void
   icon?: ReactNode
   disabled?: boolean
-  emphasized?: boolean
 }
 
 export function OAuthProviders({
@@ -132,23 +130,14 @@ export function OAuthProviders({
     })
   }
 
+  // Custom OAuth providers
   const customProviders = status?.custom_oauth_providers
   if (customProviders && customProviders.length > 0) {
     for (const provider of customProviders) {
-      const isMezon = provider.slug === 'mezon'
       providerButtons.push({
         key: `custom-${provider.slug}`,
         label: t('Continue with {{name}}', { name: provider.name }),
         onClick: () => handleCustomOAuthLogin(provider),
-        icon: isMezon ? (
-          <img
-            src={mezonLogo}
-            alt=''
-            aria-hidden
-            className='h-4 w-4 rounded-sm object-contain'
-          />
-        ) : undefined,
-        emphasized: isMezon,
       })
     }
   }
@@ -170,25 +159,14 @@ export function OAuthProviders({
 
       <div className='flex flex-col gap-2'>
         {providerButtons.map(
-          ({
-            key,
-            label,
-            onClick,
-            icon,
-            disabled: extraDisabled,
-            emphasized,
-          }) => (
+          ({ key, label, onClick, icon, disabled: extraDisabled }) => (
             <Button
               key={key}
               variant='outline'
               type='button'
               disabled={disabled || isLoading || extraDisabled}
               onClick={onClick}
-              className={cn(
-                'h-11 w-full justify-center gap-2 rounded-lg',
-                emphasized &&
-                  'border-landing-primary/30 hover:border-landing-primary/60 hover:bg-landing-primary/10'
-              )}
+              className='h-11 w-full justify-center gap-2 rounded-lg'
             >
               {icon}
               {label}

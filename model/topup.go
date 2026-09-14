@@ -3,8 +3,8 @@ package model
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"maps"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -32,7 +32,6 @@ const (
 	PaymentMethodWaffo        = "waffo"
 	PaymentMethodWaffoPancake = "waffo_pancake"
 	PaymentMethodBalance      = "balance"
-	PaymentMethodMezon        = "mezon"
 )
 
 const (
