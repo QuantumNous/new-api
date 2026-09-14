@@ -21,6 +21,7 @@ import { ArrowLeft, Moon, Sun } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { LanguageSwitcher } from '@/components/language-switcher'
+import { CommunityHelp } from '@/components/layout/components/community-help'
 import { useTheme } from '@/context/theme-provider'
 import { CiMark } from '@/features/home/components/ci-mark'
 import { GlassCursor } from '@/features/home/components/glass-cursor'
@@ -58,6 +59,7 @@ export function AccessAuthLayout(props: AccessAuthLayoutProps) {
               {link.title}
             </Link>
           ))}
+          <CommunityHelp variant='header' />
           <span className='yecai-authNavDivider' aria-hidden='true' />
           <LanguageSwitcher />
           <button

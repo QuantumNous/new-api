@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils'
 
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import type { TopNavLink } from '../types'
+import { CommunityHelp } from './community-help'
 import { ConsoleModeControl } from './console-mode-switcher'
 import { EasyTaskDock } from './easy-task-dock'
 import { Header } from './header'
@@ -144,6 +145,7 @@ export function AppHeader({
           <ConsoleModeControl compact />
           <LanguageSwitcher />
           {showConfigDrawer && <ConfigDrawer />}
+          <CommunityHelp variant='header' />
           {showProfileDropdown && <ProfileDropdown />}
         </div>
       )}

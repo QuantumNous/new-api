@@ -22,6 +22,8 @@ import { useTheme } from '@/context/theme-provider'
 import { CiMark } from '@/features/home/components/ci-mark'
 import { PRODUCT_NAME } from '@/lib/product-brand'
 
+import { CommunityHelp } from './community-help'
+
 type CiStatusPageProps = {
   code?: string | number
   title: string
@@ -39,6 +41,7 @@ export function CiStatusPage(props: CiStatusPageProps) {
           <Link to='/' className='ci-logo' aria-label={`${PRODUCT_NAME} home`}>
             <CiMark size={22} withWordmark />
           </Link>
+          <CommunityHelp variant='header' />
         </div>
       </header>
       <main className='ci-appPage' style={{ textAlign: 'center' }}>

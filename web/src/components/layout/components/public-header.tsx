@@ -38,6 +38,7 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import type { TopNavLink } from '../types'
+import { CommunityHelp } from './community-help'
 
 const AUTH_PROMPT_SECONDS = 5
 
@@ -260,6 +261,8 @@ export function PublicHeader(props: PublicHeaderProps) {
                 )
               })}
 
+              <CommunityHelp variant='header' />
+
               {(showLanguageSwitcher ||
                 showThemeSwitch ||
                 shouldShowNotifications) && (
@@ -292,6 +295,7 @@ export function PublicHeader(props: PublicHeaderProps) {
             {/* Mobile: compact actions + hamburger */}
             <div className='flex items-center gap-2 sm:hidden'>
               {showThemeSwitch && <ThemeSwitch />}
+              <CommunityHelp variant='header' />
               {showAuthButtons && !loading && isAuthenticated && (
                 <ProfileDropdown />
               )}

@@ -36,6 +36,8 @@ import { CiMark } from '@/features/home/components/ci-mark'
 import { PRODUCT_NAME } from '@/lib/product-brand'
 import { cn } from '@/lib/utils'
 
+import { CommunityHelp } from './community-help'
+
 type MarketingHeaderProps = {
   isAuthenticated: boolean
   currentPage?: 'home' | 'client'
@@ -129,6 +131,7 @@ export function MarketingHeader(props: MarketingHeaderProps) {
             {isDark ? <Moon size={18} /> : <Sun size={18} />}
           </button>
           <LanguageSwitcher />
+          <CommunityHelp variant='header' />
           {props.isAuthenticated && <ProfileDropdown />}
           <div className='ci-desktopNavActions'>
             {!props.isAuthenticated && (
