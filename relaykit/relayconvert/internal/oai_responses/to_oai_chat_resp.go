@@ -66,7 +66,7 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 
 	usage := UsageFromResponsesUsage(resp.Usage)
 
-	created := resp.CreatedAt
+	created := int64(resp.CreatedAt)
 
 	var toolCalls []dto.ToolCallResponse
 	if len(resp.Output) > 0 {
