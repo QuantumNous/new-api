@@ -95,6 +95,52 @@ func toUnix(ts string) int64 {
 	return t.Unix()
 }
 
+// buildOllamaStreamDelta converts an Ollama chat or generate frame to an
+// OpenAI-compatible stream delta. It reports whether the frame carries a
+// client-visible payload.
+func buildOllamaStreamDelta(chunk *ollamaChatStreamChunk, responseID string, created int64, model string, toolCallIndex *int) (dto.ChatCompletionsStreamResponse, bool) {
+	delta := dto.ChatCompletionsStreamResponse{
+		Id:      responseID,
+		Object:  "chat.completion.chunk",
+		Created: created,
+		Model:   model,
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{
+			Index: 0,
+			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Role: "assistant"},
+		}},
+	}
+
+	var content string
+	if chunk.Message != nil {
+		content = chunk.Message.Content
+	} else {
+		content = chunk.Response
+	}
+	if content != "" {
+		delta.Choices[0].Delta.SetContentString(content)
+	}
+
+	hasPayload := content != ""
+	if chunk.Message != nil && len(chunk.Message.Thinking) > 0 {
+		raw := strings.TrimSpace(string(chunk.Message.Thinking))
+		if raw != "" && raw != "null" {
+			var thinkingContent string
+			if err := common.Unmarshal(chunk.Message.Thinking, &thinkingContent); err == nil {
+				delta.Choices[0].Delta.SetReasoningContent(thinkingContent)
+			} else {
+				delta.Choices[0].Delta.SetReasoningContent(raw)
+			}
+			hasPayload = true
+		}
+	}
+	if chunk.Message != nil && len(chunk.Message.ToolCalls) > 0 {
+		delta.Choices[0].Delta.ToolCalls, *toolCallIndex = ollamaToolCallsToOpenAI(chunk.Message.ToolCalls, *toolCallIndex, true)
+		hasPayload = true
+	}
+
+	return delta, hasPayload
+}
+
 func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("empty response"), types.ErrorCodeBadResponse, http.StatusBadRequest)
@@ -130,49 +176,18 @@ func ollamaStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		created = toUnix(chunk.CreatedAt)
 
 		if !chunk.Done {
-			// delta content
-			var content string
-			if chunk.Message != nil {
-				content = chunk.Message.Content
-			} else {
-				content = chunk.Response
-			}
-			delta := dto.ChatCompletionsStreamResponse{
-				Id:      responseId,
-				Object:  "chat.completion.chunk",
-				Created: created,
-				Model:   model,
-				Choices: []dto.ChatCompletionsStreamResponseChoice{{
-					Index: 0,
-					Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Role: "assistant"},
-				}},
-			}
-			if content != "" {
-				delta.Choices[0].Delta.SetContentString(content)
-			}
-			if chunk.Message != nil && len(chunk.Message.Thinking) > 0 {
-				raw := strings.TrimSpace(string(chunk.Message.Thinking))
-				if raw != "" && raw != "null" {
-					// Unmarshal the JSON string to get the actual content without quotes
-					var thinkingContent string
-					if err := common.Unmarshal(chunk.Message.Thinking, &thinkingContent); err == nil {
-						delta.Choices[0].Delta.SetReasoningContent(thinkingContent)
-					} else {
-						// Fallback to raw string if it's not a JSON string
-						delta.Choices[0].Delta.SetReasoningContent(raw)
-					}
-				}
-			}
-			// tool calls
-			if chunk.Message != nil && len(chunk.Message.ToolCalls) > 0 {
-				delta.Choices[0].Delta.ToolCalls, toolCallIndex = ollamaToolCallsToOpenAI(chunk.Message.ToolCalls, toolCallIndex, true)
-			}
+			delta, _ := buildOllamaStreamDelta(&chunk, responseId, created, model, &toolCallIndex)
 			if data, err := common.Marshal(delta); err == nil {
 				_ = helper.StringData(c, string(data))
 			}
 			continue
 		}
 		// done frame
+		if delta, hasPayload := buildOllamaStreamDelta(&chunk, responseId, created, model, &toolCallIndex); hasPayload {
+			if data, err := common.Marshal(delta); err == nil {
+				_ = helper.StringData(c, string(data))
+			}
+		}
 		// finalize once and break loop
 		usage.PromptTokens = chunk.PromptEvalCount
 		usage.CompletionTokens = chunk.EvalCount
