@@ -35,7 +35,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from .git import run_git
+from .git import run_git, run_git_retry_index_lock
 from .paths import (
     DIR_ARCHIVE,
     DIR_TASKS,
@@ -208,7 +208,7 @@ def _stderr_indicates_ignored(stderr: str) -> bool:
 
 
 def safe_git_add(
-    paths: list[str], repo_root: Path
+    paths: list[str], repo_root: Path, retry_on_index_lock: bool = False
 ) -> tuple[bool, bool, str]:
     """Run `git add` on specific paths; never retry with -f.
 
@@ -222,11 +222,18 @@ def safe_git_add(
       - Plain fails (any reason — ignored or otherwise) → return failure with
         the stderr. Callers should inspect the stderr (see
         :func:`print_gitignore_warning`) and skip the auto-commit.
+
+    ``retry_on_index_lock`` opts into the bounded backoff-retry for a held
+    ``.git/index.lock`` (see :func:`~.git.run_git_retry_index_lock`). It is
+    off by default: only the archive path, which has already moved the task
+    directory on disk by the time it stages, needs to wait out a transient
+    lock rather than fail.
     """
     if not paths:
         return True, False, ""
 
-    rc, _, err = run_git(["add", "--", *paths], cwd=repo_root)
+    runner = run_git_retry_index_lock if retry_on_index_lock else run_git
+    rc, _, err = runner(["add", "--", *paths], cwd=repo_root)
     if rc == 0:
         return True, False, ""
     return False, False, err

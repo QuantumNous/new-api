@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .paths import (
+    DEVELOPER_HINT,
     DIR_WORKFLOW,
     DIR_WORKSPACE,
     DIR_TASKS,
@@ -160,6 +161,7 @@ def ensure_developer(repo_root: Path | None = None) -> None:
     if not check_developer(repo_root):
         print("Error: Developer not initialized.", file=sys.stderr)
         print(f"Run: python3 ./{DIR_WORKFLOW}/scripts/init_developer.py <your-name>", file=sys.stderr)
+        print(DEVELOPER_HINT, file=sys.stderr)
         sys.exit(1)
 
 
