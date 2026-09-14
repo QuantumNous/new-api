@@ -28,6 +28,16 @@ import (
 
 func RelayMidjourneyImage(c *gin.Context) {
 	taskId := c.Param("id")
+	// /mj/image/:id is intentionally outside TokenAuth so the forwarded URL can be
+	// loaded by a browser as a plain <img> src (no auth header). Access is gated by
+	// the sig query instead, an HMAC over the task id that this server mints only
+	// for the task owner and admins. Without it any id could be fetched. See #6610.
+	if !service.VerifyMjImageSignature(taskId, c.Query("sig")) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "invalid_image_signature",
+		})
+		return
+	}
 	midjourneyTask := model.GetByOnlyMJId(taskId)
 	if midjourneyTask == nil {
 		c.JSON(400, gin.H{
@@ -150,9 +160,9 @@ func coverMidjourneyTaskDto(c *gin.Context, originTask *model.Midjourney) (midjo
 	midjourneyTask.FinishTime = originTask.FinishTime
 	midjourneyTask.ImageUrl = ""
 	if originTask.ImageUrl != "" && setting.MjForwardUrlEnabled {
-		midjourneyTask.ImageUrl = system_setting.ServerAddress + "/mj/image/" + originTask.MjId
+		midjourneyTask.ImageUrl = service.BuildMjImageForwardURL(originTask.MjId)
 		if originTask.Status != "SUCCESS" {
-			midjourneyTask.ImageUrl += "?rand=" + strconv.FormatInt(time.Now().UnixNano(), 10)
+			midjourneyTask.ImageUrl += "&rand=" + strconv.FormatInt(time.Now().UnixNano(), 10)
 		}
 	} else {
 		midjourneyTask.ImageUrl = originTask.ImageUrl
