@@ -334,3 +334,37 @@ throw redirect({ href: validatedTarget, replace: true })
 // Correct: normalize the trusted path into router navigation fields.
 throw createInternalRedirect(validatedTarget)
 ```
+
+## Persistent community help entry in site top bars
+
+### Scope / Trigger
+Public site headers (`PublicHeader`, `MarketingHeader`, `CiStatusPage`), the
+auth header (`AccessAuthLayout`), and console headers (`AppHeader`,
+`TerminalLayout`).
+
+### Signatures
+- `CommunityHelp({ variant?: 'console' | 'header' })` renders the QQ-group trigger plus its QR panel.
+- `variant='console'` keeps the lime button and `ci-appHelpPanel`; `variant='header'` fits header action clusters, with the label collapsing to an icon below `lg`.
+
+### Contracts
+- The community entry stays in the top bars for signed-out and signed-in visitors alike; retiring a landing-page community card must not remove the top-bar entry.
+- The panel mounts only while the trigger is expanded (`aria-expanded`), closes on outside `mousedown` and `Escape`, and keeps `role='dialog'`, the `/qq-community-qr.png` image, the group number, and the scan hint.
+- Header-variant styling uses only tokens present in every shell (`--background`, `--foreground`, `--muted-foreground`, `--border`); the QR tile keeps its own white background so the code stays scannable.
+- The panel stays anchored to the trigger (`top-[calc(100%+10px)]`, `right-0`, `z-30`) instead of a portal, so it escapes the sticky header without extra DOM.
+
+### Validation & Error Matrix
+| Condition | Expected behavior |
+| --- | --- |
+| Visitor signed out | Entry renders in the landing, public, auth, and status top bars |
+| Easy-console topbar | Lime `Get Help` button unchanged |
+| Developer-console header | Entry sits between theme settings and the profile menu |
+| Narrow viewport | Label hidden below `lg`; the icon-only trigger stays tappable |
+| QR asset unavailable | Alt text still names the QQ group QR code |
+
+### Tests Required
+`community-help.test.tsx` covers opening/closing the QR panel, the public header
+for signed-out visitors, the console top bar, and the sign-in header.
+
+### Wrong vs Correct
+- Wrong: keep the community QR only on the marketing card or the console shell.
+- Correct: mount `CommunityHelp` in the top bars themselves.
