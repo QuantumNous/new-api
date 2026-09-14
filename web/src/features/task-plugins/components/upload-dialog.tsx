@@ -26,16 +26,27 @@ import { CodeBlockEditor } from '@/components/ai-elements/code-block'
 import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 
 import { uploadTaskPlugin } from '../api'
 import {
+  encodePluginIconFile,
+  PluginIconFileError,
+} from '../lib/plugin-icon-file'
+import {
   MAX_PLUGIN_SOURCE_BYTES,
   pluginSourceByteLength,
 } from '../lib/plugin-url'
 import type { TaskPluginDetail } from '../types'
+import { PluginIcon } from './plugin-icon'
 import { PluginSourcePicker } from './plugin-source-picker'
 import { PluginUrlImportField } from './plugin-url-import-field'
 
@@ -51,11 +62,14 @@ export function UploadDialog(props: UploadDialogProps) {
   const [source, setSource] = useState('')
   const [fileName, setFileName] = useState('')
   const [remark, setRemark] = useState('')
+  const [icon, setIcon] = useState('')
+  const [iconFileName, setIconFileName] = useState('')
+  const [iconError, setIconError] = useState('')
   const [result, setResult] = useState<TaskPluginDetail | null>(null)
   const [importUrl, setImportUrl] = useState('')
   const [importError, setImportError] = useState('')
   const mutation = useMutation({
-    mutationFn: () => uploadTaskPlugin(source, remark),
+    mutationFn: () => uploadTaskPlugin(source, remark, icon),
     onSuccess: (data) => {
       setResult(data)
       queryClient.invalidateQueries({ queryKey: ['task-plugins'] })
@@ -82,12 +96,36 @@ export function UploadDialog(props: UploadDialogProps) {
     setResult(null)
   }
 
+  const handleIconFile = async (file: File | undefined) => {
+    if (!file) return
+    try {
+      setIcon(await encodePluginIconFile(file))
+      setIconFileName(file.name)
+      setIconError('')
+    } catch (error) {
+      setIcon('')
+      setIconFileName('')
+      if (
+        error instanceof PluginIconFileError &&
+        error.reason === 'too_large'
+      ) {
+        setIconError(t('Plugin icon exceeds the 512 KiB limit.'))
+      } else {
+        setIconError(t('Plugin icon must be an .svg or .png file.'))
+      }
+    }
+    setResult(null)
+  }
+
   const close = (open: boolean) => {
     props.onOpenChange(open)
     if (!open) {
       setSource('')
       setFileName('')
       setRemark('')
+      setIcon('')
+      setIconFileName('')
+      setIconError('')
       setResult(null)
       setImportUrl('')
       setImportError('')
@@ -178,6 +216,49 @@ export function UploadDialog(props: UploadDialogProps) {
         />
 
         <Field>
+          <FieldLabel htmlFor='task-plugin-icon'>{t('Plugin icon')}</FieldLabel>
+          <div className='flex items-center gap-3'>
+            {icon ? (
+              <PluginIcon
+                plugin={{ key: result?.meta.key ?? 'upload', iconSrc: icon }}
+                size={32}
+              />
+            ) : null}
+            <Input
+              id='task-plugin-icon'
+              type='file'
+              accept='.svg,.png,image/svg+xml,image/png'
+              aria-invalid={iconError ? true : undefined}
+              onChange={(event) => {
+                void handleIconFile(event.target.files?.[0])
+                event.target.value = ''
+              }}
+            />
+            {icon ? (
+              <Button
+                type='button'
+                variant='ghost'
+                size='sm'
+                onClick={() => {
+                  setIcon('')
+                  setIconFileName('')
+                  setIconError('')
+                }}
+              >
+                {t('Remove')}
+              </Button>
+            ) : null}
+          </div>
+          <FieldDescription>
+            {iconFileName ||
+              t(
+                'Optional icon.svg or icon.png shipped next to plugin.js, up to 512 KiB. Stored separately from the source.'
+              )}
+          </FieldDescription>
+          {iconError ? <FieldError>{iconError}</FieldError> : null}
+        </Field>
+
+        <Field>
           <FieldLabel htmlFor='task-plugin-remark'>{t('Remark')}</FieldLabel>
           <Input
             id='task-plugin-remark'
@@ -204,8 +285,7 @@ export function UploadDialog(props: UploadDialogProps) {
           <CircleCheck className='text-primary' />
           <AlertTitle>{t('Parsed plugin metadata')}</AlertTitle>
           <AlertDescription className='font-mono'>
-            {result.meta.key} · {result.meta.name} · v{result.meta.version} ·
-            API v{result.meta.apiVersion}
+            {result.meta.key} · {result.meta.name} · v{result.meta.version}
           </AlertDescription>
         </Alert>
       ) : null}

@@ -411,7 +411,7 @@ func TestSecurityAccountProfileReadsPasswordStatusInOneQuery(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			user, identity := setupSecurityEnrollmentTest(t)
-			updates := map[string]interface{}{"access_token": "private-profile-token", "remark": "private-profile-remark"}
+			updates := map[string]any{"access_token": "private-profile-token", "remark": "private-profile-remark"}
 			if !hasPassword {
 				updates["password"] = ""
 			}
@@ -433,8 +433,8 @@ func TestSecurityAccountProfileReadsPasswordStatusInOneQuery(t *testing.T) {
 
 			response := securityEnrollmentRequest(http.MethodGet, "/api/user/self", "", "", identity, GetSelf)
 			var result struct {
-				Success bool                   `json:"success"`
-				Data    map[string]interface{} `json:"data"`
+				Success bool           `json:"success"`
+				Data    map[string]any `json:"data"`
 			}
 			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
 			require.True(t, result.Success, response.Body.String())
@@ -825,7 +825,7 @@ func TestSecurityAccountUnbindPreservesUsableLoginMethod(t *testing.T) {
 			common.PasswordLoginEnabled = scenario != "disabled password"
 			require.NoError(t, model.DB.Create(&model.UserOAuthBinding{UserId: user.Id, ProviderId: 31, ProviderUserId: "linked-subject"}).Error)
 			if scenario != "password" && scenario != "disabled password" {
-				require.NoError(t, model.DB.Model(user).Updates(map[string]interface{}{"password": "", "email": "verified@example.com"}).Error)
+				require.NoError(t, model.DB.Model(user).Updates(map[string]any{"password": "", "email": "verified@example.com"}).Error)
 			}
 			if scenario == "passkey" || scenario == "disabled passkey" {
 				require.NoError(t, model.DB.Create(&model.PasskeyCredential{UserID: user.Id, CredentialID: "existing-key", PublicKey: "public-key"}).Error)

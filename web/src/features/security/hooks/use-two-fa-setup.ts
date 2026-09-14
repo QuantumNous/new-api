@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { useSecureVerification } from '@/features/auth/secure-verification'
+import { handleServerError } from '@/lib/handle-server-error'
 import { AuthOperationError } from '@/lib/secure-verification'
 
 import { enable2FA, setup2FA, type TwoFASetupData } from '../api'
@@ -74,12 +75,12 @@ export function useTwoFASetup(refreshStatus: () => void | Promise<void>) {
         setState({ phase: 'ready', setup })
       } catch (error) {
         if (currentFlow.current !== current) return
-        toast.error(t(AuthOperationError.from(error).message))
+        handleServerError(AuthOperationError.from(error))
         cancel()
         await refreshStatus()
       }
     },
-    [cancel, refreshStatus, requestVerification, t]
+    [cancel, refreshStatus, requestVerification]
   )
 
   const start = useCallback(() => {
@@ -133,7 +134,7 @@ export function useTwoFASetup(refreshStatus: () => void | Promise<void>) {
           return
         }
         cancel()
-        toast.error(t(failure.message))
+        handleServerError(failure)
         toast.info(t('Verify again before retrying this action.'))
         await refreshStatus()
       } finally {

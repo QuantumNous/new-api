@@ -13,7 +13,7 @@ import (
 func UnbindAccountOAuth(identity AuthIdentity, providerID int) error {
 	enabled := model.AccountLoginMethods{
 		Password: common.PasswordLoginEnabled,
-		Passkey:  system_setting.GetPasskeySettings().Enabled,
+		Passkey:  system_setting.PasskeySettingsSnapshot().Enabled,
 		WeChat:   common.WeChatAuthEnabled,
 	}
 	for _, provider := range oauth.GetAllProviders() {

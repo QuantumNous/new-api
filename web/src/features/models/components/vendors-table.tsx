@@ -40,6 +40,7 @@ import {
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { createServerError } from '@/lib/server-error-message'
 
 import { searchVendors } from '../api'
 import { vendorsQueryKeys } from '../lib'
@@ -84,7 +85,7 @@ export function VendorsTable() {
     queryFn: async () => {
       const response = await searchVendors(params)
       if (!response.success) {
-        throw new Error(response.message || t('Failed to load vendors'))
+        throw createServerError(response, t('Failed to load vendors'))
       }
       return response.data
     },

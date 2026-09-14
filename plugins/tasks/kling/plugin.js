@@ -7,19 +7,17 @@ export const meta = {
     en: "Kuaishou Kling video generation (text-to-video and image-to-video)",
     zh: "快手可灵视频生成（文生视频、图生视频）",
   },
-  version: "1.0.1",
+  version: "1.0.2",
   author: { name: "QuantumNous" },
   channelTypes: [50],
   models: ["kling-v1", "kling-v1-6", "kling-v2-master"],
   fetchMode: "per_task",
   usageSchema: {
+    // Kling final unit deduction (estimated at submit, actual on completion).
     units: {
       type: "number",
       unit: "credit",
-      description: {
-        en: "Kling final unit deduction (estimated at submit, actual on completion).",
-        zh: "可灵最终单位消耗（提交时预估，完成后按实际值）。",
-      },
+      description: { en: "Kling credit unit price", zh: "可灵资源包单位单价" },
     },
   },
   usageExamples: [

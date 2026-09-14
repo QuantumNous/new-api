@@ -1,6 +1,7 @@
 package oairesponses
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -105,7 +106,7 @@ func responsesOfType(responses []*dto.ClaudeResponse, responseType string) []*dt
 }
 
 func joinedClaudeDeltas(responses []*dto.ClaudeResponse, deltaType string) string {
-	result := ""
+	var result strings.Builder
 	for _, response := range responses {
 		if response == nil || response.Type != "content_block_delta" || response.Delta == nil || response.Delta.Type != deltaType {
 			continue
@@ -113,17 +114,17 @@ func joinedClaudeDeltas(responses []*dto.ClaudeResponse, deltaType string) strin
 		switch deltaType {
 		case "thinking_delta":
 			if response.Delta.Thinking != nil {
-				result += *response.Delta.Thinking
+				result.WriteString(*response.Delta.Thinking)
 			}
 		case "text_delta":
 			if response.Delta.Text != nil {
-				result += *response.Delta.Text
+				result.WriteString(*response.Delta.Text)
 			}
 		case "input_json_delta":
 			if response.Delta.PartialJson != nil {
-				result += *response.Delta.PartialJson
+				result.WriteString(*response.Delta.PartialJson)
 			}
 		}
 	}
-	return result
+	return result.String()
 }

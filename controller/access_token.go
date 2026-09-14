@@ -44,7 +44,7 @@ func GenerateAccessToken(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	recordUserSecurityAudit(c, id, "access_token.generate", map[string]interface{}{"token_ref": model.AccessTokenFingerprint(key)})
+	recordUserSecurityAudit(c, id, "access_token.generate", map[string]any{"token_ref": model.AccessTokenFingerprint(key)})
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": key})
 }
 
@@ -58,7 +58,7 @@ func RevokeAccessToken(c *gin.Context) {
 		return
 	}
 	if ref != "" {
-		recordUserSecurityAudit(c, c.GetInt("id"), "access_token.revoke", map[string]interface{}{"token_ref": ref})
+		recordUserSecurityAudit(c, c.GetInt("id"), "access_token.revoke", map[string]any{"token_ref": ref})
 	}
 	common.ApiSuccess(c, nil)
 }

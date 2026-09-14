@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -113,13 +114,7 @@ func ParseDashboardAccessToken(raw string) (identity AuthIdentity, internal bool
 	if parseErr != nil || parsed == nil {
 		return AuthIdentity{}, false, nil
 	}
-	audienceMatches := false
-	for _, audience := range claims.Audience {
-		if audience == authTokenAudience {
-			audienceMatches = true
-			break
-		}
-	}
+	audienceMatches := slices.Contains(claims.Audience, authTokenAudience)
 	knownTokenUse := claims.TokenUse == accessTokenUse || claims.TokenUse == securityProofTokenUse
 	if claims.Issuer != authTokenIssuer || !audienceMatches || !knownTokenUse {
 		return AuthIdentity{}, false, nil

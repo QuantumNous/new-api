@@ -37,6 +37,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from '@/components/ui/input-group'
+import { usePortalContainer } from '@/components/ui/portal-container'
 import { cn } from '@/lib/utils'
 
 type LegacyComboboxProps = {
@@ -47,12 +48,14 @@ type LegacyComboboxProps = {
   searchPlaceholder?: string
   emptyText?: string
   allowCustomValue?: boolean
+  showSelectedIcon?: boolean
   className?: string
   id?: string
   openOnFocus?: boolean
   disabled?: boolean
   name?: string
   onBlur?: React.FocusEventHandler<HTMLInputElement>
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>
   ref?: React.Ref<HTMLInputElement>
   'aria-label'?: string
   'aria-labelledby'?: string
@@ -74,6 +77,10 @@ function Combobox(
     return (
       <LegacyComboboxInput
         id={props.id}
+        aria-label={props['aria-label']}
+        aria-labelledby={props['aria-labelledby']}
+        aria-invalid={props['aria-invalid']}
+        onKeyDown={props.onKeyDown}
         options={props.options}
         value={props.value ?? ''}
         onValueChange={(value) => props.onValueChange?.(value)}
@@ -107,16 +114,19 @@ function OptionCombobox(props: LegacyComboboxProps) {
       onInputValueChange={(value, details) => {
         if (details.reason === 'input-change') setSearch(value)
       }}
-      onOpenChange={(nextOpen) => {
+      onOpenChange={(nextOpen, details) => {
         setOpen(nextOpen)
-        setSearch('')
+        if (details.reason !== 'input-change') setSearch('')
       }}
       onValueChange={(option) => {
         if (option) props.onValueChange?.(option.value)
       }}
       filter={(option, query) => {
         const term = query.trim().toLowerCase()
-        return option.label.toLowerCase().includes(term) || option.value.toLowerCase().includes(term)
+        return (
+          option.label.toLowerCase().includes(term) ||
+          option.value.toLowerCase().includes(term)
+        )
       }}
       isItemEqualToValue={(item, value) => item.value === value.value}
     >
@@ -126,25 +136,48 @@ function OptionCombobox(props: LegacyComboboxProps) {
           id={props.id}
           disabled={props.disabled}
           onBlur={props.onBlur}
+          onKeyDown={props.onKeyDown}
           onFocus={() => {
-            if (props.openOnFocus !== false) setOpen(true)
+            // Dialog autofocus should not expand a select-style combobox.
+            if (props.openOnFocus) setOpen(true)
           }}
           aria-label={props['aria-label']}
           aria-labelledby={props['aria-labelledby']}
           aria-describedby={props['aria-describedby']}
           aria-invalid={props['aria-invalid']}
-          placeholder={props.searchPlaceholder ?? props.placeholder ?? t('Search...')}
+          placeholder={
+            props.searchPlaceholder ?? props.placeholder ?? t('Search...')
+          }
           triggerAriaLabel={props['aria-label'] ?? t('Open')}
           className='h-full min-h-8 w-full'
-        />
+        >
+          {props.showSelectedIcon && !open && selected?.icon && (
+            <InputGroupAddon align='inline-start' aria-hidden='true'>
+              {selected.icon}
+            </InputGroupAddon>
+          )}
+        </ComboboxInput>
       </div>
       <ComboboxContent anchor={anchor}>
-        <ComboboxEmpty>{props.emptyText ?? t('No results found')}</ComboboxEmpty>
+        <ComboboxEmpty>
+          {props.emptyText ?? t('No results found')}
+        </ComboboxEmpty>
         <ComboboxList>
           {(option: ComboboxInputOption) => (
-            <ComboboxItem key={option.value} value={option} disabled={option.disabled}>
+            <ComboboxItem
+              key={option.value}
+              value={option}
+              disabled={option.disabled}
+            >
               {option.icon && <span aria-hidden>{option.icon}</span>}
-              <span className='min-w-0 break-words'>{option.label}{option.description && <span className='text-muted-foreground block text-xs break-all'>{option.description}</span>}</span>
+              <span className='min-w-0 break-words'>
+                {option.label}
+                {option.description && (
+                  <span className='text-muted-foreground block text-xs break-all'>
+                    {option.description}
+                  </span>
+                )}
+              </span>
             </ComboboxItem>
           )}
         </ComboboxList>
@@ -245,8 +278,9 @@ function ComboboxContent({
     ComboboxPrimitive.Positioner.Props,
     'side' | 'align' | 'sideOffset' | 'alignOffset' | 'anchor'
   >) {
+  const container = usePortalContainer()
   return (
-    <ComboboxPrimitive.Portal>
+    <ComboboxPrimitive.Portal container={container}>
       <ComboboxPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"math"
 	"mime/multipart"
@@ -16,7 +17,9 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/plugins"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -532,69 +535,90 @@ func TestTaskAdaptorMapsJSContract(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestTaskAdaptorSanitizesOpenAIVideoRendererOutput(t *testing.T) {
-	source := `
-export const meta = {
-  apiVersion: 1, key: "safe-video", name: "Safe Video", version: "1.0.0",
-  author: {name: "Test"}, models: ["model"], fetchMode: "per_task", protocols: ["openai_video"],
-};
-export function buildSubmitRequest(ctx) { return {url: ctx.baseUrl + "/submit"}; }
-export function parseSubmitResponse() { return {taskId: "upstream"}; }
-export function buildQueryRequest(ctx) { return {url: ctx.baseUrl + "/query"}; }
-export function parseTaskResult() { return {status: "SUCCESS"}; }
-export function listArtifacts() { return []; }
-export function buildContentRequest() { throw new Error("artifact_not_found"); }
-export const protocols = {openai_video: {
-decodeRequest: function(ctx) { return {kind:"submit", model:ctx.model, requestBody:ctx.body.value}; },
-render: function() {
-  return {
-    id: "upstream-id",
-    task_id: "upstream-task-id",
-    object: "provider-video",
-    model: "model",
-    status: "completed",
-    progress: 100,
-    created_at: 10,
-    completed_at: 20,
-    metadata: {
-      url: "https://upstream.example/video.mp4",
-      URL: "https://upstream.example/uppercase.mp4",
-      label: "safe",
-    },
-    url: "https://upstream.example/top-level.mp4",
-    upstream_url: "https://upstream.example/unknown.mp4",
-    provider_payload: {task_id: "upstream-task-id"},
-  };
-}}};
-`
+func TestTaskAdaptorPreservesSoraVideoResponseFields(t *testing.T) {
+	source, err := plugins.Source("sora")
+	require.NoError(t, err)
 	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
 	require.NoError(t, err)
 	adaptor := New(plugin)
 
-	rendered, err := adaptor.ConvertToOpenAIVideo(&model.Task{
-		TaskID:     "task_public",
-		Status:     model.TaskStatusInProgress,
-		Properties: model.Properties{OriginModelName: "origin-model"},
-	})
-	require.NoError(t, err)
+	for _, tc := range []struct {
+		status model.TaskStatus
+		want   string
+	}{
+		{model.TaskStatusInProgress, "in_progress"},
+		{model.TaskStatusSuccess, "completed"},
+		{model.TaskStatusFailure, "failed"},
+	} {
+		t.Run(string(tc.status), func(t *testing.T) {
+			task := &model.Task{
+				TaskID:      "task_public",
+				Status:      tc.status,
+				Progress:    "42%",
+				CreatedAt:   100,
+				FinishTime:  200,
+				Properties:  model.Properties{OriginModelName: "origin-model"},
+				PrivateData: model.TaskPrivateData{UpstreamTaskID: "upstream-task-id"},
+				Data: []byte(`{
+					"id":"upstream-task-id","task_id":"upstream-task-id",
+					"object":"provider-video","model":"provider-model",
+					"status":"completed","progress":100,"created_at":10,"completed_at":20,
+					"url":"https://cdn.example/video.mp4",
+					"metadata":{"url":"https://cdn.example/video.mp4","URL":"https://cdn.example/uppercase.mp4"},
+					"provider_payload":{"task_id":"upstream-task-id","items":[{"enabled":false,"count":0,"value":null}]},
+					"seconds":8,"resolution":"720p","aspect_ratio":"16:9",
+					"reference_images":["https://cdn.example/reference.png"],
+					"error":{"code":"provider_error","message":"provider rejected request","detail":{"retryable":false}}
+				}`),
+			}
+			rendered, err := adaptor.ConvertToOpenAIVideo(task)
+			require.NoError(t, err)
 
-	var video dto.OpenAIVideo
-	require.NoError(t, common.Unmarshal(rendered, &video))
-	assert.Equal(t, "task_public", video.ID)
-	assert.Equal(t, "video", video.Object)
-	assert.Empty(t, video.TaskID)
-	assert.Equal(t, "origin-model", video.Model)
-	assert.Zero(t, video.CompletedAt)
-	assert.Equal(t, map[string]any{"label": "safe"}, video.Metadata)
+			var fields map[string]any
+			require.NoError(t, common.Unmarshal(rendered, &fields))
+			assert.Equal(t, "task_public", fields["id"])
+			assert.NotContains(t, fields, "task_id")
+			assert.Equal(t, "video", fields["object"])
+			assert.Equal(t, "origin-model", fields["model"])
+			assert.Equal(t, tc.want, fields["status"])
+			assert.Equal(t, float64(42), fields["progress"])
+			assert.Equal(t, float64(100), fields["created_at"])
+			if tc.status == model.TaskStatusSuccess {
+				assert.Equal(t, float64(200), fields["completed_at"])
+			} else {
+				assert.NotContains(t, fields, "completed_at")
+			}
+			assert.Equal(t, "https://cdn.example/video.mp4", fields["url"])
+			assert.Equal(t, map[string]any{
+				"url": "https://cdn.example/video.mp4",
+				"URL": "https://cdn.example/uppercase.mp4",
+			}, fields["metadata"])
+			assert.Equal(t, map[string]any{
+				"task_id": "task_public",
+				"items":   []any{map[string]any{"enabled": false, "count": float64(0), "value": nil}},
+			}, fields["provider_payload"])
+			assert.Equal(t, float64(8), fields["seconds"])
+			assert.Equal(t, "720p", fields["resolution"])
+			assert.Equal(t, "16:9", fields["aspect_ratio"])
+			assert.Equal(t, []any{"https://cdn.example/reference.png"}, fields["reference_images"])
+			assert.Equal(t, map[string]any{
+				"code": "provider_error", "message": "provider rejected request",
+				"detail": map[string]any{"retryable": false},
+			}, fields["error"])
+		})
+	}
+}
 
-	var fields map[string]any
-	require.NoError(t, common.Unmarshal(rendered, &fields))
-	assert.NotContains(t, fields, "url")
-	assert.NotContains(t, fields, "upstream_url")
-	assert.NotContains(t, fields, "provider_payload")
-	assert.NotContains(t, fields, "completed_at")
-	assert.NotContains(t, string(rendered), "upstream.example")
-	assert.NotContains(t, string(rendered), "upstream-task-id")
+func TestTaskAdaptorRejectsNonObjectOpenAIVideoRendererOutput(t *testing.T) {
+	for _, value := range []string{"null", "[]", `"video"`, "42", "false"} {
+		t.Run(value, func(t *testing.T) {
+			source := strings.Replace(mockPlugin, `return {id: task.task_id, status: "completed"};`, "return "+value+";", 1)
+			plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+			require.NoError(t, err)
+			_, err = New(plugin).ConvertToOpenAIVideo(&model.Task{TaskID: "task_public"})
+			require.ErrorContains(t, err, "invalid OpenAI video object")
+		})
+	}
 }
 
 func TestTaskAdaptorPreservesOpenAIVideoFailureSlotsAndOwnsLifecycle(t *testing.T) {
@@ -1412,4 +1436,408 @@ export function parseBatchResult(){return [];}
 	assert.Equal(t, []any{"task-a", "task-b"}, captured["ids"])
 	assert.Equal(t, []any{"model-a", "model-b"}, captured["models"])
 	assert.Equal(t, false, captured["hasRequestBody"])
+}
+
+func TestTaskAdaptorUsageProfilesFollowExecutionModel(t *testing.T) {
+	const source = `
+export const meta = {
+  apiVersion:1, key:"profile-usage", name:"Profile Usage", version:"1.0.0", author:{name:"Test"},
+  models:["image", "video"], fetchMode:"batch",
+  usageSchema:{units:{type:"number",unit:"second"}},
+  usageProfiles:[
+    {models:["image"],schema:{units:{type:"number",unit:"count"},mode:{enum:["image"]}}},
+    {models:["video"],schema:{units:{type:"number",unit:"token"},mode:{enum:["video"]}},
+     examples:[{label:"video",facts:{units:1,mode:"video"}}]}
+  ]
+};
+export function buildSubmitRequest(ctx) {
+  return {url:ctx.baseUrl+"/submit",rewriteModel:ctx.requestBody.rewriteTo || ""};
+}
+export function parseSubmitResponse(){return {taskId:"task"};}
+export function buildQueryRequest(){return {url:"https://provider.example/task"};}
+export function buildBatchQueryRequest(){return {url:"https://provider.example/tasks"};}
+export function parseTaskResult(){return {status:"SUCCESS"};}
+export function parseBatchResult(ctx,body){return body.items;}
+export function extractUsage(ctx){return {units:ctx.requestBody.hookUnits,mode:ctx.requestBody.hookMode,legacyRatio:2};}
+export function extractUsageOnSubmit(ctx,body){return body.usage;}
+export function extractUsageOnComplete(ctx,result,body){return body.usage;}
+`
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	newRequest := func(t *testing.T, upstream string, body map[string]any) (*TaskAdaptor, *gin.Context, *relaycommon.RelayInfo) {
+		t.Helper()
+		info := &relaycommon.RelayInfo{
+			OriginModelName: "public-alias",
+			ChannelMeta: &relaycommon.ChannelMeta{
+				UpstreamModelName: upstream, ChannelBaseUrl: "https://provider.example",
+			},
+			TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+		}
+		adaptor := New(plugin)
+		adaptor.Init(info)
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/native/submit", nil)
+		c.Set("task_request", body)
+		return adaptor, c, info
+	}
+
+	for _, tc := range []struct {
+		name, upstream, rewrite, mode string
+		units                         float64
+		wantError                     bool
+	}{
+		{"mapped image", "image", "", "image", 2, false},
+		{"mapped video token units", "video", "", "video", 500000, false},
+		{"rewritten model", "image", "video", "video", 500000, false},
+		{"image count ceiling", "image", "", "image", float64(dto.MaxImageN + 1), true},
+		{"profile enum", "image", "", "video", 2, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			adaptor, c, info := newRequest(t, tc.upstream, map[string]any{
+				"hookUnits": tc.units, "hookMode": tc.mode, "rewriteTo": tc.rewrite,
+			})
+			require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+			facts, err := adaptor.ExtractUsageFactsValidated(c, info)
+			if tc.wantError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, map[string]any{"units": tc.units, "mode": tc.mode, "legacyRatio": 2.0}, facts)
+			ratios, err := adaptor.EstimateBillingValidated(c, info)
+			require.NoError(t, err)
+			assert.Equal(t, map[string]float64{"units": tc.units, "legacyRatio": 2}, ratios)
+			body, err := common.Marshal(map[string]any{"usage": facts})
+			require.NoError(t, err)
+			assert.Equal(t, ratios, adaptor.AdjustBillingOnSubmit(info, body))
+		})
+	}
+
+	t.Run("request revalidated after model rewrite", func(t *testing.T) {
+		adaptor, c, info := newRequest(t, "video", map[string]any{
+			"rewriteTo": "image", "metadata": map[string]any{"units": dto.MaxImageN + 1},
+		})
+		taskErr := adaptor.ValidateRequestAndSetAction(c, info)
+		require.NotNil(t, taskErr)
+		assert.Equal(t, "plugin_usage_invalid", taskErr.Code)
+	})
+
+	t.Run("request enum belongs to the rewritten model", func(t *testing.T) {
+		adaptor, c, info := newRequest(t, "video", map[string]any{
+			"rewriteTo": "image", "mode": "image", "units": 2,
+		})
+		require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+		assert.Equal(t, "image", info.UpstreamModelName)
+	})
+
+	t.Run("completion selects each persisted model including legacy origin fallback", func(t *testing.T) {
+		adaptor, _, _ := newRequest(t, "image", map[string]any{})
+		for _, tc := range []struct {
+			upstream, origin, mode string
+			units                  float64
+			accepted               bool
+		}{
+			{"video", "public-alias", "video", 500000, true},
+			{"image", "public-alias", "image", 2, true},
+			{"", "video", "video", 500000, true},
+			{"image", "public-alias", "image", float64(dto.MaxImageN + 1), false},
+			{"video", "public-alias", "image", 1, false},
+		} {
+			task := &model.Task{Properties: model.Properties{OriginModelName: tc.origin, UpstreamModelName: tc.upstream}}
+			body, err := common.Marshal(map[string]any{"usage": map[string]any{"units": tc.units, "mode": tc.mode}})
+			require.NoError(t, err)
+			result, err := adaptor.ParseTaskResult(task, &http.Response{StatusCode: http.StatusOK}, body)
+			require.NoError(t, err)
+			if tc.accepted {
+				assert.Equal(t, map[string]any{"units": tc.units, "mode": tc.mode}, result.UsageFacts)
+			} else {
+				assert.Nil(t, result.UsageFacts)
+			}
+		}
+	})
+
+	t.Run("legacy completion facts remain usable by stored expressions", func(t *testing.T) {
+		updated, err := pluginruntime.NewRegistry().Register(strings.Replace(source,
+			`export function extractUsageOnComplete(ctx,result,body){return body.usage;}`,
+			`export function extractUsageOnComplete(){return {legacyRatio:3};}`, 1), pluginruntime.Options{})
+		require.NoError(t, err)
+		_, _, info := newRequest(t, "image", map[string]any{})
+		adaptor := New(updated)
+		adaptor.Init(info)
+		result, err := adaptor.ParseTaskResult(&model.Task{Properties: model.Properties{UpstreamModelName: "image"}},
+			&http.Response{StatusCode: http.StatusOK}, []byte(`{}`))
+		require.NoError(t, err)
+		cost, _, err := billingexpr.RunExprWithRequest(`tier("legacy", u("legacyRatio") * 2)`,
+			billingexpr.TokenParams{}, billingexpr.RequestInput{Usage: result.UsageFacts})
+		require.NoError(t, err)
+		assert.Equal(t, 6.0, cost)
+	})
+
+	t.Run("mixed batch selects schema by task rather than adaptor", func(t *testing.T) {
+		adaptor, _, _ := newRequest(t, "image", map[string]any{})
+		tasks := []*model.Task{
+			{TaskID: "video-task", Properties: model.Properties{UpstreamModelName: "video"}},
+			{TaskID: "image-task", Properties: model.Properties{UpstreamModelName: "image"}},
+			{TaskID: "invalid-image", Properties: model.Properties{UpstreamModelName: "image"}},
+		}
+		body := []byte(`{"items":[
+{"taskId":"image-task","status":"SUCCESS","data":{"usage":{"units":2,"mode":"image"}}},
+{"taskId":"video-task","status":"SUCCESS","data":{"usage":{"units":500000,"mode":"video"}}},
+{"taskId":"invalid-image","status":"SUCCESS","data":{"usage":{"units":129,"mode":"image"}}}
+]}`)
+		results, err := adaptor.ParseBatchResult(tasks, &http.Response{StatusCode: http.StatusOK}, body)
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+		assert.Equal(t, map[string]any{"units": 500000.0, "mode": "video"}, results["video-task"].TaskInfo.UsageFacts)
+		assert.Equal(t, map[string]any{"units": 2.0, "mode": "image"}, results["image-task"].TaskInfo.UsageFacts)
+		assert.Nil(t, results["invalid-image"].TaskInfo.UsageFacts)
+	})
+}
+
+const documentStreamPlugin = `
+export const meta = {apiVersion:1,key:"document-stream",name:"Document stream",version:"1.0.0",author:{name:"Test"},models:["document"],fetchMode:"per_task",submitResponseTypes:["json","sse"],usageSchema:{units:{type:"number",unit:"count"}}};
+export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/compile",responseType:ctx.requestBody.responseType || "sse"};}
+export function parseSubmitEvent(ctx,event,previous) {
+  const chunk = JSON.parse(event.data);
+  if (chunk.error) throw new Error("provider stream failure");
+  if (chunk.badState) return {state:null};
+  if (chunk.largeState) return {state:{document:"x".repeat(1048577)},done:chunk.complete === true};
+  if (chunk.escapedState) return {state:{document:"<".repeat(200000)},done:true};
+  if (chunk.resetState) return {state:{document:"",units:0},done:true};
+  const state = Object.assign({}, previous || {document:"",units:0});
+  state.document += chunk.part || "";
+  if (chunk.units !== undefined) state.units = chunk.units;
+  state.event = event.event; state.id = event.id;
+  return {state:state,done:chunk.complete === true};
+}
+export function parseSubmitResponse(ctx,response){return {taskId:"vendor-document",taskData:response.body,immediate:{status:"SUCCESS"},state:{revision:1}};}
+export function parseTaskResult(){return {status:"SUCCESS"};}
+export function buildQueryRequest(ctx){return {url:ctx.baseUrl+"/query"};}
+export function extractUsageOnComplete(ctx,result,body){
+  if(ctx.model!=="alias" || ctx.upstreamModel!=="document" || ctx.taskId!=="vendor-document" || ctx.publicTaskId!=="public-document" || ctx.state.revision!==1 || ctx.data.document!==body.document) throw new Error("invalid completion context");
+  return {units:body.units};
+}
+`
+
+func TestTaskSubmitStreamContract(t *testing.T) {
+	plugin, err := pluginruntime.CompilePlugin(documentStreamPlugin, pluginruntime.Options{})
+	require.NoError(t, err)
+	for _, tc := range []struct {
+		name, body, contentType string
+		valid                   bool
+	}{
+		{"multiline and CRLF", ": heartbeat\r\nid: doc-1\r\nevent: update\r\ndata: {\"part\":\r\ndata: \"hello\",\"units\":2}\r\n\r\ndata: {\"part\":\"world\",\"units\":3,\"complete\":true}\n\n", "text/event-stream; charset=utf-8", true},
+		{"zero actual units", "data: {\"part\":\"free\",\"units\":0,\"complete\":true}\n\n", "text/event-stream", true},
+		{"premature EOF", "data: {\"part\":\"partial\"}\n\n", "text/event-stream", false},
+		{"unterminated event", "data: {\"complete\":true}", "text/event-stream", false},
+		{"provider error", "data: {\"error\":true}\n\n", "text/event-stream", false},
+		{"invalid hook result", "data: {\"badState\":true}\n\n", "text/event-stream", false},
+		{"state limit", "data: {\"largeState\":true}\n\n", "text/event-stream", false},
+		{"intermediate state limit", "data: {\"largeState\":true}\n\ndata: {\"resetState\":true}\n\n", "text/event-stream", false},
+		{"encoded state limit", "data: {\"escapedState\":true}\n\n", "text/event-stream", false},
+		{"event limit", "data: " + strings.Repeat("x", maxTaskPluginPersistedJSONBytes) + "\n\n", "text/event-stream", false},
+		{"wrong response type", "{}", "application/json", false},
+		{"undeclared stream", "data: {}\n\n", "text/event-stream", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{OriginModelName: "alias", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "document", ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "public-document"}}
+			adaptor := New(plugin)
+			adaptor.Init(info)
+			c, recorder := gin.CreateTestContext(httptest.NewRecorder())
+			_ = recorder
+			c.Request = httptest.NewRequest(http.MethodPost, "/compile", nil)
+			requestBody := map[string]any{}
+			if tc.name == "undeclared stream" {
+				requestBody["responseType"] = "json"
+			}
+			c.Set("task_request", requestBody)
+			require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+			response := &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {tc.contentType}}, Body: io.NopCloser(strings.NewReader(tc.body))}
+			parsed, taskErr := adaptor.ParseResponse(c, response, info)
+			assert.False(t, c.Writer.Written())
+			if !tc.valid {
+				require.NotNil(t, taskErr)
+				assert.True(t, taskErr.NoRetry)
+				return
+			}
+			require.Nil(t, taskErr)
+			require.NotNil(t, parsed.Immediate)
+			if tc.name == "zero actual units" {
+				assert.Equal(t, map[string]any{"units": float64(0)}, parsed.Immediate.UsageFacts)
+				return
+			}
+			assert.Equal(t, map[string]any{"units": float64(3)}, parsed.Immediate.UsageFacts)
+			assert.JSONEq(t, `{"document":"helloworld","units":3,"event":"message","id":"doc-1"}`, string(parsed.TaskData))
+		})
+	}
+}
+
+func TestTaskSubmitStreamCancellationClosesReader(t *testing.T) {
+	plugin, err := pluginruntime.CompilePlugin(documentStreamPlugin, pluginruntime.Options{})
+	require.NoError(t, err)
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err = New(plugin).readSubmitEvents(ctx, &http.Response{Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: reader}, nil)
+	require.ErrorIs(t, err, context.Canceled)
+	_, err = writer.Write([]byte("data: {}\n\n"))
+	require.Error(t, err)
+}
+
+func TestTaskSubmitStreamIdleTimeout(t *testing.T) {
+	previous := constant.StreamingTimeout
+	constant.StreamingTimeout = 1
+	t.Cleanup(func() { constant.StreamingTimeout = previous })
+	plugin, err := pluginruntime.CompilePlugin(documentStreamPlugin, pluginruntime.Options{})
+	require.NoError(t, err)
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	_, err = New(plugin).readSubmitEvents(t.Context(), &http.Response{Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: reader}, nil)
+	require.ErrorContains(t, err, "idle timeout")
+}
+
+func TestPluginJSONValuesPreserveCodecNormalizationAndIsolation(t *testing.T) {
+	for _, value := range []any{
+		map[string]any{"units": int64(3), "nested": []any{true, "<image> / 图像", math.Copysign(0, -1), nil}},
+		map[string]any{"empty": []any{}, "null": []any(nil), "object": map[string]any(nil)},
+		map[string]any{"large": int64(math.MaxInt64), "invalid UTF-8": string([]byte{0xff, 0xfe})},
+		map[string]any{string([]byte{0xff}): "invalid key"},
+		map[string]any{"bytes": []byte{0, 1, 255}, "number": json.Number("9007199254740993")},
+		json.RawMessage(`{"units":2,"enabled":false}`),
+		struct {
+			Units int `json:"units"`
+		}{Units: 0},
+	} {
+		encoded, err := common.Marshal(value)
+		require.NoError(t, err)
+		var expected any
+		require.NoError(t, common.Unmarshal(encoded, &expected))
+		assert.Equal(t, expected, jsonValue(value))
+	}
+	source := map[string]any{"items": []any{map[string]any{"label": "original"}}}
+	copy := jsonValue(source).(map[string]any)
+	copy["items"].([]any)[0].(map[string]any)["label"] = "changed"
+	assert.Equal(t, "original", source["items"].([]any)[0].(map[string]any)["label"])
+}
+
+func TestTaskSubmitHooksReceiveIndependentRequestSnapshots(t *testing.T) {
+	source := `
+export const meta={apiVersion:1,key:"request-copy",name:"Request copy",version:"1.0.0",author:{name:"Test"},models:["copy"],fetchMode:"per_task",usageSchema:{units:{type:"number",unit:"count"}}};
+export function buildSubmitRequest(ctx){ctx.requestBody.units=3;ctx.requestBody.nested.label="built";return {url:ctx.baseUrl+"/submit",body:ctx.requestBody};}
+export function extractUsage(ctx){if(ctx.requestBody.nested.label!=="original")throw new Error("request changed");return {units:ctx.requestBody.units};}
+export function parseSubmitResponse(){return {taskId:"copy"};}
+export function buildQueryRequest(ctx){return {url:ctx.baseUrl+"/query"};}
+export function parseTaskResult(){return {status:"SUCCESS"};}
+`
+	plugin, err := pluginruntime.CompilePlugin(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	request := map[string]any{"units": int64(2), "nested": map[string]any{"label": "original"}}
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/submit", nil)
+	c.Set("task_request", request)
+	info := &relaycommon.RelayInfo{OriginModelName: "copy", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "copy", ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+	adaptor := New(plugin)
+	adaptor.Init(info)
+	require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+	facts, err := adaptor.ExtractUsageFactsValidated(c, info)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"units": float64(2)}, facts)
+	body, err := adaptor.BuildRequestBody(c, info)
+	require.NoError(t, err)
+	encoded, err := io.ReadAll(body)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"units":3,"nested":{"label":"built"}}`, string(encoded))
+	assert.Equal(t, int64(2), request["units"])
+	assert.Equal(t, "original", request["nested"].(map[string]any)["label"])
+}
+
+func TestTaskSubmitDeltaStreamContract(t *testing.T) {
+	source := strings.Replace(documentStreamPlugin, `submitResponseTypes:["json","sse"],`, `submitResponseTypes:["json","sse"],requiredCapabilities:["submit-sse-delta@1"],`, 1) + `
+export function parseSubmitEventDelta(ctx,event,previous) {
+  if(previous && previous.document !== undefined) throw new Error("full result leaked into control state");
+  const chunk=JSON.parse(event.data);
+  let changes=chunk.changes;
+  if(chunk.largeResult) changes=[{op:"set",path:[],value:{document:"<".repeat(200000)}}];
+  if(chunk.resetAfterLarge) changes.push({op:"set",path:[],value:{document:"",units:0}});
+  const result={changes:changes,state:{events:(previous ? previous.events : 0)+1},done:chunk.complete===true};
+  if(chunk.largeControl) result.state={text:"x".repeat(65537)};
+  if(chunk.extra) result.extra=true;
+  return result;
+}`
+	plugin, err := pluginruntime.CompilePlugin(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	const first = `{"changes":[{"op":"set","path":[],"value":{"document":"hello","units":2}}]}`
+	const last = `{"changes":[{"op":"appendText","path":["document"],"value":"world"},{"op":"set","path":["units"],"value":0}],"complete":true}`
+	for _, tc := range []struct {
+		name   string
+		frames []string
+		valid  bool
+	}{
+		{"control state and zero usage", []string{first, last}, true},
+		{"oversized intermediate result", []string{`{"largeResult":true}`, last}, false},
+		{"oversized operation before reset", []string{`{"largeResult":true,"resetAfterLarge":true,"complete":true}`}, false},
+		{"control state limit", []string{first, `{"changes":[],"largeControl":true,"complete":true}`}, false},
+		{"missing changes", []string{`{"complete":true}`}, false},
+		{"extra result fields", []string{first, `{"changes":[],"extra":true,"complete":true}`}, false},
+		{"unfinished delta stream", []string{first}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var stream strings.Builder
+			for _, frame := range tc.frames {
+				stream.WriteString("data: " + frame + "\n\n")
+			}
+			info := &relaycommon.RelayInfo{OriginModelName: "alias", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "document", ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "public-document"}}
+			adaptor := New(plugin)
+			adaptor.Init(info)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/compile", nil)
+			c.Set("task_request", map[string]any{})
+			require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+			response := &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(stream.String()))}
+			parsed, taskErr := adaptor.ParseResponse(c, response, info)
+			assert.False(t, c.Writer.Written())
+			if !tc.valid {
+				require.NotNil(t, taskErr)
+				assert.True(t, taskErr.NoRetry)
+				return
+			}
+			require.Nil(t, taskErr)
+			require.NotNil(t, parsed.Immediate)
+			assert.JSONEq(t, `{"document":"helloworld","units":0}`, string(parsed.TaskData))
+			assert.Equal(t, map[string]any{"units": float64(0)}, parsed.Immediate.UsageFacts)
+		})
+	}
+}
+
+func TestAlibabaSubmitDeltaDoesNotMutateControlState(t *testing.T) {
+	source, err := plugins.Source("alibaba")
+	require.NoError(t, err)
+	plugin, err := pluginruntime.CompilePlugin(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	const before = `{"request_id":"old","usage":{"image_count":1},"output":{"finished":false,"choices":[{"message":{"role":"assistant","content":[{"text":"hello"}]}}]}}`
+	const control = `{"choices":[{"count":1,"lastText":true,"finishReason":""}],"hasUsage":true}`
+	var previous, initial any
+	require.NoError(t, common.UnmarshalJsonStr(control, &previous))
+	require.NoError(t, common.UnmarshalJsonStr(before, &initial))
+	accumulated := pluginruntime.NewJSONState(maxTaskPluginPersistedJSONBytes)
+	require.NoError(t, accumulated.Apply(t.Context(), []any{map[string]any{"op": "set", "path": []any{}, "value": initial}}))
+	value, err := plugin.Engine.Call(t.Context(), "parseSubmitEventDelta", map[string]any{}, map[string]any{
+		"event": "message", "data": `{"request_id":"new","usage":{"image_count":2},"output":{"choices":[{"finish_reason":"stop","message":{"content":[{"text":" world"},{"image":"https://cdn.example/image.png"}]}}]}}`,
+	}, previous)
+	require.NoError(t, err)
+	unchanged, err := common.Marshal(previous)
+	require.NoError(t, err)
+	assert.JSONEq(t, control, string(unchanged))
+	result := value.(map[string]any)
+	assert.Equal(t, true, result["done"])
+	require.NoError(t, accumulated.Apply(t.Context(), result["changes"]))
+	final, err := accumulated.Value()
+	require.NoError(t, err)
+	encoded, err := common.Marshal(final)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"request_id":"new","usage":{"image_count":2},"output":{"finished":true,"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":[{"text":"hello world"},{"image":"https://cdn.example/image.png"}]}}]}}`, string(encoded))
+	encoded, err = common.Marshal(result["state"])
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"choices":[{"count":2,"lastText":false,"finishReason":"stop"}],"hasUsage":true}`, string(encoded))
 }

@@ -92,13 +92,13 @@ func populateResponsesCloneFixture(t *testing.T, value reflect.Value, raw json.R
 		for i := 0; i < value.NumField(); i++ {
 			populateResponsesCloneFixture(t, value.Field(i), raw)
 		}
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if value.IsNil() {
 			value.Set(reflect.New(value.Type().Elem()))
 		}
 		populateResponsesCloneFixture(t, value.Elem(), raw)
 	case reflect.Slice:
-		require.Equal(t, reflect.TypeOf(json.RawMessage{}), value.Type())
+		require.Equal(t, reflect.TypeFor[json.RawMessage](), value.Type())
 		if value.Len() > 0 {
 			value.Index(0).SetUint('!')
 		}

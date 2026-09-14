@@ -498,6 +498,9 @@ func TestPluginPathOwnershipIsExclusiveAcrossMethods(t *testing.T) {
 	beta := compileRouterPlugin(t, "beta-owner", "1.0.0", `[
 		{method: "POST", path: "/shared/jobs/:task_id", type: "submit"}
 	]`)
+	// Display priority must not change exclusive route ownership.
+	alpha.Meta.SortPriority = -100
+	beta.Meta.SortPriority = 100
 	handlers := testPluginRouteHandlers(func(c *gin.Context, _ *jsplugin.RoutingGeneration, binding jsplugin.RouteBinding) {
 		c.String(http.StatusOK, binding.Plugin.Meta.Key)
 	})

@@ -28,6 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
+import { useCanEditModelPricing } from '@/features/model-pricing/api'
 
 import { handleToggleModelStatus, isModelEnabled } from '../lib'
 import type { Model } from '../types'
@@ -40,6 +41,7 @@ interface DataTableRowActionsProps {
 
 export function DataTableRowActions({ row }: DataTableRowActionsProps) {
   const { t } = useTranslation()
+  const canPrice = useCanEditModelPricing()
   const model = row.original
   const { setOpen, setCurrentRow } = useModels()
   const queryClient = useQueryClient()
@@ -61,31 +63,53 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     : t('Show in model square')
 
   return (
-    <div className='-ml-1.5 flex items-center gap-1'>
-      <Button variant='ghost' size='sm' onClick={handleEdit}>
-        {t('Edit')}
+    <div className='-ml-1.5 flex min-w-0 items-center gap-1 [&>button]:min-w-0 [&>button]:shrink'>
+      <Button
+        variant='ghost'
+        size='sm'
+        onClick={handleEdit}
+        title={model.id > 0 ? t('Edit') : t('Add metadata')}
+      >
+        <span className='truncate'>
+          {model.id > 0 ? t('Edit') : t('Add metadata')}
+        </span>
       </Button>
 
-      <DataTableRowActionMenu ariaLabel={t('Open menu')}>
-        <DropdownMenuItem onClick={handleToggleStatus}>
-          {toggleLabel}
-          <DropdownMenuShortcut>
-            {isEnabled ? <EyeOff size={16} /> : <Eye size={16} />}
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={(e) => {
-            e.preventDefault()
-            setDeleteConfirmOpen(true)
+      {canPrice && (
+        <Button
+          variant='ghost'
+          size='sm'
+          onClick={() => {
+            setCurrentRow(model)
+            setOpen('price-model')
           }}
-          className='text-destructive focus:text-destructive'
         >
-          {t('Delete')}
-          <DropdownMenuShortcut>
-            <Trash2 size={16} />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
-      </DataTableRowActionMenu>
+          <span className='truncate'>{t('Pricing')}</span>
+        </Button>
+      )}
+
+      {model.id > 0 && (
+        <DataTableRowActionMenu ariaLabel={t('Open menu')}>
+          <DropdownMenuItem onClick={handleToggleStatus}>
+            {toggleLabel}
+            <DropdownMenuShortcut>
+              {isEnabled ? <EyeOff size={16} /> : <Eye size={16} />}
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault()
+              setDeleteConfirmOpen(true)
+            }}
+            className='text-destructive focus:text-destructive'
+          >
+            {t('Delete')}
+            <DropdownMenuShortcut>
+              <Trash2 size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        </DataTableRowActionMenu>
+      )}
 
       {deleteConfirmOpen && (
         <ModelDeleteDialog

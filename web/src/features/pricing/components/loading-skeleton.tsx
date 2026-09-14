@@ -74,7 +74,7 @@ export function LoadingSkeleton(props: LoadingSkeletonProps) {
               ))}
             </div>
           ) : (
-            <div className='grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 2xl:grid-cols-3'>
+            <div className='grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 xl:grid-cols-3'>
               {Array.from({ length: 6 }, (_, index) => (
                 <Card key={index} className='gap-3'>
                   <CardHeader className='flex flex-row gap-3'>

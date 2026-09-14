@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Combobox } from '@/components/ui/combobox'
 import { useQuery } from '@tanstack/react-query'
 import { Download, Loader2, RefreshCcw, Terminal } from 'lucide-react'
 /*
@@ -42,9 +41,18 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
+import { Combobox } from '@/components/ui/combobox'
 import { IconBadge } from '@/components/ui/icon-badge'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getDeploymentLogs, listDeploymentContainers } from '../../api'
 
@@ -73,8 +81,10 @@ export function ViewLogsDialog({
     isFetching: isFetchingContainers,
   } = useQuery({
     queryKey: ['deployment-containers', deploymentId],
-    queryFn: () =>
-      deploymentId ? listDeploymentContainers(deploymentId) : null,
+    queryFn: async () =>
+      requireServerSuccess(
+        await (deploymentId ? listDeploymentContainers(deploymentId) : null)
+      ),
     enabled: open && deploymentId !== null,
   })
 
@@ -111,14 +121,16 @@ export function ViewLogsDialog({
     isFetching: isFetchingLogs,
   } = useQuery({
     queryKey: ['deployment-logs', deploymentId, containerId, stream],
-    queryFn: () =>
-      deploymentId && containerId
-        ? getDeploymentLogs(deploymentId, {
-            container_id: containerId,
-            stream,
-            limit: 500,
-          })
-        : null,
+    queryFn: async () =>
+      requireServerSuccess(
+        await (deploymentId && containerId
+          ? getDeploymentLogs(deploymentId, {
+              container_id: containerId,
+              stream,
+              limit: 500,
+            })
+          : null)
+      ),
     enabled: open && deploymentId !== null && Boolean(containerId),
     refetchInterval: open && autoRefresh ? 5000 : false,
   })
@@ -254,7 +266,7 @@ export function ViewLogsDialog({
         <div className='space-y-1'>
           <div className='text-muted-foreground text-xs'>{t('Container')}</div>
           <Combobox
-options={containers.flatMap((c) => {
+            options={containers.flatMap((c) => {
               const id = c?.container_id
               if (typeof id !== 'string' || !id) return []
               const status =
@@ -268,12 +280,12 @@ options={containers.flatMap((c) => {
                 },
               ]
             })}
-value={containerId}
-onValueChange={(v) => v !== null && setContainerId(v)}
-disabled={isLoadingContainers || containers.length === 0}
-className='w-full'
-placeholder={containerPlaceholder}
-/>
+            value={containerId}
+            onValueChange={(v) => v !== null && setContainerId(v)}
+            disabled={isLoadingContainers || containers.length === 0}
+            className='w-full'
+            placeholder={containerPlaceholder}
+          />
         </div>
         <div className='space-y-1'>
           <div className='text-muted-foreground text-xs'>{t('Stream')}</div>

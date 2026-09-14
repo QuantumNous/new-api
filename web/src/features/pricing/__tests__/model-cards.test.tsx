@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createJSONStorage } from 'zustand/middleware'
@@ -28,6 +35,7 @@ import {
   useSystemConfigStore,
 } from '@/stores/system-config-store'
 
+import { CachedPriceCell } from '../components/cached-price-cell'
 import { ModelCard } from '../components/model-card'
 import { ModelCardGrid } from '../components/model-card-grid'
 import type { PricingModel } from '../types'
@@ -74,11 +82,64 @@ afterEach(() => {
   useSystemConfigStore
     .getState()
     .setConfig({ currency: { ...DEFAULT_CURRENCY_CONFIG } })
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   useSystemConfigStore.persist.setOptions({ storage: originalStorage })
 })
 
 describe('model cards', () => {
+  it('shows separate generic and image cache prices including a free image cache', () => {
+    render(
+      <CachedPriceCell
+        model={pricingModel({
+          billing_mode: 'tiered_expr',
+          billing_expr:
+            'tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 0 + c * 30)',
+        })}
+        options={{ tokenUnit: 'M' }}
+      />
+    )
+    expect(screen.getByText('Cache Read').parentElement).toHaveTextContent(
+      '$1.25'
+    )
+    expect(screen.getByText('Image Cache').parentElement).toHaveTextContent(
+      '$0'
+    )
+  })
+  it('shows fixed prices per request in both token display units', () => {
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr: 'tier("request", fixed(0.01))',
+    })
+    const { rerender } = render(
+      <ModelCard model={model} onClick={vi.fn()} tokenUnit='K' />
+    )
+    expect(screen.getByText('$0.01')).toBeVisible()
+    expect(screen.getByText('/ request')).toBeVisible()
+    rerender(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
+    expect(screen.getByText('$0.01')).toBeVisible()
+    expect(screen.queryByText('/ 1M')).not.toBeInTheDocument()
+  })
+  it('updates the current time tier at a minute boundary and after returning to the page', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T08:59:59+08:00'))
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr:
+        'hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 12 ? tier("peak", p * 3 + c * 9) : tier("off_peak", p * 1.5 + c * 4.5)',
+    })
+    render(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
+    expect(screen.getByText('Current period price')).toBeVisible()
+    expect(screen.getByText('$1.5')).toBeVisible()
+    act(() => vi.advanceTimersByTime(1000))
+    expect(screen.getByText('$3')).toBeVisible()
+    act(() => {
+      vi.setSystemTime(new Date('2026-09-07T12:00:00+08:00'))
+      fireEvent(document, new Event('visibilitychange'))
+    })
+    expect(screen.getByText('$1.5')).toBeVisible()
+  })
+
   it('copies the complete long model name without opening details', async () => {
     const user = userEvent.setup()
     const onClick = vi.fn()
@@ -110,6 +171,15 @@ describe('model cards', () => {
     ).toBeVisible()
     expect(screen.getByText('No description available.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Details' })).toBeEnabled()
+  })
+
+  it('uses fixed spacing between hourly status bars', () => {
+    render(<ModelCard model={pricingModel()} onClick={vi.fn()} />)
+    const statusStrip = screen.getByRole('img', {
+      name: 'Recent success-rate samples; gray bars indicate missing data.',
+    })
+    expect(statusStrip).toHaveClass('gap-px')
+    expect(statusStrip).not.toHaveClass('justify-between')
   })
 
   it('keeps group, endpoint and tag overflow counts with their own metadata', () => {
@@ -398,5 +468,148 @@ describe('model cards', () => {
     expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Previous page' }))
     expect(screen.getByRole('heading', { name: 'model-1' })).toBeVisible()
+  })
+
+  it('switches the card grid to three columns at the xl breakpoint instead of 2xl', () => {
+    queryClient.setQueryData(['perf-metrics-summary', 24], {
+      success: true,
+      data: { models: [] },
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid models={[pricingModel()]} onModelClick={vi.fn()} />
+      </QueryClientProvider>
+    )
+    const grid = screen
+      .getByRole('heading', { name: 'example-model' })
+      .closest('.grid')
+    expect(grid).toHaveClass('xl:grid-cols-3')
+    expect(grid).not.toHaveClass('2xl:grid-cols-3')
+    expect(grid).not.toHaveClass('min-[1440px]:grid-cols-3')
+  })
+
+  it('lights slots 23 and 18 when series has the current hour and five hours earlier', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T12:00:00.000Z'))
+    const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
+
+    render(
+      <ModelCard
+        model={pricingModel()}
+        onClick={vi.fn()}
+        perf={{
+          avg_latency_ms: 1200,
+          avg_tps: 42,
+          success_rate: 100,
+          recent_success_series: [
+            { ts: currentHourStart, success_rate: 100 },
+            { ts: currentHourStart - 5 * 3600, success_rate: 80 },
+          ],
+        }}
+      />
+    )
+
+    const spans = [
+      ...screen.getByRole('img', {
+        name: 'Recent success-rate samples; gray bars indicate missing data.',
+      }).children,
+    ]
+    expect(spans).toHaveLength(24)
+    spans.forEach((slot, index) => {
+      if (index === 18 || index === 23) {
+        expect(slot.classList.contains('bg-muted-foreground/15')).toBe(false)
+        return
+      }
+      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
+    })
+    vi.useRealTimers()
+  })
+
+  it('keeps all 24 slots gray when a series point is 24 hours before the current hour', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T12:00:00.000Z'))
+    const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
+
+    render(
+      <ModelCard
+        model={pricingModel()}
+        onClick={vi.fn()}
+        perf={{
+          avg_latency_ms: 1200,
+          avg_tps: 42,
+          success_rate: 100,
+          recent_success_series: [
+            { ts: currentHourStart - 24 * 3600, success_rate: 100 },
+          ],
+        }}
+      />
+    )
+
+    const spans = [
+      ...screen.getByRole('img', {
+        name: 'Recent success-rate samples; gray bars indicate missing data.',
+      }).children,
+    ]
+    expect(spans).toHaveLength(24)
+    spans.forEach((slot) => {
+      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
+    })
+    vi.useRealTimers()
+  })
+
+  it('keeps all 24 slots gray when recent_success_series is undefined', () => {
+    render(
+      <ModelCard
+        model={pricingModel()}
+        onClick={vi.fn()}
+        perf={{ avg_latency_ms: 1200, avg_tps: 42, success_rate: 100 }}
+      />
+    )
+
+    const spans = [
+      ...screen.getByRole('img', {
+        name: 'Recent success-rate samples; gray bars indicate missing data.',
+      }).children,
+    ]
+    expect(spans).toHaveLength(24)
+    spans.forEach((slot) => {
+      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
+    })
+  })
+
+  it('places a five-hour-old point in slot 18 when now is mid-hour', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T12:37:00.000Z'))
+    const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
+
+    render(
+      <ModelCard
+        model={pricingModel()}
+        onClick={vi.fn()}
+        perf={{
+          avg_latency_ms: 1200,
+          avg_tps: 42,
+          success_rate: 80,
+          recent_success_series: [
+            { ts: currentHourStart - 5 * 3600, success_rate: 80 },
+          ],
+        }}
+      />
+    )
+
+    const spans = [
+      ...screen.getByRole('img', {
+        name: 'Recent success-rate samples; gray bars indicate missing data.',
+      }).children,
+    ]
+    expect(spans).toHaveLength(24)
+    spans.forEach((slot, index) => {
+      if (index === 18) {
+        expect(slot.classList.contains('bg-muted-foreground/15')).toBe(false)
+        return
+      }
+      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
+    })
+    vi.useRealTimers()
   })
 })

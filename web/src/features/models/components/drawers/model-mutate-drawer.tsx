@@ -16,10 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Combobox } from '@/components/ui/combobox'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AxiosError } from 'axios'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -41,6 +39,7 @@ import { LobeIconField } from '@/components/lobe-icon-field'
 import { TagInput } from '@/components/tag-input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { Combobox } from '@/components/ui/combobox'
 import {
   Form,
   FormControl,
@@ -53,7 +52,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-
 import {
   Sheet,
   SheetContent,
@@ -66,6 +64,11 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { ModelPricingPanel } from '@/features/model-pricing/model-pricing-panel'
+import {
+  requireServerSuccess,
+  createServerError,
+  getServerErrorMessage,
+} from '@/lib/server-error-message'
 
 import { createModel, updateModel, getModel, getVendors } from '../../api'
 import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
@@ -83,14 +86,27 @@ export function ModelMutateDrawer(props: {
   open: boolean
   onOpenChange: (open: boolean) => void
   currentRow?: Model | null
+  initialSection?: 'metadata' | 'pricing'
 }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const currentRow = props.currentRow
+  const [createdModel, setCreatedModel] = useState<{
+    source: Model | null | undefined
+    model: Model
+  } | null>(null)
+  const currentRow =
+    createdModel && createdModel.source === props.currentRow
+      ? createdModel.model
+      : props.currentRow
   const isEditing = Boolean(currentRow?.id)
-  const [section, setSection] = useState('metadata')
+  const hasModelName = Boolean(currentRow?.model_name)
+  const [section, setSection] = useState<string>(
+    props.initialSection ?? 'metadata'
+  )
   const [pricingName, setPricingName] = useState('')
-  const [pricingVisited, setPricingVisited] = useState(false)
+  const [pricingVisited, setPricingVisited] = useState(
+    props.initialSection === 'pricing'
+  )
   const [pricingDirty, setPricingDirty] = useState(false)
   const [pendingPricingName, setPendingPricingName] = useState<string | null>(
     null
@@ -108,7 +124,8 @@ export function ModelMutateDrawer(props: {
   })
   const vendorsQuery = useQuery({
     queryKey: vendorsQueryKeys.list(),
-    queryFn: () => getVendors({ page_size: 1000 }),
+    queryFn: async () =>
+      requireServerSuccess(await getVendors({ page_size: 1000 })),
     enabled: props.open,
   })
   const vendors = vendorsQuery.data?.data?.items ?? []
@@ -121,7 +138,7 @@ export function ModelMutateDrawer(props: {
       if (!currentRow?.id) throw new Error(t('Model ID is required'))
       const response = await getModel(currentRow.id)
       if (!response.success || !response.data) {
-        throw new Error(response.message || t('Failed to load model'))
+        throw createServerError(response, t('Failed to load model'))
       }
       return response.data
     },
@@ -130,11 +147,29 @@ export function ModelMutateDrawer(props: {
   const savedModel = modelQuery.data ?? currentRow
 
   useEffect(() => {
+    if (!props.open) return
+    setSection(props.initialSection ?? 'metadata')
+    setPricingVisited(props.initialSection === 'pricing')
+    setPricingName('')
+    setPricingDirty(false)
+    setPendingPricingName(null)
+    setCloseConfirm(false)
+  }, [
+    props.open,
+    props.initialSection,
+    props.currentRow?.id,
+    props.currentRow?.model_name,
+  ])
+
+  useEffect(() => {
     if (!props.open) {
+      setCreatedModel(null)
       loadedKey.current = ''
       return
     }
-    const key = String(currentRow?.id ?? currentRow?.model_name ?? 'new')
+    const key = currentRow?.id
+      ? `metadata:${currentRow.id}`
+      : `channel:${currentRow?.model_name ?? ''}`
     if (loadedKey.current === key || (isEditing && !modelQuery.data)) return
     form.reset(
       transformModelToFormDefaults(
@@ -149,13 +184,10 @@ export function ModelMutateDrawer(props: {
       )
     )
     loadedKey.current = key
-    setSection('metadata')
-    setPricingName('')
-    setPricingVisited(false)
-    setPricingDirty(false)
   }, [props.open, currentRow, isEditing, modelQuery.data, form])
 
   const save = useMutation({
+    meta: { errorToast: false },
     onMutate: () => form.clearErrors('root.server'),
     mutationFn: async (values: ModelFormValues) => {
       if (pricingDirty && values.model_name !== currentRow?.model_name) {
@@ -168,13 +200,16 @@ export function ModelMutateDrawer(props: {
         ? await updateModel({ ...payload, id: currentRow.id })
         : await createModel(payload)
       if (!response.success) {
-        throw new Error(response.message || t('Operation failed'))
+        throw createServerError(response, t('Operation failed'))
       }
       return response
     },
     onSuccess: async (response) => {
       form.reset(form.getValues())
       if (response.data?.id) {
+        if (!currentRow?.id) {
+          setCreatedModel({ source: props.currentRow, model: response.data })
+        }
         queryClient.setQueryData(
           modelsQueryKeys.detail(response.data.id),
           response.data
@@ -189,12 +224,8 @@ export function ModelMutateDrawer(props: {
       if (!pricingDirty) props.onOpenChange(false)
     },
     onError: (error) => {
-      const message =
-        error instanceof AxiosError
-          ? error.response?.data?.message || error.message
-          : error.message
       form.setError('root.server', {
-        message: message || t('Operation failed'),
+        message: getServerErrorMessage(error, t('Operation failed')),
       })
     },
   })
@@ -220,10 +251,12 @@ export function ModelMutateDrawer(props: {
   return (
     <>
       <Sheet open={props.open} onOpenChange={close}>
-        <SheetContent className={sideDrawerContentClassName('sm:max-w-3xl')}>
+        <SheetContent
+          className={sideDrawerContentClassName('sm:max-w-[1280px]')}
+        >
           <SheetHeader className={sideDrawerHeaderClassName()}>
             <SheetTitle className='pr-6 break-all'>
-              {isEditing ? currentRow?.model_name : t('Create Model')}
+              {hasModelName ? currentRow?.model_name : t('Create Model')}
             </SheetTitle>
             <SheetDescription>
               {t(
@@ -239,12 +272,25 @@ export function ModelMutateDrawer(props: {
             }}
             className='shrink-0 px-4'
           >
-            <TabsList className='w-full'>
-              <TabsTrigger value='metadata'>{t('Model metadata')}</TabsTrigger>
-              <TabsTrigger value='pricing' disabled={!isEditing}>
+            <TabsList className='grid w-full grid-cols-3 group-data-horizontal/tabs:h-auto'>
+              <TabsTrigger
+                value='metadata'
+                className='h-auto min-w-0 whitespace-normal'
+              >
+                {t('Model metadata')}
+              </TabsTrigger>
+              <TabsTrigger
+                value='pricing'
+                disabled={!hasModelName}
+                className='h-auto min-w-0 whitespace-normal'
+              >
                 {t('Pricing')}
               </TabsTrigger>
-              <TabsTrigger value='connections' disabled={!isEditing}>
+              <TabsTrigger
+                value='connections'
+                disabled={!hasModelName}
+                className='h-auto min-w-0 whitespace-normal'
+              >
                 {t('Channels and groups')}
               </TabsTrigger>
             </TabsList>
@@ -278,7 +324,7 @@ export function ModelMutateDrawer(props: {
                         name='model_name'
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t('Model Name *')}</FormLabel>
+                            <FormLabel required>{t('Model Name')}</FormLabel>
                             <FormControl>
                               <Input
                                 placeholder={t('gpt-4, claude-3-opus, etc.')}
@@ -347,20 +393,22 @@ export function ModelMutateDrawer(props: {
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>{t('Vendor')}</FormLabel>
-                            <FormControl><Combobox
-options={vendors.map((vendor) => ({
-                                value: String(vendor.id),
-                                label: vendor.name,
-                              }))}
-onValueChange={(value) =>
-                                field.onChange(
-                                  value ? Number.parseInt(value) : undefined
-                                )
-                              }
-value={field.value ? String(field.value) : null}
-className='w-full'
-placeholder={t('Select vendor')}
-/></FormControl>
+                            <FormControl>
+                              <Combobox
+                                options={vendors.map((vendor) => ({
+                                  value: String(vendor.id),
+                                  label: vendor.name,
+                                }))}
+                                onValueChange={(value) =>
+                                  field.onChange(
+                                    value ? Number.parseInt(value) : undefined
+                                  )
+                                }
+                                value={field.value ? String(field.value) : null}
+                                className='w-full'
+                                placeholder={t('Select vendor')}
+                              />
+                            </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -445,12 +493,16 @@ placeholder={t('Select vendor')}
                           {t('Endpoints')}
                         </h3>
                         <Combobox
- options={Object.keys(ENDPOINT_TEMPLATES).map((key) => ({ value: key, label: key }))}
- onValueChange={(value: string | null) => { if (value) handleFillEndpointTemplate(value) }}
- className='w-[200px]'
- placeholder={t('Load template...')}
- aria-label={t('Load template...')}
-/>
+                          options={Object.keys(ENDPOINT_TEMPLATES).map(
+                            (key) => ({ value: key, label: key })
+                          )}
+                          onValueChange={(value: string | null) => {
+                            if (value) handleFillEndpointTemplate(value)
+                          }}
+                          className='w-[200px]'
+                          placeholder={t('Load template...')}
+                          aria-label={t('Load template...')}
+                        />
                       </div>
 
                       <FormField
@@ -501,7 +553,7 @@ placeholder={t('Select vendor')}
                               </FormLabel>
                               <FormDescription>
                                 {t(
-                                  'Controls visibility in the model square. Channel status and existing API access are unchanged.'
+                                  'Allow listing when a channel is available and the user has group access. This does not change API access.'
                                 )}
                               </FormDescription>
                             </div>
@@ -591,8 +643,8 @@ placeholder={t('Select vendor')}
                     )}
                   </p>
                   <Combobox
-value={pricingName}
-onValueChange={(value) => {
+                    value={pricingName}
+                    onValueChange={(value) => {
                       if (pricingDirty) {
                         setPendingPricingName(value ?? '')
                         setCloseConfirm(true)
@@ -600,14 +652,14 @@ onValueChange={(value) => {
                         setPricingName(value ?? '')
                       }
                     }}
-options={(savedModel.matched_models ?? []).map((name) => ({
+                    options={(savedModel.matched_models ?? []).map((name) => ({
                       value: name,
                       label: name,
                     }))}
-aria-label={t('Select model')}
-className='w-full'
-placeholder={t('Select model')}
-/>
+                    aria-label={t('Select model')}
+                    className='w-full'
+                    placeholder={t('Select model')}
+                  />
                 </div>
               )}
               {(savedModel.name_rule === 0 || pricingName) && (

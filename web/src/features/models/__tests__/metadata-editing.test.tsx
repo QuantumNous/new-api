@@ -17,7 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, cleanup } from '@testing-library/react'
+import type { Row } from '@tanstack/react-table'
+import { render, screen, waitFor, cleanup, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError } from 'axios'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -26,8 +27,11 @@ import { pricingOptions } from '@/features/model-pricing/pricing'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 
+import { DataTableRowActions } from '../components/data-table-row-actions'
 import { ModelMutateDrawer } from '../components/drawers/model-mutate-drawer'
+import { ModelsDialogs } from '../components/models-dialogs'
 import { ModelsProvider } from '../components/models-provider'
+import type { Model } from '../types'
 
 const model = {
   id: 7,
@@ -46,6 +50,239 @@ const model = {
 afterEach(() => {
   cleanup()
   useAuthStore.getState().auth.reset()
+})
+
+function renderModelActions(currentModel: Model = model, role = 100) {
+  useAuthStore.getState().auth.setUser({ id: 1, username: 'admin', role })
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  render(
+    <QueryClientProvider client={client}>
+      <ModelsProvider>
+        <DataTableRowActions row={{ original: currentModel } as Row<Model>} />
+        <ModelsDialogs />
+      </ModelsProvider>
+    </QueryClientProvider>
+  )
+  return client
+}
+
+describe('model pricing entry', () => {
+  it('saves pricing and opens connections for a channel model without creating metadata', async () => {
+    const channelModel = { ...model, id: 0, model_name: 'channel-only' }
+    let storedPrice = 1.5
+    const get = vi.spyOn(api, 'get').mockImplementation(async (url) => {
+      if (url === '/api/option/model_pricing') {
+        return {
+          data: {
+            success: true,
+            data: {
+              entries: [
+                {
+                  model_name: 'channel-only',
+                  version: 'v1',
+                  configured: { ModelPrice: storedPrice },
+                  effective: { ModelPrice: storedPrice },
+                },
+              ],
+              options: pricingOptions({}),
+              empty_version: 'empty',
+            },
+          },
+        }
+      }
+      return { data: { success: true, data: { items: [] } } }
+    })
+    const post = vi.spyOn(api, 'post')
+    const put = vi.spyOn(api, 'put')
+    const patch = vi.spyOn(api, 'patch').mockImplementation(async () => {
+      storedPrice = 0
+      return { data: { success: true } }
+    })
+    const client = renderModelActions(channelModel)
+    const user = userEvent.setup()
+    expect(screen.getByRole('button', { name: 'Add metadata' })).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Open menu' })
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Pricing' }))
+    expect(screen.getByRole('tab', { name: 'Pricing' })).not.toHaveAttribute(
+      'aria-disabled',
+      'true'
+    )
+    expect(
+      await screen.findByRole('button', { name: 'Save model prices' })
+    ).toBeVisible()
+    const price = await screen.findByPlaceholderText('0.01')
+    await user.clear(price)
+    await user.type(price, '0')
+    await user.click(screen.getByRole('button', { name: 'Save model prices' }))
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith('/api/option/model_pricing', {
+        changes: [
+          {
+            model_name: 'channel-only',
+            expected_version: 'v1',
+            pricing: { ModelPrice: 0, 'billing_setting.billing_mode': 'ratio' },
+            reset: false,
+          },
+        ],
+      })
+    )
+    expect(put).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('tab', { name: 'Channels and groups' }))
+    expect(
+      screen.getByText(
+        'Channel availability and group access are derived from enabled channels. Importing metadata does not create a callable channel.'
+      )
+    ).toBeVisible()
+    expect(get).not.toHaveBeenCalledWith('/api/models/0')
+    expect(post).not.toHaveBeenCalled()
+    client.clear()
+  })
+
+  it('opens pricing directly, keeps it selected after metadata loads, and reopens Edit on metadata', async () => {
+    let resolveDetail!: (value: Awaited<ReturnType<typeof api.get>>) => void
+    const detail = new Promise<Awaited<ReturnType<typeof api.get>>>(
+      (resolve) => {
+        resolveDetail = resolve
+      }
+    )
+    vi.spyOn(api, 'get').mockImplementation(async (url) => {
+      if (url === '/api/models/7') return detail
+      if (url === '/api/option/model_pricing') {
+        return {
+          data: {
+            success: true,
+            data: {
+              entries: [
+                {
+                  model_name: model.model_name,
+                  version: 'v1',
+                  configured: { ModelRatio: 3.25, CompletionRatio: 27 / 6.5 },
+                  effective: { ModelRatio: 3.25, CompletionRatio: 27 / 6.5 },
+                },
+              ],
+              options: pricingOptions({}),
+              empty_version: 'empty',
+            },
+          },
+        }
+      }
+      return { data: { success: true, data: { items: [] } } }
+    })
+    const client = renderModelActions()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Pricing' }))
+    expect(screen.getByRole('tab', { name: 'Pricing' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    await act(async () =>
+      resolveDetail({ data: { success: true, data: model } })
+    )
+    expect(screen.getByRole('tab', { name: 'Pricing' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    expect(
+      await screen.findByRole('textbox', { name: 'Input price' })
+    ).toHaveValue('6.5')
+    expect(
+      screen.queryByRole('heading', { name: 'Edit model pricing' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('textbox', { name: 'Model name' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'Preview' })).toBeVisible()
+    for (const tab of ['Model metadata', 'Channels and groups', 'Pricing']) {
+      expect(screen.getByRole('tab', { name: tab })).toHaveClass(
+        'min-w-0',
+        'whitespace-normal'
+      )
+      await user.click(screen.getByRole('tab', { name: tab }))
+      expect(
+        screen.getByRole('dialog', { name: model.model_name })
+      ).toHaveClass('sm:max-w-[1280px]')
+    }
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(await screen.findByLabelText('Description')).toHaveValue('Original')
+    expect(screen.getByRole('tab', { name: 'Model metadata' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    client.clear()
+  })
+
+  it('does not expose a pricing shortcut to an ordinary administrator', () => {
+    vi.spyOn(api, 'get').mockResolvedValue({
+      data: { success: true, data: { items: [] } },
+    })
+    const client = renderModelActions(model, 10)
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Pricing' })
+    ).not.toBeInTheDocument()
+    client.clear()
+  })
+
+  it('requires a concrete model for matching rules and protects an unsaved price on close', async () => {
+    const matchedModel = {
+      ...model,
+      name_rule: 1,
+      matched_models: ['example-concrete'],
+    }
+    const get = vi.spyOn(api, 'get').mockImplementation(async (url) => {
+      if (url === '/api/models/7') {
+        return { data: { success: true, data: matchedModel } }
+      }
+      if (url === '/api/option/model_pricing') {
+        return {
+          data: {
+            success: true,
+            data: {
+              entries: [
+                {
+                  model_name: 'example-concrete',
+                  version: 'v1',
+                  configured: { ModelPrice: 1.5 },
+                  effective: { ModelPrice: 1.5 },
+                },
+              ],
+              options: pricingOptions({}),
+              empty_version: 'empty',
+            },
+          },
+        }
+      }
+      return { data: { success: true, data: { items: [] } } }
+    })
+    const client = renderModelActions(matchedModel)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Pricing' }))
+    await user.click(
+      await screen.findByRole('combobox', { name: 'Select model' })
+    )
+    expect(
+      get.mock.calls.some(([url]) => url === '/api/option/model_pricing')
+    ).toBe(false)
+    await user.click(
+      await screen.findByRole('option', { name: 'example-concrete' })
+    )
+    const price = await screen.findByPlaceholderText('0.01')
+    await waitFor(() => expect(price).toHaveValue('1.5'))
+    await user.clear(price)
+    await user.type(price, '2')
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(await screen.findByRole('alertdialog')).toHaveTextContent(
+      'Discard unsaved changes?'
+    )
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(price).toHaveValue('2')
+    client.clear()
+  })
 })
 
 describe('metadata editing', () => {

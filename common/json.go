@@ -5,19 +5,48 @@ import (
 	"encoding/json"
 	"io"
 
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/gin-gonic/gin/binding"
 )
 
-func Unmarshal(data []byte, v any) error {
+// hostJSONCodec is the single place where the host chooses its JSON engine.
+// Swap the implementation here (for example to sonic.ConfigStd) and every
+// common.* and kitutil.* JSON helper, including relaykit DTO (un)marshalling,
+// follows. Injected from init() rather than main() so tests run on the same
+// engine as production: common is imported by virtually every root package
+// and test binary, while main() never executes under `go test`.
+type hostJSONCodec struct{}
+
+func (hostJSONCodec) Marshal(v any) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+func (hostJSONCodec) Unmarshal(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
 
+func (hostJSONCodec) Decode(r io.Reader, v any) error {
+	return json.NewDecoder(r).Decode(v)
+}
+
+func (hostJSONCodec) Valid(data []byte) bool {
+	return json.Valid(data)
+}
+
+func init() {
+	kitutil.SetCodec(hostJSONCodec{})
+}
+
+func Unmarshal(data []byte, v any) error {
+	return kitutil.Unmarshal(data, v)
+}
+
 func UnmarshalJsonStr(data string, v any) error {
-	return json.Unmarshal(StringToByteSlice(data), v)
+	return kitutil.UnmarshalJsonStr(data, v)
 }
 
 func DecodeJson(reader io.Reader, v any) error {
-	return json.NewDecoder(reader).Decode(v)
+	return kitutil.DecodeJson(reader, v)
 }
 
 // DecodeJsonWithValidation decodes JSON and applies Gin's configured binding-tag
@@ -33,7 +62,7 @@ func DecodeJsonWithValidation(reader io.Reader, v any) error {
 }
 
 func Marshal(v any) ([]byte, error) {
-	return json.Marshal(v)
+	return kitutil.Marshal(v)
 }
 
 func IndentJson(data []byte) ([]byte, error) {
@@ -45,39 +74,10 @@ func IndentJson(data []byte) ([]byte, error) {
 }
 
 func GetJsonType(data json.RawMessage) string {
-	trimmed := bytes.TrimSpace(data)
-	if len(trimmed) == 0 {
-		return "unknown"
-	}
-	firstChar := trimmed[0]
-	switch firstChar {
-	case '{':
-		return "object"
-	case '[':
-		return "array"
-	case '"':
-		return "string"
-	case 't', 'f':
-		return "boolean"
-	case 'n':
-		return "null"
-	default:
-		return "number"
-	}
+	return kitutil.GetJsonType(data)
 }
 
 // JsonRawMessageToString returns JSON strings as their decoded value and other JSON values as raw text.
 func JsonRawMessageToString(data json.RawMessage) string {
-	trimmed := bytes.TrimSpace(data)
-	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
-		return ""
-	}
-	if trimmed[0] != '"' {
-		return string(trimmed)
-	}
-	var value string
-	if err := Unmarshal(trimmed, &value); err != nil {
-		return string(trimmed)
-	}
-	return value
+	return kitutil.JsonRawMessageToString(data)
 }

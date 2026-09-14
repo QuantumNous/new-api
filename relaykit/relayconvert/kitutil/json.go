@@ -11,20 +11,69 @@ import (
 	"unsafe"
 )
 
-func Unmarshal(data []byte, v any) error {
+// Codec is the JSON engine used by every kitutil JSON helper. The host may
+// replace it once at startup via SetCodec; relaykit itself never depends on a
+// third-party JSON library.
+type Codec interface {
+	Marshal(v any) ([]byte, error)
+	Unmarshal(data []byte, v any) error
+	Decode(r io.Reader, v any) error
+	Valid(data []byte) bool
+}
+
+// stdCodec is the default Codec, backed by encoding/json. It is the only place
+// in relaykit that calls the standard library's JSON functions directly.
+type stdCodec struct{}
+
+func (stdCodec) Marshal(v any) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+func (stdCodec) Unmarshal(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
 
+func (stdCodec) Decode(r io.Reader, v any) error {
+	return json.NewDecoder(r).Decode(v)
+}
+
+func (stdCodec) Valid(data []byte) bool {
+	return json.Valid(data)
+}
+
+var codec Codec = stdCodec{}
+
+// SetCodec installs the JSON engine behind every kitutil JSON helper, which
+// also covers the custom (Un)MarshalJSON methods on relaykit DTOs. Like
+// SetLogging it is meant to be called once during host startup before any
+// request is served; it is not synchronized against concurrent helper calls.
+// A nil codec is ignored so the standard-library default stays in place.
+func SetCodec(c Codec) {
+	if c == nil {
+		return
+	}
+	codec = c
+}
+
+func Unmarshal(data []byte, v any) error {
+	return codec.Unmarshal(data, v)
+}
+
 func UnmarshalJsonStr(data string, v any) error {
-	return json.Unmarshal(StringToByteSlice(data), v)
+	return codec.Unmarshal(StringToByteSlice(data), v)
 }
 
 func DecodeJson(reader io.Reader, v any) error {
-	return json.NewDecoder(reader).Decode(v)
+	return codec.Decode(reader, v)
 }
 
 func Marshal(v any) ([]byte, error) {
-	return json.Marshal(v)
+	return codec.Marshal(v)
+}
+
+// Valid reports whether data is a syntactically valid JSON document.
+func Valid(data []byte) bool {
+	return codec.Valid(data)
 }
 
 func GetJsonType(data json.RawMessage) string {
@@ -73,12 +122,12 @@ func StringToByteSlice(s string) []byte {
 
 func Any2Type[T any](data any) (T, error) {
 	var zero T
-	bytes, err := json.Marshal(data)
+	encoded, err := Marshal(data)
 	if err != nil {
 		return zero, err
 	}
 	var res T
-	err = json.Unmarshal(bytes, &res)
+	err = Unmarshal(encoded, &res)
 	if err != nil {
 		return zero, err
 	}

@@ -68,7 +68,7 @@ func normalizeHeaderListValues(values []string) []string {
 	normalizedValues := make([]string, 0, len(values))
 	seenValues := make(map[string]struct{}, len(values))
 	for _, value := range values {
-		for _, item := range strings.Split(value, ",") {
+		for item := range strings.SplitSeq(value, ",") {
 			normalizedItem := strings.TrimSpace(item)
 			if normalizedItem == "" {
 				continue

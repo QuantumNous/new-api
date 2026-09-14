@@ -195,9 +195,9 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 	// batch endpoint upstream to avoid payload/endpoint mismatches.
 	info.IsGeminiBatchEmbedding = true
 	// process all inputs
-	geminiRequests := make([]map[string]interface{}, 0, len(inputs))
+	geminiRequests := make([]map[string]any, 0, len(inputs))
 	for _, input := range inputs {
-		geminiRequest := map[string]interface{}{
+		geminiRequest := map[string]any{
 			"model": fmt.Sprintf("models/%s", info.UpstreamModelName),
 			"content": dto.GeminiChatContent{
 				Parts: []dto.GeminiPart{
@@ -221,7 +221,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 		geminiRequests = append(geminiRequests, geminiRequest)
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"requests": geminiRequests,
 	}, nil
 }

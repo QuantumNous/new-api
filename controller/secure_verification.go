@@ -3,12 +3,18 @@ package controller
 import (
 	"errors"
 	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/service"
+	passkeysvc "github.com/QuantumNous/new-api/service/passkey"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/go-webauthn/webauthn/protocol"
 )
@@ -34,6 +40,10 @@ func writeSecurityOperationError(c *gin.Context, err error) {
 	var code, message string
 	var protocolError *protocol.Error
 	switch {
+	case errors.Is(err, passkeysvc.ErrRPIDUnavailable):
+		code, message = "PASSKEY_RP_ID_UNAVAILABLE", i18n.T(c, i18n.MsgPasskeyRPIDUnavailable)
+	case errors.Is(err, system_setting.ErrPasskeyRPIDInvalid):
+		code, message = "PASSKEY_RP_ID_INVALID", i18n.T(c, i18n.MsgPasskeyRPIDInvalid)
 	case errors.Is(err, service.ErrAccountEmailInvalid), errors.Is(err, service.ErrAccountEmailRestricted):
 		code, message = "EMAIL_ADDRESS_REJECTED", err.Error()
 	case errors.Is(err, model.ErrEmailAlreadyTaken):
@@ -112,6 +122,15 @@ func writeSecurityOperationError(c *gin.Context, err error) {
 		return
 	}
 	c.Set("security_error_code", code)
+	if strings.Contains(c.Request.URL.Path, "/passkey/") {
+		reason := "verification_failed"
+		if errors.As(err, &protocolError) && slices.Contains([]string{"invalid_request", "challenge_mismatch", "parse_error", "auth_data", "verification_error", "invalid_signature", "invalid_key_type", "unsupported_key_algorithm"}, protocolError.Type) {
+			reason = protocolError.Type
+		}
+		// Protocol details can contain challenges and client-controlled data.
+		// Only fixed categories and the server-selected public RP ID are logged.
+		logger.LogWarn(c.Request.Context(), "passkey verification rejected: code=%s reason=%s rp_id=%q", code, reason, c.GetString("passkey_rp_id"))
+	}
 	c.JSON(status, gin.H{"success": false, "code": code, "message": message})
 }
 
@@ -131,6 +150,6 @@ func UniversalVerify(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	recordUserSecurityAudit(c, identity.UserID, "user.security_verify", map[string]interface{}{"method": proof.Method, "scope": proof.Scope})
+	recordUserSecurityAudit(c, identity.UserID, "user.security_verify", map[string]any{"method": proof.Method, "scope": proof.Scope})
 	common.ApiSuccess(c, proof)
 }

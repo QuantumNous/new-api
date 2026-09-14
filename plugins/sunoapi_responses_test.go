@@ -74,6 +74,30 @@ func TestSunoResponsesProtocol(t *testing.T) {
 		require.ErrorContains(t, callErr, "input must be a string or array")
 	})
 
+	t.Run("echoes a channel-mapped alias", func(t *testing.T) {
+		music := decodeMap(t, callProtocol(t, "decodeRequest", map[string]any{
+			"model": "my-suno", "upstreamModel": "suno_music", "stream": false,
+			"body": map[string]any{"kind": "json", "value": map[string]any{"model": "my-suno", "input": "summer pop"}},
+		}))
+		assert.Equal(t, "my-suno", music["model"])
+		assert.Equal(t, "MUSIC", music["action"])
+
+		lyrics := decodeMap(t, callProtocol(t, "decodeRequest", map[string]any{
+			"model": "my-suno", "upstreamModel": "suno_lyrics", "stream": false,
+			"body": map[string]any{"kind": "json", "value": map[string]any{"model": "my-suno", "input": "write about the sea"}},
+		}))
+		assert.Equal(t, "my-suno", lyrics["model"])
+		assert.Equal(t, "LYRICS", lyrics["action"])
+		assert.Equal(t, map[string]any{"prompt": "write about the sea"}, lyrics["requestBody"])
+	})
+
+	t.Run("rejects a model this plugin does not serve", func(t *testing.T) {
+		_, callErr := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_responses", "decodeRequest"}, map[string]any{
+			"model": "gpt-4o", "body": map[string]any{"kind": "json", "value": map[string]any{"model": "gpt-4o", "input": "hello"}},
+		})
+		require.ErrorContains(t, callErr, "suno_music or suno_lyrics")
+	})
+
 	t.Run("extracts schema-declared usage", func(t *testing.T) {
 		value, callErr := plugin.Engine.Call(t.Context(), "extractUsage", map[string]any{
 			"model": "suno_music", "action": "MUSIC", "usagePurpose": "facts", "requestBody": map[string]any{},
@@ -92,8 +116,8 @@ func TestSunoResponsesProtocol(t *testing.T) {
 	const firstAudioKey = "audio-5fc0a0cd3367274b4b6de056fc754263f8726a704bb4814ffeb88495f22dad35"
 	const secondAudioKey = "audio-a9c04b840373f4ef4e8d80140b745c6f647819fa375bc34368cdccced7e2b455"
 	protocolContext := map[string]any{
-		"requestBody": map[string]any{"model": "suno_music"},
-		"stream":      true,
+		"model":  "suno_music",
+		"stream": true,
 		"artifacts": map[string]any{
 			firstAudioKey:  map[string]any{"key": firstAudioKey, "type": "audio", "url": "https://gateway.example/artifacts/song-1"},
 			secondAudioKey: map[string]any{"key": secondAudioKey, "type": "audio", "url": "https://gateway.example/artifacts/song-2"},
@@ -167,7 +191,7 @@ func TestSunoResponsesProtocol(t *testing.T) {
 	})
 
 	t.Run("renders lyrics without audio artifacts", func(t *testing.T) {
-		value := callProtocol(t, "renderFinal", map[string]any{"requestBody": map[string]any{"model": "suno_lyrics"}}, map[string]any{
+		value := callProtocol(t, "renderFinal", map[string]any{"model": "suno_lyrics"}, map[string]any{
 			"task_id": "lyrics-public", "status": "SUCCESS", "data": map[string]any{"id": "lyrics-1", "title": "Tide", "text": "Sea lyrics"},
 		})
 		machine := relay.NewPluginResponsesMachine("lyrics-public", "suno_lyrics", 10, relay.DefaultPluginProtocolLimits())
@@ -187,9 +211,37 @@ func TestSunoResponsesProtocol(t *testing.T) {
 
 	t.Run("requires host audio artifacts", func(t *testing.T) {
 		_, callErr := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_responses", "renderFinal"}, map[string]any{
-			"requestBody": map[string]any{"model": "suno_music"},
+			"model": "suno_music",
 		}, successTask)
 		require.ErrorContains(t, callErr, "audio artifact is unavailable")
 		assert.NotContains(t, callErr.Error(), "upstream.example")
+	})
+
+	t.Run("renders lyrics for an alias on retrieval without upstreamModel", func(t *testing.T) {
+		lyricsTask := map[string]any{
+			"task_id": "lyrics-alias", "status": "SUCCESS", "data": map[string]any{"id": "lyrics-1", "title": "Tide", "text": "Sea lyrics"},
+		}
+		finalValue := callProtocol(t, "renderFinal", map[string]any{"model": "my-lyrics"}, lyricsTask)
+		machine := relay.NewPluginResponsesMachine("lyrics-alias", "my-lyrics", 10, relay.DefaultPluginProtocolLimits())
+		response, finalErr := machine.FinalResponse(finalValue, "SUCCESS")
+		require.NoError(t, finalErr)
+		output, ok := response["output"].([]any)
+		require.True(t, ok)
+		message, ok := output[0].(map[string]any)
+		require.True(t, ok)
+		content, ok := message["content"].([]any)
+		require.True(t, ok)
+		require.Len(t, content, 1)
+		part, ok := content[0].(map[string]any)
+		require.True(t, ok)
+		assert.Contains(t, part["text"], "Sea lyrics")
+
+		eventsValue := callProtocol(t, "renderEvents", map[string]any{"model": "my-lyrics"}, lyricsTask)
+		events, decodeErr := relay.DecodePluginProtocolEventResult(eventsValue, relay.DefaultPluginProtocolLimits())
+		require.NoError(t, decodeErr)
+		require.Len(t, events.Events, 1)
+		var text string
+		require.NoError(t, common.Unmarshal(events.Events[0].Data, &text))
+		assert.Contains(t, text, "Sea lyrics")
 	})
 }

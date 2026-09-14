@@ -240,10 +240,7 @@ func RenderClaude(model string, intent Intent, maxTokens *uint, adapterBudgetPer
 	budget := 0
 	if intent.BudgetTokens != nil && *intent.BudgetTokens >= 0 {
 		requestedBudget := *intent.BudgetTokens
-		budget = requestedBudget
-		if budget < 1024 {
-			budget = 1024
-		}
+		budget = max(requestedBudget, 1024)
 		if uint(budget) >= *maxTokens {
 			budget = int(*maxTokens) - 1
 		}
@@ -261,10 +258,7 @@ func RenderClaude(model string, intent Intent, maxTokens *uint, adapterBudgetPer
 			))
 		}
 		percentage := effortPercentage(intent.Effort, adapterBudgetPercentage)
-		budget = int(*maxTokens) * percentage / 100
-		if budget < 1024 {
-			budget = 1024
-		}
+		budget = max(int(*maxTokens)*percentage/100, 1024)
 		if uint(budget) >= *maxTokens {
 			budget = int(*maxTokens) - 1
 		}

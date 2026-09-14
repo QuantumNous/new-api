@@ -617,3 +617,85 @@ it('distinguishes unchanged zero quota from missing or legacy balance metadata',
     'legacy before → legacy after'
   )
 })
+
+it.each([
+  [
+    'redemption.delete_batch',
+    '/api/redemption/batch',
+    { count: 15 },
+    true,
+    '批量删除了 15 个兑换码',
+  ],
+  [
+    'redemption.delete_batch',
+    '/api/redemption/batch',
+    { count: 0 },
+    true,
+    '批量删除了 0 个兑换码',
+  ],
+  [
+    'redemption.delete',
+    '/api/redemption/batch',
+    {},
+    true,
+    '批量删除兑换码（数量未记录）',
+  ],
+  [
+    'redemption.delete_batch',
+    '/api/redemption/batch',
+    {},
+    false,
+    '批量删除兑换码失败',
+  ],
+  ['redemption.delete', '/api/redemption/:id', {}, true, '删除了一个兑换码'],
+])(
+  'renders redemption audit %s at %s with recorded result %j',
+  async (action, route, params, success, summary) => {
+    const i18n = createInstance()
+    await i18n.init({ lng: 'zh', resources: { zh } })
+    const detail = buildAuditDetails(
+      {
+        ...entry,
+        action,
+        route,
+        method: route.endsWith('/batch') ? 'POST' : 'DELETE',
+        success,
+        other: { op: { action, params } },
+      },
+      i18n.t
+    )
+    expect(detail.summary).toBe(summary)
+  }
+)
+
+it('shows the affected count separately from requested redemption IDs', async () => {
+  const i18n = createInstance()
+  await i18n.init({ lng: 'en', resources: {} })
+  const detail = buildAuditDetails(
+    {
+      ...entry,
+      action: 'redemption.delete_batch',
+      route: '/api/redemption/batch',
+      method: 'POST',
+      other: {
+        op: {
+          action: 'redemption.delete_batch',
+          params: {
+            count: 2,
+            total: 4,
+            requested_redemption_ids: [11, 12, 11, 999],
+          },
+        },
+      },
+    },
+    i18n.t
+  )
+  expect(detail.summary).toBe('Batch deleted 2 redemption codes')
+  expect(detail.fields).toEqual(
+    expect.arrayContaining([
+      { label: 'Count', value: 2 },
+      { label: 'Total', value: 4 },
+      { label: 'Requested redemption code IDs', value: [11, 12, 11, 999] },
+    ])
+  )
+})

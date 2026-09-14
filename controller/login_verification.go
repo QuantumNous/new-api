@@ -41,6 +41,7 @@ func VerifyLogin(c *gin.Context) {
 func LoginPasskeyBegin(c *gin.Context) {
 	var request struct {
 		FlowToken string `json:"flow_token"`
+		RPID      string `json:"rp_id"`
 	}
 	if common.DecodeJson(c.Request.Body, &request) != nil || request.FlowToken == "" {
 		common.ApiErrorMsg(c, "参数错误")
@@ -56,7 +57,11 @@ func LoginPasskeyBegin(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	wa, err := passkeysvc.BuildWebAuthn(c.Request)
+	credentialRPID := ""
+	if credential.RPID != nil {
+		credentialRPID = *credential.RPID
+	}
+	wa, rpIDs, err := passkeysvc.BuildLoginWebAuthn(c.Request, request.RPID, credentialRPID)
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
@@ -75,7 +80,7 @@ func LoginPasskeyBegin(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	common.ApiSuccess(c, gin.H{"flow_token": token, "expires_at": expiresAt, "options": options})
+	common.ApiSuccess(c, gin.H{"flow_token": token, "expires_at": expiresAt, "options": options, "rp_ids": rpIDs})
 }
 
 func LoginPasskeyFinish(c *gin.Context) {
@@ -104,6 +109,7 @@ func LoginPasskeyFinish(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
+	c.Set("passkey_rp_id", sessionData.RelyingPartyID)
 	if security.LoginFlowID != verification.Flow.Id || sessionData.UserVerification != protocol.VerificationRequired {
 		writeSecurityOperationError(c, model.ErrAuthFlowInvalid)
 		return
@@ -113,9 +119,13 @@ func LoginPasskeyFinish(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	wa, err := passkeysvc.BuildWebAuthn(c.Request)
+	wa, err := passkeysvc.BuildWebAuthnForRPID(c.Request, sessionData.RelyingPartyID)
 	if err != nil {
 		writeSecurityOperationError(c, err)
+		return
+	}
+	if credential.RPID != nil && *credential.RPID != "" && *credential.RPID != sessionData.RelyingPartyID {
+		writeSecurityOperationError(c, service.ErrVerificationFailed)
 		return
 	}
 	validated, err := wa.ValidateLogin(passkeysvc.NewWebAuthnUser(&model.User{Id: identity.UserID}, credential), *sessionData, parsed)
@@ -123,7 +133,7 @@ func LoginPasskeyFinish(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	if err := model.UpdatePasskeyAssertionState(identity.UserID, validated, time.Now()); err != nil {
+	if err := model.UpdatePasskeyAssertionState(identity.UserID, validated, time.Now(), sessionData.RelyingPartyID); err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}

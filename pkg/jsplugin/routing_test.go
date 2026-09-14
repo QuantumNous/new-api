@@ -155,32 +155,33 @@ func TestPreflightRoutingConflict(t *testing.T) {
 		routingProtocolExport("openai_responses"))
 	protocolRegistry := NewRegistry()
 	require.NoError(t, protocolRegistry.ReplaceOverrides([]*LoadedPlugin{left}))
-	protocolErr := PreflightRoutingConflict(protocolRegistry.Generation(), right)
-	require.Error(t, protocolErr)
-	assert.Contains(t, protocolErr.Error(), "preflight-left")
-	assert.Contains(t, protocolErr.Error(), `model "shared-model" conflicts`)
+	require.NoError(t, PreflightRoutingConflict(protocolRegistry.Generation(), right))
 }
 
-func TestPerProtocolModelsStillConflictOnOverlap(t *testing.T) {
-	registry := NewRegistry()
-	first := mustCompileRoutingPlugin(t, "overlap-first", 0, `["shared-model"]`,
-		`protocols: [{name: "openai_responses", models: ["shared-model"], supports: ["stream", "sync", "background"]}],`,
-		routingProtocolExport("openai_responses"))
-	second := mustCompileRoutingPlugin(t, "overlap-second", 0, `["shared-model"]`,
-		`protocols: [{name: "openai_responses", models: ["shared-model"], supports: ["stream", "sync", "background"]}],`,
-		routingProtocolExport("openai_responses"))
-
-	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{first, second}))
-	routingErrors := registry.RoutingErrors()
-	require.Len(t, routingErrors, 1, "one of two overlapping claims must be rejected from the generation")
-	for _, message := range routingErrors {
-		assert.Contains(t, message, "conflicts")
+func TestPerProtocolModelsAcceptSharedPluginClaims(t *testing.T) {
+	for _, channelType := range []int{0, 24} {
+		t.Run(fmt.Sprintf("first_channel_type_%d", channelType), func(t *testing.T) {
+			registry := NewRegistry()
+			first := mustCompileRoutingPlugin(t, "overlap-first", channelType, `["shared-model"]`,
+				`protocols: [{name: "openai_responses", models: ["shared-model"], supports: ["stream", "sync", "background"]}],`, routingProtocolExport("openai_responses"))
+			second := mustCompileRoutingPlugin(t, "overlap-second", 0, `["shared-model"]`,
+				`protocols: [{name: "openai_responses", models: ["shared-model"], supports: ["stream", "sync", "background"]}],`, routingProtocolExport("openai_responses"))
+			require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{second, first}))
+			assert.Empty(t, registry.RoutingErrors())
+			generation := registry.Generation()
+			candidates := generation.LookupEndpointCandidates("POST", "/v1/responses", "shared-model")
+			require.Len(t, candidates, 2)
+			assert.Same(t, first, candidates[0].Plugin)
+			assert.Same(t, second, candidates[1].Plugin)
+			assert.Equal(t, []*LoadedPlugin{first, second}, generation.PluginsByModel("shared-model"))
+			metadata, ok := generation.GetByModel("shared-model")
+			require.True(t, ok)
+			assert.Same(t, first, metadata)
+			copy := generation.PluginsByModel("shared-model")
+			copy[0] = nil
+			assert.Same(t, first, generation.PluginsByModel("shared-model")[0])
+		})
 	}
-	binding, ok := registry.Generation().LookupEndpoint("POST", "/v1/responses", "shared-model")
-	require.True(t, ok)
-	candidates := registry.Generation().LookupEndpointCandidates("POST", "/v1/responses", "shared-model")
-	assert.Len(t, candidates, 1)
-	assert.NotNil(t, binding.Plugin)
 }
 
 func TestProtocolClaimDecodeAndValidation(t *testing.T) {
@@ -388,9 +389,6 @@ func TestRegistryNoOpMutationsKeepCurrentGeneration(t *testing.T) {
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{plugin}))
 	assert.Same(t, current, registry.Generation())
 
-	registry.SetOverrideEnabled(true)
-	assert.Same(t, current, registry.Generation())
-
 	require.NoError(t, registry.Unregister("missing"))
 	assert.Same(t, current, registry.Generation())
 }
@@ -499,16 +497,6 @@ func TestRegistryExcludesConflictingPluginWithoutBlockingGeneration(t *testing.T
 				`routes: [{method: "GET", path: "/vendor/jobs/:id", type: "query", render: "status", taskIdParam: "id"}],`,
 				`export const native = {status: function(ctx, task) { return task; }};`),
 			expectedError: "route GET /vendor/jobs/:id conflicts",
-		},
-		{
-			name: "endpoint model ownership",
-			first: mustCompileRoutingPlugin(t, "endpoint-alpha", 0, `["shared-model"]`,
-				`protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
-				routingProtocolExport("openai_responses")),
-			second: mustCompileRoutingPlugin(t, "endpoint-beta", 0, `["shared-model"]`,
-				`protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
-				routingProtocolExport("openai_responses")),
-			expectedError: `model "shared-model" conflicts`,
 		},
 	}
 
@@ -684,23 +672,6 @@ func TestRejectedNewOverrideRetainsFactoryIncumbent(t *testing.T) {
 	assert.Same(t, conflictingOverride, registry.OverridePlugins()["factory-fallback"])
 	assert.NotContains(t, registry.ActiveOverridePlugins(), "factory-fallback")
 	assert.Contains(t, registry.RoutingErrors()["factory-fallback"], "channelType 122 conflicts")
-}
-
-func TestDisablingOverridesPublishesFactoryInsteadOfRetainingOverride(t *testing.T) {
-	registry := NewRegistry()
-	factorySource := routingTestPluginSource("switchable", 93, `["factory"]`, "", "")
-	factory, err := registry.RegisterFactory(factorySource, Options{})
-	require.NoError(t, err)
-	override := mustCompileRoutingPlugin(t, "switchable", 94, `["override"]`, "", "")
-	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{override}))
-
-	registry.SetOverrideEnabled(false)
-
-	active, ok := registry.Get("switchable")
-	require.True(t, ok)
-	assert.Same(t, factory, active)
-	assert.Same(t, override, registry.OverridePlugins()["switchable"])
-	assert.Empty(t, registry.ActiveOverridePlugins())
 }
 
 func TestGenericChannelTypesDoNotCreateLegacyIdentityConflicts(t *testing.T) {

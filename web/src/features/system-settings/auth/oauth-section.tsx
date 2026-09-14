@@ -39,6 +39,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
@@ -330,9 +331,8 @@ export function OAuthSection(props: OAuthSectionProps) {
 
         toast.success(t('OIDC configuration fetched successfully'))
       } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error(err)
-        toast.error(
+        handleServerError(
+          err,
           t(
             'Failed to fetch OIDC configuration. Please check the URL and network status'
           )

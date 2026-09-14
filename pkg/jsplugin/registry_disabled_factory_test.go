@@ -55,10 +55,6 @@ func TestRegistrySetDisabledFactoryKeysHidesFactoryPlugin(t *testing.T) {
 	assert.Equal(t, "factory-off", snapshot.Factory[0].Key)
 	assert.Equal(t, []string{"factory-off"}, snapshot.DisabledFactory)
 
-	registry.SetOverrideEnabled(false)
-	_, ok = registry.Get("factory-off")
-	assert.False(t, ok)
-
 	registry.SetDisabledFactoryKeys(nil)
 	plugin, ok := registry.Get("factory-off")
 	require.True(t, ok)

@@ -25,6 +25,7 @@ import {
   type RequestVerificationOptions,
 } from '@/features/auth/secure-verification'
 import type { AccountSecurityResult } from '@/features/profile/types'
+import { handleServerError } from '@/lib/handle-server-error'
 import { AuthOperationError } from '@/lib/secure-verification'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -77,7 +78,7 @@ export function useAccountSecurity() {
           const failure = AuthOperationError.from(error)
           if (failure.code !== 'AUTH_CANCELLED') {
             setError(failure)
-            toast.error(t(failure.message))
+            handleServerError(failure)
           }
         }
         return undefined

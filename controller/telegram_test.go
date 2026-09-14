@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -67,9 +68,7 @@ func setupTelegramOAuthTest(t *testing.T) *telegramOAuthFixture {
 	common.OptionMapRWMutex.Lock()
 	previousOptions := common.OptionMap
 	common.OptionMap = make(map[string]string)
-	for key, value := range previousOptions {
-		common.OptionMap[key] = value
-	}
+	maps.Copy(common.OptionMap, previousOptions)
 	common.OptionMapRWMutex.Unlock()
 	common.TelegramOAuthEnabled = true
 	*system_setting.GetTelegramSettings() = system_setting.TelegramSettings{ClientID: "12345", ClientSecret: "telegram-client-secret"}

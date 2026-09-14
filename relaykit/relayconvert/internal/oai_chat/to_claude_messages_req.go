@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"context"
+
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
@@ -39,9 +40,9 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 				Type: "approximate",
 			}
 
-			var userLocationMap map[string]interface{}
+			var userLocationMap map[string]any
 			if err := kitutil.Unmarshal(textRequest.WebSearchOptions.UserLocation, &userLocationMap); err == nil {
-				if approximateData, ok := userLocationMap["approximate"].(map[string]interface{}); ok {
+				if approximateData, ok := userLocationMap["approximate"].(map[string]any); ok {
 					if timezone, ok := approximateData["timezone"].(string); ok && timezone != "" {
 						anthropicUserLocation.Timezone = timezone
 					}
@@ -111,7 +112,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 		switch stop := textRequest.Stop.(type) {
 		case string:
 			claudeRequest.StopSequences = []string{stop}
-		case []interface{}:
+		case []any:
 			stopSequences := make([]string, 0)
 			for _, item := range stop {
 				stopSequences = append(stopSequences, item.(string))

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html"
 	"math/big"
+	"slices"
 	"strings"
 	"time"
 
@@ -41,13 +42,7 @@ func ValidateAccountEmail(email string) (string, error) {
 		return "", ErrAccountEmailInvalid
 	}
 	if common.EmailDomainRestrictionEnabled {
-		allowed := false
-		for _, domain := range common.EmailDomainWhitelist {
-			if parts[1] == domain {
-				allowed = true
-				break
-			}
-		}
+		allowed := slices.Contains(common.EmailDomainWhitelist, parts[1])
 		if !allowed {
 			return "", ErrAccountEmailRestricted
 		}

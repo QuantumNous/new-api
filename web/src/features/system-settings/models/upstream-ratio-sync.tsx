@@ -32,6 +32,11 @@ import {
   type ModelPricingConfig,
 } from '@/features/model-pricing/api'
 import { applyPriceSyncSelections } from '@/features/model-pricing/pricing'
+import { handleServerError } from '@/lib/handle-server-error'
+import {
+  requireServerSuccess,
+  createServerError,
+} from '@/lib/server-error-message'
 
 import { fetchUpstreamRatios, getUpstreamChannels } from '../api'
 import type {
@@ -89,7 +94,7 @@ export function UpstreamRatioSync() {
   const [loadingBaseline, setLoadingBaseline] = useState(false)
   const { data: channelsData } = useQuery({
     queryKey: ['upstream-channels'],
-    queryFn: getUpstreamChannels,
+    queryFn: async () => requireServerSuccess(await getUpstreamChannels()),
     enabled: channelDialogOpen,
   })
   const channels = useMemo(() => channelsData?.data ?? [], [channelsData?.data])
@@ -117,9 +122,7 @@ export function UpstreamRatioSync() {
     mutationFn: async (request: Parameters<typeof fetchUpstreamRatios>[0]) => {
       const response = await fetchUpstreamRatios(request)
       if (!response.success || !response.data?.prices) {
-        throw new Error(
-          response.message || t('Failed to fetch upstream prices')
-        )
+        throw createServerError(response, t('Failed to fetch upstream prices'))
       }
       const results = response.data.test_results
       if (
@@ -165,7 +168,7 @@ export function UpstreamRatioSync() {
       }
     },
     onError: (error: Error) =>
-      toast.error(error.message || t('Failed to fetch upstream prices')),
+      handleServerError(error, t('Failed to fetch upstream prices')),
   })
   const syncMutation = useMutation({
     mutationFn: async () => {
@@ -195,12 +198,12 @@ export function UpstreamRatioSync() {
       await invalidateModelPricing(queryClient)
       try {
         setPricingBaseline(await getModelPricing())
-      } catch {
-        toast.error(t('Reload pricing'))
+      } catch (error) {
+        handleServerError(error, t('Reload pricing'))
       }
     },
     onError: (error: Error) =>
-      toast.error(error.message || t('Failed to sync prices')),
+      handleServerError(error, t('Failed to sync prices')),
   })
   const handleConfirmChannelSelection = async (selectedIds: number[]) => {
     const selected = channels.filter((channel) =>
@@ -228,11 +231,7 @@ export function UpstreamRatioSync() {
       setPricingBaseline(await getModelPricing())
       fetchMutation.mutate({ upstreams, timeout: 10 })
     } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : t('Failed to load model pricing')
-      )
+      handleServerError(error, t('Failed to load model pricing'))
     } finally {
       setLoadingBaseline(false)
     }

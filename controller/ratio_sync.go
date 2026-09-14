@@ -52,7 +52,7 @@ func nearlyEqual(a, b float64) bool {
 	return b-a < floatEpsilon
 }
 
-func valuesEqual(a, b interface{}) bool {
+func valuesEqual(a, b any) bool {
 	af, aok := a.(float64)
 	bf, bok := b.(float64)
 	if aok && bok {
@@ -352,7 +352,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			// 简单重试：最多 3 次，指数退避
 			var resp *http.Response
 			var lastErr error
-			for attempt := 0; attempt < 3; attempt++ {
+			for attempt := range 3 {
 				resp, lastErr = client.Do(httpReq)
 				if lastErr == nil {
 					break
@@ -709,12 +709,12 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
 			if expressionPriority && numericPricingSyncFields[ratioType] {
 				continue
 			}
-			var localValue interface{} = nil
+			var localValue any = nil
 			if val, exists := valueMap(localData[ratioType])[modelName]; exists {
 				localValue = normalizeSyncValue(ratioType, val)
 			}
 
-			upstreamValues := make(map[string]interface{})
+			upstreamValues := make(map[string]any)
 			confidenceValues := make(map[string]bool)
 			hasUpstreamValue := false
 			hasDifference := false
@@ -723,7 +723,7 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
 				if expressionPriority && valueMap(channel.data[billing_setting.BillingModeField])[modelName] != billing_setting.BillingModeTieredExpr {
 					continue
 				}
-				var upstreamValue interface{} = nil
+				var upstreamValue any = nil
 
 				if val, exists := valueMap(channel.data[ratioType])[modelName]; exists {
 					upstreamValue = normalizeSyncValue(ratioType, val)

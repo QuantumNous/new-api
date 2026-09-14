@@ -538,7 +538,7 @@ func UnbindCustomOAuth(c *gin.Context) {
 
 	succeeded, notificationFailed := false, false
 	defer func() {
-		recordUserSecurityAudit(c, identity.UserID, "user.binding_unbind", map[string]interface{}{"provider_id": providerId, "success": succeeded, "notification_failed": notificationFailed})
+		recordUserSecurityAudit(c, identity.UserID, "user.binding_unbind", map[string]any{"provider_id": providerId, "success": succeeded, "notification_failed": notificationFailed})
 	}()
 	context, err := common.Marshal(service.AccountUnbindingContext{ProviderID: providerId})
 	if err != nil {

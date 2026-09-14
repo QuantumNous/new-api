@@ -7,7 +7,7 @@ export const meta = {
     en: "MiniMax Hailuo video generation (text-to-video, image-to-video, and MiniMax-H3 multimodal reference)",
     zh: "MiniMax 海螺视频生成（文生视频、图生视频、MiniMax-H3 多模态参考生视频）",
   },
-  version: "1.1.2",
+  version: "1.1.3",
   author: { name: "QuantumNous" },
   channelTypes: [35],
   models: [
@@ -24,33 +24,35 @@ export const meta = {
   ],
   fetchMode: "per_task",
   usageSchema: {
+    // Requested video duration in seconds. MiniMax-H3 allows 4 to 15; Hailuo 2.3/02/2.3-Fast allow 6 or 10; 01-series allow 6.
     seconds: {
       type: "number",
       unit: "second",
-      description: {
-        en: "Requested video duration in seconds. MiniMax-H3 allows 4 to 15; Hailuo 2.3/02/2.3-Fast allow 6 or 10; 01-series allow 6.",
-        zh: "请求的视频时长，单位为秒。MiniMax-H3 允许 4 到 15；Hailuo 2.3/02/2.3-Fast 允许 6 或 10；01 系列允许 6。",
-      },
+      description: { en: "Video generation unit price", zh: "视频生成单价" },
     },
+    // Requested output video resolution.
     resolution: {
       enum: ["512P", "768P", "720P", "1080P", "2K"],
-      description: { en: "Requested output video resolution.", zh: "请求的输出视频分辨率。" },
+      enumLabels: {
+        "512P": { en: "512P", zh: "512P" },
+        "768P": { en: "768P", zh: "768P" },
+        "720P": { en: "720P", zh: "720P" },
+        "1080P": { en: "1080P", zh: "1080P" },
+        "2K": { en: "2K", zh: "2K" },
+      },
+      description: { en: "Output video resolution", zh: "输出视频分辨率" },
     },
+    // H3 input image count (estimated at submit, actual on completion).
     input_images: {
       type: "number",
       unit: "count",
-      description: {
-        en: "H3 input image count (estimated at submit, actual on completion).",
-        zh: "H3 输入图片数量（提交时预估，完成后按实际值）。",
-      },
+      description: { en: "Input image unit price", zh: "输入图片单价" },
     },
+    // H3 input video duration in seconds (reserved at the request maximum, actual on completion).
     input_video_seconds: {
       type: "number",
       unit: "second",
-      description: {
-        en: "H3 input video duration in seconds (reserved at the request maximum, actual on completion).",
-        zh: "H3 输入视频时长，单位为秒（提交时按请求上限预留，完成后按实际值）。",
-      },
+      description: { en: "Input video unit price", zh: "输入视频单价" },
     },
   },
   usageExamples: [

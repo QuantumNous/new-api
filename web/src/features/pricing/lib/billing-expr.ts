@@ -22,13 +22,23 @@ For commercial licensing, please contact support@quantumnous.com
  * Parses the dynamic billing expression format so that the pricing breakdown
  * UI can be rendered from the same backend expressions.
  *
- * The grammar is intentionally narrow: we only support the shapes that the
- * server emits (tiered pricing + request-rule conditional multipliers), so
- * the regular expressions are exact rather than tolerant of arbitrary
- * expression syntax.
+ * Display adapters intentionally accept fewer shapes than the shared
+ * simulator. Existing ordered-tier, task-unit and request-rule contracts
+ * stay intact; executable custom expressions do not imply fixed unit prices.
  */
 
 import type { BillingUsageSchema } from '../types'
+import {
+  readTokenTierChain,
+  readTaskTierChain,
+  readTimeTokenPricing,
+  type TokenTier,
+} from './billing-expression/display'
+import { compileBillingExpression } from './billing-expression/parser'
+import {
+  splitExpressionAtTopLevel,
+  unwrapExpressionParens,
+} from './billing-expression/structure'
 
 // ---------------------------------------------------------------------------
 // Variable registry
@@ -89,6 +99,15 @@ export const BILLING_VARS: BillingVar[] = [
     tierField: 'cache_create_unit_cost',
     label: 'Cache create price',
     shortLabel: 'Cache Write',
+    side: 'input',
+    group: 'cache',
+  },
+  {
+    key: 'img_cr',
+    field: 'imageCachePrice',
+    tierField: 'image_cache_unit_cost',
+    label: 'Image cache input price',
+    shortLabel: 'Image Cache',
     side: 'input',
     group: 'cache',
   },
@@ -161,11 +180,6 @@ export const BILLING_CACHE_VAR_MAP = BILLING_EXTRA_VARS.map((v) => ({
   field: v.tierField as string,
   exprVar: v.key,
 }))
-
-const BILLING_VAR_REGEX = new RegExp(
-  `\\b(${BILLING_PRICING_VARS.map((v) => v.key).join('|')})\\s*\\*\\s*([\\d.eE+-]+)`,
-  'g'
-)
 
 // ---------------------------------------------------------------------------
 // Request rule constants
@@ -245,6 +259,9 @@ export type TierCondition = {
 }
 
 export type ParsedTier = {
+  billingUnit?: 'token' | 'request'
+  fixedPrice?: number
+  conditionText?: string
   label: string
   conditions: TierCondition[]
   [field: string]: unknown
@@ -266,332 +283,55 @@ export type ParsedTaskTier = {
 // Tier parser
 // ---------------------------------------------------------------------------
 
-function stripExprVersion(exprStr: string): { version: number; body: string } {
-  if (!exprStr) return { version: 1, body: '' }
-  const m = exprStr.match(/^v(\d+):([\s\S]*)$/)
-  if (m) return { version: Number(m[1]), body: m[2] }
-  return { version: 1, body: exprStr }
-}
-
-function parseTierBody(bodyStr: string): Record<string, number> {
-  const coeffs: Record<string, number> = {}
-  const re = new RegExp(BILLING_VAR_REGEX.source, 'g')
-  let m
-  while ((m = re.exec(bodyStr)) !== null) {
-    if (!(m[1] in coeffs)) coeffs[m[1]] = Number(m[2])
+function mapTokenTier(
+  tier: TokenTier & { conditionText?: string }
+): ParsedTier {
+  return {
+    label: tier.label,
+    ...(tier.imageCount ? { imageCount: true } : {}),
+    conditions: tier.conditions,
+    ...(tier.billingUnit === 'request'
+      ? { billingUnit: tier.billingUnit, fixedPrice: tier.fixedPrice }
+      : {}),
+    ...(tier.conditionText ? { conditionText: tier.conditionText } : {}),
+    ...Object.fromEntries(
+      Object.entries(tier.prices).map(([key, price]) => [
+        BILLING_VAR_KEY_TO_FIELD[key],
+        price,
+      ])
+    ),
   }
-  const tier: Record<string, number> = {}
-  for (const [varName, field] of Object.entries(BILLING_VAR_KEY_TO_FIELD)) {
-    tier[field] = coeffs[varName] || 0
-  }
-  return tier
 }
 
 export function parseTiersFromExpr(exprStr: string): ParsedTier[] {
   if (!exprStr) return []
-  try {
-    const { body } = stripExprVersion(exprStr)
-    const condGroup =
-      `((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)` +
-      `(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)`
-    const tierRe = new RegExp(
-      `(?:${condGroup}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*([^)]+)\\)`,
-      'g'
-    )
-    const tiers: ParsedTier[] = []
-    let m
-    while ((m = tierRe.exec(body)) !== null) {
-      const condStr = m[1] || ''
-      const conditions: TierCondition[] = []
-      if (condStr) {
-        for (const cp of condStr.split(/\s*&&\s*/)) {
-          const cm = cp.trim().match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/)
-          if (cm) {
-            conditions.push({
-              var: cm[1] as TierCondition['var'],
-              op: cm[2] as TierCondition['op'],
-              value: Number(cm[3]),
-            })
-          }
-        }
-      }
-      const tier = parseTierBody(m[3]) as ParsedTier
-      tier.label = m[2]
-      tier.conditions = conditions
-      tiers.push(tier)
-    }
-    return tiers
-  } catch {
-    return []
-  }
+  const compiled = compileBillingExpression(exprStr)
+  if (compiled.status !== 'ready') return []
+  const canonical = readTokenTierChain(compiled.ast)
+  if (canonical) return canonical.map(mapTokenTier)
+  return readTimeTokenPricing(exprStr)?.tiers.map(mapTokenTier) ?? []
 }
 
-function findTaskTopLevelCharacter(
-  expression: string,
-  target: string,
-  start = 0
-): number {
-  let depth = 0
-  let quoted = false
-  let escaped = false
-  for (let index = start; index < expression.length; index += 1) {
-    const character = expression[index]
-    if (quoted) {
-      if (escaped) {
-        escaped = false
-      } else if (character === '\\') {
-        escaped = true
-      } else if (character === '"') {
-        quoted = false
-      }
-      continue
-    }
-    if (character === '"') {
-      quoted = true
-      continue
-    }
-    if (character === '(') {
-      depth += 1
-      continue
-    }
-    if (character === ')') {
-      depth -= 1
-      if (depth < 0) return -1
-      continue
-    }
-    if (depth === 0 && character === target) return index
-  }
-  return -1
-}
-
-function findTaskTernaryColon(
-  expression: string,
-  questionIndex: number
-): number {
-  let depth = 0
-  let ternaryDepth = 0
-  let quoted = false
-  let escaped = false
-  for (let index = questionIndex + 1; index < expression.length; index += 1) {
-    const character = expression[index]
-    if (quoted) {
-      if (escaped) {
-        escaped = false
-      } else if (character === '\\') {
-        escaped = true
-      } else if (character === '"') {
-        quoted = false
-      }
-      continue
-    }
-    if (character === '"') {
-      quoted = true
-      continue
-    }
-    if (character === '(') {
-      depth += 1
-      continue
-    }
-    if (character === ')') {
-      depth -= 1
-      if (depth < 0) return -1
-      continue
-    }
-    if (depth !== 0) continue
-    if (character === '?') {
-      ternaryDepth += 1
-      continue
-    }
-    if (character !== ':') continue
-    if (ternaryDepth === 0) return index
-    ternaryDepth -= 1
-  }
-  return -1
-}
-
-function splitTaskTopLevel(expression: string, operator: '&&' | '+'): string[] {
-  const parts: string[] = []
-  let start = 0
-  let depth = 0
-  let quoted = false
-  let escaped = false
-  for (let index = 0; index < expression.length; index += 1) {
-    const character = expression[index]
-    if (quoted) {
-      if (escaped) {
-        escaped = false
-      } else if (character === '\\') {
-        escaped = true
-      } else if (character === '"') {
-        quoted = false
-      }
-      continue
-    }
-    if (character === '"') {
-      quoted = true
-      continue
-    }
-    if (character === '(') {
-      depth += 1
-      continue
-    }
-    if (character === ')') {
-      depth -= 1
-      continue
-    }
-    if (depth !== 0) continue
-    if (operator === '&&' && expression.slice(index, index + 2) === '&&') {
-      parts.push(expression.slice(start, index).trim())
-      start = index + 2
-      index += 1
-      continue
-    }
-    if (
-      operator === '+' &&
-      character === '+' &&
-      expression[index - 1] !== 'e' &&
-      expression[index - 1] !== 'E'
-    ) {
-      parts.push(expression.slice(start, index).trim())
-      start = index + 1
-    }
-  }
-  parts.push(expression.slice(start).trim())
-  return parts.filter(Boolean)
-}
-
-function parseTaskConditions(
-  expression: string,
-  schema: BillingUsageSchema
-): TaskTierCondition[] | null {
-  const conditions: TaskTierCondition[] = []
-  for (const part of splitTaskTopLevel(expression, '&&')) {
-    const match = part.match(
-      /^u\(\s*("(?:[^"\\]|\\.)*")\s*\)\s*==\s*("(?:[^"\\]|\\.)*")$/
-    )
-    if (!match) return null
-    let field: string
-    let value: string
-    try {
-      field = JSON.parse(match[1]) as string
-      value = JSON.parse(match[2]) as string
-    } catch {
-      return null
-    }
-    const declaredValues = schema[field]?.enum
-    if (!declaredValues?.includes(value)) return null
-    conditions.push({ field, value })
-  }
-  return conditions.length > 0 ? conditions : null
-}
-
-function parseTaskTierCall(
-  expression: string,
-  conditions: TaskTierCondition[],
-  schema: BillingUsageSchema
-): ParsedTaskTier | null {
-  const trimmed = expression.trim()
-  if (!trimmed.startsWith('tier(') || !trimmed.endsWith(')')) return null
-  const inner = trimmed.slice(5, -1)
-  const commaIndex = findTaskTopLevelCharacter(inner, ',')
-  if (commaIndex < 0) return null
-
-  let label: string
-  try {
-    label = JSON.parse(inner.slice(0, commaIndex).trim()) as string
-  } catch {
-    return null
-  }
-  if (typeof label !== 'string') return null
-
-  const terms = splitTaskTopLevel(inner.slice(commaIndex + 1), '+')
-  const unitPrices: Record<string, number> = {}
-  let constant = 0
-  let hasConstant = false
-  for (const term of terms) {
-    if (NUMERIC_LITERAL_REGEX.test(term)) {
-      const value = Number(term)
-      if (hasConstant || !Number.isFinite(value) || value < 0) return null
-      constant = value
-      hasConstant = true
-      continue
-    }
-    const scaledMatch = term.match(
-      /^u\(\s*("(?:[^"\\]|\\.)*")\s*\)\s*\*\s*(-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)\s*\/\s*1000000$/
-    )
-    const bareMatch = term.match(
-      /^u\(\s*("(?:[^"\\]|\\.)*")\s*\)\s*\*\s*(-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)$/
-    )
-    const match = scaledMatch ?? bareMatch
-    if (!match) return null
-    let field: string
-    try {
-      field = JSON.parse(match[1]) as string
-    } catch {
-      return null
-    }
-    const fieldSchema = schema[field]
-    const value = Number(match[2])
-    if (
-      fieldSchema?.type !== 'number' ||
-      !fieldSchema.unit ||
-      field in unitPrices ||
-      !Number.isFinite(value) ||
-      value < 0
-    ) {
-      return null
-    }
-    if (fieldSchema.unit === 'token') {
-      if (!scaledMatch) return null
-    } else if (scaledMatch) {
-      return null
-    }
-    unitPrices[field] = value
-  }
-  if (Object.keys(unitPrices).length === 0) return null
-  return { label, conditions, constant, unitPrices }
+/** Current-time selection is exclusively for summaries; detail and log callers retain all rows. */
+export function getCurrentTimePricingTiers(
+  exprStr: string,
+  now: Date
+): ParsedTier[] | null {
+  return (
+    readTimeTokenPricing(exprStr, now)?.currentTiers.map(mapTokenTier) ?? null
+  )
 }
 
 export function parseTaskTiersFromExpr(
   exprStr: string,
-  schema: BillingUsageSchema | null | undefined
+  schema: BillingUsageSchema | null | undefined,
+  includeBooleanConditions = false
 ): ParsedTaskTier[] {
   if (!exprStr || !schema || Object.keys(schema).length === 0) return []
-  try {
-    const split = splitBillingExprAndRequestRules(exprStr)
-    const versioned = stripExprVersion(split.billingExpr).body.trim()
-    if (!versioned) return []
-
-    const tiers: ParsedTaskTier[] = []
-    let remaining = versioned
-    while (remaining) {
-      const questionIndex = findTaskTopLevelCharacter(remaining, '?')
-      if (questionIndex < 0) {
-        const tier = parseTaskTierCall(remaining, [], schema)
-        if (!tier) return []
-        tiers.push(tier)
-        break
-      }
-      const colonIndex = findTaskTernaryColon(remaining, questionIndex)
-      if (colonIndex < 0) return []
-      const conditions = parseTaskConditions(
-        remaining.slice(0, questionIndex).trim(),
-        schema
-      )
-      if (!conditions) return []
-      const tier = parseTaskTierCall(
-        remaining.slice(questionIndex + 1, colonIndex).trim(),
-        conditions,
-        schema
-      )
-      if (!tier) return []
-      tiers.push(tier)
-      remaining = remaining.slice(colonIndex + 1).trim()
-    }
-    return tiers
-  } catch {
-    return []
-  }
+  const { billingExpr } = splitBillingExprAndRequestRules(exprStr)
+  const compiled = compileBillingExpression(billingExpr)
+  if (compiled.status !== 'ready') return []
+  return readTaskTierChain(compiled.ast, schema, includeBooleanConditions) ?? []
 }
 
 export function normalizeTierLabel(label: string | undefined): string {
@@ -608,39 +348,11 @@ export function normalizeTierLabel(label: string | undefined): string {
 // ---------------------------------------------------------------------------
 
 function splitTopLevelMultiply(expr: string): string[] {
-  const parts: string[] = []
-  let start = 0
-  let depth = 0
-  for (let index = 0; index < expr.length; index += 1) {
-    const char = expr[index]
-    if (char === '(') depth += 1
-    if (char === ')') depth -= 1
-    if (depth === 0 && expr.slice(index, index + 3) === ' * ') {
-      parts.push(expr.slice(start, index).trim())
-      start = index + 3
-      index += 2
-    }
-  }
-  parts.push(expr.slice(start).trim())
-  return parts.filter(Boolean)
+  return splitExpressionAtTopLevel(expr, '*')
 }
 
 function splitTopLevelAnd(expr: string): string[] {
-  const parts: string[] = []
-  let start = 0
-  let depth = 0
-  for (let i = 0; i < expr.length; i += 1) {
-    const c = expr[i]
-    if (c === '(') depth += 1
-    if (c === ')') depth -= 1
-    if (depth === 0 && expr.slice(i, i + 4) === ' && ') {
-      parts.push(expr.slice(start, i).trim())
-      start = i + 4
-      i += 3
-    }
-  }
-  parts.push(expr.slice(start).trim())
-  return parts.filter(Boolean)
+  return splitExpressionAtTopLevel(expr, '&&')
 }
 
 function parseExprLiteral(raw: string): string | null {
@@ -879,23 +591,8 @@ export function tryParseRequestRuleExpr(
 // Combine / split billing expr and request rules
 // ---------------------------------------------------------------------------
 
-function hasFullOuterParens(expr: string): boolean {
-  if (!expr.startsWith('(') || !expr.endsWith(')')) return false
-  let depth = 0
-  for (let i = 0; i < expr.length; i += 1) {
-    if (expr[i] === '(') depth += 1
-    if (expr[i] === ')') depth -= 1
-    if (depth === 0 && i < expr.length - 1) return false
-  }
-  return depth === 0
-}
-
 function unwrapOuterParens(expr: string): string {
-  let current = (expr || '').trim()
-  while (hasFullOuterParens(current)) {
-    current = current.slice(1, -1).trim()
-  }
-  return current
+  return unwrapExpressionParens(expr)
 }
 
 export function splitBillingExprAndRequestRules(expr: string): {
@@ -913,19 +610,26 @@ export function splitBillingExprAndRequestRules(expr: string): {
 
   parts.forEach((part) => {
     const parsed = tryParseRequestRuleExpr(part)
-    if (parsed && parsed.length > 0) {
+    const compiled = compileBillingExpression(part)
+    const traced =
+      compiled.status === 'ready' &&
+      compiled.requestRules.some((rule) => rule.node === compiled.ast)
+    if ((parsed && parsed.length > 0) || traced) {
       ruleParts.push(part)
     } else {
       baseParts.push(part)
     }
   })
 
-  if (ruleParts.length === 0 || baseParts.length !== 1) {
+  const quantityParts = baseParts.filter(
+    (part) => unwrapOuterParens(part) === 'image_count'
+  )
+  if (ruleParts.length === 0 || baseParts.length - quantityParts.length !== 1) {
     return { billingExpr: trimmed, requestRuleExpr: '' }
   }
 
   return {
-    billingExpr: unwrapOuterParens(baseParts[0]),
+    billingExpr: baseParts.map(unwrapOuterParens).join(' * '),
     requestRuleExpr: ruleParts.join(' * '),
   }
 }

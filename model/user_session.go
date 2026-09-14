@@ -481,7 +481,7 @@ func RotateUserSessionRefresh(userID int, sid, presentedHash, nextHash string, n
 			result := DB.Model(&UserSession{}).
 				Where("sid = ? AND user_id = ? AND status = ? AND revoked_at = ? AND expires_at > ? AND refresh_hash = ?",
 					sid, userID, UserSessionStatusActive, 0, now, presentedHash).
-				Updates(map[string]interface{}{
+				Updates(map[string]any{
 					"previous_refresh_hash": session.RefreshHash,
 					"previous_valid_until":  now + graceSeconds,
 					"refresh_hash":          nextHash,
@@ -527,7 +527,7 @@ func RotateUserSessionRefresh(userID int, sid, presentedHash, nextHash string, n
 		result := DB.Model(&UserSession{}).
 			Where("sid = ? AND user_id = ? AND status = ? AND revoked_at = ? AND expires_at > ?",
 				sid, userID, UserSessionStatusActive, 0, now).
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"status":         UserSessionStatusRevoked,
 				"revoked_at":     now,
 				"revoked_reason": "refresh_reuse",
@@ -577,7 +577,7 @@ func RevokeUserSession(userID int, sid, reason string) (bool, error) {
 		if current.Status != UserSessionStatusActive || current.RevokedAt != 0 || current.ExpiresAt <= now {
 			return nil
 		}
-		result := tx.Model(&UserSession{}).Where("sid = ? AND status = ?", sid, UserSessionStatusActive).Updates(map[string]interface{}{
+		result := tx.Model(&UserSession{}).Where("sid = ? AND status = ?", sid, UserSessionStatusActive).Updates(map[string]any{
 			"status":         UserSessionStatusRevoked,
 			"revoked_at":     now,
 			"revoked_reason": reason,
@@ -631,7 +631,7 @@ func RevokeUserSessionByRefreshHash(sid, presentedHash, reason string) (bool, er
 		if err := writeUserSessionDenyFence(&session, UserSessionStatusRevoking, now, reason); err != nil {
 			return err
 		}
-		result := tx.Model(&UserSession{}).Where("sid = ? AND status = ?", sid, UserSessionStatusActive).Updates(map[string]interface{}{
+		result := tx.Model(&UserSession{}).Where("sid = ? AND status = ?", sid, UserSessionStatusActive).Updates(map[string]any{
 			"status":         UserSessionStatusRevoked,
 			"revoked_at":     now,
 			"revoked_reason": reason,
@@ -681,7 +681,7 @@ func AdvanceUserSessionAuthVersion(userID int, sid string, expectedSessionVersio
 		session.LastActiveAt = now
 		result := tx.Model(&UserSession{}).
 			Where("sid = ? AND status = ? AND version = ? AND user_auth_version = ?", sid, UserSessionStatusActive, expectedSessionVersion, expectedUserAuthVersion).
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"version":           session.Version,
 				"user_auth_version": session.UserAuthVersion,
 				"last_active_at":    session.LastActiveAt,
@@ -758,7 +758,7 @@ func revokeUserSessions(userID int, excludedSID, reason string) (int64, error) {
 			for i := range revoked {
 				lockedSIDs = append(lockedSIDs, revoked[i].SID)
 			}
-			result := tx.Model(&UserSession{}).Where("sid IN ? AND status = ?", lockedSIDs, UserSessionStatusActive).Updates(map[string]interface{}{
+			result := tx.Model(&UserSession{}).Where("sid IN ? AND status = ?", lockedSIDs, UserSessionStatusActive).Updates(map[string]any{
 				"status":         UserSessionStatusRevoked,
 				"revoked_at":     now,
 				"revoked_reason": reason,
@@ -823,10 +823,7 @@ func deleteExpiredUserSessionsBefore(expiredBefore, issuanceCutoff, revokedBefor
 			return nil
 		}
 		for start := 0; start < len(sids); start += userSessionCleanupBatchSize {
-			end := start + userSessionCleanupBatchSize
-			if end > len(sids) {
-				end = len(sids)
-			}
+			end := min(start+userSessionCleanupBatchSize, len(sids))
 			if err := DB.Where("sid IN ?", sids[start:end]).
 				Where(
 					"expires_at < ? AND created_at <= ? AND (status <> ? OR revoked_at <= 0 OR revoked_at < ?)",
@@ -859,10 +856,7 @@ func deleteRevokedUserSessionsBefore(revokedBefore, issuanceCutoff int64) error 
 			return nil
 		}
 		for start := 0; start < len(sids); start += userSessionCleanupBatchSize {
-			end := start + userSessionCleanupBatchSize
-			if end > len(sids) {
-				end = len(sids)
-			}
+			end := min(start+userSessionCleanupBatchSize, len(sids))
 			if err := DB.Where("sid IN ?", sids[start:end]).
 				Where(
 					"status = ? AND revoked_at > 0 AND revoked_at < ? AND created_at <= ?",

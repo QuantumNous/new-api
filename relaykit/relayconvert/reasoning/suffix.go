@@ -232,12 +232,12 @@ func parseProviderModelSuffix(modelName string, requiredPrefix string, allowThin
 			}
 			return baseModel, intent, true, nil
 		}
-		if strings.HasSuffix(modelName, "-nothinking") {
-			baseModel := strings.TrimSuffix(modelName, "-nothinking")
+		if before, ok := strings.CutSuffix(modelName, "-nothinking"); ok {
+			baseModel := before
 			return baseModel, Intent{Mode: ModeDisabled, Effort: EffortNone, Source: SourceSuffix}, true, nil
 		}
-		if strings.HasSuffix(modelName, "-thinking") {
-			baseModel := strings.TrimSuffix(modelName, "-thinking")
+		if before, ok := strings.CutSuffix(modelName, "-thinking"); ok {
+			baseModel := before
 			intent := Intent{Mode: ModeEnabled, Source: SourceSuffix}
 			if includeThoughts {
 				value := true

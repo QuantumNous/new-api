@@ -51,6 +51,7 @@ import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { api } from '@/lib/api'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import {
   SettingsForm,
@@ -215,9 +216,13 @@ export function PerformanceSection(props: Props) {
   const fetchStats = useCallback(async () => {
     try {
       const res = await api.get('/api/performance/stats')
-      if (res.data.success) setStats(res.data.data)
-    } catch {
-      /* ignore */
+      if (res.data.success) {
+        setStats(res.data.data)
+      } else {
+        handleServerError(res.data)
+      }
+    } catch (error) {
+      handleServerError(error)
     }
   }, [])
 
@@ -255,9 +260,11 @@ export function PerformanceSection(props: Props) {
       if (res.data.success) {
         toast.success(t('Disk cache cleared'))
         fetchStats()
+      } else {
+        handleServerError(res.data)
       }
-    } catch {
-      toast.error(t('Cleanup failed'))
+    } catch (error) {
+      handleServerError(error, t('Cleanup failed'))
     }
   }
 
@@ -267,9 +274,11 @@ export function PerformanceSection(props: Props) {
       if (res.data.success) {
         toast.success(t('Statistics reset'))
         fetchStats()
+      } else {
+        handleServerError(res.data)
       }
-    } catch {
-      toast.error(t('Reset failed'))
+    } catch (error) {
+      handleServerError(error, t('Reset failed'))
     }
   }
 
@@ -279,9 +288,11 @@ export function PerformanceSection(props: Props) {
       if (res.data.success) {
         toast.success(t('GC executed'))
         fetchStats()
+      } else {
+        handleServerError(res.data)
       }
-    } catch {
-      toast.error(t('GC execution failed'))
+    } catch (error) {
+      handleServerError(error, t('GC execution failed'))
     }
   }
 

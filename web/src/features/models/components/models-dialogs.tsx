@@ -43,7 +43,12 @@ export function ModelsDialogs() {
       />
       {/* Model Create/Update Drawer */}
       <ModelMutateDrawer
-        open={open === 'create-model' || open === 'update-model'}
+        open={
+          open === 'create-model' ||
+          open === 'update-model' ||
+          open === 'price-model'
+        }
+        initialSection={open === 'price-model' ? 'pricing' : 'metadata'}
         onOpenChange={(v) => !v && setOpen(null)}
         currentRow={currentRow}
       />

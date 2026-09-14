@@ -4,10 +4,13 @@ import (
 	"io/fs"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var expectedKeys = []string{"alibaba", "doubao", "google", "hailuo", "jimeng", "kling", "sora", "sunoapi", "vertex-ai", "vidu"}
 
 func TestBuiltInVendorPluginsDeclareNativeRoutesAndLegacyChannelTypes(t *testing.T) {
 	generation := jsplugin.DefaultRegistry.Generation()
@@ -63,7 +66,6 @@ func TestBuiltInVendorPluginsDeclareNativeRoutesAndLegacyChannelTypes(t *testing
 }
 
 func TestBuiltInTaskPluginResponsesAndUsageContracts(t *testing.T) {
-	expectedKeys := []string{"alibaba", "doubao", "google", "hailuo", "jimeng", "kling", "sora", "sunoapi", "vertex-ai", "vidu"}
 	generation := jsplugin.DefaultRegistry.Generation()
 	require.NotNil(t, generation)
 
@@ -118,6 +120,38 @@ func TestBuiltInTaskPluginResponsesAndUsageContracts(t *testing.T) {
 			for usageKey, schema := range plugin.Meta.UsageSchema {
 				assert.NotEmpty(t, schema.Description, usageKey)
 			}
+		})
+	}
+}
+
+func TestBuiltInResponsesDecodersEchoChannelMappedAlias(t *testing.T) {
+	bodyOverrides := map[string]map[string]any{}
+	for _, key := range expectedKeys {
+		t.Run(key, func(t *testing.T) {
+			source, sourceErr := Source(key)
+			require.NoError(t, sourceErr)
+			registry := jsplugin.NewRegistry()
+			plugin, registerErr := registry.RegisterFactory(source, jsplugin.Options{Key: key})
+			require.NoError(t, registerErr)
+			require.NotEmpty(t, plugin.Meta.Models)
+
+			alias := "alias-under-test"
+			upstreamModel := plugin.Meta.Models[0]
+			body := map[string]any{"model": alias, "input": "a cat walking on the beach"}
+			if override, ok := bodyOverrides[key]; ok {
+				body = override
+			}
+			value, callErr := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_responses", "decodeRequest"}, map[string]any{
+				"model": alias, "upstreamModel": upstreamModel, "stream": false,
+				"body": map[string]any{"kind": "json", "value": body},
+			})
+			require.NoError(t, callErr)
+			encoded, marshalErr := common.Marshal(value)
+			require.NoError(t, marshalErr)
+			var decoded map[string]any
+			require.NoError(t, common.Unmarshal(encoded, &decoded))
+			assert.Equal(t, "submit", decoded["kind"])
+			assert.Equal(t, alias, decoded["model"])
 		})
 	}
 }

@@ -29,8 +29,16 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { handleServerError } from '@/lib/handle-server-error'
+import { createServerError } from '@/lib/server-error-message'
 
 import { previewUpstreamDiff, syncUpstream } from '../../api'
 import { getSyncLocaleOptions } from '../../constants'
@@ -97,14 +105,14 @@ export function SyncWizardDialog(props: {
     mutationFn: async () => {
       const response = await previewUpstreamDiff({ locale })
       if (!response.success || !response.data) {
-        throw new Error(response.message || t('Failed to preview metadata'))
+        throw createServerError(response, t('Failed to preview metadata'))
       }
       return response.data
     },
     onSuccess: (data) => {
       setPreview(data)
     },
-    onError: handleServerError,
+    onError: (error) => handleServerError(error),
   })
 
   const apply = useMutation({
@@ -116,7 +124,7 @@ export function SyncWizardDialog(props: {
         selections,
       })
       if (!response.success || !response.data) {
-        throw new Error(response.message || t('Metadata sync failed'))
+        throw createServerError(response, t('Metadata sync failed'))
       }
       return response.data
     },
@@ -128,7 +136,7 @@ export function SyncWizardDialog(props: {
       )
       setStep(3)
     },
-    onError: handleServerError,
+    onError: (error) => handleServerError(error),
   })
 
   useEffect(() => {
@@ -373,20 +381,31 @@ export function SyncWizardDialog(props: {
             <div className='space-y-1'>
               <Label>{t('Metadata language')}</Label>
               <Select
- value={locale}
- disabled={busy}
- items={getSyncLocaleOptions(t)}
- onValueChange={(value) => {
-   if (value) setLocale(value as SyncLocale)
-   setPreview(null)
-   setSelection({})
-   setPage(0)
-   load.reset()
- }}
->
- <SelectTrigger className='w-44' aria-label={t('Metadata language')}><SelectValue /></SelectTrigger>
- <SelectContent>{getSyncLocaleOptions(t).map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
-</Select>
+                value={locale}
+                disabled={busy}
+                items={getSyncLocaleOptions(t)}
+                onValueChange={(value) => {
+                  if (value) setLocale(value as SyncLocale)
+                  setPreview(null)
+                  setSelection({})
+                  setPage(0)
+                  load.reset()
+                }}
+              >
+                <SelectTrigger
+                  className='w-44'
+                  aria-label={t('Metadata language')}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {getSyncLocaleOptions(t).map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <Button
               variant='outline'

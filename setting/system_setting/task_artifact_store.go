@@ -132,7 +132,7 @@ func ValidateTaskArtifactStoreConfig(config TaskArtifactStoreConfig) error {
 			strings.HasPrefix(config.S3Prefix, "/") || strings.Contains(config.S3Prefix, "\\") {
 			return errors.New("S3 prefix syntax is invalid")
 		}
-		for _, part := range strings.Split(config.S3Prefix, "/") {
+		for part := range strings.SplitSeq(config.S3Prefix, "/") {
 			if part == "." || part == ".." {
 				return errors.New("S3 prefix must not contain dot segments")
 			}

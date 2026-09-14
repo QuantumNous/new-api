@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -24,13 +24,14 @@ import {
   formatThroughput,
   getSuccessRateDotClass,
 } from '@/features/performance-metrics/lib/format'
+import type { SuccessRatePoint } from '@/features/performance-metrics/types'
 import { cn } from '@/lib/utils'
 
 export type ModelPerfBadgeData = {
   avg_latency_ms: number
   success_rate: number
   avg_tps: number
-  recent_success_rates?: number[]
+  recent_success_series?: SuccessRatePoint[]
 }
 
 export interface ModelPerfBadgeProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -54,13 +55,19 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
     Number.isFinite(successRate) &&
     successRate >= 0 &&
     successRate <= 100
-  // Keep unreported history neutral; the summary API currently returns up to
-  // three samples, without timestamps. Do not expand them into a fake timeline.
-  const recentRates = props.perf?.recent_success_rates?.slice(-24) ?? []
-  const statusRates: (number | undefined)[] = [
-    ...Array<undefined>(24 - recentRates.length).fill(undefined),
-    ...recentRates,
-  ]
+  // Hourly points with timestamps, anchored to the client's current hour.
+  // Hours without traffic stay gray. Slot 23 is the current, partial hour.
+  const statusRates = useMemo(() => {
+    const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
+    const ratesByHour = new Map<number, number>()
+    for (const point of props.perf?.recent_success_series ?? []) {
+      ratesByHour.set(point.ts, point.success_rate)
+    }
+    return STATUS_SLOTS.map((slot) => {
+      const hourStart = currentHourStart - (23 - slot) * 3600
+      return ratesByHour.get(hourStart)
+    })
+  }, [props.perf?.recent_success_series])
 
   return (
     <div
@@ -89,7 +96,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
             title={t(
               'Recent success-rate samples; gray bars indicate missing data.'
             )}
-            className='mt-1 flex h-3 w-24 items-center justify-between'
+            className='mt-1 flex h-3 w-24 items-center gap-px'
           >
             {STATUS_SLOTS.map((slot) => {
               const rate = statusRates[slot]

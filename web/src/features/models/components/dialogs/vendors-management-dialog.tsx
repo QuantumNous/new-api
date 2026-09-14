@@ -27,6 +27,7 @@ import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useDebounce } from '@/hooks/use-debounce'
+import { createServerError } from '@/lib/server-error-message'
 
 import { searchVendors } from '../../api'
 import { vendorsQueryKeys } from '../../lib'
@@ -48,7 +49,7 @@ export function VendorsManagementDialog(props: {
     queryFn: async () => {
       const response = await searchVendors({ keyword, p: page, page_size: 20 })
       if (!response.success || !response.data) {
-        throw new Error(response.message || t('Failed to load vendors'))
+        throw createServerError(response, t('Failed to load vendors'))
       }
       return response.data
     },

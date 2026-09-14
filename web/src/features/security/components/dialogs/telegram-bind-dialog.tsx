@@ -27,7 +27,10 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TELEGRAM_BIND_RESULT_MESSAGE } from '@/features/auth/constants'
 import { startTelegramBind } from '@/features/profile/api'
-import { getServerErrorMessageKey } from '@/lib/server-error-message'
+import {
+  createServerError,
+  getServerErrorMessageKey,
+} from '@/lib/server-error-message'
 
 // ============================================================================
 // Telegram Bind Dialog Component
@@ -59,9 +62,7 @@ export function TelegramBindDialog({
     try {
       const response = await startTelegramBind()
       if (!response.success || !response.data?.callback_url) {
-        throw new Error(
-          response.message || t('Failed to start Telegram binding')
-        )
+        throw createServerError(response, t('Failed to start Telegram binding'))
       }
       setFlowToken(response.data.flow_token)
       setCallbackUrl(
