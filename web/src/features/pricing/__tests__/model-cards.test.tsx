@@ -173,6 +173,15 @@ describe('model cards', () => {
     expect(screen.getByRole('button', { name: 'Details' })).toBeEnabled()
   })
 
+  it('uses fixed spacing between hourly status bars', () => {
+    render(<ModelCard model={pricingModel()} onClick={vi.fn()} />)
+    const statusStrip = screen.getByRole('img', {
+      name: 'Recent success-rate samples; gray bars indicate missing data.',
+    })
+    expect(statusStrip).toHaveClass('gap-px')
+    expect(statusStrip).not.toHaveClass('justify-between')
+  })
+
   it('keeps group, endpoint and tag overflow counts with their own metadata', () => {
     const groups = ['default-with-a-long-group-name', 'premium', 'internal']
     const endpoints = ['openai-response', 'openai', 'claude', 'gemini', 'jina']

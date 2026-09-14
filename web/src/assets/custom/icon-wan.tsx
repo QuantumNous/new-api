@@ -16,23 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+// Official Wan favicon: https://g.alicdn.com/sail-web/wan-static-resources/0.0.30/images/favicon.ico
+import wanIcon from './wan.png'
 
-import { resolveModelProvider } from '@/lib/model-provider'
-
-export function getModelCategory(modelName: string): string {
-  return resolveModelProvider(modelName)?.name ?? 'Other'
-}
-
-export function categorizeModels(
-  models: readonly string[]
-): Record<string, string[]> {
-  const categories: Record<string, string[]> = {}
-
-  for (const model of models) {
-    const category = getModelCategory(model)
-    categories[category] ??= []
-    categories[category].push(model)
-  }
-
-  return categories
+export function IconWan(props: { size?: number }) {
+  return (
+    <img
+      src={wanIcon}
+      alt=''
+      width={props.size ?? 20}
+      height={props.size ?? 20}
+    />
+  )
 }

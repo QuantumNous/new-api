@@ -96,7 +96,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
             title={t(
               'Recent success-rate samples; gray bars indicate missing data.'
             )}
-            className='mt-1 flex h-3 w-24 items-center justify-between'
+            className='mt-1 flex h-3 w-24 items-center gap-px'
           >
             {STATUS_SLOTS.map((slot) => {
               const rate = statusRates[slot]

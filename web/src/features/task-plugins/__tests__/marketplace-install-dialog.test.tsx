@@ -504,7 +504,7 @@ test('a late response for the previous version cannot replace the selected sourc
   })
   const { reopen } = renderDialog(false, undefined, true)
   const selector = screen.getByRole('combobox', { name: 'Select version' })
-  selector.focus()
+  await user.click(selector)
   await user.keyboard('1.0{ArrowDown}{Enter}')
   await waitFor(() =>
     expect(
