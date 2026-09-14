@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export const CLIENT_VERSION = '0.4.16'
+export const CLIENT_VERSION = '0.4.18'
 
 export type DownloadPlatform = 'windows' | 'macos'
 export type DownloadChannel = 'official' | 'partner'
@@ -33,25 +33,25 @@ export type ResolvedDownload = {
   url: string
 }
 
-const PARTNER_HOSTNAME = 'ai.yeschoy.com'
+const PARTNER_HOSTNAMES = new Set(['ai.yeschoy.io', 'ai.yeschoy.com'])
 
 const DOWNLOAD_URLS = {
   official: {
     windows:
-      'https://ergou.qzz.io/updates/releases/official/0.4.16/yeschoy-0.4.16-official-windows-x86_64-installer.exe',
+      'https://ergou.qzz.io/updates/releases/official/0.4.18/yeschoy-0.4.18-official-windows-x86_64-installer.exe',
     macos:
-      'https://ergou.qzz.io/updates/releases/official/0.4.16/yeschoy-0.4.16-official-macos-universal-installer.dmg',
+      'https://ergou.qzz.io/updates/releases/official/0.4.18/yeschoy-0.4.18-official-macos-universal-installer.dmg',
   },
   partner: {
     windows:
-      'https://ergou.qzz.io/updates/releases/partner/0.4.16/yeschoy-0.4.16-partner-windows-x86_64-installer.exe',
+      'https://ergou.qzz.io/updates/releases/partner/0.4.18/yeschoy-0.4.18-partner-windows-x86_64-installer.exe',
     macos:
-      'https://ergou.qzz.io/updates/releases/partner/0.4.16/yeschoy-0.4.16-partner-macos-universal-installer.dmg',
+      'https://ergou.qzz.io/updates/releases/partner/0.4.18/yeschoy-0.4.18-partner-macos-universal-installer.dmg',
   },
 } satisfies Record<DownloadChannel, Record<DownloadPlatform, string>>
 
 function isPartnerHostname(hostname: string): boolean {
-  return hostname.toLowerCase() === PARTNER_HOSTNAME
+  return PARTNER_HOSTNAMES.has(hostname.toLowerCase())
 }
 
 export function detectDownloadPlatform(

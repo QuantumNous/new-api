@@ -62,8 +62,9 @@ describe('desktop client page', () => {
       screen.getByRole('link', { name: 'Download for Windows' })
     ).toHaveAttribute(
       'href',
-      'https://ergou.qzz.io/updates/releases/official/0.4.16/yeschoy-0.4.16-official-windows-x86_64-installer.exe'
+      'https://ergou.qzz.io/updates/releases/official/0.4.18/yeschoy-0.4.18-official-windows-x86_64-installer.exe'
     )
+    expect(screen.getAllByText(/v0\.4\.18/)).toHaveLength(2)
     expect(
       screen.getByRole('link', { name: 'Windows installer' })
     ).toHaveAttribute('href', expect.stringContaining('/releases/official/'))
@@ -75,7 +76,7 @@ describe('desktop client page', () => {
   it('uses partner links for the exact partner hostname', async () => {
     await renderApp(
       <DesktopClientPage
-        runtime={{ ...WINDOWS_RUNTIME, hostname: 'ai.yeschoy.com' }}
+        runtime={{ ...WINDOWS_RUNTIME, hostname: 'ai.yeschoy.io' }}
       />,
       client
     )
@@ -85,7 +86,7 @@ describe('desktop client page', () => {
     })) {
       expect(link).toHaveAttribute(
         'href',
-        expect.stringContaining('/releases/partner/0.4.16/')
+        expect.stringContaining('/releases/partner/0.4.18/')
       )
     }
   })
