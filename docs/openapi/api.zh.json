@@ -1445,6 +1445,23 @@
         ],
         "type": "object"
       },
+      "ApiResponseOfeffectivePricingPreviewResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/effectivePricingPreviewResponse"
+          },
+          "message": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success"
+        ],
+        "type": "object"
+      },
       "ApiResponseOftaskPluginDetail": {
         "properties": {
           "data": {
@@ -2105,6 +2122,29 @@
               "$ref": "#/components/schemas/AvailableReplica"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "BillingFXBasis": {
+        "properties": {
+          "effective_at": {
+            "type": "integer"
+          },
+          "factor": {
+            "type": "number"
+          },
+          "fetched_at": {
+            "type": "integer"
+          },
+          "publication_version": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string"
+          },
+          "usd_rate": {
+            "type": "number"
           }
         },
         "type": "object"
@@ -3498,6 +3538,9 @@
           "formula": {
             "$ref": "#/components/schemas/EffectivePricingFormula"
           },
+          "is_free": {
+            "type": "boolean"
+          },
           "limitations": {
             "items": {
               "type": "string"
@@ -3514,6 +3557,12 @@
               "unavailable"
             ],
             "type": "string"
+          },
+          "tiers": {
+            "items": {
+              "$ref": "#/components/schemas/EffectivePricingTier"
+            },
+            "type": "array"
           },
           "unit_prices": {
             "items": {
@@ -3535,7 +3584,9 @@
           "effective_billing_ratio",
           "billing_mode",
           "billing_surface",
-          "status"
+          "status",
+          "tiers",
+          "is_free"
         ],
         "type": "object"
       },
@@ -3590,6 +3641,12 @@
             ],
             "type": "string"
           },
+          "price_scope": {
+            "enum": [
+              "user_group"
+            ],
+            "type": "string"
+          },
           "schema_version": {
             "enum": [
               "v1"
@@ -3605,6 +3662,7 @@
           "user_group",
           "currency",
           "price_kind",
+          "price_scope",
           "fx",
           "accounting",
           "auto_groups",
@@ -3729,6 +3787,70 @@
         "required": [
           "success",
           "data"
+        ],
+        "type": "object"
+      },
+      "EffectivePricingTier": {
+        "properties": {
+          "condition": {
+            "$ref": "#/components/schemas/EffectivePricingTierCondition"
+          },
+          "label": {
+            "type": "string"
+          },
+          "unit_prices": {
+            "items": {
+              "$ref": "#/components/schemas/EffectiveUnitPrice"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "unit_prices"
+        ],
+        "type": "object"
+      },
+      "EffectivePricingTierCondition": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "max_value": {
+            "type": "number"
+          },
+          "min_value": {
+            "type": "number"
+          },
+          "time_windows": {
+            "items": {
+              "$ref": "#/components/schemas/EffectivePricingTimeWindow"
+            },
+            "type": "array"
+          },
+          "time_zone": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "EffectivePricingTimeWindow": {
+        "properties": {
+          "end_hour": {
+            "type": "integer"
+          },
+          "start_hour": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start_hour",
+          "end_hour"
         ],
         "type": "object"
       },
@@ -4788,6 +4910,9 @@
             },
             "type": "array"
           },
+          "configured_channel_count": {
+            "type": "integer"
+          },
           "created_time": {
             "type": "integer"
           },
@@ -4802,6 +4927,9 @@
           },
           "endpoints": {
             "type": "string"
+          },
+          "has_metadata": {
+            "type": "boolean"
           },
           "icon": {
             "type": "string"
@@ -4829,6 +4957,9 @@
               "type": "integer"
             },
             "type": "array"
+          },
+          "square_state": {
+            "type": "string"
           },
           "status": {
             "type": "integer"
@@ -7410,6 +7541,237 @@
         },
         "type": "object"
       },
+      "effectiveAccounting": {
+        "properties": {
+          "quota_per_rub": {
+            "type": "number"
+          },
+          "quota_per_unit": {
+            "type": "number"
+          },
+          "rub_per_unit": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "effectiveGroupPricing": {
+        "properties": {
+          "billing_mode": {
+            "type": "string"
+          },
+          "billing_surface": {
+            "type": "string"
+          },
+          "effective_billing_ratio": {
+            "type": "number"
+          },
+          "formula": {
+            "$ref": "#/components/schemas/effectivePricingFormula"
+          },
+          "is_free": {
+            "type": "boolean"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "pure_group_ratio": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tiers": {
+            "items": {
+              "$ref": "#/components/schemas/effectivePricingTier"
+            },
+            "type": "array"
+          },
+          "unit_prices": {
+            "items": {
+              "$ref": "#/components/schemas/effectiveUnitPrice"
+            },
+            "type": "array"
+          },
+          "usage_schema": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "using_group": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "effectivePricingFormula": {
+        "properties": {
+          "expression": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "output_to_quota_factor": {
+            "type": "number"
+          },
+          "output_to_rub_factor": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "effectivePricingModel": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "group_prices": {
+            "items": {
+              "$ref": "#/components/schemas/effectiveGroupPricing"
+            },
+            "type": "array"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "model_name": {
+            "type": "string"
+          },
+          "owner_by": {
+            "type": "string"
+          },
+          "supported_endpoint_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tags": {
+            "type": "string"
+          },
+          "vendor_id": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "effectivePricingPreviewResponse": {
+        "properties": {
+          "accounting": {
+            "$ref": "#/components/schemas/effectiveAccounting"
+          },
+          "auto_groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "available_user_groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/effectivePricingModel"
+            },
+            "type": "array"
+          },
+          "fx": {
+            "$ref": "#/components/schemas/BillingFXBasis"
+          },
+          "price_kind": {
+            "type": "string"
+          },
+          "price_scope": {
+            "type": "string"
+          },
+          "schema_version": {
+            "type": "string"
+          },
+          "user_group": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "effectivePricingTier": {
+        "properties": {
+          "condition": {
+            "$ref": "#/components/schemas/effectivePricingTierCondition"
+          },
+          "label": {
+            "type": "string"
+          },
+          "unit_prices": {
+            "items": {
+              "$ref": "#/components/schemas/effectiveUnitPrice"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "effectivePricingTierCondition": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "max_value": {
+            "type": "number"
+          },
+          "min_value": {
+            "type": "number"
+          },
+          "time_windows": {
+            "items": {
+              "$ref": "#/components/schemas/effectivePricingTimeWindow"
+            },
+            "type": "array"
+          },
+          "time_zone": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "effectivePricingTimeWindow": {
+        "properties": {
+          "end_hour": {
+            "type": "integer"
+          },
+          "start_hour": {
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "effectiveUnitPrice": {
+        "properties": {
+          "amount_rub": {
+            "type": "number"
+          },
+          "component": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "emailBindRequest": {
         "properties": {
           "email": {
@@ -7629,6 +7991,9 @@
           },
           "force": {
             "type": "boolean"
+          },
+          "icon": {
+            "type": "string"
           },
           "remark": {
             "type": "string"
@@ -18993,6 +19358,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "token_id",
+            "required": false,
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -19010,12 +19385,25 @@
           "400": {
             "content": {
               "application/json": {
+                "examples": {
+                  "invalid_params": {
+                    "summary": "invalid_params",
+                    "value": {
+                      "code": "invalid_params",
+                      "message": "\u003clocalized message\u003e",
+                      "success": false
+                    }
+                  }
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "请求错误 — 参数无效、校验失败或其他客户端错误"
+            "description": "请求错误 — 参数无效、校验失败或其他客户端错误",
+            "x-error-codes": [
+              "invalid_params"
+            ]
           },
           "401": {
             "content": {
@@ -19040,12 +19428,25 @@
           "404": {
             "content": {
               "application/json": {
+                "examples": {
+                  "token_not_found": {
+                    "summary": "token_not_found",
+                    "value": {
+                      "code": "token_not_found",
+                      "message": "\u003clocalized message\u003e",
+                      "success": false
+                    }
+                  }
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "未找到 — 引用的资源不存在"
+            "description": "未找到 — 引用的资源不存在",
+            "x-error-codes": [
+              "token_not_found"
+            ]
           },
           "409": {
             "content": {
@@ -20276,25 +20677,12 @@
           "500": {
             "content": {
               "application/json": {
-                "examples": {
-                  "internal_error": {
-                    "summary": "internal_error",
-                    "value": {
-                      "code": "internal_error",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "服务器内部错误 — 数据库事务失败或未处理异常",
-            "x-error-codes": [
-              "internal_error"
-            ]
+            "description": "服务器内部错误 — 数据库事务失败或未处理异常"
           },
           "502": {
             "content": {
@@ -21045,25 +21433,12 @@
           "500": {
             "content": {
               "application/json": {
-                "examples": {
-                  "internal_error": {
-                    "summary": "internal_error",
-                    "value": {
-                      "code": "internal_error",
-                      "message": "\u003clocalized message\u003e",
-                      "success": false
-                    }
-                  }
-                },
                 "schema": {
                   "$ref": "#/components/schemas/ApiErrorResponse"
                 }
               }
             },
-            "description": "服务器内部错误 — 数据库事务失败或未处理异常",
-            "x-error-codes": [
-              "internal_error"
-            ]
+            "description": "服务器内部错误 — 数据库事务失败或未处理异常"
           },
           "502": {
             "content": {
@@ -23616,6 +23991,115 @@
           }
         ],
         "summary": "get /api/option/channel_affinity_cache",
+        "tags": [
+          "System Settings"
+        ]
+      }
+    },
+    "/api/option/effective_pricing": {
+      "get": {
+        "deprecated": false,
+        "description": "Auto-generated entry. Add a manual summary/description in api.json.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfeffectivePricingPreviewResponse"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request — invalid_params, validation failed, or other client error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized — missing or invalid auth credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden — insufficient role/permission or feature disabled"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not found — referenced resource does not exist"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict — resource already exists or state precludes the operation"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable entity — well-formed but semantically invalid input"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error — DB transaction failure or unhandled exception"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bad gateway — upstream provider (LLM API, model registry) failed"
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ],
+        "summary": "get /api/option/effective_pricing",
         "tags": [
           "System Settings"
         ]
@@ -26745,6 +27229,134 @@
         ]
       }
     },
+    "/api/plugin/task/{key}/icon": {
+      "get": {
+        "deprecated": false,
+        "description": "Auto-generated entry. Add a manual summary/description in api.json.",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request — invalid_params, validation failed, or other client error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized — missing or invalid auth credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden — insufficient role/permission or feature disabled"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not found — referenced resource does not exist"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict — resource already exists or state precludes the operation"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable entity — well-formed but semantically invalid input"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error — DB transaction failure or unhandled exception"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bad gateway — upstream provider (LLM API, model registry) failed"
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ],
+        "summary": "get /api/plugin/task/{key}/icon",
+        "tags": [
+          "Uncategorized"
+        ]
+      }
+    },
     "/api/plugin/task/{key}/status": {
       "post": {
         "deprecated": false,
@@ -28744,6 +29356,132 @@
         "summary": "更新兑换码",
         "tags": [
           "兑换码"
+        ]
+      }
+    },
+    "/api/redemption/batch": {
+      "post": {
+        "deprecated": false,
+        "description": "Auto-generated entry. Add a manual summary/description in api.json.",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "ids": {
+                    "items": {
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            },
+            "description": "Success",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bad request — invalid_params, validation failed, or other client error"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized — missing or invalid auth credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden — insufficient role/permission or feature disabled"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not found — referenced resource does not exist"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict — resource already exists or state precludes the operation"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable entity — well-formed but semantically invalid input"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Internal server error — DB transaction failure or unhandled exception"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bad gateway — upstream provider (LLM API, model registry) failed"
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ],
+        "summary": "post /api/redemption/batch",
+        "tags": [
+          "Uncategorized"
         ]
       }
     },

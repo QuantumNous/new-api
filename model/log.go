@@ -558,6 +558,10 @@ func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName
 const logSearchCountLimit = 10000
 
 func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+	return GetUserLogsByTokenId(userId, 0, logType, startTimestamp, endTimestamp, modelName, tokenName, startIdx, num, group, requestId, upstreamRequestId)
+}
+
+func GetUserLogsByTokenId(userId int, tokenId int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
 	var tx *gorm.DB
 	if logType == LogTypeUnknown {
 		tx = LOG_DB.Where("logs.user_id = ?", userId)
@@ -570,6 +574,9 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	}
 	if tokenName != "" {
 		tx = tx.Where("logs.token_name = ?", tokenName)
+	}
+	if tokenId > 0 {
+		tx = tx.Where("logs.token_id = ?", tokenId)
 	}
 	if requestId != "" {
 		tx = tx.Where("logs.request_id = ?", requestId)

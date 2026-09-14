@@ -65,6 +65,22 @@ func enrichExplicitContracts(paths map[string]interface{}) {
 		if route.HandlerName == "InitializeGetAPIPAT" {
 			enrichGetAPIInitializeContract(op)
 		}
+		if route.HandlerName == "GetUserLogs" {
+			parameters, _ := op["parameters"].([]interface{})
+			found := false
+			for _, parameter := range parameters {
+				entry, _ := parameter.(map[string]interface{})
+				if entry["name"] != "token_id" || entry["in"] != "query" {
+					continue
+				}
+				entry["schema"] = map[string]interface{}{"type": "integer", "minimum": 1}
+				found = true
+			}
+			if !found {
+				parameters = append(parameters, map[string]interface{}{"name": "token_id", "in": "query", "required": false, "description": "", "schema": map[string]interface{}{"type": "integer", "minimum": 1}})
+			}
+			op["parameters"] = parameters
+		}
 		if route.HandlerName == "VerifyLogin" || route.HandlerName == "LoginPasskeyFinish" {
 			op["responses"].(map[string]interface{})["200"] = buildResponse(respSpec{Custom: "LoginSessionResponse"})["200"]
 		}

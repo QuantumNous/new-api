@@ -154,6 +154,18 @@ func TestGeneratedAdminContractsMatchResolvedHandlers(t *testing.T) {
 	groupProps := groupPrice["properties"].(map[string]interface{})
 	assert.Equal(t, []string{"unit_prices", "formula", "unavailable"}, groupProps["status"].(map[string]interface{})["enum"])
 	assert.Equal(t, []string{"token", "task", "per_call"}, groupProps["billing_surface"].(map[string]interface{})["enum"])
+	assert.Contains(t, groupPrice["required"], "is_free")
+	assert.Contains(t, groupPrice["required"], "tiers")
+	assert.Equal(t, "#/components/schemas/EffectivePricingTier", groupProps["tiers"].(map[string]interface{})["items"].(map[string]interface{})["$ref"])
+	assert.Equal(t, map[string]interface{}{"type": "boolean"}, groupProps["is_free"])
+	assert.Equal(t, []string{"user_group"}, effectiveProps["price_scope"].(map[string]interface{})["enum"])
+	tier := components["schemas"].(map[string]interface{})["EffectivePricingTier"].(map[string]interface{})
+	tierProps := tier["properties"].(map[string]interface{})
+	assert.Contains(t, tier["required"], "unit_prices")
+	assert.Equal(t, "#/components/schemas/EffectivePricingTierCondition", tierProps["condition"].(map[string]interface{})["$ref"])
+	assert.Equal(t, "#/components/schemas/EffectiveUnitPrice", tierProps["unit_prices"].(map[string]interface{})["items"].(map[string]interface{})["$ref"])
+	condition := components["schemas"].(map[string]interface{})["EffectivePricingTierCondition"].(map[string]interface{})
+	assert.Equal(t, "#/components/schemas/EffectivePricingTimeWindow", condition["properties"].(map[string]interface{})["time_windows"].(map[string]interface{})["items"].(map[string]interface{})["$ref"])
 	sync := operation("/api/models/sync_upstream", "post")
 	body := sync["requestBody"].(map[string]interface{})
 	assert.Equal(t, true, body["required"])
@@ -168,6 +180,18 @@ func TestGeneratedAdminContractsMatchResolvedHandlers(t *testing.T) {
 	assert.Equal(t, []string{"channel.key.read"}, proof["scopes"])
 	assert.Equal(t, true, proof["single_use"])
 	assert.NotContains(t, operation("/api/token/{id}/key", "post"), "x-security-proof")
+	selfLogs := operation("/api/log/self", "get")
+	var tokenID map[string]interface{}
+	for _, parameter := range selfLogs["parameters"].([]interface{}) {
+		entry := parameter.(map[string]interface{})
+		if entry["name"] == "token_id" && entry["in"] == "query" {
+			tokenID = entry
+			break
+		}
+	}
+	require.NotNil(t, tokenID)
+	assert.Equal(t, false, tokenID["required"])
+	assert.Equal(t, map[string]interface{}{"type": "integer", "minimum": 1}, tokenID["schema"])
 }
 
 func TestAllGeneratedSecurityReferencesAndAnonymousExceptions(t *testing.T) {
