@@ -34,6 +34,10 @@ const serverErrorMessageKeys = {
     'Telegram login has changed. Reload the page and start Telegram OAuth again.',
   AUTH_INTERNAL_ERROR: 'Please try again later.',
   SECURITY_VERIFICATION_FAILED: 'Verification failed. Please try again.',
+  PASSKEY_RP_ID_UNAVAILABLE:
+    'This Passkey domain is not available on this website. Use its original website or another verification method.',
+  PASSKEY_RP_ID_INVALID:
+    'Invalid Passkey domain. Enter a domain without a scheme, port, path or wildcard.',
   SECURITY_VERIFICATION_FLOW_REQUIRED:
     'This verification method requires its dedicated verification flow.',
   SECURITY_VERIFICATION_LOCKED:

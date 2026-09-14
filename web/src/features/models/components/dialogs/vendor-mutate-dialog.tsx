@@ -190,7 +190,7 @@ export function VendorMutateDialog(props: {
                         name='name'
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>{t('Vendor Name *')}</FormLabel>
+                            <FormLabel required>{t('Vendor Name')}</FormLabel>
                             <FormControl>
                               <Input maxLength={128} {...field} />
                             </FormControl>

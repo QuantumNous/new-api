@@ -248,6 +248,17 @@ class BillingRuntime {
       return { value: node.value, integer: node.integer }
     }
     if (node.kind === 'variable') {
+      if (node.name === 'image_count') {
+        const value = this.context.imageCount ?? 1
+        if (!Number.isInteger(value) || value < 1 || value > 128) {
+          throw new BillingExpressionError({
+            code: 'number',
+            detail: 'image_count must be between 1 and 128',
+            position: node.start,
+          })
+        }
+        return { value }
+      }
       const value = this.context.tokens?.[node.name]
       if (value === undefined) {
         throw new BillingExpressionError({
@@ -547,6 +558,9 @@ export function evaluateBillingExpression(
       status: 'success',
       cost: result,
       billingUnit: runtime.billingUnit,
+      ...(compiled.variables.has('image_count')
+        ? { imageCount: context.imageCount ?? 1 }
+        : {}),
       ...(runtime.fixedPrice !== undefined
         ? { fixedPrice: runtime.fixedPrice }
         : {}),

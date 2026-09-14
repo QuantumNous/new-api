@@ -571,3 +571,15 @@ func TestStreamScannerHandler_StreamStatus_ReplacesPreInitialized(t *testing.T) 
 	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
 	assert.Equal(t, 0, info.StreamStatus.TotalErrorCount())
 }
+
+func TestNewStreamScannerCallerLimit(t *testing.T) {
+	// The smaller buffer must actually constrain a line; a preallocated 64 KiB
+	// buffer would otherwise bypass this caller's 1 KiB limit in bufio.Scanner.
+	scanner := NewStreamScanner(strings.NewReader(strings.Repeat("x", 2048)+"\n"), 1024)
+	assert.False(t, scanner.Scan())
+	require.Error(t, scanner.Err())
+	scanner = NewStreamScanner(strings.NewReader("data: ok\n"), 1024)
+	require.True(t, scanner.Scan())
+	assert.Equal(t, "data: ok", scanner.Text())
+	require.NoError(t, scanner.Err())
+}

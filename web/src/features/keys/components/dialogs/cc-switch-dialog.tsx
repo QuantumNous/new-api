@@ -203,12 +203,7 @@ export function CCSwitchDialog(props: Props) {
 
         {currentConfig.modelFields.map((field) => (
           <div key={field.key} className='space-y-2'>
-            <Label>
-              {t(field.labelKey)}
-              {field.required && (
-                <span className='text-destructive ml-0.5'>*</span>
-              )}
-            </Label>
+            <Label required={field.required}>{t(field.labelKey)}</Label>
             <ComboboxInput
               options={modelOptions}
               value={models[field.key] || ''}

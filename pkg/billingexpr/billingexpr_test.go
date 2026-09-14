@@ -35,6 +35,10 @@ func TestFixedPriceBranches(t *testing.T) {
 	cost, _, err := billingexpr.RunExpr(`tier("free", fixed(0))`, billingexpr.TokenParams{P: 1000})
 	require.NoError(t, err)
 	assert.Zero(t, cost)
+	for _, count := range []int{-1, 0, 129} {
+		_, _, err := billingexpr.RunExprWithRequest(`tier("image", fixed(0.04)) * image_count`, billingexpr.TokenParams{}, billingexpr.RequestInput{ImageCount: &count})
+		require.ErrorContains(t, err, "image_count")
+	}
 }
 
 func TestFixedPriceRejectsInvalidLeavesIncludingUnselectedBranches(t *testing.T) {
@@ -1166,16 +1170,20 @@ func TestFrontendSimulationContract(t *testing.T) {
 		Matched     []bool
 		BillingUnit billingexpr.BillingUnit
 		FixedPrice  *float64
+		ImageCount  *int
 	}
 	require.NoError(t, common.Unmarshal(data, &cases))
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
 			body, err := common.Marshal(tc.Body)
 			require.NoError(t, err)
-			cost, trace, err := billingexpr.RunExprWithRequest(tc.Expression, tc.Tokens, billingexpr.RequestInput{Body: body, Headers: tc.Headers, Usage: tc.Usage})
+			cost, trace, err := billingexpr.RunExprWithRequest(tc.Expression, tc.Tokens, billingexpr.RequestInput{Body: body, Headers: tc.Headers, Usage: tc.Usage, ImageCount: tc.ImageCount})
 			require.NoError(t, err)
 			assert.InDelta(t, tc.Cost, cost, 1e-9)
 			assert.Equal(t, tc.Tier, trace.MatchedTier)
+			if tc.ImageCount != nil {
+				assert.Equal(t, tc.ImageCount, trace.ImageCount)
+			}
 			if tc.BillingUnit != "" {
 				assert.Equal(t, tc.BillingUnit, trace.BillingUnit)
 				assert.Equal(t, tc.FixedPrice, trace.FixedPrice)

@@ -46,6 +46,7 @@ import {
   type TierCondition,
 } from '../lib/billing-expr'
 import { formatBillingCondition } from '../lib/billing-expression/condition-display'
+import { compileBillingExpression } from '../lib/billing-expression/parser'
 import { isBreakdownTierMatched } from '../lib/breakdown-tier-match'
 import {
   formatTaskUsageUnitPrice,
@@ -55,6 +56,7 @@ import {
 import { getTaskPricingDisplayTiers } from '../lib/task-matrix-display'
 import {
   taskPriceLabel,
+  taskUsageUnitLabel,
   taskPricingConditions,
 } from '../lib/task-price-display'
 import type { BillingUsageSchema, BillingUsageUnit } from '../types'
@@ -102,7 +104,8 @@ type BreakdownPriceField = {
   id: string
   label: string
   labelKind: DynamicPriceLabelKind
-  unit: BillingUsageUnit | 'request' | 'token'
+  unit: BillingUsageUnit | 'request' | 'token' | 'image'
+  unitLabel?: string | Record<string, string>
   showTokenUnit?: boolean
   value: (tier: BreakdownTier) => number
 }
@@ -179,7 +182,7 @@ function formatBreakdownConditionSummary(
     if (tier.conditionText) {
       return (
         formatBillingCondition(tier.conditionText, t, language) ??
-        tier.conditionText
+        t(tier.conditionText)
       )
     }
     return formatConditionSummary(tier.conditions, t)
@@ -196,19 +199,25 @@ function formatBreakdownPrice(
   symbol: string,
   rate: number,
   t: (key: string) => string,
-  taskPriceOptions: DynamicPricingBreakdownProps['taskPriceOptions']
+  taskPriceOptions: DynamicPricingBreakdownProps['taskPriceOptions'],
+  language: string
 ): string {
   const amount =
-    field.labelKind === 'schema' || field.unit === 'request'
+    field.labelKind === 'schema' ||
+    field.unit === 'request' ||
+    field.unit === 'image'
       ? formatTaskUsageUnitPrice(value, { tokenUnit: 'M', ...taskPriceOptions })
       : `${symbol}${(value * rate).toFixed(4)}`
   if (field.unit === 'second') return `${amount}/${t('s')}`
-  if (field.unit === 'count') return `${amount}/${t('unit')}`
+  if (field.unit === 'count') {
+    return `${amount}/${taskUsageUnitLabel(field, language, t('unit'))}`
+  }
   if (field.unit === 'credit') return `${amount}/${t('credit')}`
   if (field.unit === 'token' && field.labelKind === 'schema') {
     return `${amount}/${t('1M token')}`
   }
   if (field.unit === 'request') return `${amount}/${t('request')}`
+  if (field.unit === 'image') return `${amount}/${t('image')}`
   return amount
 }
 
@@ -303,10 +312,22 @@ export function DynamicPricingBreakdown({
     const parsedTiers = usageSchema
       ? getTaskPricingDisplayTiers(split.billingExpr, usageSchema)
       : parseTiersFromExpr(split.billingExpr)
-    const parsedRules =
+    let parsedRules =
       requestRules != null
         ? requestRuleGroupsFromTrace(requestRules)
         : tryParseRequestRuleExpr(split.requestRuleExpr || '')
+    if (!parsedRules && requestRules == null) {
+      const compiled = compileBillingExpression(expr)
+      if (compiled.status === 'ready') {
+        parsedRules = requestRuleGroupsFromTrace(
+          compiled.requestRules.map((rule) => ({
+            cond: expr.slice(rule.condition.start, rule.condition.end),
+            multiplier: rule.multiplier,
+            matched: false,
+          }))
+        )
+      }
+    }
     return {
       tiers: parsedTiers,
       ruleGroups: parsedRules || [],
@@ -366,6 +387,7 @@ export function DynamicPricingBreakdown({
           label: taskPriceLabel(definition.description, field, i18n.language),
           labelKind: 'schema' as const,
           unit: definition.unit as BillingUsageUnit,
+          unitLabel: definition.unitLabel,
           value: (tier: BreakdownTier) =>
             isTaskBreakdownTier(tier) ? Number(tier.unitPrices[field] || 0) : 0,
         }))
@@ -410,9 +432,17 @@ export function DynamicPricingBreakdown({
       for (const field of fields) field.showTokenUnit = true
       fields.push({
         id: 'fixedPrice',
-        label: 'Price per request',
+        label: tiers.some(
+          (tier) => !isTaskBreakdownTier(tier) && tier.imageCount
+        )
+          ? 'Price per image'
+          : 'Price per request',
         labelKind: 'i18n',
-        unit: 'request',
+        unit: tiers.some(
+          (tier) => !isTaskBreakdownTier(tier) && tier.imageCount
+        )
+          ? 'image'
+          : 'request',
         value: (tier) =>
           !isTaskBreakdownTier(tier) && tier.billingUnit === 'request'
             ? Number(tier.fixedPrice)
@@ -527,14 +557,17 @@ export function DynamicPricingBreakdown({
                             )}
                           >
                             {value > 0 ||
-                            (field.unit === 'request' && Number.isFinite(value))
+                            ((field.unit === 'request' ||
+                              field.unit === 'image') &&
+                              Number.isFinite(value))
                               ? formatBreakdownPrice(
                                   value,
                                   field,
                                   symbol,
                                   rate,
                                   t,
-                                  taskPriceOptions
+                                  taskPriceOptions,
+                                  i18n.language
                                 )
                               : '-'}
                           </div>
@@ -641,7 +674,8 @@ export function DynamicPricingBreakdown({
                 cell: (tier: BreakdownTier) => {
                   const value = field.value(tier)
                   return value > 0 ||
-                    (field.unit === 'request' && Number.isFinite(value)) ? (
+                    ((field.unit === 'request' || field.unit === 'image') &&
+                      Number.isFinite(value)) ? (
                     <span className={cn(!compact && 'font-semibold')}>
                       {formatBreakdownPrice(
                         value,
@@ -649,7 +683,8 @@ export function DynamicPricingBreakdown({
                         symbol,
                         rate,
                         t,
-                        taskPriceOptions
+                        taskPriceOptions,
+                        i18n.language
                       )}
                     </span>
                   ) : (

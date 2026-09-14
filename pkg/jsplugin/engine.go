@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/logger"
@@ -117,7 +116,7 @@ type Engine struct {
 	now       func() time.Time
 	log       func(string)
 	module    *sobek.SourceTextModuleRecord
-	pool      sync.Pool
+	pool      chan *runtimeInstance
 	semaphore chan struct{}
 }
 
@@ -172,13 +171,14 @@ func Compile(source string, options Options) (*Engine, error) {
 		log:       options.Log,
 		module:    module,
 		semaphore: make(chan struct{}, concurrency),
+		pool:      make(chan *runtimeInstance, concurrency),
 	}
 	instance, err := engine.newRuntime(context.Background())
 	if err != nil {
 		return nil, err
 	}
 	instance.logContext.context = nil
-	engine.pool.Put(instance)
+	engine.putRuntime(instance)
 	return engine, nil
 }
 
@@ -201,14 +201,12 @@ func (e *Engine) Export(ctx context.Context, exportName string) (result any, err
 		instance.runtime.ClearInterrupt()
 		instance.logContext.context = nil
 		if reusable {
-			e.pool.Put(instance)
+			e.putRuntime(instance)
 		}
 	}()
 	timedOut := errors.New("plugin export timed out")
-	timer := time.AfterFunc(e.timeout, func() { instance.runtime.Interrupt(timedOut) })
-	stopContext := context.AfterFunc(ctx, func() { instance.runtime.Interrupt(ctx.Err()) })
-	defer stopContext()
-	defer timer.Stop()
+	stopInterrupt := watchRuntimeContext(instance.runtime, ctx, e.timeout, timedOut)
+	defer stopInterrupt()
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			reusable = false
@@ -244,7 +242,7 @@ func (e *Engine) HasExport(ctx context.Context, exportName string) (bool, error)
 	}
 	defer func() {
 		instance.logContext.context = nil
-		e.pool.Put(instance)
+		e.putRuntime(instance)
 	}()
 	value := instance.module.GetBindingValue(exportName)
 	return value != nil && !sobek.IsUndefined(value), nil
@@ -268,14 +266,12 @@ func (e *Engine) HasCallablePath(ctx context.Context, exportName string, members
 		instance.runtime.ClearInterrupt()
 		instance.logContext.context = nil
 		if reusable {
-			e.pool.Put(instance)
+			e.putRuntime(instance)
 		}
 	}()
 	timedOut := errors.New("plugin inspection timed out")
-	timer := time.AfterFunc(e.timeout, func() { instance.runtime.Interrupt(timedOut) })
-	stopContext := context.AfterFunc(ctx, func() { instance.runtime.Interrupt(ctx.Err()) })
-	defer stopContext()
-	defer timer.Stop()
+	stopInterrupt := watchRuntimeContext(instance.runtime, ctx, e.timeout, timedOut)
+	defer stopInterrupt()
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			reusable = false
@@ -350,16 +346,14 @@ func (e *Engine) call(
 		instance.runtime.ClearInterrupt()
 		instance.logContext.context = nil
 		if reusable {
-			e.pool.Put(instance)
+			e.putRuntime(instance)
 		}
 	}()
 
 	hookName := strings.Join(append([]string{exportName}, members...), ".")
 	timedOut := errors.New("plugin call timed out")
-	timer := time.AfterFunc(e.timeout, func() { instance.runtime.Interrupt(timedOut) })
-	stopContext := context.AfterFunc(ctx, func() { instance.runtime.Interrupt(ctx.Err()) })
-	defer stopContext()
-	defer timer.Stop()
+	stopInterrupt := watchRuntimeContext(instance.runtime, ctx, e.timeout, timedOut)
+	defer stopInterrupt()
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			reusable = false
@@ -459,13 +453,40 @@ func resolveExportPath(instance *runtimeInstance, exportName string, members []s
 	return value, hookName, true
 }
 
+// Idle runtimes are bounded by the execution limit and survive GC. Start with
+// one instance and grow only when concurrent work actually needs more.
+func (e *Engine) putRuntime(instance *runtimeInstance) {
+	select {
+	case e.pool <- instance:
+	default:
+	}
+}
+
 func (e *Engine) getRuntime(ctx context.Context) (*runtimeInstance, error) {
-	if pooled := e.pool.Get(); pooled != nil {
-		instance := pooled.(*runtimeInstance)
+	select {
+	case instance := <-e.pool:
 		instance.logContext.context = ctx
 		return instance, nil
+	default:
+		return e.newRuntime(ctx)
 	}
-	return e.newRuntime(ctx)
+}
+
+// A timeout callback must finish before its runtime can be reused. Merely
+// stopping a timer does not wait for an already-started Interrupt call.
+func watchRuntimeContext(runtime *sobek.Runtime, ctx context.Context, timeout time.Duration, timeoutError error) func() {
+	callContext, cancel := context.WithTimeoutCause(ctx, timeout, timeoutError)
+	interrupted := make(chan struct{})
+	stop := context.AfterFunc(callContext, func() {
+		runtime.Interrupt(context.Cause(callContext))
+		close(interrupted)
+	})
+	return func() {
+		if !stop() {
+			<-interrupted
+		}
+		cancel()
+	}
 }
 
 func (e *Engine) newRuntime(ctx context.Context) (instance *runtimeInstance, err error) {
@@ -483,8 +504,11 @@ func (e *Engine) newRuntime(ctx context.Context) (instance *runtimeInstance, err
 		return nil, fmt.Errorf("inject plugin utils: %w", err)
 	}
 	timedOut := errors.New("plugin initialization timed out")
-	timer := time.AfterFunc(e.timeout, func() { runtime.Interrupt(timedOut) })
-	defer timer.Stop()
+	stopInterrupt := watchRuntimeContext(runtime, ctx, e.timeout, timedOut)
+	defer func() {
+		stopInterrupt()
+		runtime.ClearInterrupt()
+	}()
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			if interrupted, ok := recovered.(*sobek.InterruptedError); ok {
