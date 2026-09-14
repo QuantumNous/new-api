@@ -78,13 +78,13 @@ describe('download platform detection', () => {
 describe('download URL resolution', () => {
   it('uses partner files only for the exact partner hostname', () => {
     expect(getDownloadUrl('windows', 'ai.yeschoy.io')).toBe(
-      'https://ergou.qzz.io/updates/releases/partner/0.4.18/yeschoy-0.4.18-partner-windows-x86_64-installer.exe'
+      'https://ergou.qzz.io/releases/partner/yeschoy-windows-x86_64-installer.exe'
     )
     expect(getDownloadUrl('macos', 'AI.YESCHOY.IO')).toBe(
-      'https://ergou.qzz.io/updates/releases/partner/0.4.18/yeschoy-0.4.18-partner-macos-universal-installer.dmg'
+      'https://ergou.qzz.io/releases/partner/yeschoy-macos-universal-installer.dmg'
     )
     expect(getDownloadUrl('windows', 'ai.yeschoy.com')).toContain(
-      '/releases/partner/0.4.18/'
+      '/releases/partner/'
     )
 
     for (const hostname of [
@@ -96,7 +96,7 @@ describe('download URL resolution', () => {
       '',
     ]) {
       expect(getDownloadUrl('windows', hostname)).toContain(
-        '/releases/official/0.4.18/'
+        '/releases/official/'
       )
     }
   })
@@ -105,7 +105,7 @@ describe('download URL resolution', () => {
     expect(resolveDownload(MACOS, 'example.com')).toEqual({
       platform: 'macos',
       channel: 'official',
-      url: 'https://ergou.qzz.io/updates/releases/official/0.4.18/yeschoy-0.4.18-official-macos-universal-installer.dmg',
+      url: 'https://ergou.qzz.io/releases/official/yeschoy-macos-universal-installer.dmg',
     })
     expect(resolveDownload(IPAD_DESKTOP_UA, 'ai.yeschoy.io')).toBeNull()
   })

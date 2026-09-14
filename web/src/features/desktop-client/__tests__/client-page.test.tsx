@@ -62,9 +62,9 @@ describe('desktop client page', () => {
       screen.getByRole('link', { name: 'Download for Windows' })
     ).toHaveAttribute(
       'href',
-      'https://ergou.qzz.io/updates/releases/official/0.4.18/yeschoy-0.4.18-official-windows-x86_64-installer.exe'
+      'https://ergou.qzz.io/releases/official/yeschoy-windows-x86_64-installer.exe'
     )
-    expect(screen.getAllByText(/v0\.4\.18/)).toHaveLength(2)
+    expect(screen.queryByText(/v\d+\.\d+\.\d+/)).not.toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: 'Windows installer' })
     ).toHaveAttribute('href', expect.stringContaining('/releases/official/'))
@@ -86,7 +86,7 @@ describe('desktop client page', () => {
     })) {
       expect(link).toHaveAttribute(
         'href',
-        expect.stringContaining('/releases/partner/0.4.18/')
+        expect.stringContaining('/releases/partner/')
       )
     }
   })

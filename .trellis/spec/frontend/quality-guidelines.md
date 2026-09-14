@@ -375,9 +375,10 @@ for signed-out visitors, the console top bar, and the sign-in header.
 `web/src/features/desktop-client/lib/downloads.ts` and the `/client` page.
 
 ### Contracts
-- `CLIENT_VERSION` and the four literal installer URLs in `DOWNLOAD_URLS` are the only place the client version lives; a release bump updates the constant and moves the `releases/<channel>/<version>/` folder and file names together.
+- The four literal installer URLs in `DOWNLOAD_URLS` use the permanent `releases/<channel>/yeschoy-<platform>-installer.<ext>` names maintained by the signed release publisher. They never include a version number, so a release does not require a website rebuild.
+- The page does not render a hard-coded client version beside a permanent link. The versioned update and download manifests remain the release authority.
 - Channel selection is exact hostname matching against `PARTNER_HOSTNAMES` (`ai.yeschoy.io`, plus the legacy `ai.yeschoy.com`); every other host resolves to the official installers.
 - Look-alike hosts (`www.ai.yeschoy.io`, `ai.yeschoy.com.example.com`) stay official, so the match must stay exact after lowercasing instead of becoming a suffix check.
 
 ### Tests Required
-`downloads.test.ts` covers partner vs official host resolution and platform detection; `client-page.test.tsx` asserts the rendered installer hrefs and the version label.
+`downloads.test.ts` covers partner vs official host resolution and platform detection; `client-page.test.tsx` asserts the rendered permanent installer hrefs and the absence of a stale version label.

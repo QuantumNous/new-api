@@ -16,8 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export const CLIENT_VERSION = '0.4.18'
-
 export type DownloadPlatform = 'windows' | 'macos'
 export type DownloadChannel = 'official' | 'partner'
 
@@ -38,15 +36,15 @@ const PARTNER_HOSTNAMES = new Set(['ai.yeschoy.io', 'ai.yeschoy.com'])
 const DOWNLOAD_URLS = {
   official: {
     windows:
-      'https://ergou.qzz.io/updates/releases/official/0.4.18/yeschoy-0.4.18-official-windows-x86_64-installer.exe',
+      'https://ergou.qzz.io/releases/official/yeschoy-windows-x86_64-installer.exe',
     macos:
-      'https://ergou.qzz.io/updates/releases/official/0.4.18/yeschoy-0.4.18-official-macos-universal-installer.dmg',
+      'https://ergou.qzz.io/releases/official/yeschoy-macos-universal-installer.dmg',
   },
   partner: {
     windows:
-      'https://ergou.qzz.io/updates/releases/partner/0.4.18/yeschoy-0.4.18-partner-windows-x86_64-installer.exe',
+      'https://ergou.qzz.io/releases/partner/yeschoy-windows-x86_64-installer.exe',
     macos:
-      'https://ergou.qzz.io/updates/releases/partner/0.4.18/yeschoy-0.4.18-partner-macos-universal-installer.dmg',
+      'https://ergou.qzz.io/releases/partner/yeschoy-macos-universal-installer.dmg',
   },
 } satisfies Record<DownloadChannel, Record<DownloadPlatform, string>>
 

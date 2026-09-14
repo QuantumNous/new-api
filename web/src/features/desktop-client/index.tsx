@@ -30,7 +30,6 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
-  CLIENT_VERSION,
   getDownloadUrl,
   resolveDownload,
   type DownloadEnvironment,
@@ -282,9 +281,7 @@ export function DesktopClientPage(props: DesktopClientPageProps = {}) {
                 </span>
                 <span className='client-downloadOption__body'>
                   <strong>{t('Windows installer')}</strong>
-                  <span>
-                    {t('Windows 10 or later')} · x86_64 · v{CLIENT_VERSION}
-                  </span>
+                  <span>{t('Windows 10 or later')} · x86_64</span>
                 </span>
                 <ArrowRight size={18} aria-hidden='true' />
               </a>
@@ -301,9 +298,7 @@ export function DesktopClientPage(props: DesktopClientPageProps = {}) {
                 </span>
                 <span className='client-downloadOption__body'>
                   <strong>{t('Universal macOS DMG')}</strong>
-                  <span>
-                    {t('Intel and Apple silicon')} · v{CLIENT_VERSION}
-                  </span>
+                  <span>{t('Intel and Apple silicon')}</span>
                 </span>
                 <ArrowRight size={18} aria-hidden='true' />
               </a>
