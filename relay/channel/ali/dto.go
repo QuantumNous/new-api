@@ -172,7 +172,7 @@ type AliImageRequest struct {
 
 type AliImageParameters struct {
 	Size             string `json:"size,omitempty"`
-	N                int    `json:"n,omitempty"`
+	N                *uint  `json:"n,omitempty"`
 	Steps            string `json:"steps,omitempty"`
 	Scale            string `json:"scale,omitempty"`
 	Watermark        *bool  `json:"watermark,omitempty"`

@@ -56,7 +56,7 @@ export type VisualConfig = {
   tiers: VisualTier[]
 }
 
-export function getTierCacheMode(
+function getTierCacheMode(
   tier: Partial<VisualTier> | null | undefined
 ): CacheMode {
   if (tier?.cache_mode === CACHE_MODE_TIMED) return CACHE_MODE_TIMED
@@ -66,9 +66,7 @@ export function getTierCacheMode(
     : CACHE_MODE_GENERIC
 }
 
-export function normalizeVisualTier(
-  tier: Partial<VisualTier> = {}
-): VisualTier {
+function normalizeVisualTier(tier: Partial<VisualTier> = {}): VisualTier {
   return {
     label: tier.label ?? '',
     input_unit_cost: Number(tier.input_unit_cost) || 0,
@@ -100,7 +98,7 @@ export function createDefaultVisualConfig(): VisualConfig {
   }
 }
 
-export function normalizeVisualConfig(
+function normalizeVisualConfig(
   config: VisualConfig | null | undefined
 ): VisualConfig {
   if (!config || !Array.isArray(config.tiers) || config.tiers.length === 0) {
@@ -261,6 +259,7 @@ const ESTIMATOR_VARS = [
   { var: 'cc', stateKey: 'cacheCreateTokens' },
   { var: 'cc1h', stateKey: 'cacheCreate1hTokens' },
   { var: 'img', stateKey: 'imageTokens' },
+  { var: 'img_cr', stateKey: 'imageCacheTokens' },
   { var: 'img_o', stateKey: 'imageOutputTokens' },
   { var: 'ai', stateKey: 'audioInputTokens' },
   { var: 'ao', stateKey: 'audioOutputTokens' },
@@ -317,6 +316,9 @@ export function buildEstimatorTokens(
     len:
       promptTokens +
       extraTokenValues.cacheReadTokens +
+      extraTokenValues.imageCacheTokens +
+      extraTokenValues.imageTokens +
+      extraTokenValues.audioInputTokens +
       extraTokenValues.cacheCreateTokens +
       extraTokenValues.cacheCreate1hTokens,
     ...Object.fromEntries(
@@ -334,5 +336,3 @@ export function exprUsesExtraVars(exprStr: string): boolean {
   if (compiled.status !== 'ready') return false
   return ESTIMATOR_VARS.some((field) => compiled.variables.has(field.var))
 }
-
-export const ESTIMATOR_EXTRA_FIELDS = ESTIMATOR_VARS

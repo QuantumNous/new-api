@@ -28,6 +28,375 @@ import { TieredPricingEditor } from '../tiered-pricing-editor'
 const expression =
   'weekday("Asia/Shanghai") >= 1 && weekday("Asia/Shanghai") <= 5 && ((hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 12) || (hour("Asia/Shanghai") >= 14 && hour("Asia/Shanghai") < 18))\n  ? tier("peak", p * 3 + cr * 0.10 + c * 9)\n  : tier("off_peak", p * 1.5 + cr * 0.05 + c * 4.5)'
 
+const chainedExpression =
+  'len <= 32000 && c <= 200 ? tier("discount", p * 0.8 + c * 2 + cr * 0.16 + cc * 0.17) : len <= 32000 ? tier("short", p * 0.8 + c * 8 + cr * 0.16 + cc * 0.17) : len <= 128000 ? tier("mid", p * 1.2 + c * 16 + cr * 0.16 + cc * 0.17) : tier("long", p * 2.4 + c * 24 + cr * 0.16 + cc * 0.17)'
+
+test('shows chained tiers as peer rules and edits a later rule without changing precedence', async () => {
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr={chainedExpression}
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+  const rules = screen.getByRole('list', { name: 'Pricing rules' })
+  expect(
+    within(rules)
+      .getAllByRole('listitem')
+      .filter((item) => item.parentElement === rules)
+  ).toHaveLength(4)
+  const short = within(
+    screen.getByRole('group', { name: 'Pricing tier short' })
+  )
+  expect(
+    short.queryByRole('textbox', { name: 'Output price' })
+  ).not.toBeInTheDocument()
+  const expand = short.getByRole('button', { name: 'Edit pricing rule short' })
+  expand.focus()
+  const user = userEvent.setup()
+  await user.keyboard('{Enter}')
+  expect(expand).toHaveAttribute('aria-expanded', 'true')
+  expect(short.getByRole('textbox', { name: 'Output price' })).toHaveValue('8')
+  expect(onBillingExprChange).not.toHaveBeenCalled()
+  fireEvent.change(short.getByRole('textbox', { name: 'Output price' }), {
+    target: { value: '10' },
+  })
+  fireEvent.change(short.getByRole('textbox', { name: 'Condition value' }), {
+    target: { value: '40000' },
+  })
+  expect(onBillingExprChange).toHaveBeenLastCalledWith(
+    chainedExpression
+      .replace('c * 8', 'c * 10')
+      .replace(': len <= 32000', ': len <= 40000')
+  )
+  const generated = onBillingExprChange.mock.lastCall?.[0]
+  assert(generated)
+  for (const [len, c, matchedTier] of [
+    [32000, 200, 'discount'],
+    [32000, 201, 'short'],
+    [35000, 100, 'short'],
+    [40001, 100, 'mid'],
+    [128001, 100, 'long'],
+  ] as const) {
+    expect(
+      evaluateBillingExpression(generated, {
+        tokens: { len, p: len, c, cr: 0, cc: 0 },
+      })
+    ).toMatchObject({ status: 'success', matchedTier })
+  }
+  await user.click(expand)
+  expect(expand).toHaveAttribute('aria-expanded', 'false')
+  expect(expand).toHaveTextContent('Output: $10')
+  await user.click(expand)
+  expect(short.getByRole('textbox', { name: 'Output price' })).toHaveValue('10')
+  expect(short.getByRole('textbox', { name: 'Condition value' })).toHaveValue(
+    '40000'
+  )
+  await user.click(short.getByRole('button', { name: 'Branch actions 2' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Remove branch' }))
+  const removed = onBillingExprChange.mock.lastCall?.[0]
+  assert(removed)
+  expect(removed).not.toContain('tier("short"')
+  expect(
+    evaluateBillingExpression(removed, {
+      tokens: { len: 35000, p: 35000, c: 100, cr: 0, cc: 0 },
+    })
+  ).toMatchObject({ status: 'success', matchedTier: 'mid', cost: 43600 })
+})
+
+test('retains all pricing inputs and switches inside an expanded rule', async () => {
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr={chainedExpression}
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+  const user = userEvent.setup()
+  const tier = within(screen.getByRole('group', { name: 'Pricing tier short' }))
+  await user.click(
+    tier.getByRole('button', { name: 'Edit pricing rule short' })
+  )
+  await user.click(tier.getByRole('button', { name: 'Media pricing' }))
+  for (const label of [
+    'Input price',
+    'Output price',
+    'Cache read price',
+    'Cache create price',
+    'Cache create (1h) price',
+    'Image input price',
+    'Image cache input price',
+    'Image output price',
+    'Audio input price',
+    'Audio output price',
+  ]) {
+    expect(tier.getByRole('textbox', { name: label })).toBeVisible()
+    expect(
+      tier.getByRole('checkbox', { name: `Include ${label}` })
+    ).toBeVisible()
+  }
+  await user.click(
+    tier.getByRole('checkbox', { name: 'Include Cache create (1h) price' })
+  )
+  fireEvent.change(
+    tier.getByRole('textbox', { name: 'Cache create (1h) price' }),
+    { target: { value: '0.3' } }
+  )
+  await user.click(
+    tier.getByRole('checkbox', { name: 'Include Image cache input price' })
+  )
+  expect(onBillingExprChange.mock.lastCall?.[0]).toContain('img_cr * 0')
+  expect(onBillingExprChange.mock.lastCall?.[0]).toContain('cc1h * 0.3')
+  await user.click(tier.getByRole('combobox', { name: 'Tier billing mode' }))
+  await user.click(screen.getByRole('option', { name: 'Per-call' }))
+  fireEvent.change(tier.getByRole('textbox', { name: 'Price per request' }), {
+    target: { value: '0.02' },
+  })
+  expect(onBillingExprChange.mock.lastCall?.[0]).toContain(
+    'tier("short", fixed(0.02))'
+  )
+  await user.click(tier.getByRole('combobox', { name: 'Tier billing mode' }))
+  await user.click(screen.getByRole('option', { name: 'Per token' }))
+  expect(
+    tier.getByRole('textbox', { name: 'Cache create (1h) price' })
+  ).toHaveValue('0.3')
+  expect(
+    tier.getByRole('checkbox', { name: 'Include Image cache input price' })
+  ).toBeChecked()
+  expect(tier.getByRole('button', { name: 'Add pricing branch' })).toBeVisible()
+  expect(tier.getByRole('textbox', { name: 'Tier name' })).toHaveValue('short')
+  await user.click(
+    tier.getByRole('button', { name: 'Edit pricing rule short' })
+  )
+  await user.click(
+    tier.getByRole('button', { name: 'Edit pricing rule short' })
+  )
+  expect(
+    tier.getByRole('textbox', { name: 'Image cache input price' })
+  ).toBeVisible()
+  expect(
+    tier.getByRole('checkbox', { name: 'Include Image cache input price' })
+  ).toBeChecked()
+})
+
+test.each([
+  '',
+  'tier("base", p * 3.00 + c * 9)',
+  'tier("request", fixed(0.0100))',
+  'len < 200000 ? tier("short", p * 3 + c * 9) : tier("long", p * 6 + c * 18)',
+])(
+  'uses condition trees by default without changing pricing: %s',
+  async (source) => {
+    const onBillingExprChange = vi.fn()
+    const onRequestRuleExprChange = vi.fn()
+    const rule = '(header("x-plan") == "fast" ? 2.00 : 1)'
+    render(
+      <TieredPricingEditor
+        billingExpr={source}
+        requestRuleExpr={rule}
+        onBillingExprChange={onBillingExprChange}
+        onRequestRuleExprChange={onRequestRuleExprChange}
+      />
+    )
+    const user = userEvent.setup()
+    expect(
+      screen.getAllByRole('button', { name: 'Add pricing branch' }).length
+    ).toBeGreaterThan(0)
+    await user.click(screen.getByRole('combobox', { name: 'Editor mode' }))
+    await user.click(screen.getByRole('option', { name: 'Expression editor' }))
+    expect(
+      screen.getByRole('textbox', { name: 'Billing expression' })
+    ).toHaveValue(combineBillingExpr(source, rule))
+    await user.click(screen.getByRole('combobox', { name: 'Editor mode' }))
+    await user.click(screen.getByRole('option', { name: 'Visual editor' }))
+    expect(
+      screen.getAllByRole('button', { name: 'Add pricing branch' }).length
+    ).toBeGreaterThan(0)
+    expect(onBillingExprChange).not.toHaveBeenCalled()
+    expect(onRequestRuleExprChange).not.toHaveBeenCalled()
+  }
+)
+
+test('keeps the condition tree as the default after switching models and applying presets', async () => {
+  const props = {
+    requestRuleExpr: '',
+    onBillingExprChange: vi.fn(),
+    onRequestRuleExprChange: vi.fn(),
+  }
+  const view = render(
+    <TieredPricingEditor
+      {...props}
+      modelName='timed'
+      billingExpr={expression}
+    />
+  )
+  view.rerender(
+    <TieredPricingEditor
+      {...props}
+      modelName='simple'
+      billingExpr='tier("base", p * 2 + c * 8)'
+    />
+  )
+  expect(
+    screen.getByRole('button', { name: 'Add pricing branch' })
+  ).toBeVisible()
+  expect(screen.getByRole('textbox', { name: 'Input price' })).toHaveValue('2')
+  expect(props.onBillingExprChange).not.toHaveBeenCalled()
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('button', { name: 'Flat' }))
+  expect(
+    screen.getByRole('button', { name: 'Add pricing branch' })
+  ).toBeVisible()
+  expect(screen.getByRole('textbox', { name: 'Output price' })).toHaveValue('4')
+  expect(props.onBillingExprChange).toHaveBeenLastCalledWith(
+    'tier("base", p * 2 + c * 4)'
+  )
+})
+
+test('builds weekday peak pricing with two time ranges from an empty visual form', async () => {
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr=''
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+  const user = userEvent.setup()
+  fireEvent.change(screen.getByRole('textbox', { name: 'Tier name' }), {
+    target: { value: '空闲' },
+  })
+  fireEvent.change(screen.getByRole('textbox', { name: 'Input price' }), {
+    target: { value: '1.5' },
+  })
+  fireEvent.change(screen.getByRole('textbox', { name: 'Output price' }), {
+    target: { value: '4.5' },
+  })
+  await user.click(
+    screen.getByRole('checkbox', { name: 'Include Cache read price' })
+  )
+  fireEvent.change(screen.getByRole('textbox', { name: 'Cache read price' }), {
+    target: { value: '0.05' },
+  })
+  await user.click(screen.getByRole('button', { name: 'Add pricing branch' }))
+  fireEvent.change(screen.getAllByRole('textbox', { name: 'Tier name' })[0], {
+    target: { value: '高峰' },
+  })
+  const peak = within(screen.getByRole('group', { name: 'Pricing tier 高峰' }))
+  fireEvent.change(peak.getByRole('textbox', { name: 'Input price' }), {
+    target: { value: '3' },
+  })
+  fireEvent.change(peak.getByRole('textbox', { name: 'Output price' }), {
+    target: { value: '9' },
+  })
+  fireEvent.change(peak.getByRole('textbox', { name: 'Cache read price' }), {
+    target: { value: '0.10' },
+  })
+
+  await user.click(screen.getByRole('combobox', { name: 'Condition input' }))
+  await user.click(screen.getByRole('option', { name: 'Weekday' }))
+  await user.click(screen.getByRole('combobox', { name: 'Condition value' }))
+  await user.click(screen.getByRole('option', { name: 'Monday' }))
+  await user.click(screen.getByRole('button', { name: 'Condition actions 1' }))
+  await user.click(screen.getByRole('menuitem', { name: 'Add condition' }))
+  await user.click(
+    screen.getAllByRole('combobox', { name: 'Condition input' })[1]
+  )
+  await user.click(screen.getByRole('option', { name: 'Weekday' }))
+  await user.click(
+    screen.getAllByRole('combobox', { name: 'Condition value' })[1]
+  )
+  await user.click(screen.getByRole('option', { name: 'Friday' }))
+  await user.click(
+    screen.getAllByRole('combobox', { name: 'Comparison operator' })[1]
+  )
+  await user.click(screen.getByRole('option', { name: '<=' }))
+  await user.click(screen.getByRole('button', { name: 'Add to group 1' }))
+  await user.click(
+    screen.getByRole('menuitem', { name: 'Add condition group' })
+  )
+
+  for (const [index, start, end] of [
+    [1, 9, 12],
+    [2, 14, 18],
+  ]) {
+    await user.click(screen.getByRole('button', { name: 'Add to group 1.2' }))
+    await user.click(
+      screen.getByRole('menuitem', { name: 'Add condition group' })
+    )
+    const period = within(
+      screen.getByRole('group', { name: `Condition group 1.2.${index}` })
+    )
+    await user.click(period.getByRole('combobox', { name: 'Condition group' }))
+    await user.click(screen.getByRole('option', { name: 'All conditions' }))
+    await user.click(
+      screen.getByRole('button', { name: `Add to group 1.2.${index}` })
+    )
+    await user.click(screen.getByRole('menuitem', { name: 'Add condition' }))
+    fireEvent.change(period.getByRole('textbox', { name: 'Condition value' }), {
+      target: { value: String(start) },
+    })
+    await user.click(
+      screen.getByRole('button', { name: `Add to group 1.2.${index}` })
+    )
+    await user.click(screen.getByRole('menuitem', { name: 'Add condition' }))
+    fireEvent.change(
+      period.getAllByRole('textbox', { name: 'Condition value' })[1],
+      { target: { value: String(end) } }
+    )
+    await user.click(
+      period.getAllByRole('combobox', { name: 'Comparison operator' })[1]
+    )
+    await user.click(screen.getByRole('option', { name: '<' }))
+  }
+
+  const generated = onBillingExprChange.mock.lastCall?.[0]
+  assert(generated)
+  for (const [localTime, matchedTier, cost] of [
+    ['2026-09-07T08:59:00', '空闲', 600.5],
+    ['2026-09-07T09:00:00', '高峰', 1201],
+    ['2026-09-07T12:00:00', '空闲', 600.5],
+    ['2026-09-07T14:00:00', '高峰', 1201],
+    ['2026-09-07T18:00:00', '空闲', 600.5],
+    ['2026-09-11T10:00:00', '高峰', 1201],
+    ['2026-09-12T10:00:00', '空闲', 600.5],
+    ['2026-09-13T15:00:00', '空闲', 600.5],
+  ] as const) {
+    expect(
+      evaluateBillingExpression(generated, {
+        now: new Date(`${localTime}+08:00`),
+        tokens: { p: 100, c: 100, cr: 10 },
+      })
+    ).toMatchObject({ status: 'success', matchedTier, cost })
+  }
+})
+
+test('edits image cache pricing and preserves an explicitly free cache lane', () => {
+  const source =
+    'tier("standard", p * 5 + c * 30 + cr * 1.25 + img * 8 + img_cr * 2)'
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr={source}
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+  const price = screen.getByRole('textbox', { name: 'Image cache input price' })
+  expect(price).toHaveValue('2')
+  fireEvent.change(price, { target: { value: '0' } })
+  expect(onBillingExprChange.mock.lastCall?.[0]).toContain('img_cr * 0')
+  expect(
+    screen.getByRole('checkbox', { name: 'Include Image cache input price' })
+  ).toBeChecked()
+})
+
 describe('visual time billing editor', () => {
   test.each([
     ['simple tiers', 'tier("base", p * 2 + c * 8)', '2'],
@@ -222,11 +591,15 @@ describe('visual time billing editor', () => {
     expect(
       screen.queryByRole('button', { name: 'Negate condition' })
     ).not.toBeInTheDocument()
-    expect(screen.getByText('When conditions match → peak')).toBeVisible()
-    expect(screen.getByText('Otherwise → off_peak')).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: 'Edit pricing rule peak' })
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      screen.getByRole('button', { name: 'Edit pricing rule off_peak' })
+    ).toHaveTextContent('No preceding rule matched')
     expect(onBillingExprChange).not.toHaveBeenCalled()
   })
-  test('opens the complete time expression visually without publishing changes', () => {
+  test('opens the complete time expression visually without publishing changes', async () => {
     const onBillingExprChange = vi.fn()
     render(
       <TieredPricingEditor
@@ -241,6 +614,10 @@ describe('visual time billing editor', () => {
         screen.getByRole('group', { name: 'Pricing tier peak' })
       ).getByRole('textbox', { name: 'Input price' })
     ).toHaveValue('3')
+    const user = userEvent.setup()
+    await user.click(
+      screen.getByRole('button', { name: 'Edit pricing rule off_peak' })
+    )
     expect(
       within(
         screen.getByRole('group', { name: 'Pricing tier off_peak' })
@@ -392,6 +769,12 @@ test('copies prices into a new branch and retains the original as its otherwise 
   for (const tier of screen.getAllByRole('group', {
     name: 'Pricing tier peak',
   })) {
+    const expand = within(tier).getByRole('button', {
+      name: 'Edit pricing rule peak',
+    })
+    if (expand.getAttribute('aria-expanded') === 'false') {
+      await user.click(expand)
+    }
     expect(
       within(tier).getByRole('textbox', { name: 'Input price' })
     ).toHaveValue('3')

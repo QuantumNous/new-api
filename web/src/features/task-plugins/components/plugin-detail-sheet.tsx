@@ -58,6 +58,7 @@ import type { TaskPluginListItem } from '../types'
 import { JavaScriptViewer } from './javascript-viewer'
 import { PluginIcon } from './plugin-icon'
 import { PluginMetadataCard } from './plugin-metadata-card'
+import { PluginModelList } from './plugin-model-list'
 import { PluginSandbox } from './plugin-sandbox'
 import { SourceDiff } from './source-diff'
 import { UsageSchemaTable } from './usage-schema-table'
@@ -145,6 +146,16 @@ function PluginDetailContent(props: { plugin: TaskPluginListItem }) {
 
   const panelClassName =
     'min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 data-hidden:hidden'
+  const usageProfiles = detail?.meta.usageProfiles ?? []
+  const groupedUsageModels = new Set(
+    usageProfiles.flatMap((profile) => profile.models)
+  )
+  const defaultUsageModels = (detail?.meta.models ?? []).filter(
+    (model) => !groupedUsageModels.has(model)
+  )
+  const showDefaultUsage =
+    Object.keys(detail?.meta.usageSchema ?? {}).length > 0 &&
+    (usageProfiles.length === 0 || defaultUsageModels.length > 0)
   return (
     <SheetContent
       showCloseButton={false}
@@ -224,13 +235,34 @@ function PluginDetailContent(props: { plugin: TaskPluginListItem }) {
           {detailState ?? (detail && <PluginMetadataCard meta={detail.meta} />)}
         </TabsContent>
         <TabsContent value='billing' className={panelClassName}>
-          {detailState ??
-            (detail?.meta.usageSchema &&
-            Object.keys(detail.meta.usageSchema).length > 0 ? (
-              <UsageSchemaTable schema={detail.meta.usageSchema} />
-            ) : (
-              <EmptyState title={t('No billing parameters declared')} />
-            ))}
+          {detailState ?? (
+            <div className='space-y-6'>
+              {showDefaultUsage && detail?.meta.usageSchema && (
+                <section className='space-y-3' aria-label={t('Default')}>
+                  {usageProfiles.length > 0 && (
+                    <>
+                      <h3 className='text-sm font-medium'>{t('Default')}</h3>
+                      <PluginModelList models={defaultUsageModels} />
+                    </>
+                  )}
+                  <UsageSchemaTable schema={detail.meta.usageSchema} />
+                </section>
+              )}
+              {usageProfiles.map((profile) => (
+                <section
+                  key={profile.models[0]}
+                  aria-label={profile.models.join(', ')}
+                  className='space-y-3'
+                >
+                  <PluginModelList models={profile.models} />
+                  <UsageSchemaTable schema={profile.schema} />
+                </section>
+              ))}
+              {!showDefaultUsage && usageProfiles.length === 0 && (
+                <EmptyState title={t('No billing parameters declared')} />
+              )}
+            </div>
+          )}
         </TabsContent>
         <TabsContent value='source' className={panelClassName}>
           {detailState ??

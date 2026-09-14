@@ -43,6 +43,7 @@ import {
 } from '@/features/model-pricing/currency'
 import { useBillingTime } from '@/features/pricing/hooks/use-billing-time'
 import { formatBillingCondition } from '@/features/pricing/lib/billing-expression/condition-display'
+import { compileBillingExpression } from '@/features/pricing/lib/billing-expression/parser'
 import { evaluateBillingExpression } from '@/features/pricing/lib/billing-expression/runtime'
 import type {
   BillingSimulationContext,
@@ -75,6 +76,14 @@ export function RequestSimulation(props: RequestSimulationProps) {
   const bodyId = useId()
   const headersId = useId()
   const timeId = useId()
+  const imageCountId = useId()
+  const [imageCount, setImageCount] = useState('1')
+  const compiled = useMemo(
+    () => compileBillingExpression(props.expression),
+    [props.expression]
+  )
+  const usesImageCount =
+    compiled.status === 'ready' && compiled.variables.has('image_count')
   const booleanFields = Object.entries(props.usageSchema ?? {}).filter(
     ([, field]) => field.type === 'boolean'
   )
@@ -161,6 +170,7 @@ export function RequestSimulation(props: RequestSimulationProps) {
       }
     }
     return evaluateBillingExpression(props.expression, {
+      imageCount: Number(imageCount),
       tokens: props.tokens,
       usage,
       now,
@@ -171,6 +181,7 @@ export function RequestSimulation(props: RequestSimulationProps) {
     })
   }, [
     open,
+    imageCount,
     body,
     headers,
     timeMode,
@@ -210,6 +221,25 @@ export function RequestSimulation(props: RequestSimulationProps) {
         {t('Request simulation')}
       </CollapsibleTrigger>
       <CollapsibleContent className='mt-3 space-y-4'>
+        {usesImageCount && (
+          <Field>
+            <FieldLabel htmlFor={imageCountId}>
+              {t('Billable image count')}
+            </FieldLabel>
+            <Input
+              id={imageCountId}
+              type='number'
+              min={1}
+              max={128}
+              step={1}
+              value={imageCount}
+              onChange={(event) => setImageCount(event.target.value)}
+            />
+            <FieldDescription>
+              {t('Reserve requested images; settle returned images.')}
+            </FieldDescription>
+          </Field>
+        )}
         <p className='text-muted-foreground text-xs'>
           {t(
             'Simulate a request including request rules and excluding group multipliers. Empty objects represent an empty request.'

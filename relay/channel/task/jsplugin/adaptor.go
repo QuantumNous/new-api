@@ -2,6 +2,7 @@ package jsplugin
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -33,6 +35,7 @@ import (
 )
 
 type requestDescriptor struct {
+	ResponseType   string            `json:"responseType"`
 	URL            string            `json:"url"`
 	Method         string            `json:"method"`
 	Headers        map[string]string `json:"headers"`
@@ -120,13 +123,23 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 			return taskErr
 		}
 	}
-	if request, exists := c.Get("task_request"); exists {
-		if err := a.validateResolvedUsageRequest(request); err != nil {
+	request, hasRequest := c.Get("task_request")
+	hasUsageProfiles := len(a.plugin.Meta.UsageProfiles) > 0
+	if hasRequest && !hasUsageProfiles {
+		if err := a.validateResolvedUsageRequest(request, ""); err != nil {
 			return service.TaskErrorWrapperLocal(err, "plugin_usage_invalid", http.StatusBadRequest)
 		}
 	}
 	if _, err := a.buildSubmit(c, info); err != nil {
 		return service.TaskErrorWrapperLocal(err, "plugin_request_invalid", http.StatusBadRequest)
+	}
+	// The descriptor may rewrite the model. Validate profiled requests against
+	// that final model before any quota calculation or upstream submission.
+	if hasRequest && hasUsageProfiles {
+		usageModel := cmp.Or(info.UpstreamModelName, info.OriginModelName)
+		if err := a.validateResolvedUsageRequest(request, usageModel); err != nil {
+			return service.TaskErrorWrapperLocal(err, "plugin_usage_invalid", http.StatusBadRequest)
+		}
 	}
 	return nil
 }
@@ -143,7 +156,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 func (a *TaskAdaptor) EstimateBillingValidated(c *gin.Context, info *relaycommon.RelayInfo) (map[string]float64, error) {
 	usageContext := a.submitContext(c, info)
 	usageContext["usagePurpose"] = "billing_ratios"
-	return a.usageRatios(c.Request.Context(), "extractUsage", usageContext)
+	return a.usageRatios(c.Request.Context(), cmp.Or(info.UpstreamModelName, info.OriginModelName), "extractUsage", usageContext)
 }
 
 func (a *TaskAdaptor) ExtractUsageFacts(c *gin.Context, info *relaycommon.RelayInfo) map[string]any {
@@ -172,7 +185,7 @@ func (a *TaskAdaptor) ExtractUsageFactsValidated(c *gin.Context, info *relaycomm
 	if !ok {
 		return nil, fmt.Errorf("plugin usage hook must return an object")
 	}
-	if _, err = a.validatedUsageRatios(facts); err != nil {
+	if _, err = a.validatedUsageRatios(facts, cmp.Or(info.UpstreamModelName, info.OriginModelName)); err != nil {
 		return nil, err
 	}
 	return facts, nil
@@ -183,7 +196,7 @@ func (a *TaskAdaptor) AdjustBillingOnSubmit(info *relaycommon.RelayInfo, taskDat
 	if err := common.Unmarshal(taskData, &data); err != nil {
 		data = string(taskData)
 	}
-	ratios, err := a.usageRatios(context.Background(), "extractUsageOnSubmit", a.submitContext(nil, info), data)
+	ratios, err := a.usageRatios(context.Background(), cmp.Or(info.UpstreamModelName, info.OriginModelName), "extractUsageOnSubmit", a.submitContext(nil, info), data)
 	if err != nil {
 		a.logRejectedUsage("extractUsageOnSubmit", err)
 		return nil
@@ -199,7 +212,11 @@ func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, result *relaycom
 	if err != nil {
 		return 0
 	}
-	a.applyCompletionUsageFacts(result, value)
+	usageModel := ""
+	if task != nil {
+		usageModel = cmp.Or(task.Properties.UpstreamModelName, task.Properties.OriginModelName)
+	}
+	a.applyCompletionUsageFacts(result, value, usageModel)
 	return 0
 }
 
@@ -423,6 +440,9 @@ func encodeFilePlaceholder(placeholder map[string]any, form *multipart.Form, lim
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, body io.Reader) (*http.Response, error) {
+	wasStream := info.IsStream
+	info.IsStream = false
+	defer func() { info.IsStream = wasStream }()
 	if a.submit != nil && strings.TrimSpace(a.submit.Method) != "" {
 		originalMethod := c.Request.Method
 		c.Request.Method = strings.ToUpper(a.submit.Method)
@@ -431,24 +451,42 @@ func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, bod
 	return channel.DoTaskApiRequest(a, c, info, body)
 }
 
-func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*channel.TaskSubmitResponse, *dto.TaskError) {
+func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (_ *channel.TaskSubmitResponse, taskErr *dto.TaskError) {
 	started := time.Now()
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		logger.LogDebug(c, "task_plugin subsystem=adaptor event=parse_submit_failed plugin=%q stage=read_response reason=read_failed status=%d", a.plugin.Meta.Key, resp.StatusCode)
-		return nil, service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
+	var responseBody any
+	var err error
+	streaming := a.submit != nil && a.submit.ResponseType == "sse"
+	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	acceptedStream := streaming || mediaType == "text/event-stream"
+	defer func() {
+		if acceptedStream && taskErr != nil {
+			taskErr.NoRetry = true
+		}
+	}()
+	if !streaming && acceptedStream {
+		return nil, service.TaskErrorWrapperLocal(fmt.Errorf("unexpected SSE response for a JSON submission"), "plugin_submit_response_invalid", http.StatusBadGateway)
 	}
-	logger.LogDebug(
-		c,
-		"task_plugin subsystem=adaptor event=submit_response_received plugin=%q status=%d body_bytes=%d",
-		a.plugin.Meta.Key,
-		resp.StatusCode,
-		len(body),
-	)
-	responseBody := any(string(body))
-	var decoded any
-	if common.Unmarshal(body, &decoded) == nil {
-		responseBody = decoded
+	if streaming {
+		// Every failure after accepting this stream is non-retryable: the
+		// upstream may already have performed billable work.
+		defer resp.Body.Close()
+		responseBody, err = a.readSubmitEvents(c.Request.Context(), resp, a.submitContext(c, info))
+	} else {
+		var body []byte
+		body, err = io.ReadAll(io.LimitReader(resp.Body, maxTaskPluginPersistedJSONBytes+1))
+		if err == nil && len(body) > maxTaskPluginPersistedJSONBytes {
+			err = fmt.Errorf("task submit response exceeds size limit")
+		}
+		responseBody = string(body)
+		var decoded any
+		if err == nil && common.Unmarshal(body, &decoded) == nil {
+			responseBody = decoded
+		}
+	}
+	if err != nil {
+		failure := service.TaskErrorWrapper(err, "read_response_body_failed", http.StatusBadGateway)
+		failure.NoRetry = streaming
+		return nil, failure
 	}
 	headers := make(map[string][]string, len(resp.Header))
 	maps.Copy(headers, resp.Header)
@@ -485,34 +523,57 @@ func (a *TaskAdaptor) ParseResponse(c *gin.Context, resp *http.Response, info *r
 	var taskData []byte
 	if parsed.TaskData != nil {
 		taskData, err = common.Marshal(parsed.TaskData)
-		if err != nil {
+		if err != nil || len(taskData) > maxTaskPluginPersistedJSONBytes {
+			if err == nil {
+				err = fmt.Errorf("task data exceeds size limit")
+			}
 			return nil, service.TaskErrorWrapper(err, "plugin_submit_response_invalid", http.StatusBadGateway)
 		}
 	}
-	var immediate *relaycommon.TaskInfo
-	if parsed.Immediate != nil {
-		immediate = &relaycommon.TaskInfo{Code: parsed.Immediate.Code, TaskID: parsed.Immediate.TaskID, Status: parsed.Immediate.Status, Progress: parsed.Immediate.Progress, Reason: parsed.Immediate.Reason, Url: parsed.Immediate.URL, RemoteUrl: parsed.Immediate.RemoteURL}
-	}
-	logger.LogDebug(
-		c,
-		"task_plugin subsystem=adaptor event=parse_submit_complete plugin=%q status=%d task_data_bytes=%d immediate=%t elapsed_ms=%d",
-		a.plugin.Meta.Key,
-		resp.StatusCode,
-		len(taskData),
-		immediate != nil,
-		time.Since(started).Milliseconds(),
-	)
 	pluginState, _ := encodeReturnedPluginState(value)
 	if len(pluginState) > maxTaskPluginPersistedJSONBytes {
 		logger.LogWarn(c, fmt.Sprintf("task plugin %s rejected oversized submit state (%d bytes)", a.plugin.Meta.Key, len(pluginState)))
 		pluginState = nil
 	}
-	return &channel.TaskSubmitResponse{
+	response := &channel.TaskSubmitResponse{
 		UpstreamTaskID: parsed.TaskID,
 		TaskData:       taskData,
-		Immediate:      immediate,
 		PluginState:    pluginState,
-	}, nil
+	}
+	logger.LogDebug(c, "task_plugin subsystem=adaptor event=parse_submit_complete plugin=%q status=%d task_data_bytes=%d immediate=%t elapsed_ms=%d",
+		a.plugin.Meta.Key, resp.StatusCode, len(taskData), parsed.Immediate != nil, time.Since(started).Milliseconds())
+	if parsed.Immediate == nil {
+		return response, nil
+	}
+	immediate := &relaycommon.TaskInfo{
+		Code: parsed.Immediate.Code, TaskID: parsed.Immediate.TaskID,
+		Status: parsed.Immediate.Status, Progress: parsed.Immediate.Progress,
+		Reason: parsed.Immediate.Reason, Url: parsed.Immediate.URL, RemoteUrl: parsed.Immediate.RemoteURL,
+		CompletionTokens: positiveInt(parsed.Immediate.CompletionTokens), TotalTokens: positiveInt(parsed.Immediate.TotalTokens),
+	}
+	response.Immediate = immediate
+	if immediate.Status != model.TaskStatusSuccess || !a.hasHook(c.Request.Context(), "extractUsageOnComplete") {
+		return response, nil
+	}
+	// Match the polling hook context without persisting a temporary task.
+	task := &model.Task{TaskID: info.PublicTaskID, Action: info.Action, Data: taskData,
+		Properties: model.Properties{OriginModelName: info.OriginModelName, UpstreamModelName: info.UpstreamModelName}}
+	task.PrivateData.UpstreamTaskID = parsed.TaskID
+	task.PrivateData.PluginState = pluginState
+	ctx, err := a.queryContext(task, info.ApiKey, info.ChannelBaseUrl, info.ChannelSetting.Proxy)
+	if err != nil {
+		logger.LogWarn(c, fmt.Sprintf("task plugin %s completion context failed; retaining reserved quota: %v", a.plugin.Meta.Key, err))
+		return response, nil
+	}
+	facts, err := a.plugin.Engine.Call(c.Request.Context(), "extractUsageOnComplete", ctx, jsonValue(immediate), parsed.TaskData)
+	if err != nil {
+		logger.LogWarn(c, fmt.Sprintf("task plugin %s completion usage failed; retaining reserved quota: %v", a.plugin.Meta.Key, err))
+		return response, nil
+	}
+	if err := a.applyCompletionUsageFacts(immediate, facts, cmp.Or(info.UpstreamModelName, info.OriginModelName)); err != nil {
+		logger.LogWarn(c, fmt.Sprintf("task plugin %s completion usage rejected; retaining reserved quota: %v", a.plugin.Meta.Key, err))
+	}
+	return response, nil
 }
 
 func (a *TaskAdaptor) GetModelList() []string { return append([]string(nil), a.plugin.Meta.Models...) }
@@ -680,7 +741,8 @@ func (a *TaskAdaptor) ParseBatchResult(tasks []*model.Task, resp *http.Response,
 			}
 			facts, hookErr := a.plugin.Engine.Call(context.Background(), "extractUsageOnComplete", itemCtx, jsonValue(&info), usageBody)
 			if hookErr == nil {
-				a.applyCompletionUsageFacts(&info, facts)
+				usageModel, _ := itemCtx["upstreamModel"].(string)
+				a.applyCompletionUsageFacts(&info, facts, usageModel)
 			}
 		}
 		results[item.TaskID] = &service.BatchTaskResult{TaskInfo: info, Action: item.Action, SubmitTime: item.SubmitTime, StartTime: item.StartTime, FinishTime: item.FinishTime, Data: item.Data}
@@ -745,7 +807,8 @@ func (a *TaskAdaptor) ParseTaskResult(task *model.Task, resp *http.Response, bod
 	if a.hasHook(context.Background(), "extractUsageOnComplete") {
 		facts, hookErr := a.plugin.Engine.Call(context.Background(), "extractUsageOnComplete", ctx, jsonValue(result), input)
 		if hookErr == nil {
-			a.applyCompletionUsageFacts(result, facts)
+			usageModel, _ := ctx["upstreamModel"].(string)
+			a.applyCompletionUsageFacts(result, facts, usageModel)
 		}
 	}
 	taskStatus := model.TaskStatus(result.Status)
@@ -760,20 +823,20 @@ func (a *TaskAdaptor) ParseTaskResult(task *model.Task, resp *http.Response, bod
 	return result, nil
 }
 
-func (a *TaskAdaptor) applyCompletionUsageFacts(result *relaycommon.TaskInfo, facts any) {
-	values, err := a.validatedCompletionUsageFacts(facts)
+func (a *TaskAdaptor) applyCompletionUsageFacts(result *relaycommon.TaskInfo, facts any, modelName string) error {
+	values, err := a.validatedCompletionUsageFacts(facts, modelName)
 	if err != nil {
 		a.logRejectedUsage("extractUsageOnComplete", err)
-		return
+		return err
 	}
 	if len(values) == 0 {
-		return
+		return nil
 	}
 	result.UsageFacts = values
 	if units := positiveInt(values["upstreamUnits"]); units > 0 {
 		result.CompletionTokens = units
 		result.TotalTokens = units
-		return
+		return nil
 	}
 	if completionTokens, exists := values["completionTokens"]; exists {
 		result.CompletionTokens = positiveInt(completionTokens)
@@ -781,6 +844,7 @@ func (a *TaskAdaptor) applyCompletionUsageFacts(result *relaycommon.TaskInfo, fa
 	if totalTokens, exists := values["totalTokens"]; exists {
 		result.TotalTokens = positiveInt(totalTokens)
 	}
+	return nil
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
@@ -1137,6 +1201,16 @@ func (a *TaskAdaptor) buildSubmit(c *gin.Context, info *relaycommon.RelayInfo) (
 		)
 		return nil, err
 	}
+	if descriptor.ResponseType == "" {
+		descriptor.ResponseType = "json"
+	}
+	allowed := a.plugin.Meta.SubmitResponseTypes
+	if len(allowed) == 0 {
+		allowed = []string{"json"}
+	}
+	if !slices.Contains(allowed, descriptor.ResponseType) {
+		return nil, fmt.Errorf("plugin does not support submit response type %q", descriptor.ResponseType)
+	}
 	if strings.TrimSpace(descriptor.URL) == "" {
 		logger.LogDebug(c, "task_plugin subsystem=adaptor event=build_submit_failed plugin=%q stage=validate_url reason=empty_url", a.plugin.Meta.Key)
 		return nil, fmt.Errorf("plugin returned an empty submit URL")
@@ -1292,7 +1366,7 @@ func (a *TaskAdaptor) submitContext(c *gin.Context, info *relaycommon.RelayInfo)
 	return ctx
 }
 
-func (a *TaskAdaptor) usageRatios(ctx context.Context, hook string, args ...any) (map[string]float64, error) {
+func (a *TaskAdaptor) usageRatios(ctx context.Context, modelName, hook string, args ...any) (map[string]float64, error) {
 	if !a.hasHook(ctx, hook) {
 		return nil, nil
 	}
@@ -1310,7 +1384,7 @@ func (a *TaskAdaptor) usageRatios(ctx context.Context, hook string, args ...any)
 		logger.LogDebug(ctx, "task_plugin subsystem=adaptor event=usage_hook_failed plugin=%q hook=%q reason=result_not_object elapsed_ms=%d", a.plugin.Meta.Key, hook, time.Since(started).Milliseconds())
 		return nil, fmt.Errorf("plugin usage hook must return an object")
 	}
-	ratios, err := a.validatedUsageRatios(facts)
+	ratios, err := a.validatedUsageRatios(facts, modelName)
 	if err != nil {
 		logger.LogDebug(ctx, "task_plugin subsystem=adaptor event=usage_hook_failed plugin=%q hook=%q reason=invalid_usage elapsed_ms=%d", a.plugin.Meta.Key, hook, time.Since(started).Milliseconds())
 		return nil, err
@@ -1327,15 +1401,16 @@ func (a *TaskAdaptor) usageRatios(ctx context.Context, hook string, args ...any)
 	return ratios, nil
 }
 
-func (a *TaskAdaptor) validateResolvedUsageRequest(request any) error {
-	return a.validateResolvedUsageValue(jsonValue(request))
+func (a *TaskAdaptor) validateResolvedUsageRequest(request any, modelName string) error {
+	schema, _ := a.plugin.Meta.UsageForModel(modelName)
+	return a.validateResolvedUsageValue(jsonValue(request), schema)
 }
 
-func (a *TaskAdaptor) validateResolvedUsageValue(value any) error {
+func (a *TaskAdaptor) validateResolvedUsageValue(value any, usageSchema map[string]pluginruntime.UsageFieldSchema) error {
 	switch typed := value.(type) {
 	case map[string]any:
 		for key, item := range typed {
-			if schema, declared := a.plugin.Meta.UsageSchema[key]; declared {
+			if schema, declared := usageSchema[key]; declared {
 				if _, err := validateUsageValue(item, schema, true); err != nil {
 					return err
 				}
@@ -1344,13 +1419,13 @@ func (a *TaskAdaptor) validateResolvedUsageValue(value any) error {
 					return err
 				}
 			}
-			if err := a.validateResolvedUsageValue(item); err != nil {
+			if err := a.validateResolvedUsageValue(item, usageSchema); err != nil {
 				return err
 			}
 		}
 	case []any:
 		for _, item := range typed {
-			if err := a.validateResolvedUsageValue(item); err != nil {
+			if err := a.validateResolvedUsageValue(item, usageSchema); err != nil {
 				return err
 			}
 		}
@@ -1358,10 +1433,11 @@ func (a *TaskAdaptor) validateResolvedUsageValue(value any) error {
 	return nil
 }
 
-func (a *TaskAdaptor) validatedUsageRatios(facts map[string]any) (map[string]float64, error) {
+func (a *TaskAdaptor) validatedUsageRatios(facts map[string]any, modelName string) (map[string]float64, error) {
+	usageSchema, _ := a.plugin.Meta.UsageForModel(modelName)
 	ratios := make(map[string]float64)
 	for key, value := range facts {
-		if schema, declared := a.plugin.Meta.UsageSchema[key]; declared {
+		if schema, declared := usageSchema[key]; declared {
 			number, err := validateUsageValue(value, schema, false)
 			if err != nil {
 				return nil, err
@@ -1388,6 +1464,9 @@ func (a *TaskAdaptor) validatedUsageRatios(facts map[string]any) (map[string]flo
 		if err := validateUsageNumberLimit(number, limit); err != nil {
 			return nil, err
 		}
+		// Keep numeric facts usable by existing expressions even when the
+		// selected profile no longer declares that legacy extension field.
+		facts[key] = number
 		if number > 0 {
 			ratios[key] = number
 		}
@@ -1395,7 +1474,8 @@ func (a *TaskAdaptor) validatedUsageRatios(facts map[string]any) (map[string]flo
 	return ratios, nil
 }
 
-func (a *TaskAdaptor) validatedCompletionUsageFacts(facts any) (map[string]any, error) {
+func (a *TaskAdaptor) validatedCompletionUsageFacts(facts any, modelName string) (map[string]any, error) {
+	usageSchema, _ := a.plugin.Meta.UsageForModel(modelName)
 	if facts == nil {
 		return nil, nil
 	}
@@ -1406,7 +1486,7 @@ func (a *TaskAdaptor) validatedCompletionUsageFacts(facts any) (map[string]any, 
 	validated := make(map[string]any, len(values))
 	for key, value := range values {
 		validated[key] = value
-		if schema, declared := a.plugin.Meta.UsageSchema[key]; declared {
+		if schema, declared := usageSchema[key]; declared {
 			number, err := validateUsageValue(value, schema, false)
 			if err != nil {
 				return nil, err
@@ -1434,6 +1514,10 @@ func (a *TaskAdaptor) validatedCompletionUsageFacts(facts any) (map[string]any, 
 				return nil, fmt.Errorf("plugin usage value must be a finite non-negative number")
 			}
 			validated[key] = float64(common.QuotaFromFloat(number))
+		default:
+			if number, numeric := usageNumber(value, false); numeric {
+				validated[key] = number
+			}
 		}
 	}
 	return validated, nil
@@ -1547,6 +1631,9 @@ func convert(value any, target any) error {
 }
 
 func jsonValue(value any) any {
+	if normalized, ok := cloneJSONValue(value, 0); ok {
+		return normalized
+	}
 	data, err := common.Marshal(value)
 	if err != nil {
 		return value
@@ -1556,6 +1643,58 @@ func jsonValue(value any) any {
 		return value
 	}
 	return normalized
+}
+
+// Already-parsed JSON and Sobek's plain exported values do not need another
+// encode/decode pass. Copy containers to isolate hooks, preserving the codec's
+// float64 numbers and nulls. Other Go types still use the configured codec.
+func cloneJSONValue(value any, depth int) (any, bool) {
+	if depth > 64 {
+		return nil, false
+	}
+	switch typed := value.(type) {
+	case nil, bool:
+		return typed, true
+	case string:
+		return typed, utf8.ValidString(typed)
+	case float64:
+		return typed, !math.IsNaN(typed) && !math.IsInf(typed, 0)
+	case int64:
+		return float64(typed), true
+	case int:
+		return float64(typed), true
+	case map[string]any:
+		if typed == nil {
+			return nil, true
+		}
+		cloned := make(map[string]any, len(typed))
+		for key, item := range typed {
+			if !utf8.ValidString(key) {
+				return nil, false
+			}
+			child, ok := cloneJSONValue(item, depth+1)
+			if !ok {
+				return nil, false
+			}
+			cloned[key] = child
+		}
+		return cloned, true
+	case []any:
+		if typed == nil {
+			return nil, true
+		}
+		cloned := make([]any, len(typed))
+		for index, item := range typed {
+			child, ok := cloneJSONValue(item, depth+1)
+			if !ok {
+				return nil, false
+			}
+			cloned[index] = child
+		}
+		return cloned, true
+	default:
+		return nil, false
+	}
 }
 func positiveInt(value any) int {
 	switch number := value.(type) {

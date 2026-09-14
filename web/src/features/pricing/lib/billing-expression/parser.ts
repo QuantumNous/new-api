@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   BILLING_FUNCTIONS,
-  TOKEN_VARIABLES,
+  BILLING_VARIABLES,
   TIME_FUNCTIONS,
   BillingExpressionError,
   expressionDependencies,
@@ -27,7 +27,7 @@ import {
   type CompilationResult,
   type CompiledBillingExpression,
   type ExpressionNode,
-  type TokenVariable,
+  type BillingVariable,
 } from './types'
 
 type Lexeme = {
@@ -311,14 +311,14 @@ class BillingParser {
       return { kind: 'literal', value: token.text === 'true', ...span }
     }
     if (this.current.text !== '(') {
-      if (!(TOKEN_VARIABLES as readonly string[]).includes(token.text)) {
+      if (!(BILLING_VARIABLES as readonly string[]).includes(token.text)) {
         throw new BillingExpressionError({
           code: 'unsupported',
           detail: token.text,
           position: token.start,
         })
       }
-      return { kind: 'variable', name: token.text as TokenVariable, ...span }
+      return { kind: 'variable', name: token.text as BillingVariable, ...span }
     }
     if (!Object.hasOwn(BILLING_FUNCTIONS, token.text)) {
       throw new BillingExpressionError({
@@ -443,6 +443,10 @@ function validateFixedPricingTree(
       [node.right, node.left],
       [node.left, node.right],
     ]) {
+      if (factor.kind === 'variable' && factor.name === 'image_count') {
+        validateFixedPricingTree(pricing, rules)
+        return
+      }
       const rule = rules.find((candidate) => candidate.node === factor)
       if (
         rule &&

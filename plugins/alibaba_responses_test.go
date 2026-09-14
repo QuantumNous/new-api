@@ -1,18 +1,23 @@
 package plugins_test
 
 import (
+	"bytes"
+	"fmt"
 	"io"
 	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	builtinplugins "github.com/QuantumNous/new-api/plugins"
 	"github.com/QuantumNous/new-api/relay"
+	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	taskplugin "github.com/QuantumNous/new-api/relay/channel/task/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
@@ -36,9 +41,32 @@ func TestAlibabaResponsesProtocol(t *testing.T) {
 		}
 	})
 
+	t.Run("selects image and video usage profiles for every declared model", func(t *testing.T) {
+		require.Len(t, plugin.Meta.UsageProfiles, 2)
+		covered := make(map[string]bool)
+		for _, profile := range plugin.Meta.UsageProfiles {
+			for _, name := range profile.Models {
+				require.False(t, covered[name], name)
+				covered[name] = true
+			}
+		}
+		for _, name := range plugin.Meta.Models {
+			require.True(t, covered[name], name)
+			schema, examples := plugin.Meta.UsageForModel(name)
+			assert.Empty(t, examples)
+			isImage := strings.Contains(name, "-image") || strings.Contains(name, "-t2i")
+			if isImage {
+				assert.Equal(t, map[string]jsplugin.UsageFieldSchema{"image_count": plugin.Meta.UsageSchema["image_count"]}, schema, name)
+			} else {
+				assert.Equal(t, map[string]jsplugin.UsageFieldSchema{
+					"seconds": plugin.Meta.UsageSchema["seconds"], "resolution": plugin.Meta.UsageSchema["resolution"],
+				}, schema, name)
+			}
+		}
+	})
+
 	t.Run("declares documented usage facts", func(t *testing.T) {
-		require.Len(t, plugin.Meta.UsageSchema, 2)
-		for _, key := range []string{"seconds", "resolution"} {
+		for _, key := range []string{"seconds", "resolution", "image_count"} {
 			schema, exists := plugin.Meta.UsageSchema[key]
 			require.True(t, exists, key)
 			assert.NotEmpty(t, schema.Description, key)
@@ -620,4 +648,330 @@ func TestAlibabaWanCompletionFactsAndArtifacts(t *testing.T) {
 	value, err := plugin.Engine.Call(t.Context(), "buildContentRequest", map[string]any{"artifactKey": "video", "data": map[string]any{"output": map[string]any{"results": map[string]any{"video_url": "https://cdn.example/result.mp4"}}}, "clientRequest": map[string]any{"method": "GET"}})
 	require.NoError(t, err)
 	assert.Equal(t, "https://cdn.example/result.mp4", alibabaObject(t, value)["url"])
+}
+
+func TestAlibabaImageSubmission(t *testing.T) {
+	source, err := builtinplugins.Source("alibaba")
+	require.NoError(t, err)
+	registry := jsplugin.NewRegistry()
+	plugin, err := registry.RegisterFactory(source, jsplugin.Options{Key: "alibaba"})
+	require.NoError(t, err)
+	const base = "/api/v1/services/aigc/"
+	for _, tc := range []struct {
+		name       string
+		model      string
+		input      map[string]any
+		parameters map[string]any
+		path       string
+		count      float64
+	}{
+		{"legacy text", "wan2.2-t2i-flash", map[string]any{"prompt": "a cat"}, map[string]any{"n": 2}, "text2image/image-synthesis", 2},
+		{"legacy default count", "wanx2.1-t2i-plus", map[string]any{"prompt": "a cat"}, nil, "text2image/image-synthesis", 4},
+		{"2.6 text", "wan2.6-t2i", map[string]any{"messages": []any{map[string]any{"role": "user", "content": []any{map[string]any{"text": "a cat"}}}}}, map[string]any{"n": 2, "seed": 0, "watermark": false, "size": "960*1696"}, "image-generation/generation", 2},
+		{"2.6 synchronous", "wan2.6-t2i", map[string]any{"messages": []any{map[string]any{"role": "user", "content": []any{map[string]any{"text": "a cat"}}}}}, nil, "multimodal-generation/generation", 1},
+		{"2.7 group default count", "wan2.7-image", map[string]any{"messages": []any{map[string]any{"role": "user", "content": []any{map[string]any{"text": "seasons"}}}}}, map[string]any{"enable_sequential": true}, "image-generation/generation", 12},
+		{"2.6 interleaved default count", "wan2.6-image", map[string]any{"messages": []any{map[string]any{"role": "user", "content": []any{map[string]any{"text": "recipe"}}}}}, map[string]any{"enable_interleave": true}, "image-generation/generation", 5},
+		{"2.6 edit", "wan2.6-image", map[string]any{"messages": []any{map[string]any{"role": "user", "content": []any{map[string]any{"image": "https://cdn.example/input.png"}, map[string]any{"text": "watercolor"}}}}}, map[string]any{"size": "2K", "n": 1}, "multimodal-generation/generation", 1},
+		{"2.7 4K", "wan2.7-image-pro", map[string]any{"messages": []any{map[string]any{"role": "user", "content": []any{map[string]any{"text": "a cat"}}}}}, map[string]any{"size": "4K"}, "multimodal-generation/generation", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := "/ali" + base + tc.path
+			binding, found := registry.Generation().LookupDeclaredRoute(http.MethodPost, path)
+			require.True(t, found)
+			assert.Contains(t, binding.Route.Models, tc.model)
+			value, err := plugin.Engine.CallPath(t.Context(), "native", []string{binding.Route.Decode}, map[string]any{
+				"path": path, "body": map[string]any{"kind": "json", "value": map[string]any{"model": tc.model, "input": tc.input, "parameters": tc.parameters}},
+			})
+			require.NoError(t, err)
+			request := alibabaObject(t, value)["requestBody"].(map[string]any)
+			body, facts, url := submitAlibabaRequest(t, plugin, tc.model, request)
+			assert.Equal(t, "https://dashscope.aliyuncs.com"+base+tc.path, url)
+			assert.Equal(t, alibabaObject(t, tc.input), body["input"])
+			assert.Equal(t, map[string]any{"image_count": tc.count}, facts)
+			parameters := body["parameters"].(map[string]any)
+			for key, expected := range alibabaObject(t, tc.parameters) {
+				assert.Equal(t, expected, parameters[key], key)
+			}
+			value, err = plugin.Engine.Call(t.Context(), "buildSubmitRequest", map[string]any{"upstreamModel": tc.model, "requestBody": request})
+			require.NoError(t, err)
+			headers := alibabaObject(t, value)["headers"].(map[string]any)
+			if tc.path == "multimodal-generation/generation" {
+				assert.NotContains(t, headers, "X-DashScope-Async")
+			} else {
+				assert.Equal(t, "enable", headers["X-DashScope-Async"])
+			}
+		})
+	}
+
+	t.Run("Responses images use task artifacts and do not claim video creation", func(t *testing.T) {
+		for _, name := range []string{"wan2.6-t2i", "wan2.7-image", "wanx2.1-t2i-plus"} {
+			_, found := registry.Generation().LookupEndpoint(http.MethodPost, "/v1/responses", name)
+			require.True(t, found)
+			_, found = registry.Generation().LookupEndpoint(http.MethodPost, "/v1/videos", name)
+			assert.False(t, found)
+		}
+		value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_responses", "decodeRequest"}, map[string]any{
+			"model": "my-image-alias", "upstreamModel": "wan2.7-image", "body": map[string]any{"kind": "json", "value": map[string]any{
+				"input": []any{map[string]any{"type": "input_text", "text": "watercolor"}, map[string]any{"type": "input_image", "image_url": "https://cdn.example/input.png"}}, "n": 2,
+			}},
+		})
+		require.NoError(t, err)
+		resolved := alibabaObject(t, value)
+		assert.Equal(t, "image_to_image", resolved["action"])
+		body, facts, url := submitAlibabaRequest(t, plugin, "wan2.7-image", resolved["requestBody"].(map[string]any))
+		assert.Equal(t, "wan2.7-image", body["model"])
+		assert.Equal(t, map[string]any{"image_count": float64(2)}, facts)
+		assert.Equal(t, "https://dashscope.aliyuncs.com"+base+"image-generation/generation", url)
+	})
+}
+
+func TestAlibabaImageValidation(t *testing.T) {
+	plugin := newAlibabaPlugin(t)
+	for _, tc := range []struct {
+		name    string
+		model   string
+		request map[string]any
+		message string
+	}{
+		{"zero count", "wan2.6-t2i", map[string]any{"n": 0}, "n must be"},
+		{"fractional count", "wan2.6-t2i", map[string]any{"n": 1.5}, "n must be"},
+		{"string count", "wan2.6-t2i", map[string]any{"n": "2"}, "n must be"},
+		{"oversized nested count", "wan2.6-t2i", map[string]any{"metadata": map[string]any{"parameters": map[string]any{"n": 1e30}}}, "n must be"},
+		{"negative nested count", "wan2.6-t2i", map[string]any{"metadata": map[string]any{"parameters": map[string]any{"n": -1}}}, "n must be"},
+		{"group limit", "wan2.7-image", map[string]any{"enable_sequential": true, "n": 13}, "n must be"},
+		{"interleaved limit", "wan2.6-image", map[string]any{"enable_interleave": true, "max_images": 6}, "max_images must be"},
+		{"nested interleaved limit", "wan2.6-image", map[string]any{"metadata": map[string]any{"parameters": map[string]any{"enable_interleave": true, "max_images": 1e30}}}, "max_images must be"},
+		{"interleaved n", "wan2.6-image", map[string]any{"enable_interleave": true, "n": 2}, "n must be"},
+		{"string mode flag", "wan2.7-image", map[string]any{"enable_sequential": "true"}, "must be a boolean"},
+		{"upstream SSE", "wan2.6-image", map[string]any{"metadata": map[string]any{"parameters": map[string]any{"stream": true}}}, "upstream streaming requires"},
+		{"legacy synchronous", "wan2.2-t2i-flash", map[string]any{"metadata": map[string]any{"upstream_mode": "sync"}}, "only supports asynchronous"},
+		{"edit without reference", "wan2.6-image", nil, "requires a reference image"},
+		{"t2i with reference", "wan2.6-t2i", map[string]any{"image": "https://cdn.example/input.png"}, "too many input images"},
+		{"invalid 4K", "wan2.7-image", map[string]any{"size": "4K"}, "4K is only supported"},
+		{"oversized pixel dimensions", "wan2.7-image", map[string]any{"size": "999999999999*999999999999"}, "pixel and aspect-ratio limits"},
+		{"4K group dimensions", "wan2.7-image-pro", map[string]any{"size": "4096*4096", "enable_sequential": true}, "pixel and aspect-ratio limits"},
+		{"model override", "wan2.7-image", map[string]any{"metadata": map[string]any{"model": "wan2.7-image-pro"}}, "can't change model"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := map[string]any{"model": tc.model, "prompt": "a cat"}
+			maps.Copy(request, tc.request)
+			_, err := plugin.Engine.Call(t.Context(), "buildSubmitRequest", map[string]any{"requestBody": request, "upstreamModel": tc.model})
+			require.ErrorContains(t, err, tc.message)
+			// The production validator must reject the same input before HTTP/billing.
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: tc.model}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+			adaptor := taskplugin.New(plugin)
+			adaptor.Init(info)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+			c.Set("task_request", request)
+			taskErr := adaptor.ValidateRequestAndSetAction(c, info)
+			require.NotNil(t, taskErr)
+			assert.Equal(t, http.StatusBadRequest, taskErr.StatusCode)
+		})
+	}
+}
+
+func TestAlibabaImageResults(t *testing.T) {
+	plugin := newAlibabaPlugin(t)
+	const first = "https://cdn.example/first.png"
+	const second = "https://cdn.example/second.png"
+	for _, tc := range []struct {
+		name   string
+		model  string
+		output map[string]any
+	}{
+		{"legacy partial success", "wan2.2-t2i-flash", map[string]any{"results": []any{map[string]any{"url": first}, map[string]any{"code": "DataInspectionFailed"}, map[string]any{"url": second}}}},
+		{"modern interleaved output", "wan2.6-image", map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": []any{map[string]any{"text": "Step 1"}, map[string]any{"image": first}, map[string]any{"text": "Step 2"}, map[string]any{"image": second}}}}}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			output := maps.Clone(tc.output)
+			output["task_status"] = "SUCCEEDED"
+			body := map[string]any{"output": output, "usage": map[string]any{"image_count": 2}}
+			encoded, err := common.Marshal(body)
+			require.NoError(t, err)
+			task := &model.Task{TaskID: "task_public", Status: model.TaskStatusSuccess, Properties: model.Properties{OriginModelName: "alias", UpstreamModelName: tc.model}}
+			task.SetData(body)
+			adaptor := taskplugin.New(plugin)
+			adaptor.Init(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}})
+			result, err := adaptor.ParseTaskResult(task, &http.Response{StatusCode: http.StatusOK}, encoded)
+			require.NoError(t, err)
+			assert.Equal(t, "SUCCESS", result.Status)
+			assert.Equal(t, first, result.Url)
+			require.Equal(t, map[string]any{"image_count": float64(2)}, result.UsageFacts)
+			// A reservation for four images can settle to the two actual successes.
+			cost, _, err := billingexpr.RunExprWithRequest(`tier("image", u("image_count") * 0.1)`, billingexpr.TokenParams{}, billingexpr.RequestInput{Usage: result.UsageFacts})
+			require.NoError(t, err)
+			assert.InDelta(t, 0.2, cost, 1e-9)
+			artifacts, err := adaptor.ListArtifacts(task)
+			require.NoError(t, err)
+			require.Len(t, artifacts, 2)
+			assert.Equal(t, "image-2", artifacts[1].Key)
+			assert.Equal(t, "image", artifacts[1].Type)
+			content, err := adaptor.BuildContentRequest(task, "image-2", relaychannel.TaskArtifactClientRequest{Method: http.MethodGet})
+			require.NoError(t, err)
+			assert.Equal(t, second, content.URL)
+			assert.True(t, content.Credentialless)
+			assert.Empty(t, content.Headers)
+			_, err = adaptor.BuildContentRequest(task, "image-3", relaychannel.TaskArtifactClientRequest{Method: http.MethodGet})
+			require.Error(t, err)
+			value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_responses", "renderFinal"}, map[string]any{
+				"artifacts": map[string]any{"image-1": map[string]any{"url": "/v1/tasks/task_public/artifacts/image-1/content"}, "image-2": map[string]any{"url": "/v1/tasks/task_public/artifacts/image-2/content"}},
+			}, map[string]any{"status": "SUCCESS", "data": body})
+			require.NoError(t, err)
+			final := alibabaObject(t, value)
+			message := final["output"].([]any)[0].(map[string]any)["content"].([]any)[0].(map[string]any)["text"].(string)
+			assert.Contains(t, message, "![Image 1](</v1/tasks/task_public/artifacts/image-1/content>)")
+			assert.Contains(t, message, "![Image 2](</v1/tasks/task_public/artifacts/image-2/content>)")
+			assert.NotContains(t, message, "cdn.example")
+			if tc.model == "wan2.6-image" {
+				assert.Contains(t, message, "Step 1\n\n![Image 1]")
+			}
+		})
+	}
+
+	t.Run("synchronous completion uses the host ID and retains result JSON", func(t *testing.T) {
+		info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "wan2.6-t2i"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "task_public"}}
+		adaptor := taskplugin.New(plugin)
+		adaptor.Init(info)
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+		c.Set("task_request", map[string]any{"model": "wan2.6-t2i", "prompt": "a cat", "metadata": map[string]any{"upstream_mode": "sync"}})
+		body := map[string]any{"request_id": "request_upstream", "output": map[string]any{"finished": true, "choices": []any{map[string]any{"message": map[string]any{"content": []any{map[string]any{"image": first}}}}}}, "usage": map[string]any{"image_count": 1}}
+		encoded, err := common.Marshal(body)
+		require.NoError(t, err)
+		parsed, taskErr := adaptor.ParseResponse(c, &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(encoded))}, info)
+		require.Nil(t, taskErr)
+		require.NotNil(t, parsed.Immediate)
+		assert.Equal(t, "task_public", parsed.UpstreamTaskID)
+		assert.Equal(t, "SUCCESS", parsed.Immediate.Status)
+		assert.Equal(t, "100%", parsed.Immediate.Progress)
+		assert.Equal(t, first, parsed.Immediate.Url)
+		assert.JSONEq(t, string(encoded), string(parsed.TaskData))
+		assert.Equal(t, map[string]any{"image_count": float64(1)}, parsed.Immediate.UsageFacts)
+		value, err := plugin.Engine.CallPath(t.Context(), "native", []string{"imageCreated"}, map[string]any{}, map[string]any{"data": body})
+		require.NoError(t, err)
+		assert.Equal(t, alibabaObject(t, body), alibabaObject(t, value))
+	})
+
+	t.Run("asynchronous submission remains pending", func(t *testing.T) {
+		value, err := plugin.Engine.Call(t.Context(), "parseSubmitResponse", map[string]any{"model": "wan2.6-t2i", "requestBody": map[string]any{"model": "wan2.6-t2i", "prompt": "a cat"}}, map[string]any{"body": map[string]any{"output": map[string]any{"task_id": "upstream_task", "task_status": "PENDING"}}})
+		require.NoError(t, err)
+		result := alibabaObject(t, value)
+		assert.Equal(t, "upstream_task", result["taskId"])
+		assert.NotContains(t, result, "immediate")
+	})
+
+	t.Run("failed and malformed synchronous results do not complete a task", func(t *testing.T) {
+		for _, body := range []map[string]any{
+			{"code": "DataInspectionFailed", "message": "rejected"},
+			{"output": map[string]any{"finished": true, "choices": []any{}}},
+			{"output": map[string]any{"finished": false, "choices": []any{map[string]any{"message": map[string]any{"content": []any{map[string]any{"image": first}}}}}}},
+		} {
+			_, err := plugin.Engine.Call(t.Context(), "parseSubmitResponse", map[string]any{"upstreamModel": "wan2.6-t2i", "publicTaskId": "task_public", "requestBody": map[string]any{"model": "wan2.6-t2i", "prompt": "a cat", "metadata": map[string]any{"upstream_mode": "sync"}}}, map[string]any{"body": body})
+			require.Error(t, err)
+		}
+	})
+
+	t.Run("invalid completion counts retain the reservation", func(t *testing.T) {
+		adaptor := taskplugin.New(plugin)
+		task := &model.Task{Properties: model.Properties{UpstreamModelName: "wan2.6-t2i"}}
+		for _, count := range []any{-1, 0, 1.5, 1e30, "2"} {
+			encoded, err := common.Marshal(map[string]any{"output": map[string]any{"task_status": "SUCCEEDED", "choices": []any{map[string]any{"message": map[string]any{"content": []any{map[string]any{"image": first}}}}}}, "usage": map[string]any{"image_count": count}})
+			require.NoError(t, err)
+			result, err := adaptor.ParseTaskResult(task, &http.Response{StatusCode: http.StatusOK}, encoded)
+			require.NoError(t, err)
+			assert.Equal(t, "SUCCESS", result.Status)
+			assert.Nil(t, result.UsageFacts, "invalid count %v must not replace the reservation", count)
+		}
+	})
+
+	t.Run("interleaved text without images has zero image usage", func(t *testing.T) {
+		body := map[string]any{"output": map[string]any{"task_status": "SUCCEEDED", "choices": []any{map[string]any{"message": map[string]any{"content": []any{map[string]any{"text": "Text-only answer"}}}}}}}
+		encoded, err := common.Marshal(body)
+		require.NoError(t, err)
+		adaptor := taskplugin.New(plugin)
+		result, err := adaptor.ParseTaskResult(&model.Task{Properties: model.Properties{UpstreamModelName: "wan2.6-image"}}, &http.Response{StatusCode: http.StatusOK}, encoded)
+		require.NoError(t, err)
+		assert.Equal(t, "SUCCESS", result.Status)
+		assert.Equal(t, map[string]any{"image_count": float64(0)}, result.UsageFacts)
+		value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_responses", "renderEvents"}, map[string]any{}, map[string]any{"status": "SUCCESS", "data": body}, nil)
+		require.NoError(t, err)
+		events := alibabaObject(t, value)
+		assert.Equal(t, true, events["done"])
+		assert.Equal(t, []any{map[string]any{"type": "output", "data": "Text-only answer"}}, events["events"])
+	})
+}
+
+func TestAlibabaSynchronousMultiImageAndStream(t *testing.T) {
+	plugin := newAlibabaPlugin(t)
+	for _, streaming := range []bool{false, true} {
+		t.Run(fmt.Sprintf("SSE=%t", streaming), func(t *testing.T) {
+			name := "wan2.7-image"
+			parameters := map[string]any{"n": 4}
+			if streaming {
+				name = "wan2.6-image"
+				parameters = map[string]any{"enable_interleave": true, "max_images": 3}
+			}
+			info := &relaycommon.RelayInfo{OriginModelName: name, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: name, ChannelBaseUrl: "https://dashscope.aliyuncs.com"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "task_sync"}}
+			adaptor := taskplugin.New(plugin)
+			adaptor.Init(info)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest("POST", "/v1/responses", nil)
+			c.Set("task_request", map[string]any{"model": name, "prompt": "recipe", "metadata": map[string]any{"upstream_mode": "sync", "parameters": parameters}})
+			require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+			facts, err := adaptor.ExtractUsageFactsValidated(c, info)
+			require.NoError(t, err)
+			wantEstimate := float64(4)
+			if streaming {
+				wantEstimate = 3
+			}
+			assert.Equal(t, wantEstimate, facts["image_count"])
+			var content []any
+			if streaming {
+				content = append(content, map[string]any{"type": "text", "text": "第一步"})
+			}
+			content = append(content, map[string]any{"type": "image", "image": "https://cdn.example/1.png"})
+			if streaming {
+				content = append(content, map[string]any{"type": "text", "text": "第二步"})
+			}
+			content = append(content, map[string]any{"type": "image", "image": "https://cdn.example/2.png"})
+			body := map[string]any{"request_id": "vendor-request", "output": map[string]any{"finished": true, "choices": []any{map[string]any{"finish_reason": "stop", "message": map[string]any{"role": "assistant", "content": content}}}}, "usage": map[string]any{"image_count": 2}}
+			encoded, err := common.Marshal(body)
+			require.NoError(t, err)
+			responseType := "application/json"
+			if streaming {
+				var stream strings.Builder
+				parts := []map[string]any{{"type": "text", "text": "第"}, {"type": "text", "text": "一步"}, {"type": "image", "image": "https://cdn.example/1.png"}, {"type": "text", "text": "第二步"}, {"type": "image", "image": "https://cdn.example/2.png"}}
+				count := 0
+				for index, part := range parts {
+					if part["image"] != nil {
+						count++
+					}
+					finish := "null"
+					if index == len(parts)-1 {
+						finish = "stop"
+					}
+					chunk, err := common.Marshal(map[string]any{"request_id": "vendor-request", "output": map[string]any{"finished": true, "choices": []any{map[string]any{"finish_reason": finish, "message": map[string]any{"role": "assistant", "content": []any{part}}}}}, "usage": map[string]any{"image_count": count}})
+					require.NoError(t, err)
+					stream.WriteString("data: ")
+					stream.Write(chunk)
+					stream.WriteString("\n\n")
+				}
+				encoded = []byte(stream.String())
+				responseType = "text/event-stream"
+				request := httptest.NewRequest("POST", "https://dashscope.aliyuncs.com", nil)
+				require.NoError(t, adaptor.BuildRequestHeader(c, request, info))
+				assert.Equal(t, "enable", request.Header.Get("X-DashScope-Sse"))
+			}
+			parsed, taskErr := adaptor.ParseResponse(c, &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {responseType}}, Body: io.NopCloser(bytes.NewReader(encoded))}, info)
+			require.Nil(t, taskErr)
+			require.NotNil(t, parsed.Immediate)
+			assert.Equal(t, "SUCCESS", parsed.Immediate.Status)
+			assert.Equal(t, map[string]any{"image_count": float64(2)}, parsed.Immediate.UsageFacts)
+			want, err := common.Marshal(body)
+			require.NoError(t, err)
+			assert.JSONEq(t, string(want), string(parsed.TaskData))
+			assert.False(t, c.Writer.Written())
+		})
+	}
 }

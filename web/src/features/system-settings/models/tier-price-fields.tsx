@@ -48,10 +48,14 @@ const PRICE_VARS = BILLING_EXTRA_VARS.map((variable) => ({
   key: variable.key as VisualPrice['variable'],
 }))
 const CACHE_PRICE_VARS = PRICE_VARS.filter(
-  (variable) => variable.group === 'cache'
+  (variable) => variable.group === 'cache' && variable.key !== 'img_cr'
 )
+const MEDIA_PRICE_ORDER = ['img', 'img_cr', 'img_o', 'ai', 'ao']
 const MEDIA_PRICE_VARS = PRICE_VARS.filter(
-  (variable) => variable.group === 'media'
+  (variable) => variable.group === 'media' || variable.key === 'img_cr'
+).sort(
+  (left, right) =>
+    MEDIA_PRICE_ORDER.indexOf(left.key) - MEDIA_PRICE_ORDER.indexOf(right.key)
 )
 type PriceFieldProps = {
   currency: PricingCurrency
@@ -136,7 +140,11 @@ export function TierPriceFields(props: TierPriceFieldsProps) {
     <PriceField
       key={variable.key}
       currency={props.currency}
-      label={t(variable.label)}
+      label={
+        variable.key === 'cc' && props.prices.cc1h !== undefined
+          ? t('Cache Creation (5m)')
+          : t(variable.label)
+      }
       value={props.prices[variable.key] ?? 0}
       onChange={(value) => props.onChange(variable.key, value)}
       included={

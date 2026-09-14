@@ -48,6 +48,8 @@ import type { ChannelTestResponse, CopyChannelParams } from '../types'
 
 export const channelsQueryKeys = {
   all: ['channels'] as const,
+  defaultBaseURLs: () =>
+    [...channelsQueryKeys.all, 'default_base_urls'] as const,
   lists: () => [...channelsQueryKeys.all, 'list'] as const,
   list: (params: Record<string, unknown>) =>
     [...channelsQueryKeys.lists(), params] as const,

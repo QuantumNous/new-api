@@ -11,10 +11,8 @@ import (
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
 func TestUpdateOptionRejectsInvalidTaskBillingExpressions(t *testing.T) {
@@ -103,42 +101,16 @@ func TestUpdateOptionRejectsUsageExpressionWithoutTaskPlugin(t *testing.T) {
 	assert.Contains(t, recorder.Body.String(), "no task plugin usage schema")
 }
 
-func setupBillingAliasOptionDB(t *testing.T) {
-	t.Helper()
-	previousDB := model.DB
-	previousLogDB := model.LOG_DB
-	previousType := common.MainDatabaseType()
-	previousCache := common.MemoryCacheEnabled
-	previousMap := common.OptionMap
-	previousRedis := common.RedisEnabled
-	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	require.NoError(t, database.AutoMigrate(&model.Channel{}, &model.Option{}, &model.Log{}, &model.AuditLog{}, &model.User{}))
-	model.DB = database
-	model.LOG_DB = database
-	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
-	common.MemoryCacheEnabled = false
-	common.RedisEnabled = false
-	common.OptionMap = map[string]string{}
-	t.Cleanup(func() {
-		model.DB = previousDB
-		model.LOG_DB = previousLogDB
-		common.SetMainDatabaseType(previousType)
-		common.MemoryCacheEnabled = previousCache
-		common.OptionMap = previousMap
-		common.RedisEnabled = previousRedis
-		model.InitChannelCache()
-	})
-}
-
 func TestUpdateOptionAliasBillingExprUsesPluginSchema(t *testing.T) {
-	setupBillingAliasOptionDB(t)
+	database := modelManagementDB(t, "sqlite", "")
+	require.NoError(t, database.AutoMigrate(&model.Log{}))
 	const pluginKey = "billing-alias-probe"
 	source := `
 export const meta = {
   apiVersion: 1, key: "billing-alias-probe", name: "Billing Alias Probe", version: "1.0.0", author: {name: "Test"},
   models: ["declared-model"], fetchMode: "per_task",
-  usageSchema: {seconds: {type: "number", unit: "second"}}
+  usageSchema: {seconds: {type: "number", unit: "second"}, image_count: {type: "number", unit: "count"}},
+  usageProfiles: [{models: ["declared-model"], schema: {seconds: {type: "number", unit: "second"}}}]
 };
 export function buildSubmitRequest() { return {}; }
 export function parseSubmitResponse() { return {}; }
@@ -191,10 +163,14 @@ export function parseTaskResult() { return {}; }
 	assert.Equal(t, http.StatusOK, accepted.Code)
 	assert.Contains(t, accepted.Body.String(), `"success":true`)
 
-	rejectedKey := putExpr("alias-model", `u("clips")`)
+	rejectedKey := putExpr("alias-model", `u("image_count")`)
 	assert.Equal(t, http.StatusOK, rejectedKey.Code)
 	assert.Contains(t, rejectedKey.Body.String(), `"success":false`)
-	assert.Contains(t, rejectedKey.Body.String(), `usage key \"clips\" is not declared`)
+	assert.Contains(t, rejectedKey.Body.String(), `usage key \"image_count\" is not declared`)
+
+	rejectedDeclared := putExpr("declared-model", `u("image_count")`)
+	assert.Contains(t, rejectedDeclared.Body.String(), `"success":false`)
+	assert.Contains(t, rejectedDeclared.Body.String(), `usage key \"image_count\" is not declared`)
 
 	unresolvable := putExpr("unknown-alias-model", `u("seconds")`)
 	assert.Equal(t, http.StatusOK, unresolvable.Code)
