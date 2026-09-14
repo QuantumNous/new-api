@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { HelpCircle } from 'lucide-react'
+import { MessagesSquare } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -59,7 +59,7 @@ export function CommunityHelp(props: CommunityHelpProps = {}) {
   const rootRef = useRef<HTMLDivElement>(null)
   const styles = VARIANT_CLASSNAMES[props.variant ?? 'console']
   const isHeader = props.variant === 'header'
-  const label = t('Get Help')
+  const label = t('Community')
 
   useEffect(() => {
     if (!open) return
@@ -89,7 +89,7 @@ export function CommunityHelp(props: CommunityHelpProps = {}) {
         onClick={() => setOpen((value) => !value)}
       >
         {isHeader ? (
-          <HelpCircle className='size-4 shrink-0' aria-hidden='true' />
+          <MessagesSquare className='size-4 shrink-0' aria-hidden='true' />
         ) : null}
         <span className={styles.label}>{label}</span>
       </button>

@@ -109,6 +109,36 @@ describe('landing interactions and price layout', () => {
       within(navigation).getByRole('link', { name: 'Overview' })
     ).toHaveAttribute('href', '/dashboard')
   })
+  it.each([
+    [false, '/sign-up'],
+    [true, '/dashboard'],
+  ])(
+    'centers the hero client action beside the auth-aware primary action (authenticated=%s)',
+    async (isAuthenticated, primaryHref) => {
+      if (isAuthenticated) {
+        useAuthStore.getState().auth.setBundle(createTestAuthBundle())
+      }
+      const { container } = await renderApp(
+        <CiLandingPage
+          isAuthenticated={isAuthenticated}
+          models={models}
+          maxSavingsPercent={0}
+        />,
+        client
+      )
+      const hero = container.querySelector<HTMLElement>('.ci-hero')
+      if (!hero) throw new Error('Missing hero')
+      const actions = hero.querySelector('.ci-heroActions--primary')
+      expect(actions).not.toBeNull()
+      expect(
+        within(hero).getByRole('link', { name: 'Start saving' })
+      ).toHaveAttribute('href', primaryHref)
+      expect(
+        within(hero).getByRole('link', { name: 'Client' })
+      ).toHaveAttribute('href', '/client')
+    }
+  )
+
   it('uses the savings translation instead of the on/off control translation', async () => {
     const discounted = buildModelCatalog(
       [{ ...models[0].pricingModel, group_ratio: { default: 0.5 } }],

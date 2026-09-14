@@ -1198,6 +1198,7 @@
     "Common pitfall: the user group base ratio is NOT a personal discount. It only applies when the user group itself is the billing group.": "よくある誤解：ユーザーグループの基本倍率は個人割引ではありません。ユーザーグループ自体が課金グループになる場合にのみ適用されます。",
     "Common ports include 25, 465, and 587": "一般的なポートには 25, 465, 587 が含まれます",
     "Common User": "一般ユーザー",
+    "Community": "コミュニティ",
     "Community driven, self-hosted, and extensible": "コミュニティ主導、セルフホスト可能、拡張可能",
     "Compact": "コンパクト",
     "Compare complete model IDs, routes, and billing groups before connecting.": "接続前に完全なモデル ID、経路、課金グループを比較できます。",

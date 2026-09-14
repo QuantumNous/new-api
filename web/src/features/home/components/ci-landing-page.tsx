@@ -211,12 +211,18 @@ export function CiLandingPage(props: LandingPageProps) {
                     {t('without changing your request format.')}
                   </strong>
                 </p>
-                <div className='ci-heroActions'>
+                <div className='ci-heroActions ci-heroActions--primary'>
                   <Link
                     to={primaryTo}
                     className='ci-button ci-button--default ci-button--size-sm'
                   >
                     {t('Start saving')} <ArrowIcon />
+                  </Link>
+                  <Link
+                    to='/client'
+                    className='ci-button ci-button--outline ci-button--size-sm ci-heroClientAction'
+                  >
+                    {t('Client')}
                   </Link>
                 </div>
                 <div className='ci-trustRow'>

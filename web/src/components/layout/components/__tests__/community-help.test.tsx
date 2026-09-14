@@ -83,10 +83,12 @@ describe('community help entry', () => {
     const user = userEvent.setup()
     await renderApp(<CommunityHelp variant='header' />, client)
 
-    const trigger = screen.getByRole('button', { name: 'Get Help' })
+    const trigger = screen.getByRole('button', { name: 'Community' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger.querySelector('.lucide-messages-square')).not.toBeNull()
 
-    await user.click(trigger)
+    trigger.focus()
+    await user.keyboard('{Enter}')
 
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(
@@ -94,8 +96,12 @@ describe('community help entry', () => {
     ).toHaveAttribute('src', '/qq-community-qr.png')
     expect(screen.getByText(`QQ group: ${SUPPORT_QQ_GROUP}`)).toBeVisible()
 
-    await user.keyboard('{Escape}')
+    await user.click(document.body)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
 
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
   })
@@ -107,7 +113,7 @@ describe('community help entry', () => {
     const header = screen.getByRole('banner')
 
     await user.click(
-      within(header).getAllByRole('button', { name: 'Get Help' })[0]
+      within(header).getAllByRole('button', { name: 'Community' })[0]
     )
 
     expect(
@@ -122,7 +128,7 @@ describe('community help entry', () => {
 
     expect(
       within(screen.getByRole('banner')).getByRole('button', {
-        name: 'Get Help',
+        name: 'Community',
       })
     ).toBeVisible()
   })
@@ -137,7 +143,7 @@ describe('community help entry', () => {
 
     expect(
       within(screen.getByRole('banner')).getByRole('button', {
-        name: 'Get Help',
+        name: 'Community',
       })
     ).toBeVisible()
   })

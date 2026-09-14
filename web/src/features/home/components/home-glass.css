@@ -216,6 +216,21 @@ For commercial licensing, please contact support@quantumnous.com
 .ci-liquidHome .ci-heroActions .ci-button:hover::before {
   transform: translateX(110%);
 }
+.ci-liquidHome .ci-heroCopy .ci-heroActions--primary {
+  justify-content: center;
+  margin-inline: auto;
+}
+.ci-liquidHome .ci-heroActions .ci-heroClientAction {
+  border-color: #3146304a;
+  background: #ffffff52;
+  color: #213121;
+  box-shadow:
+    inset 0 1px 0 #ffffff70,
+    0 10px 24px -14px #364d324f;
+}
+.ci-liquidHome .ci-heroActions .ci-heroClientAction:hover {
+  background: #ffffff70;
+}
 
 /* Keep the existing table and copy interactions, changing only their surfaces. */
 .ci-liquidHome :is(.ci-pricingPanel, .ci-codeCard) {
@@ -278,6 +293,14 @@ For commercial licensing, please contact support@quantumnous.com
 .ci-liquidHome[data-theme='dark'] .ci-headerInner {
   background:
     linear-gradient(155deg, #ffffff08, transparent 55%), var(--glass-surface);
+}
+.ci-liquidHome[data-theme='dark'] .ci-heroActions .ci-heroClientAction {
+  border-color: #e8f1da45;
+  background: #ffffff12;
+  color: #f2f4e6;
+}
+.ci-liquidHome[data-theme='dark'] .ci-heroActions .ci-heroClientAction:hover {
+  background: #ffffff20;
 }
 
 @keyframes ci-glass-flow {
@@ -346,6 +369,15 @@ For commercial licensing, please contact support@quantumnous.com
   }
   .ci-liquidHome :is(.ci-pricingPanel, .ci-codeCard) {
     border-radius: 18px;
+  }
+}
+@media (max-width: 520px) {
+  .ci-liquidHome .ci-heroCopy .ci-heroActions--primary {
+    width: min(100%, 20rem);
+    flex-direction: column;
+  }
+  .ci-liquidHome .ci-heroCopy .ci-heroActions--primary > .ci-button {
+    width: 100%;
   }
 }
 @media (prefers-reduced-motion: reduce) {
