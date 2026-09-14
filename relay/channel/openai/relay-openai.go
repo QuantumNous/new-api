@@ -106,13 +106,12 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
 
-	defer service.CloseResponseBodyGracefully(resp)
-
 	model := info.UpstreamModelName
 	var responseId string
 	var createAt int64 = 0
 	var systemFingerprint string
 	var containStreamUsage bool
+	var sawUpstreamUsage bool
 	var responseTextBuilder strings.Builder
 	var toolCount int
 	var usage = &dto.Usage{}
@@ -121,7 +120,16 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
 
-	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+	helper.TextStreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if isRecognizedChatStreamData(data) {
+			sr.Accept()
+		} else {
+			sr.Ignore()
+		}
+		var rawChunk dto.ChatCompletionsStreamResponse
+		if common.UnmarshalJsonStr(data, &rawChunk) == nil && rawChunk.Usage != nil {
+			sawUpstreamUsage = true
+		}
 		if lastStreamData != "" {
 			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
@@ -141,6 +149,9 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 			}
 		}
 	})
+	if sawUpstreamUsage && info.StreamStatus != nil {
+		info.StreamStatus.MarkUsageComplete()
+	}
 
 	// 处理最后的响应
 	shouldSendLastResp := true

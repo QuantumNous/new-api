@@ -33,12 +33,18 @@ type textStreamScanEnd struct {
 
 type textStreamLineParser func(string) textStreamScanEvent
 
+type textStreamOptions struct {
+	writeEventStreamHeaders bool
+	doneIsTerminalSuccess   bool
+}
+
 type textStreamSession struct {
 	c           *gin.Context
 	resp        *http.Response
 	info        *relaycommon.RelayInfo
 	dataHandler func(string, *StreamResult)
 	parseLine   textStreamLineParser
+	options     textStreamOptions
 	status      *relaycommon.StreamStatus
 	timeout     time.Duration
 
@@ -53,16 +59,32 @@ type textStreamSession struct {
 // upstream body alive until a protocol terminal, an upstream error, EOF, or a
 // bounded drain timeout is observed.
 func TextStreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(string, *StreamResult)) {
-	runTextStreamScanner(c, resp, info, dataHandler, parseTextSSELine)
+	runTextStreamScanner(c, resp, info, dataHandler, parseTextSSELine, textStreamOptions{
+		writeEventStreamHeaders: true,
+		doneIsTerminalSuccess:   true,
+	})
+}
+
+func ResponsesTextStreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(string, *StreamResult)) {
+	runTextStreamScanner(c, resp, info, dataHandler, parseTextSSELine, textStreamOptions{
+		writeEventStreamHeaders: true,
+	})
+}
+
+func ResponsesBufferedTextStreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(string, *StreamResult)) {
+	runTextStreamScanner(c, resp, info, dataHandler, parseTextSSELine, textStreamOptions{})
 }
 
 // TextLineStreamScannerHandler applies the same lifecycle to newline-delimited
 // text protocols such as Ollama and Cohere.
 func TextLineStreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(string, *StreamResult)) {
-	runTextStreamScanner(c, resp, info, dataHandler, parseTextBusinessLine)
+	runTextStreamScanner(c, resp, info, dataHandler, parseTextBusinessLine, textStreamOptions{
+		writeEventStreamHeaders: true,
+		doneIsTerminalSuccess:   true,
+	})
 }
 
-func runTextStreamScanner(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(string, *StreamResult), parseLine textStreamLineParser) {
+func runTextStreamScanner(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(string, *StreamResult), parseLine textStreamLineParser, options textStreamOptions) {
 	if c == nil || c.Request == nil || resp == nil || resp.Body == nil || info == nil || dataHandler == nil {
 		return
 	}
@@ -74,6 +96,7 @@ func runTextStreamScanner(c *gin.Context, resp *http.Response, info *relaycommon
 		info:        info,
 		dataHandler: dataHandler,
 		parseLine:   parseLine,
+		options:     options,
 		status:      info.StreamStatus,
 		timeout:     TextStreamDrainTimeout(c),
 		stopChan:    make(chan struct{}),
@@ -121,8 +144,10 @@ func parseTextBusinessLine(line string) textStreamScanEvent {
 }
 
 func (s *textStreamSession) run() {
-	copyCodexSSEHeaders(s.c, s.resp)
-	SetEventStreamHeaders(s.c)
+	if s.options.writeEventStreamHeaders {
+		copyCodexSSEHeaders(s.c, s.resp)
+		SetEventStreamHeaders(s.c)
+	}
 
 	scanEvents := make(chan textStreamScanEvent)
 	scanEnd := make(chan textStreamScanEnd, 1)
@@ -184,8 +209,10 @@ func (s *textStreamSession) run() {
 			}
 			logger.LogDebug(s.c, "text stream scanner data: %s", event.raw)
 			if event.done {
-				s.status.SetEndReason(relaycommon.StreamEndReasonDone, nil)
-				s.status.SetUpstreamResult(relaycommon.StreamUpstreamResultTerminalSuccess, nil)
+				if s.options.doneIsTerminalSuccess {
+					s.status.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+					s.status.SetUpstreamResult(relaycommon.StreamUpstreamResultTerminalSuccess, nil)
+				}
 				return
 			}
 			if !event.business {

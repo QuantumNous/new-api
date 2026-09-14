@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,11 +22,13 @@ import (
 
 type observedReadCloser struct {
 	io.Reader
-	closed chan struct{}
-	once   sync.Once
+	closed     chan struct{}
+	once       sync.Once
+	closeCount atomic.Int32
 }
 
 func (r *observedReadCloser) Close() error {
+	r.closeCount.Add(1)
 	r.once.Do(func() { close(r.closed) })
 	if closer, ok := r.Reader.(io.Closer); ok {
 		return closer.Close()
@@ -343,6 +346,55 @@ func TestTextStreamScannerPreservesOnlineEOFBehavior(t *testing.T) {
 	assert.Nil(t, ValidateTextStreamCompletion(info))
 }
 
+func TestTextStreamEntryPointSemantics(t *testing.T) {
+	tests := []struct {
+		name              string
+		run               func(*gin.Context, *http.Response, *relaycommon.RelayInfo, func(string, *StreamResult))
+		terminalInHandler bool
+		wantHeader        bool
+		wantResult        relaycommon.StreamUpstreamResult
+	}{
+		{name: "chat done is success", run: TextStreamScannerHandler, wantHeader: true, wantResult: relaycommon.StreamUpstreamResultTerminalSuccess},
+		{name: "responses done is neutral", run: ResponsesTextStreamScannerHandler, wantHeader: true},
+		{name: "buffered responses has no stream header", run: ResponsesBufferedTextStreamScannerHandler},
+		{name: "responses explicit terminal", run: ResponsesTextStreamScannerHandler, terminalInHandler: true, wantHeader: true, wantResult: relaycommon.StreamUpstreamResultTerminalSuccess},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c, recorder := newTextStreamTestContext(context.Background())
+			body := &observedReadCloser{Reader: strings.NewReader("data: {\"type\":\"response.completed\"}\n\ndata: [DONE]\n\n"), closed: make(chan struct{})}
+			info := &relaycommon.RelayInfo{DisablePing: true}
+			handled := 0
+
+			test.run(c, &http.Response{Body: body, Header: make(http.Header)}, info, func(_ string, result *StreamResult) {
+				handled++
+				if test.terminalInHandler {
+					result.TerminalSuccess(false)
+				}
+			})
+
+			assert.Equal(t, 1, handled)
+			assert.Equal(t, int32(1), body.closeCount.Load())
+			assert.Equal(t, test.wantHeader, strings.Contains(recorder.Header().Get("Content-Type"), "text/event-stream"))
+			result, _ := info.StreamStatus.GetUpstreamResult()
+			assert.Equal(t, test.wantResult, result)
+		})
+	}
+}
+
+func TestStreamResultNeutralStopPreservesProtocolOutcome(t *testing.T) {
+	status := relaycommon.NewStreamStatus()
+	result := newStreamResult(status)
+
+	result.NeutralStop()
+
+	assert.True(t, result.IsStopped())
+	assert.Equal(t, relaycommon.StreamEndReasonNone, status.EndReason)
+	upstreamResult, upstreamErr := status.GetUpstreamResult()
+	assert.Equal(t, relaycommon.StreamUpstreamResultNone, upstreamResult)
+	assert.NoError(t, upstreamErr)
+}
+
 func TestParseTextSSELineRejectsTransportNoise(t *testing.T) {
 	for _, line := range []string{"", ": PING", "event: message", "invalid", "data:", "data:   "} {
 		event := parseTextSSELine(line)
@@ -376,6 +428,7 @@ func TestReadTextStreamBodyClosesBodyOnReadError(t *testing.T) {
 	default:
 		t.Fatal("buffered text response body was not closed after read error")
 	}
+	assert.Equal(t, int32(1), body.closeCount.Load())
 }
 
 func writePipeString(writer *io.PipeWriter, value string) error {

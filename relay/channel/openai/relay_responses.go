@@ -70,21 +70,26 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		return nil, types.NewError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse)
 	}
 
-	defer service.CloseResponseBodyGracefully(resp)
-
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
 	imageCounter := &relaycommon.ImageGenerationCallCounter{}
 	imageCommitted := false
+	var sawUpstreamUsage bool
 
-	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
-
-		// 检查当前数据是否包含 completed 状态和 usage 信息
+	helper.ResponsesTextStreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		var streamResponse dto.ResponsesStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
 			logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
 			sr.Error(err)
 			return
+		}
+		if streamResponse.Type == "" {
+			sr.Ignore()
+		} else {
+			sr.Accept()
+		}
+		if streamResponse.Response != nil && streamResponse.Response.Usage != nil {
+			sawUpstreamUsage = true
 		}
 		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {
@@ -112,14 +117,17 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 				imageCounter.Commit(info)
 				imageCommitted = true
 			}
-		case "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
+			sr.TerminalSuccess(false)
+		case "response.failed", "response.error", "response.incomplete", "response.cancelled", "response.canceled":
 			if !imageCommitted {
 				imageCounter.Reset()
 				imageCounter.Commit(info)
 				imageCommitted = true
 			}
+			if sr.ClientGone() {
+				sr.ProtocolFailure(fmt.Errorf("responses stream error: %s", streamResponse.Type))
+			}
 		case "response.output_text.delta":
-			// 处理输出文本
 			responseTextBuilder.WriteString(streamResponse.Delta)
 		case dto.ResponsesOutputTypeItemDone:
 			if streamResponse.Item != nil {
@@ -138,6 +146,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			}
 		}
 	})
+	if sawUpstreamUsage && info.StreamStatus != nil {
+		info.StreamStatus.MarkUsageComplete()
+	}
 
 	if usage.CompletionTokens == 0 {
 		// 计算输出文本的 token 数量

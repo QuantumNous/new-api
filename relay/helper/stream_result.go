@@ -66,7 +66,14 @@ func (r *StreamResult) TerminalSuccess(usageComplete bool) {
 	r.Done()
 }
 
-// IsStopped returns whether Stop() or Done() was called during this chunk.
+// NeutralStop stops reading after accepting the current event without recording
+// a protocol outcome.
+func (r *StreamResult) NeutralStop() {
+	r.Accept()
+	r.stopped = true
+}
+
+// IsStopped returns whether the current chunk requested the stream to stop.
 func (r *StreamResult) IsStopped() bool {
 	return r.stopped
 }

@@ -66,8 +66,6 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 	if resp == nil || resp.Body == nil {
 		return nil, types.NewOpenAIError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
-	defer service.CloseResponseBodyGracefully(resp)
-
 	responseID := helper.GetResponseID(c)
 	state, err := relayconvert.NewResponseStreamState(types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses, relayconvert.ResponseStreamOptions{
 		ID:                 responseID,
@@ -75,11 +73,16 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		EmitSequenceNumber: true,
 	})
 	if err != nil {
+		service.CloseResponseBodyGracefully(resp)
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
 	}
-	streamErr := (*types.NewAPIError)(nil)
+	var streamErr *types.NewAPIError
+	var sawUpstreamUsage bool
 
 	sendEvent := func(event relayconvert.ChatToResponsesStreamEvent) bool {
+		if c.Request.Context().Err() != nil {
+			return true
+		}
 		data, err := common.Marshal(event.Payload)
 		if err != nil {
 			streamErr = types.NewOpenAIError(err, types.ErrorCodeJsonMarshalFailed, http.StatusInternalServerError)
@@ -109,10 +112,15 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		return true
 	}
 
-	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+	helper.TextStreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if streamErr != nil {
 			sr.Stop(streamErr)
 			return
+		}
+		if isRecognizedChatStreamData(data) {
+			sr.Accept()
+		} else {
+			sr.Ignore()
 		}
 
 		var errorResp dto.OpenAITextResponse
@@ -139,6 +147,9 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 			sr.Stop(streamErr)
 			return
 		}
+		if chunk.Usage != nil {
+			sawUpstreamUsage = true
+		}
 
 		results, err := service.ConvertStreamResponseChunk(c, info, state, &chunk)
 		if err != nil {
@@ -164,6 +175,9 @@ func OaiChatToResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 		}
 	})
 
+	if sawUpstreamUsage && info.StreamStatus != nil {
+		info.StreamStatus.MarkUsageComplete()
+	}
 	if streamErr != nil {
 		return nil, streamErr
 	}
