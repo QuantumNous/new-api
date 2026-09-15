@@ -80,27 +80,31 @@ func extractDataLines(body string) []string {
 	return out
 }
 
-// Delivery contract of the direct-forward path: every upstream frame reaches
-// the client exactly once, in order, verbatim — including a terminal usage
-// frame the client did not ask for — and a synthetic usage frame is appended
-// only when the client asked for usage the upstream never sent. Billing reads
-// usage off the upstream frames exactly as before.
+// Delivery contract of the direct-forward path: every upstream frame that
+// carries choices reaches the client exactly once, in order, verbatim. A
+// usage-only frame (usage present, choices empty) is delivered when the client
+// asked for usage and dropped when it opted out — the gateway requested that
+// frame itself. A synthetic usage frame is appended only when the client asked
+// for usage the upstream never sent. Billing reads usage off the upstream
+// frames regardless of what was delivered.
 func TestOaiStreamHandlerDirectForwardFrameDelivery(t *testing.T) {
 	tests := []struct {
 		name          string
 		includeUsage  bool
 		frames        []string
-		wantSynthetic bool // a locally built usage frame precedes [DONE]
-		wantPrompt    int  // 0 means: local estimation expected (upstream sent no usage)
+		wantDelivered []string // nil means every upstream frame is delivered
+		wantSynthetic bool     // a locally built usage frame precedes [DONE]
+		wantPrompt    int      // 0 means: local estimation expected (upstream sent no usage)
 	}{
 		{
 			name:   "plain stream forwards every frame verbatim",
 			frames: []string{frameRole, frameContent1, frameFinish},
 		},
 		{
-			name:       "usage-only terminal frame delivered even when client did not ask",
-			frames:     []string{frameRole, frameContent1, frameFinish, frameUsageOnly},
-			wantPrompt: 10,
+			name:          "usage-only terminal frame dropped when client opted out, usage still billed",
+			frames:        []string{frameRole, frameContent1, frameFinish, frameUsageOnly},
+			wantDelivered: []string{frameRole, frameContent1, frameFinish},
+			wantPrompt:    10,
 		},
 		{
 			name:         "usage-only terminal frame delivered when client asked, no synthetic duplicate",
@@ -115,27 +119,35 @@ func TestOaiStreamHandlerDirectForwardFrameDelivery(t *testing.T) {
 			wantSynthetic: true,
 		},
 		{
-			name:   "no synthetic usage frame when client did not ask and upstream sent none",
+			name:   "no synthetic usage frame when client opted out and upstream sent none",
 			frames: []string{frameRole, frameContent1, frameFinish},
 		},
 		{
-			name:       "usage frame followed by an empty terminal frame is delivered in order and still billed",
-			frames:     []string{frameRole, frameContent1, frameFinish, frameUsageOnly, frameEmptyLast},
-			wantPrompt: 10,
+			name:          "usage frame followed by an empty terminal frame: usage dropped for opted-out client, empty frame kept, still billed",
+			frames:        []string{frameRole, frameContent1, frameFinish, frameUsageOnly, frameEmptyLast},
+			wantDelivered: []string{frameRole, frameContent1, frameFinish, frameEmptyLast},
+			wantPrompt:    10,
 		},
 		{
-			name:       "terminal tool_calls+usage frame delivered even when client did not ask, usage still billed",
+			name:         "usage frame followed by an empty terminal frame delivered in order when client asked",
+			includeUsage: true,
+			frames:       []string{frameRole, frameContent1, frameFinish, frameUsageOnly, frameEmptyLast},
+			wantPrompt:   10,
+		},
+		{
+			name:       "terminal tool_calls+usage frame delivered even when client opted out, usage still billed",
 			frames:     []string{frameRole, frameContent1, frameToolUsage},
 			wantPrompt: 10,
 		},
 		{
-			name:       "terminal finish_reason+usage frame delivered even when client did not ask, usage still billed",
+			name:       "terminal finish_reason+usage frame delivered even when client opted out, usage still billed",
 			frames:     []string{frameRole, frameContent1, frameFinishUsage},
 			wantPrompt: 10,
 		},
 		{
-			name:   "usage-only frame without billable tokens delivered, billing falls back to estimation",
-			frames: []string{frameRole, frameContent1, frameFinish, frameTotalOnlyUsage},
+			name:          "usage-only frame without billable tokens dropped for opted-out client, billing falls back to estimation",
+			frames:        []string{frameRole, frameContent1, frameFinish, frameTotalOnlyUsage},
+			wantDelivered: []string{frameRole, frameContent1, frameFinish},
 		},
 	}
 
@@ -153,13 +165,17 @@ func TestOaiStreamHandlerDirectForwardFrameDelivery(t *testing.T) {
 			assert.Equal(t, "[DONE]", got[len(got)-1], "stream must terminate with [DONE]")
 			payload := got[:len(got)-1]
 
+			wantDelivered := tt.wantDelivered
+			if wantDelivered == nil {
+				wantDelivered = tt.frames
+			}
 			if tt.wantSynthetic {
-				require.Len(t, payload, len(tt.frames)+1)
+				require.Len(t, payload, len(wantDelivered)+1)
 				assert.Contains(t, payload[len(payload)-1], `"prompt_tokens"`,
 					"client asked for usage the upstream never sent: relay appends its own usage frame")
 				payload = payload[:len(payload)-1]
 			}
-			assert.Equal(t, tt.frames, payload, "every upstream frame must be delivered exactly once, in order, verbatim")
+			assert.Equal(t, wantDelivered, payload, "delivered frames must match exactly once, in order, verbatim")
 
 			if tt.wantPrompt > 0 {
 				assert.Equal(t, tt.wantPrompt, usage.PromptTokens, "usage must come from the upstream usage frame")

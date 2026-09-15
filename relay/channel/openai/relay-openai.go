@@ -121,11 +121,14 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
 
-	// OpenAI format forwards every frame the moment it is read, including a
-	// terminal usage frame the client did not ask for: whatever usage the
-	// upstream returns is passed through. Claude/Gemini conversions keep the
-	// lag-by-one path because HandleFinalResponse needs the unsent terminal
-	// frame for their closing events.
+	// OpenAI format forwards every frame the moment it is read. The one
+	// exception is a usage-only chunk (usage present, choices empty) when the
+	// client's own stream_options did not ask for usage: the gateway requested
+	// that chunk itself (ForceStreamOption), so it is billed but not delivered.
+	// Frames that carry choices are always delivered, including a terminal
+	// finish_reason/tool_calls frame with piggybacked usage. Claude/Gemini
+	// conversions keep the lag-by-one path because HandleFinalResponse needs
+	// the unsent terminal frame for their closing events.
 	directForward := info.RelayFormat == types.RelayFormatOpenAI
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
@@ -147,6 +150,12 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 		}
 		if !directForward {
 			return
+		}
+		if !info.ShouldIncludeUsage {
+			var frame dto.ChatCompletionsStreamResponse
+			if err := common.UnmarshalJsonStr(data, &frame); err == nil && frame.Usage != nil && len(frame.Choices) == 0 {
+				return
+			}
 		}
 		if err := HandleStreamFormat(c, info, data, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 			common.SysLog("error handling stream format: " + err.Error())
