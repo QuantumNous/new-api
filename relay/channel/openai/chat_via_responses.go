@@ -171,10 +171,12 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 	responseId := helper.GetResponseID(c)
 	createAt := time.Now().Unix()
+	usageEst := service.NewStreamingEstimateByModel(info.UpstreamModelName)
 	state, err := relayconvert.NewResponseStreamState(types.RelayFormatOpenAIResponses, info.RelayFormat, relayconvert.ResponseStreamOptions{
-		ID:      responseId,
-		Model:   info.UpstreamModelName,
-		Created: createAt,
+		ID:            responseId,
+		Model:         info.UpstreamModelName,
+		Created:       createAt,
+		UsageTextSink: usageEst.WriteString,
 	})
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusInternalServerError)
@@ -290,7 +292,7 @@ func OaiResponsesToChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo
 
 	usage := state.Usage()
 	if usage == nil || usage.TotalTokens == 0 {
-		usage = service.ResponseText2Usage(c, state.UsageText(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+		usage = service.StreamingEstimate2Usage(c, usageEst, info.GetEstimatePromptTokens())
 		state.SetUsage(usage)
 	}
 

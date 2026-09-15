@@ -74,10 +74,11 @@ type responseConverterRoute struct {
 }
 
 type ResponseStreamOptions struct {
-	ID           string
-	Model        string
-	Created      int64
-	IncludeUsage bool
+	ID            string
+	Model         string
+	Created       int64
+	IncludeUsage  bool
+	UsageTextSink func(string)
 	// EmitSequenceNumber opts into the current Responses SSE wire contract.
 	// It is explicit so relaykit callers that depend on the historical zero-value
 	// output are not changed merely by upgrading the module.
@@ -965,6 +966,7 @@ func finalizeOAIChatStreamResponseToOAIResponses(_ context.Context, _ convmeta.M
 
 func newOAIResponsesToOAIChatStreamState(options ResponseStreamOptions) any {
 	state := NewResponsesToChatStreamState(strings.TrimSpace(options.Model), options.IncludeUsage)
+	state.SetUsageTextSink(options.UsageTextSink)
 	state.ID = strings.TrimSpace(options.ID)
 	if options.Created != 0 {
 		state.Created = options.Created
@@ -998,7 +1000,9 @@ func finalizeOAIResponsesStreamResponseToOAIChat(_ context.Context, _ convmeta.M
 }
 
 func newOAIResponsesToClaudeMessagesStreamState(options ResponseStreamOptions) any {
-	return oairesponses.NewResponsesToClaudeStreamState(options.ID, options.Model)
+	state := oairesponses.NewResponsesToClaudeStreamState(options.ID, options.Model)
+	state.SetUsageTextSink(options.UsageTextSink)
+	return state
 }
 
 func convertOAIResponsesStreamResponseToClaudeMessages(_ context.Context, info convmeta.Meta, response any, state any) ([]any, *dto.Usage, error) {
