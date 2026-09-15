@@ -58,3 +58,25 @@ func requestOpenAI2Zhipu(request dto.GeneralOpenAIRequest) *dto.GeneralOpenAIReq
 	}
 	return out
 }
+
+func injectZhipuWebSearch(req *dto.GeneralOpenAIRequest, opts *dto.WebSearchOptions) any {
+	if opts == nil {
+		return req
+	}
+	ws := map[string]any{
+		"enable":        true,
+		"search_engine": "search_pro_jina",
+	}
+	// medium 不显式设值，使用智谱上游默认。
+	switch opts.SearchContextSize {
+	case "low":
+		ws["count"] = 5
+	case "high":
+		ws["count"] = 15
+		ws["content_size"] = "high"
+	}
+	m := req.ToMap()
+	tools, _ := m["tools"].([]any)
+	m["tools"] = append(tools, map[string]any{"type": "web_search", "web_search": ws})
+	return m
+}
