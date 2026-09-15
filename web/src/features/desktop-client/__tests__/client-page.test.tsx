@@ -64,10 +64,14 @@ describe('desktop client page', () => {
       screen.getByRole('link', { name: 'Download for Windows' })
     ).toHaveAttribute('href', officialWindows)
     expect(
-      screen.getByRole('link', { name: 'Windows installer' })
+      screen.getByRole('link', {
+        name: /Windows installer.*Windows 10 or later.*x86_64/,
+      })
     ).toHaveAttribute('href', officialWindows)
     expect(
-      screen.getByRole('link', { name: 'Universal macOS DMG' })
+      screen.getByRole('link', {
+        name: /Universal macOS DMG.*Intel and Apple silicon/,
+      })
     ).toHaveAttribute(
       'href',
       'https://ergou.qzz.io/releases/official/yeschoy-macos-universal-installer.dmg'
@@ -91,10 +95,14 @@ describe('desktop client page', () => {
       screen.getByRole('link', { name: 'Download for Windows' })
     ).toHaveAttribute('href', partnerWindows)
     expect(
-      screen.getByRole('link', { name: 'Windows installer' })
+      screen.getByRole('link', {
+        name: /Windows installer.*Windows 10 or later.*x86_64/,
+      })
     ).toHaveAttribute('href', partnerWindows)
     expect(
-      screen.getByRole('link', { name: 'Universal macOS DMG' })
+      screen.getByRole('link', {
+        name: /Universal macOS DMG.*Intel and Apple silicon/,
+      })
     ).toHaveAttribute(
       'href',
       'https://ergou.qzz.io/releases/partner/yeschoy-macos-universal-installer.dmg'
@@ -157,20 +165,69 @@ describe('desktop client page', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('describes all four real product screenshots', async () => {
+  it('uses a semantic product story and accurate screenshot descriptions', async () => {
     await renderApp(<DesktopClientPage runtime={WINDOWS_RUNTIME} />, client)
-    expect(screen.getAllByRole('img', { name: /Yecai Client/ })).toHaveLength(4)
+
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: 'AI workspace, now on your desktop',
+      })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', {
+        level: 2,
+        name: 'Your apps, ready to connect',
+      })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', {
+        level: 2,
+        name: 'Choose with the full picture',
+      })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', {
+        level: 2,
+        name: 'Comfortable in light or dark',
+      })
+    ).toBeInTheDocument()
+
+    const images = screen.getAllByRole('img', { name: /Yecai Client/ })
+    expect(images).toHaveLength(4)
+    expect(images.map((image) => image.getAttribute('alt'))).toEqual([
+      'Yecai Client application overview in light theme',
+      'Yecai Client application access setup',
+      'Yecai Client model and pricing choices',
+      'Yecai Client application overview in dark theme',
+    ])
   })
 
-  it('presents the hero screenshot inside an accessible laptop frame', async () => {
+  it('prioritizes only the real hero window and lazy-loads later optimized crops', async () => {
     await renderApp(<DesktopClientPage runtime={WINDOWS_RUNTIME} />, client)
-    const laptop = screen.getByRole('figure', {
-      name: 'Yecai Client application overview',
+
+    const heroImage = screen.getByRole('img', {
+      name: 'Yecai Client application overview in light theme',
     })
-    expect(laptop).toHaveClass('client-laptop')
+    expect(heroImage).toHaveAttribute(
+      'src',
+      '/client/yecai-client-apps-light-showcase.webp'
+    )
+    expect(heroImage).toHaveAttribute('width', '1820')
+    expect(heroImage).toHaveAttribute('height', '880')
+    expect(heroImage).toHaveAttribute('fetchpriority', 'high')
+    expect(heroImage).not.toHaveAttribute('loading', 'lazy')
+
+    const laterImages = screen
+      .getAllByRole('img', { name: /Yecai Client/ })
+      .filter((image) => image !== heroImage)
+    expect(laterImages).toHaveLength(3)
     expect(
-      laptop.querySelector('img[src="/client/yecai-client-apps.png"]')
-    ).toBeInTheDocument()
-    expect(laptop.querySelector('.client-laptop__base')).toBeInTheDocument()
+      laterImages.every((image) => image.getAttribute('loading') === 'lazy')
+    ).toBe(true)
+    expect(document.querySelector('.client-laptop')).not.toBeInTheDocument()
+    expect(
+      document.querySelector('.client-laptop__base')
+    ).not.toBeInTheDocument()
   })
 })

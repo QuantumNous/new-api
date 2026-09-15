@@ -26,7 +26,6 @@ import { useTheme } from '@/context/theme-provider'
 import { CiMark } from '@/features/home/components/ci-mark'
 import { GlassCursor } from '@/features/home/components/glass-cursor'
 import { PRODUCT_NAME } from '@/lib/product-brand'
-import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
 import {
@@ -45,6 +44,18 @@ export type DesktopClientRuntime = {
 export type DesktopClientPageProps = {
   runtime?: DesktopClientRuntime
 }
+
+const LIGHT_OVERVIEW = {
+  src: '/client/yecai-client-apps-light-showcase.webp',
+  width: 1820,
+  height: 880,
+} as const
+
+const DARK_OVERVIEW = {
+  src: '/client/yecai-client-apps-dark-showcase.webp',
+  width: 1826,
+  height: 873,
+} as const
 
 function getBrowserRuntime(): DesktopClientRuntime {
   if (typeof window === 'undefined') {
@@ -76,6 +87,14 @@ export function DesktopClientPage(props: DesktopClientPageProps = {}) {
     runtime.hostname
   )
   const isDark = resolvedTheme === 'dark'
+  const heroOverview = isDark ? DARK_OVERVIEW : LIGHT_OVERVIEW
+  const alternateOverview = isDark ? LIGHT_OVERVIEW : DARK_OVERVIEW
+  const heroOverviewAlt = isDark
+    ? t('Yecai Client application overview in dark theme')
+    : t('Yecai Client application overview in light theme')
+  const alternateOverviewAlt = isDark
+    ? t('Yecai Client application overview in light theme')
+    : t('Yecai Client application overview in dark theme')
 
   let automaticLabel = t('Download desktop client')
   if (automaticDownload?.platform === 'windows') {
@@ -133,7 +152,7 @@ export function DesktopClientPage(props: DesktopClientPageProps = {}) {
             <span className='client-ambient' aria-hidden='true' />
             <div className='client-hero__copy'>
               <div className='client-hero__brand'>
-                <CiMark size={52} />
+                <CiMark size={46} />
                 <span>{PRODUCT_NAME}</span>
                 <span>{t('Client')}</span>
               </div>
@@ -148,7 +167,7 @@ export function DesktopClientPage(props: DesktopClientPageProps = {}) {
               </p>
               <div className='client-hero__actions'>
                 <a
-                  className='ci-button ci-button--default client-downloadButton'
+                  className='ci-button ci-button--lime client-downloadButton'
                   href={automaticDownload?.url ?? '#manual-downloads'}
                   onClick={handleAutomaticDownload}
                 >
@@ -156,38 +175,45 @@ export function DesktopClientPage(props: DesktopClientPageProps = {}) {
                   {automaticLabel}
                   <ArrowRight size={17} aria-hidden='true' />
                 </a>
-                <a className='client-secondaryLink' href='#manual-downloads'>
+                <a
+                  className='ci-button ci-button--outline client-manualButton'
+                  href='#manual-downloads'
+                >
                   {t('Choose another version')}
-                  <ArrowRight size={15} aria-hidden='true' />
+                  <ArrowRight size={16} aria-hidden='true' />
                 </a>
               </div>
             </div>
-            <div className='client-product-plane'>
-              <figure
-                className='client-laptop'
-                aria-label={t('Yecai Client application overview')}
-              >
-                <div className='client-laptop__screen'>
-                  <span className='client-laptop__camera' aria-hidden='true' />
-                  <img
-                    src='/client/yecai-client-apps.png'
-                    alt={t('Yecai Client application overview')}
-                    width={2220}
-                    height={1564}
-                    fetchPriority='high'
-                    decoding='async'
-                  />
-                </div>
-                <div className='client-laptop__base' aria-hidden='true' />
+
+            <div className='client-productStage'>
+              <figure className='client-appWindow'>
+                <figcaption className='client-appWindow__bar'>
+                  <span className='client-appWindow__dots' aria-hidden='true'>
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <span>
+                    {PRODUCT_NAME} {t('Client')}
+                  </span>
+                </figcaption>
+                <img
+                  src={heroOverview.src}
+                  alt={heroOverviewAlt}
+                  width={heroOverview.width}
+                  height={heroOverview.height}
+                  fetchPriority='high'
+                  decoding='async'
+                />
               </figure>
             </div>
           </section>
 
           <section
-            className='client-story client-story--access'
+            className='client-feature client-feature--access'
             aria-labelledby='client-access-title'
           >
-            <div className='client-story__copy'>
+            <div className='client-feature__copy'>
               <p className='client-kicker'>01 / {t('Client')}</p>
               <h2 id='client-access-title'>
                 {t('Your apps, ready to connect')}
@@ -198,23 +224,24 @@ export function DesktopClientPage(props: DesktopClientPageProps = {}) {
                 )}
               </p>
             </div>
-            <div className='client-story__image'>
+            <figure className='client-screenshotFrame'>
+              <figcaption>{t('Your apps, ready to connect')}</figcaption>
               <img
-                src='/client/yecai-client-application-access.png'
+                src='/client/yecai-client-app-connection-showcase.webp'
                 alt={t('Yecai Client application access setup')}
-                width={2230}
-                height={1568}
+                width={1825}
+                height={982}
                 loading='lazy'
                 decoding='async'
               />
-            </div>
+            </figure>
           </section>
 
           <section
-            className='client-story client-story--pricing'
+            className='client-feature client-feature--pricing'
             aria-labelledby='client-pricing-title'
           >
-            <div className='client-story__copy'>
+            <div className='client-feature__copy'>
               <p className='client-kicker'>02 / {t('Client')}</p>
               <h2 id='client-pricing-title'>
                 {t('Choose with the full picture')}
@@ -224,29 +251,53 @@ export function DesktopClientPage(props: DesktopClientPageProps = {}) {
                   'Compare complete model IDs, routes, and billing groups before connecting.'
                 )}
               </p>
+              <small>
+                {t(
+                  'Pricing shown in the product preview is illustrative and may change.'
+                )}
+              </small>
             </div>
-            <div className='client-pricing-gallery'>
-              <figure>
-                <img
-                  src='/client/yecai-client-models-light.png'
-                  alt={t('Yecai Client model pricing in light theme')}
-                  width={2180}
-                  height={1574}
-                  loading='lazy'
-                  decoding='async'
-                />
-              </figure>
-              <figure className='client-pricing-gallery__dark'>
-                <img
-                  src='/client/yecai-client-models-dark.png'
-                  alt={t('Yecai Client model pricing in dark theme')}
-                  width={2196}
-                  height={1546}
-                  loading='lazy'
-                  decoding='async'
-                />
-              </figure>
+            <figure className='client-screenshotFrame'>
+              <figcaption>{t('Choose with the full picture')}</figcaption>
+              <img
+                src='/client/yecai-client-model-pricing-showcase.webp'
+                alt={t('Yecai Client model and pricing choices')}
+                width={1820}
+                height={1344}
+                loading='lazy'
+                decoding='async'
+              />
+            </figure>
+          </section>
+
+          <section
+            className='client-feature client-feature--theme'
+            aria-labelledby='client-theme-title'
+          >
+            <div className='client-feature__copy'>
+              <p className='client-kicker'>03 / {t('Theme')}</p>
+              <h2 id='client-theme-title'>
+                {t('Comfortable in light or dark')}
+              </h2>
+              <p>
+                {t(
+                  'Follow your system theme while keeping the same clear application workspace.'
+                )}
+              </p>
             </div>
+            <figure className='client-screenshotFrame'>
+              <figcaption>
+                {isDark ? t('Light') : t('Dark')} · {t('Theme')}
+              </figcaption>
+              <img
+                src={alternateOverview.src}
+                alt={alternateOverviewAlt}
+                width={alternateOverview.width}
+                height={alternateOverview.height}
+                loading='lazy'
+                decoding='async'
+              />
+            </figure>
           </section>
 
           <section
@@ -255,7 +306,7 @@ export function DesktopClientPage(props: DesktopClientPageProps = {}) {
             aria-labelledby='manual-download-title'
           >
             <div className='client-downloads__intro'>
-              <p className='client-kicker'>03 / {t('Client')}</p>
+              <p className='client-kicker'>04 / {t('Client')}</p>
               <h2
                 id='manual-download-title'
                 ref={manualHeadingRef}
@@ -269,12 +320,8 @@ export function DesktopClientPage(props: DesktopClientPageProps = {}) {
             </div>
             <div className='client-download-grid'>
               <a
-                className={cn(
-                  'client-downloadOption',
-                  isDark && 'client-downloadOption--dark'
-                )}
+                className='client-downloadOption'
                 href={getDownloadUrl('windows', runtime.hostname)}
-                aria-label={t('Windows installer')}
               >
                 <span className='client-downloadOption__icon'>
                   <MonitorDown size={24} aria-hidden='true' />
@@ -286,12 +333,8 @@ export function DesktopClientPage(props: DesktopClientPageProps = {}) {
                 <ArrowRight size={18} aria-hidden='true' />
               </a>
               <a
-                className={cn(
-                  'client-downloadOption',
-                  isDark && 'client-downloadOption--dark'
-                )}
+                className='client-downloadOption'
                 href={getDownloadUrl('macos', runtime.hostname)}
-                aria-label={t('Universal macOS DMG')}
               >
                 <span className='client-downloadOption__icon'>
                   <Apple size={24} aria-hidden='true' />

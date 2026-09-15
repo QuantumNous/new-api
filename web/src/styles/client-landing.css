@@ -18,13 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 .client-landing {
   position: relative;
-  overflow: clip;
+  overflow-x: clip;
   background:
-    radial-gradient(circle at 18% 8%, rgb(216 255 0 / 0.13), transparent 28rem),
+    radial-gradient(circle at 50% 5%, rgb(216 255 0 / 0.14), transparent 34rem),
     radial-gradient(
-      circle at 86% 30%,
-      rgb(255 194 122 / 0.14),
-      transparent 34rem
+      circle at 8% 35%,
+      rgb(120 183 148 / 0.1),
+      transparent 30rem
     ),
     var(--ci-canvas);
 }
@@ -35,60 +35,63 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 .client-hero,
-.client-story,
+.client-feature,
 .client-downloads {
-  width: min(100% - 96px, var(--ci-content));
+  width: min(calc(100% - 6rem), 82rem);
   margin-inline: auto;
 }
 
 .client-hero {
   position: relative;
   display: grid;
-  min-height: calc(100svh - 60px);
-  grid-template-rows: auto minmax(20rem, 1fr);
-  align-content: center;
-  gap: clamp(2rem, 5vw, 4rem);
-  padding-block: clamp(3.5rem, 7vw, 6rem) 0;
+  gap: clamp(3.5rem, 7vw, 6rem);
+  padding-block: clamp(5.5rem, 10vw, 9rem) clamp(6.5rem, 11vw, 10rem);
 }
 
 .client-ambient {
   position: absolute;
-  top: 2rem;
-  right: -10rem;
-  width: min(40vw, 34rem);
-  height: min(40vw, 34rem);
+  top: 0;
+  left: 50%;
+  width: min(78vw, 58rem);
+  height: min(46vw, 34rem);
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgb(216 255 0 / 0.25),
+    rgb(216 255 0 / 0.2),
     rgb(216 255 0 / 0) 70%
   );
   pointer-events: none;
-  animation: client-ambient-drift 14s ease-in-out infinite alternate;
+  transform: translateX(-50%);
+  animation: client-ambient-breathe 12s ease-in-out infinite alternate;
 }
 
 .client-hero__copy {
   position: relative;
   z-index: 1;
-  max-width: 50rem;
+  display: flex;
+  max-width: 62rem;
+  align-items: center;
+  justify-self: center;
+  flex-direction: column;
+  text-align: center;
   animation: client-copy-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .client-hero__brand {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 0.65rem;
-  margin-bottom: 1.75rem;
+  margin-bottom: 1.7rem;
   color: var(--ci-ink);
   font-size: 1rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.035em;
 }
 
 .client-hero__brand > span:last-child {
-  margin-left: 0.25rem;
+  margin-left: 0.2rem;
   color: var(--ci-muted);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 500;
 }
 
@@ -102,7 +105,7 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 .client-hero h1,
-.client-story h2,
+.client-feature h2,
 .client-downloads h2 {
   margin: 0;
   color: var(--ci-ink);
@@ -112,214 +115,196 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 .client-hero h1 {
-  max-width: 12ch;
-  font-size: clamp(3.4rem, 8vw, 7.8rem);
-  line-height: 0.92;
+  max-width: 13ch;
+  font-size: clamp(3.5rem, 7.5vw, 7.2rem);
+  line-height: 0.94;
+  text-wrap: balance;
 }
 
 .client-hero__description {
-  max-width: 38rem;
-  margin: 1.8rem 0 0;
+  max-width: 42rem;
+  margin: 1.75rem 0 0;
   color: var(--ci-muted);
-  font-size: clamp(1rem, 1.7vw, 1.25rem);
-  line-height: 1.5;
+  font-size: clamp(1rem, 1.7vw, 1.2rem);
+  line-height: 1.65;
+  text-wrap: balance;
 }
 
 .client-hero__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 1rem 1.4rem;
-  margin-top: 2rem;
+  justify-content: center;
+  gap: 0.85rem;
+  margin-top: 2.1rem;
+}
+
+.client-downloadButton,
+.client-manualButton {
+  min-height: 3.25rem;
+  padding-inline: 1.35rem;
 }
 
 .client-downloadButton {
-  min-height: 3rem;
-  padding-inline: 1.15rem;
+  box-shadow: 0 14px 34px rgb(96 118 0 / 0.2);
 }
 
-.client-secondaryLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 3rem;
-  color: var(--ci-ink);
-  font-size: 0.9rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition:
-    gap 180ms ease,
-    color 180ms ease;
-}
-
-.client-secondaryLink:hover {
-  gap: 0.65rem;
-  color: var(--ci-muted);
+.client-downloadButton:hover,
+.client-manualButton:hover {
+  transform: translateY(-2px);
 }
 
 .client-downloadButton:focus-visible,
-.client-secondaryLink:focus-visible,
+.client-manualButton:focus-visible,
 .client-downloadOption:focus-visible,
 .client-downloads h2:focus-visible {
   outline: 3px solid var(--ci-color-focus);
   outline-offset: 4px;
 }
 
-.client-product-plane {
+.client-productStage {
   position: relative;
   z-index: 1;
-  min-height: 0;
-  animation: client-plane-in 900ms 100ms cubic-bezier(0.16, 1, 0.3, 1) both;
-  perspective: 1400px;
+  animation: client-stage-in 900ms 80ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.client-laptop {
-  width: min(100%, 72rem);
-  margin: 0 auto;
-  filter: drop-shadow(0 40px 65px rgb(4 13 16 / 0.2));
-  transform: rotateX(1deg);
-}
-
-.client-laptop__screen {
-  position: relative;
-  width: 94%;
-  margin-inline: auto;
-  padding: 1.35% 1.35% 0;
-  overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 0.16);
-  border-bottom: 0;
-  border-radius: 1.1rem 1.1rem 0 0;
-  background: linear-gradient(145deg, #2a3032, #07090a 56%, #171b1c);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.2),
-    inset 0 -1px 0 rgb(0 0 0 / 0.7);
-  aspect-ratio: 16 / 10;
-}
-
-.client-laptop__screen img {
-  width: 100%;
-  height: 100%;
-  border-radius: 0.28rem 0.28rem 0 0;
-  object-fit: cover;
-  object-position: top center;
-}
-
-.client-laptop__camera {
+.client-productStage::before {
   position: absolute;
-  z-index: 1;
-  top: 0.42rem;
-  left: 50%;
-  width: 2.15rem;
-  height: 0.24rem;
-  border-radius: 999px;
-  background: rgb(0 0 0 / 0.88);
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.08);
-  transform: translateX(-50%);
-}
-
-.client-laptop__base {
-  position: relative;
-  width: 108%;
-  height: clamp(1.7rem, 3.2vw, 3rem);
-  margin-left: -4%;
-  border: 1px solid rgb(255 255 255 / 0.16);
-  border-top: 0;
-  border-radius: 0 0 1.2rem 1.2rem;
-  background: linear-gradient(180deg, #8f9698 0%, #34393b 42%, #171a1b 100%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.25),
-    0 4px 0 rgb(0 0 0 / 0.25);
-}
-
-.client-laptop__base::after {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 18%;
-  height: 0.35rem;
-  border-radius: 0 0 0.45rem 0.45rem;
-  background: linear-gradient(180deg, #242829, #5c6365);
+  inset: 8% 5% -4%;
+  border-radius: 50%;
+  background: rgb(216 255 0 / 0.14);
+  filter: blur(70px);
   content: '';
-  transform: translateX(-50%);
+  pointer-events: none;
 }
 
-.client-product-plane img,
-.client-story__image img,
-.client-pricing-gallery img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.client-story {
-  display: grid;
-  grid-template-columns: minmax(12rem, 0.65fr) minmax(0, 1.35fr);
-  align-items: center;
-  gap: clamp(2rem, 7vw, 8rem);
-  padding-block: clamp(6rem, 13vw, 12rem);
-  border-top: 1px solid var(--ci-border-subtle);
-}
-
-.client-story__copy {
-  max-width: 28rem;
-}
-
-.client-story h2,
-.client-downloads h2 {
-  font-size: clamp(2.6rem, 5vw, 5.5rem);
-  line-height: 0.97;
-}
-
-.client-story__copy > p:last-child {
-  margin: 1.4rem 0 0;
-  color: var(--ci-muted);
-  font-size: 1rem;
-  line-height: 1.6;
-}
-
-.client-story__image {
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--ci-border-subtle);
-  background: var(--ci-surface);
-  box-shadow: 0 28px 80px rgb(4 13 16 / 0.12);
-}
-
-.client-story--pricing {
-  grid-template-columns: 1fr;
-  align-items: start;
-}
-
-.client-story--pricing .client-story__copy {
-  max-width: 38rem;
-}
-
-.client-pricing-gallery {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.25rem;
-}
-
-.client-pricing-gallery figure {
+.client-appWindow,
+.client-screenshotFrame {
+  position: relative;
   min-width: 0;
   margin: 0;
   overflow: hidden;
   border: 1px solid var(--ci-border-subtle);
   background: var(--ci-surface);
-  box-shadow: 0 28px 80px rgb(4 13 16 / 0.1);
+  box-shadow: 0 36px 100px rgb(4 13 16 / 0.16);
 }
 
-.client-pricing-gallery__dark {
-  background: #071013;
+.client-appWindow {
+  border-radius: clamp(1rem, 2vw, 1.6rem);
+}
+
+.client-appWindow__bar,
+.client-screenshotFrame figcaption {
+  display: flex;
+  min-height: 2.9rem;
+  align-items: center;
+  margin: 0;
+  border-bottom: 1px solid var(--ci-border-subtle);
+  color: var(--ci-muted);
+  background: color-mix(in srgb, var(--ci-surface) 92%, transparent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.client-appWindow__bar {
+  justify-content: center;
+  padding-inline: 4rem;
+}
+
+.client-appWindow__dots {
+  position: absolute;
+  left: 1.25rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.client-appWindow__dots i {
+  width: 0.58rem;
+  height: 0.58rem;
+  border-radius: 50%;
+  background: var(--ci-border-strong);
+}
+
+.client-appWindow img,
+.client-screenshotFrame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.client-feature {
+  display: grid;
+  align-items: center;
+  gap: clamp(2.5rem, 7vw, 7rem);
+  padding-block: clamp(6rem, 12vw, 11rem);
+  border-top: 1px solid var(--ci-border-subtle);
+}
+
+.client-feature--access {
+  grid-template-columns: minmax(15rem, 0.58fr) minmax(0, 1.42fr);
+}
+
+.client-feature--pricing,
+.client-feature--theme {
+  align-items: start;
+}
+
+.client-feature--pricing .client-feature__copy,
+.client-feature--theme .client-feature__copy {
+  max-width: 49rem;
+  justify-self: center;
+  text-align: center;
+}
+
+.client-feature__copy {
+  max-width: 31rem;
+}
+
+.client-feature h2,
+.client-downloads h2 {
+  font-size: clamp(2.8rem, 5.2vw, 5.4rem);
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+.client-feature__copy > p:last-of-type {
+  margin: 1.45rem 0 0;
+  color: var(--ci-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.client-feature__copy small {
+  display: block;
+  margin-top: 1rem;
+  color: var(--ci-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.client-screenshotFrame {
+  border-radius: clamp(0.8rem, 1.7vw, 1.3rem);
+  box-shadow: 0 28px 80px rgb(4 13 16 / 0.12);
+}
+
+.client-screenshotFrame figcaption {
+  justify-content: space-between;
+  padding-inline: 1.1rem;
+}
+
+.client-feature--theme .client-screenshotFrame {
+  background: var(--ci-color-surface-inverse);
 }
 
 .client-downloads {
-  padding-block: clamp(5rem, 10vw, 9rem) clamp(6rem, 12vw, 11rem);
+  padding-block: clamp(6rem, 11vw, 10rem);
   border-top: 1px solid var(--ci-border-subtle);
 }
 
 .client-downloads__intro {
-  max-width: 38rem;
+  max-width: 44rem;
 }
 
 .client-downloads__intro > p[role='status'] {
@@ -342,31 +327,33 @@ For commercial licensing, please contact support@quantumnous.com
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 1rem;
-  min-height: 6rem;
-  padding: 1.1rem 1.2rem;
+  min-height: 7rem;
+  padding: 1.25rem 1.35rem;
   border: 1px solid var(--ci-border);
-  border-radius: 0.75rem;
+  border-radius: 1rem;
   background: var(--ci-surface);
   color: var(--ci-ink);
   text-decoration: none;
   transition:
     border-color 180ms ease,
     background 180ms ease,
-    transform 180ms ease;
+    transform 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .client-downloadOption:hover {
   border-color: var(--ci-border-strong);
   background: var(--ci-soft-fill);
-  transform: translateY(-2px);
+  box-shadow: 0 18px 48px rgb(4 13 16 / 0.1);
+  transform: translateY(-3px);
 }
 
 .client-downloadOption__icon {
   display: grid;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 3rem;
+  height: 3rem;
   place-items: center;
-  border-radius: 0.65rem;
+  border-radius: 0.8rem;
   background: var(--ci-accent);
   color: var(--ci-accent-foreground);
 }
@@ -383,16 +370,10 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 .client-downloadOption__body span {
-  overflow: hidden;
   color: var(--ci-muted);
   font-size: 0.78rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.client-downloadOption--dark {
-  background: var(--ci-color-surface-inverse);
-  color: var(--ci-color-text-inverse);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 @keyframes client-copy-in {
@@ -406,102 +387,183 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
-@keyframes client-plane-in {
+@keyframes client-stage-in {
   from {
     opacity: 0;
-    transform: translateY(36px) rotateX(2deg);
+    transform: translateY(36px) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translateY(0) rotateX(0deg);
+    transform: translateY(0) scale(1);
   }
 }
 
-@keyframes client-ambient-drift {
+@keyframes client-ambient-breathe {
   from {
-    transform: translate3d(-3%, 0, 0);
+    opacity: 0.72;
+    transform: translateX(-50%) scale(0.96);
   }
   to {
-    transform: translate3d(3%, 3%, 0);
+    opacity: 1;
+    transform: translateX(-50%) scale(1.04);
   }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 960px) {
   .client-hero,
-  .client-story,
+  .client-feature,
   .client-downloads {
-    width: min(100% - 28px, var(--ci-content));
+    width: min(calc(100% - 2.5rem), 82rem);
+  }
+
+  .client-feature--access {
+    grid-template-columns: 1fr;
+  }
+
+  .client-feature--access .client-feature__copy {
+    max-width: 44rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .client-hero,
+  .client-feature,
+  .client-downloads {
+    width: min(calc(100% - 2rem), 82rem);
   }
 
   .client-hero {
-    min-height: auto;
-    padding-top: 4.5rem;
+    gap: 3.25rem;
+    padding-block: 4.5rem 6rem;
   }
 
-  .client-laptop {
-    width: 108%;
-    margin-left: -4%;
+  .client-ambient {
+    width: 42rem;
+    height: 28rem;
   }
 
-  .client-laptop__screen {
-    padding-top: 1.8%;
-    border-radius: 0.7rem 0.7rem 0 0;
-  }
-
-  .client-laptop__base {
-    height: 1.35rem;
-    border-radius: 0 0 0.8rem 0.8rem;
-  }
-
-  .client-laptop__camera {
-    top: 0.25rem;
-    width: 1.4rem;
-    height: 0.16rem;
+  .client-hero__brand {
+    margin-bottom: 1.4rem;
   }
 
   .client-hero h1 {
-    max-width: 10ch;
-    font-size: clamp(3rem, 16vw, 5.5rem);
+    max-width: 11ch;
+    font-size: clamp(2.75rem, 14vw, 4.2rem);
+    line-height: 0.98;
+  }
+
+  .client-hero__description {
+    margin-top: 1.35rem;
+    font-size: 0.96rem;
   }
 
   .client-hero__actions {
+    width: 100%;
     align-items: stretch;
     flex-direction: column;
+    margin-top: 1.7rem;
   }
 
   .client-downloadButton,
-  .client-secondaryLink {
-    justify-content: center;
+  .client-manualButton {
     width: 100%;
   }
 
-  .client-story {
-    grid-template-columns: 1fr;
-    gap: 2.5rem;
+  .client-appWindow__bar {
+    justify-content: flex-end;
+    padding-inline: 1rem;
   }
 
-  .client-pricing-gallery,
+  .client-appWindow__dots {
+    left: 1rem;
+  }
+
+  .client-appWindow img,
+  .client-feature--theme .client-screenshotFrame img {
+    height: clamp(15rem, 76vw, 18rem);
+    object-fit: cover;
+    object-position: left top;
+  }
+
+  .client-feature {
+    gap: 2.25rem;
+    padding-block: 6rem;
+  }
+
+  .client-feature--pricing .client-feature__copy,
+  .client-feature--theme .client-feature__copy {
+    text-align: left;
+  }
+
+  .client-feature h2,
+  .client-downloads h2 {
+    font-size: clamp(2.65rem, 12vw, 3.8rem);
+  }
+
+  .client-feature__copy > p:last-of-type {
+    font-size: 0.95rem;
+  }
+
+  .client-feature--access .client-screenshotFrame img {
+    height: clamp(17rem, 90vw, 21rem);
+    object-fit: cover;
+    object-position: left top;
+  }
+
+  .client-feature--pricing .client-screenshotFrame img {
+    height: clamp(20rem, 104vw, 24rem);
+    object-fit: cover;
+    object-position: left top;
+  }
+
   .client-download-grid {
     grid-template-columns: 1fr;
+    margin-top: 2.25rem;
   }
 
-  .client-downloadOption__body span {
-    white-space: normal;
+  .client-downloadOption {
+    min-height: 6.5rem;
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .client-hero,
+  .client-feature,
+  .client-downloads {
+    width: min(calc(100% - 1.5rem), 82rem);
+  }
+
+  .client-appWindow__bar > span:last-child {
+    max-width: 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .client-downloadOption {
+    gap: 0.75rem;
+  }
+
+  .client-downloadOption__icon {
+    width: 2.75rem;
+    height: 2.75rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .client-ambient,
   .client-hero__copy,
-  .client-product-plane,
-  .client-secondaryLink,
+  .client-productStage,
+  .client-downloadButton,
+  .client-manualButton,
   .client-downloadOption {
     animation: none !important;
     transition: none !important;
   }
 
   .client-hero__copy,
-  .client-product-plane {
+  .client-productStage {
     opacity: 1;
     transform: none;
   }
