@@ -16,15 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+import type { ReactElement } from 'react'
 
-export const Route = createFileRoute('/_authenticated/system-settings/auth/')({
-  beforeLoad: async () => {
-    const { AUTH_DEFAULT_SECTION } =
-      await import('@/features/system-settings/auth/section-registry.tsx')
-    throw redirect({
-      to: '/system-settings/auth/$section',
-      params: { section: AUTH_DEFAULT_SECTION },
-    })
-  },
-})
+export default function DevelopmentTools(): ReactElement {
+  return (
+    <>
+      <ReactQueryDevtools buttonPosition='bottom-left' />
+      <TanStackRouterDevtools position='bottom-right' />
+    </>
+  )
+}
