@@ -26,7 +26,7 @@ var batchUpdateStores []map[int]int
 var batchUpdateLocks []sync.Mutex
 
 func init() {
-	for i := 0; i < BatchUpdateTypeCount; i++ {
+	for range BatchUpdateTypeCount {
 		batchUpdateStores = append(batchUpdateStores, make(map[int]int))
 		batchUpdateLocks = append(batchUpdateLocks, sync.Mutex{})
 	}
@@ -65,7 +65,7 @@ func addNewRecord(type_ int, id int, value int) {
 func batchUpdate() {
 	// check if there's any data to update
 	hasData := false
-	for i := 0; i < BatchUpdateTypeCount; i++ {
+	for i := range BatchUpdateTypeCount {
 		batchUpdateLocks[i].Lock()
 		if len(batchUpdateStores[i]) > 0 {
 			hasData = true
@@ -81,7 +81,7 @@ func batchUpdate() {
 
 	common.SysLog("batch update started")
 	stores := make([]map[int]int, BatchUpdateTypeCount)
-	for i := 0; i < BatchUpdateTypeCount; i++ {
+	for i := range BatchUpdateTypeCount {
 		batchUpdateLocks[i].Lock()
 		stores[i] = batchUpdateStores[i]
 		batchUpdateStores[i] = make(map[int]int)

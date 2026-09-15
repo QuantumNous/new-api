@@ -17,462 +17,353 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BadgeCell, BadgeListCell } from '@/components/data-table'
-import { GroupBadge } from '@/components/group-badge'
-import { ProviderBadge } from '@/components/provider-badge'
+import { CopyButton } from '@/components/copy-button'
+import { BadgeListCell, TruncatedCell } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
-import { TableId } from '@/components/table-id'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Tooltip,
-  TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
+  TooltipContent,
 } from '@/components/ui/tooltip'
+import {
+  useCanEditModelPricing,
+  type ModelPricingConfig,
+} from '@/features/model-pricing/api'
+import { modelPricingDisplay } from '@/features/model-pricing/pricing'
+import { ModelPriceCell } from '@/features/pricing/components/model-price-cell'
 import { formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
-import {
-  getModelStatusConfig,
-  getNameRuleConfig,
-  getQuotaTypeConfig,
-} from '../constants'
+import { getNameRuleConfig } from '../constants'
 import { parseModelTags, formatEndpointsDisplay } from '../lib'
+import { getModelChannelState } from '../lib/model-utils'
 import type { Model, Vendor } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 import { DescriptionCell } from './description-cell'
+import { ModelSquareStatus } from './model-square-status'
+import { useModels } from './models-provider'
 
-function getCompactModelIcon(iconKey: string) {
-  const baseIconKey = iconKey.split('.')[0]
-
-  return getLobeIcon(`${baseIconKey}.Avatar.type={'platform'}`, 20)
-}
-
-/**
- * Generate models columns configuration
- */
-export function useModelsColumns(vendors: Vendor[] = []): ColumnDef<Model>[] {
+export function useModelsColumns(
+  vendors: Vendor[] = [],
+  pricing?: ModelPricingConfig,
+  pricingState?: 'loading' | 'error'
+): ColumnDef<Model>[] {
   const { t } = useTranslation()
-
-  // Get translated configs
-  const NAME_RULE_CONFIG = getNameRuleConfig(t)
-  const MODEL_STATUS_CONFIG = getModelStatusConfig(t)
-  const QUOTA_TYPE_CONFIG = getQuotaTypeConfig(t)
-
-  const vendorMap: Record<number, Vendor> = {}
-  vendors.forEach((v) => {
-    vendorMap[v.id] = v
-  })
-
+  const canPrice = useCanEditModelPricing()
+  const { setCurrentRow, setOpen } = useModels()
+  const vendorMap = useMemo(
+    () => new Map(vendors.map((vendor) => [vendor.id, vendor])),
+    [vendors]
+  )
+  const priceMap = useMemo(
+    () =>
+      new Map(pricing?.entries.map((entry) => [entry.model_name, entry]) ?? []),
+    [pricing]
+  )
+  const rules = getNameRuleConfig(t)
   return [
-    // Checkbox column
     {
       id: 'select',
       header: ({ table }) => (
         <Checkbox
           checked={table.getIsAllPageRowsSelected()}
           indeterminate={table.getIsSomePageRowsSelected()}
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label='Select all'
+          onCheckedChange={(value) =>
+            table.toggleAllPageRowsSelected(Boolean(value))
+          }
+          aria-label={t('Select all')}
         />
       ),
       cell: ({ row }) => (
         <Checkbox
           checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label='Select row'
+          onCheckedChange={(value) => row.toggleSelected(Boolean(value))}
+          aria-label={t('Select {{name}}', { name: row.original.model_name })}
         />
       ),
+      size: 40,
       enableSorting: false,
       enableHiding: false,
-      size: 40,
     },
-
-    // ID column
-    {
-      accessorKey: 'id',
-      header: t('ID'),
-      meta: { mobileHidden: true },
-      cell: ({ row }) => {
-        const id = row.getValue('id') as number
-        return <TableId value={id} />
-      },
-      size: 64,
-    },
-
-    // Model Name column (with model icon)
     {
       accessorKey: 'model_name',
-      header: t('Model Name'),
+      header: t('Model'),
+      size: 310,
+      minSize: 250,
+      enableHiding: false,
       meta: { mobileTitle: true },
       cell: ({ row }) => {
         const model = row.original
-        const name = row.getValue('model_name') as string
-        const iconKey =
-          model.icon ||
-          vendorMap[model.vendor_id || 0]?.icon ||
-          model.model_name?.[0] ||
-          'N'
-        const icon = getCompactModelIcon(iconKey)
-
+        const vendor = vendorMap.get(model.vendor_id ?? 0)
+        const iconKey = model.icon || vendor?.icon || model.model_name[0]
         return (
-          <div className='flex max-w-full min-w-0 items-center gap-2'>
-            <div className='flex size-5 shrink-0 items-center justify-center overflow-hidden'>
-              {icon}
+          <div className='flex max-w-[320px] min-w-0 items-start gap-2.5 py-1'>
+            <span className='mt-1 flex size-6 shrink-0 items-center justify-center'>
+              {getLobeIcon(iconKey, 24)}
+            </span>
+            <div className='min-w-0 flex-1'>
+              <div className='flex min-w-0 items-center gap-1'>
+                <Button
+                  variant='link'
+                  className='text-foreground h-auto min-w-0 shrink justify-start p-0 font-mono text-sm'
+                  title={model.model_name}
+                  onClick={() => {
+                    setCurrentRow(model)
+                    setOpen('update-model')
+                  }}
+                >
+                  <span className='truncate'>{model.model_name}</span>
+                </Button>
+                <CopyButton
+                  value={model.model_name}
+                  className='size-6 shrink-0'
+                />
+              </div>
+              <div className='text-muted-foreground mt-1 flex min-w-0 items-center gap-2 text-xs'>
+                <span className='truncate' title={vendor?.name}>
+                  {model.id > 0
+                    ? (vendor?.name ?? t('No vendor'))
+                    : t('Missing metadata')}
+                </span>
+                {model.name_rule !== 0 && (
+                  <span className='shrink-0'>
+                    {rules[model.name_rule as 0 | 1 | 2 | 3]?.label} ·{' '}
+                    {model.matched_count ?? 0}
+                  </span>
+                )}
+              </div>
             </div>
-            <StatusBadge
-              label={name}
-              variant='neutral'
-              copyText={name}
-              size='sm'
-              className='-ml-1.5 font-mono'
-            />
           </div>
         )
       },
-      size: 260,
-      minSize: 200,
     },
-
-    // Name Rule column
     {
-      accessorKey: 'name_rule',
-      header: t('Match Type'),
+      id: 'pricing',
+      header: t('Pricing'),
+      meta: { label: t('Pricing') },
+      size: 225,
+      enableSorting: false,
       cell: ({ row }) => {
-        const rule = row.getValue('name_rule') as 0 | 1 | 2 | 3
-        const model = row.original
-        const config = NAME_RULE_CONFIG[rule]
-
-        let label = config.label
-        if (rule !== 0 && model.matched_count) {
-          label = `${config.label} (${model.matched_count})`
-        }
-
-        const badge = (
-          <StatusBadge
-            variant={
-              (config.color === 'error' ? 'danger' : config.color) as
-                | 'neutral'
-                | 'success'
-                | 'warning'
-                | 'danger'
-                | 'info'
-            }
-            size='sm'
-            className='-ml-1.5 max-w-none shrink-0'
-          >
-            {label}
-          </StatusBadge>
-        )
-
-        // Show tooltip with matched models for non-exact rules
-        if (
-          rule !== 0 &&
-          model.matched_models &&
-          model.matched_models.length > 0
-        ) {
-          const matchedBadges = model.matched_models.map((m) => (
-            <StatusBadge key={m} label={m} autoColor={m} size='sm' />
-          ))
-
+        if (!canPrice) {
           return (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger
-                  render={<div className='inline-flex max-w-full min-w-0' />}
-                >
-                  {badge}
-                </TooltipTrigger>
-                <TooltipContent
-                  side='top'
-                  className='border-border bg-popover max-h-48 max-w-[320px] overflow-y-auto p-2'
-                >
-                  <div className='flex flex-wrap gap-1'>{matchedBadges}</div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <span className='text-muted-foreground text-xs'>
+              {t('Super admin')}
+            </span>
           )
         }
-
-        return badge
-      },
-      size: 100,
-      enableSorting: false,
-    },
-
-    // Status column
-    {
-      accessorKey: 'status',
-      header: t('Status'),
-      meta: { mobileBadge: true },
-      cell: ({ row }) => {
-        const status = row.getValue('status') as number
-        const config =
-          MODEL_STATUS_CONFIG[status as 0 | 1] || MODEL_STATUS_CONFIG[0]
-
-        return (
-          <StatusBadge
-            variant={config.variant}
-            size='sm'
-            copyable={false}
-            className='-ml-1.5 max-w-none shrink-0'
-          >
-            {config.label}
-          </StatusBadge>
-        )
-      },
-      filterFn: (row, id, value) => {
-        if (!value || value.length === 0 || value.includes('all')) return true
-        const status = row.getValue(id) as number
-        if (value.includes('enabled')) return status === 1
-        if (value.includes('disabled')) return status !== 1
-        return false
-      },
-      size: 110,
-      minSize: 110,
-      enableSorting: false,
-    },
-
-    // Vendor column
-    {
-      accessorKey: 'vendor_id',
-      header: t('Vendor'),
-      cell: ({ row }) => {
-        const vendorId = row.getValue('vendor_id') as number
-        const vendor = vendorMap[vendorId]
-
-        if (!vendor) {
-          return <span className='text-muted-foreground text-xs'>-</span>
+        if (row.original.name_rule !== 0) {
+          return (
+            <span className='text-muted-foreground text-xs'>
+              {t('Per matched model')}
+            </span>
+          )
         }
-
+        if (pricingState) {
+          return (
+            <span className='text-muted-foreground text-xs'>
+              {pricingState === 'error'
+                ? t('Failed to load model pricing')
+                : t('Loading...')}
+            </span>
+          )
+        }
+        const entry = priceMap.get(row.original.model_name)
         return (
-          <BadgeCell>
-            <ProviderBadge iconKey={vendor.icon} label={vendor.name} />
-          </BadgeCell>
+          <Button
+            variant='ghost'
+            className='h-auto w-full max-w-full min-w-0 justify-start px-0 py-1 text-left font-normal hover:bg-transparent'
+            aria-label={t('View pricing for {{model}}', {
+              model: row.original.model_name,
+            })}
+            onClick={() => {
+              setCurrentRow(row.original)
+              setOpen('price-model')
+            }}
+          >
+            <ModelPriceCell
+              model={modelPricingDisplay(
+                entry ?? { model_name: row.original.model_name, effective: {} }
+              )}
+              options={{ tokenUnit: 'M' }}
+              showExpression={false}
+            />
+          </Button>
         )
       },
-      filterFn: (row, id, value) => {
-        if (!value || value.length === 0 || value.includes('all')) return true
-        return value.includes(String(row.getValue(id)))
-      },
-      size: 130,
-      enableSorting: false,
     },
-
-    // Description column
     {
-      accessorKey: 'description',
-      header: t('Description'),
-      meta: { mobileHidden: true },
+      accessorKey: 'square_state',
+      header: t('Model square visibility'),
+      size: 115,
+      enableSorting: false,
+      meta: { mobileBadge: true },
+      cell: ({ row }) => <ModelSquareStatus model={row.original} />,
+    },
+    {
+      id: 'connections',
+      header: t('Channels and groups'),
+      size: 180,
+      enableSorting: false,
       cell: ({ row }) => {
-        const description = row.getValue('description') as string
-        const modelName = row.getValue('model_name') as string
-
+        const state = getModelChannelState(row.original)
         return (
-          <DescriptionCell modelName={modelName} description={description} />
+          <div className='min-w-0 text-sm'>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    tabIndex={0}
+                    title={t(state.description)}
+                    aria-description={t(state.description)}
+                    className='block whitespace-normal sm:truncate'
+                  />
+                }
+              >
+                {t('Channels {{channels}} · Groups {{groups}}', {
+                  channels: row.original.bound_channels?.length ?? 0,
+                  groups: row.original.enable_groups?.length ?? 0,
+                })}
+              </TooltipTrigger>
+              <TooltipContent role='tooltip'>
+                {t(state.description)}
+              </TooltipContent>
+            </Tooltip>
+          </div>
         )
       },
-      size: 150,
-      enableSorting: false,
     },
-
-    // Tags column
     {
       accessorKey: 'tags',
       header: t('Tags'),
-      meta: { mobileHidden: true },
-      cell: ({ row }) => {
-        const tags = row.getValue('tags') as string
-        const tagArray = parseModelTags(tags)
-        return (
-          <BadgeListCell
-            items={tagArray.map((tag) => (
-              <StatusBadge key={tag} label={tag} autoColor={tag} size='sm' />
-            ))}
-          />
-        )
-      },
-      size: 100,
+      size: 180,
       enableSorting: false,
-    },
-
-    // Endpoints column
-    {
-      accessorKey: 'endpoints',
-      header: t('Endpoints'),
       meta: { mobileHidden: true },
-      cell: ({ row }) => {
-        const endpoints = row.getValue('endpoints') as string
-        const endpointArray = formatEndpointsDisplay(endpoints)
-        return (
-          <BadgeListCell
-            max={3}
-            items={endpointArray.map((ep) => (
-              <StatusBadge key={ep} label={ep} autoColor={ep} size='sm' />
-            ))}
-          />
-        )
-      },
-      size: 200,
-      enableSorting: false,
+      cell: ({ row }) => (
+        <BadgeListCell
+          expandable
+          max={1}
+          items={parseModelTags(row.original.tags ?? '').map((tag) => (
+            <StatusBadge key={tag} label={tag} variant='neutral' size='sm' />
+          ))}
+        />
+      ),
     },
-
-    // Bound Channels column
-    {
-      accessorKey: 'bound_channels',
-      header: t('Bound Channels'),
-      meta: { mobileHidden: true },
-      cell: ({ row }) => {
-        const channels = row.getValue('bound_channels') as Array<{
-          id: number
-          name: string
-          type?: number
-          status?: number
-        }>
-        return (
-          <BadgeListCell
-            items={(channels ?? []).map((c) => (
-              <StatusBadge
-                key={c.id}
-                label={`${c.name} (${c.type})`}
-                autoColor={c.name}
-                size='sm'
-              />
-            ))}
-          />
-        )
-      },
-      size: 150,
-      enableSorting: false,
-    },
-
-    // Enable Groups column
-    {
-      accessorKey: 'enable_groups',
-      header: t('Enable Groups'),
-      meta: { mobileHidden: true },
-      cell: ({ row }) => {
-        const groups = row.getValue('enable_groups') as string[]
-        return (
-          <BadgeListCell
-            max={3}
-            items={(groups ?? []).map((g) => (
-              <GroupBadge key={g} group={g} size='sm' />
-            ))}
-          />
-        )
-      },
-      size: 200,
-      enableSorting: false,
-    },
-
-    // Quota Types column
-    {
-      accessorKey: 'quota_types',
-      header: t('Quota Types'),
-      meta: { mobileHidden: true },
-      cell: ({ row }) => {
-        const quotaTypes = row.getValue('quota_types') as number[]
-        return (
-          <BadgeListCell
-            items={(quotaTypes ?? []).map((qt) => {
-              const config = QUOTA_TYPE_CONFIG[qt]
-              return (
-                <StatusBadge
-                  key={qt}
-                  label={config?.label || String(qt)}
-                  variant={
-                    (config?.color === 'error' ? 'danger' : config?.color) as
-                      | 'neutral'
-                      | 'success'
-                      | 'warning'
-                      | 'danger'
-                      | 'info'
-                  }
-                  size='sm'
-                />
-              )
-            })}
-          />
-        )
-      },
-      size: 150,
-      enableSorting: false,
-    },
-
-    // Sync Official column
     {
       accessorKey: 'sync_official',
-      header: t('Official Sync'),
+      header: () => (
+        <TruncatedCell className='max-w-[120px]'>
+          {t('Sync policy')}
+        </TruncatedCell>
+      ),
+      size: 145,
+      enableSorting: false,
+      meta: { mobileHidden: true, label: t('Sync policy') },
+      cell: ({ row }) => (
+        <TruncatedCell className='text-muted-foreground max-w-[120px] text-sm'>
+          {row.original.id > 0 &&
+            (row.original.sync_official ? t('Allow updates') : t('Keep local'))}
+          {!row.original.id && '—'}
+        </TruncatedCell>
+      ),
+    },
+    {
+      id: 'actions',
+      header: t('Actions'),
+      enableSorting: false,
+      enableHiding: false,
+      size: canPrice ? 170 : 105,
+      cell: ({ row }) => <DataTableRowActions row={row} />,
+    },
+    {
+      accessorKey: 'status',
+      header: t('Display policy'),
+      enableHiding: false,
+      enableSorting: false,
+      cell: ({ row }) =>
+        row.original.status === 1 ? t('Allowed') : t('Not listed'),
+    },
+    {
+      accessorKey: 'id',
+      header: t('ID'),
+      cell: ({ row }) => row.original.id || '—',
+      size: 65,
       meta: { mobileHidden: true },
-      cell: ({ row }) => {
-        const syncOfficial = row.getValue('sync_official') as number
-        return (
-          <StatusBadge
-            variant={syncOfficial === 1 ? 'success' : 'warning'}
-            size='sm'
-            copyable={false}
-            className='-ml-1.5 max-w-none shrink-0'
-          >
-            {syncOfficial === 1 ? t('Official Sync') : t('No Sync')}
-          </StatusBadge>
-        )
-      },
-      filterFn: (row, id, value) => {
-        if (!value || value.length === 0 || value.includes('all')) return true
-        const syncOfficial = row.getValue(id) as number
-        if (value.includes('yes')) return syncOfficial === 1
-        if (value.includes('no')) return syncOfficial !== 1
-        return false
-      },
+    },
+    {
+      accessorKey: 'vendor_id',
+      header: t('Vendor'),
+      size: 150,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <TruncatedCell>
+          {vendorMap.get(row.original.vendor_id ?? 0)?.name ?? '—'}
+        </TruncatedCell>
+      ),
+      meta: { mobileHidden: true },
+    },
+    {
+      accessorKey: 'name_rule',
+      header: t('Match Type'),
       size: 100,
       enableSorting: false,
+      cell: ({ row }) => rules[row.original.name_rule as 0 | 1 | 2 | 3]?.label,
+      meta: { mobileHidden: true },
     },
-
-    // Created Time column
+    {
+      accessorKey: 'description',
+      header: t('Description'),
+      size: 180,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <DescriptionCell
+          modelName={row.original.model_name}
+          description={row.original.description ?? ''}
+        />
+      ),
+      meta: { mobileHidden: true },
+    },
+    {
+      accessorKey: 'endpoints',
+      header: t('Custom endpoints'),
+      size: 180,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <BadgeListCell
+          expandable
+          expandLabel={t('Supported endpoints')}
+          items={formatEndpointsDisplay(row.original.endpoints ?? '').map(
+            (endpoint) => (
+              <StatusBadge key={endpoint} label={endpoint} variant='neutral' />
+            )
+          )}
+        />
+      ),
+      meta: { mobileHidden: true },
+    },
     {
       accessorKey: 'created_time',
       header: t('Created'),
+      size: 160,
+      cell: ({ row }) =>
+        row.original.id
+          ? formatTimestampToDate(row.original.created_time)
+          : '—',
       meta: { mobileHidden: true },
-      cell: ({ row }) => {
-        const timestamp = row.getValue('created_time') as number
-        return (
-          <div className='font-mono text-sm whitespace-nowrap'>
-            {formatTimestampToDate(timestamp)}
-          </div>
-        )
-      },
-      size: 140,
     },
-
-    // Updated Time column
     {
       accessorKey: 'updated_time',
       header: t('Updated'),
+      size: 160,
+      cell: ({ row }) =>
+        row.original.id
+          ? formatTimestampToDate(row.original.updated_time)
+          : '—',
       meta: { mobileHidden: true },
-      cell: ({ row }) => {
-        const timestamp = row.getValue('updated_time') as number
-        return (
-          <div className='font-mono text-sm whitespace-nowrap'>
-            {formatTimestampToDate(timestamp)}
-          </div>
-        )
-      },
-      size: 140,
-    },
-
-    // Actions column
-    {
-      id: 'actions',
-      header: () => t('Actions'),
-      cell: ({ row }) => {
-        return <DataTableRowActions row={row} />
-      },
-      enableSorting: false,
-      enableHiding: false,
-      meta: { pinned: 'right' as const },
     },
   ]
 }

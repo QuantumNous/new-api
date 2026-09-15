@@ -286,7 +286,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 	if err := a.resolve(c, info); err != nil {
 		return nil, err
 	}
-	if !a.converted && a.converter != relayconvert.ConverterNone {
+	if !a.converted && a.converter != relayconvert.ConverterNone && a.converter != dto.AdvancedCustomConverterSGLangRerank {
 		return nil, errors.New("advanced custom converter routes cannot be used with pass-through request body")
 	}
 
@@ -307,6 +307,8 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	switch a.converter {
+	case dto.AdvancedCustomConverterSGLangRerank:
+		return a.doSGLangRerankResponse(c, resp, info)
 	case relayconvert.ConverterNone:
 		return a.doNativeResponse(c, resp, info)
 	case relayconvert.ConverterClaudeMessagesToOpenAIChat,
