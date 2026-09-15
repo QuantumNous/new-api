@@ -4159,7 +4159,8 @@ export function ChannelMutateDrawer({
                 />
                 {formatFields}
                 {thinkingFields}
-                {passthroughFields}
+                {currentType !== CHANNEL_TYPE_ADVANCED_CUSTOM &&
+                  passthroughFields}
                 {systemPromptFields}
                 {systemPromptOverrideFields}
               </fieldset>

@@ -137,11 +137,22 @@ type AdvancedCustomConfig struct {
 }
 
 type AdvancedCustomRoute struct {
-	IncomingPath string                   `json:"incoming_path,omitempty"`
-	UpstreamPath string                   `json:"upstream_path,omitempty"`
-	Converter    string                   `json:"converter,omitempty"`
-	Models       []string                 `json:"models,omitempty"`
-	Auth         *AdvancedCustomRouteAuth `json:"auth,omitempty"`
+	IncomingPath           string                   `json:"incoming_path,omitempty"`
+	UpstreamPath           string                   `json:"upstream_path,omitempty"`
+	Converter              string                   `json:"converter,omitempty"`
+	Models                 []string                 `json:"models,omitempty"`
+	Auth                   *AdvancedCustomRouteAuth `json:"auth,omitempty"`
+	PassThroughBodyEnabled bool                     `json:"pass_through_body_enabled,omitempty"`
+}
+
+// SupportsPassThroughBody reports whether the route converter leaves the request body untouched.
+func (r AdvancedCustomRoute) SupportsPassThroughBody() bool {
+	switch strings.TrimSpace(r.Converter) {
+	case "", advancedCustomConverterNone, AdvancedCustomConverterSGLangRerank:
+		return true
+	default:
+		return false
+	}
 }
 
 type AdvancedCustomRouteAuth struct {
@@ -441,6 +452,9 @@ func (c *AdvancedCustomConfig) Validate() error {
 			if strings.Contains(upstreamPath, advancedCustomModelPlaceholder) {
 				return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must not contain %s for %s", i, advancedCustomModelPlaceholder, managementRouteName)
 			}
+			if route.PassThroughBodyEnabled {
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].pass_through_body_enabled must be false for %s", i, managementRouteName)
+			}
 		}
 		if err := validateAdvancedCustomRouteModels(i, route.IncomingPath, route.Models, paths); err != nil {
 			return err
@@ -458,6 +472,9 @@ func (c *AdvancedCustomConfig) Validate() error {
 		}
 		if err := validateAdvancedCustomConverterPath(i, route.IncomingPath, route.Converter); err != nil {
 			return err
+		}
+		if route.PassThroughBodyEnabled && !route.SupportsPassThroughBody() {
+			return fmt.Errorf("advanced_custom.advanced_routes[%d].pass_through_body_enabled requires converter none: %s", i, route.Converter)
 		}
 		if err := validateAdvancedCustomRouteAuth(i, route.Auth); err != nil {
 			return err

@@ -639,7 +639,9 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     force_format: formData.force_format || false,
     thinking_to_content: formData.thinking_to_content || false,
     proxy: formData.proxy?.trim() || '',
-    pass_through_body_enabled: formData.pass_through_body_enabled || false,
+    pass_through_body_enabled:
+      formData.type !== CHANNEL_TYPE_ADVANCED_CUSTOM &&
+      formData.pass_through_body_enabled === true,
     responses_websocket_enabled:
       (formData.type === 1 || formData.type === 57) &&
       formData.responses_websocket_enabled === true,
