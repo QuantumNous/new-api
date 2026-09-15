@@ -316,7 +316,13 @@ func TestImageGenerationCallCounterCommitCapsAtMaxImageN(t *testing.T) {
 	info := &RelayInfo{}
 	counter.Commit(info)
 	require.Contains(t, info.ResponsesUsageInfo.BuiltInTools, dto.BuildInToolImageGeneration)
-	assert.Equal(t, dto.MaxImageN, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration].CallCount)
+	tool := info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration]
+	assert.Equal(t, dto.MaxImageN, tool.CallCount)
+	tierTotal := 0
+	for _, count := range tool.ImageGenerationTiers {
+		tierTotal += count
+	}
+	assert.Equal(t, dto.MaxImageN, tierTotal)
 }
 
 func TestImageGenerationCallCounterCommitDoesNotBillDeclarationsAlone(t *testing.T) {
@@ -334,6 +340,116 @@ func TestImageGenerationCallCounterCommitDoesNotBillDeclarationsAlone(t *testing
 	}
 	(&ImageGenerationCallCounter{}).Commit(info)
 	assert.Equal(t, 0, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration].CallCount)
+}
+
+func TestImageGenerationCallCounterCommitPrefersResponseOptions(t *testing.T) {
+	t.Parallel()
+
+	info := &RelayInfo{
+		ResponsesUsageInfo: &ResponsesUsageInfo{
+			BuiltInTools: map[string]*BuildInToolInfo{
+				dto.BuildInToolImageGeneration: {
+					ToolName:               dto.BuildInToolImageGeneration,
+					ImageGenerationQuality: "medium",
+					ImageGenerationSize:    "1024x1536",
+				},
+			},
+		},
+	}
+	counter := &ImageGenerationCallCounter{}
+	counter.Observe(&dto.ResponsesOutput{
+		Type:   dto.ResponsesOutputTypeImageGenerationCall,
+		ID:     "img_1",
+		Status: "completed",
+		Result: "base64-a",
+	}, nil)
+	counter.Observe(&dto.ResponsesOutput{
+		Type:    dto.ResponsesOutputTypeImageGenerationCall,
+		ID:      "img_1",
+		Status:  "completed",
+		Result:  "base64-a",
+		Quality: "high",
+		Size:    "1536x1024",
+	}, nil)
+	counter.Commit(info)
+
+	tool := info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration]
+	require.NotNil(t, tool)
+	assert.Equal(t, 1, tool.CallCount)
+	assert.Equal(t, 1, tool.ImageGenerationTiers[ImageGenerationTier{
+		Quality: "high",
+		Size:    "1536x1024",
+	}])
+}
+
+func TestImageGenerationCallCounterCommitKeepsRequestOptionsWhenResponseOmitsThem(t *testing.T) {
+	t.Parallel()
+
+	info := &RelayInfo{
+		ResponsesUsageInfo: &ResponsesUsageInfo{
+			BuiltInTools: map[string]*BuildInToolInfo{
+				dto.BuildInToolImageGeneration: {
+					ToolName:               dto.BuildInToolImageGeneration,
+					ImageGenerationQuality: "medium",
+					ImageGenerationSize:    "1024x1536",
+				},
+			},
+		},
+	}
+	counter := &ImageGenerationCallCounter{}
+	counter.Observe(&dto.ResponsesOutput{
+		Type:    dto.ResponsesOutputTypeImageGenerationCall,
+		Status:  "completed",
+		Result:  "base64-a",
+		Quality: "auto",
+		Size:    "",
+	}, nil)
+	counter.Commit(info)
+
+	tool := info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration]
+	require.NotNil(t, tool)
+	assert.Equal(t, 1, tool.CallCount)
+	assert.Equal(t, 1, tool.ImageGenerationTiers[ImageGenerationTier{
+		Quality: "medium",
+		Size:    "1024x1536",
+	}])
+}
+
+func TestImageGenerationCallCounterCommitKeepsDistinctResponseTiers(t *testing.T) {
+	t.Parallel()
+
+	counter := &ImageGenerationCallCounter{}
+	counter.Observe(&dto.ResponsesOutput{
+		Type:    dto.ResponsesOutputTypeImageGenerationCall,
+		ID:      "img_1",
+		Status:  "completed",
+		Result:  "base64-a",
+		Quality: "high",
+		Size:    "1024x1024",
+	}, nil)
+	counter.Observe(&dto.ResponsesOutput{
+		Type:    dto.ResponsesOutputTypeImageGenerationCall,
+		ID:      "img_2",
+		Status:  "completed",
+		Result:  "base64-b",
+		Quality: "high",
+		Size:    "1024x1536",
+	}, nil)
+
+	info := &RelayInfo{}
+	counter.Commit(info)
+	tool := info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration]
+
+	require.NotNil(t, tool)
+	assert.Equal(t, 2, tool.CallCount)
+	assert.Equal(t, 1, tool.ImageGenerationTiers[ImageGenerationTier{
+		Quality: "high",
+		Size:    "1024x1024",
+	}])
+	assert.Equal(t, 1, tool.ImageGenerationTiers[ImageGenerationTier{
+		Quality: "high",
+		Size:    "1024x1536",
+	}])
 }
 
 func TestIsNonBillableResponsesStatus(t *testing.T) {

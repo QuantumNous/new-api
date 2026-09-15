@@ -190,32 +190,53 @@ func RebuildToolPriceIndex() {
 // GetToolPriceForModel returns the price ($/1K calls) for a tool given a model name.
 // Lookup: longest prefix match → tool default → 0.
 func GetToolPriceForModel(toolName, modelName string) float64 {
+	price, _ := lookupToolPriceForModel(toolName, modelName)
+	return price
+}
+
+// lookupToolPriceForModel resolves a price and reports whether a matching rule exists.
+func lookupToolPriceForModel(toolName, modelName string) (float64, bool) {
 	idx := currentIndex.Load()
 	if idx == nil {
 		RebuildToolPriceIndex()
 		idx = currentIndex.Load()
 		if idx == nil {
-			return 0
+			return 0, false
 		}
 	}
 
 	if entries, ok := idx.prefixes[toolName]; ok && modelName != "" {
 		for _, e := range entries {
 			if strings.HasPrefix(modelName, e.prefix) {
-				return e.price
+				return e.price, true
 			}
 		}
 	}
 
 	if p, ok := idx.defaults[toolName]; ok {
-		return p
+		return p, true
 	}
-	return 0
+	return 0, false
 }
 
 // GetToolPrice is a convenience wrapper when no model name is needed.
 func GetToolPrice(toolName string) float64 {
 	return GetToolPriceForModel(toolName, "")
+}
+
+// GetImageGenerationToolPriceForModel returns the image tool price ($/1K calls).
+// Explicit quality and size select a tier; unknown or auto values use the
+// model-aware image_generation fallback.
+func GetImageGenerationToolPriceForModel(modelName, quality, size string) float64 {
+	quality = strings.ToLower(strings.TrimSpace(quality))
+	size = strings.ToLower(strings.TrimSpace(size))
+	if quality != "" && quality != "auto" && size != "" && size != "auto" {
+		tierName := "image_generation/" + quality + "/" + size
+		if price, ok := lookupToolPriceForModel(tierName, modelName); ok {
+			return price
+		}
+	}
+	return GetToolPriceForModel("image_generation", modelName)
 }
 
 // SetToolPriceForTest injects a tool price and rebuilds the lookup index. Tests only.
