@@ -533,6 +533,9 @@ func reasoningEffortFromRequest(request dto.Request) string {
 		if req != nil && req.GenerationConfig.ThinkingConfig != nil {
 			config := req.GenerationConfig.ThinkingConfig
 			effort = config.ThinkingLevel
+			if canonical, err := kitreasoning.ParseEffort(effort); err == nil {
+				effort = string(canonical)
+			}
 			if effort == "" && config.ThinkingBudget != nil {
 				effort = string(kitreasoning.EffortFromBudget(*config.ThinkingBudget))
 			}

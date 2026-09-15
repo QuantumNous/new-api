@@ -110,6 +110,12 @@ func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Met
 			effort := ""
 			if config := geminiRequest.GenerationConfig.ThinkingConfig; config != nil {
 				effort = config.ThinkingLevel
+				// Gemini accepts thinkingLevel case-insensitively; record the
+				// canonical effort so logs match other protocols. Unknown values
+				// stay as sent because this path does not validate.
+				if canonical, err := reasoning.ParseEffort(effort); err == nil {
+					effort = string(canonical)
+				}
 				if effort == "" && config.ThinkingBudget != nil {
 					effort = string(reasoning.EffortFromBudget(*config.ThinkingBudget))
 				}
