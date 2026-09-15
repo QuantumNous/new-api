@@ -409,3 +409,91 @@ console top bar, and the sign-in header.
 
 ### Tests Required
 `downloads.test.ts` covers all four exact URLs, partner/official host edges, and platform detection. `client-page.test.tsx` asserts the rendered automatic/manual installer hrefs, unsupported-system behavior, and absence of an unverified version claim.
+
+## Desktop client product showcase
+
+### 1. Scope / Trigger
+
+Use this contract when changing `/client` page composition, screenshot assets,
+responsive presentation, or download controls. Product screenshots are public
+build assets and can expose account identity or stale claims if they are copied
+without inspection.
+
+### 2. Signatures
+
+- `DesktopClientPage({ runtime? })` owns the public product story and delegates
+  hostname/OS resolution to `resolveDownload` and `getDownloadUrl`.
+- Client-only presentation stays scoped under `.client-landing` in
+  `web/src/styles/client-landing.css`.
+- The public showcase assets are:
+  - `/client/yecai-client-apps-light-showcase.webp` — light application overview
+  - `/client/yecai-client-app-connection-showcase.webp` — application setup
+  - `/client/yecai-client-model-pricing-showcase.webp` — model/price selection
+  - `/client/yecai-client-apps-dark-showcase.webp` — dark application overview
+
+### 3. Contracts
+
+- Export screenshot assets as physical pixel crops; do not rely on CSS clipping
+  to hide account names, login identity, credentials, or the bottom client
+  version. Inspect each exported file itself and strip metadata before publish.
+- Use all four screenshots with accurate alt text. The dark overview is an
+  application screen, not a pricing screen; do not claim cropped-out or
+  “coming soon” features as available. Price/model screenshots require copy
+  explaining that examples may change.
+- Preserve intrinsic dimensions and aspect ratio. Mobile `object-fit: cover`
+  may choose a readable viewport only after sensitive regions are absent from
+  the physical asset; it must not stretch the image or act as redaction.
+- Only the theme-selected hero overview uses `fetchPriority="high"`; setup,
+  pricing, and alternate-theme images remain lazy-loaded.
+- Keep `MarketingHeader`, `Footer`, theme behavior, and exactly one shared
+  `GlassCursor`. Content and downloads remain usable when animation is disabled.
+- Reuse the download resolver contract above. Visual redesigns must not copy
+  hostname/OS logic, restore a pinned version claim, or execute an installer.
+
+### 4. Validation & Error Matrix
+
+| Condition | Expected behavior |
+| --- | --- |
+| Light/dark theme | Matching overview is the hero; the alternate overview is accurately labeled in the theme section |
+| Narrow viewport or long translation | Controls stack without horizontal overflow; screenshots remain readable and undistorted |
+| Unsupported OS | Prevent automatic download, announce status, focus the manual-download heading, and keep both choices |
+| Reduced motion | Ambient/copy/stage animations and control transitions are disabled; content remains visible |
+| Updated source screenshot | Re-crop and inspect the exported asset; update intrinsic dimensions and tests together |
+| Screenshot contains identity/secret data | Do not publish until the physical export removes it |
+
+### 5. Good / Base / Bad Cases
+
+- Good: a cropped WebP excludes the account/footer regions, has no EXIF, and
+  is displayed with its actual dimensions and meaningful alt text.
+- Base: a time-point pricing screenshot is allowed when the page clearly marks
+  it as illustrative and changing.
+- Bad: hide `Root User` with `overflow: hidden` while leaving those pixels in a
+  downloadable public image.
+- Bad: label the dark application overview as dark pricing, eagerly load every
+  screenshot, or duplicate the installer-host matrix in the component.
+
+### 6. Tests Required
+
+- Component tests assert semantic section headings, all four exact assets and
+  meanings, intrinsic dimensions, hero priority, later lazy loading, stable
+  automatic/manual download links, unsupported-system focus, and absence of the
+  retired laptop frame/version claim.
+- Inspect exported pixels against their approved crop boxes and assert no EXIF.
+- Production-preview browser checks cover desktop and mobile light/dark views,
+  long translated labels, document overflow, keyboard focus, reduced motion,
+  one cursor, and intercepted (never executed) installer navigation.
+
+### 7. Wrong vs Correct
+
+```tsx
+// Wrong: the public file still contains private pixels; CSS only hides them.
+<img src='/client/full-account-window.png' className='cropped-with-css' />
+
+// Correct: publish an inspected physical crop with accurate intrinsic data.
+<img
+  src='/client/yecai-client-apps-light-showcase.webp'
+  alt={t('Yecai Client application overview in light theme')}
+  width={1820}
+  height={880}
+/>
+```

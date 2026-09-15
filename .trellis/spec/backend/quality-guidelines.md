@@ -94,7 +94,8 @@ an asset directory (for example, route `/client` and files under
 ### 5. Good / Base / Bad Cases
 
 - Good: `/client` renders SPA HTML while
-  `/client/yecai-client-apps.png` still serves the embedded PNG.
+  `/client/yecai-client-apps-light-showcase.webp` still serves the embedded
+  WebP asset.
 - Base: `/client?source=header` reaches the SPA with the query intact.
 - Bad: report an asset directory as existing and let `http.FileServer` return
   `Location: client/`; a reverse canonical redirect can then create a loop.
