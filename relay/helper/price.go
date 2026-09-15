@@ -371,11 +371,13 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 		estimatedCompletionTokens = defaultTieredPreConsumeMaxTokens
 	}
 
-	requestInput, err := ResolveIncomingBillingExprRequestInput(c, info)
+	usedVars := billingexpr.UsedVarsByHash(exprStr, exprHash)
+
+	requestInput, err := ResolveIncomingBillingExprRequestInput(c, info, BillingExprNeedsRequestBody(usedVars))
 	if err != nil {
 		return hosttypes.PriceData{}, err
 	}
-	if billingexpr.UsedVarsByHash(exprStr, exprHash)["image_count"] {
+	if usedVars["image_count"] {
 		requestInput, err = ResolveImageBillingRequestInput(c, info, requestInput)
 		if err != nil {
 			return hosttypes.PriceData{}, err

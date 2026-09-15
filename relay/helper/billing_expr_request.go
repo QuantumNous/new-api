@@ -12,9 +12,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.RelayInfo) (billingexpr.RequestInput, error) {
+// ResolveIncomingBillingExprRequestInput builds the RequestInput handed to the
+// billing expression.
+//
+// needBody must be true only when the expression actually calls param(...),
+// which is the sole consumer of RequestInput.Body. When it is false the request
+// body is left out entirely: modelPriceHelperTiered stores this input on
+// RelayInfo so settlement can reuse it, so materialising a body that the
+// expression never reads keeps a full copy of every request alive for the whole
+// upstream call — and for bodies above the disk-cache threshold it reads back
+// from disk the very bytes that were spilled there to keep them out of memory.
+func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.RelayInfo, needBody bool) (billingexpr.RequestInput, error) {
 	if info != nil && info.BillingRequestInput != nil {
-		input := cloneRequestInput(*info.BillingRequestInput)
+		input := cloneRequestInput(*info.BillingRequestInput, needBody)
 		merged := cloneStringMap(info.RequestHeaders)
 		maps.Copy(merged, input.Headers)
 		input.Headers = merged
@@ -26,12 +36,30 @@ func ResolveIncomingBillingExprRequestInput(c *gin.Context, info *relaycommon.Re
 		input.Headers = cloneStringMap(info.RequestHeaders)
 	}
 
+	if !needBody {
+		return input, nil
+	}
+
 	bodyBytes, err := readIncomingBillingExprBody(c)
 	if err != nil {
 		return billingexpr.RequestInput{}, err
 	}
 	input.Body = bodyBytes
 	return input, nil
+}
+
+// BillingExprNeedsRequestBody reports whether an expression reads the request
+// body. param(...) is the only function that does; header(...) and the time
+// helpers work off RequestInput.Headers and the clock.
+//
+// A nil usedVars means the expression could not be compiled. This returns true
+// in that case so the body is still provided — the compile failure then
+// surfaces when the expression runs, rather than as a silently missing input.
+func BillingExprNeedsRequestBody(usedVars map[string]bool) bool {
+	if usedVars == nil {
+		return true
+	}
+	return usedVars["param"]
 }
 
 // ResolveImageBillingRequestInput freezes only the validated scalar image
@@ -94,7 +122,7 @@ func readIncomingBillingExprBody(c *gin.Context) ([]byte, error) {
 	return storage.Bytes()
 }
 
-func cloneRequestInput(src billingexpr.RequestInput) billingexpr.RequestInput {
+func cloneRequestInput(src billingexpr.RequestInput, needBody bool) billingexpr.RequestInput {
 	input := billingexpr.RequestInput{
 		Headers: cloneStringMap(src.Headers),
 	}
@@ -102,7 +130,7 @@ func cloneRequestInput(src billingexpr.RequestInput) billingexpr.RequestInput {
 		count := *src.ImageCount
 		input.ImageCount = &count
 	}
-	if len(src.Body) > 0 {
+	if needBody && len(src.Body) > 0 {
 		input.Body = append([]byte(nil), src.Body...)
 	}
 	return input
