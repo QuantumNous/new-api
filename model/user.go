@@ -1421,6 +1421,24 @@ func DeltaUpdateUserQuota(id int, delta int) (err error) {
 	}
 }
 
+func ResetUserQuota(id int, value int) (oldQuota int, err error) {
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var user User
+		if err := lockForUpdate(tx).Where("id = ?", id).First(&user).Error; err != nil {
+			return err
+		}
+		oldQuota = user.Quota
+		return tx.Model(&User{}).Where("id = ?", id).Update("quota", value).Error
+	})
+	if err != nil {
+		return 0, err
+	}
+	if err := invalidateUserCache(id); err != nil {
+		common.SysLog("failed to invalidate user cache: " + err.Error())
+	}
+	return oldQuota, nil
+}
+
 //func GetRootUserEmail() (email string) {
 //	DB.Model(&User{}).Where("role = ?", common.RoleRootUser).Select("email").Find(&email)
 //	return email
