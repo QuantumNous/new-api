@@ -159,6 +159,33 @@ func WaffoPancakeBuyerIdentityFromUserID(userID int) string {
 	return fmt.Sprintf("new-api-user-%d", userID)
 }
 
+// waffoPancakeBuyerIdentityMatches reports whether the buyer identity echoed
+// back in a webhook belongs to userID. We always send the canonical
+// new-api-user-<id> at checkout, but Pancake returns the identity it has on
+// file for the buyer, which for a buyer with an existing Waffo account comes
+// back as that account's email (buyer identity may be an email or a
+// merchant-defined id, per the SDK). Accept either form: the canonical id or
+// an email that matches the order owner's registered address. Without this an
+// email-form identity is rejected and the paid order is never credited.
+func waffoPancakeBuyerIdentityMatches(userID int, actualIdentity string) bool {
+	actualIdentity = strings.TrimSpace(actualIdentity)
+	if actualIdentity == "" {
+		return false
+	}
+	if actualIdentity == WaffoPancakeBuyerIdentityFromUserID(userID) {
+		return true
+	}
+	if !strings.Contains(actualIdentity, "@") {
+		return false
+	}
+	user, err := model.GetUserById(userID, false)
+	if err != nil || user == nil {
+		return false
+	}
+	email := model.NormalizeEmail(user.Email)
+	return email != "" && model.NormalizeEmail(actualIdentity) == email
+}
+
 // VerifyConfiguredWaffoPancakeWebhook verifies the signature header. The SDK
 // picks the matching test / prod public key from the payload's `mode` field.
 func VerifyConfiguredWaffoPancakeWebhook(payload string, signatureHeader string) (*WaffoPancakeWebhookEvent, error) {
@@ -210,7 +237,7 @@ func ResolveWaffoPancakeTradeNo(event *WaffoPancakeWebhookEvent) (string, error)
 	}
 	expectedIdentity := WaffoPancakeBuyerIdentityFromUserID(topUp.UserId)
 	actualIdentity := strings.TrimSpace(event.Data.MerchantProvidedBuyerIdentity)
-	if actualIdentity != expectedIdentity {
+	if !waffoPancakeBuyerIdentityMatches(topUp.UserId, actualIdentity) {
 		return "", fmt.Errorf(
 			"waffo pancake buyer identity mismatch for tradeNo=%s: expected=%q actual=%q",
 			tradeNo,
@@ -237,7 +264,7 @@ func ResolveWaffoPancakeSubscriptionTradeNo(event *WaffoPancakeWebhookEvent) (st
 	}
 	expectedIdentity := WaffoPancakeBuyerIdentityFromUserID(order.UserId)
 	actualIdentity := strings.TrimSpace(event.Data.MerchantProvidedBuyerIdentity)
-	if actualIdentity != expectedIdentity {
+	if !waffoPancakeBuyerIdentityMatches(order.UserId, actualIdentity) {
 		return "", fmt.Errorf(
 			"waffo pancake buyer identity mismatch for subscription tradeNo=%s: expected=%q actual=%q",
 			tradeNo,
