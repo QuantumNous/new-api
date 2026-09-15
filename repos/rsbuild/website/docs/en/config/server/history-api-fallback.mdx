@@ -1,0 +1,137 @@
+---
+description: 'historyApiFallback is used to support routing based on the history API.'
+---
+
+# server.historyApiFallback
+
+- **Type:** `boolean | HistoryApiFallbackOptions`
+- **Default:** `false`
+
+`historyApiFallback` is used to support routing based on the [history API](https://developer.mozilla.org/en-US/docs/Web/API/History_API). When a user visits a path that does not exist, it will automatically return a specified HTML file to avoid a 404 error.
+
+When Rsbuild's default [page routing](/guide/basic/server#page-routing) behavior cannot meet your needs, for example, if you want to be able to access `main.html` when accessing `/`, you can achieve this through the `server.historyApiFallback` configuration.
+
+:::tip
+The `server.historyApiFallback` option has a higher priority than [server.htmlFallback](/config/server/html-fallback).
+:::
+
+## Example
+
+When `server.historyApiFallback` is set to `true`, all HTML GET requests that do not match an actual resource will return `index.html`. This ensures that routing in single-page applications works correctly.
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    historyApiFallback: true,
+  },
+};
+```
+
+Rsbuild will change the requested location to the [index](#index) you specify whenever there is a request which fulfills the following criteria:
+
+- The request is a `GET` or `HEAD` request
+- The request accepts `text/html`
+- The requested path does not contain a `.` (dot), meaning it is not a direct file request
+- The requested path does not match any pattern defined in [rewrites](#rewrites)
+
+## Options
+
+`server.historyApiFallback` also supports passing an object to customize its behavior.
+
+### index
+
+- **Type:** `string`
+- **Default:** `'index.html'`
+
+Specifies the default HTML file to return when the History API fallback is enabled.
+
+For example, if you set `historyApiFallback.index` to `main.html`, the server will automatically serve `main.html` as the fallback page when users access any unmatched routes.
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    entry: {
+      main: './src/index.ts',
+    },
+  },
+  server: {
+    historyApiFallback: {
+      index: '/main.html',
+    },
+  },
+};
+```
+
+### rewrites
+
+- **Type:**
+
+```ts
+type Rewrites = Array<{
+  from: RegExp;
+  to: string | ((context: HistoryApiFallbackContext) => string);
+}>;
+```
+
+- **Default:** `[]`
+
+`rewrites` lets you customize how request paths are mapped to HTML files when a History API fallback occurs.
+
+These rules only apply when no static asset matches the request, meaning it has entered the fallback stage. Each rule is evaluated in order until a match is found and executed.
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    historyApiFallback: {
+      rewrites: [
+        // Redirect the root path to the landing page
+        { from: /^\/$/, to: '/views/landing.html' },
+        // Return subpage.html for any path starting with /subpage
+        { from: /^\/subpage/, to: '/views/subpage.html' },
+        // Return a custom 404 page for all other paths
+        { from: /./, to: '/views/404.html' },
+      ],
+    },
+  },
+};
+```
+
+:::tip
+If you want to modify or forward requests outside of the fallback scenario, use the [server.proxy](/config/server/proxy) option to define proxy rules.
+:::
+
+### htmlAcceptHeaders
+
+- **Type:** `string[]`
+- **Default:** `['text/html', '*/*']`
+
+Override the default `Accepts:` headers that are queried when matching HTML content requests.
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    historyApiFallback: {
+      htmlAcceptHeaders: ['text/html', 'application/xhtml+xml'],
+    },
+  },
+};
+```
+
+### disableDotRule
+
+- **Type:** `boolean`
+- **Default:** `false`
+
+By default, requests containing a dot (`.`) in the path are treated as direct file requests and are not redirected.
+
+Setting `disableDotRule` to `true` will disable this behavior and allow such requests to be redirected as well.
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    historyApiFallback: {
+      disableDotRule: true,
+    },
+  },
+};
+```

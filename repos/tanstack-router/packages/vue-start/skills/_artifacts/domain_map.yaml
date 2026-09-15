@@ -1,0 +1,63 @@
+# domain_map.yaml
+# Library: @tanstack/vue-start
+# Version: 1.166.2
+# Date: 2026-03-08
+# Status: reviewed
+
+library:
+  name: '@tanstack/vue-start'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Vue bindings for TanStack Start. useServerFn hook,
+    tanstackStart Vite plugin, Html/Body SSR shell,
+    Vue-specific setup.
+  primary_framework: 'vue'
+
+domains:
+  - name: 'Vue Start Bindings'
+    slug: 'vue-start-bindings'
+    description: >-
+      Vue-specific full-stack framework bindings for TanStack
+      Start. Server function hooks, Vite plugin, Html/Body
+      SSR shell, and Vue application setup.
+
+skills:
+  - name: 'Vue Start'
+    slug: 'vue-start'
+    domain: 'vue-start-bindings'
+    description: >-
+      Vue bindings for TanStack Start. useServerFn hook,
+      tanstackStart Vite plugin, Html/Body SSR shell,
+      Vue-specific setup.
+    type: framework
+    packages:
+      - '@tanstack/vue-start'
+    covers:
+      - useServerFn hook
+      - tanstackStart Vite plugin
+      - Html/Body SSR shell components
+      - Vue-specific app setup
+      - Server function integration
+    tasks:
+      - 'Set up a Vue Start application'
+      - 'Use server functions with useServerFn'
+      - 'Configure Html/Body SSR shell'
+    failure_modes:
+      - mistake: 'Using react-start APIs in Vue context'
+        mechanism: >-
+          vue-start has its own useServerFn and tanstackStart
+          exports. Importing from @tanstack/react-start or
+          @tanstack/start causes type errors and runtime failures.
+        priority: HIGH
+        status: active
+
+      - mistake: 'Missing Html/Body SSR shell setup'
+        mechanism: >-
+          Vue Start requires Html and Body components for the
+          SSR document shell. Without them, server-rendered
+          pages lack proper document structure.
+        priority: MEDIUM
+        status: active
+
+gaps: []

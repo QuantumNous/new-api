@@ -1,0 +1,14 @@
+{
+  "name": "@examples/node",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rsbuild build",
+    "start": "rsbuild build && node ./dist/index.js"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

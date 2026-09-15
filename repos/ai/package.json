@@ -1,0 +1,81 @@
+{
+  "private": true,
+  "name": "ai-repo",
+  "scripts": {
+    "build": "turbo build --concurrency 16",
+    "build:examples": "turbo build --filter=@example/*",
+    "build:packages": "turbo build --filter=@ai-sdk/* --filter=ai",
+    "changeset": "changeset",
+    "clean": "turbo clean",
+    "dev": "turbo dev --cache=local:r,remote:r --concurrency 25 --continue",
+    "prepare": "husky",
+    "update-references": "update-ts-references && node tools/split-ts-references.mjs",
+    "type-check": "tsc --build",
+    "type-check:full": "tsc --build tsconfig.with-examples.json",
+    "publint": "turbo publint",
+    "test": "turbo test --concurrency 16 --filter=!@example/*",
+    "test:ci": "turbo test --concurrency 16 --filter=!@example/* --filter=!ai --filter=!@ai-sdk/codemod --only",
+    "test:update": "turbo test:update --concurrency 16 --filter=!@example/*",
+    "ci:release": "turbo clean && npm run build:packages && changeset publish",
+    "ci:version": "changeset version && node .github/scripts/cleanup-examples-changesets.mjs && pnpm install --no-frozen-lockfile",
+    "clean-examples": "node .github/scripts/cleanup-examples-changesets.mjs && pnpm install --no-frozen-lockfile",
+    "check": "ultracite check",
+    "fix": "ultracite fix",
+    "validate:docs": "node tools/validate-properties-tables.mjs",
+    "konsistent": "turbo run konsistent:validate konsistent:check --log-order=grouped --log-prefix=none",
+    "konsistent:check": "konsistent --config-path .github/konsistent.json",
+    "konsistent:validate": "konsistent validate --config-path .github/konsistent.json",
+    "worktree:setup": "bash tools/worktree-setup.sh"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "ultracite fix"
+    ]
+  },
+  "devDependencies": {
+    "@changesets/cli": "2.27.10",
+    "@playwright/test": "^1.61.1",
+    "del-cli": "^5.1.0",
+    "husky": "^9.1.7",
+    "konsistent": "^1.0.0-beta",
+    "konsistent-provider": "workspace:*",
+    "lint-staged": "^15.5.1",
+    "next": "15.5.18",
+    "oxfmt": "^0.41.0",
+    "oxlint": "^1.56.0",
+    "playwright": "^1.61.1",
+    "publint": "0.2.12",
+    "react": "19.0.0-rc-cc1ec60d0d-20240607",
+    "react-dom": "19.0.0-rc-cc1ec60d0d-20240607",
+    "turbo": "2.9.14",
+    "typescript": "5.8.3",
+    "ultracite": "7.3.2",
+    "update-ts-references": "^3.6.0",
+    "vitest": "4.1.6"
+  },
+  "engines": {
+    "node": "^22.0.0 || ^24.0.0 || ^26.0.0"
+  },
+  "homepage": "https://ai-sdk.dev/docs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vercel/ai"
+  },
+  "license": "Apache License",
+  "bugs": {
+    "url": "https://github.com/vercel/ai/issues"
+  },
+  "keywords": [
+    "ai"
+  ],
+  "packageManager": "pnpm@10.33.4",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
+    "overrides": {
+      "tinyexec": "1.0.2",
+      "oxlint": "1.56.0"
+    }
+  }
+}

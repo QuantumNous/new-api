@@ -1,0 +1,261 @@
+<div class="p-2">
+  <div class="inline-block border border-black shadow rounded">
+    <div class="px-1 border-b border-black">
+      <label>
+        <input
+          type="checkbox"
+          [checked]="table.getIsAllColumnsVisible()"
+          (change)="table.getToggleAllColumnsVisibilityHandler()($event)"
+        />
+        Toggle All
+      </label>
+    </div>
+
+    @for (column of table.getAllLeafColumns(); track column.id) {
+      <div class="px-1">
+        <label>
+          <input
+            type="checkbox"
+            [checked]="column.getIsVisible()"
+            (change)="column.getToggleVisibilityHandler()($event)"
+          />
+          {{ column.id }}
+        </label>
+      </div>
+    }
+  </div>
+
+  <div class="h-4"></div>
+
+  <div class="flex flex-wrap gap-2">
+    <button (click)="rerender()" class="border p-1">Regenerate</button>
+    <button (click)="randomizeColumns()" class="border p-1">
+      Shuffle Columns
+    </button>
+  </div>
+  <div class="h-4"></div>
+  <div>
+    <label>
+      <input
+        type="checkbox"
+        #input
+        [checked]="split()"
+        (change)="split.set(input.checked)"
+      />
+      Split mode
+    </label>
+  </div>
+
+  <div class="flex" [class.gap-4]="split()">
+    <!-- Left Side -->
+    @if (split()) {
+      <table class="border-2 border-black">
+        <thead>
+          @for (
+            headerGroup of table.getLeftHeaderGroups();
+            track headerGroup.id
+          ) {
+            <tr>
+              @for (header of headerGroup.headers; track header.id) {
+                <th [attr.colSpan]="header.colSpan">
+                  <div class="whitespace-nowrap">
+                    @if (!header.isPlaceholder) {
+                      <ng-container
+                        *flexRender="
+                          header.column.columnDef.header;
+                          props: header.getContext();
+                          let headerValue
+                        "
+                      >
+                        {{ headerValue }}
+                      </ng-container>
+                    }
+                  </div>
+
+                  <ng-container
+                    *ngTemplateOutlet="
+                      headerContentTpl;
+                      context: { $implicit: header }
+                    "
+                  />
+                </th>
+              }
+            </tr>
+          }
+        </thead>
+
+        <tbody>
+          @for (row of table.getRowModel().rows | slice: 0 : 20; track row.id) {
+            <tr>
+              @for (cell of row.getLeftVisibleCells(); track cell.id) {
+                <td>
+                  <ng-container
+                    *flexRender="
+                      cell.column.columnDef.cell;
+                      props: cell.getContext();
+                      let cellValue
+                    "
+                  >
+                    {{ cellValue }}
+                  </ng-container>
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+    <!-- Center Side -->
+    <table class="border-2 border-black">
+      <thead>
+        @if (
+          split() ? table.getCenterHeaderGroups() : table.getHeaderGroups();
+          as headerGroups
+        ) {
+          @for (headerGroup of headerGroups; track headerGroup.id) {
+            <tr>
+              @for (header of headerGroup.headers; track header.id) {
+                <th [attr.colSpan]="header.colSpan">
+                  <div class="whitespace-nowrap">
+                    @if (!header.isPlaceholder) {
+                      <ng-container
+                        *flexRender="
+                          header.column.columnDef.header;
+                          props: header.getContext();
+                          let headerValue
+                        "
+                      >
+                        {{ headerValue }}
+                      </ng-container>
+                    }
+
+                    <ng-container
+                      *ngTemplateOutlet="
+                        headerContentTpl;
+                        context: { $implicit: header }
+                      "
+                    />
+                  </div>
+                </th>
+              }
+            </tr>
+          }
+        }
+      </thead>
+      <tbody>
+        @for (row of table.getRowModel().rows | slice: 0 : 20; track row.id) {
+          @if (
+            split() ? row.getCenterVisibleCells() : row.getVisibleCells();
+            as cells
+          ) {
+            <tr>
+              @for (cell of cells; track cell.id) {
+                <td>
+                  <ng-container
+                    *flexRender="
+                      cell.column.columnDef.cell;
+                      props: cell.getContext();
+                      let cellValue
+                    "
+                  >
+                    {{ cellValue }}
+                  </ng-container>
+                </td>
+              }
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+
+    <!-- Right side -->
+    @if (split()) {
+      <table class="border-2 border-black">
+        <thead>
+          @for (
+            headerGroup of table.getRightHeaderGroups();
+            track headerGroup.id
+          ) {
+            <tr>
+              @for (header of headerGroup.headers; track header.id) {
+                <th [attr.colSpan]="header.colSpan">
+                  <div class="whitespace-nowrap">
+                    @if (!header.isPlaceholder) {
+                      <ng-container
+                        *flexRender="
+                          header.column.columnDef.header;
+                          props: header.getContext();
+                          let headerValue
+                        "
+                      >
+                        {{ headerValue }}
+                      </ng-container>
+                    }
+                  </div>
+
+                  <ng-container
+                    *ngTemplateOutlet="
+                      headerContentTpl;
+                      context: { $implicit: header }
+                    "
+                  />
+                </th>
+              }
+            </tr>
+          }
+        </thead>
+
+        <tbody>
+          @for (row of table.getRowModel().rows | slice: 0 : 20; track row.id) {
+            <tr>
+              @for (cell of row.getRightVisibleCells(); track cell.id) {
+                <td>
+                  <ng-container
+                    *flexRender="
+                      cell.column.columnDef.cell;
+                      props: cell.getContext();
+                      let cellValue
+                    "
+                  >
+                    {{ cellValue }}
+                  </ng-container>
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+
+  <div class="h-4"></div>
+  <pre>{{ stringifiedColumnPinning() }}</pre>
+</div>
+
+<ng-template #headerContentTpl let-header>
+  @if (!header.isPlaceholder && header.column.getCanPin()) {
+    <div class="flex gap-1 justify-center">
+      @if (header.column.getIsPinned() !== 'left') {
+        <button class="border rounded px-2" (click)="header.column.pin('left')">
+          <=
+        </button>
+      }
+
+      @if (header.column.getIsPinned()) {
+        <button class="border rounded px-2" (click)="header.column.pin(false)">
+          X
+        </button>
+      }
+
+      @if (header.column.getIsPinned() !== 'right') {
+        <button
+          class="border rounded px-2"
+          (click)="header.column.pin('right')"
+        >
+          =>
+        </button>
+      }
+    </div>
+  }
+</ng-template>

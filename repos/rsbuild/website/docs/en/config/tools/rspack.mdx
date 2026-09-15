@@ -1,0 +1,430 @@
+---
+description: 'The built-in Rspack config in Rsbuild may change with iterations, and these changes will not be reflected in semver.'
+---
+
+# tools.rspack
+
+- **Type:** `Rspack.Configuration | Function | undefined`
+- **Default:** `undefined`
+
+`tools.rspack` configures [Rspack](https://rspack.rs/config/index).
+
+:::tip
+The built-in Rspack config in Rsbuild may change with iterations, and these changes will not be reflected in semver. Therefore, your custom config may become invalid when you upgrade Rsbuild.
+:::
+
+## Object type
+
+`tools.rspack` accepts an object that gets deep merged with the built-in Rspack configuration through [rspack-merge](https://github.com/rstackjs/rspack-merge).
+
+For example, add `resolve.alias` configuration:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      resolve: {
+        alias: {
+          '@util': 'src/util',
+        },
+      },
+    },
+  },
+};
+```
+
+When merging configurations, `rspack-merge` will automatically concatenate arrays such as `plugins`, `module.rules`, `resolve.extensions`, etc.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      resolve: {
+        // merged with the built-in resolve.extensions
+        extensions: ['.foo'],
+      },
+    },
+  },
+};
+```
+
+If you need to override a configuration rather than merge it with the default value, you can use the function type of `tools.rspack`.
+
+## Function type
+
+`tools.rspack` can be configured as a function. The first parameter of this function is the built-in Rspack configuration object, you can modify this object, and then return it. For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config) => {
+      config.resolve.alias ||= {};
+      config.resolve.alias['@util'] = 'src/util';
+      return config;
+    },
+  },
+};
+```
+
+:::tip
+The object returned by the `tools.rspack` function is used directly as the final Rspack configuration and is not merged with the built-in Rspack configuration.
+:::
+
+`tools.rspack` can also be an async function:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: async (config) => {
+      const { default: ESLintPlugin } = await import('eslint-webpack-plugin');
+      config.plugins.push(new ESLintPlugin());
+      return config;
+    },
+  },
+};
+```
+
+## Utils
+
+The second parameter of this function is an object, which contains some utility functions and properties, as follows:
+
+### env
+
+- **Type:** `'development' | 'production' | 'test'`
+
+The `env` parameter determines whether the current environment is development, production or test. For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { env }) => {
+      if (env === 'development') {
+        config.devtool = 'cheap-module-eval-source-map';
+      }
+      return config;
+    },
+  },
+};
+```
+
+### isDev
+
+- **Type:** `boolean`
+
+A boolean value indicating whether this is a development build. Set to `true` when the [mode](/config/mode) is `development`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { isDev }) => {
+      if (isDev) {
+        config.devtool = 'eval-cheap-source-map';
+      }
+      return config;
+    },
+  },
+};
+```
+
+### isProd
+
+- **Type:** `boolean`
+
+A boolean value indicating whether this is a production build. Set to `true` when the [mode](/config/mode) is `production`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { isProd }) => {
+      if (isProd) {
+        config.devtool = 'source-map';
+      }
+      return config;
+    },
+  },
+};
+```
+
+### target
+
+- **Type:** `'web' | 'node' | 'web-worker'`
+
+The current [build target](/config/output/target).
+
+You can set different Rspack configurations for different build targets, for example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { target }) => {
+      if (target === 'node') {
+        // ...
+        config.plugins.push(new SomePluginForNode());
+        return config;
+      }
+      return config;
+    },
+  },
+};
+```
+
+### isServer
+
+- **Type:** `boolean`
+
+A boolean value indicating whether the [build target](/config/output/target) is `node`, equivalent to `target === 'node'`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { isServer }) => {
+      if (isServer) {
+        // ...
+      }
+      return config;
+    },
+  },
+};
+```
+
+### isWebWorker
+
+- **Type:** `boolean`
+
+A boolean value indicating whether the [build target](/config/output/target) is `web-worker`, equivalent to `target === 'web-worker'`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { isWebWorker }) => {
+      if (isWebWorker) {
+        // ...
+      }
+      return config;
+    },
+  },
+};
+```
+
+### rspack
+
+- **Type:** `Rspack`
+
+The Rspack instance, the same as `import { rspack } from '@rsbuild/core'`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { rspack }) => {
+      config.plugins.push(new rspack.BannerPlugin());
+      return config;
+    },
+  },
+};
+```
+
+### environment
+
+- **Type:** [EnvironmentContext](/api/javascript-api/environment-api#environment-context)
+
+Context information for the current environment.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { environment }) => {
+      console.log(environment);
+    },
+  },
+};
+```
+
+### environments
+
+- **Type:** `Record<string, EnvironmentContext>`
+
+Context information for all environments.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { environments }) => {
+      console.log(environments);
+    },
+  },
+};
+```
+
+### HtmlPlugin
+
+- **Type:** `typeof import('html-rspack-plugin')`
+
+The default export of [html-rspack-plugin](https://github.com/rstackjs/html-rspack-plugin).
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { HtmlPlugin }) => {
+      console.log(HtmlPlugin);
+    },
+  },
+};
+```
+
+### addRules
+
+- **Type:** `(rules: RuleSetRule | RuleSetRule[]) => void`
+
+Add additional [Rspack rules](https://rspack.rs/config/module-rules) to the head of the internal Rspack module rules array.
+
+It should be noted that Rspack loaders will be executed in right-to-left order. If you want the loader you added to be executed before other loaders (Normal Phase), you should use [appendRules](#appendrules) to add the rule to the end.
+
+For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { addRules }) => {
+      // add a single rule
+      addRules({
+        test: /\.foo/,
+        loader: require.resolve('foo-loader'),
+      });
+
+      // Add multiple rules as an array
+      addRules([
+        {
+          test: /\.foo/,
+          loader: require.resolve('foo-loader'),
+        },
+        {
+          test: /\.bar/,
+          loader: require.resolve('bar-loader'),
+        },
+      ]);
+    },
+  },
+};
+```
+
+### appendRules
+
+- **Type:** `(rules: RuleSetRule | RuleSetRule[]) => void`
+
+Add additional [Rspack rules](https://rspack.rs/config/module-rules) to the end of the internal Rspack module rules array.
+
+For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { appendRules }) => {
+      // add a single rule
+      appendRules({
+        test: /\.foo/,
+        loader: require.resolve('foo-loader'),
+      });
+
+      // Add multiple rules as an array
+      appendRules([
+        {
+          test: /\.foo/,
+          loader: require.resolve('foo-loader'),
+        },
+        {
+          test: /\.bar/,
+          loader: require.resolve('bar-loader'),
+        },
+      ]);
+    },
+  },
+};
+```
+
+### prependPlugins
+
+- **Type:** `
+
+```ts
+function prependPlugins(plugins: Rspack.Plugin | Rspack.Plugin[]): void;
+```
+
+Add additional plugins to the head of the internal Rspack plugins array, and the plugin will be executed first.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { prependPlugins }) => {
+      // add a single plugin
+      prependPlugins(new PluginA());
+
+      // Add multiple plugins
+      prependPlugins([new PluginA(), new PluginB()]);
+    },
+  },
+};
+```
+
+### appendPlugins
+
+- **Type:**
+
+```ts
+function appendPlugins(plugins: Rspack.Plugin | Rspack.Plugin[]): void;
+```
+
+Add additional plugins at the end of the internal Rspack plugins array, the plugin will be executed last.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { appendPlugins }) => {
+      // add a single plugin
+      appendPlugins(new PluginA());
+
+      // Add multiple plugins
+      appendPlugins([new PluginA(), new PluginB()]);
+    },
+  },
+};
+```
+
+### removePlugin
+
+- **Type:** `(name: string) => void`
+
+Remove the internal Rspack plugin, the parameter is the `constructor.name` of the plugin.
+
+For example, remove the internal ProgressPlugin:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { removePlugin }) => {
+      removePlugin('ProgressPlugin');
+    },
+  },
+};
+```
+
+### mergeConfig
+
+- **Type:** `(...configs:Rspack.Configuration[]) =>Rspack.Configuration`
+
+Used to merge multiple Rspack configs, the same as [rspack-merge](https://github.com/rstackjs/rspack-merge).
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { mergeConfig }) => {
+      return mergeConfig(config, {
+        devtool: 'eval',
+      });
+    },
+  },
+};
+```
+
+:::tip
+The mergeConfig method will create a new config object without modifying the original config object, so you need to return the result of mergeConfig.
+:::

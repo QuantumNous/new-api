@@ -1,0 +1,180 @@
+---
+description: 'This document outlines how to use common CSS-in-JS libraries in Rsbuild.'
+---
+
+# CSS-in-JS
+
+This document outlines how to use common CSS-in-JS libraries in Rsbuild.
+
+Although the examples are based on React, some CSS-in-JS libraries (such as [vanilla-extract](#use-vanilla-extract)) also support other frameworks.
+
+### Use Emotion
+
+Rsbuild supports compiling [Emotion](https://github.com/emotion-js/emotion). Add the following configuration to enable it:
+
+- [swcReactOptions.importSource](/plugins/list/plugin-react#swcreactoptions)
+- [@swc/plugin-emotion](https://npmjs.com/package/@swc/plugin-emotion)
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+
+export default defineConfig({
+  plugins: [
+    pluginReact({
+      swcReactOptions: {
+        importSource: '@emotion/react',
+      },
+    }),
+  ],
+  tools: {
+    swc: {
+      jsc: {
+        experimental: {
+          plugins: [['@swc/plugin-emotion', {}]],
+        },
+      },
+    },
+  },
+});
+```
+
+> Refer to this example: [emotion](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/emotion).
+
+### Use styled-jsx
+
+You can use [styled-jsx](https://github.com/vercel/styled-jsx) through [@swc/plugin-styled-jsx](https://npmjs.com/package/@swc/plugin-styled-jsx):
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+
+export default defineConfig({
+  plugins: [pluginReact()],
+  tools: {
+    swc: {
+      jsc: {
+        experimental: {
+          plugins: [['@swc/plugin-styled-jsx', {}]],
+        },
+      },
+    },
+  },
+});
+```
+
+Make sure to choose the SWC plugin version that matches your current `@swc/core` version so SWC can run correctly. See [tools.swc](/config/tools/swc).
+
+> Refer to this example: [styled-jsx](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/styled-jsx).
+
+### Use vanilla-extract
+
+Rsbuild supports [@vanilla-extract/webpack-plugin](https://npmjs.com/package/@vanilla-extract/webpack-plugin). Add the following config to use [vanilla-extract](https://github.com/vanilla-extract-css/vanilla-extract):
+
+Currently, Rspack has an [HMR issue](https://github.com/web-infra-dev/rsbuild/issues/6049) when `splitChunks` is used with `@vanilla-extract/webpack-plugin`. In development mode, you can use a dedicated `splitChunks` configuration to avoid the issue.
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+import { VanillaExtractPlugin } from '@vanilla-extract/webpack-plugin';
+
+export default defineConfig({
+  plugins: [
+    pluginReact({
+      reactRefreshOptions: {
+        exclude: [/\.css\.ts$/],
+      },
+    }),
+  ],
+  splitChunks: {
+    cacheGroups: {
+      vanilla: {
+        test: /@vanilla-extract\/webpack-plugin/,
+        // make sure that chunks containing modules created by @vanilla-extract/webpack-plugin have stable IDs
+        // in development mode to avoid HMR issues
+        name: process.env.NODE_ENV === 'development' && 'vanilla',
+        chunks: 'all',
+      },
+    },
+  },
+  tools: {
+    rspack: {
+      plugins: [new VanillaExtractPlugin()],
+    },
+  },
+});
+```
+
+> Refer to this example: [vanilla-extract](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/vanilla-extract).
+
+#### Static assets
+
+When importing static assets, use import syntax:
+
+```ts title="src/App.css.ts"
+import { style } from '@vanilla-extract/css';
+import logoUrl from './logo.png';
+
+export const containerStyle = style({
+  backgroundImage: `url(${logoUrl})`,
+});
+```
+
+Since `logoUrl` already resolves to the dist directory, `css-loader` doesn't need to process it again. Disable CSS URL processing via [tools.cssLoader.url](/config/tools/css-loader) to avoid module resolution errors:
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  // ... other config
+  tools: {
+    cssLoader: {
+      url: false,
+    },
+  },
+});
+```
+
+> Reference: [#6215](https://github.com/web-infra-dev/rsbuild/issues/6215).
+
+### Use StyleX
+
+You can use [StyleX](https://github.com/facebook/stylex) via [unplugin-stylex](https://github.com/eryue0220/unplugin-stylex):
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+import stylexPlugin from 'unplugin-stylex/rspack';
+
+export default defineConfig({
+  plugins: [pluginReact()],
+  tools: {
+    rspack: {
+      plugins: [stylexPlugin()],
+    },
+  },
+});
+```
+
+> Refer to this example: [stylex](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/stylex).
+
+### Use styled-components
+
+[styled-components](https://github.com/styled-components/styled-components) is a runtime library, so you can use it directly without additional configuration.
+
+Rsbuild supports compiling styled-components, improving the debugging experience and adding SSR support to styled-components.
+
+To use styled-components, we recommend using the [@rsbuild/plugin-styled-components](https://github.com/rsbuild-contrib/rsbuild-plugin-styled-components).
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginStyledComponents } from '@rsbuild/plugin-styled-components';
+
+export default defineConfig({
+  plugins: [pluginStyledComponents()],
+});
+```
+
+> Refer to this example: [styled-components](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/styled-components).
+
+:::tip
+styled-components is no longer recommended for new projects as it is in [maintenance mode](https://opencollective.com/styled-components/updates/thank-you).
+:::

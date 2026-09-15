@@ -1,0 +1,50 @@
+html {
+  font-family: sans-serif;
+  font-size: 14px;
+}
+
+.table-container {
+  border: 1px solid lightgray;
+  overflow-x: scroll;
+  width: 100%;
+  max-width: 960px;
+  position: relative;
+}
+
+table {
+  /* box-shadow and borders will not work with position: sticky otherwise */
+  border-collapse: separate !important;
+  border-spacing: 0;
+}
+
+th {
+  background-color: lightgray;
+  border-bottom: 1px solid lightgray;
+  font-weight: bold;
+  height: 30px;
+  padding: 2px 4px;
+  position: relative;
+  text-align: center;
+}
+
+td {
+  background-color: white;
+  padding: 2px 4px;
+}
+
+.resizer {
+  background: rgba(0, 0, 0, 0.5);
+  cursor: col-resize;
+  height: 100%;
+  position: absolute;
+  right: 0;
+  top: 0;
+  touch-action: none;
+  user-select: none;
+  width: 5px;
+}
+
+.resizer.isResizing {
+  background: blue;
+  opacity: 1;
+}

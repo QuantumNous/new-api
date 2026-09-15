@@ -1,0 +1,10 @@
+@layer all, base, theme, components, utilities;
+
+@import './components/Accordion.css';
+@import './components/Body.css';
+@import './components/BulletList.css';
+@import './components/Figure.css';
+@import './components/Icon.css';
+@import './components/List.css';
+@import './components/Separator.css';
+@import './components/Text.css';

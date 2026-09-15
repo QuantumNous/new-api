@@ -1,0 +1,367 @@
+---
+description: 'Rsbuild 支持直接修改 Rspack 配置对象，也支持通过 rspack-chain 来修改 Rsbuild 内置的 Rspack 配置。'
+---
+
+# 配置 Rspack
+
+Rsbuild 支持直接修改 Rspack 配置对象，也支持通过 `rspack-chain` 来修改 Rsbuild 内置的 Rspack 配置。
+
+:::tip
+Rsbuild 内置的 Rspack 配置会随着迭代而发生变化，这些变化不会反映在 semver 中，因此在升级 Rsbuild 时，你的自定义配置可能会失效。
+:::
+
+## 查看 Rspack 配置
+
+Rsbuild 提供了 [rsbuild inspect](/guide/basic/cli#rsbuild-inspect) 命令来查看 Rsbuild 最终生成的 Rspack 配置。
+
+你也可以通过 [调试模式](/guide/debug/debug-mode) 来查看。
+
+## 修改配置对象
+
+你可以使用 Rsbuild 的 [tools.rspack](/config/tools/rspack) 选项来修改 Rspack 配置对象。
+
+比如注册一个 Rspack 内置的插件：
+
+```ts title="rsbuild.config.ts"
+import { rspack } from '@rsbuild/core';
+
+export default {
+  tools: {
+    rspack: {
+      plugins: [
+        new rspack.CircularDependencyRspackPlugin({
+          // options
+        }),
+      ],
+    },
+  },
+};
+```
+
+或是注册一个社区的 webpack 插件：
+
+```ts title="rsbuild.config.ts"
+import { sentryWebpackPlugin } from '@sentry/webpack-plugin';
+
+export default {
+  tools: {
+    rspack: {
+      plugins: [
+        sentryWebpackPlugin({
+          // options
+        }),
+      ],
+    },
+  },
+};
+```
+
+或是以函数的形式修改内置的 Rspack 配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { env }) => {
+      if (env === 'development') {
+        config.devtool = 'cheap-module-eval-source-map';
+      }
+      return config;
+    },
+  },
+};
+```
+
+> 请查看 [tools.rspack 文档](/config/tools/rspack) 来了解完整用法。
+
+## 访问 Rspack API
+
+如果你需要访问 [@rspack/core](https://npmjs.com/package/@rspack/core) 导出的 API 或插件，可以直接从 `@rsbuild/core` 中引用 [rspack](/api/javascript-api/core#rspack) 对象，无须额外安装 `@rspack/core` 包。
+
+```ts title="rsbuild.config.ts"
+import { rspack } from '@rsbuild/core';
+
+export default {
+  tools: {
+    rspack: {
+      plugins: [
+        new rspack.BannerPlugin({
+          // ...
+        }),
+      ],
+    },
+  },
+};
+```
+
+:::tip
+
+- 参考 [Rspack 插件](https://rspack.rs/zh/plugins/) 和 [Rspack JavaScript API](https://rspack.rs/zh/api/javascript-api/) 了解可用的 Rspack API。
+- 不推荐手动安装 `@rspack/core` 包，因为这可能与 Rsbuild 依赖的版本不一致。
+
+:::
+
+## 使用 Bundler chain \{#use-bundler-chain}
+
+import RspackChain from '@zh/shared/rspackChain.mdx';
+
+<RspackChain />
+
+### tools.bundlerChain
+
+Rsbuild 提供了 [tools.bundlerChain](/config/tools/bundler-chain) 配置项来修改 rspack-chain。
+
+`tools.bundlerChain` 的值是一个函数，接收两个参数：
+
+- 第一个参数为 `rspack-chain` 实例，你可以通过它来修改默认的 Rspack 配置。
+- 第二个参数为一个[工具对象](/config/tools/bundler-chain#utils)，包括 `env`、`isProd`、`CHAIN_ID` 等。
+
+下面是一个基本示例：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { env }) => {
+      if (env === 'development') {
+        chain.devtool('cheap-module-eval-source-map');
+      }
+    },
+  },
+};
+```
+
+`tools.bundlerChain` 还可以是一个异步函数：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { env }) => {
+      const value = await fetchValue();
+      chain.devtool(value);
+    },
+  },
+};
+```
+
+### 背景知识
+
+在开始使用 rspack-chain 来修改 Rspack 配置之前，请先了解一些背景知识。
+
+#### 关于 ID
+
+简单来说，rspack-chain 要求使用者为每个 Rule、Loader、Plugin、Minimizer 都设置一个独一无二的 id，通过这个 id，就可以便捷地从嵌套层级很深的对象中找到所需的对象。
+
+Rsbuild 将内部定义的全部 id 都通过 `CHAIN_ID` 对象导出，因此你可以通过这些导出的 id，快速定位到你想要修改的 Loader 或 Plugin，而不需要在 Rspack 配置对象里通过复杂的遍历寻找。
+
+比如通过 `CHAIN_ID.RULE.CSS` 来删除内置的 CSS 处理规则：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain: (chain, { CHAIN_ID }) => {
+      chain.module.rules.delete(CHAIN_ID.RULE.CSS);
+    },
+  },
+};
+```
+
+#### ID 类型
+
+`CHAIN_ID` 对象包含了多种 id，对应的含义如下：
+
+| CHAIN_ID 字段        | 对应的配置               | 描述                             |
+| -------------------- | ------------------------ | -------------------------------- |
+| `CHAIN_ID.PLUGIN`    | `plugins[i]`             | 对应 Rspack 配置中的一个插件     |
+| `CHAIN_ID.RULE`      | `module.rules[i]`        | 对应 Rspack 配置中的一个 Rule    |
+| `CHAIN_ID.USE`       | `module.rules[i].loader` | 对应 Rspack 配置中的一个 Loader  |
+| `CHAIN_ID.MINIMIZER` | `optimization.minimizer` | 对应 Rspack 配置中的一个压缩工具 |
+
+### 示例
+
+#### 自定义 loader \{#custom-loader}
+
+下面是新增、修改和删除 Rspack loader 的示例。
+
+- 新增一个 loader 来处理 `.md` 文件：
+
+```js title="rsbuild.config.mjs"
+export default {
+  tools: {
+    bundlerChain: (chain) => {
+      chain.module
+        .rule('md')
+        .test(/\.md$/)
+        .use('md-loader')
+        // loader 的包名或模块路径
+        .loader('md-loader');
+    },
+  },
+};
+```
+
+- 修改内置的 SWC loader 选项：
+
+```js title="rsbuild.config.mjs"
+export default {
+  tools: {
+    bundlerChain: (chain, { CHAIN_ID }) => {
+      chain.module
+        .rule(CHAIN_ID.RULE.JS)
+        .oneOf(CHAIN_ID.ONE_OF.JS_MAIN)
+        .use(CHAIN_ID.USE.SWC)
+        .tap((options) => {
+          console.log(options);
+          return options;
+        });
+    },
+  },
+};
+```
+
+- 删除内置的 SWC loader：
+
+```js title="rsbuild.config.mjs"
+export default {
+  tools: {
+    bundlerChain: (chain, { CHAIN_ID }) => {
+      chain.module
+        .rule(CHAIN_ID.RULE.JS)
+        .oneOf(CHAIN_ID.ONE_OF.JS_MAIN)
+        .uses.delete(CHAIN_ID.USE.SWC);
+    },
+  },
+};
+```
+
+- 在内置的 SWC loader 之后插入一个 loader，它会早于 SWC loader 执行：
+
+```js title="rsbuild.config.mjs"
+export default {
+  tools: {
+    bundlerChain: (chain, { CHAIN_ID }) => {
+      chain.module
+        .rule(CHAIN_ID.RULE.JS)
+        .oneOf(CHAIN_ID.ONE_OF.JS_MAIN)
+        .use('my-loader')
+        .after(CHAIN_ID.USE.SWC)
+        // loader 的包名或模块路径
+        .loader('my-loader')
+        .options({
+          // some options
+        });
+    },
+  },
+};
+```
+
+> 注意：Rspack 的 loader 是以相反顺序执行的。
+
+- 在内置的 SWC loader 之前插入一个 loader，它会晚于 SWC loader 执行：
+
+```js title="rsbuild.config.mjs"
+export default {
+  tools: {
+    bundlerChain: (chain, { CHAIN_ID }) => {
+      chain.module
+        .rule(CHAIN_ID.RULE.JS)
+        .oneOf(CHAIN_ID.ONE_OF.JS_MAIN)
+        // loader id，没有实际意义，仅用于定位
+        .use('my-loader')
+        .before(CHAIN_ID.USE.SWC)
+        // loader 的包名或模块路径
+        .loader('my-loader')
+        .options({
+          // some options
+        });
+    },
+  },
+};
+```
+
+- 删除内置的 CSS 处理规则：
+
+```js title="rsbuild.config.mjs"
+export default {
+  tools: {
+    bundlerChain: (chain, { CHAIN_ID }) => {
+      chain.module.rules.delete(CHAIN_ID.RULE.CSS);
+    },
+  },
+};
+```
+
+#### 自定义 Plugin \{#custom-plugin}
+
+下面是新增、修改和删除 Rspack 插件的示例。
+
+```js title="rsbuild.config.mjs"
+export default {
+  tools: {
+    bundlerChain: (chain, { rspack, CHAIN_ID }) => {
+      // 新增插件
+      chain.plugin('custom-define').use(rspack.DefinePlugin, [
+        {
+          'process.env': {
+            NODE_ENV: JSON.stringify(process.env.NODE_ENV),
+          },
+        },
+      ]);
+
+      // 修改插件
+      chain.plugin(CHAIN_ID.PLUGIN.HMR).tap((options) => {
+        options[0].fullBuildTimeout = 200;
+        return options;
+      });
+
+      // 删除插件
+      chain.plugins.delete(CHAIN_ID.PLUGIN.HMR);
+    },
+  },
+};
+```
+
+:::tip
+在绝大部分情况下，你应该通过 Rsbuild 提供的配置项来修改插件的选项，而不是通过 `CHAIN_ID.PLUGIN` 来修改，否则可能导致预期之外的行为。
+
+例如，通过 [tools.htmlPlugin](/config/tools/html-plugin) 来修改 HtmlPlugin 的选项。
+:::
+
+#### 根据环境修改
+
+在 `tools.bundlerChain` 函数的第二个参数中，你可以拿到各种环境的标识，如开发/生产模式构建、 SSR 构建、Web Worker 构建，从而实现不同环境下的配置修改。
+
+```js title="rsbuild.config.mjs"
+export default {
+  tools: {
+    bundlerChain: (chain, { env, isProd, target, isServer, isWebWorker }) => {
+      if (env === 'development' || env === 'test') {
+        // ...
+      }
+      if (isProd) {
+        // ...
+      }
+      if (target === 'node') {
+        // ...
+      }
+      if (isServer) {
+        // ...
+      }
+      if (isWebWorker) {
+        // ...
+      }
+    },
+  },
+};
+```
+
+以上是一些常见的配置示例，完整的 API 请见 [rspack-chain 文档](https://github.com/rstackjs/rspack-chain)。
+
+## 配置修改顺序
+
+Rsbuild 支持通过 `tools.rspack`、`tools.bundlerChain`、`modifyBundlerChain` 等方式修改 Rspack 配置对象。
+
+它们之间的执行顺序依次为：
+
+- [modifyBundlerChain](/plugins/dev/hooks#modifybundlerchain)
+- [tools.bundlerChain](/config/tools/bundler-chain)
+- [modifyRspackConfig](/plugins/dev/hooks#modifyrspackconfig)
+- [tools.rspack](/config/tools/rspack)

@@ -1,0 +1,16 @@
+{"id":"66dec7d7-45e6-427c-8fd9-7d6375d12046","type":"message-start","delta":{"message":{"role":"assistant","content":[],"tool_plan":"","tool_calls":[],"citations":[]}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":"I"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" will"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" use"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" the"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" currentTime"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" tool"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" to"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" find"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" the"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" current"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" time"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":"."}}}
+{"type":"tool-call-start","index":0,"delta":{"message":{"tool_calls":{"id":"currentTime_y46ar19t5gvw","type":"function","function":{"name":"currentTime","arguments":""}}}}}
+{"type":"tool-call-end","index":0}
+{"type":"message-end","delta":{"finish_reason":"TOOL_CALL","usage":{"billed_units":{"input_tokens":46,"output_tokens":14},"tokens":{"input_tokens":1445,"output_tokens":43},"cached_tokens":704}}}

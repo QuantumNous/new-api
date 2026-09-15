@@ -1,0 +1,28 @@
+{
+  "name": "tanstack-router-e2e-solid-generator-cli-only",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsr generate && vite --port 3000",
+    "dev:e2e": "tsr generate && vite",
+    "build": "tsr generate && vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "tsr generate && vite",
+    "test:e2e": "rm -rf port*.txt; playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/solid-router": "workspace:^",
+    "@tanstack/solid-router-devtools": "workspace:^",
+    "@tanstack/router-cli": "workspace:^",
+    "solid-js": "^1.9.10",
+    "redaxios": "^0.5.1",
+    "tailwindcss": "^4.2.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "vite-plugin-solid": "^2.11.11",
+    "vite": "^8.0.14"
+  }
+}

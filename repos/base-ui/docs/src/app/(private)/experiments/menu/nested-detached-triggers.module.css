@@ -1,0 +1,115 @@
+.Page {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 30vh;
+
+  h2 {
+    margin-block: 1rem;
+    font-weight: bold;
+  }
+}
+
+.Menubar {
+  display: flex;
+  background-color: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.375rem;
+  padding: 0.125rem;
+  margin-bottom: 16px;
+}
+
+.Toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  border: 1px solid var(--color-gray-200);
+  background-color: var(--color-gray-50);
+  border-radius: 0.375rem;
+  padding: 0.125rem;
+  width: 37.5rem;
+  margin-bottom: 16px;
+}
+
+.ToolbarButton {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0;
+  margin: 0;
+  outline: 0;
+  border: 0;
+  border-radius: 0.25rem;
+  background-color: transparent;
+  color: var(--color-gray-600);
+  -webkit-user-select: none;
+  user-select: none;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+
+  &:focus-visible {
+    background-color: transparent;
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--color-gray-100);
+    }
+  }
+
+  &:active {
+    background-color: var(--color-gray-200);
+  }
+
+  &[data-pressed] {
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-900);
+  }
+
+  &[aria-pressed] {
+    padding: 0 0.75rem;
+  }
+
+  &[role='combobox'] {
+    min-width: 8rem;
+    justify-content: space-between;
+    padding: 0 0.75rem;
+  }
+}
+
+.MenuTrigger {
+  box-sizing: border-box;
+  background: none;
+  padding: 0 0.75rem;
+  margin: 0;
+  outline: 0;
+  border: 0;
+  color: var(--color-gray-600);
+  border-radius: 0.25rem;
+  -webkit-user-select: none;
+  user-select: none;
+  height: 2rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+
+  &[data-pressed],
+  &:focus-visible {
+    background-color: var(--color-gray-100);
+    outline: none;
+  }
+
+  &[data-disabled] {
+    opacity: 0.5;
+  }
+}
+
+.StandaloneTriggerContainer {
+  display: flex;
+  gap: 8px;
+}

@@ -1,0 +1,73 @@
+{
+    "id": "resp_0f0d479976b1e9a600692f61be5948819783b655c7a54af2a2",
+    "object": "response",
+    "created_at": 1764712894,
+    "status": "completed",
+    "background": false,
+    "billing": {
+      "payer": "developer"
+    },
+    "error": null,
+    "incomplete_details": null,
+    "instructions": null,
+    "max_output_tokens": null,
+    "max_tool_calls": null,
+    "model": "gpt-5.1-2025-11-13",
+    "output": [
+      {
+        "id": "sh_0f0d479976b1e9a600692f61bec0e08197a0864dc5ddf1d38c",
+        "type": "shell_call",
+        "status": "completed",
+        "action": {
+          "commands": [
+            "cd ~ && pwd",
+            "cd ~/Desktop && pwd",
+            "cd ~/Desktop && echo 'THIS WORKS!' > dec1.txt && ls -l dec1.txt && cat dec1.txt"
+          ],
+          "max_output_length": 9907,
+          "timeout_ms": null
+        },
+        "call_id": "call_udkLUvR8lWvG8cDO2B6GNpvZ"
+      }
+    ],
+    "parallel_tool_calls": true,
+    "previous_response_id": null,
+    "prompt_cache_key": null,
+    "prompt_cache_retention": null,
+    "reasoning": {
+      "effort": "none",
+      "summary": null
+    },
+    "safety_identifier": null,
+    "service_tier": "default",
+    "store": true,
+    "temperature": 1,
+    "text": {
+      "format": {
+        "type": "text"
+      },
+      "verbosity": "medium"
+    },
+    "tool_choice": "auto",
+    "tools": [
+      {
+        "type": "shell"
+      }
+    ],
+    "top_logprobs": 0,
+    "top_p": 1,
+    "truncation": "disabled",
+    "usage": {
+      "input_tokens": 157,
+      "input_tokens_details": {
+        "cached_tokens": 0
+      },
+      "output_tokens": 73,
+      "output_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "total_tokens": 230
+    },
+    "user": null,
+    "metadata": {}
+}

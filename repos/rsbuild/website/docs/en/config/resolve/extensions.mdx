@@ -1,0 +1,58 @@
+---
+description: 'Automatically resolve file extensions when importing modules. This means you can import files without explicitly writing their extensions.'
+---
+
+# resolve.extensions
+
+- **Type:** `string[]`
+- **Default:** `['.ts', '.tsx', '.mjs', '.js', '.jsx', '.json']`
+- **Version:** `>= 1.1.9`
+
+Automatically resolve file extensions when importing modules. This means you can import files without explicitly writing their extensions.
+
+For example, if importing `'./index'`, Rsbuild will try to resolve using the following order:
+
+- `./index.ts`
+- `./index.tsx`
+- `./index.mjs`
+- `./index.js`
+- `./index.jsx`
+- `./index.json`
+
+:::tip
+It is not recommended to omit `.vue` or other custom import extension names using `resolve.extensions`, as this may interfere IDE and type support.
+:::
+
+## Example
+
+The value of `resolve.extensions` overrides the default value of Rsbuild:
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    extensions: ['.ts', '.tsx', '.js'],
+  },
+};
+```
+
+## Rspack config
+
+`resolve.extensions` is provided by Rspack, see [Rspack - resolve.extensions](https://rspack.rs/config/resolve#resolveextensions).
+
+You can also configure it using [tools.rspack](/config/tools/rspack):
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      resolve: {
+        extensions: ['.ts', '.tsx', '.js'],
+      },
+    },
+  },
+};
+```
+
+The difference between them is how the configuration is merged.
+
+`tools.rspack` merges the configuration arrays based on [rspack-merge](https://github.com/rstackjs/rspack-merge), which means `tools.rspack.resolve.extensions` will merge with the default value of Rsbuild, rather than overriding it.

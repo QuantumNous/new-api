@@ -1,0 +1,38 @@
+{
+  "name": "tanstack-react-start-e2e-custom-basepath",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "dev": "cross-env NODE_ENV=development tsx express-server.ts",
+    "build": "vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "tsx express-server.ts",
+    "test:e2e": "rm -rf port*.txt; playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:^",
+    "@tanstack/react-router-devtools": "workspace:^",
+    "@tanstack/react-start": "workspace:^",
+    "express": "^5.2.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "redaxios": "^0.5.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "cross-env": "^10.0.0",
+    "srvx": "^0.11.9",
+    "tailwindcss": "^4.2.2",
+    "tsx": "^4.20.3",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14"
+  }
+}

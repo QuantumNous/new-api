@@ -1,0 +1,193 @@
+---
+description: '使用 Less 作为 CSS 预处理器，基于 less-loader 实现。'
+---
+
+# Less 插件
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-less" />
+
+使用 [Less](https://lesscss.org/) 作为 CSS 预处理器，基于 [less-loader](https://github.com/webpack/less-loader) 实现。
+
+## 快速开始
+
+### 安装插件
+
+执行以下命令安装插件：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-less -D" />
+
+### 注册插件
+
+在 Rsbuild 配置中注册插件：
+
+```ts title="rsbuild.config.ts"
+import { pluginLess } from '@rsbuild/plugin-less';
+
+export default {
+  plugins: [pluginLess()],
+};
+```
+
+注册后，即可在代码中引入 `*.less` 或 `*.module.less` 文件，无须添加其他配置。
+
+## 选项
+
+如果你需要自定义 Less 的编译行为，可以使用以下配置项。
+
+### lessLoaderOptions
+
+修改 [less-loader](https://github.com/webpack/less-loader) 的配置。
+
+- **类型：** `Object | Function`
+- **默认值：**
+
+```js
+const defaultOptions = {
+  lessOptions: {
+    javascriptEnabled: true,
+    paths: [path.join(rootPath, 'node_modules')],
+  },
+  sourceMap: rsbuildConfig.output.sourceMap.css,
+};
+```
+
+- **示例：**
+
+当 `lessLoaderOptions` 的值是一个对象时，它会与默认配置通过 `Object.assign` 进行浅层合并，值得注意的是，`lessOptions` 会通过 deepMerge 进行深层合并。
+
+```js
+pluginLess({
+  lessLoaderOptions: {
+    lessOptions: {
+      javascriptEnabled: false,
+    },
+  },
+});
+```
+
+当 `lessLoaderOptions` 的值是一个函数时，默认配置作为第一个参数传入，你可以直接修改配置对象，也可以返回一个值作为最终结果：
+
+```js
+pluginLess({
+  lessLoaderOptions(config) {
+    config.lessOptions = {
+      javascriptEnabled: false,
+    };
+  },
+});
+```
+
+:::tip
+`lessLoaderOptions.lessOptions` 是直接传递给 Less 的配置，请参阅 [Less 文档](https://lesscss.org/usage/#less-options) 以了解所有可用选项。
+:::
+
+### include
+
+- **类型：** [Rspack.RuleSetCondition](https://rspack.rs/zh/config/module-rules#condition)
+- **默认值：** `/\.less$/`
+- **版本：** `>= 1.1.0`
+
+用于指定一部分 `.less` 模块，这些模块会被 `less-loader` 编译。这个值与 Rspack 中的 [rules[].test](https://rspack.rs/zh/config/module-rules#rulestest) 选项相同。
+
+比如：
+
+```ts
+pluginLess({
+  include: /\.custom\.less$/,
+});
+```
+
+### exclude
+
+- **类型：** [Rspack.RuleSetCondition](https://rspack.rs/zh/config/module-rules#condition)
+- **默认值：** `undefined`
+
+用于排除一部分 `.less` 模块，这些模块不会被 `less-loader` 编译。
+
+比如：
+
+```ts
+pluginLess({
+  exclude: /some-folder[\\/]foo\.less/,
+});
+```
+
+### parallel
+
+- **类型：** `boolean`
+- **默认值：** `false`
+- **版本：** 添加于 v1.4.0
+
+是否使用 worker 线程并行编译 Less 模块。开启后，Less 模块会被分配到多个 worker 线程中处理，降低主线程压力，并在编译大量 Less 模块时提升整体构建性能。
+
+```ts
+pluginLess({
+  parallel: true,
+});
+```
+
+> 该功能基于 Rspack 的 parallel loader 实现。传递给 worker 线程的选项必须符合 [HTML 结构化克隆算法](https://nodejs.org/api/worker_threads.html#portpostmessagevalue-transferlist) 的要求，否则会传输失败。例如，不能将函数作为选项传递。详见 [Rspack - Rule.use.parallel](https://rspack.rs/zh/config/module-rules#rulesuseparallel)。
+
+## 修改 Less 版本
+
+在某些场景下，如果你需要使用特定的 Less 版本，而不是使用 Rsbuild 内置的 Less v4，可以在项目中安装需要使用的 Less 版本，并通过 `less-loader` 的 `implementation` 选项设置。
+
+```js
+pluginLess({
+  lessLoaderOptions: {
+    implementation: require('less'),
+  },
+});
+```
+
+## 实践
+
+### 配置多个 Less 插件
+
+通过使用 `include` 和 `exclude` 选项，你可以同时注册多个 Less 插件，并为每个插件指定不同的选项。
+
+例如：
+
+```ts
+export default {
+  plugins: [
+    pluginLess({
+      exclude: /\.another\.less$/,
+    }),
+    pluginLess({
+      include: /\.another\.less$/,
+      lessLoaderOptions: {
+        // some custom options
+      },
+    }),
+  ],
+};
+```
+
+## 常见问题
+
+### Less 文件中的除法不生效？
+
+`@rsbuild/plugin-less` 内置的 Less 版本为 v4，与 v3 版本相比，除法的写法有一些区别：
+
+```less
+// Less v3
+.math {
+  width: 2px / 2; // 1px
+  width: 2px ./ 2; // 1px
+  width: (2px / 2); // 1px
+}
+
+// Less v4
+.math {
+  width: 2px / 2; // 2px / 2
+  width: 2px ./ 2; // 1px
+  width: (2px / 2); // 1px
+}
+```
+
+Less 中除法的写法可以通过配置项来修改，详见 [Less - Math](https://lesscss.org/usage/#less-options-math)。

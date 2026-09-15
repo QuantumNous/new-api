@@ -1,0 +1,25 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "noEmit": false,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "rootDir": ".",
+    "outDir": "build-tests",
+    "types": ["vitest/globals", "@testing-library/jest-dom"]
+  },
+  "include": [
+    "vitest-env.d.ts",
+    "src/**/*.spec.ts*",
+    "src/**/*.test.ts*",
+    "src/index.test.ts",
+    "test",
+    "test/addVitestMatchers.ts",
+    "src/global.d.ts",
+    "package.json"
+  ],
+  "references": [{ "path": "./tsconfig.build.json" }]
+}

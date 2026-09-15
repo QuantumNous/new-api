@@ -1,0 +1,859 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "start-step"
+  },
+  {
+    "type": "reasoning-start",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": "**Getting",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " weather",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " and",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " time",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": "**\n\nI",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " need",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " to",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " check",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " the",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " weather",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " and",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " the",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " current",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " time",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ".",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " I'll",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " use",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " the",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " weather",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " and",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " datetime",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " tools",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ",",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " and",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " maybe",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " I",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " can",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " run",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " both",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " calls",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " in",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " parallel",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " for",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " efficiency",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ".",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " The",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " user",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " didn't",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " specify",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " any",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " units",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ",",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " so",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " I",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " think",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " I",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": "’ll",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " default",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " to",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " Celsius",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ".",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " For",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " Tokyo",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ",",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " I'll",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " set",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " the",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " timezone",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " to",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " Asia",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": "/T",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": "ok",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": "yo",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ".",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " I",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " want",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " to",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " format",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " the",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " response",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " to",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " be",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " concise",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ",",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " including",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " both",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " the",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " weather",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " and",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " current",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " time",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": ".",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " Let's",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " go",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " ahead",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " and",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " make",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " those",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " tool",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " calls",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " in",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": " parallel",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "reasoning-delta",
+    "delta": "!",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_lxFuvuhpu9gvtx04WrmXZF9h",
+    "toolName": "get_weather",
+    "dynamic": true
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_lxFuvuhpu9gvtx04WrmXZF9h",
+    "inputTextDelta": "{"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_lxFuvuhpu9gvtx04WrmXZF9h",
+    "inputTextDelta": "\"city"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_lxFuvuhpu9gvtx04WrmXZF9h",
+    "inputTextDelta": "\":"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_lxFuvuhpu9gvtx04WrmXZF9h",
+    "inputTextDelta": "\"Tokyo"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_lxFuvuhpu9gvtx04WrmXZF9h",
+    "inputTextDelta": "\","
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_lxFuvuhpu9gvtx04WrmXZF9h",
+    "inputTextDelta": "\"units"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_lxFuvuhpu9gvtx04WrmXZF9h",
+    "inputTextDelta": "\":"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_lxFuvuhpu9gvtx04WrmXZF9h",
+    "inputTextDelta": "\"c"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_lxFuvuhpu9gvtx04WrmXZF9h",
+    "inputTextDelta": "elsius"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_lxFuvuhpu9gvtx04WrmXZF9h",
+    "inputTextDelta": "\"}"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "toolName": "get_datetime",
+    "dynamic": true
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "inputTextDelta": "{"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "inputTextDelta": "\"timezone"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "inputTextDelta": "\":"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "inputTextDelta": "\"Asia"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "inputTextDelta": "/T"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "inputTextDelta": "ok"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "inputTextDelta": "yo"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "inputTextDelta": "\","
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "inputTextDelta": "\"format"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "inputTextDelta": "\":"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "inputTextDelta": "\"full"
+  },
+  {
+    "type": "tool-input-delta",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "inputTextDelta": "\"}"
+  },
+  {
+    "type": "reasoning-end",
+    "id": "run-019b2888-ee10-7000-8000-09947d4d7fff"
+  },
+  {
+    "type": "finish-step"
+  },
+  {
+    "type": "start-step"
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_lxFuvuhpu9gvtx04WrmXZF9h",
+    "output": "Weather in Tokyo: 20°C, Clear skies"
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_U3RijXRN09TXMyKWFZwqWjnJ",
+    "output": "Current date and time in Asia/Tokyo: Wednesday, December 17, 2025 at 04:00:28 AM"
+  },
+  {
+    "type": "finish-step"
+  },
+  {
+    "type": "start-step"
+  },
+  {
+    "type": "text-start",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "Here",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "’s",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " the",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " latest",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " for",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " Tokyo",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": ":\n",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "-",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " Weather",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": ":",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " ",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "20",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "°C",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": ",",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " clear",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " skies",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "\n",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "-",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " Local",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " time",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": ":",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " Wednesday",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": ",",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " December",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " ",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "17",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": ",",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " ",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "202",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "5",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " at",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " ",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "04",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": ":",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "00",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": ":",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "28",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " AM",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": " (",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "Asia",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "/T",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "ok",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": "yo",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-delta",
+    "delta": ")",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "text-end",
+    "id": "run-019b2889-0b71-7000-8000-0d936dbfc1c4"
+  },
+  {
+    "type": "finish-step"
+  },
+  {
+    "type": "finish"
+  }
+]

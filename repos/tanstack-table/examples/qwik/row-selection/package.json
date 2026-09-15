@@ -1,0 +1,21 @@
+{
+  "name": "tanstack-table-example-qwik-row-selection",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "serve dist"
+  },
+  "devDependencies": {
+    "@builder.io/qwik": "^1.6.0",
+    "@faker-js/faker": "^8.4.1",
+    "serve": "^14.2.3",
+    "typescript": "5.4.5",
+    "vite": "^5.3.2"
+  },
+  "dependencies": {
+    "@tanstack/qwik-table": "^8.21.3"
+  }
+}

@@ -1,0 +1,97 @@
+---
+description: "Used to configure the Rspack's Module Federation plugin (Module Federation v1.5)."
+---
+
+import { PackageManagerTabs } from '@theme';
+
+# moduleFederation.options
+
+- **Type:** [Rspack.ModuleFederationPluginOptions](https://rspack.rs/plugins/webpack/module-federation-plugin#options)
+- **Default:** `undefined`
+
+Used to configure the Rspack's Module Federation plugin (Module Federation v1.5).
+
+:::tip
+There are several versions of Module Federation implementations. Before using `moduleFederation.options`, please read the [Module Federation guide](/guide/advanced/module-federation) to understand the differences between different versions and how to make choices.
+:::
+
+## Introduction
+
+When using Module Federation, it is recommended that you use the `moduleFederation.options` option provided by Rsbuild. This option will automatically adjust some related configurations to ensure that the module federation application can run correctly.
+
+When you set the `moduleFederation.options` option, Rsbuild will take the following actions:
+
+- Automatically register the [ModuleFederationPlugin](https://rspack.rs/plugins/webpack/module-federation-plugin) plugin, and pass the value of `options` to the plugin.
+- Set the default value of the provider's [dev.assetPrefix](/config/dev/asset-prefix) configuration to `true`. This will ensure that the static asset URL is correct for remote modules.
+- Set the default value of Rspack's [output.uniqueName](https://rspack.rs/config/output#outputuniquename) configuration to `moduleFederation.options.name`, this allows HMR to work as expected.
+
+## Usage
+
+The type of `moduleFederation.options` is exactly the same as the ModuleFederationPlugin plugin of Rspack:
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  moduleFederation: {
+    options: {
+      name: 'remote',
+      // other options
+    },
+  },
+});
+```
+
+This option depends on the runtime package [@module-federation/runtime-tools](https://www.npmjs.com/package/@module-federation/runtime-tools), which provides runtime support for Module Federation. Install it first:
+
+<PackageManagerTabs command="add @module-federation/runtime-tools" />
+
+> Refer to the [ModuleFederationPlugin](https://rspack.rs/plugins/webpack/module-federation-plugin) document for all available options.
+
+## Example
+
+Here is a minimal example:
+
+- Remote App
+
+```ts title="remote/rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  server: {
+    port: 3002,
+  },
+  moduleFederation: {
+    options: {
+      name: 'remote',
+      exposes: {
+        './Button': './src/Button',
+      },
+      filename: 'remoteEntry.js',
+    },
+  },
+});
+```
+
+- Host App
+
+```ts title="host/rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  server: {
+    port: 3002,
+  },
+  moduleFederation: {
+    options: {
+      name: 'host',
+      remotes: {
+        remote: 'remote@http://localhost:3002/remoteEntry.js',
+      },
+    },
+  },
+});
+```
+
+For more examples, please see:
+
+- [Rsbuild - module-federation example](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/module-federation)
+- [module-federation/module-federation-examples](https://github.com/module-federation/module-federation-examples)

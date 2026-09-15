@@ -1,0 +1,579 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`doGenerate > reasoning > should extract reasoning content 1`] = `
+{
+  "content": [
+    {
+      "text": "The user is asking for 2+2. This is basic arithmetic. 2+2=4.",
+      "type": "reasoning",
+    },
+    {
+      "text": "2 + 2 = 4",
+      "type": "text",
+    },
+  ],
+  "finishReason": {
+    "raw": "stop",
+    "unified": "stop",
+  },
+  "request": {
+    "body": {
+      "document_image_limit": undefined,
+      "document_page_limit": undefined,
+      "max_tokens": undefined,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Hello",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ],
+      "model": "mistral-small-latest",
+      "random_seed": undefined,
+      "reasoning_effort": undefined,
+      "response_format": undefined,
+      "safe_prompt": undefined,
+      "stop": undefined,
+      "temperature": undefined,
+      "tool_choice": undefined,
+      "tools": undefined,
+      "top_p": undefined,
+    },
+  },
+  "response": {
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": [
+              {
+                "thinking": [
+                  {
+                    "text": "The user is asking for 2+2. This is basic arithmetic. 2+2=4.",
+                    "type": "text",
+                  },
+                ],
+                "type": "thinking",
+              },
+              {
+                "text": "2 + 2 = 4",
+                "type": "text",
+              },
+            ],
+            "role": "assistant",
+          },
+        },
+      ],
+      "created": 1769088912,
+      "id": "a4e29c5b82f94d67b23e108a7c9df6e1",
+      "model": "magistral-medium-2507",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 46,
+        "prompt_tokens": 10,
+        "total_tokens": 56,
+      },
+    },
+    "headers": {
+      "content-length": "435",
+      "content-type": "application/json",
+    },
+    "id": "a4e29c5b82f94d67b23e108a7c9df6e1",
+    "modelId": "magistral-medium-2507",
+    "timestamp": 2026-01-22T13:35:12.000Z,
+  },
+  "usage": {
+    "inputTokens": {
+      "cacheRead": undefined,
+      "cacheWrite": undefined,
+      "noCache": 10,
+      "total": 10,
+    },
+    "outputTokens": {
+      "reasoning": undefined,
+      "text": 46,
+      "total": 46,
+    },
+    "raw": {
+      "completion_tokens": 46,
+      "prompt_tokens": 10,
+      "total_tokens": 56,
+    },
+  },
+  "warnings": [],
+}
+`;
+
+exports[`doGenerate > text > should extract text content 1`] = `
+{
+  "content": [
+    {
+      "text": "**Holiday Name: "World Kindness Day of Sharing"**
+
+**Date:** The third Saturday in October
+
+**Purpose:** To celebrate and promote acts of kindness, generosity, and connection by sharing something meaningful with others—whether it's time, skills, stories, or physical items.
+
+### **Traditions & Customs:**
+
+1. **"Share a Skill" Exchanges:**
+   - People teach others something they're good at—cooking, crafting, gardening, or even life advice—free of charge. Community centers, schools, and online platforms host skill-sharing sessions.
+
+2. **"Story Swap" Gatherings:**
+   - Friends and strangers meet in parks, cafes, or virtual spaces to share personal stories, jokes, or wisdom. The goal is to foster empathy and connection through storytelling.
+
+3. **"Kindness Kits" for Strangers:**
+   - People assemble small care packages (handwritten notes, snacks, seeds, or handmade crafts) and leave them in public places (libraries, bus stops, parks) for others to find.
+
+4. **"Pay It Forward" Chains:**
+   - Individuals perform random acts of kindness (buying coffee for the next person, donating to a cause, or helping a neighbor) and encourage others to do the same.
+
+5. **"Memory Lane" Sharing:**
+   - Families and friends gather to share old photos, heirlooms, or family recipes, passing down traditions and creating new ones.
+
+6. **"Global Kindness Map":**
+   - An interactive online map where people pin acts of kindness they've done or received, inspiring others to contribute.
+
+**Symbol:** A **hand holding a heart** (representing giving and compassion).
+
+**Food & Drink:** "Kindness Cookies" (homemade treats shared with neighbors) and "Unity Tea" (a blend of herbs from different cultures, symbolizing harmony).
+
+**Why It's Special:** Unlike commercial holidays, this day focuses on **meaningful human connection**—reminding everyone that kindness is a universal language.
+
+Would you celebrate it? What would you share? 😊",
+      "type": "text",
+    },
+  ],
+  "finishReason": {
+    "raw": "stop",
+    "unified": "stop",
+  },
+  "request": {
+    "body": {
+      "document_image_limit": undefined,
+      "document_page_limit": undefined,
+      "max_tokens": undefined,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Hello",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ],
+      "model": "mistral-small-latest",
+      "random_seed": undefined,
+      "reasoning_effort": undefined,
+      "response_format": undefined,
+      "safe_prompt": undefined,
+      "stop": undefined,
+      "temperature": undefined,
+      "tool_choice": undefined,
+      "tools": undefined,
+      "top_p": undefined,
+    },
+  },
+  "response": {
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "**Holiday Name: "World Kindness Day of Sharing"**
+
+**Date:** The third Saturday in October
+
+**Purpose:** To celebrate and promote acts of kindness, generosity, and connection by sharing something meaningful with others—whether it's time, skills, stories, or physical items.
+
+### **Traditions & Customs:**
+
+1. **"Share a Skill" Exchanges:**
+   - People teach others something they're good at—cooking, crafting, gardening, or even life advice—free of charge. Community centers, schools, and online platforms host skill-sharing sessions.
+
+2. **"Story Swap" Gatherings:**
+   - Friends and strangers meet in parks, cafes, or virtual spaces to share personal stories, jokes, or wisdom. The goal is to foster empathy and connection through storytelling.
+
+3. **"Kindness Kits" for Strangers:**
+   - People assemble small care packages (handwritten notes, snacks, seeds, or handmade crafts) and leave them in public places (libraries, bus stops, parks) for others to find.
+
+4. **"Pay It Forward" Chains:**
+   - Individuals perform random acts of kindness (buying coffee for the next person, donating to a cause, or helping a neighbor) and encourage others to do the same.
+
+5. **"Memory Lane" Sharing:**
+   - Families and friends gather to share old photos, heirlooms, or family recipes, passing down traditions and creating new ones.
+
+6. **"Global Kindness Map":**
+   - An interactive online map where people pin acts of kindness they've done or received, inspiring others to contribute.
+
+**Symbol:** A **hand holding a heart** (representing giving and compassion).
+
+**Food & Drink:** "Kindness Cookies" (homemade treats shared with neighbors) and "Unity Tea" (a blend of herbs from different cultures, symbolizing harmony).
+
+**Why It's Special:** Unlike commercial holidays, this day focuses on **meaningful human connection**—reminding everyone that kindness is a universal language.
+
+Would you celebrate it? What would you share? 😊",
+            "role": "assistant",
+            "tool_calls": null,
+          },
+        },
+      ],
+      "created": 1769088720,
+      "id": "5319bd0299614c679a0068a4f2c8ffd0",
+      "model": "mistral-small-latest",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 434,
+        "prompt_tokens": 13,
+        "total_tokens": 447,
+      },
+    },
+    "headers": {
+      "content-length": "2287",
+      "content-type": "application/json",
+    },
+    "id": "5319bd0299614c679a0068a4f2c8ffd0",
+    "modelId": "mistral-small-latest",
+    "timestamp": 2026-01-22T13:32:00.000Z,
+  },
+  "usage": {
+    "inputTokens": {
+      "cacheRead": undefined,
+      "cacheWrite": undefined,
+      "noCache": 13,
+      "total": 13,
+    },
+    "outputTokens": {
+      "reasoning": undefined,
+      "text": 434,
+      "total": 434,
+    },
+    "raw": {
+      "completion_tokens": 434,
+      "prompt_tokens": 13,
+      "total_tokens": 447,
+    },
+  },
+  "warnings": [],
+}
+`;
+
+exports[`doGenerate > tool call > should extract tool call content 1`] = `
+{
+  "content": [
+    {
+      "input": "{"location": "San Francisco"}",
+      "toolCallId": "gSIMJiOkT",
+      "toolName": "weather",
+      "type": "tool-call",
+    },
+  ],
+  "finishReason": {
+    "raw": "tool_calls",
+    "unified": "tool-calls",
+  },
+  "request": {
+    "body": {
+      "document_image_limit": undefined,
+      "document_page_limit": undefined,
+      "max_tokens": undefined,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "Hello",
+              "type": "text",
+            },
+          ],
+          "role": "user",
+        },
+      ],
+      "model": "mistral-small-latest",
+      "random_seed": undefined,
+      "reasoning_effort": undefined,
+      "response_format": undefined,
+      "safe_prompt": undefined,
+      "stop": undefined,
+      "temperature": undefined,
+      "tool_choice": undefined,
+      "tools": undefined,
+      "top_p": undefined,
+    },
+  },
+  "response": {
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "tool_calls",
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "function": {
+                  "arguments": "{"location": "San Francisco"}",
+                  "name": "weather",
+                },
+                "id": "gSIMJiOkT",
+              },
+            ],
+          },
+        },
+      ],
+      "created": 1769088854,
+      "id": "b3999b8c93e04e11bcbff7bcab829667",
+      "model": "mistral-small-latest",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 22,
+        "prompt_tokens": 124,
+        "total_tokens": 146,
+      },
+    },
+    "headers": {
+      "content-length": "388",
+      "content-type": "application/json",
+    },
+    "id": "b3999b8c93e04e11bcbff7bcab829667",
+    "modelId": "mistral-small-latest",
+    "timestamp": 2026-01-22T13:34:14.000Z,
+  },
+  "usage": {
+    "inputTokens": {
+      "cacheRead": undefined,
+      "cacheWrite": undefined,
+      "noCache": 124,
+      "total": 124,
+    },
+    "outputTokens": {
+      "reasoning": undefined,
+      "text": 22,
+      "total": 22,
+    },
+    "raw": {
+      "completion_tokens": 22,
+      "prompt_tokens": 124,
+      "total_tokens": 146,
+    },
+  },
+  "warnings": [],
+}
+`;
+
+exports[`doStream > reasoning > should stream reasoning 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": "a4e29c5b82f94d67b23e108a7c9df6e1",
+    "modelId": "magistral-medium-2507",
+    "timestamp": 2026-01-22T13:35:12.000Z,
+    "type": "response-metadata",
+  },
+  {
+    "id": "id-0",
+    "type": "reasoning-start",
+  },
+  {
+    "delta": "The user is asking",
+    "id": "id-0",
+    "type": "reasoning-delta",
+  },
+  {
+    "delta": " for 2+2. This is basic arithmetic. 2+2=4.",
+    "id": "id-0",
+    "type": "reasoning-delta",
+  },
+  {
+    "id": "id-0",
+    "type": "reasoning-end",
+  },
+  {
+    "id": "0",
+    "type": "text-start",
+  },
+  {
+    "delta": "2 + 2 = 4",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "id": "0",
+    "type": "text-end",
+  },
+  {
+    "finishReason": {
+      "raw": "stop",
+      "unified": "stop",
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": undefined,
+        "cacheWrite": undefined,
+        "noCache": 10,
+        "total": 10,
+      },
+      "outputTokens": {
+        "reasoning": undefined,
+        "text": 46,
+        "total": 46,
+      },
+      "raw": {
+        "completion_tokens": 46,
+        "prompt_tokens": 10,
+        "total_tokens": 56,
+      },
+    },
+  },
+]
+`;
+
+exports[`doStream > text > should stream text 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": "5319bd0299614c679a0068a4f2c8ffd0",
+    "modelId": "mistral-small-latest",
+    "timestamp": 2026-01-22T13:32:00.000Z,
+    "type": "response-metadata",
+  },
+  {
+    "id": "0",
+    "type": "text-start",
+  },
+  {
+    "delta": "Hello",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": ", ",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "world!",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " This",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " is a test",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " response.",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "id": "0",
+    "type": "text-end",
+  },
+  {
+    "finishReason": {
+      "raw": "stop",
+      "unified": "stop",
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": undefined,
+        "cacheWrite": undefined,
+        "noCache": 13,
+        "total": 13,
+      },
+      "outputTokens": {
+        "reasoning": undefined,
+        "text": 8,
+        "total": 8,
+      },
+      "raw": {
+        "completion_tokens": 8,
+        "prompt_tokens": 13,
+        "total_tokens": 21,
+      },
+    },
+  },
+]
+`;
+
+exports[`doStream > tool call > should stream tool call 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": "b3999b8c93e04e11bcbff7bcab829667",
+    "modelId": "mistral-small-latest",
+    "timestamp": 2026-01-22T13:34:14.000Z,
+    "type": "response-metadata",
+  },
+  {
+    "id": "gSIMJiOkT",
+    "toolName": "weather",
+    "type": "tool-input-start",
+  },
+  {
+    "delta": "{"location": "San Francisco"}",
+    "id": "gSIMJiOkT",
+    "type": "tool-input-delta",
+  },
+  {
+    "id": "gSIMJiOkT",
+    "type": "tool-input-end",
+  },
+  {
+    "input": "{"location": "San Francisco"}",
+    "toolCallId": "gSIMJiOkT",
+    "toolName": "weather",
+    "type": "tool-call",
+  },
+  {
+    "finishReason": {
+      "raw": "tool_calls",
+      "unified": "tool-calls",
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": undefined,
+        "cacheWrite": undefined,
+        "noCache": 124,
+        "total": 124,
+      },
+      "outputTokens": {
+        "reasoning": undefined,
+        "text": 22,
+        "total": 22,
+      },
+      "raw": {
+        "completion_tokens": 22,
+        "prompt_tokens": 124,
+        "total_tokens": 146,
+      },
+    },
+  },
+]
+`;

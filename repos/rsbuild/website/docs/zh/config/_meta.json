@@ -1,0 +1,72 @@
+[
+  {
+    "type": "section-header",
+    "label": "总览"
+  },
+  {
+    "type": "file",
+    "name": "index",
+    "label": "配置总览"
+  },
+  {
+    "type": "section-header",
+    "label": "基础选项"
+  },
+  "root",
+  "mode",
+  "plugins",
+  "log-level",
+  "split-chunks",
+  "environments",
+  "custom-logger",
+  {
+    "type": "dir-section-header",
+    "name": "dev",
+    "label": "Dev 选项"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "resolve",
+    "label": "Resolve 选项"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "source",
+    "label": "Source 选项"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "output",
+    "label": "Output 选项"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "html",
+    "label": "HTML 选项"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "server",
+    "label": "Server 选项"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "security",
+    "label": "Security 选项"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "tools",
+    "label": "Tools 选项"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "performance",
+    "label": "Performance 选项"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "module-federation",
+    "label": "Module Federation 选项"
+  }
+]

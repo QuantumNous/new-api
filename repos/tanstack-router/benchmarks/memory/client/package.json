@@ -1,0 +1,260 @@
+{
+  "name": "@benchmarks/memory-client",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean:profiles": "rm -rf scenarios/*/*/.profiles"
+  },
+  "imports": {
+    "#memory-client/benchmark": "./benchmark.ts",
+    "#memory-client/bench-utils": "./bench-utils.ts",
+    "#memory-client/flame-runner": "./flame-runner.ts",
+    "#memory-client/lifecycle": "./lifecycle.ts"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:*",
+    "@tanstack/router-core": "workspace:*",
+    "@tanstack/solid-router": "workspace:*",
+    "@tanstack/vue-router": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "solid-js": "^1.9.10",
+    "vue": "^3.5.16"
+  },
+  "devDependencies": {
+    "@codspeed/vitest-plugin": "^5.5.0",
+    "@datadog/pprof": "^5.13.2",
+    "@platformatic/flame": "^1.6.0",
+    "@testing-library/react": "^16.2.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "@vitejs/plugin-vue-jsx": "^5.1.5",
+    "@types/jsdom": "28.0.0",
+    "jsdom": "29.1.1",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "vite-plugin-solid": "^2.11.11",
+    "vitest": "^4.1.4"
+  },
+  "nx": {
+    "targets": {
+      "build:react": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-client-navigation-churn-react",
+              "@benchmarks/memory-client-unique-location-churn-react",
+              "@benchmarks/memory-client-preload-churn-react",
+              "@benchmarks/memory-client-loader-data-retention-react",
+              "@benchmarks/memory-client-mount-unmount-react",
+              "@benchmarks/memory-client-interrupted-navigations-react"
+            ],
+            "target": "build:client"
+          }
+        ]
+      },
+      "build:solid": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-client-navigation-churn-solid",
+              "@benchmarks/memory-client-unique-location-churn-solid",
+              "@benchmarks/memory-client-preload-churn-solid",
+              "@benchmarks/memory-client-loader-data-retention-solid",
+              "@benchmarks/memory-client-mount-unmount-solid",
+              "@benchmarks/memory-client-interrupted-navigations-solid"
+            ],
+            "target": "build:client"
+          }
+        ]
+      },
+      "build:vue": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-client-navigation-churn-vue",
+              "@benchmarks/memory-client-unique-location-churn-vue",
+              "@benchmarks/memory-client-preload-churn-vue",
+              "@benchmarks/memory-client-loader-data-retention-vue",
+              "@benchmarks/memory-client-mount-unmount-vue",
+              "@benchmarks/memory-client-interrupted-navigations-vue"
+            ],
+            "target": "build:client"
+          }
+        ]
+      },
+      "build:react:flame": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-client-navigation-churn-react",
+              "@benchmarks/memory-client-unique-location-churn-react",
+              "@benchmarks/memory-client-preload-churn-react",
+              "@benchmarks/memory-client-loader-data-retention-react",
+              "@benchmarks/memory-client-mount-unmount-react",
+              "@benchmarks/memory-client-interrupted-navigations-react"
+            ],
+            "target": "build:client:flame"
+          }
+        ]
+      },
+      "build:solid:flame": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-client-navigation-churn-solid",
+              "@benchmarks/memory-client-unique-location-churn-solid",
+              "@benchmarks/memory-client-preload-churn-solid",
+              "@benchmarks/memory-client-loader-data-retention-solid",
+              "@benchmarks/memory-client-mount-unmount-solid",
+              "@benchmarks/memory-client-interrupted-navigations-solid"
+            ],
+            "target": "build:client:flame"
+          }
+        ]
+      },
+      "build:vue:flame": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-client-navigation-churn-vue",
+              "@benchmarks/memory-client-unique-location-churn-vue",
+              "@benchmarks/memory-client-preload-churn-vue",
+              "@benchmarks/memory-client-loader-data-retention-vue",
+              "@benchmarks/memory-client-mount-unmount-vue",
+              "@benchmarks/memory-client-interrupted-navigations-vue"
+            ],
+            "target": "build:client:flame"
+          }
+        ]
+      },
+      "test:flame:react": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-client-navigation-churn-react",
+              "@benchmarks/memory-client-unique-location-churn-react",
+              "@benchmarks/memory-client-preload-churn-react",
+              "@benchmarks/memory-client-loader-data-retention-react",
+              "@benchmarks/memory-client-mount-unmount-react",
+              "@benchmarks/memory-client-interrupted-navigations-react"
+            ],
+            "target": "test:flame"
+          }
+        ]
+      },
+      "test:flame:solid": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-client-navigation-churn-solid",
+              "@benchmarks/memory-client-unique-location-churn-solid",
+              "@benchmarks/memory-client-preload-churn-solid",
+              "@benchmarks/memory-client-loader-data-retention-solid",
+              "@benchmarks/memory-client-mount-unmount-solid",
+              "@benchmarks/memory-client-interrupted-navigations-solid"
+            ],
+            "target": "test:flame"
+          }
+        ]
+      },
+      "test:flame:vue": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-client-navigation-churn-vue",
+              "@benchmarks/memory-client-unique-location-churn-vue",
+              "@benchmarks/memory-client-preload-churn-vue",
+              "@benchmarks/memory-client-loader-data-retention-vue",
+              "@benchmarks/memory-client-mount-unmount-vue",
+              "@benchmarks/memory-client-interrupted-navigations-vue"
+            ],
+            "target": "test:flame"
+          }
+        ]
+      },
+      "test:perf:react": {
+        "executor": "nx:run-commands",
+        "parallelism": false,
+        "cache": false,
+        "dependsOn": [
+          "build:react"
+        ],
+        "options": {
+          "command": "NODE_ENV=production vitest bench --config ./vitest.react.config.ts",
+          "cwd": "benchmarks/memory/client"
+        }
+      },
+      "test:perf:solid": {
+        "executor": "nx:run-commands",
+        "parallelism": false,
+        "cache": false,
+        "dependsOn": [
+          "build:solid"
+        ],
+        "options": {
+          "command": "NODE_ENV=production vitest bench --config ./vitest.solid.config.ts",
+          "cwd": "benchmarks/memory/client"
+        }
+      },
+      "test:perf:vue": {
+        "executor": "nx:run-commands",
+        "parallelism": false,
+        "cache": false,
+        "dependsOn": [
+          "build:vue"
+        ],
+        "options": {
+          "command": "NODE_ENV=production vitest bench --config ./vitest.vue.config.ts",
+          "cwd": "benchmarks/memory/client"
+        }
+      },
+      "test:types": {
+        "executor": "nx:noop",
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-client-navigation-churn-react",
+              "@benchmarks/memory-client-unique-location-churn-react",
+              "@benchmarks/memory-client-preload-churn-react",
+              "@benchmarks/memory-client-loader-data-retention-react",
+              "@benchmarks/memory-client-mount-unmount-react",
+              "@benchmarks/memory-client-interrupted-navigations-react",
+              "@benchmarks/memory-client-navigation-churn-solid",
+              "@benchmarks/memory-client-unique-location-churn-solid",
+              "@benchmarks/memory-client-preload-churn-solid",
+              "@benchmarks/memory-client-loader-data-retention-solid",
+              "@benchmarks/memory-client-mount-unmount-solid",
+              "@benchmarks/memory-client-interrupted-navigations-solid",
+              "@benchmarks/memory-client-navigation-churn-vue",
+              "@benchmarks/memory-client-unique-location-churn-vue",
+              "@benchmarks/memory-client-preload-churn-vue",
+              "@benchmarks/memory-client-loader-data-retention-vue",
+              "@benchmarks/memory-client-mount-unmount-vue",
+              "@benchmarks/memory-client-interrupted-navigations-vue"
+            ],
+            "target": "test:types:client"
+          }
+        ]
+      }
+    }
+  }
+}

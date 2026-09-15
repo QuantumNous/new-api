@@ -1,0 +1,51 @@
+// Rstest Snapshot v1
+
+exports[`stringifyConfig > should stringify Rsbuild config correctly 1`] = `
+"{
+  tools: {
+    bundlerChain(chain) {
+        chain.devtool('eval');
+    }
+  }
+}"
+`;
+
+exports[`stringifyConfig > should stringify Rspack config correctly 1`] = `
+"{
+  mode: 'development',
+  plugins: [
+    {
+      affectedHooks: 'compilation',
+      name: 'DefinePlugin',
+      _args: [
+        {
+          foo: 'bar'
+        }
+      ]
+    }
+  ]
+}"
+`;
+
+exports[`stringifyConfig > should stringify Rspack config with verbose option correctly 1`] = `
+"{
+  mode: 'development',
+  output: {
+    filename() {
+        const a = '[name.js]';
+        return a;
+    }
+  },
+  plugins: [
+    {
+      affectedHooks: 'compilation',
+      name: 'DefinePlugin',
+      _args: [
+        {
+          foo: 'bar'
+        }
+      ]
+    }
+  ]
+}"
+`;

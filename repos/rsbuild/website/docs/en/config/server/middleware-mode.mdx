@@ -1,0 +1,59 @@
+---
+description: "Whether to create Rsbuild's server in middleware mode, which is useful for integrating with other servers."
+---
+
+# server.middlewareMode
+
+- **Type:** `boolean`
+- **Default:** `false`
+- **Version:** `>= 1.2.12`
+
+Whether to create Rsbuild's server in middleware mode, which is useful for integrating with other servers.
+
+When this option is enabled, Rsbuild will not create an HTTP server. This option is usually only needed when using the [JavaScript API](/api/start/) of Rsbuild.
+
+## Examples
+
+### Enable middleware mode
+
+```ts title="rsbuild.config.ts"
+import { createRsbuild } from '@rsbuild/core';
+
+const rsbuild = await createRsbuild({
+  config: {
+    server: {
+      middlewareMode: true,
+    },
+  },
+});
+```
+
+### Integrate with a custom server
+
+A typical use case is that you want to integrate the Rsbuild server into a custom server. You can achieve this by combining `server.middlewareMode` and [rsbuild.createDevServer](/api/javascript-api/instance#rsbuildcreatedevserver).
+
+```ts
+import { createRsbuild } from '@rsbuild/core';
+import express from 'express';
+
+async function startDevServer() {
+  // Initialize Rsbuild in middleware mode
+  const rsbuild = await createRsbuild({
+    config: {
+      server: {
+        middlewareMode: true,
+      },
+    },
+  });
+
+  const app = express();
+
+  // Create Rsbuild dev server instance
+  const rsbuildServer = await rsbuild.createDevServer();
+
+  // Apply Rsbuild's built-in middleware
+  app.use(rsbuildServer.middlewares);
+}
+```
+
+> See [Integrate with custom server](/api/javascript-api/server-api#integrate-with-custom-server) for more details.

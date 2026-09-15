@@ -1,0 +1,34 @@
+{
+  "name": "@zod/resolution",
+  "type": "module",
+  "private": true,
+  "version": "1.0.0",
+  "main": "./dist/index.cjs",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.13.13",
+    "execa": "^9.5.2",
+    "typescript": "^5.8.2"
+  },
+  "files": [
+    "./bin/*",
+    "./lib/*"
+  ],
+  "typings": "./lib/index.d.ts",
+  "scripts": {
+    "test:all": "pnpm vitest run && tsx test-resolution.ts"
+  },
+  "zshy": "./src/index.ts",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.cts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "dependencies": {
+    "zod": "workspace:*"
+  }
+}

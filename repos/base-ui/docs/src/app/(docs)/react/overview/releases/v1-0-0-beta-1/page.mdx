@@ -1,0 +1,152 @@
+# v1.0.0-beta.1
+
+<Subtitle>Jul 1, 2025</Subtitle>
+<Meta name="description" content="v1.0.0-beta.1 release notes. Jul 1, 2025." />
+
+## General changes
+
+- Make error messages consistent ([#2049](https://github.com/mui/base-ui/pull/2049))
+- Do not overwrite event handler when `undefined` is passed explicitly ([#2151](https://github.com/mui/base-ui/pull/2151))
+
+## Accordion
+
+- Allow content to resize naturally ([#2043](https://github.com/mui/base-ui/pull/2043))
+- Fix transition status mapping ([#2169](https://github.com/mui/base-ui/pull/2169))
+- Fix `aria-controls` reference ([#2170](https://github.com/mui/base-ui/pull/2170))
+- Fix test warning about mixed animation types ([#2180](https://github.com/mui/base-ui/pull/2180))
+
+## Checkbox
+
+- **Breaking change:** Support implicit `<Field.Label>`.
+  If `<Field.Label>` encloses Switch/Checkbox/Radio, the `htmlFor`/`id` attributes are no longer explicitly set to associate them.
+  ([#2036](https://github.com/mui/base-ui/pull/2036))
+- Refactor to `useRenderElement` ([#2053](https://github.com/mui/base-ui/pull/2053))
+- Always set `id` on the `<input>` element ([#2115](https://github.com/mui/base-ui/pull/2115))
+
+## Checkbox Group
+
+- Fix `onCheckedChange` not running when parent checkbox is present ([#2155](https://github.com/mui/base-ui/pull/2155))
+
+## Collapsible
+
+- Allow content to resize naturally ([#2043](https://github.com/mui/base-ui/pull/2043))
+- Fix `aria-controls` reference ([#2170](https://github.com/mui/base-ui/pull/2170))
+- Fix test warning about mixed animation types ([#2180](https://github.com/mui/base-ui/pull/2180))
+
+## Context Menu
+
+- **Breaking change:** Add `SubmenuRoot` part.
+  Nested menus should be defined with `<Menu.SubmenuRoot>` instead of `<Menu.Root>` to to avoid ambiguity.
+  ([#2042](https://github.com/mui/base-ui/pull/2042))
+- Fix CheckboxItemIndicator export ([#2009](https://github.com/mui/base-ui/pull/2009))
+
+## Dialog
+
+- Fix popup prop merging ([#2119](https://github.com/mui/base-ui/pull/2119))
+
+## Field
+
+- **Breaking change:** Support implicit `<Field.Label>`.
+  If `<Field.Label>` encloses Switch/Checkbox/Radio, the `htmlFor`/`id` attributes are no longer explicitly set to associate them.
+  ([#2036](https://github.com/mui/base-ui/pull/2036))
+- Enable custom validation based on other form values ([#1941](https://github.com/mui/base-ui/pull/1941))
+- Fix `onValueChange` `value` type ([#2112](https://github.com/mui/base-ui/pull/2112))
+- Fix `<Field.Label>` focusing trigger ([#2118](https://github.com/mui/base-ui/pull/2118))
+- Fix slider field label ([#2154](https://github.com/mui/base-ui/pull/2154))
+
+## Fieldset
+
+- Refactor to `useRenderElement` ([#2053](https://github.com/mui/base-ui/pull/2053))
+
+## Form
+
+- Enable custom validation based on other form values ([#1941](https://github.com/mui/base-ui/pull/1941))
+
+## Input
+
+- Fix `onValueChange` `value` type ([#2112](https://github.com/mui/base-ui/pull/2112))
+
+## Menu
+
+- **Breaking change:** Add `SubmenuRoot` part.
+  Nested menus should be defined with `<Menu.SubmenuRoot>` instead of `<Menu.Root>` to to avoid ambiguity.
+  ([#2042](https://github.com/mui/base-ui/pull/2042))
+- Unset `role` from Trigger ([#2047](https://github.com/mui/base-ui/pull/2047))
+- Emit `close` event on `cancel-open` ([#2067](https://github.com/mui/base-ui/pull/2067))
+- Fix close toggle when rendering non-native button ([#2071](https://github.com/mui/base-ui/pull/2071))
+- Add `highlighted` to item `State` ([#2079](https://github.com/mui/base-ui/pull/2079))
+- Remove highlighted effect ([#2162](https://github.com/mui/base-ui/pull/2162))
+- Cut out internal backdrop to allow interacting with triggers ([#2141](https://github.com/mui/base-ui/pull/2141))
+- Fix active index sync on hover ([#2163](https://github.com/mui/base-ui/pull/2163))
+- Fix focus returning to root when submenus have exit transitions ([#2171](https://github.com/mui/base-ui/pull/2171))
+
+## Menubar
+
+- Fix `closeOnClick: false` not working in nested menus ([#2094](https://github.com/mui/base-ui/pull/2094))
+
+## Navigation Menu
+
+- **Breaking change:** Handle layout resize while open ([#2070](https://github.com/mui/base-ui/pull/2070)).
+  For large scrollable content, add the `max-height` style to `.Content` in addition to `.Popup`.
+- Fix positioner height when opening menu using the keyboard arrows ([#2060](https://github.com/mui/base-ui/pull/2060))
+
+## Number Field
+
+- Ensure `onValueChange` is called with already-formatted parsed value ([#1905](https://github.com/mui/base-ui/pull/1905))
+- Fix revalidation on change ([#2174](https://github.com/mui/base-ui/pull/2174))
+
+## Popover
+
+- Fix close toggle when rendering non-native button ([#2071](https://github.com/mui/base-ui/pull/2071))
+- Cut out internal backdrop to allow interacting with triggers ([#2141](https://github.com/mui/base-ui/pull/2141))
+
+## Radio Group
+
+- **Breaking change:** Support implicit `<Field.Label>`.
+  If `<Field.Label>` encloses Radio, the `htmlFor`/`id` attributes are no longer explicitly set to associate them.
+  ([#2036](https://github.com/mui/base-ui/pull/2036))
+- Refactor to `useRenderElement` ([#2053](https://github.com/mui/base-ui/pull/2053))
+
+## Scroll Area
+
+- Ignore `data-scrolling` during programmatic scroll ([#1908](https://github.com/mui/base-ui/pull/1908))
+
+## Select
+
+- **Breaking change:** Print raw value in `<Select.Value>`.
+  `<Select.Value>` now prints the raw value by default unless an `items` prop is specified on `<Select.Root>`.
+  See https://base-ui.com/react/components/select#formatting-the-value for more information.
+  ([#2087](https://github.com/mui/base-ui/pull/2087))
+- Performance: avoid re-renders ([#1961](https://github.com/mui/base-ui/pull/1961))
+- Fix close toggle when rendering non-native button ([#2071](https://github.com/mui/base-ui/pull/2071))
+- Fix `<Field.Label>` focusing trigger ([#2118](https://github.com/mui/base-ui/pull/2118))
+- Fix programmatic value changes and autofill handling ([#2084](https://github.com/mui/base-ui/pull/2084))
+- Add `highlighted` to item `State` ([#2079](https://github.com/mui/base-ui/pull/2079))
+- Cut out internal backdrop to allow interacting with triggers ([#2141](https://github.com/mui/base-ui/pull/2141))
+- Pass `value` as state ([#2153](https://github.com/mui/base-ui/pull/2153))
+- Extend `FieldRoot.State` type ([#2192](https://github.com/mui/base-ui/pull/2192))
+
+## Slider
+
+- Use pointer capture when dragging ([#2059](https://github.com/mui/base-ui/pull/2059))
+- Fix slider field label ([#2154](https://github.com/mui/base-ui/pull/2154))
+
+## Switch
+
+- **Breaking change:** Support implicit `<Field.Label>`.
+  If `<Field.Label>` encloses Switch, the `htmlFor`/`id` attributes are no longer explicitly set to associate them.
+  ([#2036](https://github.com/mui/base-ui/pull/2036))
+
+## Tabs
+
+- Fix indicator positioning when TabsList overflows ([#2093](https://github.com/mui/base-ui/pull/2093))
+- Fix focus going out of sync when selected value is changed externally ([#2107](https://github.com/mui/base-ui/pull/2107))
+- Remove highlighted state ([#2164](https://github.com/mui/base-ui/pull/2164))
+
+## Toolbar
+
+- Set `disabled` attr on toolbar button when `focusableWhenDisabled={false}` ([#2176](https://github.com/mui/base-ui/pull/2176))
+
+## useRender
+
+- Make useRender RSC-friendly ([#2134](https://github.com/mui/base-ui/pull/2134))

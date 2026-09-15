@@ -1,0 +1,14 @@
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "jsxImportSource": "vue",
+    "types": ["node", "vite/client", "vitest/globals"]
+  },
+  "include": [
+    "speed.bench.ts",
+    "vite.config.ts",
+    "../bench-utils.ts",
+    "./src/**/*"
+  ]
+}

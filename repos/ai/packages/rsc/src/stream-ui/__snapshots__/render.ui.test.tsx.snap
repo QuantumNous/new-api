@@ -1,0 +1,91 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`should emit React Nodes with async render function 1`] = `
+{
+  "children": {
+    "children": {},
+    "props": {
+      "c": undefined,
+      "n": {
+        "done": false,
+        "next": {
+          "done": true,
+          "value": <div>
+            Weather
+          </div>,
+        },
+        "value": <div>
+          Weather
+        </div>,
+      },
+    },
+    "type": "",
+  },
+  "props": {
+    "fallback": undefined,
+  },
+  "type": "Symbol(react.suspense)",
+}
+`;
+
+exports[`should emit React Nodes with generator render function 1`] = `
+{
+  "children": {
+    "children": {},
+    "props": {
+      "c": undefined,
+      "n": {
+        "done": false,
+        "next": {
+          "done": false,
+          "next": {
+            "done": true,
+            "value": <div>
+              Weather
+            </div>,
+          },
+          "value": <div>
+            Weather
+          </div>,
+        },
+        "value": <div>
+          Loading...
+        </div>,
+      },
+    },
+    "type": "",
+  },
+  "props": {
+    "fallback": undefined,
+  },
+  "type": "Symbol(react.suspense)",
+}
+`;
+
+exports[`should emit React Nodes with sync render function 1`] = `
+{
+  "children": {
+    "children": {},
+    "props": {
+      "c": undefined,
+      "n": {
+        "done": false,
+        "next": {
+          "done": true,
+          "value": <div>
+            Weather
+          </div>,
+        },
+        "value": <div>
+          Weather
+        </div>,
+      },
+    },
+    "type": "",
+  },
+  "props": {
+    "fallback": undefined,
+  },
+  "type": "Symbol(react.suspense)",
+}
+`;

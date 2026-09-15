@@ -1,0 +1,12 @@
+/* Parent route styles */
+.parent-container {
+  background-color: #fef3c7;
+  padding: 16px;
+  border-radius: 8px;
+  border: 2px solid #f59e0b;
+}
+
+.parent-title {
+  color: #92400e;
+  font-weight: 600;
+}

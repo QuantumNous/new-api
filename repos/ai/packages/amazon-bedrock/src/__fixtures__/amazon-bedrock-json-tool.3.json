@@ -1,0 +1,36 @@
+{
+  "output": {
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "First text block."
+        },
+        {
+          "type": "text",
+          "text": "Second text block."
+        },
+        {
+          "type": "text",
+          "text": "Third text block before JSON."
+        },
+        {
+          "toolUse": {
+            "toolUseId": "json-tool-id",
+            "name": "json",
+            "input": {
+              "result": 42
+            }
+          }
+        }
+      ]
+    }
+  },
+  "usage": {
+    "inputTokens": 18,
+    "outputTokens": 35,
+    "totalTokens": 53
+  },
+  "stopReason": "tool_use"
+}

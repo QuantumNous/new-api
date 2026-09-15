@@ -1,0 +1,9 @@
+{
+  "modelVersion": "5.0.1",
+  "description": "Please describe the basic information.",
+  "dependencies": {
+  },
+  "devDependencies": {
+    "@ohos/hypium": "1.0.19"
+  }
+}

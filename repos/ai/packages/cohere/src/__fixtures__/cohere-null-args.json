@@ -1,0 +1,29 @@
+{
+  "id": "316f0604-ff50-49f6-ba38-c64616e972b4",
+  "message": {
+    "role": "assistant",
+    "tool_plan": "I will use the currentTime tool to find the current time.",
+    "tool_calls": [
+      {
+        "id": "currentTime_tf4dywn8wgnk",
+        "type": "function",
+        "function": {
+          "name": "currentTime",
+          "arguments": "null"
+        }
+      }
+    ]
+  },
+  "finish_reason": "TOOL_CALL",
+  "usage": {
+    "billed_units": {
+      "input_tokens": 46,
+      "output_tokens": 14
+    },
+    "tokens": {
+      "input_tokens": 1445,
+      "output_tokens": 43
+    },
+    "cached_tokens": 992
+  }
+}

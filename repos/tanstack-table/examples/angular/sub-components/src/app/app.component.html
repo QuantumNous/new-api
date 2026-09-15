@@ -1,0 +1,69 @@
+<div class="p-2">
+  <div class="overflow-x-auto">
+    <table>
+      <thead>
+        @for (headerGroup of table.getHeaderGroups(); track headerGroup.id) {
+          <tr>
+            @for (header of headerGroup.headers; track header.id) {
+              <th [colSpan]="header.colSpan">
+                @if (!header.isPlaceholder) {
+                  <ng-container
+                    *flexRender="
+                      header.column.columnDef.header;
+                      props: header.getContext();
+                      let header
+                    "
+                  >
+                    <div [innerHTML]="header"></div>
+                  </ng-container>
+                }
+              </th>
+            }
+          </tr>
+        }
+      </thead>
+      <tbody>
+        @for (row of table.getRowModel().rows; track row.id) {
+          <!-- first row is a normal row -->
+          <tr>
+            @for (cell of row.getVisibleCells(); track cell.id) {
+              <td>
+                <ng-container
+                  *flexRender="
+                    cell.column.columnDef.cell;
+                    props: cell.getContext();
+                    let cell
+                  "
+                >
+                  <div [innerHTML]="cell"></div>
+                </ng-container>
+              </td>
+            }
+          </tr>
+
+          @if (row.getIsExpanded()) {
+            <tr>
+              <!-- 2nd row is a custom 1 cell row -->
+              <td [colSpan]="row.getVisibleCells().length">
+                <ng-container
+                  *ngTemplateOutlet="
+                    subComponentTemplate;
+                    context: { $implicit: row }
+                  "
+                />
+              </td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<ng-template #subComponentTemplate let-row>
+  <pre [style.font-size.px]="10" class="bg-gray-100">
+    <code>
+      {{ row.original | json }}
+    </code>
+  </pre>
+</ng-template>

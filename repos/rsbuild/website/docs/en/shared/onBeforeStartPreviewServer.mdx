@@ -1,0 +1,22 @@
+Called before starting the preview server.
+
+Use the `server` parameter to access the preview server and register custom middlewares.
+
+- **Type:**
+
+```ts
+type MaybePromise<T> = T | Promise<T>;
+
+type OnBeforeStartPreviewServerFn = (params: {
+  /**
+   * The preview server instance.
+   */
+  server: RsbuildPreviewServer;
+  /**
+   * Context information for all environments.
+   */
+  environments: Record<string, EnvironmentContext>;
+}) => MaybePromise<void>;
+
+function OnBeforeStartPreviewServer(callback: OnBeforeStartPreviewServerFn): void;
+```

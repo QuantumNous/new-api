@@ -1,0 +1,12 @@
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"2 + 2 equals 4. Now let me check"}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":" the weather for you."}}}
+{"contentBlockStop":{"contentBlockIndex":0}}
+{"contentBlockStart":{"contentBlockIndex":1,"start":{"toolUse":{"toolUseId":"weather-tool-1","name":"weather"}}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"toolUse":{"input":"{\"location\":"}}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"toolUse":{"input":"\"San Francisco\"}"}}}}
+{"contentBlockStop":{"contentBlockIndex":1}}
+{"contentBlockStart":{"contentBlockIndex":2,"start":{"toolUse":{"toolUseId":"weather-tool-2","name":"weather"}}}}
+{"contentBlockDelta":{"contentBlockIndex":2,"delta":{"toolUse":{"input":"{\"location\":\"London\"}"}}}}
+{"contentBlockStop":{"contentBlockIndex":2}}
+{"metadata":{"usage":{"inputTokens":500,"outputTokens":100,"totalTokens":600}}}
+{"messageStop":{"stopReason":"tool_use"}}

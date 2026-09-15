@@ -1,0 +1,113 @@
+# Composition
+
+<Subtitle>A guide to composing Base UI components with your own React components.</Subtitle>
+<Meta
+  name="description"
+  content="A guide to composing Base UI components with your own React components."
+/>
+
+## Composing custom React components
+
+Use the `render` prop to compose a Base UI part with your own React components.
+
+For example, most triggers render a `<button>` by default.
+The code snippet below shows how to use a custom button instead.
+
+```tsx title="index.tsx"
+// prettier-ignore
+<Menu.Trigger render={<MyButton size="md" />}>
+  Open menu
+</Menu.Trigger>
+```
+
+The custom component must forward the `ref`, and spread all the received props on its underlying DOM node.
+
+## Composing multiple components
+
+In situations where you need to compose multiple Base UI components with custom React components, `render` props can be nested as deeply as necessary.
+Working with Tooltip is a common example.
+
+```tsx title="index.tsx"
+<Dialog.Root>
+  <Tooltip.Root>
+    <Tooltip.Trigger
+      render={
+        <Dialog.Trigger
+          // prettier-ignore
+          render={
+            <Menu.Trigger render={<MyButton size="md" />}>
+              Open menu
+            </Menu.Trigger>
+          }
+        />
+      }
+    />
+    <Tooltip.Portal>...</Tooltip.Portal>
+  </Tooltip.Root>
+  <Dialog.Portal>...</Dialog.Portal>
+</Dialog.Root>
+```
+
+## Changing the default rendered element
+
+You can also use the `render` prop to override the rendered element of the component.
+
+For example, `<Menu.Item>` renders a `<div>` by default.
+The code snippet below shows how to render it as an `<a>` element so that it works like a link.
+
+```tsx title="index.tsx"
+import { Menu } from '@base-ui/react/menu';
+
+export default () => (
+  <Menu.Root>
+    <Menu.Trigger>Song</Menu.Trigger>
+    <Menu.Portal>
+      <Menu.Positioner>
+        <Menu.Popup>
+          {/* prettier-ignore */}
+          <Menu.Item render={<a href="base-ui.com" />}>
+            Add to Library
+          </Menu.Item>
+        </Menu.Popup>
+      </Menu.Positioner>
+    </Menu.Portal>
+  </Menu.Root>
+);
+```
+
+Each Base UI component renders the most appropriate element by default, and in most cases, rendering a different element is recommended only on a case-by-case basis.
+
+## Render function
+
+If you are working in an extremely performance-sensitive application, you might want to pass a function to the `render` prop instead of a React element.
+
+```tsx title="switch.tsx"
+<Switch.Thumb
+  render={(props, state) =>
+    // prettier-ignore
+    <span {...props}>
+      {state.checked ? <CheckedIcon /> : <UncheckedIcon />}
+    </span>
+  }
+/>
+```
+
+Using a function gives you complete control over spreading props and also allows you to render different content based on the component's state.
+
+export const metadata = {
+  keywords: [
+    'Base UI Composition',
+    'React Render Prop',
+    'Compose Headless Components',
+    'Custom Trigger Render',
+    'Nested Render Props',
+    'Composition Handbook',
+    'Component Composition',
+    'Render Props Pattern',
+    'Compound Components',
+    'Polymorphic Components',
+    'As Prop',
+    'Custom Elements',
+    'Wrapper Components',
+  ],
+};

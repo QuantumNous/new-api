@@ -1,0 +1,97 @@
+---
+description: '在这篇文档中，你可以了解到如何基于 Rsbuild 构建 Vue 应用，以及如何支持 Vue 2。'
+---
+
+# Vue
+
+在这篇文档中，你可以了解到如何基于 Rsbuild 构建 Vue 应用，以及如何支持 Vue 2。
+
+## 创建 Vue 应用
+
+使用 [create-rsbuild](/guide/start/quick-start#create-an-rsbuild-application) 来创建一个基于 Rsbuild 的 Vue 应用，运行以下命令：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs
+  command={{
+    npm: 'npm create rsbuild@latest',
+    yarn: 'yarn create rsbuild',
+    pnpm: 'pnpm create rsbuild@latest',
+    bun: 'bun create rsbuild@latest',
+  }}
+/>
+
+然后在 `Select framework` 时选择 `Vue` 即可。
+
+## Vue 3
+
+### 在已有项目中使用 Vue
+
+为了能够编译 Vue 的 SFC（单文件组件），你需要注册 Rsbuild 的 [Vue 插件](/plugins/list/plugin-vue)，插件会自动添加 Vue 构建所需的配置。
+
+例如，在 `rsbuild.config.ts` 中注册：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginVue } from '@rsbuild/plugin-vue';
+
+export default defineConfig({
+  plugins: [pluginVue()],
+});
+```
+
+:::tip
+对于使用 Vue CLI 的项目，可以参考 [Vue CLI 迁移指南](/guide/migration/vue-cli)。
+:::
+
+### 使用 Vue JSX 语法
+
+如果你需要使用 Vue 的 JSX 语法，还需要注册 Rsbuild 的 [Vue JSX 插件](https://github.com/rstackjs/rsbuild-plugin-vue-jsx)。
+
+### TypeScript 支持
+
+Rsbuild 默认支持编译 TypeScript。
+
+请参考 Vue 官方文档的 [TypeScript - IDE 支持](https://cn.vuejs.org/guide/typescript/overview.html#ide-support) 小节，了解如何在 IDE 中设置 Vue TypeScript 支持。
+
+## Vue 2
+
+### 在已有项目中使用 Vue 2
+
+为了能够编译 Vue 的 SFC（单文件组件），你需要注册 Rsbuild 的 [Vue 2 插件](https://github.com/rstackjs/rsbuild-plugin-vue2)，插件会自动添加 Vue 构建所需的配置。
+
+例如，在 `rsbuild.config.ts` 中注册：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginVue2 } from '@rsbuild/plugin-vue2';
+
+export default defineConfig({
+  plugins: [pluginVue2()],
+});
+```
+
+:::tip
+
+- Vue 2 插件仅支持 Vue >= 2.7.0 版本。
+- 对于使用 Vue CLI 的项目，可以参考 [Vue CLI 迁移指南](/guide/migration/vue-cli)。
+
+:::
+
+### 使用 Vue JSX 语法
+
+如果你需要使用 Vue 的 JSX 语法，还需要注册 Rsbuild 的 [Vue 2 JSX 插件](https://github.com/rstackjs/rsbuild-plugin-vue2-jsx)。
+
+### 类型声明
+
+在 TypeScript 项目中，你需要为 `*.vue` 文件添加类型定义，使 TypeScript 能够正确识别它。
+
+请在 `src` 目录下创建 `env.d.ts`，并添加以下内容：
+
+```ts title="src/env.d.ts"
+declare module '*.vue' {
+  import Vue from 'vue';
+
+  export default Vue;
+}
+```

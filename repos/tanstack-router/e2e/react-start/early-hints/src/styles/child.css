@@ -1,0 +1,13 @@
+/* Child route styles */
+.child-container {
+  background-color: #dbeafe;
+  padding: 12px;
+  border-radius: 6px;
+  border: 2px solid #3b82f6;
+  margin-top: 8px;
+}
+
+.child-title {
+  color: #1e40af;
+  font-weight: 600;
+}
