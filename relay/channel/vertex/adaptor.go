@@ -131,6 +131,21 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix string) (string, error) {
 	region := GetModelRegion(info.ApiVersion, info.OriginModelName)
+	googleAPIVersion := DefaultAPIVersion
+	if request, ok := info.Request.(*dto.GeminiChatRequest); ok && request != nil {
+		for _, content := range request.Contents {
+			for _, part := range content.Parts {
+				// Agentic video and its replayed navigation context require v1beta1.
+				if (part.MediaProcessing != nil && strings.EqualFold(*part.MediaProcessing, "AGENTIC")) || len(part.ToolCall) > 0 || len(part.ToolResponse) > 0 {
+					googleAPIVersion = "v1beta1"
+				}
+			}
+		}
+	}
+	googleBaseURL := info.ChannelBaseUrl
+	if googleAPIVersion != DefaultAPIVersion {
+		googleBaseURL = strings.TrimSuffix(normalizeVertexBaseURL(googleBaseURL), "/"+DefaultAPIVersion)
+	}
 	if info.ChannelOtherSettings.VertexKeyType != dto.VertexKeyTypeAPIKey {
 		adc := &Credentials{}
 		if err := common.Unmarshal([]byte(info.ApiKey), adc); err != nil {
@@ -139,7 +154,7 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		a.AccountCredentials = *adc
 
 		if a.RequestMode == RequestModeGemini {
-			return BuildGoogleModelURL(info.ChannelBaseUrl, DefaultAPIVersion, adc.ProjectID, region, modelName, suffix), nil
+			return BuildGoogleModelURL(googleBaseURL, googleAPIVersion, adc.ProjectID, region, modelName, suffix), nil
 		} else if a.RequestMode == RequestModeClaude {
 			return BuildAnthropicModelURL(info.ChannelBaseUrl, DefaultAPIVersion, adc.ProjectID, region, modelName, suffix), nil
 		} else if a.RequestMode == RequestModeOpenSource {
@@ -155,7 +170,7 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		if a.RequestMode == RequestModeGemini {
 			return fmt.Sprintf(
 				"%s%skey=%s",
-				BuildGoogleModelURL(info.ChannelBaseUrl, DefaultAPIVersion, "", region, modelName, suffix),
+				BuildGoogleModelURL(googleBaseURL, googleAPIVersion, "", region, modelName, suffix),
 				keyPrefix,
 				info.ApiKey,
 			), nil
