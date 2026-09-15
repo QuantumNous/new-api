@@ -232,23 +232,34 @@ func countClaudeStreamBillableTools(c *gin.Context, info *relaycommon.RelayInfo,
 }
 
 func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo) {
-	if claudeInfo.Usage.PromptTokens == 0 {
-		//上游出错
-	}
+	// 判断是否为上游错误：如果没有收到任何有效的响应内容且 PromptTokens 为 0
+	isUpstreamError := claudeInfo.Usage.PromptTokens == 0 && claudeInfo.ResponseText.Len() == 0
+
 	if claudeInfo.Usage.CompletionTokens == 0 || !claudeInfo.Done {
 		if common.DebugEnabled {
 			common.SysLog("claude response usage is not complete, maybe upstream error")
 		}
-		// 只补缺失字段，不整份覆盖——保留 message_start 已拿到的 cache 字段
-		fallback := service.ResponseText2Usage(c, claudeInfo.ResponseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
-		if claudeInfo.Usage.CompletionTokens == 0 ||
-			(!claudeInfo.Done && fallback.CompletionTokens > claudeInfo.Usage.CompletionTokens) {
-			claudeInfo.Usage.CompletionTokens = fallback.CompletionTokens
+
+		// 如果是上游错误（没有返回任何内容且没有 usage），不要用预估值填充
+		// 这样可以避免在上游报错时仍然扣费
+		if isUpstreamError {
+			if common.DebugEnabled {
+				common.SysLog("upstream error detected, skipping usage estimation to avoid charging")
+			}
+			// 保持 usage 为空，后续的计费逻辑会识别并跳过扣费
+		} else {
+			// 只有在正常情况下（有响应内容但 usage 不完整）才补缺失字段
+			// 保留 message_start 已拿到的 cache 字段
+			fallback := service.ResponseText2Usage(c, claudeInfo.ResponseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+			if claudeInfo.Usage.CompletionTokens == 0 ||
+				(!claudeInfo.Done && fallback.CompletionTokens > claudeInfo.Usage.CompletionTokens) {
+				claudeInfo.Usage.CompletionTokens = fallback.CompletionTokens
+			}
+			if claudeInfo.Usage.PromptTokens == 0 {
+				claudeInfo.Usage.PromptTokens = fallback.PromptTokens
+			}
+			claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 		}
-		if claudeInfo.Usage.PromptTokens == 0 {
-			claudeInfo.Usage.PromptTokens = fallback.PromptTokens
-		}
-		claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 	}
 	if claudeInfo.Usage != nil {
 		claudeInfo.Usage.UsageSemantic = "anthropic"
