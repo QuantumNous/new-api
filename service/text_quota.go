@@ -39,34 +39,36 @@ func appendToolSurchargeLogInfo(other *model.LogOther, items []ToolSurchargeItem
 }
 
 type textQuotaSummary struct {
-	PromptTokens           int
-	CompletionTokens       int
-	TotalTokens            int
-	CacheTokens            int
-	CacheCreationTokens    int
-	CacheCreationTokens5m  int
-	CacheCreationTokens1h  int
-	ImageTokens            int
-	AudioTokens            int
-	ModelName              string
-	TokenName              string
-	UseTimeSeconds         int64
-	CompletionRatio        float64
-	CacheRatio             float64
-	ImageRatio             float64
-	ModelRatio             float64
-	GroupRatio             float64
-	ModelPrice             float64
-	CacheCreationRatio     float64
-	CacheCreationRatio5m   float64
-	CacheCreationRatio1h   float64
-	Quota                  int
-	IsClaudeUsageSemantic  bool
-	UsageSemantic          string
-	AudioInputPrice        float64
-	ToolSurchargeItems     []ToolSurchargeItem
-	ToolCallSurchargeQuota decimal.Decimal
-	FixedPriceBilling      bool
+	PromptTokens             int
+	CompletionTokens         int
+	TotalTokens              int
+	CacheTokens              int
+	CacheCreationTokens      int
+	CacheCreationTokens5m    int
+	CacheCreationTokens1h    int
+	ImageTokens              int
+	AudioTokens              int
+	ModelName                string
+	TokenName                string
+	UseTimeSeconds           int64
+	CompletionRatio          float64
+	CacheRatio               float64
+	ImageRatio               float64
+	ModelRatio               float64
+	GroupRatio               float64
+	ModelPrice               float64
+	CacheCreationRatio       float64
+	CacheCreationRatio5m     float64
+	CacheCreationRatio1h     float64
+	Quota                    int
+	IsClaudeUsageSemantic    bool
+	UsageSemantic            string
+	AudioInputPrice          float64
+	ToolSurchargeItems       []ToolSurchargeItem
+	ToolCallSurchargeQuota   decimal.Decimal
+	FixedPriceBilling        bool
+	PromptTokensExcludeCache bool
+	OpenRouterClaudeBilling  bool
 }
 
 // hasBillableUsage reports whether this request should incur any charge.
@@ -86,6 +88,21 @@ func cacheWriteTokensTotal(summary textQuotaSummary) int {
 		return splitCacheWriteTokens
 	}
 	return summary.CacheCreationTokens
+}
+
+// consumeLogPromptTokens is the total-input count written to consume logs.
+// Anthropic-style PromptTokens are fresh-only; cache read/write are added back
+// so TPM, SumUsedToken, and quota_data.token_used match OpenAI-style totals.
+func (s textQuotaSummary) consumeLogPromptTokens() int {
+	if !s.PromptTokensExcludeCache {
+		return s.PromptTokens
+	}
+	if s.OpenRouterClaudeBilling {
+		// OpenRouter starts with total input. Restore exactly the cache counts
+		// removed for billing, not a larger total derived from split writes.
+		return s.PromptTokens + s.CacheTokens + s.CacheCreationTokens
+	}
+	return s.PromptTokens + s.CacheTokens + cacheWriteTokensTotal(s)
 }
 
 func isLegacyClaudeDerivedOpenAIUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) bool {
@@ -265,11 +282,12 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary.ImageTokens = usage.PromptTokensDetails.ImageTokens
 	summary.AudioTokens = usage.PromptTokensDetails.AudioTokens
 	legacyClaudeDerived := isLegacyClaudeDerivedOpenAIUsage(relayInfo, usage)
-	isOpenRouterClaudeBilling := relayInfo.ChannelMeta != nil &&
+	summary.PromptTokensExcludeCache = summary.IsClaudeUsageSemantic || legacyClaudeDerived
+	summary.OpenRouterClaudeBilling = relayInfo.ChannelMeta != nil &&
 		relayInfo.ChannelType == constant.ChannelTypeOpenRouter &&
 		summary.IsClaudeUsageSemantic
 
-	if isOpenRouterClaudeBilling {
+	if summary.OpenRouterClaudeBilling {
 		summary.PromptTokens -= summary.CacheTokens
 		isUsingCustomSettings := relayInfo.PriceData.UsePrice || hasCustomModelRatio(summary.ModelName, relayInfo.PriceData.ModelRatio)
 		if summary.CacheCreationTokens == 0 && relayInfo.PriceData.CacheCreationRatio != 1 && usage.Cost != 0 && !isUsingCustomSettings {
@@ -537,7 +555,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
-		PromptTokens:     summary.PromptTokens,
+		PromptTokens:     summary.consumeLogPromptTokens(),
 		CompletionTokens: summary.CompletionTokens,
 		ModelName:        logModel,
 		TokenName:        summary.TokenName,
