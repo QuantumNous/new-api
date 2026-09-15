@@ -121,24 +121,12 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
 
-	// Direct forward (selective hold): forward every frame the moment it is
-	// read instead of lagging one frame behind. Only a usage-only candidate
-	// (usage object present, choices empty) is held for one step — the one
-	// shape handleLastResponse may swallow before the client sees it; every
-	// frame with choices streams through untouched, including frames with a
-	// piggybacked usage. A consequence worth naming: a terminal frame that
-	// combines choices with usage (finish_reason/tool_calls + usage) is
-	// delivered to the client, where the lag-by-one path swallowed it — the
-	// delivered frame is the upstream's own legal frame and billing still
-	// reads usage off the terminal frame, so the divergence only ever adds
-	// data. This removes the gateway-added first-token delay against
-	// upstreams that stay silent between their first and second frames
-	// (block-buffered tool-call parsers). Scoped to the OpenAI relay format:
-	// Claude/Gemini conversions hand the terminal frame to
-	// HandleFinalResponse for their closing events, so they keep the
-	// lag-by-one path.
+	// OpenAI format forwards every frame the moment it is read, including a
+	// terminal usage frame the client did not ask for: whatever usage the
+	// upstream returns is passed through. Claude/Gemini conversions keep the
+	// lag-by-one path because HandleFinalResponse needs the unsent terminal
+	// frame for their closing events.
 	directForward := info.RelayFormat == types.RelayFormatOpenAI
-	var pendingUsageFrame string
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		if !directForward && lastStreamData != "" {
@@ -147,34 +135,17 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 				sr.Error(err)
 			}
 		}
-		if len(data) == 0 {
-			return
-		}
 		if lastStreamData != "" {
 			secondLastStreamData = lastStreamData
 		}
 
 		lastStreamData = data
 		collectStreamFunctionCallNames(data, seenStreamToolCalls, &streamFunctionCallNames)
-		holdForUsageVerdict, err := processTokenData(info.RelayMode, data, &responseTextBuilder, &toolCount)
-		if err != nil {
+		if err := processTokenData(info.RelayMode, data, &responseTextBuilder, &toolCount); err != nil {
 			logger.LogError(c, "error processing stream token data: "+err.Error())
 			sr.Error(err)
 		}
 		if !directForward {
-			return
-		}
-		// The arrival of this frame proves the held usage frame was not
-		// terminal; release it in order before handling the current one.
-		if pendingUsageFrame != "" {
-			if err := HandleStreamFormat(c, info, pendingUsageFrame, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
-				common.SysLog("error handling stream format: " + err.Error())
-				sr.Error(err)
-			}
-			pendingUsageFrame = ""
-		}
-		if holdForUsageVerdict {
-			pendingUsageFrame = data
 			return
 		}
 		if err := HandleStreamFormat(c, info, data, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
@@ -184,9 +155,8 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	})
 
 	// 处理最后的响应
-	shouldSendLastResp := true
 	if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
-		&containStreamUsage, info, &shouldSendLastResp); err != nil {
+		&containStreamUsage); err != nil {
 		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
 	}
 
@@ -210,18 +180,6 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 					usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens,
 					usage.InputTokens, usage.OutputTokens)
 			}
-		}
-	}
-
-	if info.RelayFormat == types.RelayFormatOpenAI {
-		if directForward {
-			// Every non-usage frame has already been forwarded the moment it
-			// was read; only a held usage frame still awaits the verdict.
-			if pendingUsageFrame != "" && shouldSendLastResp {
-				_ = sendStreamData(c, info, pendingUsageFrame, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
-			}
-		} else if shouldSendLastResp {
-			_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
 		}
 	}
 

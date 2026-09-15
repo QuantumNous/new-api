@@ -14,8 +14,6 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 
-	"github.com/samber/lo"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -137,44 +135,22 @@ func ProcessStreamResponse(streamResponse dto.ChatCompletionsStreamResponse, res
 	return nil
 }
 
-// processTokenData accumulates text/tool tokens from one SSE frame and reports
-// whether the direct-forward path must hold the frame for the end-of-stream
-// usage verdict. Only a usage-only candidate is held: the frame carries a
-// usage object (present, non-null) and its choices are empty — the one shape
-// handleLastResponse may swallow before the client sees it. Any frame with
-// choices (role/content/reasoning/tool_calls/finish_reason, with or without a
-// piggybacked usage) streams through immediately; the verdict's
-// content/reasoning check is constant-false on empty choices, so hold and
-// swallow stay decided by the same predicate. Note this treats an absent
-// choices key the same as an explicit empty array — the closed DTO cannot
-// tell them apart, and both only occur on usage/keep-alive shaped frames.
-func processTokenData(relayMode int, data string, responseTextBuilder *strings.Builder, toolCount *int) (bool, error) {
+func processTokenData(relayMode int, data string, responseTextBuilder *strings.Builder, toolCount *int) error {
 	switch relayMode {
 	case relayconstant.RelayModeChatCompletions:
 		var streamResponse dto.ChatCompletionsStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
-			return false, err
+			return err
 		}
-		holdForUsageVerdict := streamResponse.Usage != nil && len(streamResponse.Choices) == 0
-		return holdForUsageVerdict, ProcessStreamResponse(streamResponse, responseTextBuilder, toolCount)
+		return ProcessStreamResponse(streamResponse, responseTextBuilder, toolCount)
 	case relayconstant.RelayModeCompletions:
 		var streamResponse dto.CompletionsStreamResponse
 		if err := common.UnmarshalJsonStr(data, &streamResponse); err != nil {
-			return false, err
+			return err
 		}
 		processCompletionsStreamResponse(streamResponse, responseTextBuilder)
-		// CompletionsStreamResponse carries no usage field, but
-		// handleLastResponse parses the terminal frame as a chat stream
-		// response and can still find one; probe the same way so the
-		// hold/swallow verdict matches.
-		var usageProbe struct {
-			Usage *dto.Usage `json:"usage"`
-		}
-		if err := common.UnmarshalJsonStr(data, &usageProbe); err == nil && usageProbe.Usage != nil && len(streamResponse.Choices) == 0 {
-			return true, nil
-		}
 	}
-	return false, nil
+	return nil
 }
 
 func processCompletionsStreamResponse(streamResponse dto.CompletionsStreamResponse, responseTextBuilder *strings.Builder) {
@@ -185,8 +161,7 @@ func processCompletionsStreamResponse(streamResponse dto.CompletionsStreamRespon
 
 func handleLastResponse(lastStreamData string, responseId *string, createAt *int64,
 	systemFingerprint *string, model *string, usage **dto.Usage,
-	containStreamUsage *bool, info *relaycommon.RelayInfo,
-	shouldSendLastResp *bool) error {
+	containStreamUsage *bool) error {
 
 	var lastStreamResponse dto.ChatCompletionsStreamResponse
 	if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &lastStreamResponse); err != nil {
@@ -201,11 +176,6 @@ func handleLastResponse(lastStreamData string, responseId *string, createAt *int
 	if service.ValidUsage(lastStreamResponse.Usage) {
 		*containStreamUsage = true
 		*usage = dto.MergeUsageNonZero(*usage, lastStreamResponse.Usage)
-		if !info.ShouldIncludeUsage {
-			*shouldSendLastResp = lo.SomeBy(lastStreamResponse.Choices, func(choice dto.ChatCompletionsStreamResponseChoice) bool {
-				return choice.Delta.GetContentString() != "" || choice.Delta.GetReasoningContent() != ""
-			})
-		}
 	}
 
 	return nil
