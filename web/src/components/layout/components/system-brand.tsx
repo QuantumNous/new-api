@@ -26,7 +26,8 @@ import {
 } from '@/components/ui/sidebar'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
-import { DEFAULT_SYSTEM_NAME, resolveSystemName } from '@/lib/constants'
+import { DEFAULT_SYSTEM_NAME } from '@/lib/constants'
+import { resolveProductName } from '@/lib/product-brand'
 import { cn } from '@/lib/utils'
 
 type SystemBrandProps = {
@@ -44,7 +45,7 @@ type SystemBrandProps = {
  * System brand component
  * Displays current system logo + name.
  * - inline: compact pill in the top app bar; clicking navigates to home (/)
- * - sidebar: stacked card in the sidebar header (display only)
+ * - sidebar: stacked card in the sidebar header; clicking navigates to home (/)
  */
 export function SystemBrand(props: SystemBrandProps) {
   const { t } = useTranslation()
@@ -52,7 +53,7 @@ export function SystemBrand(props: SystemBrandProps) {
   const { logo } = useSystemConfig()
 
   const variant = props.variant ?? 'sidebar'
-  const name = resolveSystemName(
+  const name = resolveProductName(
     status?.system_name || props.defaultName || DEFAULT_SYSTEM_NAME
   )
   const version =
@@ -75,7 +76,7 @@ export function SystemBrand(props: SystemBrandProps) {
             className='size-full rounded-md object-cover'
           />
         </div>
-        <span className='max-w-[12rem] truncate'>{name}</span>
+        <span className='max-w-[12rem] min-w-0 truncate'>{name}</span>
       </Link>
     )
   }
@@ -85,8 +86,8 @@ export function SystemBrand(props: SystemBrandProps) {
       <SidebarMenuItem>
         <SidebarMenuButton
           size='lg'
-          className='hover:text-sidebar-foreground active:text-sidebar-foreground cursor-default hover:bg-transparent active:bg-transparent'
-          render={<div />}
+          className='hover:text-sidebar-foreground active:text-sidebar-foreground'
+          render={<Link to='/' aria-label={t('Go to home')} />}
         >
           <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg'>
             <img

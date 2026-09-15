@@ -11,173 +11,62 @@ import sys
 from pathlib import Path
 
 from .paths import DIR_WORKFLOW, get_repo_root
+from .trellis_config import parse_simple_yaml
 
-
-# =============================================================================
-# YAML Simple Parser (no dependencies)
-# =============================================================================
-
-
-def _unquote(s: str) -> str:
-    """Remove exactly one layer of matching surrounding quotes.
-
-    Unlike str.strip('"'), this only removes the outermost pair,
-    preserving any nested quotes inside the value.
-
-    Examples:
-        _unquote('"hello"')        -> 'hello'
-        _unquote("'hello'")        -> 'hello'
-        _unquote('"echo \\'hi\\'"')  -> "echo 'hi'"
-        _unquote('hello')          -> 'hello'
-        _unquote('"hello\\'')       -> '"hello\\''  (mismatched, unchanged)
-    """
-    if len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'"):
-        return s[1:-1]
-    return s
-
-
-def _strip_inline_comment(value: str) -> str:
-    """Strip ` # …` inline comments while preserving `#` inside quoted strings.
-
-    YAML treats ` #` (space-hash) as a comment opener; bare `#` inside a token
-    is part of the value. Quoted strings are immune.
-
-    Mirrors :func:`common.trellis_config._strip_inline_comment` so both
-    parsers handle ``key: value  # comment`` identically.
-    """
-    in_quote: str | None = None
-    for idx, ch in enumerate(value):
-        if in_quote:
-            if ch == in_quote:
-                in_quote = None
-            continue
-        if ch in ('"', "'"):
-            in_quote = ch
-            continue
-        if ch == "#" and (idx == 0 or value[idx - 1].isspace()):
-            return value[:idx]
-    return value
-
-
-def parse_simple_yaml(content: str) -> dict:
-    """Parse simple YAML with nested dict support (no dependencies).
-
-    Supports:
-        - key: value (string)
-        - key: (followed by list items)
-            - item1
-            - item2
-        - key: (followed by nested dict)
-            nested_key: value
-            nested_key2:
-              - item
-
-    Uses indentation to detect nesting (2+ spaces deeper = child).
-
-    Args:
-        content: YAML content string.
-
-    Returns:
-        Parsed dict (values can be str, list[str], or dict).
-    """
-    lines = content.splitlines()
-    result: dict = {}
-    _parse_yaml_block(lines, 0, 0, result)
-    return result
-
-
-def _parse_yaml_block(
-    lines: list[str], start: int, min_indent: int, target: dict
-) -> int:
-    """Parse a YAML block into target dict, returning next line index."""
-    i = start
-    current_list: list | None = None
-
-    while i < len(lines):
-        line = lines[i]
-        stripped = line.strip()
-
-        # Skip empty lines and comments
-        if not stripped or stripped.startswith("#"):
-            i += 1
-            continue
-
-        # Calculate indentation
-        indent = len(line) - len(line.lstrip())
-
-        # If dedented past our block, we're done
-        if indent < min_indent:
-            break
-
-        if stripped.startswith("- "):
-            if current_list is not None:
-                current_list.append(_unquote(stripped[2:].strip()))
-            i += 1
-        elif ":" in stripped:
-            key, _, value = stripped.partition(":")
-            key = key.strip()
-            value = _strip_inline_comment(value).strip()
-            value = _unquote(value)
-            current_list = None
-
-            if value:
-                # key: value
-                target[key] = value
-                i += 1
-            else:
-                # key: (no value) — peek ahead to determine list vs nested dict
-                next_i, next_line = _next_content_line(lines, i + 1)
-                if next_i >= len(lines):
-                    target[key] = {}
-                    i = next_i
-                elif next_line.strip().startswith("- "):
-                    # It's a list
-                    current_list = []
-                    target[key] = current_list
-                    i += 1
-                else:
-                    next_indent = len(next_line) - len(next_line.lstrip())
-                    if next_indent > indent:
-                        # It's a nested dict
-                        nested: dict = {}
-                        target[key] = nested
-                        i = _parse_yaml_block(lines, i + 1, next_indent, nested)
-                    else:
-                        # Empty value, same or less indent follows
-                        target[key] = {}
-                        i += 1
-        else:
-            i += 1
-
-    return i
-
-
-def _next_content_line(lines: list[str], start: int) -> tuple[int, str]:
-    """Find the next non-empty, non-comment line."""
-    i = start
-    while i < len(lines):
-        stripped = lines[i].strip()
-        if stripped and not stripped.startswith("#"):
-            return i, lines[i]
-        i += 1
-    return i, ""
+# The YAML subset parser lives in trellis_config.py — it imports nothing from
+# this package, so hooks can load it as a single standalone file. Two byte-
+# equivalent copies is a drift hazard, not a feature.
 
 
 # Defaults
 DEFAULT_SESSION_COMMIT_MESSAGE = "chore: record journal"
 DEFAULT_MAX_JOURNAL_LINES = 2000
 DEFAULT_SESSION_AUTO_COMMIT = True
+DEFAULT_CODEX_DISPATCH_MODE = "auto"
 
 CONFIG_FILE = "config.yaml"
 
 
-def _is_true_config_value(value: object) -> bool:
-    """Return True when a config value represents an enabled flag."""
+TRUE_CONFIG_VALUES = ("true", "yes", "1", "on")
+FALSE_CONFIG_VALUES = ("false", "no", "0", "off")
+
+
+def coerce_config_bool(
+    value: object,
+    default: bool,
+    label: str,
+) -> bool:
+    """Coerce a config value to a bool, warning on anything unrecognized.
+
+    The parser stores every value as a string, so ``git: yes`` arrives as
+    ``"yes"``. Every boolean config key goes through this one helper: an
+    accepted-here/rejected-there split means a user writing a perfectly
+    reasonable YAML boolean silently gets the opposite branch.
+
+    Args:
+        value: Raw value from the parsed config.
+        default: Returned when the value is unrecognized.
+        label: Config key name, used in the warning.
+    """
     if isinstance(value, bool):
         return value
-    if isinstance(value, str):
-        return value.strip().lower() == "true"
-    return False
+    s = str(value).strip().lower()
+    if s in TRUE_CONFIG_VALUES:
+        return True
+    if s in FALSE_CONFIG_VALUES:
+        return False
+    print(
+        f"[WARN] invalid {label} value: {value!r}; using {str(default).lower()} (default)",
+        file=sys.stderr,
+    )
+    return default
+
+
+def _is_true_config_value(value: object, label: str = "config flag") -> bool:
+    """Return True when a config value represents an enabled flag."""
+    if value is None:
+        return False
+    return coerce_config_bool(value, False, label)
 
 
 def _get_config_path(repo_root: Path | None = None) -> Path:
@@ -187,13 +76,27 @@ def _get_config_path(repo_root: Path | None = None) -> Path:
 
 
 def _load_config(repo_root: Path | None = None) -> dict:
-    """Load and parse config.yaml. Returns empty dict on any error."""
+    """Load and parse config.yaml. Returns empty dict on any error.
+
+    Fail-open, matching ``trellis_config.read_trellis_config``: a malformed
+    config must not take down ``task.py create``. A parse failure is reported
+    once on stderr so it is not invisible.
+    """
     config_file = _get_config_path(repo_root)
     try:
         content = config_file.read_text(encoding="utf-8")
-        return parse_simple_yaml(content)
     except (OSError, IOError):
         return {}
+    try:
+        parsed = parse_simple_yaml(content, source=str(config_file))
+    except Exception as e:
+        print(
+            f"[WARN] could not parse {config_file}: {type(e).__name__}: {e}; "
+            "using defaults",
+            file=sys.stderr,
+        )
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def get_session_commit_message(repo_root: Path | None = None) -> str:
@@ -229,18 +132,131 @@ def get_session_auto_commit(repo_root: Path | None = None) -> bool:
     """
     config = _load_config(repo_root)
     raw = config.get("session_auto_commit", DEFAULT_SESSION_AUTO_COMMIT)
-    if isinstance(raw, bool):
-        return raw
-    s = str(raw).strip().lower()
-    if s in ("true", "yes", "1", "on"):
-        return True
-    if s in ("false", "no", "0", "off"):
-        return False
+    return coerce_config_bool(
+        raw, DEFAULT_SESSION_AUTO_COMMIT, "session_auto_commit"
+    )
+
+
+def get_codex_dispatch_mode(repo_root: Path | None = None) -> str:
+    """Return Codex dispatch mode.
+
+    Default is ``auto``, which dispatches Trellis sub-agents and uses native
+    context injection with a child-side fallback. ``inline`` is an explicit
+    opt-out. ``sub-agent`` remains a backwards-compatible alias for ``auto``.
+
+    Invalid explicit configuration falls back to ``inline`` rather than
+    unexpectedly dispatching a sub-agent. This CLI-facing parser is the only
+    place that emits a warning for invalid values; hook readers fail safely
+    without producing per-turn warning noise.
+    """
+    config = _load_config(repo_root)
+    codex = config.get("codex")
+    if codex is None:
+        return DEFAULT_CODEX_DISPATCH_MODE
+    if not isinstance(codex, dict):
+        print(
+            f"[WARN] invalid codex config: {codex!r}; using inline",
+            file=sys.stderr,
+        )
+        return "inline"
+
+    raw = codex.get("dispatch_mode", DEFAULT_CODEX_DISPATCH_MODE)
+    mode = str(raw).strip().lower()
+    if mode in ("auto", "inline"):
+        return mode
+    if mode == "sub-agent":
+        return "auto"
     print(
-        f"[WARN] invalid session_auto_commit value: {raw!r}; using true (default)",
+        f"[WARN] invalid codex.dispatch_mode value: {raw!r}; using inline",
         file=sys.stderr,
     )
-    return DEFAULT_SESSION_AUTO_COMMIT
+    return "inline"
+
+
+DEFAULT_CONTEXT_INJECTION_MAX_FILE_BYTES = 32768
+DEFAULT_CONTEXT_INJECTION_MAX_ARTIFACT_BYTES = 65536
+DEFAULT_CONTEXT_INJECTION_MAX_TOTAL_BYTES = 131072
+
+
+def get_context_injection_limits(repo_root: Path | None = None) -> dict[str, int]:
+    """Return sub-agent context injection byte limits.
+
+    Reads the ``context_injection:`` section of ``.trellis/config.yaml``:
+
+        context_injection:
+          max_file_bytes: 32768
+          max_artifact_bytes: 65536
+          max_total_bytes: 131072
+
+    ``0`` disables the corresponding limit. Missing keys use their default;
+    invalid (non-int or negative) values fall back to the default for that
+    key with a stderr warning.
+    """
+    defaults = {
+        "max_file_bytes": DEFAULT_CONTEXT_INJECTION_MAX_FILE_BYTES,
+        "max_artifact_bytes": DEFAULT_CONTEXT_INJECTION_MAX_ARTIFACT_BYTES,
+        "max_total_bytes": DEFAULT_CONTEXT_INJECTION_MAX_TOTAL_BYTES,
+    }
+
+    config = _load_config(repo_root)
+    section = config.get("context_injection")
+    if not isinstance(section, dict):
+        return defaults
+
+    result = dict(defaults)
+    for key, default_value in defaults.items():
+        if key not in section:
+            continue
+        raw = section[key]
+        try:
+            value = int(raw)
+        except (TypeError, ValueError):
+            print(
+                f"[WARN] invalid context_injection.{key} value: {raw!r}; "
+                f"using default {default_value}",
+                file=sys.stderr,
+            )
+            continue
+        if value < 0:
+            print(
+                f"[WARN] invalid context_injection.{key} value: {raw!r}; "
+                f"using default {default_value}",
+                file=sys.stderr,
+            )
+            continue
+        result[key] = value
+
+    return result
+
+
+DEFAULT_PROMPT_INJECTION_SKIP_KEYWORD = "no-trellis"
+
+
+def get_prompt_injection_config(repo_root: Path | None = None) -> dict[str, str]:
+    """Return per-turn prompt injection config.
+
+    Reads the ``prompt_injection:`` section of ``.trellis/config.yaml``:
+
+        prompt_injection:
+          skip_keyword: "no-trellis"   # "" disables the escape hatch entirely
+
+    ``skip_keyword`` is the word-boundary, case-insensitive keyword that, when
+    present in the user's prompt, makes the per-turn workflow-state injection
+    emit nothing for that turn. Defaults to ``"no-trellis"``. A non-string
+    value falls back to the default.
+    """
+    defaults = {"skip_keyword": DEFAULT_PROMPT_INJECTION_SKIP_KEYWORD}
+
+    config = _load_config(repo_root)
+    section = config.get("prompt_injection")
+    if not isinstance(section, dict):
+        return defaults
+
+    result = dict(defaults)
+    raw = section.get("skip_keyword", DEFAULT_PROMPT_INJECTION_SKIP_KEYWORD)
+    if isinstance(raw, str):
+        result["skip_keyword"] = raw
+    return result
 
 
 def get_hooks(event: str, repo_root: Path | None = None) -> list[str]:
@@ -250,16 +266,37 @@ def get_hooks(event: str, repo_root: Path | None = None) -> list[str]:
         event: Event name (e.g. "after_create", "after_archive").
         repo_root: Repository root path.
 
+    A hook the user believes is installed and which silently never runs is the
+    worst outcome for this feature, so a declared-but-unusable shape warns
+    instead of returning an empty list quietly.
+
     Returns:
         List of shell commands to execute, empty if none configured.
     """
     config = _load_config(repo_root)
     hooks = config.get("hooks")
+    if hooks is None:
+        return []
     if not isinstance(hooks, dict):
+        print(
+            f"[WARN] ignoring `hooks` in config.yaml: expected a mapping of "
+            f"event -> list of commands, got {hooks!r}",
+            file=sys.stderr,
+        )
         return []
     commands = hooks.get(event)
+    if commands is None:
+        return []
     if isinstance(commands, list):
         return [str(c) for c in commands]
+    # `after_create: echo hi` instead of a `- ` list — parses fine, registers
+    # nothing.
+    print(
+        f"[WARN] ignoring hook `{event}` in config.yaml: expected a list of "
+        f"commands, got {commands!r}. Write it as:\n"
+        f"  hooks:\n    {event}:\n      - {commands}",
+        file=sys.stderr,
+    )
     return []
 
 
@@ -347,7 +384,7 @@ def get_git_packages(repo_root: Path | None = None) -> dict[str, str]:
     return {
         name: cfg.get("path", name)
         for name, cfg in packages.items()
-        if _is_true_config_value(cfg.get("git"))
+        if _is_true_config_value(cfg.get("git"), f"packages.{name}.git")
     }
 
 

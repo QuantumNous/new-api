@@ -38,7 +38,9 @@ export type PluginIconInput = {
  * plugin without any logo still gets a stable, branded-looking mark instead of
  * a generic placeholder.
  */
-export function resolvePluginIcon(input: PluginIconInput): PluginIconDescriptor {
+export function resolvePluginIcon(
+  input: PluginIconInput
+): PluginIconDescriptor {
   const icon = input.icon?.trim()
   if (icon) {
     if (icon === 'text' || icon.startsWith('text:')) {
@@ -53,7 +55,10 @@ export function resolvePluginIcon(input: PluginIconInput): PluginIconDescriptor 
   }
   const channelTypes = input.channelTypes
   if (channelTypes != null && channelTypes.length > 0) {
-    return { kind: 'lobe', name: `${getChannelTypeIcon(channelTypes[0])}.Color` }
+    return {
+      kind: 'lobe',
+      name: `${getChannelTypeIcon(channelTypes[0])}.Color`,
+    }
   }
   return { kind: 'text', label: deriveTextLabel(input), colorSeed: input.key }
 }

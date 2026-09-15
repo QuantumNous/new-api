@@ -27,6 +27,9 @@ export const STATIC_I18N_KEYS = [
   'Docs',
   'About',
 
+  // Easy mode navigation
+  'Beginner guide',
+
   // Sidebar views (drill-in workspaces)
   'System Settings',
   'Back to Dashboard',

@@ -39,8 +39,8 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
+import { useConsoleMode } from '@/hooks/use-console-mode'
 import { ROLE } from '@/lib/roles'
-import { useConsoleModeStore } from '@/stores/console-mode-store'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -50,7 +50,7 @@ import { useConsoleModeStore } from '@/stores/console-mode-store'
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
-  const mode = useConsoleModeStore((state) => state.mode)
+  const mode = useConsoleMode()
 
   if (mode === 'easy') {
     return {
@@ -76,7 +76,7 @@ export function useSidebarData(): SidebarData {
             },
             {
               title: t('Beginner guide'),
-              url: '/guide',
+              url: '/beginner-guide',
               icon: BookOpen,
             },
             {
@@ -98,39 +98,39 @@ export function useSidebarData(): SidebarData {
   return {
     navGroups: [
       {
-        id: 'chat',
-        title: t('Chat'),
-        items: [
-          {
-            title: t('Playground'),
-            url: '/playground',
-            icon: FlaskConical,
-          },
-          {
-            title: t('Chat'),
-            icon: MessageSquare,
-            type: 'chat-presets',
-          },
-        ],
-      },
-      {
-        id: 'general',
-        title: t('General'),
+        id: 'workspace',
+        title: '',
         items: [
           {
             title: t('Overview'),
             url: '/dashboard/overview',
             icon: Activity,
           },
-          {
-            title: t('Dashboard'),
-            url: '/dashboard/models',
-            icon: LayoutDashboard,
-          },
+        ],
+      },
+      {
+        id: 'development',
+        title: t('Development'),
+        items: [
           {
             title: t('API Keys'),
             url: '/keys',
             icon: Key,
+          },
+          {
+            title: t('Model Square'),
+            url: '/pricing',
+            icon: BookOpen,
+          },
+          {
+            title: t('Playground'),
+            url: '/playground',
+            icon: FlaskConical,
+          },
+          {
+            title: t('Docs'),
+            url: '/guide',
+            icon: BookOpen,
           },
           {
             title: t('Usage Logs'),
@@ -144,11 +144,32 @@ export function useSidebarData(): SidebarData {
             configUrls: ['/usage-logs/drawing', '/usage-logs/task'],
             icon: ListTodo,
           },
+          {
+            title: t('Chat'),
+            icon: MessageSquare,
+            type: 'chat-presets',
+          },
+        ],
+      },
+      {
+        id: 'analytics',
+        title: t('Analytics'),
+        items: [
+          {
+            title: t('Usage & costs'),
+            url: '/dashboard/models',
+            icon: LayoutDashboard,
+          },
+          {
+            title: t('Flow'),
+            url: '/dashboard/flow',
+            icon: Activity,
+          },
         ],
       },
       {
         id: 'personal',
-        title: t('Personal'),
+        title: t('Account'),
         items: [
           {
             title: t('Wallet'),

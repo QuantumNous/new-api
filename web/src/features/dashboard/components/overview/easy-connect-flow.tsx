@@ -626,7 +626,7 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
               {prepareActionLabel}
             </YecaiAction>
           )}
-          <Link to='/guide' className='dopa-easy-pass__help'>
+          <Link to='/beginner-guide' className='dopa-easy-pass__help'>
             {t('Need help with a specific app?')}
             <ArrowRight aria-hidden='true' />
           </Link>

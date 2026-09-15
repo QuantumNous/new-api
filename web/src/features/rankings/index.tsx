@@ -19,9 +19,10 @@ For commercial licensing, please contact support@quantumnous.com
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
-import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CatalogPageLayout } from '@/features/pricing/components/catalog-page-layout'
 
 import {
   MarketShareSection,
@@ -32,21 +33,53 @@ import {
 import { useRankings } from './hooks/use-rankings'
 import type { RankingPeriod } from './types'
 
-const VALID_PERIODS: RankingPeriod[] = ['today', 'week', 'month', 'year']
+const VALID_PERIODS = new Set<RankingPeriod>(['today', 'week', 'month', 'year'])
 
 export function Rankings() {
   const { t } = useTranslation()
   const search = useSearch({ from: '/rankings/' })
   const navigate = useNavigate()
 
-  const period: RankingPeriod = VALID_PERIODS.includes(
-    search.period as RankingPeriod
-  )
-    ? (search.period as RankingPeriod)
-    : 'week'
+  const period: RankingPeriod =
+    search.period && VALID_PERIODS.has(search.period) ? search.period : 'week'
 
   const rankingsQuery = useRankings(period)
   const snapshot = rankingsQuery.data?.data
+
+  let content = <RankingsLoading />
+  if (snapshot) {
+    content = (
+      <>
+        <ModelsSection
+          history={snapshot.models_history}
+          rows={snapshot.models}
+          period={period}
+        />
+        <MarketShareSection
+          history={snapshot.vendor_share_history}
+          rows={snapshot.vendors}
+          period={period}
+        />
+        <PulseSection
+          movers={snapshot.top_movers}
+          droppers={snapshot.top_droppers}
+        />
+      </>
+    )
+  } else if (!rankingsQuery.isLoading) {
+    content = (
+      <RankingsError
+        onRetry={() => {
+          void rankingsQuery.refetch()
+        }}
+        message={
+          rankingsQuery.error instanceof Error
+            ? t(rankingsQuery.error.message)
+            : t('Unable to load rankings data')
+        }
+      />
+    )
+  }
 
   const handlePeriodChange = (next: RankingPeriod) => {
     navigate({
@@ -56,7 +89,7 @@ export function Rankings() {
   }
 
   return (
-    <PublicLayout showMainContainer={false}>
+    <CatalogPageLayout showMainContainer={false}>
       <div className='relative'>
         <div
           aria-hidden
@@ -76,39 +109,10 @@ export function Rankings() {
         <PageTransition className='relative mx-auto w-full max-w-[1280px] space-y-8 px-3 pt-16 pb-10 sm:px-6 sm:pt-20 sm:pb-12 xl:px-8'>
           <RankingsHero period={period} onPeriodChange={handlePeriodChange} />
 
-          {rankingsQuery.isLoading ? (
-            <RankingsLoading />
-          ) : !snapshot ? (
-            <RankingsError
-              message={
-                rankingsQuery.error instanceof Error
-                  ? rankingsQuery.error.message
-                  : t('Unable to load rankings data')
-              }
-            />
-          ) : (
-            <>
-              <ModelsSection
-                history={snapshot.models_history}
-                rows={snapshot.models}
-                period={period}
-              />
-
-              <MarketShareSection
-                history={snapshot.vendor_share_history}
-                rows={snapshot.vendors}
-                period={period}
-              />
-
-              <PulseSection
-                movers={snapshot.top_movers}
-                droppers={snapshot.top_droppers}
-              />
-            </>
-          )}
+          {content}
         </PageTransition>
       </div>
-    </PublicLayout>
+    </CatalogPageLayout>
   )
 }
 
@@ -122,7 +126,7 @@ function RankingsLoading() {
   )
 }
 
-function RankingsError(props: { message: string }) {
+function RankingsError(props: { message: string; onRetry: () => void }) {
   const { t } = useTranslation()
   return (
     <div className='bg-card rounded-xl border border-dashed px-6 py-12 text-center'>
@@ -132,6 +136,9 @@ function RankingsError(props: { message: string }) {
       <p className='text-muted-foreground mx-auto mt-2 max-w-md text-sm'>
         {props.message}
       </p>
+      <Button variant='outline' className='mt-4' onClick={props.onRetry}>
+        {t('Retry')}
+      </Button>
     </div>
   )
 }

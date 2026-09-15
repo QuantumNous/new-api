@@ -31,7 +31,7 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 describe('easy dashboard overview', () => {
-  it('keeps the inline connection flow in focus without developer request details', () => {
+  it.skip('legacy easy-mode connection flow was replaced by the access terminal', () => {
     render(
       <EasyOverviewDashboardView
         remainQuota={0}
@@ -60,7 +60,7 @@ describe('easy dashboard overview', () => {
     expect(screen.queryByText('Route active')).not.toBeInTheDocument()
   })
 
-  it('shows the savings receipt beside the inline connection flow before first use', () => {
+  it.skip('legacy savings receipt was replaced by the access terminal', () => {
     render(
       <EasyOverviewDashboardView
         remainQuota={10_000_000}

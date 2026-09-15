@@ -21,6 +21,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { Main } from '@/components/layout'
 import { Playground } from '@/features/playground'
 import { isSidebarModuleEnabled } from '@/lib/nav-modules'
+import { useConsoleModeStore } from '@/stores/console-mode-store'
 
 export const Route = createFileRoute('/_authenticated/playground/')({
   beforeLoad: () => {
@@ -32,6 +33,14 @@ export const Route = createFileRoute('/_authenticated/playground/')({
 })
 
 function PlaygroundPage() {
+  const mode = useConsoleModeStore((state) => state.mode)
+  if (mode !== 'developer') {
+    return (
+      <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+        <Playground />
+      </div>
+    )
+  }
   return (
     <Main className='p-0'>
       <Playground />

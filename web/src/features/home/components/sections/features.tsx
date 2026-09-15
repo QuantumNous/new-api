@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Link } from '@tanstack/react-router'
 import {
   ArrowRight,
   Bot,
@@ -30,7 +29,6 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
 import { useRevealOnScroll } from '@/hooks/use-reveal-on-scroll'
 
 interface FeaturesProps {
@@ -176,14 +174,6 @@ export function Features(_props: FeaturesProps) {
               )}
             </p>
           </div>
-          <Button
-            variant='ghost'
-            className='dopa-spring text-primary h-auto shrink-0 rounded-full px-4 py-2.5 text-sm font-bold'
-            render={<Link to='/guide' />}
-          >
-            {t('How do I connect it?')}
-            <ArrowRight className='ml-1 size-3.5' />
-          </Button>
         </div>
 
         {/* Why us */}

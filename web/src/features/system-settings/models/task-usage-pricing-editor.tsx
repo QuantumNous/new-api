@@ -91,13 +91,9 @@ function TaskBillingPreview(props: TaskBillingPreviewProps) {
   const { t } = useTranslation()
   const enumFields = getTaskEnumFields(props.usageSchema)
   const numberFields = getTaskNumberFields(props.usageSchema)
-    const result = props.config
-      ? evaluateTaskVisualConfig(
-          props.config,
-          props.sample,
-          props.usageSchema
-        )
-      : null
+  const result = props.config
+    ? evaluateTaskVisualConfig(props.config, props.sample, props.usageSchema)
+    : null
 
   if (!result) {
     return (
@@ -506,7 +502,10 @@ export const TaskUsagePricingEditor = memo(function TaskUsagePricingEditor(
                                 className='font-mono'
                               />
                               <span className='text-muted-foreground shrink-0 text-xs'>
-                                $/{t(getTaskUsagePriceUnitLabelKey(definition.unit))}
+                                $/
+                                {t(
+                                  getTaskUsagePriceUnitLabelKey(definition.unit)
+                                )}
                               </span>
                             </div>
                             {description ? (

@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,19 +16,33 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { Link } from '@tanstack/react-router'
 import { BookOpen, Lightbulb } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
+import { useConsoleModeStore } from '@/stores/console-mode-store'
 
 import { ApiKeysDialogs } from './components/api-keys-dialogs'
 import { ApiKeysPrimaryButtons } from './components/api-keys-primary-buttons'
 import { ApiKeysProvider } from './components/api-keys-provider'
 import { ApiKeysTable } from './components/api-keys-table'
+import { TerminalKeys } from './components/terminal-keys'
 
 export function ApiKeys() {
   const { t } = useTranslation()
+  const mode = useConsoleModeStore((state) => state.mode)
+  const table = (
+    <div className='min-h-0 flex-1'>
+      <ApiKeysTable />
+    </div>
+  )
+
+  if (mode !== 'developer') {
+    return <TerminalKeys />
+  }
+
   return (
     <ApiKeysProvider>
       <SectionPageLayout fixedContent>
@@ -54,9 +67,7 @@ export function ApiKeys() {
                 {t('How do I use it?')}
               </Button>
             </div>
-            <div className='min-h-0 flex-1'>
-              <ApiKeysTable />
-            </div>
+            {table}
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>

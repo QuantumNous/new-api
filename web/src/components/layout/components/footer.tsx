@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { RichContent } from '@/components/rich-content'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { resolveProductName } from '@/lib/product-brand'
 import { cn } from '@/lib/utils'
 
 interface FooterProps {
@@ -31,6 +32,7 @@ export function Footer(props: FooterProps) {
   const { t } = useTranslation()
   const { status } = useStatus()
   const { footerHtml, logo, systemName } = useSystemConfig()
+  const productName = resolveProductName(systemName)
   const currentYear = new Date().getFullYear()
   const legalLinks = [
     status?.user_agreement_enabled
@@ -49,11 +51,11 @@ export function Footer(props: FooterProps) {
         <a href='/' className='flex items-center gap-2.5'>
           <img
             src={logo}
-            alt={systemName}
+            alt={productName}
             className='size-7 rounded-lg object-contain'
           />
           <span className='text-sm font-semibold tracking-tight'>
-            {systemName}
+            {productName}
           </span>
         </a>
         {footerHtml ? (

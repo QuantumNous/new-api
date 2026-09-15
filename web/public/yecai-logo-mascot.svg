@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="576" viewBox="0 0 512 576" fill="none" role="img" aria-labelledby="yc-title yc-description">
+  <title id="yc-title">野菜 · 微笑白菜</title>
+  <desc id="yc-description">绿色叶片、浅色菜梗、圆眼睛与粉色腮红组成的微笑白菜，底部是一枚金黄色圆片。透明背景，全部由可编辑矢量图形构成。</desc>
+  <defs>
+    <linearGradient id="yc-side" x1="104" y1="99" x2="358" y2="492" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#84C459"/>
+      <stop offset=".55" stop-color="#70B34E"/>
+      <stop offset="1" stop-color="#63A647"/>
+    </linearGradient>
+    <linearGradient id="yc-leaf" x1="173" y1="45" x2="312" y2="453" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A1D271"/>
+      <stop offset=".5" stop-color="#8CC761"/>
+      <stop offset="1" stop-color="#7CB753"/>
+    </linearGradient>
+    <linearGradient id="yc-stalk" x1="205" y1="374" x2="307" y2="544" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7F9E9"/>
+      <stop offset="1" stop-color="#DCEBC5"/>
+    </linearGradient>
+    <linearGradient id="yc-gold" x1="222" y1="511" x2="286" y2="564" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD762"/>
+      <stop offset=".6" stop-color="#FFC247"/>
+      <stop offset="1" stop-color="#FFAF36"/>
+    </linearGradient>
+    <linearGradient id="yc-blush" x1="184" y1="283" x2="184" y2="307" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F6AD99"/>
+      <stop offset="1" stop-color="#F39787"/>
+    </linearGradient>
+    <path id="yc-left-shape" d="M143 105C114 91 83 95 57 111C26 130 12 159 17 194C20 219 34 236 43 252C47 261 42 274 47 288C53 305 67 313 88 320C120 330 141 349 143 374C146 402 129 428 125 457C117 506 148 541 202 547L243 506L205 181Z"/>
+    <path id="yc-right-shape" d="M367 105C397 92 428 97 454 113C484 132 499 162 494 195C491 220 477 238 466 252C459 262 466 275 461 288C454 306 441 314 419 321C386 332 370 350 369 378C368 405 384 430 388 460C395 508 363 541 309 547L267 505L307 180Z"/>
+    <path id="yc-center-shape" d="M255 22C198 22 153 59 143 108C140 124 145 131 129 143C106 158 105 181 116 200C127 216 116 221 120 244C124 269 141 284 158 302C181 328 183 357 178 388C174 415 166 437 175 465C185 501 213 520 254 521C295 522 324 502 336 471C347 443 339 417 335 389C329 358 331 329 354 304C373 284 388 269 392 245C397 226 386 218 394 204C408 181 402 159 382 145C368 135 372 124 367 108C355 59 312 22 255 22Z"/>
+    <clipPath id="yc-left-clip"><use href="#yc-left-shape"/></clipPath>
+    <clipPath id="yc-right-clip"><use href="#yc-right-shape"/></clipPath>
+    <clipPath id="yc-center-clip"><use href="#yc-center-shape"/></clipPath>
+  </defs>
+
+  <g id="leaves-back" stroke-linecap="round" stroke-linejoin="round">
+    <use href="#yc-left-shape" fill="url(#yc-side)"/>
+    <g clip-path="url(#yc-left-clip)">
+      <path d="M95 106C113 121 112 137 100 157C82 184 73 206 94 230C57 223 35 205 33 180C30 147 56 116 95 106Z" fill="#A0D06E" opacity=".6"/>
+      <path d="M130 135C107 157 98 178 107 207C114 230 133 250 135 275C139 292 146 304 162 314L167 162Z" fill="#5AA147" opacity=".48"/>
+      <path d="M141 378C157 383 169 397 177 414C187 438 179 463 189 487C198 510 213 526 214 549L168 550L119 518L114 448Z" fill="url(#yc-stalk)"/>
+      <path d="M125 473C139 509 170 520 198 518L211 549L151 543L122 513Z" fill="#C8DEAC" opacity=".8"/>
+      <path d="M69 156C84 183 98 202 115 219M77 257C97 265 117 267 136 267" stroke="#549B43" stroke-width="7"/>
+      <path d="M53 167C48 177 46 188 48 200" stroke="#C6E497" stroke-width="12"/>
+      <circle cx="53" cy="221" r="6.5" fill="#C6E497"/>
+      <path d="M148 430C140 449 140 473 151 491" stroke="#FFFFF4" stroke-width="12"/>
+    </g>
+    <use href="#yc-left-shape" stroke="#376D40" stroke-width="10.5"/>
+
+    <use href="#yc-right-shape" fill="url(#yc-side)"/>
+    <g clip-path="url(#yc-right-clip)">
+      <path d="M424 109C402 117 395 131 405 151C419 175 418 205 410 227C446 217 467 193 469 167C471 142 454 119 424 109Z" fill="#90C965" opacity=".6"/>
+      <path d="M372 378C353 384 342 401 336 421C330 444 335 466 326 488C317 512 301 529 296 549L345 552L388 513L397 447Z" fill="url(#yc-stalk)"/>
+      <path d="M379 456C380 495 351 525 317 529L302 549L353 549L391 513Z" fill="#C9DFAD" opacity=".7"/>
+      <path d="M444 156C431 183 414 204 395 223M439 257C420 265 405 268 387 269" stroke="#529A43" stroke-width="7"/>
+    </g>
+    <use href="#yc-right-shape" stroke="#376D40" stroke-width="10.5"/>
+  </g>
+
+  <g id="leaf-front" stroke-linecap="round" stroke-linejoin="round">
+    <use href="#yc-center-shape" fill="url(#yc-leaf)"/>
+    <g clip-path="url(#yc-center-clip)">
+      <path d="M319 40C360 64 367 105 353 146C347 164 342 176 334 186C355 174 368 194 366 219C364 251 345 279 330 307C311 343 308 370 315 407C323 441 316 473 289 500L310 524L356 489L354 386L380 312L407 242L412 157L373 74Z" fill="#64A749" opacity=".46"/>
+      <path d="M255 365C212 365 180 399 176 440C172 480 194 509 254 512C302 513 331 484 332 442C333 399 300 365 255 365Z" fill="url(#yc-stalk)"/>
+      <path d="M306 384C326 415 321 451 302 474C286 495 255 507 222 506C263 524 312 508 329 479C344 448 334 407 306 384Z" fill="#D3E5B8"/>
+      <path d="M256 33C209 33 166 62 155 109C151 127 153 137 134 151C119 162 116 178 125 194C137 212 125 224 130 246C133 263 144 279 158 289" stroke="#C3E48F" stroke-width="9"/>
+      <path d="M205 69C190 77 176 92 172 105" stroke="#D4EBA5" stroke-width="13"/>
+      <ellipse cx="232" cy="58" rx="8.5" ry="7" fill="#D4EBA5" transform="rotate(-14 232 58)"/>
+      <path d="M262 86C254 120 249 160 251 198C252 216 255 231 258 243M197 129C202 152 212 165 231 177C244 187 250 200 252 212M314 128C309 151 297 165 280 176C264 187 257 204 254 220" stroke="#579E47" stroke-width="7.5"/>
+      <path d="M208 412C200 423 195 437 196 448" stroke="#FFFFF7" stroke-width="14"/>
+      <circle cx="225" cy="395" r="7.5" fill="#FFFFF7"/>
+    </g>
+    <use href="#yc-center-shape" stroke="#376D40" stroke-width="10.5"/>
+  </g>
+
+  <g id="face">
+    <path d="M177 218C182 210 190 208 199 211M310 211C320 208 328 211 333 218" stroke="#2E633B" stroke-width="10" stroke-linecap="round"/>
+    <ellipse cx="197" cy="254" rx="32" ry="33" fill="#2D603A"/>
+    <ellipse cx="315" cy="254" rx="32" ry="33" fill="#2D603A"/>
+    <circle cx="189" cy="245" r="11.5" fill="#FFFFF6"/>
+    <circle cx="307" cy="245" r="11.5" fill="#FFFFF6"/>
+    <circle cx="206" cy="263" r="5.5" fill="#FFFFF6"/>
+    <circle cx="324" cy="263" r="5.5" fill="#FFFFF6"/>
+    <ellipse cx="184" cy="296" rx="22" ry="11" fill="url(#yc-blush)"/>
+    <ellipse cx="327" cy="296" rx="22" ry="11" fill="url(#yc-blush)"/>
+    <path d="M235 283C240 303 272 304 278 283" stroke="#2E633B" stroke-width="10" stroke-linecap="round"/>
+  </g>
+
+  <g id="gold-base" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M255 506C220 504 195 516 195 536C195 558 215 566 254 566C293 566 316 556 316 536C316 516 291 505 255 506Z" fill="url(#yc-gold)"/>
+    <path d="M286 510C303 527 293 546 269 550C244 555 217 550 199 541C203 559 223 566 254 566C293 566 316 556 316 536C316 523 304 514 286 510Z" fill="#FFB137" opacity=".68"/>
+    <path d="M215 532C223 523 232 521 242 522" stroke="#FFE594" stroke-width="11"/>
+    <path d="M255 506C220 504 195 516 195 536C195 558 215 566 254 566C293 566 316 556 316 536C316 516 291 505 255 506Z" stroke="#376D40" stroke-width="10.5"/>
+  </g>
+</svg>

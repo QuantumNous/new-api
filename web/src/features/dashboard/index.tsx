@@ -31,13 +31,16 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { TerminalReports } from '@/features/usage-logs/components/terminal-reports'
 import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
+import { useConsoleModeStore } from '@/stores/console-mode-store'
 
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
+import { TerminalHome } from './components/overview/terminal-home'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   buildDefaultDashboardFilters,
@@ -180,6 +183,9 @@ const SECTION_META: Record<DashboardSectionId, { titleKey: string }> = {
   overview: {
     titleKey: 'Overview',
   },
+  reports: {
+    titleKey: 'Reports',
+  },
   models: {
     titleKey: 'Model Call Analytics',
   },
@@ -196,6 +202,7 @@ export function Dashboard() {
   const navigate = useNavigate()
   const params = route.useParams()
   const userRole = useAuthStore((state) => state.auth.user?.role)
+  const consoleMode = useConsoleModeStore((state) => state.mode)
   const activeSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
 
@@ -248,7 +255,10 @@ export function Dashboard() {
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
-        (section) => section !== 'overview' && (section !== 'users' || isAdmin)
+        (section) =>
+          section !== 'overview' &&
+          section !== 'reports' &&
+          (section !== 'users' || isAdmin)
       ),
     [isAdmin]
   )
@@ -316,6 +326,13 @@ export function Dashboard() {
       </>
     ) : null
   const sectionActions = modelActions ?? flowActions
+
+  if (consoleMode !== 'developer' && activeSection === 'overview') {
+    return <TerminalHome />
+  }
+  if (consoleMode !== 'developer' && activeSection === 'reports') {
+    return <TerminalReports />
+  }
 
   return (
     <SectionPageLayout>

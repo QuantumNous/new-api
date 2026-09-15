@@ -1,0 +1,574 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+.client-landing {
+  position: relative;
+  overflow-x: clip;
+  background:
+    radial-gradient(circle at 50% 5%, rgb(216 255 0 / 0.14), transparent 34rem),
+    radial-gradient(
+      circle at 8% 35%,
+      rgb(120 183 148 / 0.1),
+      transparent 30rem
+    ),
+    var(--ci-canvas);
+}
+
+.client-landing main {
+  position: relative;
+  z-index: 1;
+}
+
+.client-hero,
+.client-feature,
+.client-downloads {
+  width: min(calc(100% - 6rem), 82rem);
+  margin-inline: auto;
+}
+
+.client-hero {
+  position: relative;
+  display: grid;
+  gap: clamp(3.5rem, 7vw, 6rem);
+  padding-block: clamp(5.5rem, 10vw, 9rem) clamp(6.5rem, 11vw, 10rem);
+}
+
+.client-ambient {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: min(78vw, 58rem);
+  height: min(46vw, 34rem);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgb(216 255 0 / 0.2),
+    rgb(216 255 0 / 0) 70%
+  );
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: client-ambient-breathe 12s ease-in-out infinite alternate;
+}
+
+.client-hero__copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  max-width: 62rem;
+  align-items: center;
+  justify-self: center;
+  flex-direction: column;
+  text-align: center;
+  animation: client-copy-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.client-hero__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1.7rem;
+  color: var(--ci-ink);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.035em;
+}
+
+.client-hero__brand > span:last-child {
+  margin-left: 0.2rem;
+  color: var(--ci-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.client-kicker {
+  margin: 0 0 1rem;
+  color: var(--ci-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.client-hero h1,
+.client-feature h2,
+.client-downloads h2 {
+  margin: 0;
+  color: var(--ci-ink);
+  font-family: var(--ci-font-display);
+  font-weight: 500;
+  letter-spacing: -0.05em;
+}
+
+.client-hero h1 {
+  max-width: 13ch;
+  font-size: clamp(3.5rem, 7.5vw, 7.2rem);
+  line-height: 0.94;
+  text-wrap: balance;
+}
+
+.client-hero__description {
+  max-width: 42rem;
+  margin: 1.75rem 0 0;
+  color: var(--ci-muted);
+  font-size: clamp(1rem, 1.7vw, 1.2rem);
+  line-height: 1.65;
+  text-wrap: balance;
+}
+
+.client-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  margin-top: 2.1rem;
+}
+
+.client-downloadButton,
+.client-manualButton {
+  min-height: 3.25rem;
+  padding-inline: 1.35rem;
+}
+
+.client-downloadButton {
+  box-shadow: 0 14px 34px rgb(96 118 0 / 0.2);
+}
+
+.client-downloadButton:hover,
+.client-manualButton:hover {
+  transform: translateY(-2px);
+}
+
+.client-downloadButton:focus-visible,
+.client-manualButton:focus-visible,
+.client-downloadOption:focus-visible,
+.client-downloads h2:focus-visible {
+  outline: 3px solid var(--ci-color-focus);
+  outline-offset: 4px;
+}
+
+.client-productStage {
+  position: relative;
+  z-index: 1;
+  animation: client-stage-in 900ms 80ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.client-productStage::before {
+  position: absolute;
+  inset: 8% 5% -4%;
+  border-radius: 50%;
+  background: rgb(216 255 0 / 0.14);
+  filter: blur(70px);
+  content: '';
+  pointer-events: none;
+}
+
+.client-appWindow,
+.client-screenshotFrame {
+  position: relative;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--ci-border-subtle);
+  background: var(--ci-surface);
+  box-shadow: 0 36px 100px rgb(4 13 16 / 0.16);
+}
+
+.client-appWindow {
+  border-radius: clamp(1rem, 2vw, 1.6rem);
+}
+
+.client-appWindow__bar,
+.client-screenshotFrame figcaption {
+  display: flex;
+  min-height: 2.9rem;
+  align-items: center;
+  margin: 0;
+  border-bottom: 1px solid var(--ci-border-subtle);
+  color: var(--ci-muted);
+  background: color-mix(in srgb, var(--ci-surface) 92%, transparent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.client-appWindow__bar {
+  justify-content: center;
+  padding-inline: 4rem;
+}
+
+.client-appWindow__dots {
+  position: absolute;
+  left: 1.25rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.client-appWindow__dots i {
+  width: 0.58rem;
+  height: 0.58rem;
+  border-radius: 50%;
+  background: var(--ci-border-strong);
+}
+
+.client-appWindow img,
+.client-screenshotFrame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.client-feature {
+  display: grid;
+  align-items: center;
+  gap: clamp(2.5rem, 7vw, 7rem);
+  padding-block: clamp(6rem, 12vw, 11rem);
+  border-top: 1px solid var(--ci-border-subtle);
+}
+
+.client-feature--access {
+  grid-template-columns: minmax(15rem, 0.58fr) minmax(0, 1.42fr);
+}
+
+.client-feature--pricing,
+.client-feature--theme {
+  align-items: start;
+}
+
+.client-feature--pricing .client-feature__copy,
+.client-feature--theme .client-feature__copy {
+  max-width: 49rem;
+  justify-self: center;
+  text-align: center;
+}
+
+.client-feature__copy {
+  max-width: 31rem;
+}
+
+.client-feature h2,
+.client-downloads h2 {
+  font-size: clamp(2.8rem, 5.2vw, 5.4rem);
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+.client-feature__copy > p:last-of-type {
+  margin: 1.45rem 0 0;
+  color: var(--ci-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.client-feature__copy small {
+  display: block;
+  margin-top: 1rem;
+  color: var(--ci-muted);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.client-screenshotFrame {
+  border-radius: clamp(0.8rem, 1.7vw, 1.3rem);
+  box-shadow: 0 28px 80px rgb(4 13 16 / 0.12);
+}
+
+.client-screenshotFrame figcaption {
+  justify-content: space-between;
+  padding-inline: 1.1rem;
+}
+
+.client-feature--theme .client-screenshotFrame {
+  background: var(--ci-color-surface-inverse);
+}
+
+.client-downloads {
+  padding-block: clamp(6rem, 11vw, 10rem);
+  border-top: 1px solid var(--ci-border-subtle);
+}
+
+.client-downloads__intro {
+  max-width: 44rem;
+}
+
+.client-downloads__intro > p[role='status'] {
+  min-height: 1.5rem;
+  margin: 1.25rem 0 0;
+  color: var(--ci-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.client-download-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 3rem;
+}
+
+.client-downloadOption {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  min-height: 7rem;
+  padding: 1.25rem 1.35rem;
+  border: 1px solid var(--ci-border);
+  border-radius: 1rem;
+  background: var(--ci-surface);
+  color: var(--ci-ink);
+  text-decoration: none;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.client-downloadOption:hover {
+  border-color: var(--ci-border-strong);
+  background: var(--ci-soft-fill);
+  box-shadow: 0 18px 48px rgb(4 13 16 / 0.1);
+  transform: translateY(-3px);
+}
+
+.client-downloadOption__icon {
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  place-items: center;
+  border-radius: 0.8rem;
+  background: var(--ci-accent);
+  color: var(--ci-accent-foreground);
+}
+
+.client-downloadOption__body {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.client-downloadOption__body strong {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.client-downloadOption__body span {
+  color: var(--ci-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+@keyframes client-copy-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes client-stage-in {
+  from {
+    opacity: 0;
+    transform: translateY(36px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes client-ambient-breathe {
+  from {
+    opacity: 0.72;
+    transform: translateX(-50%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.04);
+  }
+}
+
+@media (max-width: 960px) {
+  .client-hero,
+  .client-feature,
+  .client-downloads {
+    width: min(calc(100% - 2.5rem), 82rem);
+  }
+
+  .client-feature--access {
+    grid-template-columns: 1fr;
+  }
+
+  .client-feature--access .client-feature__copy {
+    max-width: 44rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .client-hero,
+  .client-feature,
+  .client-downloads {
+    width: min(calc(100% - 2rem), 82rem);
+  }
+
+  .client-hero {
+    gap: 3.25rem;
+    padding-block: 4.5rem 6rem;
+  }
+
+  .client-ambient {
+    width: 42rem;
+    height: 28rem;
+  }
+
+  .client-hero__brand {
+    margin-bottom: 1.4rem;
+  }
+
+  .client-hero h1 {
+    max-width: 11ch;
+    font-size: clamp(2.75rem, 14vw, 4.2rem);
+    line-height: 0.98;
+  }
+
+  .client-hero__description {
+    margin-top: 1.35rem;
+    font-size: 0.96rem;
+  }
+
+  .client-hero__actions {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+    margin-top: 1.7rem;
+  }
+
+  .client-downloadButton,
+  .client-manualButton {
+    width: 100%;
+  }
+
+  .client-appWindow__bar {
+    justify-content: flex-end;
+    padding-inline: 1rem;
+  }
+
+  .client-appWindow__dots {
+    left: 1rem;
+  }
+
+  .client-appWindow img,
+  .client-feature--theme .client-screenshotFrame img {
+    height: clamp(15rem, 76vw, 18rem);
+    object-fit: cover;
+    object-position: left top;
+  }
+
+  .client-feature {
+    gap: 2.25rem;
+    padding-block: 6rem;
+  }
+
+  .client-feature--pricing .client-feature__copy,
+  .client-feature--theme .client-feature__copy {
+    text-align: left;
+  }
+
+  .client-feature h2,
+  .client-downloads h2 {
+    font-size: clamp(2.65rem, 12vw, 3.8rem);
+  }
+
+  .client-feature__copy > p:last-of-type {
+    font-size: 0.95rem;
+  }
+
+  .client-feature--access .client-screenshotFrame img {
+    height: clamp(17rem, 90vw, 21rem);
+    object-fit: cover;
+    object-position: left top;
+  }
+
+  .client-feature--pricing .client-screenshotFrame img {
+    height: clamp(20rem, 104vw, 24rem);
+    object-fit: cover;
+    object-position: left top;
+  }
+
+  .client-download-grid {
+    grid-template-columns: 1fr;
+    margin-top: 2.25rem;
+  }
+
+  .client-downloadOption {
+    min-height: 6.5rem;
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .client-hero,
+  .client-feature,
+  .client-downloads {
+    width: min(calc(100% - 1.5rem), 82rem);
+  }
+
+  .client-appWindow__bar > span:last-child {
+    max-width: 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .client-downloadOption {
+    gap: 0.75rem;
+  }
+
+  .client-downloadOption__icon {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .client-ambient,
+  .client-hero__copy,
+  .client-productStage,
+  .client-downloadButton,
+  .client-manualButton,
+  .client-downloadOption {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .client-hero__copy,
+  .client-productStage {
+    opacity: 1;
+    transform: none;
+  }
+
+  .client-landing {
+    scroll-behavior: auto;
+  }
+}

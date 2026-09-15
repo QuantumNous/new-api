@@ -1,0 +1,420 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+/* Authentication-only palette and geometry; console themes are unaffected. */
+.yecai-auth {
+  --auth-ink: #222820;
+  --auth-muted: #586052;
+  --auth-font:
+    'Avenir Next', 'Trebuchet MS', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+  --background: #faf9f2;
+  --foreground: var(--auth-ink);
+  --muted-foreground: var(--auth-muted);
+  --primary: #222820;
+  --primary-foreground: #fffef8;
+  --muted: #eef0e7;
+  --accent: #e6ecdf;
+  --accent-foreground: #222820;
+  --input: #7379664d;
+  --border: #73796640;
+  --ring: #7a9461;
+  --font-sans: var(--auth-font);
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-height: 100svh;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--auth-ink);
+  background: #e8e8d8;
+  font-family: var(--auth-font);
+}
+
+.yecai-auth::before {
+  content: '';
+  position: fixed;
+  z-index: -2;
+  inset: -12%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 8% 56%, #f3b798 0%, #f3b79800 42%),
+    radial-gradient(ellipse at 78% 75%, #efbaaa 0%, #efbaaa00 42%),
+    radial-gradient(ellipse at 91% 18%, #dfb981b3 0%, #dfb98100 36%),
+    radial-gradient(ellipse at 36% 95%, #adc4c1 0%, #adc4c100 35%),
+    radial-gradient(ellipse at 53% 18%, #cadbc7 0%, #cadbc700 46%), #ece8d5;
+  animation: yecai-auth-ambient 24s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.yecai-auth::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.055;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' opacity='.7' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+.yecai-authHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  padding: 24px clamp(24px, 3.2vw, 52px);
+}
+.yecai-authBrand {
+  color: var(--auth-ink);
+  text-decoration: none;
+  font-size: 21px;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+}
+.yecai-authNav {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px;
+  border: 1px solid #ffffff94;
+  border-radius: 18px;
+  background: #fffcf43d;
+  box-shadow:
+    0 5px 24px #444b3310,
+    inset 0 1px 0 #ffffff54;
+  backdrop-filter: blur(20px);
+}
+.yecai-authNav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 13px;
+  border-radius: 12px;
+  color: var(--auth-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition:
+    background 160ms,
+    color 160ms;
+}
+.yecai-authNav a:hover {
+  color: var(--auth-ink);
+  background: #ffffff52;
+}
+.yecai-authNavDivider {
+  height: 19px;
+  width: 1px;
+  margin-inline: 5px;
+  background: var(--border);
+}
+.yecai-authTheme {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  color: var(--auth-ink);
+}
+.yecai-authTheme:hover {
+  background: #ffffff52;
+}
+.yecai-auth :is(a, button):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+
+.yecai-authMain {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 480px);
+  align-items: center;
+  gap: clamp(48px, 7vw, 112px);
+  flex: 1;
+  width: min(1160px, calc(100% - 96px));
+  margin-inline: auto;
+  padding-block: 70px 112px;
+}
+.yecai-authWelcome {
+  animation: yecai-auth-enter 700ms both;
+}
+.yecai-authEyebrow {
+  margin: 0 0 24px;
+  color: var(--auth-muted);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+.yecai-authWelcome h1 {
+  margin: 0;
+  color: var(--auth-ink);
+  font-family: var(--auth-font);
+  font-size: clamp(50px, 5.6vw, 82px);
+  font-weight: 650;
+  line-height: 1.16;
+  letter-spacing: -0.06em;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.yecai-authDescription {
+  max-width: 450px;
+  margin: 28px 0 0;
+  color: var(--auth-muted);
+  font-size: 16px;
+  line-height: 1.85;
+}
+.yecai-authPanel {
+  width: 100%;
+  min-width: 0;
+  padding: clamp(28px, 3.2vw, 42px);
+  border: 1px solid #ffffffe0;
+  border-radius: 28px;
+  background: linear-gradient(135deg, #fffdf66e, #fffbf452);
+  box-shadow:
+    0 28px 80px -35px #67523d45,
+    inset 0 1px 0 #ffffff85;
+  backdrop-filter: blur(24px);
+  animation: yecai-auth-enter 800ms 100ms both;
+}
+.yecai-authFormContent {
+  display: grid;
+  gap: 28px;
+}
+.yecai-authPanel form {
+  gap: 22px;
+}
+.yecai-authPanel label {
+  color: var(--auth-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.yecai-authPanel input,
+.yecai-authPanel textarea {
+  min-height: 49px;
+  padding-inline: 14px;
+  border: 1px solid var(--input);
+  border-radius: 12px;
+  background: #fffdf66b;
+  color: var(--auth-ink);
+  font-family: var(--auth-font);
+  font-size: 14px;
+  box-shadow: none;
+  transition:
+    background 180ms,
+    border-color 180ms,
+    box-shadow 180ms;
+}
+.yecai-authPanel input:focus-visible,
+.yecai-authPanel textarea:focus-visible {
+  background: #fffdf6bf;
+  border-color: var(--ring);
+  outline: none;
+  box-shadow: 0 0 0 3px #7a946126;
+}
+.yecai-authPanel input::placeholder {
+  color: var(--auth-muted);
+  opacity: 0.75;
+}
+.yecai-authPanel input:has(+ button) {
+  padding-inline-end: 42px;
+}
+.yecai-authPanel input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px var(--background) inset;
+  -webkit-text-fill-color: var(--auth-ink);
+}
+.yecai-authPanel button[type='submit'] {
+  height: 49px;
+  margin-top: 5px;
+  border: 1px solid #222820;
+  border-radius: 12px;
+  background: #222820;
+  color: #fffef8;
+  font-family: var(--auth-font);
+  font-size: 14px;
+  font-weight: 650;
+  box-shadow: 0 8px 18px #34352516;
+  transition:
+    transform 180ms,
+    box-shadow 180ms,
+    background 180ms;
+}
+.yecai-authPanel button[type='submit']:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #343d2e;
+  box-shadow: 0 12px 22px #34352526;
+}
+.yecai-authPanel button[type='submit']:disabled {
+  opacity: 0.55;
+}
+.yecai-authPanel a {
+  color: var(--auth-muted);
+  font-size: 13px;
+}
+.yecai-authAccountSwitch {
+  text-align: center;
+  color: var(--auth-muted);
+  font-size: 13px;
+}
+.yecai-authAccountSwitch a {
+  margin-left: 4px;
+  color: var(--auth-ink);
+  font-weight: 650;
+}
+
+.yecai-auth[data-theme='dark'] {
+  --auth-ink: #f0f0e7;
+  --auth-muted: #b8c0b3;
+  --background: #263129;
+  --foreground: var(--auth-ink);
+  --muted-foreground: var(--auth-muted);
+  --primary: #e7eddd;
+  --primary-foreground: #1e2921;
+  --muted: #344638;
+  --accent: #415042;
+  --accent-foreground: #f0f0e7;
+  --input: #c1cdb342;
+  --border: #c1cdb330;
+  --ring: #adbd8c;
+  background: #242e29;
+}
+.yecai-auth[data-theme='dark']::before {
+  background:
+    radial-gradient(ellipse at 8% 56%, #604535 0%, #60453500 42%),
+    radial-gradient(ellipse at 78% 75%, #4c4040 0%, #4c404000 42%),
+    radial-gradient(ellipse at 91% 18%, #65553799 0%, #65553700 36%),
+    radial-gradient(ellipse at 36% 95%, #314448 0%, #31444800 35%),
+    radial-gradient(ellipse at 53% 18%, #405340 0%, #40534000 46%), #242e29;
+}
+.yecai-auth[data-theme='dark'] .yecai-authPanel,
+.yecai-auth[data-theme='dark'] .yecai-authNav {
+  border-color: #e0ead328;
+  background: #2230258c;
+  box-shadow:
+    0 28px 80px -35px #0005,
+    inset 0 1px 0 #ffffff0d;
+}
+.yecai-auth[data-theme='dark'] .yecai-authPanel :is(input, textarea) {
+  background: #18221c66;
+}
+.yecai-auth[data-theme='dark']
+  .yecai-authPanel
+  :is(input, textarea):focus-visible {
+  background: #18221cbf;
+}
+.yecai-auth[data-theme='dark'] .yecai-authPanel button[type='submit'] {
+  background: #e5ebdb;
+  color: #253023;
+  border-color: #e5ebdb;
+}
+.yecai-auth[data-theme='dark']
+  .yecai-authPanel
+  button[type='submit']:hover:not(:disabled) {
+  background: #f2f5eb;
+}
+.yecai-auth[data-theme='dark'] .yecai-authNav a:hover,
+.yecai-auth[data-theme='dark'] .yecai-authTheme:hover {
+  background: #ffffff0f;
+}
+
+@keyframes yecai-auth-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes yecai-auth-ambient {
+  from {
+    transform: translate3d(-1%, -1%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2%, 1%, 0) scale(1.04);
+  }
+}
+@media (max-width: 900px) {
+  .yecai-authMain {
+    grid-template-columns: minmax(0, 480px);
+    justify-content: center;
+    gap: 32px;
+    width: min(100% - 48px, 520px);
+    padding-block: 36px 64px;
+  }
+  .yecai-authWelcome h1 {
+    font-size: clamp(42px, 7vw, 60px);
+    letter-spacing: -0.04em;
+  }
+  .yecai-authEyebrow {
+    margin-bottom: 14px;
+  }
+  .yecai-authDescription {
+    margin-top: 16px;
+    font-size: 14px;
+  }
+}
+@media (max-width: 600px) {
+  .yecai-authHeader {
+    padding: 18px 20px;
+    gap: 12px;
+  }
+  .yecai-authBrand {
+    font-size: 19px;
+  }
+  .yecai-authNav {
+    padding: 3px;
+    gap: 0;
+    border-radius: 14px;
+  }
+  .yecai-authNav .yecai-authNavLink,
+  .yecai-authNavDivider {
+    display: none;
+  }
+  .yecai-authNav a {
+    padding: 8px;
+    font-size: 12px;
+  }
+  .yecai-authBack svg {
+    display: none;
+  }
+  .yecai-authMain {
+    width: calc(100% - 40px);
+    padding-block: 24px 40px;
+    gap: 26px;
+  }
+  .yecai-authPanel {
+    padding: 26px 22px;
+    border-radius: 22px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .yecai-auth::before,
+  .yecai-authWelcome,
+  .yecai-authPanel {
+    animation: none;
+    will-change: auto;
+  }
+  .yecai-authPanel button[type='submit'] {
+    transition: none;
+  }
+}

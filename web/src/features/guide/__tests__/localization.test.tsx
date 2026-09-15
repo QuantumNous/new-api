@@ -16,11 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { act, render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { createInstance } from 'i18next'
-import { I18nextProvider, initReactI18next } from 'react-i18next'
-import { expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import en from '@/i18n/locales/en.json'
 import fr from '@/i18n/locales/fr.json'
@@ -30,65 +26,124 @@ import vi from '@/i18n/locales/vi.json'
 import zhTW from '@/i18n/locales/zh-TW.json'
 import zh from '@/i18n/locales/zh.json'
 
-import { ToolExplorer } from '../components/tool-explorer'
-import { guideTools, troubleshootRows, useCaseRows } from '../data'
+import { guideDocs } from '../catalog'
+import type { GuideBlock } from '../types'
 
-it('updates guide categories and open setup instructions when the language changes', async () => {
-  const i18n = createInstance()
-  await i18n
-    .use(initReactI18next)
-    .init({ lng: 'zh', fallbackLng: 'en', resources: { en, zh } })
-  const user = userEvent.setup()
-  const address = {
-    host: 'https://api.example.test',
-    baseUrl: 'https://api.example.test/v1',
-    fullUrl: 'https://api.example.test/v1/chat/completions',
-    fill: (text: string) =>
-      text.replaceAll(
-        '{{FULL_URL}}',
-        'https://api.example.test/v1/chat/completions'
-      ),
+const componentKeys = [
+  'Article navigation',
+  'Base URL',
+  'Browse docs',
+  'Choose a group',
+  'Choose a guide or search all setup instructions.',
+  'Choose a model',
+  'Coding tools',
+  'Copied',
+  'Copied to clipboard',
+  'Copy',
+  'Copy code',
+  'Copy large-context config',
+  'Desktop apps',
+  'Developer docs',
+  'Documentation',
+  'Examples update when you change the model or group.',
+  'Group',
+  'Help',
+  'Model',
+  'Next',
+  'No compatible groups are available',
+  'No compatible models are available',
+  'No matching docs',
+  'On this page',
+  'Open documentation navigation',
+  'Open Models',
+  'Platform',
+  'Previous',
+  'Retry',
+  'Retry before copying a configuration so the model and group stay accurate.',
+  'Search documentation',
+  'Search results',
+  'Start here',
+  'This account has no model enabled for the protocol required by this article.',
+  'We could not verify your setup',
+  'Your current setup',
+  '{{count}} min read',
+  '{{platform}} instructions selected',
+]
+
+function addBlockKeys(block: GuideBlock, keys: Set<string>): void {
+  if (block.type === 'paragraph') {
+    keys.add(block.text)
+    return
   }
-  render(
-    <I18nextProvider i18n={i18n}>
-      <ToolExplorer address={address} />
-    </I18nextProvider>
-  )
-  await user.click(
-    screen.getByRole('button', { name: /WorkBuddy \/ CodeBuddy/ })
-  )
-  expect(screen.getByText('打开 WorkBuddy,点击左下角账户头像')).toBeVisible()
-  await act(() => i18n.changeLanguage('en'))
-  expect(
-    screen.getByText(
-      'Open WorkBuddy and click the account avatar at the bottom left.'
+  if (block.type === 'steps') {
+    for (const item of block.items) {
+      keys.add(item.title)
+      if (item.text) keys.add(item.text)
+      if (item.code) {
+        keys.add(item.code.label)
+        if (item.code.copyLabel) keys.add(item.code.copyLabel)
+      }
+      if (item.action) keys.add(item.action.label)
+    }
+    return
+  }
+  if (block.type === 'code') {
+    keys.add(block.label)
+    if (block.copyLabel) keys.add(block.copyLabel)
+    return
+  }
+  if (block.type === 'callout') {
+    keys.add(block.title)
+    keys.add(block.text)
+    return
+  }
+  if (block.type === 'table') {
+    block.columns.forEach((key) => keys.add(key))
+    block.rows.flat().forEach((key) => keys.add(key))
+    return
+  }
+  if (block.type === 'platform') {
+    Object.values(block.platforms).forEach((blocks) =>
+      blocks?.forEach((item) => addBlockKeys(item, keys))
     )
-  ).toBeVisible()
-  expect(
-    screen.getByText(
-      'Set the full endpoint URL to https://api.example.test/v1/chat/completions.'
-    )
-  ).toBeVisible()
-})
+    return
+  }
+  keys.add(block.supportedTitle)
+  keys.add(block.supportedText)
+  keys.add(block.unavailableTitle)
+  keys.add(block.unavailableText)
+}
 
-it.each(Object.entries({ en, zh, 'zh-TW': zhTW, fr, ja, ru, vi }))(
-  'provides translated guide prose and intact address placeholders in %s',
+function getGuideKeys(): string[] {
+  const keys = new Set(componentKeys)
+  for (const doc of guideDocs) {
+    keys.add(doc.title)
+    keys.add(doc.summary)
+    for (const section of doc.sections) {
+      keys.add(section.title)
+      section.blocks.forEach((block) => addBlockKeys(block, keys))
+    }
+  }
+  return [...keys]
+}
+
+function placeholders(value: string): string[] {
+  return (value.match(/\{\{[^}]+\}\}/g) ?? []).sort()
+}
+
+describe.each(Object.entries({ en, zh, 'zh-TW': zhTW, fr, ja, ru, vi }))(
+  'developer guide translations for %s',
   (_locale, resource) => {
     const translations = resource.translation as Record<string, string>
-    const prose = [
-      ...guideTools.flatMap((tool) => [
-        tool.summary,
-        ...tool.steps,
-        ...(tool.tips ?? []),
-      ]),
-      ...troubleshootRows.flatMap((row) => [row.meaning, row.fix]),
-      ...useCaseRows.map((row) => row.useCase),
-    ]
-    for (const key of prose) {
-      expect(translations[key], key).toBeTruthy()
-      expect(translations[key].match(/\{\{[^}]+\}\}/g) ?? [], key).toEqual(
-        key.match(/\{\{[^}]+\}\}/g) ?? []
-      )
-    }
+    const english = en.translation as Record<string, string>
+
+    it('translates every guide key and preserves placeholders', () => {
+      for (const key of getGuideKeys()) {
+        expect(translations[key], key).toBeTruthy()
+        expect(placeholders(translations[key]), key).toEqual(
+          placeholders(english[key] ?? key)
+        )
+      }
+    })
   }
 )

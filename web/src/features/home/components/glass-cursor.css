@@ -1,0 +1,108 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+.ci-glassCursor {
+  --cursor-trail: 0px;
+  --cursor-trail-opacity: 0;
+  --cursor-angle: 0rad;
+  position: fixed;
+  z-index: 80;
+  inset: 0 auto auto 0;
+  width: 60px;
+  height: 60px;
+  margin: -30px 0 0 -30px;
+  pointer-events: none;
+  user-select: none;
+  isolation: isolate;
+  contain: layout style;
+  will-change: transform;
+}
+.ci-glassCursor[hidden] {
+  display: none;
+}
+.ci-glassCursor * {
+  pointer-events: none;
+}
+.ci-glassCursorTrail {
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 50%;
+  width: calc(30px + var(--cursor-trail));
+  height: 12px;
+  opacity: var(--cursor-trail-opacity);
+  background: linear-gradient(90deg, transparent 25%, #ffffffa6 76%, #fff4);
+  clip-path: polygon(0 45%, 100% 0, 87% 50%, 100% 100%, 0 55%);
+  transform-origin: 0 50%;
+  transform: translateY(-50%) rotate(var(--cursor-angle));
+}
+.ci-glassCursorLens {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 26% 20%, #ffffff52, transparent 56%),
+    linear-gradient(135deg, #fff1, #dcead508 45%, #90b8cb17);
+  box-shadow:
+    inset 1px 2px 4px #ffffff8f,
+    inset -2px -3px 5px #8eabb21c,
+    0 4px 18px #798d720b;
+  -webkit-backdrop-filter: blur(2px) saturate(120%);
+  backdrop-filter: blur(2px) saturate(120%);
+  transition:
+    transform 160ms ease,
+    opacity 160ms ease;
+}
+.ci-glassCursorLens::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 25deg,
+    #b9e6eda8,
+    #9bd9f2d9 28%,
+    #fffffff0 43%,
+    #efc7ddc4 55%,
+    #fff8 72%,
+    #d8f0dc8c 86%,
+    #b9e6eda8
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.ci-glassCursor[data-interactive='true'] .ci-glassCursorLens {
+  transform: scale(0.65);
+  opacity: 0.65;
+}
+.dark .ci-glassCursorLens {
+  background:
+    radial-gradient(circle at 26% 20%, #ffffff21, transparent 60%), #daefef08;
+}
+@media (hover: none), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  .ci-glassCursor {
+    display: none;
+  }
+}

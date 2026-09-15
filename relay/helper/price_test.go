@@ -9,12 +9,77 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestConfiguredCacheWritePriceIsRecordedWithoutCacheUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	savedModelRatios := ratio_setting.ModelRatio2JSONString()
+	savedCacheRatios := ratio_setting.CreateCacheRatio2JSONString()
+	savedGroupRatios := ratio_setting.GroupRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedModelRatios))
+		require.NoError(t, ratio_setting.UpdateCreateCacheRatioByJSONString(savedCacheRatios))
+		require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(savedGroupRatios))
+	})
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"cache-log-model":1}`))
+	require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1}`))
+
+	for _, tt := range []struct {
+		name        string
+		configured  string
+		wantRatio   float64
+		wantPresent bool
+	}{
+		{name: "configured write price", configured: `{"cache-log-model":1.25}`, wantRatio: 1.25, wantPresent: true},
+		{name: "free cache writes", configured: `{"cache-log-model":0}`, wantPresent: true},
+		{name: "unconfigured fallback is not a listed price", configured: `{}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, ratio_setting.UpdateCreateCacheRatioByJSONString(tt.configured))
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			info := &relaycommon.RelayInfo{
+				OriginModelName: "cache-log-model",
+				ChannelMeta:     &relaycommon.ChannelMeta{},
+				UserGroup:       "default",
+				UsingGroup:      "default",
+			}
+			price, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
+			require.NoError(t, err)
+			// A settings update during the request must not rewrite its recorded rates.
+			require.NoError(t, ratio_setting.UpdateCreateCacheRatioByJSONString(`{"cache-log-model":9}`))
+			other := service.GenerateTextOtherInfo(ctx, info, price.ModelRatio,
+				price.GroupRatioInfo.GroupRatio, price.CompletionRatio, 0, price.CacheRatio,
+				price.ModelPrice, price.GroupRatioInfo.GroupSpecialRatio)
+			if !tt.wantPresent {
+				assert.NotContains(t, other, "cache_creation_ratio")
+				return
+			}
+			require.Contains(t, other, "cache_creation_ratio")
+			assert.Equal(t, tt.wantRatio, other["cache_creation_ratio"])
+			assert.NotContains(t, other, "cache_creation_tokens")
+		})
+	}
+}
+
+func TestClaudeCacheWriteDurationPricesAreRecordedWithoutCacheUsage(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	other := service.GenerateClaudeOtherInfo(ctx, info, 1, 0.5, 5,
+		0, 0.1, 0, 1.25, 0, 1.25, 0, 2, -1, -1)
+	require.Contains(t, other, "cache_creation_ratio_5m")
+	require.Contains(t, other, "cache_creation_ratio_1h")
+	assert.Equal(t, 1.25, other["cache_creation_ratio_5m"])
+	assert.Equal(t, float64(2), other["cache_creation_ratio_1h"])
+	assert.NotContains(t, other, "cache_creation_tokens_5m")
+	assert.NotContains(t, other, "cache_creation_tokens_1h")
+}
 
 func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)

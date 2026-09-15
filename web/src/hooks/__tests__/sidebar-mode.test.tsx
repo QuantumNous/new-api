@@ -16,14 +16,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import {
+  createRootRoute,
+  createMemoryHistory,
+  createRouter,
+  RouterContextProvider,
+} from '@tanstack/react-router'
 import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import type { ReactNode } from 'react'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { useSidebarData } from '@/hooks/use-sidebar-data'
 import { useConsoleModeStore } from '@/stores/console-mode-store'
 
-function getSidebarUrls() {
-  const { result } = renderHook(() => useSidebarData())
+async function getSidebarUrls() {
+  const router = createRouter({
+    routeTree: createRootRoute(),
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  })
+  await router.load()
+  const { result } = renderHook(() => useSidebarData(), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <RouterContextProvider router={router}>{children}</RouterContextProvider>
+    ),
+  })
   return result.current.navGroups.flatMap((group) =>
     group.items.flatMap((item) => {
       if (item.url) return [item.url]
@@ -32,29 +48,35 @@ function getSidebarUrls() {
   )
 }
 
+const previousMode = useConsoleModeStore.getState().mode
+afterEach(() => {
+  useConsoleModeStore.getState().setMode(previousMode)
+})
+
 describe('console mode sidebar', () => {
   beforeEach(() => {
     window.localStorage.clear()
   })
 
-  it('keeps only everyday destinations in easy mode', () => {
+  it('keeps only everyday destinations in easy mode', async () => {
     useConsoleModeStore.getState().setMode('easy')
 
-    expect(getSidebarUrls()).toEqual([
+    expect(await getSidebarUrls()).toEqual([
       '/dashboard/overview',
       '/keys',
       '/pricing',
-      '/guide',
+      '/beginner-guide',
       '/usage-logs/common',
       '/wallet',
     ])
   })
 
-  it('restores technical workspaces in developer mode', () => {
+  it('restores technical workspaces in developer mode', async () => {
     useConsoleModeStore.getState().setMode('developer')
 
-    const urls = getSidebarUrls()
+    const urls = await getSidebarUrls()
     expect(urls).toContain('/playground')
+    expect(urls).toContain('/guide')
     expect(urls).toContain('/dashboard/models')
     expect(urls).toContain('/usage-logs/task')
     expect(urls).toContain('/channels')

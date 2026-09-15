@@ -125,3 +125,44 @@ export async function fetchTokenKeysBatch(ids: number[]): Promise<{
   const res = await api.post('/api/token/batch/keys', { ids })
   return res.data
 }
+
+// Collect the complete snapshot before deleting: deleting while paging would
+// shift later records into earlier pages and leave keys active.
+export async function revokeAllApiKeys(): Promise<void> {
+  const ids = new Set<number>()
+  for (let page = 1; ; page++) {
+    const result = await getApiKeys({ p: page, size: 100 })
+    if (
+      !result.success ||
+      !result.data ||
+      !Number.isFinite(result.data.total)
+    ) {
+      throw new Error(result.message || 'Failed to load API keys')
+    }
+    for (const item of result.data.items) ids.add(item.id)
+    if (page * 100 >= result.data.total) break
+    if (result.data.items.length === 0) {
+      throw new Error('Failed to load API keys')
+    }
+  }
+  const snapshot = [...ids]
+  for (let index = 0; index < snapshot.length; index += 100) {
+    const result = await batchDeleteApiKeys(snapshot.slice(index, index + 100))
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to delete API keys')
+    }
+  }
+  const remaining = await getApiKeys({ p: 1, size: 1 })
+  if (!remaining.success || remaining.data?.total !== 0) {
+    throw new Error(remaining.message || 'Failed to delete API keys')
+  }
+}
+
+export async function getFullApiKey(id: number): Promise<string> {
+  const result = await fetchTokenKey(id)
+  const key = result.data?.key
+  if (!result.success || !key || key.includes('*')) {
+    throw new Error(result.message || 'Failed to load API keys')
+  }
+  return key.startsWith('sk-') ? key : `sk-${key}`
+}

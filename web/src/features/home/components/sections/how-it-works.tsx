@@ -16,16 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Link } from '@tanstack/react-router'
-import {
-  ArrowRight,
-  ClipboardCopy,
-  KeyRound,
-  MessageCircleHeart,
-} from 'lucide-react'
+import { ClipboardCopy, KeyRound, MessageCircleHeart } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/ui/button'
 import { useRevealOnScroll } from '@/hooks/use-reveal-on-scroll'
 
 export function HowItWorks() {
@@ -74,14 +67,6 @@ export function HowItWorks() {
           <p className='text-muted-foreground mt-4 max-w-md text-base leading-relaxed text-pretty'>
             {t('If you can copy and paste, you can do this.')}
           </p>
-          <Button
-            variant='outline'
-            className='dopa-spring mt-7 h-11 rounded-full px-6 font-semibold'
-            render={<Link to='/guide' />}
-          >
-            {t('See the full beginner guide')}
-            <ArrowRight className='ml-1.5 size-4' />
-          </Button>
         </div>
 
         <ol className='dopa-paper dopa-setup-trace overflow-hidden rounded-[1.75rem]'>

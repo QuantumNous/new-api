@@ -710,7 +710,13 @@ export function useCommonLogsColumns(
 
         const quota = row.getValue('quota') as number
         const other = parseLogOther(log.other)
-        return <LogCostDisplay quota={quota} other={other} />
+        return (
+          <LogCostDisplay
+            modelName={log.model_name}
+            quota={quota}
+            other={other}
+          />
+        )
       },
     },
 

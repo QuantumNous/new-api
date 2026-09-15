@@ -17,10 +17,8 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
 | [Database Guidelines](./database-guidelines.md) | ORM patterns, queries, migrations | To fill |
 | [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
-| [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
-| [Registration login](./registration-login.md) | Registration auto-login, session response, failure fallback and domain boundaries | Implemented |
+| [Quality Guidelines](./quality-guidelines.md) | Embedded SPA/static-file boundary and code standards | Partially implemented |
 | [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
-| [Custom-domain callbacks](./custom-domain-callbacks.md) | Main-Origin/Session configuration, Host routing, OAuth failure/state contracts, reset/wallet returns, and local healthchecks | Implemented; peer-main Passkey deferred |
 
 ---
 

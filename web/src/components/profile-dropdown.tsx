@@ -59,6 +59,7 @@ export function ProfileDropdown() {
     <>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
+          aria-label={t('Profile')}
           render={<Button variant='ghost' className='relative size-6 p-0' />}
         >
           <Avatar className='size-6'>

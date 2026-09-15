@@ -30,11 +30,12 @@ import { toast } from 'sonner'
 
 import { getStatus } from '@/lib/api'
 import { installBuildMetadata } from '@/lib/build-metadata'
-import { resolveLogoUrl, resolveSystemName } from '@/lib/constants'
+import { resolveLogoUrl } from '@/lib/constants'
 import { applyFaviconToDom } from '@/lib/dom-utils'
-import '@/lib/dayjs'
 import { initializeFrontendCache } from '@/lib/frontend-cache'
+import '@/lib/dayjs'
 import { handleServerError } from '@/lib/handle-server-error'
+import { resolveProductName } from '@/lib/product-brand'
 
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
@@ -119,7 +120,7 @@ if (!rootElement) {
   try {
     if (typeof window === 'undefined' || typeof document === 'undefined') return
     const apply = (name?: string | null) => {
-      const resolvedName = resolveSystemName(name)
+      const resolvedName = resolveProductName(name)
       document.title = resolvedName
       const metaTitle = document.querySelector(
         'meta[name="title"]'

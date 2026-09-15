@@ -23,6 +23,7 @@ import {
   DASHBOARD_SECTION_IDS,
   DASHBOARD_DEFAULT_SECTION,
 } from '@/features/dashboard/section-registry'
+import { useConsoleModeStore } from '@/stores/console-mode-store'
 
 export const Route = createFileRoute('/_authenticated/dashboard/$section')({
   beforeLoad: ({ params }) => {
@@ -31,6 +32,16 @@ export const Route = createFileRoute('/_authenticated/dashboard/$section')({
       throw redirect({
         to: '/dashboard/$section',
         params: { section: DASHBOARD_DEFAULT_SECTION },
+      })
+    }
+    if (
+      params.section === 'reports' &&
+      useConsoleModeStore.getState().mode === 'developer'
+    ) {
+      throw redirect({
+        to: '/dashboard/$section',
+        params: { section: 'models' },
+        replace: true,
       })
     }
   },

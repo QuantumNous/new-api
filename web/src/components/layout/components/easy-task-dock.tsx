@@ -51,7 +51,12 @@ const EASY_TASKS = [
     icon: Sparkles,
     tone: 'money',
   },
-  { titleKey: 'Beginner guide', to: '/guide', icon: BookOpen, tone: 'signal' },
+  {
+    titleKey: 'Beginner guide',
+    to: '/beginner-guide',
+    icon: BookOpen,
+    tone: 'signal',
+  },
   {
     titleKey: 'Spending details',
     to: '/usage-logs',

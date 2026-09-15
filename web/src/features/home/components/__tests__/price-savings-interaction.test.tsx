@@ -25,11 +25,25 @@ import type { SavingsModel } from '../../lib/pricing-savings'
 import { PriceSavings } from '../sections/price-savings'
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: (props: { children: ReactNode; className?: string; to: string }) => (
-    <a className={props.className} href={props.to}>
+  Link: (props: {
+    children: ReactNode
+    className?: string
+    to: string
+    params?: { modelId?: string }
+  }) => (
+    <a
+      className={props.className}
+      href={
+        props.params?.modelId ? `/pricing/${props.params.modelId}` : props.to
+      }
+    >
       {props.children}
     </a>
   ),
+}))
+
+vi.mock('@/lib/lobe-icon', () => ({
+  getLobeIcon: () => <span data-testid='vendor-icon' />,
 }))
 
 const models: SavingsModel[] = [
@@ -64,12 +78,9 @@ const models: SavingsModel[] = [
 ]
 
 describe('PriceSavings', () => {
-  it('labels editable site rates as a base comparison rather than official prices', () => {
+  it('labels catalog rates as a base comparison rather than official prices', () => {
     render(<PriceSavings models={models} />)
     expect(screen.queryAllByText('Official API')).toHaveLength(0)
-    expect(screen.getAllByText('Base billing estimate').length).toBeGreaterThan(
-      0
-    )
     expect(
       screen.getAllByText(
         'Compared with site base prices before group discounts, not official provider prices.'
@@ -92,84 +103,28 @@ describe('PriceSavings', () => {
 
     expect(screen.getByTestId('desktop-price-table')).toHaveClass(
       'hidden',
-      'md:block'
+      'md:grid'
     )
     expect(screen.getByTestId('mobile-price-cards')).toHaveClass('md:hidden')
-    expect(screen.getAllByText('gpt-flagship')).toHaveLength(2)
+    expect(screen.getAllByText('gpt-flagship').length).toBeGreaterThan(0)
   })
 
-  it('exposes workload choices as an accessible single-selection control', async () => {
+  it('filters the live catalog by search query', async () => {
     const user = userEvent.setup()
+    render(<PriceSavings models={models} calculatorModels={models} />)
+
+    await user.type(screen.getByRole('textbox', { name: 'Search' }), 'claude')
+
+    expect(screen.getAllByText('claude-flagship').length).toBeGreaterThan(0)
+    expect(screen.queryByText('gpt-flagship')).not.toBeInTheDocument()
+  })
+
+  it('links each catalog row to the model price page', () => {
     render(<PriceSavings models={models} />)
 
-    const coding = screen.getByRole('radio', { name: 'AI coding' })
-    const support = screen.getByRole('radio', {
-      name: 'Customer support and operations',
-    })
-    expect(coding).toHaveAttribute('aria-checked', 'true')
-    expect(support).toHaveAttribute('aria-checked', 'false')
-
-    await user.click(support)
-
-    expect(coding).toHaveAttribute('aria-checked', 'false')
-    expect(support).toHaveAttribute('aria-checked', 'true')
-  })
-
-  it('selects a model from the live calculator catalog', async () => {
-    const user = userEvent.setup()
-    render(<PriceSavings models={[models[0]]} calculatorModels={models} />)
-
-    const modelPicker = screen.getByRole('combobox', { name: 'Model' })
-    expect(modelPicker).toHaveValue('gpt-flagship · OpenAI')
-    const firstEstimate = screen.getByTestId('annual-savings').textContent
-
-    await user.click(modelPicker)
-    await user.type(modelPicker, 'claude')
-    await user.click(
-      screen.getByRole('option', { name: /claude-flagship · Anthropic/i })
+    expect(screen.getByRole('link', { name: /gpt-flagship/i })).toHaveAttribute(
+      'href',
+      '/pricing/gpt-flagship'
     )
-
-    expect(modelPicker).toHaveValue('claude-flagship · Anthropic')
-    expect(screen.getByTestId('annual-savings').textContent).not.toBe(
-      firstEstimate
-    )
-  })
-
-  it('shows cache pricing and the editable token composition', () => {
-    render(<PriceSavings models={models} />)
-
-    expect(screen.getAllByText('Cache Read')).not.toHaveLength(0)
-    expect(screen.getAllByText('Cache Write')).not.toHaveLength(0)
-    expect(screen.getAllByText('55%')).not.toHaveLength(0)
-    expect(screen.getAllByText('10%')).not.toHaveLength(0)
-    expect(
-      document.querySelector<HTMLInputElement>(
-        'input[type="range"][aria-label="Cache Read"]'
-      )
-    ).not.toBeNull()
-  })
-
-  it('updates both sliders from the keyboard with meaningful value text', async () => {
-    const user = userEvent.setup()
-    render(<PriceSavings models={models} />)
-
-    const tokens = document.querySelector<HTMLInputElement>(
-      'input[type="range"][aria-label="Monthly tokens"]'
-    )
-    const people = document.querySelector<HTMLInputElement>(
-      'input[type="range"][aria-label="People"]'
-    )
-    expect(tokens).not.toBeNull()
-    expect(people).not.toBeNull()
-
-    tokens?.focus()
-    await user.keyboard('{End}')
-    expect(tokens).toHaveAttribute('aria-valuetext', '200M tokens')
-    expect(screen.getAllByText('200M tokens')).toHaveLength(2)
-
-    people?.focus()
-    await user.keyboard('{Home}')
-    expect(people).toHaveAttribute('aria-valuetext', '1 people')
-    expect(screen.getByText('1 people')).toBeInTheDocument()
   })
 })

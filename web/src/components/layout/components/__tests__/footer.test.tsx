@@ -60,7 +60,8 @@ describe('Footer', () => {
       'href',
       'https://github.com/QuantumNous/new-api'
     )
-    expect(screen.getAllByText('New API')).toHaveLength(2)
+    expect(screen.getByText('野菜')).toBeVisible()
+    expect(screen.getAllByText('New API')).toHaveLength(1)
     expect(projectLink.closest('footer')).toHaveTextContent(
       String(new Date().getFullYear())
     )

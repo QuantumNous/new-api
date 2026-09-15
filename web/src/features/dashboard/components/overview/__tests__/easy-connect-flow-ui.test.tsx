@@ -131,6 +131,16 @@ describe('easy connect flow', () => {
     })
   })
 
+  it('opens the historical beginner guide from contextual help', async () => {
+    renderFlow()
+
+    expect(
+      await screen.findByRole('link', {
+        name: 'Need help with a specific app?',
+      })
+    ).toHaveAttribute('href', '/beginner-guide')
+  })
+
   it('creates a model-limited key and copies the three values as one bundle', async () => {
     renderFlow()
 

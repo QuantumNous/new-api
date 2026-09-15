@@ -20,9 +20,8 @@ import { Check, Copy, KeyRound, Link2, Puzzle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import type { GuideAddress } from '@/features/guide/use-guide-address'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
-
-import type { GuideAddress } from '../use-guide-address'
 
 interface AddressKitProps {
   address: GuideAddress

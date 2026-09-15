@@ -62,7 +62,7 @@ interface HeroSignal {
 }
 
 function getPreferredKey(keys: ApiKey[]): ApiKey | null {
-  return keys.find((item) => item.status === 1) ?? keys[0] ?? null
+  return keys.find((item) => item.status === 1) ?? null
 }
 
 function DeveloperOverviewDashboard() {
@@ -79,7 +79,7 @@ function DeveloperOverviewDashboard() {
   const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
 
   const apiKeysQuery = useQuery({
-    queryKey: ['dashboard', 'overview', 'api-keys'],
+    queryKey: ['dashboard', 'overview', 'api-keys', user?.id],
     queryFn: async () => {
       const result = await getApiKeys({ p: 1, size: 10 })
       return result.success ? (result.data?.items ?? []) : []
@@ -88,7 +88,7 @@ function DeveloperOverviewDashboard() {
   })
 
   const modelsQuery = useQuery({
-    queryKey: ['dashboard', 'overview', 'user-models'],
+    queryKey: ['dashboard', 'overview', 'user-models', user?.id],
     queryFn: async () => {
       const result = await getUserModels()
       return result.success ? (result.data ?? []) : []
@@ -236,10 +236,11 @@ function DeveloperOverviewDashboard() {
 
 export function OverviewDashboard() {
   const mode = useConsoleModeStore((state) => state.mode)
+  const userId = useAuthStore((state) => state.auth.user?.id)
 
   return mode === 'easy' ? (
     <EasyOverviewDashboard />
   ) : (
-    <DeveloperOverviewDashboard />
+    <DeveloperOverviewDashboard key={userId} />
   )
 }

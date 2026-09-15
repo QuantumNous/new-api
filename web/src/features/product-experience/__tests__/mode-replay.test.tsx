@@ -16,12 +16,23 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { QueryClient } from '@tanstack/react-query'
+import { cleanup, fireEvent, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { ConsoleModeSwitcher } from '@/components/layout/components/console-mode-switcher'
 import { useSidebarData } from '@/hooks/use-sidebar-data'
 import { useConsoleModeStore } from '@/stores/console-mode-store'
+import { renderApp } from '@/test-utils/render-app'
+
+const previousMode = useConsoleModeStore.getState().mode
+let client: QueryClient
+
+afterEach(() => {
+  cleanup()
+  client.clear()
+  useConsoleModeStore.getState().setMode(previousMode)
+})
 
 function ModeHarness() {
   const sidebar = useSidebarData()
@@ -49,10 +60,11 @@ describe('mode selection replay', () => {
   beforeEach(() => {
     window.localStorage.clear()
     useConsoleModeStore.getState().setMode('easy')
+    client = new QueryClient()
   })
 
-  it('keeps one stable shell and one copy of every destination', () => {
-    render(<ModeHarness />)
+  it('keeps one stable shell and one copy of every destination', async () => {
+    await renderApp(<ModeHarness />, client)
     const easy = screen.getByRole('button', { name: 'Easy mode' })
     const developer = screen.getByRole('button', { name: 'Developer mode' })
 

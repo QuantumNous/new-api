@@ -203,6 +203,19 @@ export interface LogOtherData {
   matched_tier?: string
   request_rules?: RequestRuleTrace[]
   usage_facts?: Record<string, string | number>
+  billing_usage?: {
+    p: number
+    c: number
+    len: number
+    cr: number
+    cc: number
+    cc1h: number
+    img: number
+    img_o: number
+    ai: number
+    ao: number
+  }
+  billing_cost_before_group?: number
   reasoning_effort?: string
   image?: boolean
   image_ratio?: number
@@ -482,4 +495,24 @@ export interface UserInfo {
   aff_count?: number
   aff_quota?: number
   remark?: string
+}
+
+export type UserLogSummaryTotals = {
+  /** Subscription allowance consumption, excluded from wallet quota. */
+  subscription_quota?: number
+  requests: number
+  succeeded: number
+  failed: number
+  quota: number
+  tokens: number
+  saved_quota: number
+  comparable_requests: number
+}
+
+export type DailyLogSummary = UserLogSummaryTotals & { date: string }
+export type UserLogSummary = UserLogSummaryTotals & { daily: DailyLogSummary[] }
+export type UserLogSummaryParams = {
+  start_timestamp: number
+  end_timestamp: number
+  timezone_offset: number
 }

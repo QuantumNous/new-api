@@ -66,6 +66,8 @@ from .paths import (
     FILE_CURRENT_TASK,
     FILE_TASK_JSON,
     FILE_JOURNAL_PREFIX,
+    ENV_DEVELOPER,
+    DEVELOPER_HINT,
     get_repo_root,
     get_developer,
     check_developer,

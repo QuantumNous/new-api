@@ -30,14 +30,21 @@ import {
 } from '@/components/ui/tooltip'
 import { formatEasySavingsCny } from '@/features/dashboard/components/overview/easy-savings'
 import { useStatus } from '@/hooks/use-status'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatLogQuota } from '@/lib/format'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
-import { getLogCostComparison } from '../lib/cost-comparison'
+import {
+  getLogChargedQuota,
+  getLogCostComparison,
+  OFFICIAL_PRICE_USD_TO_CNY,
+} from '../lib/cost-comparison'
 import { hasToolSurcharge } from '../lib/format'
+import { resolveModelProvider } from '../lib/model-provider'
 import type { LogOtherData } from '../types'
 
 interface LogCostDisplayProps {
+  modelName?: string
   quota: number
   other: LogOtherData | null
 }
@@ -83,8 +90,12 @@ function ToolSurchargeMarker() {
   )
 }
 
-function QuotaBadge(props: { quota: number }) {
-  const quotaDisplay = splitQuotaDisplay(formatLogQuota(props.quota))
+function QuotaBadge(props: { amountCny: number }) {
+  const quotaDisplay = splitQuotaDisplay(
+    Number.isFinite(props.amountCny)
+      ? formatEasySavingsCny(props.amountCny)
+      : '—'
+  )
 
   return (
     <span className='border-border/80 bg-muted/60 inline-flex h-6 w-fit items-center rounded-md border px-2 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums'>
@@ -122,40 +133,105 @@ function SubscriptionBadge(props: { quota: number }) {
 }
 
 export function LogCostDisplay(props: LogCostDisplayProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { status } = useStatus()
   const quotaPerUnit = useSystemConfigStore(
     (state) => state.config.currency.quotaPerUnit
   )
   const isSubscription = props.other?.billing_source === 'subscription'
+  const chargedQuota = getLogChargedQuota(props.quota, props.other)
   const showToolSurcharge = hasToolSurcharge(props.other)
+  const priceRate = Math.max(Number(status?.price ?? 1), 0.001)
+  const referenceCurrency = resolveModelProvider(
+    props.modelName ?? ''
+  )?.referenceCurrency
   const comparison = getLogCostComparison(props.quota, props.other, {
-    priceRate: Math.max(Number(status?.price ?? 1), 0.001),
+    priceRate,
     quotaPerUnit,
+    referenceCurrency,
   })
+  const savingsPercent = comparison
+    ? ((comparison.savings / comparison.baseCost) * 100).toLocaleString(
+        toIntlLocale(i18n.language),
+        { maximumFractionDigits: 2 }
+      )
+    : null
+  const savingsLabel =
+    savingsPercent === null
+      ? undefined
+      : t('Cheaper by {{percent}}%', { percent: savingsPercent })
+  let officialPrice = ''
+  if (comparison) {
+    officialPrice =
+      referenceCurrency === 'USD'
+        ? new Intl.NumberFormat(toIntlLocale(i18n.language), {
+            style: 'currency',
+            currency: 'USD',
+            currencyDisplay: 'narrowSymbol',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 6,
+          }).format(comparison.baseCost / OFFICIAL_PRICE_USD_TO_CNY)
+        : formatEasySavingsCny(comparison.baseCost)
+  }
+
+  if (!isSubscription && chargedQuota === 0) {
+    return (
+      <span className='text-sm font-semibold tabular-nums'>{t('Cost')} 0</span>
+    )
+  }
   const costContent = comparison ? (
     <div
       className='dopa-cost-stack'
       data-testid='log-savings-comparison'
-      aria-label={`${t('Savings versus base price')} ${formatEasySavingsCny(comparison.savings)}`}
+      aria-label={savingsLabel}
     >
       <span className='dopa-cost-stack__official'>
-        {t('Base billing estimate')} {formatEasySavingsCny(comparison.baseCost)}
+        <Tooltip>
+          <TooltipTrigger
+            render={<span tabIndex={0} className='cursor-help' />}
+          >
+            {t('Official price')}
+          </TooltipTrigger>
+          <TooltipContent>
+            {referenceCurrency
+              ? t(
+                  'Estimated from the recorded base price. The reference currency follows the model family; provider official pricing has not been independently verified.'
+                )
+              : t(
+                  'Estimated from the recorded model base price; provider official pricing has not been independently verified.'
+                )}
+            {referenceCurrency === 'USD' && (
+              <p>
+                {t(
+                  'Official prices are shown in USD. Savings use 1 USD = {{rate}} CNY.',
+                  { rate: OFFICIAL_PRICE_USD_TO_CNY }
+                )}
+              </p>
+            )}
+          </TooltipContent>
+        </Tooltip>{' '}
+        <del>{officialPrice}</del>
       </span>
       <span className='dopa-cost-stack__actual'>
-        {t('Yecai billing')} {formatEasySavingsCny(comparison.siteCost)}
+        {t('Yecai price')} {formatEasySavingsCny(comparison.siteCost)}
       </span>
-      <span className='dopa-cost-stack__saved'>
-        {t('Savings versus base price')}{' '}
-        {formatEasySavingsCny(comparison.savings)}
-      </span>
+      {savingsLabel && (
+        <span className='dopa-cost-stack__saved'>{savingsLabel}</span>
+      )}
     </div>
   ) : (
-    <QuotaBadge quota={props.quota} />
+    <div className='flex items-center gap-1 text-xs'>
+      <span>{t('Yecai price')}</span>
+      <QuotaBadge amountCny={(chargedQuota / quotaPerUnit) * priceRate} />
+    </div>
   )
 
   if (!isSubscription && !showToolSurcharge) {
-    return <div className='flex flex-col gap-0.5'>{costContent}</div>
+    return (
+      <TooltipProvider>
+        <div className='flex flex-col gap-0.5'>{costContent}</div>
+      </TooltipProvider>
+    )
   }
 
   return (

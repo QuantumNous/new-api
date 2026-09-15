@@ -31,11 +31,8 @@ describe('public top navigation', () => {
       translate,
     })
 
-    expect(links.map((link) => link.title)).toEqual([
-      'Model Price',
-      'Beginner guide',
-    ])
-    expect(links.map((link) => link.href)).toEqual(['/pricing', '/guide'])
+    expect(links.map((link) => link.title)).toEqual(['Model Price'])
+    expect(links.map((link) => link.href)).toEqual(['/pricing'])
   })
 
   it('adds the console for signed-in users without restoring secondary links', () => {
@@ -45,11 +42,7 @@ describe('public top navigation', () => {
       translate,
     })
 
-    expect(links.map((link) => link.title)).toEqual([
-      'Console',
-      'Model Price',
-      'Beginner guide',
-    ])
+    expect(links.map((link) => link.title)).toEqual(['Console', 'Model Price'])
     expect(links).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ title: 'Home' }),
@@ -59,7 +52,7 @@ describe('public top navigation', () => {
     )
   })
 
-  it('respects disabled public modules while keeping the beginner guide visible', () => {
+  it('does not restore private docs when public modules are disabled', () => {
     const links = buildPublicTopNavLinks({
       modules: parseHeaderNavModules({
         console: false,
@@ -70,7 +63,7 @@ describe('public top navigation', () => {
       translate,
     })
 
-    expect(links).toEqual([{ title: 'Beginner guide', href: '/guide' }])
+    expect(links).toEqual([])
   })
 
   it('preserves protected pricing without exposing documentation in the public header', () => {
@@ -88,9 +81,7 @@ describe('public top navigation', () => {
       requiresAuth: true,
     })
     expect(links).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ title: 'API Access' }),
-      ])
+      expect.arrayContaining([expect.objectContaining({ title: 'API Access' })])
     )
   })
 })

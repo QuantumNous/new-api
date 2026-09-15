@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
+import { ArrowRight } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,16 +28,17 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { YecaiAction } from '@/components/yecai'
+import { CiMark } from '@/features/home/components/ci-mark'
 import { useNotifications } from '@/hooks/use-notifications'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
+import { PRODUCT_NAME } from '@/lib/product-brand'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import type { TopNavLink } from '../types'
-import { HeaderLogo } from './header-logo'
+import { CommunityHelp } from './community-help'
 
 const AUTH_PROMPT_SECONDS = 5
 
@@ -68,7 +70,6 @@ export function PublicHeader(props: PublicHeaderProps) {
     showThemeSwitch = true,
     showLanguageSwitcher = true,
     logo: customLogo,
-    siteName: customSiteName,
     homeUrl = '/',
     showAuthButtons = true,
     showNotifications = true,
@@ -83,12 +84,7 @@ export function PublicHeader(props: PublicHeaderProps) {
   const [authPromptSecondsLeft, setAuthPromptSecondsLeft] =
     useState(AUTH_PROMPT_SECONDS)
   const { auth } = useAuthStore()
-  const {
-    systemName,
-    logo: systemLogo,
-    loading,
-    logoLoaded,
-  } = useSystemConfig()
+  const { loading } = useSystemConfig()
   const dynamicLinks = useTopNavLinks({ surface: 'public' })
   const notifications = useNotifications()
   const routerState = useRouterState()
@@ -97,7 +93,6 @@ export function PublicHeader(props: PublicHeaderProps) {
   const user = auth.user
   const isAuthenticated = !!user
   const shouldShowNotifications = showNotifications && isAuthenticated
-  const displaySiteName = customSiteName || systemName
   const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
 
   useEffect(() => {
@@ -144,24 +139,29 @@ export function PublicHeader(props: PublicHeaderProps) {
     navigate({ to: '/sign-in', search: { redirect } })
   }, [authPromptTarget?.href, navigate])
 
-  let logoContent: React.ReactNode = (
-    <HeaderLogo
-      src={systemLogo}
-      loading={loading}
-      logoLoaded={logoLoaded}
-      className='size-full rounded-lg object-contain'
-    />
+  const logoContent: React.ReactNode = customLogo ?? (
+    <CiMark size={22} withWordmark />
   )
-  if (loading) {
-    logoContent = <Skeleton className='size-full rounded-lg' />
-  } else if (customLogo) {
-    logoContent = customLogo
-  }
 
   let desktopAuthContent: React.ReactNode = (
-    <YecaiAction size='sm' render={<Link to='/sign-in' />}>
-      {t('Sign in')}
-    </YecaiAction>
+    <div className='flex items-center gap-1.5'>
+      <Button
+        variant='ghost'
+        size='sm'
+        className='h-8 rounded-md px-3 text-xs'
+        render={<Link to='/sign-in' />}
+      >
+        {t('Sign in')}
+      </Button>
+      <Button
+        size='sm'
+        className='h-8 rounded-md px-3 text-xs'
+        render={<Link to='/sign-up' />}
+      >
+        {t('Start saving')}
+        <ArrowRight className='size-3.5' />
+      </Button>
+    </div>
   )
   if (loading) {
     desktopAuthContent = <Skeleton className='h-8 w-20 rounded-lg' />
@@ -202,31 +202,20 @@ export function PublicHeader(props: PublicHeaderProps) {
 
   return (
     <>
-      <header
-        className={cn(
-          'pointer-events-none fixed inset-x-0 top-0 z-50 transition-[background-color,box-shadow,backdrop-filter] duration-500',
-          scrolled &&
-            'bg-background/80 shadow-[0_16px_38px_-36px_color-mix(in_oklch,var(--foreground)_35%,transparent)] backdrop-blur-2xl'
-        )}
-      >
-        <div className='pointer-events-auto mx-auto max-w-7xl px-4 md:px-6'>
+      <header className='ci-header pointer-events-none'>
+        <div className='ci-headerInner pointer-events-auto'>
           <nav
             className={cn(
-              'flex items-center justify-between px-1 transition-[height] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
-              scrolled ? 'h-14' : 'h-16'
+              'flex w-full items-center justify-between',
+              scrolled ? 'min-h-14' : 'min-h-[60px]'
             )}
           >
-            {/* Logo */}
             <Link
               to={homeUrl}
-              className='group flex shrink-0 items-center gap-2.5'
+              className='ci-logo'
+              aria-label={`${PRODUCT_NAME} home`}
             >
-              <div className='flex size-7 shrink-0 items-center justify-center transition-all duration-300 group-hover:scale-105'>
-                {logoContent}
-              </div>
-              <span className='text-sm font-semibold tracking-tight'>
-                {loading ? <Skeleton className='h-4 w-16' /> : displaySiteName}
-              </span>
+              {logoContent}
             </Link>
 
             {/* Desktop nav */}
@@ -260,10 +249,10 @@ export function PublicHeader(props: PublicHeaderProps) {
                     disabled={link.disabled}
                     onClick={(event) => handleNavLinkClick(event, link)}
                     className={cn(
-                      'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-200',
+                      'rounded-md px-3 py-1.5 text-sm font-medium transition-colors duration-200',
                       isActive
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-muted-foreground hover:bg-background/70 hover:text-foreground',
+                        ? 'text-foreground'
+                        : 'text-muted-foreground hover:text-foreground',
                       link.disabled && 'pointer-events-none opacity-50'
                     )}
                   >
@@ -271,6 +260,8 @@ export function PublicHeader(props: PublicHeaderProps) {
                   </Link>
                 )
               })}
+
+              <CommunityHelp variant='header' />
 
               {(showLanguageSwitcher ||
                 showThemeSwitch ||
@@ -304,6 +295,7 @@ export function PublicHeader(props: PublicHeaderProps) {
             {/* Mobile: compact actions + hamburger */}
             <div className='flex items-center gap-2 sm:hidden'>
               {showThemeSwitch && <ThemeSwitch />}
+              <CommunityHelp variant='header' />
               {showAuthButtons && !loading && isAuthenticated && (
                 <ProfileDropdown />
               )}
@@ -408,19 +400,36 @@ export function PublicHeader(props: PublicHeaderProps) {
             style={{ transitionDelay: mobileOpen ? '250ms' : '0ms' }}
           >
             {showAuthButtons && (
-              <YecaiAction
-                tone='leaf'
-                size='lg'
-                className='w-full'
-                render={
-                  <Link
-                    to={isAuthenticated ? '/dashboard' : '/sign-in'}
-                    onClick={() => setMobileOpen(false)}
-                  />
-                }
-              >
-                {isAuthenticated ? t('Go to Dashboard') : t('Sign in')}
-              </YecaiAction>
+              <div className='flex flex-col gap-2'>
+                {!isAuthenticated && (
+                  <Button
+                    size='lg'
+                    className='w-full'
+                    render={
+                      <Link
+                        to='/sign-up'
+                        onClick={() => setMobileOpen(false)}
+                      />
+                    }
+                  >
+                    {t('Start saving')}
+                    <ArrowRight className='size-4' />
+                  </Button>
+                )}
+                <Button
+                  variant={isAuthenticated ? 'default' : 'outline'}
+                  size='lg'
+                  className='w-full'
+                  render={
+                    <Link
+                      to={isAuthenticated ? '/dashboard' : '/sign-in'}
+                      onClick={() => setMobileOpen(false)}
+                    />
+                  }
+                >
+                  {isAuthenticated ? t('Go to Dashboard') : t('Sign in')}
+                </Button>
+              </div>
             )}
           </div>
         </div>

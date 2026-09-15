@@ -16,10 +16,16 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute } from '@tanstack/react-router'
+import { useRouterState } from '@tanstack/react-router'
 
-import { Guide } from '@/features/guide'
+import { isOperatorRoute } from '@/lib/operator-route'
+import { useConsoleModeStore } from '@/stores/console-mode-store'
 
-export const Route = createFileRoute('/guide')({
-  component: Guide,
-})
+// Operator-only pages always use the developer shell, regardless of the saved preference.
+export function useConsoleMode() {
+  const preference = useConsoleModeStore((state) => state.mode)
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  return isOperatorRoute(pathname) ? 'developer' : preference
+}

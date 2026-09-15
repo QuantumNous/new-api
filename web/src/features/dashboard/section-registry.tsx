@@ -30,6 +30,11 @@ const DASHBOARD_SECTIONS = [
     build: () => null,
   },
   {
+    id: 'reports',
+    titleKey: 'Reports',
+    build: () => null,
+  },
+  {
     id: 'models',
     titleKey: 'Model Call Analytics',
     build: () => null,

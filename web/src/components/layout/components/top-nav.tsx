@@ -19,27 +19,36 @@ For commercial licensing, please contact support@quantumnous.com
 import { Link } from '@tanstack/react-router'
 import { Menu } from 'lucide-react'
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
-import { type TopNavLink } from '../types'
+import type { TopNavLink } from '../types'
 
 type TopNavProps = React.HTMLAttributes<HTMLElement> & {
   links: TopNavLink[]
+  variant?: 'responsive' | 'inline'
 }
 
 /**
  * 顶部导航栏组件
  * 在大屏幕显示水平导航，在小屏幕显示下拉菜单
  */
-export function TopNav({ className, links, ...props }: TopNavProps) {
+export function TopNav({
+  className,
+  links,
+  variant = 'responsive',
+  ...props
+}: TopNavProps) {
+  const { t } = useTranslation()
   // 规范化链接，确保所有可选属性都有默认值
   const normalizedLinks = useMemo(
     () =>
@@ -55,74 +64,100 @@ export function TopNav({ className, links, ...props }: TopNavProps) {
   return (
     <>
       {/* 移动端下拉菜单 */}
-      <div className='lg:hidden'>
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger
-            render={<Button size='icon' variant='outline' className='size-7' />}
-          >
-            <Menu />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side='bottom' align='start'>
-            {normalizedLinks.map(
-              ({ title, href, isActive, disabled, external }) => (
-                <DropdownMenuItem
-                  key={`${title}-${href}`}
-                  render={
-                    external ? (
-                      <a
-                        href={href}
-                        target='_blank'
-                        rel='noopener noreferrer'
-                        className={!isActive ? 'text-muted-foreground' : ''}
-                      >
-                        {title}
-                      </a>
-                    ) : (
-                      <Link
-                        to={href}
-                        className={!isActive ? 'text-muted-foreground' : ''}
+      {variant === 'responsive' && (
+        <div className='xl:hidden'>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger
+              aria-label={t('Open navigation')}
+              render={<Button size='icon' variant='ghost' className='size-8' />}
+            >
+              <Menu aria-hidden='true' />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side='bottom' align='start'>
+              <DropdownMenuGroup>
+                {normalizedLinks.map(
+                  ({ title, href, isActive, disabled, external }) => {
+                    let menuLink = <span>{title}</span>
+                    if (!disabled) {
+                      menuLink = external ? (
+                        <a
+                          href={href}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className={!isActive ? 'text-muted-foreground' : ''}
+                        >
+                          {title}
+                        </a>
+                      ) : (
+                        <Link
+                          to={href}
+                          className={!isActive ? 'text-muted-foreground' : ''}
+                          disabled={disabled}
+                        >
+                          {title}
+                        </Link>
+                      )
+                    }
+                    return (
+                      <DropdownMenuItem
+                        key={`${title}-${href}`}
                         disabled={disabled}
-                      >
-                        {title}
-                      </Link>
+                        render={menuLink}
+                      />
                     )
                   }
-                ></DropdownMenuItem>
-              )
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+                )}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
 
       {/* 桌面端水平导航 */}
       <nav
+        aria-label={t('Main navigation')}
         className={cn(
-          'hidden items-center space-x-4 lg:flex lg:space-x-4 xl:space-x-6',
+          'items-center gap-3 whitespace-nowrap',
+          variant === 'inline' ? 'flex' : 'me-2 hidden xl:flex',
           className
         )}
         {...props}
       >
-        {normalizedLinks.map(({ title, href, isActive, disabled, external }) =>
-          external ? (
-            <a
-              key={`${title}-${href}`}
-              href={href}
-              target='_blank'
-              rel='noopener noreferrer'
-              className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
-            >
-              {title}
-            </a>
-          ) : (
-            <Link
-              key={`${title}-${href}`}
-              to={href}
-              disabled={disabled}
-              className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
-            >
-              {title}
-            </Link>
-          )
+        {normalizedLinks.map(
+          ({ title, href, isActive, disabled, external }) => {
+            if (disabled) {
+              return (
+                <span
+                  key={`${title}-${href}`}
+                  role='link'
+                  aria-disabled='true'
+                  className='text-muted-foreground opacity-50'
+                >
+                  {title}
+                </span>
+              )
+            }
+            return external ? (
+              <a
+                key={`${title}-${href}`}
+                href={href}
+                target='_blank'
+                rel='noopener noreferrer'
+                className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
+              >
+                {title}
+              </a>
+            ) : (
+              <Link
+                key={`${title}-${href}`}
+                to={href}
+                disabled={disabled}
+                className={`hover:text-primary text-sm font-medium transition-colors ${isActive ? '' : 'text-muted-foreground'}`}
+              >
+                {title}
+              </Link>
+            )
+          }
         )}
       </nav>
     </>

@@ -20,58 +20,34 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
-import { Footer } from '@/components/layout/components/footer'
 import { RichContent } from '@/components/rich-content'
 import { useTheme } from '@/context/theme-provider'
 import { usePricingData } from '@/features/pricing/hooks'
 import { isLikelyHtml } from '@/lib/content-format'
 import { useAuthStore } from '@/stores/auth-store'
 
-import {
-  CTA,
-  FAQ,
-  Features,
-  Hero,
-  HowItWorks,
-  PriceSavings,
-} from './components'
+import { CiLandingPage } from './components/ci-landing-page'
 import { useHomePageContent } from './hooks'
-import {
-  buildSavingsCatalog,
-  buildSavingsModels,
-  getMaximumSavingsPercent,
-} from './lib/pricing-savings'
+import { buildModelCatalog } from './lib/catalog'
+import { getMaximumSavingsPercent } from './lib/pricing-savings'
 
 function DefaultHome(props: { isAuthenticated: boolean }) {
   const { models, priceRate } = usePricingData(true, { publicPreview: true })
-  const savingsModels = useMemo(
-    () => buildSavingsModels(models, priceRate),
-    [models, priceRate]
-  )
   const savingsCatalog = useMemo(
-    () => buildSavingsCatalog(models, priceRate),
+    () => buildModelCatalog(models, priceRate),
     [models, priceRate]
   )
   const maxSavingsPercent = useMemo(
-    () => getMaximumSavingsPercent(savingsModels),
-    [savingsModels]
+    () => getMaximumSavingsPercent(savingsCatalog),
+    [savingsCatalog]
   )
 
   return (
-    <>
-      <Hero
-        isAuthenticated={props.isAuthenticated}
-        maxSavingsPercent={
-          savingsModels.length > 0 ? maxSavingsPercent : undefined
-        }
-      />
-      <PriceSavings models={savingsModels} calculatorModels={savingsCatalog} />
-      <HowItWorks />
-      <Features />
-      <FAQ />
-      <CTA isAuthenticated={props.isAuthenticated} />
-      <Footer />
-    </>
+    <CiLandingPage
+      isAuthenticated={props.isAuthenticated}
+      models={savingsCatalog}
+      maxSavingsPercent={savingsCatalog.length > 0 ? maxSavingsPercent : 0}
+    />
   )
 }
 
@@ -166,9 +142,5 @@ export function Home() {
     )
   }
 
-  return (
-    <PublicLayout showMainContainer={false}>
-      <DefaultHome isAuthenticated={isAuthenticated} />
-    </PublicLayout>
-  )
+  return <DefaultHome isAuthenticated={isAuthenticated} />
 }

@@ -16,72 +16,72 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { QueryClient } from '@tanstack/react-query'
+import { screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
 
-import { Home } from '@/features/home'
+import { CiLandingPage } from '@/features/home/components/ci-landing-page'
+import { renderApp } from '@/test-utils/render-app'
 
-vi.mock('@/components/layout', () => ({
-  PublicLayout: (props: { children: ReactNode }) => props.children,
-}))
-
-vi.mock('@/components/layout/components/footer', () => ({
-  Footer: () => null,
-}))
-
-vi.mock('@/context/theme-provider', () => ({
-  useTheme: () => ({ resolvedTheme: 'light' }),
-}))
-
-vi.mock('@/features/home/hooks', () => ({
-  useHomePageContent: () => ({ content: '', isLoaded: true, isUrl: false }),
-}))
-
-vi.mock('@/features/pricing/hooks', () => ({
-  usePricingData: () => ({ models: [], priceRate: 1, usdExchangeRate: 1 }),
-}))
-
-vi.mock('@/stores/auth-store', () => ({
-  useAuthStore: () => ({ auth: { user: null } }),
-}))
-
-function JourneyStage(props: { name: string }) {
-  return (
-    <section data-journey-stage={props.name}>
-      <a href={`#${props.name}`} data-primary-action>
-        {props.name}
-      </a>
-    </section>
-  )
-}
-
-vi.mock('@/features/home/components', () => ({
-  Hero: () => <JourneyStage name='value' />,
-  PriceSavings: () => <JourneyStage name='price' />,
-  Stats: () => null,
-  HowItWorks: () => <JourneyStage name='setup' />,
-  Features: () => null,
-  FAQ: () => <JourneyStage name='support' />,
-  CTA: () => null,
-}))
-
+let client: QueryClient | undefined
+afterEach(() => client?.clear())
 describe('public product journey', () => {
-  it('orders value, price, setup, and support with one primary action each', () => {
-    const { container } = render(<Home />)
-    const stages = [
-      ...container.querySelectorAll<HTMLElement>('[data-journey-stage]'),
-    ]
-
-    expect(stages.map((stage) => stage.dataset.journeyStage)).toEqual([
-      'value',
-      'price',
-      'setup',
-      'support',
-    ])
-    for (const stage of stages) {
-      expect(stage.querySelectorAll('[data-primary-action]')).toHaveLength(1)
-    }
-    expect(screen.getByRole('link', { name: 'price' })).toBeVisible()
+  it('keeps account, catalog and setup entry points without supplier solicitation', async () => {
+    client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    })
+    client.setQueryData(['status'], {}, { updatedAt: Date.now() + 60000 })
+    await renderApp(
+      <CiLandingPage
+        isAuthenticated={false}
+        models={[]}
+        maxSavingsPercent={0}
+      />,
+      client
+    )
+    expect(
+      screen
+        .getAllByRole('link', { name: 'Start saving' })
+        .every((link) => link.getAttribute('href') === '/sign-up')
+    ).toBe(true)
+    expect(screen.getByRole('link', { name: 'Models' })).toHaveAttribute(
+      'href',
+      '/#models'
+    )
+    expect(
+      screen.queryByRole('link', { name: 'Model Price' })
+    ).not.toBeInTheDocument()
+    const navigation = screen.getByRole('navigation', {
+      name: 'Main navigation',
+    })
+    const clientLink = within(navigation).getByRole('link', { name: 'Client' })
+    expect(clientLink).toHaveAttribute('href', '/client')
+    expect(
+      within(navigation).queryByRole('link', { name: 'Docs' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen
+        .queryAllByRole('link')
+        .some((link) => link.getAttribute('href')?.startsWith('/guide'))
+    ).toBe(false)
+    expect(
+      screen.getByRole('heading', {
+        name: 'Change two values. Access every leading provider.',
+      })
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('heading', {
+        name: 'Turn unused inference capacity into revenue',
+      })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('form', { name: 'Sell capacity' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryAllByRole('link', { name: 'Sell capacity' })
+    ).toHaveLength(0)
+    expect(
+      screen.queryAllByRole('link', { name: 'Talk to sales' })
+    ).toHaveLength(0)
   })
 })

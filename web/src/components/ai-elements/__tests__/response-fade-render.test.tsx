@@ -35,9 +35,9 @@ describe('Response streaming fade', () => {
   test('wraps newly streamed words when final is false', () => {
     const { rerender } = render(<Response final={false}>Hello</Response>)
 
-    expect(document.querySelectorAll('[data-stream-fade]').length).toBeGreaterThan(
-      0
-    )
+    expect(
+      document.querySelectorAll('[data-stream-fade]').length
+    ).toBeGreaterThan(0)
     expect(screen.getByText('Hello')).toBeTruthy()
 
     rerender(<Response final={false}>Hello world</Response>)
@@ -74,9 +74,9 @@ describe('Response streaming fade', () => {
   test('does not re-animate words after markdown restructuring around strong', () => {
     vi.spyOn(performance, 'now').mockReturnValue(1000)
     const { rerender } = render(<Response final={false}>**fin</Response>)
-    expect(document.querySelectorAll('[data-stream-fade]').length).toBeGreaterThan(
-      0
-    )
+    expect(
+      document.querySelectorAll('[data-stream-fade]').length
+    ).toBeGreaterThan(0)
 
     vi.spyOn(performance, 'now').mockReturnValue(
       1000 + FADE_DURATION_MS + FADE_STAGGER_MAX_MS + 1
@@ -104,9 +104,9 @@ describe('Response streaming fade', () => {
     const { rerender } = render(
       <Response final={false}>Streaming text</Response>
     )
-    expect(document.querySelectorAll('[data-stream-fade]').length).toBeGreaterThan(
-      0
-    )
+    expect(
+      document.querySelectorAll('[data-stream-fade]').length
+    ).toBeGreaterThan(0)
 
     rerender(<Response final>Streaming text</Response>)
     expect(document.querySelectorAll('[data-stream-fade]')).toHaveLength(0)

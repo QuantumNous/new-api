@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { LoadingSkeleton } from '../components/loading-skeleton'
@@ -123,6 +124,31 @@ describe('readable model cards', () => {
     expect(onModelClick).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Details' }))
     expect(onModelClick).toHaveBeenCalledWith(model.model_name)
+    expect(onModelClick).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['description', 'price', 'card background'])(
+    'opens details when clicking the %s area of the card',
+    (area) => {
+      const onClick = vi.fn()
+      render(<ModelCard model={model} onClick={onClick} />)
+      let target = screen.getByRole('article')
+      if (area === 'description') {
+        target = screen.getByText('Nexos AI via CPA · Anthropic')
+      }
+      if (area === 'price') target = screen.getByText('Input')
+      fireEvent.click(target)
+      expect(onClick).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('keeps the details action keyboard accessible without firing twice', async () => {
+    const user = userEvent.setup()
+    const onClick = vi.fn()
+    render(<ModelCard model={model} onClick={onClick} />)
+    screen.getByRole('button', { name: 'Details' }).focus()
+    await user.keyboard('{Enter}')
+    expect(onClick).toHaveBeenCalledTimes(1)
   })
 
   it('sizes columns from the available container width and allows a column narrower than 20rem on phones', () => {

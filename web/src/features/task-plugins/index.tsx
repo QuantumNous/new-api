@@ -108,9 +108,7 @@ export function TaskPlugins() {
               </PopoverTrigger>
               <PopoverContent align='end' className='w-80'>
                 <div className='space-y-2 text-sm'>
-                  <p className='font-medium'>
-                    {t('Enable task plugins')}
-                  </p>
+                  <p className='font-medium'>{t('Enable task plugins')}</p>
                   <p className='text-muted-foreground'>
                     {t(
                       'When disabled, the entire task plugin system stops serving, including factory and custom plugins.'

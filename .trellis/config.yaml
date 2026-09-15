@@ -91,20 +91,68 @@ max_journal_lines: 2000
 # unless explicitly killed or given `--timeout`).
 # `max_live_workers: 0` disables the spawn-time budget check.
 #
+# `trusted_context_dirs` extends the `--file`/`--jsonl`/`--agent` containment
+# check beyond the worker cwd — useful when `.trellis/tasks` or
+# `.trellis/workspace` is a symlink to an external directory. Realpaths under
+# any listed dir are accepted in addition to cwd.
+# `auto_trust_trellis_symlinks: false` disables the narrow auto-trust of
+# `.trellis/tasks` / `.trellis/workspace` when either is itself a top-level
+# symlink (auto-trust is on by default).
+#
 channel:
   worker_guard:
     idle_timeout: 5m
     max_live_workers: 6
+  # trusted_context_dirs:
+  #   - /work/user/trellis_workspace
+  # auto_trust_trellis_symlinks: false
 
 #-------------------------------------------------------------------------------
 # Codex (dispatch behavior)
 #-------------------------------------------------------------------------------
-# Codex-only knob; other platforms ignore it. Default ("inline") makes the
-# main Codex agent edit code directly because Codex sub-agents run with
-# `fork_turns="none"` isolation and can't inherit the parent session's
-# task context. Set to "sub-agent" to opt into the legacy dispatch model
-# (main agent spawns trellis-implement / trellis-check / trellis-research
-# sub-agents).
+# Codex-only knob; other platforms ignore it. Default ("auto") dispatches
+# trellis-implement / trellis-check / trellis-research sub-agents. This does
+# not rely on inherited parent transcripts: `fork_turns` remains
+# caller-controlled, while Codex's native SubagentStart hook injects task
+# context when trusted and child-side loading remains the fallback when it is
+# unavailable. Set to "inline" only to keep implementation and checks in the
+# main session. "sub-agent" remains a backwards-compatible alias for "auto".
+# Invalid explicit values safely use inline mode.
+#
+# In "auto" mode, dispatched sub-agents inherit the main session's model
+# unless you pin one. To use a cheaper/faster model for implement/check/
+# research sub-agent work, edit `model` / `model_reasoning_effort` directly
+# on the generated `.codex/agents/trellis-*.toml` files (see the commented
+# hint lines in those files) — there is no config.yaml knob for this,
+# `trellis update` preserves your edits across regeneration.
 #
 # codex:
-#   dispatch_mode: inline  # or "sub-agent" to dispatch trellis-* sub-agents
+#   dispatch_mode: auto  # or "inline"; legacy alias: "sub-agent"
+
+#-------------------------------------------------------------------------------
+# Sub-agent context injection limits
+#-------------------------------------------------------------------------------
+# Caps how much task context (implement.jsonl / check.jsonl referenced files,
+# plus prd.md / design.md / implement.md) gets inlined into a sub-agent's
+# first prompt. Oversized files are truncated with a notice; once the total
+# payload cap is reached, remaining files degrade to index lines (path +
+# reason + size) instead of being inlined.
+#
+# All values are byte counts. `0` disables the corresponding limit.
+#
+# context_injection:
+#   max_file_bytes: 32768        # per implement.jsonl / check.jsonl referenced file
+#   max_artifact_bytes: 65536    # per task artifact (prd.md / design.md / implement.md)
+#   max_total_bytes: 131072      # whole injected payload; overflow degrades to index lines
+
+#-------------------------------------------------------------------------------
+# Per-turn prompt injection
+#-------------------------------------------------------------------------------
+# Escape hatch for the per-turn <workflow-state> breadcrumb. When a user
+# prompt contains the skip keyword as a standalone word (case-insensitive,
+# word-boundary match — "no-trellisfoo" does NOT count), the breadcrumb is
+# skipped for that turn only. Does not affect SessionStart or sub-agent
+# context injection.
+#
+# prompt_injection:
+#   skip_keyword: "no-trellis"   # "" disables the escape hatch entirely

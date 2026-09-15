@@ -110,7 +110,7 @@ export function DesktopAuthorization({ userCode }: DesktopAuthorizationProps) {
                   {t('Official desktop connection')}
                 </p>
                 <h1 className='mt-1 text-xl font-semibold tracking-tight sm:text-2xl'>
-                  {t('Connect 野菜API Desktop')}
+                  {t('Connect 野菜 Desktop')}
                 </h1>
               </div>
             </header>
@@ -123,7 +123,7 @@ export function DesktopAuthorization({ userCode }: DesktopAuthorizationProps) {
                   <div>
                     <p className='text-foreground text-[15px] leading-7'>
                       {t(
-                        'The desktop app is asking to use your 野菜API account on this computer.'
+                        'The desktop app is asking to use your 野菜 account on this computer.'
                       )}
                     </p>
                     <p className='text-muted-foreground mt-1 text-sm leading-6'>

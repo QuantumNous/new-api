@@ -16,11 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod'
 
 import { sanitizeAuthRedirect } from '@/features/auth/lib/auth-redirect'
 import { SignIn } from '@/features/auth/sign-in'
+import { createInternalRedirect } from '@/lib/internal-redirect'
 import { useAuthStore } from '@/stores/auth-store'
 
 const searchSchema = z.object({
@@ -33,12 +34,12 @@ export const Route = createFileRoute('/(auth)/sign-in')({
   beforeLoad: async ({ search }) => {
     const { auth } = useAuthStore.getState()
 
-    // 如果已经有用户信息，说明已登录
-    if (auth.user) {
+    // Keep the authentication check consistent with protected routes.
+    if (auth.user && auth.accessToken) {
       const target =
         sanitizeAuthRedirect(search?.redirect, window.location.origin) ??
         '/dashboard'
-      throw redirect({ href: target, replace: true })
+      throw createInternalRedirect(target)
     }
   },
 })

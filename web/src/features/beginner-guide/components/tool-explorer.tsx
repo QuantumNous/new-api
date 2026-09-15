@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Check, Copy, Sparkles } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { Check, Copy, Sparkles, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -29,10 +29,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import type { GuideAddress } from '@/features/guide/use-guide-address'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 import { guideTools, type GuideTool, type ToolCategory } from '../data'
-import type { GuideAddress } from '../use-guide-address'
 
 const CATEGORIES: { value: ToolCategory | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -53,28 +53,74 @@ const STATUS_META: Record<GuideTool['status'], { label: string; hue: string }> =
 
 interface ToolExplorerProps {
   address: GuideAddress
+  query?: string
+  openToolId?: string
+  /** Tool ids the surrounding page narrowed the wall to, if any. */
+  focusToolIds?: string[]
+  focusLabel?: string
+  onClearFocus?: () => void
 }
 
 /** Category-filtered wall of tool cards with a step-by-step detail dialog. */
-export function ToolExplorer({ address }: ToolExplorerProps) {
+export function ToolExplorer({
+  address,
+  query,
+  openToolId,
+  focusToolIds,
+  focusLabel,
+  onClearFocus,
+}: ToolExplorerProps) {
   const { t } = useTranslation()
   const [category, setCategory] = useState<ToolCategory | 'all'>('all')
   const [active, setActive] = useState<GuideTool | null>(null)
   const { copiedText, copyToClipboard } = useCopyToClipboard()
+  const needle = query?.trim().toLowerCase() ?? ''
+
+  useEffect(() => {
+    if (!openToolId) return
+    const match = guideTools.find((tool) => tool.id === openToolId)
+    if (match) setActive(match)
+  }, [openToolId])
 
   const tools = useMemo(() => {
-    const visibleTools =
-      category === 'all'
-        ? [...guideTools]
-        : guideTools.filter((tool) => tool.category === category)
+    const focused = focusToolIds?.length ? new Set(focusToolIds) : null
+    const visibleTools = guideTools.filter(
+      (tool) =>
+        (category === 'all' || tool.category === category) &&
+        (!focused || focused.has(tool.id))
+    )
+    const filtered = needle
+      ? visibleTools.filter((tool) => {
+          const hay = [
+            tool.name,
+            t(tool.summary),
+            ...tool.steps.map((step) => t(step)),
+          ]
+            .join(' ')
+            .toLowerCase()
+          return hay.includes(needle)
+        })
+      : visibleTools
 
-    return visibleTools.sort(
+    return filtered.sort(
       (a, b) => Number(Boolean(b.recommended)) - Number(Boolean(a.recommended))
     )
-  }, [category])
+  }, [category, focusToolIds, needle, t])
 
   return (
     <div className='flex flex-col gap-6'>
+      {focusLabel ? (
+        <button
+          type='button'
+          onClick={onClearFocus}
+          aria-label={t('Clear filters')}
+          className='border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors'
+        >
+          {focusLabel}
+          <X aria-hidden='true' className='size-3.5' />
+        </button>
+      ) : null}
+
       {/* Category pills */}
       <div
         className='dopa-tab-strip flex flex-wrap items-center gap-2'
@@ -114,6 +160,10 @@ export function ToolExplorer({ address }: ToolExplorerProps) {
           </span>
         ))}
       </div>
+
+      {tools.length === 0 ? (
+        <p className='text-muted-foreground text-sm'>{t('No matching docs')}</p>
+      ) : null}
 
       {/* Tool cards */}
       <div className='dopa-bento-tools grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>

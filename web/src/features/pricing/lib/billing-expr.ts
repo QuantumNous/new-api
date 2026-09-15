@@ -247,6 +247,7 @@ export type TierCondition = {
 export type ParsedTier = {
   label: string
   conditions: TierCondition[]
+  declaredPriceFields: string[]
   [field: string]: unknown
 }
 
@@ -273,16 +274,19 @@ function stripExprVersion(exprStr: string): { version: number; body: string } {
   return { version: 1, body: exprStr }
 }
 
-function parseTierBody(bodyStr: string): Record<string, number> {
+function parseTierBody(bodyStr: string): Record<string, unknown> {
   const coeffs: Record<string, number> = {}
   const re = new RegExp(BILLING_VAR_REGEX.source, 'g')
   let m
   while ((m = re.exec(bodyStr)) !== null) {
     if (!(m[1] in coeffs)) coeffs[m[1]] = Number(m[2])
   }
-  const tier: Record<string, number> = {}
+  const declaredPriceFields: string[] = []
+  const tier: Record<string, unknown> = { declaredPriceFields }
   for (const [varName, field] of Object.entries(BILLING_VAR_KEY_TO_FIELD)) {
-    tier[field] = coeffs[varName] || 0
+    const declared = Object.hasOwn(coeffs, varName)
+    tier[field] = declared ? coeffs[varName] : 0
+    if (declared) declaredPriceFields.push(field)
   }
   return tier
 }

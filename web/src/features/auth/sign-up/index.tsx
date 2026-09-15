@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useStatus } from '@/hooks/use-status'
 
-import { AuthLayout } from '../auth-layout'
+import { AccessAuthLayout } from '../access-auth-layout'
 import { TermsFooter } from '../components/terms-footer'
 import { SignUpForm } from './components/sign-up-form'
 
@@ -30,12 +30,9 @@ export function SignUp() {
   const { status } = useStatus()
 
   return (
-    <AuthLayout>
+    <AccessAuthLayout title={t('Create an account')}>
       <div className='w-full space-y-8'>
         <div className='space-y-2'>
-          <h2 className='text-center text-2xl font-semibold tracking-tight sm:text-left'>
-            {t('Create an account')}
-          </h2>
           <p className='text-muted-foreground text-left text-sm sm:text-base'>
             {t('Already have an account?')}{' '}
             <Link
@@ -56,6 +53,6 @@ export function SignUp() {
           className='text-center'
         />
       </div>
-    </AuthLayout>
+    </AccessAuthLayout>
   )
 }

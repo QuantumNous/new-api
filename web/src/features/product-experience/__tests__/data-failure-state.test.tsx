@@ -33,11 +33,14 @@ vi.mock('@tanstack/react-router', () => ({
 }))
 
 describe('missing pricing and usage data', () => {
-  it('keeps the savings calculator section visible while live prices recover', () => {
+  it('keeps a pricing recovery action visible without inventing estimates', () => {
     render(<PriceSavings models={[]} calculatorModels={[]} />)
 
     expect(screen.getByTestId('savings-unavailable')).toBeVisible()
-    expect(screen.getAllByText('Plan your yearly savings')).toHaveLength(2)
+    expect(screen.getByRole('link', { name: 'Model prices' })).toHaveAttribute(
+      'href',
+      '/pricing'
+    )
     expect(screen.queryByTestId('annual-savings')).not.toBeInTheDocument()
   })
 

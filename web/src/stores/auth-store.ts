@@ -85,7 +85,7 @@ interface AuthState {
     pending2FAFlowToken: string | null
     bootstrapState: AuthBootstrapState
     setBundle: (bundle: AuthBundle) => void
-    setUser: (user: AuthUser | null) => void
+    setUser: (user: AuthUser | null, expectedSessionId?: string) => void
     setPending2FAFlowToken: (flowToken: string | null) => void
     setBootstrapState: (bootstrapState: AuthBootstrapState) => void
     reset: (bootstrapState?: AuthBootstrapState) => void
@@ -113,11 +113,22 @@ export const useAuthStore = create<AuthState>()((set) => ({
           bootstrapState: 'complete',
         },
       })),
-    setUser: (user) =>
-      set((state) => ({
-        ...state,
-        auth: { ...state.auth, user },
-      })),
+    setUser: (user, expectedSessionId) =>
+      set((state) => {
+        const auth = state.auth
+        // Profile updates must never establish or replace a login session.
+        if (
+          user &&
+          (!auth.accessToken ||
+            !auth.session ||
+            auth.user?.id !== user.id ||
+            (expectedSessionId !== undefined &&
+              auth.session.sid !== expectedSessionId))
+        ) {
+          return state
+        }
+        return { ...state, auth: { ...auth, user } }
+      }),
     setPending2FAFlowToken: (pending2FAFlowToken) =>
       set((state) => ({
         ...state,

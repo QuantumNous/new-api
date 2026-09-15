@@ -20,27 +20,31 @@ import { ConfigDrawer } from '@/components/config-drawer'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
+import { useConsoleMode } from '@/hooks/use-console-mode'
 import { useNotifications } from '@/hooks/use-notifications'
-import { useConsoleModeStore } from '@/stores/console-mode-store'
+import { useTopNavLinks } from '@/hooks/use-top-nav-links'
+import { cn } from '@/lib/utils'
 
+import { defaultTopNavLinks } from '../config/top-nav.config'
+import type { TopNavLink } from '../types'
+import { CommunityHelp } from './community-help'
 import { ConsoleModeControl } from './console-mode-switcher'
 import { EasyTaskDock } from './easy-task-dock'
 import { Header } from './header'
 import { SystemBrand } from './system-brand'
+import { TopNav } from './top-nav'
 
 /**
  * General application Header component
- * Integrates navigation bar, search, configuration and profile functions
+ * Integrates navigation bar, configuration and profile functions
  *
  * @example
  * // Basic usage
  * <AppHeader />
  *
  * @example
- * @example
- * // Hide navigation bar and search box
- * <AppHeader showSearch={false} />
+ * // Hide navigation bar
+ * <AppHeader showTopNav={false} />
  *
  * @example
  * // Fully customize left and right content
@@ -50,15 +54,14 @@ import { SystemBrand } from './system-brand'
  * />
  */
 type AppHeaderProps = {
+  /** Fallback navigation when no backend links are available. */
+  navLinks?: TopNavLink[]
+  /** Whether to show the developer navigation. */
+  showTopNav?: boolean
   /**
    * Optional content shown after the brand and task dock.
    */
   leftContent?: React.ReactNode
-  /**
-   * Whether to show search box
-   * @default true
-   */
-  showSearch?: boolean
   /**
    * Custom right content, overrides default right content if provided
    */
@@ -98,15 +101,18 @@ function AppHeaderNotifications() {
 }
 
 export function AppHeader({
+  navLinks = defaultTopNavLinks,
+  showTopNav = true,
   leftContent,
-  showSearch = true,
   rightContent,
   showNotifications = true,
   showConfigDrawer = true,
   showProfileDropdown = true,
 }: AppHeaderProps) {
-  const mode = useConsoleModeStore((state) => state.mode)
+  const mode = useConsoleMode()
   const isEasyMode = mode === 'easy'
+  const dynamicLinks = useTopNavLinks()
+  const links = dynamicLinks.length > 0 ? dynamicLinks : navLinks
 
   return (
     <Header
@@ -117,17 +123,29 @@ export function AppHeader({
 
       {isEasyMode && <EasyTaskDock />}
 
+      {rightContent == null &&
+        showTopNav &&
+        !isEasyMode &&
+        links.length > 0 && (
+          <TopNav links={links} variant='inline' className='dopa-site-nav' />
+        )}
+
       {leftContent ? (
         <div className='ms-2 flex items-center'>{leftContent}</div>
       ) : null}
 
       {rightContent ?? (
-        <div className='dopa-header-actions ms-auto flex shrink-0 items-center gap-0.5 sm:gap-1.5'>
-          {showSearch && !isEasyMode && <Search />}
+        <div
+          className={cn(
+            'dopa-header-actions ms-auto flex shrink-0 items-center gap-0.5 sm:gap-1.5',
+            !isEasyMode && showTopNav && links.length > 0 && 'xl:ms-0'
+          )}
+        >
           {showNotifications && !isEasyMode && <AppHeaderNotifications />}
           <ConsoleModeControl compact />
           <LanguageSwitcher />
           {showConfigDrawer && <ConfigDrawer />}
+          <CommunityHelp variant='header' />
           {showProfileDropdown && <ProfileDropdown />}
         </div>
       )}

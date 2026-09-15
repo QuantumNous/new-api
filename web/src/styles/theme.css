@@ -51,8 +51,18 @@ For commercial licensing, please contact support@quantumnous.com
     'NSimSun', '宋体', 'FangSong', '仿宋', 'KaiTi', '楷体', Georgia,
     'Times New Roman', Cambria, 'Liberation Serif', serif;
   --font-inter:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
-    'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans',
+    'Helvetica Neue', sans-serif;
+  --font-ci-sans:
+    'Inter Variable', 'Inter', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei UI', 'Noto Sans CJK SC', system-ui, sans-serif;
+  --font-instrument:
+    'Instrument Serif', 'Lora Variable', 'Noto Serif SC', 'Songti SC', Georgia,
+    'Times New Roman', serif;
+  --font-ci-mono:
+    'IBM Plex Mono', 'Maple Mono', ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, monospace;
   --font-manrope:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
     'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;

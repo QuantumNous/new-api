@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useTheme } from '@/context/theme-provider'
+
 import type { TopNavLink } from '../types'
 import { PublicHeader, type PublicHeaderProps } from './public-header'
 
@@ -33,8 +35,13 @@ type PublicLayoutProps = {
 }
 
 export function PublicLayout(props: PublicLayoutProps) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
   return (
-    <div className='dopa-page-canvas dopa-public-surface text-foreground relative min-h-svh overflow-x-clip'>
+    <div
+      className='ci-landing ci-theme text-foreground relative min-h-svh overflow-x-clip'
+      data-theme={isDark ? 'dark' : 'light'}
+    >
       <PublicHeader
         navContent={props.navContent}
         navLinks={props.navLinks}

@@ -17,153 +17,279 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, Calculator, RefreshCw, ReceiptText } from 'lucide-react'
+import { ArrowUpRight, Search } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
+import { getLobeIcon } from '@/lib/lobe-icon'
+import { cn } from '@/lib/utils'
 
-import type { SavingsModel } from '../../lib/pricing-savings'
-import { PriceCompare } from './price-compare'
-import { SavingsCalculator } from './savings-calculator'
+import {
+  familyIconName,
+  filterCatalog,
+  sortCatalog,
+  uniqueVendors,
+  type CatalogModality,
+  type CatalogSort,
+} from '../../lib/catalog'
+import {
+  formatPerMillionTokens,
+  type SavingsModel,
+} from '../../lib/pricing-savings'
 
 interface PriceSavingsProps {
   models: SavingsModel[]
   calculatorModels?: SavingsModel[]
 }
 
+const PREVIEW_COUNT = 8
+
+const MODALITIES: CatalogModality[] = ['all', 'text', 'image', 'video']
+
+function modalityLabel(
+  t: (key: string) => string,
+  modality: CatalogModality,
+  counts: Record<CatalogModality, number>
+): string {
+  if (modality === 'all') return `${t('All models')}${counts.all}`
+  if (modality === 'text') return `${t('Text')}${counts.text}`
+  if (modality === 'image') return `${t('Image')}${counts.image}`
+  return `${t('Video')}${counts.video}`
+}
+
+function CatalogRow(props: { model: SavingsModel }) {
+  const { t } = useTranslation()
+  const model = props.model
+
+  return (
+    <Link
+      to='/pricing/$modelId'
+      params={{ modelId: model.modelName }}
+      className='hover:bg-muted/50 grid grid-cols-1 items-center gap-3 border-t px-4 py-4 md:grid-cols-[minmax(0,1.6fr)_0.7fr_0.7fr_0.55fr_auto] md:gap-4'
+    >
+      <div className='flex min-w-0 items-center gap-3'>
+        <span className='bg-muted flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full'>
+          {getLobeIcon(familyIconName(model), 22)}
+        </span>
+        <div className='min-w-0'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <span className='truncate font-medium'>{model.modelName}</span>
+            {model.savingsPercent > 0 ? (
+              <span className='rounded-full bg-[var(--ci-lime)] px-2 py-0.5 text-[11px] font-medium text-[#040d10]'>
+                {t('Save {{percent}}%', { percent: model.savingsPercent })}
+              </span>
+            ) : null}
+          </div>
+          <p className='text-muted-foreground truncate text-xs'>
+            {model.vendorName}
+          </p>
+        </div>
+      </div>
+      <PriceCell
+        list={model.baseInputPrice}
+        live={model.siteInputPrice}
+        label={t('Input')}
+      />
+      <PriceCell
+        list={model.baseOutputPrice}
+        live={model.siteOutputPrice}
+        label={t('Output')}
+      />
+      <div className='text-sm font-medium'>
+        <span className='text-muted-foreground mr-2 md:hidden'>
+          {t('Discount')}
+        </span>
+        {model.savingsPercent > 0
+          ? t('Save {{percent}}%', { percent: model.savingsPercent })
+          : t('Base price')}
+      </div>
+      <ArrowUpRight className='text-muted-foreground hidden size-4 md:block' />
+    </Link>
+  )
+}
+
+function PriceCell(props: { list: number; live: number; label: string }) {
+  return (
+    <div className='text-sm'>
+      <span className='text-muted-foreground mr-2 md:hidden'>
+        {props.label}
+      </span>
+      <span className='text-muted-foreground mr-1.5 line-through'>
+        {formatPerMillionTokens(props.list)}
+      </span>
+      <span className='font-semibold'>
+        {formatPerMillionTokens(props.live)}
+      </span>
+    </div>
+  )
+}
+
 export function PriceSavings(props: PriceSavingsProps) {
   const { t } = useTranslation()
-  const calculatorModels = props.calculatorModels ?? props.models
-  const hasCalculatorData = calculatorModels.length > 0
-  const hasComparisonData = props.models.length > 0
+  const catalog = props.calculatorModels ?? props.models
+  const [query, setQuery] = useState('')
+  const [vendor, setVendor] = useState('all')
+  const [sort, setSort] = useState<CatalogSort>('discount-desc')
+  const [modality, setModality] = useState<CatalogModality>('all')
+
+  const vendors = useMemo(() => uniqueVendors(catalog), [catalog])
+  const counts = useMemo(() => {
+    const all = catalog.length
+    return {
+      all,
+      text: filterCatalog(catalog, '', 'all', 'text').length,
+      image: filterCatalog(catalog, '', 'all', 'image').length,
+      video: filterCatalog(catalog, '', 'all', 'video').length,
+    }
+  }, [catalog])
+
+  const visible = useMemo(
+    () =>
+      sortCatalog(filterCatalog(catalog, query, vendor, modality), sort).slice(
+        0,
+        PREVIEW_COUNT
+      ),
+    [catalog, modality, query, sort, vendor]
+  )
+
+  if (catalog.length === 0) {
+    return (
+      <section
+        id='savings-calculator'
+        className='scroll-mt-24 px-4 py-8 sm:px-6'
+      >
+        <div
+          className='mx-auto max-w-5xl rounded-2xl border px-6 py-12'
+          data-testid='savings-unavailable'
+        >
+          <p className='text-muted-foreground text-sm'>
+            {t('Prices update from the live model catalog.')}{' '}
+            {t('Refresh the list and try again.')}
+          </p>
+          <Button className='mt-6' render={<Link to='/pricing' />}>
+            {t('Model prices')}
+          </Button>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section
       id='savings-calculator'
-      className='dopa-price-stage relative scroll-mt-24 overflow-hidden px-6 py-16 md:py-24'
+      className='scroll-mt-24 px-4 py-6 sm:px-6 md:py-10'
     >
-      <div
-        aria-hidden
-        className='pointer-events-none absolute inset-x-0 top-20 -z-10 mx-auto h-96 max-w-5xl rounded-full opacity-50 blur-3xl'
-        style={{
-          background:
-            'linear-gradient(100deg, color-mix(in oklch, var(--chart-4) 16%, transparent), color-mix(in oklch, var(--chart-1) 12%, transparent), color-mix(in oklch, var(--chart-3) 14%, transparent))',
-        }}
-      />
-
-      <div className='dopa-section-shell' data-section='PRICE'>
-        <div className='grid items-end gap-6 md:grid-cols-[0.9fr_1.1fr]'>
+      <div className='mx-auto max-w-5xl'>
+        <div className='mb-5 flex items-end justify-between gap-4'>
           <div>
-            <div className='dopa-section-kicker'>
-              <ReceiptText className='size-3.5' aria-hidden='true' />
-              {t('Savings receipt')}
-            </div>
-            <h2 className='mt-4 text-3xl font-black tracking-[-0.055em] text-balance md:text-5xl'>
-              {t('Plan your yearly savings')}
+            <p className='mb-2 inline-flex items-center gap-2 text-xs font-medium tracking-wide uppercase'>
+              <span className='size-1.5 rounded-full bg-[var(--ci-lime)]' />
+              {t('Live')}
+            </p>
+            <h2 className='text-2xl font-semibold tracking-tight md:text-3xl'>
+              {t('See our live catalog rates')}
             </h2>
+            <p className='text-muted-foreground mt-2 max-w-xl text-sm leading-relaxed'>
+              {t(
+                'Browse available model capacity, compare market discounts, and inspect current activity across providers.'
+              )}
+            </p>
           </div>
-          <p className='text-muted-foreground mt-4 text-base leading-relaxed text-pretty md:text-lg'>
-            {t(
-              "Pick a workload and adjust your team's usage. The estimate updates instantly."
-            )}
-          </p>
         </div>
 
-        <p className='text-muted-foreground mt-3 text-xs leading-relaxed'>
-          {t(
-            'Compared with site base prices before group discounts, not official provider prices.'
-          )}
-        </p>
+        <div className='mb-4 flex flex-col gap-3 md:flex-row md:items-center'>
+          <label className='border-border bg-background relative flex min-w-0 flex-1 items-center rounded-md border'>
+            <Search className='text-muted-foreground ml-3 size-4' />
+            <input
+              aria-label={t('Search')}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t('Search')}
+              className='h-9 w-full bg-transparent px-2 text-sm outline-none'
+            />
+          </label>
+          <select
+            aria-label={t('Provider')}
+            value={vendor}
+            onChange={(event) => setVendor(event.target.value)}
+            className='border-border bg-background h-9 rounded-md border px-3 text-sm'
+          >
+            <option value='all'>{t('All providers')}</option>
+            {vendors.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label={t('Sort by')}
+            value={sort}
+            onChange={(event) => setSort(event.target.value as CatalogSort)}
+            className='border-border bg-background h-9 rounded-md border px-3 text-sm'
+          >
+            <option value='discount-desc'>{t('Highest discount')}</option>
+            <option value='discount-asc'>{t('Lowest discount')}</option>
+            <option value='price-asc'>{t('Best price')}</option>
+          </select>
+        </div>
 
-        <div className='mt-9 grid gap-5 lg:grid-cols-[1.12fr_0.88fr] lg:items-start'>
-          {hasCalculatorData ? (
-            <SavingsCalculator models={calculatorModels} />
+        <div className='mb-3 flex flex-wrap gap-1.5'>
+          {MODALITIES.map((item) => (
+            <button
+              key={item}
+              type='button'
+              aria-pressed={modality === item}
+              onClick={() => setModality(item)}
+              className={cn(
+                'rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                modality === item
+                  ? 'bg-foreground text-background'
+                  : 'text-muted-foreground hover:bg-muted'
+              )}
+            >
+              {modalityLabel(t, item, counts)}
+            </button>
+          ))}
+        </div>
+
+        <div
+          className='overflow-hidden rounded-2xl border'
+          data-testid='live-catalog'
+        >
+          <div
+            className='text-muted-foreground hidden grid-cols-[minmax(0,1.6fr)_0.7fr_0.7fr_0.55fr_auto] gap-4 px-4 py-3 text-xs tracking-wide uppercase md:grid'
+            data-testid='desktop-price-table'
+          >
+            <span>{t('Model')}</span>
+            <span>{t('Input')}</span>
+            <span>{t('Output')}</span>
+            <span>{t('Discount')}</span>
+            <span />
+          </div>
+          <div className='md:hidden' data-testid='mobile-price-cards' />
+          {visible.length === 0 ? (
+            <p className='text-muted-foreground px-4 py-10 text-sm'>
+              {t('No models match these filters.')}
+            </p>
           ) : (
-            <SavingsUnavailable />
+            visible.map((model) => (
+              <CatalogRow key={model.modelName} model={model} />
+            ))
           )}
-          {hasComparisonData ? (
-            <PriceCompare models={props.models} />
-          ) : (
-            <PriceDataStatus />
-          )}
+        </div>
+
+        <div className='mt-4 flex flex-wrap items-center justify-between gap-3'>
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'Compared with site base prices before group discounts, not official provider prices.'
+            )}
+          </p>
+          <Button variant='outline' size='sm' render={<Link to='/pricing' />}>
+            {t('View all {{count}} models', { count: catalog.length })}
+          </Button>
         </div>
       </div>
     </section>
-  )
-}
-
-function SavingsUnavailable() {
-  const { t } = useTranslation()
-
-  return (
-    <article
-      className='dopa-paper dopa-cut-corner flex min-h-[32rem] flex-col overflow-hidden'
-      data-testid='savings-unavailable'
-    >
-      <div className='flex flex-1 flex-col justify-between p-6 sm:p-8'>
-        <div>
-          <div className='bg-chart-4/12 text-chart-4 flex size-14 items-center justify-center rounded-2xl'>
-            <Calculator className='size-6' aria-hidden='true' />
-          </div>
-          <h3 className='mt-6 text-2xl font-black tracking-[-0.04em]'>
-            {t('Plan your yearly savings')}
-          </h3>
-          <p className='text-muted-foreground mt-3 max-w-md text-sm leading-relaxed'>
-            {t('Prices update from the live model catalog.')}{' '}
-            {t('Refresh the list and try again.')}
-          </p>
-        </div>
-
-        <div className='border-border bg-muted/40 mt-8 rounded-3xl border p-5'>
-          <div className='flex items-center gap-3'>
-            <span className='bg-background flex size-10 items-center justify-center rounded-2xl'>
-              <RefreshCw className='text-primary size-4' aria-hidden='true' />
-            </span>
-            <div>
-              <div className='text-sm font-extrabold'>{t('Live pricing')}</div>
-              <div className='text-muted-foreground mt-0.5 text-xs'>
-                {t('Loading...')}
-              </div>
-            </div>
-          </div>
-          <div className='mt-5 h-2 overflow-hidden rounded-full bg-black/5 dark:bg-white/10'>
-            <div className='dopa-gradient-surface h-full w-2/3 rounded-full' />
-          </div>
-        </div>
-
-        <Button
-          className='dopa-spring group mt-6 h-11 self-start rounded-full px-5 font-bold'
-          render={<Link to='/pricing' />}
-        >
-          {t('Model prices')}
-          <ArrowRight className='ml-1.5 size-4 transition-transform group-hover:translate-x-0.5' />
-        </Button>
-      </div>
-    </article>
-  )
-}
-
-function PriceDataStatus() {
-  const { t } = useTranslation()
-
-  return (
-    <aside className='dopa-paper flex min-h-72 flex-col justify-between rounded-[1.75rem] p-6 sm:p-7'>
-      <div>
-        <div className='dopa-section-kicker'>
-          {t('Latest model price check')}
-        </div>
-        <h3 className='mt-5 text-xl font-black tracking-[-0.035em]'>
-          {t('Real prices, side by side')}
-        </h3>
-        <p className='text-muted-foreground mt-3 text-sm leading-relaxed'>
-          {t(
-            'See the same usage at site base prices and after group discounts.'
-          )}
-        </p>
-      </div>
-      <p className='text-muted-foreground border-border mt-8 border-t pt-4 text-xs leading-relaxed'>
-        {t('Prices update from the live model catalog.')}
-      </p>
-    </aside>
   )
 }

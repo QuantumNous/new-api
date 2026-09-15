@@ -16,21 +16,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import type { ComponentProps } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { QueryClient } from '@tanstack/react-query'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useConsoleModeStore } from '@/stores/console-mode-store'
+import { renderApp } from '@/test-utils/render-app'
 
 import { ConsoleModeControl } from '../console-mode-switcher'
 import { EasyTaskDock } from '../easy-task-dock'
 
-vi.mock('@tanstack/react-router', () => ({
-  Link: (props: ComponentProps<'a'> & { to: string }) => {
-    const { to, ...anchorProps } = props
-    return <a {...anchorProps} href={to} />
-  },
-}))
+let client: QueryClient
+const previousMode = useConsoleModeStore.getState().mode
+
+afterEach(() => {
+  client.clear()
+  vi.restoreAllMocks()
+  useConsoleModeStore.getState().setMode(previousMode)
+})
 
 function setViewport(width: number) {
   const originalMatchMedia = window.matchMedia
@@ -43,6 +46,9 @@ function setViewport(width: number) {
 describe('compact console navigation', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    })
     useConsoleModeStore.getState().setMode('easy')
   })
 
@@ -50,7 +56,7 @@ describe('compact console navigation', () => {
     'replaces the six inline links with a keyboard-accessible menu at %i px',
     async (width) => {
       setViewport(width)
-      render(<EasyTaskDock />)
+      await renderApp(<EasyTaskDock />, client)
       expect(screen.queryAllByRole('link')).toHaveLength(0)
       const trigger = screen.getByRole('button', {
         name: 'Toggle navigation menu',
@@ -71,7 +77,7 @@ describe('compact console navigation', () => {
       ).toHaveAttribute('href', '/pricing')
       expect(
         screen.getByRole('menuitem', { name: 'Beginner guide' })
-      ).toHaveAttribute('href', '/guide')
+      ).toHaveAttribute('href', '/beginner-guide')
       expect(
         screen.getByRole('menuitem', { name: 'Spending details' })
       ).toHaveAttribute('href', '/usage-logs')
@@ -87,19 +93,22 @@ describe('compact console navigation', () => {
     }
   )
 
-  it('keeps all six named inline links on desktop', () => {
+  it('keeps all six named inline links on desktop', async () => {
     setViewport(1280)
-    render(<EasyTaskDock />)
+    await renderApp(<EasyTaskDock />, client)
     expect(
       screen.queryByRole('button', { name: 'Toggle navigation menu' })
     ).toBeNull()
     expect(screen.getAllByRole('link')).toHaveLength(6)
     expect(screen.getByRole('link', { name: 'My key' })).toBeVisible()
+    expect(
+      screen.getByRole('link', { name: 'Beginner guide' })
+    ).toHaveAttribute('href', '/beginner-guide')
   })
 
   it('uses one full-size mobile mode button while keeping both mode choices available', async () => {
     setViewport(390)
-    render(<ConsoleModeControl compact />)
+    await renderApp(<ConsoleModeControl compact />, client)
     const trigger = screen.getByRole('button', { name: 'Mode' })
     expect(screen.queryByRole('button', { name: 'Developer mode' })).toBeNull()
     expect(trigger).toHaveClass('size-10', 'shrink-0')

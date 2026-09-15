@@ -77,6 +77,9 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	other["completion_ratio"] = completionRatio
 	other["cache_tokens"] = cacheTokens
 	other["cache_ratio"] = cacheRatio
+	if relayInfo.PriceData.CacheCreationRatioConfigured {
+		other["cache_creation_ratio"] = relayInfo.PriceData.CacheCreationRatio
+	}
 	other["model_price"] = modelPrice
 	other["user_group_ratio"] = userGroupRatio
 	other["frt"] = float64(relayInfo.FirstResponseTime.UnixMilli() - relayInfo.StartTime.UnixMilli())
@@ -279,13 +282,13 @@ func GenerateClaudeOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	info["claude"] = true
 	info["cache_creation_tokens"] = cacheCreationTokens
 	info["cache_creation_ratio"] = cacheCreationRatio
+	info["cache_creation_ratio_5m"] = cacheCreationRatio5m
+	info["cache_creation_ratio_1h"] = cacheCreationRatio1h
 	if cacheCreationTokens5m != 0 {
 		info["cache_creation_tokens_5m"] = cacheCreationTokens5m
-		info["cache_creation_ratio_5m"] = cacheCreationRatio5m
 	}
 	if cacheCreationTokens1h != 0 {
 		info["cache_creation_tokens_1h"] = cacheCreationTokens1h
-		info["cache_creation_ratio_1h"] = cacheCreationRatio1h
 	}
 	return info
 }
@@ -315,6 +318,8 @@ func InjectTieredBillingInfo(other map[string]interface{}, relayInfo *relaycommo
 	other["billing_mode"] = "tiered_expr"
 	other["expr_b64"] = base64.StdEncoding.EncodeToString([]byte(snap.ExprString))
 	if result != nil {
+		other["billing_usage"] = result.ActualUsage
+		other["billing_cost_before_group"] = result.ActualCostBeforeGroup
 		other["matched_tier"] = result.MatchedTier
 		if len(result.RequestRules) > 0 {
 			other["request_rules"] = result.RequestRules

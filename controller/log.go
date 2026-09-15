@@ -1,8 +1,10 @@
 package controller
 
 import (
+	"math"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -39,7 +41,27 @@ func GetAllLogs(c *gin.Context) {
 func GetUserLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	userId := c.GetInt("id")
-	logType, _ := strconv.Atoi(c.Query("type"))
+	var logTypes []int
+	if rawTypes := c.Query("types"); rawTypes != "" {
+		seen := make(map[int]struct{})
+		for _, rawType := range strings.Split(rawTypes, ",") {
+			logType, err := strconv.Atoi(strings.TrimSpace(rawType))
+			if err != nil || logType <= model.LogTypeUnknown || logType > model.LogTypeLogin {
+				c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "无效的日志类型"})
+				return
+			}
+			if _, exists := seen[logType]; exists {
+				continue
+			}
+			seen[logType] = struct{}{}
+			logTypes = append(logTypes, logType)
+		}
+	} else {
+		logType, _ := strconv.Atoi(c.Query("type"))
+		if logType != model.LogTypeUnknown {
+			logTypes = []int{logType}
+		}
+	}
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	tokenName := c.Query("token_name")
@@ -47,7 +69,7 @@ func GetUserLogs(c *gin.Context) {
 	group := c.Query("group")
 	requestId := c.Query("request_id")
 	upstreamRequestId := c.Query("upstream_request_id")
-	logs, total, err := model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId)
+	logs, total, err := model.GetUserLogs(userId, logTypes, startTimestamp, endTimestamp, modelName, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -56,6 +78,39 @@ func GetUserLogs(c *gin.Context) {
 	pageInfo.SetItems(logs)
 	common.ApiSuccess(c, pageInfo)
 	return
+}
+
+func GetUserRequestLogs(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	// The shared parser preserves legacy negative values; this endpoint slices
+	// in memory, so validate before calculating an offset or touching the DB.
+	if pageInfo.Page < 1 || pageInfo.PageSize < 1 || pageInfo.Page-1 > math.MaxInt/pageInfo.PageSize {
+		common.ApiErrorMsg(c, "分页参数无效")
+		return
+	}
+	userId := c.GetInt("id")
+	startTimestamp, startErr := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, endErr := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	// Check positive, ordered bounds before subtracting to avoid overflow.
+	if startErr != nil || endErr != nil || startTimestamp <= 0 || endTimestamp < startTimestamp || endTimestamp-startTimestamp >= 86400 {
+		common.ApiErrorMsg(c, "时间范围无效，最多查询一天")
+		return
+	}
+	logs, total, err := model.GetUserRequestLogs(
+		c.Request.Context(),
+		userId,
+		startTimestamp,
+		endTimestamp,
+		pageInfo.GetStartIdx(),
+		pageInfo.GetPageSize(),
+	)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(logs)
+	common.ApiSuccess(c, pageInfo)
 }
 
 // Deprecated: SearchAllLogs 已废弃，前端未使用该接口。

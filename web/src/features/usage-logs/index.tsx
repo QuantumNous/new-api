@@ -25,8 +25,10 @@ import type { NavGroup } from '@/components/layout/types'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CacheStatsDialog } from '@/features/system-settings/general/channel-affinity/cache-stats-dialog'
 import { useSidebarConfig } from '@/hooks/use-sidebar-config'
+import { useConsoleModeStore } from '@/stores/console-mode-store'
 
 import { UserInfoDialog } from './components/dialogs/user-info-dialog'
+import { TerminalRequests } from './components/terminal-requests'
 import {
   type LogsViewScope,
   UsageLogsProvider,
@@ -58,6 +60,7 @@ const SECTION_META: Record<UsageLogsSectionId, { titleKey: string }> = {
 function UsageLogsContent() {
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const consoleMode = useConsoleModeStore((state) => state.mode)
   const params = route.useParams()
   const activeCategory: UsageLogsSectionId =
     params.section && isUsageLogsSectionId(params.section)
@@ -121,6 +124,10 @@ function UsageLogsContent() {
     activeCategory === 'common' ? SECTION_META.common : SECTION_META.task
   const showTaskSwitcher =
     activeCategory !== 'common' && visibleSections.length > 1
+
+  if (consoleMode !== 'developer' && activeCategory === 'common') {
+    return <TerminalRequests />
+  }
 
   return (
     <>

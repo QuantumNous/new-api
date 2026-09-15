@@ -63,11 +63,6 @@ export function buildPublicTopNavLinks(
     })
   }
 
-  links.push({
-    title: options.translate('Beginner guide'),
-    href: '/guide',
-  })
-
   return links
 }
 
@@ -117,9 +112,9 @@ export function useTopNavLinks(
     links.push({ title: t('Home'), href: '/' })
   }
 
-  // Console -> /dashboard (new console path)
+  // Match the developer sidebar's overview destination.
   if (modules?.console !== false) {
-    links.push({ title: t('Console'), href: '/dashboard' })
+    links.push({ title: t('Overview'), href: '/dashboard/overview' })
   }
 
   // Pricing
@@ -141,7 +136,7 @@ export function useTopNavLinks(
     if (docsLink) {
       links.push({ title: t('Docs'), href: docsLink, external: true })
     } else {
-      links.push({ title: t('Docs'), href: '/docs' })
+      links.push({ title: t('Docs'), href: '/guide' })
     }
   }
 

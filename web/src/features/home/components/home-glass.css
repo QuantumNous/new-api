@@ -1,0 +1,399 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+/* Liquid-glass surfaces are scoped to the default public home. */
+.ci-liquidHome .ci-handoffRoot {
+  --ci-font-ui:
+    'Avenir Next', 'Trebuchet MS', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+  --ci-font-display: var(--ci-font-ui);
+  --glass-surface: rgb(255 255 248 / 62%);
+  --glass-edge: rgb(255 255 255 / 80%);
+  --glass-highlight: rgb(255 255 255 / 70%);
+  --glass-shadow: rgb(72 88 64 / 12%);
+  --glass-page: #f5f7ef;
+  background:
+    radial-gradient(ellipse at 0 32%, #e6ebd8 0, transparent 36%),
+    radial-gradient(ellipse at 100% 70%, #f4e2d5 0, transparent 32%),
+    var(--glass-page);
+}
+
+/* The inner surface stays separate so its blur does not cover the whole page. */
+.ci-liquidHome .ci-header {
+  padding: 12px 0;
+  margin-bottom: -84px;
+  border: 0;
+  background: transparent;
+  backdrop-filter: none;
+}
+.ci-liquidHome .ci-headerInner {
+  width: min(1280px, calc(100% - 48px));
+  min-height: 60px;
+  gap: 20px;
+  padding-inline: 20px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 22px;
+  background:
+    linear-gradient(155deg, rgb(255 255 255 / 38%), transparent 55%),
+    var(--glass-surface);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    inset 0 -1px 0 rgb(255 255 255 / 18%),
+    0 10px 32px -12px var(--glass-shadow);
+  /* Keep the standard property last when the CSS optimizer merges aliases. */
+  -webkit-backdrop-filter: blur(24px) saturate(155%);
+  backdrop-filter: blur(24px) saturate(155%);
+}
+.ci-liquidHome .ci-header .ci-logo {
+  font-size: 16px;
+}
+.ci-liquidHome .ci-header .ci-navLinks {
+  gap: 24px;
+}
+.ci-liquidHome .ci-header .ci-navLinks > a {
+  font-size: 13px;
+}
+
+.ci-liquidHome .ci-hero {
+  display: grid;
+  align-items: center;
+  isolation: isolate;
+  min-height: calc(100svh - 24px);
+  margin: 12px 12px 0;
+  padding: 144px 24px 92px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 32px;
+  background: #e8edda;
+  scroll-margin-top: 96px;
+  box-shadow:
+    inset 0 1px 0 #ffffffc9,
+    0 18px 44px -30px #63704f40;
+}
+.ci-liquidHome .ci-hero::before {
+  z-index: -2;
+  inset: -16%;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background:
+    radial-gradient(ellipse at 12% 48%, #f4bb98 0, #f4bb9800 38%),
+    radial-gradient(ellipse at 83% 74%, #eab8ad 0, #eab8ad00 40%),
+    radial-gradient(ellipse at 84% 8%, #efce8b 0, #efce8b00 38%),
+    radial-gradient(ellipse at 32% 96%, #aac6c7 0, #aac6c700 34%),
+    radial-gradient(ellipse at 43% 16%, #caddc6 0, #caddc600 42%), #e8ead6;
+  pointer-events: none;
+  animation: ci-glass-flow 24s ease-in-out infinite alternate;
+  will-change: transform;
+}
+.ci-liquidHome .ci-hero::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -12%;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      122deg,
+      transparent 26%,
+      #ffffff42 36%,
+      #ffffff0a 41%,
+      transparent 59%
+    ),
+    linear-gradient(24deg, transparent 48%, #fffce326 62%, transparent 70%);
+  filter: blur(18px);
+  animation: ci-glass-light 15s ease-in-out infinite alternate;
+}
+.ci-liquidHome .ci-heroGrid {
+  width: min(100%, 1000px);
+  gap: 0;
+}
+.ci-liquidHome .ci-heroBrand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 28px;
+  color: #243425;
+  font-size: clamp(2rem, 3.3vw, 3rem);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+}
+.ci-liquidHome .ci-heroCopy h1 {
+  max-width: 1000px;
+  color: #243425;
+  font-family: var(--ci-font-ui);
+  font-size: clamp(2.8rem, 5.8vw, 5.3rem);
+  font-weight: 620;
+  line-height: 1.18;
+  letter-spacing: -0.045em;
+  text-shadow: 0 1px 0 #ffffff38;
+}
+.ci-liquidHome .ci-heroCopy h1 i {
+  font-family: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+.ci-liquidHome .ci-heroCopy > p {
+  max-width: 650px;
+  margin: 26px auto 0;
+  color: #4d594b;
+  font-size: 17px;
+  line-height: 1.8;
+}
+.ci-liquidHome .ci-heroCopy .ci-trustRow {
+  color: #4d594b;
+  font-family: var(--ci-font-ui);
+}
+.ci-liquidHome .ci-heroCopy .ci-heroActions {
+  margin-top: 30px;
+}
+.ci-liquidHome .ci-heroCopy .ci-highlighter::before {
+  top: 0.02em;
+  bottom: 0;
+  border: 1px solid #ffffffad;
+  border-radius: 0.18em;
+  background: linear-gradient(140deg, #ffffff55, #ffffff1a);
+  box-shadow:
+    inset 0 1px 0 #ffffffa8,
+    0 5px 22px -14px #364a2959;
+  backdrop-filter: blur(10px) saturate(145%);
+}
+.ci-liquidHome .ci-heroActions .ci-button,
+.ci-liquidHome .ci-desktopNavActions .ci-button--default {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #ffffff36;
+  border-radius: 14px;
+  background: #213121ed;
+  color: #fffef5;
+  box-shadow:
+    inset 0 1px 0 #ffffff30,
+    0 10px 24px -10px #364d3266;
+  backdrop-filter: blur(16px);
+  transition:
+    transform 180ms,
+    box-shadow 180ms,
+    background 180ms;
+}
+.ci-liquidHome .ci-heroActions .ci-button {
+  min-height: 48px;
+  padding-inline: 26px;
+}
+.ci-liquidHome .ci-heroActions .ci-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    115deg,
+    transparent 18%,
+    #ffffff1f 42%,
+    transparent 68%
+  );
+  transform: translateX(-110%);
+  transition: transform 550ms ease;
+  pointer-events: none;
+}
+.ci-liquidHome .ci-heroActions .ci-button:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 #ffffff38,
+    0 16px 32px -12px #364d3277;
+}
+.ci-liquidHome .ci-heroActions .ci-button:hover::before {
+  transform: translateX(110%);
+}
+.ci-liquidHome .ci-heroCopy .ci-heroActions--primary {
+  justify-content: center;
+  margin-inline: auto;
+}
+.ci-liquidHome .ci-heroActions .ci-heroClientAction {
+  border-color: #3146304a;
+  background: #ffffff52;
+  color: #213121;
+  box-shadow:
+    inset 0 1px 0 #ffffff70,
+    0 10px 24px -14px #364d324f;
+}
+.ci-liquidHome .ci-heroActions .ci-heroClientAction:hover {
+  background: #ffffff70;
+}
+
+/* Keep the existing table and copy interactions, changing only their surfaces. */
+.ci-liquidHome :is(.ci-pricingPanel, .ci-codeCard) {
+  border: 1px solid var(--glass-edge);
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 45%), transparent 60%),
+    var(--glass-surface);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 18px 50px -26px var(--glass-shadow);
+  -webkit-backdrop-filter: blur(20px) saturate(135%);
+  backdrop-filter: blur(20px) saturate(135%);
+}
+.ci-liquidHome .ci-catalogFilters :is(input, select) {
+  border-color: var(--ci-color-border-subtle);
+  border-radius: 12px;
+  background-color: var(--glass-surface);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+.ci-liquidHome .ci-siteFooter {
+  background: transparent;
+}
+
+.ci-liquidHome[data-theme='dark'] .ci-handoffRoot {
+  --glass-surface: rgb(34 46 37 / 82%);
+  --glass-edge: rgb(220 237 202 / 18%);
+  --glass-highlight: rgb(255 255 255 / 12%);
+  --glass-shadow: rgb(0 0 0 / 30%);
+  --glass-page: #19271f;
+  background:
+    radial-gradient(ellipse at 0 32%, #2d3b28 0, transparent 36%),
+    var(--glass-page);
+}
+.ci-liquidHome[data-theme='dark'] .ci-hero {
+  background: #25342a;
+}
+.ci-liquidHome[data-theme='dark'] .ci-hero::before {
+  background:
+    radial-gradient(ellipse at 12% 48%, #64503a 0, #64503a00 38%),
+    radial-gradient(ellipse at 83% 74%, #503c38 0, #503c3800 40%),
+    radial-gradient(ellipse at 84% 8%, #635b34 0, #635b3400 38%),
+    radial-gradient(ellipse at 32% 96%, #29494b 0, #29494b00 34%),
+    radial-gradient(ellipse at 43% 16%, #3e573c 0, #3e573c00 42%), #25342a;
+}
+.ci-liquidHome[data-theme='dark'] .ci-hero::after {
+  opacity: 0.25;
+}
+.ci-liquidHome[data-theme='dark'] :is(.ci-heroBrand, .ci-heroCopy h1) {
+  color: #f2f4e6;
+}
+.ci-liquidHome[data-theme='dark']
+  :is(.ci-heroCopy > p, .ci-heroCopy .ci-trustRow) {
+  color: #d1d9c8;
+}
+.ci-liquidHome[data-theme='dark'] .ci-heroCopy .ci-highlighter::before {
+  border-color: #ffffff45;
+  background: #ffffff12;
+}
+.ci-liquidHome[data-theme='dark'] .ci-headerInner {
+  background:
+    linear-gradient(155deg, #ffffff08, transparent 55%), var(--glass-surface);
+}
+.ci-liquidHome[data-theme='dark'] .ci-heroActions .ci-heroClientAction {
+  border-color: #e8f1da45;
+  background: #ffffff12;
+  color: #f2f4e6;
+}
+.ci-liquidHome[data-theme='dark'] .ci-heroActions .ci-heroClientAction:hover {
+  background: #ffffff20;
+}
+
+@keyframes ci-glass-flow {
+  from {
+    transform: translate3d(-2%, -1%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(3%, 2%, 0) scale(1.06);
+  }
+}
+@keyframes ci-glass-light {
+  from {
+    transform: translate3d(-8%, 0, 0) rotate(-4deg);
+    opacity: 0.6;
+  }
+  to {
+    transform: translate3d(8%, 1%, 0) rotate(4deg);
+    opacity: 1;
+  }
+}
+@media (max-width: 860px) {
+  .ci-liquidHome .ci-headerInner {
+    width: calc(100% - 32px);
+    padding-inline: 14px;
+    gap: 12px;
+    border-radius: 18px;
+  }
+  .ci-liquidHome .ci-nav {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    left: 0;
+    height: auto;
+    max-height: calc(100dvh - 104px);
+    border: 1px solid var(--glass-edge);
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--ci-canvas) 94%, transparent);
+    box-shadow:
+      0 16px 38px var(--glass-shadow),
+      inset 0 1px 0 var(--glass-highlight);
+    backdrop-filter: blur(24px);
+  }
+  .ci-liquidHome .ci-header .ci-navLinks {
+    gap: 0;
+  }
+  .ci-liquidHome .ci-hero {
+    min-height: calc(100svh - 16px);
+    margin: 8px 8px 0;
+    padding: 128px 18px 70px;
+    border-radius: 24px;
+  }
+  .ci-liquidHome .ci-heroBrand {
+    font-size: 34px;
+    margin-bottom: 22px;
+  }
+  .ci-liquidHome .ci-heroBrand img {
+    width: 46px;
+    height: 46px;
+  }
+  .ci-liquidHome .ci-heroCopy h1 {
+    font-size: clamp(2.4rem, 8vw, 4rem);
+  }
+  .ci-liquidHome .ci-heroCopy > p {
+    font-size: 15px;
+    margin-top: 22px;
+  }
+  .ci-liquidHome :is(.ci-pricingPanel, .ci-codeCard) {
+    border-radius: 18px;
+  }
+}
+@media (max-width: 520px) {
+  .ci-liquidHome .ci-heroCopy .ci-heroActions--primary {
+    width: min(100%, 20rem);
+    flex-direction: column;
+  }
+  .ci-liquidHome .ci-heroCopy .ci-heroActions--primary > .ci-button {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ci-liquidHome .ci-hero::before,
+  .ci-liquidHome .ci-hero::after {
+    animation: none;
+    will-change: auto;
+  }
+  .ci-liquidHome .ci-heroActions .ci-button,
+  .ci-liquidHome .ci-heroActions .ci-button::before {
+    transition: none;
+  }
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .ci-liquidHome .ci-headerInner,
+  .ci-liquidHome :is(.ci-pricingPanel, .ci-codeCard) {
+    background: var(--ci-color-surface);
+  }
+}

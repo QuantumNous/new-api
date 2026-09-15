@@ -178,6 +178,7 @@ export function SummaryCards() {
       'dashboard',
       'overview',
       'summary-sparklines',
+      user?.id,
       summaryTimeRange.start_timestamp,
       summaryTimeRange.end_timestamp,
     ],

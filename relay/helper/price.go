@@ -86,6 +86,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var cacheRatio float64
 	var imageRatio float64
 	var cacheCreationRatio float64
+	var cacheCreationRatioConfigured bool
 	var cacheCreationRatio5m float64
 	var cacheCreationRatio1h float64
 	var audioRatio float64
@@ -110,7 +111,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		}
 		completionRatio = ratio_setting.GetCompletionRatio(info.OriginModelName)
 		cacheRatio, _ = ratio_setting.GetCacheRatio(info.OriginModelName)
-		cacheCreationRatio, _ = ratio_setting.GetCreateCacheRatio(info.OriginModelName)
+		cacheCreationRatio, cacheCreationRatioConfigured = ratio_setting.GetCreateCacheRatio(info.OriginModelName)
 		cacheCreationRatio5m = cacheCreationRatio
 		// 固定1h和5min缓存写入价格的比例
 		cacheCreationRatio1h = cacheCreationRatio * claudeCacheCreation1hMultiplier
@@ -149,20 +150,21 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	}
 
 	priceData := hosttypes.PriceData{
-		FreeModel:            freeModel,
-		ModelPrice:           modelPrice,
-		ModelRatio:           modelRatio,
-		CompletionRatio:      completionRatio,
-		GroupRatioInfo:       groupRatioInfo,
-		UsePrice:             usePrice,
-		CacheRatio:           cacheRatio,
-		ImageRatio:           imageRatio,
-		AudioRatio:           audioRatio,
-		AudioCompletionRatio: audioCompletionRatio,
-		CacheCreationRatio:   cacheCreationRatio,
-		CacheCreation5mRatio: cacheCreationRatio5m,
-		CacheCreation1hRatio: cacheCreationRatio1h,
-		QuotaToPreConsume:    preConsumedQuota,
+		FreeModel:                    freeModel,
+		ModelPrice:                   modelPrice,
+		ModelRatio:                   modelRatio,
+		CompletionRatio:              completionRatio,
+		GroupRatioInfo:               groupRatioInfo,
+		UsePrice:                     usePrice,
+		CacheRatio:                   cacheRatio,
+		ImageRatio:                   imageRatio,
+		AudioRatio:                   audioRatio,
+		AudioCompletionRatio:         audioCompletionRatio,
+		CacheCreationRatio:           cacheCreationRatio,
+		CacheCreationRatioConfigured: cacheCreationRatioConfigured,
+		CacheCreation5mRatio:         cacheCreationRatio5m,
+		CacheCreation1hRatio:         cacheCreationRatio1h,
+		QuotaToPreConsume:            preConsumedQuota,
 	}
 	if usePrice {
 		for name, ratio := range meta.BillingRatios {

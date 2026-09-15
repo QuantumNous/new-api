@@ -1648,6 +1648,12 @@ For commercial licensing, please contact support@quantumnous.com
   padding-inline: 0;
 }
 
+.dopa-developer-header .dopa-system-brand {
+  min-inline-size: 1.25rem;
+  max-inline-size: 100%;
+  overflow: hidden;
+}
+
 .dopa-header-actions > * {
   flex-shrink: 0;
 }
@@ -1870,6 +1876,14 @@ For commercial licensing, please contact support@quantumnous.com
       transparent 12rem
     ),
     transparent;
+}
+
+@media (min-width: 1280px) {
+  [data-theme-content-layout='centered']
+    [data-slot='sidebar-inset']
+    > [data-catalog-layout='full-width'] {
+    max-width: none;
+  }
 }
 
 .dopa-console--easy .dopa-console-page {
@@ -2817,12 +2831,15 @@ For commercial licensing, please contact support@quantumnous.com
 .dopa-cost-stack {
   display: grid;
   gap: 0.15rem;
-  min-inline-size: 7.25rem;
+  min-inline-size: 11rem;
 }
 
 .dopa-cost-stack__official {
   color: var(--muted-foreground);
   font-size: 0.68rem;
+}
+
+.dopa-cost-stack__official del {
   text-decoration: line-through;
   text-decoration-thickness: 1px;
 }

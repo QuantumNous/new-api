@@ -244,9 +244,22 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
       as='article'
       tone='model'
       layer='raised'
+      onClick={(event) => {
+        const target = event.target
+        if (
+          event.defaultPrevented ||
+          !(target instanceof Element) ||
+          target.closest(
+            'button, a, input, select, textarea, [role="button"], [role="link"]'
+          )
+        ) {
+          return
+        }
+        props.onClick()
+      }}
       className={cn(
         'dopa-model-tile dopa-scale-texture group relative flex min-w-0 flex-col gap-4 overflow-hidden rounded-3xl border p-4 transition-colors sm:p-5',
-        'hover:bg-muted/20'
+        'cursor-pointer hover:bg-muted/20'
       )}
     >
       <header className='flex min-w-0 items-start gap-3'>

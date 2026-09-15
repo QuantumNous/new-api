@@ -1,0 +1,184 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+
+/* Share the current Yecai palette without changing the operator shell's
+ * geometry. Body scope also covers Base UI portals and disappears on route
+ * exit. Low specificity preserves explicit theme/radius/font preferences. */
+body:where(:has(.dopa-console--developer):not([data-theme-preset])) {
+  --border: var(--ci-color-border-subtle);
+  --success: var(--ci-color-success);
+  --warning: var(--ci-color-warning);
+  --info: var(--ci-color-info);
+  --chart-1: var(--ci-chart-1);
+  --chart-2: var(--ci-chart-2);
+  --chart-3: var(--ci-chart-3);
+  --chart-4: var(--ci-chart-4);
+  --chart-5: var(--ci-chart-5);
+}
+
+body:where(:has(.dopa-console--developer)) {
+  --sidebar: var(--background);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--muted);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+  --dopa-leaf: var(--accent);
+  --dopa-model: var(--primary);
+  --dopa-money: var(--success);
+  --dopa-signal: var(--info);
+  --dopa-ink: var(--foreground);
+  --dopa-canvas: var(--background);
+  --dopa-rule: var(--border);
+  --dopa-radius-card: calc(var(--radius) * 1.5);
+  --dopa-radius-panel: calc(var(--radius) * 1.25);
+  --dopa-radius-control: var(--radius);
+  --dopa-sidebar-surface: var(--sidebar);
+  --dopa-sidebar-surface-hover: var(--sidebar-accent);
+  --dopa-sidebar-ink: var(--sidebar-foreground);
+  --dopa-sidebar-muted: var(--muted-foreground);
+  --dopa-sidebar-label: var(--muted-foreground);
+  --dopa-sidebar-active: var(--sidebar-primary);
+  --dopa-sidebar-active-ink: var(--sidebar-primary-foreground);
+  --table-row: var(--card);
+  --table-header: var(--muted);
+  --table-header-hover: var(--secondary);
+  --table-disabled: color-mix(in oklch, var(--destructive) 5%, var(--card));
+  --table-disabled-hover: color-mix(
+    in oklch,
+    var(--destructive) 9%,
+    var(--card)
+  );
+  --table-disabled-border: color-mix(
+    in oklch,
+    var(--destructive) 16%,
+    var(--border)
+  );
+}
+
+.dopa-console--developer {
+  background: var(--background);
+}
+
+.dopa-console--developer > header {
+  border-color: var(--border);
+  background: var(--background);
+  box-shadow: none;
+}
+
+.dopa-console--developer .dopa-console-page,
+.dopa-console--developer .dopa-section-page__header {
+  background: transparent;
+}
+
+.dopa-console--developer [data-slot='sidebar-inner'] {
+  border-color: var(--sidebar-border);
+  background: var(--sidebar);
+  color-scheme: inherit;
+  box-shadow: none;
+}
+
+.dopa-console--developer [data-sidebar='menu-button'],
+.dopa-console--developer [data-sidebar='menu-sub-button'] {
+  border-radius: var(--radius);
+}
+
+.dopa-console--developer [data-sidebar='menu-button'][data-active] {
+  box-shadow: none;
+}
+
+.dopa-console--developer [data-sidebar='header'],
+.dopa-console--developer [data-sidebar='menu-sub'] {
+  border-color: var(--sidebar-border);
+}
+
+.dopa-console--developer [data-sidebar='header'] [data-sidebar='menu-button'] {
+  background: var(--sidebar-accent);
+}
+
+.dopa-console--developer .dopa-mode-control {
+  background: var(--muted);
+  box-shadow: none;
+}
+
+.dopa-console--developer .dopa-mode-control button[aria-pressed='true'] {
+  color: var(--primary-foreground);
+  background: var(--primary);
+  box-shadow: none;
+}
+
+.dopa-console--developer .dopa-console-title::before {
+  background: var(--accent);
+}
+
+/* Keep site links visible. Narrow headers use a second row, sharing the
+ * height token with the fixed sidebar and the remaining content viewport. */
+.dopa-console--developer:has(.dopa-site-nav) {
+  --app-header-height: 5.5rem;
+}
+
+.dopa-developer-header:has(.dopa-site-nav) > div {
+  flex-wrap: wrap;
+  align-content: center;
+  row-gap: 0;
+}
+
+.dopa-developer-header .dopa-site-nav {
+  order: 1;
+  flex: 0 0 100%;
+  min-inline-size: 0;
+  block-size: 2.25rem;
+  gap: 1.125rem;
+  overflow-x: auto;
+  justify-content: safe flex-end;
+  scrollbar-width: thin;
+}
+
+.dopa-site-nav > :is(a, span) {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-block-size: 2rem;
+}
+
+@media (min-width: 80rem) {
+  .dopa-console--developer:has(.dopa-site-nav) {
+    --app-header-height: 3.25rem;
+  }
+
+  .dopa-developer-header:has(.dopa-site-nav) > div {
+    flex-wrap: nowrap;
+  }
+
+  .dopa-developer-header .dopa-site-nav {
+    order: 0;
+    flex: 0 1 auto;
+    margin-inline-start: auto;
+  }
+}
+
+.dopa-console--developer
+  .dopa-section-page
+  :is(input, textarea, select):focus-visible {
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px var(--ring);
+}

@@ -41,6 +41,7 @@ import {
   clearAuthentication,
 } from '@/lib/auth-session'
 import { subscribeAuthSessionEvents } from '@/lib/auth-session-sync'
+import { createInternalRedirect } from '@/lib/internal-redirect'
 import { resolveLegacyRoute } from '@/lib/legacy-route'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -117,7 +118,7 @@ export const Route = createRootRouteWithContext<{
   beforeLoad: async ({ location }) => {
     const legacyTarget = resolveLegacyRoute(location.href)
     if (legacyTarget) {
-      throw redirect({ href: legacyTarget, replace: true })
+      throw createInternalRedirect(legacyTarget)
     }
 
     const pathname = location?.pathname || ''

@@ -53,6 +53,7 @@ export function SidebarModulesCard() {
   const [loading, setLoading] = useState(false)
   const [config, setConfig] = useState<SidebarModulesConfig>({})
   const currentUser = useAuthStore((s) => s.auth.user)
+  const sessionId = useAuthStore((s) => s.auth.session?.sid)
   const setUser = useAuthStore((s) => s.auth.setUser)
 
   const sectionDefs: SectionDef[] = [
@@ -178,7 +179,7 @@ export function SidebarModulesCard() {
         // Sync to auth-store so useSidebarConfig re-runs and the sidebar
         // updates immediately without needing a page refresh.
         if (currentUser) {
-          setUser({ ...currentUser, sidebar_modules: serialized })
+          setUser({ ...currentUser, sidebar_modules: serialized }, sessionId)
         }
         toast.success(t('Saved successfully'))
       } else {

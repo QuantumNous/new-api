@@ -86,6 +86,8 @@ import {
 } from '@/stores/system-config-store'
 
 export interface CurrencyFormatOptions {
+  /** Minimum decimals for non-compact currency amounts; existing precision is retained. */
+  minimumFractionDigits?: number
   /** Fraction digits to use when |value| >= 1 */
   digitsLarge?: number
   /** Fraction digits to use when |value| < 1 */
@@ -131,6 +133,7 @@ type DisplayMeta =
     }
 
 const DEFAULT_FORMAT_OPTIONS: ResolvedCurrencyFormatOptions = {
+  minimumFractionDigits: 0,
   digitsLarge: 2,
   digitsSmall: 4,
   abbreviate: true,
@@ -233,6 +236,9 @@ function mergeOptions(
 ): ResolvedCurrencyFormatOptions {
   if (!options) return DEFAULT_FORMAT_OPTIONS
   return {
+    minimumFractionDigits:
+      options.minimumFractionDigits ??
+      DEFAULT_FORMAT_OPTIONS.minimumFractionDigits,
     digitsLarge: options.digitsLarge ?? DEFAULT_FORMAT_OPTIONS.digitsLarge,
     digitsSmall: options.digitsSmall ?? DEFAULT_FORMAT_OPTIONS.digitsSmall,
     abbreviate: options.abbreviate ?? DEFAULT_FORMAT_OPTIONS.abbreviate,
@@ -323,12 +329,15 @@ function formatCurrencyValue(
     options.digitsSmall
   )
   const adjustedValue = adjustForMinimum(value, digits, options.minimumNonZero)
+  const minimumFractionDigits = options.compact
+    ? 0
+    : Math.min(options.minimumFractionDigits, digits)
 
   if (meta.kind === 'currency') {
     if (!options.showSymbol) {
       return new Intl.NumberFormat(options.locale, {
         notation: options.compact ? 'compact' : 'standard',
-        minimumFractionDigits: 0,
+        minimumFractionDigits,
         maximumFractionDigits: options.compact ? 1 : digits,
       }).format(adjustedValue)
     }
@@ -338,7 +347,7 @@ function formatCurrencyValue(
       currency: meta.currencyCode,
       currencyDisplay: 'narrowSymbol',
       notation: options.compact ? 'compact' : 'standard',
-      minimumFractionDigits: 0,
+      minimumFractionDigits,
       maximumFractionDigits: options.compact ? 1 : digits,
     }).format(adjustedValue)
     return formatted
@@ -346,7 +355,7 @@ function formatCurrencyValue(
 
   const decimal = new Intl.NumberFormat(options.locale, {
     notation: options.compact ? 'compact' : 'standard',
-    minimumFractionDigits: 0,
+    minimumFractionDigits,
     maximumFractionDigits: options.compact ? 1 : digits,
   }).format(adjustedValue)
 

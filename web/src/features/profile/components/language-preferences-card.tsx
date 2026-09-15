@@ -82,13 +82,16 @@ export function LanguagePreferencesCard(props: LanguagePreferencesCardProps) {
           typeof auth.user.setting === 'string'
             ? parseUserSettings(auth.user.setting)
             : (auth.user.setting ?? {})
-        auth.setUser({
-          ...auth.user,
-          setting: JSON.stringify({
-            ...existingSetting,
-            language: nextLanguage,
-          }),
-        })
+        auth.setUser(
+          {
+            ...auth.user,
+            setting: JSON.stringify({
+              ...existingSetting,
+              language: nextLanguage,
+            }),
+          },
+          auth.session?.sid
+        )
       }
 
       props.onProfileUpdate()

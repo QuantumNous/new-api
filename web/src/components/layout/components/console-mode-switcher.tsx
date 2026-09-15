@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { Code2, Leaf } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,9 +29,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SidebarFooter } from '@/components/ui/sidebar'
+import { useConsoleMode } from '@/hooks/use-console-mode'
 import { useMediaQuery } from '@/hooks/use-media-query'
+import { isOperatorRoute } from '@/lib/operator-route'
 import { cn } from '@/lib/utils'
-import { useConsoleModeStore } from '@/stores/console-mode-store'
+import {
+  useConsoleModeStore,
+  type ConsoleMode,
+} from '@/stores/console-mode-store'
 
 type ConsoleModeControlProps = {
   compact?: boolean
@@ -38,13 +44,33 @@ type ConsoleModeControlProps = {
 
 export function ConsoleModeControl(props: ConsoleModeControlProps) {
   const { t } = useTranslation()
-  const mode = useConsoleModeStore((state) => state.mode)
+  const mode = useConsoleMode()
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const navigate = useNavigate()
   const setMode = useConsoleModeStore((state) => state.setMode)
   const isMobile = useMediaQuery('(max-width: 767px)')
   const options = [
     { id: 'easy' as const, label: t('Easy mode'), icon: Leaf },
     { id: 'developer' as const, label: t('Developer mode'), icon: Code2 },
   ]
+
+  const changeMode = (next: ConsoleMode) => {
+    setMode(next)
+    if (next === 'easy' && isOperatorRoute(pathname)) {
+      void navigate({
+        to: '/dashboard/$section',
+        params: { section: 'overview' },
+      })
+    }
+    if (next === 'developer' && pathname === '/dashboard/reports') {
+      void navigate({
+        to: '/dashboard/$section',
+        params: { section: 'models' },
+      })
+    }
+  }
 
   if (props.compact && isMobile) {
     const CurrentIcon = mode === 'easy' ? Leaf : Code2
@@ -66,7 +92,7 @@ export function ConsoleModeControl(props: ConsoleModeControlProps) {
           <DropdownMenuRadioGroup
             value={mode}
             onValueChange={(next) => {
-              if (next === 'easy' || next === 'developer') setMode(next)
+              if (next === 'easy' || next === 'developer') changeMode(next)
             }}
           >
             {options.map((option) => {
@@ -103,7 +129,7 @@ export function ConsoleModeControl(props: ConsoleModeControlProps) {
           <button
             key={option.id}
             type='button'
-            onClick={() => setMode(option.id)}
+            onClick={() => changeMode(option.id)}
             aria-pressed={selected}
             aria-label={option.label}
             className={cn(

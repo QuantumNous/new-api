@@ -1,0 +1,149 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
+.ci-walletOverview {
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--ci-color-border-subtle);
+}
+.ci-walletBalance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 4px 0 20px;
+}
+.ci-walletBalance > div {
+  min-width: 0;
+}
+.ci-walletBalanceLabel {
+  margin: 0 0 10px;
+  color: var(--ci-color-text-muted);
+  font-size: 13px;
+}
+.ci-walletBalanceAmount {
+  display: block;
+  color: var(--ci-color-heading);
+  font-family: var(--ci-font-mono);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  letter-spacing: -0.045em;
+  overflow-wrap: anywhere;
+}
+.ci-walletBalance > a {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding-inline: 22px;
+}
+.ci-walletLifetime {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+  color: var(--ci-color-text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ci-walletSavingsRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.ci-walletSavingsSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 0;
+  color: var(--ci-color-success);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.ci-walletSavingsToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ci-color-text-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ci-walletSavingsToggle:hover {
+  color: var(--ci-color-heading);
+}
+.ci-walletSavingsToggle:focus-visible {
+  outline: 2px solid var(--ci-color-heading);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+.ci-walletSavingsToggle svg {
+  transition: transform 160ms ease;
+}
+.ci-walletSavingsToggle[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+.ci-walletSavingsDetails {
+  max-width: 520px;
+  padding-top: 8px;
+  font-size: 12px;
+}
+.ci-walletSavingsDetails > p,
+.ci-walletSavingsStatus {
+  margin: 0;
+  color: var(--ci-color-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.ci-walletSavingsDetails dl {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+.ci-walletSavingsDetails dl > div {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+}
+.ci-walletSavingsDetails dt {
+  color: var(--ci-color-text-muted);
+}
+.ci-walletSavingsDetails dd {
+  margin: 0;
+  color: var(--ci-color-heading);
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 480px) {
+  .ci-walletBalance {
+    gap: 14px;
+  }
+  .ci-walletSavingsToggle {
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ci-walletSavingsToggle svg {
+    transition: none;
+  }
+}

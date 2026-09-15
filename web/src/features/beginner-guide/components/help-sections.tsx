@@ -25,8 +25,9 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import { cn } from '@/lib/utils'
 
-import { troubleshootRows, useCaseRows } from '../data'
+import { troubleshootRows, useCaseRows, type UseCaseRow } from '../data'
 
 const DIFFICULTY_HUE: Record<string, string> = {
   Easy: 'var(--success)',
@@ -35,7 +36,10 @@ const DIFFICULTY_HUE: Record<string, string> = {
 }
 
 /** "Which tool should I use?" quick picker. */
-export function UseCasePicker() {
+export function UseCasePicker(props: {
+  onPick: (row: UseCaseRow) => void
+  activeUseCase?: string
+}) {
   const { t } = useTranslation()
 
   return (
@@ -55,28 +59,39 @@ export function UseCasePicker() {
       </div>
 
       <div className='grid gap-3 sm:grid-cols-2'>
-        {useCaseRows.map((row) => (
-          <div
-            key={t(row.useCase)}
-            className='dopa-lift border-border bg-card flex items-center justify-between gap-3 rounded-2xl border px-4 py-3.5'
-          >
-            <div className='min-w-0'>
-              <p className='text-sm font-semibold'>{t(row.useCase)}</p>
-              <p className='text-muted-foreground mt-0.5 truncate text-xs'>
-                {t(row.tools)}
-              </p>
-            </div>
-            <span
-              className='shrink-0 rounded-full px-2.5 py-1 text-xs font-bold'
-              style={{
-                backgroundColor: `color-mix(in oklab, ${DIFFICULTY_HUE[row.difficulty]} 14%, transparent)`,
-                color: DIFFICULTY_HUE[row.difficulty],
-              }}
+        {useCaseRows.map((row) => {
+          const selected = props.activeUseCase === row.useCase
+          return (
+            <button
+              key={t(row.useCase)}
+              type='button'
+              onClick={() => props.onPick(row)}
+              aria-pressed={selected}
+              className={cn(
+                'dopa-lift border-border bg-card flex items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 text-left',
+                selected && 'border-primary/60 bg-primary/5'
+              )}
             >
-              {t(row.difficulty)}
-            </span>
-          </div>
-        ))}
+              <span className='min-w-0'>
+                <span className='block text-sm font-semibold'>
+                  {t(row.useCase)}
+                </span>
+                <span className='text-muted-foreground mt-0.5 block truncate text-xs'>
+                  {t(row.tools)}
+                </span>
+              </span>
+              <span
+                className='shrink-0 rounded-full px-2.5 py-1 text-xs font-bold'
+                style={{
+                  backgroundColor: `color-mix(in oklab, ${DIFFICULTY_HUE[row.difficulty]} 14%, transparent)`,
+                  color: DIFFICULTY_HUE[row.difficulty],
+                }}
+              >
+                {t(row.difficulty)}
+              </span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )

@@ -310,7 +310,16 @@ export function resolveMatchedTier(
 export interface TieredBillingSummary {
   tiers: ParsedTier[]
   tier: ParsedTier
-  priceEntries: Array<{ field: string; shortLabel: string; price: number }>
+  priceEntries: Array<{
+    key: string
+    field: string
+    shortLabel: string
+    price: number
+  }>
+}
+
+type TieredBillingSummaryOptions = {
+  includeUnusedCache?: boolean
 }
 
 /**
@@ -331,7 +340,8 @@ export function hasAnyCacheTokens(
 }
 
 export function getTieredBillingSummary(
-  other: LogOtherData | null
+  other: LogOtherData | null,
+  options: TieredBillingSummaryOptions = {}
 ): TieredBillingSummary | null {
   if (!other || other.billing_mode !== 'tiered_expr') return null
   const exprStr = decodeBillingExprB64(other.expr_b64)
@@ -340,18 +350,30 @@ export function getTieredBillingSummary(
   const tier = resolveMatchedTier(tiers, other.matched_tier)
   if (!tier) return null
 
+  const declaredPriceFields = new Set(tier.declaredPriceFields)
   const cacheTokensPresent = hasAnyCacheTokens(other)
 
   const priceEntries: TieredBillingSummary['priceEntries'] = []
   for (const v of BILLING_PRICING_VARS) {
     if (!v.field) continue
-    if (v.group === 'cache' && !cacheTokensPresent) continue
+    if (!declaredPriceFields.has(v.field)) continue
+    if (
+      v.group === 'cache' &&
+      !options.includeUnusedCache &&
+      !cacheTokensPresent
+    ) {
+      continue
+    }
     const raw = tier[v.field as keyof ParsedTier]
     const price = Number(raw)
-    if (Number.isFinite(price) && price > 0) {
+    if (Number.isFinite(price) && price >= 0) {
       priceEntries.push({
+        key: v.key,
         field: v.field,
-        shortLabel: v.shortLabel,
+        shortLabel:
+          v.key === 'cc' && other.claude === true
+            ? 'Cache Write (5m)'
+            : v.shortLabel,
         price,
       })
     }

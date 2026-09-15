@@ -20,6 +20,7 @@ import { useMemo } from 'react'
 
 import type { NavGroup, NavItem } from '@/components/layout/types'
 import { useStatus } from '@/hooks/use-status'
+import { parseHeaderNavModulesFromStatus } from '@/lib/nav-modules'
 import { useAuthStore } from '@/stores/auth-store'
 
 type SidebarSectionConfig = {
@@ -91,6 +92,12 @@ const mergeWithDefaultSidebarModules = (
   return merged
 }
 
+const DATA_DASHBOARD_URLS = new Set([
+  '/dashboard/models',
+  '/dashboard/flow',
+  '/dashboard/users',
+])
+
 /**
  * Mapping from URL to configuration keys
  */
@@ -99,6 +106,7 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/dashboard': { section: 'console', module: 'detail' },
   '/dashboard/overview': { section: 'console', module: 'detail' },
   '/dashboard/models': { section: 'console', module: 'detail' },
+  '/dashboard/flow': { section: 'console', module: 'detail' },
   '/dashboard/users': { section: 'console', module: 'detail' },
   '/keys': { section: 'console', module: 'token' },
   '/usage-logs': { section: 'console', module: 'log' },
@@ -275,6 +283,8 @@ function filterNavItems(
 export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
   const { status } = useStatus()
   const { auth } = useAuthStore()
+  const pricingEnabled = parseHeaderNavModulesFromStatus(status).pricing.enabled
+  const dataDashboardEnabled = status?.enable_data_export === true
 
   const adminConfig = useMemo(
     () =>
@@ -301,10 +311,16 @@ export function useSidebarConfig(navGroups: NavGroup[]): NavGroup[] {
       navGroups
         .map((group) => ({
           ...group,
-          items: filterNavItems(group.items, adminConfig, userConfig),
+          items: filterNavItems(group.items, adminConfig, userConfig).filter(
+            (item) =>
+              (item.url !== '/pricing' || pricingEnabled) &&
+              (!item.url ||
+                !DATA_DASHBOARD_URLS.has(item.url) ||
+                dataDashboardEnabled)
+          ),
         }))
         .filter((group) => group.items.length > 0), // Only show navigation groups with visible items
-    [navGroups, adminConfig, userConfig]
+    [navGroups, adminConfig, userConfig, pricingEnabled, dataDashboardEnabled]
   )
 
   return filteredNavGroups

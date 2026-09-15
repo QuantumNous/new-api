@@ -176,8 +176,8 @@ export async function getTaskPluginEnabledOption() {
     )
   const options = requireSuccess(response.data)
   return (
-    options.find((option) => option.key === 'TaskPluginEnabled')
-      ?.value === 'true'
+    options.find((option) => option.key === 'TaskPluginEnabled')?.value ===
+    'true'
   )
 }
 
