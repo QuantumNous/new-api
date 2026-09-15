@@ -49,6 +49,7 @@ const (
 	RelayModeResponsesCompact
 
 	RelayModeAlphaSearch
+	RelayModeVertexStorage
 )
 
 func Path2RelayMode(path string) int {
