@@ -2,9 +2,12 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"gorm.io/gorm"
 )
 
 // ---------------------------------------------------------------------------
@@ -115,7 +118,58 @@ func (s *SubscriptionFunding) Settle(delta int) error {
 	if delta == 0 {
 		return nil
 	}
-	return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))
+	if delta < 0 {
+		return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))
+	}
+
+	var allowWalletOverflow bool
+	err := model.DB.Model(&model.UserSubscription{}).Where("id = ?", s.subscriptionId).Pluck("allow_wallet_overflow", &allowWalletOverflow).Error
+	if err != nil || !allowWalletOverflow {
+		return model.PostConsumeUserSubscriptionDelta(s.subscriptionId, int64(delta))
+	}
+
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		var sub model.UserSubscription
+		if err := tx.Where("id = ?", s.subscriptionId).First(&sub).Error; err != nil {
+			return err
+		}
+
+		remaining := sub.AmountTotal - sub.AmountUsed
+		var subDelta int64
+		var walletDelta int64
+
+		if remaining >= int64(delta) {
+			subDelta = int64(delta)
+			walletDelta = 0
+		} else {
+			if remaining > 0 {
+				subDelta = remaining
+			} else {
+				subDelta = 0
+			}
+			walletDelta = int64(delta) - subDelta
+		}
+
+		if subDelta > 0 {
+			if err := tx.Model(&sub).Update("amount_used", gorm.Expr("amount_used + ?", subDelta)).Error; err != nil {
+				return err
+			}
+			s.AmountUsedAfter = sub.AmountUsed + subDelta
+		} else {
+			s.AmountUsedAfter = sub.AmountUsed
+		}
+
+		if walletDelta > 0 {
+			if err := tx.Model(&model.User{Id: s.userId}).Update("quota", gorm.Expr("quota - ?", walletDelta)).Error; err != nil {
+				return err
+			}
+			common.SysLog(fmt.Sprintf("Subscription %d allow_wallet_overflow enabled: subscription deducted %d, wallet %d deducted %d", s.subscriptionId, subDelta, s.userId, walletDelta))
+		} else {
+			common.SysLog(fmt.Sprintf("Subscription %d allow_wallet_overflow enabled: subscription deducted %d, wallet 0", s.subscriptionId, subDelta))
+		}
+
+		return nil
+	})
 }
 
 func (s *SubscriptionFunding) Refund() error {
