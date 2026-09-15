@@ -51,6 +51,11 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 	if !ok {
 		return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", result.Value)
 	}
+	if info.SupportStreamOptions && info.IsStream {
+		openaiRequest.StreamOptions = &dto.StreamOptions{
+			IncludeUsage: true,
+		}
+	}
 	return a.ConvertOpenAIRequest(c, info, openaiRequest)
 }
 
