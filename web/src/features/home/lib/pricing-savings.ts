@@ -16,8 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import i18next from 'i18next'
-
 import {
   isDynamicPricingModel,
   hasTaskUsageSchema,
@@ -28,8 +26,6 @@ import {
   OFFICIAL_PRICE_USD_TO_CNY,
   resolveModelProvider,
 } from '@/features/usage-logs/lib/model-provider'
-import { toIntlLocale } from '@/i18n/languages'
-import { formatLocalCurrencyAmount } from '@/lib/currency'
 
 export type ModelFamily =
   | 'openai'
@@ -506,11 +502,7 @@ export function formatUsdPerMillion(amount: number): string {
 
 export function formatPerMillionTokens(amount: number): string {
   if (!Number.isFinite(amount) || amount < 0) return '—'
-  return `${formatLocalCurrencyAmount(amount, {
-    digitsLarge: 4,
-    digitsSmall: 4,
-    locale: toIntlLocale(i18next.resolvedLanguage || i18next.language),
-  })}/M`
+  return `${formatCnyAmount(amount, { maximumFractionDigits: 4 })}/M`
 }
 
 export function formatCnyAmount(

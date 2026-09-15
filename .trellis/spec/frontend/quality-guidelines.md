@@ -192,7 +192,7 @@ look valid but use an incompatible model/endpoint pair.
 | Requested model/group is unavailable | Replace with a verified deterministic default |
 | No model supports the article protocol | Honest empty state with a Models action |
 | Pricing or group verification fails | Retryable error state; do not emit an unverified config |
-| Pricing success response omits `data` | Retryable error state; no render exception |
+| Pricing success response omits `data` or supplies a non-array | Retryable error state; no render exception |
 | Selected model declares context below 1M | Do not claim or generate a 1M configuration |
 
 ### 5. Good / Base / Bad Cases
@@ -264,7 +264,7 @@ Landing/auth/catalog pricing, key quote/revoke flows, and easy-console reporting
 
 ### Signatures and Contracts
 - `buildModelCatalog(models, priceRate)` retains every PricingModel and exposes an optional supported estimator quote. Do not filter discoverable models by calculator eligibility.
-- `SavingsModel` reference/site fields follow the public-preview currency contract above. Site fields already incorporate recharge and the selected group. `formatPerMillionTokens` formats an already-local amount without another USD conversion.
+- `SavingsModel` reference/site fields follow the public-preview currency contract above. Site fields already incorporate recharge and the selected group. `formatPerMillionTokens` formats an already-CNY amount with an explicit CNY formatter, regardless of USD/TOKENS/CUSTOM deployment display settings; never convert it again.
 - `getFullApiKey(id)` reveals only through the dedicated endpoint, rejects masked results and normalizes the sk- prefix. Successful creation must refresh keys even when reveal fails.
 - `revokeAllApiKeys()` collects all IDs before deleting bounded batches and verifies the final list is empty. Partial/error outcomes refresh the list and never show an all-revoked success.
 - Easy key quote cards and key rows show the group name on the first line with a
@@ -272,7 +272,7 @@ Landing/auth/catalog pricing, key quote/revoke flows, and easy-console reporting
   `auto` (whose API ratio is the literal `自动`) stays out of the quote cards,
   and key rows omit the pill when no finite ratio is known, so the UI never
   prints an invented `1x` for an unknown multiplier.
-- `useUsageSummary(7|10)` uses the authenticated complete summary. Requests keeps pagination; page-only filters are labeled. Home/wallet savings explicitly say 10 days. All three views share the same user/date/offset query cache; use a fixed current UTC offset so ten daily buckets stay within the API limit across DST changes.
+- `useUsageSummary(7|10)` uses the authenticated complete summary. Requests keeps pagination; page-only filters are labeled. Home/wallet savings explicitly say 10 days. All three views share the same user/date/offset query cache; use a fixed current UTC offset so ten daily buckets stay within the API limit across DST changes. Schedule the next local midnight, rebuild the date/offset query key on rollover, and clear the timer on unmount.
 - Request rows compare recorded charged quota against the same price with group multiplier 1 via `getLogQuotaComparison`. Use the logged positive user override before group ratio; preserve zero fees, exclude subscription cash comparisons, and show an unavailable mark for missing/invalid rates. Show above-base charges as a surcharge, not savings.
 - `buildUsageReportCsv(rows)` exports numeric display amounts with a currency unit, or explicitly labeled raw quota in tokens mode.
 
@@ -285,6 +285,9 @@ Landing/auth/catalog pricing, key quote/revoke flows, and easy-console reporting
 - Catalog vendor names and icons come from `/api/pricing` metadata. Preserve an explicit vendor icon identifier or image URL. When the icon is absent, resolve known normalized vendor names to their matching icon; an unknown vendor uses its neutral name/initial fallback and must never inherit another provider's branded icon.
 - Public visual surfaces and the easy-mode authenticated shell mount at most one shared `GlassCursor`, scoped to their root. `TerminalLayout` owns the `.ci-app` cursor in easy mode, so an authenticated `CatalogPageLayout` defers to that instance in easy mode and keeps its page-owned instance only in developer mode; the anonymous catalog keeps its public-root instance. Home, authentication, catalog and desktop-client pages use the same implementation so fine-pointer tracking, interactive-control scaling, input avoidance, reduced-motion handling and listener cleanup remain consistent.
 - Do not display an unconnected reserved-balance metric as a hardcoded zero.
+
+- `TerminalRequests` uses `getUserRequestOutcomes` and the aggregated `/api/log/self/requests` total/items directly. Its page state is scoped to user ID and start/end timestamps; a changed scope derives page 1 during render, before any query, rather than resetting in an effect. Keep `getUserRequestLogs` on raw `/api/log/self` with consume/error types for the developer workbench, including its request-ID filter.
+- Terminal theme button accessible names use the reactive `t()` with existing `Switch to dark mode` / `Switch to light mode` keys.
 
 ### Validation & Error Matrix
 | Input/state | Behavior |

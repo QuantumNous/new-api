@@ -24,10 +24,20 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { ThemeProvider } from '@/context/theme-provider'
+import zhCN from '@/i18n/locales/zh.json'
 import { useAuthStore } from '@/stores/auth-store'
 import { createTestAuthBundle } from '@/test-utils/auth-bundle'
 
@@ -43,6 +53,7 @@ beforeEach(() => {
   client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   })
+  i18next.addResourceBundle('zhCN', 'translation', zhCN.translation, true, true)
 })
 
 afterEach(() => {
@@ -50,9 +61,10 @@ afterEach(() => {
   client.clear()
   window.localStorage.clear()
   vi.restoreAllMocks()
+  void i18next.changeLanguage('en')
 })
 
-async function renderLayout() {
+async function renderLayout(defaultTheme: 'dark' | 'light' = 'light') {
   const root = createRootRoute({
     component: () => (
       <TerminalLayout>
@@ -66,9 +78,11 @@ async function renderLayout() {
   })
   await router.load()
   render(
-    <QueryClientProvider client={client}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <ThemeProvider defaultTheme={defaultTheme}>
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </ThemeProvider>
   )
   await screen.findByRole('textbox', { name: 'Page draft' })
 }
@@ -226,4 +240,24 @@ describe('terminal sidebar transitions', () => {
       screen.getByRole('link', { name: 'Beginner guide' })
     ).toHaveAttribute('href', '/beginner-guide')
   })
+
+  it.each([
+    ['light', 'Switch to dark mode', '切换深色模式'],
+    ['dark', 'Switch to light mode', '切换浅色模式'],
+  ] as const)(
+    'localizes the %s theme button when the language changes',
+    async (theme, englishName, chineseName) => {
+      await i18next.changeLanguage('en')
+      await renderLayout(theme)
+
+      expect(screen.getByRole('button', { name: englishName })).toBeVisible()
+      await act(async () => {
+        await i18next.changeLanguage('zhCN')
+      })
+
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: chineseName })).toBeVisible()
+      )
+    }
+  )
 })

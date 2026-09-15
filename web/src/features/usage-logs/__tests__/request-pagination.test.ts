@@ -58,10 +58,16 @@ describe('request history pagination', () => {
       }
     }
 
-    const result = await getUserRequestLogs({ p: 100, page_size: 50 })
+    const result = await getUserRequestLogs({
+      p: 100,
+      page_size: 50,
+      request_id: 'retry-to-inspect',
+    })
 
     expect(result.data?.page).toBe(100)
     expect(requests).toHaveLength(1)
+    expect(requests[0].pathname).toBe('/api/log/self')
+    expect(requests[0].searchParams.get('request_id')).toBe('retry-to-inspect')
     expect(requests[0].searchParams.get('types')).toBe('2,5')
     expect(requests[0].searchParams.get('p')).toBe('100')
     expect(requests[0].searchParams.get('page_size')).toBe('50')

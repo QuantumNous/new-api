@@ -31,7 +31,7 @@ import dayjs from '@/lib/dayjs'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { getUserRequestLogs } from '../api'
+import { getUserRequestOutcomes } from '../api'
 import { LOG_TYPE_ENUM } from '../constants'
 import { usageLogSchema, type UsageLog } from '../data/schema'
 import { useUsageSummary } from '../hooks/use-usage-summary'
@@ -40,10 +40,7 @@ import {
   getLogChargedQuota,
 } from '../lib/cost-comparison'
 import { parseLogOther } from '../lib/format'
-import {
-  collapseRequestOutcomes,
-  isFailedRequest,
-} from '../lib/request-details'
+import { isFailedRequest } from '../lib/request-details'
 import { isPerCallBilling } from '../lib/utils'
 import { TerminalRequestDetails } from './terminal-request-details'
 
@@ -60,10 +57,16 @@ export function TerminalRequests() {
   const [filter, setFilter] = useState<RequestFilter>('all')
   const [selectedLog, setSelectedLog] = useState<UsageLog | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
-  const [page, setPage] = useState(1)
   const userId = useAuthStore((state) => state.auth.user?.id)
   const summary = useUsageSummary(1)
   const { start, end } = summary
+  const scope = `${userId}:${start.unix()}:${end.unix()}`
+  const [pagination, setPagination] = useState({ scope, page: 1 })
+  const page = pagination.scope === scope ? pagination.page : 1
+  // Reset before querying so a new account/day never fetches the old page.
+  if (pagination.scope !== scope) {
+    setPagination({ scope, page: 1 })
+  }
   const requestTimeFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(toIntlLocale(i18n.language), {
@@ -78,7 +81,7 @@ export function TerminalRequests() {
   const logsQuery = useQuery({
     queryKey: ['terminal', 'requests', userId, start.unix(), end.unix(), page],
     queryFn: async () => {
-      const result = await getUserRequestLogs({
+      const result = await getUserRequestOutcomes({
         p: page,
         page_size: 50,
         start_timestamp: start.unix(),
@@ -93,7 +96,7 @@ export function TerminalRequests() {
       })
       return {
         total: result.data.total,
-        items: collapseRequestOutcomes(items),
+        items,
       }
     },
   })
@@ -331,7 +334,7 @@ export function TerminalRequests() {
             className='ci-button ci-button--ghost ci-button--size-xs'
             disabled={page === 1 || logsQuery.isFetching}
             onClick={() => {
-              setPage(page - 1)
+              setPagination({ scope, page: page - 1 })
             }}
           >
             {t('Previous')}
@@ -346,7 +349,7 @@ export function TerminalRequests() {
               page * 50 >= (logsQuery.data?.total ?? 0) || logsQuery.isFetching
             }
             onClick={() => {
-              setPage(page + 1)
+              setPagination({ scope, page: page + 1 })
             }}
           >
             {t('Next')}

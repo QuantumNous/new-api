@@ -87,16 +87,29 @@ type UserRequestLogsParams = Omit<
   'username' | 'channel' | 'type'
 >
 
-const REQUEST_LOG_TYPES = [LOG_TYPE_ENUM.CONSUME, LOG_TYPE_ENUM.ERROR] as const
-
 export async function getUserRequestLogs(
   params: UserRequestLogsParams = {}
 ): Promise<GetLogsResponse> {
   return fetchLogs(
     '/api/log',
-    { ...params, types: [...REQUEST_LOG_TYPES] },
+    { ...params, types: [LOG_TYPE_ENUM.CONSUME, LOG_TYPE_ENUM.ERROR] },
     false
   )
+}
+
+export async function getUserRequestOutcomes(
+  params: Pick<
+    GetLogsParams,
+    'p' | 'page_size' | 'start_timestamp' | 'end_timestamp'
+  > = {}
+): Promise<GetLogsResponse> {
+  const queryParams = buildQueryParams({
+    p: params.p || 1,
+    page_size: params.page_size || 20,
+    ...params,
+  })
+  const response = await api.get(`/api/log/self/requests?${queryParams}`)
+  return response.data
 }
 
 export const getLogStats = (params: GetLogStatsParams = {}) =>

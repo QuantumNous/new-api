@@ -82,14 +82,20 @@ export function useGuideEnvironment(
     })),
   })
 
+  const pricingModels = useMemo(
+    () =>
+      Array.isArray(pricingQuery.data?.data) ? pricingQuery.data.data : [],
+    [pricingQuery.data]
+  )
+
   const compatibleModels = useMemo(
     () =>
       filterModelsForAudience(
         modelsQuery.data?.success ? (modelsQuery.data.data ?? []) : [],
-        pricingQuery.data?.success ? pricingQuery.data.data : [],
+        pricingModels,
         audience
       ),
-    [audience, modelsQuery.data, pricingQuery.data]
+    [audience, modelsQuery.data, pricingModels]
   )
   const selectedModel = compatibleModels.includes(requested.model ?? '')
     ? (requested.model ?? '')
@@ -116,7 +122,9 @@ export function useGuideEnvironment(
     pricingQuery.isError ||
     modelsQuery.data?.success === false ||
     groupsQuery.data?.success === false ||
-    pricingQuery.data?.success === false
+    pricingQuery.data?.success === false ||
+    (pricingQuery.data?.success === true &&
+      !Array.isArray(pricingQuery.data.data))
   const groupError = groupModelQueries.some(
     (query) => query.isError || query.data?.success === false
   )
@@ -131,7 +139,7 @@ export function useGuideEnvironment(
   else if (loading) status = 'loading'
   else if (!selectedModel || !selectedGroup) status = 'empty'
 
-  const selectedPricing = pricingQuery.data?.data?.find(
+  const selectedPricing = pricingModels.find(
     (model) => model.model_name === selectedModel
   )
   const verified = status === 'ready'

@@ -235,4 +235,33 @@ describe('useGuideEnvironment', () => {
       verified: false,
     })
   })
+
+  it.each([
+    { success: true },
+    { success: true, data: {} },
+    { success: true, data: null },
+    { success: true, data: 'invalid' },
+    { success: true, data: 7 },
+    { success: true, data: false },
+  ])(
+    'treats a successful pricing response without an array payload as an error',
+    async (response) => {
+      vi.mocked(getPricing).mockResolvedValue(
+        response as Awaited<ReturnType<typeof getPricing>>
+      )
+
+      const { result } = renderHook(
+        () => useGuideEnvironment('all', { platform: 'macos' }, vi.fn()),
+        { wrapper }
+      )
+
+      await waitFor(() => expect(result.current.status).toBe('error'))
+      expect(result.current.runtime).toMatchObject({
+        model: '<model>',
+        group: '<group>',
+        verified: false,
+      })
+      expect(result.current.retry).toEqual(expect.any(Function))
+    }
+  )
 })

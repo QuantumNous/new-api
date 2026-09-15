@@ -46,9 +46,9 @@ func GetUserLogSummary(ctx context.Context, userID int, start, end int64, timezo
 	days := make(map[string]*DailyLogSummary)
 	location := time.FixedZone("report", timezoneOffset*60)
 	// Keep only the current request outcome; ordered rows make retries adjacent.
-	var previousID string
+	var previousLog *Log
 	var previousDay *DailyLogSummary
-	var previousFailed, previousConsume bool
+	var previousFailed bool
 	for rows.Next() {
 		var log Log
 		if err := LOG_DB.ScanRows(rows, &log); err != nil {
@@ -97,10 +97,8 @@ func GetUserLogSummary(ctx context.Context, userID int, start, end int64, timezo
 			day = &DailyLogSummary{Date: date}
 			days[date] = day
 		}
-		sameRequest := log.RequestId != "" && log.RequestId == previousID
-		// A consume row is the settled outcome, even if an asynchronous retry
-		// error was persisted later. Among consume rows use the latest one.
-		replaceOutcome := !sameRequest || !previousConsume || log.Type == LogTypeConsume
+		sameRequest := log.RequestId != "" && previousLog != nil && log.RequestId == previousLog.RequestId
+		replaceOutcome := !sameRequest || compareRequestOutcomes(&log, previousLog) > 0
 		if sameRequest && replaceOutcome {
 			for _, totals := range []*LogSummaryTotals{&result.LogSummaryTotals, &previousDay.LogSummaryTotals} {
 				totals.Requests--
@@ -120,8 +118,8 @@ func GetUserLogSummary(ctx context.Context, userID int, start, end int64, timezo
 					totals.Succeeded++
 				}
 			}
-			previousID, previousDay = log.RequestId, day
-			previousFailed, previousConsume = failed, log.Type == LogTypeConsume
+			previousLog, previousDay = &log, day
+			previousFailed = failed
 		}
 		for _, totals := range []*LogSummaryTotals{&result.LogSummaryTotals, &day.LogSummaryTotals} {
 			if log.Type == LogTypeConsume {

@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import utc from 'dayjs/plugin/utc'
+import { useEffect, useState } from 'react'
 
 import dayjs from '@/lib/dayjs'
 import { useAuthStore } from '@/stores/auth-store'
@@ -29,7 +30,17 @@ dayjs.extend(utc)
 export function useUsageSummary(days: 1 | 7 | 10) {
   const userId = useAuthStore((state) => state.auth.user?.id)
   // Match the server's fixed-offset day buckets, including across DST changes.
-  const now = dayjs()
+  const [now, setNow] = useState(() => dayjs())
+
+  useEffect(() => {
+    const nextMidnight = now.add(1, 'day').startOf('day')
+    const timer = window.setTimeout(
+      () => setNow(dayjs()),
+      Math.max(1, nextMidnight.valueOf() - now.valueOf())
+    )
+    return () => window.clearTimeout(timer)
+  }, [now])
+
   const timezoneOffset = now.utcOffset()
   const today = dayjs.utc(now.format('YYYY-MM-DD'))
   const start = today

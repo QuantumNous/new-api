@@ -64,4 +64,18 @@ describe('recharge price display', () => {
     expect(formatPerMillionTokens(0)).toBe('¥0/M')
     expect(formatPerMillionTokens(Number.NaN)).toBe('—')
   })
+
+  it.each(['USD', 'TOKENS', 'CUSTOM'] as const)(
+    'keeps catalog amounts in CNY when quota display type is %s',
+    (quotaDisplayType) => {
+      useSystemConfigStore.setState({
+        config: {
+          ...original,
+          currency: { ...original.currency, quotaDisplayType },
+        },
+      })
+
+      expect(formatPerMillionTokens(13.5)).toBe('¥13.5/M')
+    }
+  )
 })

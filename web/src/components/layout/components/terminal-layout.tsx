@@ -456,7 +456,7 @@ export function TerminalLayout(props: TerminalLayoutProps) {
               type='button'
               className='ci-appIconBtn'
               aria-label={
-                isDark ? 'Switch to light theme' : 'Switch to dark theme'
+                isDark ? t('Switch to light mode') : t('Switch to dark mode')
               }
               onClick={() => setTheme(isDark ? 'light' : 'dark')}
             >

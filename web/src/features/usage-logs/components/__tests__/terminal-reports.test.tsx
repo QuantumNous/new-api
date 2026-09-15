@@ -18,8 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  act,
   cleanup,
+  fireEvent,
   render,
+  renderHook,
   screen,
   waitFor,
   within,
@@ -32,6 +35,7 @@ import { api } from '@/lib/api'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 import { renderApp } from '@/test-utils/render-app'
 
+import { useUsageSummary } from '../../hooks/use-usage-summary'
 import { TerminalReports } from '../terminal-reports'
 import { TerminalRequests } from '../terminal-requests'
 
@@ -43,6 +47,7 @@ let requestedWindow = 0
 let requestedStart = 0
 let summaryRequests = 0
 let listWindow = 0
+let requestLogEndpoint = ''
 let requestedLogTypeSets: string[] = []
 let includeStandaloneError = false
 let requestOther: Record<string, unknown> = {}
@@ -86,6 +91,7 @@ beforeEach(() => {
   requestedWindow = 0
   summaryRequests = 0
   listWindow = 0
+  requestLogEndpoint = ''
   requestedLogTypeSets = []
   includeStandaloneError = false
   requestOther = { group_ratio: 0.5 }
@@ -126,7 +132,11 @@ beforeEach(() => {
         : { success: true, data: summary }
     } else if (url.pathname === '/api/token/') {
       data = { success: true, data: { items: [] } }
-    } else if (url.pathname === '/api/log/self') {
+    } else if (
+      url.pathname === '/api/log/self' ||
+      url.pathname === '/api/log/self/requests'
+    ) {
+      requestLogEndpoint = url.pathname
       listWindow =
         Number(url.searchParams.get('end_timestamp')) -
         Number(url.searchParams.get('start_timestamp')) +
@@ -166,7 +176,9 @@ beforeEach(() => {
       })
       if (
         includeStandaloneError &&
-        (requestedType === 5 || typesParam?.split(',').includes('5'))
+        (url.pathname === '/api/log/self/requests' ||
+          requestedType === 5 ||
+          typesParam?.split(',').includes('5'))
       ) {
         requestLogs.unshift({
           ...requestLogs[0],
@@ -209,6 +221,150 @@ afterEach(() => {
 })
 
 describe('terminal usage views', () => {
+  it('refreshes the usage summary window after local midnight', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(new Date(2026, 8, 8, 23, 59, 59, 900))
+    render(
+      <QueryClientProvider client={client}>
+        <TerminalRequests />
+      </QueryClientProvider>
+    )
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    const initialStart = requestedStart
+    expect(summaryRequests).toBe(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+
+    expect(summaryRequests).toBe(2)
+    expect(requestedStart).toBe(initialStart + 86400)
+    expect(screen.getByText(/Today \(2026-09-09\)/)).toBeVisible()
+  })
+
+  it('advances a ten-day window and removes its midnight timer on unmount', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(new Date(2026, 8, 8, 23, 59, 59, 900))
+    const { result, unmount } = renderHook(() => useUsageSummary(10), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(result.current.start.format('YYYY-MM-DD')).toBe('2026-08-30')
+    expect(result.current.end.format('YYYY-MM-DD')).toBe('2026-09-08')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(summaryRequests).toBe(2)
+    expect(result.current.start.format('YYYY-MM-DD')).toBe('2026-08-31')
+    expect(result.current.end.format('YYYY-MM-DD')).toBe('2026-09-09')
+    expect(requestedWindow).toBe(10 * 86400)
+    unmount()
+    client.clear()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(vi.getTimerCount()).toBe(0)
+    await vi.advanceTimersByTimeAsync(86400 * 1000)
+    expect(summaryRequests).toBe(2)
+  })
+
+  it('keeps the new day summary when the previous day response finishes late', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(new Date(2026, 8, 8, 23, 59, 59, 900))
+    const adapter = api.defaults.adapter
+    if (typeof adapter !== 'function') throw new Error('Expected test adapter')
+    let releaseOldResponse = () => {}
+    const oldResponseGate = new Promise<void>((resolve) => {
+      releaseOldResponse = resolve
+    })
+    api.defaults.adapter = async (config) => {
+      const isOldDay = new Date().getDate() === 8
+      const response = await adapter(config)
+      response.data = {
+        success: true,
+        data: { ...summary, requests: isOldDay ? 11 : 22 },
+      }
+      if (isOldDay) await oldResponseGate
+      return response
+    }
+    const { result } = renderHook(() => useUsageSummary(1), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(result.current.end.format('YYYY-MM-DD')).toBe('2026-09-09')
+    expect(result.current.data?.requests).toBe(22)
+    await act(async () => {
+      releaseOldResponse()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(result.current.data?.requests).toBe(22)
+  })
+
+  it('requests page one immediately when a paginated history crosses midnight', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(new Date(2026, 8, 8, 23, 59, 59, 900))
+    const adapter = api.defaults.adapter
+    if (typeof adapter !== 'function') throw new Error('Expected test adapter')
+    const newDayPages: number[] = []
+    api.defaults.adapter = async (config) => {
+      const response = await adapter(config)
+      const url = new URL(config.url ?? '', 'http://localhost')
+      if (
+        url.pathname === '/api/log/self/requests' &&
+        new Date().getDate() === 9
+      ) {
+        const page = Number(url.searchParams.get('p'))
+        newDayPages.push(page)
+        response.data.data = {
+          page,
+          page_size: 50,
+          total: 1,
+          items:
+            page === 1
+              ? [
+                  {
+                    ...response.data.data.items[0],
+                    model_name: 'new-day-request',
+                  },
+                ]
+              : [],
+        }
+      }
+      return response
+    }
+    await renderApp(<TerminalRequests />, client)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(screen.getByText('older-request')).toBeVisible()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(newDayPages).toEqual([1])
+    expect(screen.queryByText('2 / 1')).not.toBeInTheDocument()
+    expect(screen.getByText('new-day-request')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
+  })
+
   it('shows complete totals separately from a paginated request history', async () => {
     const user = userEvent.setup()
     render(
@@ -229,7 +385,8 @@ describe('terminal usage views', () => {
     ).toHaveTextContent('¥7')
     expect(requestedWindow).toBe(86400)
     expect(listWindow).toBe(86400)
-    expect(requestedLogTypeSets).toEqual(['2,5'])
+    expect(requestLogEndpoint).toBe('/api/log/self/requests')
+    expect(requestedLogTypeSets).toEqual([])
     expect(screen.queryByText('Successful + failed requests')).toBeNull()
     expect(
       screen.queryByText(

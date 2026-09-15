@@ -126,3 +126,52 @@ defer file.Close()
 info, err := file.Stat()
 return err == nil && info.Mode().IsRegular()
 ```
+
+## Authenticated request outcome pagination
+
+### Scope / Trigger
+Easy-console request history, distinct from raw developer/admin log pagination.
+
+### Signatures
+- `GET /api/log/self/requests?p=&page_size=&start_timestamp=&end_timestamp=`
+  requires `UserAuth` and returns `{success, data: {page, page_size, total, items}}`.
+- `model.GetUserRequestLogs(ctx, userID, start, end, startIdx, num)` owns collapse and passes the request context to `LOG_DB.WithContext(ctx)`.
+
+### Contracts
+- Require positive integer start/end timestamps, end >= start, and at most one fixed-offset day: `end - start < 86400`. Validate positivity and ordering before subtraction, reject parse errors and missing bounds before database access, and always apply both timestamp filters. Restrict rows to the authenticated user and consume/error types in that window.
+- For nonempty request IDs, consume always wins over error. Within a type,
+  choose the greatest `(created_at, id)`. Both paths use `compareRequestOutcomes`; exact time/ID ties use the greatest `(is_stream, other, quota, prompt_tokens, completion_tokens)` in that order, with true > false, raw-byte string order for other, and numeric order for amounts. This is deterministic tie resolution for zero-ID ClickHouse rows, not recovered insertion order. All compared fields must be loaded by both paths; total charge/token accumulation still includes every consume row.
+- Preserve every empty-ID historical row independently.
+- Keep chosen rows in database display order: ordinary databases use `id desc`;
+  ClickHouse uses `created_at desc, request_id desc`. Compute total and slice
+  only after collapse, then call `formatUserLogs` for display IDs and sanitization.
+- Preserve `/api/log/self` and its raw filtering/pagination callers.
+- The shared page parser permits negative legacy values. This slice-based
+  endpoint must reject nonpositive parsed page/page size and multiplication
+  overflow before calculating offsets. Keep the existing defaults and 100 cap.
+
+### Validation & Error Matrix
+| Input | Behavior |
+| --- | --- |
+| Retry error and consumption straddle 50 raw rows | One final consumption; total counts outcomes |
+| Past final page | Empty array with the correct outcome total |
+| Missing/invalid/nonpositive/reversed window, or >86400 inclusive seconds | `success: false`, no database access |
+| Canceled request | Query receives request context and stops |
+| Negative page/size or overflowing offset | `success: false`, no panic |
+| Database failure | `success: false`, `查询日志失败` |
+| Admin/root/audit metadata | Removed through `formatUserLogs` |
+
+### Good / Base / Bad Cases
+- Good: a later error write cannot displace a completed consumption.
+- Base: unrelated empty-ID logs remain separate.
+- Bad: pick settlement by insertion order when event timestamps differ.
+
+### Tests Required
+Cover >50 raw rows, repeated consumes/errors, out-of-order event times, empty
+IDs (including same-second zero-ID ties in both input orders), user/type/date isolation, totals/end pages, unsafe pagination, window bounds and cancellation, database
+errors, and ordinary/ClickHouse ordering and sanitization. SQLite branch tests
+for ClickHouse ordering do not substitute for a live ClickHouse integration run.
+
+### Wrong vs Correct
+- Wrong: paginate raw rows and collapse only the current page.
+- Correct: select final outcomes, preserve display order, count, then paginate.

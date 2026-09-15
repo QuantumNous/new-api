@@ -622,6 +622,51 @@ func GetUserLogs(userId int, logTypes []int, startTimestamp int64, endTimestamp 
 	return logs, total, err
 }
 
+func GetUserRequestLogs(ctx context.Context, userId int, startTimestamp int64, endTimestamp int64, startIdx int, num int) (logs []*Log, total int64, err error) {
+	tx := LOG_DB.WithContext(ctx).Where("logs.user_id = ?", userId).
+		Where("logs.type IN ?", []int{LogTypeConsume, LogTypeError}).
+		Where("logs.created_at >= ? AND logs.created_at <= ?", startTimestamp, endTimestamp)
+
+	order := "logs.id desc"
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		order = clickHouseLogOrder("logs.")
+	}
+	var rawLogs []*Log
+	if err = tx.Order(order).Find(&rawLogs).Error; err != nil {
+		common.SysError("failed to search user request logs: " + err.Error())
+		return nil, 0, errors.New("查询日志失败")
+	}
+
+	settled := make(map[string]*Log)
+	for _, log := range rawLogs {
+		if log.RequestId == "" {
+			continue
+		}
+		if previous := settled[log.RequestId]; previous == nil || compareRequestOutcomes(log, previous) > 0 {
+			settled[log.RequestId] = log
+		}
+	}
+
+	outcomes := make([]*Log, 0, len(rawLogs))
+	for _, log := range rawLogs {
+		if log.RequestId == "" || settled[log.RequestId] == log {
+			outcomes = append(outcomes, log)
+		}
+	}
+
+	total = int64(len(outcomes))
+	if startIdx >= len(outcomes) {
+		return []*Log{}, total, nil
+	}
+	endIdx := startIdx + num
+	if endIdx > len(outcomes) {
+		endIdx = len(outcomes)
+	}
+	logs = outcomes[startIdx:endIdx]
+	formatUserLogs(logs, startIdx)
+	return logs, total, nil
+}
+
 type Stat struct {
 	Quota int `json:"quota"`
 	Rpm   int `json:"rpm"`
