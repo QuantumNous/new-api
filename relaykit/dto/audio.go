@@ -14,6 +14,7 @@ type AudioRequest struct {
 	Voice          string          `json:"voice"`
 	Instructions   string          `json:"instructions,omitempty"`
 	ResponseFormat string          `json:"response_format,omitempty"`
+	Stream         *bool           `json:"stream,omitempty"`
 	Speed          *float64        `json:"speed,omitempty"`
 	StreamFormat   string          `json:"stream_format,omitempty"`
 	Metadata       json.RawMessage `json:"metadata,omitempty"`
@@ -41,7 +42,7 @@ func (r *AudioRequest) GetTokenCountMeta() *types.TokenCountMeta {
 }
 
 func (r *AudioRequest) IsStream(c *http.Request) bool {
-	return r.StreamFormat == "sse"
+	return r.Stream != nil && *r.Stream || r.StreamFormat == "sse"
 }
 
 func (r *AudioRequest) SetModelName(modelName string) {
