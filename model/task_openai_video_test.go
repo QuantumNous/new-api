@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -90,4 +92,41 @@ func TestTaskToOpenAIVideoStatusAndCompletedAt(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInitTaskSavesApiKeyForAnyChannel(t *testing.T) {
+	channelTypes := []int{
+		constant.ChannelTypeVolcEngine,
+		constant.ChannelTypeAli,
+		constant.ChannelTypeKling,
+		constant.ChannelTypeMiniMax,
+		constant.ChannelTypeSora,
+		constant.ChannelTypeGemini,
+		constant.ChannelTypeVertexAi,
+	}
+
+	for _, chType := range channelTypes {
+		info := &relaycommon.RelayInfo{
+			ChannelMeta: &relaycommon.ChannelMeta{
+				ChannelType: chType,
+				ApiKey:      "secret-api-key",
+			},
+			OriginModelName: "test-model",
+		}
+
+		task := InitTask(constant.TaskPlatform("doubao"), info)
+		require.NotNil(t, task)
+		assert.Equal(t, "secret-api-key", task.PrivateData.Key, "failed for channel type %d", chType)
+	}
+
+	// Empty ApiKey leaves privateData.Key empty
+	emptyInfo := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeVolcEngine,
+			ApiKey:      "",
+		},
+	}
+	emptyTask := InitTask(constant.TaskPlatform("doubao"), emptyInfo)
+	require.NotNil(t, emptyTask)
+	assert.Empty(t, emptyTask.PrivateData.Key)
 }

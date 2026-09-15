@@ -997,3 +997,67 @@ func TestUpdateBatchTasksPollClassification(t *testing.T) {
 		})
 	}
 }
+
+type keyRecordingPollingAdaptor struct {
+	scriptedPollingAdaptor
+	recordedKey string
+}
+
+func (a *keyRecordingPollingAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy string) (*http.Response, error) {
+	a.recordedKey = key
+	return a.scriptedPollingAdaptor.FetchTask(baseURL, key, task, proxy)
+}
+
+func TestUpdateVideoSingleTaskMultiKeyHandling(t *testing.T) {
+	truncate(t)
+	const channelID = 701
+	ch := &model.Channel{
+		Id:     channelID,
+		Type:   constant.ChannelTypeVolcEngine,
+		Name:   "volcengine-multi-key",
+		Key:    "ark-key-1\nark-key-2",
+		Status: common.ChannelStatusEnabled,
+		ChannelInfo: model.ChannelInfo{
+			IsMultiKey:   true,
+			MultiKeySize: 2,
+		},
+	}
+	require.NoError(t, model.DB.Create(ch).Error)
+
+	t.Run("uses saved privateData key when present", func(t *testing.T) {
+		task := &model.Task{
+			TaskID:    "task_with_private_key",
+			ChannelId: channelID,
+			Status:    model.TaskStatusInProgress,
+			PrivateData: model.TaskPrivateData{
+				Key:            "ark-key-saved",
+				UpstreamTaskID: "upstream-1",
+			},
+		}
+		adaptor := &keyRecordingPollingAdaptor{}
+		taskM := map[string]*model.Task{task.TaskID: task}
+
+		err := updateVideoSingleTask(context.Background(), adaptor, ch, task.TaskID, taskM)
+		require.NoError(t, err)
+		assert.Equal(t, "ark-key-saved", adaptor.recordedKey)
+		assert.NotContains(t, adaptor.recordedKey, "\n")
+	})
+
+	t.Run("falls back to first key without newline when privateData key is empty", func(t *testing.T) {
+		task := &model.Task{
+			TaskID:    "task_without_private_key",
+			ChannelId: channelID,
+			Status:    model.TaskStatusInProgress,
+			PrivateData: model.TaskPrivateData{
+				UpstreamTaskID: "upstream-2",
+			},
+		}
+		adaptor := &keyRecordingPollingAdaptor{}
+		taskM := map[string]*model.Task{task.TaskID: task}
+
+		err := updateVideoSingleTask(context.Background(), adaptor, ch, task.TaskID, taskM)
+		require.NoError(t, err)
+		assert.Equal(t, "ark-key-1", adaptor.recordedKey)
+		assert.NotContains(t, adaptor.recordedKey, "\n")
+	})
+}

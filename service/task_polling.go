@@ -485,11 +485,18 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		logger.LogError(ctx, fmt.Sprintf("Task %s not found in taskM", taskId))
 		return fmt.Errorf("task %s not found", taskId)
 	}
-	key := ch.Key
-
 	privateData := task.PrivateData
+	var key string
 	if privateData.Key != "" {
 		key = privateData.Key
+	} else if ch.ChannelInfo.IsMultiKey || strings.Contains(ch.Key, "\n") {
+		// Historic task with no saved single key: pick the first available key to avoid
+		// injecting a newline-delimited multi-key string into the Authorization header.
+		if keys := ch.GetKeys(); len(keys) > 0 {
+			key = keys[0]
+		}
+	} else {
+		key = ch.Key
 	}
 	snap := task.Snapshot()
 	resp, err := adaptor.FetchTask(baseURL, key, task, proxy)
