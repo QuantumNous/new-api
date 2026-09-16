@@ -203,8 +203,8 @@ func Distribute() func(c *gin.Context) {
 	}
 }
 
-// noAvailableChannelMessage explains a 503 for a task-plugin-claimed model.
-// It identifies all candidate plugins whose channels could serve the request.
+// noAvailableChannelMessage keeps task-plugin routing details in server logs,
+// while returning a public message without internal provider identities.
 func noAvailableChannelMessage(c *gin.Context, group, modelName string) string {
 	value, exists := c.Get(jsplugin.ContextKeyPinnedPlugin)
 	pinned, ok := value.(jsplugin.PinnedPlugin)
@@ -220,7 +220,8 @@ func noAvailableChannelMessage(c *gin.Context, group, modelName string) string {
 				}
 			}
 		}
-		return i18n.T(c, i18n.MsgDistributorNoAvailableChannelTaskPlugin, map[string]any{"Group": group, "Model": modelName, "Plugin": strings.Join(keys, ", ")})
+		logger.LogWarn(c, "task_plugin subsystem=distributor event=no_available_channel group=%q model=%q plugins=%q reason=no_eligible_channel", group, modelName, keys)
+		return i18n.T(c, i18n.MsgDistributorNoAvailableChannelTaskPlugin)
 	}
 	return i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": group, "Model": modelName})
 }
