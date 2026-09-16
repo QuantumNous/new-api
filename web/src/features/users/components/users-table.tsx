@@ -178,19 +178,6 @@ export function UsersTable() {
     globalFilter,
     pagination,
     sorting,
-    globalFilterFn: (row, _columnId, filterValue) => {
-      const searchValue = String(filterValue).toLowerCase()
-      const fields = [
-        row.getValue('username'),
-        row.original.display_name,
-        row.original.email,
-      ]
-      return fields.some((field) =>
-        String(field || '')
-          .toLowerCase()
-          .includes(searchValue)
-      )
-    },
     onPaginationChange,
     onGlobalFilterChange,
     onColumnFiltersChange,
@@ -215,7 +202,9 @@ export function UsersTable() {
       skeletonKeyPrefix='users-skeleton'
       applyHeaderSize
       toolbarProps={{
-        searchPlaceholder: t('Filter by username, name or email...'),
+        searchPlaceholder: t(
+          'Filter by user ID, username, display name or email...'
+        ),
         searchDebounceMs: 500,
         filters: [
           {

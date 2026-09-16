@@ -2467,7 +2467,7 @@
     "Filter by task ID": "タスクIDでフィルター",
     "Filter by token name": "トークン名でフィルター",
     "Filter by username": "ユーザー名でフィルター",
-    "Filter by username, name or email...": "ユーザー名、名前またはメールアドレスでフィルター...",
+    "Filter by user ID, username, display name or email...": "ユーザーID、ユーザー名、表示名、メールアドレスでフィルター...",
     "Filter Dashboard Models": "ダッシュボードモデルをフィルタリング",
     "Filter models by provider, group, type, endpoint, and tags.": "プロバイダー、グループ、タイプ、エンドポイント、タグでモデルを絞り込みます。",
     "Filter models by type, endpoint, vendor, group and tags": "タイプ、エンドポイント、ベンダー、グループ、タグでモデルをフィルタリング",
