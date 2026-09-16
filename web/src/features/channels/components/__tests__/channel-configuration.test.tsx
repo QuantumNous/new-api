@@ -304,6 +304,317 @@ test('an unavailable default URL endpoint keeps the fallback placeholder and all
   expect(onInternalServerError).not.toHaveBeenCalled()
 })
 
+test.each(['Connection & Models', 'Routing & Mapping'])(
+  'the mapping row picker uses models fetched from %s and applies only to its target',
+  async (section) => {
+    editingChannel.models = 'custom-model,second-alias'
+    editingChannel.model_mapping =
+      '{"custom-model":"previous-model","second-alias":"other-target"}'
+    const reply = deferredResponse<{
+      data: { success: boolean; data: string[] }
+    }>()
+    const originalGet = vi.mocked(api.get).getMockImplementation()
+    vi.mocked(api.get).mockImplementation(async (url, config) => {
+      if (url === '/api/channel/fetch_models/42') return reply.promise
+      return originalGet?.(url, config)
+    })
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValue({ data: { success: true } })
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    await screen.findByDisplayValue('Existing channel')
+    if (section === 'Connection & Models') {
+      await user.click(
+        screen.getByRole('button', { name: 'Fetch from Upstream' })
+      )
+      await act(async () => {
+        reply.resolve({
+          data: { success: true, data: ['gpt-a', 'gpt-b', 'gpt-a'] },
+        })
+      })
+    }
+    await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+    const mapping = within(screen.getByRole('group', { name: 'Model Mapping' }))
+    expect(
+      mapping.queryByRole('button', { name: 'Fetch from Upstream' })
+    ).not.toBeInTheDocument()
+    const row = within(
+      mapping.getAllByRole('group', { name: 'Upstream Model Name' })[1]
+    )
+    const trigger = row.getByRole('button', { name: 'Select Model' })
+    await user.click(trigger)
+    const picker = within(
+      await screen.findByRole('dialog', { name: 'Select Model' })
+    )
+    if (section === 'Routing & Mapping') {
+      expect(picker.getByText('Fetching models...')).toBeVisible()
+      expect(picker.getByRole('button', { name: 'Apply' })).toBeDisabled()
+      await act(async () => {
+        reply.resolve({
+          data: { success: true, data: ['gpt-a', 'gpt-b', 'gpt-a'] },
+        })
+      })
+    }
+    expect(await picker.findByRole('radio', { name: 'gpt-a' })).toBeVisible()
+    expect(picker.getByRole('button', { name: /^OpenAI/ })).toBeVisible()
+    await user.type(
+      picker.getByRole('textbox', { name: 'Search models...' }),
+      'gpt-b'
+    )
+    expect(
+      picker.queryByRole('radio', { name: 'gpt-a' })
+    ).not.toBeInTheDocument()
+    await user.click(picker.getByRole('radio', { name: 'gpt-b' }))
+    expect(screen.getByDisplayValue('other-target')).toBeInTheDocument()
+    await user.click(picker.getByRole('button', { name: 'Apply' }))
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Select Model' })
+      ).not.toBeInTheDocument()
+    )
+    expect(
+      row.getByRole('textbox', { name: 'Upstream Model Name' })
+    ).toHaveValue('gpt-b')
+    expect(mapping.getByDisplayValue('previous-model')).toBeVisible()
+    await waitFor(() => expect(trigger).toHaveFocus())
+    const modelRequests = vi
+      .mocked(api.get)
+      .mock.calls.filter(([url]) => url === '/api/channel/fetch_models/42')
+    expect(modelRequests).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+    await waitFor(() => expect(put).toHaveBeenCalled())
+    const payload = put.mock.calls[0]?.[1] as { model_mapping: string }
+    expect(payload).toMatchObject({ models: 'custom-model,second-alias' })
+    expect(JSON.parse(payload.model_mapping)).toEqual({
+      'custom-model': 'previous-model',
+      'second-alias': 'gpt-b',
+    })
+  }
+)
+
+test('canceling a keyboard selection restores focus without changing the mapping', async () => {
+  editingChannel.model_mapping = '{"custom-model":"previous-model"}'
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  const trigger = screen.getByRole('button', { name: 'Select Model' })
+  trigger.focus()
+  await user.keyboard('{Enter}')
+  const picker = within(
+    await screen.findByRole('dialog', { name: 'Select Model' })
+  )
+  const model = await picker.findByRole('radio', { name: 'upstream-model' })
+  model.focus()
+  await user.keyboard(' ')
+  expect(model).toBeChecked()
+  await user.keyboard('{Escape}')
+  await waitFor(() => expect(trigger).toHaveFocus())
+  expect(screen.getByDisplayValue('previous-model')).toBeVisible()
+  expect(screen.getByRole('dialog', { name: 'Edit Channel' })).toBeVisible()
+  await user.click(trigger)
+  expect(
+    await screen.findByRole('radio', { name: 'upstream-model' })
+  ).not.toBeChecked()
+})
+
+test('mapping discovery can retry failures and accepts a manual target after an empty result', async () => {
+  editingChannel.model_mapping = '{"custom-model":"previous-model"}'
+  const originalGet = vi.mocked(api.get).getMockImplementation()
+  const responses = [
+    { success: false, message: 'Model listing unavailable' },
+    { success: true, data: [] },
+  ]
+  vi.mocked(api.get).mockImplementation(async (url, config) => {
+    if (url === '/api/channel/fetch_models/42') {
+      return { data: responses.shift() }
+    }
+    return originalGet?.(url, config)
+  })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  await user.click(screen.getByRole('button', { name: 'Select Model' }))
+  const picker = within(
+    await screen.findByRole('dialog', { name: 'Select Model' })
+  )
+  expect(await picker.findByText('Model listing unavailable')).toBeVisible()
+  expect(picker.getByRole('button', { name: 'Apply' })).toBeDisabled()
+  await user.click(picker.getByRole('button', { name: 'Retry' }))
+  expect(
+    await picker.findByText('No models returned by the upstream')
+  ).toBeVisible()
+  expect(picker.getByRole('button', { name: 'Apply' })).toBeDisabled()
+  await user.click(picker.getByRole('button', { name: 'Cancel' }))
+  const target = screen.getByRole('textbox', { name: 'Upstream Model Name' })
+  await user.clear(target)
+  await user.type(target, 'manual-deployment')
+  await user.tab()
+  expect(target).toHaveValue('manual-deployment')
+})
+
+test('changing the discovery connection refreshes the row picker while preserving its mapping draft', async () => {
+  vi.spyOn(api, 'post')
+    .mockResolvedValueOnce({
+      data: { success: true, data: ['old-upstream-model'] },
+    })
+    .mockResolvedValueOnce({
+      data: { success: true, data: ['new-upstream-model'] },
+    })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness />)
+  await user.click(screen.getByRole('option', { name: /^OpenAI / }))
+  fireEvent.change(screen.getByLabelText('API Key *'), {
+    target: { value: 'first-key' },
+  })
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  const mapping = within(screen.getByRole('group', { name: 'Model Mapping' }))
+  await user.click(mapping.getByRole('button', { name: 'Add Mapping' }))
+  await user.type(mapping.getByPlaceholderText('gpt-3.5-turbo'), 'client-model')
+  await user.click(mapping.getByRole('button', { name: 'Select Model' }))
+  await user.click(
+    await screen.findByRole('radio', { name: 'old-upstream-model' })
+  )
+  await user.click(screen.getByRole('button', { name: 'Apply' }))
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Select Model' })
+    ).not.toBeInTheDocument()
+  )
+  await user.click(screen.getByRole('tab', { name: /Connection & Models/ }))
+  fireEvent.change(screen.getByLabelText('API Key *'), {
+    target: { value: 'second-key' },
+  })
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  const target = mapping.getByRole('textbox', { name: 'Upstream Model Name' })
+  expect(target).toHaveValue('old-upstream-model')
+  await user.click(mapping.getByRole('button', { name: 'Select Model' }))
+  expect(
+    await screen.findByRole('radio', { name: 'new-upstream-model' })
+  ).toBeVisible()
+  expect(
+    screen.queryByRole('radio', { name: 'old-upstream-model' })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Cancel' }))
+  expect(target).toHaveValue('old-upstream-model')
+})
+
+test.each([false, true])(
+  'mapping discovery respects channel operation permission (%s)',
+  async (operate) => {
+    editingChannel.model_mapping = '{"custom-model":"previous-model"}'
+    useAuthStore.setState({
+      auth: {
+        ...originalAuth,
+        user: {
+          id: 10,
+          username: 'operator',
+          role: ROLE.ADMIN,
+          permissions: {
+            admin_permissions: {
+              channel: { read: true, write: true, operate },
+            },
+          },
+        },
+      },
+    })
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    await screen.findByDisplayValue('Existing channel')
+    await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+    const trigger = screen.getByRole('button', { name: 'Select Model' })
+    if (operate) {
+      expect(trigger).toBeEnabled()
+      await user.click(trigger)
+      expect(
+        await screen.findByRole('radio', { name: 'upstream-model' })
+      ).toBeVisible()
+    } else {
+      expect(trigger).toBeDisabled()
+      await user.click(trigger)
+      expect(
+        screen.queryByRole('dialog', { name: 'Select Model' })
+      ).not.toBeInTheDocument()
+      expect(api.get).not.toHaveBeenCalledWith(
+        '/api/channel/fetch_models/42',
+        expect.anything()
+      )
+      expect(
+        screen.getByRole('textbox', { name: 'Upstream Model Name' })
+      ).toBeEnabled()
+    }
+  }
+)
+
+test('opening a mapping picker without a new channel key focuses the missing connection field', async () => {
+  const post = vi.spyOn(api, 'post')
+  const user = userEvent.setup()
+  render(<ConfigurationHarness />)
+  await user.click(screen.getByRole('option', { name: /^OpenAI / }))
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  await user.click(screen.getByRole('button', { name: 'Add Mapping' }))
+  await user.click(screen.getByRole('button', { name: 'Select Model' }))
+  expect(
+    screen.queryByRole('dialog', { name: 'Select Model' })
+  ).not.toBeInTheDocument()
+  await waitFor(() => expect(screen.getByLabelText('API Key *')).toHaveFocus())
+  expect(post).not.toHaveBeenCalled()
+})
+
+test('closing a pending picker allows manual edits and a late model response does not overwrite them', async () => {
+  editingChannel.model_mapping = '{"custom-model":"previous-model"}'
+  const reply = deferredResponse<{
+    data: { success: boolean; data: string[] }
+  }>()
+  const originalGet = vi.mocked(api.get).getMockImplementation()
+  vi.mocked(api.get).mockImplementation(async (url, config) => {
+    if (url === '/api/channel/fetch_models/42') return reply.promise
+    return originalGet?.(url, config)
+  })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  await user.click(screen.getByRole('button', { name: 'Select Model' }))
+  const picker = within(
+    await screen.findByRole('dialog', { name: 'Select Model' })
+  )
+  expect(picker.getByRole('button', { name: 'Refresh' })).toBeDisabled()
+  await user.click(picker.getByRole('button', { name: 'Cancel' }))
+  const target = screen.getByRole('textbox', { name: 'Upstream Model Name' })
+  await user.clear(target)
+  await user.type(target, 'manual-target')
+  await act(async () => {
+    reply.resolve({ data: { success: true, data: ['upstream-model'] } })
+  })
+  expect(target).toHaveValue('manual-target')
+  expect(
+    screen.queryByRole('dialog', { name: 'Select Model' })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Select Model' }))
+  expect(
+    await screen.findByRole('radio', { name: 'upstream-model' })
+  ).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
+})
+
+test('channel types without discovery keep a manual mapping field without a picker button', async () => {
+  editingChannel.type = 999
+  editingChannel.model_mapping = '{"custom-model":"previous-model"}'
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(
+    screen.queryByRole('button', { name: 'Select Model' })
+  ).not.toBeInTheDocument()
+  const target = screen.getByRole('textbox', { name: 'Upstream Model Name' })
+  await user.type(target, '-edited')
+  expect(target).toHaveValue('previous-model-edited')
+})
+
 test('model mapping help opens on click, stays open after pointer exit, and closes without dismissing the channel', async () => {
   const user = userEvent.setup()
   render(<ConfigurationHarness currentRow={editingChannel} />)

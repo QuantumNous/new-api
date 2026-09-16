@@ -44,6 +44,44 @@ test('external mapping changes update the editor without emitting an edit', () =
   expect(onChange).not.toHaveBeenCalled()
 })
 
+test('manual mapping targets remain editable without an upstream picker', async () => {
+  const user = userEvent.setup()
+  const onChange = vi.fn()
+  render(
+    <ModelMappingEditor
+      value='{"client-model":"previous-model"}'
+      onChange={onChange}
+    />
+  )
+  const target = screen.getByRole('textbox', { name: 'Upstream Model Name' })
+  await user.clear(target)
+  await user.type(target, 'custom-deployment')
+  await user.tab()
+  expect(JSON.parse(onChange.mock.lastCall?.[0] ?? '{}')).toEqual({
+    'client-model': 'custom-deployment',
+  })
+  expect(
+    screen.queryByRole('button', { name: 'Select Model' })
+  ).not.toBeInTheDocument()
+})
+
+test('disabled mapping fields reject manual edits', async () => {
+  const user = userEvent.setup()
+  const onChange = vi.fn()
+  render(
+    <ModelMappingEditor
+      value='{"client-model":"previous-model"}'
+      onChange={onChange}
+      disabled
+    />
+  )
+  const target = screen.getByRole('textbox', { name: 'Upstream Model Name' })
+  expect(target).toBeDisabled()
+  await user.type(target, 'changed')
+  expect(onChange).not.toHaveBeenCalled()
+  expect(target).toHaveValue('previous-model')
+})
+
 test('language changes preserve draft mappings and explain the same direction in JSON mode', async () => {
   const i18n = createInstance()
   await i18n.init({

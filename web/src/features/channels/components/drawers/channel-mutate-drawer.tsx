@@ -208,6 +208,7 @@ import { ParamOverrideEditorDialog } from '../dialogs/param-override-editor-dial
 import { StatusCodeRiskDialog } from '../dialogs/status-code-risk-dialog'
 import { ModelMappingEditor } from '../model-mapping-editor'
 import { ResponsesWebSocketSetting } from '../responses-websocket-setting'
+import { UpstreamModelPicker } from '../upstream-model-picker'
 import { UpstreamModelSelection } from '../upstream-model-selection'
 import {
   ChannelConfiguration,
@@ -1146,7 +1147,7 @@ export function ChannelMutateDrawer({
     request: previewModels ? previewRequest : savedRequest,
   })
   const fetchDiscoveredModels = discovery.fetch
-  const handleFetchModels = useCallback(async () => {
+  const handleFetchModels = useCallback(() => {
     const type = form.getValues('type')
     if (!MODEL_FETCHABLE_TYPES.has(type)) {
       toast.error(t('This channel type does not support fetching models'))
@@ -1169,7 +1170,7 @@ export function ChannelMutateDrawer({
       setPendingErrorFocus('key')
       return
     }
-    await fetchDiscoveredModels()
+    return fetchDiscoveredModels()
   }, [isEditing, canDiscoverModels, form, t, fetchDiscoveredModels])
 
   // Handle model operations
@@ -2083,6 +2084,96 @@ export function ChannelMutateDrawer({
     </div>
   )
 
+  const modelDiscoveryControls = MODEL_FETCHABLE_TYPES.has(currentType) && (
+    <>
+      <Button
+        type='button'
+        variant='outline'
+        size='sm'
+        onClick={handleFetchModels}
+        disabled={
+          !canDiscoverModels || isSubmitting || discovery.status === 'loading'
+        }
+      >
+        <Sparkles className='mr-2 h-4 w-4' aria-hidden='true' />
+        {t('Fetch from Upstream')}
+      </Button>
+      {!canDiscoverModels && (
+        <span className='text-muted-foreground basis-full text-xs'>
+          {t('No permission to perform this action')}
+        </span>
+      )}
+    </>
+  )
+
+  const modelDiscoveryFeedback = (
+    <>
+      {discovery.status === 'loading' && (
+        <LoadingState
+          className='min-h-0 py-4'
+          message={t('Fetching models...')}
+        />
+      )}
+      {discovery.status === 'error' && (
+        <ErrorState
+          className='min-h-0 p-3'
+          title={t('Failed to fetch models')}
+          description={getServerErrorMessage(
+            discovery.error,
+            t('Failed to fetch models')
+          )}
+          onRetry={() => {
+            void handleFetchModels()
+          }}
+        />
+      )}
+      {discovery.status === 'stale' && (
+        <Alert>
+          <AlertDescription>
+            {t(
+              'Connection settings changed. Fetch models again to refresh the list.'
+            )}
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              onClick={handleFetchModels}
+            >
+              {t('Fetch Models')}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      {discovery.status === 'success' && discovery.models.length === 0 && (
+        <EmptyState
+          className='min-h-0 p-3'
+          title={t('No models returned by the upstream')}
+          description={t('You can add models manually or try fetching again.')}
+          action={
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              onClick={handleFetchModels}
+            >
+              {t('Retry')}
+            </Button>
+          }
+        />
+      )}
+      {isEditing && !previewModels && (
+        <p className='text-muted-foreground text-xs'>
+          {t('Model discovery uses the saved channel connection settings.')}
+        </p>
+      )}
+      {!isEditing && isBatchMode && (
+        <p className='text-muted-foreground text-xs'>
+          {t('Model discovery uses the first key; other keys are not tested.')}
+        </p>
+      )}
+    </>
+  )
+
   const modelMappingFields = (
     <div
       role='group'
@@ -2161,7 +2252,20 @@ export function ChannelMutateDrawer({
                 onChange={field.onChange}
                 disabled={isSubmitting}
                 sourceModelOptions={currentModelsArray}
-                targetModelOptions={modelOptions.map((option) => option.value)}
+                renderTargetPicker={
+                  MODEL_FETCHABLE_TYPES.has(currentType)
+                    ? (value, onSelect) => (
+                        <UpstreamModelPicker
+                          value={value}
+                          onSelect={onSelect}
+                          discovery={discovery}
+                          onFetch={handleFetchModels}
+                          feedback={modelDiscoveryFeedback}
+                          disabled={isSubmitting || !canDiscoverModels}
+                        />
+                      )
+                    : undefined
+                }
               />
             </FormControl>
             {modelMappingGuardrail.invalidJson && (
@@ -2854,62 +2958,8 @@ export function ChannelMutateDrawer({
 
             {MODEL_FETCHABLE_TYPES.has(currentType) && (
               <div aria-live='polite' className='mt-4 space-y-3'>
-                {discovery.status === 'loading' && (
-                  <LoadingState
-                    className='min-h-0 py-4'
-                    message={t('Fetching models...')}
-                  />
-                )}
-                {discovery.status === 'error' && (
-                  <ErrorState
-                    className='min-h-0 p-3'
-                    title={t('Failed to fetch models')}
-                    description={getServerErrorMessage(
-                      discovery.error,
-                      t('Failed to fetch models')
-                    )}
-                    onRetry={() => {
-                      void handleFetchModels()
-                    }}
-                  />
-                )}
-                {discovery.status === 'stale' && (
-                  <Alert>
-                    <AlertDescription>
-                      {t(
-                        'Connection settings changed. Fetch models again to refresh the list.'
-                      )}
-                      <Button
-                        type='button'
-                        variant='outline'
-                        size='sm'
-                        onClick={handleFetchModels}
-                      >
-                        {t('Fetch Models')}
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
-                )}
-                {discovery.status === 'success' &&
-                  discovery.models.length === 0 && (
-                    <EmptyState
-                      className='min-h-0 p-3'
-                      title={t('No models returned by the upstream')}
-                      description={t(
-                        'You can add models manually or try fetching again.'
-                      )}
-                      action={
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          onClick={handleFetchModels}
-                        >
-                          {t('Retry')}
-                        </Button>
-                      }
-                    />
-                  )}
+                {configurationSection === 'connection' &&
+                  modelDiscoveryFeedback}
                 {discovery.status === 'success' &&
                   discovery.models.length > 0 && (
                     <UpstreamModelSelection
@@ -2926,20 +2976,6 @@ export function ChannelMutateDrawer({
                       redirectSourceModels={redirectModelKeyList}
                     />
                   )}
-                {isEditing && !previewModels && (
-                  <p className='text-muted-foreground text-xs'>
-                    {t(
-                      'Model discovery uses the saved channel connection settings.'
-                    )}
-                  </p>
-                )}
-                {!isEditing && isBatchMode && (
-                  <p className='text-muted-foreground text-xs'>
-                    {t(
-                      'Model discovery uses the first key; other keys are not tested.'
-                    )}
-                  </p>
-                )}
               </div>
             )}
 
@@ -2965,27 +3001,7 @@ export function ChannelMutateDrawer({
                   <FileText className='mr-2 h-4 w-4' aria-hidden='true' />
                   {t('Fill Related Models')}
                 </Button>
-                {MODEL_FETCHABLE_TYPES.has(currentType) && (
-                  <>
-                    <Button
-                      type='button'
-                      variant='outline'
-                      size='sm'
-                      onClick={handleFetchModels}
-                      disabled={
-                        !canDiscoverModels || discovery.status === 'loading'
-                      }
-                    >
-                      <Sparkles className='mr-2 h-4 w-4' aria-hidden='true' />
-                      {t('Fetch from Upstream')}
-                    </Button>
-                    {!canDiscoverModels && (
-                      <span className='text-muted-foreground basis-full text-xs'>
-                        {t('No permission to perform this action')}
-                      </span>
-                    )}
-                  </>
-                )}
+                {modelDiscoveryControls}
                 <Button
                   type='button'
                   variant='outline'

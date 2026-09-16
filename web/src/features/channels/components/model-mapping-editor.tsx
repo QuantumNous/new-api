@@ -24,6 +24,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -31,6 +32,11 @@ import { JsonCodeEditor } from '@/components/json-code-editor'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/ui/input-group'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 type ModelMappingEditorProps = {
@@ -38,7 +44,10 @@ type ModelMappingEditorProps = {
   onChange: (value: string) => void
   disabled?: boolean
   sourceModelOptions?: string[]
-  targetModelOptions?: string[]
+  renderTargetPicker?: (
+    value: string,
+    onSelect: (model: string) => void
+  ) => ReactNode
 }
 
 type MappingRow = {
@@ -69,12 +78,12 @@ function getDuplicateSources(rows: MappingRow[]): string[] {
 export function ModelMappingEditor(props: ModelMappingEditorProps) {
   const { t } = useTranslation()
   const sourceListId = useId()
-  const targetListId = useId()
   const [mode, setMode] = useState<'visual' | 'json'>('visual')
   const [rows, setRows] = useState<MappingRow[]>([])
   const [jsonValue, setJsonValue] = useState(props.value)
   const [jsonError, setJsonError] = useState<string | null>(null)
   const nextRowIdRef = useRef(0)
+  const lastEmittedValueRef = useRef<string | null>(null)
   const duplicateSources = useMemo(() => getDuplicateSources(rows), [rows])
 
   const createRowId = () => {
@@ -134,6 +143,9 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
   }
 
   const syncExternalValue = useEffectEvent(() => {
+    // Keep incomplete visual rows when the form echoes our own JSON update.
+    if (props.value === lastEmittedValueRef.current) return
+    lastEmittedValueRef.current = null
     setJsonValue(props.value)
     parseJsonToRows(props.value)
   })
@@ -156,20 +168,24 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
     return JSON.stringify(obj, null, 2)
   }
 
+  const updateMappingValue = (value: string) => {
+    lastEmittedValueRef.current = value
+    setJsonValue(value)
+    props.onChange(value)
+  }
+
   const syncRows = (updatedRows: MappingRow[]) => {
     setRows(updatedRows)
     const duplicates = getDuplicateSources(updatedRows)
     if (duplicates.length > 0) {
       setJsonError(t('Duplicate source model mappings are not allowed'))
-      setJsonValue(DUPLICATE_MAPPING_SENTINEL)
-      props.onChange(DUPLICATE_MAPPING_SENTINEL)
+      updateMappingValue(DUPLICATE_MAPPING_SENTINEL)
       return
     }
 
     const json = convertRowsToJson(updatedRows)
     setJsonError(null)
-    setJsonValue(json)
-    props.onChange(json)
+    updateMappingValue(json)
   }
 
   const handleAddRow = () => {
@@ -197,8 +213,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
   }
 
   const handleJsonChange = (newJson: string) => {
-    setJsonValue(newJson)
-    props.onChange(newJson)
+    updateMappingValue(newJson)
     parseJsonToRows(newJson)
   }
 
@@ -208,8 +223,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
       null,
       2
     )
-    setJsonValue(template)
-    props.onChange(template)
+    updateMappingValue(template)
     parseJsonToRows(template)
   }
 
@@ -219,8 +233,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
       const duplicates = getDuplicateSources(rows)
       if (duplicates.length === 0) {
         const json = convertRowsToJson(rows)
-        setJsonValue(json)
-        props.onChange(json)
+        updateMappingValue(json)
       }
       setMode('json')
       return
@@ -285,6 +298,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
                   className='grid grid-cols-[1fr_1fr_auto] gap-2'
                 >
                   <Input
+                    aria-label={t('Request Model Name')}
                     value={row.from}
                     onChange={(e) =>
                       handleRowChange(row.id, 'from', e.target.value)
@@ -293,15 +307,24 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
                     disabled={props.disabled}
                     list={sourceListId}
                   />
-                  <Input
-                    value={row.to}
-                    onChange={(e) =>
-                      handleRowChange(row.id, 'to', e.target.value)
-                    }
-                    placeholder='gpt-3.5-turbo-0125'
-                    disabled={props.disabled}
-                    list={targetListId}
-                  />
+                  <InputGroup aria-label={t('Upstream Model Name')}>
+                    <InputGroupInput
+                      aria-label={t('Upstream Model Name')}
+                      value={row.to}
+                      onChange={(event) =>
+                        handleRowChange(row.id, 'to', event.target.value)
+                      }
+                      placeholder='gpt-3.5-turbo-0125'
+                      disabled={props.disabled}
+                    />
+                    {props.renderTargetPicker && (
+                      <InputGroupAddon align='inline-end'>
+                        {props.renderTargetPicker(row.to, (model) =>
+                          handleRowChange(row.id, 'to', model)
+                        )}
+                      </InputGroupAddon>
+                    )}
+                  </InputGroup>
                   <Button
                     type='button'
                     variant='ghost'
@@ -356,13 +379,6 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
       {props.sourceModelOptions && props.sourceModelOptions.length > 0 && (
         <datalist id={sourceListId}>
           {props.sourceModelOptions.map((model) => (
-            <option key={model} value={model} />
-          ))}
-        </datalist>
-      )}
-      {props.targetModelOptions && props.targetModelOptions.length > 0 && (
-        <datalist id={targetListId}>
-          {props.targetModelOptions.map((model) => (
             <option key={model} value={model} />
           ))}
         </datalist>
